@@ -206,7 +206,7 @@ describe('GET /api/v1/accounts/search', () => {
     })
   })
 
-  it('rejects deep search offsets', async () => {
+  it('clamps deep search offsets to the maximum', async () => {
     const response = await GET(
       new NextRequest(
         'https://llun.test/api/v1/accounts/search?q=runner&offset=10001',
@@ -215,8 +215,14 @@ describe('GET /api/v1/accounts/search', () => {
       context
     )
 
-    expect(response.status).toBe(400)
-    expect(mockSearchAccountIds).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(mockSearchAccountIds).toHaveBeenCalledWith({
+      q: 'runner',
+      limit: 40,
+      offset: 10000,
+      localDomain: 'llun.test',
+      exactActorIds: []
+    })
   })
 
   it('does not webfinger when indexed search finds a mixed-case handle locally', async () => {

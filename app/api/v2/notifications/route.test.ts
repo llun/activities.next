@@ -109,16 +109,28 @@ describe('GET /api/v2/notifications', () => {
     )
   })
 
-  it('returns 422 for an invalid limit', async () => {
-    const request = new NextRequest(
-      'https://llun.test/api/v2/notifications?limit=0',
-      { method: 'GET' }
-    )
-    const response = await GET(request, { params: Promise.resolve({}) })
+  it.each([
+    ['below the minimum', '0', 1],
+    ['above the maximum', '100', 80]
+  ])(
+    'clamps an out-of-range limit (%s) instead of rejecting it',
+    async (_label, limit, clamped) => {
+      mockDatabase.getNotifications.mockResolvedValueOnce([])
 
-    expect(response.status).toBe(422)
-    expect(mockDatabase.getNotifications).not.toHaveBeenCalled()
-  })
+      const request = new NextRequest(
+        `https://llun.test/api/v2/notifications?limit=${limit}`,
+        { method: 'GET' }
+      )
+      const response = await GET(request, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      // The route over-fetches GROUP_OVERSCAN (5) rows per requested group, so
+      // the clamped limit reaches getNotifications as limit = clampedLimit * 5.
+      expect(mockDatabase.getNotifications).toHaveBeenCalledWith(
+        expect.objectContaining({ limit: clamped * 5 })
+      )
+    }
+  )
 
   it('anchors the next (max_id) Link on the last returned group most-recent id', async () => {
     mockDatabase.getNotifications.mockResolvedValueOnce([

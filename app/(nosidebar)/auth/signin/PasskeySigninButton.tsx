@@ -6,6 +6,8 @@ import { FC, useState } from 'react'
 import { Button } from '@/lib/components/ui/button'
 import { authClient } from '@/lib/services/auth/auth-client'
 
+import { passkeyErrorMessage } from './passkeyErrorMessage'
+
 export const PasskeySigninButton: FC = () => {
   const [error, setError] = useState<string>()
   const [loading, setLoading] = useState(false)
@@ -21,14 +23,9 @@ export const PasskeySigninButton: FC = () => {
     try {
       const result = await authClient.signIn.passkey({ autoFill: false })
       if (!result || result.error) {
-        const error = result?.error as
-          | { code?: string; message?: unknown }
-          | undefined
-        const code = error?.code
-        const msg = error?.message
-        if (code !== 'AUTH_CANCELLED' && typeof msg === 'string') {
-          setError(msg)
-        }
+        const code = (result?.error as { code?: string } | undefined)?.code
+        const message = passkeyErrorMessage(code)
+        if (message) setError(message)
         setLoading(false)
         return
       }

@@ -343,20 +343,36 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
   })
 
   it('returns bad request for invalid query params', async () => {
-    const response = await GET(createRequest('?limit=0'), {
+    const response = await GET(createRequest('?only_media=maybe'), {
       params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
     })
 
     expect(response.status).toBe(400)
   })
 
-  it('rejects limits above the Mastodon account statuses cap', async () => {
-    const response = await GET(createRequest('?limit=41'), {
-      params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
-    })
+  it.each([
+    // limit=0 clamps up to the minimum (1); the rest clamp down to the cap (40).
+    ['?limit=0', 1],
+    ['?limit=41', 40],
+    ['?limit=100&pinned=true', 40]
+  ])(
+    'clamps out-of-range %s instead of rejecting it',
+    async (query, expectedLimit) => {
+      const getActorStatusesSpy = vi.spyOn(database, 'getActorStatuses')
 
-    expect(response.status).toBe(400)
-  })
+      const response = await GET(createRequest(query), {
+        params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
+      })
+
+      expect(response.status).toBe(200)
+      // The clamped limit is what reaches the DB layer.
+      expect(getActorStatusesSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ limit: expectedLimit })
+      )
+
+      getActorStatusesSpy.mockRestore()
+    }
+  )
 
   it('allows OAuth tokens with read:statuses to read private owner statuses', async () => {
     mockStoredToken.mockResolvedValue({

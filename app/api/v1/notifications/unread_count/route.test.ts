@@ -63,16 +63,22 @@ describe('GET /api/v1/notifications/unread_count', () => {
     )
   })
 
-  it('returns 422 when limit exceeds the maximum', async () => {
+  it('clamps a limit above the maximum down to the maximum', async () => {
+    mockDatabase.getNotificationsCount.mockResolvedValueOnce(7)
+
     const request = new NextRequest(
       'https://llun.test/api/v1/notifications/unread_count?limit=1001',
       { method: 'GET' }
     )
 
     const response = await GET(request, { params: Promise.resolve({}) })
+    const data = await response.json()
 
-    expect(response.status).toBe(422)
-    expect(mockDatabase.getNotificationsCount).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(data).toEqual({ count: 7 })
+    expect(mockDatabase.getNotificationsCount).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 1000 })
+    )
   })
 
   it('maps and forwards type filters to the count query', async () => {
@@ -108,16 +114,22 @@ describe('GET /api/v1/notifications/unread_count', () => {
     )
   })
 
-  it('returns 422 when limit is a float', async () => {
+  it('truncates a fractional limit to an integer', async () => {
+    mockDatabase.getNotificationsCount.mockResolvedValueOnce(1)
+
     const request = new NextRequest(
       'https://llun.test/api/v1/notifications/unread_count?limit=1.5',
       { method: 'GET' }
     )
 
     const response = await GET(request, { params: Promise.resolve({}) })
+    const data = await response.json()
 
-    expect(response.status).toBe(422)
-    expect(mockDatabase.getNotificationsCount).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(data).toEqual({ count: 1 })
+    expect(mockDatabase.getNotificationsCount).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 1 })
+    )
   })
 
   it('caps account_id match count at the requested limit', async () => {

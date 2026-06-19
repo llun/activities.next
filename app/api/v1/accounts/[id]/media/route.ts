@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { getDatabase } from '@/lib/database'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { AppRouterParams } from '@/lib/services/guards/types'
+import { clampedLimit } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
@@ -26,7 +27,7 @@ interface Params {
 
 const MediaQueryParams = z.object({
   max_created_at: z.coerce.number().optional(),
-  limit: z.coerce.number().min(1).max(50).default(25).optional()
+  limit: clampedLimit(50, 25)
 })
 
 export const GET = traceApiRoute(
@@ -75,7 +76,7 @@ export const GET = traceApiRoute(
       })
     }
 
-    const { limit = 25, max_created_at: maxCreatedAt } = parsedParams.data
+    const { limit, max_created_at: maxCreatedAt } = parsedParams.data
 
     const attachments = await database.getAttachmentsForActor({
       actorId: id,

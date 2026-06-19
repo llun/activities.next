@@ -10,6 +10,7 @@ import {
   mastodonTypesToInternal
 } from '@/lib/services/notifications/notificationTypeMapping'
 import { NotificationType, Scope } from '@/lib/types/database/operations'
+import { clampedLimit } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_422,
@@ -30,13 +31,7 @@ const ARRAY_QUERY_PARAMS = new Set(['types', 'exclude_types', 'grouped_types'])
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const QueryParams = z.object({
-  limit: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(MAX_LIMIT)
-    .default(DEFAULT_LIMIT)
-    .optional(),
+  limit: clampedLimit(MAX_LIMIT, DEFAULT_LIMIT),
   types: z.array(z.string()).optional(),
   exclude_types: z.array(z.string()).optional(),
   grouped_types: z.array(z.string()).optional(),
@@ -89,7 +84,7 @@ export const GET = traceApiRoute(
     }
 
     const {
-      limit = DEFAULT_LIMIT,
+      limit,
       types,
       exclude_types: excludeTypes,
       grouped_types: groupedTypesMastodon,

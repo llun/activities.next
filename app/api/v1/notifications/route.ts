@@ -8,6 +8,7 @@ import { getMastodonNotification } from '@/lib/services/notifications/getMastodo
 import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
 import { mastodonTypesToInternal } from '@/lib/services/notifications/notificationTypeMapping'
 import { Scope } from '@/lib/types/database/operations'
+import { clampedLimit } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_422,
@@ -33,13 +34,7 @@ const NotificationQueryParams = z.object({
   max_id: z.string().optional(),
   since_id: z.string().optional(),
   min_id: z.string().optional(),
-  limit: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(MAX_LIMIT)
-    .default(DEFAULT_LIMIT)
-    .optional(),
+  limit: clampedLimit(MAX_LIMIT, DEFAULT_LIMIT),
   types: z.array(z.string()).optional(),
   exclude_types: z.array(z.string()).optional(),
   account_id: z.string().optional(),
@@ -107,7 +102,7 @@ export const GET = traceApiRoute(
     }
 
     const {
-      limit = DEFAULT_LIMIT,
+      limit,
       max_id: maxId,
       min_id: minId,
       since_id: sinceId,

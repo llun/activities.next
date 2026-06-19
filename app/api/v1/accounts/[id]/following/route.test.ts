@@ -94,4 +94,22 @@ describe('GET /api/v1/accounts/:id/following', () => {
     })
     expect(response.status).toBe(404)
   })
+
+  it.each([
+    { limit: '100', expected: 80 },
+    { limit: '0', expected: 1 }
+  ])(
+    'clamps an out-of-range limit=$limit to $expected instead of returning 400',
+    async ({ limit, expected }) => {
+      const getFollowingSpy = vi.spyOn(database, 'getFollowing')
+      const response = await GET(createRequest(ACTOR3_ID, `?limit=${limit}`), {
+        params: Promise.resolve({ id: urlToId(ACTOR3_ID) })
+      })
+
+      expect(response.status).toBe(200)
+      expect(getFollowingSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ limit: expected })
+      )
+    }
+  )
 })

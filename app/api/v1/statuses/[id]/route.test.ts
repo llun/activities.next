@@ -2765,10 +2765,17 @@ describe('GET /api/v1/statuses/[id]', () => {
       ])
     })
 
-    it.each(['0', '81', 'abc'])(
-      'returns bad request for invalid limit=%s',
-      async (limit) => {
+    it.each([
+      // The route requests limit + 1 to detect a next page, so the clamped
+      // limit (1 / 80 / fallback 40) reaches the DB as 2 / 81 / 41.
+      ['0', 2],
+      ['81', 81],
+      ['abc', 41]
+    ])(
+      'clamps out-of-range limit=%s instead of rejecting it',
+      async (limit, expectedDbLimit) => {
         mockGetServerSession.mockResolvedValue(null)
+        const getRebloggedBySpy = vi.spyOn(database, 'getRebloggedBy')
 
         const statusId = `${ACTOR1_ID}/statuses/post-1`
         const response = await getStatusRebloggedBy(
@@ -2780,7 +2787,12 @@ describe('GET /api/v1/statuses/[id]', () => {
           { params: Promise.resolve({ id: urlToId(statusId) }) }
         )
 
-        expect(response.status).toBe(400)
+        expect(response.status).toBe(200)
+        expect(getRebloggedBySpy).toHaveBeenCalledWith(
+          expect.objectContaining({ limit: expectedDbLimit })
+        )
+
+        getRebloggedBySpy.mockRestore()
       }
     )
 
@@ -3332,6 +3344,37 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(linkHeader).toContain('max_id=')
       expect(linkHeader).not.toContain('rel="prev"')
     })
+
+    it.each([
+      // The route requests limit + 1 to detect a next page, so the clamped
+      // limit (1 / 80 / fallback 40) reaches the DB as 2 / 81 / 41.
+      ['0', 2],
+      ['81', 81],
+      ['abc', 41]
+    ])(
+      'clamps out-of-range limit=%s instead of rejecting it',
+      async (limit, expectedDbLimit) => {
+        mockGetServerSession.mockResolvedValue(null)
+        const getFavouritedBySpy = vi.spyOn(database, 'getFavouritedBy')
+
+        const statusId = `${ACTOR1_ID}/statuses/post-1`
+        const response = await getStatusFavouritedBy(
+          new NextRequest(
+            `https://llun.test/api/v1/statuses/${urlToId(
+              statusId
+            )}/favourited_by?limit=${limit}`
+          ),
+          { params: Promise.resolve({ id: urlToId(statusId) }) }
+        )
+
+        expect(response.status).toBe(200)
+        expect(getFavouritedBySpy).toHaveBeenCalledWith(
+          expect.objectContaining({ limit: expectedDbLimit })
+        )
+
+        getFavouritedBySpy.mockRestore()
+      }
+    )
   })
 
   describe('edit sensitive/language', () => {
