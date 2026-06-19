@@ -1,0 +1,32 @@
+app/api/v1/passkeys/route.test.ts
+  s_fb4fdab06ac5dc::t_a03be52ded512b 124-142
+lib/services/auth/servedDomains.test.ts
+  s_fb4fdab06ac5dc::t_c76b8bcf19d8d8 47-68
+  s_fb4fdab06ac5dc::t_f7198809901284 1
+app/(timeline)/settings/account/PasskeyManager.tsx
+  s_fb4fdab06ac5dc::t_9038d44b9b91b2 36-43,45
+app/(timeline)/settings/account/page.tsx
+  s_fb4fdab06ac5dc::t_68534bad08b0cf 59-65
+  s_fb4fdab06ac5dc::t_51f88b0c58c02b 15-18
+lib/services/auth/servedDomains.ts
+  s_fb4fdab06ac5dc::t_cd726148f8feb7 54-66
+app/api/v1/passkeys/route.ts
+  s_fb4fdab06ac5dc::t_ba95a93768fdf7 63
+  s_fb4fdab06ac5dc::t_1913762cf8caf4 20-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "713082d41f340221e56849ab050f5eb868009714",
+  "prompts": {},
+  "sessions": {
+    "s_fb4fdab06ac5dc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aa0c8d3-b0d9-4f54-9cab-1ebc3dc7b845",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
