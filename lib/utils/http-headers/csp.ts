@@ -136,7 +136,10 @@ export const getContentSecurityPolicy = () => {
   // on a CDN alias domain; allow it explicitly so an operator with a strict
   // ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS allowlist doesn't block the logo.
   // Read via the sub-path host config (not the @/lib/config barrel) to keep the
-  // proxy's static import graph free of filesystem modules.
+  // proxy's static import graph free of filesystem modules. getCspSource
+  // normalizes a bare host to https, matching getBaseURL()'s default scheme; the
+  // two only diverge under ACTIVITIES_INSECURE_AUTH=true, which is local-dev-only
+  // (served over http from 'self') and must not be paired with a CDN-fronted host.
   const appOriginSource = getCspSource(getProxyHostConfig().host)
   const connectSources = Array.from(
     new Set([
