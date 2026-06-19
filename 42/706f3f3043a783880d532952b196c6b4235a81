@@ -1,0 +1,29 @@
+app/(timeline)/settings/account/PasskeyManager.test.tsx
+  s_fb4fdab06ac5dc::t_bdad8ccbe4116e 37
+  s_fb4fdab06ac5dc::t_76210bfcc62e4c 129-154,164
+  s_fb4fdab06ac5dc::t_186d191bac81b0 5-11
+  s_fb4fdab06ac5dc::t_b7aa15055ff6f1 14
+  s_fb4fdab06ac5dc::t_21e514957ffced 155-163
+app/(timeline)/settings/account/PasskeyManager.tsx
+  s_fb4fdab06ac5dc::t_8f63189b72a516 301-306
+  s_fb4fdab06ac5dc::t_10b53f7e23b9a8 336-339
+  s_fb4fdab06ac5dc::t_2399ee0a4c8586 109-110
+lib/services/auth/auth.ts
+  s_fb4fdab06ac5dc::t_6d212ff5558340 189-197,206-216
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "42706f3f3043a783880d532952b196c6b4235a81",
+  "prompts": {},
+  "sessions": {
+    "s_fb4fdab06ac5dc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aa0c8d3-b0d9-4f54-9cab-1ebc3dc7b845",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
