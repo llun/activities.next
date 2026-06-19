@@ -27,12 +27,13 @@ export const clampedLimit = (max: number, fallback: number, min = 1) => {
   const clamp = (value: number) =>
     Math.min(Math.max(Math.trunc(value), min), max)
   // Clamp the fallback once so it is in range even if a caller violates the
-  // precondition. `.catch` covers non-numeric/blank/non-finite input (NaN,
-  // Infinity, 'abc' — `z.coerce.number()` rejects those) and `.default` covers
-  // an absent value, so the transform only ever receives a finite number.
+  // precondition. `.finite()` makes the non-finite rejection explicit (NaN,
+  // Infinity, 1e500); `.catch` then maps those and non-numeric/blank input to
+  // the fallback, and `.default` covers an absent value — so the transform only
+  // ever receives a finite number.
   const safeFallback = clamp(fallback)
   return z
-    .preprocess(blankToUndefined, z.coerce.number())
+    .preprocess(blankToUndefined, z.coerce.number().finite())
     .transform((value) => clamp(value))
     .catch(safeFallback)
     .default(safeFallback)
@@ -51,11 +52,11 @@ export const clampedLimit = (max: number, fallback: number, min = 1) => {
  */
 export const clampedOffset = (max = Number.MAX_SAFE_INTEGER, fallback = 0) => {
   const clamp = (value: number) => Math.min(Math.max(Math.trunc(value), 0), max)
-  // See clampedLimit: `.catch`/`.default` handle non-finite/absent input, so the
-  // transform only receives a finite number.
+  // See clampedLimit: `.finite()` + `.catch`/`.default` handle non-finite/absent
+  // input, so the transform only receives a finite number.
   const safeFallback = clamp(fallback)
   return z
-    .preprocess(blankToUndefined, z.coerce.number())
+    .preprocess(blankToUndefined, z.coerce.number().finite())
     .transform((value) => clamp(value))
     .catch(safeFallback)
     .default(safeFallback)
