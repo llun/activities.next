@@ -241,9 +241,11 @@ const CoordField: FC<CoordFieldProps> = ({
       setDraft(formatCoordInput(value))
       return
     }
-    const clamped = clamp(parsed, min, max)
-    setDraft(clamped.toFixed(2))
-    onChange(clamped)
+    // Round before propagating so the parent state matches the displayed 2-dp
+    // value (and the precision used by serialization/validation) exactly.
+    const rounded = Number(clamp(parsed, min, max).toFixed(2))
+    setDraft(rounded.toFixed(2))
+    onChange(rounded)
   }
 
   return (
