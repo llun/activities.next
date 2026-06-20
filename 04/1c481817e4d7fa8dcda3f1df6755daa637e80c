@@ -1,0 +1,62 @@
+scripts/createMockFitnessData.ts
+  s_3f60008151784b::t_56d39eef699c13 9
+  s_3f60008151784b::t_4285a6c5919af8 1
+scripts/downloadProductionArchive.ts
+  s_3f60008151784b::t_4285a6c5919af8 1
+package.json
+  s_3f60008151784b::t_da098a621dd794 15
+scripts/listStravaWebhooks.ts
+  s_3f60008151784b::t_4285a6c5919af8 1
+scripts/createMockUser.ts
+  s_3f60008151784b::t_4285a6c5919af8 1
+scripts/repairStravaActivityFiles.ts
+  s_3f60008151784b::t_4285a6c5919af8 1
+scripts/retrigerStravaActivities.ts
+  s_3f60008151784b::t_4285a6c5919af8 1
+scripts/cleanupMediaStorage.ts
+  s_3f60008151784b::t_4285a6c5919af8 1
+scripts/createMockStatuses.ts
+  s_3f60008151784b::t_4285a6c5919af8 1
+scripts/recreateFitnessRouteHeatmaps.ts
+  s_3f60008151784b::t_4285a6c5919af8 1
+scripts/cleanupLegacyFitnessHeatmaps.ts
+  s_3f60008151784b::t_4285a6c5919af8 1
+scripts/rebuildSearchIndex.ts
+  s_3f60008151784b::t_4285a6c5919af8 1
+scripts/manageAdminRole.ts
+  s_3f60008151784b::t_4285a6c5919af8 1
+scripts/importStravaArchive.ts
+  s_3f60008151784b::t_4285a6c5919af8 1
+scripts/resumeStravaProcessing.ts
+  s_3f60008151784b::t_4285a6c5919af8 1
+scripts/fixAttachmentUrls.ts
+  s_3f60008151784b::t_4285a6c5919af8 1
+scripts/fixStuckFitnessProcessing.ts
+  s_3f60008151784b::t_4285a6c5919af8 1
+scripts/restoreProductionArchive.ts
+  s_3f60008151784b::t_4285a6c5919af8 1
+scripts/run.cjs
+  s_3f60008151784b::t_f77a8d7d5139d8 1-29
+scripts/cleanupLegacyHeatmapRegions.ts
+  s_3f60008151784b::t_f07ef662964c92 1
+AGENTS.md
+  s_3f60008151784b::t_a9930421eaff03 301-306
+scripts/runImportStravaActivity.ts
+  s_3f60008151784b::t_4285a6c5919af8 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "041c481817e4d7fa8dcda3f1df6755daa637e80c",
+  "prompts": {},
+  "sessions": {
+    "s_3f60008151784b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3a992b0b-32cd-410e-af78-a9eb383605b0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
