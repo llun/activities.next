@@ -261,6 +261,55 @@ describe('CollectionDatabase', () => {
       })
     })
 
+    it('returns only approved member actor ids (for the AP representation)', async () => {
+      await withFreshDatabase(async (database) => {
+        for (const name of ['owner', 'alice', 'bob']) {
+          await createLocalAccount(database, name)
+        }
+        const owner = await actor(database, 'owner')
+        const alice = await actor(database, 'alice')
+        const bob = await actor(database, 'bob')
+
+        const collection = await database.createCollection({
+          actorId: owner.id,
+          title: 'People'
+        })
+        await database.addCollectionMembers({
+          id: collection.id,
+          actorId: owner.id,
+          targetActorIds: [alice.id, bob.id]
+        })
+        // Pending → nothing federated yet.
+        expect(
+          await database.getApprovedCollectionMemberIds({
+            id: collection.id,
+            actorId: owner.id
+          })
+        ).toEqual([])
+
+        await database.setCollectionMemberState({
+          id: collection.id,
+          actorId: owner.id,
+          targetActorId: bob.id,
+          state: 'approved'
+        })
+        expect(
+          await database.getApprovedCollectionMemberIds({
+            id: collection.id,
+            actorId: owner.id
+          })
+        ).toEqual([bob.id])
+
+        // Not owned by another actor → empty (owner-scoped).
+        expect(
+          await database.getApprovedCollectionMemberIds({
+            id: collection.id,
+            actorId: alice.id
+          })
+        ).toEqual([])
+      })
+    })
+
     it('lists collections that contain a given account', async () => {
       await withFreshDatabase(async (database) => {
         for (const name of ['owner', 'alice']) {

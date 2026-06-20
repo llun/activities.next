@@ -25,6 +25,7 @@ import {
   CollectionMembersPage,
   CreateCollectionParams,
   DeleteCollectionParams,
+  GetApprovedCollectionMemberIdsParams,
   GetCollectionMemberCountsParams,
   GetCollectionMembersParams,
   GetCollectionParams,
@@ -608,6 +609,20 @@ export const CollectionSQLDatabaseMixin = (
       .orderBy('collections.createdAt', 'asc')
       .select('collections.*')
     return rows.map(fixCollectionRow)
+  },
+
+  async getApprovedCollectionMemberIds({
+    id,
+    actorId
+  }: GetApprovedCollectionMemberIdsParams) {
+    const seq = await getOwnedCollectionSeq(database, id, actorId)
+    if (seq === null) return []
+    const rows = await database('collection_members')
+      .where({ collectionSeq: seq, featureState: 'approved' })
+      .orderBy('createdAt', 'asc')
+      .orderBy('id', 'asc')
+      .select('targetActorId')
+    return rows.map((row) => row.targetActorId as string)
   },
 
   async getCollectionTimeline({

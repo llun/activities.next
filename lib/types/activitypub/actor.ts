@@ -26,6 +26,8 @@ export const APActor = z.object({
   outbox: z.string().url(),
   featured: ActorCollectionReference.optional(),
   featuredTags: ActorCollectionReference.optional(),
+  // FEP-7aa9: collection of the actor's public FeaturedCollection objects.
+  featuredCollections: ActorCollectionReference.optional(),
   preferredUsername: z.string(),
   name: z.string().optional(),
   summary: z.string().nullish(),
