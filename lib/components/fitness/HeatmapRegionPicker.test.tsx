@@ -61,6 +61,28 @@ describe('HeatmapRegionPicker', () => {
     })
   })
 
+  it('clamps an out-of-range coordinate when the field commits', () => {
+    const onChange = vi.fn()
+    render(<HeatmapRegionPicker value={[]} onChange={onChange} />)
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /Draw rectangle on map/i })
+    )
+    // Textbox order: Area name, NW latitude, NW longitude, SE latitude, SE longitude.
+    const nwLatitude = screen.getAllByRole('textbox')[1]
+    fireEvent.change(nwLatitude, { target: { value: '99' } })
+    fireEvent.blur(nwLatitude)
+    fireEvent.click(screen.getByRole('button', { name: /Add area/i }))
+
+    expect(onChange).toHaveBeenCalledTimes(1)
+    const next = onChange.mock.calls[0][0] as PickerRegion[]
+    // 99°N is clamped to the 90°N maximum.
+    expect(toHeatmapRegion(next[0])).toMatchObject({
+      type: 'rect',
+      nw: { lat: 90 }
+    })
+  })
+
   it('removes a region when its remove button is clicked', () => {
     const onChange = vi.fn()
     render(<HeatmapRegionPicker value={worldValue} onChange={onChange} />)

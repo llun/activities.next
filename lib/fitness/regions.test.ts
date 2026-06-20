@@ -1,5 +1,6 @@
 import {
   HeatmapRegion,
+  MAX_HEATMAP_REGIONS,
   RectRegion,
   describeRegions,
   deserializeRegions,
@@ -55,6 +56,17 @@ describe('serializeRegions', () => {
     expect(serializeRegions([rect(52, 5, 51, 6, 'Veluwe loop')])).toBe(
       serializeRegions([rect(52, 5, 51, 6)])
     )
+  })
+
+  it('caps the output at MAX_HEATMAP_REGIONS so it fits the varchar(255) column', () => {
+    // 12 widest distinct rectangles; without the cap their canonical tokens
+    // would overflow 255 chars (12 * 34 + 11 = 419).
+    const many: RectRegion[] = Array.from({ length: 12 }, (_unused, index) =>
+      rect(-89.99 + index * 0.01, -180, -90, -179.99 + index * 0.01)
+    )
+    const serialized = serializeRegions(many)
+    expect(serialized.length).toBeLessThanOrEqual(255)
+    expect(serialized.split(';')).toHaveLength(MAX_HEATMAP_REGIONS)
   })
 })
 

@@ -64,8 +64,11 @@ const BBoxMap: FC<BBoxMapProps> = ({ box, onChange, height = 230 }) => {
   const geoAt = (event: ReactPointerEvent<HTMLDivElement>): LatLng => {
     const rect = ref.current?.getBoundingClientRect()
     if (!rect) return { lat: 0, lng: 0 }
-    const x = clamp((event.clientX - rect.left) / rect.width, 0, 1)
-    const y = clamp((event.clientY - rect.top) / rect.height, 0, 1)
+    // Guard against a zero-size box (hidden/not-yet-laid-out) producing NaN.
+    const width = rect.width || 1
+    const height = rect.height || 1
+    const x = clamp((event.clientX - rect.left) / width, 0, 1)
+    const y = clamp((event.clientY - rect.top) / height, 0, 1)
     return { lng: x * 360 - 180, lat: 90 - y * 180 }
   }
 
@@ -196,6 +199,13 @@ interface CoordFieldProps {
   onChange: (value: number) => void
 }
 
+const formatCoordInput = (value: number): string =>
+  Number.isFinite(value) ? value.toFixed(2) : ''
+
+// Allows the empty string, a lone "-", and partial decimals ("5", "5.", "-5.2")
+// so the value stays typeable; the final number is parsed/clamped on commit.
+const PARTIAL_DECIMAL = /^-?[0-9]*\.?[0-9]*$/
+
 const CoordField: FC<CoordFieldProps> = ({
   label,
   value,
@@ -203,30 +213,60 @@ const CoordField: FC<CoordFieldProps> = ({
   max,
   suffix,
   onChange
-}) => (
-  <label className="flex flex-col gap-1">
-    <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-      {label}
-    </span>
-    <span className="relative">
-      <Input
-        type="number"
-        step="0.01"
-        min={min}
-        max={max}
-        value={Number.isFinite(value) ? Number(value.toFixed(2)) : ''}
-        onChange={(event) => {
-          const next = parseFloat(event.target.value)
-          onChange(clamp(Number.isNaN(next) ? 0 : next, min, max))
-        }}
-        className="h-8 pr-7"
-      />
-      <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
-        {suffix}
+}) => {
+  // Edit as a free-form string so partial input ("-", "5.") is typeable, and
+  // only commit the parsed/clamped number on blur or Enter — committing on every
+  // keystroke would clamp mid-typing and jerk the map view. A text input (not
+  // type="number") is used because native number inputs silently drop partial
+  // values like "-" or "5." from `event.target.value`.
+  const [draft, setDraft] = useState(() => formatCoordInput(value))
+  const [lastValue, setLastValue] = useState(value)
+  if (value !== lastValue) {
+    setLastValue(value)
+    setDraft(formatCoordInput(value))
+  }
+
+  const commit = () => {
+    const parsed = parseFloat(draft)
+    if (Number.isNaN(parsed)) {
+      setDraft(formatCoordInput(value))
+      return
+    }
+    const clamped = clamp(parsed, min, max)
+    setDraft(clamped.toFixed(2))
+    onChange(clamped)
+  }
+
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
       </span>
-    </span>
-  </label>
-)
+      <span className="relative">
+        <Input
+          type="text"
+          inputMode="decimal"
+          value={draft}
+          onChange={(event) => {
+            const next = event.target.value
+            if (PARTIAL_DECIMAL.test(next)) setDraft(next)
+          }}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              commit()
+            }
+          }}
+          className="h-8 pr-7"
+        />
+        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+          {suffix}
+        </span>
+      </span>
+    </label>
+  )
+}
 
 interface RectComposerProps {
   initial?: RectRegion | null

@@ -41,9 +41,11 @@ export type HeatmapRegion = WorldRegion | RectRegion
 
 /**
  * Upper bound on how many regions a single heatmap can be scoped to. Keeps the
- * serialized `region` string within the varchar(255) cache-key column.
+ * serialized `region` string within the varchar(255) cache-key column: a single
+ * rect token is at most 34 chars (e.g. `rect:-90.00,-180.00,-89.99,-179.99`),
+ * so 7 tokens + 6 separators ≤ 244 chars stays safely under the limit.
  */
-export const MAX_HEATMAP_REGIONS = 8
+export const MAX_HEATMAP_REGIONS = 7
 
 /** Fixed coordinate precision for serialization (matches the picker's 0.01 step). */
 const COORD_PRECISION = 2
@@ -63,6 +65,9 @@ const isValidLng = (value: number): boolean =>
 /**
  * A rectangle is valid when both corners are in range and the top-left corner
  * is genuinely north-west of the bottom-right corner (non-degenerate box).
+ * Boxes that cross the antimeridian (±180°) are intentionally unsupported:
+ * `nw.lng < se.lng` cannot express a wrapping range, matching the consumer's
+ * plain `minLng..maxLng` containment test.
  */
 export const isValidRect = (rect: RectRegion): boolean =>
   isValidLat(rect.nw.lat) &&
@@ -81,7 +86,9 @@ const rectToken = (rect: RectRegion): string =>
  * Serializes a region list into the canonical cache-key string. The whole world
  * (or an empty/all-invalid list) serializes to '' — the world-wide sentinel —
  * because a world region subsumes any drawn rectangles. Rectangle-only lists
- * serialize to a sorted, deduplicated, semicolon-joined list of `rect:` tokens.
+ * serialize to a sorted, deduplicated, semicolon-joined list of `rect:` tokens,
+ * capped at `MAX_HEATMAP_REGIONS` so the output always fits the varchar(255)
+ * cache-key column regardless of the (possibly shorter) input token widths.
  */
 export const serializeRegions = (regions: HeatmapRegion[]): string => {
   if (regions.some((region) => region.type === 'world')) return ''
@@ -91,7 +98,10 @@ export const serializeRegions = (regions: HeatmapRegion[]): string => {
         region.type === 'rect' && isValidRect(region)
     )
     .map(rectToken)
-  return Array.from(new Set(tokens)).sort().join(';')
+  return Array.from(new Set(tokens))
+    .sort()
+    .slice(0, MAX_HEATMAP_REGIONS)
+    .join(';')
 }
 
 const parseRectToken = (token: string): RectRegion | null => {
