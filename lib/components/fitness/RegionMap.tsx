@@ -39,6 +39,8 @@ export type GlModule = {
 
 const BOX_SOURCE_ID = 'region-box'
 const SELECTION_COLOR = '#ea580c'
+// Fall back to the coordinate fields if the map never finishes loading.
+const MAP_LOAD_TIMEOUT_MS = 20000
 
 const round2 = (value: number): number => Number(value.toFixed(2))
 
@@ -145,6 +147,10 @@ export const RegionMap: FC<RegionMapProps> = ({
     if (typeof navigator === 'undefined' || !navigator.geolocation) return
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        // Geolocation can resolve after the composer closed (the map was
+        // removed). Bail so we don't drive a torn-down map or setState on an
+        // unmounted component. `mapRef` is nulled in the effect cleanup.
+        if (mapRef.current !== map) return
         const { latitude, longitude } = position.coords
         map.easeTo({ center: [longitude, latitude], zoom: 11, duration: 0 })
         // Seed a small starting area at the current location only if the user
@@ -168,6 +174,16 @@ export const RegionMap: FC<RegionMapProps> = ({
   // Create the map once — the provider is stable for the picker's lifetime.
   useEffect(() => {
     let cancelled = false
+    let loadWatchdog: ReturnType<typeof setTimeout> | undefined
+
+    // A pointer released outside the map canvas (or off-window) still ends the
+    // drag, so drawingRef can't get stuck and keep redrawing on the next move.
+    const stopDraw = () => {
+      drawingRef.current = false
+    }
+    window.addEventListener('mouseup', stopDraw)
+    window.addEventListener('touchend', stopDraw)
+    window.addEventListener('touchcancel', stopDraw)
 
     loadModuleRef
       .current()
@@ -182,6 +198,13 @@ export const RegionMap: FC<RegionMapProps> = ({
           ...mapOptionsRef.current
         })
         mapRef.current = map
+
+        // If the map never reaches 'load' (e.g. the style fails to fetch), fall
+        // back to the coordinate fields instead of showing "Loading map…"
+        // forever.
+        loadWatchdog = setTimeout(() => {
+          if (!cancelled) onUnavailableRef.current()
+        }, MAP_LOAD_TIMEOUT_MS)
 
         const onDown = (event: MapPointerEvent) => {
           if (!drawModeRef.current || !event.lngLat) return
@@ -207,6 +230,7 @@ export const RegionMap: FC<RegionMapProps> = ({
 
         map.on('load', () => {
           if (cancelled) return
+          if (loadWatchdog) clearTimeout(loadWatchdog)
           try {
             map.resize()
             map.addSource(BOX_SOURCE_ID, {
@@ -258,6 +282,10 @@ export const RegionMap: FC<RegionMapProps> = ({
 
     return () => {
       cancelled = true
+      if (loadWatchdog) clearTimeout(loadWatchdog)
+      window.removeEventListener('mouseup', stopDraw)
+      window.removeEventListener('touchend', stopDraw)
+      window.removeEventListener('touchcancel', stopDraw)
       mapRef.current?.remove()
       mapRef.current = null
     }
@@ -291,7 +319,10 @@ export const RegionMap: FC<RegionMapProps> = ({
       <div ref={containerRef} className="h-full w-full" />
 
       {!isReady && (
-        <div className="absolute inset-0 flex items-center justify-center gap-2 bg-muted/60 text-sm text-muted-foreground">
+        <div
+          role="status"
+          className="absolute inset-0 flex items-center justify-center gap-2 bg-muted/60 text-sm text-muted-foreground"
+        >
           <Loader2 className="size-4 animate-spin" /> Loading map…
         </div>
       )}

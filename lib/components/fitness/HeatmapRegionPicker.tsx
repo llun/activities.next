@@ -192,7 +192,10 @@ const RectComposer: FC<RectComposerProps> = ({
       </label>
 
       {mapUnavailable ? (
-        <div className="flex h-[120px] items-center justify-center rounded-lg border bg-muted/40 px-3 text-center text-xs text-muted-foreground">
+        <div
+          role="status"
+          className="flex h-[120px] items-center justify-center rounded-lg border bg-muted/40 px-3 text-center text-xs text-muted-foreground"
+        >
           Map unavailable — enter the corner coordinates below.
         </div>
       ) : (

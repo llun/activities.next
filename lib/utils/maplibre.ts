@@ -11,6 +11,15 @@
 const MAPLIBRE_VERSION = '4.7.1'
 const MAPLIBRE_JS_SRC = `https://cdn.jsdelivr.net/npm/maplibre-gl@${MAPLIBRE_VERSION}/dist/maplibre-gl.js`
 const MAPLIBRE_CSS_HREF = `https://cdn.jsdelivr.net/npm/maplibre-gl@${MAPLIBRE_VERSION}/dist/maplibre-gl.css`
+// Subresource Integrity for the pinned ${MAPLIBRE_VERSION} bundle. Because the
+// script/style load from a shared, general-purpose CDN, SRI makes a tampered or
+// swapped asset fail closed (and the picker falls back to the coordinate
+// fields). Regenerate these hashes whenever MAPLIBRE_VERSION changes:
+//   curl -s <url> | openssl dgst -sha384 -binary | openssl base64 -A
+const MAPLIBRE_JS_INTEGRITY =
+  'sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj'
+const MAPLIBRE_CSS_INTEGRITY =
+  'sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V'
 const MAPLIBRE_LOAD_TIMEOUT_MS = 15000
 
 /** Keyless OpenFreeMap vector style (OpenStreetMap data, public tiles). */
@@ -83,6 +92,8 @@ export const loadMaplibreModule = async <T>(): Promise<T> => {
         const link = document.createElement('link')
         link.rel = 'stylesheet'
         link.href = MAPLIBRE_CSS_HREF
+        link.setAttribute('integrity', MAPLIBRE_CSS_INTEGRITY)
+        link.setAttribute('crossorigin', 'anonymous')
         link.setAttribute('data-maplibre-gl-css', 'true')
         document.head.appendChild(link)
       }
@@ -118,6 +129,8 @@ export const loadMaplibreModule = async <T>(): Promise<T> => {
       const script = document.createElement('script')
       script.src = MAPLIBRE_JS_SRC
       script.async = true
+      script.setAttribute('integrity', MAPLIBRE_JS_INTEGRITY)
+      script.setAttribute('crossorigin', 'anonymous')
       script.setAttribute('data-maplibre-gl-script', 'true')
       script.addEventListener(
         'load',

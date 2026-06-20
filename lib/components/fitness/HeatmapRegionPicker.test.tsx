@@ -105,6 +105,20 @@ describe('HeatmapRegionPicker', () => {
     expect(mockLoadMaplibreModule).not.toHaveBeenCalled()
   })
 
+  it('falls back to the coordinate fields when the map fails to load', async () => {
+    mockLoadMaplibreModule.mockImplementationOnce(() =>
+      Promise.reject(new Error('no map'))
+    )
+    render(<HeatmapRegionPicker value={[]} onChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /Select an area/i }))
+
+    expect(await screen.findByText(/Map unavailable/i)).toBeInTheDocument()
+    // The coordinate fields (and Add area) remain usable as the manual fallback.
+    expect(
+      screen.getByRole('button', { name: /Add area/i })
+    ).toBeInTheDocument()
+  })
+
   it('clamps an out-of-range coordinate when the field commits', () => {
     const onChange = vi.fn()
     render(<HeatmapRegionPicker value={[]} onChange={onChange} />)

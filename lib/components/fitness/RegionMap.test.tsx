@@ -13,17 +13,20 @@ const DEFAULT_BOX = {
   se: { lat: 50, lng: 7 }
 }
 
-const createFakeGl = () => {
+const createFakeGl = ({ addSourceThrows = false } = {}) => {
   const handlers: Handlers = {}
+  const source = { setData: vi.fn() }
   const map = {
     on: vi.fn((event: string, callback: (event?: unknown) => void) => {
       handlers[event] = callback
     }),
     remove: vi.fn(),
     resize: vi.fn(),
-    addSource: vi.fn(),
+    addSource: vi.fn(() => {
+      if (addSourceThrows) throw new Error('addSource failed')
+    }),
     addLayer: vi.fn(),
-    getSource: vi.fn(() => ({ setData: vi.fn() })),
+    getSource: vi.fn(() => source),
     getCanvas: vi.fn(() => ({ style: {} as CSSStyleDeclaration })),
     easeTo: vi.fn(),
     fitBounds: vi.fn(),
@@ -35,7 +38,7 @@ const createFakeGl = () => {
     return map
   })
   const gl = { Map } as unknown as GlModule
-  return { gl, map, handlers }
+  return { gl, map, source, handlers }
 }
 
 const renderRegionMap = (
@@ -44,19 +47,20 @@ const renderRegionMap = (
 ) => {
   const onChange = vi.fn()
   const onUnavailable = vi.fn()
-  render(
-    <RegionMap
-      box={DEFAULT_BOX}
-      onChange={onChange}
-      loadModule={() => Promise.resolve(gl)}
-      mapOptions={{ style: 'test-style' }}
-      providerLabel="TestMaps"
-      centerOnUser={false}
-      onUnavailable={onUnavailable}
-      {...overrides}
-    />
-  )
-  return { onChange, onUnavailable }
+  const props = {
+    box: DEFAULT_BOX,
+    onChange,
+    loadModule: () => Promise.resolve(gl),
+    mapOptions: { style: 'test-style' },
+    providerLabel: 'TestMaps',
+    centerOnUser: false,
+    onUnavailable,
+    ...overrides
+  }
+  const utils = render(<RegionMap {...props} />)
+  const rerenderWithBox = (box: Parameters<typeof RegionMap>[0]['box']) =>
+    utils.rerender(<RegionMap {...props} box={box} />)
+  return { onChange, onUnavailable, rerenderWithBox, ...utils }
 }
 
 describe('RegionMap', () => {
@@ -157,5 +161,105 @@ describe('RegionMap', () => {
     )
 
     await waitFor(() => expect(onUnavailable).toHaveBeenCalled())
+  })
+
+  it('calls onUnavailable when building the map layers throws', async () => {
+    const { gl } = createFakeGl({ addSourceThrows: true })
+    const { onUnavailable } = renderRegionMap(gl)
+    await waitFor(() => expect(onUnavailable).toHaveBeenCalled())
+  })
+
+  it('pushes box changes into the map source after load', async () => {
+    const { gl, source } = createFakeGl()
+    const { rerenderWithBox } = renderRegionMap(gl)
+
+    await screen.findByText('TestMaps')
+    source.setData.mockClear()
+    rerenderWithBox({ nw: { lat: 20, lng: 10 }, se: { lat: 18, lng: 14 } })
+
+    expect(source.setData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        geometry: expect.objectContaining({
+          coordinates: [
+            [
+              [10, 20],
+              [14, 20],
+              [14, 18],
+              [10, 18],
+              [10, 20]
+            ]
+          ]
+        })
+      })
+    )
+  })
+
+  it('fits the map to the existing box when editing (centerOnUser false)', async () => {
+    const { gl, map } = createFakeGl()
+    renderRegionMap(gl, { centerOnUser: false })
+
+    await screen.findByText('TestMaps')
+    // DEFAULT_BOX nw {53,3} / se {50,7} -> bounds [[west, south], [east, north]].
+    expect(map.fitBounds).toHaveBeenCalledWith(
+      [
+        [3, 50],
+        [7, 53]
+      ],
+      expect.any(Object)
+    )
+  })
+
+  it('re-enables panning when draw mode is toggled off', async () => {
+    const { gl, map } = createFakeGl()
+    renderRegionMap(gl)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Draw/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Drawing/i }))
+
+    expect(map.dragPan.enable).toHaveBeenCalled()
+  })
+
+  it('recenters on the user when the locate button is pressed', async () => {
+    const getCurrentPosition = vi.fn((success) =>
+      success({ coords: { latitude: 1, longitude: 2 } })
+    )
+    // @ts-expect-error partial geolocation stub
+    navigator.geolocation = { getCurrentPosition }
+
+    const { gl, map } = createFakeGl()
+    renderRegionMap(gl, { centerOnUser: false })
+    await screen.findByText('TestMaps')
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /Center on my location/i })
+    )
+    expect(getCurrentPosition).toHaveBeenCalled()
+    expect(map.easeTo).toHaveBeenCalledWith(
+      expect.objectContaining({ center: [2, 1] })
+    )
+  })
+
+  it('ignores a geolocation result that arrives after unmount', async () => {
+    let success:
+      | ((position: { coords: GeolocationCoordinates }) => void)
+      | null = null
+    const getCurrentPosition = vi.fn((callback) => {
+      success = callback
+    })
+    // @ts-expect-error partial geolocation stub
+    navigator.geolocation = { getCurrentPosition }
+
+    const { gl, map } = createFakeGl()
+    const { unmount } = renderRegionMap(gl, { centerOnUser: true })
+    await screen.findByText('TestMaps')
+    expect(getCurrentPosition).toHaveBeenCalled()
+
+    unmount()
+    map.easeTo.mockClear()
+    success?.({
+      coords: { latitude: 5, longitude: 6 } as GeolocationCoordinates
+    })
+
+    expect(map.easeTo).not.toHaveBeenCalled()
   })
 })
