@@ -19,6 +19,9 @@ const MAX_JOB_TIMEOUT_SECONDS = 30
 const MAX_JOB_RETRIES = 0
 
 export class QStashQueue implements Queue {
+  // QStash only enqueues on `publish`; the job runs out of band, not inline.
+  readonly runsInline = false
+
   private _client: Client
   private _url: string
 

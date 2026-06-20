@@ -289,6 +289,83 @@ describe('fetchRemoteStatusJob', () => {
     expect(grandchild?.reply).toBe(CHILD_ID)
   })
 
+  it('stores only direct replies and skips nesting when firstPageOnly is set', async () => {
+    const STATUS_ID = `${REMOTE_STATUS_ID}/firstpage`
+    const REPLIES_ID = `${STATUS_ID}/replies`
+    const CHILD_ID = 'https://mastodon.social/users/otherUser/statuses/fp-child'
+    const CHILD_REPLIES_ID = `${CHILD_ID}/replies`
+    const GRANDCHILD_ID =
+      'https://mastodon.social/users/otherUser/statuses/fp-grandchild'
+
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+      if (req.url === STATUS_ID) {
+        return JSON.stringify({
+          id: STATUS_ID,
+          type: 'Note',
+          attributedTo: REMOTE_ACTOR_ID,
+          content: 'Root',
+          to: [PUBLIC_STREAM],
+          replies: REPLIES_ID,
+          published: new Date().toISOString()
+        })
+      }
+      if (req.url === REPLIES_ID) {
+        return JSON.stringify({
+          id: REPLIES_ID,
+          type: 'Collection',
+          first: { type: 'CollectionPage', items: [CHILD_ID] }
+        })
+      }
+      if (req.url === CHILD_ID) {
+        return JSON.stringify({
+          id: CHILD_ID,
+          type: 'Note',
+          attributedTo: REMOTE_ACTOR_ID,
+          content: 'Child reply',
+          inReplyTo: STATUS_ID,
+          replies: CHILD_REPLIES_ID,
+          to: [PUBLIC_STREAM],
+          cc: [],
+          published: new Date().toISOString()
+        })
+      }
+      if (req.url === CHILD_REPLIES_ID) {
+        return JSON.stringify({
+          id: CHILD_REPLIES_ID,
+          type: 'Collection',
+          first: { type: 'CollectionPage', items: [GRANDCHILD_ID] }
+        })
+      }
+      if (req.url === GRANDCHILD_ID) {
+        return JSON.stringify({
+          id: GRANDCHILD_ID,
+          type: 'Note',
+          attributedTo: REMOTE_ACTOR_ID,
+          content: 'Grandchild reply',
+          inReplyTo: CHILD_ID,
+          to: [PUBLIC_STREAM],
+          cc: [],
+          published: new Date().toISOString()
+        })
+      }
+      return JSON.stringify({})
+    })
+
+    await fetchRemoteStatusJob(database, {
+      id: 'job-id',
+      name: FETCH_REMOTE_STATUS_JOB_NAME,
+      data: { statusId: STATUS_ID, firstPageOnly: true }
+    })
+
+    const child = await database.getStatus({ statusId: CHILD_ID })
+    const grandchild = await database.getStatus({ statusId: GRANDCHILD_ID })
+
+    // The direct reply is stored, but its nested thread is not walked.
+    expect(child?.reply).toBe(STATUS_ID)
+    expect(grandchild).toBeNull()
+  })
+
   it('uses signed GET requests for remote status, actor, and replies fetches', async () => {
     const STATUS_ID = `${REMOTE_STATUS_ID}/signed`
     const REMOTE_SIGNED_ACTOR_ID =

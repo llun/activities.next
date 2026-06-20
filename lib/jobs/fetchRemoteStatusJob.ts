@@ -123,7 +123,13 @@ const fetchRemoteStatus = async (
 export const fetchRemoteStatusJob = createJobHandle(
   FETCH_REMOTE_STATUS_JOB_NAME,
   async (database, message) => {
-    const { statusId } = z.object({ statusId: z.string() }).parse(message.data)
+    // `firstPageOnly` keeps an inline (NoQueue) run cheap: it stores just the
+    // focused note's direct replies (the opening page, no recursion) so awaiting
+    // the job during a page render stays fast. A real queue processes the job
+    // out of band and walks the full nested thread.
+    const { statusId, firstPageOnly } = z
+      .object({ statusId: z.string(), firstPageOnly: z.boolean().optional() })
+      .parse(message.data)
     const signingActor = await getFederationSigningActor(database)
 
     const result = await fetchRemoteStatus(database, statusId, 0, signingActor)
@@ -345,11 +351,18 @@ export const fetchRemoteStatusJob = createJobHandle(
             // re-fetch can keep traversing already-cached parts of the thread to
             // find new replies instead of halting at the cap.
             if (stored.newlyStored) notesStored++
-            queueCollection(stored.replies)
+            // First-page mode stores only direct replies, so it never recurses
+            // into a child's own thread.
+            if (!firstPageOnly) queueCollection(stored.replies)
           }
         }
 
         if (!withinBudget()) break
+
+        // First-page mode stops after the opening page of the focused note's
+        // replies — no pagination, no recursion — so an inline run can't fan out
+        // into a long chain of sequential federation requests.
+        if (firstPageOnly) break
 
         // Follow pagination within the current collection.
         if (!page.next) break
