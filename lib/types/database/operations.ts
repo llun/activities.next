@@ -1398,9 +1398,11 @@ export type GetCollectionMemberCountsParams = {
 }
 export type GetCollectionTimelineParams = {
   id: string
-  // The owner's actor id. Required to read the 'owner' projection and to scope
-  // the lookup; for the 'public' projection it is still used to locate the
-  // collection but no owner visibility filter is applied.
+  // The owner's actor id. This read is ALWAYS owner-scoped (the collection is
+  // resolved by id + this owner), for both projections. 'public' here is the
+  // owner previewing their own public projection (approved members, public-only
+  // posts); truly unauthenticated public reads go through
+  // getPublicCollectionTimeline instead.
   actorId: string
   projection?: 'owner' | 'public'
   limit?: number

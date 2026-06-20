@@ -31,8 +31,10 @@ interface Params {
   id: string
 }
 
-// List the accounts in a collection. The owner sees all members; everyone else
-// is served the public projection (approved members only).
+// List the accounts in a collection. Owner-scoped: only the owner can list
+// members here (non-owners receive 404). Public listing of a collection's
+// approved members is served elsewhere (the public feed / profile projection),
+// not by this management endpoint.
 export const GET = traceApiRoute(
   'getCollectionItems',
   OAuthGuardAnyScope<Params>(
