@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node -r @swc-node/register
+#!/usr/bin/env -S node scripts/run.cjs
 /**
  * Script to fix fitness files stuck in 'processing' status, typically caused
  * by the Cloud Run instance being killed (e.g. OOM) mid-job before the final

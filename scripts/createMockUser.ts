@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node -r @swc-node/register
+#!/usr/bin/env -S node scripts/run.cjs
 /**
  * Script to create a test user for development/testing
  * Usage: scripts/createMockUser [username] [email] [password]
