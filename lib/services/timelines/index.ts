@@ -59,6 +59,10 @@ export const addStatusToTimelines = async (
       // enforced at read time, so this materializes the same candidate set the
       // old live list query scanned.
       await database.addStatusToListTimelines({ status })
+      // Likewise fan the post into the capped feed of every collection whose
+      // membership includes its author. The owner/public projections (and the
+      // public-only visibility filter) are applied at read time.
+      await database.addStatusToCollectionTimelines({ status })
 
       const isDirect = isDirectStatus(status)
       if (isDirect) {

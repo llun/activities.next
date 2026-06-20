@@ -7,6 +7,11 @@ import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { Attachment, PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { Block } from '@/lib/types/domain/block'
 import { Bookmark } from '@/lib/types/domain/bookmark'
+import {
+  Collection,
+  CollectionFeatureState,
+  CollectionVisibility
+} from '@/lib/types/domain/collection'
 import { CustomEmojiData } from '@/lib/types/domain/customEmoji'
 import { Endorsement } from '@/lib/types/domain/endorsement'
 import {
@@ -1317,6 +1322,141 @@ export interface ListDatabase {
   // membership includes the status author. Called from addStatusToTimelines.
   addStatusToListTimelines(
     params: AddStatusToListTimelinesParams
+  ): Promise<void>
+}
+
+export type CreateCollectionParams = {
+  actorId: string
+  title: string
+  description?: string | null
+  topic?: string | null
+  language?: string | null
+  visibility?: CollectionVisibility
+  publicFeed?: boolean
+}
+export type UpdateCollectionParams = {
+  id: string
+  actorId: string
+  title?: string
+  description?: string | null
+  topic?: string | null
+  language?: string | null
+  visibility?: CollectionVisibility
+  publicFeed?: boolean
+}
+export type GetCollectionParams = { id: string; actorId: string }
+export type GetCollectionsParams = { actorId: string }
+export type DeleteCollectionParams = { id: string; actorId: string }
+
+export type AddCollectionMembersParams = {
+  id: string
+  actorId: string
+  targetActorIds: string[]
+}
+export type RemoveCollectionMembersParams = {
+  id: string
+  actorId: string
+  targetActorIds: string[]
+}
+export type SetCollectionMemberStateParams = {
+  id: string
+  actorId: string
+  targetActorId: string
+  state: CollectionFeatureState
+}
+// Member-facing consent action: the member (actorId) sets the state of THEIR
+// OWN membership in a collection, regardless of who owns it. Used by the
+// approve / revoke endpoints. Returns false when no such membership exists.
+export type SetOwnCollectionMembershipStateParams = {
+  collectionId: string
+  actorId: string
+  state: CollectionFeatureState
+}
+export type GetCollectionMembersParams = {
+  id: string
+  actorId: string
+  // 'owner' returns all members; 'public' returns only approved members.
+  projection?: 'owner' | 'public'
+  limit?: number
+  maxId?: string | null
+  sinceId?: string | null
+}
+export type CollectionMembersPage = {
+  accounts: Mastodon.Account[]
+  nextMaxId: string | null
+  prevMinId: string | null
+}
+export type GetCollectionsWithAccountParams = {
+  actorId: string
+  targetActorId: string
+}
+export type GetCollectionMemberCountsParams = {
+  actorId: string
+  collectionIds: string[]
+  // Count only approved members (the public size) when true; otherwise all.
+  approvedOnly?: boolean
+}
+export type GetCollectionTimelineParams = {
+  id: string
+  // The owner's actor id. This read is ALWAYS owner-scoped (the collection is
+  // resolved by id + this owner), for both projections. 'public' here is the
+  // owner previewing their own public projection (approved members, public-only
+  // posts); truly unauthenticated public reads go through
+  // getPublicCollectionTimeline instead.
+  actorId: string
+  projection?: 'owner' | 'public'
+  limit?: number
+  maxStatusId?: string | null
+  minStatusId?: string | null
+}
+export type GetPublicCollectionTimelineParams = {
+  id: string
+  limit?: number
+  maxStatusId?: string | null
+  minStatusId?: string | null
+}
+export type AddStatusToCollectionTimelinesParams = {
+  status: Status
+}
+
+export interface CollectionDatabase {
+  createCollection(params: CreateCollectionParams): Promise<Collection>
+  updateCollection(params: UpdateCollectionParams): Promise<Collection | null>
+  getCollection(params: GetCollectionParams): Promise<Collection | null>
+  getCollections(params: GetCollectionsParams): Promise<Collection[]>
+  deleteCollection(params: DeleteCollectionParams): Promise<boolean>
+  // Member counts keyed by collection id. Collections with no (matching) members
+  // are present in the result with a count of 0.
+  getCollectionMemberCounts(
+    params: GetCollectionMemberCountsParams
+  ): Promise<Record<string, number>>
+  addCollectionMembers(params: AddCollectionMembersParams): Promise<void>
+  removeCollectionMembers(params: RemoveCollectionMembersParams): Promise<void>
+  setCollectionMemberState(
+    params: SetCollectionMemberStateParams
+  ): Promise<void>
+  // Member-facing approve/revoke of the caller's own membership. Returns true
+  // when a membership row was updated, false when none matched.
+  setOwnCollectionMembershipState(
+    params: SetOwnCollectionMembershipStateParams
+  ): Promise<boolean>
+  getCollectionMembers(
+    params: GetCollectionMembersParams
+  ): Promise<CollectionMembersPage>
+  getCollectionsWithAccount(
+    params: GetCollectionsWithAccountParams
+  ): Promise<Collection[]>
+  getCollectionTimeline(params: GetCollectionTimelineParams): Promise<Status[]>
+  // Read a collection's PUBLIC feed by id without owner scoping. Returns null
+  // when the collection does not exist, is private, or has the feed disabled
+  // (so the route can return 404); otherwise the approved/public-only statuses.
+  getPublicCollectionTimeline(
+    params: GetPublicCollectionTimelineParams
+  ): Promise<Status[] | null>
+  // Fan a newly created status into every collection whose membership includes
+  // the status author (capped per collection). Called from addStatusToTimelines.
+  addStatusToCollectionTimelines(
+    params: AddStatusToCollectionTimelinesParams
   ): Promise<void>
 }
 
@@ -2653,6 +2793,7 @@ export const Scope = z.enum([
   'read:accounts',
   'read:blocks',
   'read:bookmarks',
+  'read:collections',
   'read:conversations',
   'read:favourites',
   'read:filters',
@@ -2667,6 +2808,7 @@ export const Scope = z.enum([
   'write:accounts',
   'write:blocks',
   'write:bookmarks',
+  'write:collections',
   'write:conversations',
   'write:favourites',
   'write:filters',
