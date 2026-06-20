@@ -12,10 +12,15 @@ type Box = { nw: LatLng; se: LatLng }
 // The Mapbox GL / MapLibre GL surface — only the members this component drives.
 // The two libraries share this subset, so one component drives either provider.
 // Pointer events carry a `lngLat`; the `load` event does not, so it is optional.
+// `originalEvent.touches` lets us ignore multi-touch (pinch) gestures.
 type MapPointerEvent = {
   lngLat?: { lat: number; lng: number }
+  originalEvent?: { touches?: { length: number } }
   preventDefault?: () => void
 }
+
+const isMultiTouch = (event: MapPointerEvent): boolean =>
+  (event.originalEvent?.touches?.length ?? 0) > 1
 
 type GlMap = {
   on: (event: string, callback: (event: MapPointerEvent) => void) => void
@@ -207,7 +212,9 @@ export const RegionMap: FC<RegionMapProps> = ({
         }, MAP_LOAD_TIMEOUT_MS)
 
         const onDown = (event: MapPointerEvent) => {
-          if (!drawModeRef.current || !event.lngLat) return
+          // Ignore multi-touch (pinch-zoom) so it doesn't start a stray draw.
+          if (!drawModeRef.current || !event.lngLat || isMultiTouch(event))
+            return
           event.preventDefault?.()
           drawingRef.current = true
           didDrawRef.current = true
@@ -216,7 +223,13 @@ export const RegionMap: FC<RegionMapProps> = ({
           onChangeRef.current(boxFromPoints(point, point))
         }
         const onMove = (event: MapPointerEvent) => {
-          if (!drawingRef.current || !startRef.current || !event.lngLat) return
+          if (
+            !drawingRef.current ||
+            !startRef.current ||
+            !event.lngLat ||
+            isMultiTouch(event)
+          )
+            return
           onChangeRef.current(
             boxFromPoints(startRef.current, {
               lat: event.lngLat.lat,
@@ -259,17 +272,20 @@ export const RegionMap: FC<RegionMapProps> = ({
 
             setIsReady(true)
 
+            // Always frame the current box first so it's visible even if
+            // geolocation is denied/unavailable (otherwise a new area would sit
+            // off-screen at world zoom). A successful locate then eases to the
+            // user's position.
+            const current = boxRef.current
+            map.fitBounds(
+              [
+                [current.nw.lng, current.se.lat],
+                [current.se.lng, current.nw.lat]
+              ],
+              { padding: 40, duration: 0 }
+            )
             if (centerOnUserRef.current) {
               locateUser(map, true)
-            } else {
-              const current = boxRef.current
-              map.fitBounds(
-                [
-                  [current.nw.lng, current.se.lat],
-                  [current.se.lng, current.nw.lat]
-                ],
-                { padding: 40, duration: 0 }
-              )
             }
           } catch {
             if (!cancelled) onUnavailableRef.current()

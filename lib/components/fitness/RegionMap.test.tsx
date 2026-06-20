@@ -209,6 +209,37 @@ describe('RegionMap', () => {
     )
   })
 
+  it('frames the box for a new area when geolocation is unavailable', async () => {
+    // No navigator.geolocation stub: the new-area path can't center on the user,
+    // so it must still frame the seeded/default box instead of a world view.
+    const { gl, map } = createFakeGl()
+    renderRegionMap(gl, { centerOnUser: true })
+
+    await screen.findByText('TestMaps')
+    expect(map.fitBounds).toHaveBeenCalledWith(
+      [
+        [3, 50],
+        [7, 53]
+      ],
+      expect.any(Object)
+    )
+    expect(map.easeTo).not.toHaveBeenCalled()
+  })
+
+  it('ignores multi-touch gestures so pinch-zoom does not start a draw', async () => {
+    const { gl, handlers } = createFakeGl()
+    const { onChange } = renderRegionMap(gl)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Draw/i }))
+    onChange.mockClear()
+    handlers.touchstart?.({
+      lngLat: { lat: 1, lng: 2 },
+      originalEvent: { touches: { length: 2 } }
+    })
+
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
   it('re-enables panning when draw mode is toggled off', async () => {
     const { gl, map } = createFakeGl()
     renderRegionMap(gl)
