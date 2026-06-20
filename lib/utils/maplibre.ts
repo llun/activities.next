@@ -57,6 +57,11 @@ export const loadMaplibreModule = async <T>(): Promise<T> => {
         }
 
         settled = true
+        // Remove the failed <script>/<link> so a later retry injects fresh tags.
+        // A script element that already fired 'error' will not fire 'load' again,
+        // so leaving it would make every retry hang until the poll times out.
+        document.querySelector('[data-maplibre-gl-script="true"]')?.remove()
+        document.querySelector('[data-maplibre-gl-css="true"]')?.remove()
         reject(error)
       }
 

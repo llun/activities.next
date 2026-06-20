@@ -71,6 +71,11 @@ describe('loadMaplibreModule', () => {
     script?.dispatchEvent(new Event('error'))
 
     await expect(promise).rejects.toThrow(/MapLibre/)
+    // The failed tags are removed so a later retry can inject fresh ones.
+    expect(
+      document.querySelector('[data-maplibre-gl-script="true"]')
+    ).toBeNull()
+    expect(document.querySelector('[data-maplibre-gl-css="true"]')).toBeNull()
   })
 
   it('exposes the keyless OpenFreeMap style URL', async () => {
