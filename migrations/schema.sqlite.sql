@@ -229,3 +229,4 @@ CREATE TABLE `collection_timeline` (`id` integer not null primary key autoincrem
 CREATE UNIQUE INDEX `collection_timeline_collection_status_unique` on `collection_timeline` (`collectionSeq`, `statusId`);
 CREATE INDEX `collection_timeline_read` on `collection_timeline` (`collectionSeq`, `sortKey`);
 CREATE INDEX `collection_timeline_member` on `collection_timeline` (`memberSeq`);
+CREATE INDEX `collection_timeline_status` on `collection_timeline` (`statusId`);

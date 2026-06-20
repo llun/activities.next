@@ -73,6 +73,10 @@ export const up = async (knex) => {
     table.index(['collectionSeq', 'sortKey'], 'collection_timeline_read')
     // Member-scoped purge on remove/revoke cleanup.
     table.index(['memberSeq'], 'collection_timeline_member')
+    // statusId-scoped purge when a status is deleted. The composite unique above
+    // has statusId as its second column, so it cannot serve a statusId-only
+    // lookup — this dedicated index keeps that cleanup from full-scanning.
+    table.index(['statusId'], 'collection_timeline_status')
   })
 }
 

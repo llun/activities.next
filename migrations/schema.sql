@@ -1400,6 +1400,8 @@ CREATE INDEX collection_timeline_member ON public.collection_timeline USING btre
 
 CREATE INDEX collection_timeline_read ON public.collection_timeline USING btree ("collectionSeq", "sortKey");
 
+CREATE INDEX collection_timeline_status ON public.collection_timeline USING btree ("statusId");
+
 CREATE INDEX collections_owner_created ON public.collections USING btree ("ownerActorId", "createdAt");
 
 CREATE INDEX "countersIndex" ON public.counters USING btree (id, "createdAt", "updatedAt");
