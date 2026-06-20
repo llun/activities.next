@@ -75,6 +75,23 @@ const Page: FC<Props> = async ({ params }) => {
       signingActor: currentActor ?? undefined
     })
     statusId = status?.id ?? ''
+
+    // A live-fetched remote status carries no replies (`fromNote` sets
+    // `replies: []`) and its thread is not in our database yet, so a signed-in
+    // viewer would see an empty reply list. Queue the fetch job to persist the
+    // status plus its full reply thread. Under the in-process NoQueue this runs
+    // inline, so the replies are already stored by the time the query below
+    // runs; under a real queue they appear on a subsequent view. Because the job
+    // persists the focused status, later views resolve it from the database and
+    // skip this branch entirely — bounding repeat fetches for popular posts.
+    if (status && status.type === StatusType.enum.Note && session) {
+      const queue = getQueue()
+      await queue.publish({
+        id: `fetch-remote-status-${fullStatusId}`,
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: fullStatusId }
+      })
+    }
   }
 
   // Try to fetch remote status if not found and user is logged in
