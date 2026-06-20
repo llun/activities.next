@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node -r @swc-node/register
+#!/usr/bin/env -S node scripts/run.cjs
 /**
  * Deletes legacy PNG heatmap media captured during the route-heatmap migration.
  *

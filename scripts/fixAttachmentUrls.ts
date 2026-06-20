@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node -r @swc-node/register
+#!/usr/bin/env -S node scripts/run.cjs
 /**
  * Fixes attachment URLs that were saved with the wrong host (e.g. localhost:3000)
  * by replacing the host portion with the correct production host from config.

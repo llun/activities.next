@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node -r @swc-node/register
+#!/usr/bin/env -S node scripts/run.cjs
 /**
  * Script to list Strava webhooks for a given actor
  * Usage: NODE_ENV=production scripts/listStravaWebhooks [@username@domain]

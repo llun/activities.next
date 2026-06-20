@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node -r @swc-node/register
+#!/usr/bin/env -S node scripts/run.cjs
 /**
  * Seeds completed, primary fitness files (with activity metadata) and a few
  * linked fitness posts for the local mock user, so the `/fitness` Overview,
@@ -6,7 +6,7 @@
  *
  * Usage (local SQLite only — never a remote DB):
  *   set -a; . ./.env.local; set +a
- *   node -r @swc-node/register scripts/createMockFitnessData.ts [username]
+ *   node scripts/run.cjs scripts/createMockFitnessData.ts [username]
  *
  * Run after createMockUser.ts.
  */

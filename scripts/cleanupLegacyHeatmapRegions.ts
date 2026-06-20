@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node -r @swc-node/register
+#!/usr/bin/env -S node scripts/run.cjs
 /**
  * Soft-deletes route-heatmap cache rows left in the legacy named-region format
  * (e.g. `region = "netherlands,singapore"`) after the move to the world/rectangle

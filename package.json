@@ -12,7 +12,7 @@
     "test:watch": "vitest",
     "prettier": "prettier --write app migrations lib",
     "prettier:check": "prettier --check app migrations lib",
-    "search:reindex": "node --import @swc-node/register/esm-register scripts/rebuildSearchIndex.ts",
+    "search:reindex": "node scripts/run.cjs scripts/rebuildSearchIndex.ts",
     "migrate": "knex migrate:latest",
     "migrate:make": "knex migrate:make --stub migration.stub",
     "prepare": "husky"
