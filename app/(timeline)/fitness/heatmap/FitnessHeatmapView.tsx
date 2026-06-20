@@ -15,6 +15,7 @@ import {
   FitnessRouteHeatmapSegment,
   FitnessRouteHeatmapSummaryData,
   clearFitnessRouteHeatmaps,
+  deleteFitnessRouteHeatmap,
   getDistinctFitnessActivityTypes,
   getFitnessRouteHeatmap,
   getFitnessRouteHeatmaps,
@@ -150,6 +151,46 @@ const formatActivityType = (type?: string): string =>
   type
     ? type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
     : 'All'
+
+const formatPeriodLabel = (periodType: string, periodKey: string): string =>
+  periodType === 'all_time' ? 'All time' : periodKey
+
+const progressNumberFormatter = new Intl.NumberFormat()
+
+/**
+ * Builds a human-readable progress fragment for the focused, in-flight heatmap.
+ * Uses `cursorOffset` (files scanned) over `totalCount` (computed denominator);
+ * returns just a scanned count while the total is still unknown (0).
+ */
+const formatFocusedProgress = (
+  heatmap: Pick<FitnessRouteHeatmapData, 'totalCount' | 'cursorOffset'> | null
+): { percent: number | null; label: string } | null => {
+  if (!heatmap) return null
+
+  const total = heatmap.totalCount
+  const scanned = heatmap.cursorOffset
+
+  if (total > 0) {
+    const cappedScanned = Math.min(scanned, total)
+    const percent = Math.max(
+      0,
+      Math.min(100, Math.round((cappedScanned / total) * 100))
+    )
+    return {
+      percent,
+      label: `${progressNumberFormatter.format(cappedScanned)} / ${progressNumberFormatter.format(total)} files (${percent}%)`
+    }
+  }
+
+  if (scanned > 0) {
+    return {
+      percent: null,
+      label: `${progressNumberFormatter.format(scanned)} files scanned`
+    }
+  }
+
+  return { percent: null, label: 'Starting…' }
+}
 
 const isRouteHeatmapInFlight = (
   heatmap:
@@ -499,6 +540,10 @@ export const FitnessHeatmapView: FC<Props> = ({
   const [isClearingCache, setIsClearingCache] = useState(false)
   const [isClearCacheDialogOpen, setIsClearCacheDialogOpen] = useState(false)
   const [clearCacheError, setClearCacheError] = useState<string | null>(null)
+  const [heatmapPendingRemoval, setHeatmapPendingRemoval] =
+    useState<FitnessRouteHeatmapSummaryData | null>(null)
+  const [isRemoving, setIsRemoving] = useState(false)
+  const [removeError, setRemoveError] = useState<string | null>(null)
   const [currentTime, setCurrentTime] = useState<number>(() => Date.now())
   const [pollingStalled, setPollingStalled] = useState(false)
   const isClearingCacheRef = useRef(false)
@@ -895,17 +940,76 @@ export const FitnessHeatmapView: FC<Props> = ({
     }
   }, [actorId, fetchData])
 
+  const handleRemoveRequest = useCallback(
+    (heatmap: FitnessRouteHeatmapSummaryData) => {
+      setRemoveError(null)
+      setHeatmapPendingRemoval(heatmap)
+    },
+    []
+  )
+
+  const closeRemoveDialog = useCallback(() => {
+    if (isRemoving) return
+    setRemoveError(null)
+    setHeatmapPendingRemoval(null)
+  }, [isRemoving])
+
+  const confirmRemove = useCallback(async () => {
+    if (!heatmapPendingRemoval) return
+
+    const target = heatmapPendingRemoval
+    setIsRemoving(true)
+    setRemoveError(null)
+    try {
+      const removed = await deleteFitnessRouteHeatmap({
+        actorId,
+        activityType: target.activityType,
+        periodType: target.periodType,
+        periodKey: target.periodKey,
+        region: target.region || undefined
+      })
+      if (!removed) {
+        throw new Error('Heatmap was already removed.')
+      }
+
+      setHeatmaps((current) => current.filter((h) => h.id !== target.id))
+      if (heatmapData?.id === target.id) {
+        setHeatmapData(null)
+        setGenerationPending(false)
+        setPollingStalled(false)
+        pollingProgressRef.current = null
+        // Don't auto-requeue the heatmap the user just removed.
+        generationKeyRef.current = selectionKey
+      }
+      setHeatmapPendingRemoval(null)
+      getFitnessRouteHeatmaps({ actorId })
+        .then(setHeatmaps)
+        .catch(() => {})
+    } catch (err) {
+      setRemoveError(
+        err instanceof Error ? err.message : 'Failed to remove route heatmap.'
+      )
+    } finally {
+      setIsRemoving(false)
+    }
+  }, [actorId, heatmapData?.id, heatmapPendingRemoval, selectionKey])
+
   const routeCount = heatmapData?.segments.length ?? 0
   const hasCompletedRoutes =
     heatmapData?.status === 'completed' && heatmapData.pointCount > 0
   const hasRouteCache =
     Boolean(heatmapData) || heatmaps.length > 0 || generationPending
+  const isFocusedGenerating = heatmapData?.status === 'generating'
+  const focusedProgress = isFocusedGenerating
+    ? formatFocusedProgress(heatmapData)
+    : null
   const routeStatusOverlay =
     heatmapData?.status === 'failed'
       ? 'failed'
       : pollingStalled && !hasCompletedRoutes
         ? 'polling-stalled'
-        : !isLoading && generationPending && !hasCompletedRoutes
+        : !isLoading &&
+            (isFocusedGenerating || (generationPending && !hasCompletedRoutes))
           ? 'generation-pending'
           : null
 
@@ -1081,10 +1185,42 @@ export const FitnessHeatmapView: FC<Props> = ({
           />
           {routeStatusOverlay === 'generation-pending' && (
             <div
-              className="absolute inset-x-3 bottom-3 rounded border bg-background/95 px-3 py-2 text-sm text-muted-foreground shadow-sm"
+              className="absolute inset-x-3 bottom-3 flex flex-col gap-1.5 rounded border bg-background/95 px-3 py-2 text-sm text-muted-foreground shadow-sm"
               aria-live="polite"
             >
-              Route cache queued
+              {isFocusedGenerating && focusedProgress ? (
+                <>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Loader2 className="size-3.5 animate-spin" />
+                    Generating heatmap · {focusedProgress.label}
+                  </span>
+                  <span
+                    className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+                    role="progressbar"
+                    aria-label="Heatmap generation progress"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    {...(focusedProgress.percent === null
+                      ? {}
+                      : { 'aria-valuenow': focusedProgress.percent })}
+                  >
+                    <span
+                      className={cn(
+                        'block h-full rounded-full bg-blue-500 transition-[width] duration-500 dark:bg-blue-400',
+                        focusedProgress.percent === null &&
+                          'w-1/3 animate-pulse'
+                      )}
+                      style={
+                        focusedProgress.percent === null
+                          ? undefined
+                          : { width: `${focusedProgress.percent}%` }
+                      }
+                    />
+                  </span>
+                </>
+              ) : (
+                'Route cache queued'
+              )}
             </div>
           )}
           {routeStatusOverlay === 'polling-stalled' && (
@@ -1162,6 +1298,7 @@ export const FitnessHeatmapView: FC<Props> = ({
           heatmaps={heatmaps}
           onSelect={handleSelectHeatmap}
           onRetry={handleRetry}
+          onRemove={handleRemoveRequest}
           currentTime={currentTime}
         />
       </section>
@@ -1207,6 +1344,57 @@ export const FitnessHeatmapView: FC<Props> = ({
                 className={isClearingCache ? 'animate-pulse' : undefined}
               />
               {isClearingCache ? 'Clearing…' : 'Clear route caches'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={heatmapPendingRemoval !== null}
+        onOpenChange={(open) => {
+          if (!open) closeRemoveDialog()
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove heatmap</DialogTitle>
+            <DialogDescription>
+              {heatmapPendingRemoval
+                ? `Remove the ${formatActivityType(
+                    heatmapPendingRemoval.activityType
+                  )} · ${formatPeriodLabel(
+                    heatmapPendingRemoval.periodType,
+                    heatmapPendingRemoval.periodKey
+                  )} heatmap from your list? You can regenerate it later.`
+                : 'Remove this heatmap from your list? You can regenerate it later.'}
+            </DialogDescription>
+          </DialogHeader>
+          {removeError ? (
+            <p
+              role="alert"
+              className="rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              {removeError}
+            </p>
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={closeRemoveDialog}
+              disabled={isRemoving}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={confirmRemove}
+              disabled={isRemoving}
+              aria-busy={isRemoving}
+            >
+              <Trash2 className={isRemoving ? 'animate-pulse' : undefined} />
+              {isRemoving ? 'Removing…' : 'Remove heatmap'}
             </Button>
           </DialogFooter>
         </DialogContent>

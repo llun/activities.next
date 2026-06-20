@@ -18,6 +18,7 @@ const makeMockHeatmap = (
   status: 'completed',
   activityCount: 10,
   pointCount: 0,
+  totalCount: 0,
   cursorOffset: 0,
   isPartial: false,
   createdAt: 1_700_000_000_000,
@@ -27,6 +28,13 @@ const makeMockHeatmap = (
 
 const CURRENT_TIME = 1_700_000_060_000
 
+const findButtonByText = (text: string) =>
+  screen
+    .getAllByRole('button')
+    .find(
+      (el) => el.tagName === 'BUTTON' && el.textContent?.trim().includes(text)
+    )
+
 describe('FitnessHeatmapList', () => {
   it('renders empty state when no heatmaps', () => {
     render(
@@ -34,6 +42,7 @@ describe('FitnessHeatmapList', () => {
         heatmaps={[]}
         onSelect={vi.fn()}
         onRetry={vi.fn()}
+        onRemove={vi.fn()}
         currentTime={CURRENT_TIME}
       />
     )
@@ -52,6 +61,7 @@ describe('FitnessHeatmapList', () => {
         heatmaps={[generating, failed]}
         onSelect={vi.fn()}
         onRetry={vi.fn()}
+        onRemove={vi.fn()}
         currentTime={CURRENT_TIME}
       />
     )
@@ -75,6 +85,7 @@ describe('FitnessHeatmapList', () => {
         heatmaps={[completed]}
         onSelect={vi.fn()}
         onRetry={vi.fn()}
+        onRemove={vi.fn()}
         currentTime={CURRENT_TIME}
       />
     )
@@ -103,6 +114,7 @@ describe('FitnessHeatmapList', () => {
         heatmaps={[heatmap]}
         onSelect={onSelect}
         onRetry={vi.fn()}
+        onRemove={vi.fn()}
         currentTime={CURRENT_TIME}
       />
     )
@@ -129,17 +141,13 @@ describe('FitnessHeatmapList', () => {
         heatmaps={[heatmap]}
         onSelect={onSelect}
         onRetry={onRetry}
+        onRemove={vi.fn()}
         currentTime={CURRENT_TIME}
       />
     )
 
     // The Retry button is a real <button> element (not a div[role=button] row)
-    const retryBtn = screen
-      .getAllByRole('button')
-      .find(
-        (el) =>
-          el.tagName === 'BUTTON' && el.textContent?.trim().includes('Retry')
-      )
+    const retryBtn = findButtonByText('Retry')
     expect(retryBtn).toBeDefined()
 
     await act(async () => {
@@ -167,6 +175,7 @@ describe('FitnessHeatmapList', () => {
         heatmaps={[world, rect]}
         onSelect={vi.fn()}
         onRetry={vi.fn()}
+        onRemove={vi.fn()}
         currentTime={CURRENT_TIME}
       />
     )
@@ -186,11 +195,109 @@ describe('FitnessHeatmapList', () => {
         heatmaps={[heatmap]}
         onSelect={vi.fn()}
         onRetry={vi.fn()}
+        onRemove={vi.fn()}
         currentTime={CURRENT_TIME}
       />
     )
 
     expect(screen.getByText('Generating…')).toBeInTheDocument()
+  })
+
+  it('shows a determinate progress bar while generating with a known total', () => {
+    const heatmap = makeMockHeatmap({
+      id: 'heatmap-progress',
+      status: 'generating',
+      totalCount: 10,
+      cursorOffset: 3
+    })
+
+    render(
+      <FitnessHeatmapList
+        heatmaps={[heatmap]}
+        onSelect={vi.fn()}
+        onRetry={vi.fn()}
+        onRemove={vi.fn()}
+        currentTime={CURRENT_TIME}
+      />
+    )
+
+    expect(screen.getByText('3 / 10 files (30%)')).toBeInTheDocument()
+    const bar = screen.getByRole('progressbar')
+    expect(bar).toHaveAttribute('aria-valuenow', '30')
+  })
+
+  it('shows an indeterminate scanned count when the total is not yet known', () => {
+    const heatmap = makeMockHeatmap({
+      id: 'heatmap-progress-unknown',
+      status: 'generating',
+      totalCount: 0,
+      cursorOffset: 5
+    })
+
+    render(
+      <FitnessHeatmapList
+        heatmaps={[heatmap]}
+        onSelect={vi.fn()}
+        onRetry={vi.fn()}
+        onRemove={vi.fn()}
+        currentTime={CURRENT_TIME}
+      />
+    )
+
+    expect(screen.getByText('5 files scanned')).toBeInTheDocument()
+    const bar = screen.getByRole('progressbar')
+    expect(bar).not.toHaveAttribute('aria-valuenow')
+  })
+
+  it('clicking remove on a failed row calls onRemove and not onSelect', () => {
+    const onSelect = vi.fn()
+    const onRemove = vi.fn()
+    const heatmap = makeMockHeatmap({
+      id: 'heatmap-fail-remove',
+      status: 'failed',
+      error: 'boom'
+    })
+
+    render(
+      <FitnessHeatmapList
+        heatmaps={[heatmap]}
+        onSelect={onSelect}
+        onRetry={vi.fn()}
+        onRemove={onRemove}
+        currentTime={CURRENT_TIME}
+      />
+    )
+
+    const removeBtn = findButtonByText('Remove')
+    expect(removeBtn).toBeDefined()
+
+    fireEvent.click(removeBtn!)
+
+    expect(onRemove).toHaveBeenCalledWith(heatmap)
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('does not show a remove action for in-flight heatmaps', () => {
+    const generating = makeMockHeatmap({
+      id: 'heatmap-gen-noremove',
+      status: 'generating'
+    })
+    const pending = makeMockHeatmap({
+      id: 'heatmap-pending-noremove',
+      status: 'pending'
+    })
+
+    render(
+      <FitnessHeatmapList
+        heatmaps={[generating, pending]}
+        onSelect={vi.fn()}
+        onRetry={vi.fn()}
+        onRemove={vi.fn()}
+        currentTime={CURRENT_TIME}
+      />
+    )
+
+    expect(findButtonByText('Remove')).toBeUndefined()
   })
 
   it('labels capped completed heatmaps as partial with a resume action', async () => {
@@ -207,6 +314,7 @@ describe('FitnessHeatmapList', () => {
         heatmaps={[heatmap]}
         onSelect={onSelect}
         onRetry={onRetry}
+        onRemove={vi.fn()}
         currentTime={CURRENT_TIME}
       />
     )

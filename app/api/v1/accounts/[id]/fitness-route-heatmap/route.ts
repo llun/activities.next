@@ -26,7 +26,8 @@ import { idToUrl } from '@/lib/utils/urlToId'
 const CORS_HEADERS = [
   HttpMethod.enum.OPTIONS,
   HttpMethod.enum.GET,
-  HttpMethod.enum.POST
+  HttpMethod.enum.POST,
+  HttpMethod.enum.DELETE
 ]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
@@ -72,6 +73,7 @@ const serializeRouteHeatmap = (heatmap: FitnessRouteHeatmap) => ({
   segments: heatmap.segments,
   activityCount: heatmap.activityCount,
   pointCount: heatmap.pointCount,
+  totalCount: heatmap.totalCount,
   cursorOffset: heatmap.cursorOffset,
   isPartial: heatmap.isPartial,
   error: heatmap.error ?? null,
@@ -350,6 +352,125 @@ export const POST = traceApiRoute(
       allowedMethods: CORS_HEADERS,
       data: { queued: true },
       responseStatusCode: 202
+    })
+  },
+  {
+    addAttributes: async (_req, context) => {
+      const params = await context.params
+      return { accountId: params?.id || 'unknown' }
+    }
+  }
+)
+
+export const DELETE = traceApiRoute(
+  'deleteAccountFitnessRouteHeatmap',
+  async (req: NextRequest, params: AppRouterParams<Params>) => {
+    const database = getDatabase()
+    if (!database) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
+    }
+
+    const session = await getServerAuthSession()
+    if (!session?.user?.email) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_401,
+        responseStatusCode: 401
+      })
+    }
+
+    // Manually authenticated cookie-session mutation: apply the same CSRF
+    // same-origin proof as AuthenticatedGuard.
+    if (!hasSameOriginProof(req)) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_403,
+        responseStatusCode: 403
+      })
+    }
+
+    const currentActor = await getActorFromSession(database, session)
+    if (!currentActor) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_401,
+        responseStatusCode: 401
+      })
+    }
+
+    const { id: encodedAccountId } = await params.params
+    if (!encodedAccountId) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
+    }
+    const id = idToUrl(encodedAccountId)
+
+    if (currentActor.id !== id) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_403,
+        responseStatusCode: 403
+      })
+    }
+
+    const url = new URL(req.url)
+    const parsed = FitnessRouteHeatmapQueryParams.safeParse(
+      Object.fromEntries(url.searchParams.entries())
+    )
+    if (!parsed.success) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
+      })
+    }
+
+    const {
+      activity_type: activityType,
+      period_type: periodType,
+      period_key: periodKey,
+      region: rawRegion
+    } = parsed.data
+
+    const existing = await database.getFitnessRouteHeatmapByKey({
+      actorId: id,
+      activityType: activityType ?? null,
+      periodType,
+      periodKey,
+      region: normalizeRegion(rawRegion)
+    })
+
+    if (!existing) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { deleted: false }
+      })
+    }
+
+    const deleted = await database.deleteFitnessRouteHeatmap({
+      actorId: id,
+      id: existing.id
+    })
+
+    return apiResponse({
+      req,
+      allowedMethods: CORS_HEADERS,
+      data: { deleted }
     })
   },
   {

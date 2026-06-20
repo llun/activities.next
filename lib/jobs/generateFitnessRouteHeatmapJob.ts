@@ -34,6 +34,11 @@ import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
 
+// Each generation pass must finish (and checkpoint) well inside the queue's
+// per-job timeout. QStash caps a job at 30s (MAX_JOB_TIMEOUT_SECONDS); we stop
+// accumulating at 20s and spend the remaining headroom persisting the
+// checkpoint payload and publishing the continuation, keeping wall-clock under
+// the ~25s-per-task target. Anything longer is split into a continuation job.
 const ROUTE_HEATMAP_JOB_TIME_BUDGET_MS = 20_000
 const ROUTE_HEATMAP_PAGE_SIZE = 100
 const ROUTE_HEATMAP_MAX_FILES = 1_000_000
@@ -162,9 +167,17 @@ const downsampleRoutePoints = <Point>(points: Point[], maxPoints: number) => {
 const shouldReduceAccumulation = (
   pointCount: number,
   routeHeatmapConfig: ReturnType<typeof getFitnessRouteHeatmapConfig>
-) =>
-  pointCount >= routeHeatmapConfig.accumulationPointLimit ||
-  process.memoryUsage().heapUsed > routeHeatmapConfig.memoryBudgetBytes
+) => {
+  if (pointCount >= routeHeatmapConfig.accumulationPointLimit) {
+    return true
+  }
+
+  // Guard on resident set size (rss), not just heapUsed: the per-file download
+  // buffers and parser scratch space live in off-heap (external/arrayBuffer)
+  // memory, which heapUsed ignores. rss is what actually counts against the
+  // ~1GB container budget, so it is the safe bound to trip downsampling on.
+  return process.memoryUsage().rss > routeHeatmapConfig.memoryBudgetBytes
+}
 
 const shouldCheckpoint = (startedAt: number) =>
   Date.now() - startedAt >= ROUTE_HEATMAP_JOB_TIME_BUDGET_MS
@@ -283,6 +296,21 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           (requestedCursorOffset ?? 0) + ROUTE_HEATMAP_MAX_FILES
         )
 
+      const queryFilters = {
+        actorId,
+        processingStatus: 'completed' as const,
+        isPrimary: true,
+        ...(activityType !== null ? { activityType } : {}),
+        ...(periodType !== 'all_time'
+          ? { startDate: periodStart, endDate: periodEnd }
+          : {})
+      }
+
+      // Progress denominator: total matching files this run must scan. Recomputed
+      // each run (fresh or resume) so the reported total reflects files added or
+      // removed since the heatmap was first queued.
+      const totalCount = await database.countFitnessFilesByActor(queryFilters)
+
       if (existing) {
         heatmapId = existing.id
         if (isResume) {
@@ -296,6 +324,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
             id: existing.id,
             status: 'generating',
             error: null,
+            totalCount,
             clearDeleted: true,
             clearDeletedBefore: requestedAt ?? 0,
             ...(isResume
@@ -337,6 +366,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           id: created.id,
           status: 'generating',
           error: null,
+          totalCount,
           cursorOffset: 0,
           isPartial: false
         })
@@ -355,16 +385,6 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
 
       let reachedPageLimit = false
 
-      const queryFilters = {
-        actorId,
-        processingStatus: 'completed' as const,
-        isPrimary: true,
-        ...(activityType !== null ? { activityType } : {}),
-        ...(periodType !== 'all_time'
-          ? { startDate: periodStart, endDate: periodEnd }
-          : {})
-      }
-
       const checkpointAndContinue = async (nextCursorOffset: number) => {
         const payload = buildRouteHeatmapPayload({
           privacySegments: allSegments,
@@ -381,6 +401,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           segments: payload.segments,
           activityCount,
           pointCount: payload.pointCount,
+          totalCount,
           cursorOffset: nextCursorOffset,
           isPartial: false,
           error: null
@@ -545,6 +566,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
         segments: payload.segments,
         activityCount,
         pointCount: payload.pointCount,
+        totalCount,
         cursorOffset: reachedPageLimit ? cursorOffset : 0,
         isPartial: reachedPageLimit,
         error: null

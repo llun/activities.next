@@ -9,6 +9,7 @@ import {
   clearFitnessRouteHeatmaps,
   createDirectMessage,
   createPoll,
+  deleteFitnessRouteHeatmap,
   getActorStatuses,
   getBookmarks,
   getFitnessRouteHeatmap,
@@ -555,6 +556,44 @@ describe('fitness route heatmap client calls', () => {
         headers: { Accept: 'application/json' }
       })
     )
+  })
+
+  it('removes a single route heatmap by key', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({ deleted: true }), {
+      status: 200
+    })
+
+    await expect(
+      deleteFitnessRouteHeatmap({
+        actorId: 'https://llun.test/users/test1',
+        activityType: 'running',
+        periodType: 'monthly',
+        periodKey: '2026-04',
+        region: 'netherlands'
+      })
+    ).resolves.toBe(true)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://llun.test/api/v1/accounts/llun.test:users:test1/fitness-route-heatmap?period_type=monthly&period_key=2026-04&activity_type=running&region=netherlands',
+      expect.objectContaining({
+        method: 'DELETE',
+        headers: { Accept: 'application/json' }
+      })
+    )
+  })
+
+  it('throws a detailed error when removing a route heatmap fails', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({ error: 'owner only' }), {
+      status: 403
+    })
+
+    await expect(
+      deleteFitnessRouteHeatmap({
+        actorId: 'https://llun.test/users/test1',
+        periodType: 'all_time',
+        periodKey: 'all'
+      })
+    ).rejects.toThrow('Failed to load route heatmap (403): owner only')
   })
 
   it('sends an explicit retry flag when triggering a retry route heatmap job', async () => {
