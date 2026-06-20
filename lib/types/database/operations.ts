@@ -1364,6 +1364,14 @@ export type SetCollectionMemberStateParams = {
   targetActorId: string
   state: CollectionFeatureState
 }
+// Member-facing consent action: the member (actorId) sets the state of THEIR
+// OWN membership in a collection, regardless of who owns it. Used by the
+// approve / revoke endpoints. Returns false when no such membership exists.
+export type SetOwnCollectionMembershipStateParams = {
+  collectionId: string
+  actorId: string
+  state: CollectionFeatureState
+}
 export type GetCollectionMembersParams = {
   id: string
   actorId: string
@@ -1419,6 +1427,11 @@ export interface CollectionDatabase {
   setCollectionMemberState(
     params: SetCollectionMemberStateParams
   ): Promise<void>
+  // Member-facing approve/revoke of the caller's own membership. Returns true
+  // when a membership row was updated, false when none matched.
+  setOwnCollectionMembershipState(
+    params: SetOwnCollectionMembershipStateParams
+  ): Promise<boolean>
   getCollectionMembers(
     params: GetCollectionMembersParams
   ): Promise<CollectionMembersPage>
@@ -2766,6 +2779,7 @@ export const Scope = z.enum([
   'read:accounts',
   'read:blocks',
   'read:bookmarks',
+  'read:collections',
   'read:conversations',
   'read:favourites',
   'read:filters',
@@ -2780,6 +2794,7 @@ export const Scope = z.enum([
   'write:accounts',
   'write:blocks',
   'write:bookmarks',
+  'write:collections',
   'write:conversations',
   'write:favourites',
   'write:filters',

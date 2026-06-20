@@ -33,6 +33,7 @@ import {
   GetCollectionsWithAccountParams,
   RemoveCollectionMembersParams,
   SetCollectionMemberStateParams,
+  SetOwnCollectionMembershipStateParams,
   UpdateCollectionParams
 } from '@/lib/types/database/operations'
 import { Collection, CollectionVisibility } from '@/lib/types/domain/collection'
@@ -401,6 +402,24 @@ export const CollectionSQLDatabaseMixin = (
     await database('collection_members')
       .where({ collectionSeq: seq, targetActorId })
       .update({ featureState: state })
+  },
+
+  async setOwnCollectionMembershipState({
+    collectionId,
+    actorId,
+    state
+  }: SetOwnCollectionMembershipStateParams) {
+    // The member acts on their OWN membership, so this is intentionally not
+    // owner-scoped — it resolves the collection by public id and matches the
+    // membership row by the caller's actor id.
+    const collection = await database('collections')
+      .where({ id: collectionId })
+      .first<{ seq: string | number }>('seq')
+    if (!collection) return false
+    const updated = await database('collection_members')
+      .where({ collectionSeq: collection.seq, targetActorId: actorId })
+      .update({ featureState: state })
+    return updated > 0
   },
 
   async getCollectionMembers({
