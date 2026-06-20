@@ -8,6 +8,7 @@ import {
 import { getMastodonCollection } from '@/lib/services/mastodon/getMastodonCollection'
 import { Scope } from '@/lib/types/database/operations'
 import { CollectionVisibility } from '@/lib/types/domain/collection'
+import { CollectionTopicInput } from '@/lib/types/mastodon/collection'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_404,
@@ -76,7 +77,7 @@ export const GET = traceApiRoute(
 const UpdateCollectionBody = z.object({
   title: z.string().trim().min(1).max(255).optional(),
   description: z.string().max(2000).nullable().optional(),
-  topic: z.string().trim().max(255).nullable().optional(),
+  topic: CollectionTopicInput,
   language: z.string().trim().max(10).nullable().optional(),
   visibility: CollectionVisibility.optional(),
   feed_enabled: z.coerce.boolean().optional()

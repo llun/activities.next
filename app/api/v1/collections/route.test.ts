@@ -90,6 +90,23 @@ describe('/api/v1/collections', () => {
     expect(response.status).toBe(422)
   })
 
+  it.each([
+    { description: 'with spaces', topic: 'two words' },
+    { description: 'with a # symbol', topic: '#tag' }
+  ])('rejects a topic $description', async ({ topic }) => {
+    const response = await POST(postRequest({ title: 'T', topic }), context)
+    expect(response.status).toBe(422)
+  })
+
+  it('accepts a valid single-hashtag topic', async () => {
+    const response = await POST(
+      postRequest({ title: 'Topical', topic: 'fediverse' }),
+      context
+    )
+    expect(response.status).toBe(200)
+    expect((await response.json()).topic).toBe('fediverse')
+  })
+
   it('lists the actor’s collections', async () => {
     await POST(postRequest({ title: 'Another collection' }), context)
     const response = await GET(

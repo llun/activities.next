@@ -24,6 +24,9 @@ const CORS_HEADERS = [
   HttpMethod.enum.DELETE
 ]
 const MAX_LIMIT = 80
+// Cap the per-request batch of account ids to bound worst-case DB load on a
+// single add/remove (collections are curated; clients can page large changes).
+const MAX_ACCOUNT_IDS = 100
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -106,7 +109,7 @@ export const GET = traceApiRoute(
 )
 
 const AccountIdsBody = z.object({
-  account_ids: z.array(z.string().min(1)).min(1)
+  account_ids: z.array(z.string().min(1)).min(1).max(MAX_ACCOUNT_IDS)
 })
 
 const parseAccountIds = async (req: Request): Promise<string[] | null> => {
