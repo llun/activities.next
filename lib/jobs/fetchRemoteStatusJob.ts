@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getNote } from '@/lib/activities'
 import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
+import { compactActivityPub } from '@/lib/activities/jsonld'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
@@ -27,10 +28,18 @@ interface FetchRemoteStatusResult {
   note?: Note
 }
 
-// Upper bound on how many reply notes a single fetch walks across the whole
+// Upper bound on how many reply notes a single fetch stores across the whole
 // thread. It caps both the federation traffic and — because the in-process
 // NoQueue runs this job inline with the page render — the request latency.
 const MAX_REPLY_NOTES = 500
+
+// Independent ceiling on total work units (one per collection page visited and
+// one per item considered). Unlike `MAX_REPLY_NOTES` this also advances for
+// skipped items and empty pages, so a malicious/buggy server cannot keep the
+// walk spinning with junk items or an endless chain of empty inline pages while
+// the stored-note count never moves. Generous enough that legitimate threads
+// reach `MAX_REPLY_NOTES` before hitting it.
+const MAX_FETCH_WORK = 5000
 
 const fetchRemoteStatus = async (
   database: Database,
@@ -130,84 +139,122 @@ export const fetchRemoteStatusJob = createJobHandle(
     const note = result.note ?? (await getNote({ statusId, signingActor }))
     if (!note) return
 
+    // A single failed federation request (timeout, offline instance, non-JSON
+    // body) must not abort the whole walk, so swallow errors here and return
+    // null — the caller treats a null fetch as a skipped node. This matters all
+    // the more because, under NoQueue, the walk runs inline with the page render
+    // and an uncaught throw would 500 an otherwise-viewable status.
     const client = {
       fetch: async (url: string) => {
         if (!(await canFederateWithDomain(database, url))) return null
-        const { body, statusCode } = await request({
-          url,
-          headers: activityPubRequestHeaders({
+        try {
+          const { body, statusCode } = await request({
             url,
-            signingActor,
-            accept: 'application/activity+json'
+            headers: activityPubRequestHeaders({
+              url,
+              signingActor,
+              accept: 'application/activity+json'
+            })
           })
-        })
-        if (statusCode !== 200) return null
-        return JSON.parse(body)
+          if (statusCode !== 200) return null
+          return JSON.parse(body)
+        } catch {
+          return null
+        }
       }
     }
 
     // Resolves a collection item into a stored Note and returns that note's own
     // `replies` reference (so its descendants can be queued), or null when the
-    // item is missing, cannot be federated, or is not a Note. Already-stored
-    // notes are not rewritten but still yield their `replies` so newly added
-    // descendants are picked up on a later fetch.
-    const storeReplyNote = async (item: unknown): Promise<unknown> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let activityOrNote: any = item
-      if (typeof item === 'string') {
-        activityOrNote = await client.fetch(item)
-      }
-      if (!activityOrNote) return null
-
-      // Unwrap a Create activity into its Note object.
-      if (activityOrNote.type === 'Create' && activityOrNote.object) {
-        activityOrNote = activityOrNote.object
-        if (typeof activityOrNote === 'string') {
-          activityOrNote = await client.fetch(activityOrNote)
+    // item is missing, cannot be federated, or is not a Note. The `{ replies }`
+    // wrapper distinguishes "a valid Note with no replies" (success) from a
+    // skipped item (null). Already-stored notes are not rewritten but still
+    // yield their `replies` so newly added descendants are picked up.
+    const storeReplyNote = async (
+      item: unknown
+    ): Promise<{ replies: unknown } | null> => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let doc: any = item
+        if (typeof doc === 'string') {
+          doc = await client.fetch(doc)
         }
-      }
-      if (!activityOrNote || activityOrNote.type !== 'Note') return null
+        if (!doc) return null
 
-      const childReplies = activityOrNote.replies
+        // Compact the untrusted document against the canonical offline context
+        // before reading any AP terms, mirroring `getNote`. Without this a
+        // remote that serves an expanded/aliased `type` or non-array fields
+        // would be silently skipped or mis-shaped.
+        doc = await compactActivityPub(doc)
 
-      const exists = await database.getStatus({ statusId: activityOrNote.id })
-      if (exists) return childReplies
+        // Unwrap a Create activity into its Note object.
+        if (doc.type === 'Create' && doc.object) {
+          doc = doc.object
+          if (typeof doc === 'string') {
+            doc = await client.fetch(doc)
+          }
+          if (!doc) return null
+          doc = await compactActivityPub(doc)
+        }
 
-      const sanitizedReply = normalizeActivityPubContent(activityOrNote) as Note
-      if (
-        !(await canFederateWithDomain(database, sanitizedReply.attributedTo))
-      ) {
+        // Recurse using the compacted document's own `replies` ref, which keeps
+        // its full shape; the validated note below has it narrowed/stripped.
+        const childReplies = doc.replies
+
+        // `replies`/`likes`/`shares` are opaque collection refs we never persist
+        // and whose shape varies by server, so exclude them from validation — a
+        // non-conforming collection must not discard an otherwise-valid note.
+        const forValidation = { ...doc }
+        delete forValidation.replies
+        delete forValidation.likes
+        delete forValidation.shares
+
+        const noteResult = Note.safeParse(
+          normalizeActivityPubContent(forValidation)
+        )
+        if (!noteResult.success) return null
+        const sanitizedReply = noteResult.data
+
+        const exists = await database.getStatus({ statusId: sanitizedReply.id })
+        if (exists) return { replies: childReplies }
+
+        if (
+          !(await canFederateWithDomain(database, sanitizedReply.attributedTo))
+        ) {
+          return null
+        }
+
+        const actor = await recordActorIfNeeded({
+          actorId: sanitizedReply.attributedTo,
+          database,
+          signingActor
+        })
+        if (!actor) return null
+
+        try {
+          await database.createNote({
+            id: sanitizedReply.id,
+            url: sanitizedReply.url || sanitizedReply.id,
+            actorId: sanitizedReply.attributedTo,
+            text: Array.isArray(sanitizedReply.content)
+              ? sanitizedReply.content.join('')
+              : sanitizedReply.content || '',
+            summary: sanitizedReply.summary || '',
+            to: toRecipientArray(sanitizedReply.to),
+            cc: toRecipientArray(sanitizedReply.cc),
+            reply: sanitizedReply.inReplyTo || '',
+            createdAt: sanitizedReply.published
+              ? new Date(sanitizedReply.published).getTime()
+              : Date.now()
+          })
+        } catch {
+          // Ignore error if status already exists
+        }
+
+        return { replies: childReplies }
+      } catch {
         return null
       }
-
-      const actor = await recordActorIfNeeded({
-        actorId: sanitizedReply.attributedTo,
-        database,
-        signingActor
-      })
-      if (!actor) return null
-
-      try {
-        await database.createNote({
-          id: sanitizedReply.id,
-          url: sanitizedReply.url || sanitizedReply.id,
-          actorId: sanitizedReply.attributedTo,
-          text: Array.isArray(sanitizedReply.content)
-            ? sanitizedReply.content.join('')
-            : sanitizedReply.content || '',
-          summary: sanitizedReply.summary || '',
-          to: toRecipientArray(sanitizedReply.to),
-          cc: toRecipientArray(sanitizedReply.cc),
-          reply: sanitizedReply.inReplyTo || '',
-          createdAt: sanitizedReply.published
-            ? new Date(sanitizedReply.published).getTime()
-            : Date.now()
-        })
-      } catch {
-        // Ignore error if status already exists
-      }
-
-      return childReplies
     }
 
     const pendingCollections: unknown[] = []
@@ -215,17 +262,40 @@ export const fetchRemoteStatusJob = createJobHandle(
 
     const queueCollection = (collection: unknown) => {
       if (!collection) return
-      if (typeof collection === 'string') {
-        if (visitedCollections.has(collection)) return
-        visitedCollections.add(collection)
+      // A `replies` ref can arrive as a URL string, an inlined collection
+      // object, or — after JSON-LD compaction of a bare id ref — a `{ id }`
+      // object with no inlined page. Reduce that last form to its URL so it
+      // dedupes and resolves the same as a string ref.
+      let ref: unknown = collection
+      if (
+        typeof collection === 'object' &&
+        collection !== null &&
+        typeof (collection as Record<string, unknown>).id === 'string' &&
+        !('first' in collection) &&
+        !('items' in collection) &&
+        !('orderedItems' in collection)
+      ) {
+        ref = (collection as Record<string, unknown>).id
       }
-      pendingCollections.push(collection)
+      if (typeof ref === 'string') {
+        if (visitedCollections.has(ref)) return
+        visitedCollections.add(ref)
+      }
+      pendingCollections.push(ref)
     }
 
     queueCollection((note as Record<string, unknown>).replies)
 
-    let notesFetched = 0
-    while (pendingCollections.length > 0 && notesFetched < MAX_REPLY_NOTES) {
+    // `notesStored` is the meaningful cap (how many replies we persist);
+    // `work` is the termination guard that advances on every page and every
+    // item, so the walk always halts even when pages are empty or items are all
+    // skipped — closing the inline-`next` / junk-item loops a stored-only count
+    // would leave open.
+    let notesStored = 0
+    let work = 0
+    const withinBudget = () =>
+      notesStored < MAX_REPLY_NOTES && work < MAX_FETCH_WORK
+    while (pendingCollections.length > 0 && withinBudget()) {
       let collection = pendingCollections.shift()
       if (typeof collection === 'string') {
         collection = await client.fetch(collection)
@@ -240,16 +310,20 @@ export const fetchRemoteStatusJob = createJobHandle(
         page = await client.fetch(page)
       }
 
-      while (page && notesFetched < MAX_REPLY_NOTES) {
+      while (page && withinBudget()) {
+        work++
         const items = page.orderedItems || page.items || []
         for (const item of items) {
-          if (notesFetched >= MAX_REPLY_NOTES) break
-          const childReplies = await storeReplyNote(item)
-          notesFetched++
-          queueCollection(childReplies)
+          if (!withinBudget()) break
+          work++
+          const stored = await storeReplyNote(item)
+          if (stored) {
+            notesStored++
+            queueCollection(stored.replies)
+          }
         }
 
-        if (notesFetched >= MAX_REPLY_NOTES) break
+        if (!withinBudget()) break
 
         // Follow pagination within the current collection.
         if (!page.next) break

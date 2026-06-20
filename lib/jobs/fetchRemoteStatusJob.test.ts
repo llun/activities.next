@@ -191,6 +191,7 @@ describe('fetchRemoteStatusJob', () => {
           content: 'A reply',
           inReplyTo: STATUS_ID,
           to: [PUBLIC_STREAM],
+          cc: [],
           published: new Date().toISOString()
         })
       }
@@ -248,6 +249,7 @@ describe('fetchRemoteStatusJob', () => {
           inReplyTo: STATUS_ID,
           replies: CHILD_REPLIES_ID,
           to: [PUBLIC_STREAM],
+          cc: [],
           published: new Date().toISOString()
         })
       }
@@ -266,6 +268,7 @@ describe('fetchRemoteStatusJob', () => {
           content: 'Grandchild reply',
           inReplyTo: CHILD_ID,
           to: [PUBLIC_STREAM],
+          cc: [],
           published: new Date().toISOString()
         })
       }
@@ -351,6 +354,7 @@ describe('fetchRemoteStatusJob', () => {
           content: 'A signed reply',
           inReplyTo: STATUS_ID,
           to: [PUBLIC_STREAM],
+          cc: [],
           published: new Date().toISOString()
         })
       }

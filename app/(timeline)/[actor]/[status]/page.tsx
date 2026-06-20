@@ -21,6 +21,7 @@ import {
 import { cn } from '@/lib/utils'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { logger } from '@/lib/utils/logger'
 import { getPublicMapboxAccessToken } from '@/lib/utils/mapbox'
 
 import { Header } from './Header'
@@ -85,12 +86,24 @@ const Page: FC<Props> = async ({ params }) => {
     // persists the focused status, later views resolve it from the database and
     // skip this branch entirely — bounding repeat fetches for popular posts.
     if (status && status.type === StatusType.enum.Note && session) {
-      const queue = getQueue()
-      await queue.publish({
-        id: `fetch-remote-status-${fullStatusId}`,
-        name: FETCH_REMOTE_STATUS_JOB_NAME,
-        data: { statusId: fullStatusId }
-      })
+      // A queue failure (service down, rate limited) must not 500 the page —
+      // the live-fetched status is still renderable, so log and continue. Under
+      // NoQueue this runs the job inline; the same guard keeps a thrown reply
+      // walk from taking down the render.
+      try {
+        const queue = getQueue()
+        await queue.publish({
+          id: `fetch-remote-status-${fullStatusId}`,
+          name: FETCH_REMOTE_STATUS_JOB_NAME,
+          data: { statusId: fullStatusId }
+        })
+      } catch (error) {
+        logger.error(
+          `[status page] Failed to queue remote reply fetch: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        )
+      }
     }
   }
 
