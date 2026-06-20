@@ -204,10 +204,14 @@ export const fetchRemoteStatusJob = createJobHandle(
         // `replies`/`likes`/`shares` are opaque collection refs we never persist
         // and whose shape varies by server, so exclude them from validation — a
         // non-conforming collection must not discard an otherwise-valid note.
-        const forValidation = { ...doc }
-        delete forValidation.replies
-        delete forValidation.likes
-        delete forValidation.shares
+        // Rest-destructure rather than `delete` so V8 keeps the fast object
+        // shape on this hot path.
+        const {
+          replies: _replies,
+          likes: _likes,
+          shares: _shares,
+          ...forValidation
+        } = doc
 
         const noteResult = Note.safeParse(
           normalizeActivityPubContent(forValidation)
