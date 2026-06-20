@@ -1407,6 +1407,12 @@ export type GetCollectionTimelineParams = {
   maxStatusId?: string | null
   minStatusId?: string | null
 }
+export type GetPublicCollectionTimelineParams = {
+  id: string
+  limit?: number
+  maxStatusId?: string | null
+  minStatusId?: string | null
+}
 export type AddStatusToCollectionTimelinesParams = {
   status: Status
 }
@@ -1439,6 +1445,12 @@ export interface CollectionDatabase {
     params: GetCollectionsWithAccountParams
   ): Promise<Collection[]>
   getCollectionTimeline(params: GetCollectionTimelineParams): Promise<Status[]>
+  // Read a collection's PUBLIC feed by id without owner scoping. Returns null
+  // when the collection does not exist, is private, or has the feed disabled
+  // (so the route can return 404); otherwise the approved/public-only statuses.
+  getPublicCollectionTimeline(
+    params: GetPublicCollectionTimelineParams
+  ): Promise<Status[] | null>
   // Fan a newly created status into every collection whose membership includes
   // the status author (capped per collection). Called from addStatusToTimelines.
   addStatusToCollectionTimelines(

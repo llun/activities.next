@@ -31,6 +31,7 @@ import {
   GetCollectionTimelineParams,
   GetCollectionsParams,
   GetCollectionsWithAccountParams,
+  GetPublicCollectionTimelineParams,
   RemoveCollectionMembersParams,
   SetCollectionMemberStateParams,
   SetOwnCollectionMembershipStateParams,
@@ -164,6 +165,122 @@ const backfillCollectionFeedForMembers = async ({
     }
   }
   await trimCollectionFeed(database, collectionSeq)
+}
+
+// Read a resolved collection's materialized feed for the given projection. The
+// caller resolves `collectionSeq` (owner-scoped for the private read, or via the
+// public-visibility check for the public read), so this helper is shared by both
+// getCollectionTimeline and getPublicCollectionTimeline without duplicating the
+// projection/pagination logic.
+const readCollectionFeed = async ({
+  database,
+  getStatusesByIds,
+  collectionSeq,
+  projection,
+  ownerActorId,
+  limit,
+  maxStatusId,
+  minStatusId
+}: {
+  database: Knex
+  getStatusesByIds: (
+    statusIds: string[],
+    currentActorId?: string
+  ) => Promise<Status[]>
+  collectionSeq: string | number
+  projection: 'owner' | 'public'
+  ownerActorId: string
+  limit: number
+  maxStatusId?: string | null
+  minStatusId?: string | null
+}): Promise<Status[]> => {
+  const query = database('collection_timeline')
+    .innerJoin('statuses', 'statuses.id', 'collection_timeline.statusId')
+    .where('collection_timeline.collectionSeq', collectionSeq)
+
+  if (projection === 'public') {
+    // Public projection: only approved members, and only already-public posts
+    // (a member's followers-only post must never leak to the public feed even
+    // though the owner can see it in the private projection).
+    query
+      .innerJoin(
+        'collection_members',
+        'collection_members.seq',
+        'collection_timeline.memberSeq'
+      )
+      .andWhere('collection_members.featureState', 'approved')
+      .whereIn(
+        'statuses.id',
+        database('recipients')
+          .select('statusId')
+          .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
+      )
+  } else {
+    // Owner projection: all members, filtered to what the owner may read and
+    // dropping blocked/muted authors — both pre-LIMIT, like the list timeline.
+    applyPotentiallyReadableStatusFilter({
+      database,
+      query,
+      visibleToActorId: ownerActorId
+    })
+    applyBlockMuteFilter({
+      database,
+      query,
+      viewerActorId: ownerActorId,
+      now: Date.now()
+    })
+  }
+
+  query
+    .orderBy('collection_timeline.sortKey', 'desc')
+    .orderBy('collection_timeline.id', 'desc')
+    .limit(limit)
+    .select('statuses.id')
+
+  const applyCursor = async (
+    cursorStatusId: string,
+    direction: 'older' | 'newer'
+  ): Promise<boolean> => {
+    let cursor = await database('collection_timeline')
+      .where('collectionSeq', collectionSeq)
+      .where('statusId', cursorStatusId)
+      .select('id', 'sortKey')
+      .first<{ id: string | number | null; sortKey: number | string }>()
+    if (!cursor) {
+      const statusRow = await database('statuses')
+        .where('id', cursorStatusId)
+        .select('createdAt')
+        .first<{ createdAt: number | Date }>()
+      if (!statusRow) return false
+      cursor = { id: null, sortKey: getCompatibleTime(statusRow.createdAt) }
+    }
+    const operator = direction === 'older' ? '<' : '>'
+    const { id: cursorId, sortKey: cursorSortKey } = cursor
+    query.andWhere((builder) => {
+      builder.where('collection_timeline.sortKey', operator, cursorSortKey)
+      if (cursorId !== null) {
+        builder.orWhere((tie) => {
+          tie
+            .where('collection_timeline.sortKey', cursorSortKey)
+            .andWhere('collection_timeline.id', operator, cursorId)
+        })
+      }
+    })
+    return true
+  }
+
+  if (maxStatusId && !(await applyCursor(maxStatusId, 'older'))) return []
+  if (minStatusId && !(await applyCursor(minStatusId, 'newer'))) return []
+
+  const rows = await query
+  const statusIds = rows.map((row) => row.id as string)
+  if (statusIds.length === 0) return []
+  // Owner projection hydrates the owner's action state; the public projection
+  // is anonymous (no viewer), so action state is intentionally un-acted.
+  return getStatusesByIds(
+    statusIds,
+    projection === 'owner' ? ownerActorId : undefined
+  )
 }
 
 export const CollectionSQLDatabaseMixin = (
@@ -503,94 +620,48 @@ export const CollectionSQLDatabaseMixin = (
   }: GetCollectionTimelineParams) {
     const seq = await getOwnedCollectionSeq(database, id, actorId)
     if (seq === null) return []
+    return readCollectionFeed({
+      database,
+      getStatusesByIds,
+      collectionSeq: seq,
+      projection,
+      ownerActorId: actorId,
+      limit,
+      maxStatusId,
+      minStatusId
+    })
+  },
 
-    const query = database('collection_timeline')
-      .innerJoin('statuses', 'statuses.id', 'collection_timeline.statusId')
-      .where('collection_timeline.collectionSeq', seq)
-
-    if (projection === 'public') {
-      // Public projection: only approved members, and only already-public posts
-      // (a member's followers-only post must never leak to the public feed even
-      // though the owner can see it in the private projection).
-      query
-        .innerJoin(
-          'collection_members',
-          'collection_members.seq',
-          'collection_timeline.memberSeq'
-        )
-        .andWhere('collection_members.featureState', 'approved')
-        .whereIn(
-          'statuses.id',
-          database('recipients')
-            .select('statusId')
-            .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
-        )
-    } else {
-      // Owner projection: all members, filtered to what the owner may read and
-      // dropping blocked/muted authors — both pre-LIMIT, like the list timeline.
-      applyPotentiallyReadableStatusFilter({
-        database,
-        query,
-        visibleToActorId: actorId
-      })
-      applyBlockMuteFilter({
-        database,
-        query,
-        viewerActorId: actorId,
-        now: Date.now()
-      })
+  async getPublicCollectionTimeline({
+    id,
+    limit = PER_PAGE_LIMIT,
+    maxStatusId,
+    minStatusId
+  }: GetPublicCollectionTimelineParams) {
+    // Resolve by id only (no owner scope) and gate on the public-feed contract:
+    // the collection must exist, not be private, and have the feed enabled.
+    // Returns null in those cases so the route can answer 404, distinct from an
+    // empty-but-valid public feed ([]).
+    const collection = await database('collections').where({ id }).first<{
+      seq: string | number
+      ownerActorId: string
+      visibility: string
+      publicFeed: boolean | number
+    }>('seq', 'ownerActorId', 'visibility', 'publicFeed')
+    if (!collection) return null
+    if (collection.visibility === 'private' || !collection.publicFeed) {
+      return null
     }
-
-    query
-      .orderBy('collection_timeline.sortKey', 'desc')
-      .orderBy('collection_timeline.id', 'desc')
-      .limit(limit)
-      .select('statuses.id')
-
-    const applyCursor = async (
-      cursorStatusId: string,
-      direction: 'older' | 'newer'
-    ): Promise<boolean> => {
-      let cursor = await database('collection_timeline')
-        .where('collectionSeq', seq)
-        .where('statusId', cursorStatusId)
-        .select('id', 'sortKey')
-        .first<{ id: string | number | null; sortKey: number | string }>()
-      if (!cursor) {
-        const statusRow = await database('statuses')
-          .where('id', cursorStatusId)
-          .select('createdAt')
-          .first<{ createdAt: number | Date }>()
-        if (!statusRow) return false
-        cursor = { id: null, sortKey: getCompatibleTime(statusRow.createdAt) }
-      }
-      const operator = direction === 'older' ? '<' : '>'
-      const { id: cursorId, sortKey: cursorSortKey } = cursor
-      query.andWhere((builder) => {
-        builder.where('collection_timeline.sortKey', operator, cursorSortKey)
-        if (cursorId !== null) {
-          builder.orWhere((tie) => {
-            tie
-              .where('collection_timeline.sortKey', cursorSortKey)
-              .andWhere('collection_timeline.id', operator, cursorId)
-          })
-        }
-      })
-      return true
-    }
-
-    if (maxStatusId && !(await applyCursor(maxStatusId, 'older'))) return []
-    if (minStatusId && !(await applyCursor(minStatusId, 'newer'))) return []
-
-    const rows = await query
-    const statusIds = rows.map((row) => row.id as string)
-    if (statusIds.length === 0) return []
-    // Owner projection hydrates the owner's action state; the public projection
-    // is anonymous (no viewer), so action state is intentionally un-acted.
-    return getStatusesByIds(
-      statusIds,
-      projection === 'owner' ? actorId : undefined
-    )
+    return readCollectionFeed({
+      database,
+      getStatusesByIds,
+      collectionSeq: collection.seq,
+      projection: 'public',
+      ownerActorId: collection.ownerActorId,
+      limit,
+      maxStatusId,
+      minStatusId
+    })
   },
 
   async addStatusToCollectionTimelines({

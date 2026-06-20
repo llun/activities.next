@@ -455,4 +455,100 @@ describe('CollectionDatabase', () => {
       })
     })
   })
+
+  describe('public feed', () => {
+    const setup = async (
+      database: Database,
+      visibility: 'public' | 'unlisted' | 'private',
+      publicFeed: boolean
+    ) => {
+      for (const name of ['owner', 'member']) {
+        await createLocalAccount(database, name)
+      }
+      const owner = await actor(database, 'owner')
+      const member = await actor(database, 'member')
+      const collection = await database.createCollection({
+        actorId: owner.id,
+        title: 'Feed',
+        visibility,
+        publicFeed
+      })
+      await database.addCollectionMembers({
+        id: collection.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+      await database.setCollectionMemberState({
+        id: collection.id,
+        actorId: owner.id,
+        targetActorId: member.id,
+        state: 'approved'
+      })
+      const pub = await publicNote(database, member.id, 'pub')
+      const foll = await followersOnlyNote(database, member.id, 'foll')
+      await database.addStatusToCollectionTimelines({ status: pub })
+      await database.addStatusToCollectionTimelines({ status: foll })
+      return { collection, pub, foll }
+    }
+
+    it('serves approved, public-only posts for a public collection', async () => {
+      await withFreshDatabase(async (database) => {
+        const { collection, pub, foll } = await setup(database, 'public', true)
+        const feed = await database.getPublicCollectionTimeline({
+          id: collection.id
+        })
+        expect(feed).not.toBeNull()
+        const ids = feed!.map((s) => s.id)
+        expect(ids).toContain(pub.id)
+        expect(ids).not.toContain(foll.id)
+      })
+    })
+
+    it('returns null for a private collection', async () => {
+      await withFreshDatabase(async (database) => {
+        const { collection } = await setup(database, 'private', true)
+        expect(
+          await database.getPublicCollectionTimeline({ id: collection.id })
+        ).toBeNull()
+      })
+    })
+
+    it('returns null when the feed is disabled', async () => {
+      await withFreshDatabase(async (database) => {
+        const { collection } = await setup(database, 'public', false)
+        expect(
+          await database.getPublicCollectionTimeline({ id: collection.id })
+        ).toBeNull()
+      })
+    })
+
+    it('hides unapproved members from the public feed', async () => {
+      await withFreshDatabase(async (database) => {
+        for (const name of ['owner', 'pending']) {
+          await createLocalAccount(database, name)
+        }
+        const owner = await actor(database, 'owner')
+        const pending = await actor(database, 'pending')
+        const collection = await database.createCollection({
+          actorId: owner.id,
+          title: 'Feed',
+          visibility: 'public',
+          publicFeed: true
+        })
+        await database.addCollectionMembers({
+          id: collection.id,
+          actorId: owner.id,
+          targetActorIds: [pending.id]
+        })
+        const post = await publicNote(database, pending.id, 'pub')
+        await database.addStatusToCollectionTimelines({ status: post })
+
+        const feed = await database.getPublicCollectionTimeline({
+          id: collection.id
+        })
+        expect(feed).not.toBeNull()
+        expect(feed!.map((s) => s.id)).not.toContain(post.id)
+      })
+    })
+  })
 })
