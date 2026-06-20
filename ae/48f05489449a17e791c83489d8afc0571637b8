@@ -1,0 +1,40 @@
+lib/utils/maplibre.ts
+  s_6a0c31765ecb38::t_1167bf01c3c0e6 95-96
+  s_6a0c31765ecb38::t_df8a3352d5820b 132-133
+  s_6a0c31765ecb38::t_d89bc5ab7ed147 14-22
+lib/components/fitness/RegionMap.tsx
+  s_6a0c31765ecb38::t_1a8a86611c82af 177-186,202-207
+  s_6a0c31765ecb38::t_b903983bfba560 150-153
+  s_6a0c31765ecb38::t_6fd420634d0352 322-325
+  s_6a0c31765ecb38::t_45600e098585e5 285-288
+  s_6a0c31765ecb38::t_6413f81d264fdc 233
+  s_6a0c31765ecb38::t_ffa8d7a8517764 42-43
+lib/components/fitness/HeatmapRegionPicker.test.tsx
+  s_6a0c31765ecb38::t_e59b7981826427 108-121
+lib/components/fitness/HeatmapRegionPicker.tsx
+  s_6a0c31765ecb38::t_3c9d99a980fd89 195-198
+lib/components/fitness/RegionMap.test.tsx
+  s_6a0c31765ecb38::t_e5024e73dd54bc 16,18,25-27,29,41
+  s_6a0c31765ecb38::t_b52a2df1b70d5e 50-63
+  s_6a0c31765ecb38::t_5ba1c1916f8420 243-245,259-261
+  s_6a0c31765ecb38::t_6709a7e67fe188 165-242,246-258,262-264
+lib/utils/maplibre.test.ts
+  s_6a0c31765ecb38::t_9b7343735a4946 1-77,81-82
+  s_6a0c31765ecb38::t_5ba1c1916f8420 78-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "ae48f05489449a17e791c83489d8afc0571637b8",
+  "prompts": {},
+  "sessions": {
+    "s_6a0c31765ecb38": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a6c16cc3-2ab6-4451-a690-238a35bd1533",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
