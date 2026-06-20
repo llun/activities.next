@@ -83,6 +83,35 @@ describe('HeatmapRegionPicker', () => {
     })
   })
 
+  it('replaces drawn rectangles when the whole world is selected', () => {
+    const onChange = vi.fn()
+    const rectValue: PickerRegion[] = [
+      {
+        id: 'rect-1',
+        type: 'rect',
+        nw: { lat: 52, lng: 5 },
+        se: { lat: 51, lng: 6 }
+      }
+    ]
+    render(<HeatmapRegionPicker value={rectValue} onChange={onChange} />)
+    fireEvent.click(screen.getByRole('button', { name: /Whole world/i }))
+    const next = onChange.mock.calls[0][0] as PickerRegion[]
+    expect(next).toHaveLength(1)
+    expect(next[0].type).toBe('world')
+  })
+
+  it('drops the whole world when a rectangle is drawn', () => {
+    const onChange = vi.fn()
+    render(<HeatmapRegionPicker value={worldValue} onChange={onChange} />)
+    fireEvent.click(
+      screen.getByRole('button', { name: /Draw rectangle on map/i })
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Add area/i }))
+    const next = onChange.mock.calls[0][0] as PickerRegion[]
+    expect(next).toHaveLength(1)
+    expect(next[0].type).toBe('rect')
+  })
+
   it('removes a region when its remove button is clicked', () => {
     const onChange = vi.fn()
     render(<HeatmapRegionPicker value={worldValue} onChange={onChange} />)

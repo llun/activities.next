@@ -452,24 +452,28 @@ export const HeatmapRegionPicker: FC<HeatmapRegionPickerProps> = ({
   const hasWorld = value.some((region) => region.type === 'world')
   const atLimit = value.length >= MAX_HEATMAP_REGIONS
 
+  // The whole world subsumes any rectangles (serializeRegions collapses
+  // world + rects to world), so the two kinds are mutually exclusive: picking
+  // the world replaces the list, and drawing a rectangle drops the world.
   const addWorld = () => {
-    if (hasWorld || atLimit) return
-    onChange([...value, { id: createRegionId(), type: 'world' }])
+    if (hasWorld) return
+    onChange([{ id: createRegionId(), type: 'world' }])
   }
   const removeRegion = (id: string) =>
     onChange(value.filter((region) => region.id !== id))
 
   const saveRect = (rect: RectRegion) => {
+    const withoutWorld = value.filter((region) => region.type !== 'world')
     if (composer?.editId) {
       onChange(
-        value.map((region) =>
+        withoutWorld.map((region) =>
           region.id === composer.editId
             ? { ...region, ...rect, id: region.id }
             : region
         )
       )
     } else {
-      onChange([...value, { id: createRegionId(), ...rect }])
+      onChange([...withoutWorld, { id: createRegionId(), ...rect }])
     }
     setComposer(null)
   }
@@ -515,7 +519,7 @@ export const HeatmapRegionPicker: FC<HeatmapRegionPickerProps> = ({
             variant="outline"
             size="sm"
             onClick={addWorld}
-            disabled={hasWorld || atLimit}
+            disabled={hasWorld}
           >
             <Globe className="size-3.5" /> Whole world
           </Button>
