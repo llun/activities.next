@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node -r @swc-node/register
+#!/usr/bin/env -S node scripts/run.cjs
 /**
  * Restores a production archive into the configured local database and local
  * filesystem storage.

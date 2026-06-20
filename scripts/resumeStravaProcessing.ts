@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node -r @swc-node/register
+#!/usr/bin/env -S node scripts/run.cjs
 /**
  * Resumes Phase 3 (processFitnessFileJob) for fitness files that were left
  * in 'pending' or 'processing' state after an interrupted importStravaArchive run.

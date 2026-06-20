@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node -r @swc-node/register
+#!/usr/bin/env -S node scripts/run.cjs
 /**
  * Script to re-trigger Strava import for activities that were stored as plain
  * notes instead of fitness activities (e.g. indoor rides with no GPS data that

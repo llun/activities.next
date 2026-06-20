@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node -r @swc-node/register
+#!/usr/bin/env -S node scripts/run.cjs
 import { loadEnvConfig } from '@next/env'
 
 import { getDatabase } from '@/lib/database'

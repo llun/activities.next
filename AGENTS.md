@@ -298,9 +298,12 @@ These exact steps are verified to work; the gotchas below are load-bearing.
    # The mock scripts run via swc-node, which does NOT auto-load .env.local.
    # Export the vars into the shell first, then run them:
    set -a; . ./.env.local; set +a
-   # The project is ESM-only, so load swc-node's ESM register hook via --import.
-   node --import @swc-node/register/esm-register scripts/createMockUser.ts      # testuser / test@example.com / testpassword123
-   node --import @swc-node/register/esm-register scripts/createMockStatuses.ts  # seeds Home/No-Announce timeline posts
+   # The project is ESM-only. Run scripts through the scripts/run.cjs bootstrap
+   # (also wired into each script's shebang) so @swc-node/register loads them in
+   # CommonJS mode — this resolves the app's extensionless and CommonJS-named
+   # imports, which Node's strict ESM loader rejects.
+   node scripts/run.cjs scripts/createMockUser.ts      # testuser / test@example.com / testpassword123
+   node scripts/run.cjs scripts/createMockStatuses.ts  # seeds Home/No-Announce timeline posts
    ```
 
    The mock user is created already email-verified, so credential sign-in works.
