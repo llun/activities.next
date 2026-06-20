@@ -70,7 +70,12 @@ const BBoxMap: FC<BBoxMapProps> = ({ box, onChange, height = 230 }) => {
     const height = rect.height || 1
     const x = clamp((event.clientX - rect.left) / width, 0, 1)
     const y = clamp((event.clientY - rect.top) / height, 0, 1)
-    return { lng: x * 360 - 180, lat: 90 - y * 180 }
+    // Round to the same 2-dp precision used by the inputs and serialization so
+    // dragged coordinates match the displayed/stored values exactly.
+    return {
+      lng: Number((x * 360 - 180).toFixed(2)),
+      lat: Number((90 - y * 180).toFixed(2))
+    }
   }
 
   const onDown = (event: ReactPointerEvent<HTMLDivElement>) => {
