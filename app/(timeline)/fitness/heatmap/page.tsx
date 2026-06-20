@@ -45,8 +45,8 @@ const Page: FC = async () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Heatmap"
-        description="Routes from your imported activities"
+        title="Heatmaps"
+        description="Route density maps aggregated from your activities"
         actions={
           <Button variant="ghost" size="icon" asChild>
             <Link href="/fitness">
@@ -57,12 +57,10 @@ const Page: FC = async () => {
         }
       />
 
-      <div className="overflow-hidden border bg-background">
-        <FitnessHeatmapView
-          actorId={currentActor.id}
-          mapboxAccessToken={mapboxAccessToken}
-        />
-      </div>
+      <FitnessHeatmapView
+        actorId={currentActor.id}
+        mapboxAccessToken={mapboxAccessToken}
+      />
     </div>
   )
 }

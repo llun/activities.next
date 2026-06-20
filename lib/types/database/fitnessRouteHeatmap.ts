@@ -30,8 +30,9 @@ export interface SQLFitnessRouteHeatmap {
   periodType: string
   periodKey: string
   /**
-   * Serialized sorted comma-separated region IDs, e.g. "netherlands,singapore".
-   * Empty string '' means world-wide (no region filter).
+   * Serialized region scope: a sorted, semicolon-joined list of `rect:` tokens
+   * (e.g. "rect:52.60,5.60,52.00,6.20"). Empty string '' means world-wide (no
+   * region filter). See `serializeRegions` in `lib/fitness/regions`.
    */
   region: string
   periodStart: Date | string | number | null
