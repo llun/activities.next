@@ -150,6 +150,31 @@ describe('FitnessHeatmapList', () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 
+  it('summarizes the region scope on each row', () => {
+    const world = makeMockHeatmap({
+      id: 'hm-world',
+      status: 'pending',
+      region: ''
+    })
+    const rect = makeMockHeatmap({
+      id: 'hm-rect',
+      status: 'failed',
+      region: 'rect:52.60,5.60,52.00,6.20'
+    })
+
+    render(
+      <FitnessHeatmapList
+        heatmaps={[world, rect]}
+        onSelect={vi.fn()}
+        onRetry={vi.fn()}
+        currentTime={CURRENT_TIME}
+      />
+    )
+
+    expect(screen.getByText('Whole world')).toBeInTheDocument()
+    expect(screen.getByText('1 map area')).toBeInTheDocument()
+  })
+
   it('generating row shows animate-spin icon label', () => {
     const heatmap = makeMockHeatmap({
       id: 'heatmap-gen',

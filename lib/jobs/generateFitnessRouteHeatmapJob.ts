@@ -209,10 +209,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
     const startedAt = Date.now()
     const routeHeatmapConfig = getFitnessRouteHeatmapConfig()
     const normalizedRegion = region?.trim() || ''
-    const regionBounds =
-      normalizedRegion !== ''
-        ? getRegionBounds(deserializeRegions(normalizedRegion))
-        : []
+    const regionBounds = getRegionBounds(deserializeRegions(normalizedRegion))
     const { periodStart, periodEnd } = getPeriodRange(periodType, periodKey)
 
     let heatmapId: string | undefined

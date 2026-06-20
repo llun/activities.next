@@ -2,33 +2,31 @@
 
 import {
   AlertCircle,
-  CalendarDays,
+  Flame,
   Loader2,
   Map,
   RefreshCw,
-  Route,
   Trash2
 } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
-  FitnessCalendarDay,
   FitnessRouteHeatmapData,
   FitnessRouteHeatmapSegment,
   FitnessRouteHeatmapSummaryData,
   clearFitnessRouteHeatmaps,
   getDistinctFitnessActivityTypes,
-  getFitnessCalendarData,
   getFitnessRouteHeatmap,
   getFitnessRouteHeatmaps,
   triggerFitnessRouteHeatmap
 } from '@/lib/client'
-import {
-  CalendarMetric,
-  FitnessCalendarHeatmap
-} from '@/lib/components/fitness/FitnessCalendarHeatmap'
 import { FitnessHeatmapList } from '@/lib/components/fitness/FitnessHeatmapList'
-import { RegionSelector } from '@/lib/components/fitness/RegionSelector'
+import {
+  HeatmapRegionPicker,
+  PickerRegion,
+  toHeatmapRegion,
+  withRegionIds
+} from '@/lib/components/fitness/HeatmapRegionPicker'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -38,7 +36,12 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/lib/components/ui/dialog'
-import { deserializeRegions, serializeRegions } from '@/lib/fitness/regions'
+import { Select } from '@/lib/components/ui/select'
+import {
+  describeRegions,
+  deserializeRegions,
+  serializeRegions
+} from '@/lib/fitness/regions'
 import { cn } from '@/lib/utils'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
 import {
@@ -92,16 +95,6 @@ const STALE_IN_FLIGHT_HEATMAP_MS = 15 * 60_000
 // Keep a 4x safety margin until this path has browser/device benchmarks.
 const MAPBOX_MAX_ROUTE_POINTS = 20_000
 const ROUTE_HEATMAP_MAP_HEIGHT_CLASS = 'h-[420px]'
-
-const METRIC_LABELS: Record<CalendarMetric, string> = {
-  count: 'Count',
-  distance: 'Distance',
-  duration: 'Duration'
-}
-const METRIC_OPTIONS = Object.entries(METRIC_LABELS) as [
-  CalendarMetric,
-  string
-][]
 
 const ROUTE_LINE_STYLES = {
   visible: {
@@ -172,37 +165,6 @@ const shouldPollRouteHeatmapSummary = (
 ): boolean =>
   isRouteHeatmapInFlight(heatmap) &&
   currentTime - heatmap.updatedAt <= STALE_IN_FLIGHT_HEATMAP_MS
-
-const getCalendarDateRange = (
-  periodType: PeriodType,
-  periodKey: string
-): { startDate: number; endDate: number } => {
-  if (periodType === 'yearly') {
-    const year = parseInt(periodKey, 10)
-    return {
-      startDate: Date.UTC(year, 0, 1),
-      endDate: Date.UTC(year + 1, 0, 1)
-    }
-  }
-
-  if (periodType === 'monthly') {
-    const [yearStr, monthStr] = periodKey.split('-')
-    const year = parseInt(yearStr, 10)
-    const month = parseInt(monthStr, 10) - 1
-    return {
-      startDate: Date.UTC(year, month, 1),
-      endDate: Date.UTC(year, month + 1, 1)
-    }
-  }
-
-  const now = new Date()
-  const start = Date.UTC(
-    now.getUTCFullYear() - 1,
-    now.getUTCMonth(),
-    now.getUTCDate()
-  )
-  return { startDate: start, endDate: now.getTime() }
-}
 
 const generateYearOptions = (): number[] => {
   const years: number[] = []
@@ -521,13 +483,13 @@ export const FitnessHeatmapView: FC<Props> = ({
   const [periodType, setPeriodType] = useState<PeriodType>('all_time')
   const [periodKey, setPeriodKey] = useState<string>('all')
   const [selectedYear, setSelectedYear] = useState<number>(currentYear)
-  const [selectedRegionIds, setSelectedRegionIds] = useState<string[]>([])
-  const [calendarMetric, setCalendarMetric] = useState<CalendarMetric>('count')
+  const [regions, setRegions] = useState<PickerRegion[]>(() =>
+    withRegionIds([{ type: 'world' }])
+  )
 
   const [heatmapData, setHeatmapData] =
     useState<FitnessRouteHeatmapData | null>(null)
   const [heatmaps, setHeatmaps] = useState<FitnessRouteHeatmapSummaryData[]>([])
-  const [calendarDays, setCalendarDays] = useState<FitnessCalendarDay[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [generationPending, setGenerationPending] = useState(false)
@@ -564,11 +526,11 @@ export const FitnessHeatmapView: FC<Props> = ({
     return periodKey
   }, [periodType, selectedYear, periodKey])
 
-  const serializedRegion = useMemo(
-    () =>
-      selectedRegionIds.length > 0 ? serializeRegions(selectedRegionIds) : null,
-    [selectedRegionIds]
-  )
+  const serializedRegion = useMemo(() => {
+    const serialized = serializeRegions(regions.map(toHeatmapRegion))
+    return serialized === '' ? null : serialized
+  }, [regions])
+  const hasRegions = regions.length > 0
 
   const selectedActivityType = selectedType || undefined
   const selectionKey = useMemo(
@@ -636,11 +598,7 @@ export const FitnessHeatmapView: FC<Props> = ({
       setError(null)
 
       try {
-        const { startDate, endDate } = getCalendarDateRange(
-          periodType,
-          effectivePeriodKey
-        )
-        const [heatmap, calendar, allHeatmaps] = await Promise.all([
+        const [heatmap, allHeatmaps] = await Promise.all([
           getFitnessRouteHeatmap({
             actorId,
             activityType: selectedActivityType,
@@ -648,19 +606,12 @@ export const FitnessHeatmapView: FC<Props> = ({
             periodKey: effectivePeriodKey,
             region: serializedRegion
           }),
-          getFitnessCalendarData({
-            actorId,
-            startDate,
-            endDate,
-            activityType: selectedActivityType
-          }),
           getFitnessRouteHeatmaps({ actorId })
         ])
 
         if (!isCurrentRequest()) return
 
         setHeatmapData(heatmap)
-        setCalendarDays(calendar)
         setHeatmaps(allHeatmaps)
 
         if (heatmap === null && queueMissing) {
@@ -851,9 +802,7 @@ export const FitnessHeatmapView: FC<Props> = ({
       if (heatmap.periodType === 'monthly') {
         setSelectedYear(parseInt(heatmap.periodKey.split('-')[0], 10))
       }
-      setSelectedRegionIds(
-        heatmap.region ? deserializeRegions(heatmap.region) : []
-      )
+      setRegions(withRegionIds(deserializeRegions(heatmap.region ?? '')))
     },
     []
   )
@@ -949,8 +898,6 @@ export const FitnessHeatmapView: FC<Props> = ({
     heatmapData?.status === 'completed' && heatmapData.pointCount > 0
   const hasRouteCache =
     Boolean(heatmapData) || heatmaps.length > 0 || generationPending
-  const canRefreshRouteCache =
-    !isLoading && !generationPending && !isRouteHeatmapInFlight(heatmapData)
   const routeStatusOverlay =
     heatmapData?.status === 'failed'
       ? 'failed'
@@ -960,114 +907,164 @@ export const FitnessHeatmapView: FC<Props> = ({
           ? 'generation-pending'
           : null
 
+  const regionLabel = describeRegions(serializedRegion ?? '')
+  const periodLabel =
+    periodType === 'all_time' ? 'All time' : effectivePeriodKey
+  const isGenerateBusy =
+    isRetrying || generationPending || isRouteHeatmapInFlight(heatmapData)
+  const canGenerate =
+    !isLoading && !isGenerateBusy && !isClearingCache && hasRegions
+
   return (
-    <div className="flex min-h-[720px] flex-col bg-background">
-      <div className="flex flex-wrap items-start gap-3 border-b px-3 py-3">
-        <label className="flex items-center gap-2 text-sm text-muted-foreground">
-          Activity
-          <select
-            value={selectedType}
-            onChange={(e) => setSelectedType(e.target.value)}
-            className="rounded border bg-background px-2 py-1 text-sm"
-          >
-            <option value="">All</option>
-            {activityTypes.map((type) => (
-              <option key={type} value={type}>
-                {formatActivityType(type)}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="flex items-center gap-2 text-sm text-muted-foreground">
-          Period
-          <select
-            value={periodType}
-            onChange={(e) =>
-              handlePeriodTypeChange(e.target.value as PeriodType)
-            }
-            className="rounded border bg-background px-2 py-1 text-sm"
-          >
-            <option value="all_time">All time</option>
-            <option value="yearly">Yearly</option>
-            <option value="monthly">Monthly</option>
-          </select>
-        </label>
-
-        {periodType !== 'all_time' && (
-          <label className="flex items-center gap-2 text-sm text-muted-foreground">
-            Year
-            <select
-              value={selectedYear}
-              onChange={(e) => handleYearChange(parseInt(e.target.value, 10))}
-              className="rounded border bg-background px-2 py-1 text-sm"
-            >
-              {yearOptions.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-
-        {periodType === 'monthly' && (
-          <label className="flex items-center gap-2 text-sm text-muted-foreground">
-            Month
-            <select
-              value={periodKey}
-              onChange={(e) => setPeriodKey(e.target.value)}
-              className="rounded border bg-background px-2 py-1 text-sm"
-            >
-              {monthOptions.map((month) => (
-                <option key={month} value={month}>
-                  {month}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-
-        <div className="min-w-64 max-w-sm flex-1">
-          <RegionSelector
-            selectedIds={selectedRegionIds}
-            onChange={setSelectedRegionIds}
-          />
-        </div>
-      </div>
-
+    <div className="space-y-4">
       {error && (
-        <div className="border-b bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <div
+          role="alert"
+          className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
           {error}
         </div>
       )}
 
-      <section aria-label="Route heatmap map" className="min-w-0 border-b">
-        <div className="border-b px-3 py-2">
-          <div className="flex flex-wrap items-center gap-4 text-sm">
-            <span className="inline-flex items-center gap-1.5 font-medium">
-              <Map className="size-4" />
-              {formatActivityType(selectedActivityType)}
-            </span>
-            <span className="text-muted-foreground">
-              {periodType === 'all_time' ? 'All time' : effectivePeriodKey}
-            </span>
-            <span className="text-muted-foreground">
-              {selectedRegionIds.length > 0
-                ? `${selectedRegionIds.length} regions`
-                : 'World'}
-            </span>
-            {isLoading && (
-              <span
-                role="status"
-                className="inline-flex items-center gap-1.5 text-muted-foreground"
-              >
-                <Loader2 className="size-3 animate-spin" />
-                Loading…
-              </span>
-            )}
+      {/* Generate panel */}
+      <section className="rounded-xl border bg-card p-4 shadow-sm">
+        <div className="mb-3 flex items-center gap-2">
+          <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+            <Flame className="size-4" />
+          </span>
+          <div>
+            <div className="text-sm font-semibold">Generate a heatmap</div>
+            <div className="text-[11px] text-muted-foreground">
+              Aggregate your routes into a density map.
+            </div>
           </div>
         </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="space-y-1.5">
+            <span className="block text-xs font-medium text-muted-foreground">
+              Activity
+            </span>
+            <Select
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value)}
+            >
+              <option value="">All activities</option>
+              {activityTypes.map((type) => (
+                <option key={type} value={type}>
+                  {formatActivityType(type)}
+                </option>
+              ))}
+            </Select>
+          </label>
+
+          <label className="space-y-1.5">
+            <span className="block text-xs font-medium text-muted-foreground">
+              Period
+            </span>
+            <Select
+              value={periodType}
+              onChange={(e) =>
+                handlePeriodTypeChange(e.target.value as PeriodType)
+              }
+            >
+              <option value="all_time">All time</option>
+              <option value="yearly">Yearly</option>
+              <option value="monthly">Monthly</option>
+            </Select>
+          </label>
+
+          {periodType !== 'all_time' && (
+            <label className="space-y-1.5">
+              <span className="block text-xs font-medium text-muted-foreground">
+                Year
+              </span>
+              <Select
+                value={selectedYear}
+                onChange={(e) => handleYearChange(parseInt(e.target.value, 10))}
+              >
+                {yearOptions.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          )}
+
+          {periodType === 'monthly' && (
+            <label className="space-y-1.5">
+              <span className="block text-xs font-medium text-muted-foreground">
+                Month
+              </span>
+              <Select
+                value={periodKey}
+                onChange={(e) => setPeriodKey(e.target.value)}
+              >
+                {monthOptions.map((month) => (
+                  <option key={month} value={month}>
+                    {month}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          )}
+        </div>
+
+        <div className="mt-3 space-y-1.5">
+          <span className="block text-xs font-medium text-muted-foreground">
+            Regions
+          </span>
+          <HeatmapRegionPicker value={regions} onChange={setRegions} />
+        </div>
+
+        <div className="mt-3 flex justify-end">
+          <Button type="button" onClick={retryCurrent} disabled={!canGenerate}>
+            <Flame
+              className={cn('size-4', isGenerateBusy && 'animate-pulse')}
+            />
+            Generate heatmap
+          </Button>
+        </div>
+      </section>
+
+      {/* Preview of the focused heatmap */}
+      <section
+        aria-label="Route heatmap map"
+        className="overflow-hidden rounded-xl border bg-card shadow-sm"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3 p-4">
+          <div className="min-w-0">
+            <div className="text-base font-semibold">
+              {formatActivityType(selectedActivityType)} · {periodLabel}
+            </div>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1">
+                <Map className="size-3.5" />
+                {regionLabel}
+              </span>
+              <span>·</span>
+              <span>{heatmapData?.activityCount ?? 0} activities</span>
+              <span>·</span>
+              <span>{routeCount} segments</span>
+              {isLoading && (
+                <span
+                  role="status"
+                  className="inline-flex items-center gap-1.5"
+                >
+                  <Loader2 className="size-3 animate-spin" />
+                  Loading…
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {heatmapData?.isPartial && (
+          <div className="mx-4 mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+            Partial route cache capped at 1M files.
+          </div>
+        )}
 
         <div className="relative overflow-hidden">
           <RouteHeatmapMap
@@ -1133,125 +1130,34 @@ export const FitnessHeatmapView: FC<Props> = ({
         </div>
       </section>
 
-      <div className="grid flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <main className="min-w-0">
-          <section
-            aria-labelledby="activity-calendar-heading"
-            className="space-y-3 px-3 py-4"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2
-                id="activity-calendar-heading"
-                className="inline-flex items-center gap-2 text-base font-medium"
-              >
-                <CalendarDays className="size-4" />
-                Activity Calendar
-              </h2>
-              <div className="flex gap-1 rounded border p-0.5">
-                {METRIC_OPTIONS.map(([key, label]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    aria-pressed={calendarMetric === key}
-                    onClick={() => setCalendarMetric(key)}
-                    className={cn(
-                      'rounded px-2 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                      calendarMetric === key
-                        ? 'bg-foreground text-background'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <FitnessCalendarHeatmap
-              days={calendarDays}
-              metric={calendarMetric}
-              periodType={periodType}
-              periodKey={effectivePeriodKey}
-              // This calendar sits directly on the page background, not a card.
-              surfaceClassName="bg-background"
-            />
-          </section>
-        </main>
-
-        <aside className="border-t px-3 py-3 lg:border-l lg:border-t-0">
-          <div className="space-y-5">
-            <div className="grid grid-cols-3 gap-2">
-              <div className="rounded border p-2">
-                <div className="text-xs text-muted-foreground">Activities</div>
-                <div className="mt-1 text-lg font-semibold">
-                  {heatmapData?.activityCount ?? 0}
-                </div>
-              </div>
-              <div className="rounded border p-2">
-                <div className="text-xs text-muted-foreground">Segments</div>
-                <div className="mt-1 text-lg font-semibold">{routeCount}</div>
-              </div>
-              <div className="rounded border p-2">
-                <div className="text-xs text-muted-foreground">Points</div>
-                <div className="mt-1 text-lg font-semibold">
-                  {heatmapData?.pointCount ?? 0}
-                </div>
-              </div>
-            </div>
-            {heatmapData?.isPartial && (
-              <div className="rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
-                Partial route cache capped at 1M files.
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="inline-flex items-center gap-2 text-sm font-medium">
-                  <Route className="size-4" />
-                  Route Cache
-                </h2>
-                <div className="flex items-center gap-1.5">
-                  {hasRouteCache && (
-                    <button
-                      type="button"
-                      onClick={() => setClearCacheDialogOpen(true)}
-                      disabled={isClearingCache || isRetrying}
-                      aria-haspopup="dialog"
-                      className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
-                    >
-                      <Trash2
-                        className={cn(
-                          'size-3',
-                          isClearingCache && 'animate-pulse'
-                        )}
-                      />
-                      Clear cache
-                    </button>
-                  )}
-                  {canRefreshRouteCache && (
-                    <button
-                      type="button"
-                      onClick={retryCurrent}
-                      disabled={isRetrying || isClearingCache}
-                      className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
-                    >
-                      <RefreshCw
-                        className={cn('size-3', isRetrying && 'animate-spin')}
-                      />
-                      {heatmapData ? 'Refresh' : 'Generate'}
-                    </button>
-                  )}
-                </div>
-              </div>
-              <FitnessHeatmapList
-                heatmaps={heatmaps}
-                onSelect={handleSelectHeatmap}
-                onRetry={handleRetry}
-                currentTime={currentTime}
+      {/* Job list */}
+      <section className="rounded-xl border bg-card p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold">Heatmaps</h2>
+          {hasRouteCache && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setClearCacheDialogOpen(true)}
+              disabled={isClearingCache || isRetrying}
+              aria-haspopup="dialog"
+            >
+              <Trash2
+                className={cn('size-3.5', isClearingCache && 'animate-pulse')}
               />
-            </div>
-          </div>
-        </aside>
-      </div>
+              Clear cache
+            </Button>
+          )}
+        </div>
+        <FitnessHeatmapList
+          heatmaps={heatmaps}
+          onSelect={handleSelectHeatmap}
+          onRetry={handleRetry}
+          currentTime={currentTime}
+        />
+      </section>
+
       <Dialog
         open={isClearCacheDialogOpen}
         onOpenChange={setClearCacheDialogOpen}

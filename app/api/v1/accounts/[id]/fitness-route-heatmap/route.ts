@@ -51,7 +51,7 @@ const FitnessRouteHeatmapTriggerBody = z.object({
   activity_type: OptionalActivityType,
   period_type: z.enum(['all_time', 'yearly', 'monthly']),
   period_key: z.string(),
-  region: z.string().optional(),
+  region: z.string().max(255).optional(),
   retry: z.boolean().optional()
 })
 

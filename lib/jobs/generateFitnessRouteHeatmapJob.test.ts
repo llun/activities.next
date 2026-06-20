@@ -392,7 +392,7 @@ describe('generateFitnessRouteHeatmapJob', () => {
         activityType: 'running',
         periodType: 'monthly',
         periodKey: '2026-04',
-        region: 'netherlands'
+        region: 'rect:53.00,4.00,52.00,5.00'
       }
     })
 
@@ -401,7 +401,7 @@ describe('generateFitnessRouteHeatmapJob', () => {
       activityType: 'running',
       periodType: 'monthly',
       periodKey: '2026-04',
-      region: 'netherlands'
+      region: 'rect:53.00,4.00,52.00,5.00'
     })
 
     expect(heatmap?.activityCount).toBe(1)
