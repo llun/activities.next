@@ -78,6 +78,13 @@ export const loadMaplibreModule = async <T>(): Promise<T> => {
         const startedAt = Date.now()
 
         const poll = () => {
+          // Stop polling once the promise is settled (e.g. the script fired
+          // 'error' and rejected) so we don't keep scheduling timers until the
+          // timeout elapses.
+          if (settled) {
+            return
+          }
+
           if (resolveIfLoaded()) {
             return
           }
