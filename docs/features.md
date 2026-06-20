@@ -64,6 +64,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Granular OAuth scopes** — Fine-grained scope enforcement and client-credentials app tokens
 - ✅ **Search** — Search accounts, hashtags, and statuses via `/api/v2/search` (status search backed by a full-text index)
 - ✅ **Lists** — Create and manage timeline lists, their members, replies policy, and exclusive flag
+- ✅ **Collections** — Mastodon 4.6-compatible curated account collections via `/api/v1/collections` (create/update/delete, members, per-member approve/revoke consent, `in_collections`), plus an activities.next shareable **public feed** of each collection (owner-private and public projections, the public one limited to approved members and public-visibility posts) with a per-collection capped materialized feed
 - ✅ **Filters** — Keyword/status filters via `/api/v2/filters` with notification filtering
 - ✅ **Reports** — Submit reports against accounts and statuses via `/api/v1/reports`
 - ✅ **Markers** — Save and restore per-timeline read positions

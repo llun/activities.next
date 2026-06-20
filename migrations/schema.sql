@@ -171,6 +171,64 @@ CREATE TABLE public.clients (
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE public.collection_members (
+    seq bigint NOT NULL,
+    id character varying(255) NOT NULL,
+    "collectionSeq" bigint NOT NULL,
+    "targetActorId" character varying(255) NOT NULL,
+    "featureState" character varying(16) DEFAULT 'pending'::character varying NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE SEQUENCE public.collection_members_seq_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE public.collection_members_seq_seq OWNED BY public.collection_members.seq;
+
+CREATE TABLE public.collection_timeline (
+    id bigint NOT NULL,
+    "collectionSeq" bigint NOT NULL,
+    "memberSeq" bigint NOT NULL,
+    "statusId" character varying(255) NOT NULL,
+    "sortKey" bigint NOT NULL
+);
+
+CREATE SEQUENCE public.collection_timeline_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE public.collection_timeline_id_seq OWNED BY public.collection_timeline.id;
+
+CREATE TABLE public.collections (
+    seq bigint NOT NULL,
+    id character varying(255) NOT NULL,
+    "ownerActorId" character varying(255) NOT NULL,
+    title character varying(255) NOT NULL,
+    description text,
+    topic character varying(255),
+    language character varying(10),
+    visibility character varying(16) DEFAULT 'public'::character varying NOT NULL,
+    "publicFeed" boolean DEFAULT true NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE SEQUENCE public.collections_seq_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE public.collections_seq_seq OWNED BY public.collections.seq;
+
 CREATE TABLE public.counters (
     id text NOT NULL,
     value bigint DEFAULT '0'::bigint NOT NULL,
@@ -956,6 +1014,12 @@ CREATE TABLE public.verification (
 
 ALTER TABLE ONLY public.bookmarks ALTER COLUMN id SET DEFAULT nextval('public.bookmarks_id_seq'::regclass);
 
+ALTER TABLE ONLY public.collection_members ALTER COLUMN seq SET DEFAULT nextval('public.collection_members_seq_seq'::regclass);
+
+ALTER TABLE ONLY public.collection_timeline ALTER COLUMN id SET DEFAULT nextval('public.collection_timeline_id_seq'::regclass);
+
+ALTER TABLE ONLY public.collections ALTER COLUMN seq SET DEFAULT nextval('public.collections_seq_seq'::regclass);
+
 ALTER TABLE ONLY public.direct_conversation_memberships ALTER COLUMN id SET DEFAULT nextval('public.direct_conversation_memberships_id_seq'::regclass);
 
 ALTER TABLE ONLY public.endorsements ALTER COLUMN id SET DEFAULT nextval('public.endorsements_id_seq'::regclass);
@@ -1032,6 +1096,27 @@ ALTER TABLE ONLY public.bookmarks
 
 ALTER TABLE ONLY public.bookmarks
     ADD CONSTRAINT bookmarks_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.collection_members
+    ADD CONSTRAINT collection_members_collection_target_unique UNIQUE ("collectionSeq", "targetActorId");
+
+ALTER TABLE ONLY public.collection_members
+    ADD CONSTRAINT collection_members_id_unique UNIQUE (id);
+
+ALTER TABLE ONLY public.collection_members
+    ADD CONSTRAINT collection_members_pkey PRIMARY KEY (seq);
+
+ALTER TABLE ONLY public.collection_timeline
+    ADD CONSTRAINT collection_timeline_collection_status_unique UNIQUE ("collectionSeq", "statusId");
+
+ALTER TABLE ONLY public.collection_timeline
+    ADD CONSTRAINT collection_timeline_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.collections
+    ADD CONSTRAINT collections_id_unique UNIQUE (id);
+
+ALTER TABLE ONLY public.collections
+    ADD CONSTRAINT collections_pkey PRIMARY KEY (seq);
 
 ALTER TABLE ONLY public.counters
     ADD CONSTRAINT counters_tmp_new_pkey PRIMARY KEY (id);
@@ -1308,6 +1393,16 @@ CREATE INDEX bookmarks_actor_created_id ON public.bookmarks USING btree ("actorI
 CREATE INDEX bookmarks_actor_source_status ON public.bookmarks USING btree ("actorId", "sourceStatusId");
 
 CREATE INDEX bookmarks_status ON public.bookmarks USING btree ("statusId");
+
+CREATE INDEX collection_members_target ON public.collection_members USING btree ("targetActorId");
+
+CREATE INDEX collection_timeline_member ON public.collection_timeline USING btree ("memberSeq");
+
+CREATE INDEX collection_timeline_read ON public.collection_timeline USING btree ("collectionSeq", "sortKey");
+
+CREATE INDEX collection_timeline_status ON public.collection_timeline USING btree ("statusId");
+
+CREATE INDEX collections_owner_created ON public.collections USING btree ("ownerActorId", "createdAt");
 
 CREATE INDEX "countersIndex" ON public.counters USING btree (id, "createdAt", "updatedAt");
 

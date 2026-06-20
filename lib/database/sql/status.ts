@@ -1915,6 +1915,17 @@ export const StatusSQLDatabaseMixin = (
       'statusId',
       statusIdsToDelete
     )
+    // Mirror the `timelines` cleanup for the collection fan-out feed so deleting
+    // a status does not leave orphaned rows in the high-row-count
+    // `collection_timeline` table (matching the materialized-timeline pattern
+    // rather than a DB foreign key, which the sibling `timelines` table also
+    // does not use).
+    await deleteRowsByColumnChunks(
+      trx,
+      'collection_timeline',
+      'statusId',
+      statusIdsToDelete
+    )
     await deleteRowsByColumnChunks(
       trx,
       'notifications',

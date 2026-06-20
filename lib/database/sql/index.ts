@@ -7,6 +7,7 @@ import { AdminSQLDatabaseMixin } from '@/lib/database/sql/admin'
 import { AnnouncementSQLDatabaseMixin } from '@/lib/database/sql/announcement'
 import { BlockSQLDatabaseMixin } from '@/lib/database/sql/block'
 import { BookmarkSQLDatabaseMixin } from '@/lib/database/sql/bookmark'
+import { CollectionSQLDatabaseMixin } from '@/lib/database/sql/collection'
 import { DirectConversationSQLDatabaseMixin } from '@/lib/database/sql/conversation'
 import { CustomEmojiSQLDatabaseMixin } from '@/lib/database/sql/customEmoji'
 import { EndorsementSQLDatabaseMixin } from '@/lib/database/sql/endorsement'
@@ -97,6 +98,15 @@ export const getSQLDatabase = (database: Knex): Database => {
     (statusIds, currentActorId) =>
       statusDatabase.getStatusesByIds({ statusIds, currentActorId })
   )
+  const collectionDatabase = CollectionSQLDatabaseMixin(
+    database,
+    (actorIds) => actorDatabase.getMastodonActors(actorIds),
+    // getCollectionTimeline enforces visibility on its own query (owner
+    // projection) or restricts to public posts (public projection), so the
+    // currentActorId here only hydrates the owner's action state.
+    (statusIds, currentActorId) =>
+      statusDatabase.getStatusesByIds({ statusIds, currentActorId })
+  )
   const directConversationDatabase = DirectConversationSQLDatabaseMixin(
     database,
     statusDatabase
@@ -132,6 +142,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...statusMuteDatabase,
     ...idempotencyDatabase,
     ...translationCacheDatabase,
+    ...collectionDatabase,
     ...listDatabase,
     ...filterDatabase,
     ...serverFilterDatabase,
