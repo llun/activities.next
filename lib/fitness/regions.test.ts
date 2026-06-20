@@ -93,6 +93,13 @@ describe('deserializeRegions', () => {
     expect(deserializeRegions('rect:200.00,5.00,51.00,6.00')).toEqual([])
   })
 
+  it('rejects rect tokens with empty/whitespace coordinates (no 0 coercion)', () => {
+    // Number('') === 0 would otherwise parse a longitude of 0 here.
+    expect(deserializeRegions('rect:52.00,,51.00,6.00')).toEqual([])
+    expect(deserializeRegions('rect:52.00, ,51.00,6.00')).toEqual([])
+    expect(deserializeRegions('rect:52.00,5.00,51.00')).toEqual([])
+  })
+
   it.each([
     {
       description: 'whole world',
@@ -162,9 +169,15 @@ describe('isValidRect', () => {
   it.each([
     { description: 'inverted latitude', region: rect(51, 5, 52, 6) },
     { description: 'inverted longitude', region: rect(52, 6, 51, 5) },
-    { description: 'latitude out of range', region: rect(95, 5, 51, 6) }
+    { description: 'latitude out of range', region: rect(95, 5, 51, 6) },
+    { description: 'NaN corner', region: rect(NaN, 5, 51, 6) },
+    { description: 'Infinity corner', region: rect(52, 5, 51, Infinity) }
   ])('rejects a rectangle with $description', ({ region }) => {
     expect(isValidRect(region)).toBe(false)
+  })
+
+  it('serializes a non-finite rectangle to the world-wide sentinel', () => {
+    expect(serializeRegions([rect(NaN, 5, 51, 6)])).toBe('')
   })
 })
 

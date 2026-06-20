@@ -105,11 +105,14 @@ export const serializeRegions = (regions: HeatmapRegion[]): string => {
 }
 
 const parseRectToken = (token: string): RectRegion | null => {
-  const parts = token
-    .slice('rect:'.length)
-    .split(',')
-    .map((part) => Number(part))
-  if (parts.length !== 4 || parts.some((value) => !Number.isFinite(value))) {
+  const rawParts = token.slice('rect:'.length).split(',')
+  // Reject empty/whitespace coordinates explicitly: Number('') and Number(' ')
+  // coerce to 0, which would silently parse a malformed token into a valid box.
+  if (rawParts.length !== 4 || rawParts.some((part) => part.trim() === '')) {
+    return null
+  }
+  const parts = rawParts.map((part) => Number(part))
+  if (parts.some((value) => !Number.isFinite(value))) {
     return null
   }
   const rect: RectRegion = {

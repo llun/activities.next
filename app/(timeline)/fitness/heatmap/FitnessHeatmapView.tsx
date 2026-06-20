@@ -483,9 +483,11 @@ export const FitnessHeatmapView: FC<Props> = ({
   const [periodType, setPeriodType] = useState<PeriodType>('all_time')
   const [periodKey, setPeriodKey] = useState<string>('all')
   const [selectedYear, setSelectedYear] = useState<number>(currentYear)
-  const [regions, setRegions] = useState<PickerRegion[]>(() =>
-    withRegionIds([{ type: 'world' }])
-  )
+  // Static id for the default so the initial SSR render and client hydration
+  // produce identical state (a dynamically generated id would differ).
+  const [regions, setRegions] = useState<PickerRegion[]>(() => [
+    { type: 'world', id: 'world' }
+  ])
 
   const [heatmapData, setHeatmapData] =
     useState<FitnessRouteHeatmapData | null>(null)
