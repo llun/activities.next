@@ -27,6 +27,16 @@ describe('Fitness Layout', () => {
     expect(within(nav).getByRole('button')).toHaveTextContent('Overview')
   })
 
+  it('reflects the Heatmap tab in the dropdown trigger on /fitness/heatmap', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/fitness/heatmap')
+    renderLayout()
+
+    const nav = screen.getByRole('navigation', { name: 'Fitness' })
+    // '/fitness' (Overview) is a prefix of the path but must not win over
+    // '/fitness/heatmap'.
+    expect(within(nav).getByRole('button')).toHaveTextContent('Heatmap')
+  })
+
   it('reflects the Strava tab in the dropdown trigger on /fitness/strava', () => {
     ;(usePathname as jest.Mock).mockReturnValue('/fitness/strava')
     renderLayout()
@@ -82,7 +92,7 @@ describe('Fitness Layout', () => {
     fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
 
     const menu = await screen.findByRole('menu')
-    for (const label of ['Overview', 'Files', 'Privacy', 'Strava']) {
+    for (const label of ['Overview', 'Heatmap', 'Files', 'Privacy', 'Strava']) {
       expect(
         within(menu).getByRole('menuitem', { name: label })
       ).toBeInTheDocument()

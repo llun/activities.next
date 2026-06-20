@@ -3,6 +3,7 @@
 import { Globe, MapPin, Maximize, Pencil, Trash2 } from 'lucide-react'
 import { FC, PointerEvent as ReactPointerEvent, useRef, useState } from 'react'
 
+import { WORLD_LAND_PATH } from '@/lib/components/fitness/worldMapPath'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import {
@@ -110,13 +111,9 @@ const BBoxMap: FC<BBoxMapProps> = ({ box, onChange, height = 230 }) => {
       onPointerUp={onUp}
       onPointerCancel={onUp}
       role="application"
-      aria-label="Draw a rectangle on the map"
-      className="relative w-full cursor-crosshair touch-none select-none overflow-hidden rounded-lg border"
-      style={{
-        height,
-        background:
-          'linear-gradient(160deg, hsl(212 38% 18%), hsl(214 36% 12%))'
-      }}
+      aria-label="Select an area on the map"
+      className="relative w-full cursor-crosshair touch-none select-none overflow-hidden rounded-lg border bg-sky-100 dark:bg-slate-800"
+      style={{ height }}
     >
       <svg
         viewBox="0 0 360 180"
@@ -126,7 +123,17 @@ const BBoxMap: FC<BBoxMapProps> = ({ box, onChange, height = 230 }) => {
         className="absolute inset-0 block"
         aria-hidden="true"
       >
-        <g stroke="hsl(206 22% 34%)" strokeWidth="0.5">
+        {/* Simplified Natural Earth land outline so the surface reads as a real
+            map instead of a bare grid. */}
+        <path
+          d={WORLD_LAND_PATH}
+          className="fill-emerald-200/90 stroke-emerald-300/60 dark:fill-slate-600/80 dark:stroke-slate-500/50"
+          strokeWidth="0.3"
+        />
+        <g
+          className="stroke-slate-400/40 dark:stroke-slate-500/40"
+          strokeWidth="0.5"
+        >
           {LNG_LINES.map((value) => (
             <line
               key={`x${value}`}
@@ -146,7 +153,10 @@ const BBoxMap: FC<BBoxMapProps> = ({ box, onChange, height = 230 }) => {
             />
           ))}
         </g>
-        <g stroke="hsl(206 26% 46%)" strokeWidth="0.8">
+        <g
+          className="stroke-slate-400/60 dark:stroke-slate-500/60"
+          strokeWidth="0.8"
+        >
           <line x1="0" y1="90" x2="360" y2="90" />
           <line x1="180" y1="0" x2="180" y2="180" />
         </g>
@@ -156,7 +166,7 @@ const BBoxMap: FC<BBoxMapProps> = ({ box, onChange, height = 230 }) => {
           width="360"
           height="180"
           fill="none"
-          stroke="hsl(206 24% 40%)"
+          className="stroke-slate-400/50 dark:stroke-slate-500/50"
           strokeWidth="1"
         />
       </svg>
@@ -509,7 +519,7 @@ export const HeatmapRegionPicker: FC<HeatmapRegionPickerProps> = ({
 
       {value.length === 0 && !composer && (
         <div className="rounded-lg border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
-          No regions yet — add the whole world, or draw an area on the map.
+          No regions yet — add the whole world, or select an area on the map.
         </div>
       )}
 
@@ -537,7 +547,7 @@ export const HeatmapRegionPicker: FC<HeatmapRegionPickerProps> = ({
             onClick={() => setComposer({ editId: null })}
             disabled={atLimit}
           >
-            <Maximize className="size-3.5" /> Draw rectangle on map
+            <Maximize className="size-3.5" /> Select an area
           </Button>
         </div>
       )}

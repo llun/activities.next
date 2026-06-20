@@ -42,13 +42,13 @@ describe('HeatmapRegionPicker', () => {
     const onChange = vi.fn()
     render(<HeatmapRegionPicker value={[]} onChange={onChange} />)
 
-    fireEvent.click(
-      screen.getByRole('button', { name: /Draw rectangle on map/i })
-    )
+    fireEvent.click(screen.getByRole('button', { name: /Select an area/i }))
     // Composer is open: the draw surface and the Add area button are present.
-    expect(
-      screen.getByRole('application', { name: /Draw a rectangle/i })
-    ).toBeInTheDocument()
+    const surface = screen.getByRole('application', { name: /Select an area/i })
+    expect(surface).toBeInTheDocument()
+    // The surface renders a real world map (land outline), not just a grid.
+    const land = surface.querySelector('path')
+    expect(land?.getAttribute('d')?.startsWith('M')).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: /Add area/i }))
 
     expect(onChange).toHaveBeenCalledTimes(1)
@@ -65,9 +65,7 @@ describe('HeatmapRegionPicker', () => {
     const onChange = vi.fn()
     render(<HeatmapRegionPicker value={[]} onChange={onChange} />)
 
-    fireEvent.click(
-      screen.getByRole('button', { name: /Draw rectangle on map/i })
-    )
+    fireEvent.click(screen.getByRole('button', { name: /Select an area/i }))
     // Textbox order: Area name, NW latitude, NW longitude, SE latitude, SE longitude.
     const nwLatitude = screen.getAllByRole('textbox')[1]
     fireEvent.change(nwLatitude, { target: { value: '99' } })
@@ -103,9 +101,7 @@ describe('HeatmapRegionPicker', () => {
   it('drops the whole world when a rectangle is drawn', () => {
     const onChange = vi.fn()
     render(<HeatmapRegionPicker value={worldValue} onChange={onChange} />)
-    fireEvent.click(
-      screen.getByRole('button', { name: /Draw rectangle on map/i })
-    )
+    fireEvent.click(screen.getByRole('button', { name: /Select an area/i }))
     fireEvent.click(screen.getByRole('button', { name: /Add area/i }))
     const next = onChange.mock.calls[0][0] as PickerRegion[]
     expect(next).toHaveLength(1)
