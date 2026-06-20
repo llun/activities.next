@@ -4,6 +4,9 @@ import { defaultJobHandle } from './base'
 import { JobMessage, Queue } from './type'
 
 export class NoQueue implements Queue {
+  // NoQueue runs the handler inline inside `publish`, so awaiting it blocks.
+  readonly runsInline = true
+
   async publish(message: JobMessage) {
     // NoQueue runs jobs in-process and has no scheduler, so it cannot honor a
     // delay. A delayed message (e.g. the scheduled-status publish job) is

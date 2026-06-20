@@ -21,6 +21,7 @@ import {
 import { cn } from '@/lib/utils'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { logger } from '@/lib/utils/logger'
 import { getPublicMapboxAccessToken } from '@/lib/utils/mapbox'
 
 import { Header } from './Header'
@@ -75,16 +76,48 @@ const Page: FC<Props> = async ({ params }) => {
       signingActor: currentActor ?? undefined
     })
     statusId = status?.id ?? ''
+
+    // A live-fetched remote status carries no replies (`fromNote` sets
+    // `replies: []`) and its thread is not in our database yet, so a signed-in
+    // viewer would see an empty reply list. Queue the fetch job to persist the
+    // status plus its reply thread. Because the job persists the focused status,
+    // later views resolve it from the database and skip this branch entirely —
+    // bounding repeat fetches for popular posts.
+    if (status && status.type === StatusType.enum.Note && session) {
+      // A queue failure (service down, rate limited) must not 500 the page —
+      // the live-fetched status is still renderable, so log and continue.
+      try {
+        const queue = getQueue()
+        // Under the in-process NoQueue, `publish` runs the job inline and we
+        // await it here, so keep that run to the focused note's direct replies
+        // (`firstPageOnly`) — they're stored before the query below and show on
+        // this render without a large nested walk blocking it. A real queue runs
+        // the full thread out of band, appearing on a later view.
+        await queue.publish({
+          id: `fetch-remote-status-${fullStatusId}`,
+          name: FETCH_REMOTE_STATUS_JOB_NAME,
+          data: { statusId: fullStatusId, firstPageOnly: queue.runsInline }
+        })
+      } catch (error) {
+        logger.error(
+          `[status page] Failed to queue remote reply fetch: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        )
+      }
+    }
   }
 
   // Try to fetch remote status if not found and user is logged in
   if (!status && session && !isStatusHash) {
     const queue = getQueue()
-    // Queue the fetch job with a deterministic ID to avoid duplicates
+    // Queue the fetch job with a deterministic ID to avoid duplicates. As above,
+    // an inline NoQueue run is kept to the focused note's direct replies so the
+    // awaited call stays fast; a real queue walks the full thread out of band.
     await queue.publish({
       id: `fetch-remote-status-${fullStatusId}`,
       name: FETCH_REMOTE_STATUS_JOB_NAME,
-      data: { statusId: fullStatusId }
+      data: { statusId: fullStatusId, firstPageOnly: queue.runsInline }
     })
 
     // Show loading state
