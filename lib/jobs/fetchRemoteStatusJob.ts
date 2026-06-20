@@ -307,11 +307,18 @@ export const fetchRemoteStatusJob = createJobHandle(
       if (!collection) continue
 
       // Some servers inline the items on the collection itself; otherwise follow
-      // `first` into the opening CollectionPage.
+      // `first` into the opening CollectionPage. Dedupe a string `first` ref the
+      // same way as `next`, so a collection pointing `first` at an already-seen
+      // page can't cause a redundant fetch or a cycle.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let page: any = (collection as any).first ?? collection
       if (typeof page === 'string') {
-        page = await client.fetch(page)
+        if (visitedCollections.has(page)) {
+          page = null
+        } else {
+          visitedCollections.add(page)
+          page = await client.fetch(page)
+        }
       }
 
       while (page && withinBudget()) {
