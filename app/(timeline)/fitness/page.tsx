@@ -107,7 +107,7 @@ const Page: FC = async () => {
           <Button variant="outline" size="sm" asChild>
             <Link href="/fitness/heatmap">
               <Flame className="mr-1.5 h-4 w-4" />
-              Heatmap
+              Heatmaps
             </Link>
           </Button>
         }

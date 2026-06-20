@@ -19,48 +19,22 @@ const renderLayout = () =>
   )
 
 describe('Fitness Layout', () => {
-  it('shows the dropdown sub-navigation reflecting the Overview tab on /fitness', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/fitness')
+  // The trigger always reflects the most-specific matching tab. '/fitness'
+  // (Overview) is a prefix of every nested path but must never win over the
+  // deeper tab — see the /fitness/heatmap and /fitness/files cases.
+  it.each([
+    ['/fitness', 'Overview'],
+    ['/fitness/heatmap', 'Heatmaps'],
+    ['/fitness/files', 'Files'],
+    ['/fitness/privacy', 'Privacy'],
+    ['/fitness/strava', 'Strava'],
+    ['/fitness/files/abc123', 'Files']
+  ])('reflects the active tab in the dropdown trigger on %s', (path, label) => {
+    ;(usePathname as jest.Mock).mockReturnValue(path)
     renderLayout()
 
     const nav = screen.getByRole('navigation', { name: 'Fitness' })
-    expect(within(nav).getByRole('button')).toHaveTextContent('Overview')
-  })
-
-  it('reflects the Heatmap tab in the dropdown trigger on /fitness/heatmap', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/fitness/heatmap')
-    renderLayout()
-
-    const nav = screen.getByRole('navigation', { name: 'Fitness' })
-    // '/fitness' (Overview) is a prefix of the path but must not win over
-    // '/fitness/heatmap'.
-    expect(within(nav).getByRole('button')).toHaveTextContent('Heatmap')
-  })
-
-  it('reflects the Strava tab in the dropdown trigger on /fitness/strava', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/fitness/strava')
-    renderLayout()
-
-    const nav = screen.getByRole('navigation', { name: 'Fitness' })
-    expect(within(nav).getByRole('button')).toHaveTextContent('Strava')
-  })
-
-  it('reflects the Privacy tab in the dropdown trigger on /fitness/privacy', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/fitness/privacy')
-    renderLayout()
-
-    const nav = screen.getByRole('navigation', { name: 'Fitness' })
-    expect(within(nav).getByRole('button')).toHaveTextContent('Privacy')
-  })
-
-  it('resolves a nested files path to the Files tab, not Overview', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/fitness/files/abc123')
-    renderLayout()
-
-    const nav = screen.getByRole('navigation', { name: 'Fitness' })
-    // '/fitness' (Overview) is a prefix of the path but must not win over
-    // '/fitness/files'.
-    expect(within(nav).getByRole('button')).toHaveTextContent('Files')
+    expect(within(nav).getByRole('button')).toHaveTextContent(label)
   })
 
   // Open the Radix menu the same way the rest of the suite does (keyboard, since
@@ -92,7 +66,13 @@ describe('Fitness Layout', () => {
     fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
 
     const menu = await screen.findByRole('menu')
-    for (const label of ['Overview', 'Heatmap', 'Files', 'Privacy', 'Strava']) {
+    for (const label of [
+      'Overview',
+      'Heatmaps',
+      'Files',
+      'Privacy',
+      'Strava'
+    ]) {
       expect(
         within(menu).getByRole('menuitem', { name: label })
       ).toBeInTheDocument()

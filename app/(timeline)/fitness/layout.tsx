@@ -18,7 +18,7 @@ interface Props {
 
 const tabs: SectionNavTab[] = [
   { name: 'Overview', url: '/fitness', icon: Activity },
-  { name: 'Heatmap', url: '/fitness/heatmap', icon: Flame },
+  { name: 'Heatmaps', url: '/fitness/heatmap', icon: Flame },
   { name: 'Files', url: '/fitness/files', icon: Files },
   { name: 'Privacy', url: '/fitness/privacy', icon: Lock },
   { name: 'Strava', url: '/fitness/strava', icon: Globe }
