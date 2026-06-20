@@ -117,6 +117,10 @@ describe('OIDC JWKS with a stale pre-RS256 EdDSA key', () => {
   const BASE_URL = 'https://stale-key.example.com'
 
   beforeAll(async () => {
+    // Reset the module registry so getAuth's per-baseURL instance cache from the
+    // previous describe can't bridge to this block's database; the fresh import
+    // in getStaleKeyAuth then builds an instance bound to the seeded DB below.
+    vi.resetModules()
     holder.knex = await buildInMemoryKnex()
 
     // Seed the exact row the pre-RS256 plugin left behind: an Ed25519/OKP public
@@ -140,7 +144,7 @@ describe('OIDC JWKS with a stale pre-RS256 EdDSA key', () => {
     return getAuth(BASE_URL)
   }
 
-  it('hides the EdDSA key and publishes an RSA key instead of 500ing', async () => {
+  it('publishes only an RSA key and hides the stale EdDSA key', async () => {
     const auth = await getStaleKeyAuth()
     const response = await auth.handler(
       new Request(`${BASE_URL}/api/auth/jwks`, { method: 'GET' })
@@ -151,8 +155,9 @@ describe('OIDC JWKS with a stale pre-RS256 EdDSA key', () => {
       keys: Array<Record<string, unknown>>
     }
 
-    // The OKP key is filtered out; better-auth regenerates an RSA key so the
-    // published set is RSA-only and matches the advertised RS256.
+    // The OKP key is filtered out so it is never published stamped with the
+    // configured RS256 (which no RP could verify); better-auth regenerates an RSA
+    // key, so the published set is RSA-only and matches the advertised RS256.
     expect(jwks.keys.length).toBeGreaterThanOrEqual(1)
     expect(jwks.keys.some((key) => key.kty === 'OKP')).toBe(false)
     expect(jwks.keys.every((key) => key.kty === 'RSA')).toBe(true)
