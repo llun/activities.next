@@ -1,0 +1,33 @@
+app/(timeline)/fitness/layout.tsx
+  s_6a0c31765ecb38::t_fcbca7c316170e 21
+  s_6a0c31765ecb38::t_a8c3b568f08c59 3
+app/(timeline)/fitness/layout.test.tsx
+  s_6a0c31765ecb38::t_3847425038f5cf 95
+  s_6a0c31765ecb38::t_5bd72b5bb7b8cd 30-39
+lib/components/fitness/HeatmapRegionPicker.test.tsx
+  s_6a0c31765ecb38::t_e87f93fcfbf2ed 45,68,104
+  s_6a0c31765ecb38::t_33433fa0d330a5 47-51
+lib/components/fitness/HeatmapRegionPicker.tsx
+  s_6a0c31765ecb38::t_f46cdd8d9889c9 522
+  s_6a0c31765ecb38::t_4dd6c8192cddb1 6
+  s_6a0c31765ecb38::t_b1cb764796e701 114-116,126-136,156-159,169
+  s_6a0c31765ecb38::t_cb4f93cb1d2adf 550
+lib/components/fitness/worldMapPath.ts
+  s_6a0c31765ecb38::t_75dddf5e4a274a 1-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "edb8ad2df8ab40357dac676acf8bce2b0f8db7ed",
+  "prompts": {},
+  "sessions": {
+    "s_6a0c31765ecb38": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a6c16cc3-2ab6-4451-a690-238a35bd1533",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
