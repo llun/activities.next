@@ -19,7 +19,10 @@ describe('getFeaturedCollection', () => {
     const result = getFeaturedCollection(
       'https://llun.test/users/owner',
       baseCollection,
-      ['https://llun.test/users/alice', 'https://remote.test/users/bob']
+      [
+        { id: 'https://llun.test/users/alice', type: 'Person' },
+        { id: 'https://remote.test/users/bob', type: 'Service' }
+      ]
     )
 
     expect(result['@context']).toEqual([
@@ -35,6 +38,7 @@ describe('getFeaturedCollection', () => {
     expect(result.summary).toBe('A bundle')
     expect(result.topic).toEqual({ type: 'Hashtag', name: '#fediverse' })
     expect(result.totalItems).toBe(2)
+    // featuredObjectType reflects each member's actual actor type.
     expect(result.orderedItems).toEqual([
       {
         type: 'FeaturedItem',
@@ -44,7 +48,7 @@ describe('getFeaturedCollection', () => {
       {
         type: 'FeaturedItem',
         featuredObject: 'https://remote.test/users/bob',
-        featuredObjectType: 'Person'
+        featuredObjectType: 'Service'
       }
     ])
   })

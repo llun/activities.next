@@ -1418,9 +1418,15 @@ export type GetPublicCollectionTimelineParams = {
 export type AddStatusToCollectionTimelinesParams = {
   status: Status
 }
-export type GetApprovedCollectionMemberIdsParams = {
+export type GetApprovedCollectionMembersParams = {
   id: string
   actorId: string
+}
+// A featured member's ActivityPub id and actor type (Person/Service/Group/…),
+// resolved from the local `actors` table (defaulting to 'Person' when unknown).
+export type ApprovedCollectionMember = {
+  id: string
+  type: string
 }
 
 export interface CollectionDatabase {
@@ -1450,11 +1456,12 @@ export interface CollectionDatabase {
   getCollectionsWithAccount(
     params: GetCollectionsWithAccountParams
   ): Promise<Collection[]>
-  // Approved members' actor ids for a collection, oldest-first, owner-scoped.
-  // Used to build the FEP-7aa9 FeaturedCollection ActivityPub representation.
-  getApprovedCollectionMemberIds(
-    params: GetApprovedCollectionMemberIdsParams
-  ): Promise<string[]>
+  // Approved members (id + actor type), oldest-first, owner-scoped. Used to
+  // build the FEP-7aa9 FeaturedCollection ActivityPub representation, where each
+  // FeaturedItem carries the member's actual `featuredObjectType`.
+  getApprovedCollectionMembers(
+    params: GetApprovedCollectionMembersParams
+  ): Promise<ApprovedCollectionMember[]>
   getCollectionTimeline(params: GetCollectionTimelineParams): Promise<Status[]>
   // Read a collection's PUBLIC feed by id without owner scoping. Returns null
   // when the collection does not exist, is private, or has the feed disabled

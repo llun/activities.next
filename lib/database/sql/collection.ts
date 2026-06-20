@@ -25,7 +25,7 @@ import {
   CollectionMembersPage,
   CreateCollectionParams,
   DeleteCollectionParams,
-  GetApprovedCollectionMemberIdsParams,
+  GetApprovedCollectionMembersParams,
   GetCollectionMemberCountsParams,
   GetCollectionMembersParams,
   GetCollectionParams,
@@ -611,18 +611,28 @@ export const CollectionSQLDatabaseMixin = (
     return rows.map(fixCollectionRow)
   },
 
-  async getApprovedCollectionMemberIds({
+  async getApprovedCollectionMembers({
     id,
     actorId
-  }: GetApprovedCollectionMemberIdsParams) {
+  }: GetApprovedCollectionMembersParams) {
     const seq = await getOwnedCollectionSeq(database, id, actorId)
     if (seq === null) return []
+    // Left-join the actors table to resolve each member's actor type for the
+    // FEP-7aa9 `featuredObjectType` (Person/Service/Group/…). Members not present
+    // locally (no actor row) fall back to 'Person'.
     const rows = await database('collection_members')
-      .where({ collectionSeq: seq, featureState: 'approved' })
-      .orderBy('createdAt', 'asc')
-      .orderBy('id', 'asc')
-      .select('targetActorId')
-    return rows.map((row) => row.targetActorId as string)
+      .leftJoin('actors', 'actors.id', 'collection_members.targetActorId')
+      .where({
+        'collection_members.collectionSeq': seq,
+        'collection_members.featureState': 'approved'
+      })
+      .orderBy('collection_members.createdAt', 'asc')
+      .orderBy('collection_members.id', 'asc')
+      .select('collection_members.targetActorId as id', 'actors.type as type')
+    return rows.map((row) => ({
+      id: row.id as string,
+      type: (row.type as string | null) ?? 'Person'
+    }))
   },
 
   async getCollectionTimeline({

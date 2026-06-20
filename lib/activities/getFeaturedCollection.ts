@@ -1,3 +1,4 @@
+import { ApprovedCollectionMember } from '@/lib/types/database/operations'
 import { Collection } from '@/lib/types/domain/collection'
 import { getLocalFeaturedCollectionId } from '@/lib/utils/activitypubId'
 import {
@@ -11,14 +12,14 @@ import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 // items are `FeaturedItem` objects whose `featuredObject` is the AP id of an
 // approved member (an actor) and `featuredObjectType` is the member's type.
 //
-// `memberActorIds` are the collection's approved members' actor ids (which are
-// their canonical ActivityPub ids in this server). Consent is enforced upstream:
-// only `approved` members are passed in, so a pending/revoked member never
-// appears in the federated representation.
+// `members` are the collection's approved members (their canonical ActivityPub
+// ids plus actor type). Consent is enforced upstream: only `approved` members
+// are passed in, so a pending/revoked member never appears in the federated
+// representation.
 export const getFeaturedCollection = (
   ownerActorId: string,
   collection: Collection,
-  memberActorIds: string[]
+  members: ApprovedCollectionMember[]
 ) => ({
   '@context': [ACTIVITY_STREAM_URL, FEP_7AA9_CONTEXT_URL],
   id: getLocalFeaturedCollectionId(ownerActorId, collection.id),
@@ -31,10 +32,10 @@ export const getFeaturedCollection = (
     : {}),
   published: getISOTimeUTC(collection.createdAt),
   updated: getISOTimeUTC(collection.updatedAt),
-  totalItems: memberActorIds.length,
-  orderedItems: memberActorIds.map((actorId) => ({
+  totalItems: members.length,
+  orderedItems: members.map((member) => ({
     type: 'FeaturedItem',
-    featuredObject: actorId,
-    featuredObjectType: 'Person'
+    featuredObject: member.id,
+    featuredObjectType: member.type
   }))
 })

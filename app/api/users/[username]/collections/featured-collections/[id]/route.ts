@@ -18,14 +18,14 @@ export const GET = traceApiRoute(
         return apiErrorResponse(404)
       }
 
-      const memberActorIds = await database.getApprovedCollectionMemberIds({
+      const members = await database.getApprovedCollectionMembers({
         id,
         actorId: actor.id
       })
 
       return activityPubResponse({
         req,
-        data: getFeaturedCollection(actor.id, collection, memberActorIds)
+        data: getFeaturedCollection(actor.id, collection, members)
       })
     },
     {
