@@ -36,7 +36,11 @@ describe('getFeaturedCollection', () => {
     expect(result.attributedTo).toBe('https://llun.test/users/owner')
     expect(result.name).toBe('Cool people')
     expect(result.summary).toBe('A bundle')
-    expect(result.topic).toEqual({ type: 'Hashtag', name: '#fediverse' })
+    expect(result.topic).toEqual({
+      type: 'Hashtag',
+      name: '#fediverse',
+      href: 'https://llun.test/tags/fediverse'
+    })
     expect(result.totalItems).toBe(2)
     // featuredObjectType reflects each member's actual actor type.
     expect(result.orderedItems).toEqual([

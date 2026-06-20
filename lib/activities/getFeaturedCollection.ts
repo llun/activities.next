@@ -28,7 +28,17 @@ export const getFeaturedCollection = (
   name: collection.title,
   ...(collection.description ? { summary: collection.description } : {}),
   ...(collection.topic
-    ? { topic: { type: 'Hashtag', name: `#${collection.topic}` } }
+    ? {
+        // Mirror the `featuredTags` Hashtag shape: include `href` (the actor's
+        // own domain, derived from its id) so peers can resolve/render the tag.
+        topic: {
+          type: 'Hashtag',
+          name: `#${collection.topic}`,
+          href: `https://${new URL(ownerActorId).host}/tags/${encodeURIComponent(
+            collection.topic.toLowerCase()
+          )}`
+        }
+      }
     : {}),
   published: getISOTimeUTC(collection.createdAt),
   updated: getISOTimeUTC(collection.updatedAt),
