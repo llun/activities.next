@@ -78,6 +78,35 @@ describe('loadMaplibreModule', () => {
     expect(document.querySelector('[data-maplibre-gl-css="true"]')).toBeNull()
   })
 
+  it('keeps the loaded tags when only the global init times out', async () => {
+    vi.useFakeTimers()
+    try {
+      const { loadMaplibreModule } = await import('@/lib/utils/maplibre')
+      const promise = loadMaplibreModule()
+      // Avoid an unhandled rejection while advancing timers.
+      promise.catch(() => {})
+
+      const script = document.querySelector<HTMLScriptElement>(
+        '[data-maplibre-gl-script="true"]'
+      )
+      // The script resource loads fine, but window.maplibregl never appears.
+      script?.dispatchEvent(new Event('load'))
+      await vi.advanceTimersByTimeAsync(16000)
+
+      await expect(promise).rejects.toThrow(/not initialized/i)
+      // A timeout must NOT tear out the successfully-loaded script/stylesheet —
+      // only a genuine resource 'error' does — so a later retry keeps its styles.
+      expect(
+        document.querySelector('[data-maplibre-gl-script="true"]')
+      ).not.toBeNull()
+      expect(
+        document.querySelector('[data-maplibre-gl-css="true"]')
+      ).not.toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('exposes the keyless OpenFreeMap style URL', async () => {
     const { OPENFREEMAP_STYLE_URL } = await import('@/lib/utils/maplibre')
     expect(OPENFREEMAP_STYLE_URL).toMatch(

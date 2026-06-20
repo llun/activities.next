@@ -57,12 +57,23 @@ export const loadMaplibreModule = async <T>(): Promise<T> => {
         }
 
         settled = true
-        // Remove the failed <script>/<link> so a later retry injects fresh tags.
-        // A script element that already fired 'error' will not fire 'load' again,
-        // so leaving it would make every retry hang until the poll times out.
+        reject(error)
+      }
+
+      // Remove the failed <script>/<link> so a later retry injects fresh tags. A
+      // script element that already fired 'error' will not fire 'load' again, so
+      // leaving it would make every retry hang until the poll times out. Only run
+      // this on a genuine resource 'error' — NOT on the global-init timeout, where
+      // the assets loaded fine and tearing out a good stylesheet would leave a
+      // later retry (which may find the global already present) unstyled.
+      const removeInjectedTags = () => {
         document.querySelector('[data-maplibre-gl-script="true"]')?.remove()
         document.querySelector('[data-maplibre-gl-css="true"]')?.remove()
-        reject(error)
+      }
+
+      const onScriptError = () => {
+        removeInjectedTags()
+        rejectOnce(new Error('Failed to load MapLibre script'))
       }
 
       const resolveIfLoaded = () => {
@@ -128,11 +139,7 @@ export const loadMaplibreModule = async <T>(): Promise<T> => {
           },
           { once: true }
         )
-        existingScript.addEventListener(
-          'error',
-          () => rejectOnce(new Error('Failed to load MapLibre script')),
-          { once: true }
-        )
+        existingScript.addEventListener('error', onScriptError, { once: true })
 
         waitForMaplibreGlobal()
         return
@@ -153,11 +160,7 @@ export const loadMaplibreModule = async <T>(): Promise<T> => {
         },
         { once: true }
       )
-      script.addEventListener(
-        'error',
-        () => rejectOnce(new Error('Failed to load MapLibre script')),
-        { once: true }
-      )
+      script.addEventListener('error', onScriptError, { once: true })
 
       document.head.appendChild(script)
     })
