@@ -172,7 +172,7 @@ export const fetchRemoteStatusJob = createJobHandle(
     // yield their `replies` so newly added descendants are picked up.
     const storeReplyNote = async (
       item: unknown
-    ): Promise<{ replies: unknown } | null> => {
+    ): Promise<{ replies: unknown; newlyStored: boolean } | null> => {
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let doc: any = item
@@ -219,8 +219,12 @@ export const fetchRemoteStatusJob = createJobHandle(
         if (!noteResult.success) return null
         const sanitizedReply = noteResult.data
 
+        // Already-cached notes don't count toward `notesStored` (the new-store
+        // budget) but still yield their `replies`, so a re-fetch can traverse
+        // the cached part of the thread to discover newly added descendants
+        // (bounded by the `work` cap).
         const exists = await database.getStatus({ statusId: sanitizedReply.id })
-        if (exists) return { replies: childReplies }
+        if (exists) return { replies: childReplies, newlyStored: false }
 
         if (
           !(await canFederateWithDomain(database, sanitizedReply.attributedTo))
@@ -235,6 +239,16 @@ export const fetchRemoteStatusJob = createJobHandle(
         })
         if (!actor) return null
 
+        // Guard against an invalid `published` string: `Note.safeParse` only
+        // checks it is a string, so a non-date value would yield `NaN` here and
+        // corrupt sorting once written.
+        const publishedTime = sanitizedReply.published
+          ? new Date(sanitizedReply.published).getTime()
+          : Date.now()
+        const createdAt = Number.isNaN(publishedTime)
+          ? Date.now()
+          : publishedTime
+
         try {
           await database.createNote({
             id: sanitizedReply.id,
@@ -247,15 +261,13 @@ export const fetchRemoteStatusJob = createJobHandle(
             to: toRecipientArray(sanitizedReply.to),
             cc: toRecipientArray(sanitizedReply.cc),
             reply: sanitizedReply.inReplyTo || '',
-            createdAt: sanitizedReply.published
-              ? new Date(sanitizedReply.published).getTime()
-              : Date.now()
+            createdAt
           })
         } catch {
           // Ignore error if status already exists
         }
 
-        return { replies: childReplies }
+        return { replies: childReplies, newlyStored: true }
       } catch {
         return null
       }
@@ -329,7 +341,10 @@ export const fetchRemoteStatusJob = createJobHandle(
           work++
           const stored = await storeReplyNote(item)
           if (stored) {
-            notesStored++
+            // Only newly stored notes count toward the store budget, so a
+            // re-fetch can keep traversing already-cached parts of the thread to
+            // find new replies instead of halting at the cap.
+            if (stored.newlyStored) notesStored++
             queueCollection(stored.replies)
           }
         }
