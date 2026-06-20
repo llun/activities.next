@@ -89,6 +89,24 @@ describe('HeatmapRegionPicker', () => {
     fireEvent.click(screen.getByRole('button', { name: /Remove region/i }))
     expect(onChange).toHaveBeenCalledWith([])
   })
+
+  it('labels the remove control per region kind (area vs region)', () => {
+    const rectValue: PickerRegion[] = [
+      {
+        id: 'rect-1',
+        type: 'rect',
+        nw: { lat: 52, lng: 5 },
+        se: { lat: 51, lng: 6 }
+      }
+    ]
+    render(<HeatmapRegionPicker value={rectValue} onChange={vi.fn()} />)
+    expect(
+      screen.getByRole('button', { name: /Remove area/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /Edit area/i })
+    ).toBeInTheDocument()
+  })
 })
 
 describe('withRegionIds', () => {

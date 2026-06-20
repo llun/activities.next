@@ -907,7 +907,9 @@ export const FitnessHeatmapView: FC<Props> = ({
           ? 'generation-pending'
           : null
 
-  const regionLabel = describeRegions(serializedRegion ?? '')
+  const regionLabel = hasRegions
+    ? describeRegions(serializedRegion ?? '')
+    : 'No region selected'
   const periodLabel =
     periodType === 'all_time' ? 'All time' : effectivePeriodKey
   const isGenerateBusy =

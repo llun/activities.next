@@ -12,6 +12,7 @@ import {
   RectRegion,
   formatLatitude,
   formatLongitude,
+  formatRectRegion,
   isValidRect
 } from '@/lib/fitness/regions'
 import { cn } from '@/lib/utils'
@@ -180,10 +181,10 @@ const BBoxMap: FC<BBoxMapProps> = ({ box, onChange, height = 230 }) => {
         ))}
       </div>
 
-      <span className="pointer-events-none absolute left-2 top-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur">
+      <span className="pointer-events-none absolute left-2 top-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur">
         TL · {formatLatitude(box.nw.lat)} {formatLongitude(box.nw.lng)}
       </span>
-      <span className="pointer-events-none absolute bottom-2 right-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur">
+      <span className="pointer-events-none absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur">
         BR · {formatLatitude(box.se.lat)} {formatLongitude(box.se.lng)}
       </span>
     </div>
@@ -192,6 +193,8 @@ const BBoxMap: FC<BBoxMapProps> = ({ box, onChange, height = 230 }) => {
 
 interface CoordFieldProps {
   label: string
+  /** Full accessible name (e.g. "Top-left latitude"); falls back to `label`. */
+  srLabel?: string
   value: number
   min: number
   max: number
@@ -208,6 +211,7 @@ const PARTIAL_DECIMAL = /^-?[0-9]*\.?[0-9]*$/
 
 const CoordField: FC<CoordFieldProps> = ({
   label,
+  srLabel,
   value,
   min,
   max,
@@ -246,6 +250,7 @@ const CoordField: FC<CoordFieldProps> = ({
         <Input
           type="text"
           inputMode="decimal"
+          aria-label={srLabel ?? label}
           value={draft}
           onChange={(event) => {
             const next = event.target.value
@@ -312,6 +317,7 @@ const RectComposer: FC<RectComposerProps> = ({ initial, onCancel, onSave }) => {
         </div>
         <CoordField
           label="Latitude"
+          srLabel="Top-left latitude"
           value={box.nw.lat}
           min={-90}
           max={90}
@@ -320,6 +326,7 @@ const RectComposer: FC<RectComposerProps> = ({ initial, onCancel, onSave }) => {
         />
         <CoordField
           label="Longitude"
+          srLabel="Top-left longitude"
           value={box.nw.lng}
           min={-180}
           max={180}
@@ -331,6 +338,7 @@ const RectComposer: FC<RectComposerProps> = ({ initial, onCancel, onSave }) => {
         </div>
         <CoordField
           label="Latitude"
+          srLabel="Bottom-right latitude"
           value={box.se.lat}
           min={-90}
           max={90}
@@ -339,6 +347,7 @@ const RectComposer: FC<RectComposerProps> = ({ initial, onCancel, onSave }) => {
         />
         <CoordField
           label="Longitude"
+          srLabel="Bottom-right longitude"
           value={box.se.lng}
           min={-180}
           max={180}
@@ -401,11 +410,7 @@ const RegionRow: FC<RegionRowProps> = ({ region, onEdit, onRemove }) => {
         <div className="truncate text-[11px] text-muted-foreground">
           {isWorld
             ? 'Entire globe — every recorded activity'
-            : `TL ${formatLatitude(region.nw.lat)} ${formatLongitude(
-                region.nw.lng
-              )}  →  BR ${formatLatitude(region.se.lat)} ${formatLongitude(
-                region.se.lng
-              )}`}
+            : formatRectRegion(region)}
         </div>
       </div>
       {!isWorld && (
@@ -421,7 +426,7 @@ const RegionRow: FC<RegionRowProps> = ({ region, onEdit, onRemove }) => {
       <button
         type="button"
         onClick={onRemove}
-        aria-label="Remove region"
+        aria-label={isWorld ? 'Remove region' : 'Remove area'}
         className="flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <Trash2 className="size-3.5" />
