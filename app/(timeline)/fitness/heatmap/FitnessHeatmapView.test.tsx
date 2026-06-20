@@ -13,6 +13,7 @@ import {
 
 import {
   clearFitnessRouteHeatmaps,
+  deleteFitnessRouteHeatmap,
   getDistinctFitnessActivityTypes,
   getFitnessRouteHeatmap,
   getFitnessRouteHeatmaps,
@@ -32,6 +33,7 @@ vi.mock('@/lib/utils/mapbox', () => ({
 
 vi.mock('@/lib/client', () => ({
   clearFitnessRouteHeatmaps: vi.fn(),
+  deleteFitnessRouteHeatmap: vi.fn(),
   getDistinctFitnessActivityTypes: vi.fn(),
   getFitnessRouteHeatmap: vi.fn(),
   getFitnessRouteHeatmaps: vi.fn(),
@@ -44,6 +46,10 @@ const mockLoadMapboxModule = loadMapboxModule as jest.MockedFunction<
 const mockClearFitnessRouteHeatmaps =
   clearFitnessRouteHeatmaps as jest.MockedFunction<
     typeof clearFitnessRouteHeatmaps
+  >
+const mockDeleteFitnessRouteHeatmap =
+  deleteFitnessRouteHeatmap as jest.MockedFunction<
+    typeof deleteFitnessRouteHeatmap
   >
 const mockGetDistinctFitnessActivityTypes =
   getDistinctFitnessActivityTypes as jest.MockedFunction<
@@ -90,6 +96,7 @@ const completedHeatmap: FitnessRouteHeatmapData = {
   ],
   activityCount: 1,
   pointCount: 2,
+  totalCount: 1,
   cursorOffset: 0,
   isPartial: false,
   createdAt: 1,
@@ -104,6 +111,7 @@ const pendingSummary: FitnessRouteHeatmapSummaryData = {
   status: 'generating',
   activityCount: 1,
   pointCount: 2,
+  totalCount: 20,
   cursorOffset: 10,
   isPartial: false,
   createdAt: 1,
@@ -170,6 +178,7 @@ describe('FitnessHeatmapView', () => {
     mockGetFitnessRouteHeatmap.mockResolvedValue(completedHeatmap)
     mockGetFitnessRouteHeatmaps.mockResolvedValue([pendingSummary])
     mockClearFitnessRouteHeatmaps.mockResolvedValue(0)
+    mockDeleteFitnessRouteHeatmap.mockResolvedValue(true)
     mockTriggerFitnessRouteHeatmap.mockResolvedValue(true)
   })
 
@@ -439,6 +448,135 @@ describe('FitnessHeatmapView', () => {
 
     fireEvent.click(within(dialog).getByRole('button', { name: /Cancel/i }))
     expect(screen.queryByText('boom')).not.toBeInTheDocument()
+  })
+
+  it('removes the focused heatmap without requeueing it afterward', async () => {
+    const failedFocused: FitnessRouteHeatmapData = {
+      ...completedHeatmap,
+      status: 'failed',
+      error: 'parse failed'
+    }
+    const failedSummary: FitnessRouteHeatmapSummaryData = {
+      ...completedSummary,
+      id: completedHeatmap.id,
+      status: 'failed',
+      error: 'parse failed'
+    }
+    mockGetFitnessRouteHeatmap.mockResolvedValue(failedFocused)
+    mockGetFitnessRouteHeatmaps
+      .mockResolvedValueOnce([failedSummary])
+      .mockResolvedValue([])
+
+    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
+
+    const removeButton = await screen.findByRole('button', { name: 'Remove' })
+    fireEvent.click(removeButton)
+
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: /Remove heatmap/i })
+    )
+
+    await waitFor(() => {
+      expect(mockDeleteFitnessRouteHeatmap).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: 'https://llun.test/users/llun',
+          periodType: 'yearly',
+          periodKey: '2026'
+        })
+      )
+    })
+
+    // The just-removed focused heatmap must not be silently re-queued.
+    expect(mockTriggerFitnessRouteHeatmap).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+  })
+
+  it('drops the row even when the server reports it was already removed', async () => {
+    mockDeleteFitnessRouteHeatmap.mockResolvedValue(false)
+    const failedSummary: FitnessRouteHeatmapSummaryData = {
+      ...completedSummary,
+      id: 'route-heatmap-already-gone',
+      status: 'failed',
+      error: 'parse failed'
+    }
+    mockGetFitnessRouteHeatmap.mockResolvedValue(completedHeatmap)
+    mockGetFitnessRouteHeatmaps
+      .mockResolvedValueOnce([failedSummary])
+      .mockResolvedValue([])
+
+    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
+
+    const removeButton = await screen.findByRole('button', { name: 'Remove' })
+    fireEvent.click(removeButton)
+
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: /Remove heatmap/i })
+    )
+
+    // `deleted: false` is treated as success — no stuck row, no error alert.
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+    expect(screen.queryByText('parse failed')).not.toBeInTheDocument()
+  })
+
+  it('shows determinate progress in the focused preview while generating', async () => {
+    const generatingFocused: FitnessRouteHeatmapData = {
+      ...completedHeatmap,
+      status: 'generating',
+      totalCount: 10,
+      cursorOffset: 3,
+      pointCount: 0,
+      bounds: undefined,
+      segments: []
+    }
+    mockGetFitnessRouteHeatmap.mockResolvedValue(generatingFocused)
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([completedSummary])
+
+    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
+
+    const preview = await screen.findByRole('region', {
+      name: /Route heatmap map/i
+    })
+    await waitFor(() => {
+      expect(
+        within(preview).getByText(/3 \/ 10 files \(30%\)/)
+      ).toBeInTheDocument()
+    })
+    expect(within(preview).getByRole('progressbar')).toHaveAttribute(
+      'aria-valuenow',
+      '30'
+    )
+  })
+
+  it('shows an indeterminate scanned count when the total is unknown', async () => {
+    const generatingFocused: FitnessRouteHeatmapData = {
+      ...completedHeatmap,
+      status: 'generating',
+      totalCount: 0,
+      cursorOffset: 5,
+      pointCount: 0,
+      bounds: undefined,
+      segments: []
+    }
+    mockGetFitnessRouteHeatmap.mockResolvedValue(generatingFocused)
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([completedSummary])
+
+    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
+
+    const preview = await screen.findByRole('region', {
+      name: /Route heatmap map/i
+    })
+    await waitFor(() => {
+      expect(within(preview).getByText(/5 files scanned/)).toBeInTheDocument()
+    })
+    expect(within(preview).getByRole('progressbar')).not.toHaveAttribute(
+      'aria-valuenow'
+    )
   })
 })
 

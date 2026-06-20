@@ -961,16 +961,17 @@ export const FitnessHeatmapView: FC<Props> = ({
     setIsRemoving(true)
     setRemoveError(null)
     try {
-      const removed = await deleteFitnessRouteHeatmap({
+      // `deleted: false` means the row was already gone server-side (a
+      // concurrent Remove or a bulk Clear). Either way it should leave the
+      // list, so treat any non-throwing response as "removed" rather than
+      // erroring and stranding a stale row.
+      await deleteFitnessRouteHeatmap({
         actorId,
         activityType: target.activityType,
         periodType: target.periodType,
         periodKey: target.periodKey,
         region: target.region || undefined
       })
-      if (!removed) {
-        throw new Error('Heatmap was already removed.')
-      }
 
       setHeatmaps((current) => current.filter((h) => h.id !== target.id))
       if (heatmapData?.id === target.id) {

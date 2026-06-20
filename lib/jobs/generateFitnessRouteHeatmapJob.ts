@@ -172,11 +172,16 @@ const shouldReduceAccumulation = (
     return true
   }
 
-  // Guard on resident set size (rss), not just heapUsed: the per-file download
-  // buffers and parser scratch space live in off-heap (external/arrayBuffer)
-  // memory, which heapUsed ignores. rss is what actually counts against the
-  // ~1GB container budget, so it is the safe bound to trip downsampling on.
-  return process.memoryUsage().rss > routeHeatmapConfig.memoryBudgetBytes
+  // Bound on *live* allocation, not rss. heapUsed alone misses the per-file
+  // download buffers and parser scratch space, which live off-heap; `external`
+  // covers exactly that native/ArrayBuffer memory (Node reports `arrayBuffers`
+  // as a subset already included in `external`, so summing both would double
+  // count). rss would over-count here — it includes pages V8 has freed but not
+  // yet returned to the OS, tripping downsampling prematurely.
+  const memory = process.memoryUsage()
+  return (
+    memory.heapUsed + memory.external > routeHeatmapConfig.memoryBudgetBytes
+  )
 }
 
 const shouldCheckpoint = (startedAt: number) =>
