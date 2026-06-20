@@ -94,6 +94,17 @@ export interface FitnessRouteHeatmapDatabase {
   deleteFitnessRouteHeatmapsForActor(params: {
     actorId: string
   }): Promise<number>
+  /**
+   * Counts non-deleted route-heatmap rows whose `region` is in the legacy
+   * named-region format (neither the world-wide sentinel `''` nor a `rect:`
+   * token), for the region-model migration cleanup.
+   */
+  countLegacyRegionRouteHeatmaps(): Promise<number>
+  /**
+   * Soft-deletes the legacy named-region route-heatmap rows counted by
+   * countLegacyRegionRouteHeatmaps. Returns the number of rows updated.
+   */
+  softDeleteLegacyRegionRouteHeatmaps(): Promise<number>
   getLegacyFitnessHeatmapMediaCleanupPaths(): Promise<
     LegacyFitnessHeatmapMediaCleanupPath[]
   >
@@ -413,6 +424,27 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     return database('fitness_route_heatmaps')
       .where('actorId', actorId)
       .whereNull('deletedAt')
+      .update({
+        deletedAt: new Date(),
+        updatedAt: new Date()
+      })
+  },
+
+  async countLegacyRegionRouteHeatmaps() {
+    const [row] = await database('fitness_route_heatmaps')
+      .whereNull('deletedAt')
+      .whereNot('region', '')
+      .whereNot('region', 'like', 'rect:%')
+      .count({ count: '*' })
+
+    return Number(row?.count ?? 0)
+  },
+
+  async softDeleteLegacyRegionRouteHeatmaps() {
+    return database('fitness_route_heatmaps')
+      .whereNull('deletedAt')
+      .whereNot('region', '')
+      .whereNot('region', 'like', 'rect:%')
       .update({
         deletedAt: new Date(),
         updatedAt: new Date()

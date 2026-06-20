@@ -2280,7 +2280,7 @@ export const getFitnessRouteHeatmap = async ({
   activityType?: string
   periodType: string
   periodKey: string
-  /** Serialized sorted region IDs, e.g. "netherlands,singapore". Omit for world-wide. */
+  /** Serialized region scope (sorted `rect:` tokens). Omit/empty for world-wide. */
   region?: string | null
 }): Promise<FitnessRouteHeatmapData | null> => {
   const encodedId = urlToId(actorId)

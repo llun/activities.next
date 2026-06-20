@@ -7,12 +7,13 @@ import {
   ChevronRight,
   Clock,
   Loader2,
+  MapPin,
   RefreshCw
 } from 'lucide-react'
 import { FC, useState } from 'react'
 
 import { FitnessRouteHeatmapSummaryData } from '@/lib/client'
-import { REGION_MAP } from '@/lib/fitness/regions'
+import { describeRegions } from '@/lib/fitness/regions'
 import { cn } from '@/lib/utils'
 
 interface FitnessHeatmapListProps {
@@ -102,13 +103,7 @@ const HeatmapRow: FC<HeatmapRowProps> = ({
   onRetry,
   currentTime
 }) => {
-  const regionLabel =
-    heatmap.region && heatmap.region !== ''
-      ? heatmap.region
-          .split(',')
-          .map((id) => REGION_MAP.get(id.trim())?.name ?? id.trim())
-          .join(', ')
-      : null
+  const regionLabel = describeRegions(heatmap.region ?? '')
 
   const statusIcon = (() => {
     switch (heatmap.status) {
@@ -166,11 +161,10 @@ const HeatmapRow: FC<HeatmapRowProps> = ({
           {formatActivityType(heatmap.activityType)} ·{' '}
           {formatPeriod(heatmap.periodType, heatmap.periodKey)}
         </span>
-        {regionLabel && (
-          <span className="inline-block max-w-full break-words rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-            {regionLabel}
-          </span>
-        )}
+        <span className="inline-flex max-w-full items-center gap-1 break-words rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+          <MapPin className="size-3 shrink-0" />
+          {regionLabel}
+        </span>
         {heatmap.status === 'failed' && heatmap.error && (
           <span className="block text-xs text-destructive">
             {heatmap.error}

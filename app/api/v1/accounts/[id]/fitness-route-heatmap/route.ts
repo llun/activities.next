@@ -44,14 +44,20 @@ const FitnessRouteHeatmapQueryParams = z.object({
   activity_type: OptionalActivityType,
   period_type: z.enum(['all_time', 'yearly', 'monthly']),
   period_key: z.string(),
-  region: z.string().optional()
+  // Bound the raw input to guard against unbounded payloads, but allow more than
+  // the 255-char cache-key column: clients may send high-precision coordinates
+  // that normalizeRegion rounds (to 2 dp) and caps (to MAX_HEATMAP_REGIONS) well
+  // under 255 before anything is stored.
+  region: z.string().max(1024).optional()
 })
 
 const FitnessRouteHeatmapTriggerBody = z.object({
   activity_type: OptionalActivityType,
   period_type: z.enum(['all_time', 'yearly', 'monthly']),
   period_key: z.string(),
-  region: z.string().optional(),
+  // See FitnessRouteHeatmapQueryParams.region: looser raw cap; normalizeRegion
+  // rounds + caps the stored value under the 255-char column.
+  region: z.string().max(1024).optional(),
   retry: z.boolean().optional()
 })
 

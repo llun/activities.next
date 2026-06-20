@@ -37,6 +37,14 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
   const encodedId = ACTOR1_ID.replace('https://', '').replaceAll('/', ':')
   const baseUrl = `http://llun.test/api/v1/accounts/${encodedId}/fitness-route-heatmap`
 
+  // New region model: a region scope is a sorted, ';'-joined list of `rect:`
+  // bounding-box tokens. REGION is a single canonical rectangle; REGION_A/B form
+  // a two-rectangle scope whose canonical (sorted) order is `${REGION_B};${REGION_A}`.
+  const REGION = 'rect:52.00,5.00,51.00,6.00'
+  const REGION_A = 'rect:53.00,3.00,52.00,4.00'
+  const REGION_B = 'rect:52.00,5.00,51.00,6.00'
+  const REGION_CANONICAL = `${REGION_B};${REGION_A}`
+
   beforeAll(() => {
     mockDatabase = mockDb
   })
@@ -147,8 +155,11 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
   it('normalizes multi-region params for lookup', async () => {
     mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue(null)
 
+    const rawRegion = `${REGION_A};${REGION_B};${REGION_A}`
     const request = new NextRequest(
-      `${baseUrl}?period_type=all_time&period_key=all&region=singapore,netherlands,singapore`
+      `${baseUrl}?period_type=all_time&period_key=all&region=${encodeURIComponent(
+        rawRegion
+      )}`
     )
     await GET(request, {
       params: Promise.resolve({ id: encodedId })
@@ -159,7 +170,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
       activityType: null,
       periodType: 'all_time',
       periodKey: 'all',
-      region: 'netherlands,singapore'
+      region: REGION_CANONICAL
     })
   })
 
@@ -207,7 +218,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
         activity_type: 'running',
         period_type: 'monthly',
         period_key: '2026-04',
-        region: 'singapore,netherlands'
+        region: `${REGION_A};${REGION_B}`
       })
     })
     const response = await POST(request, {
@@ -223,7 +234,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
           activityType: 'running',
           periodType: 'monthly',
           periodKey: '2026-04',
-          region: 'netherlands,singapore',
+          region: REGION_CANONICAL,
           requestedAt: expect.any(Number)
         })
       })
@@ -238,7 +249,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
       activityType: 'running',
       periodType: 'monthly',
       periodKey: '2026-04',
-      region: 'netherlands',
+      region: REGION,
       status: 'completed',
       segments: [],
       activityCount: 8,
@@ -257,7 +268,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
         activity_type: 'running',
         period_type: 'monthly',
         period_key: '2026-04',
-        region: 'netherlands'
+        region: REGION
       })
     })
     const response = await POST(request, {
@@ -270,13 +281,13 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
       activityType: 'running',
       periodType: 'monthly',
       periodKey: '2026-04',
-      region: 'netherlands',
+      region: REGION,
       includeDeleted: true
     })
     expect(mockPublish).toHaveBeenCalledWith(
       expect.objectContaining({
         id: getHashFromString(
-          `${ACTOR1_ID}:route-heatmap:running:monthly:2026-04:netherlands:restore:route-heatmap-deleted:${deletedAt}`
+          `${ACTOR1_ID}:route-heatmap:running:monthly:2026-04:${REGION}:restore:route-heatmap-deleted:${deletedAt}`
         ),
         name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
         data: expect.objectContaining({
@@ -284,7 +295,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
           activityType: 'running',
           periodType: 'monthly',
           periodKey: '2026-04',
-          region: 'netherlands',
+          region: REGION,
           requestedAt: expect.any(Number)
         })
       })
@@ -303,7 +314,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
       activityType: 'running',
       periodType: 'monthly',
       periodKey: '2026-04',
-      region: 'netherlands',
+      region: REGION,
       status: 'failed',
       segments: [],
       activityCount: 0,
@@ -323,7 +334,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
           activity_type: 'running',
           period_type: 'monthly',
           period_key: '2026-04',
-          region: 'netherlands',
+          region: REGION,
           retry: true
         })
       })
@@ -335,7 +346,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
       expect(mockPublish).toHaveBeenCalledWith(
         expect.objectContaining({
           id: getHashFromString(
-            `${ACTOR1_ID}:route-heatmap:running:monthly:2026-04:netherlands:retry:route-heatmap-failed-zero:${retryNonce}`
+            `${ACTOR1_ID}:route-heatmap:running:monthly:2026-04:${REGION}:retry:route-heatmap-failed-zero:${retryNonce}`
           ),
           name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
           data: expect.objectContaining({
@@ -343,7 +354,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
             activityType: 'running',
             periodType: 'monthly',
             periodKey: '2026-04',
-            region: 'netherlands',
+            region: REGION,
             requestedAt: expect.any(Number)
           })
         })
@@ -362,7 +373,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
       activityType: 'running',
       periodType: 'monthly',
       periodKey: '2026-04',
-      region: 'netherlands',
+      region: REGION,
       status: 'completed',
       segments: [],
       activityCount: 8,
@@ -381,7 +392,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
           activity_type: 'running',
           period_type: 'monthly',
           period_key: '2026-04',
-          region: 'netherlands'
+          region: REGION
         })
       })
       const response = await POST(request, {
@@ -393,7 +404,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
       expect(mockPublish).toHaveBeenCalledWith(
         expect.objectContaining({
           id: getHashFromString(
-            `${ACTOR1_ID}:route-heatmap:running:monthly:2026-04:netherlands`
+            `${ACTOR1_ID}:route-heatmap:running:monthly:2026-04:${REGION}`
           ),
           name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
           data: expect.objectContaining({
@@ -401,7 +412,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
             activityType: 'running',
             periodType: 'monthly',
             periodKey: '2026-04',
-            region: 'netherlands',
+            region: REGION,
             requestedAt: expect.any(Number)
           })
         })
@@ -419,7 +430,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
       activityType: 'running',
       periodType: 'monthly',
       periodKey: '2026-04',
-      region: 'netherlands',
+      region: REGION,
       status: 'failed',
       segments: [],
       activityCount: 20,
@@ -438,7 +449,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
         activity_type: 'running',
         period_type: 'monthly',
         period_key: '2026-04',
-        region: 'netherlands'
+        region: REGION
       })
     })
     const response = await POST(request, {
@@ -449,7 +460,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
     expect(mockPublish).toHaveBeenCalledWith(
       expect.objectContaining({
         id: getHashFromString(
-          `${ACTOR1_ID}:route-heatmap:running:monthly:2026-04:netherlands:resume:route-heatmap-failed:500`
+          `${ACTOR1_ID}:route-heatmap:running:monthly:2026-04:${REGION}:resume:route-heatmap-failed:500`
         ),
         name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
         data: expect.objectContaining({
@@ -457,7 +468,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
           activityType: 'running',
           periodType: 'monthly',
           periodKey: '2026-04',
-          region: 'netherlands',
+          region: REGION,
           resume: true,
           cursorOffset: 500,
           requestedAt: expect.any(Number)
@@ -474,7 +485,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
       activityType: 'running',
       periodType: 'monthly',
       periodKey: '2026-04',
-      region: 'netherlands',
+      region: REGION,
       status: 'completed',
       segments: [],
       activityCount: 20,
@@ -492,7 +503,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
         activity_type: 'running',
         period_type: 'monthly',
         period_key: '2026-04',
-        region: 'netherlands'
+        region: REGION
       })
     })
     const response = await POST(request, {
@@ -503,7 +514,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
     expect(mockPublish).toHaveBeenCalledWith(
       expect.objectContaining({
         id: getHashFromString(
-          `${ACTOR1_ID}:route-heatmap:running:monthly:2026-04:netherlands:resume:route-heatmap-partial:1000000`
+          `${ACTOR1_ID}:route-heatmap:running:monthly:2026-04:${REGION}:resume:route-heatmap-partial:1000000`
         ),
         name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
         data: expect.objectContaining({
@@ -511,7 +522,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
           activityType: 'running',
           periodType: 'monthly',
           periodKey: '2026-04',
-          region: 'netherlands',
+          region: REGION,
           resume: true,
           cursorOffset: 1_000_000,
           requestedAt: expect.any(Number)

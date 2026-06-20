@@ -14,7 +14,6 @@ import {
 import {
   clearFitnessRouteHeatmaps,
   getDistinctFitnessActivityTypes,
-  getFitnessCalendarData,
   getFitnessRouteHeatmap,
   getFitnessRouteHeatmaps,
   triggerFitnessRouteHeatmap
@@ -34,7 +33,6 @@ vi.mock('@/lib/utils/mapbox', () => ({
 vi.mock('@/lib/client', () => ({
   clearFitnessRouteHeatmaps: vi.fn(),
   getDistinctFitnessActivityTypes: vi.fn(),
-  getFitnessCalendarData: vi.fn(),
   getFitnessRouteHeatmap: vi.fn(),
   getFitnessRouteHeatmaps: vi.fn(),
   triggerFitnessRouteHeatmap: vi.fn()
@@ -51,8 +49,6 @@ const mockGetDistinctFitnessActivityTypes =
   getDistinctFitnessActivityTypes as jest.MockedFunction<
     typeof getDistinctFitnessActivityTypes
   >
-const mockGetFitnessCalendarData =
-  getFitnessCalendarData as jest.MockedFunction<typeof getFitnessCalendarData>
 const mockGetFitnessRouteHeatmap =
   getFitnessRouteHeatmap as jest.MockedFunction<typeof getFitnessRouteHeatmap>
 const mockGetFitnessRouteHeatmaps =
@@ -171,7 +167,6 @@ describe('FitnessHeatmapView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetDistinctFitnessActivityTypes.mockResolvedValue([])
-    mockGetFitnessCalendarData.mockResolvedValue([])
     mockGetFitnessRouteHeatmap.mockResolvedValue(completedHeatmap)
     mockGetFitnessRouteHeatmaps.mockResolvedValue([pendingSummary])
     mockClearFitnessRouteHeatmaps.mockResolvedValue(0)
@@ -275,7 +270,7 @@ describe('FitnessHeatmapView', () => {
       expect(screen.getByText('Routes')).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /Refresh/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Generate heatmap/i }))
 
     await waitFor(() => {
       expect(mockTriggerFitnessRouteHeatmap).toHaveBeenCalledWith(
@@ -324,15 +319,15 @@ describe('FitnessHeatmapView', () => {
     const routeMapRegion = await screen.findByRole('region', {
       name: 'Route heatmap map'
     })
-    const routeCacheHeading = screen.getByRole('heading', {
-      name: 'Route Cache'
+    const heatmapsHeading = screen.getByRole('heading', {
+      name: 'Heatmaps'
     })
 
-    expect(routeMapRegion).not.toContainElement(routeCacheHeading)
-    // The cache panel should follow the full-width map region instead of
+    expect(routeMapRegion).not.toContainElement(heatmapsHeading)
+    // The job-list panel should follow the full-width map region instead of
     // being nested beside it in the same grid row.
     expect(
-      routeMapRegion.compareDocumentPosition(routeCacheHeading) &
+      routeMapRegion.compareDocumentPosition(heatmapsHeading) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
   })
@@ -405,7 +400,7 @@ describe('FitnessHeatmapView', () => {
       expect(screen.getByRole('button', { name: /Clear cache/i })).toBeEnabled()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /Refresh/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Generate heatmap/i }))
 
     expect(await screen.findByText('refresh broken')).toBeInTheDocument()
 
