@@ -1,0 +1,19 @@
+lib/utils/maplibre.ts
+  s_6a0c31765ecb38::t_71cf9b81eaaa11 81-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "b7c44f25165c1f7ce615ee148c58e597c0758749",
+  "prompts": {},
+  "sessions": {
+    "s_6a0c31765ecb38": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a6c16cc3-2ab6-4451-a690-238a35bd1533",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
