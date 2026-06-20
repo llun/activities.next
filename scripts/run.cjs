@@ -13,17 +13,30 @@
 // pulled in via `require()`, whose resolver handles extensionless subpaths and
 // whose interop exposes CommonJS named exports — so the scripts run unchanged.
 //
+// The target is loaded as the *main* module so scripts guarded by
+// `require.main === module` still execute, and `process.argv` is reshaped to
+// drop this bootstrap so each script sees its own path and arguments exactly as
+// it would when run directly.
+//
 // Each script's shebang invokes this bootstrap and `env -S` appends the script
 // path as the final argument:
 //   #!/usr/bin/env -S node scripts/run.cjs
 require('@swc-node/register')
 
+const Module = require('node:module')
 const { resolve } = require('node:path')
 
 const target = process.argv[2]
 if (!target) {
-  console.error('Usage: node scripts/run.cjs <script.ts>')
+  console.error('Usage: node scripts/run.cjs <script.ts> [args...]')
   process.exit(1)
 }
 
-require(resolve(target))
+const targetPath = resolve(target)
+
+// Reshape argv to [node, <script>, ...scriptArgs] so positional argument
+// indexes match a direct invocation of the script.
+process.argv = [process.argv[0], targetPath, ...process.argv.slice(3)]
+
+// Load the target as the main module so `require.main === module` holds.
+Module._load(targetPath, null, true)
