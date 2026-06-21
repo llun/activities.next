@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
-import { deleteFitnessFile } from '@/lib/client'
+import { deleteFitnessFile, retryFitnessImportBatch } from '@/lib/client'
 import {
   FileListPagination,
   ItemsPerPageDropdown,
@@ -40,6 +40,9 @@ interface FitnessFileItem {
   createdAt: number
   url: string
   statusId?: string
+  importStatus?: 'pending' | 'completed' | 'failed'
+  importError?: string | null
+  importBatchId?: string
 }
 
 interface Props {
@@ -66,10 +69,30 @@ export function FitnessFileManagement({
   const [fileToDelete, setFileToDelete] = useState<FitnessFileItem | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [retryingBatchId, setRetryingBatchId] = useState<string | null>(null)
+  const [queuedBatchIds, setQueuedBatchIds] = useState<Set<string>>(new Set())
+  const [retryError, setRetryError] = useState<string | null>(null)
 
   useEffect(() => {
     setFitnessFiles(initialFitnessFiles)
     setCurrentUsed(used)
+    // Drop the "retry queued" flag for any batch that is still failing in the
+    // refreshed data, so its Retry button reappears instead of being stuck on
+    // "Retry queued" forever when a retry did not clear the failure.
+    setQueuedBatchIds((prev) => {
+      if (prev.size === 0) return prev
+      const stillFailingBatchIds = new Set(
+        initialFitnessFiles
+          .filter(
+            (file) => file.importStatus === 'failed' && file.importBatchId
+          )
+          .map((file) => file.importBatchId as string)
+      )
+      const next = new Set(
+        [...prev].filter((batchId) => !stillFailingBatchIds.has(batchId))
+      )
+      return next.size === prev.size ? prev : next
+    })
   }, [initialFitnessFiles, used])
 
   const handleDeleteClick = (fitnessFile: FitnessFileItem) => {
@@ -100,6 +123,32 @@ export function FitnessFileManagement({
       setDeleteError(message)
     } finally {
       setDeleting(false)
+    }
+  }
+
+  const handleRetryImport = async (batchId: string) => {
+    if (retryingBatchId) return
+
+    setRetryingBatchId(batchId)
+    setRetryError(null)
+    try {
+      // Visibility is only consulted for manual-upload batches (Strava-activity
+      // retries re-derive the activity's real visibility server-side). The
+      // original choice is not stored on the file, so retry with the safe,
+      // non-publicizing `private` rather than risk re-publishing an originally
+      // unlisted/private post as public. The import runs asynchronously on the
+      // queue, so refresh to pick up the new status.
+      await retryFitnessImportBatch(batchId, 'private')
+      setQueuedBatchIds((prev) => new Set(prev).add(batchId))
+      router.refresh()
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to retry import. Please try again.'
+      setRetryError(message)
+    } finally {
+      setRetryingBatchId(null)
     }
   }
 
@@ -169,6 +218,13 @@ export function FitnessFileManagement({
                         fitnessFile.statusId
                       )
                     : null
+                  const importFailed = fitnessFile.importStatus === 'failed'
+                  const retryBatchId = importFailed
+                    ? fitnessFile.importBatchId
+                    : undefined
+                  const retryQueued = Boolean(
+                    retryBatchId && queuedBatchIds.has(retryBatchId)
+                  )
 
                   return (
                     <div
@@ -207,9 +263,40 @@ export function FitnessFileManagement({
                             </Link>
                           </div>
                         )}
+                        {importFailed && (
+                          <div className="space-y-1 pt-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+                                Import failed
+                              </span>
+                              {retryQueued && (
+                                <span className="text-xs text-muted-foreground">
+                                  Retry queued — refresh to see the result.
+                                </span>
+                              )}
+                            </div>
+                            {fitnessFile.importError && (
+                              <p className="text-xs text-destructive">
+                                {fitnessFile.importError}
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex gap-2">
+                        {retryBatchId && !retryQueued && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleRetryImport(retryBatchId)}
+                            disabled={retryingBatchId !== null}
+                          >
+                            {retryingBatchId === retryBatchId
+                              ? 'Retrying…'
+                              : 'Retry import'}
+                          </Button>
+                        )}
                         <Button variant="outline" size="sm" asChild>
                           <a href={fitnessFile.url} download>
                             Download
@@ -227,6 +314,10 @@ export function FitnessFileManagement({
                   )
                 })}
               </div>
+
+              {retryError && (
+                <p className="pt-3 text-sm text-destructive">{retryError}</p>
+              )}
 
               <FileListPagination
                 currentPage={currentPage}

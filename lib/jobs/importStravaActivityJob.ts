@@ -35,6 +35,7 @@ import {
   isSupportedStravaPhotoMimeType,
   mapStravaVisibilityToMastodon
 } from '@/lib/services/strava/activity'
+import { getStravaActivityBatchId } from '@/lib/services/strava/activityBatch'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { Actor, getMention } from '@/lib/types/domain/actor'
@@ -99,9 +100,6 @@ const getActivityImportGroupKey = (
     : new Date().toISOString().slice(0, 10)
   return `activity_import:${actorId}:${dateStr}`
 }
-
-const getStravaBatchId = (stravaActivityId: string) =>
-  `strava-activity:${stravaActivityId}`
 
 const getStravaFallbackPostId = ({
   actorId,
@@ -490,7 +488,7 @@ export const importStravaActivityJob = createJobHandle(
     })
     const resolvedVisibility =
       visibility ?? mapStravaVisibilityToMastodon(activity.visibility)
-    const batchId = getStravaBatchId(stravaActivityId)
+    const batchId = getStravaActivityBatchId(stravaActivityId)
 
     const batchFiles = await database.getFitnessFilesByBatchId({ batchId })
     let targetFitnessFile =
