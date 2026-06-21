@@ -2,8 +2,8 @@
 /**
  * Script to add or remove admin role for an account by email
  * Usage:
- *   NODE_ENV=production scripts/manageAdminRole add <email>
- *   NODE_ENV=production scripts/manageAdminRole remove <email>
+ *   NODE_ENV=production scripts/maintenance/manageAdminRole add <email>
+ *   NODE_ENV=production scripts/maintenance/manageAdminRole remove <email>
  */
 import { loadEnvConfig } from '@next/env'
 
@@ -22,8 +22,8 @@ async function manageAdminRole() {
 
   if (!action || !email || !['add', 'remove'].includes(action)) {
     console.log('Usage:')
-    console.log('  scripts/manageAdminRole add <email>')
-    console.log('  scripts/manageAdminRole remove <email>')
+    console.log('  scripts/maintenance/manageAdminRole add <email>')
+    console.log('  scripts/maintenance/manageAdminRole remove <email>')
     process.exit(1)
   }
 

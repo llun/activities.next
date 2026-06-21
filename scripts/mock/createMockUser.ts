@@ -1,7 +1,7 @@
 #!/usr/bin/env -S node scripts/run.cjs
 /**
  * Script to create a test user for development/testing
- * Usage: scripts/createMockUser [username] [email] [password]
+ * Usage: scripts/mock/createMockUser [username] [email] [password]
  */
 import * as bcrypt from 'bcrypt'
 import crypto from 'crypto'

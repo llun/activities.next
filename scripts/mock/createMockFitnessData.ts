@@ -6,7 +6,7 @@
  *
  * Usage (local SQLite only — never a remote DB):
  *   set -a; . ./.env.local; set +a
- *   node scripts/run.cjs scripts/createMockFitnessData.ts [username]
+ *   node scripts/run.cjs scripts/mock/createMockFitnessData.ts [username]
  *
  * Run after createMockUser.ts.
  */

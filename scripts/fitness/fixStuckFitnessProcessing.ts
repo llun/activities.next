@@ -11,11 +11,11 @@
  *     → mark 'pending' so the job will be re-queued on the next page load
  *
  * Usage (fix one status by URL hash):
- *   NODE_ENV=production scripts/fixStuckFitnessProcessing.ts \
+ *   NODE_ENV=production scripts/fitness/fixStuckFitnessProcessing.ts \
  *     --status-hash <64-char-hex>
  *
  * Usage (fix all stuck files for an actor):
- *   NODE_ENV=production scripts/fixStuckFitnessProcessing.ts \
+ *   NODE_ENV=production scripts/fitness/fixStuckFitnessProcessing.ts \
  *     --actor-id <actor-id>
  */
 import { loadEnvConfig } from '@next/env'
@@ -36,10 +36,10 @@ const CliArgs = z.union([
 
 const USAGE = `Usage:
   Fix one status:
-    NODE_ENV=production scripts/fixStuckFitnessProcessing.ts --status-hash <64-char-hex>
+    NODE_ENV=production scripts/fitness/fixStuckFitnessProcessing.ts --status-hash <64-char-hex>
 
   Fix all stuck files for an actor:
-    NODE_ENV=production scripts/fixStuckFitnessProcessing.ts --actor-id <actor-id>`
+    NODE_ENV=production scripts/fitness/fixStuckFitnessProcessing.ts --actor-id <actor-id>`
 
 const parseArgs = (args: string[]) => {
   const parsed: Record<string, string> = {}

@@ -1,7 +1,7 @@
 #!/usr/bin/env -S node scripts/run.cjs
 /**
  * Script to clean up media files that are not referenced in the database
- * Usage: scripts/cleanupMediaStorage [--dry-run] [--yes]
+ * Usage: scripts/maintenance/cleanupMediaStorage [--dry-run] [--yes]
  *
  * Options:
  *   --dry-run   Show what would be deleted without actually deleting
@@ -178,7 +178,7 @@ function showHelp() {
   console.log('🧹 Media Storage Cleanup Script')
   console.log('═'.repeat(60))
   console.log()
-  console.log('Usage: scripts/cleanupMediaStorage [OPTIONS]')
+  console.log('Usage: scripts/maintenance/cleanupMediaStorage [OPTIONS]')
   console.log()
   console.log('Options:')
   console.log(
@@ -197,13 +197,13 @@ function showHelp() {
   console.log()
   console.log('Examples:')
   console.log('  # Preview what would be deleted')
-  console.log('  ./scripts/cleanupMediaStorage --dry-run')
+  console.log('  ./scripts/maintenance/cleanupMediaStorage --dry-run')
   console.log()
   console.log('  # Clean up with confirmation prompt')
-  console.log('  ./scripts/cleanupMediaStorage')
+  console.log('  ./scripts/maintenance/cleanupMediaStorage')
   console.log()
   console.log('  # Clean up without confirmation')
-  console.log('  ./scripts/cleanupMediaStorage --yes')
+  console.log('  ./scripts/maintenance/cleanupMediaStorage --yes')
   console.log()
 }
 

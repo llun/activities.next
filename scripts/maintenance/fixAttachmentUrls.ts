@@ -4,7 +4,7 @@
  * by replacing the host portion with the correct production host from config.
  *
  * Usage:
- *   NODE_ENV=production scripts/fixAttachmentUrls.ts [--dry-run] [--wrong-host localhost:3000]
+ *   NODE_ENV=production scripts/maintenance/fixAttachmentUrls.ts [--dry-run] [--wrong-host localhost:3000]
  *
  * Options:
  *   --wrong-host    The bad host to replace (default: localhost:3000)
@@ -26,7 +26,7 @@ const CliArgs = z.object({
   dryRun: z.boolean().default(false)
 })
 
-const USAGE = `Usage: NODE_ENV=production scripts/fixAttachmentUrls.ts \\
+const USAGE = `Usage: NODE_ENV=production scripts/maintenance/fixAttachmentUrls.ts \\
   [--wrong-host localhost:3000] \\
   [--correct-host llun.social] \\
   [--dry-run]`

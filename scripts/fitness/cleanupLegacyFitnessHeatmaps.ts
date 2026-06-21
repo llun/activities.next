@@ -3,7 +3,7 @@
  * Deletes legacy PNG heatmap media captured during the route-heatmap migration.
  *
  * Usage:
- *   NODE_ENV=production scripts/cleanupLegacyFitnessHeatmaps.ts
+ *   NODE_ENV=production scripts/fitness/cleanupLegacyFitnessHeatmaps.ts
  */
 import { loadEnvConfig } from '@next/env'
 

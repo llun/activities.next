@@ -4,7 +4,7 @@
  * in 'pending' or 'processing' state after an interrupted importStravaArchive run.
  *
  * Usage:
- *   NODE_ENV=development scripts/resumeStravaProcessing.ts \
+ *   NODE_ENV=development scripts/fitness/resumeStravaProcessing.ts \
  *     --actor-id https://yourdomain.com/users/username \
  *     --batch-id strava-archive:<uuid>
  */
@@ -24,7 +24,7 @@ const CliArgs = z.object({
   batchId: z.string().min(1)
 })
 
-const USAGE = `Usage: NODE_ENV=development scripts/resumeStravaProcessing.ts \\
+const USAGE = `Usage: NODE_ENV=development scripts/fitness/resumeStravaProcessing.ts \\
   --actor-id https://yourdomain.com/users/username \\
   --batch-id strava-archive:<uuid>`
 

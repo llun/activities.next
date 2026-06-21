@@ -9,7 +9,7 @@
  * them from the web UI after confirming the new fitness statuses look correct.
  *
  * Usage:
- *   NODE_ENV=production scripts/retrigerStravaActivities.ts \
+ *   NODE_ENV=production scripts/fitness/retrigerStravaActivities.ts \
  *     --actor-id https://<host>/users/<username> \
  *     --activity-id <strava-activity-id> \
  *     [--activity-id <strava-activity-id> ...]
@@ -33,7 +33,7 @@ const CliArgs = z.object({
   activityIds: z.array(z.string().min(1)).min(1)
 })
 
-const USAGE = `Usage: NODE_ENV=production scripts/retrigerStravaActivities.ts \\
+const USAGE = `Usage: NODE_ENV=production scripts/fitness/retrigerStravaActivities.ts \\
   --actor-id https://<host>/users/<username> \\
   --activity-id <strava-activity-id> \\
   [--activity-id <strava-activity-id> ...]`
