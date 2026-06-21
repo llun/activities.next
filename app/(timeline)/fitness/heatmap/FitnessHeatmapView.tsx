@@ -45,10 +45,7 @@ import {
 } from '@/lib/fitness/regions'
 import { cn } from '@/lib/utils'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
-import {
-  getZoomLevelForBounds,
-  projectWebMercator
-} from '@/lib/utils/webMercator'
+import { OPENFREEMAP_STYLE_URL, loadMaplibreModule } from '@/lib/utils/maplibre'
 
 type PeriodType = 'all_time' | 'yearly' | 'monthly'
 
@@ -57,7 +54,9 @@ interface Props {
   mapboxAccessToken?: string
 }
 
-type MapboxMap = {
+// The Mapbox GL / MapLibre GL surface — only the members this component drives.
+// Both libraries share this subset, so one component can drive either provider.
+type RouteGlMap = {
   on: (event: string, callback: () => void) => void
   remove: () => void
   resize: () => void
@@ -70,31 +69,28 @@ type MapboxMap = {
   ) => void
 }
 
-type MapboxGL = {
-  Map: new (options: Record<string, unknown>) => MapboxMap
+type RouteGlModule = {
+  Map: new (options: Record<string, unknown>) => RouteGlMap
 }
 
-type MapboxFallbackReason =
-  | 'module-load-failed'
-  | 'render-failed'
-  | 'route-cache-too-large'
+type MapFallbackReason = 'module-load-failed' | 'render-failed'
 
-interface MapboxFallbackError {
+interface MapFallbackError {
   message: string
   stack?: string
 }
 
-const MAP_WIDTH = 960
-const MAP_HEIGHT = 560
-const MAP_PADDING = 52
 const currentYear = new Date().getUTCFullYear()
 const ROUTE_HEATMAP_POLLING_INTERVAL_MS = 5000
 const STALLED_POLLING_LIMIT = 30
 // Keep recent background jobs live while ignoring restored/stuck rows that are days old.
 const STALE_IN_FLIGHT_HEATMAP_MS = 15 * 60_000
-// Conservative cap: staging reproduced blank Mapbox canvases around 80k route points.
-// Keep a 4x safety margin until this path has browser/device benchmarks.
-const MAPBOX_MAX_ROUTE_POINTS = 20_000
+// Cap on route vertices handed to the GL line layer. A whole-world, all-time
+// cache can aggregate hundreds of thousands of points and staging reproduced
+// blank GL canvases past ~80k, so the geometry is uniformly downsampled to stay
+// well under that. This keeps the map fully interactive (pan/zoom) instead of
+// dropping to a static, non-interactive fallback.
+const ROUTE_RENDER_POINT_BUDGET = 40_000
 const ROUTE_HEATMAP_MAP_HEIGHT_CLASS = 'h-[420px]'
 
 const ROUTE_LINE_STYLES = {
@@ -109,7 +105,7 @@ const ROUTE_LINE_STYLES = {
     opacity: 0.14
   }
 } as const
-const MAPBOX_ROUTE_LINE_PAINT = {
+const ROUTE_LINE_PAINT = {
   'line-color': [
     'case',
     ['boolean', ['get', 'isHiddenByPrivacy'], false],
@@ -131,10 +127,7 @@ const MAPBOX_ROUTE_LINE_PAINT = {
   'line-blur': 0.8
 } as const
 
-const getRouteLineStyle = (isHiddenByPrivacy: boolean) =>
-  isHiddenByPrivacy ? ROUTE_LINE_STYLES.hidden : ROUTE_LINE_STYLES.visible
-
-const getMapboxFallbackError = (error: unknown): MapboxFallbackError => {
+const getMapFallbackError = (error: unknown): MapFallbackError => {
   if (error instanceof Error) {
     return {
       message: error.message,
@@ -241,52 +234,34 @@ const buildRouteGeoJson = (segments: FitnessRouteHeatmapSegment[]) => ({
     }))
 })
 
-const buildSvgMap = (heatmap: FitnessRouteHeatmapData) => {
-  if (!heatmap.bounds || heatmap.segments.length === 0) {
-    return null
+// Uniformly thin route geometry so the GL line layer never receives more than
+// `maxPoints` vertices (a whole-world cache can aggregate far more). Each
+// segment keeps its first and last vertex so routes still span their extent.
+export const downsampleSegments = (
+  segments: FitnessRouteHeatmapSegment[],
+  maxPoints: number
+): FitnessRouteHeatmapSegment[] => {
+  const totalPoints = segments.reduce(
+    (sum, segment) => sum + segment.points.length,
+    0
+  )
+  if (totalPoints <= maxPoints) {
+    return segments
   }
 
-  const zoom = Math.min(
-    15,
-    getZoomLevelForBounds({
-      bounds: heatmap.bounds,
-      width: MAP_WIDTH,
-      height: MAP_HEIGHT,
-      padding: MAP_PADDING
-    })
-  )
-  const southWest = projectWebMercator(
-    { lat: heatmap.bounds.minLat, lng: heatmap.bounds.minLng },
-    zoom
-  )
-  const northEast = projectWebMercator(
-    { lat: heatmap.bounds.maxLat, lng: heatmap.bounds.maxLng },
-    zoom
-  )
-  const centerX = (southWest.x + northEast.x) / 2
-  const centerY = (southWest.y + northEast.y) / 2
-  const topLeftX = centerX - MAP_WIDTH / 2
-  const topLeftY = centerY - MAP_HEIGHT / 2
+  const stride = Math.ceil(totalPoints / maxPoints)
+  return segments.map((segment) => {
+    if (segment.points.length <= 2) {
+      return segment
+    }
 
-  const lines = heatmap.segments
-    .filter((segment) => segment.points.length >= 2)
-    .map((segment, index) => {
-      const isHiddenByPrivacy = Boolean(segment.isHiddenByPrivacy)
-      return {
-        key: `${heatmap.id}-${index}`,
-        style: getRouteLineStyle(isHiddenByPrivacy),
-        points: segment.points
-          .map((point) => {
-            const projected = projectWebMercator(point, zoom)
-            return `${(projected.x - topLeftX).toFixed(1)},${(
-              projected.y - topLeftY
-            ).toFixed(1)}`
-          })
-          .join(' ')
-      }
-    })
-
-  return { lines }
+    const points = segment.points.filter((_, index) => index % stride === 0)
+    const lastPoint = segment.points[segment.points.length - 1]
+    if (points[points.length - 1] !== lastPoint) {
+      points.push(lastPoint)
+    }
+    return { ...segment, points }
+  })
 }
 
 interface RouteHeatmapMapProps {
@@ -294,45 +269,64 @@ interface RouteHeatmapMapProps {
   mapboxAccessToken?: string
 }
 
+interface RouteMapProvider {
+  loadModule: () => Promise<RouteGlModule>
+  mapOptions: Record<string, unknown>
+  label: string
+}
+
 export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
   heatmap,
   mapboxAccessToken
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const mapRef = useRef<MapboxMap | null>(null)
+  const mapRef = useRef<RouteGlMap | null>(null)
   const routeGeoJsonRef = useRef(buildRouteGeoJson([]))
-  const [runtimeMapboxFallbackReason, setRuntimeMapboxFallbackReason] =
-    useState<Exclude<MapboxFallbackReason, 'route-cache-too-large'> | null>(
-      null
-    )
-  const [mapboxFallbackError, setMapboxFallbackError] =
-    useState<MapboxFallbackError | null>(null)
+  const [mapFallbackReason, setMapFallbackReason] =
+    useState<MapFallbackReason | null>(null)
+  const [mapFallbackError, setMapFallbackError] =
+    useState<MapFallbackError | null>(null)
   const [isMapLoaded, setIsMapLoaded] = useState(false)
 
   const hasRoutes =
     heatmap?.status === 'completed' &&
     heatmap.segments.some((segment) => segment.points.length >= 2)
   const bounds = heatmap?.bounds
-  const isWithinMapboxBudget =
-    heatmap !== null && heatmap.pointCount <= MAPBOX_MAX_ROUTE_POINTS
-  const budgetMapboxFallbackReason: MapboxFallbackReason | null =
-    mapboxAccessToken && hasRoutes && !isWithinMapboxBudget
-      ? 'route-cache-too-large'
-      : null
-  const mapboxFallbackReason =
-    runtimeMapboxFallbackReason ?? budgetMapboxFallbackReason
-  const mapboxFallbackErrorMessage =
+
+  // Mapbox when a public token is configured; otherwise the keyless MapLibre +
+  // OpenFreeMap provider, so the heatmap always renders on a real, interactive
+  // map without an API key (instead of a static, non-interactive image).
+  const provider = useMemo<RouteMapProvider>(
+    () =>
+      mapboxAccessToken
+        ? {
+            loadModule: () => loadMapboxModule<RouteGlModule>(),
+            mapOptions: {
+              style: 'mapbox://styles/mapbox/outdoors-v12',
+              accessToken: mapboxAccessToken
+            },
+            label: 'Mapbox'
+          }
+        : {
+            loadModule: () => loadMaplibreModule<RouteGlModule>(),
+            mapOptions: { style: OPENFREEMAP_STYLE_URL },
+            label: 'OpenFreeMap'
+          },
+    [mapboxAccessToken]
+  )
+
+  const mapFallbackErrorMessage =
     process.env.NODE_ENV !== 'production'
-      ? mapboxFallbackError?.message
+      ? mapFallbackError?.message
       : undefined
-  const shouldUseMapbox =
-    Boolean(mapboxAccessToken) &&
-    hasRoutes &&
-    Boolean(bounds) &&
-    isWithinMapboxBudget &&
-    !runtimeMapboxFallbackReason
+  const shouldRenderMap = hasRoutes && Boolean(bounds) && !mapFallbackReason
   const routeGeoJson = useMemo(
-    () => buildRouteGeoJson(hasRoutes && heatmap ? heatmap.segments : []),
+    () =>
+      buildRouteGeoJson(
+        hasRoutes && heatmap
+          ? downsampleSegments(heatmap.segments, ROUTE_RENDER_POINT_BUDGET)
+          : []
+      ),
     [hasRoutes, heatmap?.id, heatmap?.updatedAt]
   )
 
@@ -340,13 +334,15 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
     routeGeoJsonRef.current = routeGeoJson
   }, [routeGeoJson])
 
+  // Clear the fallback whenever the cache or provider changes so a recovered
+  // map gets a fresh attempt.
   useEffect(() => {
-    setRuntimeMapboxFallbackReason(null)
-    setMapboxFallbackError(null)
-  }, [heatmap?.id, heatmap?.updatedAt, mapboxAccessToken])
+    setMapFallbackReason(null)
+    setMapFallbackError(null)
+  }, [heatmap?.id, heatmap?.updatedAt, provider])
 
   useEffect(() => {
-    if (!shouldUseMapbox || !containerRef.current || !bounds) {
+    if (!shouldRenderMap || !containerRef.current || !bounds) {
       return
     }
 
@@ -357,22 +353,20 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
     ]
     setIsMapLoaded(false)
 
-    loadMapboxModule<MapboxGL>()
-      .then((mapboxgl) => {
+    provider
+      .loadModule()
+      .then((gl) => {
         if (cancelled || !containerRef.current) return
 
-        const map = new mapboxgl.Map({
+        const map = new gl.Map({
           container: containerRef.current,
-          style: 'mapbox://styles/mapbox/outdoors-v12',
-          accessToken: mapboxAccessToken,
           attributionControl: true,
-          bounds: mapBounds,
-          fitBoundsOptions: { padding: 56 }
+          ...provider.mapOptions
         })
         mapRef.current = map
 
         map.on('load', () => {
-          if (!map || cancelled) return
+          if (cancelled) return
           try {
             map.resize()
             map.addSource('route-heatmap', {
@@ -387,22 +381,22 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
                 'line-cap': 'round',
                 'line-join': 'round'
               },
-              paint: MAPBOX_ROUTE_LINE_PAINT
+              paint: ROUTE_LINE_PAINT
             })
             map.fitBounds(mapBounds, { padding: 56, duration: 0 })
             setIsMapLoaded(true)
           } catch (error) {
             if (!cancelled) {
-              setMapboxFallbackError(getMapboxFallbackError(error))
-              setRuntimeMapboxFallbackReason('render-failed')
+              setMapFallbackError(getMapFallbackError(error))
+              setMapFallbackReason('render-failed')
             }
           }
         })
       })
       .catch((error) => {
         if (!cancelled) {
-          setMapboxFallbackError(getMapboxFallbackError(error))
-          setRuntimeMapboxFallbackReason('module-load-failed')
+          setMapFallbackError(getMapFallbackError(error))
+          setMapFallbackReason('module-load-failed')
         }
       })
 
@@ -417,19 +411,14 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
     bounds?.minLat,
     bounds?.minLng,
     heatmap?.id,
-    mapboxAccessToken,
-    shouldUseMapbox
+    provider,
+    shouldRenderMap
   ])
 
   useEffect(() => {
-    if (!shouldUseMapbox || !isMapLoaded) return
+    if (!shouldRenderMap || !isMapLoaded) return
     mapRef.current?.getSource('route-heatmap')?.setData(routeGeoJson)
-  }, [isMapLoaded, routeGeoJson, shouldUseMapbox])
-
-  const svgMap = useMemo(
-    () => (hasRoutes && heatmap ? buildSvgMap(heatmap) : null),
-    [hasRoutes, heatmap?.id, heatmap?.updatedAt]
-  )
+  }, [isMapLoaded, routeGeoJson, shouldRenderMap])
 
   if (!hasRoutes || !heatmap) {
     return (
@@ -444,31 +433,18 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
     )
   }
 
-  if (shouldUseMapbox) {
+  if (mapFallbackReason) {
     return (
       <div
+        role="status"
         className={cn(
-          'relative overflow-hidden bg-muted',
+          'flex flex-col items-center justify-center gap-1 bg-muted/40 px-4 text-center text-sm text-muted-foreground',
           ROUTE_HEATMAP_MAP_HEIGHT_CLASS
         )}
+        data-map-fallback-reason={mapFallbackReason}
+        data-map-fallback-error={mapFallbackErrorMessage}
       >
-        <div ref={containerRef} className="h-full w-full" />
-        <div className="absolute left-3 top-3 rounded bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm">
-          Mapbox
-        </div>
-      </div>
-    )
-  }
-
-  if (!svgMap) {
-    return (
-      <div
-        className={cn(
-          'flex items-center justify-center bg-muted/40 text-sm text-muted-foreground',
-          ROUTE_HEATMAP_MAP_HEIGHT_CLASS
-        )}
-      >
-        No route data for this selection
+        Map unavailable. Try regenerating this heatmap.
       </div>
     )
   }
@@ -476,41 +452,16 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
   return (
     <div
       className={cn(
-        'relative overflow-hidden bg-slate-100 dark:bg-slate-950',
+        'relative overflow-hidden bg-muted',
         ROUTE_HEATMAP_MAP_HEIGHT_CLASS
       )}
-      data-mapbox-fallback-reason={mapboxFallbackReason ?? undefined}
-      data-mapbox-fallback-error={mapboxFallbackErrorMessage}
     >
-      <svg
-        viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
-        className="h-full w-full"
-        role="img"
-        aria-label="Fitness route heatmap"
-        preserveAspectRatio="xMidYMid slice"
-      >
-        <rect width={MAP_WIDTH} height={MAP_HEIGHT} fill="#f8fafc" />
-        <g>
-          {svgMap.lines.map((line) => (
-            <polyline
-              key={line.key}
-              points={line.points}
-              fill="none"
-              stroke={line.style.color}
-              strokeWidth={line.style.width}
-              strokeOpacity={line.style.opacity}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          ))}
-        </g>
-      </svg>
-      <div className="absolute left-3 top-3 rounded bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm">
-        Routes
-      </div>
-      {mapboxFallbackReason ? (
-        <p className="sr-only">Interactive map unavailable. Showing routes.</p>
-      ) : null}
+      <div ref={containerRef} className="h-full w-full" />
+      {isMapLoaded && (
+        <div className="pointer-events-none absolute left-3 top-3 rounded bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm">
+          {provider.label}
+        </div>
+      )}
     </div>
   )
 }

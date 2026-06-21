@@ -24,11 +24,21 @@ import type {
   FitnessRouteHeatmapSummaryData
 } from '@/lib/client'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
+import { loadMaplibreModule } from '@/lib/utils/maplibre'
 
-import { FitnessHeatmapView, RouteHeatmapMap } from './FitnessHeatmapView'
+import {
+  FitnessHeatmapView,
+  RouteHeatmapMap,
+  downsampleSegments
+} from './FitnessHeatmapView'
 
 vi.mock('@/lib/utils/mapbox', () => ({
   loadMapboxModule: vi.fn()
+}))
+
+vi.mock('@/lib/utils/maplibre', () => ({
+  OPENFREEMAP_STYLE_URL: 'https://tiles.openfreemap.org/styles/bright',
+  loadMaplibreModule: vi.fn()
 }))
 
 vi.mock('@/lib/client', () => ({
@@ -42,6 +52,9 @@ vi.mock('@/lib/client', () => ({
 
 const mockLoadMapboxModule = loadMapboxModule as jest.MockedFunction<
   typeof loadMapboxModule
+>
+const mockLoadMaplibreModule = loadMaplibreModule as jest.MockedFunction<
+  typeof loadMaplibreModule
 >
 const mockClearFitnessRouteHeatmaps =
   clearFitnessRouteHeatmaps as jest.MockedFunction<
@@ -73,6 +86,24 @@ const createDeferred = <T,>() => {
   })
   return { promise, resolve, reject }
 }
+
+// A minimal GL map double whose `load` handler fires synchronously, so the map
+// reaches its ready state within the test. `onAddSource` lets a test capture the
+// GeoJSON handed to the route layer (or throw to exercise the render fallback).
+const createGlMapConstructor = (
+  onAddSource: (id: string, source: unknown) => void = () => {}
+) =>
+  vi.fn().mockImplementation(function () {
+    return {
+      on: (_event: string, callback: () => void) => callback(),
+      remove: vi.fn(),
+      resize: vi.fn(),
+      addSource: vi.fn(onAddSource),
+      addLayer: vi.fn(),
+      getSource: vi.fn(),
+      fitBounds: vi.fn()
+    }
+  })
 
 const completedHeatmap: FitnessRouteHeatmapData = {
   id: 'route-heatmap-1',
@@ -180,6 +211,8 @@ describe('FitnessHeatmapView', () => {
     mockClearFitnessRouteHeatmaps.mockResolvedValue(0)
     mockDeleteFitnessRouteHeatmap.mockResolvedValue(true)
     mockTriggerFitnessRouteHeatmap.mockResolvedValue(true)
+    // No Mapbox token in these tests, so the view uses the keyless MapLibre map.
+    mockLoadMaplibreModule.mockResolvedValue({ Map: createGlMapConstructor() })
   })
 
   afterEach(() => {
@@ -260,7 +293,7 @@ describe('FitnessHeatmapView', () => {
     rerender(<FitnessHeatmapView actorId="https://llun.test/users/second" />)
 
     await waitFor(() => {
-      expect(screen.getByText('Routes')).toBeInTheDocument()
+      expect(screen.getByText('OpenFreeMap')).toBeInTheDocument()
     })
 
     await act(async () => {
@@ -269,14 +302,14 @@ describe('FitnessHeatmapView', () => {
     })
 
     expect(mockTriggerFitnessRouteHeatmap).not.toHaveBeenCalled()
-    expect(screen.getByText('Routes')).toBeInTheDocument()
+    expect(screen.getByText('OpenFreeMap')).toBeInTheDocument()
   })
 
   it('keeps completed refreshes on the normal deduplicated enqueue path', async () => {
     render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
 
     await waitFor(() => {
-      expect(screen.getByText('Routes')).toBeInTheDocument()
+      expect(screen.getByText('OpenFreeMap')).toBeInTheDocument()
     })
 
     fireEvent.click(screen.getByRole('button', { name: /Generate heatmap/i }))
@@ -585,14 +618,24 @@ describe('RouteHeatmapMap', () => {
     vi.clearAllMocks()
   })
 
-  it('renders the SVG route fallback when Mapbox is not configured', () => {
+  it('renders the keyless OpenFreeMap map when Mapbox is not configured', async () => {
+    const mapConstructor = createGlMapConstructor()
+    mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
+
     const { container } = render(<RouteHeatmapMap heatmap={completedHeatmap} />)
 
-    expect(screen.getByText('Routes')).toBeInTheDocument()
-    expect(container.querySelector('polyline')).toBeInTheDocument()
+    await waitFor(() => expect(mapConstructor).toHaveBeenCalled())
+    expect(await screen.findByText('OpenFreeMap')).toBeInTheDocument()
+    // No static SVG image is generated — the routes render on a real GL map.
+    expect(container.querySelector('svg')).not.toBeInTheDocument()
+    expect(mockLoadMapboxModule).not.toHaveBeenCalled()
+    expect(mapConstructor.mock.calls[0][0]).toMatchObject({
+      style: 'https://tiles.openfreemap.org/styles/bright',
+      attributionControl: true
+    })
   })
 
-  it('renders an empty route state', () => {
+  it('renders an empty route state without loading any map provider', () => {
     render(
       <RouteHeatmapMap
         heatmap={{
@@ -607,33 +650,25 @@ describe('RouteHeatmapMap', () => {
     expect(
       screen.getByText('No route data for this selection')
     ).toBeInTheDocument()
+    expect(mockLoadMaplibreModule).not.toHaveBeenCalled()
+    expect(mockLoadMapboxModule).not.toHaveBeenCalled()
   })
 
   it('uses Mapbox when a token is configured', async () => {
-    const mapConstructor = vi.fn().mockImplementation(function () {
-      return {
-        on: (_event: string, callback: () => void) => callback(),
-        remove: vi.fn(),
-        resize: vi.fn(),
-        addSource: vi.fn(),
-        addLayer: vi.fn(),
-        getSource: vi.fn(),
-        fitBounds: vi.fn()
-      }
-    })
-    mockLoadMapboxModule.mockResolvedValue({
-      Map: mapConstructor
-    })
+    const mapConstructor = createGlMapConstructor()
+    mockLoadMapboxModule.mockResolvedValue({ Map: mapConstructor })
 
-    render(
+    const { container } = render(
       <RouteHeatmapMap
         heatmap={completedHeatmap}
         mapboxAccessToken="mapbox-token"
       />
     )
 
-    expect(screen.getByText('Mapbox')).toBeInTheDocument()
     await waitFor(() => expect(mapConstructor).toHaveBeenCalled())
+    expect(await screen.findByText('Mapbox')).toBeInTheDocument()
+    expect(container.querySelector('svg')).not.toBeInTheDocument()
+    expect(mockLoadMaplibreModule).not.toHaveBeenCalled()
     expect(mapConstructor).toHaveBeenCalledWith(
       expect.objectContaining({
         accessToken: 'mapbox-token',
@@ -642,112 +677,62 @@ describe('RouteHeatmapMap', () => {
     )
   })
 
-  it('falls back with a diagnostic reason when Mapbox setup fails', async () => {
-    const mapConstructor = vi.fn().mockImplementation(function () {
-      return {
-        on: (_event: string, callback: () => void) => callback(),
-        remove: vi.fn(),
-        resize: vi.fn(),
-        addSource: vi.fn(() => {
-          throw new Error('source unavailable')
-        }),
-        addLayer: vi.fn(),
-        getSource: vi.fn(),
-        fitBounds: vi.fn()
-      }
+  it('shows a non-SVG fallback message when the map fails to render', async () => {
+    const mapConstructor = createGlMapConstructor(() => {
+      throw new Error('source unavailable')
     })
-    mockLoadMapboxModule.mockResolvedValue({
-      Map: mapConstructor
-    })
+    mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
 
-    const { container } = render(
-      <RouteHeatmapMap
-        heatmap={completedHeatmap}
-        mapboxAccessToken="mapbox-token"
-      />
-    )
+    const { container } = render(<RouteHeatmapMap heatmap={completedHeatmap} />)
 
-    await waitFor(() => expect(screen.getByText('Routes')).toBeInTheDocument())
-    expect(screen.queryByText('Mapbox')).not.toBeInTheDocument()
     expect(
-      container.querySelector('[data-mapbox-fallback-reason="render-failed"]')
+      await screen.findByText('Map unavailable. Try regenerating this heatmap.')
+    ).toBeInTheDocument()
+    expect(screen.queryByText('OpenFreeMap')).not.toBeInTheDocument()
+    expect(container.querySelector('svg')).not.toBeInTheDocument()
+    expect(
+      container.querySelector('[data-map-fallback-reason="render-failed"]')
     ).toBeInTheDocument()
     expect(
-      container.querySelector(
-        '[data-mapbox-fallback-error="source unavailable"]'
-      )
+      container.querySelector('[data-map-fallback-error="source unavailable"]')
     ).toBeInTheDocument()
   })
 
-  it('falls back with a diagnostic reason when Mapbox fails to load', async () => {
-    mockLoadMapboxModule.mockRejectedValue(new Error('module unavailable'))
+  it('shows a non-SVG fallback message when the map module fails to load', async () => {
+    mockLoadMaplibreModule.mockRejectedValue(new Error('module unavailable'))
 
-    const { container } = render(
-      <RouteHeatmapMap
-        heatmap={completedHeatmap}
-        mapboxAccessToken="mapbox-token"
-      />
-    )
+    const { container } = render(<RouteHeatmapMap heatmap={completedHeatmap} />)
 
-    await waitFor(() => expect(screen.getByText('Routes')).toBeInTheDocument())
-    expect(screen.queryByText('Mapbox')).not.toBeInTheDocument()
     expect(
-      container.querySelector(
-        '[data-mapbox-fallback-reason="module-load-failed"]'
-      )
+      await screen.findByText('Map unavailable. Try regenerating this heatmap.')
+    ).toBeInTheDocument()
+    expect(container.querySelector('svg')).not.toBeInTheDocument()
+    expect(
+      container.querySelector('[data-map-fallback-reason="module-load-failed"]')
     ).toBeInTheDocument()
     expect(
-      container.querySelector(
-        '[data-mapbox-fallback-error="module unavailable"]'
-      )
+      container.querySelector('[data-map-fallback-error="module unavailable"]')
     ).toBeInTheDocument()
   })
 
-  it('retries Mapbox when the same route cache is regenerated', async () => {
-    const failingMapConstructor = vi.fn().mockImplementation(function () {
-      return {
-        on: (_event: string, callback: () => void) => callback(),
-        remove: vi.fn(),
-        resize: vi.fn(),
-        addSource: vi.fn(() => {
-          throw new Error('source unavailable')
-        }),
-        addLayer: vi.fn(),
-        getSource: vi.fn(),
-        fitBounds: vi.fn()
-      }
+  it('retries the map when the same route cache is regenerated', async () => {
+    const failingMapConstructor = createGlMapConstructor(() => {
+      throw new Error('source unavailable')
     })
-    mockLoadMapboxModule.mockResolvedValue({
-      Map: failingMapConstructor
-    })
+    mockLoadMaplibreModule.mockResolvedValue({ Map: failingMapConstructor })
 
     const { container, rerender } = render(
-      <RouteHeatmapMap
-        heatmap={completedHeatmap}
-        mapboxAccessToken="mapbox-token"
-      />
+      <RouteHeatmapMap heatmap={completedHeatmap} />
     )
 
     await waitFor(() =>
       expect(
-        container.querySelector('[data-mapbox-fallback-reason="render-failed"]')
+        container.querySelector('[data-map-fallback-reason="render-failed"]')
       ).toBeInTheDocument()
     )
 
-    const workingMapConstructor = vi.fn().mockImplementation(function () {
-      return {
-        on: (_event: string, callback: () => void) => callback(),
-        remove: vi.fn(),
-        resize: vi.fn(),
-        addSource: vi.fn(),
-        addLayer: vi.fn(),
-        getSource: vi.fn(),
-        fitBounds: vi.fn()
-      }
-    })
-    mockLoadMapboxModule.mockResolvedValue({
-      Map: workingMapConstructor
-    })
+    const workingMapConstructor = createGlMapConstructor()
+    mockLoadMaplibreModule.mockResolvedValue({ Map: workingMapConstructor })
 
     rerender(
       <RouteHeatmapMap
@@ -755,49 +740,76 @@ describe('RouteHeatmapMap', () => {
           ...completedHeatmap,
           updatedAt: completedHeatmap.updatedAt + 1
         }}
-        mapboxAccessToken="mapbox-token"
       />
     )
 
-    await waitFor(() => expect(screen.getByText('Mapbox')).toBeInTheDocument())
     await waitFor(() => expect(workingMapConstructor).toHaveBeenCalled())
+    expect(await screen.findByText('OpenFreeMap')).toBeInTheDocument()
     expect(
-      container.querySelector('[data-mapbox-fallback-reason]')
+      container.querySelector('[data-map-fallback-reason]')
     ).not.toBeInTheDocument()
   })
 
-  it('uses the SVG route fallback for large route caches', () => {
+  it('downsamples large route caches yet still renders an interactive map', async () => {
     const largeHeatmap = buildLargeHeatmap()
+    let renderedFeatureCount = 0
+    const mapConstructor = createGlMapConstructor((_id, source) => {
+      const data = (source as { data?: { features?: unknown[] } }).data
+      renderedFeatureCount = data?.features?.length ?? 0
+    })
+    mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
 
-    const { container } = render(
-      <RouteHeatmapMap
-        heatmap={largeHeatmap}
-        mapboxAccessToken="mapbox-token"
-      />
+    const { container } = render(<RouteHeatmapMap heatmap={largeHeatmap} />)
+
+    await waitFor(() => expect(mapConstructor).toHaveBeenCalled())
+    expect(await screen.findByText('OpenFreeMap')).toBeInTheDocument()
+    // Large caches still render on a real GL map (no static SVG, no fallback).
+    expect(container.querySelector('svg')).not.toBeInTheDocument()
+    expect(
+      container.querySelector('[data-map-fallback-reason]')
+    ).not.toBeInTheDocument()
+    expect(renderedFeatureCount).toBe(largeHeatmap.segments.length)
+  })
+
+  it('thins oversized geometry while preserving each segment’s endpoints', () => {
+    const longSegment = {
+      points: Array.from({ length: 12 }, (_, index) => ({
+        lat: index,
+        lng: index
+      }))
+    }
+    const shortSegment = {
+      points: [
+        { lat: 0, lng: 0 },
+        { lat: 1, lng: 1 }
+      ]
+    }
+
+    const [thinned, untouched] = downsampleSegments(
+      [longSegment, shortSegment],
+      6
     )
 
-    expect(screen.getByText('Routes')).toBeInTheDocument()
-    expect(
-      screen.getByText('Interactive map unavailable. Showing routes.')
-    ).toBeInTheDocument()
-    expect(screen.queryByText('Mapbox')).not.toBeInTheDocument()
-    const polylines = Array.from(container.querySelectorAll('polyline'))
-    expect(polylines).toHaveLength(largeHeatmap.segments.length)
-    expect(
-      polylines.map(
-        (polyline) =>
-          polyline.getAttribute('points')?.trim().split(/\s+/).filter(Boolean)
-            .length ?? 0
-      )
-    ).toEqual(largeHeatmap.segments.map((segment) => segment.points.length))
-    expect(
-      container.querySelector(
-        '[data-mapbox-fallback-reason="route-cache-too-large"]'
-      )
-    ).toBeInTheDocument()
-    expect(
-      container.querySelector('[data-mapbox-fallback-error]')
-    ).not.toBeInTheDocument()
-    expect(mockLoadMapboxModule).not.toHaveBeenCalled()
+    expect(thinned.points.length).toBeLessThan(longSegment.points.length)
+    expect(thinned.points[0]).toEqual(longSegment.points[0])
+    expect(thinned.points[thinned.points.length - 1]).toEqual(
+      longSegment.points[longSegment.points.length - 1]
+    )
+    // Segments with two or fewer points are left exactly as-is.
+    expect(untouched).toBe(shortSegment)
+  })
+
+  it('returns the original segments unchanged when under the budget', () => {
+    const segments = [
+      {
+        points: [
+          { lat: 0, lng: 0 },
+          { lat: 1, lng: 1 },
+          { lat: 2, lng: 2 }
+        ]
+      }
+    ]
+
+    expect(downsampleSegments(segments, 100)).toBe(segments)
   })
 })
