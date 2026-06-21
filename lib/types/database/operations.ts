@@ -109,6 +109,8 @@ export type UpdateActorParams = {
     reply?: boolean
     reblog?: boolean
     activity_import?: boolean
+    added_to_collection?: boolean
+    collection_update?: boolean
   }
   pushNotifications?: {
     follow_request?: boolean
@@ -118,6 +120,8 @@ export type UpdateActorParams = {
     reply?: boolean
     reblog?: boolean
     activity_import?: boolean
+    added_to_collection?: boolean
+    collection_update?: boolean
   }
   fitness?: {
     strava?: {
@@ -1440,7 +1444,9 @@ export interface CollectionDatabase {
   getCollectionMemberCounts(
     params: GetCollectionMemberCountsParams
   ): Promise<Record<string, number>>
-  addCollectionMembers(params: AddCollectionMembersParams): Promise<void>
+  // Adds members (idempotently) and returns the actor ids that were NEWLY added
+  // (not already members), so callers can notify only the newly-added members.
+  addCollectionMembers(params: AddCollectionMembersParams): Promise<string[]>
   removeCollectionMembers(params: RemoveCollectionMembersParams): Promise<void>
   setCollectionMemberState(
     params: SetCollectionMemberStateParams
@@ -2524,7 +2530,12 @@ export const NotificationType = z.enum([
   'mention',
   'reply',
   'reblog',
-  'activity_import'
+  'activity_import',
+  // Mastodon 4.6 Collections: a member was added to a collection
+  // (`added_to_collection`) or a collection they're in had its metadata changed
+  // (`collection_update`).
+  'added_to_collection',
+  'collection_update'
 ])
 
 export type NotificationType = z.infer<typeof NotificationType>

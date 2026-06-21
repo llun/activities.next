@@ -261,6 +261,48 @@ describe('CollectionDatabase', () => {
       })
     })
 
+    it('returns the newly-added member ids (and nothing on re-add)', async () => {
+      await withFreshDatabase(async (database) => {
+        for (const name of ['owner', 'alice', 'bob']) {
+          await createLocalAccount(database, name)
+        }
+        const owner = await actor(database, 'owner')
+        const alice = await actor(database, 'alice')
+        const bob = await actor(database, 'bob')
+
+        const collection = await database.createCollection({
+          actorId: owner.id,
+          title: 'People'
+        })
+
+        const firstAdd = await database.addCollectionMembers({
+          id: collection.id,
+          actorId: owner.id,
+          targetActorIds: [alice.id, bob.id]
+        })
+        expect([...firstAdd].sort()).toEqual([alice.id, bob.id].sort())
+
+        // Re-adding alice plus a new member carol returns only carol.
+        await createLocalAccount(database, 'carol')
+        const carol = await actor(database, 'carol')
+        const secondAdd = await database.addCollectionMembers({
+          id: collection.id,
+          actorId: owner.id,
+          targetActorIds: [alice.id, carol.id]
+        })
+        expect(secondAdd).toEqual([carol.id])
+
+        // Not owned by another actor → nothing added.
+        expect(
+          await database.addCollectionMembers({
+            id: collection.id,
+            actorId: alice.id,
+            targetActorIds: [bob.id]
+          })
+        ).toEqual([])
+      })
+    })
+
     it('returns only approved members with their actor type (for the AP representation)', async () => {
       await withFreshDatabase(async (database) => {
         for (const name of ['owner', 'alice', 'bob']) {
