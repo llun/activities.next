@@ -1,0 +1,34 @@
+scripts/repairFailedFitnessImports.test.ts
+  s_4faabc3cf1afaf::t_c12432fdc06a4d 162-319,322-361
+app/api/v1/fitness/import/[batchId]/route.ts
+  s_4faabc3cf1afaf::t_89147017edd131 473-488,490-494,497
+lib/components/settings/FitnessFileManagement.tsx
+  s_4faabc3cf1afaf::t_52649688f1c79a 276
+  s_4faabc3cf1afaf::t_1994118269c9f9 118-124
+lib/components/settings/FitnessFileManagement.test.tsx
+  s_4faabc3cf1afaf::t_bec5d86746f913 170-263,265-266,270-280
+  s_4faabc3cf1afaf::t_0090c33c1e245c 264,267-269
+app/api/v1/fitness/import/[batchId]/route.test.ts
+  s_4faabc3cf1afaf::t_ce60a391e621c7 747-749,767-810
+  s_4faabc3cf1afaf::t_54806d0fb592f9 891-892
+scripts/repairFailedFitnessImports.ts
+  s_4faabc3cf1afaf::t_c93e41264a5bb5 122-127,129
+  s_4faabc3cf1afaf::t_1bda51dd9dc715 198-206
+  s_4faabc3cf1afaf::t_4fe8fa5f75f058 246-264
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "4e119b0a8a2e326df5dff4f88c058813966ac8ed",
+  "prompts": {},
+  "sessions": {
+    "s_4faabc3cf1afaf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "45906478-16d1-4658-b820-06d02ad8ae27",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
