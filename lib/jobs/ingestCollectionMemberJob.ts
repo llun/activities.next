@@ -4,6 +4,7 @@ import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { follow } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
+import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { COLLECTION_BACKFILL_MAX_POSTS } from '@/lib/services/timelines/types'
@@ -140,8 +141,12 @@ export const ingestCollectionMemberJob = createJobHandle(
         // Fan the backfilled note into every collection whose membership
         // includes its author (the read-time projections still apply).
         await database.addStatusToCollectionTimelines({ status: created })
-      } catch {
-        // Ignore: a concurrent ingest may have already stored this note.
+      } catch (error) {
+        // A concurrent ingest racing on the same note id is a harmless
+        // unique-constraint conflict — skip it. Any other DB error (a lock,
+        // timeout, …) propagates so a real queue can retry the job.
+        if (isUniqueConstraintError(error)) continue
+        throw error
       }
     }
   }
