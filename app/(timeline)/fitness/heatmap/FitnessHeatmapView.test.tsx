@@ -628,11 +628,75 @@ describe('RouteHeatmapMap', () => {
     expect(await screen.findByText('OpenFreeMap')).toBeInTheDocument()
     // No static SVG image is generated — the routes render on a real GL map.
     expect(container.querySelector('svg')).not.toBeInTheDocument()
+    // The GL container keeps an accessible name (the removed SVG used to carry it).
+    expect(
+      screen.getByRole('img', { name: 'Fitness route heatmap' })
+    ).toBeInTheDocument()
     expect(mockLoadMapboxModule).not.toHaveBeenCalled()
     expect(mapConstructor.mock.calls[0][0]).toMatchObject({
       style: 'https://tiles.openfreemap.org/styles/bright',
       attributionControl: true
     })
+  })
+
+  it('shows a loading indicator until the map finishes initializing', async () => {
+    const deferred = createDeferred<{ Map: ReturnType<typeof vi.fn> }>()
+    mockLoadMaplibreModule.mockReturnValue(deferred.promise)
+
+    render(<RouteHeatmapMap heatmap={completedHeatmap} />)
+
+    // The module hasn't resolved yet, so the map is still initializing.
+    expect(await screen.findByText('Loading map…')).toBeInTheDocument()
+    expect(screen.queryByText('OpenFreeMap')).not.toBeInTheDocument()
+
+    await act(async () => {
+      deferred.resolve({ Map: createGlMapConstructor() })
+      await Promise.resolve()
+    })
+
+    expect(await screen.findByText('OpenFreeMap')).toBeInTheDocument()
+    expect(screen.queryByText('Loading map…')).not.toBeInTheDocument()
+  })
+
+  it('pushes updated geometry to the existing source when the cache changes', async () => {
+    const setData = vi.fn()
+    const mapConstructor = createGlMapConstructor()
+    mapConstructor.mockImplementation(function () {
+      return {
+        on: (_event: string, callback: () => void) => callback(),
+        remove: vi.fn(),
+        resize: vi.fn(),
+        addSource: vi.fn(),
+        addLayer: vi.fn(),
+        getSource: vi.fn(() => ({ setData })),
+        fitBounds: vi.fn()
+      }
+    })
+    mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
+
+    const { rerender } = render(<RouteHeatmapMap heatmap={completedHeatmap} />)
+    await screen.findByText('OpenFreeMap')
+    setData.mockClear()
+
+    rerender(
+      <RouteHeatmapMap
+        heatmap={{
+          ...completedHeatmap,
+          updatedAt: completedHeatmap.updatedAt + 1,
+          segments: [
+            {
+              points: [
+                { lat: 52.36, lng: 4.88 },
+                { lat: 52.37, lng: 4.89 },
+                { lat: 52.39, lng: 4.91 }
+              ]
+            }
+          ]
+        }}
+      />
+    )
+
+    await waitFor(() => expect(setData).toHaveBeenCalledTimes(1))
   })
 
   it('renders an empty route state without loading any map provider', () => {
@@ -785,11 +849,11 @@ describe('RouteHeatmapMap', () => {
       ]
     }
 
-    const [thinned, untouched] = downsampleSegments(
-      [longSegment, shortSegment],
-      6
-    )
+    const result = downsampleSegments([longSegment, shortSegment], 6)
+    const [thinned, untouched] = result
 
+    // No segment is dropped — the route count is preserved.
+    expect(result).toHaveLength(2)
     expect(thinned.points.length).toBeLessThan(longSegment.points.length)
     expect(thinned.points[0]).toEqual(longSegment.points[0])
     expect(thinned.points[thinned.points.length - 1]).toEqual(

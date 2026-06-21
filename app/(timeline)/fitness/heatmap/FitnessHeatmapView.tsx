@@ -85,11 +85,11 @@ const ROUTE_HEATMAP_POLLING_INTERVAL_MS = 5000
 const STALLED_POLLING_LIMIT = 30
 // Keep recent background jobs live while ignoring restored/stuck rows that are days old.
 const STALE_IN_FLIGHT_HEATMAP_MS = 15 * 60_000
-// Cap on route vertices handed to the GL line layer. A whole-world, all-time
+// Target vertex count handed to the GL line layer. A whole-world, all-time
 // cache can aggregate hundreds of thousands of points and staging reproduced
-// blank GL canvases past ~80k, so the geometry is uniformly downsampled to stay
-// well under that. This keeps the map fully interactive (pan/zoom) instead of
-// dropping to a static, non-interactive fallback.
+// blank GL canvases past ~80k, so the geometry is uniformly downsampled toward
+// this budget (see downsampleSegments). This keeps the map fully interactive
+// (pan/zoom) instead of dropping to a static, non-interactive fallback.
 const ROUTE_RENDER_POINT_BUDGET = 40_000
 const ROUTE_HEATMAP_MAP_HEIGHT_CLASS = 'h-[420px]'
 
@@ -234,9 +234,14 @@ const buildRouteGeoJson = (segments: FitnessRouteHeatmapSegment[]) => ({
     }))
 })
 
-// Uniformly thin route geometry so the GL line layer never receives more than
-// `maxPoints` vertices (a whole-world cache can aggregate far more). Each
-// segment keeps its first and last vertex so routes still span their extent.
+// Thin route geometry toward `maxPoints` vertices so the GL line layer stays
+// performant on large caches (a whole-world cache can aggregate far more). The
+// stride is derived from the global vertex total, so it bounds the dominant cost
+// — long routes — proportionally; each segment still keeps its first and last
+// vertex, so routes span their full extent. This is a best-effort target, not a
+// hard ceiling: the per-segment endpoint floor (~2 vertices per segment) keeps a
+// realistic many-route cache well under budget, but pathological inputs (tens of
+// thousands of tiny segments) could still exceed it.
 export const downsampleSegments = (
   segments: FitnessRouteHeatmapSegment[],
   maxPoints: number
@@ -456,7 +461,20 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
         ROUTE_HEATMAP_MAP_HEIGHT_CLASS
       )}
     >
-      <div ref={containerRef} className="h-full w-full" />
+      <div
+        ref={containerRef}
+        role="img"
+        aria-label="Fitness route heatmap"
+        className="h-full w-full"
+      />
+      {!isMapLoaded && (
+        <div
+          role="status"
+          className="absolute inset-0 flex items-center justify-center gap-2 bg-muted/60 text-sm text-muted-foreground"
+        >
+          <Loader2 className="size-4 animate-spin" /> Loading map…
+        </div>
+      )}
       {isMapLoaded && (
         <div className="pointer-events-none absolute left-3 top-3 rounded bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm">
           {provider.label}
