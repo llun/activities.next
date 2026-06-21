@@ -35,11 +35,20 @@ const notifyCollectionMembers = async (
     type: 'added_to_collection' | 'collection_update'
   }
 ): Promise<void> => {
-  const recipients = memberActorIds.filter(
-    (memberId) =>
-      memberId !== ownerActorId && isLocalMember(memberId, ownerActorId)
-  )
-  await Promise.all(
+  // Dedupe recipients — `addedActorIds` derives from the request's account_ids,
+  // which may repeat — so a member is never notified twice for one call.
+  const recipients = [
+    ...new Set(
+      memberActorIds.filter(
+        (memberId) =>
+          memberId !== ownerActorId && isLocalMember(memberId, ownerActorId)
+      )
+    )
+  ]
+  // allSettled (not all): every recipient's notification is awaited to
+  // completion even if one rejects, so a single failure can't drop the others
+  // or let the request return before they're persisted.
+  await Promise.allSettled(
     recipients.map((recipient) =>
       createNotificationWithPolicy(database, {
         actorId: recipient,
