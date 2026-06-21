@@ -1,0 +1,96 @@
+scripts/mock/createMockUser.ts
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-3,5-118
+  s_3a9a8783420d07::t_7d094dfa7956eb 4
+AGENTS.md
+  s_3a9a8783420d07::t_7d094dfa7956eb 305-306
+scripts/maintenance/fixAttachmentUrls.ts
+  s_3a9a8783420d07::t_7d094dfa7956eb 7,29
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-6,8-28,30-170
+scripts/backup/productionArchive.ts
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-154,156-162,164-2368
+  s_3a9a8783420d07::t_7d094dfa7956eb 155,163
+scripts/fitness/retrigerStravaActivities.ts
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-11,13-35,37-147
+  s_3a9a8783420d07::t_7d094dfa7956eb 12,36
+scripts/fitness/resumeStravaProcessing.ts
+  s_3a9a8783420d07::t_7d094dfa7956eb 7,27
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-6,8-26,28-158
+package.json
+  s_3a9a8783420d07::t_7d094dfa7956eb 15
+scripts/fitness/recreateFitnessRouteHeatmaps.ts
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-9,11-13,15-34,36-190
+  s_3a9a8783420d07::t_7d094dfa7956eb 10,14,35
+CLAUDE.md
+  s_3a9a8783420d07::t_7d094dfa7956eb 23
+scripts/backup/productionArchive.test.ts
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-1468
+scripts/backup/downloadProductionArchive.ts
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-5,7-23
+  s_3a9a8783420d07::t_7d094dfa7956eb 6
+scripts/fitness/recreateFitnessRouteHeatmaps.test.ts
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-31
+scripts/mock/createMockFitnessData.ts
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-8,10-183
+  s_3a9a8783420d07::t_7d094dfa7956eb 9
+scripts/mock/createMockStatuses.ts
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-209
+scripts/maintenance/manageAdminRole.ts
+  s_3a9a8783420d07::t_7d094dfa7956eb 5-6,25-26
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-4,7-24,27-64
+scripts/fitness/runImportStravaActivity.ts
+  s_3a9a8783420d07::t_7d094dfa7956eb 5,30
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-4,6-29,31-116
+scripts/fitness/repairFailedFitnessImports.test.ts
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-362
+scripts/fitness/listStravaWebhooks.ts
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-3,5-17,19-90
+  s_3a9a8783420d07::t_7d094dfa7956eb 4,18
+scripts/fitness/cleanupLegacyFitnessHeatmaps.ts
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-5,7-83
+  s_3a9a8783420d07::t_7d094dfa7956eb 6
+scripts/fitness/importStravaArchive.ts
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-44,46-487
+  s_3a9a8783420d07::t_7d094dfa7956eb 45
+scripts/fitness/cleanupLegacyHeatmapRegions.ts
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-14,17-64
+  s_3a9a8783420d07::t_7d094dfa7956eb 15-16
+scripts/fitness/repairStravaActivityFiles.ts
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-13,15-53,55-351
+  s_3a9a8783420d07::t_7d094dfa7956eb 14,54
+scripts/maintenance/cleanupMediaStorage.ts
+  s_3a9a8783420d07::t_7d094dfa7956eb 4,181,200,203,206
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-3,5-180,182-199,201-202,204-205,207-388
+scripts/fitness/fixStuckFitnessProcessing.ts
+  s_3a9a8783420d07::t_7d094dfa7956eb 14,18,39,42
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-13,15-17,19-38,40-41,43-251
+scripts/maintenance/rebuildSearchIndex.ts
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-65
+scripts/backup/restoreProductionArchive.ts
+  s_3a9a8783420d07::t_7d094dfa7956eb 7
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-6,8-25
+scripts/fitness/repairFailedFitnessImports.ts
+  s_3a9a8783420d07::t_7d094dfa7956eb 21,25,66,70
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-20,22-24,26-65,67-69,71-342
+docs/fitness-file-storage.md
+  s_3a9a8783420d07::t_7d094dfa7956eb 107-115
+docs/maintenance.md
+  s_3a9a8783420d07::t_7d094dfa7956eb 22,25,28,31,70,73,90,93,123,133-134,142-147,153-155,161-162
+scripts/fitness/fixStuckFitnessProcessing.test.ts
+  s_3a9a8783420d07::t_26e29f8684a5f8 1-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "e4a937fb78501c2cca28b73a006eaf21db438fad",
+  "prompts": {},
+  "sessions": {
+    "s_3a9a8783420d07": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f4b7d6ee-bc78-411d-84f3-48549b1ae7b9",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
