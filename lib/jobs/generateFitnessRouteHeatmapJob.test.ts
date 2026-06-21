@@ -161,6 +161,8 @@ describe('generateFitnessRouteHeatmapJob', () => {
     expect(heatmap?.status).toBe('completed')
     expect(heatmap?.activityCount).toBeGreaterThanOrEqual(1)
     expect(heatmap?.pointCount).toBeGreaterThanOrEqual(2)
+    // Progress denominator: the one matching completed file.
+    expect(heatmap?.totalCount).toBe(1)
     expect(heatmap?.bounds).toEqual({
       minLat: 52.36,
       maxLat: 52.37,
@@ -204,6 +206,8 @@ describe('generateFitnessRouteHeatmapJob', () => {
     expect(heatmap?.segments).toEqual([])
     expect(heatmap?.activityCount).toBe(0)
     expect(heatmap?.pointCount).toBe(0)
+    // No matching files -> total of 0.
+    expect(heatmap?.totalCount).toBe(0)
 
     await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
   })
@@ -588,6 +592,9 @@ describe('generateFitnessRouteHeatmapJob', () => {
     expect(heatmap?.activityCount).toBe(1)
     expect(heatmap?.cursorOffset).toBe(1)
     expect(heatmap?.pointCount).toBeGreaterThanOrEqual(2)
+    // Total is computed up front and preserved across the checkpoint so the UI
+    // can show "1 / 2 files" while the continuation finishes the rest.
+    expect(heatmap?.totalCount).toBe(2)
     expect(mockPublish).toHaveBeenCalledWith(
       expect.objectContaining({
         id: getHashFromString(
@@ -979,6 +986,7 @@ describe('generateFitnessRouteHeatmapJob', () => {
     const mockDatabase = {
       getActorFromId: vi.fn().mockResolvedValue(actor),
       getFitnessRouteHeatmapByKey: vi.fn().mockResolvedValue(null),
+      countFitnessFilesByActor: vi.fn().mockResolvedValue(0),
       createFitnessRouteHeatmap: vi
         .fn()
         .mockResolvedValue({ id: 'heatmap-failed' }),

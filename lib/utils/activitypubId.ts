@@ -24,6 +24,16 @@ export const getLocalActorFeaturedCollectionId = (actorId: string) =>
 export const getLocalActorFeaturedTagsCollectionId = (actorId: string) =>
   `${actorId}/collections/tags`
 
+// FEP-7aa9: the actor's collection of public FeaturedCollection objects, and the
+// id of an individual FeaturedCollection (a curated set of accounts).
+export const getLocalActorFeaturedCollectionsId = (actorId: string) =>
+  `${actorId}/collections/featured-collections`
+
+export const getLocalFeaturedCollectionId = (
+  actorId: string,
+  collectionId: string
+) => `${actorId}/collections/featured-collections/${collectionId}`
+
 export const getLocalActorSharedInboxId = (domain: string) =>
   `https://${domain}/inbox`
 

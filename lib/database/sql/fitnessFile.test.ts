@@ -130,6 +130,84 @@ describe('FitnessFileDatabase', () => {
       })
     })
 
+    describe('countFitnessFilesByActor', () => {
+      it('counts files matching the route-heatmap filters', async () => {
+        // followRequester is otherwise unused in this suite, and the created
+        // files are deleted afterwards, so the shared seed DB stays isolated.
+        const actorId = actors.followRequester.id
+        const activityType = 'count-test-activity'
+        const dates = [
+          new Date('2026-02-10T08:00:00Z'),
+          new Date('2026-02-20T08:00:00Z'),
+          new Date('2026-03-05T08:00:00Z')
+        ]
+        const createdIds: string[] = []
+
+        try {
+          for (const [index, activityStartTime] of dates.entries()) {
+            const file = await database.createFitnessFile({
+              actorId,
+              path: `fitness/count-${index}.fit`,
+              fileName: `count-${index}.fit`,
+              fileType: 'fit',
+              mimeType: 'application/vnd.ant.fit',
+              bytes: 1024
+            })
+            createdIds.push(file!.id)
+            await database.updateFitnessFileActivityData(file!.id, {
+              activityType,
+              activityStartTime
+            })
+            await database.updateFitnessFileProcessingStatus(
+              file!.id,
+              'completed'
+            )
+            await database.updateFitnessFilePrimary(file!.id, true)
+          }
+
+          // A non-completed, non-primary file the filters must exclude.
+          const pending = await database.createFitnessFile({
+            actorId,
+            path: 'fitness/count-pending.fit',
+            fileName: 'count-pending.fit',
+            fileType: 'fit',
+            mimeType: 'application/vnd.ant.fit',
+            bytes: 1024
+          })
+          createdIds.push(pending!.id)
+          await database.updateFitnessFileActivityData(pending!.id, {
+            activityType,
+            activityStartTime: new Date('2026-02-15T08:00:00Z')
+          })
+
+          await expect(
+            database.countFitnessFilesByActor({
+              actorId,
+              processingStatus: 'completed',
+              isPrimary: true,
+              activityType
+            })
+          ).resolves.toBe(3)
+
+          // Date window scopes the count to the matching period.
+          await expect(
+            database.countFitnessFilesByActor({
+              actorId,
+              processingStatus: 'completed',
+              isPrimary: true,
+              activityType,
+              startDate: new Date('2026-02-01T00:00:00Z'),
+              endDate: new Date('2026-02-28T23:59:59Z')
+            })
+          ).resolves.toBe(2)
+        } finally {
+          for (const id of createdIds) {
+            await database.deleteFitnessFile({ id })
+          }
+        }
+      })
+    })
+
     describe('getFitnessFileByStatus/updateFitnessFileStatus', () => {
       it('reads by status and updates status association', async () => {
         const created = await database.createFitnessFile({

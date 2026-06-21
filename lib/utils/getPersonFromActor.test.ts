@@ -7,7 +7,8 @@ describe('getPersonFromActor', () => {
     expect(getPersonFromActor(actor)).toEqual({
       '@context': [
         'https://www.w3.org/ns/activitystreams',
-        'https://w3id.org/security/v1'
+        'https://w3id.org/security/v1',
+        'https://w3id.org/fep/7aa9'
       ],
       id: 'https://chat.llun.dev/users/me',
       type: 'Person',
@@ -17,6 +18,7 @@ describe('getPersonFromActor', () => {
       outbox: `https://chat.llun.dev/users/me/outbox`,
       featured: `https://chat.llun.dev/users/me/collections/featured`,
       featuredTags: `https://chat.llun.dev/users/me/collections/tags`,
+      featuredCollections: `https://chat.llun.dev/users/me/collections/featured-collections`,
       preferredUsername: 'me',
       name: '',
       summary: '',

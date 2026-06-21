@@ -8,7 +8,8 @@ import {
   Clock,
   Loader2,
   MapPin,
-  RefreshCw
+  RefreshCw,
+  Trash2
 } from 'lucide-react'
 import { FC, useState } from 'react'
 
@@ -20,6 +21,7 @@ interface FitnessHeatmapListProps {
   heatmaps: FitnessRouteHeatmapSummaryData[]
   onSelect: (heatmap: FitnessRouteHeatmapSummaryData) => void
   onRetry: (heatmap: FitnessRouteHeatmapSummaryData) => Promise<void>
+  onRemove: (heatmap: FitnessRouteHeatmapSummaryData) => void
   currentTime: number
 }
 
@@ -39,6 +41,71 @@ const formatRelativeTime = (diffMs: number): string => {
   if (diffMs < 86_400_000) return `${Math.floor(diffMs / 3_600_000)}h ago`
   return `${Math.floor(diffMs / 86_400_000)}d ago`
 }
+
+const numberFormatter = new Intl.NumberFormat()
+const formatCount = (value: number): string => numberFormatter.format(value)
+
+interface HeatmapProgress {
+  percent: number | null
+  label: string
+}
+
+/**
+ * Derives a progress label (and percentage when known) for an in-flight
+ * heatmap. `cursorOffset` is the number of files scanned; `totalCount` is the
+ * denominator the job computed at the start of the run. `totalCount === 0`
+ * means the total is not yet known, so we report an indeterminate count.
+ */
+const getHeatmapProgress = (
+  heatmap: FitnessRouteHeatmapSummaryData
+): HeatmapProgress => {
+  const total = heatmap.totalCount
+  const scanned = heatmap.cursorOffset
+
+  if (total > 0) {
+    const cappedScanned = Math.min(scanned, total)
+    const percent = Math.max(
+      0,
+      Math.min(100, Math.round((cappedScanned / total) * 100))
+    )
+    return {
+      percent,
+      label: `${formatCount(cappedScanned)} / ${formatCount(total)} files (${percent}%)`
+    }
+  }
+
+  return {
+    percent: null,
+    label: scanned > 0 ? `${formatCount(scanned)} files scanned` : 'Starting…'
+  }
+}
+
+interface ProgressBarProps {
+  percent: number | null
+  label: string
+}
+
+const ProgressBar: FC<ProgressBarProps> = ({ percent, label }) => (
+  <span className="flex flex-col gap-1">
+    <span
+      className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+      role="progressbar"
+      aria-label="Heatmap generation progress"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      {...(percent === null ? {} : { 'aria-valuenow': percent })}
+    >
+      <span
+        className={cn(
+          'block h-full rounded-full bg-blue-500 transition-[width] duration-500 dark:bg-blue-400',
+          percent === null && 'w-1/3 animate-pulse'
+        )}
+        style={percent === null ? undefined : { width: `${percent}%` }}
+      />
+    </span>
+    <span className="text-xs text-muted-foreground">{label}</span>
+  </span>
+)
 
 interface RetryButtonProps {
   heatmap: FitnessRouteHeatmapSummaryData
@@ -90,10 +157,34 @@ const RetryButton: FC<RetryButtonProps> = ({
   )
 }
 
+interface RemoveButtonProps {
+  heatmap: FitnessRouteHeatmapSummaryData
+  onRemove: (heatmap: FitnessRouteHeatmapSummaryData) => void
+}
+
+const RemoveButton: FC<RemoveButtonProps> = ({ heatmap, onRemove }) => (
+  <button
+    type="button"
+    className={cn(
+      'inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium',
+      'text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+    )}
+    onClick={(e) => {
+      e.stopPropagation()
+      e.preventDefault()
+      onRemove(heatmap)
+    }}
+  >
+    <Trash2 className="size-3" />
+    Remove
+  </button>
+)
+
 interface HeatmapRowProps {
   heatmap: FitnessRouteHeatmapSummaryData
   onSelect: (heatmap: FitnessRouteHeatmapSummaryData) => void
   onRetry: (heatmap: FitnessRouteHeatmapSummaryData) => Promise<void>
+  onRemove: (heatmap: FitnessRouteHeatmapSummaryData) => void
   currentTime: number
 }
 
@@ -101,9 +192,16 @@ const HeatmapRow: FC<HeatmapRowProps> = ({
   heatmap,
   onSelect,
   onRetry,
+  onRemove,
   currentTime
 }) => {
   const regionLabel = describeRegions(heatmap.region ?? '')
+  const isGenerating = heatmap.status === 'generating'
+  const isPartialComplete = heatmap.status === 'completed' && heatmap.isPartial
+  // "Not in-flight" rows can be pruned individually; active jobs use the bulk
+  // clear instead so removal never races a running generation.
+  const canRemove =
+    heatmap.status === 'failed' || heatmap.status === 'completed'
 
   const statusIcon = (() => {
     switch (heatmap.status) {
@@ -143,6 +241,8 @@ const HeatmapRow: FC<HeatmapRowProps> = ({
     }
   })()
 
+  const progress = isGenerating ? getHeatmapProgress(heatmap) : null
+
   return (
     <div className="flex items-start gap-2 rounded p-2 hover:bg-muted">
       <button
@@ -165,20 +265,31 @@ const HeatmapRow: FC<HeatmapRowProps> = ({
           <MapPin className="size-3 shrink-0" />
           {regionLabel}
         </span>
+        {progress && (
+          <ProgressBar percent={progress.percent} label={progress.label} />
+        )}
+        {heatmap.status === 'completed' && heatmap.pointCount > 0 && (
+          <span className="text-xs text-muted-foreground">
+            {formatCount(heatmap.activityCount)} activities ·{' '}
+            {formatCount(heatmap.pointCount)} points
+          </span>
+        )}
         {heatmap.status === 'failed' && heatmap.error && (
           <span className="block text-xs text-destructive">
             {heatmap.error}
           </span>
         )}
       </button>
-      {(heatmap.status === 'failed' ||
-        (heatmap.status === 'completed' && heatmap.isPartial)) && (
-        <RetryButton
-          heatmap={heatmap}
-          onRetry={onRetry}
-          label={heatmap.isPartial ? 'Resume' : 'Retry'}
-        />
-      )}
+      <span className="flex shrink-0 flex-col items-end gap-0.5">
+        {(heatmap.status === 'failed' || isPartialComplete) && (
+          <RetryButton
+            heatmap={heatmap}
+            onRetry={onRetry}
+            label={heatmap.isPartial ? 'Resume' : 'Retry'}
+          />
+        )}
+        {canRemove && <RemoveButton heatmap={heatmap} onRemove={onRemove} />}
+      </span>
     </div>
   )
 }
@@ -187,6 +298,7 @@ export const FitnessHeatmapList: FC<FitnessHeatmapListProps> = ({
   heatmaps,
   onSelect,
   onRetry,
+  onRemove,
   currentTime
 }) => {
   const [isCompletedOpen, setIsCompletedOpen] = useState(false)
@@ -220,6 +332,7 @@ export const FitnessHeatmapList: FC<FitnessHeatmapListProps> = ({
               heatmap={heatmap}
               onSelect={onSelect}
               onRetry={onRetry}
+              onRemove={onRemove}
               currentTime={currentTime}
             />
           ))}
@@ -248,6 +361,7 @@ export const FitnessHeatmapList: FC<FitnessHeatmapListProps> = ({
                 heatmap={heatmap}
                 onSelect={onSelect}
                 onRetry={onRetry}
+                onRemove={onRemove}
                 currentTime={currentTime}
               />
             ))}
