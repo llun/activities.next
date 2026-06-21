@@ -1,0 +1,21 @@
+scripts/createMockStatuses.ts
+  s_3a9a8783420d07::t_da69c9f00dffc4 141-144
+  s_3a9a8783420d07::t_6e4fd788ebd51d 88-116,120,122-124,128,130,133-136,140,149-151,155-171,176-200
+  s_3a9a8783420d07::t_4c2a1c84000267 15-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "9e99f89951c9704b1b1f14d687e95f5e46eaf7c7",
+  "prompts": {},
+  "sessions": {
+    "s_3a9a8783420d07": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f4b7d6ee-bc78-411d-84f3-48549b1ae7b9",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
