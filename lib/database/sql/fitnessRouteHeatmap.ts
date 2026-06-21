@@ -50,6 +50,7 @@ export interface UpdateFitnessRouteHeatmapStatusParams {
   error?: string | null
   activityCount?: number
   pointCount?: number
+  totalCount?: number
   cursorOffset?: number
   isPartial?: boolean
   clearDeleted?: boolean
@@ -84,6 +85,15 @@ export interface FitnessRouteHeatmapDatabase {
   updateFitnessRouteHeatmapStatus(
     params: UpdateFitnessRouteHeatmapStatusParams
   ): Promise<boolean>
+  /**
+   * Soft-deletes a single route heatmap owned by `actorId`. Returns true when a
+   * matching, not-already-deleted row was removed. Scoped to the actor so a
+   * caller can only remove their own heatmaps.
+   */
+  deleteFitnessRouteHeatmap(params: {
+    actorId: string
+    id: string
+  }): Promise<boolean>
   getDistinctActivityTypesForActor(
     params: GetDistinctActivityTypesParams
   ): Promise<string[]>
@@ -153,6 +163,7 @@ const parseSQLFitnessRouteHeatmap = (
   error: row.error ?? undefined,
   activityCount: row.activityCount,
   pointCount: row.pointCount,
+  totalCount: Number(row.totalCount ?? 0),
   cursorOffset: Number(row.cursorOffset ?? 0),
   isPartial: parseBooleanValue(row.isPartial),
   createdAt: getCompatibleTime(row.createdAt),
@@ -175,6 +186,7 @@ const parseSQLFitnessRouteHeatmapSummary = (
   error: row.error ?? undefined,
   activityCount: row.activityCount,
   pointCount: row.pointCount,
+  totalCount: Number(row.totalCount ?? 0),
   cursorOffset: Number(row.cursorOffset ?? 0),
   isPartial: parseBooleanValue(row.isPartial),
   createdAt: getCompatibleTime(row.createdAt),
@@ -233,6 +245,7 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
       error: null,
       activityCount: 0,
       pointCount: 0,
+      totalCount: 0,
       cursorOffset: 0,
       isPartial: false,
       createdAt: currentTime,
@@ -319,6 +332,7 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
           'error',
           'activityCount',
           'pointCount',
+          'totalCount',
           'cursorOffset',
           'isPartial',
           'createdAt',
@@ -340,6 +354,7 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     error,
     activityCount,
     pointCount,
+    totalCount,
     cursorOffset,
     isPartial,
     clearDeleted,
@@ -364,6 +379,9 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     }
     if (pointCount !== undefined) {
       updateData.pointCount = pointCount
+    }
+    if (totalCount !== undefined) {
+      updateData.totalCount = totalCount
     }
     if (cursorOffset !== undefined) {
       updateData.cursorOffset = cursorOffset
@@ -428,6 +446,25 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
         deletedAt: new Date(),
         updatedAt: new Date()
       })
+  },
+
+  async deleteFitnessRouteHeatmap({
+    actorId,
+    id
+  }: {
+    actorId: string
+    id: string
+  }) {
+    const updated = await database('fitness_route_heatmaps')
+      .where('id', id)
+      .where('actorId', actorId)
+      .whereNull('deletedAt')
+      .update({
+        deletedAt: new Date(),
+        updatedAt: new Date()
+      })
+
+    return updated > 0
   },
 
   async countLegacyRegionRouteHeatmaps() {

@@ -135,6 +135,40 @@ describe('FitnessRouteHeatmapDatabase', () => {
         expect(fetched?.isPartial).toBe(true)
       })
 
+      it('persists totalCount as the progress denominator', async () => {
+        const created = await database.createFitnessRouteHeatmap({
+          actorId: actors.replyAuthor.id,
+          activityType: 'running',
+          periodType: 'monthly',
+          periodKey: '2026-05',
+          region: 'total-count-test'
+        })
+
+        // Fresh rows start at 0 (denominator not yet computed).
+        expect(created.totalCount).toBe(0)
+
+        const updated = await database.updateFitnessRouteHeatmapStatus({
+          id: created.id,
+          status: 'generating',
+          totalCount: 42,
+          cursorOffset: 7
+        })
+        expect(updated).toBe(true)
+
+        const fetched = await database.getFitnessRouteHeatmap({
+          id: created.id
+        })
+        expect(fetched?.totalCount).toBe(42)
+        expect(fetched?.cursorOffset).toBe(7)
+
+        const [summary] =
+          await database.getFitnessRouteHeatmapSummariesForActor({
+            actorId: actors.replyAuthor.id,
+            region: 'total-count-test'
+          })
+        expect(summary?.totalCount).toBe(42)
+      })
+
       it('returns false for non-existent ids', async () => {
         const result = await database.updateFitnessRouteHeatmapStatus({
           id: 'missing-route-cache',
@@ -387,6 +421,57 @@ describe('FitnessRouteHeatmapDatabase', () => {
         await expect(
           database.getFitnessRouteHeatmap({ id: created.id })
         ).resolves.toBeNull()
+      })
+    })
+
+    describe('deleteFitnessRouteHeatmap', () => {
+      it('soft-deletes a single heatmap scoped to its owner', async () => {
+        const created = await database.createFitnessRouteHeatmap({
+          actorId: actors.primary.id,
+          activityType: 'running',
+          periodType: 'monthly',
+          periodKey: '2026-06',
+          region: 'single-delete-test'
+        })
+
+        // A different actor cannot delete it.
+        await expect(
+          database.deleteFitnessRouteHeatmap({
+            actorId: actors.replyAuthor.id,
+            id: created.id
+          })
+        ).resolves.toBe(false)
+        await expect(
+          database.getFitnessRouteHeatmap({ id: created.id })
+        ).resolves.not.toBeNull()
+
+        // The owner can.
+        await expect(
+          database.deleteFitnessRouteHeatmap({
+            actorId: actors.primary.id,
+            id: created.id
+          })
+        ).resolves.toBe(true)
+        await expect(
+          database.getFitnessRouteHeatmap({ id: created.id })
+        ).resolves.toBeNull()
+
+        // A second delete is a no-op (already removed).
+        await expect(
+          database.deleteFitnessRouteHeatmap({
+            actorId: actors.primary.id,
+            id: created.id
+          })
+        ).resolves.toBe(false)
+      })
+
+      it('returns false for unknown ids', async () => {
+        await expect(
+          database.deleteFitnessRouteHeatmap({
+            actorId: actors.primary.id,
+            id: 'missing-single-delete'
+          })
+        ).resolves.toBe(false)
       })
     })
 

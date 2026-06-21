@@ -135,6 +135,14 @@ export interface FitnessFileDatabase {
   getFitnessFilesByActor(
     params: GetFitnessFilesByActorParams
   ): Promise<FitnessFile[]>
+  /**
+   * Counts the fitness files matching the same filters as
+   * `getFitnessFilesByActor` (ignoring `limit`/`offset`). Used as the progress
+   * denominator for route-heatmap generation.
+   */
+  countFitnessFilesByActor(
+    params: Omit<GetFitnessFilesByActorParams, 'limit' | 'offset'>
+  ): Promise<number>
   getFitnessFilesWithStatusForAccount(
     params: GetFitnessFilesForAccountParams
   ): Promise<PaginatedFitnessFiles>
@@ -383,6 +391,45 @@ export const FitnessFileSQLDatabaseMixin = (
       .offset(offset)
 
     return rows.map(parseSQLFitnessFile)
+  },
+
+  async countFitnessFilesByActor({
+    actorId,
+    processingStatus,
+    isPrimary,
+    activityType,
+    startDate,
+    endDate
+  }: Omit<GetFitnessFilesByActorParams, 'limit' | 'offset'>) {
+    let query = database<SQLFitnessFile>('fitness_files')
+      .where('actorId', actorId)
+      .whereNull('deletedAt')
+
+    if (processingStatus) {
+      query = query.where('processingStatus', processingStatus)
+    }
+    if (isPrimary !== undefined) {
+      query = query.where('isPrimary', isPrimary)
+    }
+    if (activityType !== undefined) {
+      if (activityType === null) {
+        query = query.whereNull('activityType')
+      } else {
+        query = query.where('activityType', activityType)
+      }
+    }
+    if (startDate) {
+      query = query.where('activityStartTime', '>=', startDate)
+    }
+    if (endDate) {
+      query = query.where('activityStartTime', '<=', endDate)
+    }
+
+    const [row] = await query.count<{ count: string | number }[]>({
+      count: '*'
+    })
+
+    return Number(row?.count ?? 0)
   },
 
   async getFitnessFilesWithStatusForAccount({

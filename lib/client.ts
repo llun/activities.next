@@ -2220,6 +2220,8 @@ export interface FitnessRouteHeatmapData {
   segments: FitnessRouteHeatmapSegment[]
   activityCount: number
   pointCount: number
+  /** Total matching files to scan; progress denominator. 0 = not yet computed. */
+  totalCount: number
   cursorOffset: number
   isPartial: boolean
   error?: string | null
@@ -2236,6 +2238,8 @@ export interface FitnessRouteHeatmapSummaryData {
   status: string
   activityCount: number
   pointCount: number
+  /** Total matching files to scan; progress denominator. 0 = not yet computed. */
+  totalCount: number
   cursorOffset: number
   isPartial: boolean
   error?: string | null
@@ -2346,6 +2350,49 @@ export const triggerFitnessRouteHeatmap = async ({
     }
   )
   return response.ok
+}
+
+/**
+ * Soft-deletes a single route heatmap (identified by its activity/period/region
+ * key) from the actor's list. Used to remove a failed or unwanted heatmap.
+ * Resolves to true when a row was removed.
+ */
+export const deleteFitnessRouteHeatmap = async ({
+  actorId,
+  activityType,
+  periodType,
+  periodKey,
+  region
+}: {
+  actorId: string
+  activityType?: string
+  periodType: string
+  periodKey: string
+  region?: string | null
+}): Promise<boolean> => {
+  const encodedId = urlToId(actorId)
+  const url = new URL(
+    `${window.origin}/api/v1/accounts/${encodedId}/fitness-route-heatmap`
+  )
+  url.searchParams.append('period_type', periodType)
+  url.searchParams.append('period_key', periodKey)
+  if (activityType) {
+    url.searchParams.append('activity_type', activityType)
+  }
+  if (region) {
+    url.searchParams.append('region', region)
+  }
+  const response = await fetch(url.toString(), {
+    method: 'DELETE',
+    headers: { Accept: 'application/json' }
+  })
+  if (!response.ok) {
+    throw new Error(
+      await getRouteHeatmapResponseErrorMessage(response, 'route heatmap')
+    )
+  }
+  const json = await response.json()
+  return Boolean(json.deleted)
 }
 
 export const getFitnessRouteHeatmaps = async ({

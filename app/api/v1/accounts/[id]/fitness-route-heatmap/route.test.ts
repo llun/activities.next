@@ -5,7 +5,7 @@ import { GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME } from '@/lib/jobs/names'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
-import { GET, POST } from './route'
+import { DELETE, GET, POST } from './route'
 
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -22,7 +22,10 @@ vi.mock('@/lib/services/queue', () => ({
   getQueue: () => ({ publish: mockPublish })
 }))
 
-type MockDatabase = Pick<Database, 'getFitnessRouteHeatmapByKey'>
+type MockDatabase = Pick<
+  Database,
+  'getFitnessRouteHeatmapByKey' | 'deleteFitnessRouteHeatmap'
+>
 
 let mockDatabase: MockDatabase | null = null
 vi.mock('@/lib/database', () => ({
@@ -31,7 +34,8 @@ vi.mock('@/lib/database', () => ({
 
 describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
-    getFitnessRouteHeatmapByKey: vi.fn()
+    getFitnessRouteHeatmapByKey: vi.fn(),
+    deleteFitnessRouteHeatmap: vi.fn()
   }
 
   const encodedId = ACTOR1_ID.replace('https://', '').replaceAll('/', ':')
@@ -60,6 +64,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
     })
     mockPublish.mockResolvedValue(undefined)
     mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue(null)
+    mockDb.deleteFitnessRouteHeatmap.mockResolvedValue(true)
   })
 
   it('returns route payload for an owner request', async () => {
@@ -89,6 +94,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
       ],
       activityCount: 1,
       pointCount: 2,
+      totalCount: 3,
       cursorOffset: 0,
       isPartial: false,
       createdAt: createdTime,
@@ -127,6 +133,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
         ],
         activityCount: 1,
         pointCount: 2,
+        totalCount: 3,
         cursorOffset: 0,
         isPartial: false,
         error: null,
@@ -559,5 +566,103 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
         })
       })
     )
+  })
+
+  describe('DELETE', () => {
+    it('removes a single heatmap for the owner', async () => {
+      mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue({
+        id: 'route-heatmap-remove',
+        actorId: ACTOR1_ID,
+        activityType: 'running',
+        periodType: 'yearly',
+        periodKey: '2026',
+        region: '',
+        status: 'failed',
+        segments: [],
+        activityCount: 0,
+        pointCount: 0,
+        totalCount: 0,
+        cursorOffset: 0,
+        isPartial: false,
+        createdAt: Date.now() - 1000,
+        updatedAt: Date.now()
+      })
+
+      const request = new NextRequest(
+        `${baseUrl}?period_type=yearly&period_key=2026&activity_type=running`,
+        { method: 'DELETE', headers: { Origin: 'https://test.llun.dev' } }
+      )
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: encodedId })
+      })
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({ deleted: true })
+      expect(mockDb.deleteFitnessRouteHeatmap).toHaveBeenCalledWith({
+        actorId: ACTOR1_ID,
+        id: 'route-heatmap-remove'
+      })
+    })
+
+    it('returns deleted=false without deleting when the heatmap is missing', async () => {
+      mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue(null)
+
+      const request = new NextRequest(
+        `${baseUrl}?period_type=yearly&period_key=2026`,
+        { method: 'DELETE', headers: { Origin: 'https://test.llun.dev' } }
+      )
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: encodedId })
+      })
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({ deleted: false })
+      expect(mockDb.deleteFitnessRouteHeatmap).not.toHaveBeenCalled()
+    })
+
+    it('rejects a cross-site request without same-origin proof', async () => {
+      const request = new NextRequest(
+        `${baseUrl}?period_type=yearly&period_key=2026`,
+        { method: 'DELETE' }
+      )
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: encodedId })
+      })
+
+      expect(response.status).toBe(403)
+      expect(mockDb.deleteFitnessRouteHeatmap).not.toHaveBeenCalled()
+    })
+
+    it('returns 403 for another actor', async () => {
+      mockGetActorFromSession.mockResolvedValue({
+        ...seedActor1,
+        id: 'https://llun.test/users/other'
+      })
+
+      const request = new NextRequest(
+        `${baseUrl}?period_type=yearly&period_key=2026`,
+        { method: 'DELETE', headers: { Origin: 'https://test.llun.dev' } }
+      )
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: encodedId })
+      })
+
+      expect(response.status).toBe(403)
+      expect(mockDb.deleteFitnessRouteHeatmap).not.toHaveBeenCalled()
+    })
+
+    it('returns 401 without a session', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const request = new NextRequest(
+        `${baseUrl}?period_type=yearly&period_key=2026`,
+        { method: 'DELETE', headers: { Origin: 'https://test.llun.dev' } }
+      )
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: encodedId })
+      })
+
+      expect(response.status).toBe(401)
+    })
   })
 })

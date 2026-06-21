@@ -418,7 +418,8 @@ CREATE TABLE public.fitness_route_heatmaps (
     "isPartial" boolean DEFAULT false NOT NULL,
     "createdAt" timestamp with time zone NOT NULL,
     "updatedAt" timestamp with time zone NOT NULL,
-    "deletedAt" timestamp with time zone
+    "deletedAt" timestamp with time zone,
+    "totalCount" integer DEFAULT 0 NOT NULL
 );
 
 CREATE TABLE public.fitness_settings (
