@@ -73,7 +73,7 @@ type RouteGlModule = {
   Map: new (options: Record<string, unknown>) => RouteGlMap
 }
 
-type MapFallbackReason = 'module-load-failed' | 'render-failed'
+type MapFallbackReason = 'module-load-failed' | 'render-failed' | 'load-timeout'
 
 interface MapFallbackError {
   message: string
@@ -91,6 +91,10 @@ const STALE_IN_FLIGHT_HEATMAP_MS = 15 * 60_000
 // this budget (see downsampleSegments). This keeps the map fully interactive
 // (pan/zoom) instead of dropping to a static, non-interactive fallback.
 const ROUTE_RENDER_POINT_BUDGET = 40_000
+// Fall back to the "Map unavailable" message if the GL map never reaches its
+// 'load' event (e.g. the style/tiles fail to fetch after the JS bundle loaded),
+// instead of spinning the "Loading map…" overlay forever. Mirrors RegionMap.
+const MAP_LOAD_TIMEOUT_MS = 20_000
 const ROUTE_HEATMAP_MAP_HEIGHT_CLASS = 'h-[420px]'
 
 const ROUTE_LINE_STYLES = {
@@ -352,6 +356,7 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
     }
 
     let cancelled = false
+    let loadWatchdog: ReturnType<typeof setTimeout> | undefined
     const mapBounds: [[number, number], [number, number]] = [
       [bounds.minLng, bounds.minLat],
       [bounds.maxLng, bounds.maxLat]
@@ -370,8 +375,21 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
         })
         mapRef.current = map
 
+        // The module promise resolving only means the JS bundle loaded; if the
+        // style/tiles never fetch, 'load' never fires and neither does .catch.
+        // Without this the "Loading map…" overlay would spin forever.
+        loadWatchdog = setTimeout(() => {
+          if (!cancelled) {
+            setMapFallbackError({
+              message: 'Map timed out before the style finished loading'
+            })
+            setMapFallbackReason('load-timeout')
+          }
+        }, MAP_LOAD_TIMEOUT_MS)
+
         map.on('load', () => {
           if (cancelled) return
+          if (loadWatchdog) clearTimeout(loadWatchdog)
           try {
             map.resize()
             map.addSource('route-heatmap', {
@@ -407,6 +425,7 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
 
     return () => {
       cancelled = true
+      if (loadWatchdog) clearTimeout(loadWatchdog)
       mapRef.current?.remove()
       mapRef.current = null
     }

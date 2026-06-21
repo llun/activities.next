@@ -779,6 +779,51 @@ describe('RouteHeatmapMap', () => {
     ).toBeInTheDocument()
   })
 
+  it('falls back when the map never reaches its load event', async () => {
+    vi.useFakeTimers()
+    try {
+      // A map double whose 'load' event never fires (e.g. the style never
+      // fetches), so only the load watchdog can resolve the loading state.
+      const mapConstructor = vi.fn().mockImplementation(function () {
+        return {
+          on: vi.fn(),
+          remove: vi.fn(),
+          resize: vi.fn(),
+          addSource: vi.fn(),
+          addLayer: vi.fn(),
+          getSource: vi.fn(),
+          fitBounds: vi.fn()
+        }
+      })
+      mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
+
+      const { container } = render(
+        <RouteHeatmapMap heatmap={completedHeatmap} />
+      )
+
+      // Flush the module-load promise so the map is created and the watchdog armed.
+      await act(async () => {
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+      expect(mapConstructor).toHaveBeenCalled()
+      expect(screen.getByText('Loading map…')).toBeInTheDocument()
+
+      await act(async () => {
+        vi.advanceTimersByTime(20_000)
+      })
+
+      expect(
+        screen.getByText('Map unavailable. Try regenerating this heatmap.')
+      ).toBeInTheDocument()
+      expect(
+        container.querySelector('[data-map-fallback-reason="load-timeout"]')
+      ).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('retries the map when the same route cache is regenerated', async () => {
     const failingMapConstructor = createGlMapConstructor(() => {
       throw new Error('source unavailable')
@@ -817,9 +862,19 @@ describe('RouteHeatmapMap', () => {
   it('downsamples large route caches yet still renders an interactive map', async () => {
     const largeHeatmap = buildLargeHeatmap()
     let renderedFeatureCount = 0
+    let renderedVertexCount = 0
     const mapConstructor = createGlMapConstructor((_id, source) => {
-      const data = (source as { data?: { features?: unknown[] } }).data
-      renderedFeatureCount = data?.features?.length ?? 0
+      const features =
+        (
+          source as {
+            data?: { features?: { geometry: { coordinates: unknown[] } }[] }
+          }
+        ).data?.features ?? []
+      renderedFeatureCount = features.length
+      renderedVertexCount = features.reduce(
+        (sum, feature) => sum + feature.geometry.coordinates.length,
+        0
+      )
     })
     mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
 
@@ -832,7 +887,12 @@ describe('RouteHeatmapMap', () => {
     expect(
       container.querySelector('[data-map-fallback-reason]')
     ).not.toBeInTheDocument()
+    // Every route still renders, but the geometry handed to the GL layer is
+    // actually thinned — far below the raw point count and near the budget.
     expect(renderedFeatureCount).toBe(largeHeatmap.segments.length)
+    expect(renderedVertexCount).toBeGreaterThan(0)
+    expect(renderedVertexCount).toBeLessThan(largeHeatmap.pointCount)
+    expect(renderedVertexCount).toBeLessThanOrEqual(50_000)
   })
 
   it('thins oversized geometry while preserving each segment’s endpoints', () => {
