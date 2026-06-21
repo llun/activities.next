@@ -84,7 +84,10 @@ const Page = async ({
           description: fitnessFile.description,
           createdAt: fitnessFile.createdAt,
           url: `/api/v1/fitness-files/${fitnessFile.id}`,
-          statusId: fitnessFile.statusId ?? undefined
+          statusId: fitnessFile.statusId ?? undefined,
+          importStatus: fitnessFile.importStatus ?? undefined,
+          importError: fitnessFile.importError ?? null,
+          importBatchId: fitnessFile.importBatchId ?? undefined
         }))}
         currentPage={page}
         itemsPerPage={itemsPerPage}

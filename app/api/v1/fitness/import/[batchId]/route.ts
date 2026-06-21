@@ -1,8 +1,12 @@
 import { z } from 'zod'
 
-import { IMPORT_FITNESS_FILES_JOB_NAME } from '@/lib/jobs/names'
+import {
+  IMPORT_FITNESS_FILES_JOB_NAME,
+  IMPORT_STRAVA_ACTIVITY_JOB_NAME
+} from '@/lib/jobs/names'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getQueue } from '@/lib/services/queue'
+import { getStravaActivityIdFromBatchId } from '@/lib/services/strava/activityBatch'
 import { getStravaArchiveSourceBatchId } from '@/lib/services/strava/archiveImport'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { StravaArchiveImport } from '@/lib/types/database/stravaArchiveImport'
@@ -477,20 +481,39 @@ export const POST = traceApiRoute(
       })
     ])
 
-    try {
-      await getQueue().publish({
-        id: getHashFromString(
-          `${batchActorId}:fitness-import-retry:${batchId}`
-        ),
-        name: IMPORT_FITNESS_FILES_JOB_NAME,
-        data: {
-          actorId: batchActorId,
-          batchId,
-          fitnessFileIds: retriableFileIds,
-          overlapFitnessFileIds,
-          visibility: visibilityParsed.data
+    // A `strava-activity:<id>` batch came from a single Strava activity, so the
+    // faithful retry re-runs the full Strava importer (re-fetches the activity
+    // for its caption, photos and real visibility) rather than only the file
+    // importer (which would recreate the post with an empty caption). Visibility
+    // is omitted so the job re-derives the activity's actual Strava visibility.
+    const stravaActivityId = getStravaActivityIdFromBatchId(batchId)
+    const retryJob = stravaActivityId
+      ? {
+          id: getHashFromString(
+            `${batchActorId}:strava-activity-retry:${batchId}`
+          ),
+          name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+          data: {
+            actorId: batchActorId,
+            stravaActivityId
+          }
         }
-      })
+      : {
+          id: getHashFromString(
+            `${batchActorId}:fitness-import-retry:${batchId}`
+          ),
+          name: IMPORT_FITNESS_FILES_JOB_NAME,
+          data: {
+            actorId: batchActorId,
+            batchId,
+            fitnessFileIds: retriableFileIds,
+            overlapFitnessFileIds,
+            visibility: visibilityParsed.data
+          }
+        }
+
+    try {
+      await getQueue().publish(retryJob)
     } catch (error) {
       const nodeError = error as Error
 

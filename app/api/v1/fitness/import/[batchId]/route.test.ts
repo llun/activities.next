@@ -1,4 +1,7 @@
-import { IMPORT_FITNESS_FILES_JOB_NAME } from '@/lib/jobs/names'
+import {
+  IMPORT_FITNESS_FILES_JOB_NAME,
+  IMPORT_STRAVA_ACTIVITY_JOB_NAME
+} from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 
 import { GET, POST } from './route'
@@ -561,6 +564,57 @@ describe('fitness import batch route', () => {
         visibility: 'private'
       }
     })
+  })
+
+  it('re-runs the full Strava activity import for strava-activity batches', async () => {
+    db.getFitnessFilesByBatchId.mockResolvedValue([
+      {
+        id: 'file-1',
+        actorId: 'https://llun.test/users/llun',
+        fileName: 'strava-19007245213.tcx',
+        fileType: 'tcx',
+        path: 'fitness/strava-19007245213.tcx',
+        mimeType: 'application/vnd.garmin.tcx+xml',
+        bytes: 1024,
+        importBatchId: 'strava-activity:19007245213',
+        importStatus: 'failed',
+        processingStatus: 'failed',
+        createdAt: 1,
+        updatedAt: 1
+      }
+    ])
+
+    const request = {
+      headers: new Headers(),
+      json: async () => ({ visibility: 'public' })
+    } as unknown as Parameters<typeof POST>[0]
+
+    const response = await POST(request, {
+      params: Promise.resolve({ batchId: 'strava-activity:19007245213' })
+    })
+    const json = (await response.json()) as { retried: number }
+
+    expect(response.status).toBe(200)
+    expect(json.retried).toBe(1)
+    // Failed files are still reset so the UI reflects the in-progress retry.
+    expect(db.updateFitnessFilesImportStatus).toHaveBeenCalledWith({
+      fitnessFileIds: ['file-1'],
+      importStatus: 'pending'
+    })
+    // The full Strava importer runs (caption/photos/visibility), not just the
+    // file importer. Visibility is intentionally omitted so the job re-derives
+    // the activity's real Strava visibility.
+    expect(getQueue().publish).toHaveBeenCalledWith({
+      id: expect.any(String),
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'https://llun.test/users/llun',
+        stravaActivityId: '19007245213'
+      }
+    })
+    expect(getQueue().publish).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: IMPORT_FITNESS_FILES_JOB_NAME })
+    )
   })
 
   it('includes completed files as overlap context during retry', async () => {

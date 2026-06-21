@@ -8,7 +8,8 @@ import { FitnessFileManagement } from './FitnessFileManagement'
 
 vi.mock('next/navigation', () => ({
   useRouter: vi.fn(() => ({
-    push: vi.fn()
+    push: vi.fn(),
+    refresh: vi.fn()
   }))
 }))
 
@@ -109,6 +110,94 @@ describe('FitnessFileManagement', () => {
         'href',
         '/@alice@example.com/https%3A%2F%2Fexample.com%2Fusers%2Falice%2Fstatuses%2F123'
       )
+    })
+  })
+
+  describe('failed import retry', () => {
+    it('surfaces the import error and retries the batch', async () => {
+      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          batchId: 'strava-activity:19007245213',
+          retried: 1
+        })
+      } as Response)
+
+      const files = [
+        {
+          id: 'fitness-failed',
+          actorId: 'https://example.com/users/alice',
+          fileName: 'strava-19007245213.tcx',
+          fileType: 'tcx' as const,
+          mimeType: 'application/vnd.garmin.tcx+xml',
+          bytes: 1024,
+          createdAt: Date.now(),
+          url: '/api/v1/fitness-files/fitness-failed',
+          importStatus: 'failed' as const,
+          importError: 'relation "collection_members" does not exist',
+          importBatchId: 'strava-activity:19007245213'
+        }
+      ]
+
+      render(
+        <FitnessFileManagement
+          used={1024}
+          limit={10485760}
+          fitnessFiles={files}
+          currentPage={1}
+          itemsPerPage={25}
+          totalItems={1}
+        />
+      )
+
+      expect(screen.getByText('Import failed')).toBeInTheDocument()
+      expect(screen.getByText(/collection_members/)).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: /Retry import/i }))
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          '/api/v1/fitness/import/strava-activity%3A19007245213',
+          expect.objectContaining({ method: 'POST' })
+        )
+      })
+
+      await waitFor(() => {
+        expect(screen.getByText(/Retry queued/i)).toBeInTheDocument()
+      })
+    })
+
+    it('does not offer retry for files without an import batch', () => {
+      const files = [
+        {
+          id: 'fitness-orphan',
+          actorId: 'https://example.com/users/alice',
+          fileName: 'orphan.gpx',
+          fileType: 'gpx' as const,
+          mimeType: 'application/gpx+xml',
+          bytes: 1024,
+          createdAt: Date.now(),
+          url: '/api/v1/fitness-files/fitness-orphan',
+          importStatus: 'failed' as const,
+          importError: 'something went wrong'
+        }
+      ]
+
+      render(
+        <FitnessFileManagement
+          used={1024}
+          limit={10485760}
+          fitnessFiles={files}
+          currentPage={1}
+          itemsPerPage={25}
+          totalItems={1}
+        />
+      )
+
+      expect(screen.getByText('Import failed')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /Retry import/i })
+      ).not.toBeInTheDocument()
     })
   })
 
