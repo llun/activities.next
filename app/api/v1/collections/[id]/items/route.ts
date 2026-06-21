@@ -6,6 +6,7 @@ import {
   OAuthGuardAnyScope
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { notifyAddedToCollection } from '@/lib/services/notifications/collectionNotifications'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -148,11 +149,18 @@ export const POST = traceApiRoute(
         })
       }
 
-      await database.addCollectionMembers({
+      const addedActorIds = await database.addCollectionMembers({
         id,
         actorId: currentActor.id,
         targetActorIds: accountIds.map((accountId) => idToUrl(accountId))
       })
+      // Notify the newly-added local members (added_to_collection). Best-effort:
+      // a notification failure must not fail the membership change.
+      await notifyAddedToCollection(database, {
+        collectionId: id,
+        ownerActorId: currentActor.id,
+        addedActorIds
+      }).catch(() => {})
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
     }
   )

@@ -6,6 +6,7 @@ import {
   OAuthGuardAnyScope
 } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonCollection } from '@/lib/services/mastodon/getMastodonCollection'
+import { notifyCollectionUpdated } from '@/lib/services/notifications/collectionNotifications'
 import { Scope } from '@/lib/types/database/operations'
 import { CollectionVisibility } from '@/lib/types/domain/collection'
 import { CollectionTopicInput } from '@/lib/types/mastodon/collection'
@@ -119,6 +120,28 @@ export const PATCH = traceApiRoute(
           responseStatusCode: 404
         })
       }
+
+      // Notify approved local members when the collection's METADATA changed
+      // (title/description/topic/language/visibility) — not for a feed-only
+      // toggle. Best-effort: notification failures must not fail the update.
+      const metadataChanged =
+        parsed.data.title !== undefined ||
+        parsed.data.description !== undefined ||
+        parsed.data.topic !== undefined ||
+        parsed.data.language !== undefined ||
+        parsed.data.visibility !== undefined
+      if (metadataChanged) {
+        const members = await database.getApprovedCollectionMembers({
+          id,
+          actorId: currentActor.id
+        })
+        await notifyCollectionUpdated(database, {
+          collectionId: id,
+          ownerActorId: currentActor.id,
+          memberActorIds: members.map((member) => member.id)
+        }).catch(() => {})
+      }
+
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
