@@ -278,6 +278,66 @@ describe('FitnessFileManagement', () => {
       })
     })
 
+    it('re-exposes the Retry button when a queued batch is still failing after refresh', async () => {
+      vi.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({ batchId: 'strava-activity:A', retried: 1 })
+      } as Response)
+
+      const failedFile = {
+        id: 'file-a',
+        actorId: 'https://example.com/users/alice',
+        fileName: 'a.tcx',
+        fileType: 'tcx' as const,
+        mimeType: 'application/vnd.garmin.tcx+xml',
+        bytes: 1024,
+        createdAt: Date.now(),
+        url: '/api/v1/fitness-files/file-a',
+        importStatus: 'failed' as const,
+        importError: 'boom',
+        importBatchId: 'strava-activity:A'
+      }
+
+      const { rerender } = render(
+        <FitnessFileManagement
+          used={1024}
+          limit={10485760}
+          fitnessFiles={[failedFile]}
+          currentPage={1}
+          itemsPerPage={25}
+          totalItems={1}
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Retry import' }))
+      await waitFor(() => {
+        expect(screen.getByText(/Retry queued/i)).toBeInTheDocument()
+      })
+      expect(
+        screen.queryByRole('button', { name: 'Retry import' })
+      ).not.toBeInTheDocument()
+
+      // A refresh delivers the same file still failed (the retry did not clear
+      // it); the Retry button must come back rather than stay on "Retry queued".
+      rerender(
+        <FitnessFileManagement
+          used={1024}
+          limit={10485760}
+          fitnessFiles={[{ ...failedFile }]}
+          currentPage={1}
+          itemsPerPage={25}
+          totalItems={1}
+        />
+      )
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: 'Retry import' })
+        ).toBeInTheDocument()
+      })
+      expect(screen.queryByText(/Retry queued/i)).not.toBeInTheDocument()
+    })
+
     it('does not offer retry for files without an import batch', () => {
       const files = [
         {

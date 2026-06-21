@@ -76,6 +76,23 @@ export function FitnessFileManagement({
   useEffect(() => {
     setFitnessFiles(initialFitnessFiles)
     setCurrentUsed(used)
+    // Drop the "retry queued" flag for any batch that is still failing in the
+    // refreshed data, so its Retry button reappears instead of being stuck on
+    // "Retry queued" forever when a retry did not clear the failure.
+    setQueuedBatchIds((prev) => {
+      if (prev.size === 0) return prev
+      const stillFailingBatchIds = new Set(
+        initialFitnessFiles
+          .filter(
+            (file) => file.importStatus === 'failed' && file.importBatchId
+          )
+          .map((file) => file.importBatchId as string)
+      )
+      const next = new Set(
+        [...prev].filter((batchId) => !stillFailingBatchIds.has(batchId))
+      )
+      return next.size === prev.size ? prev : next
+    })
   }, [initialFitnessFiles, used])
 
   const handleDeleteClick = (fitnessFile: FitnessFileItem) => {
