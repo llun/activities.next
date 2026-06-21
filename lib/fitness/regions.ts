@@ -183,18 +183,6 @@ export const getRegionBounds = (regions: HeatmapRegion[]): RegionBounds[] => {
     }))
 }
 
-/** Human-readable summary of a serialized region scope, for list/preview chrome. */
-export const describeRegions = (serialized: string): string => {
-  const regions = deserializeRegions(serialized)
-  if (
-    regions.length === 0 ||
-    regions.some((region) => region.type === 'world')
-  ) {
-    return 'Whole world'
-  }
-  return regions.length === 1 ? '1 map area' : `${regions.length} map areas`
-}
-
 export const formatLatitude = (lat: number): string =>
   `${Math.abs(lat).toFixed(COORD_PRECISION)}°${lat >= 0 ? 'N' : 'S'}`
 

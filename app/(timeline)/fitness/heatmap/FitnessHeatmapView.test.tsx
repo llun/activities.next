@@ -511,6 +511,52 @@ describe('FitnessHeatmapView', () => {
     expect(screen.queryByText(/Generating…/)).not.toBeInTheDocument()
   })
 
+  it('surfaces the stalled state after repeated no-progress focused polls', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(TEST_NOW)
+    // A focused region whose generating fingerprint never advances, so each poll
+    // counts toward STALLED_POLLING_LIMIT.
+    const stuck = worldHeatmap({
+      id: 'stuck',
+      status: 'generating',
+      segments: [],
+      bounds: null,
+      pointCount: 0,
+      totalCount: 20,
+      cursorOffset: 5,
+      updatedAt: TEST_NOW
+    })
+    mockGetFitnessRouteHeatmap.mockResolvedValue(stuck)
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([
+      worldSummary({
+        id: 'stuck',
+        status: 'generating',
+        totalCount: 20,
+        cursorOffset: 5,
+        updatedAt: TEST_NOW
+      })
+    ])
+
+    render(<FitnessHeatmapView actorId={ACTOR} />)
+
+    // The default world row renders synchronously; open it.
+    fireEvent.click(
+      screen.getByRole('button', { name: /Open Whole world heatmap/i })
+    )
+    // Flush the focused fetch so the detail enters the generating state.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(screen.getByText('Building your heatmap…')).toBeInTheDocument()
+
+    // Drive past STALLED_POLLING_LIMIT (30) poll cycles of 5s each.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000 * 32)
+    })
+
+    expect(screen.getByText(/taking longer than expected/i)).toBeInTheDocument()
+  })
+
   it('keeps polling fresh in-flight regions without stalling', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(TEST_NOW)

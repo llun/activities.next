@@ -2,7 +2,6 @@ import {
   HeatmapRegion,
   MAX_HEATMAP_REGIONS,
   RectRegion,
-  describeRegions,
   deserializeRegions,
   formatRectRegion,
   getRegionBounds,
@@ -149,28 +148,6 @@ describe('getRegionBounds', () => {
 
   it('returns no bounds when a world region is present among rectangles', () => {
     expect(getRegionBounds([rect(52, 5, 51, 6), { type: 'world' }])).toEqual([])
-  })
-})
-
-describe('describeRegions', () => {
-  it.each([
-    {
-      description: 'world-wide sentinel',
-      serialized: '',
-      expected: 'Whole world'
-    },
-    {
-      description: 'single rectangle',
-      serialized: 'rect:52.60,5.60,52.00,6.20',
-      expected: '1 map area'
-    },
-    {
-      description: 'two rectangles',
-      serialized: 'rect:52.00,5.00,51.00,6.00;rect:53.00,3.00,52.00,4.00',
-      expected: '2 map areas'
-    }
-  ])('summarizes the $description', ({ serialized, expected }) => {
-    expect(describeRegions(serialized)).toBe(expected)
   })
 })
 
