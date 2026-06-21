@@ -26,6 +26,7 @@ import {
   deserializeRegions,
   serializeRegion
 } from '@/lib/fitness/regions'
+import { formatRelativeTime } from '@/lib/fitness/relativeTime'
 
 // Re-exported so existing imports/tests keep resolving the route map from here.
 export {
@@ -56,13 +57,6 @@ const formatActivityLabel = (type?: string): string =>
 
 const formatPeriodLabel = (periodType: string, periodKey: string): string =>
   periodType === 'all_time' ? 'All time' : periodKey
-
-const formatRelativeTime = (diffMs: number): string => {
-  if (diffMs < 60_000) return 'just now'
-  if (diffMs < 3_600_000) return `${Math.floor(diffMs / 60_000)}m ago`
-  if (diffMs < 86_400_000) return `${Math.floor(diffMs / 3_600_000)}h ago`
-  return `${Math.floor(diffMs / 86_400_000)}d ago`
-}
 
 /** Progress percent (0–100) from scanned/total, or null when the total is unknown. */
 const computeProgressPercent = (
@@ -172,7 +166,6 @@ export const FitnessHeatmapView: FC<Props> = ({
   const [pollingStalled, setPollingStalled] = useState(false)
   const [currentTime, setCurrentTime] = useState<number>(() => Date.now())
 
-  const seededRef = useRef(false)
   const focusKeyRef = useRef<string>('')
   const fetchRequestIdRef = useRef(0)
   const pollingProgressRef = useRef<{
@@ -192,9 +185,11 @@ export const FitnessHeatmapView: FC<Props> = ({
       .catch(() => {})
   }, [actorId])
 
-  // Initial load: pull the actor's heatmaps and seed the region list once.
+  // Initial load: reset to the default region list for this actor, then pull
+  // the actor's heatmaps and seed in any previously generated regions. This
+  // effect runs once per actorId, so the merge happens once (and is idempotent
+  // — it dedupes by canonical region key).
   useEffect(() => {
-    seededRef.current = false
     setRegions([WORLD_REGION])
     setOpenRegionId(null)
 
@@ -203,10 +198,7 @@ export const FitnessHeatmapView: FC<Props> = ({
       .then((all) => {
         if (cancelled) return
         setHeatmaps(all)
-        if (!seededRef.current) {
-          seededRef.current = true
-          setRegions((current) => mergeDiscoveredRegions(current, all))
-        }
+        setRegions((current) => mergeDiscoveredRegions(current, all))
       })
       .catch(() => {})
     return () => {
@@ -325,15 +317,19 @@ export const FitnessHeatmapView: FC<Props> = ({
     generationPending || isRouteHeatmapInFlight(heatmapData?.status)
   const shouldPollFocused =
     Boolean(openRegionId) && focusedInFlight && !pollingStalled
+  // The focused region runs its own stall-aware polling, so exclude it here.
+  // Otherwise a stuck focused job keeps the list-poll alive, which would reset
+  // the focused region's stalled state every tick (an infinite poll loop).
   const hasAnyListInFlight = useMemo(
     () =>
       heatmaps.some(
         (heatmap) =>
           sourceMatch(heatmap) &&
           isRouteHeatmapInFlight(heatmap.status) &&
-          currentTime - heatmap.updatedAt <= STALE_IN_FLIGHT_HEATMAP_MS
+          currentTime - heatmap.updatedAt <= STALE_IN_FLIGHT_HEATMAP_MS &&
+          (openRegionKey === null || (heatmap.region ?? '') !== openRegionKey)
       ),
-    [heatmaps, sourceMatch, currentTime]
+    [heatmaps, sourceMatch, currentTime, openRegionKey]
   )
 
   useEffect(() => {
@@ -341,12 +337,12 @@ export const FitnessHeatmapView: FC<Props> = ({
 
     const id = setInterval(() => {
       if (!shouldPollFocused) {
+        // List-only refresh: keep other regions' statuses current. It must NOT
+        // touch the focused region's stalled state (that is owned by the
+        // focused-poll branch / focusKey reset), or a stalled focused job would
+        // be un-stalled every tick.
         getFitnessRouteHeatmaps({ actorId })
-          .then((allHeatmaps) => {
-            setHeatmaps(allHeatmaps)
-            pollingProgressRef.current = null
-            setPollingStalled(false)
-          })
+          .then(setHeatmaps)
           .catch(() => {})
         return
       }
@@ -404,7 +400,23 @@ export const FitnessHeatmapView: FC<Props> = ({
             setPollingStalled(true)
           }
         })
-        .catch(() => {})
+        .catch(() => {
+          // A persistently failing poll must still self-terminate: count each
+          // failed request toward the stall limit so the spinner doesn't run
+          // forever when the endpoint keeps erroring.
+          if (focusKeyRef.current !== focusKey) return
+          const previous = pollingProgressRef.current
+          const stalledCycles = (previous?.stalledCycles ?? 0) + 1
+          pollingProgressRef.current = {
+            key: focusKey,
+            fingerprint: previous?.fingerprint ?? 'error',
+            stalledCycles
+          }
+          if (stalledCycles >= STALLED_POLLING_LIMIT) {
+            setGenerationPending(false)
+            setPollingStalled(true)
+          }
+        })
     }, ROUTE_HEATMAP_POLLING_INTERVAL_MS)
 
     return () => clearInterval(id)
@@ -509,9 +521,11 @@ export const FitnessHeatmapView: FC<Props> = ({
 
   const handleRegionRemoved = useCallback(
     async (region: PickerRegion) => {
-      if (openRegionId === region.id) setOpenRegionId(null)
+      // The picker (and so the remove control) only renders in the master view,
+      // where no region is open — so there is no open-detail to close here.
+      setError(null)
       const key = serializeRegion(toHeatmapRegion(region))
-      // Best-effort: prune the region's heatmap for the current source so a
+      // Optimistically prune the region's heatmap for the current source so a
       // removed region doesn't reappear from a stale cache row.
       setHeatmaps((current) =>
         current.filter(
@@ -526,18 +540,18 @@ export const FitnessHeatmapView: FC<Props> = ({
           periodKey: effectivePeriodKey,
           region: key || undefined
         })
-      } catch {
-        // Removing the cache is best-effort; the row already left the list.
+      } catch (err) {
+        // The region has already left the list (the user's curation), but the
+        // server-side cache deletion failed — surface it so the user knows the
+        // region may reappear after a refresh, rather than failing silently.
+        setError(
+          err instanceof Error
+            ? `Couldn't remove the cached heatmap: ${err.message}`
+            : "Couldn't remove the cached heatmap. It may reappear after a refresh."
+        )
       }
     },
-    [
-      actorId,
-      openRegionId,
-      selectedActivityType,
-      periodType,
-      effectivePeriodKey,
-      sourceMatch
-    ]
+    [actorId, selectedActivityType, periodType, effectivePeriodKey, sourceMatch]
   )
 
   const focusedProgressPercent = heatmapData
@@ -556,7 +570,8 @@ export const FitnessHeatmapView: FC<Props> = ({
         mapboxAccessToken={mapboxAccessToken}
         currentTime={currentTime}
         isLoading={isLoading}
-        busy={focusedInFlight}
+        busy={focusedInFlight && !pollingStalled}
+        pollingStalled={pollingStalled}
         progressPercent={focusedProgressPercent}
         isRetrying={isRetrying}
         generationQueued={generationPending}

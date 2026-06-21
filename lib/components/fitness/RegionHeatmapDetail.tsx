@@ -20,17 +20,11 @@ import { PickerRegion } from '@/lib/components/fitness/HeatmapRegionPicker'
 import { RouteHeatmapMap } from '@/lib/components/fitness/RouteHeatmapMap'
 import { Button } from '@/lib/components/ui/button'
 import { formatRectRegion } from '@/lib/fitness/regions'
+import { formatRelativeTime } from '@/lib/fitness/relativeTime'
 import { cn } from '@/lib/utils'
 
 const numberFormatter = new Intl.NumberFormat()
 const formatCount = (value: number): string => numberFormatter.format(value)
-
-const formatRelativeTime = (diffMs: number): string => {
-  if (diffMs < 60_000) return 'just now'
-  if (diffMs < 3_600_000) return `${Math.floor(diffMs / 60_000)}m ago`
-  if (diffMs < 86_400_000) return `${Math.floor(diffMs / 3_600_000)}h ago`
-  return `${Math.floor(diffMs / 86_400_000)}d ago`
-}
 
 const formatDuration = (startMs: number, endMs: number): string | null => {
   if (
@@ -49,11 +43,23 @@ const formatDuration = (startMs: number, endMs: number): string | null => {
 /** Display-only generation state for the detail page (mirrors the picker atom). */
 type TaskState = 'pending' | 'generating' | 'completed' | 'partial' | 'failed'
 
+const KNOWN_TASK_STATES: readonly TaskState[] = [
+  'pending',
+  'generating',
+  'completed',
+  'partial',
+  'failed'
+]
+
 const resolveTaskState = (heatmap: FitnessRouteHeatmapData): TaskState => {
   if (heatmap.status === 'completed') {
     return heatmap.isPartial ? 'partial' : 'completed'
   }
-  return heatmap.status as TaskState
+  // `status` is typed as a bare string at the client boundary, so guard against
+  // an unexpected value rather than indexing TASK_META with an unknown key.
+  return KNOWN_TASK_STATES.includes(heatmap.status as TaskState)
+    ? (heatmap.status as TaskState)
+    : 'pending'
 }
 
 interface TaskMeta {
@@ -194,6 +200,8 @@ export interface RegionHeatmapDetailProps {
   isLoading: boolean
   /** A generation run is in flight (queued/generating) for this region. */
   busy: boolean
+  /** Polling gave up on a stuck run; offer a retry instead of a forever spinner. */
+  pollingStalled: boolean
   /** Generation/retry progress, 0–100, or null when the total is unknown. */
   progressPercent: number | null
   isRetrying: boolean
@@ -213,6 +221,7 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
   currentTime,
   isLoading,
   busy,
+  pollingStalled,
   progressPercent,
   isRetrying,
   generationQueued,
@@ -226,9 +235,12 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
   const hasMap = heatmap?.status === 'completed' && heatmap.pointCount > 0
   // While the focused heatmap is still loading and nothing is in flight yet,
   // show a neutral loader instead of flashing the "No heatmap yet" empty state.
-  const showLoading = isLoading && !heatmap && !busy
+  const showLoading = isLoading && !heatmap && !busy && !pollingStalled
   const hasVersion = hasMap
   const isPartial = Boolean(heatmap?.isPartial)
+  // When stalled, the banner + Generation-tasks panel convey state; suppress the
+  // redundant "No heatmap yet" empty block.
+  const showEmptyState = !showLoading && !hasMap && !pollingStalled
 
   return (
     <div className="space-y-4">
@@ -250,7 +262,8 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
             )}
           </span>
           <div className="min-w-0">
-            <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+            {/* h2: the page-level PageHeader ("Heatmaps") already owns the h1. */}
+            <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
             <div className="mt-0.5 text-xs text-muted-foreground">
               {isWorld
                 ? 'Entire globe — every recorded activity'
@@ -271,10 +284,18 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
         <Button type="button" size="sm" disabled={busy} onClick={onGenerate}>
           {busy ? (
             <Loader2 className="size-4 animate-spin" />
+          ) : pollingStalled ? (
+            <RefreshCw className="size-4" />
           ) : (
             <Flame className="size-4" />
           )}
-          {busy ? 'Generating…' : hasVersion ? 'Regenerate' : 'Generate'}
+          {busy
+            ? 'Generating…'
+            : pollingStalled
+              ? 'Retry'
+              : hasVersion
+                ? 'Regenerate'
+                : 'Generate'}
         </Button>
       </div>
 
@@ -284,6 +305,29 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
           className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
         >
           {error}
+        </div>
+      )}
+
+      {pollingStalled && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300"
+        >
+          <span className="inline-flex items-center gap-2">
+            <AlertTriangle className="size-4" />
+            This route cache is taking longer than expected.
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 px-2.5 text-xs"
+            disabled={isRetrying}
+            onClick={onRetry}
+          >
+            <RefreshCw className={cn('size-3', isRetrying && 'animate-spin')} />
+            Retry
+          </Button>
         </div>
       )}
 
@@ -323,8 +367,11 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
             )}
           </div>
         </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed px-6 py-14 text-center">
+      ) : showEmptyState ? (
+        <div
+          {...(busy ? { role: 'status' } : {})}
+          className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed px-6 py-14 text-center"
+        >
           <span className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
             {busy ? (
               <Loader2 className="size-5 animate-spin" />
@@ -349,7 +396,7 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
             </Button>
           )}
         </div>
-      )}
+      ) : null}
 
       <section className="rounded-xl border bg-card p-4 shadow-sm">
         <div className="mb-1 flex items-center justify-between">

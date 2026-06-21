@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 
 import type { FitnessRouteHeatmapData } from '@/lib/client'
 import { PickerRegion } from '@/lib/components/fitness/HeatmapRegionPicker'
@@ -58,6 +58,7 @@ const defaultProps = {
   currentTime: TEST_NOW,
   isLoading: false,
   busy: false,
+  pollingStalled: false,
   progressPercent: null as number | null,
   isRetrying: false,
   generationQueued: false,
@@ -76,8 +77,9 @@ describe('RegionHeatmapDetail', () => {
     const onGenerate = vi.fn()
     render(<RegionHeatmapDetail {...defaultProps} onGenerate={onGenerate} />)
 
+    // h2 — the page-level PageHeader owns the h1.
     expect(
-      screen.getByRole('heading', { level: 1, name: 'Whole world' })
+      screen.getByRole('heading', { level: 2, name: 'Whole world' })
     ).toBeInTheDocument()
     expect(screen.getByText('No heatmap yet')).toBeInTheDocument()
     expect(
@@ -92,7 +94,7 @@ describe('RegionHeatmapDetail', () => {
     render(<RegionHeatmapDetail {...defaultProps} region={rectRegion} />)
 
     expect(
-      screen.getByRole('heading', { level: 1, name: 'Veluwe loop' })
+      screen.getByRole('heading', { level: 2, name: 'Veluwe loop' })
     ).toBeInTheDocument()
     expect(screen.getByText(/TL .*N .*E/)).toBeInTheDocument()
   })
@@ -108,6 +110,54 @@ describe('RegionHeatmapDetail', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('Completed')).toBeInTheDocument()
     expect(screen.getByText('1 run')).toBeInTheDocument()
+  })
+
+  it('renders currentTime-derived relative times (generated / started / took)', () => {
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        currentTime={TEST_NOW}
+        heatmap={{
+          ...completedHeatmap,
+          createdAt: TEST_NOW - 2 * 3_600_000,
+          updatedAt: TEST_NOW - 3_600_000
+        }}
+      />
+    )
+
+    // generated = currentTime − updatedAt = 1h; started = currentTime − createdAt
+    // = 2h; took = updatedAt − createdAt = 60m. All derive from currentTime, so a
+    // component that called Date.now() internally would not produce these.
+    expect(screen.getByText(/generated 1h ago/i)).toBeInTheDocument()
+    expect(screen.getByText(/Started 2h ago · took 60m 0s/)).toBeInTheDocument()
+  })
+
+  it('surfaces the stalled state with a retry instead of a forever spinner', () => {
+    const onRetry = vi.fn()
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        heatmap={{
+          ...completedHeatmap,
+          status: 'generating',
+          segments: [],
+          bounds: null,
+          pointCount: 0
+        }}
+        busy={false}
+        pollingStalled
+        onRetry={onRetry}
+      />
+    )
+
+    // The stalled banner (role="status") carries its own Retry; the empty
+    // "No heatmap yet" block is suppressed in favour of the banner.
+    const banner = screen.getByRole('status')
+    expect(banner).toHaveTextContent(/taking longer than expected/i)
+    expect(screen.queryByText('No heatmap yet')).not.toBeInTheDocument()
+
+    fireEvent.click(within(banner).getByRole('button', { name: /Retry/i }))
+    expect(onRetry).toHaveBeenCalledTimes(1)
   })
 
   it('shows a retry control for a failed run', () => {
@@ -152,7 +202,10 @@ describe('RegionHeatmapDetail', () => {
       />
     )
 
-    expect(screen.getByText('Building your heatmap…')).toBeInTheDocument()
+    // The building empty state announces to screen readers (role="status").
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Building your heatmap…'
+    )
     expect(screen.getByText('Generating… 45%')).toBeInTheDocument()
     expect(screen.getByRole('progressbar')).toHaveAttribute(
       'aria-valuenow',

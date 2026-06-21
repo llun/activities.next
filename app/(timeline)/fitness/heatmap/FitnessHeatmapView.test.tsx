@@ -242,8 +242,9 @@ describe('FitnessHeatmapView', () => {
     expect(
       await screen.findByRole('button', { name: /All regions/i })
     ).toBeInTheDocument()
+    // The detail region title is an h2 (the page-level PageHeader owns the h1).
     expect(
-      screen.getByRole('heading', { level: 1, name: 'Whole world' })
+      screen.getByRole('heading', { level: 2, name: 'Whole world' })
     ).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /All regions/i }))
@@ -380,6 +381,134 @@ describe('FitnessHeatmapView', () => {
     )
 
     expect(await screen.findByText('queue unavailable')).toBeInTheDocument()
+  })
+
+  it('sends the rect token when generating a seeded drawn region', async () => {
+    const rectKey = 'rect:52.60,5.60,52.00,6.20'
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([
+      worldSummary({
+        id: 'hm-rect',
+        region: rectKey,
+        status: 'failed',
+        error: 'parse failed',
+        updatedAt: TEST_NOW
+      })
+    ])
+    mockGetFitnessRouteHeatmap.mockResolvedValue(
+      worldHeatmap({
+        id: 'hm-rect',
+        region: rectKey,
+        status: 'failed',
+        error: 'parse failed',
+        segments: [],
+        bounds: null,
+        pointCount: 0
+      })
+    )
+
+    render(<FitnessHeatmapView actorId={ACTOR} />)
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Open Map area heatmap/i })
+    )
+
+    const retryButton = await screen.findByRole('button', { name: /Retry/i })
+    fireEvent.click(retryButton)
+
+    await waitFor(() => {
+      expect(mockTriggerFitnessRouteHeatmap).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: ACTOR,
+          region: rectKey,
+          retry: true
+        })
+      )
+    })
+  })
+
+  it('re-derives region status when the period source changes', async () => {
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([
+      worldSummary({ updatedAt: TEST_NOW })
+    ])
+
+    render(<FitnessHeatmapView actorId={ACTOR} />)
+
+    // The all-time heatmap matches the default source.
+    expect(await screen.findByText(/^Generated/)).toBeInTheDocument()
+
+    // Switching to a yearly source re-keys the region; the all-time heatmap no
+    // longer matches, so the row flips to "Not generated".
+    fireEvent.change(screen.getByRole('combobox', { name: 'Period' }), {
+      target: { value: 'yearly' }
+    })
+
+    await waitFor(() =>
+      expect(screen.getByText('Not generated')).toBeInTheDocument()
+    )
+    expect(screen.queryByText(/^Generated/)).not.toBeInTheDocument()
+  })
+
+  it('seeds and dedupes regions from legacy multi-region heatmap keys', async () => {
+    // A legacy multi-rect key splits into two distinct regions; the world '' key
+    // is already represented by the default world region (so it is not re-added).
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([
+      worldSummary({
+        id: 'hm-multi',
+        region: 'rect:52.60,5.60,52.00,6.20;rect:48.00,2.00,47.00,3.00',
+        status: 'completed',
+        updatedAt: TEST_NOW
+      }),
+      worldSummary({ id: 'hm-world', region: '', updatedAt: TEST_NOW })
+    ])
+
+    render(<FitnessHeatmapView actorId={ACTOR} />)
+
+    // 1 world (default) + 2 split rects = 3 regions. Only the world matches a
+    // single-region heatmap ('' key); the legacy multi-rect key doesn't map to
+    // either split rect, so those read "Not generated".
+    expect(
+      await screen.findByText(/3 regions · 1 generated/i)
+    ).toBeInTheDocument()
+    // Exactly one whole-world row (the '' key did not duplicate it).
+    expect(
+      screen.getAllByRole('button', { name: /Open Whole world heatmap/i })
+    ).toHaveLength(1)
+  })
+
+  it('clears the generating row when polling reports completion', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(TEST_NOW)
+    mockGetFitnessRouteHeatmaps
+      .mockResolvedValueOnce([
+        worldSummary({
+          status: 'generating',
+          totalCount: 20,
+          cursorOffset: 5,
+          updatedAt: TEST_NOW
+        })
+      ])
+      .mockResolvedValue([
+        worldSummary({ status: 'completed', updatedAt: TEST_NOW })
+      ])
+
+    render(<FitnessHeatmapView actorId={ACTOR} />)
+
+    // Flush the initial heatmaps fetch.
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(screen.getByText(/Generating… 25%/)).toBeInTheDocument()
+
+    // The next list poll returns a completed summary.
+    await act(async () => {
+      vi.advanceTimersByTime(5000)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(screen.getByText(/^Generated/)).toBeInTheDocument()
+    expect(screen.queryByText(/Generating…/)).not.toBeInTheDocument()
   })
 
   it('keeps polling fresh in-flight regions without stalling', async () => {
