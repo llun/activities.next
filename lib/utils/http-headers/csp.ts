@@ -9,6 +9,14 @@ const MAPBOX_CSP_SOURCES = [
   'https://*.tiles.mapbox.com'
 ]
 
+// Free, keyless map provider for the heatmap region picker when no Mapbox token
+// is configured: MapLibre GL JS is loaded from jsDelivr and renders OpenFreeMap's
+// public vector tiles (see lib/utils/maplibre.ts). The script/style come from the
+// CDN; the style JSON, vector tiles, glyphs, and sprite are fetched from (and the
+// sprite image is loaded from) the OpenFreeMap origin.
+const MAPLIBRE_CDN_CSP_SOURCES = ['https://cdn.jsdelivr.net']
+const OPENFREEMAP_CSP_SOURCES = ['https://tiles.openfreemap.org']
+
 const isDevelopment = () => process.env.NODE_ENV !== 'production'
 const isSafeLocalHostname = (hostname: string) =>
   ['localhost', '127.0.0.1', '[::1]'].includes(hostname.toLowerCase())
@@ -129,6 +137,9 @@ export const getContentSecurityPolicy = () => {
     getStorageEndpoint(fitnessStorage)
   )
   const allowMapboxSources = hasPublicMapboxAccessToken(fitnessStorage)
+  // Without a Mapbox token the region picker falls back to the keyless
+  // MapLibre + OpenFreeMap map, so allow those origins instead.
+  const allowFreeMapSources = !allowMapboxSources
   const serviceMediaSources = getConfiguredCspSources(allowMediaDomains)
   const remoteMediaSources = getRemoteMediaCspSources(allowRemoteMediaDomains)
   // The canonical app origin (ACTIVITIES_HOST). Server-rendered pages load the
@@ -145,6 +156,7 @@ export const getContentSecurityPolicy = () => {
     new Set([
       "'self'",
       ...(allowMapboxSources ? MAPBOX_CSP_SOURCES : []),
+      ...(allowFreeMapSources ? OPENFREEMAP_CSP_SOURCES : []),
       ...(mediaStorageSource ? [mediaStorageSource] : []),
       ...(fitnessStorageSource ? [fitnessStorageSource] : []),
       ...(mediaStorageEndpointSource ? [mediaStorageEndpointSource] : []),
@@ -160,6 +172,7 @@ export const getContentSecurityPolicy = () => {
       'data:',
       'blob:',
       ...(appOriginSource ? [appOriginSource] : []),
+      ...(allowFreeMapSources ? OPENFREEMAP_CSP_SOURCES : []),
       ...remoteMediaSources,
       ...serviceMediaSources,
       ...(mediaStorageSource ? [mediaStorageSource] : [])
@@ -178,12 +191,14 @@ export const getContentSecurityPolicy = () => {
     "'self'",
     "'unsafe-inline'",
     ...(isDevelopment() ? ["'unsafe-eval'"] : []),
-    ...(allowMapboxSources ? ['https://api.mapbox.com'] : [])
+    ...(allowMapboxSources ? ['https://api.mapbox.com'] : []),
+    ...(allowFreeMapSources ? MAPLIBRE_CDN_CSP_SOURCES : [])
   ].join(' ')
   const styleSources = [
     "'self'",
     "'unsafe-inline'",
-    ...(allowMapboxSources ? ['https://api.mapbox.com'] : [])
+    ...(allowMapboxSources ? ['https://api.mapbox.com'] : []),
+    ...(allowFreeMapSources ? MAPLIBRE_CDN_CSP_SOURCES : [])
   ].join(' ')
 
   const csp = [

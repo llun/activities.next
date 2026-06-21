@@ -4,6 +4,9 @@
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
 
+import { loadMapboxModule } from '@/lib/utils/mapbox'
+import { loadMaplibreModule } from '@/lib/utils/maplibre'
+
 import {
   HeatmapRegionPicker,
   PickerRegion,
@@ -11,7 +14,29 @@ import {
   withRegionIds
 } from './HeatmapRegionPicker'
 
+// The interactive map loaders never resolve here, so the composer stays on the
+// "Loading map…" state and the coordinate fields drive the box deterministically
+// (no real CDN/Mapbox/MapLibre script is injected in jsdom).
+vi.mock('@/lib/utils/mapbox', () => ({
+  loadMapboxModule: vi.fn(() => new Promise(() => {}))
+}))
+vi.mock('@/lib/utils/maplibre', () => ({
+  loadMaplibreModule: vi.fn(() => new Promise(() => {})),
+  OPENFREEMAP_STYLE_URL: 'https://tiles.openfreemap.org/styles/bright'
+}))
+
+const mockLoadMapboxModule = loadMapboxModule as jest.MockedFunction<
+  typeof loadMapboxModule
+>
+const mockLoadMaplibreModule = loadMaplibreModule as jest.MockedFunction<
+  typeof loadMaplibreModule
+>
+
 const worldValue: PickerRegion[] = [{ id: 'w1', type: 'world' }]
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('HeatmapRegionPicker', () => {
   it('renders the empty state when there are no regions', () => {
@@ -42,13 +67,10 @@ describe('HeatmapRegionPicker', () => {
     const onChange = vi.fn()
     render(<HeatmapRegionPicker value={[]} onChange={onChange} />)
 
-    fireEvent.click(
-      screen.getByRole('button', { name: /Draw rectangle on map/i })
-    )
-    // Composer is open: the draw surface and the Add area button are present.
-    expect(
-      screen.getByRole('application', { name: /Draw a rectangle/i })
-    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Select an area/i }))
+    // Composer is open: the interactive map (here still loading) and the Add
+    // area button are present.
+    expect(screen.getByText(/Loading map/i)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Add area/i }))
 
     expect(onChange).toHaveBeenCalledTimes(1)
@@ -61,13 +83,47 @@ describe('HeatmapRegionPicker', () => {
     })
   })
 
+  it('uses the keyless MapLibre map when no Mapbox token is provided', () => {
+    render(<HeatmapRegionPicker value={[]} onChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /Select an area/i }))
+
+    expect(mockLoadMaplibreModule).toHaveBeenCalled()
+    expect(mockLoadMapboxModule).not.toHaveBeenCalled()
+  })
+
+  it('uses Mapbox when a public token is provided', () => {
+    render(
+      <HeatmapRegionPicker
+        value={[]}
+        onChange={vi.fn()}
+        mapboxAccessToken="pk.test-token"
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Select an area/i }))
+
+    expect(mockLoadMapboxModule).toHaveBeenCalled()
+    expect(mockLoadMaplibreModule).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the coordinate fields when the map fails to load', async () => {
+    mockLoadMaplibreModule.mockImplementationOnce(() =>
+      Promise.reject(new Error('no map'))
+    )
+    render(<HeatmapRegionPicker value={[]} onChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /Select an area/i }))
+
+    expect(await screen.findByText(/Map unavailable/i)).toBeInTheDocument()
+    // The coordinate fields (and Add area) remain usable as the manual fallback.
+    expect(
+      screen.getByRole('button', { name: /Add area/i })
+    ).toBeInTheDocument()
+  })
+
   it('clamps an out-of-range coordinate when the field commits', () => {
     const onChange = vi.fn()
     render(<HeatmapRegionPicker value={[]} onChange={onChange} />)
 
-    fireEvent.click(
-      screen.getByRole('button', { name: /Draw rectangle on map/i })
-    )
+    fireEvent.click(screen.getByRole('button', { name: /Select an area/i }))
     // Textbox order: Area name, NW latitude, NW longitude, SE latitude, SE longitude.
     const nwLatitude = screen.getAllByRole('textbox')[1]
     fireEvent.change(nwLatitude, { target: { value: '99' } })
@@ -103,9 +159,7 @@ describe('HeatmapRegionPicker', () => {
   it('drops the whole world when a rectangle is drawn', () => {
     const onChange = vi.fn()
     render(<HeatmapRegionPicker value={worldValue} onChange={onChange} />)
-    fireEvent.click(
-      screen.getByRole('button', { name: /Draw rectangle on map/i })
-    )
+    fireEvent.click(screen.getByRole('button', { name: /Select an area/i }))
     fireEvent.click(screen.getByRole('button', { name: /Add area/i }))
     const next = onChange.mock.calls[0][0] as PickerRegion[]
     expect(next).toHaveLength(1)

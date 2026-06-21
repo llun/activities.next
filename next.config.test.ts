@@ -212,10 +212,30 @@ describe('next config security hardening', () => {
 
         expect(csp?.value).toContain("default-src 'none'")
         expect(csp?.value).toContain("frame-ancestors 'none'")
-        expect(scriptSources).toEqual(["'self'", "'unsafe-inline'"])
-        expect(styleSources).toEqual(["'self'", "'unsafe-inline'"])
-        expect(connectSources).toEqual(["'self'"])
-        expect(imageSources).toEqual(["'self'", 'data:', 'blob:', 'https:'])
+        // No Mapbox token → the keyless MapLibre + OpenFreeMap map provider is
+        // allowed instead (jsDelivr for the script/style, OpenFreeMap for the
+        // tiles), so the region picker still shows a real interactive map.
+        expect(scriptSources).toEqual([
+          "'self'",
+          "'unsafe-inline'",
+          'https://cdn.jsdelivr.net'
+        ])
+        expect(styleSources).toEqual([
+          "'self'",
+          "'unsafe-inline'",
+          'https://cdn.jsdelivr.net'
+        ])
+        expect(connectSources).toEqual([
+          "'self'",
+          'https://tiles.openfreemap.org'
+        ])
+        expect(imageSources).toEqual([
+          "'self'",
+          'data:',
+          'blob:',
+          'https://tiles.openfreemap.org',
+          'https:'
+        ])
         expect(csp?.value).toContain("manifest-src 'self'")
         expect(mediaSources).toEqual(["'self'", 'https:', 'blob:'])
         expect(csp?.value).not.toContain("'unsafe-eval'")
@@ -259,7 +279,8 @@ describe('next config security hardening', () => {
         expect(scriptSources).toEqual([
           "'self'",
           "'unsafe-inline'",
-          "'unsafe-eval'"
+          "'unsafe-eval'",
+          'https://cdn.jsdelivr.net'
         ])
         expect(connectSources).toEqual(expect.arrayContaining(['ws:', 'wss:']))
       }
@@ -337,6 +358,7 @@ describe('next config security hardening', () => {
           "'self'",
           'data:',
           'blob:',
+          'https://tiles.openfreemap.org',
           'https:',
           'http://localhost:9000'
         ])
@@ -388,7 +410,12 @@ describe('next config security hardening', () => {
         const imageSources = getCspDirectiveSources('img-src')
         const mediaSources = getCspDirectiveSources('media-src')
 
-        expect(imageSources).toEqual(["'self'", 'data:', 'blob:'])
+        expect(imageSources).toEqual([
+          "'self'",
+          'data:',
+          'blob:',
+          'https://tiles.openfreemap.org'
+        ])
         expect(mediaSources).toEqual(["'self'", 'blob:'])
         expect(imageSources).not.toContain('https:')
         expect(mediaSources).not.toContain('https:')
