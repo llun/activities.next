@@ -1,4 +1,3 @@
-import { Flame } from 'lucide-react'
 import { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
@@ -103,14 +102,6 @@ const Page: FC = async () => {
       <PageHeader
         title="Overview"
         description="Your last 6 months of activity"
-        actions={
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/fitness/heatmap">
-              <Flame className="mr-1.5 h-4 w-4" />
-              Heatmaps
-            </Link>
-          </Button>
-        }
       />
 
       <ActorFitnessDashboard
