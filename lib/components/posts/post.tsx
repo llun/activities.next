@@ -110,10 +110,16 @@ export const Post: FC<PostProps> = (props) => {
   const fitnessFile =
     actualStatus.type === StatusType.enum.Note ? actualStatus.fitness : null
   const fitnessProcessingStatus = fitnessFile?.processingStatus ?? 'completed'
+  // A file left in `processing` long after its worker died (server computes
+  // `processingStuck`) is surfaced as a retry instead of an endless spinner.
+  const isFitnessStuck = Boolean(fitnessFile?.processingStuck)
   const isFitnessProcessing =
-    fitnessProcessingStatus === 'pending' ||
-    fitnessProcessingStatus === 'processing'
-  const isFitnessFailed = fitnessProcessingStatus === 'failed'
+    !isFitnessStuck &&
+    (fitnessProcessingStatus === 'pending' ||
+      fitnessProcessingStatus === 'processing')
+  const isFitnessFailed = fitnessProcessingStatus === 'failed' || isFitnessStuck
+  const fitnessRetryVariant: 'failed' | 'stuck' =
+    fitnessProcessingStatus === 'failed' ? 'failed' : 'stuck'
   const isFitnessCompleted = fitnessProcessingStatus === 'completed'
   const fitnessDistance = formatFitnessDistance(
     fitnessFile?.totalDistanceMeters
@@ -194,12 +200,16 @@ export const Post: FC<PostProps> = (props) => {
 
           {isFitnessFailed ? (
             isOwner ? (
-              <RetryFitnessButton statusId={actualStatus.id} />
+              <RetryFitnessButton
+                statusId={actualStatus.id}
+                variant={fitnessRetryVariant}
+              />
             ) : (
               <div className="mt-2 flex items-center gap-2 text-destructive">
                 <span>
-                  Processing failed. The original activity file is still
-                  available.
+                  {fitnessRetryVariant === 'stuck'
+                    ? 'Processing is taking longer than expected. The original activity file is still available.'
+                    : 'Processing failed. The original activity file is still available.'}
                 </span>
               </div>
             )

@@ -28,6 +28,7 @@ import {
   PUBLIC_ACTIVITY_RECIPIENTS,
   applyPotentiallyReadableStatusFilter as applyPotentiallyReadableStatusVisibilityFilter
 } from '@/lib/database/sql/utils/statusVisibility'
+import { isFitnessProcessingStuck } from '@/lib/services/fitness-files/processingState'
 import { SQLFitnessFile } from '@/lib/types/database/fitnessFile'
 import { ActorDatabase } from '@/lib/types/database/operations'
 import { BookmarkDatabase } from '@/lib/types/database/operations'
@@ -2514,6 +2515,17 @@ export const StatusSQLDatabaseMixin = (
               bytes: Number(fitnessFile.bytes),
               url: `/api/v1/fitness-files/${fitnessFile.id}`,
               processingStatus: fitnessFile.processingStatus ?? 'pending',
+              // True when the file has sat in `processing` long enough that the
+              // worker must have died mid-job. Lets clients offer a retry
+              // instead of an endless spinner. Computed server-side so the
+              // client never does time math (avoids hydration drift).
+              processingStuck: isFitnessProcessingStuck(
+                {
+                  processingStatus: fitnessFile.processingStatus,
+                  updatedAt: getCompatibleTime(fitnessFile.updatedAt)
+                },
+                Date.now()
+              ),
               ...(typeof fitnessFile.totalDistanceMeters === 'number'
                 ? { totalDistanceMeters: fitnessFile.totalDistanceMeters }
                 : null),

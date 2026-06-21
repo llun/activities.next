@@ -9,6 +9,7 @@ import {
   getTestDatabaseTable
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
+import { STUCK_PROCESSING_THRESHOLD_MS } from '@/lib/services/fitness-files/processingState'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Timeline } from '@/lib/services/timelines/types'
 import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
@@ -477,8 +478,51 @@ describe('StatusDatabase', () => {
           mimeType: 'application/octet-stream',
           bytes: 4096,
           url: `/api/v1/fitness-files/${fitnessFile?.id}`,
-          sourceUrl: 'https://www.strava.com/activities/123'
+          sourceUrl: 'https://www.strava.com/activities/123',
+          processingStuck: false
         })
+      })
+
+      it('flags a fitness file stranded in processing as processingStuck', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] })
+        try {
+          vi.setSystemTime(new Date('2031-01-01T00:00:00.000Z'))
+          const statusId = `${emptyActorId}/statuses/fitness-stuck`
+
+          await database.createNote({
+            id: statusId,
+            url: statusId,
+            actorId: emptyActorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'This post is stuck processing'
+          })
+
+          const fitnessFile = await database.createFitnessFile({
+            actorId: emptyActorId,
+            statusId,
+            path: `fitness/${Date.now()}-stuck.fit`,
+            fileName: 'stuck.fit',
+            fileType: 'fit',
+            mimeType: 'application/octet-stream',
+            bytes: 4096
+          })
+          await database.updateFitnessFileProcessingStatus(
+            fitnessFile!.id,
+            'processing'
+          )
+
+          // Jump past the stuck threshold without finishing the job.
+          vi.setSystemTime(
+            new Date(Date.now() + STUCK_PROCESSING_THRESHOLD_MS + 60_000)
+          )
+
+          const status = (await database.getStatus({ statusId })) as StatusNote
+          expect(status.fitness?.processingStatus).toBe('processing')
+          expect(status.fitness?.processingStuck).toBe(true)
+        } finally {
+          vi.useRealTimers()
+        }
       })
 
       it('returns announce status', async () => {
