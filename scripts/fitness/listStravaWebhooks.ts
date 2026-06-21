@@ -1,7 +1,7 @@
 #!/usr/bin/env -S node scripts/run.cjs
 /**
  * Script to list Strava webhooks for a given actor
- * Usage: NODE_ENV=production scripts/listStravaWebhooks [@username@domain]
+ * Usage: NODE_ENV=production scripts/fitness/listStravaWebhooks [@username@domain]
  */
 import { loadEnvConfig } from '@next/env'
 
@@ -15,7 +15,7 @@ async function listStravaWebhooks(args = process.argv.slice(2)) {
   const input = args[0]
   if (!input) {
     console.error(
-      'Usage: NODE_ENV=production scripts/listStravaWebhooks @username@domain'
+      'Usage: NODE_ENV=production scripts/fitness/listStravaWebhooks @username@domain'
     )
     return 1
   }

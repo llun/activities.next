@@ -3,7 +3,7 @@
  * Downloads a read-only production snapshot into a local archive.
  *
  * Usage:
- *   NODE_ENV=production scripts/downloadProductionArchive.ts
+ *   NODE_ENV=production scripts/backup/downloadProductionArchive.ts
  *
  * The default archive includes database rows plus database-referenced media and
  * fitness files. Use --storage-scope all to include every object in the

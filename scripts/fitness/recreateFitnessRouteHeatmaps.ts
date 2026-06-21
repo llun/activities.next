@@ -7,11 +7,11 @@
  * not block the rebuild through queue deduplication.
  *
  * Usage:
- *   NODE_ENV=production scripts/recreateFitnessRouteHeatmaps.ts \
+ *   NODE_ENV=production scripts/fitness/recreateFitnessRouteHeatmaps.ts \
  *     --actor-id https://yourdomain.com/users/username
  *
  * Preview without deleting or queueing:
- *   NODE_ENV=production scripts/recreateFitnessRouteHeatmaps.ts \
+ *   NODE_ENV=production scripts/fitness/recreateFitnessRouteHeatmaps.ts \
  *     --actor-id https://yourdomain.com/users/username \
  *     --dry-run
  */
@@ -32,7 +32,7 @@ const CliArgs = z.object({
   dryRun: z.boolean().default(false)
 })
 
-const USAGE = `Usage: NODE_ENV=production scripts/recreateFitnessRouteHeatmaps.ts \\
+const USAGE = `Usage: NODE_ENV=production scripts/fitness/recreateFitnessRouteHeatmaps.ts \\
   --actor-id https://yourdomain.com/users/username \\
   [--dry-run [true|false]]`
 

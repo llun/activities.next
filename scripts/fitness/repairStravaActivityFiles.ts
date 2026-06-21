@@ -11,7 +11,7 @@
  * file, database record, and associated status post are all removed.
  *
  * Usage:
- *   NODE_ENV=production scripts/repairStravaActivityFiles.ts \
+ *   NODE_ENV=production scripts/fitness/repairStravaActivityFiles.ts \
  *     [--actor-id https://<host>/users/<username>] \
  *     [--dry-run]
  *
@@ -51,7 +51,7 @@ const CliArgs = z.object({
   dryRun: z.boolean()
 })
 
-const USAGE = `Usage: NODE_ENV=production scripts/repairStravaActivityFiles.ts \\
+const USAGE = `Usage: NODE_ENV=production scripts/fitness/repairStravaActivityFiles.ts \\
   [--actor-id https://<host>/users/<username>] \\
   [--dry-run]`
 

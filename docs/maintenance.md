@@ -19,16 +19,16 @@ The script:
 
 ```bash
 # Preview what would be deleted (recommended first step)
-./scripts/cleanupMediaStorage.ts --dry-run
+./scripts/maintenance/cleanupMediaStorage.ts --dry-run
 
 # Clean up with interactive confirmation
-./scripts/cleanupMediaStorage.ts
+./scripts/maintenance/cleanupMediaStorage.ts
 
 # Clean up without confirmation (use with caution!)
-./scripts/cleanupMediaStorage.ts --yes
+./scripts/maintenance/cleanupMediaStorage.ts --yes
 
 # Show help
-./scripts/cleanupMediaStorage.ts --help
+./scripts/maintenance/cleanupMediaStorage.ts --help
 ```
 
 ### Options
@@ -67,10 +67,10 @@ export ACTIVITIES_MEDIA_STORAGE_TYPE=fs
 export ACTIVITIES_MEDIA_STORAGE_PATH=/data/media
 
 # Preview cleanup
-./scripts/cleanupMediaStorage.ts --dry-run
+./scripts/maintenance/cleanupMediaStorage.ts --dry-run
 
 # Perform cleanup with confirmation
-./scripts/cleanupMediaStorage.ts
+./scripts/maintenance/cleanupMediaStorage.ts
 ```
 
 #### S3 Storage
@@ -87,10 +87,10 @@ export ACTIVITIES_MEDIA_STORAGE_BUCKET=my-media-bucket
 export ACTIVITIES_MEDIA_STORAGE_REGION=us-east-1
 
 # Preview cleanup
-./scripts/cleanupMediaStorage.ts --dry-run
+./scripts/maintenance/cleanupMediaStorage.ts --dry-run
 
 # Perform cleanup without confirmation
-./scripts/cleanupMediaStorage.ts --yes
+./scripts/maintenance/cleanupMediaStorage.ts --yes
 ```
 
 ### When to Use
@@ -120,7 +120,7 @@ The script includes several safety features:
 Creates a test user for development/testing:
 
 ```bash
-./scripts/createMockUser.ts [username] [email] [password]
+./scripts/mock/createMockUser.ts [username] [email] [password]
 ```
 
 > **Note:** This script is for development and testing purposes only. In production, users should register through the web interface at `/auth/signup`.
@@ -130,8 +130,8 @@ Creates a test user for development/testing:
 Adds or removes the admin role for an account by email:
 
 ```bash
-NODE_ENV=production ./scripts/manageAdminRole.ts add admin@example.com
-NODE_ENV=production ./scripts/manageAdminRole.ts remove admin@example.com
+NODE_ENV=production ./scripts/maintenance/manageAdminRole.ts add admin@example.com
+NODE_ENV=production ./scripts/maintenance/manageAdminRole.ts remove admin@example.com
 ```
 
 ### Fitness and Strava Maintenance
@@ -139,27 +139,27 @@ NODE_ENV=production ./scripts/manageAdminRole.ts remove admin@example.com
 Useful scripts for interrupted imports, route heatmap rebuilds, and Strava maintenance:
 
 ```bash
-NODE_ENV=production ./scripts/fixStuckFitnessProcessing.ts --actor-id https://your-domain.tld/users/username --dry-run
-NODE_ENV=production ./scripts/recreateFitnessRouteHeatmaps.ts --actor-id https://your-domain.tld/users/username --dry-run
-NODE_ENV=production ./scripts/cleanupLegacyFitnessHeatmaps.ts
-NODE_ENV=production ./scripts/repairStravaActivityFiles.ts --actor-id https://your-domain.tld/users/username --dry-run
-NODE_ENV=production ./scripts/retrigerStravaActivities.ts --actor-id https://your-domain.tld/users/username --activity-id 123456789
-NODE_ENV=production ./scripts/listStravaWebhooks.ts @username@your-domain.tld
+NODE_ENV=production ./scripts/fitness/fixStuckFitnessProcessing.ts --actor-id https://your-domain.tld/users/username --dry-run
+NODE_ENV=production ./scripts/fitness/recreateFitnessRouteHeatmaps.ts --actor-id https://your-domain.tld/users/username --dry-run
+NODE_ENV=production ./scripts/fitness/cleanupLegacyFitnessHeatmaps.ts
+NODE_ENV=production ./scripts/fitness/repairStravaActivityFiles.ts --actor-id https://your-domain.tld/users/username --dry-run
+NODE_ENV=production ./scripts/fitness/retrigerStravaActivities.ts --actor-id https://your-domain.tld/users/username --activity-id 123456789
+NODE_ENV=production ./scripts/fitness/listStravaWebhooks.ts @username@your-domain.tld
 ```
 
 For local archive or one-off activity imports, see the `--help` output from:
 
 ```bash
-./scripts/importStravaArchive.ts --help
-./scripts/resumeStravaProcessing.ts --help
-./scripts/runImportStravaActivity.ts --help
+./scripts/fitness/importStravaArchive.ts --help
+./scripts/fitness/resumeStravaProcessing.ts --help
+./scripts/fitness/runImportStravaActivity.ts --help
 ```
 
 Additional utility scripts:
 
 ```bash
-NODE_ENV=production ./scripts/fixAttachmentUrls.ts --dry-run
-NODE_ENV=development ./scripts/createMockStatuses.ts
+NODE_ENV=production ./scripts/maintenance/fixAttachmentUrls.ts --dry-run
+NODE_ENV=development ./scripts/mock/createMockStatuses.ts
 ```
 
 ## Related Documentation

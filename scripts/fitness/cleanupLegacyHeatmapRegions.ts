@@ -12,8 +12,8 @@
  * Dry-run by default — pass `--apply` to actually delete.
  *
  * Usage:
- *   NODE_ENV=production scripts/cleanupLegacyHeatmapRegions.ts          # report only
- *   NODE_ENV=production scripts/cleanupLegacyHeatmapRegions.ts --apply  # soft-delete
+ *   NODE_ENV=production scripts/fitness/cleanupLegacyHeatmapRegions.ts          # report only
+ *   NODE_ENV=production scripts/fitness/cleanupLegacyHeatmapRegions.ts --apply  # soft-delete
  */
 import { loadEnvConfig } from '@next/env'
 

@@ -12,7 +12,9 @@ async function createMockStatuses() {
   }
 
   const config = getConfig()
-  const username = 'testuser'
+  // Optional CLI username (consistent with createMockUser.ts); defaults to the
+  // standard mock user.
+  const username = process.argv[2] || 'testuser'
   const domain = config.host
 
   console.log(`Looking for user ${username} on ${domain}...`)
@@ -83,125 +85,119 @@ async function createMockStatuses() {
     })
   }
 
-  const createStatusWithImages = async (
-    imageCount: number,
-    text: string,
-    timeOffset = 0
-  ) => {
-    const id = crypto.randomUUID()
-    const url = `https://${domain}/users/${username}/statuses/${id}`
-    const createdAt = Date.now() + timeOffset // Future/Recent to show up top
+  // Seeds one multi-image status authored by `author`. Local (test user) and
+  // remote (external actor) posts differ only in a few axes, captured as
+  // options; both are always surfaced on the test user's home timelines.
+  const createMockStatus = async ({
+    author,
+    local,
+    imageCount,
+    text,
+    timeOffset = 0,
+    imageOffset,
+    imageSize,
+    attachmentName
+  }: {
+    author: NonNullable<typeof actor>
+    local: boolean
+    imageCount: number
+    text: string
+    timeOffset?: number
+    imageOffset: number
+    imageSize: { width: number; height: number }
+    attachmentName: (index: number) => string
+  }) => {
+    const uuid = crypto.randomUUID()
+    const statusUrl = `https://${author.domain}/users/${author.username}/statuses/${uuid}`
+    // Local statuses use a bare UUID as the id (the local convention); remote
+    // ones use their canonical URL as the id (the federation convention).
+    const id = local ? uuid : statusUrl
+    const createdAt = Date.now() + timeOffset // Future/recent so it sorts to the top
+    const body = local ? `${text} (${imageCount} images)` : text
 
     const status = await database.createNote({
       id,
-      actorId: actor.id,
+      actorId: author.id,
       to: [ACTIVITY_STREAM_PUBLIC],
-      cc: [actor.followersUrl],
-      url,
-      text: `<p>${text} (${imageCount} images)</p>`,
+      cc: [author.followersUrl],
+      url: statusUrl,
+      text: `<p>${body}</p>`,
       createdAt
     })
 
-    for (let i = 0; i < imageCount; i++) {
-      const imageUrl = attachmentImages[i % attachmentImages.length]
+    for (let index = 0; index < imageCount; index += 1) {
       await database.createAttachment({
-        actorId: actor.id,
+        actorId: author.id,
         statusId: id,
         mediaType: 'image/jpeg',
-        url: imageUrl,
-        width: 800,
-        height: 600,
-        name: `Image ${i + 1} for status`
+        url: attachmentImages[(index + imageOffset) % attachmentImages.length],
+        width: imageSize.width,
+        height: imageSize.height,
+        name: attachmentName(index)
       })
     }
 
-    await database.createTimelineStatus({
-      actorId: actor.id,
-      status,
-      timeline: Timeline.MAIN
-    })
-
-    await database.createTimelineStatus({
-      actorId: actor.id,
-      status,
-      timeline: Timeline.NOANNOUNCE
-    })
-    console.log(`Created status with ${imageCount} images: "${text}"`)
-  }
-
-  const createExternalStatusWithImages = async (
-    externalActor: Awaited<ReturnType<typeof ensureExternalActor>>,
-    imageCount: number,
-    text: string,
-    timeOffset = 0
-  ) => {
-    if (!externalActor) return
-    const id = crypto.randomUUID()
-    const statusId = `https://${externalActor.domain}/users/${externalActor.username}/statuses/${id}`
-    const createdAt = Date.now() + timeOffset
-
-    const status = await database.createNote({
-      id: statusId,
-      actorId: externalActor.id,
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: [externalActor.followersUrl],
-      url: statusId,
-      text: `<p>${text}</p>`,
-      createdAt
-    })
-
-    for (let i = 0; i < imageCount; i++) {
-      const imageUrl = attachmentImages[(i + 2) % attachmentImages.length]
-      await database.createAttachment({
-        actorId: externalActor.id,
-        statusId,
-        mediaType: 'image/jpeg',
-        url: imageUrl,
-        width: 1000,
-        height: 750,
-        name: `External image ${i + 1}`
+    for (const timeline of [Timeline.MAIN, Timeline.NOANNOUNCE]) {
+      await database.createTimelineStatus({
+        actorId: actor.id,
+        status,
+        timeline
       })
     }
-
-    await database.createTimelineStatus({
-      actorId: actor.id,
-      status,
-      timeline: Timeline.MAIN
-    })
-
-    await database.createTimelineStatus({
-      actorId: actor.id,
-      status,
-      timeline: Timeline.NOANNOUNCE
-    })
 
     console.log(
-      `Created external status for ${externalActor.username}: "${text}"`
+      local
+        ? `Created status with ${imageCount} images: "${text}"`
+        : `Created external status for ${author.username}: "${text}"`
     )
   }
 
-  // Create specific multi-image statuses (added recently so they appear at the top)
-  await createStatusWithImages(2, 'Checking out 2 cool photos!', 1000)
-  await createStatusWithImages(3, 'Here are 3 amazing shots.', 2000)
-  await createStatusWithImages(4, 'A grid of 4 images.', 3000)
-  await createStatusWithImages(7, 'Photo dump! 7 images.', 4000)
+  // Local multi-image statuses (recent timeOffsets so they appear at the top).
+  const localStatuses = [
+    { imageCount: 2, text: 'Checking out 2 cool photos!', timeOffset: 1000 },
+    { imageCount: 3, text: 'Here are 3 amazing shots.', timeOffset: 2000 },
+    { imageCount: 4, text: 'A grid of 4 images.', timeOffset: 3000 },
+    { imageCount: 7, text: 'Photo dump! 7 images.', timeOffset: 4000 }
+  ]
+  for (const spec of localStatuses) {
+    await createMockStatus({
+      author: actor,
+      local: true,
+      imageOffset: 0,
+      imageSize: { width: 800, height: 600 },
+      attachmentName: (index) => `Image ${index + 1} for status`,
+      ...spec
+    })
+  }
 
   const externalActorRecords = await Promise.all(
     externalActors.map(ensureExternalActor)
   )
-
-  await createExternalStatusWithImages(
-    externalActorRecords[0],
-    2,
-    'Coastal walk at golden hour.',
-    1500
-  )
-  await createExternalStatusWithImages(
-    externalActorRecords[1],
-    4,
-    'Late-night street reflections.',
-    2500
-  )
+  const externalStatuses = [
+    {
+      record: externalActorRecords[0],
+      imageCount: 2,
+      text: 'Coastal walk at golden hour.',
+      timeOffset: 1500
+    },
+    {
+      record: externalActorRecords[1],
+      imageCount: 4,
+      text: 'Late-night street reflections.',
+      timeOffset: 2500
+    }
+  ]
+  for (const { record, ...spec } of externalStatuses) {
+    if (!record) continue
+    await createMockStatus({
+      author: record,
+      local: false,
+      imageOffset: 2,
+      imageSize: { width: 1000, height: 750 },
+      attachmentName: (index) => `External image ${index + 1}`,
+      ...spec
+    })
+  }
 
   console.log('✅ Multi-image mock statuses created successfully!')
   process.exit(0)

@@ -152,7 +152,7 @@ interface TableExportOrder {
   raw: boolean
 }
 
-const DOWNLOAD_USAGE = `Usage: NODE_ENV=production scripts/downloadProductionArchive.ts \\
+const DOWNLOAD_USAGE = `Usage: NODE_ENV=production scripts/backup/downloadProductionArchive.ts \\
   [--env-file .env.production] \\
   [--output-dir backups/production-archives] \\
   [--storage-scope referenced|all] \\
@@ -160,7 +160,7 @@ const DOWNLOAD_USAGE = `Usage: NODE_ENV=production scripts/downloadProductionArc
   [--skip-database] \\
   [--skip-storage]`
 
-const RESTORE_USAGE = `Usage: scripts/restoreProductionArchive.ts \\
+const RESTORE_USAGE = `Usage: scripts/backup/restoreProductionArchive.ts \\
   --archive backups/production-archives/activitynext-production-<timestamp>.tar.gz \\
   --yes \\
   [--env-file .env.local] \\
