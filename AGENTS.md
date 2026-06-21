@@ -302,8 +302,8 @@ These exact steps are verified to work; the gotchas below are load-bearing.
    # (also wired into each script's shebang) so @swc-node/register loads them in
    # CommonJS mode — this resolves the app's extensionless and CommonJS-named
    # imports, which Node's strict ESM loader rejects.
-   node scripts/run.cjs scripts/createMockUser.ts      # testuser / test@example.com / testpassword123
-   node scripts/run.cjs scripts/createMockStatuses.ts  # seeds Home/No-Announce timeline posts
+   node scripts/run.cjs scripts/mock/createMockUser.ts      # testuser / test@example.com / testpassword123
+   node scripts/run.cjs scripts/mock/createMockStatuses.ts  # seeds Home/No-Announce timeline posts
    ```
 
    The mock user is created already email-verified, so credential sign-in works.

@@ -4,7 +4,7 @@
  * filesystem storage.
  *
  * Usage:
- *   scripts/restoreProductionArchive.ts \
+ *   scripts/backup/restoreProductionArchive.ts \
  *     --archive backups/production-archives/activitynext-production-...tar.gz \
  *     --yes
  *

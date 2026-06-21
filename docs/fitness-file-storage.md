@@ -104,15 +104,15 @@ The older `/fitness-heatmap` and `/fitness-heatmaps` endpoints are compatibility
 
 Fitness maintenance scripts live in `scripts/`:
 
-- `scripts/importStravaArchive.ts`
-- `scripts/resumeStravaProcessing.ts`
-- `scripts/recreateFitnessRouteHeatmaps.ts`
-- `scripts/fixStuckFitnessProcessing.ts`
-- `scripts/cleanupLegacyFitnessHeatmaps.ts`
-- `scripts/repairStravaActivityFiles.ts`
-- `scripts/retrigerStravaActivities.ts`
-- `scripts/runImportStravaActivity.ts`
-- `scripts/listStravaWebhooks.ts`
+- `scripts/fitness/importStravaArchive.ts`
+- `scripts/fitness/resumeStravaProcessing.ts`
+- `scripts/fitness/recreateFitnessRouteHeatmaps.ts`
+- `scripts/fitness/fixStuckFitnessProcessing.ts`
+- `scripts/fitness/cleanupLegacyFitnessHeatmaps.ts`
+- `scripts/fitness/repairStravaActivityFiles.ts`
+- `scripts/fitness/retrigerStravaActivities.ts`
+- `scripts/fitness/runImportStravaActivity.ts`
+- `scripts/fitness/listStravaWebhooks.ts`
 
 See [Maintenance Scripts](maintenance.md) for general script guidance.
 

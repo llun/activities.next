@@ -18,11 +18,11 @@
  * local database and find nothing to repair.
  *
  * Usage (all failed imports for an actor):
- *   NODE_ENV=production scripts/repairFailedFitnessImports.ts \
+ *   NODE_ENV=production scripts/fitness/repairFailedFitnessImports.ts \
  *     --actor-id https://<host>/users/<username>
  *
  * Usage (only specific batches):
- *   NODE_ENV=production scripts/repairFailedFitnessImports.ts \
+ *   NODE_ENV=production scripts/fitness/repairFailedFitnessImports.ts \
  *     --actor-id https://<host>/users/<username> \
  *     --batch-id strava-activity:19007245213 \
  *     [--batch-id <batch-id> ...]
@@ -63,11 +63,11 @@ const CliArgs = z.object({
 
 const USAGE = `Usage:
   Repair all failed imports for an actor:
-    NODE_ENV=production scripts/repairFailedFitnessImports.ts \\
+    NODE_ENV=production scripts/fitness/repairFailedFitnessImports.ts \\
       --actor-id https://<host>/users/<username>
 
   Repair specific batches:
-    NODE_ENV=production scripts/repairFailedFitnessImports.ts \\
+    NODE_ENV=production scripts/fitness/repairFailedFitnessImports.ts \\
       --actor-id https://<host>/users/<username> \\
       --batch-id strava-activity:<id> [--batch-id <batch-id> ...]
 

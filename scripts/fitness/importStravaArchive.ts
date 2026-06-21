@@ -42,7 +42,7 @@ const CliArgs = z.object({
   failedOutput: z.string().default('strava-import-failed.txt')
 })
 
-const USAGE = `Usage: NODE_ENV=production scripts/importStravaArchive.ts \\
+const USAGE = `Usage: NODE_ENV=production scripts/fitness/importStravaArchive.ts \\
   --archive-path /path/to/export.zip \\
   --actor-id https://yourdomain.com/users/username \\
   [--visibility public|unlisted|private|direct] \\

@@ -2,7 +2,7 @@
 /**
  * Script to run importStravaActivityJob with CLI-provided Strava credentials.
  * Usage:
- *   NODE_ENV=development scripts/runImportStravaActivity.ts \
+ *   NODE_ENV=development scripts/fitness/runImportStravaActivity.ts \
  *     --actor-id <actor-id> \
  *     --activity-id <activity-id> \
  *     --strava-app-id <strava-app-id> \
@@ -27,7 +27,7 @@ const CliArgs = z.object({
   accessToken: z.string().min(1)
 })
 
-const USAGE = `Usage: NODE_ENV=development scripts/runImportStravaActivity.ts --actor-id <actor-id> --activity-id <activity-id> --strava-app-id <strava-app-id> --strava-app-secret <strava-app-secret> --access-token <access-token>`
+const USAGE = `Usage: NODE_ENV=development scripts/fitness/runImportStravaActivity.ts --actor-id <actor-id> --activity-id <activity-id> --strava-app-id <strava-app-id> --strava-app-secret <strava-app-secret> --access-token <access-token>`
 
 const parseArgs = (args: string[]) => {
   const parsedArgs: Record<string, string> = {}
