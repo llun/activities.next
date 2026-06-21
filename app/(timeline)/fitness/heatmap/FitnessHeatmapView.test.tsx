@@ -2,17 +2,9 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within
-} from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import {
-  clearFitnessRouteHeatmaps,
   deleteFitnessRouteHeatmap,
   getDistinctFitnessActivityTypes,
   getFitnessRouteHeatmap,
@@ -41,8 +33,13 @@ vi.mock('@/lib/utils/maplibre', () => ({
   loadMaplibreModule: vi.fn()
 }))
 
+// RegionMap is only mounted inside the draw composer; stub it so the picker can
+// render without a real GL map in jsdom.
+vi.mock('@/lib/components/fitness/RegionMap', () => ({
+  RegionMap: () => null
+}))
+
 vi.mock('@/lib/client', () => ({
-  clearFitnessRouteHeatmaps: vi.fn(),
   deleteFitnessRouteHeatmap: vi.fn(),
   getDistinctFitnessActivityTypes: vi.fn(),
   getFitnessRouteHeatmap: vi.fn(),
@@ -56,10 +53,6 @@ const mockLoadMapboxModule = loadMapboxModule as jest.MockedFunction<
 const mockLoadMaplibreModule = loadMaplibreModule as jest.MockedFunction<
   typeof loadMaplibreModule
 >
-const mockClearFitnessRouteHeatmaps =
-  clearFitnessRouteHeatmaps as jest.MockedFunction<
-    typeof clearFitnessRouteHeatmaps
-  >
 const mockDeleteFitnessRouteHeatmap =
   deleteFitnessRouteHeatmap as jest.MockedFunction<
     typeof deleteFitnessRouteHeatmap
@@ -105,18 +98,38 @@ const createGlMapConstructor = (
     }
   })
 
-const completedHeatmap: FitnessRouteHeatmapData = {
-  id: 'route-heatmap-1',
-  periodType: 'yearly',
-  periodKey: '2026',
+const ACTOR = 'https://llun.test/users/llun'
+const TEST_NOW = 1_700_000_060_000
+const IN_FLIGHT_HISTORY_POLL_WINDOW_MS = 15 * 60_000
+
+const worldSummary = (
+  overrides: Partial<FitnessRouteHeatmapSummaryData> = {}
+): FitnessRouteHeatmapSummaryData => ({
+  id: 'hm-world',
   region: '',
+  periodType: 'all_time',
+  periodKey: 'all',
   status: 'completed',
-  bounds: {
-    minLat: 52.36,
-    maxLat: 52.39,
-    minLng: 4.88,
-    maxLng: 4.91
-  },
+  activityCount: 3,
+  pointCount: 2,
+  totalCount: 1,
+  cursorOffset: 0,
+  isPartial: false,
+  error: null,
+  createdAt: 1,
+  updatedAt: 2,
+  ...overrides
+})
+
+const worldHeatmap = (
+  overrides: Partial<FitnessRouteHeatmapData> = {}
+): FitnessRouteHeatmapData => ({
+  id: 'hm-world',
+  region: '',
+  periodType: 'all_time',
+  periodKey: 'all',
+  status: 'completed',
+  bounds: { minLat: 52.36, maxLat: 52.39, minLng: 4.88, maxLng: 4.91 },
   segments: [
     {
       points: [
@@ -125,46 +138,23 @@ const completedHeatmap: FitnessRouteHeatmapData = {
       ]
     }
   ],
-  activityCount: 1,
+  activityCount: 3,
   pointCount: 2,
   totalCount: 1,
   cursorOffset: 0,
   isPartial: false,
+  error: null,
   createdAt: 1,
-  updatedAt: 2
-}
-
-const pendingSummary: FitnessRouteHeatmapSummaryData = {
-  id: 'route-heatmap-background',
-  periodType: 'yearly',
-  periodKey: '2026',
-  region: '',
-  status: 'generating',
-  activityCount: 1,
-  pointCount: 2,
-  totalCount: 20,
-  cursorOffset: 10,
-  isPartial: false,
-  createdAt: 1,
-  updatedAt: 2
-}
-
-const completedSummary: FitnessRouteHeatmapSummaryData = {
-  ...pendingSummary,
-  id: 'route-heatmap-completed',
-  status: 'completed',
-  cursorOffset: 0
-}
-
-const TEST_NOW = 1_700_000_060_000
-const IN_FLIGHT_HISTORY_POLL_WINDOW_MS = 15 * 60_000
-
-const pendingSummaryAtAge = (
-  ageMs: number
-): FitnessRouteHeatmapSummaryData => ({
-  ...pendingSummary,
-  updatedAt: TEST_NOW - ageMs
+  updatedAt: 2,
+  ...overrides
 })
+
+const openWorldRegion = async () => {
+  const openButton = await screen.findByRole('button', {
+    name: /Open Whole world heatmap/i
+  })
+  fireEvent.click(openButton)
+}
 
 const buildLargeHeatmap = (): FitnessRouteHeatmapData => {
   const segmentCount = 80
@@ -186,29 +176,22 @@ const buildLargeHeatmap = (): FitnessRouteHeatmapData => {
     })
   )
 
-  return {
-    ...completedHeatmap,
+  return worldHeatmap({
     id: 'route-heatmap-large',
-    bounds: {
-      minLat: 52.36,
-      maxLat: 52.39,
-      minLng: 4.88,
-      maxLng: 4.916
-    },
+    bounds: { minLat: 52.36, maxLat: 52.39, minLng: 4.88, maxLng: 4.916 },
     segments,
     activityCount: segmentCount,
     pointCount: segmentCount * pointsPerSegment,
     updatedAt: 3
-  }
+  })
 }
 
 describe('FitnessHeatmapView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetDistinctFitnessActivityTypes.mockResolvedValue([])
-    mockGetFitnessRouteHeatmap.mockResolvedValue(completedHeatmap)
-    mockGetFitnessRouteHeatmaps.mockResolvedValue([pendingSummary])
-    mockClearFitnessRouteHeatmaps.mockResolvedValue(0)
+    mockGetFitnessRouteHeatmap.mockResolvedValue(null)
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([])
     mockDeleteFitnessRouteHeatmap.mockResolvedValue(true)
     mockTriggerFitnessRouteHeatmap.mockResolvedValue(true)
     // No Mapbox token in these tests, so the view uses the keyless MapLibre map.
@@ -219,22 +202,203 @@ describe('FitnessHeatmapView', () => {
     vi.useRealTimers()
   })
 
-  it('keeps polling fresh history entries without stalling a completed selection', async () => {
+  it('renders the source panel and a default whole-world region', async () => {
+    render(<FitnessHeatmapView actorId={ACTOR} />)
+
+    expect(await screen.findByText('Heatmap source')).toBeInTheDocument()
+    // The default whole-world region row (its description is unique to the row,
+    // unlike the "Whole world" add button).
+    expect(
+      screen.getByText('Entire globe — every recorded activity')
+    ).toBeInTheDocument()
+    // The default region has no heatmap under the all-time source.
+    expect(screen.getByText('Not generated')).toBeInTheDocument()
+    expect(screen.getByText(/1 region · 0 generated/i)).toBeInTheDocument()
+  })
+
+  it('seeds a drawn region from an existing heatmap and shows its status', async () => {
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([
+      worldSummary({
+        id: 'hm-rect',
+        region: 'rect:52.60,5.60,52.00,6.20',
+        status: 'completed',
+        updatedAt: TEST_NOW
+      })
+    ])
+
+    render(<FitnessHeatmapView actorId={ACTOR} />)
+
+    // The whole world (default) plus the seeded drawn area.
+    expect(await screen.findByText('Map area')).toBeInTheDocument()
+    expect(screen.getByText(/2 regions · 1 generated/i)).toBeInTheDocument()
+    expect(screen.getByText(/^Generated/)).toBeInTheDocument()
+  })
+
+  it('opens a region detail page and returns to the list', async () => {
+    render(<FitnessHeatmapView actorId={ACTOR} />)
+
+    await openWorldRegion()
+
+    expect(
+      await screen.findByRole('button', { name: /All regions/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Whole world' })
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /All regions/i }))
+    expect(await screen.findByText('Heatmap source')).toBeInTheDocument()
+  })
+
+  it('generates a heatmap for the opened region', async () => {
+    render(<FitnessHeatmapView actorId={ACTOR} />)
+
+    await openWorldRegion()
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Generate heatmap' })
+    )
+
+    await waitFor(() => {
+      expect(mockTriggerFitnessRouteHeatmap).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: ACTOR,
+          periodType: 'all_time',
+          periodKey: 'all',
+          retry: false
+        })
+      )
+    })
+    // A world region sends no region filter.
+    expect(
+      mockTriggerFitnessRouteHeatmap.mock.calls[0][0].region
+    ).toBeUndefined()
+  })
+
+  it('renders the route map and current-version line for a completed region', async () => {
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([
+      worldSummary({ updatedAt: TEST_NOW })
+    ])
+    mockGetFitnessRouteHeatmap.mockResolvedValue(worldHeatmap())
+
+    render(<FitnessHeatmapView actorId={ACTOR} />)
+
+    await openWorldRegion()
+
+    expect(await screen.findByText('OpenFreeMap')).toBeInTheDocument()
+    expect(screen.getByText(/Current version/)).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /Regenerate/i })
+    ).toBeInTheDocument()
+  })
+
+  it('retries a failed region heatmap with the resume flag', async () => {
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([
+      worldSummary({
+        status: 'failed',
+        error: 'parse failed',
+        updatedAt: TEST_NOW
+      })
+    ])
+    mockGetFitnessRouteHeatmap.mockResolvedValue(
+      worldHeatmap({
+        status: 'failed',
+        error: 'parse failed',
+        segments: [],
+        bounds: null,
+        pointCount: 0
+      })
+    )
+
+    render(<FitnessHeatmapView actorId={ACTOR} />)
+
+    await openWorldRegion()
+
+    const retryButton = await screen.findByRole('button', { name: /Retry/i })
+    fireEvent.click(retryButton)
+
+    await waitFor(() => {
+      expect(mockTriggerFitnessRouteHeatmap).toHaveBeenCalledWith(
+        expect.objectContaining({ actorId: ACTOR, retry: true })
+      )
+    })
+  })
+
+  it('removes a region and prunes its cached heatmap', async () => {
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([
+      worldSummary({ updatedAt: TEST_NOW })
+    ])
+
+    render(<FitnessHeatmapView actorId={ACTOR} />)
+
+    const removeButton = await screen.findByRole('button', {
+      name: 'Remove region'
+    })
+    fireEvent.click(removeButton)
+
+    await waitFor(() => {
+      expect(mockDeleteFitnessRouteHeatmap).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: ACTOR,
+          periodType: 'all_time',
+          periodKey: 'all'
+        })
+      )
+    })
+    // The region row is gone (the remaining "Whole world" text is the add button).
+    expect(
+      screen.queryByRole('button', { name: /Open Whole world heatmap/i })
+    ).not.toBeInTheDocument()
+    expect(screen.getByText(/No regions yet/i)).toBeInTheDocument()
+  })
+
+  it('shows generating progress on the region row', async () => {
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([
+      worldSummary({
+        status: 'generating',
+        totalCount: 20,
+        cursorOffset: 10,
+        updatedAt: TEST_NOW
+      })
+    ])
+
+    render(<FitnessHeatmapView actorId={ACTOR} />)
+
+    expect(await screen.findByText(/Generating… 50%/)).toBeInTheDocument()
+  })
+
+  it('surfaces a generation error in the detail view', async () => {
+    mockTriggerFitnessRouteHeatmap.mockRejectedValueOnce(
+      new Error('queue unavailable')
+    )
+
+    render(<FitnessHeatmapView actorId={ACTOR} />)
+
+    await openWorldRegion()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Generate heatmap' })
+    )
+
+    expect(await screen.findByText('queue unavailable')).toBeInTheDocument()
+  })
+
+  it('keeps polling fresh in-flight regions without stalling', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(TEST_NOW)
     mockGetFitnessRouteHeatmaps.mockResolvedValue([
-      pendingSummaryAtAge(IN_FLIGHT_HISTORY_POLL_WINDOW_MS)
+      worldSummary({
+        status: 'generating',
+        totalCount: 20,
+        cursorOffset: 5,
+        updatedAt: TEST_NOW - IN_FLIGHT_HISTORY_POLL_WINDOW_MS
+      })
     ])
 
-    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
+    render(<FitnessHeatmapView actorId={ACTOR} />)
 
     await waitFor(() => {
-      expect(mockGetFitnessRouteHeatmap).toHaveBeenCalledTimes(1)
       expect(mockGetFitnessRouteHeatmaps).toHaveBeenCalledTimes(1)
-      expect(screen.getByText('Generating…')).toBeInTheDocument()
     })
-
-    mockGetFitnessRouteHeatmap.mockClear()
 
     const callsAfterInitialLoad = mockGetFitnessRouteHeatmaps.mock.calls.length
 
@@ -248,23 +412,23 @@ describe('FitnessHeatmapView', () => {
     expect(mockGetFitnessRouteHeatmaps.mock.calls.length).toBeGreaterThan(
       callsAfterInitialLoad
     )
-    expect(mockGetFitnessRouteHeatmap).not.toHaveBeenCalled()
-    expect(
-      screen.queryByText('Route cache is taking longer than expected')
-    ).not.toBeInTheDocument()
   })
 
-  it('does not keep polling stale in-progress history entries', async () => {
+  it('does not poll stale in-flight regions', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(TEST_NOW)
     mockGetFitnessRouteHeatmaps.mockResolvedValue([
-      pendingSummaryAtAge(IN_FLIGHT_HISTORY_POLL_WINDOW_MS + 1)
+      worldSummary({
+        status: 'generating',
+        totalCount: 20,
+        cursorOffset: 5,
+        updatedAt: TEST_NOW - IN_FLIGHT_HISTORY_POLL_WINDOW_MS - 1
+      })
     ])
 
-    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
+    render(<FitnessHeatmapView actorId={ACTOR} />)
 
     await waitFor(() => {
-      expect(mockGetFitnessRouteHeatmap).toHaveBeenCalledTimes(1)
       expect(mockGetFitnessRouteHeatmaps).toHaveBeenCalledTimes(1)
     })
 
@@ -279,338 +443,6 @@ describe('FitnessHeatmapView', () => {
       callsAfterInitialLoad
     )
   })
-
-  it('ignores stale selection responses before mutating state or enqueueing', async () => {
-    const staleHeatmap = createDeferred<FitnessRouteHeatmapData | null>()
-    mockGetFitnessRouteHeatmap.mockReset()
-    mockGetFitnessRouteHeatmap
-      .mockReturnValueOnce(staleHeatmap.promise)
-      .mockResolvedValue(completedHeatmap)
-
-    const { rerender } = render(
-      <FitnessHeatmapView actorId="https://llun.test/users/first" />
-    )
-    rerender(<FitnessHeatmapView actorId="https://llun.test/users/second" />)
-
-    await waitFor(() => {
-      expect(screen.getByText('OpenFreeMap')).toBeInTheDocument()
-    })
-
-    await act(async () => {
-      staleHeatmap.resolve(null)
-      await Promise.resolve()
-    })
-
-    expect(mockTriggerFitnessRouteHeatmap).not.toHaveBeenCalled()
-    expect(screen.getByText('OpenFreeMap')).toBeInTheDocument()
-  })
-
-  it('keeps completed refreshes on the normal deduplicated enqueue path', async () => {
-    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
-
-    await waitFor(() => {
-      expect(screen.getByText('OpenFreeMap')).toBeInTheDocument()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: /Generate heatmap/i }))
-
-    await waitFor(() => {
-      expect(mockTriggerFitnessRouteHeatmap).toHaveBeenCalledWith(
-        expect.objectContaining({
-          actorId: 'https://llun.test/users/llun',
-          periodType: 'yearly',
-          periodKey: '2026',
-          retry: false
-        })
-      )
-    })
-  })
-
-  it('allows manual generation retry for a missing selection when other route caches exist', async () => {
-    mockGetFitnessRouteHeatmap.mockResolvedValue(null)
-    mockGetFitnessRouteHeatmaps.mockResolvedValue([completedSummary])
-    mockTriggerFitnessRouteHeatmap
-      .mockRejectedValueOnce(new Error('queue unavailable'))
-      .mockResolvedValueOnce(true)
-
-    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
-
-    expect(await screen.findByText('queue unavailable')).toBeInTheDocument()
-
-    const generateButton = screen.getByRole('button', { name: /Generate/i })
-    fireEvent.click(generateButton)
-
-    await waitFor(() => {
-      expect(mockTriggerFitnessRouteHeatmap).toHaveBeenCalledTimes(2)
-      expect(mockTriggerFitnessRouteHeatmap).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          actorId: 'https://llun.test/users/llun',
-          periodType: 'all_time',
-          periodKey: 'all'
-        })
-      )
-    })
-    await waitFor(() => {
-      expect(screen.queryByText('queue unavailable')).not.toBeInTheDocument()
-    })
-  })
-
-  it('keeps the route map in a full-width region outside the route cache panel', async () => {
-    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
-
-    const routeMapRegion = await screen.findByRole('region', {
-      name: 'Route heatmap map'
-    })
-    const heatmapsHeading = screen.getByRole('heading', {
-      name: 'Heatmaps'
-    })
-
-    expect(routeMapRegion).not.toContainElement(heatmapsHeading)
-    // The job-list panel should follow the full-width map region instead of
-    // being nested beside it in the same grid row.
-    expect(
-      routeMapRegion.compareDocumentPosition(heatmapsHeading) &
-        Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy()
-  })
-
-  it('clears all route caches without immediately requeueing the current selection', async () => {
-    mockClearFitnessRouteHeatmaps.mockResolvedValue(2)
-    mockGetFitnessRouteHeatmap
-      .mockResolvedValueOnce(completedHeatmap)
-      .mockResolvedValueOnce(null)
-    mockGetFitnessRouteHeatmaps
-      .mockResolvedValueOnce([pendingSummary])
-      .mockResolvedValueOnce([])
-
-    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Clear cache/i })).toBeEnabled()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: /Clear cache/i }))
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /Clear route caches/i }))
-
-    await waitFor(() => {
-      expect(mockClearFitnessRouteHeatmaps).toHaveBeenCalledWith({
-        actorId: 'https://llun.test/users/llun'
-      })
-      expect(mockGetFitnessRouteHeatmap).toHaveBeenCalledTimes(2)
-      expect(mockGetFitnessRouteHeatmaps).toHaveBeenCalledTimes(2)
-      expect(mockTriggerFitnessRouteHeatmap).not.toHaveBeenCalled()
-    })
-
-    const generateButton = await screen.findByRole('button', {
-      name: /Generate/i
-    })
-    fireEvent.click(generateButton)
-
-    await waitFor(() => {
-      expect(mockTriggerFitnessRouteHeatmap).toHaveBeenCalledWith(
-        expect.objectContaining({
-          actorId: 'https://llun.test/users/llun',
-          periodType: 'all_time',
-          periodKey: 'all'
-        })
-      )
-    })
-  })
-
-  it('does not clear route caches when confirmation is cancelled', async () => {
-    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Clear cache/i })).toBeEnabled()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: /Clear cache/i }))
-    fireEvent.click(screen.getByRole('button', { name: /Cancel/i }))
-
-    expect(mockClearFitnessRouteHeatmaps).not.toHaveBeenCalled()
-  })
-
-  it('keeps page errors when the clear route cache dialog is opened and cancelled', async () => {
-    mockTriggerFitnessRouteHeatmap.mockRejectedValueOnce(
-      new Error('refresh broken')
-    )
-
-    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Clear cache/i })).toBeEnabled()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: /Generate heatmap/i }))
-
-    expect(await screen.findByText('refresh broken')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: /Clear cache/i }))
-    const dialog = screen.getByRole('dialog')
-
-    expect(screen.getByText('refresh broken')).toBeInTheDocument()
-    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
-
-    fireEvent.click(within(dialog).getByRole('button', { name: /Cancel/i }))
-
-    expect(screen.getByText('refresh broken')).toBeInTheDocument()
-    expect(mockClearFitnessRouteHeatmaps).not.toHaveBeenCalled()
-  })
-
-  it('surfaces an error when clearing route caches fails', async () => {
-    mockClearFitnessRouteHeatmaps.mockRejectedValue(new Error('boom'))
-
-    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Clear cache/i })).toBeEnabled()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: /Clear cache/i }))
-    const dialog = screen.getByRole('dialog')
-    fireEvent.click(
-      within(dialog).getByRole('button', { name: /Clear route caches/i })
-    )
-
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('boom')
-    expect(mockClearFitnessRouteHeatmaps).toHaveBeenCalledWith({
-      actorId: 'https://llun.test/users/llun'
-    })
-    expect(mockTriggerFitnessRouteHeatmap).not.toHaveBeenCalled()
-
-    fireEvent.click(within(dialog).getByRole('button', { name: /Cancel/i }))
-    expect(screen.queryByText('boom')).not.toBeInTheDocument()
-  })
-
-  it('removes the focused heatmap without requeueing it afterward', async () => {
-    const failedFocused: FitnessRouteHeatmapData = {
-      ...completedHeatmap,
-      status: 'failed',
-      error: 'parse failed'
-    }
-    const failedSummary: FitnessRouteHeatmapSummaryData = {
-      ...completedSummary,
-      id: completedHeatmap.id,
-      status: 'failed',
-      error: 'parse failed'
-    }
-    mockGetFitnessRouteHeatmap.mockResolvedValue(failedFocused)
-    mockGetFitnessRouteHeatmaps
-      .mockResolvedValueOnce([failedSummary])
-      .mockResolvedValue([])
-
-    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
-
-    const removeButton = await screen.findByRole('button', { name: 'Remove' })
-    fireEvent.click(removeButton)
-
-    const dialog = screen.getByRole('dialog')
-    fireEvent.click(
-      within(dialog).getByRole('button', { name: /Remove heatmap/i })
-    )
-
-    await waitFor(() => {
-      expect(mockDeleteFitnessRouteHeatmap).toHaveBeenCalledWith(
-        expect.objectContaining({
-          actorId: 'https://llun.test/users/llun',
-          periodType: 'yearly',
-          periodKey: '2026'
-        })
-      )
-    })
-
-    // The just-removed focused heatmap must not be silently re-queued.
-    expect(mockTriggerFitnessRouteHeatmap).not.toHaveBeenCalled()
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    })
-  })
-
-  it('drops the row even when the server reports it was already removed', async () => {
-    mockDeleteFitnessRouteHeatmap.mockResolvedValue(false)
-    const failedSummary: FitnessRouteHeatmapSummaryData = {
-      ...completedSummary,
-      id: 'route-heatmap-already-gone',
-      status: 'failed',
-      error: 'parse failed'
-    }
-    mockGetFitnessRouteHeatmap.mockResolvedValue(completedHeatmap)
-    mockGetFitnessRouteHeatmaps
-      .mockResolvedValueOnce([failedSummary])
-      .mockResolvedValue([])
-
-    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
-
-    const removeButton = await screen.findByRole('button', { name: 'Remove' })
-    fireEvent.click(removeButton)
-
-    const dialog = screen.getByRole('dialog')
-    fireEvent.click(
-      within(dialog).getByRole('button', { name: /Remove heatmap/i })
-    )
-
-    // `deleted: false` is treated as success — no stuck row, no error alert.
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    })
-    expect(screen.queryByText('parse failed')).not.toBeInTheDocument()
-  })
-
-  it('shows determinate progress in the focused preview while generating', async () => {
-    const generatingFocused: FitnessRouteHeatmapData = {
-      ...completedHeatmap,
-      status: 'generating',
-      totalCount: 10,
-      cursorOffset: 3,
-      pointCount: 0,
-      bounds: undefined,
-      segments: []
-    }
-    mockGetFitnessRouteHeatmap.mockResolvedValue(generatingFocused)
-    mockGetFitnessRouteHeatmaps.mockResolvedValue([completedSummary])
-
-    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
-
-    const preview = await screen.findByRole('region', {
-      name: /Route heatmap map/i
-    })
-    await waitFor(() => {
-      expect(
-        within(preview).getByText(/3 \/ 10 files \(30%\)/)
-      ).toBeInTheDocument()
-    })
-    expect(within(preview).getByRole('progressbar')).toHaveAttribute(
-      'aria-valuenow',
-      '30'
-    )
-  })
-
-  it('shows an indeterminate scanned count when the total is unknown', async () => {
-    const generatingFocused: FitnessRouteHeatmapData = {
-      ...completedHeatmap,
-      status: 'generating',
-      totalCount: 0,
-      cursorOffset: 5,
-      pointCount: 0,
-      bounds: undefined,
-      segments: []
-    }
-    mockGetFitnessRouteHeatmap.mockResolvedValue(generatingFocused)
-    mockGetFitnessRouteHeatmaps.mockResolvedValue([completedSummary])
-
-    render(<FitnessHeatmapView actorId="https://llun.test/users/llun" />)
-
-    const preview = await screen.findByRole('region', {
-      name: /Route heatmap map/i
-    })
-    await waitFor(() => {
-      expect(within(preview).getByText(/5 files scanned/)).toBeInTheDocument()
-    })
-    expect(within(preview).getByRole('progressbar')).not.toHaveAttribute(
-      'aria-valuenow'
-    )
-  })
 })
 
 describe('RouteHeatmapMap', () => {
@@ -622,7 +454,7 @@ describe('RouteHeatmapMap', () => {
     const mapConstructor = createGlMapConstructor()
     mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
 
-    const { container } = render(<RouteHeatmapMap heatmap={completedHeatmap} />)
+    const { container } = render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
 
     await waitFor(() => expect(mapConstructor).toHaveBeenCalled())
     expect(await screen.findByText('OpenFreeMap')).toBeInTheDocument()
@@ -643,7 +475,7 @@ describe('RouteHeatmapMap', () => {
     const deferred = createDeferred<{ Map: ReturnType<typeof vi.fn> }>()
     mockLoadMaplibreModule.mockReturnValue(deferred.promise)
 
-    render(<RouteHeatmapMap heatmap={completedHeatmap} />)
+    render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
 
     // The module hasn't resolved yet, so the map is still initializing.
     expect(await screen.findByText('Loading map…')).toBeInTheDocument()
@@ -674,15 +506,14 @@ describe('RouteHeatmapMap', () => {
     })
     mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
 
-    const { rerender } = render(<RouteHeatmapMap heatmap={completedHeatmap} />)
+    const { rerender } = render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
     await screen.findByText('OpenFreeMap')
     setData.mockClear()
 
     rerender(
       <RouteHeatmapMap
-        heatmap={{
-          ...completedHeatmap,
-          updatedAt: completedHeatmap.updatedAt + 1,
+        heatmap={worldHeatmap({
+          updatedAt: 3,
           segments: [
             {
               points: [
@@ -692,7 +523,7 @@ describe('RouteHeatmapMap', () => {
               ]
             }
           ]
-        }}
+        })}
       />
     )
 
@@ -702,12 +533,7 @@ describe('RouteHeatmapMap', () => {
   it('renders an empty route state without loading any map provider', () => {
     render(
       <RouteHeatmapMap
-        heatmap={{
-          ...completedHeatmap,
-          segments: [],
-          pointCount: 0,
-          bounds: null
-        }}
+        heatmap={worldHeatmap({ segments: [], pointCount: 0, bounds: null })}
       />
     )
 
@@ -724,7 +550,7 @@ describe('RouteHeatmapMap', () => {
 
     const { container } = render(
       <RouteHeatmapMap
-        heatmap={completedHeatmap}
+        heatmap={worldHeatmap()}
         mapboxAccessToken="mapbox-token"
       />
     )
@@ -747,7 +573,7 @@ describe('RouteHeatmapMap', () => {
     })
     mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
 
-    const { container } = render(<RouteHeatmapMap heatmap={completedHeatmap} />)
+    const { container } = render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
 
     expect(
       await screen.findByText('Map unavailable. Try regenerating this heatmap.')
@@ -765,7 +591,7 @@ describe('RouteHeatmapMap', () => {
   it('shows a non-SVG fallback message when the map module fails to load', async () => {
     mockLoadMaplibreModule.mockRejectedValue(new Error('module unavailable'))
 
-    const { container } = render(<RouteHeatmapMap heatmap={completedHeatmap} />)
+    const { container } = render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
 
     expect(
       await screen.findByText('Map unavailable. Try regenerating this heatmap.')
@@ -797,9 +623,7 @@ describe('RouteHeatmapMap', () => {
       })
       mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
 
-      const { container } = render(
-        <RouteHeatmapMap heatmap={completedHeatmap} />
-      )
+      const { container } = render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
 
       // Flush the module-load promise so the map is created and the watchdog armed.
       await act(async () => {
@@ -831,9 +655,7 @@ describe('RouteHeatmapMap', () => {
       const mapConstructor = createGlMapConstructor()
       mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
 
-      const { container } = render(
-        <RouteHeatmapMap heatmap={completedHeatmap} />
-      )
+      const { container } = render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
 
       await act(async () => {
         await Promise.resolve()
@@ -866,7 +688,7 @@ describe('RouteHeatmapMap', () => {
     mockLoadMaplibreModule.mockResolvedValue({ Map: failingMapConstructor })
 
     const { container, rerender } = render(
-      <RouteHeatmapMap heatmap={completedHeatmap} />
+      <RouteHeatmapMap heatmap={worldHeatmap()} />
     )
 
     await waitFor(() =>
@@ -878,14 +700,7 @@ describe('RouteHeatmapMap', () => {
     const workingMapConstructor = createGlMapConstructor()
     mockLoadMaplibreModule.mockResolvedValue({ Map: workingMapConstructor })
 
-    rerender(
-      <RouteHeatmapMap
-        heatmap={{
-          ...completedHeatmap,
-          updatedAt: completedHeatmap.updatedAt + 1
-        }}
-      />
-    )
+    rerender(<RouteHeatmapMap heatmap={worldHeatmap({ updatedAt: 3 })} />)
 
     await waitFor(() => expect(workingMapConstructor).toHaveBeenCalled())
     expect(await screen.findByText('OpenFreeMap')).toBeInTheDocument()

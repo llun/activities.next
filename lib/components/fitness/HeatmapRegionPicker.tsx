@@ -1,6 +1,17 @@
 'use client'
 
-import { Globe, MapPin, Maximize, Pencil, Trash2 } from 'lucide-react'
+import {
+  AlertTriangle,
+  Check,
+  ChevronRight,
+  Clock,
+  Globe,
+  Loader2,
+  MapPin,
+  Maximize,
+  Pencil,
+  Trash2
+} from 'lucide-react'
 import { FC, useMemo, useState } from 'react'
 
 import { GlModule, RegionMap } from '@/lib/components/fitness/RegionMap'
@@ -9,16 +20,37 @@ import { Input } from '@/lib/components/ui/input'
 import {
   HeatmapRegion,
   LatLng,
-  MAX_HEATMAP_REGIONS,
   RectRegion,
   formatRectRegion,
   isValidRect
 } from '@/lib/fitness/regions'
+import { cn } from '@/lib/utils'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
 import { OPENFREEMAP_STYLE_URL, loadMaplibreModule } from '@/lib/utils/maplibre'
 
 /** A region plus a stable client id for list keys and edit targeting. */
 export type PickerRegion = HeatmapRegion & { id: string }
+
+/**
+ * Per-region generation state, derived by the orchestrator from the heatmap that
+ * matches the region under the current activity/period source. Each region owns
+ * its own heatmap (one kept version), so the row surfaces that region's status.
+ */
+export type RegionDisplayState =
+  | 'idle'
+  | 'pending'
+  | 'generating'
+  | 'completed'
+  | 'partial'
+  | 'failed'
+
+export interface RegionDisplayStatus {
+  state: RegionDisplayState
+  /** 0–100 while generating, or null when the total is not yet known. */
+  progressPercent?: number | null
+  /** Pre-formatted relative time (e.g. "2h ago") for completed/partial rows. */
+  generatedLabel?: string | null
+}
 
 let regionUid = 0
 const createRegionId = (): string =>
@@ -285,33 +317,124 @@ const RectComposer: FC<RectComposerProps> = ({
   )
 }
 
+/** Inline status atom for a region row — mirrors the per-region heatmap state. */
+const RegionStatus: FC<{ status: RegionDisplayStatus }> = ({ status }) => {
+  switch (status.state) {
+    case 'generating':
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 dark:text-blue-400">
+          <Loader2 className="size-3 animate-spin" />
+          {status.progressPercent == null
+            ? 'Generating…'
+            : `Generating… ${status.progressPercent}%`}
+        </span>
+      )
+    case 'pending':
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+          <Clock className="size-3" />
+          Queued
+        </span>
+      )
+    case 'failed':
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-destructive">
+          <AlertTriangle className="size-3" />
+          Failed
+        </span>
+      )
+    case 'partial':
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-500">
+          <AlertTriangle className="size-3" />
+          {status.generatedLabel
+            ? `Partial · ${status.generatedLabel}`
+            : 'Partial'}
+        </span>
+      )
+    case 'completed':
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-green-600 dark:text-green-500">
+          <Check className="size-3" />
+          {status.generatedLabel
+            ? `Generated ${status.generatedLabel}`
+            : 'Generated'}
+        </span>
+      )
+    default:
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+          <Clock className="size-3" />
+          Not generated
+        </span>
+      )
+  }
+}
+
 interface RegionRowProps {
   region: PickerRegion
+  status?: RegionDisplayStatus | null
+  onOpen?: (region: PickerRegion) => void
   onEdit: () => void
   onRemove: () => void
 }
 
-const RegionRow: FC<RegionRowProps> = ({ region, onEdit, onRemove }) => {
+const RegionRow: FC<RegionRowProps> = ({
+  region,
+  status,
+  onOpen,
+  onEdit,
+  onRemove
+}) => {
   const isWorld = region.type === 'world'
-  return (
-    <div className="flex items-center gap-2.5 rounded-lg border bg-background p-2.5">
-      <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+  const clickable = Boolean(onOpen)
+  const title = isWorld ? 'Whole world' : region.name || 'Map area'
+  const subtitle = isWorld
+    ? 'Entire globe — every recorded activity'
+    : formatRectRegion(region)
+
+  const content = (
+    <>
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
         {isWorld ? (
           <Globe className="size-4" />
         ) : (
           <Maximize className="size-4" />
         )}
       </span>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium">
-          {isWorld ? 'Whole world' : region.name || 'Map area'}
+      <span className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <span className="truncate text-sm font-medium">{title}</span>
+          {status && <RegionStatus status={status} />}
+        </span>
+        <span className="block truncate text-[11px] text-muted-foreground">
+          {subtitle}
+        </span>
+      </span>
+    </>
+  )
+
+  return (
+    <div
+      className={cn(
+        'group flex items-center gap-2.5 rounded-lg border bg-background p-2.5 transition-colors',
+        clickable && 'hover:border-primary/50 hover:bg-primary/[0.04]'
+      )}
+    >
+      {clickable ? (
+        <button
+          type="button"
+          onClick={() => onOpen?.(region)}
+          aria-label={`Open ${title} heatmap`}
+          className="flex min-w-0 flex-1 items-center gap-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {content}
+        </button>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          {content}
         </div>
-        <div className="truncate text-[11px] text-muted-foreground">
-          {isWorld
-            ? 'Entire globe — every recorded activity'
-            : formatRectRegion(region)}
-        </div>
-      </div>
+      )}
       {!isWorld && (
         <button
           type="button"
@@ -330,6 +453,9 @@ const RegionRow: FC<RegionRowProps> = ({ region, onEdit, onRemove }) => {
       >
         <Trash2 className="size-3.5" />
       </button>
+      {clickable && (
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+      )}
     </div>
   )
 }
@@ -339,6 +465,12 @@ interface HeatmapRegionPickerProps {
   onChange: (regions: PickerRegion[]) => void
   /** Public Mapbox token; when absent the free MapLibre/OpenFreeMap map is used. */
   mapboxAccessToken?: string
+  /** Opens a region's own heatmap page. When omitted, rows are not clickable. */
+  onOpen?: (region: PickerRegion) => void
+  /** Per-region heatmap status under the current activity/period source. */
+  getRegionStatus?: (region: PickerRegion) => RegionDisplayStatus | null
+  /** Fired after a region leaves the list, so its cached heatmap can be pruned. */
+  onRegionRemoved?: (region: PickerRegion) => void
 }
 
 interface ComposerState {
@@ -348,34 +480,37 @@ interface ComposerState {
 export const HeatmapRegionPicker: FC<HeatmapRegionPickerProps> = ({
   value,
   onChange,
-  mapboxAccessToken
+  mapboxAccessToken,
+  onOpen,
+  getRegionStatus,
+  onRegionRemoved
 }) => {
   const [composer, setComposer] = useState<ComposerState | null>(null)
   const hasWorld = value.some((region) => region.type === 'world')
-  const atLimit = value.length >= MAX_HEATMAP_REGIONS
 
-  // The whole world subsumes any rectangles (serializeRegions collapses
-  // world + rects to world), so the two kinds are mutually exclusive: picking
-  // the world replaces the list, and drawing a rectangle drops the world.
+  // Each region owns its own heatmap now, so the whole world and drawn areas
+  // coexist in the list — adding one no longer collapses the others.
   const addWorld = () => {
     if (hasWorld) return
-    onChange([{ id: createRegionId(), type: 'world' }])
+    onChange([...value, { id: createRegionId(), type: 'world' }])
   }
-  const removeRegion = (id: string) =>
+  const removeRegion = (id: string) => {
+    const removed = value.find((region) => region.id === id)
     onChange(value.filter((region) => region.id !== id))
+    if (removed) onRegionRemoved?.(removed)
+  }
 
   const saveRect = (rect: RectRegion) => {
-    const withoutWorld = value.filter((region) => region.type !== 'world')
     if (composer?.editId) {
       onChange(
-        withoutWorld.map((region) =>
+        value.map((region) =>
           region.id === composer.editId
             ? { ...region, ...rect, id: region.id }
             : region
         )
       )
     } else {
-      onChange([...withoutWorld, { id: createRegionId(), ...rect }])
+      onChange([...value, { id: createRegionId(), ...rect }])
     }
     setComposer(null)
   }
@@ -395,6 +530,8 @@ export const HeatmapRegionPicker: FC<HeatmapRegionPickerProps> = ({
             <RegionRow
               key={region.id}
               region={region}
+              status={getRegionStatus?.(region)}
+              onOpen={onOpen}
               onEdit={() => setComposer({ editId: region.id })}
               onRemove={() => removeRegion(region.id)}
             />
@@ -404,7 +541,7 @@ export const HeatmapRegionPicker: FC<HeatmapRegionPickerProps> = ({
 
       {value.length === 0 && !composer && (
         <div className="rounded-lg border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
-          No regions yet — add the whole world, or select an area on a map.
+          No regions yet — add the whole world, or draw an area on the map.
         </div>
       )}
 
@@ -431,17 +568,10 @@ export const HeatmapRegionPicker: FC<HeatmapRegionPickerProps> = ({
             variant="outline"
             size="sm"
             onClick={() => setComposer({ editId: null })}
-            disabled={atLimit}
           >
-            <Maximize className="size-3.5" /> Select an area
+            <Maximize className="size-3.5" /> Draw area on map
           </Button>
         </div>
-      )}
-
-      {atLimit && !composer && (
-        <p className="text-[11px] text-muted-foreground">
-          Up to {MAX_HEATMAP_REGIONS} regions per heatmap.
-        </p>
       )}
     </div>
   )

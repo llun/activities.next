@@ -1,51 +1,38 @@
 'use client'
 
-import {
-  AlertCircle,
-  Flame,
-  Loader2,
-  Map,
-  RefreshCw,
-  Trash2
-} from 'lucide-react'
+import { Flame } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   FitnessRouteHeatmapData,
-  FitnessRouteHeatmapSegment,
   FitnessRouteHeatmapSummaryData,
-  clearFitnessRouteHeatmaps,
   deleteFitnessRouteHeatmap,
   getDistinctFitnessActivityTypes,
   getFitnessRouteHeatmap,
   getFitnessRouteHeatmaps,
   triggerFitnessRouteHeatmap
 } from '@/lib/client'
-import { FitnessHeatmapList } from '@/lib/components/fitness/FitnessHeatmapList'
 import {
   HeatmapRegionPicker,
   PickerRegion,
+  RegionDisplayStatus,
   toHeatmapRegion,
   withRegionIds
 } from '@/lib/components/fitness/HeatmapRegionPicker'
-import { Button } from '@/lib/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@/lib/components/ui/dialog'
+import { RegionHeatmapDetail } from '@/lib/components/fitness/RegionHeatmapDetail'
 import { Select } from '@/lib/components/ui/select'
 import {
-  describeRegions,
+  HeatmapRegion,
   deserializeRegions,
-  serializeRegions
+  serializeRegion
 } from '@/lib/fitness/regions'
-import { cn } from '@/lib/utils'
-import { loadMapboxModule } from '@/lib/utils/mapbox'
-import { OPENFREEMAP_STYLE_URL, loadMaplibreModule } from '@/lib/utils/maplibre'
+
+// Re-exported so existing imports/tests keep resolving the route map from here.
+export {
+  RouteHeatmapMap,
+  downsampleSegments
+} from '@/lib/components/fitness/RouteHeatmapMap'
+export type { RouteHeatmapMapProps } from '@/lib/components/fitness/RouteHeatmapMap'
 
 type PeriodType = 'all_time' | 'yearly' | 'monthly'
 
@@ -54,155 +41,44 @@ interface Props {
   mapboxAccessToken?: string
 }
 
-// The Mapbox GL / MapLibre GL surface — only the members this component drives.
-// Both libraries share this subset, so one component can drive either provider.
-type RouteGlMap = {
-  on: (event: string, callback: () => void) => void
-  remove: () => void
-  resize: () => void
-  addSource: (id: string, source: unknown) => void
-  addLayer: (layer: unknown) => void
-  getSource: (id: string) => { setData: (data: unknown) => void } | undefined
-  fitBounds: (
-    bounds: [[number, number], [number, number]],
-    options?: { padding?: number; duration?: number }
-  ) => void
-}
-
-type RouteGlModule = {
-  Map: new (options: Record<string, unknown>) => RouteGlMap
-}
-
-type MapFallbackReason = 'module-load-failed' | 'render-failed' | 'load-timeout'
-
-interface MapFallbackError {
-  message: string
-  stack?: string
-}
-
 const currentYear = new Date().getUTCFullYear()
 const ROUTE_HEATMAP_POLLING_INTERVAL_MS = 5000
 const STALLED_POLLING_LIMIT = 30
 // Keep recent background jobs live while ignoring restored/stuck rows that are days old.
 const STALE_IN_FLIGHT_HEATMAP_MS = 15 * 60_000
-// Target vertex count handed to the GL line layer. A whole-world, all-time
-// cache can aggregate hundreds of thousands of points and staging reproduced
-// blank GL canvases past ~80k, so the geometry is uniformly downsampled toward
-// this budget (see downsampleSegments). This keeps the map fully interactive
-// (pan/zoom) instead of dropping to a static, non-interactive fallback.
-const ROUTE_RENDER_POINT_BUDGET = 40_000
-// Fall back to the "Map unavailable" message if the GL map never reaches its
-// 'load' event (e.g. the style/tiles fail to fetch after the JS bundle loaded),
-// instead of spinning the "Loading map…" overlay forever. Mirrors RegionMap.
-const MAP_LOAD_TIMEOUT_MS = 20_000
-const ROUTE_HEATMAP_MAP_HEIGHT_CLASS = 'h-[420px]'
 
-const ROUTE_LINE_STYLES = {
-  visible: {
-    color: '#ef4444',
-    width: 3.2,
-    opacity: 0.2
-  },
-  hidden: {
-    color: '#2563eb',
-    width: 2.4,
-    opacity: 0.14
-  }
-} as const
-const ROUTE_LINE_PAINT = {
-  'line-color': [
-    'case',
-    ['boolean', ['get', 'isHiddenByPrivacy'], false],
-    ROUTE_LINE_STYLES.hidden.color,
-    ROUTE_LINE_STYLES.visible.color
-  ],
-  'line-width': [
-    'case',
-    ['boolean', ['get', 'isHiddenByPrivacy'], false],
-    ROUTE_LINE_STYLES.hidden.width,
-    ROUTE_LINE_STYLES.visible.width
-  ],
-  'line-opacity': [
-    'case',
-    ['boolean', ['get', 'isHiddenByPrivacy'], false],
-    ROUTE_LINE_STYLES.hidden.opacity,
-    ROUTE_LINE_STYLES.visible.opacity
-  ],
-  'line-blur': 0.8
-} as const
+const WORLD_REGION: PickerRegion = { id: 'world', type: 'world' }
 
-const getMapFallbackError = (error: unknown): MapFallbackError => {
-  if (error instanceof Error) {
-    return {
-      message: error.message,
-      stack: error.stack
-    }
-  }
-
-  return {
-    message: String(error)
-  }
-}
-
-const formatActivityType = (type?: string): string =>
+const formatActivityLabel = (type?: string): string =>
   type
     ? type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-    : 'All'
+    : 'All activities'
 
 const formatPeriodLabel = (periodType: string, periodKey: string): string =>
   periodType === 'all_time' ? 'All time' : periodKey
 
-const progressNumberFormatter = new Intl.NumberFormat()
-
-/**
- * Builds a human-readable progress fragment for the focused, in-flight heatmap.
- * Uses `cursorOffset` (files scanned) over `totalCount` (computed denominator);
- * returns just a scanned count while the total is still unknown (0).
- */
-const formatFocusedProgress = (
-  heatmap: Pick<FitnessRouteHeatmapData, 'totalCount' | 'cursorOffset'> | null
-): { percent: number | null; label: string } | null => {
-  if (!heatmap) return null
-
-  const total = heatmap.totalCount
-  const scanned = heatmap.cursorOffset
-
-  if (total > 0) {
-    const cappedScanned = Math.min(scanned, total)
-    const percent = Math.max(
-      0,
-      Math.min(100, Math.round((cappedScanned / total) * 100))
-    )
-    return {
-      percent,
-      label: `${progressNumberFormatter.format(cappedScanned)} / ${progressNumberFormatter.format(total)} files (${percent}%)`
-    }
-  }
-
-  if (scanned > 0) {
-    return {
-      percent: null,
-      label: `${progressNumberFormatter.format(scanned)} files scanned`
-    }
-  }
-
-  return { percent: null, label: 'Starting…' }
+const formatRelativeTime = (diffMs: number): string => {
+  if (diffMs < 60_000) return 'just now'
+  if (diffMs < 3_600_000) return `${Math.floor(diffMs / 60_000)}m ago`
+  if (diffMs < 86_400_000) return `${Math.floor(diffMs / 3_600_000)}h ago`
+  return `${Math.floor(diffMs / 86_400_000)}d ago`
 }
 
-const isRouteHeatmapInFlight = (
-  heatmap:
-    | Pick<FitnessRouteHeatmapSummaryData, 'status'>
-    | Pick<FitnessRouteHeatmapData, 'status'>
-    | null
-    | undefined
-): boolean => heatmap?.status === 'generating' || heatmap?.status === 'pending'
+/** Progress percent (0–100) from scanned/total, or null when the total is unknown. */
+const computeProgressPercent = (
+  totalCount: number,
+  cursorOffset: number
+): number | null => {
+  if (totalCount <= 0) return null
+  const cappedScanned = Math.min(cursorOffset, totalCount)
+  return Math.max(
+    0,
+    Math.min(100, Math.round((cappedScanned / totalCount) * 100))
+  )
+}
 
-const shouldPollRouteHeatmapSummary = (
-  heatmap: Pick<FitnessRouteHeatmapSummaryData, 'status' | 'updatedAt'>,
-  currentTime: number
-): boolean =>
-  isRouteHeatmapInFlight(heatmap) &&
-  currentTime - heatmap.updatedAt <= STALE_IN_FLIGHT_HEATMAP_MS
+const isRouteHeatmapInFlight = (status?: string): boolean =>
+  status === 'generating' || status === 'pending'
 
 const generateYearOptions = (): number[] => {
   const years: number[] = []
@@ -222,285 +98,54 @@ const generateMonthOptions = (year: number): string[] => {
   return months
 }
 
-const buildRouteGeoJson = (segments: FitnessRouteHeatmapSegment[]) => ({
-  type: 'FeatureCollection' as const,
-  features: segments
-    .filter((segment) => segment.points.length >= 2)
-    .map((segment) => ({
-      type: 'Feature' as const,
-      properties: {
-        isHiddenByPrivacy: Boolean(segment.isHiddenByPrivacy)
-      },
-      geometry: {
-        type: 'LineString' as const,
-        coordinates: segment.points.map((point) => [point.lng, point.lat])
-      }
-    }))
-})
-
-// Thin route geometry toward `maxPoints` vertices so the GL line layer stays
-// performant on large caches (a whole-world cache can aggregate far more). The
-// stride is derived from the global vertex total, so it bounds the dominant cost
-// — long routes — proportionally; each segment still keeps its first and last
-// vertex, so routes span their full extent. This is a best-effort target, not a
-// hard ceiling: the per-segment endpoint floor (~2 vertices per segment) keeps a
-// realistic many-route cache well under budget, but pathological inputs (tens of
-// thousands of tiny segments) could still exceed it.
-export const downsampleSegments = (
-  segments: FitnessRouteHeatmapSegment[],
-  maxPoints: number
-): FitnessRouteHeatmapSegment[] => {
-  const totalPoints = segments.reduce(
-    (sum, segment) => sum + segment.points.length,
-    0
-  )
-  if (totalPoints <= maxPoints) {
-    return segments
+/** Maps a region's matching heatmap summary into a display status atom. */
+const summaryToStatus = (
+  summary: FitnessRouteHeatmapSummaryData,
+  currentTime: number
+): RegionDisplayStatus => {
+  if (summary.status === 'generating') {
+    return {
+      state: 'generating',
+      progressPercent: computeProgressPercent(
+        summary.totalCount,
+        summary.cursorOffset
+      )
+    }
   }
-
-  const stride = Math.ceil(totalPoints / maxPoints)
-  return segments.map((segment) => {
-    if (segment.points.length <= 2) {
-      return segment
+  if (summary.status === 'pending') return { state: 'pending' }
+  if (summary.status === 'failed') return { state: 'failed' }
+  if (summary.status === 'completed') {
+    return {
+      state: summary.isPartial ? 'partial' : 'completed',
+      generatedLabel: formatRelativeTime(currentTime - summary.updatedAt)
     }
-
-    const points = segment.points.filter((_, index) => index % stride === 0)
-    const lastPoint = segment.points[segment.points.length - 1]
-    if (points[points.length - 1] !== lastPoint) {
-      points.push(lastPoint)
-    }
-    return { ...segment, points }
-  })
+  }
+  return { state: 'idle' }
 }
 
-interface RouteHeatmapMapProps {
-  heatmap: FitnessRouteHeatmapData | null
-  mapboxAccessToken?: string
-}
-
-interface RouteMapProvider {
-  loadModule: () => Promise<RouteGlModule>
-  mapOptions: Record<string, unknown>
-  label: string
-}
-
-export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
-  heatmap,
-  mapboxAccessToken
-}) => {
-  const containerRef = useRef<HTMLDivElement | null>(null)
-  const mapRef = useRef<RouteGlMap | null>(null)
-  const routeGeoJsonRef = useRef(buildRouteGeoJson([]))
-  const [mapFallbackReason, setMapFallbackReason] =
-    useState<MapFallbackReason | null>(null)
-  const [mapFallbackError, setMapFallbackError] =
-    useState<MapFallbackError | null>(null)
-  const [isMapLoaded, setIsMapLoaded] = useState(false)
-
-  const hasRoutes =
-    heatmap?.status === 'completed' &&
-    heatmap.segments.some((segment) => segment.points.length >= 2)
-  const bounds = heatmap?.bounds
-
-  // Mapbox when a public token is configured; otherwise the keyless MapLibre +
-  // OpenFreeMap provider, so the heatmap always renders on a real, interactive
-  // map without an API key (instead of a static, non-interactive image).
-  const provider = useMemo<RouteMapProvider>(
-    () =>
-      mapboxAccessToken
-        ? {
-            loadModule: () => loadMapboxModule<RouteGlModule>(),
-            mapOptions: {
-              style: 'mapbox://styles/mapbox/outdoors-v12',
-              accessToken: mapboxAccessToken
-            },
-            label: 'Mapbox'
-          }
-        : {
-            loadModule: () => loadMaplibreModule<RouteGlModule>(),
-            mapOptions: { style: OPENFREEMAP_STYLE_URL },
-            label: 'OpenFreeMap'
-          },
-    [mapboxAccessToken]
+/**
+ * Seeds the curated region list with any distinct regions found across the
+ * actor's existing heatmaps (so previously generated regions reappear), keeping
+ * the whole-world entry first. Legacy multi-region keys split into their
+ * individual regions; duplicates (by canonical key) are dropped.
+ */
+const mergeDiscoveredRegions = (
+  current: PickerRegion[],
+  heatmaps: FitnessRouteHeatmapSummaryData[]
+): PickerRegion[] => {
+  const seen = new Set(
+    current.map((region) => serializeRegion(toHeatmapRegion(region)))
   )
-
-  const mapFallbackErrorMessage =
-    process.env.NODE_ENV !== 'production'
-      ? mapFallbackError?.message
-      : undefined
-  const shouldRenderMap = hasRoutes && Boolean(bounds) && !mapFallbackReason
-  const routeGeoJson = useMemo(
-    () =>
-      buildRouteGeoJson(
-        hasRoutes && heatmap
-          ? downsampleSegments(heatmap.segments, ROUTE_RENDER_POINT_BUDGET)
-          : []
-      ),
-    [hasRoutes, heatmap?.id, heatmap?.updatedAt]
-  )
-
-  useEffect(() => {
-    routeGeoJsonRef.current = routeGeoJson
-  }, [routeGeoJson])
-
-  // Clear the fallback whenever the cache or provider changes so a recovered
-  // map gets a fresh attempt.
-  useEffect(() => {
-    setMapFallbackReason(null)
-    setMapFallbackError(null)
-  }, [heatmap?.id, heatmap?.updatedAt, provider])
-
-  useEffect(() => {
-    if (!shouldRenderMap || !containerRef.current || !bounds) {
-      return
+  const additions: HeatmapRegion[] = []
+  for (const heatmap of heatmaps) {
+    for (const region of deserializeRegions(heatmap.region ?? '')) {
+      const key = serializeRegion(region)
+      if (seen.has(key)) continue
+      seen.add(key)
+      additions.push(region)
     }
-
-    let cancelled = false
-    let loadWatchdog: ReturnType<typeof setTimeout> | undefined
-    const mapBounds: [[number, number], [number, number]] = [
-      [bounds.minLng, bounds.minLat],
-      [bounds.maxLng, bounds.maxLat]
-    ]
-    setIsMapLoaded(false)
-
-    provider
-      .loadModule()
-      .then((gl) => {
-        if (cancelled || !containerRef.current) return
-
-        const map = new gl.Map({
-          container: containerRef.current,
-          attributionControl: true,
-          ...provider.mapOptions
-        })
-        mapRef.current = map
-
-        // The module promise resolving only means the JS bundle loaded; if the
-        // style/tiles never fetch, 'load' never fires and neither does .catch.
-        // Without this the "Loading map…" overlay would spin forever.
-        loadWatchdog = setTimeout(() => {
-          if (!cancelled) {
-            setMapFallbackError({
-              message: 'Map timed out before the style finished loading'
-            })
-            setMapFallbackReason('load-timeout')
-          }
-        }, MAP_LOAD_TIMEOUT_MS)
-
-        map.on('load', () => {
-          if (cancelled) return
-          if (loadWatchdog) clearTimeout(loadWatchdog)
-          try {
-            map.resize()
-            map.addSource('route-heatmap', {
-              type: 'geojson',
-              data: routeGeoJsonRef.current
-            })
-            map.addLayer({
-              id: 'route-heatmap-lines',
-              type: 'line',
-              source: 'route-heatmap',
-              layout: {
-                'line-cap': 'round',
-                'line-join': 'round'
-              },
-              paint: ROUTE_LINE_PAINT
-            })
-            map.fitBounds(mapBounds, { padding: 56, duration: 0 })
-            setIsMapLoaded(true)
-          } catch (error) {
-            if (!cancelled) {
-              setMapFallbackError(getMapFallbackError(error))
-              setMapFallbackReason('render-failed')
-            }
-          }
-        })
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setMapFallbackError(getMapFallbackError(error))
-          setMapFallbackReason('module-load-failed')
-        }
-      })
-
-    return () => {
-      cancelled = true
-      if (loadWatchdog) clearTimeout(loadWatchdog)
-      mapRef.current?.remove()
-      mapRef.current = null
-    }
-  }, [
-    bounds?.maxLat,
-    bounds?.maxLng,
-    bounds?.minLat,
-    bounds?.minLng,
-    heatmap?.id,
-    provider,
-    shouldRenderMap
-  ])
-
-  useEffect(() => {
-    if (!shouldRenderMap || !isMapLoaded) return
-    mapRef.current?.getSource('route-heatmap')?.setData(routeGeoJson)
-  }, [isMapLoaded, routeGeoJson, shouldRenderMap])
-
-  if (!hasRoutes || !heatmap) {
-    return (
-      <div
-        className={cn(
-          'flex items-center justify-center bg-muted/40 text-sm text-muted-foreground',
-          ROUTE_HEATMAP_MAP_HEIGHT_CLASS
-        )}
-      >
-        No route data for this selection
-      </div>
-    )
   }
-
-  if (mapFallbackReason) {
-    return (
-      <div
-        role="status"
-        className={cn(
-          'flex flex-col items-center justify-center gap-1 bg-muted/40 px-4 text-center text-sm text-muted-foreground',
-          ROUTE_HEATMAP_MAP_HEIGHT_CLASS
-        )}
-        data-map-fallback-reason={mapFallbackReason}
-        data-map-fallback-error={mapFallbackErrorMessage}
-      >
-        Map unavailable. Try regenerating this heatmap.
-      </div>
-    )
-  }
-
-  return (
-    <div
-      className={cn(
-        'relative overflow-hidden bg-muted',
-        ROUTE_HEATMAP_MAP_HEIGHT_CLASS
-      )}
-    >
-      <div
-        ref={containerRef}
-        role="img"
-        aria-label="Fitness route heatmap"
-        className="h-full w-full"
-      />
-      {!isMapLoaded && (
-        <div
-          role="status"
-          className="absolute inset-0 flex items-center justify-center gap-2 bg-muted/60 text-sm text-muted-foreground"
-        >
-          <Loader2 className="size-4 animate-spin" /> Loading map…
-        </div>
-      )}
-      {isMapLoaded && (
-        <div className="pointer-events-none absolute left-3 top-3 rounded bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm">
-          {provider.label}
-        </div>
-      )}
-    </div>
-  )
+  return additions.length ? [...current, ...withRegionIds(additions)] : current
 }
 
 export const FitnessHeatmapView: FC<Props> = ({
@@ -514,29 +159,21 @@ export const FitnessHeatmapView: FC<Props> = ({
   const [selectedYear, setSelectedYear] = useState<number>(currentYear)
   // Static id for the default so the initial SSR render and client hydration
   // produce identical state (a dynamically generated id would differ).
-  const [regions, setRegions] = useState<PickerRegion[]>(() => [
-    { type: 'world', id: 'world' }
-  ])
+  const [regions, setRegions] = useState<PickerRegion[]>(() => [WORLD_REGION])
+  const [openRegionId, setOpenRegionId] = useState<string | null>(null)
 
+  const [heatmaps, setHeatmaps] = useState<FitnessRouteHeatmapSummaryData[]>([])
   const [heatmapData, setHeatmapData] =
     useState<FitnessRouteHeatmapData | null>(null)
-  const [heatmaps, setHeatmaps] = useState<FitnessRouteHeatmapSummaryData[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [generationPending, setGenerationPending] = useState(false)
   const [isRetrying, setIsRetrying] = useState(false)
-  const [isClearingCache, setIsClearingCache] = useState(false)
-  const [isClearCacheDialogOpen, setIsClearCacheDialogOpen] = useState(false)
-  const [clearCacheError, setClearCacheError] = useState<string | null>(null)
-  const [heatmapPendingRemoval, setHeatmapPendingRemoval] =
-    useState<FitnessRouteHeatmapSummaryData | null>(null)
-  const [isRemoving, setIsRemoving] = useState(false)
-  const [removeError, setRemoveError] = useState<string | null>(null)
-  const [currentTime, setCurrentTime] = useState<number>(() => Date.now())
   const [pollingStalled, setPollingStalled] = useState(false)
-  const isClearingCacheRef = useRef(false)
-  const generationKeyRef = useRef<string | null>(null)
-  const selectionKeyRef = useRef<string>('')
+  const [currentTime, setCurrentTime] = useState<number>(() => Date.now())
+
+  const seededRef = useRef(false)
+  const focusKeyRef = useRef<string>('')
   const fetchRequestIdRef = useRef(0)
   const pollingProgressRef = useRef<{
     key: string
@@ -555,161 +192,155 @@ export const FitnessHeatmapView: FC<Props> = ({
       .catch(() => {})
   }, [actorId])
 
+  // Initial load: pull the actor's heatmaps and seed the region list once.
+  useEffect(() => {
+    seededRef.current = false
+    setRegions([WORLD_REGION])
+    setOpenRegionId(null)
+
+    let cancelled = false
+    getFitnessRouteHeatmaps({ actorId })
+      .then((all) => {
+        if (cancelled) return
+        setHeatmaps(all)
+        if (!seededRef.current) {
+          seededRef.current = true
+          setRegions((current) => mergeDiscoveredRegions(current, all))
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [actorId])
+
+  const selectedActivityType = selectedType || undefined
   const effectivePeriodKey = useMemo(() => {
     if (periodType === 'all_time') return 'all'
     if (periodType === 'yearly') return `${selectedYear}`
     return periodKey
   }, [periodType, selectedYear, periodKey])
 
-  const serializedRegion = useMemo(() => {
-    const serialized = serializeRegions(regions.map(toHeatmapRegion))
-    return serialized === '' ? null : serialized
-  }, [regions])
-  const hasRegions = regions.length > 0
-
-  const selectedActivityType = selectedType || undefined
-  const selectionKey = useMemo(
-    () =>
-      `${actorId}:${selectedActivityType ?? ''}:${periodType}:${effectivePeriodKey}:${serializedRegion ?? ''}`,
-    [
-      actorId,
-      selectedActivityType,
-      periodType,
-      effectivePeriodKey,
-      serializedRegion
-    ]
+  const openRegion = useMemo(
+    () => regions.find((region) => region.id === openRegionId) ?? null,
+    [regions, openRegionId]
   )
+  const openRegionKey = openRegion
+    ? serializeRegion(toHeatmapRegion(openRegion))
+    : null
+
+  const focusKey = openRegion
+    ? `${actorId}:${selectedActivityType ?? ''}:${periodType}:${effectivePeriodKey}:${openRegionKey}`
+    : ''
 
   useEffect(() => {
-    selectionKeyRef.current = selectionKey
-  }, [selectionKey])
+    focusKeyRef.current = focusKey
+  }, [focusKey])
 
+  // Reset the focused state whenever the focused selection changes (including
+  // closing the detail), so a stale map/status never carries across regions.
   useEffect(() => {
     setHeatmapData(null)
     setGenerationPending(false)
     setPollingStalled(false)
     pollingProgressRef.current = null
-  }, [selectionKey])
+  }, [focusKey])
 
-  const queueCurrentRouteHeatmap = useCallback(async (): Promise<boolean> => {
-    const expectedSelectionKey = selectionKey
-    if (selectionKeyRef.current !== expectedSelectionKey) return false
+  const sourceMatch = useCallback(
+    (heatmap: FitnessRouteHeatmapSummaryData): boolean =>
+      (heatmap.activityType ?? '') === (selectedActivityType ?? '') &&
+      heatmap.periodType === periodType &&
+      heatmap.periodKey === effectivePeriodKey,
+    [selectedActivityType, periodType, effectivePeriodKey]
+  )
 
-    const success = await triggerFitnessRouteHeatmap({
-      actorId,
-      activityType: selectedActivityType,
-      periodType,
-      periodKey: effectivePeriodKey,
-      region: serializedRegion
-    })
-    if (!success) {
-      throw new Error('Failed to enqueue route heatmap refresh.')
+  const heatmapForRegion = useCallback(
+    (region: PickerRegion): FitnessRouteHeatmapSummaryData | null => {
+      const key = serializeRegion(toHeatmapRegion(region))
+      return (
+        heatmaps.find(
+          (heatmap) => sourceMatch(heatmap) && (heatmap.region ?? '') === key
+        ) ?? null
+      )
+    },
+    [heatmaps, sourceMatch]
+  )
+
+  const getRegionStatus = useCallback(
+    (region: PickerRegion): RegionDisplayStatus => {
+      const summary = heatmapForRegion(region)
+      return summary ? summaryToStatus(summary, currentTime) : { state: 'idle' }
+    },
+    [heatmapForRegion, currentTime]
+  )
+
+  const fetchFocused = useCallback(async () => {
+    if (!openRegionId || openRegionKey === null) return
+    const requestId = fetchRequestIdRef.current + 1
+    fetchRequestIdRef.current = requestId
+    const key = focusKeyRef.current
+    const isCurrent = () =>
+      fetchRequestIdRef.current === requestId && focusKeyRef.current === key
+
+    setIsLoading(true)
+    setError(null)
+    try {
+      const [heatmap, allHeatmaps] = await Promise.all([
+        getFitnessRouteHeatmap({
+          actorId,
+          activityType: selectedActivityType,
+          periodType,
+          periodKey: effectivePeriodKey,
+          region: openRegionKey || undefined
+        }),
+        getFitnessRouteHeatmaps({ actorId })
+      ])
+      if (!isCurrent()) return
+      setHeatmapData(heatmap)
+      setHeatmaps(allHeatmaps)
+    } catch (err) {
+      if (!isCurrent()) return
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to load route heatmap data.'
+      )
+    } finally {
+      if (isCurrent()) setIsLoading(false)
     }
-    if (selectionKeyRef.current !== expectedSelectionKey) return false
-
-    setGenerationPending(true)
-    setPollingStalled(false)
-    pollingProgressRef.current = null
-    return true
   }, [
     actorId,
     selectedActivityType,
     periodType,
     effectivePeriodKey,
-    serializedRegion,
-    selectionKey
+    openRegionId,
+    openRegionKey
   ])
 
-  const fetchData = useCallback(
-    async (options?: { queueMissing?: boolean }) => {
-      const requestId = fetchRequestIdRef.current + 1
-      fetchRequestIdRef.current = requestId
-      const queueMissing = options?.queueMissing ?? true
-      const isCurrentRequest = () =>
-        fetchRequestIdRef.current === requestId &&
-        selectionKeyRef.current === selectionKey
-
-      setIsLoading(true)
-      setError(null)
-
-      try {
-        const [heatmap, allHeatmaps] = await Promise.all([
-          getFitnessRouteHeatmap({
-            actorId,
-            activityType: selectedActivityType,
-            periodType,
-            periodKey: effectivePeriodKey,
-            region: serializedRegion
-          }),
-          getFitnessRouteHeatmaps({ actorId })
-        ])
-
-        if (!isCurrentRequest()) return
-
-        setHeatmapData(heatmap)
-        setHeatmaps(allHeatmaps)
-
-        if (heatmap === null && queueMissing) {
-          if (generationKeyRef.current !== selectionKey) {
-            if (!isCurrentRequest()) return
-            generationKeyRef.current = selectionKey
-            try {
-              const queued = await queueCurrentRouteHeatmap()
-              if (!queued && generationKeyRef.current === selectionKey) {
-                generationKeyRef.current = null
-              }
-            } catch (err) {
-              if (!isCurrentRequest()) return
-              generationKeyRef.current = null
-              throw err
-            }
-          }
-        }
-      } catch (err) {
-        if (!isCurrentRequest()) return
-        setError(
-          err instanceof Error
-            ? err.message
-            : 'Failed to load route heatmap data.'
-        )
-      } finally {
-        if (isCurrentRequest()) {
-          setIsLoading(false)
-        }
-      }
-    },
-    [
-      actorId,
-      selectedActivityType,
-      periodType,
-      effectivePeriodKey,
-      serializedRegion,
-      selectionKey,
-      queueCurrentRouteHeatmap
-    ]
-  )
-
   useEffect(() => {
-    fetchData()
-  }, [fetchData])
+    fetchFocused()
+  }, [fetchFocused])
 
+  const focusedInFlight =
+    generationPending || isRouteHeatmapInFlight(heatmapData?.status)
+  const shouldPollFocused =
+    Boolean(openRegionId) && focusedInFlight && !pollingStalled
   const hasAnyListInFlight = useMemo(
     () =>
-      heatmaps.some((heatmap) =>
-        shouldPollRouteHeatmapSummary(heatmap, currentTime)
+      heatmaps.some(
+        (heatmap) =>
+          sourceMatch(heatmap) &&
+          isRouteHeatmapInFlight(heatmap.status) &&
+          currentTime - heatmap.updatedAt <= STALE_IN_FLIGHT_HEATMAP_MS
       ),
-    [currentTime, heatmaps]
+    [heatmaps, sourceMatch, currentTime]
   )
-  const isFocusedHeatmapInFlight =
-    generationPending || isRouteHeatmapInFlight(heatmapData)
-  const shouldPollFocusedHeatmap = isFocusedHeatmapInFlight && !pollingStalled
 
   useEffect(() => {
-    const hasInFlight = shouldPollFocusedHeatmap || hasAnyListInFlight
-    if (!hasInFlight) return
+    if (!shouldPollFocused && !hasAnyListInFlight) return
 
     const id = setInterval(() => {
-      if (!shouldPollFocusedHeatmap) {
+      if (!shouldPollFocused) {
         getFitnessRouteHeatmaps({ actorId })
           .then((allHeatmaps) => {
             setHeatmaps(allHeatmaps)
@@ -726,53 +357,48 @@ export const FitnessHeatmapView: FC<Props> = ({
           activityType: selectedActivityType,
           periodType,
           periodKey: effectivePeriodKey,
-          region: serializedRegion
+          region: openRegionKey || undefined
         }),
         getFitnessRouteHeatmaps({ actorId })
       ])
         .then(([heatmap, allHeatmaps]) => {
-          if (selectionKeyRef.current !== selectionKey) return
+          if (focusKeyRef.current !== focusKey) return
 
           setHeatmapData(heatmap)
           setHeatmaps(allHeatmaps)
 
-          if (heatmap && !isRouteHeatmapInFlight(heatmap)) {
+          if (heatmap && !isRouteHeatmapInFlight(heatmap.status)) {
             setGenerationPending(false)
           }
 
           const nextFocusedInFlight =
-            isRouteHeatmapInFlight(heatmap) ||
-            (isFocusedHeatmapInFlight && heatmap === null)
+            isRouteHeatmapInFlight(heatmap?.status) ||
+            (generationPending && heatmap === null)
           if (!nextFocusedInFlight) {
             pollingProgressRef.current = null
             setPollingStalled(false)
             return
           }
 
-          const focusedFingerprint = heatmap
+          const fingerprint = heatmap
             ? `${heatmap.id}:${heatmap.status}:${heatmap.updatedAt}`
             : 'missing'
           const previous = pollingProgressRef.current
-
           if (
             !previous ||
-            previous.key !== selectionKey ||
-            previous.fingerprint !== focusedFingerprint
+            previous.key !== focusKey ||
+            previous.fingerprint !== fingerprint
           ) {
             pollingProgressRef.current = {
-              key: selectionKey,
-              fingerprint: focusedFingerprint,
+              key: focusKey,
+              fingerprint,
               stalledCycles: 0
             }
             return
           }
 
           const stalledCycles = previous.stalledCycles + 1
-          pollingProgressRef.current = {
-            ...previous,
-            stalledCycles
-          }
-
+          pollingProgressRef.current = { ...previous, stalledCycles }
           if (stalledCycles >= STALLED_POLLING_LIMIT) {
             setGenerationPending(false)
             setPollingStalled(true)
@@ -783,14 +409,15 @@ export const FitnessHeatmapView: FC<Props> = ({
 
     return () => clearInterval(id)
   }, [
-    shouldPollFocusedHeatmap,
+    shouldPollFocused,
     hasAnyListInFlight,
     actorId,
     selectedActivityType,
     periodType,
     effectivePeriodKey,
-    serializedRegion,
-    selectionKey
+    openRegionKey,
+    focusKey,
+    generationPending
   ])
 
   const yearOptions = useMemo(() => generateYearOptions(), [])
@@ -817,7 +444,6 @@ export const FitnessHeatmapView: FC<Props> = ({
       setPeriodKey(`${year}`)
       return
     }
-
     if (periodType === 'monthly') {
       const currentMonth = periodKey.split('-')[1] ?? '01'
       const newKey = `${year}-${currentMonth}`
@@ -826,38 +452,22 @@ export const FitnessHeatmapView: FC<Props> = ({
     }
   }
 
-  const handleSelectHeatmap = useCallback(
-    (heatmap: FitnessRouteHeatmapSummaryData) => {
-      setSelectedType(heatmap.activityType ?? '')
-      setPeriodType(heatmap.periodType as PeriodType)
-      setPeriodKey(heatmap.periodKey)
-      if (heatmap.periodType === 'yearly') {
-        setSelectedYear(parseInt(heatmap.periodKey, 10))
-      }
-      if (heatmap.periodType === 'monthly') {
-        setSelectedYear(parseInt(heatmap.periodKey.split('-')[0], 10))
-      }
-      setRegions(withRegionIds(deserializeRegions(heatmap.region ?? '')))
-    },
-    []
-  )
-
-  const handleRetry = useCallback(
-    async (
-      heatmap: FitnessRouteHeatmapSummaryData,
-      options: { retry?: boolean } = { retry: true }
-    ) => {
+  const enqueueGeneration = useCallback(
+    async (retry: boolean) => {
+      if (!openRegionId || openRegionKey === null) return
+      const key = focusKeyRef.current
       const success = await triggerFitnessRouteHeatmap({
         actorId,
-        activityType: heatmap.activityType,
-        periodType: heatmap.periodType as PeriodType,
-        periodKey: heatmap.periodKey,
-        region: heatmap.region || undefined,
-        retry: options.retry
+        activityType: selectedActivityType,
+        periodType,
+        periodKey: effectivePeriodKey,
+        region: openRegionKey || undefined,
+        retry
       })
       if (!success) {
         throw new Error('Failed to enqueue route heatmap refresh.')
       }
+      if (focusKeyRef.current !== key) return
       setGenerationPending(true)
       setPollingStalled(false)
       pollingProgressRef.current = null
@@ -865,22 +475,27 @@ export const FitnessHeatmapView: FC<Props> = ({
         .then(setHeatmaps)
         .catch(() => {})
     },
-    [actorId]
+    [
+      actorId,
+      selectedActivityType,
+      periodType,
+      effectivePeriodKey,
+      openRegionId,
+      openRegionKey
+    ]
   )
 
-  const retryCurrent = async () => {
+  const runGeneration = useCallback(async () => {
     setIsRetrying(true)
     setError(null)
     try {
-      if (heatmapData) {
-        await handleRetry(heatmapData, {
-          retry:
-            heatmapData.status === 'failed' ||
-            heatmapData.status === 'generating'
-        })
-      } else {
-        await queueCurrentRouteHeatmap()
-      }
+      // A failed/in-flight/partial run resumes the existing row; a fresh or
+      // fully-completed region starts a brand-new run.
+      const retry =
+        heatmapData?.status === 'failed' ||
+        heatmapData?.status === 'generating' ||
+        Boolean(heatmapData?.status === 'completed' && heatmapData?.isPartial)
+      await enqueueGeneration(retry)
     } catch (err) {
       setError(
         err instanceof Error
@@ -890,127 +505,73 @@ export const FitnessHeatmapView: FC<Props> = ({
     } finally {
       setIsRetrying(false)
     }
-  }
+  }, [heatmapData, enqueueGeneration])
 
-  const setClearCacheDialogOpen = useCallback((open: boolean) => {
-    if (isClearingCacheRef.current) return
-
-    setClearCacheError(null)
-    setIsClearCacheDialogOpen(open)
-  }, [])
-
-  const clearRouteCache = useCallback(async () => {
-    if (isClearingCacheRef.current) return
-
-    isClearingCacheRef.current = true
-    setIsClearingCache(true)
-    setClearCacheError(null)
-    try {
-      await clearFitnessRouteHeatmaps({ actorId })
-      generationKeyRef.current = null
-      pollingProgressRef.current = null
-      setHeatmapData(null)
-      setHeatmaps([])
-      setGenerationPending(false)
-      setPollingStalled(false)
-      await fetchData({ queueMissing: false })
-      setClearCacheError(null)
-      setIsClearCacheDialogOpen(false)
-    } catch (err) {
-      setClearCacheError(
-        err instanceof Error
-          ? err.message
-          : 'Failed to clear route heatmap cache.'
+  const handleRegionRemoved = useCallback(
+    async (region: PickerRegion) => {
+      if (openRegionId === region.id) setOpenRegionId(null)
+      const key = serializeRegion(toHeatmapRegion(region))
+      // Best-effort: prune the region's heatmap for the current source so a
+      // removed region doesn't reappear from a stale cache row.
+      setHeatmaps((current) =>
+        current.filter(
+          (heatmap) => !(sourceMatch(heatmap) && (heatmap.region ?? '') === key)
+        )
       )
-    } finally {
-      isClearingCacheRef.current = false
-      setIsClearingCache(false)
-    }
-  }, [actorId, fetchData])
-
-  const handleRemoveRequest = useCallback(
-    (heatmap: FitnessRouteHeatmapSummaryData) => {
-      setRemoveError(null)
-      setHeatmapPendingRemoval(heatmap)
+      try {
+        await deleteFitnessRouteHeatmap({
+          actorId,
+          activityType: selectedActivityType,
+          periodType,
+          periodKey: effectivePeriodKey,
+          region: key || undefined
+        })
+      } catch {
+        // Removing the cache is best-effort; the row already left the list.
+      }
     },
-    []
+    [
+      actorId,
+      openRegionId,
+      selectedActivityType,
+      periodType,
+      effectivePeriodKey,
+      sourceMatch
+    ]
   )
 
-  const closeRemoveDialog = useCallback(() => {
-    if (isRemoving) return
-    setRemoveError(null)
-    setHeatmapPendingRemoval(null)
-  }, [isRemoving])
-
-  const confirmRemove = useCallback(async () => {
-    if (!heatmapPendingRemoval) return
-
-    const target = heatmapPendingRemoval
-    setIsRemoving(true)
-    setRemoveError(null)
-    try {
-      // `deleted: false` means the row was already gone server-side (a
-      // concurrent Remove or a bulk Clear). Either way it should leave the
-      // list, so treat any non-throwing response as "removed" rather than
-      // erroring and stranding a stale row.
-      await deleteFitnessRouteHeatmap({
-        actorId,
-        activityType: target.activityType,
-        periodType: target.periodType,
-        periodKey: target.periodKey,
-        region: target.region || undefined
-      })
-
-      setHeatmaps((current) => current.filter((h) => h.id !== target.id))
-      if (heatmapData?.id === target.id) {
-        setHeatmapData(null)
-        setGenerationPending(false)
-        setPollingStalled(false)
-        pollingProgressRef.current = null
-        // Don't auto-requeue the heatmap the user just removed.
-        generationKeyRef.current = selectionKey
-      }
-      setHeatmapPendingRemoval(null)
-      getFitnessRouteHeatmaps({ actorId })
-        .then(setHeatmaps)
-        .catch(() => {})
-    } catch (err) {
-      setRemoveError(
-        err instanceof Error ? err.message : 'Failed to remove route heatmap.'
-      )
-    } finally {
-      setIsRemoving(false)
-    }
-  }, [actorId, heatmapData?.id, heatmapPendingRemoval, selectionKey])
-
-  const routeCount = heatmapData?.segments.length ?? 0
-  const hasCompletedRoutes =
-    heatmapData?.status === 'completed' && heatmapData.pointCount > 0
-  const hasRouteCache =
-    Boolean(heatmapData) || heatmaps.length > 0 || generationPending
-  const isFocusedGenerating = heatmapData?.status === 'generating'
-  const focusedProgress = isFocusedGenerating
-    ? formatFocusedProgress(heatmapData)
+  const focusedProgressPercent = heatmapData
+    ? computeProgressPercent(heatmapData.totalCount, heatmapData.cursorOffset)
     : null
-  const routeStatusOverlay =
-    heatmapData?.status === 'failed'
-      ? 'failed'
-      : pollingStalled && !hasCompletedRoutes
-        ? 'polling-stalled'
-        : !isLoading &&
-            (isFocusedGenerating || (generationPending && !hasCompletedRoutes))
-          ? 'generation-pending'
-          : null
 
-  const regionLabel = hasRegions
-    ? describeRegions(serializedRegion ?? '')
-    : 'No region selected'
-  const periodLabel =
-    periodType === 'all_time' ? 'All time' : effectivePeriodKey
-  const isGenerateBusy =
-    isRetrying || generationPending || isRouteHeatmapInFlight(heatmapData)
-  const canGenerate =
-    !isLoading && !isGenerateBusy && !isClearingCache && hasRegions
+  if (openRegion) {
+    return (
+      <RegionHeatmapDetail
+        region={openRegion}
+        meta={{
+          activity: formatActivityLabel(selectedActivityType),
+          period: formatPeriodLabel(periodType, effectivePeriodKey)
+        }}
+        heatmap={heatmapData}
+        mapboxAccessToken={mapboxAccessToken}
+        currentTime={currentTime}
+        isLoading={isLoading}
+        busy={focusedInFlight}
+        progressPercent={focusedProgressPercent}
+        isRetrying={isRetrying}
+        generationQueued={generationPending}
+        error={error}
+        onBack={() => setOpenRegionId(null)}
+        onGenerate={runGeneration}
+        onRetry={runGeneration}
+      />
+    )
+  }
+
+  const generatedCount = regions.filter((region) => {
+    const summary = heatmapForRegion(region)
+    return summary?.status === 'completed'
+  }).length
 
   return (
     <div className="space-y-4">
@@ -1023,16 +584,16 @@ export const FitnessHeatmapView: FC<Props> = ({
         </div>
       )}
 
-      {/* Generate panel */}
+      {/* Heatmap source — applies to every region you generate below. */}
       <section className="rounded-xl border bg-card p-4 shadow-sm">
         <div className="mb-3 flex items-center gap-2">
           <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <Flame className="size-4" />
           </span>
           <div>
-            <div className="text-sm font-semibold">Generate a heatmap</div>
+            <div className="text-sm font-semibold">Heatmap source</div>
             <div className="text-[11px] text-muted-foreground">
-              Aggregate your routes into a density map.
+              Applies to every region you generate below.
             </div>
           </div>
         </div>
@@ -1049,7 +610,7 @@ export const FitnessHeatmapView: FC<Props> = ({
               <option value="">All activities</option>
               {activityTypes.map((type) => (
                 <option key={type} value={type}>
-                  {formatActivityType(type)}
+                  {formatActivityLabel(type)}
                 </option>
               ))}
             </Select>
@@ -1107,287 +668,27 @@ export const FitnessHeatmapView: FC<Props> = ({
             </label>
           )}
         </div>
-
-        <div className="mt-3 space-y-1.5">
-          <span className="block text-xs font-medium text-muted-foreground">
-            Regions
-          </span>
-          <HeatmapRegionPicker
-            value={regions}
-            onChange={setRegions}
-            mapboxAccessToken={mapboxAccessToken}
-          />
-        </div>
-
-        <div className="mt-3 flex justify-end">
-          <Button type="button" onClick={retryCurrent} disabled={!canGenerate}>
-            <Flame
-              className={cn('size-4', isGenerateBusy && 'animate-pulse')}
-            />
-            Generate heatmap
-          </Button>
-        </div>
       </section>
 
-      {/* Preview of the focused heatmap */}
-      <section
-        aria-label="Route heatmap map"
-        className="overflow-hidden rounded-xl border bg-card shadow-sm"
-      >
-        <div className="flex flex-wrap items-start justify-between gap-3 p-4">
-          <div className="min-w-0">
-            <div className="text-base font-semibold">
-              {formatActivityType(selectedActivityType)} · {periodLabel}
-            </div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1">
-                <Map className="size-3.5" />
-                {regionLabel}
-              </span>
-              <span>·</span>
-              <span>{heatmapData?.activityCount ?? 0} activities</span>
-              <span>·</span>
-              <span>{routeCount} segments</span>
-              {isLoading && (
-                <span
-                  role="status"
-                  className="inline-flex items-center gap-1.5"
-                >
-                  <Loader2 className="size-3 animate-spin" />
-                  Loading…
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {heatmapData?.isPartial && (
-          <div className="mx-4 mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
-            Partial route cache capped at 1M files.
-          </div>
-        )}
-
-        <div className="relative overflow-hidden">
-          <RouteHeatmapMap
-            heatmap={heatmapData}
-            mapboxAccessToken={mapboxAccessToken}
-          />
-          {routeStatusOverlay === 'generation-pending' && (
-            <div
-              className="absolute inset-x-3 bottom-3 flex flex-col gap-1.5 rounded border bg-background/95 px-3 py-2 text-sm text-muted-foreground shadow-sm"
-              aria-live="polite"
-            >
-              {isFocusedGenerating && focusedProgress ? (
-                <>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Loader2 className="size-3.5 animate-spin" />
-                    Generating heatmap · {focusedProgress.label}
-                  </span>
-                  <span
-                    className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
-                    role="progressbar"
-                    aria-label="Heatmap generation progress"
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    {...(focusedProgress.percent === null
-                      ? {}
-                      : { 'aria-valuenow': focusedProgress.percent })}
-                  >
-                    <span
-                      className={cn(
-                        'block h-full rounded-full bg-blue-500 transition-[width] duration-500 dark:bg-blue-400',
-                        focusedProgress.percent === null &&
-                          'w-1/3 animate-pulse'
-                      )}
-                      style={
-                        focusedProgress.percent === null
-                          ? undefined
-                          : { width: `${focusedProgress.percent}%` }
-                      }
-                    />
-                  </span>
-                </>
-              ) : (
-                'Route cache queued'
-              )}
-            </div>
-          )}
-          {routeStatusOverlay === 'polling-stalled' && (
-            <div
-              className="absolute inset-x-3 bottom-3 flex items-center justify-between gap-3 rounded border bg-background/95 px-3 py-2 text-sm shadow-sm"
-              aria-live="polite"
-            >
-              <span className="inline-flex items-center gap-2 text-muted-foreground">
-                <AlertCircle className="size-4" />
-                Route cache is taking longer than expected
-              </span>
-              <Button
-                type="button"
-                onClick={retryCurrent}
-                disabled={isRetrying}
-                variant="outline"
-                size="sm"
-                className="h-7 px-2 text-xs"
-              >
-                <RefreshCw
-                  className={cn('size-3', isRetrying && 'animate-spin')}
-                />
-                Retry
-              </Button>
-            </div>
-          )}
-          {routeStatusOverlay === 'failed' && (
-            <div
-              className="absolute inset-x-3 bottom-3 flex items-center justify-between gap-3 rounded border bg-background/95 px-3 py-2 text-sm shadow-sm"
-              aria-live="assertive"
-            >
-              <span className="inline-flex items-center gap-2 text-destructive">
-                <AlertCircle className="size-4" />
-                Route cache failed
-              </span>
-              <Button
-                type="button"
-                onClick={retryCurrent}
-                disabled={isRetrying}
-                variant="outline"
-                size="sm"
-                className="h-7 px-2 text-xs"
-              >
-                <RefreshCw
-                  className={cn('size-3', isRetrying && 'animate-spin')}
-                />
-                Retry
-              </Button>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Job list */}
+      {/* Region list — each opens its own heatmap page. */}
       <section className="rounded-xl border bg-card p-4 shadow-sm">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold">Heatmaps</h2>
-          {hasRouteCache && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setClearCacheDialogOpen(true)}
-              disabled={isClearingCache || isRetrying}
-              aria-haspopup="dialog"
-            >
-              <Trash2
-                className={cn('size-3.5', isClearingCache && 'animate-pulse')}
-              />
-              Clear cache
-            </Button>
-          )}
+        <div className="mb-3">
+          <div className="text-sm font-semibold">Regions</div>
+          <div className="text-[11px] text-muted-foreground">
+            {regions.length} region{regions.length === 1 ? '' : 's'} ·{' '}
+            {generatedCount} generated. Open one to view its heatmap &amp;
+            generate.
+          </div>
         </div>
-        <FitnessHeatmapList
-          heatmaps={heatmaps}
-          onSelect={handleSelectHeatmap}
-          onRetry={handleRetry}
-          onRemove={handleRemoveRequest}
-          currentTime={currentTime}
+        <HeatmapRegionPicker
+          value={regions}
+          onChange={setRegions}
+          mapboxAccessToken={mapboxAccessToken}
+          onOpen={(region) => setOpenRegionId(region.id)}
+          getRegionStatus={getRegionStatus}
+          onRegionRemoved={handleRegionRemoved}
         />
       </section>
-
-      <Dialog
-        open={isClearCacheDialogOpen}
-        onOpenChange={setClearCacheDialogOpen}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Clear route cache</DialogTitle>
-            <DialogDescription>
-              Clear all route heatmap cache for this account, including queued,
-              generating, and failed route caches. This does not immediately
-              start a new route cache job.
-            </DialogDescription>
-          </DialogHeader>
-          {clearCacheError ? (
-            <p
-              role="alert"
-              className="rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-            >
-              {clearCacheError}
-            </p>
-          ) : null}
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setClearCacheDialogOpen(false)}
-              disabled={isClearingCache}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={clearRouteCache}
-              disabled={isClearingCache}
-              aria-busy={isClearingCache}
-            >
-              <Trash2
-                className={isClearingCache ? 'animate-pulse' : undefined}
-              />
-              {isClearingCache ? 'Clearing…' : 'Clear route caches'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={heatmapPendingRemoval !== null}
-        onOpenChange={(open) => {
-          if (!open) closeRemoveDialog()
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Remove heatmap</DialogTitle>
-            <DialogDescription>
-              {heatmapPendingRemoval
-                ? `Remove the ${formatActivityType(
-                    heatmapPendingRemoval.activityType
-                  )} · ${formatPeriodLabel(
-                    heatmapPendingRemoval.periodType,
-                    heatmapPendingRemoval.periodKey
-                  )} heatmap from your list? You can regenerate it later.`
-                : 'Remove this heatmap from your list? You can regenerate it later.'}
-            </DialogDescription>
-          </DialogHeader>
-          {removeError ? (
-            <p
-              role="alert"
-              className="rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-            >
-              {removeError}
-            </p>
-          ) : null}
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={closeRemoveDialog}
-              disabled={isRemoving}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={confirmRemove}
-              disabled={isRemoving}
-              aria-busy={isRemoving}
-            >
-              <Trash2 className={isRemoving ? 'animate-pulse' : undefined} />
-              {isRemoving ? 'Removing…' : 'Remove heatmap'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

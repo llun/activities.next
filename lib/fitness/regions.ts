@@ -104,6 +104,16 @@ export const serializeRegions = (regions: HeatmapRegion[]): string => {
     .join(';')
 }
 
+/**
+ * Serializes a single region into its canonical cache-key string — the form the
+ * route-heatmap API keys an individual region's heatmap on. A whole-world region
+ * yields '' (the world-wide sentinel); a rectangle yields its lone `rect:` token.
+ * This is the per-region counterpart to {@link serializeRegions}, used by the
+ * heatmaps UI where each region owns its own heatmap (one kept version each).
+ */
+export const serializeRegion = (region: HeatmapRegion): string =>
+  serializeRegions([region])
+
 const parseRectToken = (token: string): RectRegion | null => {
   const rawParts = token.slice('rect:'.length).split(',')
   // Reject empty/whitespace coordinates explicitly: Number('') and Number(' ')

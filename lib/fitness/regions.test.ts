@@ -7,6 +7,7 @@ import {
   formatRectRegion,
   getRegionBounds,
   isValidRect,
+  serializeRegion,
   serializeRegions
 } from '@/lib/fitness/regions'
 
@@ -21,6 +22,18 @@ const rect = (
   name,
   nw: { lat: nwLat, lng: nwLng },
   se: { lat: seLat, lng: seLng }
+})
+
+describe('serializeRegion', () => {
+  it('serializes the whole world to the world-wide sentinel', () => {
+    expect(serializeRegion({ type: 'world' })).toBe('')
+  })
+
+  it('serializes a single rectangle to its lone token', () => {
+    expect(serializeRegion(rect(52.6, 5.6, 52, 6.2))).toBe(
+      'rect:52.60,5.60,52.00,6.20'
+    )
+  })
 })
 
 describe('serializeRegions', () => {
