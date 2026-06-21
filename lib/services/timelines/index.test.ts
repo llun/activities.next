@@ -223,6 +223,68 @@ describe('addStatusToTimelines', () => {
     expect(directTimeline.some((s) => s.id === status.id)).toBe(false)
   })
 
+  test('it still records the main timeline when the collection fan-out fails', async () => {
+    const id = randomBytes(16).toString('hex')
+    const status = await database.createNote({
+      id: `${EXTERNAL_ACTOR1}/statuses/${id}`,
+      url: `${EXTERNAL_ACTOR1}/statuses/${id}`,
+      actorId: EXTERNAL_ACTOR1,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [EXTERNAL_ACTOR1_FOLLOWERS],
+      text: 'message despite collection failure'
+    })
+
+    const collectionSpy = vi
+      .spyOn(database, 'addStatusToCollectionTimelines')
+      .mockRejectedValue(
+        new Error('relation "collection_members" does not exist')
+      )
+
+    // A failure materializing the rebuildable collection feed must not abort
+    // status creation and lose the post.
+    await expect(
+      addStatusToTimelines(database, status)
+    ).resolves.toBeUndefined()
+    expect(collectionSpy).toHaveBeenCalled()
+
+    const mainTimeline = await database.getTimeline({
+      timeline: Timeline.MAIN,
+      actorId: ACTOR1_ID
+    })
+    expect(mainTimeline.some((s) => s.id === status.id)).toBe(true)
+
+    collectionSpy.mockRestore()
+  })
+
+  test('it still records the main timeline when the list fan-out fails', async () => {
+    const id = randomBytes(16).toString('hex')
+    const status = await database.createNote({
+      id: `${EXTERNAL_ACTOR1}/statuses/${id}`,
+      url: `${EXTERNAL_ACTOR1}/statuses/${id}`,
+      actorId: EXTERNAL_ACTOR1,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [EXTERNAL_ACTOR1_FOLLOWERS],
+      text: 'message despite list failure'
+    })
+
+    const listSpy = vi
+      .spyOn(database, 'addStatusToListTimelines')
+      .mockRejectedValue(new Error('relation "list_timeline" does not exist'))
+
+    await expect(
+      addStatusToTimelines(database, status)
+    ).resolves.toBeUndefined()
+    expect(listSpy).toHaveBeenCalled()
+
+    const mainTimeline = await database.getTimeline({
+      timeline: Timeline.MAIN,
+      actorId: ACTOR1_ID
+    })
+    expect(mainTimeline.some((s) => s.id === status.id)).toBe(true)
+
+    listSpy.mockRestore()
+  })
+
   test('it skips timelines when a followed actor announces a blocked author', async () => {
     const id = randomBytes(16).toString('hex')
     const originalStatus = await database.createNote({

@@ -1,8 +1,12 @@
 import { z } from 'zod'
 
-import { IMPORT_FITNESS_FILES_JOB_NAME } from '@/lib/jobs/names'
+import {
+  IMPORT_FITNESS_FILES_JOB_NAME,
+  IMPORT_STRAVA_ACTIVITY_JOB_NAME
+} from '@/lib/jobs/names'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getQueue } from '@/lib/services/queue'
+import { getStravaActivityIdFromBatchId } from '@/lib/services/strava/activityBatch'
 import { getStravaArchiveSourceBatchId } from '@/lib/services/strava/archiveImport'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { StravaArchiveImport } from '@/lib/types/database/stravaArchiveImport'
@@ -466,31 +470,65 @@ export const POST = traceApiRoute(
       )
       .map((item) => item.id)
 
-    await Promise.all([
-      database.updateFitnessFilesImportStatus({
-        fitnessFileIds: retriableFileIds,
+    // Reset each status column only for the files that actually failed on that
+    // column. A file whose import already succeeded (importStatus 'completed',
+    // statusId set) but whose later map processing failed must keep its
+    // 'completed' import status: the Strava retry re-runs importStravaActivityJob
+    // which short-circuits past the importer when a statusId exists, so resetting
+    // its importStatus to 'pending' here would leave it stuck 'pending' forever.
+    const importResetFileIds = retriableFiles
+      .filter(({ importStatus }) => importStatus === 'failed')
+      .map(({ file }) => file.id)
+    const processingResetFileIds = retriableFiles
+      .filter(({ processingStatus }) => processingStatus === 'failed')
+      .map(({ file }) => file.id)
+
+    if (importResetFileIds.length > 0) {
+      await database.updateFitnessFilesImportStatus({
+        fitnessFileIds: importResetFileIds,
         importStatus: 'pending'
-      }),
-      database.updateFitnessFilesProcessingStatus({
-        fitnessFileIds: retriableFileIds,
+      })
+    }
+    if (processingResetFileIds.length > 0) {
+      await database.updateFitnessFilesProcessingStatus({
+        fitnessFileIds: processingResetFileIds,
         processingStatus: 'pending'
       })
-    ])
+    }
+
+    // A `strava-activity:<id>` batch came from a single Strava activity, so the
+    // faithful retry re-runs the full Strava importer (re-fetches the activity
+    // for its caption, photos and real visibility) rather than only the file
+    // importer (which would recreate the post with an empty caption). Visibility
+    // is omitted so the job re-derives the activity's actual Strava visibility.
+    const stravaActivityId = getStravaActivityIdFromBatchId(batchId)
+    const retryJob = stravaActivityId
+      ? {
+          id: getHashFromString(
+            `${batchActorId}:strava-activity-retry:${batchId}`
+          ),
+          name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+          data: {
+            actorId: batchActorId,
+            stravaActivityId
+          }
+        }
+      : {
+          id: getHashFromString(
+            `${batchActorId}:fitness-import-retry:${batchId}`
+          ),
+          name: IMPORT_FITNESS_FILES_JOB_NAME,
+          data: {
+            actorId: batchActorId,
+            batchId,
+            fitnessFileIds: retriableFileIds,
+            overlapFitnessFileIds,
+            visibility: visibilityParsed.data
+          }
+        }
 
     try {
-      await getQueue().publish({
-        id: getHashFromString(
-          `${batchActorId}:fitness-import-retry:${batchId}`
-        ),
-        name: IMPORT_FITNESS_FILES_JOB_NAME,
-        data: {
-          actorId: batchActorId,
-          batchId,
-          fitnessFileIds: retriableFileIds,
-          overlapFitnessFileIds,
-          visibility: visibilityParsed.data
-        }
-      })
+      await getQueue().publish(retryJob)
     } catch (error) {
       const nodeError = error as Error
 
