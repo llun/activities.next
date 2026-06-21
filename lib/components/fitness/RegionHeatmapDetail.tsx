@@ -232,7 +232,12 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
 }) => {
   const isWorld = region.type === 'world'
   const title = isWorld ? 'Whole world' : region.name || 'Map area'
-  const hasMap = heatmap?.status === 'completed' && heatmap.pointCount > 0
+  // A completed run is a kept version even when it found no routes — the map
+  // itself renders a "No route data for this selection" state — so gate on the
+  // completed status, not the point count. This keeps the header ("Regenerate"),
+  // the current-version line, and the Generation-tasks row ("Completed") all
+  // consistent instead of contradicting each other with "No heatmap yet".
+  const hasMap = heatmap?.status === 'completed'
   // While the focused heatmap is still loading and nothing is in flight yet,
   // show a neutral loader instead of flashing the "No heatmap yet" empty state.
   const showLoading = isLoading && !heatmap && !busy && !pollingStalled

@@ -158,6 +158,27 @@ describe('HeatmapRegionPicker', () => {
     expect(next.map((region) => region.type).sort()).toEqual(['rect', 'world'])
   })
 
+  it('does not add a duplicate area with the same coordinates', () => {
+    const onChange = vi.fn()
+    // Same coords as the composer's DEFAULT_BOX (nw 53,3 / se 50,7).
+    const existing: PickerRegion[] = [
+      {
+        id: 'rect-1',
+        type: 'rect',
+        nw: { lat: 53, lng: 3 },
+        se: { lat: 50, lng: 7 }
+      }
+    ]
+    render(<HeatmapRegionPicker value={existing} onChange={onChange} />)
+    fireEvent.click(screen.getByRole('button', { name: /Draw area on map/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Add area/i }))
+
+    expect(onChange).toHaveBeenCalledTimes(1)
+    const next = onChange.mock.calls[0][0] as PickerRegion[]
+    // The duplicate is dropped — each region owns exactly one cached heatmap.
+    expect(next).toHaveLength(1)
+  })
+
   it('keeps the whole world when a rectangle is drawn', () => {
     const onChange = vi.fn()
     render(<HeatmapRegionPicker value={worldValue} onChange={onChange} />)

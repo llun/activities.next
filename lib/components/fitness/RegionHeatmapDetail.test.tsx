@@ -160,6 +160,30 @@ describe('RegionHeatmapDetail', () => {
     expect(onRetry).toHaveBeenCalledTimes(1)
   })
 
+  it('treats a completed-but-empty run as a kept version, not "No heatmap yet"', () => {
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        heatmap={{
+          ...completedHeatmap,
+          segments: [],
+          bounds: null,
+          pointCount: 0,
+          activityCount: 0
+        }}
+      />
+    )
+
+    // The map area still renders (it shows its own "no route data" state), the
+    // header offers Regenerate, and the task reads Completed — no contradiction.
+    expect(screen.getByTestId('route-map')).toBeInTheDocument()
+    expect(screen.queryByText('No heatmap yet')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /Regenerate/i })
+    ).toBeInTheDocument()
+    expect(screen.getByText('Completed')).toBeInTheDocument()
+  })
+
   it('shows a retry control for a failed run', () => {
     const onRetry = vi.fn()
     render(

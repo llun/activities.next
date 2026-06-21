@@ -22,7 +22,8 @@ import {
   LatLng,
   RectRegion,
   formatRectRegion,
-  isValidRect
+  isValidRect,
+  serializeRegion
 } from '@/lib/fitness/regions'
 import { cn } from '@/lib/utils'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
@@ -65,6 +66,17 @@ export const toHeatmapRegion = (region: PickerRegion): HeatmapRegion =>
 /** Attaches client ids to a deserialized region list (e.g. when loading a job). */
 export const withRegionIds = (regions: HeatmapRegion[]): PickerRegion[] =>
   regions.map((region) => ({ ...region, id: createRegionId() }))
+
+/** Keeps the first region for each canonical heatmap key, dropping later dupes. */
+const dedupeByRegionKey = (regions: PickerRegion[]): PickerRegion[] => {
+  const seen = new Set<string>()
+  return regions.filter((region) => {
+    const key = serializeRegion(toHeatmapRegion(region))
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
 
 const clamp = (value: number, lo: number, hi: number): number =>
   Math.min(hi, Math.max(lo, value))
@@ -501,17 +513,17 @@ export const HeatmapRegionPicker: FC<HeatmapRegionPickerProps> = ({
   }
 
   const saveRect = (rect: RectRegion) => {
-    if (composer?.editId) {
-      onChange(
-        value.map((region) =>
+    const next = composer?.editId
+      ? value.map((region) =>
           region.id === composer.editId
             ? { ...region, ...rect, id: region.id }
             : region
         )
-      )
-    } else {
-      onChange([...value, { id: createRegionId(), ...rect }])
-    }
+      : [...value, { id: createRegionId(), ...rect }]
+    // Drop regions that collapse to the same canonical key — each region owns one
+    // heatmap, so a duplicate would share (and fight over) a single cache row
+    // (removing one would soft-delete the cache the survivor still points at).
+    onChange(dedupeByRegionKey(next))
     setComposer(null)
   }
 
