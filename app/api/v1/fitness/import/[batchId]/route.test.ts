@@ -744,10 +744,9 @@ describe('fitness import batch route', () => {
 
     expect(response.status).toBe(200)
     expect(json.retried).toBe(1)
-    expect(db.updateFitnessFilesImportStatus).toHaveBeenCalledWith({
-      fitnessFileIds: ['file-1'],
-      importStatus: 'pending'
-    })
+    // The import already succeeded; only its processing failed, so its
+    // importStatus must NOT be reset (a re-import would leave it stuck 'pending').
+    expect(db.updateFitnessFilesImportStatus).not.toHaveBeenCalled()
     expect(db.updateFitnessFilesProcessingStatus).toHaveBeenCalledWith({
       fitnessFileIds: ['file-1'],
       processingStatus: 'pending'
@@ -761,6 +760,52 @@ describe('fitness import batch route', () => {
         fitnessFileIds: ['file-1'],
         overlapFitnessFileIds: [],
         visibility: 'private'
+      }
+    })
+  })
+
+  it('does not reset import status for an already-imported file whose processing failed on a strava-activity retry', async () => {
+    db.getFitnessFilesByBatchId.mockResolvedValue([
+      {
+        id: 'file-1',
+        actorId: 'https://llun.test/users/llun',
+        fileName: 'strava-99.tcx',
+        fileType: 'tcx',
+        path: 'fitness/strava-99.tcx',
+        mimeType: 'application/vnd.garmin.tcx+xml',
+        bytes: 1024,
+        importBatchId: 'strava-activity:99',
+        importStatus: 'completed',
+        processingStatus: 'failed',
+        statusId: 'https://llun.test/users/llun/statuses/existing',
+        createdAt: 1,
+        updatedAt: 1
+      }
+    ])
+
+    const request = {
+      headers: new Headers(),
+      json: async () => ({ visibility: 'public' })
+    } as unknown as Parameters<typeof POST>[0]
+
+    const response = await POST(request, {
+      params: Promise.resolve({ batchId: 'strava-activity:99' })
+    })
+    const json = (await response.json()) as { retried: number }
+
+    expect(response.status).toBe(200)
+    expect(json.retried).toBe(1)
+    expect(db.updateFitnessFilesImportStatus).not.toHaveBeenCalled()
+    expect(db.updateFitnessFilesProcessingStatus).toHaveBeenCalledWith({
+      fitnessFileIds: ['file-1'],
+      processingStatus: 'pending'
+    })
+    expect(getQueue().publish).toHaveBeenCalledWith({
+      id: expect.any(String),
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'https://llun.test/users/llun',
+        stravaActivityId: '99'
       }
     })
   })
@@ -843,10 +888,8 @@ describe('fitness import batch route', () => {
     })
 
     expect(response.status).toBe(500)
-    expect(db.updateFitnessFilesImportStatus).toHaveBeenCalledWith({
-      fitnessFileIds: ['file-1'],
-      importStatus: 'pending'
-    })
+    // importStatus was 'completed', so it was never reset to 'pending'.
+    expect(db.updateFitnessFilesImportStatus).not.toHaveBeenCalled()
     expect(db.updateFitnessFilesProcessingStatus).toHaveBeenCalledWith({
       fitnessFileIds: ['file-1'],
       processingStatus: 'pending'

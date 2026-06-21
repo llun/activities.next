@@ -470,16 +470,31 @@ export const POST = traceApiRoute(
       )
       .map((item) => item.id)
 
-    await Promise.all([
-      database.updateFitnessFilesImportStatus({
-        fitnessFileIds: retriableFileIds,
+    // Reset each status column only for the files that actually failed on that
+    // column. A file whose import already succeeded (importStatus 'completed',
+    // statusId set) but whose later map processing failed must keep its
+    // 'completed' import status: the Strava retry re-runs importStravaActivityJob
+    // which short-circuits past the importer when a statusId exists, so resetting
+    // its importStatus to 'pending' here would leave it stuck 'pending' forever.
+    const importResetFileIds = retriableFiles
+      .filter(({ importStatus }) => importStatus === 'failed')
+      .map(({ file }) => file.id)
+    const processingResetFileIds = retriableFiles
+      .filter(({ processingStatus }) => processingStatus === 'failed')
+      .map(({ file }) => file.id)
+
+    if (importResetFileIds.length > 0) {
+      await database.updateFitnessFilesImportStatus({
+        fitnessFileIds: importResetFileIds,
         importStatus: 'pending'
-      }),
-      database.updateFitnessFilesProcessingStatus({
-        fitnessFileIds: retriableFileIds,
+      })
+    }
+    if (processingResetFileIds.length > 0) {
+      await database.updateFitnessFilesProcessingStatus({
+        fitnessFileIds: processingResetFileIds,
         processingStatus: 'pending'
       })
-    ])
+    }
 
     // A `strava-activity:<id>` batch came from a single Strava activity, so the
     // faithful retry re-runs the full Strava importer (re-fetches the activity

@@ -115,10 +115,13 @@ export function FitnessFileManagement({
     setRetryingBatchId(batchId)
     setRetryError(null)
     try {
-      // Visibility is only consulted for manual-upload batches; Strava-activity
-      // retries re-derive the activity's real visibility server-side. The import
-      // runs asynchronously on the queue, so refresh to pick up the new status.
-      await retryFitnessImportBatch(batchId, 'public')
+      // Visibility is only consulted for manual-upload batches (Strava-activity
+      // retries re-derive the activity's real visibility server-side). The
+      // original choice is not stored on the file, so retry with the safe,
+      // non-publicizing `private` rather than risk re-publishing an originally
+      // unlisted/private post as public. The import runs asynchronously on the
+      // queue, so refresh to pick up the new status.
+      await retryFitnessImportBatch(batchId, 'private')
       setQueuedBatchIds((prev) => new Set(prev).add(batchId))
       router.refresh()
     } catch (error) {
@@ -270,7 +273,7 @@ export function FitnessFileManagement({
                             variant="outline"
                             size="sm"
                             onClick={() => handleRetryImport(retryBatchId)}
-                            disabled={retryingBatchId === retryBatchId}
+                            disabled={retryingBatchId !== null}
                           >
                             {retryingBatchId === retryBatchId
                               ? 'Retrying…'

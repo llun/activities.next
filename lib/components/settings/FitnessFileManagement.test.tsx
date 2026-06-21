@@ -167,6 +167,117 @@ describe('FitnessFileManagement', () => {
       })
     })
 
+    it('shows an error message when the retry request fails', async () => {
+      vi.spyOn(global, 'fetch').mockResolvedValue({
+        ok: false,
+        text: async () => 'Retry rejected',
+        statusText: 'Bad Request'
+      } as Response)
+
+      const files = [
+        {
+          id: 'fitness-failed',
+          actorId: 'https://example.com/users/alice',
+          fileName: 'a.tcx',
+          fileType: 'tcx' as const,
+          mimeType: 'application/vnd.garmin.tcx+xml',
+          bytes: 1024,
+          createdAt: Date.now(),
+          url: '/api/v1/fitness-files/fitness-failed',
+          importStatus: 'failed' as const,
+          importError: 'boom',
+          importBatchId: 'strava-activity:1'
+        }
+      ]
+
+      render(
+        <FitnessFileManagement
+          used={1024}
+          limit={10485760}
+          fitnessFiles={files}
+          currentPage={1}
+          itemsPerPage={25}
+          totalItems={1}
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: /Retry import/i }))
+
+      await waitFor(() => {
+        expect(screen.getByText('Retry rejected')).toBeInTheDocument()
+      })
+    })
+
+    it('disables every retry button while a retry is in flight', async () => {
+      let resolveFetch: (value: unknown) => void = () => undefined
+      vi.spyOn(global, 'fetch').mockReturnValue(
+        new Promise((resolve) => {
+          resolveFetch = resolve
+        }) as unknown as Promise<Response>
+      )
+
+      const baseFile = {
+        actorId: 'https://example.com/users/alice',
+        fileType: 'tcx' as const,
+        mimeType: 'application/vnd.garmin.tcx+xml',
+        bytes: 1024,
+        createdAt: Date.now(),
+        importStatus: 'failed' as const,
+        importError: 'boom'
+      }
+      const files = [
+        {
+          ...baseFile,
+          id: 'file-a',
+          fileName: 'a.tcx',
+          url: '/api/v1/fitness-files/file-a',
+          importBatchId: 'strava-activity:A'
+        },
+        {
+          ...baseFile,
+          id: 'file-b',
+          fileName: 'b.tcx',
+          url: '/api/v1/fitness-files/file-b',
+          importBatchId: 'strava-activity:B'
+        }
+      ]
+
+      render(
+        <FitnessFileManagement
+          used={2048}
+          limit={10485760}
+          fitnessFiles={files}
+          currentPage={1}
+          itemsPerPage={25}
+          totalItems={2}
+        />
+      )
+
+      const retryButtons = screen.getAllByRole('button', {
+        name: 'Retry import'
+      })
+      expect(retryButtons).toHaveLength(2)
+
+      fireEvent.click(retryButtons[0])
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Retrying…' })).toBeDisabled()
+      })
+      // The other batch's button is disabled too, so it cannot be dead-clicked.
+      expect(
+        screen.getByRole('button', { name: 'Retry import' })
+      ).toBeDisabled()
+
+      resolveFetch({
+        ok: true,
+        json: async () => ({ batchId: 'strava-activity:A', retried: 1 })
+      })
+
+      await waitFor(() => {
+        expect(screen.getByText(/Retry queued/i)).toBeInTheDocument()
+      })
+    })
+
     it('does not offer retry for files without an import batch', () => {
       const files = [
         {

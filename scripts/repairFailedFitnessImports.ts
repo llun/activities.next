@@ -119,8 +119,14 @@ const parseArgs = (args: string[]) => {
   return CliArgs.parse({ actorId, batchIds, visibility, dryRun })
 }
 
+// A true import failure: the file failed to create its status, so it has no
+// statusId. Files that imported successfully but later failed map processing
+// (statusId set, processingStatus 'failed') are NOT re-importable here — a
+// re-import short-circuits past the importer, so retry would leave importStatus
+// stuck. Those are handled by the processing-retry path (resumeStravaProcessing
+// / retryFitnessProcessing) instead.
 const isFailedImport = (file: FitnessFile): boolean =>
-  file.importStatus === 'failed'
+  file.importStatus === 'failed' && !file.statusId
 
 const collectActorFailedBatchIds = async (
   database: NonNullable<ReturnType<typeof getDatabase>>,
@@ -189,16 +195,15 @@ const repairBatch = async ({
   }
 
   try {
-    await Promise.all([
-      database.updateFitnessFilesImportStatus({
-        fitnessFileIds: failedFileIds,
-        importStatus: 'pending'
-      }),
-      database.updateFitnessFilesProcessingStatus({
-        fitnessFileIds: failedFileIds,
-        processingStatus: 'pending'
-      })
-    ])
+    // Sequential to avoid two concurrent UPDATEs racing on the same rows.
+    await database.updateFitnessFilesImportStatus({
+      fitnessFileIds: failedFileIds,
+      importStatus: 'pending'
+    })
+    await database.updateFitnessFilesProcessingStatus({
+      fitnessFileIds: failedFileIds,
+      processingStatus: 'pending'
+    })
 
     if (stravaActivityId) {
       await importStravaActivityJob(database, {
@@ -238,6 +243,25 @@ const repairBatch = async ({
   } catch (error) {
     const nodeError = error as Error
     console.error(`  [${batchId}] failed: ${nodeError.message}`)
+
+    // The job threw after we reset the files to 'pending'. Restore them to
+    // 'failed' (with the error) so they are not left stuck mid-retry and remain
+    // retriable from the UI / a later run.
+    try {
+      for (const fileId of failedFileIds) {
+        await database.updateFitnessFileImportStatus(
+          fileId,
+          'failed',
+          nodeError.message
+        )
+        await database.updateFitnessFileProcessingStatus(fileId, 'failed')
+      }
+    } catch (resetError) {
+      console.error(
+        `  [${batchId}] failed to restore file status: ${(resetError as Error).message}`
+      )
+    }
+
     return 'error'
   }
 }
