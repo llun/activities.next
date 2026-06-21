@@ -1,11 +1,8 @@
-import { ArrowLeft } from 'lucide-react'
 import { Metadata } from 'next'
-import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { FC } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
-import { Button } from '@/lib/components/ui/button'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -47,14 +44,6 @@ const Page: FC = async () => {
       <PageHeader
         title="Heatmaps"
         description="Route density maps aggregated from your activities"
-        actions={
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/fitness">
-              <ArrowLeft className="h-5 w-5" />
-              <span className="sr-only">Back to overview</span>
-            </Link>
-          </Button>
-        }
       />
 
       <FitnessHeatmapView

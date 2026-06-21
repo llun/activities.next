@@ -1019,7 +1019,11 @@ export const FitnessHeatmapView: FC<Props> = ({
           <span className="block text-xs font-medium text-muted-foreground">
             Regions
           </span>
-          <HeatmapRegionPicker value={regions} onChange={setRegions} />
+          <HeatmapRegionPicker
+            value={regions}
+            onChange={setRegions}
+            mapboxAccessToken={mapboxAccessToken}
+          />
         </div>
 
         <div className="mt-3 flex justify-end">
