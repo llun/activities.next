@@ -525,6 +525,45 @@ describe('StatusDatabase', () => {
         }
       })
 
+      it('serializes the primary fitness file when a status has several', async () => {
+        const statusId = `${emptyActorId}/statuses/fitness-multi`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Same ride recorded on two devices'
+        })
+
+        // Insert the secondary file first so an unordered .first() would
+        // wrongly surface it instead of the primary.
+        const secondary = await database.createFitnessFile({
+          actorId: emptyActorId,
+          statusId,
+          path: 'fitness/multi-secondary.fit',
+          fileName: 'secondary.fit',
+          fileType: 'fit',
+          mimeType: 'application/octet-stream',
+          bytes: 1024
+        })
+        const primary = await database.createFitnessFile({
+          actorId: emptyActorId,
+          statusId,
+          path: 'fitness/multi-primary.fit',
+          fileName: 'primary.fit',
+          fileType: 'fit',
+          mimeType: 'application/octet-stream',
+          bytes: 2048
+        })
+        await database.updateFitnessFilePrimary(secondary!.id, false)
+        await database.updateFitnessFilePrimary(primary!.id, true)
+
+        const status = (await database.getStatus({ statusId })) as StatusNote
+        expect(status.fitness?.id).toBe(primary!.id)
+        expect(status.fitness?.fileName).toBe('primary.fit')
+      })
+
       it('returns announce status', async () => {
         const status = await database.getStatus({
           statusId: statuses.replyAuthor.announceOwn

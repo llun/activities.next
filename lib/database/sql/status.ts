@@ -2457,9 +2457,15 @@ export const StatusSQLDatabaseMixin = (
           })
         : null,
       database('status_history').where('statusId', data.id),
+      // A status can carry several fitness files (e.g. the same ride merged
+      // from two devices). Surface the primary one — matching
+      // getFitnessFileByStatus — instead of an arbitrary `.first()`.
       database<SQLFitnessFile>('fitness_files')
         .where('statusId', data.id)
         .whereNull('deletedAt')
+        .orderBy('isPrimary', 'desc')
+        .orderBy('activityStartTime', 'asc')
+        .orderBy('createdAt', 'asc')
         .first()
     ])
 
