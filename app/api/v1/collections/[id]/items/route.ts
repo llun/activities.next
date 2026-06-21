@@ -1,14 +1,18 @@
+import { randomUUID } from 'crypto'
 import { z } from 'zod'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
+import { INGEST_COLLECTION_MEMBER_JOB_NAME } from '@/lib/jobs/names'
 import {
   OAuthGuard,
   OAuthGuardAnyScope
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { notifyAddedToCollection } from '@/lib/services/notifications/collectionNotifications'
+import { getQueue } from '@/lib/services/queue'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { logger } from '@/lib/utils/logger'
 import {
   ERROR_404,
   ERROR_422,
@@ -161,6 +165,34 @@ export const POST = traceApiRoute(
         ownerActorId: currentActor.id,
         addedActorIds
       }).catch(() => {})
+      // Kick off remote-member ingestion (instance actor follows + backfills
+      // their recent posts) out of band so federation never blocks the response
+      // (fire-and-forget, mirroring the block/unblock routes). Only remote
+      // members need ingestion — local members' posts already fan into the
+      // collection feed on create — so pre-filter to remote and dedupe before
+      // publishing one job each. The job re-guards remote/already-followed, so
+      // this is purely to avoid enqueuing known no-ops. Member ids are stored
+      // actor URLs (built via idToUrl), so `new URL` is safe without a guard.
+      const ownerHost = new URL(currentActor.id).host
+      const remoteMemberActorIds = [...new Set(addedActorIds)].filter(
+        (memberActorId) => new URL(memberActorId).host !== ownerHost
+      )
+      for (const memberActorId of remoteMemberActorIds) {
+        getQueue()
+          .publish({
+            id: randomUUID(),
+            name: INGEST_COLLECTION_MEMBER_JOB_NAME,
+            data: { memberActorId }
+          })
+          .catch((error) => {
+            logger.warn({
+              message: 'Failed to queue collection member ingestion',
+              collectionId: id,
+              memberActorId,
+              error
+            })
+          })
+      }
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
     }
   )
