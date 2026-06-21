@@ -10,6 +10,7 @@ import {
   ACTOR1_ID,
   seedActor1
 } from '@/lib/stub/seed/actor1'
+import { seedActor2 } from '@/lib/stub/seed/actor2'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -164,5 +165,71 @@ describe('POST /api/v1/statuses/[id]/retry-fitness', () => {
 
     const refreshed = await database.getFitnessFile({ id: file.id })
     expect(refreshed?.processingStatus).toBe('pending')
+  })
+
+  it('rejects a retry from someone who does not own the status and queues nothing', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor2.email }
+    })
+    const { status, file } = await seedFitnessStatus(database, 'owner-only')
+    await database.updateFitnessFileProcessingStatus(file.id, 'failed')
+
+    const response = await callRetry(status.id)
+    expect(response.status).toBe(403)
+    expect(getQueue().publish).not.toHaveBeenCalled()
+
+    const refreshed = await database.getFitnessFile({ id: file.id })
+    expect(refreshed?.processingStatus).toBe('failed')
+  })
+
+  it('retries every failed and stuck-processing file in a status but skips completed ones', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2030-03-01T00:00:00.000Z'))
+
+    const status = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/retry-fitness-multi`,
+      url: `${ACTOR1_ID}/statuses/retry-fitness-multi`,
+      actorId: ACTOR1_ID,
+      text: 'Fitness activity',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [ACTOR1_FOLLOWER_URL]
+    })
+    const makeFile = (suffix: string) =>
+      database.createFitnessFile({
+        actorId: ACTOR1_ID,
+        statusId: status.id,
+        path: `fitness/multi-${suffix}.tcx`,
+        fileName: `multi-${suffix}.tcx`,
+        fileType: 'tcx',
+        mimeType: 'application/vnd.garmin.tcx+xml',
+        bytes: 1_024
+      })
+    const failed = await makeFile('failed')
+    const stuck = await makeFile('stuck')
+    const completed = await makeFile('completed')
+    await database.updateFitnessFileProcessingStatus(failed!.id, 'failed')
+    await database.updateFitnessFileProcessingStatus(stuck!.id, 'processing')
+    await database.updateFitnessFileProcessingStatus(completed!.id, 'completed')
+
+    // Age past the threshold so `stuck` is stranded; `completed` stays done.
+    vi.setSystemTime(
+      new Date(Date.now() + STUCK_PROCESSING_THRESHOLD_MS + 60_000)
+    )
+
+    const response = await callRetry(status.id)
+    expect(response.status).toBe(200)
+    const json = (await response.json()) as { retried: number }
+    expect(json.retried).toBe(2)
+    expect(getQueue().publish).toHaveBeenCalledTimes(2)
+
+    expect(
+      (await database.getFitnessFile({ id: failed!.id }))?.processingStatus
+    ).toBe('pending')
+    expect(
+      (await database.getFitnessFile({ id: stuck!.id }))?.processingStatus
+    ).toBe('pending')
+    expect(
+      (await database.getFitnessFile({ id: completed!.id }))?.processingStatus
+    ).toBe('completed')
   })
 })
