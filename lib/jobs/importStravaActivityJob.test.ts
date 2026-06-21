@@ -298,6 +298,25 @@ describe('importStravaActivityJob', () => {
     )
   })
 
+  it('seeds activity start time and duration at import so later same-ride imports can merge before processing', async () => {
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-seed',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123'
+      }
+    })
+
+    expect(database.updateFitnessFileActivityData).toHaveBeenCalledWith(
+      'new-file',
+      expect.objectContaining({
+        activityStartTime: new Date('2026-01-01T00:00:00.000Z'),
+        totalDurationSeconds: 1_500
+      })
+    )
+  })
+
   it('uses CLI-provided Strava auth without loading fitness settings', async () => {
     mockGetValidStravaAccessToken.mockImplementationOnce(
       async ({ fitnessSettings }) => fitnessSettings.accessToken ?? null

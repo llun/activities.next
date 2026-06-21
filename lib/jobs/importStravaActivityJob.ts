@@ -586,19 +586,36 @@ export const importStravaActivityJob = createJobHandle(
         )
       }
 
+      // Seed the activity's start time and duration straight from the Strava
+      // metadata, before async processing parses the file. The same-ride
+      // overlap merge matches candidates on activityStartTime + duration, so
+      // without this seed a second device's upload of the same ride can't find
+      // its sibling until that sibling finishes processing — which fails
+      // exactly when both imports arrive together (and worse when processing
+      // stalls), leaving duplicate posts. Processing later overwrites these
+      // with the parsed values.
+      const importActivityData: UpdateFitnessFileActivityData = {}
+      const activityStartMs = getStravaActivityStartTimeMs(activity)
+      if (activityStartMs !== undefined) {
+        importActivityData.activityStartTime = new Date(activityStartMs)
+      }
+      const activityDurationSeconds = getStravaActivityDurationSeconds(activity)
+      if (activityDurationSeconds > 0) {
+        importActivityData.totalDurationSeconds = activityDurationSeconds
+      }
       if (activity.device_name) {
         const manufacturerKey = getManufacturerKeyFromDeviceName(
           activity.device_name
         )
-        const deviceData = {
-          deviceName: activity.device_name,
-          ...(manufacturerKey !== undefined
-            ? { deviceManufacturer: manufacturerKey }
-            : {})
+        importActivityData.deviceName = activity.device_name
+        if (manufacturerKey !== undefined) {
+          importActivityData.deviceManufacturer = manufacturerKey
         }
+      }
+      if (Object.keys(importActivityData).length > 0) {
         await database.updateFitnessFileActivityData(
           storedFitnessFile.id,
-          deviceData
+          importActivityData
         )
       }
 
