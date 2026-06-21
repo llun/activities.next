@@ -58,6 +58,8 @@ export type MastodonNotificationType =
   | 'favourite'
   | 'poll'
   | 'update'
+  | 'added_to_collection'
+  | 'collection_update'
   | 'admin.sign_up'
   | 'admin.report'
 
@@ -83,6 +85,10 @@ export const internalTypeToMastodon = (
       return 'mention'
     case 'activity_import':
       return 'status'
+    case 'added_to_collection':
+      return 'added_to_collection'
+    case 'collection_update':
+      return 'collection_update'
     default:
       return 'mention'
   }

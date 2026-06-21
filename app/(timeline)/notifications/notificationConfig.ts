@@ -2,10 +2,12 @@ import {
   Activity,
   AtSign,
   Heart,
+  Library,
   type LucideIcon,
   Repeat2,
   Reply,
-  UserPlus
+  UserPlus,
+  Users
 } from 'lucide-react'
 
 import type { NotificationType } from '@/lib/types/database/operations'
@@ -85,6 +87,18 @@ export const NOTIFICATION_TYPE_CONFIG: Record<
     badgeClassName: PRIMARY_BADGE,
     verb: 'Your fitness activity is ready',
     kind: 'system'
+  },
+  added_to_collection: {
+    icon: Users,
+    badgeClassName: RELATIONSHIP_BADGE,
+    verb: 'added you to a collection',
+    kind: 'relationship'
+  },
+  collection_update: {
+    icon: Library,
+    badgeClassName: RELATIONSHIP_BADGE,
+    verb: 'updated a collection you’re in',
+    kind: 'relationship'
   }
 }
 

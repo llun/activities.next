@@ -416,9 +416,9 @@ export const CollectionSQLDatabaseMixin = (
     actorId,
     targetActorIds
   }: AddCollectionMembersParams) {
-    if (targetActorIds.length === 0) return
+    if (targetActorIds.length === 0) return []
     const seq = await getOwnedCollectionSeq(database, id, actorId)
-    if (seq === null) return
+    if (seq === null) return []
 
     const currentTime = new Date()
     const rows = targetActorIds.map((targetActorId) => ({
@@ -431,7 +431,26 @@ export const CollectionSQLDatabaseMixin = (
       createdAt: currentTime
     }))
 
+    // Actor ids that were not already members before this call — returned so the
+    // route notifies only newly-added members (a re-add is a no-op, not a
+    // re-notify).
+    let newlyAdded: string[] = []
     await database.transaction(async (trx) => {
+      const existing = new Set<string>()
+      for (const chunk of chunkArray(
+        targetActorIds,
+        getWhereInBatchSize(trx, 1)
+      )) {
+        const existingRows = await trx('collection_members')
+          .where('collectionSeq', seq)
+          .whereIn('targetActorId', chunk)
+          .select('targetActorId')
+        for (const row of existingRows) {
+          existing.add(row.targetActorId as string)
+        }
+      }
+      newlyAdded = targetActorIds.filter((target) => !existing.has(target))
+
       const batchSize = getInsertBatchSize(trx, rows[0])
       for (const chunk of chunkArray(rows, batchSize)) {
         await trx('collection_members')
@@ -466,6 +485,7 @@ export const CollectionSQLDatabaseMixin = (
         memberSeqByActorId
       })
     })
+    return newlyAdded
   },
 
   async removeCollectionMembers({
