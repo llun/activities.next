@@ -824,6 +824,41 @@ describe('RouteHeatmapMap', () => {
     }
   })
 
+  it('keeps a successfully loaded map past the watchdog window', async () => {
+    vi.useFakeTimers()
+    try {
+      // This GL double fires 'load' synchronously, so the watchdog is cleared.
+      const mapConstructor = createGlMapConstructor()
+      mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
+
+      const { container } = render(
+        <RouteHeatmapMap heatmap={completedHeatmap} />
+      )
+
+      await act(async () => {
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+      expect(screen.getByText('OpenFreeMap')).toBeInTheDocument()
+
+      // Advancing past the 20s watchdog must NOT flip a loaded map to the
+      // fallback — the success path clears the timer.
+      await act(async () => {
+        vi.advanceTimersByTime(20_000)
+      })
+
+      expect(screen.getByText('OpenFreeMap')).toBeInTheDocument()
+      expect(
+        screen.queryByText('Map unavailable. Try regenerating this heatmap.')
+      ).not.toBeInTheDocument()
+      expect(
+        container.querySelector('[data-map-fallback-reason]')
+      ).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('retries the map when the same route cache is regenerated', async () => {
     const failingMapConstructor = createGlMapConstructor(() => {
       throw new Error('source unavailable')
