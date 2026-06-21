@@ -166,10 +166,18 @@ export const POST = traceApiRoute(
         addedActorIds
       }).catch(() => {})
       // Kick off remote-member ingestion (instance actor follows + backfills
-      // their recent posts) out of band so federation never blocks the
-      // response. The job itself filters out local members and already-followed
-      // actors, so it's safe to enqueue one per newly-added member.
-      for (const memberActorId of addedActorIds) {
+      // their recent posts) out of band so federation never blocks the response
+      // (fire-and-forget, mirroring the block/unblock routes). Only remote
+      // members need ingestion — local members' posts already fan into the
+      // collection feed on create — so pre-filter to remote and dedupe before
+      // publishing one job each. The job re-guards remote/already-followed, so
+      // this is purely to avoid enqueuing known no-ops. Member ids are stored
+      // actor URLs (built via idToUrl), so `new URL` is safe without a guard.
+      const ownerHost = new URL(currentActor.id).host
+      const remoteMemberActorIds = [...new Set(addedActorIds)].filter(
+        (memberActorId) => new URL(memberActorId).host !== ownerHost
+      )
+      for (const memberActorId of remoteMemberActorIds) {
         getQueue()
           .publish({
             id: randomUUID(),

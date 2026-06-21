@@ -28,11 +28,14 @@ const isSameHost = (actorId: string, otherActorId: string): boolean => {
 
 // A remote actor was added to a collection. The instance/federation actor
 // follows them (so their future posts keep arriving over federation and fan
-// into the collection feed) and backfills their most recent public posts (so
-// the feed shows history immediately instead of starting empty). Both steps are
-// idempotent and best-effort: re-adding a member, or a member already followed
-// for another collection, does no extra work, and a federation failure on one
-// post never aborts the rest.
+// into the collection feed) and backfills their most recent public posts so the
+// curator's (owner-projection) feed shows history immediately instead of
+// starting empty. The public projection still gates on the member's featuring
+// consent (members start `pending` and only `approved` members appear publicly),
+// so backfilled rows surface publicly only once that consent lands — by design.
+// Both steps are idempotent and best-effort: re-adding a member, or a member
+// already followed for another collection, does no extra work, and a federation
+// failure on one post never aborts the rest.
 export const ingestCollectionMemberJob = createJobHandle(
   INGEST_COLLECTION_MEMBER_JOB_NAME,
   async (database, message) => {
@@ -74,12 +77,16 @@ export const ingestCollectionMemberJob = createJobHandle(
     })
     if (!person) return
 
+    // Derive the inbox/sharedInbox from the signing actor's own canonical id so
+    // the protocol and port match it (rather than hardcoding https), keeping
+    // local/dev and custom-port deployments correct.
+    const signingActorOrigin = new URL(signingActor.id).origin
     const followItem = await database.createFollow({
       actorId: signingActor.id,
       targetActorId: memberActorId,
       status: FollowStatus.enum.Requested,
       inbox: `${signingActor.id}/inbox`,
-      sharedInbox: `https://${signingActor.domain}/inbox`
+      sharedInbox: `${signingActorOrigin}/inbox`
     })
     await follow(followItem.id, signingActor, memberActorId, signingActor)
 
@@ -104,10 +111,20 @@ export const ingestCollectionMemberJob = createJobHandle(
         (status): status is StatusNote => status.type === StatusType.enum.Note
       )
       .slice(0, COLLECTION_BACKFILL_MAX_POSTS)
+    if (recentNotes.length === 0) return
+
+    // Resolve which notes are already stored in a single round-trip rather than
+    // one getStatus per note, so the existence check is O(1) queries.
+    const existingIds = new Set(
+      (
+        await database.getStatusesByIds({
+          statusIds: recentNotes.map((note) => note.id)
+        })
+      ).map((status) => status.id)
+    )
 
     for (const note of recentNotes) {
-      const existing = await database.getStatus({ statusId: note.id })
-      if (existing) continue
+      if (existingIds.has(note.id)) continue
       try {
         const created = await database.createNote({
           id: note.id,

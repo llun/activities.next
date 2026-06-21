@@ -8,6 +8,7 @@ import { INGEST_COLLECTION_MEMBER_JOB_NAME } from '@/lib/jobs/names'
 import { getFederationSigningActorId } from '@/lib/services/federation/instanceActor'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
+import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { Status, StatusType } from '@/lib/types/domain/status'
@@ -157,6 +158,68 @@ describe('ingestCollectionMemberJob', () => {
       })
 
       expect(mockFollow).not.toHaveBeenCalled()
+    } finally {
+      await freshDatabase.destroy()
+    }
+  })
+
+  it("surfaces a backfilled note in the owner's collection feed", async () => {
+    // Isolated DB so this test's follow/collection state can't collide with the
+    // shared-DB cases above (an existing follow would short-circuit the job).
+    const freshDatabase = getTestSQLDatabase()
+    await freshDatabase.migrate()
+    await seedDatabase(freshDatabase)
+    try {
+      await freshDatabase.getFederationSigningActor()
+      // A distinct remote member at its own host, recorded so createNote can
+      // resolve the author.
+      const memberActorId = 'https://remote.example/users/curated'
+      await freshDatabase.createActor({
+        actorId: memberActorId,
+        username: 'curated',
+        domain: 'remote.example',
+        inboxUrl: `${memberActorId}/inbox`,
+        sharedInboxUrl: 'https://remote.example/inbox',
+        followersUrl: `${memberActorId}/followers`,
+        publicKey: 'publicKey',
+        createdAt: Date.now()
+      })
+      mockGetActorPerson.mockResolvedValue({ id: memberActorId } as never)
+      mockRecordActorIfNeeded.mockResolvedValue({ id: memberActorId } as never)
+
+      const collection = await freshDatabase.createCollection({
+        actorId: ACTOR1_ID,
+        title: 'Curated people',
+        publicFeed: true
+      })
+      await freshDatabase.addCollectionMembers({
+        id: collection.id,
+        actorId: ACTOR1_ID,
+        targetActorIds: [memberActorId]
+      })
+
+      const statusId = 'https://remote.example/users/curated/statuses/1'
+      mockGetActorPosts.mockResolvedValue({
+        statusesCount: 1,
+        statuses: [
+          noteStatus({ id: statusId, url: statusId, actorId: memberActorId })
+        ],
+        nextPageUrl: null,
+        prevPageUrl: null
+      })
+
+      await ingestCollectionMemberJob(freshDatabase, {
+        id: 'ingest-job',
+        name: INGEST_COLLECTION_MEMBER_JOB_NAME,
+        data: { memberActorId }
+      })
+
+      const ownerFeed = await freshDatabase.getCollectionTimeline({
+        id: collection.id,
+        actorId: ACTOR1_ID,
+        projection: 'owner'
+      })
+      expect(ownerFeed.map((status) => status.id)).toContain(statusId)
     } finally {
       await freshDatabase.destroy()
     }
