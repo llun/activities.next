@@ -30,6 +30,11 @@ export const COLLECTION_FEED_MAX_ROWS = 1000
 // Trim only once a collection overshoots the cap by this slack, so eviction is
 // batched (one DELETE per overshoot) rather than paid on every single insert.
 export const COLLECTION_FEED_TRIM_SLACK = 100
+// When a remote actor is added to a collection the instance actor follows them
+// and backfills at most this many of their most recent posts, so the feed shows
+// history immediately instead of waiting for new activity to federate in. Bounds
+// the one-off federation traffic (and, under the in-process NoQueue, latency).
+export const COLLECTION_BACKFILL_MAX_POSTS = 40
 
 export interface TimelineRuleParams {
   database: Database

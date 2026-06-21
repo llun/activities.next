@@ -12,6 +12,7 @@ import { generateFitnessRouteHeatmapJob } from './generateFitnessRouteHeatmapJob
 import { importFitnessFilesJob } from './importFitnessFilesJob'
 import { importStravaActivityJob } from './importStravaActivityJob'
 import { importStravaArchiveJob } from './importStravaArchiveJob'
+import { ingestCollectionMemberJob } from './ingestCollectionMemberJob'
 import {
   CREATE_ANNOUNCE_JOB_NAME,
   CREATE_NOTE_JOB_NAME,
@@ -25,6 +26,7 @@ import {
   IMPORT_FITNESS_FILES_JOB_NAME,
   IMPORT_STRAVA_ACTIVITY_JOB_NAME,
   IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+  INGEST_COLLECTION_MEMBER_JOB_NAME,
   PROCESS_FITNESS_FILE_JOB_NAME,
   PUBLISH_SCHEDULED_STATUS_JOB_NAME,
   REGENERATE_FITNESS_MAPS_JOB_NAME,
@@ -80,5 +82,6 @@ export const JOBS: Record<string, JobHandle> = {
   [SEND_UNDO_FOLLOW_JOB_NAME]: sendUndoFollowJob,
   [SEND_UNBLOCK_JOB_NAME]: sendUnblockJob,
   [FETCH_REMOTE_STATUS_JOB_NAME]: fetchRemoteStatusJob,
-  [PUBLISH_SCHEDULED_STATUS_JOB_NAME]: publishScheduledStatusJob
+  [PUBLISH_SCHEDULED_STATUS_JOB_NAME]: publishScheduledStatusJob,
+  [INGEST_COLLECTION_MEMBER_JOB_NAME]: ingestCollectionMemberJob
 }

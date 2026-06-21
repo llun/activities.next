@@ -1,14 +1,18 @@
+import { randomUUID } from 'crypto'
 import { z } from 'zod'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
+import { INGEST_COLLECTION_MEMBER_JOB_NAME } from '@/lib/jobs/names'
 import {
   OAuthGuard,
   OAuthGuardAnyScope
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { notifyAddedToCollection } from '@/lib/services/notifications/collectionNotifications'
+import { getQueue } from '@/lib/services/queue'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { logger } from '@/lib/utils/logger'
 import {
   ERROR_404,
   ERROR_422,
@@ -161,6 +165,26 @@ export const POST = traceApiRoute(
         ownerActorId: currentActor.id,
         addedActorIds
       }).catch(() => {})
+      // Kick off remote-member ingestion (instance actor follows + backfills
+      // their recent posts) out of band so federation never blocks the
+      // response. The job itself filters out local members and already-followed
+      // actors, so it's safe to enqueue one per newly-added member.
+      for (const memberActorId of addedActorIds) {
+        getQueue()
+          .publish({
+            id: randomUUID(),
+            name: INGEST_COLLECTION_MEMBER_JOB_NAME,
+            data: { memberActorId }
+          })
+          .catch((error) => {
+            logger.warn({
+              message: 'Failed to queue collection member ingestion',
+              collectionId: id,
+              memberActorId,
+              error
+            })
+          })
+      }
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
     }
   )
