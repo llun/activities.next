@@ -23,8 +23,10 @@ const withFreshDatabase = async (
   test: (database: Database) => Promise<void>
 ) => {
   const database = getTestSQLDatabase()
-  await database.migrate()
   try {
+    // Inside the try so a migrate failure still runs destroy() and never leaks
+    // the connection.
+    await database.migrate()
     await test(database)
   } finally {
     await database.destroy()
