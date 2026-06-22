@@ -4,12 +4,16 @@ import { Loader2 } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
+  FitnessRouteHeatmapBounds,
   FitnessRouteHeatmapData,
   FitnessRouteHeatmapSegment
 } from '@/lib/client'
 import { cn } from '@/lib/utils'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
-import { OPENFREEMAP_STYLE_URL, loadMaplibreModule } from '@/lib/utils/maplibre'
+import {
+  OPENFREEMAP_HEATMAP_STYLE_URL,
+  loadMaplibreModule
+} from '@/lib/utils/maplibre'
 
 // The Mapbox GL / MapLibre GL surface — only the members this component drives.
 // Both libraries share this subset, so one component can drive either provider.
@@ -22,7 +26,7 @@ type RouteGlMap = {
   getSource: (id: string) => { setData: (data: unknown) => void } | undefined
   fitBounds: (
     bounds: [[number, number], [number, number]],
-    options?: { padding?: number; duration?: number }
+    options?: { padding?: number; duration?: number; maxZoom?: number }
   ) => void
 }
 
@@ -49,16 +53,26 @@ const ROUTE_RENDER_POINT_BUDGET = 40_000
 const MAP_LOAD_TIMEOUT_MS = 20_000
 const ROUTE_HEATMAP_MAP_HEIGHT_CLASS = 'h-[420px]'
 
+// Absolute grid-cell size (degrees) used to cluster route points for the initial
+// view. ~5° ≈ a few hundred km, so activities within a metro area land in the
+// same or an 8-connected neighbouring cell while far-apart regions (e.g. Europe
+// vs Singapore) fall into disjoint, non-adjacent cells. See computeFocusBounds.
+const FOCUS_CLUSTER_CELL_DEG = 5
+// When the cache spans disjoint regions we open focused on the densest cluster;
+// cap the initial zoom so a very compact cluster still opens with surrounding
+// context to pan from, rather than snapping to street level.
+const FOCUS_MAX_ZOOM = 12
+
 const ROUTE_LINE_STYLES = {
   visible: {
     color: '#ef4444',
-    width: 3.2,
-    opacity: 0.2
+    width: 2.8,
+    opacity: 0.55
   },
   hidden: {
     color: '#2563eb',
-    width: 2.4,
-    opacity: 0.14
+    width: 2.2,
+    opacity: 0.4
   }
 } as const
 const ROUTE_LINE_PAINT = {
@@ -80,7 +94,7 @@ const ROUTE_LINE_PAINT = {
     ROUTE_LINE_STYLES.hidden.opacity,
     ROUTE_LINE_STYLES.visible.opacity
   ],
-  'line-blur': 0.8
+  'line-blur': 0.4
 } as const
 
 const getMapFallbackError = (error: unknown): MapFallbackError => {
@@ -147,6 +161,128 @@ export const downsampleSegments = (
   })
 }
 
+export interface RouteFocusBounds {
+  bounds: FitnessRouteHeatmapBounds
+  /** True when the view was tightened to a single dense cluster (disjoint data). */
+  focused: boolean
+}
+
+const cellKey = (cellX: number, cellY: number) => `${cellX}:${cellY}`
+
+// A grid cell's point count plus the bounding box of the (finite) vertices in it,
+// accumulated in a single pass so the focused extent needs no second scan.
+interface FocusCell {
+  count: number
+  minLat: number
+  maxLat: number
+  minLng: number
+  maxLng: number
+}
+
+// Pick the initial map view for a route cache. A whole-world / multi-region cache
+// has bounds spanning every recorded region (e.g. Europe *and* Singapore), so
+// fitting the full extent renders the routes as a tiny scatter on a flat world
+// map. Instead, bucket the route vertices into an absolute lon/lat grid, flood
+// fill the 8-connected cluster containing the densest cell, and fit to that
+// cluster — so the map opens zoomed in on where most activity is while the user
+// can still pan to the other regions. For a single contiguous region every
+// vertex falls in one connected cluster, so the authoritative full bounds are
+// returned unchanged (focused: false).
+//
+// Note: clusters straddling the antimeridian (±180° lon) land in non-adjacent
+// cells and would not be merged; that is acceptable for this best-effort initial
+// framing (mercator fitBounds has its own antimeridian limitations regardless).
+export const computeFocusBounds = (
+  segments: FitnessRouteHeatmapSegment[],
+  bounds: FitnessRouteHeatmapBounds
+): RouteFocusBounds => {
+  // Single pass: bucket every finite vertex into an absolute grid cell, tracking
+  // each cell's point count and bounding box. Non-finite vertices are skipped so
+  // they never create a spurious cell.
+  const cells = new Map<string, FocusCell>()
+  for (const segment of segments) {
+    for (const point of segment.points) {
+      if (!Number.isFinite(point.lng) || !Number.isFinite(point.lat)) continue
+      const key = cellKey(
+        Math.floor(point.lng / FOCUS_CLUSTER_CELL_DEG),
+        Math.floor(point.lat / FOCUS_CLUSTER_CELL_DEG)
+      )
+      const cell = cells.get(key)
+      if (!cell) {
+        cells.set(key, {
+          count: 1,
+          minLat: point.lat,
+          maxLat: point.lat,
+          minLng: point.lng,
+          maxLng: point.lng
+        })
+        continue
+      }
+      cell.count += 1
+      if (point.lat < cell.minLat) cell.minLat = point.lat
+      if (point.lat > cell.maxLat) cell.maxLat = point.lat
+      if (point.lng < cell.minLng) cell.minLng = point.lng
+      if (point.lng > cell.maxLng) cell.maxLng = point.lng
+    }
+  }
+
+  // 0 or 1 occupied cell: nothing to disambiguate — show the full bounds.
+  if (cells.size <= 1) {
+    return { bounds, focused: false }
+  }
+
+  let seedKey = ''
+  let seedCount = -1
+  for (const [key, cell] of cells) {
+    if (cell.count > seedCount) {
+      seedCount = cell.count
+      seedKey = key
+    }
+  }
+
+  // 8-connected flood fill over occupied cells starting from the densest one.
+  // Cells are marked visited as they are enqueued, so each is pushed exactly
+  // once and only occupied neighbours enter the stack.
+  const cluster = new Set<string>([seedKey])
+  const stack = [seedKey]
+  while (stack.length > 0) {
+    const key = stack.pop() as string
+    const [cellX, cellY] = key.split(':').map(Number)
+    for (let dx = -1; dx <= 1; dx += 1) {
+      for (let dy = -1; dy <= 1; dy += 1) {
+        if (dx === 0 && dy === 0) continue
+        const neighborKey = cellKey(cellX + dx, cellY + dy)
+        if (cells.has(neighborKey) && !cluster.has(neighborKey)) {
+          cluster.add(neighborKey)
+          stack.push(neighborKey)
+        }
+      }
+    }
+  }
+
+  // Every occupied cell is in one connected cluster → the data is contiguous, so
+  // the full bounds already frame it well.
+  if (cluster.size === cells.size) {
+    return { bounds, focused: false }
+  }
+
+  // Union the densest cluster's per-cell boxes into the focused extent. Each cell
+  // came from at least one finite vertex, so the result is always finite.
+  let minLat = Infinity
+  let maxLat = -Infinity
+  let minLng = Infinity
+  let maxLng = -Infinity
+  for (const key of cluster) {
+    const cell = cells.get(key) as FocusCell
+    if (cell.minLat < minLat) minLat = cell.minLat
+    if (cell.maxLat > maxLat) maxLat = cell.maxLat
+    if (cell.minLng < minLng) minLng = cell.minLng
+    if (cell.maxLng > maxLng) maxLng = cell.maxLng
+  }
+
+  return { bounds: { minLat, maxLat, minLng, maxLng }, focused: true }
+}
+
 export interface RouteHeatmapMapProps {
   heatmap: FitnessRouteHeatmapData | null
   mapboxAccessToken?: string
@@ -165,6 +301,7 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<RouteGlMap | null>(null)
   const routeGeoJsonRef = useRef(buildRouteGeoJson([]))
+  const focusRef = useRef<RouteFocusBounds | null>(null)
   const [mapFallbackReason, setMapFallbackReason] =
     useState<MapFallbackReason | null>(null)
   const [mapFallbackError, setMapFallbackError] =
@@ -185,14 +322,20 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
         ? {
             loadModule: () => loadMapboxModule<RouteGlModule>(),
             mapOptions: {
-              style: 'mapbox://styles/mapbox/outdoors-v12',
+              // Light 2D basemap so the coloured routes stand out, and an
+              // explicit mercator projection so a wide cache opens as a flat,
+              // pannable map instead of Mapbox GL v3's default zoomed-out globe.
+              style: 'mapbox://styles/mapbox/light-v11',
+              projection: 'mercator',
               accessToken: mapboxAccessToken
             },
             label: 'Mapbox'
           }
         : {
             loadModule: () => loadMaplibreModule<RouteGlModule>(),
-            mapOptions: { style: OPENFREEMAP_STYLE_URL },
+            // MapLibre renders a flat mercator map by default; the light
+            // "positron" style keeps the route overlay legible.
+            mapOptions: { style: OPENFREEMAP_HEATMAP_STYLE_URL },
             label: 'OpenFreeMap'
           },
     [mapboxAccessToken]
@@ -203,19 +346,31 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
       ? mapFallbackError?.message
       : undefined
   const shouldRenderMap = hasRoutes && Boolean(bounds) && !mapFallbackReason
-  const routeGeoJson = useMemo(
+  const downsampledSegments = useMemo(
     () =>
-      buildRouteGeoJson(
-        hasRoutes && heatmap
-          ? downsampleSegments(heatmap.segments, ROUTE_RENDER_POINT_BUDGET)
-          : []
-      ),
+      hasRoutes && heatmap
+        ? downsampleSegments(heatmap.segments, ROUTE_RENDER_POINT_BUDGET)
+        : [],
     [hasRoutes, heatmap?.id, heatmap?.updatedAt]
+  )
+  const routeGeoJson = useMemo(
+    () => buildRouteGeoJson(downsampledSegments),
+    [downsampledSegments]
+  )
+  // The initial framing: tighten a disjoint multi-region cache to its densest
+  // cluster (computeFocusBounds), or keep the full bounds for a single region.
+  const focus = useMemo<RouteFocusBounds | null>(
+    () => (bounds ? computeFocusBounds(downsampledSegments, bounds) : null),
+    [downsampledSegments, bounds]
   )
 
   useEffect(() => {
     routeGeoJsonRef.current = routeGeoJson
   }, [routeGeoJson])
+
+  useEffect(() => {
+    focusRef.current = focus
+  }, [focus])
 
   // Clear the fallback whenever the cache or provider changes so a recovered
   // map gets a fresh attempt.
@@ -231,10 +386,6 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
 
     let cancelled = false
     let loadWatchdog: ReturnType<typeof setTimeout> | undefined
-    const mapBounds: [[number, number], [number, number]] = [
-      [bounds.minLng, bounds.minLat],
-      [bounds.maxLng, bounds.maxLat]
-    ]
     setIsMapLoaded(false)
 
     provider
@@ -280,7 +431,23 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
               },
               paint: ROUTE_LINE_PAINT
             })
-            map.fitBounds(mapBounds, { padding: 56, duration: 0 })
+            // Frame the densest cluster (focused) or the full extent. The focus
+            // is read from a ref so this asynchronous 'load' handler uses the
+            // latest computed value rather than a stale closure; fitBounds runs
+            // once per map mount (not on in-place, same-id cache updates).
+            const framing = focusRef.current
+            const frameBounds = framing?.bounds ?? bounds
+            map.fitBounds(
+              [
+                [frameBounds.minLng, frameBounds.minLat],
+                [frameBounds.maxLng, frameBounds.maxLat]
+              ],
+              {
+                padding: 56,
+                duration: 0,
+                ...(framing?.focused ? { maxZoom: FOCUS_MAX_ZOOM } : {})
+              }
+            )
             setIsMapLoaded(true)
           } catch (error) {
             if (!cancelled) {
