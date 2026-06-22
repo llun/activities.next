@@ -1056,7 +1056,11 @@ describe('RouteHeatmapMap', () => {
       [SINGAPORE_CLUSTER_BOUNDS.minLng, SINGAPORE_CLUSTER_BOUNDS.minLat],
       [SINGAPORE_CLUSTER_BOUNDS.maxLng, SINGAPORE_CLUSTER_BOUNDS.maxLat]
     ])
-    expect(fitBounds.mock.calls[0][1]).toMatchObject({ maxZoom: 12 })
+    expect(fitBounds.mock.calls[0][1]).toMatchObject({
+      padding: 56,
+      duration: 0,
+      maxZoom: 12
+    })
   })
 })
 
@@ -1250,15 +1254,18 @@ describe('computeFocusBounds', () => {
     expect(result.bounds).toBe(bounds)
   })
 
-  it('does not merge cells a knight’s-move apart, focusing the densest', () => {
+  it('does not merge cells a knight’s-move apart, focusing the densest cell', () => {
     const bounds = { minLat: 52, maxLat: 55, minLng: 4, maxLng: 13 }
-    // Cells 0:10 and 2:11 are not 8-adjacent (dx=2), so they stay separate — this
-    // pins that it is grid adjacency, not mere proximity, that merges clusters.
+    // Cell 0:10 (two points) is strictly denser than cell 2:11 (one point), and
+    // the two cells are a knight's move apart (dx=2), so they stay separate — this
+    // pins that grid adjacency (not mere proximity) is what merges clusters, and
+    // that the seed is chosen by density rather than Map insertion order.
     const result = computeFocusBounds(
       [
         {
           points: [
             { lat: 52, lng: 4 },
+            { lat: 53, lng: 4 },
             { lat: 55, lng: 13 }
           ]
         }
@@ -1269,9 +1276,44 @@ describe('computeFocusBounds', () => {
     expect(result.focused).toBe(true)
     expect(result.bounds).toEqual({
       minLat: 52,
-      maxLat: 52,
+      maxLat: 53,
       minLng: 4,
       maxLng: 4
+    })
+  })
+
+  it('frames the densest cell even when another cluster has more cells', () => {
+    // Cluster A spans two 8-adjacent cells (0:0 and 0:1) of one point each — the
+    // largest connected cluster by cell count. Cluster B is a single isolated cell
+    // (8:0) holding three points — the densest cell. The focus must frame B (seed
+    // = densest cell, then its cluster), proving the helper does not instead pick
+    // the cluster with the most cells.
+    const bounds = { minLat: 0, maxLat: 7, minLng: 2, maxLng: 40.2 }
+    const result = computeFocusBounds(
+      [
+        {
+          points: [
+            { lat: 2, lng: 2 },
+            { lat: 7, lng: 2 }
+          ]
+        },
+        {
+          points: [
+            { lat: 0, lng: 40 },
+            { lat: 0.1, lng: 40.1 },
+            { lat: 0.2, lng: 40.2 }
+          ]
+        }
+      ],
+      bounds
+    )
+
+    expect(result.focused).toBe(true)
+    expect(result.bounds).toEqual({
+      minLat: 0,
+      maxLat: 0.2,
+      minLng: 40,
+      maxLng: 40.2
     })
   })
 })
