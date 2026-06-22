@@ -47,7 +47,7 @@ const Page: FC = async () => {
       <div className="space-y-6">
         <PageHeader
           title="Overview"
-          description="Your last 6 months of activity"
+          description="Your last 12 months of activity"
         />
         <Card className="flex flex-col items-start gap-4 p-6">
           <div className="space-y-1">
@@ -101,7 +101,7 @@ const Page: FC = async () => {
     <div className="space-y-6">
       <PageHeader
         title="Overview"
-        description="Your last 6 months of activity"
+        description="Your last 12 months of activity"
       />
 
       <ActorFitnessDashboard
