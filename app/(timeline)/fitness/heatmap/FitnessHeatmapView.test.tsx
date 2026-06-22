@@ -1145,11 +1145,87 @@ describe('computeFocusBounds', () => {
     })
   })
 
-  it('returns the full bounds when there are no finite points', () => {
+  it('returns the full bounds for an empty segment list', () => {
     const bounds = { minLat: 0, maxLat: 0, minLng: 0, maxLng: 0 }
     const result = computeFocusBounds([], bounds)
 
     expect(result.focused).toBe(false)
     expect(result.bounds).toBe(bounds)
+  })
+
+  it('skips non-finite vertices so they create no spurious cluster', () => {
+    const bounds = { minLat: 52.36, maxLat: 52.39, minLng: 4.88, maxLng: 4.91 }
+    const result = computeFocusBounds(
+      [
+        {
+          points: [
+            { lat: 52.36, lng: 4.88 },
+            { lat: 52.39, lng: 4.91 }
+          ]
+        },
+        // An entirely non-finite segment must contribute no grid cell; otherwise
+        // it would look like a second region and flip the result to focused.
+        {
+          points: [
+            { lat: NaN, lng: NaN },
+            { lat: Infinity, lng: -Infinity }
+          ]
+        }
+      ],
+      bounds
+    )
+
+    expect(result.focused).toBe(false)
+    expect(result.bounds).toBe(bounds)
+  })
+
+  it('ignores non-finite vertices when framing a focused cluster', () => {
+    const bounds = { minLat: 1.3, maxLat: 52.39, minLng: 4.88, maxLng: 103.9 }
+    const result = computeFocusBounds(
+      [
+        {
+          points: [
+            { lat: 52.36, lng: 4.88 },
+            { lat: 52.37, lng: 4.89 },
+            { lat: 52.39, lng: 4.91 }
+          ]
+        },
+        // The denser cluster carries a stray non-finite vertex that must not
+        // widen (or NaN-poison) the focused box.
+        { points: [{ lat: NaN, lng: 103.8 }, ...SINGAPORE_CLUSTER_POINTS] }
+      ],
+      bounds
+    )
+
+    expect(result.focused).toBe(true)
+    expect(result.bounds).toEqual(SINGAPORE_CLUSTER_BOUNDS)
+  })
+
+  it('does not merge clusters straddling the antimeridian (documented limitation)', () => {
+    // Two clusters at opposite signs near ±180° lon fall in non-adjacent grid
+    // cells, so the focus frames only the denser one rather than spanning the
+    // shorter way around the globe.
+    const bounds = { minLat: 0, maxLat: 1, minLng: -179.9, maxLng: 179.9 }
+    const result = computeFocusBounds(
+      [
+        {
+          points: [
+            { lat: 0.5, lng: 179.5 },
+            { lat: 0.6, lng: 179.7 },
+            { lat: 0.55, lng: 179.9 }
+          ]
+        },
+        { points: [{ lat: 0.5, lng: -179.9 }] }
+      ],
+      bounds
+    )
+
+    expect(result.focused).toBe(true)
+    expect(result.bounds).toEqual({
+      minLat: 0.5,
+      maxLat: 0.6,
+      minLng: 179.5,
+      maxLng: 179.9
+    })
   })
 })

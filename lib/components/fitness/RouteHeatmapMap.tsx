@@ -169,6 +169,16 @@ export interface RouteFocusBounds {
 
 const cellKey = (cellX: number, cellY: number) => `${cellX}:${cellY}`
 
+// A grid cell's point count plus the bounding box of the (finite) vertices in it,
+// accumulated in a single pass so the focused extent needs no second scan.
+interface FocusCell {
+  count: number
+  minLat: number
+  maxLat: number
+  minLng: number
+  maxLng: number
+}
+
 // Pick the initial map view for a route cache. A whole-world / multi-region cache
 // has bounds spanning every recorded region (e.g. Europe *and* Singapore), so
 // fitting the full extent renders the routes as a tiny scatter on a flat world
@@ -186,7 +196,10 @@ export const computeFocusBounds = (
   segments: FitnessRouteHeatmapSegment[],
   bounds: FitnessRouteHeatmapBounds
 ): RouteFocusBounds => {
-  const cellCounts = new Map<string, number>()
+  // Single pass: bucket every finite vertex into an absolute grid cell, tracking
+  // each cell's point count and bounding box. Non-finite vertices are skipped so
+  // they never create a spurious cell.
+  const cells = new Map<string, FocusCell>()
   for (const segment of segments) {
     for (const point of segment.points) {
       if (!Number.isFinite(point.lng) || !Number.isFinite(point.lat)) continue
@@ -194,69 +207,77 @@ export const computeFocusBounds = (
         Math.floor(point.lng / FOCUS_CLUSTER_CELL_DEG),
         Math.floor(point.lat / FOCUS_CLUSTER_CELL_DEG)
       )
-      cellCounts.set(key, (cellCounts.get(key) ?? 0) + 1)
+      const cell = cells.get(key)
+      if (!cell) {
+        cells.set(key, {
+          count: 1,
+          minLat: point.lat,
+          maxLat: point.lat,
+          minLng: point.lng,
+          maxLng: point.lng
+        })
+        continue
+      }
+      cell.count += 1
+      if (point.lat < cell.minLat) cell.minLat = point.lat
+      if (point.lat > cell.maxLat) cell.maxLat = point.lat
+      if (point.lng < cell.minLng) cell.minLng = point.lng
+      if (point.lng > cell.maxLng) cell.maxLng = point.lng
     }
   }
 
   // 0 or 1 occupied cell: nothing to disambiguate — show the full bounds.
-  if (cellCounts.size <= 1) {
+  if (cells.size <= 1) {
     return { bounds, focused: false }
   }
 
   let seedKey = ''
   let seedCount = -1
-  for (const [key, count] of cellCounts) {
-    if (count > seedCount) {
-      seedCount = count
+  for (const [key, cell] of cells) {
+    if (cell.count > seedCount) {
+      seedCount = cell.count
       seedKey = key
     }
   }
 
   // 8-connected flood fill over occupied cells starting from the densest one.
-  const cluster = new Set<string>()
+  // Cells are marked visited as they are enqueued, so each is pushed exactly
+  // once and only occupied neighbours enter the stack.
+  const cluster = new Set<string>([seedKey])
   const stack = [seedKey]
   while (stack.length > 0) {
     const key = stack.pop() as string
-    if (cluster.has(key) || !cellCounts.has(key)) continue
-    cluster.add(key)
     const [cellX, cellY] = key.split(':').map(Number)
     for (let dx = -1; dx <= 1; dx += 1) {
       for (let dy = -1; dy <= 1; dy += 1) {
         if (dx === 0 && dy === 0) continue
-        stack.push(cellKey(cellX + dx, cellY + dy))
+        const neighborKey = cellKey(cellX + dx, cellY + dy)
+        if (cells.has(neighborKey) && !cluster.has(neighborKey)) {
+          cluster.add(neighborKey)
+          stack.push(neighborKey)
+        }
       }
     }
   }
 
   // Every occupied cell is in one connected cluster → the data is contiguous, so
   // the full bounds already frame it well.
-  if (cluster.size === cellCounts.size) {
+  if (cluster.size === cells.size) {
     return { bounds, focused: false }
   }
 
+  // Union the densest cluster's per-cell boxes into the focused extent. Each cell
+  // came from at least one finite vertex, so the result is always finite.
   let minLat = Infinity
   let maxLat = -Infinity
   let minLng = Infinity
   let maxLng = -Infinity
-  for (const segment of segments) {
-    for (const point of segment.points) {
-      if (!Number.isFinite(point.lng) || !Number.isFinite(point.lat)) continue
-      const key = cellKey(
-        Math.floor(point.lng / FOCUS_CLUSTER_CELL_DEG),
-        Math.floor(point.lat / FOCUS_CLUSTER_CELL_DEG)
-      )
-      if (!cluster.has(key)) continue
-      if (point.lat < minLat) minLat = point.lat
-      if (point.lat > maxLat) maxLat = point.lat
-      if (point.lng < minLng) minLng = point.lng
-      if (point.lng > maxLng) maxLng = point.lng
-    }
-  }
-
-  // Defensive: no finite point matched the cluster (should not happen) — fall
-  // back to the full bounds rather than an inverted/NaN box.
-  if (!Number.isFinite(minLat)) {
-    return { bounds, focused: false }
+  for (const key of cluster) {
+    const cell = cells.get(key) as FocusCell
+    if (cell.minLat < minLat) minLat = cell.minLat
+    if (cell.maxLat > maxLat) maxLat = cell.maxLat
+    if (cell.minLng < minLng) minLng = cell.minLng
+    if (cell.maxLng > maxLng) maxLng = cell.maxLng
   }
 
   return { bounds: { minLat, maxLat, minLng, maxLng }, focused: true }
@@ -410,8 +431,10 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
               },
               paint: ROUTE_LINE_PAINT
             })
-            // Frame the densest cluster (focused) or the full extent, reading
-            // the latest value from the ref so an updated cache reframes too.
+            // Frame the densest cluster (focused) or the full extent. The focus
+            // is read from a ref so this asynchronous 'load' handler uses the
+            // latest computed value rather than a stale closure; fitBounds runs
+            // once per map mount (not on in-place, same-id cache updates).
             const framing = focusRef.current
             const frameBounds = framing?.bounds ?? bounds
             map.fitBounds(
