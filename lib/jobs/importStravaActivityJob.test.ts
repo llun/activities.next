@@ -298,6 +298,76 @@ describe('importStravaActivityJob', () => {
     )
   })
 
+  it('seeds activity start time and duration at import so later same-ride imports can merge before processing', async () => {
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-seed',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123'
+      }
+    })
+
+    expect(database.updateFitnessFileActivityData).toHaveBeenCalledWith(
+      'new-file',
+      expect.objectContaining({
+        activityStartTime: new Date('2026-01-01T00:00:00.000Z'),
+        totalDurationSeconds: 1_500
+      })
+    )
+  })
+
+  it('seeds duration but omits activityStartTime when the activity has no start_date', async () => {
+    mockGetStravaActivity.mockResolvedValue({
+      id: 123,
+      upload_id: 67890,
+      name: 'Morning Run',
+      distance: 5_000,
+      elapsed_time: 1_500,
+      total_elevation_gain: 120,
+      sport_type: 'Run',
+      visibility: 'everyone'
+    })
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-no-start',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: { actorId: 'actor-1', stravaActivityId: '123' }
+    })
+
+    const seedCall = database.updateFitnessFileActivityData.mock.calls.find(
+      (call) => call[0] === 'new-file'
+    )
+    expect(seedCall).toBeDefined()
+    expect(seedCall![1]).toMatchObject({ totalDurationSeconds: 1_500 })
+    expect(seedCall![1]).not.toHaveProperty('activityStartTime')
+  })
+
+  it('does not seed activity data at import when start_date, duration, and device are all absent', async () => {
+    mockGetStravaActivity.mockResolvedValue({
+      id: 123,
+      upload_id: 67890,
+      name: 'Morning Run',
+      distance: 5_000,
+      elapsed_time: 0,
+      moving_time: 0,
+      total_elevation_gain: 120,
+      sport_type: 'Run',
+      visibility: 'everyone'
+    })
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-empty-seed',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: { actorId: 'actor-1', stravaActivityId: '123' }
+    })
+
+    const seedCall = database.updateFitnessFileActivityData.mock.calls.find(
+      (call) => call[0] === 'new-file'
+    )
+    expect(seedCall).toBeUndefined()
+  })
+
   it('uses CLI-provided Strava auth without loading fitness settings', async () => {
     mockGetValidStravaAccessToken.mockImplementationOnce(
       async ({ fitnessSettings }) => fitnessSettings.accessToken ?? null

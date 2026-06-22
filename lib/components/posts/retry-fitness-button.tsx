@@ -8,9 +8,22 @@ import { cn } from '@/lib/utils'
 
 interface Props {
   statusId: string
+  // `failed`: the job threw and gave up. `stuck`: the file is still marked
+  // `processing` long after its worker died mid-run. Both are retriable; the
+  // copy differs so the owner sees why.
+  variant?: 'failed' | 'stuck'
 }
 
-export const RetryFitnessButton: FC<Props> = ({ statusId }) => {
+const LEAD_TEXT: Record<NonNullable<Props['variant']>, string> = {
+  failed: 'Processing failed. The original activity file is still available.',
+  stuck:
+    'Processing is taking longer than expected. The original activity file is still available.'
+}
+
+export const RetryFitnessButton: FC<Props> = ({
+  statusId,
+  variant = 'failed'
+}) => {
   const [isRetrying, setIsRetrying] = useState(false)
   const [retryQueued, setRetryQueued] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -26,9 +39,7 @@ export const RetryFitnessButton: FC<Props> = ({ statusId }) => {
 
   return (
     <div className="mt-2 flex items-center gap-2 text-destructive">
-      <span>
-        Processing failed. The original activity file is still available.
-      </span>
+      <span>{LEAD_TEXT[variant]}</span>
       <span className="inline-flex flex-col gap-0.5">
         <button
           className={cn(
