@@ -1228,4 +1228,50 @@ describe('computeFocusBounds', () => {
       maxLng: 179.9
     })
   })
+
+  it('merges cells that touch only diagonally (8-connectivity)', () => {
+    const bounds = { minLat: 52, maxLat: 55, minLng: 4, maxLng: 8 }
+    // The two 5° cells (0:10 and 1:11) are diagonal neighbours — connected only
+    // at a corner. 8-connectivity merges them into one contiguous cluster, so
+    // the full bounds are kept (a 4-connected flood fill would NOT merge these).
+    const result = computeFocusBounds(
+      [
+        {
+          points: [
+            { lat: 52, lng: 4 },
+            { lat: 55, lng: 8 }
+          ]
+        }
+      ],
+      bounds
+    )
+
+    expect(result.focused).toBe(false)
+    expect(result.bounds).toBe(bounds)
+  })
+
+  it('does not merge cells a knight’s-move apart, focusing the densest', () => {
+    const bounds = { minLat: 52, maxLat: 55, minLng: 4, maxLng: 13 }
+    // Cells 0:10 and 2:11 are not 8-adjacent (dx=2), so they stay separate — this
+    // pins that it is grid adjacency, not mere proximity, that merges clusters.
+    const result = computeFocusBounds(
+      [
+        {
+          points: [
+            { lat: 52, lng: 4 },
+            { lat: 55, lng: 13 }
+          ]
+        }
+      ],
+      bounds
+    )
+
+    expect(result.focused).toBe(true)
+    expect(result.bounds).toEqual({
+      minLat: 52,
+      maxLat: 52,
+      minLng: 4,
+      maxLng: 4
+    })
+  })
 })
