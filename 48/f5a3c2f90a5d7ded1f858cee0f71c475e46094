@@ -1,0 +1,20 @@
+app/(timeline)/fitness/heatmap/FitnessHeatmapView.test.tsx
+  s_969eb11a3ba146::t_a88e35cc6cc6f5 1270-1275
+  s_969eb11a3ba146::t_ad465f5f898302 1231-1269,1276
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "48f5a3c2f90a5d7ded1f858cee0f71c475e46094",
+  "prompts": {},
+  "sessions": {
+    "s_969eb11a3ba146": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7184aa1-8097-433f-b040-1970c3ea0d71",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
