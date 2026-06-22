@@ -31,9 +31,13 @@ import { formatRelativeTime } from '@/lib/fitness/relativeTime'
 // Re-exported so existing imports/tests keep resolving the route map from here.
 export {
   RouteHeatmapMap,
+  computeFocusBounds,
   downsampleSegments
 } from '@/lib/components/fitness/RouteHeatmapMap'
-export type { RouteHeatmapMapProps } from '@/lib/components/fitness/RouteHeatmapMap'
+export type {
+  RouteFocusBounds,
+  RouteHeatmapMapProps
+} from '@/lib/components/fitness/RouteHeatmapMap'
 
 type PeriodType = 'all_time' | 'yearly' | 'monthly'
 
