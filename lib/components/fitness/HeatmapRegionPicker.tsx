@@ -483,6 +483,12 @@ interface HeatmapRegionPickerProps {
   getRegionStatus?: (region: PickerRegion) => RegionDisplayStatus | null
   /** Fired after a region leaves the list, so its cached heatmap can be pruned. */
   onRegionRemoved?: (region: PickerRegion) => void
+  /**
+   * Fired after a drawn area is added or edited, with the saved region (carrying
+   * its current `name`). Lets the orchestrator persist the label so it survives
+   * a reload instead of reverting to the generic "Map area".
+   */
+  onRegionSaved?: (region: PickerRegion) => void
 }
 
 interface ComposerState {
@@ -495,7 +501,8 @@ export const HeatmapRegionPicker: FC<HeatmapRegionPickerProps> = ({
   mapboxAccessToken,
   onOpen,
   getRegionStatus,
-  onRegionRemoved
+  onRegionRemoved,
+  onRegionSaved
 }) => {
   const [composer, setComposer] = useState<ComposerState | null>(null)
   const hasWorld = value.some((region) => region.type === 'world')
@@ -513,18 +520,21 @@ export const HeatmapRegionPicker: FC<HeatmapRegionPickerProps> = ({
   }
 
   const saveRect = (rect: RectRegion) => {
+    const savedRegion: PickerRegion = composer?.editId
+      ? { ...rect, id: composer.editId }
+      : { ...rect, id: createRegionId() }
     const next = composer?.editId
       ? value.map((region) =>
-          region.id === composer.editId
-            ? { ...region, ...rect, id: region.id }
-            : region
+          region.id === composer.editId ? savedRegion : region
         )
-      : [...value, { id: createRegionId(), ...rect }]
+      : [...value, savedRegion]
     // Drop regions that collapse to the same canonical key — each region owns one
     // heatmap, so a duplicate would share (and fight over) a single cache row
     // (removing one would soft-delete the cache the survivor still points at).
     onChange(dedupeByRegionKey(next))
     setComposer(null)
+    // Persist the label by region key (idempotent; a blank name clears it).
+    onRegionSaved?.(savedRegion)
   }
 
   const editingRegion =

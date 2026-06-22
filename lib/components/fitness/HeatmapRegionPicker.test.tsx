@@ -210,6 +210,49 @@ describe('HeatmapRegionPicker', () => {
     expect(onRegionRemoved.mock.calls[0][0]).toMatchObject({ id: 'rect-1' })
   })
 
+  it('fires onRegionSaved with the named area when a new area is added', () => {
+    const onRegionSaved = vi.fn()
+    render(
+      <HeatmapRegionPicker
+        value={[]}
+        onChange={vi.fn()}
+        onRegionSaved={onRegionSaved}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Draw area on map/i }))
+    // Textbox order: Area name, NW latitude, NW longitude, SE latitude, SE longitude.
+    const nameField = screen.getAllByRole('textbox')[0]
+    fireEvent.change(nameField, { target: { value: 'Coastal ride' } })
+    fireEvent.click(screen.getByRole('button', { name: /Add area/i }))
+
+    expect(onRegionSaved).toHaveBeenCalledTimes(1)
+    expect(onRegionSaved.mock.calls[0][0]).toMatchObject({
+      type: 'rect',
+      name: 'Coastal ride'
+    })
+  })
+
+  it('fires onRegionSaved with the new label when an area is renamed', () => {
+    const onRegionSaved = vi.fn()
+    render(
+      <HeatmapRegionPicker
+        value={rectValue}
+        onChange={vi.fn()}
+        onRegionSaved={onRegionSaved}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Edit area/i }))
+    const nameField = screen.getAllByRole('textbox')[0]
+    fireEvent.change(nameField, { target: { value: 'Renamed loop' } })
+    fireEvent.click(screen.getByRole('button', { name: /Save area/i }))
+
+    expect(onRegionSaved).toHaveBeenCalledTimes(1)
+    expect(onRegionSaved.mock.calls[0][0]).toMatchObject({
+      id: 'rect-1',
+      name: 'Renamed loop'
+    })
+  })
+
   it('labels the remove control per region kind (area vs region)', () => {
     render(<HeatmapRegionPicker value={rectValue} onChange={vi.fn()} />)
     expect(

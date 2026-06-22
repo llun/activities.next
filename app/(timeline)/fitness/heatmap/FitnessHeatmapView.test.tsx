@@ -8,7 +8,9 @@ import {
   deleteFitnessRouteHeatmap,
   getDistinctFitnessActivityTypes,
   getFitnessRouteHeatmap,
+  getFitnessRouteHeatmapRegionNames,
   getFitnessRouteHeatmaps,
+  setFitnessRouteHeatmapRegionName,
   triggerFitnessRouteHeatmap
 } from '@/lib/client'
 import type {
@@ -46,7 +48,9 @@ vi.mock('@/lib/client', () => ({
   deleteFitnessRouteHeatmap: vi.fn(),
   getDistinctFitnessActivityTypes: vi.fn(),
   getFitnessRouteHeatmap: vi.fn(),
+  getFitnessRouteHeatmapRegionNames: vi.fn(),
   getFitnessRouteHeatmaps: vi.fn(),
+  setFitnessRouteHeatmapRegionName: vi.fn(),
   triggerFitnessRouteHeatmap: vi.fn()
 }))
 
@@ -68,6 +72,14 @@ const mockGetFitnessRouteHeatmap =
   getFitnessRouteHeatmap as jest.MockedFunction<typeof getFitnessRouteHeatmap>
 const mockGetFitnessRouteHeatmaps =
   getFitnessRouteHeatmaps as jest.MockedFunction<typeof getFitnessRouteHeatmaps>
+const mockGetFitnessRouteHeatmapRegionNames =
+  getFitnessRouteHeatmapRegionNames as jest.MockedFunction<
+    typeof getFitnessRouteHeatmapRegionNames
+  >
+const mockSetFitnessRouteHeatmapRegionName =
+  setFitnessRouteHeatmapRegionName as jest.MockedFunction<
+    typeof setFitnessRouteHeatmapRegionName
+  >
 const mockTriggerFitnessRouteHeatmap =
   triggerFitnessRouteHeatmap as jest.MockedFunction<
     typeof triggerFitnessRouteHeatmap
@@ -250,6 +262,8 @@ describe('FitnessHeatmapView', () => {
     mockGetDistinctFitnessActivityTypes.mockResolvedValue([])
     mockGetFitnessRouteHeatmap.mockResolvedValue(null)
     mockGetFitnessRouteHeatmaps.mockResolvedValue([])
+    mockGetFitnessRouteHeatmapRegionNames.mockResolvedValue([])
+    mockSetFitnessRouteHeatmapRegionName.mockResolvedValue(true)
     mockDeleteFitnessRouteHeatmap.mockResolvedValue(true)
     mockTriggerFitnessRouteHeatmap.mockResolvedValue(true)
     // No Mapbox token in these tests, so the view uses the keyless MapLibre map.
@@ -290,6 +304,48 @@ describe('FitnessHeatmapView', () => {
     expect(await screen.findByText('Map area')).toBeInTheDocument()
     expect(screen.getByText(/2 regions · 1 generated/i)).toBeInTheDocument()
     expect(screen.getByText(/^Generated/)).toBeInTheDocument()
+  })
+
+  it('rehydrates a saved region name instead of showing "Map area"', async () => {
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([
+      worldSummary({
+        id: 'hm-rect',
+        region: 'rect:52.60,5.60,52.00,6.20',
+        status: 'completed',
+        updatedAt: TEST_NOW
+      })
+    ])
+    mockGetFitnessRouteHeatmapRegionNames.mockResolvedValue([
+      { region: 'rect:52.60,5.60,52.00,6.20', name: 'Veluwe loop' }
+    ])
+
+    render(<FitnessHeatmapView actorId={ACTOR} />)
+
+    // The persisted label is used; the generic fallback never appears.
+    expect(await screen.findByText('Veluwe loop')).toBeInTheDocument()
+    expect(screen.queryByText('Map area')).not.toBeInTheDocument()
+  })
+
+  it('persists a region name when an area is saved', async () => {
+    render(<FitnessHeatmapView actorId={ACTOR} />)
+
+    // Open the draw composer, give the area a name, and save it.
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Draw area on map/i })
+    )
+    fireEvent.change(screen.getByPlaceholderText(/Veluwe loop/i), {
+      target: { value: 'Coastal ride' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add area' }))
+
+    await waitFor(() =>
+      expect(mockSetFitnessRouteHeatmapRegionName).toHaveBeenCalledWith(
+        expect.objectContaining({ actorId: ACTOR, name: 'Coastal ride' })
+      )
+    )
+    // The saved region key is a canonical, non-empty rect token.
+    const call = mockSetFitnessRouteHeatmapRegionName.mock.calls[0][0]
+    expect(call.region).toMatch(/^rect:/)
   })
 
   it('opens a region detail page and returns to the list', async () => {
