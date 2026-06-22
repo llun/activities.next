@@ -1,0 +1,36 @@
+migrations/20260622000000_add_fitness_route_heatmap_region_names.js
+  s_89bfa90b18a906::t_482d49a6876640 26-31
+app/(timeline)/fitness/heatmap/FitnessHeatmapView.tsx
+  s_89bfa90b18a906::t_89bf2affbfce3e 224-226
+migrations/schema.sql
+  s_89bfa90b18a906::t_dc4b98cef83702 1610
+lib/components/fitness/HeatmapRegionPicker.tsx
+  s_89bfa90b18a906::t_c230608f1f4ae6 534-535,537-543
+app/(timeline)/fitness/heatmap/FitnessHeatmapView.test.tsx
+  s_89bfa90b18a906::t_74ebf7bbf6b05b 351-426
+app/api/v1/accounts/[id]/fitness-route-heatmap-region-names/route.ts
+  s_89bfa90b18a906::t_2c80d455e1fbf5 198-200
+  s_89bfa90b18a906::t_04cb21d185330a 49-54
+migrations/schema.sqlite.sql
+  s_89bfa90b18a906::t_ddc54c9720b114 233
+lib/components/fitness/HeatmapRegionPicker.test.tsx
+  s_89bfa90b18a906::t_d85aa0c2a4fa2d 235-262
+app/api/v1/accounts/[id]/fitness-route-heatmap-region-names/route.test.ts
+  s_89bfa90b18a906::t_35a6a49fac1f67 193-276
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "5a5bfce7013add6c9606d8e2851b61fa55139565",
+  "prompts": {},
+  "sessions": {
+    "s_89bfa90b18a906": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "eb7bc5d6-9433-402b-b7ef-c9b93eda25a1",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
