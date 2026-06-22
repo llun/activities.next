@@ -113,4 +113,14 @@ describe('loadMaplibreModule', () => {
       /^https:\/\/tiles\.openfreemap\.org\//
     )
   })
+
+  it('exposes a light OpenFreeMap style URL for the route heatmap', async () => {
+    const { OPENFREEMAP_HEATMAP_STYLE_URL } =
+      await import('@/lib/utils/maplibre')
+    // Same origin as the bright style (no extra CSP allowance) but the light
+    // "positron" basemap, so coloured routes stay legible.
+    expect(OPENFREEMAP_HEATMAP_STYLE_URL).toBe(
+      'https://tiles.openfreemap.org/styles/positron'
+    )
+  })
 })

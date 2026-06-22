@@ -21,6 +21,7 @@ import { loadMaplibreModule } from '@/lib/utils/maplibre'
 import {
   FitnessHeatmapView,
   RouteHeatmapMap,
+  computeFocusBounds,
   downsampleSegments
 } from './FitnessHeatmapView'
 
@@ -30,6 +31,8 @@ vi.mock('@/lib/utils/mapbox', () => ({
 
 vi.mock('@/lib/utils/maplibre', () => ({
   OPENFREEMAP_STYLE_URL: 'https://tiles.openfreemap.org/styles/bright',
+  OPENFREEMAP_HEATMAP_STYLE_URL:
+    'https://tiles.openfreemap.org/styles/positron',
   loadMaplibreModule: vi.fn()
 }))
 
@@ -184,6 +187,61 @@ const buildLargeHeatmap = (): FitnessRouteHeatmapData => {
     pointCount: segmentCount * pointsPerSegment,
     updatedAt: 3
   })
+}
+
+// A denser route cluster ~100° of longitude away from the Amsterdam fixture, so a
+// whole-world cache containing both spans the globe. computeFocusBounds tightens
+// the initial view to this (denser) cluster instead of the global extent.
+const SINGAPORE_CLUSTER_POINTS = [
+  { lat: 1.3, lng: 103.7 },
+  { lat: 1.32, lng: 103.75 },
+  { lat: 1.35, lng: 103.8 },
+  { lat: 1.37, lng: 103.85 },
+  { lat: 1.4, lng: 103.9 },
+  { lat: 1.33, lng: 103.78 }
+]
+const SINGAPORE_CLUSTER_BOUNDS = {
+  minLat: 1.3,
+  maxLat: 1.4,
+  minLng: 103.7,
+  maxLng: 103.9
+}
+
+// Whole-world cache with two disjoint regions: a small Amsterdam cluster (2
+// points) and the denser Singapore cluster above.
+const disjointWorldHeatmap = (
+  overrides: Partial<FitnessRouteHeatmapData> = {}
+): FitnessRouteHeatmapData =>
+  worldHeatmap({
+    bounds: { minLat: 1.3, maxLat: 52.39, minLng: 4.88, maxLng: 103.9 },
+    segments: [
+      {
+        points: [
+          { lat: 52.36, lng: 4.88 },
+          { lat: 52.39, lng: 4.91 }
+        ]
+      },
+      { points: SINGAPORE_CLUSTER_POINTS }
+    ],
+    ...overrides
+  })
+
+// A GL map double that captures the bounds/options handed to fitBounds, so a
+// test can assert the initial framing (full extent vs. focused dense cluster).
+const createFitBoundsCapturingModule = () => {
+  const fitBounds = vi.fn()
+  const Map = vi.fn().mockImplementation(function () {
+    return {
+      on: (_event: string, callback: () => void) => callback(),
+      remove: vi.fn(),
+      resize: vi.fn(),
+      addSource: vi.fn(),
+      addLayer: vi.fn(),
+      getSource: vi.fn(),
+      fitBounds
+    }
+  })
+  return { Map, fitBounds }
 }
 
 describe('FitnessHeatmapView', () => {
@@ -640,8 +698,9 @@ describe('RouteHeatmapMap', () => {
       screen.getByRole('img', { name: 'Fitness route heatmap' })
     ).toBeInTheDocument()
     expect(mockLoadMapboxModule).not.toHaveBeenCalled()
+    // The keyless path uses the light "positron" basemap so the routes stay legible.
     expect(mapConstructor.mock.calls[0][0]).toMatchObject({
-      style: 'https://tiles.openfreemap.org/styles/bright',
+      style: 'https://tiles.openfreemap.org/styles/positron',
       attributionControl: true
     })
   })
@@ -737,7 +796,10 @@ describe('RouteHeatmapMap', () => {
     expect(mapConstructor).toHaveBeenCalledWith(
       expect.objectContaining({
         accessToken: 'mapbox-token',
-        attributionControl: true
+        attributionControl: true,
+        // Light 2D basemap + flat mercator projection (no zoomed-out globe).
+        style: 'mapbox://styles/mapbox/light-v11',
+        projection: 'mercator'
       })
     )
   })
@@ -960,5 +1022,134 @@ describe('RouteHeatmapMap', () => {
     ]
 
     expect(downsampleSegments(segments, 100)).toBe(segments)
+  })
+
+  it('fits the full bounds (no zoom cap) for a single contiguous region', async () => {
+    const { Map, fitBounds } = createFitBoundsCapturingModule()
+    mockLoadMaplibreModule.mockResolvedValue({ Map })
+
+    render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
+
+    await waitFor(() => expect(fitBounds).toHaveBeenCalled())
+    expect(fitBounds.mock.calls[0][0]).toEqual([
+      [4.88, 52.36],
+      [4.91, 52.39]
+    ])
+    // A single region keeps the natural fit — no focus zoom cap is applied.
+    expect(fitBounds.mock.calls[0][1]).not.toHaveProperty('maxZoom')
+    expect(fitBounds.mock.calls[0][1]).toMatchObject({
+      padding: 56,
+      duration: 0
+    })
+  })
+
+  it('opens focused on the densest cluster for a disjoint multi-region cache', async () => {
+    const { Map, fitBounds } = createFitBoundsCapturingModule()
+    mockLoadMaplibreModule.mockResolvedValue({ Map })
+
+    render(<RouteHeatmapMap heatmap={disjointWorldHeatmap()} />)
+
+    await waitFor(() => expect(fitBounds).toHaveBeenCalled())
+    // The initial view tightens to the dense Singapore cluster (not the global
+    // Europe→Singapore extent) and caps the zoom so it opens with pannable context.
+    expect(fitBounds.mock.calls[0][0]).toEqual([
+      [SINGAPORE_CLUSTER_BOUNDS.minLng, SINGAPORE_CLUSTER_BOUNDS.minLat],
+      [SINGAPORE_CLUSTER_BOUNDS.maxLng, SINGAPORE_CLUSTER_BOUNDS.maxLat]
+    ])
+    expect(fitBounds.mock.calls[0][1]).toMatchObject({ maxZoom: 12 })
+  })
+})
+
+describe('computeFocusBounds', () => {
+  it('keeps the full bounds for a single contiguous region', () => {
+    const bounds = { minLat: 52.36, maxLat: 52.39, minLng: 4.88, maxLng: 4.91 }
+    const result = computeFocusBounds(
+      [
+        {
+          points: [
+            { lat: 52.36, lng: 4.88 },
+            { lat: 52.39, lng: 4.91 }
+          ]
+        }
+      ],
+      bounds
+    )
+
+    expect(result.focused).toBe(false)
+    expect(result.bounds).toBe(bounds)
+  })
+
+  it('keeps the full bounds for a region spanning several adjacent cells', () => {
+    // Points spread contiguously across ~8° of longitude (several 5° cells that
+    // are 8-connected), so there is a single cluster — show the whole extent.
+    const bounds = { minLat: 50, maxLat: 52, minLng: 4, maxLng: 12 }
+    const result = computeFocusBounds(
+      [
+        {
+          points: [
+            { lat: 50, lng: 4 },
+            { lat: 51, lng: 8 },
+            { lat: 52, lng: 12 }
+          ]
+        }
+      ],
+      bounds
+    )
+
+    expect(result.focused).toBe(false)
+    expect(result.bounds).toBe(bounds)
+  })
+
+  it('tightens to the densest cluster for disjoint regions', () => {
+    const bounds = { minLat: 1.3, maxLat: 52.39, minLng: 4.88, maxLng: 103.9 }
+    const result = computeFocusBounds(
+      [
+        {
+          points: [
+            { lat: 52.36, lng: 4.88 },
+            { lat: 52.39, lng: 4.91 }
+          ]
+        },
+        { points: SINGAPORE_CLUSTER_POINTS }
+      ],
+      bounds
+    )
+
+    expect(result.focused).toBe(true)
+    expect(result.bounds).toEqual(SINGAPORE_CLUSTER_BOUNDS)
+  })
+
+  it('ignores a sparse far-away outlier and frames the main cluster', () => {
+    const bounds = { minLat: 52.36, maxLat: 52.39, minLng: 4.88, maxLng: 40 }
+    const result = computeFocusBounds(
+      [
+        {
+          points: [
+            { lat: 52.36, lng: 4.88 },
+            { lat: 52.37, lng: 4.89 },
+            { lat: 52.39, lng: 4.91 }
+          ]
+        },
+        // A single stray point far east in its own, disconnected cell.
+        { points: [{ lat: 52.36, lng: 40 }] }
+      ],
+      bounds
+    )
+
+    expect(result.focused).toBe(true)
+    expect(result.bounds).toEqual({
+      minLat: 52.36,
+      maxLat: 52.39,
+      minLng: 4.88,
+      maxLng: 4.91
+    })
+  })
+
+  it('returns the full bounds when there are no finite points', () => {
+    const bounds = { minLat: 0, maxLat: 0, minLng: 0, maxLng: 0 }
+    const result = computeFocusBounds([], bounds)
+
+    expect(result.focused).toBe(false)
+    expect(result.bounds).toBe(bounds)
   })
 })

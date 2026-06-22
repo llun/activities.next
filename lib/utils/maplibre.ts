@@ -26,6 +26,16 @@ const MAPLIBRE_LOAD_TIMEOUT_MS = 15000
 export const OPENFREEMAP_STYLE_URL =
   'https://tiles.openfreemap.org/styles/bright'
 
+/**
+ * Keyless OpenFreeMap light style for the route heatmap result map. The light,
+ * low-saturation "positron" basemap keeps the coloured route overlay legible —
+ * the colourful "bright" style used by the region picker washes the lines out.
+ * Served from the same `tiles.openfreemap.org` origin, so it needs no extra CSP
+ * allowance.
+ */
+export const OPENFREEMAP_HEATMAP_STYLE_URL =
+  'https://tiles.openfreemap.org/styles/positron'
+
 let maplibreModulePromise: Promise<unknown> | null = null
 
 export const loadMaplibreModule = async <T>(): Promise<T> => {
