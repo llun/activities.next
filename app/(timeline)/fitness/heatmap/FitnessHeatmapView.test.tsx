@@ -348,6 +348,82 @@ describe('FitnessHeatmapView', () => {
     expect(call.region).toMatch(/^rect:/)
   })
 
+  const drawAndSaveArea = async (name: string) => {
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Draw area on map/i })
+    )
+    fireEvent.change(screen.getByPlaceholderText(/Veluwe loop/i), {
+      target: { value: name }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add area' }))
+  }
+
+  it('surfaces an error when saving a region name is rejected by the server', async () => {
+    mockSetFitnessRouteHeatmapRegionName.mockResolvedValue(false)
+    render(<FitnessHeatmapView actorId={ACTOR} />)
+
+    await drawAndSaveArea('Coastal ride')
+
+    expect(
+      await screen.findByText(/Couldn't save the region name/i)
+    ).toBeInTheDocument()
+  })
+
+  it('surfaces an error when saving a region name throws', async () => {
+    mockSetFitnessRouteHeatmapRegionName.mockRejectedValue(
+      new Error('network down')
+    )
+    render(<FitnessHeatmapView actorId={ACTOR} />)
+
+    await drawAndSaveArea('Coastal ride')
+
+    expect(
+      await screen.findByText(/Couldn't save the region name/i)
+    ).toBeInTheDocument()
+  })
+
+  it('ignores a saved name whose region key matches no current region', async () => {
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([
+      worldSummary({
+        id: 'hm-rect',
+        region: 'rect:52.60,5.60,52.00,6.20',
+        status: 'completed',
+        updatedAt: TEST_NOW
+      })
+    ])
+    // A stale label for a different region key (e.g. a removed region).
+    mockGetFitnessRouteHeatmapRegionNames.mockResolvedValue([
+      { region: 'rect:10.00,10.00,9.00,11.00', name: 'Stale label' }
+    ])
+
+    render(<FitnessHeatmapView actorId={ACTOR} />)
+
+    // The discovered region keeps the generic fallback; the unrelated label is
+    // not applied to it (and does not crash the render).
+    expect(await screen.findByText('Map area')).toBeInTheDocument()
+    expect(screen.queryByText('Stale label')).not.toBeInTheDocument()
+  })
+
+  it('still loads heatmaps when the region-names fetch fails', async () => {
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([
+      worldSummary({
+        id: 'hm-rect',
+        region: 'rect:52.60,5.60,52.00,6.20',
+        status: 'completed',
+        updatedAt: TEST_NOW
+      })
+    ])
+    mockGetFitnessRouteHeatmapRegionNames.mockRejectedValue(
+      new Error('names fetch failed')
+    )
+
+    render(<FitnessHeatmapView actorId={ACTOR} />)
+
+    // The discovered region still appears (labels just fall back to "Map area").
+    expect(await screen.findByText('Map area')).toBeInTheDocument()
+    expect(screen.getByText(/2 regions · 1 generated/i)).toBeInTheDocument()
+  })
+
   it('opens a region detail page and returns to the list', async () => {
     render(<FitnessHeatmapView actorId={ACTOR} />)
 

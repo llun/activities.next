@@ -232,6 +232,34 @@ describe('HeatmapRegionPicker', () => {
     })
   })
 
+  it('does not fire onRegionSaved when a drawn area collapses onto an existing region', () => {
+    const onRegionSaved = vi.fn()
+    // Same coords as the composer's DEFAULT_BOX (nw 53,3 / se 50,7).
+    const existing: PickerRegion[] = [
+      {
+        id: 'rect-1',
+        type: 'rect',
+        nw: { lat: 53, lng: 3 },
+        se: { lat: 50, lng: 7 }
+      }
+    ]
+    render(
+      <HeatmapRegionPicker
+        value={existing}
+        onChange={vi.fn()}
+        onRegionSaved={onRegionSaved}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Draw area on map/i }))
+    const nameField = screen.getAllByRole('textbox')[0]
+    fireEvent.change(nameField, { target: { value: 'Duplicate' } })
+    fireEvent.click(screen.getByRole('button', { name: /Add area/i }))
+
+    // The duplicate draw is dropped by dedupe, so its name must not overwrite the
+    // surviving region's stored label.
+    expect(onRegionSaved).not.toHaveBeenCalled()
+  })
+
   it('fires onRegionSaved with the new label when an area is renamed', () => {
     const onRegionSaved = vi.fn()
     render(

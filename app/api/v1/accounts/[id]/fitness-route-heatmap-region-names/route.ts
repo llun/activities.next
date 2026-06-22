@@ -46,8 +46,12 @@ const SetRegionNameBody = z.object({
 
 // Canonicalises a raw region key the same way the heatmap routes do, so a saved
 // label keys on the exact serialized form that a heatmap's `region` uses.
-const normalizeRegion = (rawRegion: string) =>
-  serializeRegions(deserializeRegions(rawRegion))
+// `deserializeRegions`/`serializeRegions` are total (they drop unknown tokens
+// rather than throwing), so malformed input — and the world-wide region — both
+// normalize to the empty sentinel; return null for those since neither is a
+// nameable region.
+const normalizeRegion = (rawRegion: string): string | null =>
+  serializeRegions(deserializeRegions(rawRegion)) || null
 
 export const GET = traceApiRoute(
   'getAccountFitnessRouteHeatmapRegionNames',
@@ -191,9 +195,9 @@ export const PUT = traceApiRoute(
     }
 
     const region = normalizeRegion(parsed.data.region)
-    // The world-wide region (empty key) is never named; reject so the store
-    // is not asked to key a label on the world sentinel.
-    if (region === '') {
+    // Reject the world-wide region (empty key, never named) and any malformed
+    // input that normalized away to nothing.
+    if (!region) {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,

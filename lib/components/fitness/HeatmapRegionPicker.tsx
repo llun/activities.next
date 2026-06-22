@@ -531,10 +531,16 @@ export const HeatmapRegionPicker: FC<HeatmapRegionPickerProps> = ({
     // Drop regions that collapse to the same canonical key — each region owns one
     // heatmap, so a duplicate would share (and fight over) a single cache row
     // (removing one would soft-delete the cache the survivor still points at).
-    onChange(dedupeByRegionKey(next))
+    const deduped = dedupeByRegionKey(next)
+    onChange(deduped)
     setComposer(null)
-    // Persist the label by region key (idempotent; a blank name clears it).
-    onRegionSaved?.(savedRegion)
+    // Persist the label by region key (idempotent; a blank name clears it) — but
+    // only when the saved region actually survived the dedupe. Otherwise a draw
+    // that collapsed onto an existing region would overwrite that region's stored
+    // name with the dropped draw's name (a session-vs-reload mismatch).
+    if (deduped.some((region) => region.id === savedRegion.id)) {
+      onRegionSaved?.(savedRegion)
+    }
   }
 
   const editingRegion =

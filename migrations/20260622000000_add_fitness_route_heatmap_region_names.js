@@ -23,7 +23,12 @@ export const up = async function (knex) {
   await knex.schema.createTable(
     'fitness_route_heatmap_region_names',
     function (table) {
-      table.string('actorId').notNullable().references('id').inTable('actors')
+      table
+        .string('actorId')
+        .notNullable()
+        .references('id')
+        .inTable('actors')
+        .onDelete('CASCADE')
       table.string('region').notNullable()
       table.string('name').notNullable()
       table.timestamp('createdAt', { useTz: true }).notNullable()

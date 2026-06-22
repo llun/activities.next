@@ -1607,7 +1607,7 @@ ALTER TABLE ONLY public.fitness_files
     ADD CONSTRAINT fitness_files_statusid_foreign FOREIGN KEY ("statusId") REFERENCES public.statuses(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY public.fitness_route_heatmap_region_names
-    ADD CONSTRAINT fitness_route_heatmap_region_names_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id);
+    ADD CONSTRAINT fitness_route_heatmap_region_names_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY public.fitness_route_heatmaps
     ADD CONSTRAINT fitness_route_heatmaps_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id);

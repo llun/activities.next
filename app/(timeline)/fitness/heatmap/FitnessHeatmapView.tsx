@@ -221,7 +221,9 @@ export const FitnessHeatmapView: FC<Props> = ({
     let cancelled = false
     Promise.all([
       getFitnessRouteHeatmaps({ actorId }),
-      getFitnessRouteHeatmapRegionNames({ actorId })
+      // Labels are non-critical metadata: a failed names fetch must not block the
+      // heatmaps from loading, so it degrades to "no saved labels".
+      getFitnessRouteHeatmapRegionNames({ actorId }).catch(() => [])
     ])
       .then(([all, names]) => {
         if (cancelled) return
