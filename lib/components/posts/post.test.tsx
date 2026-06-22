@@ -46,7 +46,8 @@ vi.mock('@/lib/client', () => ({
   unmute: vi.fn(),
   block: vi.fn(),
   unblock: vi.fn(),
-  createReport: vi.fn()
+  createReport: vi.fn(),
+  retryFitnessProcessing: vi.fn()
 }))
 
 const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
@@ -935,6 +936,56 @@ describe('Post', () => {
 
     expect(
       screen.queryByRole('link', { name: /View on Strava|View source/i })
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows the processing spinner while a fresh fitness file is still processing', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentTime={currentTime}
+        currentActor={status.actor!}
+        status={{
+          ...status,
+          summary: null,
+          fitness: {
+            ...fitnessBase,
+            processingStatus: 'processing',
+            processingStuck: false
+          }
+        }}
+        onShowAttachment={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText(/Processing fitness activity/i)).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /Retry/i })
+    ).not.toBeInTheDocument()
+  })
+
+  it('offers the owner a retry instead of an endless spinner once processing is stuck', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentTime={currentTime}
+        currentActor={status.actor!}
+        status={{
+          ...status,
+          summary: null,
+          fitness: {
+            ...fitnessBase,
+            processingStatus: 'processing',
+            processingStuck: true
+          }
+        }}
+        onShowAttachment={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument()
+    expect(
+      screen.queryByText(/Processing fitness activity/i)
     ).not.toBeInTheDocument()
   })
 })

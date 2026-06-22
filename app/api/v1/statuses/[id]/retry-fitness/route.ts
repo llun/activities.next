@@ -1,4 +1,5 @@
 import { PROCESS_FITNESS_FILE_JOB_NAME } from '@/lib/jobs/names'
+import { isFitnessProcessingStuck } from '@/lib/services/fitness-files/processingState'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getQueue } from '@/lib/services/queue'
 import { Scope } from '@/lib/types/database/operations'
@@ -45,8 +46,16 @@ export const POST = traceApiRoute(
     }
 
     const files = await database.getFitnessFilesByStatus({ statusId })
+    // `failed` files are the explicit failure case. A file still marked
+    // `processing` long after the job started is stranded too: the worker was
+    // killed mid-job (e.g. OOM/deploy) before it could write `completed` or
+    // `failed`, and nothing re-queues it. Treat such stuck files as retriable
+    // while leaving genuinely in-flight jobs (recent `processing`) alone.
+    const now = Date.now()
     const retriableFiles = files.filter(
-      (file) => file.processingStatus === 'failed'
+      (file) =>
+        file.processingStatus === 'failed' ||
+        isFitnessProcessingStuck(file, now)
     )
 
     if (retriableFiles.length === 0) {

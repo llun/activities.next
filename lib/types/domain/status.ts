@@ -34,6 +34,10 @@ export const StatusFitnessFile = z.object({
   processingStatus: z
     .enum(['pending', 'processing', 'completed', 'failed'])
     .optional(),
+  // True when a `processing` file has been stranded long enough that its worker
+  // must have died mid-job; signals clients to offer a retry. Computed
+  // server-side from the file's `updatedAt`.
+  processingStuck: z.boolean().optional(),
   totalDistanceMeters: z.number().optional(),
   totalDurationSeconds: z.number().optional(),
   elevationGainMeters: z.number().optional(),

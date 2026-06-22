@@ -43,7 +43,7 @@ const Page: FC = async () => {
     <div className="space-y-6">
       <PageHeader
         title="Heatmaps"
-        description="Route density maps aggregated from your activities"
+        description="Route density maps aggregated from your activities — one per region"
       />
 
       <FitnessHeatmapView
