@@ -29,14 +29,16 @@ interface Props {
   currentTime: number
 }
 
-type PresetKey = '30d' | '90d' | 'year' | '10y' | 'custom'
+type PresetKey = '1y' | '2y' | '5y' | '10y' | 'custom'
 
 const PRESETS: Array<{ key: PresetKey; label: string; days: number }> = [
-  { key: '30d', label: '30D', days: 30 },
-  { key: '90d', label: '90D', days: 90 },
-  { key: 'year', label: '1Y', days: 365 },
+  { key: '1y', label: '1Y', days: 365 },
+  { key: '2y', label: '2Y', days: 730 },
+  { key: '5y', label: '5Y', days: 1825 },
   { key: '10y', label: '10Y', days: 3650 }
 ]
+
+const DEFAULT_PRESET_DAYS = 365
 
 const CALENDAR_METRICS: Array<[CalendarMetric, string]> = [
   ['count', 'Count'],
@@ -96,9 +98,9 @@ const getTotals = (summary: FitnessActivitySummary[]) =>
   )
 
 export const ActorFitnessDashboard: FC<Props> = ({ actorId, currentTime }) => {
-  const [preset, setPreset] = useState<PresetKey>('90d')
+  const [preset, setPreset] = useState<PresetKey>('1y')
   const [startDate, setStartDate] = useState(() =>
-    formatDateInput(currentTime - 90 * DAY_MS)
+    formatDateInput(currentTime - DEFAULT_PRESET_DAYS * DAY_MS)
   )
   const [endDate, setEndDate] = useState(() => formatDateInput(currentTime))
 
@@ -107,7 +109,9 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId, currentTime }) => {
   // users, which would silently exclude today's activities.
   useEffect(() => {
     const now = Date.now()
-    setStartDate(formatLocalDateInput(new Date(now - 90 * DAY_MS)))
+    setStartDate(
+      formatLocalDateInput(new Date(now - DEFAULT_PRESET_DAYS * DAY_MS))
+    )
     setEndDate(formatLocalDateInput(new Date(now)))
   }, [])
   const [summary, setSummary] = useState<FitnessActivitySummary[]>([])

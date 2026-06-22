@@ -45,10 +45,7 @@ const Page: FC = async () => {
   if (!hasFitnessData) {
     return (
       <div className="space-y-6">
-        <PageHeader
-          title="Overview"
-          description="Your last 6 months of activity"
-        />
+        <PageHeader title="Overview" description="Your last year of activity" />
         <Card className="flex flex-col items-start gap-4 p-6">
           <div className="space-y-1">
             <h2 className="text-base font-medium">No activity yet</h2>
@@ -99,10 +96,7 @@ const Page: FC = async () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Overview"
-        description="Your last 6 months of activity"
-      />
+      <PageHeader title="Overview" description="Your last year of activity" />
 
       <ActorFitnessDashboard
         actorId={currentActor.id}
