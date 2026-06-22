@@ -38,7 +38,12 @@ const PRESETS: Array<{ key: PresetKey; label: string; days: number }> = [
   { key: '10y', label: '10Y', days: 3650 }
 ]
 
-const DEFAULT_PRESET_DAYS = 365
+// Single source of truth for the initial range: the active preset pill and the
+// seeded date window both derive from this key, so changing the default can't
+// silently desync the highlighted preset from the computed dates.
+const DEFAULT_PRESET_KEY: PresetKey = '1y'
+const DEFAULT_PRESET_DAYS =
+  PRESETS.find((item) => item.key === DEFAULT_PRESET_KEY)?.days ?? 365
 
 const CALENDAR_METRICS: Array<[CalendarMetric, string]> = [
   ['count', 'Count'],
@@ -98,7 +103,7 @@ const getTotals = (summary: FitnessActivitySummary[]) =>
   )
 
 export const ActorFitnessDashboard: FC<Props> = ({ actorId, currentTime }) => {
-  const [preset, setPreset] = useState<PresetKey>('1y')
+  const [preset, setPreset] = useState<PresetKey>(DEFAULT_PRESET_KEY)
   const [startDate, setStartDate] = useState(() =>
     formatDateInput(currentTime - DEFAULT_PRESET_DAYS * DAY_MS)
   )
