@@ -609,6 +609,9 @@ export const FitnessHeatmapView: FC<Props> = ({
         setError(
           "Couldn't save the region name. It may not persist after a refresh."
         )
+      } else {
+        // Clear any stale error from a prior failed save once one succeeds.
+        setError(null)
       }
     },
     [actorId]

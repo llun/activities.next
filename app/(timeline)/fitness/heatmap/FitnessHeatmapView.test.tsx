@@ -382,6 +382,27 @@ describe('FitnessHeatmapView', () => {
     ).toBeInTheDocument()
   })
 
+  it('clears a prior save error once a later save succeeds', async () => {
+    mockSetFitnessRouteHeatmapRegionName.mockResolvedValueOnce(false)
+    render(<FitnessHeatmapView actorId={ACTOR} />)
+
+    await drawAndSaveArea('Coastal ride')
+    expect(
+      await screen.findByText(/Couldn't save the region name/i)
+    ).toBeInTheDocument()
+
+    // Re-saving the same area now succeeds; the stale error must clear.
+    mockSetFitnessRouteHeatmapRegionName.mockResolvedValue(true)
+    fireEvent.click(screen.getByRole('button', { name: /Edit area/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save area' }))
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText(/Couldn't save the region name/i)
+      ).not.toBeInTheDocument()
+    )
+  })
+
   it('ignores a saved name whose region key matches no current region', async () => {
     mockGetFitnessRouteHeatmaps.mockResolvedValue([
       worldSummary({
