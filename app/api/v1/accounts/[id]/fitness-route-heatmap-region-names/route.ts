@@ -195,9 +195,12 @@ export const PUT = traceApiRoute(
     }
 
     const region = normalizeRegion(parsed.data.region)
-    // Reject the world-wide region (empty key, never named) and any malformed
-    // input that normalized away to nothing.
-    if (!region) {
+    // Reject the world-wide region (empty key, never named), malformed input
+    // that normalized away to nothing, and — defensively — any key over the
+    // 255-char column limit. `serializeRegions` already caps output to
+    // MAX_HEATMAP_REGIONS (≤244 chars), so this guards future precision/cap
+    // changes rather than a currently-reachable case.
+    if (!region || region.length > 255) {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
