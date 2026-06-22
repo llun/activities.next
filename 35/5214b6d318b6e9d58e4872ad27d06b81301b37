@@ -1,0 +1,19 @@
+app/api/v1/accounts/[id]/fitness-route-heatmap-region-names/route.ts
+  s_89bfa90b18a906::t_d2c0bf58706f3b 198-203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "355214b6d318b6e9d58e4872ad27d06b81301b37",
+  "prompts": {},
+  "sessions": {
+    "s_89bfa90b18a906": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "eb7bc5d6-9433-402b-b7ef-c9b93eda25a1",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
