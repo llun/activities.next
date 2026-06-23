@@ -1,0 +1,21 @@
+lib/services/fitness-files/staticHeatmapImage.ts
+  s_923b07ff728f21::t_7118179ae193e1 96-98
+app/embed/heatmap/[token]/image/route.ts
+  s_923b07ff728f21::t_01819ecd4184c2 29-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "e2fe204e740a81fff228fcc390d0d5f448cc3a74",
+  "prompts": {},
+  "sessions": {
+    "s_923b07ff728f21": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8d29f2ad-e9fd-453b-a0d8-6fe875bd4782",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
