@@ -515,6 +515,44 @@ describe('FitnessRouteHeatmapDatabase', () => {
         ).resolves.toBeNull()
       })
 
+      it('does not overwrite an existing share token (concurrent-share guard)', async () => {
+        const created = await database.createFitnessRouteHeatmap({
+          actorId: actors.primary.id,
+          activityType: null,
+          periodType: 'all_time',
+          periodKey: 'all',
+          region: 'rect:33.00,5.00,32.00,6.00'
+        })
+
+        await expect(
+          database.setFitnessRouteHeatmapShareToken({
+            actorId: actors.primary.id,
+            id: created.id,
+            shareToken: 'first-token'
+          })
+        ).resolves.toBe(true)
+
+        // A second set (e.g. a concurrent request) must not clobber the token.
+        await expect(
+          database.setFitnessRouteHeatmapShareToken({
+            actorId: actors.primary.id,
+            id: created.id,
+            shareToken: 'second-token'
+          })
+        ).resolves.toBe(false)
+
+        await expect(
+          database.getFitnessRouteHeatmapByShareToken({
+            shareToken: 'first-token'
+          })
+        ).resolves.not.toBeNull()
+        await expect(
+          database.getFitnessRouteHeatmapByShareToken({
+            shareToken: 'second-token'
+          })
+        ).resolves.toBeNull()
+      })
+
       it('scopes share-token mutations to the owning actor', async () => {
         const created = await database.createFitnessRouteHeatmap({
           actorId: actors.primary.id,

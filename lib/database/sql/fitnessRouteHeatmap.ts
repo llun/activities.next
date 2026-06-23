@@ -364,10 +364,16 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     id: string
     shareToken: string
   }) {
+    // Only assign a token when the row has none yet (`shareToken IS NULL`), so
+    // two concurrent share requests don't each write a distinct token (last
+    // write wins, leaving the first caller with a stale token). The loser's
+    // update affects 0 rows; the caller then re-reads the stored (winner's)
+    // token. A row that is already shared keeps its existing token.
     const updated = await database('fitness_route_heatmaps')
       .where('id', id)
       .where('actorId', actorId)
       .whereNull('deletedAt')
+      .whereNull('shareToken')
       .update({
         shareToken,
         updatedAt: new Date()

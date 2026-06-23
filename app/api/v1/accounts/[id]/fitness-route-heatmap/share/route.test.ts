@@ -18,6 +18,7 @@ vi.mock('@/lib/utils/getActorFromSession', () => ({
 type MockDatabase = Pick<
   Database,
   | 'getFitnessRouteHeatmapByKey'
+  | 'getFitnessRouteHeatmap'
   | 'setFitnessRouteHeatmapShareToken'
   | 'clearFitnessRouteHeatmapShareToken'
 >
@@ -50,6 +51,7 @@ const completedHeatmap = (overrides: Record<string, unknown> = {}) => ({
 describe('/api/v1/accounts/[id]/fitness-route-heatmap/share', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
     getFitnessRouteHeatmapByKey: vi.fn(),
+    getFitnessRouteHeatmap: vi.fn(),
     setFitnessRouteHeatmapShareToken: vi.fn(),
     clearFitnessRouteHeatmapShareToken: vi.fn()
   }
@@ -68,6 +70,9 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap/share', () => {
     })
     mockGetActorFromSession.mockResolvedValue({ ...seedActor1, id: ACTOR1_ID })
     mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue(null)
+    mockDb.getFitnessRouteHeatmap.mockResolvedValue(
+      completedHeatmap({ shareToken: 'persisted-token' })
+    )
     mockDb.setFitnessRouteHeatmapShareToken.mockResolvedValue(true)
     mockDb.clearFitnessRouteHeatmapShareToken.mockResolvedValue(true)
   })
@@ -88,13 +93,35 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap/share', () => {
     )
 
     expect(response.status).toBe(200)
-    const json = await response.json()
-    expect(typeof json.shareToken).toBe('string')
-    expect(json.shareToken.length).toBeGreaterThan(0)
+    // The response token is whatever is actually stored after the conditional
+    // set (read back from the row), not the locally generated value.
+    await expect(response.json()).resolves.toEqual({
+      shareToken: 'persisted-token'
+    })
     expect(mockDb.setFitnessRouteHeatmapShareToken).toHaveBeenCalledWith({
       actorId: ACTOR1_ID,
       id: 'route-heatmap-share',
-      shareToken: json.shareToken
+      shareToken: expect.any(String)
+    })
+  })
+
+  it('returns the winner token when a concurrent request already shared it', async () => {
+    mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue(completedHeatmap())
+    // This caller loses the conditional (shareToken IS NULL) update...
+    mockDb.setFitnessRouteHeatmapShareToken.mockResolvedValue(false)
+    // ...but the row now holds the winning request's token.
+    mockDb.getFitnessRouteHeatmap.mockResolvedValue(
+      completedHeatmap({ shareToken: 'winner-token' })
+    )
+
+    const response = await POST(
+      postRequest({ period_type: 'all_time', period_key: 'all' }),
+      { params: Promise.resolve({ id: encodedId }) }
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      shareToken: 'winner-token'
     })
   })
 

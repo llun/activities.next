@@ -188,13 +188,18 @@ export const POST = traceApiRoute(
     }
 
     const shareToken = generateShareToken()
-    const updated = await database.setFitnessRouteHeatmapShareToken({
+    // The set is conditional on `shareToken IS NULL`, so under a concurrent
+    // request only one writer wins. Re-read the row and return whatever token is
+    // actually stored, so a losing racer still returns a valid (the winner's)
+    // token rather than the one it generated but never persisted.
+    await database.setFitnessRouteHeatmapShareToken({
       actorId: id,
       id: existing.id,
       shareToken
     })
+    const stored = await database.getFitnessRouteHeatmap({ id: existing.id })
 
-    if (!updated) {
+    if (!stored?.shareToken) {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
@@ -206,7 +211,7 @@ export const POST = traceApiRoute(
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: { shareToken }
+      data: { shareToken: stored.shareToken }
     })
   },
   {
