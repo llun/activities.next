@@ -13,6 +13,7 @@ import {
 } from '@/lib/utils/webMercator'
 
 import type { FitnessCoordinate } from './parseFitnessFile'
+import { simplifyPoints } from './simplifyRoute'
 
 export interface RouteHeatmapPoint extends FitnessCoordinate {
   isHiddenByPrivacy: boolean
@@ -22,6 +23,14 @@ export interface BuildRouteHeatmapPayloadParams {
   privacySegments: Array<PrivacySegment<RouteHeatmapPoint>>
   regionBounds?: RegionBounds[]
   maxPoints?: number
+  /**
+   * When positive, each segment is simplified with Ramer–Douglas–Peucker at this
+   * meters tolerance before the `maxPoints` cap, so the stored geometry keeps its
+   * road-following shape instead of being uniformly decimated. Left unset (0) for
+   * intermediate checkpoint payloads, which must preserve raw points so a resumed
+   * run keeps accumulating at full fidelity.
+   */
+  simplifyToleranceMeters?: number
 }
 
 export interface RouteHeatmapPayload {
@@ -97,14 +106,32 @@ const toRouteSegment = (
 export const buildRouteHeatmapPayload = ({
   privacySegments,
   regionBounds = [],
-  maxPoints = DEFAULT_ROUTE_HEATMAP_MAX_POINTS
+  maxPoints = DEFAULT_ROUTE_HEATMAP_MAX_POINTS,
+  simplifyToleranceMeters = 0
 }: BuildRouteHeatmapPayloadParams): RouteHeatmapPayload => {
   const filteredSegments = privacySegments
     .flatMap((segment) => splitSegmentByBounds(segment, regionBounds))
     .filter((segment) => segment.points.length >= 2)
 
+  // Shape-preserving simplification first, so the `maxPoints` cap only has to
+  // act as a ceiling for pathological caches rather than uniformly decimating
+  // every route (which would cut corners off the road at street zoom). Reuse the
+  // original segment object when simplifyPoints leaves the points untouched.
+  const simplifiedSegments =
+    simplifyToleranceMeters > 0
+      ? filteredSegments
+          .map((segment) => {
+            const points = simplifyPoints(
+              segment.points,
+              simplifyToleranceMeters
+            )
+            return points === segment.points ? segment : { ...segment, points }
+          })
+          .filter((segment) => segment.points.length >= 2)
+      : filteredSegments
+
   const sampledSegments = downsamplePrivacySegments(
-    filteredSegments,
+    simplifiedSegments,
     maxPoints,
     {
       minimumPointsPerSegment: 2

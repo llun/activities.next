@@ -26,6 +26,7 @@ import {
   splitSegmentByBounds
 } from '@/lib/services/fitness-files/routeHeatmap'
 import type { RouteHeatmapPoint } from '@/lib/services/fitness-files/routeHeatmap'
+import { simplifyPoints } from '@/lib/services/fitness-files/simplifyRoute'
 import { getQueue } from '@/lib/services/queue'
 import type { JobMessage } from '@/lib/services/queue/type'
 import type { FitnessRouteHeatmapSegment } from '@/lib/types/database/fitnessRouteHeatmap'
@@ -466,9 +467,17 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
                 buffer
               })
 
-              const routeCoordinates = downsampleRoutePoints(
-                activityData.coordinates,
-                routeHeatmapConfig.filePointLimit
+              // Apply the uniform filePointLimit ceiling FIRST so Douglas–Peucker
+              // never runs on an unbounded, user-uploaded point list (a 50 MB GPX
+              // can hold ~1M points). Then simplify so straight stretches collapse
+              // toward their endpoints while bends keep their shape — preserving
+              // road fidelity and shrinking the point count fed into accumulation.
+              const routeCoordinates = simplifyPoints(
+                downsampleRoutePoints(
+                  activityData.coordinates,
+                  routeHeatmapConfig.filePointLimit
+                ),
+                routeHeatmapConfig.simplifyToleranceMeters
               )
 
               // Downsample before privacy/region splitting to keep route-cache
@@ -560,8 +569,12 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
         })
       }
 
+      // Final stored payload: simplify (not just cap) so the persisted geometry
+      // keeps its road-following shape. Checkpoint payloads above deliberately
+      // skip this — they are resume state that must retain raw points.
       const payload = buildRouteHeatmapPayload({
-        privacySegments: allSegments
+        privacySegments: allSegments,
+        simplifyToleranceMeters: routeHeatmapConfig.simplifyToleranceMeters
       })
 
       await database.updateFitnessRouteHeatmapStatus({

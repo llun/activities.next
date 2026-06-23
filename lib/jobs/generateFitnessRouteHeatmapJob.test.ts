@@ -497,6 +497,10 @@ describe('generateFitnessRouteHeatmapJob', () => {
       'running',
       new Date('2026-06-16T07:00:00.000Z')
     )
+    // Straight synthetic routes: shape-preserving simplification collapses each
+    // toward its endpoints (a straight line carries no road-following detail),
+    // so this verifies the large-file pipeline completes with a bounded result.
+    // The precise uniform cap is covered in routeHeatmap.test.ts.
     const buildCoordinates = (lngOffset: number) =>
       Array.from({ length: 45_000 }, (_value, index) => ({
         lat: 52 + index / 1_000_000,
@@ -545,6 +549,10 @@ describe('generateFitnessRouteHeatmapJob', () => {
 
     expect(heatmap?.status).toBe('completed')
     expect(heatmap?.activityCount).toBe(2)
+    // The two straight routes collapse toward their endpoints, so the stored
+    // geometry is a handful of points — well under the cap.
+    expect(heatmap?.pointCount).toBeGreaterThanOrEqual(2)
+    expect(heatmap?.pointCount).toBeLessThan(100)
     expect(heatmap?.pointCount).toBeLessThanOrEqual(
       DEFAULT_ROUTE_HEATMAP_MAX_POINTS
     )
@@ -552,6 +560,63 @@ describe('generateFitnessRouteHeatmapJob', () => {
     await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
     await database.deleteFitnessFile({ id: firstId })
     await database.deleteFitnessFile({ id: secondId })
+  })
+
+  it('stores shape-preserving geometry, dropping collinear runs but keeping corners', async () => {
+    const fitnessFileId = await createCompletedFitnessFile(
+      'running',
+      new Date('2026-03-15T07:00:00.000Z')
+    )
+    // A long straight run (collinear points) into a sharp turn north. The
+    // default 2 m simplification must collapse the run toward its endpoints
+    // while keeping the corner, so the stored line still follows the road.
+    const straightRun = Array.from({ length: 50 }, (_value, index) => ({
+      lat: 52.36,
+      lng: 4.88 + index * 0.0001
+    }))
+    const corner = { lat: 52.4, lng: straightRun[straightRun.length - 1].lng }
+    const coordinates = [...straightRun, corner]
+
+    mockParseFitnessFile.mockResolvedValueOnce({
+      coordinates,
+      trackPoints: coordinates,
+      totalDistanceMeters: 1_250,
+      totalDurationSeconds: 420,
+      elevationGainMeters: 42,
+      activityType: 'running',
+      startTime: new Date('2026-03-15T07:00:00.000Z')
+    })
+
+    await generateFitnessRouteHeatmapJob(database, {
+      id: 'job-route-heatmap-simplify',
+      name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        activityType: 'running',
+        periodType: 'monthly',
+        periodKey: '2026-03'
+      }
+    })
+
+    const heatmap = await database.getFitnessRouteHeatmapByKey({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-03'
+    })
+
+    expect(heatmap?.status).toBe('completed')
+    expect(heatmap?.segments).toHaveLength(1)
+    const points = heatmap?.segments[0].points ?? []
+    // The 51 input points collapse to a handful: the run's endpoints plus the
+    // corner — far fewer than the input, but not down to a straight 2-point line.
+    expect(points.length).toBeGreaterThanOrEqual(2)
+    expect(points.length).toBeLessThan(10)
+    // The corner latitude survives, so the rendered line keeps its turn.
+    expect(points.some((point) => Math.abs(point.lat - 52.4) < 1e-6)).toBe(true)
+
+    await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+    await database.deleteFitnessFile({ id: fitnessFileId })
   })
 
   it('checkpoints route generation and queues a continuation before the QStash timeout', async () => {
@@ -630,13 +695,26 @@ describe('generateFitnessRouteHeatmapJob', () => {
       'running',
       new Date('2026-01-17T07:00:00.000Z')
     )
-    const buildCoordinates = (lngOffset: number) =>
-      Array.from({ length: 60_000 }, (_value, index) => ({
+    // Pre-seed a large block of already-accumulated points. Seeded checkpoint
+    // data is loaded verbatim and is never re-simplified, so its size alone
+    // places the checkpoint between the render cap and the accumulation cap —
+    // which is exactly what the checkpoint must preserve. The shape is
+    // irrelevant (it is not simplified), so a straight run keeps the fixture
+    // cheap.
+    const seededCoordinates = Array.from(
+      { length: 100_000 },
+      (_value, index) => ({
         lat: 52 + index / 1_000_000,
-        lng: 4 + lngOffset + index / 1_000_000
-      }))
-    const firstCoordinates = buildCoordinates(0)
-    const secondCoordinates = buildCoordinates(1)
+        lng: 4 + index / 1_000_000
+      })
+    )
+    // The single file processed on resume is a small route; its exact size does
+    // not matter (the seeded block dominates the checkpoint point count).
+    const secondCoordinates = [
+      { lat: 52.5, lng: 4.5 },
+      { lat: 52.6, lng: 4.7 },
+      { lat: 52.55, lng: 4.9 }
+    ]
     const created = await database.createFitnessRouteHeatmap({
       actorId: actor.id,
       activityType: 'running',
@@ -648,11 +726,11 @@ describe('generateFitnessRouteHeatmapJob', () => {
       status: 'generating',
       segments: [
         {
-          points: firstCoordinates
+          points: seededCoordinates
         }
       ],
       activityCount: 1,
-      pointCount: firstCoordinates.length,
+      pointCount: seededCoordinates.length,
       cursorOffset: 1
     })
 
