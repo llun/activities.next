@@ -435,7 +435,8 @@ export const createNoteFromUserInput = async ({
   })
 
   // Tags must be persisted before timeline rules run so that
-  // mentionTimelineRule can verify mentions via tags rather than text content.
+  // notifyRemoteReplyAndMention can verify mentions via tags rather than text
+  // content.
   const hashtags = getHashtags(text, currentActor.domain)
   await Promise.all([
     ...mentionTags.map((mention) =>

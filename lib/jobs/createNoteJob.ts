@@ -104,7 +104,8 @@ export const createNoteJob = createJobHandle(
     const tags = getTags(note)
 
     // Tags must be persisted before timeline rules run so that
-    // mentionTimelineRule can verify mentions via tags rather than text content.
+    // notifyRemoteReplyAndMention can verify mentions via tags rather than text
+    // content.
     const seenHashtags = new Set<string>()
     const affectedHashtags: string[] = []
     await Promise.all(

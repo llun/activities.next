@@ -137,13 +137,11 @@ async function createMockStatuses() {
       })
     }
 
-    for (const timeline of [Timeline.MAIN, Timeline.NOANNOUNCE]) {
-      await database.createTimelineStatus({
-        actorId: actor.id,
-        status,
-        timeline
-      })
-    }
+    await database.createTimelineStatus({
+      actorId: actor.id,
+      status,
+      timeline: Timeline.MAIN
+    })
 
     console.log(
       local
