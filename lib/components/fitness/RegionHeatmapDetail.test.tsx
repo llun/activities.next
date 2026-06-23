@@ -467,6 +467,60 @@ describe('RegionHeatmapDetail', () => {
     )
   })
 
+  it('renders an editable "Map area" placeholder for a nameless drawn area', () => {
+    const onRename = vi.fn()
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={{
+          id: 'r2',
+          type: 'rect',
+          nw: { lat: 52, lng: 5 },
+          se: { lat: 51, lng: 6 }
+        }}
+        onRename={onRename}
+      />
+    )
+    // The placeholder title is itself the edit affordance (a button, not a
+    // static heading), so a nameless area can be named from its page.
+    fireEvent.click(screen.getByRole('button', { name: /Map area/i }))
+    const input = screen.getByRole('textbox', { name: 'Region name' })
+    fireEvent.change(input, { target: { value: 'Named now' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onRename).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'r2' }),
+      'Named now'
+    )
+  })
+
+  it('shows the "Map area" placeholder once the name is cleared', () => {
+    const { rerender } = render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={rectRegion}
+        onRename={vi.fn()}
+      />
+    )
+    expect(
+      screen.getByRole('button', { name: /Veluwe loop/i })
+    ).toBeInTheDocument()
+    // The parent cleared the name (e.g. after an empty commit); the heading
+    // reverts to the editable placeholder within the session.
+    rerender(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={{ ...rectRegion, name: undefined }}
+        onRename={vi.fn()}
+      />
+    )
+    expect(
+      screen.getByRole('button', { name: /Map area/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /Veluwe loop/i })
+    ).not.toBeInTheDocument()
+  })
+
   it('reflects an externally-updated name when the editor reopens', () => {
     const { rerender } = render(
       <RegionHeatmapDetail

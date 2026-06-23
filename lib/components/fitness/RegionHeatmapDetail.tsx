@@ -407,18 +407,21 @@ const EditableRegionName: FC<EditableRegionNameProps> = ({
     )
   }
 
+  // The <h2> wraps the <button> (not the reverse): a button may only contain
+  // phrasing content, so nesting a heading inside it is invalid HTML. This keeps
+  // the heading in the document outline while the button stays the affordance.
   return (
-    <button
-      type="button"
-      onClick={() => setEditing(true)}
-      title="Rename"
-      className="group/name -mx-1.5 inline-flex max-w-full items-center gap-1.5 rounded-md px-1.5 py-0.5 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      <h2 className="truncate text-xl font-semibold tracking-tight">
-        {value || 'Map area'}
-      </h2>
-      <Pencil className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/name:opacity-100" />
-    </button>
+    <h2 className="truncate text-xl font-semibold tracking-tight">
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        title="Rename"
+        className="group/name -mx-1.5 inline-flex max-w-full items-center gap-1.5 rounded-md px-1.5 py-0.5 text-left align-middle transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <span className="truncate">{value || 'Map area'}</span>
+        <Pencil className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/name:opacity-100" />
+      </button>
+    </h2>
   )
 }
 
