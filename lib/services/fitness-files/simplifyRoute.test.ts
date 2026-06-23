@@ -94,6 +94,20 @@ describe('simplifyPoints', () => {
     expect(simplified).toEqual([points[0], points[2]])
   })
 
+  it('returns the original reference when no vertex is dropped', () => {
+    // Every interior vertex is a genuine >tolerance turn (~33m teeth), so nothing
+    // is dropped and the original array reference is preserved.
+    const points = [
+      { lat: 52, lng: 4 },
+      { lat: 52.0003, lng: 4.0001 },
+      { lat: 52, lng: 4.0002 },
+      { lat: 52.0003, lng: 4.0003 },
+      { lat: 52, lng: 4.0004 }
+    ]
+
+    expect(simplifyPoints(points, 2)).toBe(points)
+  })
+
   it('retains the detail of a sharp turn', () => {
     const points = [
       { lat: 52, lng: 4 },

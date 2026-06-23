@@ -165,7 +165,9 @@ export const simplifyPoints = <T extends LatLng>(
       simplified.push(points[index])
     }
   }
-  return simplified
+  // Nothing was dropped: return the original reference so the downstream
+  // reference-preserving fast paths (and the RouteHeatmapMap useMemo) hold.
+  return simplified.length === length ? points : simplified
 }
 
 /**
