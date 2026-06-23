@@ -132,11 +132,21 @@ export const addStatusToTimelines = async (
             })(),
             // Side effect only: create reply/mention notifications for inbound
             // remote statuses (the "mention" timeline itself was removed). The
-            // local-actor path is handled in createNote.ts.
+            // local-actor path is handled in createNote.ts. Best-effort, like
+            // the list/collection fan-out above: a notification failure must not
+            // abort home-timeline materialization (or lose the status).
             notifyRemoteReplyAndMention({
               currentActor: actor,
               status,
               database
+            }).catch((error) => {
+              logger.error({
+                message:
+                  'Failed to create remote reply/mention notifications; continuing',
+                statusId: status.id,
+                actorId: actor.id,
+                error: error instanceof Error ? error.message : String(error)
+              })
             })
           ])
         })
