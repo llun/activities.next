@@ -53,8 +53,18 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [
+      // The public embed widgets must be framable by third-party sites, so they
+      // omit X-Frame-Options. The negative-lookahead rule below keeps DENY on
+      // every other path (and avoids emitting a duplicate, conflicting header).
       {
-        source: '/:path*',
+        source: '/embed/:path*',
+        headers: getStaticSecurityHeaders({ allowFraming: true })
+      },
+      {
+        // Nameless catch-all with a negative lookahead so multi-segment paths
+        // still receive the static security headers; only `/embed` and its
+        // children (the framable widgets) are excluded.
+        source: '/((?!embed(?:/|$)).*)',
         headers: getStaticSecurityHeaders()
       }
     ]

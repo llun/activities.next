@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import { FC } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
-import { getConfig } from '@/lib/config'
+import { getBaseURL, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -39,6 +39,16 @@ const Page: FC = async () => {
     getConfig().fitnessStorage?.mapboxAccessToken
   )
 
+  // Compute the embed origin on the server (the actor's own canonical domain,
+  // falling back to the instance base URL) so the share snippets are identical
+  // in SSR and on the client — no `window`, no hydration mismatch.
+  let embedOrigin: string
+  try {
+    embedOrigin = new URL(currentActor.id).origin
+  } catch {
+    embedOrigin = getBaseURL()
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -49,6 +59,7 @@ const Page: FC = async () => {
       <FitnessHeatmapView
         actorId={currentActor.id}
         mapboxAccessToken={mapboxAccessToken}
+        embedOrigin={embedOrigin}
       />
     </div>
   )

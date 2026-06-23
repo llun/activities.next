@@ -13,7 +13,9 @@ import {
   getFitnessRouteHeatmapRegionNames,
   getFitnessRouteHeatmaps,
   setFitnessRouteHeatmapRegionName,
-  triggerFitnessRouteHeatmap
+  shareFitnessRouteHeatmap,
+  triggerFitnessRouteHeatmap,
+  unshareFitnessRouteHeatmap
 } from '@/lib/client'
 import {
   HeatmapRegionPicker,
@@ -47,6 +49,8 @@ type PeriodType = 'all_time' | 'yearly' | 'monthly'
 interface Props {
   actorId: string
   mapboxAccessToken?: string
+  /** Server-computed origin for embed share links (avoids a `window` SSR gap). */
+  embedOrigin: string
 }
 
 const currentYear = new Date().getUTCFullYear()
@@ -174,7 +178,8 @@ const applyRegionNames = (
 
 export const FitnessHeatmapView: FC<Props> = ({
   actorId,
-  mapboxAccessToken
+  mapboxAccessToken,
+  embedOrigin
 }) => {
   const [activityTypes, setActivityTypes] = useState<string[]>([])
   const [selectedType, setSelectedType] = useState<string>('')
@@ -193,6 +198,7 @@ export const FitnessHeatmapView: FC<Props> = ({
   const [error, setError] = useState<string | null>(null)
   const [generationPending, setGenerationPending] = useState(false)
   const [isRetrying, setIsRetrying] = useState(false)
+  const [isSharing, setIsSharing] = useState(false)
   const [pollingStalled, setPollingStalled] = useState(false)
   const [currentTime, setCurrentTime] = useState<number>(() => Date.now())
 
@@ -556,6 +562,74 @@ export const FitnessHeatmapView: FC<Props> = ({
     }
   }, [heatmapData, enqueueGeneration])
 
+  const handleShare = useCallback(async () => {
+    if (!openRegionId || openRegionKey === null) return
+    // Capture the focused selection so a slow request that resolves after the
+    // user switched/closed regions does not apply its result to another region.
+    const key = focusKeyRef.current
+    setIsSharing(true)
+    setError(null)
+    try {
+      const shareToken = await shareFitnessRouteHeatmap({
+        actorId,
+        activityType: selectedActivityType,
+        periodType,
+        periodKey: effectivePeriodKey,
+        region: openRegionKey || undefined
+      })
+      if (focusKeyRef.current !== key) return
+      setHeatmapData((current) =>
+        current ? { ...current, shareToken } : current
+      )
+    } catch (err) {
+      if (focusKeyRef.current !== key) return
+      setError(
+        err instanceof Error ? err.message : 'Failed to create the embed link.'
+      )
+    } finally {
+      setIsSharing(false)
+    }
+  }, [
+    actorId,
+    selectedActivityType,
+    periodType,
+    effectivePeriodKey,
+    openRegionId,
+    openRegionKey
+  ])
+
+  const handleUnshare = useCallback(async () => {
+    if (!openRegionId || openRegionKey === null) return
+    const key = focusKeyRef.current
+    setIsSharing(true)
+    setError(null)
+    try {
+      await unshareFitnessRouteHeatmap({
+        actorId,
+        activityType: selectedActivityType,
+        periodType,
+        periodKey: effectivePeriodKey,
+        region: openRegionKey || undefined
+      })
+      if (focusKeyRef.current !== key) return
+      setHeatmapData((current) =>
+        current ? { ...current, shareToken: null } : current
+      )
+    } catch (err) {
+      if (focusKeyRef.current !== key) return
+      setError(err instanceof Error ? err.message : 'Failed to stop sharing.')
+    } finally {
+      setIsSharing(false)
+    }
+  }, [
+    actorId,
+    selectedActivityType,
+    periodType,
+    effectivePeriodKey,
+    openRegionId,
+    openRegionKey
+  ])
+
   const handleRegionRemoved = useCallback(
     async (region: PickerRegion) => {
       // The picker (and so the remove control) only renders in the master view,
@@ -636,6 +710,10 @@ export const FitnessHeatmapView: FC<Props> = ({
         }}
         heatmap={heatmapData}
         mapboxAccessToken={mapboxAccessToken}
+        embedOrigin={embedOrigin}
+        isSharing={isSharing}
+        onShare={handleShare}
+        onUnshare={handleUnshare}
         currentTime={currentTime}
         isLoading={isLoading}
         busy={focusedInFlight && !pollingStalled}

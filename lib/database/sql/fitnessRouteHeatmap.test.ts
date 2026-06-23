@@ -475,6 +475,140 @@ describe('FitnessRouteHeatmapDatabase', () => {
       })
     })
 
+    describe('share token', () => {
+      it('sets, resolves, and clears a public share token', async () => {
+        const created = await database.createFitnessRouteHeatmap({
+          actorId: actors.primary.id,
+          activityType: null,
+          periodType: 'all_time',
+          periodKey: 'all',
+          region: 'rect:53.00,5.00,52.00,6.00'
+        })
+
+        // Fresh rows are private.
+        expect(created.shareToken ?? null).toBeNull()
+
+        const token = 'share-token-primary-abc'
+        await expect(
+          database.setFitnessRouteHeatmapShareToken({
+            actorId: actors.primary.id,
+            id: created.id,
+            shareToken: token
+          })
+        ).resolves.toBe(true)
+
+        const resolved = await database.getFitnessRouteHeatmapByShareToken({
+          shareToken: token
+        })
+        expect(resolved?.id).toBe(created.id)
+        expect(resolved?.shareToken).toBe(token)
+
+        await expect(
+          database.clearFitnessRouteHeatmapShareToken({
+            actorId: actors.primary.id,
+            id: created.id
+          })
+        ).resolves.toBe(true)
+
+        await expect(
+          database.getFitnessRouteHeatmapByShareToken({ shareToken: token })
+        ).resolves.toBeNull()
+      })
+
+      it('does not overwrite an existing share token (concurrent-share guard)', async () => {
+        const created = await database.createFitnessRouteHeatmap({
+          actorId: actors.primary.id,
+          activityType: null,
+          periodType: 'all_time',
+          periodKey: 'all',
+          region: 'rect:33.00,5.00,32.00,6.00'
+        })
+
+        await expect(
+          database.setFitnessRouteHeatmapShareToken({
+            actorId: actors.primary.id,
+            id: created.id,
+            shareToken: 'first-token'
+          })
+        ).resolves.toBe(true)
+
+        // A second set (e.g. a concurrent request) must not clobber the token.
+        await expect(
+          database.setFitnessRouteHeatmapShareToken({
+            actorId: actors.primary.id,
+            id: created.id,
+            shareToken: 'second-token'
+          })
+        ).resolves.toBe(false)
+
+        await expect(
+          database.getFitnessRouteHeatmapByShareToken({
+            shareToken: 'first-token'
+          })
+        ).resolves.not.toBeNull()
+        await expect(
+          database.getFitnessRouteHeatmapByShareToken({
+            shareToken: 'second-token'
+          })
+        ).resolves.toBeNull()
+      })
+
+      it('scopes share-token mutations to the owning actor', async () => {
+        const created = await database.createFitnessRouteHeatmap({
+          actorId: actors.primary.id,
+          activityType: null,
+          periodType: 'all_time',
+          periodKey: 'all',
+          region: 'rect:43.00,5.00,42.00,6.00'
+        })
+
+        // A different actor cannot share another actor's heatmap.
+        await expect(
+          database.setFitnessRouteHeatmapShareToken({
+            actorId: actors.replyAuthor.id,
+            id: created.id,
+            shareToken: 'share-token-wrong-owner'
+          })
+        ).resolves.toBe(false)
+        await expect(
+          database.getFitnessRouteHeatmapByShareToken({
+            shareToken: 'share-token-wrong-owner'
+          })
+        ).resolves.toBeNull()
+      })
+
+      it('does not resolve a soft-deleted shared heatmap', async () => {
+        const token = 'share-token-deleted-row'
+        const created = await database.createFitnessRouteHeatmap({
+          actorId: actors.replyAuthor.id,
+          activityType: null,
+          periodType: 'all_time',
+          periodKey: 'all',
+          region: 'rect:1.50,103.00,1.00,104.00'
+        })
+        await database.setFitnessRouteHeatmapShareToken({
+          actorId: actors.replyAuthor.id,
+          id: created.id,
+          shareToken: token
+        })
+
+        await database.deleteFitnessRouteHeatmap({
+          actorId: actors.replyAuthor.id,
+          id: created.id
+        })
+
+        await expect(
+          database.getFitnessRouteHeatmapByShareToken({ shareToken: token })
+        ).resolves.toBeNull()
+      })
+
+      it('returns null for an empty share token', async () => {
+        await expect(
+          database.getFitnessRouteHeatmapByShareToken({ shareToken: '' })
+        ).resolves.toBeNull()
+      })
+    })
+
     // Kept last: softDeleteLegacyRegionRouteHeatmaps operates table-wide, so this
     // block clears every remaining legacy-region row and must run after the
     // others to avoid disturbing their fixtures.
