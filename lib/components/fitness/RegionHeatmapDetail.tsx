@@ -12,10 +12,11 @@ import {
   Globe,
   Loader2,
   Maximize,
+  Pencil,
   RefreshCw,
   Share2
 } from 'lucide-react'
-import { FC, ReactNode, useState } from 'react'
+import { FC, ReactNode, useEffect, useRef, useState } from 'react'
 
 import { FitnessRouteHeatmapData } from '@/lib/client'
 import { PickerRegion } from '@/lib/components/fitness/HeatmapRegionPicker'
@@ -321,6 +322,115 @@ const EmbedShareSection: FC<EmbedShareSectionProps> = ({
   )
 }
 
+interface EditableRegionNameProps {
+  /** Current area name; falls back to the generic "Map area" placeholder. */
+  value?: string
+  /**
+   * Fired with the trimmed, changed name when an edit commits. An empty string
+   * clears the name (reverting to the "Map area" placeholder), matching the
+   * picker's edit-area composer and the backend, which both support clearing.
+   */
+  onRename: (name: string) => void
+}
+
+/**
+ * Renames a drawn area in place on its own page (no popup): click the title or
+ * the pencil to edit; Enter or blur saves, Esc cancels. The rendered title stays
+ * an `<h2>` so the page-level `PageHeader` keeps the only `<h1>`.
+ */
+const EditableRegionName: FC<EditableRegionNameProps> = ({
+  value,
+  onRename
+}) => {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value ?? '')
+  const inputRef = useRef<HTMLInputElement>(null)
+  // Browsers fire a `blur` when the focused input unmounts as the editor closes.
+  // This guard makes closing idempotent so that stray blur can neither
+  // double-commit (Enter) nor resurrect a cancelled edit (Escape). It is reset
+  // every time the editor opens, so it can't poison a later edit if no such
+  // blur fires (e.g. under jsdom).
+  const closingRef = useRef(false)
+
+  // Keep the draft in sync with an external rename (e.g. a save elsewhere) while
+  // the field is not being edited.
+  useEffect(() => {
+    if (!editing) setDraft(value ?? '')
+  }, [value, editing])
+
+  // Focus + select the field when entering edit mode so a rename is type-ready.
+  useEffect(() => {
+    if (editing) {
+      closingRef.current = false
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }
+  }, [editing])
+
+  // Single close path for Enter / blur / Escape; the reentrancy guard absorbs the
+  // unmount-triggered blur so each close runs its commit logic exactly once.
+  const close = (save: boolean) => {
+    if (closingRef.current) return
+    closingRef.current = true
+    if (save) {
+      const next = draft.trim()
+      // Persist any real change — including clearing the name (next === '') to
+      // revert to the default "Map area". An unchanged value is a no-op. This
+      // matches the picker's edit-area composer, which can also clear a name.
+      if (next !== (value ?? '')) onRename(next)
+    }
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type="text"
+        aria-label="Region name"
+        value={draft}
+        maxLength={80}
+        placeholder="Map area"
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => close(true)}
+        onKeyDown={(event) => {
+          // While an IME composition is active (e.g. Japanese / Chinese /
+          // Korean), Enter confirms the composition and Escape cancels it — let
+          // the IME handle them instead of closing the editor mid-compose.
+          // `isComposing` lives on the native event (React's synthetic
+          // KeyboardEvent type doesn't surface it).
+          if (event.nativeEvent.isComposing) return
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            close(true)
+          } else if (event.key === 'Escape') {
+            event.preventDefault()
+            close(false)
+          }
+        }}
+        className="w-full max-w-[420px] rounded-md border border-input bg-background px-2 py-1 text-xl font-semibold tracking-tight outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40"
+      />
+    )
+  }
+
+  // The <h2> wraps the <button> (not the reverse): a button may only contain
+  // phrasing content, so nesting a heading inside it is invalid HTML. This keeps
+  // the heading in the document outline while the button stays the affordance.
+  return (
+    <h2 className="truncate text-xl font-semibold tracking-tight">
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        title="Rename"
+        className="group/name -mx-1.5 inline-flex max-w-full items-center gap-1.5 rounded-md px-1.5 py-0.5 text-left align-middle transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <span className="min-w-0 truncate">{value || 'Map area'}</span>
+        <Pencil className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/name:opacity-100 group-focus-visible/name:opacity-100" />
+      </button>
+    </h2>
+  )
+}
+
 export interface RegionHeatmapDetailProps {
   region: PickerRegion
   /** Pre-formatted activity + period source labels. */
@@ -349,6 +459,11 @@ export interface RegionHeatmapDetailProps {
   onBack: () => void
   onGenerate: () => void
   onRetry: () => void
+  /**
+   * Renames the (drawn) region from its own page. When omitted — or for the
+   * whole-world region — the title is rendered read-only.
+   */
+  onRename?: (region: PickerRegion, name: string) => void
 }
 
 export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
@@ -370,7 +485,8 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
   error,
   onBack,
   onGenerate,
-  onRetry
+  onRetry,
+  onRename
 }) => {
   const isWorld = region.type === 'world'
   const title = isWorld ? 'Whole world' : region.name || 'Map area'
@@ -409,8 +525,18 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
             )}
           </span>
           <div className="min-w-0">
-            {/* h2: the page-level PageHeader ("Heatmaps") already owns the h1. */}
-            <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+            {/* h2: the page-level PageHeader ("Heatmaps") already owns the h1.
+                Drawn areas get an inline-editable name (click the title or the
+                pencil); the whole-world region and read-only callers keep a
+                static title. */}
+            {isWorld || !onRename ? (
+              <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+            ) : (
+              <EditableRegionName
+                value={region.type === 'rect' ? region.name : undefined}
+                onRename={(name) => onRename(region, name)}
+              />
+            )}
             <div className="mt-0.5 text-xs text-muted-foreground">
               {isWorld
                 ? 'Entire globe — every recorded activity'
