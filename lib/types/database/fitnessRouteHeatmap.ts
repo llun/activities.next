@@ -87,3 +87,22 @@ export type FitnessRouteHeatmapSummary = Omit<
   FitnessRouteHeatmap,
   'bounds' | 'segments'
 >
+
+/**
+ * A user-facing label for a route-heatmap region, scoped to one `(actorId,
+ * region)` pair. The region label is deliberately NOT part of the serialized
+ * region cache key (see `lib/fitness/regions`), so it is persisted here to
+ * survive reloads instead of reverting to the generic "Map area".
+ */
+export interface SQLFitnessRouteHeatmapRegionName {
+  actorId: string
+  region: string
+  name: string
+  createdAt: Date | string | number
+  updatedAt: Date | string | number
+}
+
+export interface FitnessRouteHeatmapRegionName {
+  region: string
+  name: string
+}

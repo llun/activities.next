@@ -527,5 +527,85 @@ describe('FitnessRouteHeatmapDatabase', () => {
         ).resolves.not.toBeNull()
       })
     })
+
+    describe('getFitnessRouteHeatmapRegionNames / setFitnessRouteHeatmapRegionName', () => {
+      const REGION = 'rect:50.00,4.00,49.00,5.00'
+
+      it('returns an empty list when the actor has no saved region names', async () => {
+        await expect(
+          database.getFitnessRouteHeatmapRegionNames({
+            actorId: actors.empty.id
+          })
+        ).resolves.toEqual([])
+      })
+
+      it('stores and retrieves a region name', async () => {
+        await database.setFitnessRouteHeatmapRegionName({
+          actorId: actors.primary.id,
+          region: REGION,
+          name: 'Veluwe loop'
+        })
+
+        const names = await database.getFitnessRouteHeatmapRegionNames({
+          actorId: actors.primary.id
+        })
+        expect(names).toEqual(
+          expect.arrayContaining([{ region: REGION, name: 'Veluwe loop' }])
+        )
+      })
+
+      it('upserts the name for the same region instead of duplicating it', async () => {
+        await database.setFitnessRouteHeatmapRegionName({
+          actorId: actors.primary.id,
+          region: REGION,
+          name: 'First name'
+        })
+        await database.setFitnessRouteHeatmapRegionName({
+          actorId: actors.primary.id,
+          region: REGION,
+          name: 'Second name'
+        })
+
+        const names = await database.getFitnessRouteHeatmapRegionNames({
+          actorId: actors.primary.id
+        })
+        const matching = names.filter((entry) => entry.region === REGION)
+        expect(matching).toEqual([{ region: REGION, name: 'Second name' }])
+      })
+
+      it('clears the stored name when set to null', async () => {
+        await database.setFitnessRouteHeatmapRegionName({
+          actorId: actors.primary.id,
+          region: REGION,
+          name: 'To be cleared'
+        })
+        await database.setFitnessRouteHeatmapRegionName({
+          actorId: actors.primary.id,
+          region: REGION,
+          name: null
+        })
+
+        const names = await database.getFitnessRouteHeatmapRegionNames({
+          actorId: actors.primary.id
+        })
+        expect(names.some((entry) => entry.region === REGION)).toBe(false)
+      })
+
+      it('scopes saved names to the owning actor', async () => {
+        await database.setFitnessRouteHeatmapRegionName({
+          actorId: actors.primary.id,
+          region: 'rect:10.00,10.00,9.00,11.00',
+          name: 'Primary only'
+        })
+
+        const otherActorNames =
+          await database.getFitnessRouteHeatmapRegionNames({
+            actorId: actors.replyAuthor.id
+          })
+        expect(
+          otherActorNames.some((entry) => entry.name === 'Primary only')
+        ).toBe(false)
+      })
+    })
   })
 })

@@ -2439,6 +2439,62 @@ export const clearFitnessRouteHeatmaps = async ({
   return typeof json.deleted === 'number' ? json.deleted : 0
 }
 
+export interface FitnessRouteHeatmapRegionNameData {
+  /** Serialized region scope (a single sorted `rect:` token). */
+  region: string
+  name: string
+}
+
+/** Loads the actor's saved region labels, keyed by serialized region scope. */
+export const getFitnessRouteHeatmapRegionNames = async ({
+  actorId
+}: {
+  actorId: string
+}): Promise<FitnessRouteHeatmapRegionNameData[]> => {
+  const encodedId = urlToId(actorId)
+  const response = await fetch(
+    `${window.origin}/api/v1/accounts/${encodedId}/fitness-route-heatmap-region-names`,
+    {
+      method: 'GET',
+      headers: { Accept: 'application/json' }
+    }
+  )
+  if (!response.ok) return []
+  try {
+    const json = await response.json()
+    return Array.isArray(json.names)
+      ? (json.names as FitnessRouteHeatmapRegionNameData[])
+      : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Saves (or, with a blank/null name, clears) the label for one region. Resolves
+ * to true when the server accepted the change.
+ */
+export const setFitnessRouteHeatmapRegionName = async ({
+  actorId,
+  region,
+  name
+}: {
+  actorId: string
+  region: string
+  name: string | null
+}): Promise<boolean> => {
+  const encodedId = urlToId(actorId)
+  const response = await fetch(
+    `${window.origin}/api/v1/accounts/${encodedId}/fitness-route-heatmap-region-names`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ region, name })
+    }
+  )
+  return response.ok
+}
+
 export const getFitnessCalendarData = async ({
   actorId,
   startDate,

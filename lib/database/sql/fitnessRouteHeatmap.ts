@@ -6,10 +6,12 @@ import {
   FitnessRouteHeatmap,
   FitnessRouteHeatmapBounds,
   FitnessRouteHeatmapPeriodType,
+  FitnessRouteHeatmapRegionName,
   FitnessRouteHeatmapSegment,
   FitnessRouteHeatmapStatus,
   FitnessRouteHeatmapSummary,
-  SQLFitnessRouteHeatmap
+  SQLFitnessRouteHeatmap,
+  SQLFitnessRouteHeatmapRegionName
 } from '@/lib/types/database/fitnessRouteHeatmap'
 
 export interface CreateFitnessRouteHeatmapParams {
@@ -101,6 +103,24 @@ export interface FitnessRouteHeatmapDatabase {
     actorId: string
     includeDeleted?: boolean
   }): Promise<string[]>
+  /**
+   * Returns every saved region label for the actor as `{ region, name }` pairs,
+   * keyed by the serialized region cache key. Used to rehydrate region names in
+   * the heatmaps UI so a rediscovered region keeps its label.
+   */
+  getFitnessRouteHeatmapRegionNames(params: {
+    actorId: string
+  }): Promise<FitnessRouteHeatmapRegionName[]>
+  /**
+   * Upserts the label for one `(actorId, region)` region. A null/blank name
+   * clears the stored label (deletes the row). The world-wide region (empty
+   * `region` key) is unnamed and never stored.
+   */
+  setFitnessRouteHeatmapRegionName(params: {
+    actorId: string
+    region: string
+    name: string | null
+  }): Promise<void>
   deleteFitnessRouteHeatmapsForActor(params: {
     actorId: string
   }): Promise<number>
@@ -436,6 +456,55 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     const rows = await query.distinct('region').orderBy('region', 'asc')
 
     return rows.map((row: { region: string }) => row.region)
+  },
+
+  async getFitnessRouteHeatmapRegionNames({ actorId }: { actorId: string }) {
+    const rows = await database<SQLFitnessRouteHeatmapRegionName>(
+      'fitness_route_heatmap_region_names'
+    )
+      .where('actorId', actorId)
+      .select('region', 'name')
+      .orderBy('region', 'asc')
+
+    return rows.map(
+      (row): FitnessRouteHeatmapRegionName => ({
+        region: row.region,
+        name: row.name
+      })
+    )
+  },
+
+  async setFitnessRouteHeatmapRegionName({
+    actorId,
+    region,
+    name
+  }: {
+    actorId: string
+    region: string
+    name: string | null
+  }) {
+    const trimmed = name?.trim() ?? ''
+    // A blank name clears the label. The world-wide region (empty key) is never
+    // named, so there is nothing to store for it either.
+    if (trimmed === '' || region === '') {
+      await database('fitness_route_heatmap_region_names')
+        .where('actorId', actorId)
+        .where('region', region)
+        .delete()
+      return
+    }
+
+    const currentTime = new Date()
+    await database('fitness_route_heatmap_region_names')
+      .insert({
+        actorId,
+        region,
+        name: trimmed,
+        createdAt: currentTime,
+        updatedAt: currentTime
+      })
+      .onConflict(['actorId', 'region'])
+      .merge({ name: trimmed, updatedAt: currentTime })
   },
 
   async deleteFitnessRouteHeatmapsForActor({ actorId }: { actorId: string }) {
