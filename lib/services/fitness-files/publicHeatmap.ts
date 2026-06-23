@@ -14,6 +14,14 @@ import {
  * colour (a highlighted segment near home would equally pinpoint it). Flattening
  * the flag makes hidden and visible segments indistinguishable: no hole, no
  * highlight. Bounds are intentionally left untouched for the same reason.
+ *
+ * DELIBERATE TRADE-OFF (confirmed by the instance owner): the public embed
+ * therefore shows full near-home routes, so the home location remains inferable
+ * from where routes converge. This is an accepted, owner-chosen behaviour — the
+ * owner prefers complete routes with no gaps over clipping near-home points.
+ * Do NOT "fix" this by clipping/dropping near-home geometry; that is the very
+ * behaviour the owner rejected. (If a future owner wants stronger privacy, clip
+ * points within the privacy radius for the public view and recompute bounds.)
  */
 export const flattenPrivacySegmentsForPublic = (
   segments: FitnessRouteHeatmapSegment[]
