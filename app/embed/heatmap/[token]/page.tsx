@@ -43,13 +43,20 @@ const Page: FC<PageProps> = async ({ params }) => {
 
   // The owner-assigned region label (persisted per (actor, region) — see the
   // region-names store). Shown as a caption so the embed is self-labelled, e.g.
-  // "Netherlands". The world-wide region is never named.
-  const regionNames = await database.getFitnessRouteHeatmapRegionNames({
-    actorId: heatmap.actorId
-  })
-  const regionName = regionNames.find(
-    (entry) => entry.region === heatmap.region
-  )?.name
+  // "Netherlands". The world-wide region is never named. The label is
+  // non-critical chrome, so a lookup failure degrades to no caption rather than
+  // failing the whole embed.
+  let regionName: string | undefined
+  try {
+    const regionNames = await database.getFitnessRouteHeatmapRegionNames({
+      actorId: heatmap.actorId
+    })
+    regionName = regionNames.find(
+      (entry) => entry.region === heatmap.region
+    )?.name
+  } catch {
+    regionName = undefined
+  }
 
   // Only forward what the map actually renders. The raw generation `error`
   // string is omitted, and the internal generation counters (activityCount,
