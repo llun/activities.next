@@ -128,7 +128,7 @@ yarn lint
 - Use **absolute imports** (`@/lib/...`) for anything outside the current directory
 - **Relative imports** (`./helper`) are only allowed for files in the same directory
 - **Never** use `../` relative imports
-- Apply the same rules to `jest.mock(...)` paths
+- Apply the same rules to `vi.mock(...)` paths
 
 ### File Organization
 
@@ -251,7 +251,7 @@ if (!parsed.success) {
 yarn test
 ```
 
-All tests run in parallel using isolated SQLite in-memory databases for fast execution.
+The suite runs on [Vitest](https://vitest.dev/) (native ESM; use the `vi.*` API, e.g. `vi.fn()` / `vi.mock()` / `vi.importMock()` — there is no `jest` global). All tests run in parallel using isolated SQLite in-memory databases for fast execution.
 
 ### Writing Tests
 
@@ -368,7 +368,7 @@ activities.next/
 - `tsconfig.json` — TypeScript configuration
 - `eslint.config.mjs` — ESLint rules
 - `.prettierrc.yml` — Code formatting rules
-- `jest.config.mjs` — Test configuration
+- `vitest.config.ts` — Test configuration
 - `next.config.ts` — Next.js configuration
 - `knexfile.js` — Database migration configuration
 - `Dockerfile` — Docker container build
@@ -410,7 +410,7 @@ There are **two** committed reference schema dumps, one per supported backend:
 
 - **`migrations/schema.sql`** — the **PostgreSQL** schema (`pg_dump`).
 - **`migrations/schema.sqlite.sql`** — the **SQLite** schema (`sqlite3 .schema`).
-  SQLite is what local dev and the Jest test suite use.
+  SQLite is what local dev and the Vitest test suite use.
 
 Read the file that matches the backend you care about — the two SQL dialects
 differ (e.g. `character varying` / `jsonb` / `timestamp with time zone` vs
@@ -566,7 +566,7 @@ commit, use the `none:` prefix since these files ship nothing.
 - [Next.js Documentation](https://nextjs.org/docs)
 - [ActivityPub Specification](https://www.w3.org/TR/activitypub/)
 - [TypeScript Handbook](https://www.typescriptlang.org/docs/)
-- [Jest Documentation](https://jestjs.io/docs/getting-started)
+- [Vitest Documentation](https://vitest.dev/guide/)
 - [better-auth Documentation](https://www.better-auth.com/)
 - [Knex.js Documentation](https://knexjs.org/)
 

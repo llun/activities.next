@@ -195,11 +195,12 @@ For asynchronous processing of ActivityPub delivery, file processing, etc.
 
 ## Request Configuration
 
-| Variable                         | Description                                                            |
-| -------------------------------- | ---------------------------------------------------------------------- |
-| `ACTIVITIES_REQUEST_TIMEOUT`     | HTTP request timeout in milliseconds for outgoing federation requests. |
-| `ACTIVITIES_REQUEST_RETRY`       | Number of retries for failed outgoing requests.                        |
-| `ACTIVITIES_REQUEST_RETRY_NOISE` | Random delay noise added between retries (in milliseconds).            |
+| Variable                                     | Description                                                                                                              |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `ACTIVITIES_REQUEST_TIMEOUT`                 | HTTP request timeout in milliseconds for outgoing federation requests.                                                   |
+| `ACTIVITIES_REQUEST_RETRY`                   | Number of retries for failed outgoing requests.                                                                          |
+| `ACTIVITIES_REQUEST_RETRY_NOISE`             | Random delay noise added between retries (in milliseconds).                                                              |
+| `ACTIVITIES_REQUEST_MAX_RESPONSE_SIZE_BYTES` | Maximum size of an outgoing federation request's response body, in bytes (default: 2 MB). Larger responses are rejected. |
 
 ## Observability
 

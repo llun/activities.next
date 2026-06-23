@@ -48,7 +48,7 @@ Important columns include:
 - `deviceManufacturer`, `deviceName`
 - `createdAt`, `updatedAt`, `deletedAt`
 
-Route heatmap caches are stored in `fitness_route_heatmaps`. They are keyed by actor, activity type, period, and region and store serialized route segments rather than generated PNG files.
+Route heatmap caches are stored in `fitness_route_heatmaps`. They are keyed by actor, activity type, period, and region and store serialized route segments rather than generated PNG files. A nullable `shareToken` column backs the shareable/embeddable heatmap views (iframe + image). User-assigned names for heatmap regions are persisted separately in `fitness_route_heatmap_region_names` (keyed by actor and region) so they survive reloads.
 
 ## API Endpoints
 

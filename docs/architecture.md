@@ -19,7 +19,7 @@ Application boundary: Next.js App Router (app/)
         │
         ▼
 Domain and service boundary: Core library (lib/)
-  ├─ Services: auth, guards, media, fitness, email, queue, federation, translation
+  ├─ Services: auth, guards, media, fitness, collections, email, queue, federation, translation
   ├─ ActivityPub: create, follow, like, announce, update, delete, undo
   ├─ Jobs: delivery, imports, fitness processing, map and heatmap generation
   └─ Shared UI: post box, posts, settings, profile, timeline, UI primitives
@@ -181,11 +181,13 @@ Media files (images and video) and fitness files (.fit, .gpx, .tcx) support mult
          └──────────┘ └────────┘ └────────────┘ └───────┘ └──────────┘
 
 Other tables: sessions, notifications, medias, fitness_files,
-              fitness_route_heatmaps, blocks, mutes, filters, reports,
-              markers, endorsements, lists, featured_tags, customEmojis,
-              translation_cache, domain federation rules, recipients,
-              counters, poll_choices, applications, oauth_access_tokens,
-              oauth_authorization_codes
+              fitness_settings, strava_archive_imports,
+              fitness_route_heatmaps, fitness_route_heatmap_region_names,
+              collections, collection_members, collection_timeline,
+              blocks, mutes, filters, reports, markers, endorsements,
+              lists, featured_tags, customEmojis, translation_cache,
+              domain federation rules, recipients, counters, poll_choices,
+              applications, oauth_access_tokens, oauth_authorization_codes
 ```
 
 ## Technology Stack
@@ -201,7 +203,7 @@ Other tables: sessions, notifications, medias, fitness_files,
 | **Database**         | Knex.js (SQLite / PostgreSQL; MySQL-compatible config paths) |
 | **Authentication**   | better-auth                                                  |
 | **Logging**          | Pino                                                         |
-| **Testing**          | Jest (with SWC transforms)                                   |
+| **Testing**          | Vitest (native ESM)                                          |
 | **Code Quality**     | ESLint + Prettier                                            |
 | **Package Manager**  | Yarn 4.15.0                                                  |
 | **Containerization** | Docker (Alpine-based)                                        |
