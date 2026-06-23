@@ -150,9 +150,14 @@ const mergeDiscoveredRegions = (
 }
 
 /**
- * Applies saved region labels (keyed by canonical region key) onto a region
- * list, so a region rediscovered from its heatmap regains its user-given name
- * instead of falling back to the generic "Map area". World regions are unnamed.
+ * Seeds saved region labels (keyed by canonical region key) onto a region list,
+ * so a region rediscovered from its heatmap regains its user-given name instead
+ * of falling back to the generic "Map area". World regions are unnamed.
+ *
+ * Only fills in a name when the region doesn't already have one: this runs once
+ * on the initial load, and the names snapshot is captured when the fetch starts,
+ * so a label a user set in-session while that fetch was still in flight must not
+ * be reverted to the (now-stale) stored value.
  */
 const applyRegionNames = (
   regions: PickerRegion[],
@@ -161,7 +166,7 @@ const applyRegionNames = (
   if (names.length === 0) return regions
   const nameByKey = new Map(names.map((entry) => [entry.region, entry.name]))
   return regions.map((region) => {
-    if (region.type !== 'rect') return region
+    if (region.type !== 'rect' || region.name) return region
     const name = nameByKey.get(serializeRegion(toHeatmapRegion(region)))
     return name ? { ...region, name } : region
   })

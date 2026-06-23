@@ -15,6 +15,7 @@ import {
 } from '@/lib/client'
 import type {
   FitnessRouteHeatmapData,
+  FitnessRouteHeatmapRegionNameData,
   FitnessRouteHeatmapSummaryData
 } from '@/lib/client'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
@@ -401,6 +402,33 @@ describe('FitnessHeatmapView', () => {
         screen.queryByText(/Couldn't save the region name/i)
       ).not.toBeInTheDocument()
     )
+  })
+
+  it('keeps an in-session rename made while the initial names fetch is in flight', async () => {
+    // Heatmaps resolve immediately; the names fetch stays pending so the mount
+    // load is still in flight while the user renames.
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([])
+    const namesDeferred = createDeferred<FitnessRouteHeatmapRegionNameData[]>()
+    mockGetFitnessRouteHeatmapRegionNames.mockReturnValue(namesDeferred.promise)
+
+    render(<FitnessHeatmapView actorId={ACTOR} />)
+
+    // Draw + name an area whose canonical key already has a (now-stale) stored
+    // name on the server — the default box serializes to this key.
+    await drawAndSaveArea('New name')
+    expect(await screen.findByText('New name')).toBeInTheDocument()
+
+    // The in-flight names fetch resolves with the OLD label for that same key.
+    await act(async () => {
+      namesDeferred.resolve([
+        { region: 'rect:53.00,3.00,50.00,7.00', name: 'Old name' }
+      ])
+    })
+
+    // The user's in-session rename must win; the stale snapshot must not revert
+    // it (it self-corrects to the server value on the next reload anyway).
+    expect(await screen.findByText('New name')).toBeInTheDocument()
+    expect(screen.queryByText('Old name')).not.toBeInTheDocument()
   })
 
   it('ignores a saved name whose region key matches no current region', async () => {
