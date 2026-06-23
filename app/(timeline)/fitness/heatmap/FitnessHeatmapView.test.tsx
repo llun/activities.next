@@ -52,7 +52,9 @@ vi.mock('@/lib/client', () => ({
   getFitnessRouteHeatmapRegionNames: vi.fn(),
   getFitnessRouteHeatmaps: vi.fn(),
   setFitnessRouteHeatmapRegionName: vi.fn(),
-  triggerFitnessRouteHeatmap: vi.fn()
+  shareFitnessRouteHeatmap: vi.fn(),
+  triggerFitnessRouteHeatmap: vi.fn(),
+  unshareFitnessRouteHeatmap: vi.fn()
 }))
 
 const mockLoadMapboxModule = loadMapboxModule as jest.MockedFunction<
@@ -276,7 +278,9 @@ describe('FitnessHeatmapView', () => {
   })
 
   it('renders the source panel and a default whole-world region', async () => {
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     expect(await screen.findByText('Heatmap source')).toBeInTheDocument()
     // The default whole-world region row (its description is unique to the row,
@@ -299,7 +303,9 @@ describe('FitnessHeatmapView', () => {
       })
     ])
 
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     // The whole world (default) plus the seeded drawn area.
     expect(await screen.findByText('Map area')).toBeInTheDocument()
@@ -320,7 +326,9 @@ describe('FitnessHeatmapView', () => {
       { region: 'rect:52.60,5.60,52.00,6.20', name: 'Veluwe loop' }
     ])
 
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     // The persisted label is used; the generic fallback never appears.
     expect(await screen.findByText('Veluwe loop')).toBeInTheDocument()
@@ -328,7 +336,9 @@ describe('FitnessHeatmapView', () => {
   })
 
   it('persists a region name when an area is saved', async () => {
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     // Open the draw composer, give the area a name, and save it.
     fireEvent.click(
@@ -361,7 +371,9 @@ describe('FitnessHeatmapView', () => {
 
   it('surfaces an error when saving a region name is rejected by the server', async () => {
     mockSetFitnessRouteHeatmapRegionName.mockResolvedValue(false)
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     await drawAndSaveArea('Coastal ride')
 
@@ -374,7 +386,9 @@ describe('FitnessHeatmapView', () => {
     mockSetFitnessRouteHeatmapRegionName.mockRejectedValue(
       new Error('network down')
     )
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     await drawAndSaveArea('Coastal ride')
 
@@ -385,7 +399,9 @@ describe('FitnessHeatmapView', () => {
 
   it('clears a prior save error once a later save succeeds', async () => {
     mockSetFitnessRouteHeatmapRegionName.mockResolvedValueOnce(false)
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     await drawAndSaveArea('Coastal ride')
     expect(
@@ -411,7 +427,9 @@ describe('FitnessHeatmapView', () => {
     const namesDeferred = createDeferred<FitnessRouteHeatmapRegionNameData[]>()
     mockGetFitnessRouteHeatmapRegionNames.mockReturnValue(namesDeferred.promise)
 
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     // Draw + name an area whose canonical key already has a (now-stale) stored
     // name on the server — the default box serializes to this key.
@@ -445,7 +463,9 @@ describe('FitnessHeatmapView', () => {
       { region: 'rect:10.00,10.00,9.00,11.00', name: 'Stale label' }
     ])
 
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     // The discovered region keeps the generic fallback; the unrelated label is
     // not applied to it (and does not crash the render).
@@ -466,7 +486,9 @@ describe('FitnessHeatmapView', () => {
       new Error('names fetch failed')
     )
 
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     // The discovered region still appears (labels just fall back to "Map area").
     expect(await screen.findByText('Map area')).toBeInTheDocument()
@@ -474,7 +496,9 @@ describe('FitnessHeatmapView', () => {
   })
 
   it('opens a region detail page and returns to the list', async () => {
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     await openWorldRegion()
 
@@ -491,7 +515,9 @@ describe('FitnessHeatmapView', () => {
   })
 
   it('generates a heatmap for the opened region', async () => {
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     await openWorldRegion()
 
@@ -521,7 +547,9 @@ describe('FitnessHeatmapView', () => {
     ])
     mockGetFitnessRouteHeatmap.mockResolvedValue(worldHeatmap())
 
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     await openWorldRegion()
 
@@ -550,7 +578,9 @@ describe('FitnessHeatmapView', () => {
       })
     )
 
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     await openWorldRegion()
 
@@ -569,7 +599,9 @@ describe('FitnessHeatmapView', () => {
       worldSummary({ updatedAt: TEST_NOW })
     ])
 
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     const removeButton = await screen.findByRole('button', {
       name: 'Remove region'
@@ -602,7 +634,9 @@ describe('FitnessHeatmapView', () => {
       })
     ])
 
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     expect(await screen.findByText(/Generating… 50%/)).toBeInTheDocument()
   })
@@ -612,7 +646,9 @@ describe('FitnessHeatmapView', () => {
       new Error('queue unavailable')
     )
 
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     await openWorldRegion()
     fireEvent.click(
@@ -645,7 +681,9 @@ describe('FitnessHeatmapView', () => {
       })
     )
 
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     fireEvent.click(
       await screen.findByRole('button', { name: /Open Map area heatmap/i })
@@ -670,7 +708,9 @@ describe('FitnessHeatmapView', () => {
       worldSummary({ updatedAt: TEST_NOW })
     ])
 
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     // The all-time heatmap matches the default source.
     expect(await screen.findByText(/^Generated/)).toBeInTheDocument()
@@ -700,7 +740,9 @@ describe('FitnessHeatmapView', () => {
       worldSummary({ id: 'hm-world', region: '', updatedAt: TEST_NOW })
     ])
 
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     // 1 world (default) + 2 split rects = 3 regions. Only the world matches a
     // single-region heatmap ('' key); the legacy multi-rect key doesn't map to
@@ -730,7 +772,9 @@ describe('FitnessHeatmapView', () => {
         worldSummary({ status: 'completed', updatedAt: TEST_NOW })
       ])
 
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     // Flush the initial heatmaps fetch.
     await act(async () => {
@@ -776,7 +820,9 @@ describe('FitnessHeatmapView', () => {
       })
     ])
 
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     // The default world row renders synchronously; open it.
     fireEvent.click(
@@ -808,7 +854,9 @@ describe('FitnessHeatmapView', () => {
       })
     ])
 
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     await waitFor(() => {
       expect(mockGetFitnessRouteHeatmaps).toHaveBeenCalledTimes(1)
@@ -840,7 +888,9 @@ describe('FitnessHeatmapView', () => {
       })
     ])
 
-    render(<FitnessHeatmapView actorId={ACTOR} />)
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
 
     await waitFor(() => {
       expect(mockGetFitnessRouteHeatmaps).toHaveBeenCalledTimes(1)

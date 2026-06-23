@@ -136,6 +136,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
         totalCount: 3,
         cursorOffset: 0,
         isPartial: false,
+        shareToken: null,
         error: null,
         createdAt: createdTime,
         updatedAt: updatedTime

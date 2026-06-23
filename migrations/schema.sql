@@ -427,7 +427,8 @@ CREATE TABLE public.fitness_route_heatmaps (
     "createdAt" timestamp with time zone NOT NULL,
     "updatedAt" timestamp with time zone NOT NULL,
     "deletedAt" timestamp with time zone,
-    "totalCount" integer DEFAULT 0 NOT NULL
+    "totalCount" integer DEFAULT 0 NOT NULL,
+    "shareToken" character varying(255)
 );
 
 CREATE TABLE public.fitness_settings (
@@ -1201,6 +1202,9 @@ ALTER TABLE ONLY public.fitness_route_heatmaps
 
 ALTER TABLE ONLY public.fitness_route_heatmaps
     ADD CONSTRAINT fitness_route_heatmaps_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.fitness_route_heatmaps
+    ADD CONSTRAINT fitness_route_heatmaps_sharetoken_unique UNIQUE ("shareToken");
 
 ALTER TABLE ONLY public.fitness_settings
     ADD CONSTRAINT fitness_settings_pkey PRIMARY KEY (id);

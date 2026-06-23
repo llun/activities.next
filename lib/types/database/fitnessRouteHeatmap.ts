@@ -51,6 +51,11 @@ export interface SQLFitnessRouteHeatmap {
   totalCount: number
   cursorOffset: number
   isPartial: boolean | number | string
+  /**
+   * Opt-in public share token. When set, the heatmap is reachable through the
+   * unauthenticated `/embed/heatmap/<token>` surface; null means private.
+   */
+  shareToken: string | null
   createdAt: Date | string | number
   updatedAt: Date | string | number
   deletedAt: Date | string | number | null
@@ -78,6 +83,11 @@ export interface FitnessRouteHeatmap {
   totalCount: number
   cursorOffset: number
   isPartial: boolean
+  /**
+   * Opt-in public share token. When set, the heatmap is reachable through the
+   * unauthenticated `/embed/heatmap/<token>` surface; null/undefined = private.
+   */
+  shareToken?: string | null
   createdAt: number
   updatedAt: number
   deletedAt?: number

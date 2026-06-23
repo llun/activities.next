@@ -2,6 +2,7 @@ import { resetHostConfigCacheForTests } from '@/lib/config/host'
 
 import {
   getContentSecurityPolicy,
+  getEmbedContentSecurityPolicy,
   resetContentSecurityPolicyCacheForTests
 } from './csp'
 
@@ -108,5 +109,39 @@ describe('getContentSecurityPolicy map providers', () => {
     expect(getDirectiveSources('connect-src')).not.toContain(
       'https://tiles.openfreemap.org'
     )
+  })
+})
+
+describe('getContentSecurityPolicy frame-ancestors', () => {
+  beforeEach(() => {
+    resetContentSecurityPolicyCacheForTests()
+  })
+
+  afterEach(() => {
+    resetContentSecurityPolicyCacheForTests()
+  })
+
+  const getFrameAncestors = (policy: string) =>
+    policy
+      .split(';')
+      .map((directive) => directive.trim())
+      .find((directive) => directive.startsWith('frame-ancestors '))
+      ?.split(/\s+/)
+      .slice(1) ?? []
+
+  it("denies framing for the app policy (frame-ancestors 'none')", () => {
+    expect(getFrameAncestors(getContentSecurityPolicy())).toEqual(["'none'"])
+  })
+
+  it('allows any embedder for the embed policy (frame-ancestors *)', () => {
+    expect(getFrameAncestors(getEmbedContentSecurityPolicy())).toEqual(['*'])
+  })
+
+  it('only differs from the app policy in frame-ancestors', () => {
+    const app = getContentSecurityPolicy().replace(
+      "frame-ancestors 'none'",
+      'frame-ancestors *'
+    )
+    expect(getEmbedContentSecurityPolicy()).toBe(app)
   })
 })
