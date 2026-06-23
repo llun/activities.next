@@ -21,6 +21,18 @@ const EARTH_RADIUS_METERS = 6_371_000
 const DEG_TO_RAD = Math.PI / 180
 const METERS_PER_DEGREE = EARTH_RADIUS_METERS * DEG_TO_RAD
 
+// Provable upper bound on RDP work, as a multiple of the vertex count. Exact RDP
+// is ~O(n log n) on real GPS tracks (each split's farthest vertex sits near the
+// middle, so the recursion stays balanced), but it degrades to O(n²) on a
+// pathological alternating sawtooth whose teeth all sit just above the tolerance
+// — the recursion peels one vertex at a time. Fitness files are user-uploaded
+// (a 50 MB GPX can hold ~1M points), so such an input is a cheap worker DoS
+// without a guard. This cap (well above any real track's balanced cost) bounds
+// the total perpendicular-distance comparisons; if it is exhausted, the loop
+// stops subdividing and the already-marked vertices still form a valid,
+// endpoint-preserving simplification.
+const MAX_COMPARISONS_PER_POINT = 128
+
 // Squared distance (in meters²) from a point to the segment `a`→`b`, all already
 // projected to the local equirectangular meters plane (see simplifyPoints).
 // Distances are compared squared to avoid a sqrt per candidate point.
@@ -95,6 +107,9 @@ export const simplifyPoints = <T extends LatLng>(
   keep[0] = 1
   keep[length - 1] = 1
 
+  // Bounds total comparisons so a pathological input cannot run in O(n²); see
+  // MAX_COMPARISONS_PER_POINT. Never trips for real tracks.
+  let comparisonsRemaining = length * MAX_COMPARISONS_PER_POINT
   const stack: Array<[number, number]> = [[0, length - 1]]
   while (stack.length > 0) {
     const [start, end] = stack.pop() as [number, number]
@@ -120,6 +135,7 @@ export const simplifyPoints = <T extends LatLng>(
       }
     }
 
+    comparisonsRemaining -= end - start - 1
     if (farthestIndex !== -1) {
       keep[farthestIndex] = 1
       // Only recurse into a side that still has an interior vertex to test.
@@ -129,6 +145,13 @@ export const simplifyPoints = <T extends LatLng>(
       if (end - farthestIndex > 1) {
         stack.push([farthestIndex, end])
       }
+    }
+
+    // Budget exhausted: stop subdividing. Endpoints and every vertex marked so
+    // far are retained, so the result is still a valid (if coarser in the
+    // unprocessed spans) endpoint-preserving simplification.
+    if (comparisonsRemaining <= 0) {
+      break
     }
   }
 

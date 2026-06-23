@@ -20,6 +20,30 @@ describe('simplifyPoints', () => {
     expect(simplifyPoints(points, 0)).toBe(points)
   })
 
+  it.each([
+    { description: 'an empty route', points: [] },
+    { description: 'a single-point route', points: [{ lat: 52, lng: 4 }] }
+  ])('returns the input reference for $description', ({ points }) => {
+    expect(simplifyPoints(points, 5)).toBe(points)
+  })
+
+  it('stays bounded and endpoint-preserving on a pathological sawtooth', () => {
+    // A uniform alternating sawtooth is the O(n²) worst case for Douglas–Peucker;
+    // the comparison budget must keep this fast and still return a valid
+    // simplification (first and last vertices retained, no growth).
+    const points = Array.from({ length: 20_000 }, (_value, index) => ({
+      lat: 52 + index * 0.00001 + (index % 2) * 0.0002,
+      lng: 4 + index * 0.00001
+    }))
+
+    const simplified = simplifyPoints(points, 2)
+
+    expect(simplified[0]).toEqual(points[0])
+    expect(simplified[simplified.length - 1]).toEqual(points[points.length - 1])
+    expect(simplified.length).toBeGreaterThanOrEqual(2)
+    expect(simplified.length).toBeLessThanOrEqual(points.length)
+  })
+
   it('collapses collinear points to the two endpoints', () => {
     const points = Array.from({ length: 50 }, (_, index) => ({
       lat: 52 + index * 0.0001,

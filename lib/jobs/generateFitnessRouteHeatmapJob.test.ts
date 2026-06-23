@@ -549,7 +549,10 @@ describe('generateFitnessRouteHeatmapJob', () => {
 
     expect(heatmap?.status).toBe('completed')
     expect(heatmap?.activityCount).toBe(2)
+    // The two straight routes collapse toward their endpoints, so the stored
+    // geometry is a handful of points — well under the cap.
     expect(heatmap?.pointCount).toBeGreaterThanOrEqual(2)
+    expect(heatmap?.pointCount).toBeLessThan(100)
     expect(heatmap?.pointCount).toBeLessThanOrEqual(
       DEFAULT_ROUTE_HEATMAP_MAX_POINTS
     )
@@ -610,7 +613,7 @@ describe('generateFitnessRouteHeatmapJob', () => {
     expect(points.length).toBeGreaterThanOrEqual(2)
     expect(points.length).toBeLessThan(10)
     // The corner latitude survives, so the rendered line keeps its turn.
-    expect(points.some((point) => point.lat === 52.4)).toBe(true)
+    expect(points.some((point) => Math.abs(point.lat - 52.4) < 1e-6)).toBe(true)
 
     await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
     await database.deleteFitnessFile({ id: fitnessFileId })

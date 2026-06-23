@@ -467,17 +467,17 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
                 buffer
               })
 
-              // Simplify each route with Douglas–Peucker first so straight
-              // stretches collapse toward their endpoints while bends keep their
-              // shape — this both preserves road fidelity and shrinks the point
-              // count fed into accumulation. The uniform filePointLimit then acts
-              // only as a hard ceiling for a pathological single file.
-              const routeCoordinates = downsampleRoutePoints(
-                simplifyPoints(
+              // Apply the uniform filePointLimit ceiling FIRST so Douglas–Peucker
+              // never runs on an unbounded, user-uploaded point list (a 50 MB GPX
+              // can hold ~1M points). Then simplify so straight stretches collapse
+              // toward their endpoints while bends keep their shape — preserving
+              // road fidelity and shrinking the point count fed into accumulation.
+              const routeCoordinates = simplifyPoints(
+                downsampleRoutePoints(
                   activityData.coordinates,
-                  routeHeatmapConfig.simplifyToleranceMeters
+                  routeHeatmapConfig.filePointLimit
                 ),
-                routeHeatmapConfig.filePointLimit
+                routeHeatmapConfig.simplifyToleranceMeters
               )
 
               // Downsample before privacy/region splitting to keep route-cache

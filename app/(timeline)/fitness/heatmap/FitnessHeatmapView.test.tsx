@@ -1330,7 +1330,9 @@ describe('RouteHeatmapMap', () => {
     expect(renderedCoordinates.length).toBeGreaterThanOrEqual(2)
     expect(renderedCoordinates.length).toBeLessThan(10)
     // The corner vertex survives — the line keeps its turn.
-    expect(renderedCoordinates.some(([, lat]) => lat === corner.lat)).toBe(true)
+    expect(
+      renderedCoordinates.some(([, lat]) => Math.abs(lat - corner.lat) < 1e-6)
+    ).toBe(true)
   })
 
   it('thins oversized geometry while preserving each segment’s endpoints', () => {
