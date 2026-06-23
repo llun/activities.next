@@ -398,6 +398,14 @@ CREATE TABLE public.fitness_files (
     "sourceUrl" text
 );
 
+CREATE TABLE public.fitness_route_heatmap_region_names (
+    "actorId" character varying(255) NOT NULL,
+    region character varying(255) NOT NULL,
+    name character varying(255) NOT NULL,
+    "createdAt" timestamp with time zone NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL
+);
+
 CREATE TABLE public.fitness_route_heatmaps (
     id character varying(255) NOT NULL,
     "actorId" character varying(255) NOT NULL,
@@ -1185,6 +1193,9 @@ ALTER TABLE ONLY public.filters
 ALTER TABLE ONLY public.fitness_files
     ADD CONSTRAINT fitness_files_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.fitness_route_heatmap_region_names
+    ADD CONSTRAINT fitness_route_heatmap_region_names_pkey PRIMARY KEY ("actorId", region);
+
 ALTER TABLE ONLY public.fitness_route_heatmaps
     ADD CONSTRAINT fitness_route_heatmaps_actorid_activitytypekey_periodtype_perio UNIQUE ("actorId", "activityTypeKey", "periodType", "periodKey", region);
 
@@ -1594,6 +1605,9 @@ ALTER TABLE ONLY public.fitness_files
 
 ALTER TABLE ONLY public.fitness_files
     ADD CONSTRAINT fitness_files_statusid_foreign FOREIGN KEY ("statusId") REFERENCES public.statuses(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY public.fitness_route_heatmap_region_names
+    ADD CONSTRAINT fitness_route_heatmap_region_names_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY public.fitness_route_heatmaps
     ADD CONSTRAINT fitness_route_heatmaps_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id);

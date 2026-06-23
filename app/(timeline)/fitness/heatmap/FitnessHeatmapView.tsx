@@ -5,11 +5,14 @@ import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   FitnessRouteHeatmapData,
+  FitnessRouteHeatmapRegionNameData,
   FitnessRouteHeatmapSummaryData,
   deleteFitnessRouteHeatmap,
   getDistinctFitnessActivityTypes,
   getFitnessRouteHeatmap,
+  getFitnessRouteHeatmapRegionNames,
   getFitnessRouteHeatmaps,
+  setFitnessRouteHeatmapRegionName,
   triggerFitnessRouteHeatmap
 } from '@/lib/client'
 import {
@@ -146,6 +149,29 @@ const mergeDiscoveredRegions = (
   return additions.length ? [...current, ...withRegionIds(additions)] : current
 }
 
+/**
+ * Seeds saved region labels (keyed by canonical region key) onto a region list,
+ * so a region rediscovered from its heatmap regains its user-given name instead
+ * of falling back to the generic "Map area". World regions are unnamed.
+ *
+ * Only fills in a name when the region doesn't already have one: this runs once
+ * on the initial load, and the names snapshot is captured when the fetch starts,
+ * so a label a user set in-session while that fetch was still in flight must not
+ * be reverted to the (now-stale) stored value.
+ */
+const applyRegionNames = (
+  regions: PickerRegion[],
+  names: FitnessRouteHeatmapRegionNameData[]
+): PickerRegion[] => {
+  if (names.length === 0) return regions
+  const nameByKey = new Map(names.map((entry) => [entry.region, entry.name]))
+  return regions.map((region) => {
+    if (region.type !== 'rect' || region.name) return region
+    const name = nameByKey.get(serializeRegion(toHeatmapRegion(region)))
+    return name ? { ...region, name } : region
+  })
+}
+
 export const FitnessHeatmapView: FC<Props> = ({
   actorId,
   mapboxAccessToken
@@ -198,11 +224,18 @@ export const FitnessHeatmapView: FC<Props> = ({
     setOpenRegionId(null)
 
     let cancelled = false
-    getFitnessRouteHeatmaps({ actorId })
-      .then((all) => {
+    Promise.all([
+      getFitnessRouteHeatmaps({ actorId }),
+      // Labels are non-critical metadata: a failed names fetch must not block the
+      // heatmaps from loading, so it degrades to "no saved labels".
+      getFitnessRouteHeatmapRegionNames({ actorId }).catch(() => [])
+    ])
+      .then(([all, names]) => {
         if (cancelled) return
         setHeatmaps(all)
-        setRegions((current) => mergeDiscoveredRegions(current, all))
+        setRegions((current) =>
+          applyRegionNames(mergeDiscoveredRegions(current, all), names)
+        )
       })
       .catch(() => {})
     return () => {
@@ -558,6 +591,37 @@ export const FitnessHeatmapView: FC<Props> = ({
     [actorId, selectedActivityType, periodType, effectivePeriodKey, sourceMatch]
   )
 
+  const handleRegionSaved = useCallback(
+    async (region: PickerRegion) => {
+      // Only drawn areas carry a label; the world-wide region (empty key) is
+      // never named.
+      if (region.type !== 'rect') return
+      const key = serializeRegion(toHeatmapRegion(region))
+      if (!key) return
+      let saved: boolean
+      try {
+        saved = await setFitnessRouteHeatmapRegionName({
+          actorId,
+          region: key,
+          name: region.name ?? null
+        })
+      } catch {
+        saved = false
+      }
+      if (!saved) {
+        // The name is already shown in-session; surface the failure so the user
+        // knows it may not survive a refresh rather than failing silently.
+        setError(
+          "Couldn't save the region name. It may not persist after a refresh."
+        )
+      } else {
+        // Clear any stale error from a prior failed save once one succeeds.
+        setError(null)
+      }
+    },
+    [actorId]
+  )
+
   const focusedProgressPercent = heatmapData
     ? computeProgressPercent(heatmapData.totalCount, heatmapData.cursorOffset)
     : null
@@ -706,6 +770,7 @@ export const FitnessHeatmapView: FC<Props> = ({
           onOpen={(region) => setOpenRegionId(region.id)}
           getRegionStatus={getRegionStatus}
           onRegionRemoved={handleRegionRemoved}
+          onRegionSaved={handleRegionSaved}
         />
       </section>
     </div>
