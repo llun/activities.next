@@ -1,0 +1,21 @@
+lib/components/fitness/RegionHeatmapDetail.tsx
+  s_923b07ff728f21::t_56c2a6e37f7453 268-275
+lib/components/fitness/RegionHeatmapDetail.test.tsx
+  s_923b07ff728f21::t_773189635546f0 310-328
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "7ee37d20f0b3868cf493e7264d455b8482f876e5",
+  "prompts": {},
+  "sessions": {
+    "s_923b07ff728f21": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8d29f2ad-e9fd-453b-a0d8-6fe875bd4782",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
