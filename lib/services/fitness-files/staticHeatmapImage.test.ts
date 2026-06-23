@@ -51,6 +51,33 @@ describe('buildMapboxStaticUrl', () => {
     ).toBeNull()
   })
 
+  it('renders one long single segment on the basemap (chunked) instead of falling back', () => {
+    const oneLongSegment: FitnessRouteHeatmapSegment[] = [
+      {
+        points: Array.from({ length: 2000 }, (_, index) => ({
+          lat: 52 + index * 0.0001,
+          lng: 4 + index * 0.0001
+        }))
+      }
+    ]
+
+    const url = buildMapboxStaticUrl({
+      segments: oneLongSegment,
+      bounds,
+      width: 600,
+      height: 420,
+      token: 'pk.test-token'
+    })
+
+    // A single >budget segment must be split into multiple path overlays, not
+    // dropped (which would silently fall back to the keyless SVG).
+    expect(url).not.toBeNull()
+    expect((url as string).length).toBeLessThanOrEqual(8192)
+    expect(
+      ((url as string).match(/path-2\+ef4444/g) ?? []).length
+    ).toBeGreaterThan(1)
+  })
+
   it('stays within the Mapbox URL length limit for dense input', () => {
     const dense: FitnessRouteHeatmapSegment[] = Array.from(
       { length: 200 },

@@ -41,10 +41,12 @@ const Page: FC<PageProps> = async ({ params }) => {
     getConfig().fitnessStorage?.mapboxAccessToken
   )
 
-  // Only forward the fields the map actually consumes. In particular the raw
-  // generation `error` string (a caught exception message) is NOT passed: as a
-  // Client Component prop it would be serialized into the public RSC payload on
-  // this unauthenticated surface, needlessly exposing internal details.
+  // Only forward what the map actually renders. The raw generation `error`
+  // string is omitted, and the internal generation counters (activityCount,
+  // pointCount, totalCount, cursorOffset, isPartial — which reveal the actor's
+  // file count and scan progress) are zeroed: as Client Component props they
+  // would otherwise be serialized into the public RSC payload on this
+  // unauthenticated surface.
   return (
     <PublicHeatmapEmbed
       heatmap={{
@@ -56,11 +58,11 @@ const Page: FC<PageProps> = async ({ params }) => {
         status: publicHeatmap.status,
         bounds: publicHeatmap.bounds ?? null,
         segments: publicHeatmap.segments,
-        activityCount: publicHeatmap.activityCount,
-        pointCount: publicHeatmap.pointCount,
-        totalCount: publicHeatmap.totalCount,
-        cursorOffset: publicHeatmap.cursorOffset,
-        isPartial: publicHeatmap.isPartial,
+        activityCount: 0,
+        pointCount: 0,
+        totalCount: 0,
+        cursorOffset: 0,
+        isPartial: false,
         createdAt: publicHeatmap.createdAt,
         updatedAt: publicHeatmap.updatedAt
       }}

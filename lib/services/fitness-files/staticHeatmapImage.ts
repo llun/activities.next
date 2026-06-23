@@ -12,6 +12,12 @@ const STATIC_IMAGE_POINT_BUDGET = 2000
 // Leave headroom in the 8192-char Mapbox URL for the base path, size, padding,
 // and access token; spend the rest on `path(...)` overlays.
 const MAPBOX_STATIC_URL_BUDGET = 7000
+// Cap points per `path(...)` overlay so a single long contiguous route can't
+// produce one overlay that alone blows the URL budget (which would drop the
+// whole route and silently fall back to the keyless SVG even with a token).
+// Long segments are split into multiple overlays instead, sharing an endpoint
+// so the rendered line stays continuous.
+const MAPBOX_OVERLAY_MAX_POINTS = 120
 const ROUTE_COLOR_HEX = 'ef4444'
 const SVG_PADDING = 12
 
@@ -62,6 +68,22 @@ const downsampleToBudget = (
   })
 }
 
+// Split a point list into chunks of at most `maxPoints`, where each chunk after
+// the first repeats the previous chunk's last point so the rendered polylines
+// join seamlessly. Chunks shorter than 2 points are dropped.
+const chunkPoints = <T>(points: T[], maxPoints: number): T[][] => {
+  if (points.length <= maxPoints) return [points]
+
+  const chunks: T[][] = []
+  let index = 0
+  while (index < points.length - 1) {
+    const chunk = points.slice(index, index + maxPoints)
+    if (chunk.length >= 2) chunks.push(chunk)
+    index += maxPoints - 1
+  }
+  return chunks
+}
+
 /**
  * Builds a Mapbox Static Images API URL that renders the route lines over a
  * light basemap (the "routes over a real map" look). Geometry is encoded as
@@ -87,10 +109,16 @@ export const buildMapboxStaticUrl = ({
     STATIC_IMAGE_POINT_BUDGET
   )
 
+  // Split long segments into bounded chunks (sharing an endpoint for continuity)
+  // so no single overlay can exceed the budget on its own.
+  const chunks = downsampled.flatMap((segment) =>
+    chunkPoints(segment.points, MAPBOX_OVERLAY_MAX_POINTS)
+  )
+
   const overlays: string[] = []
   let usedLength = 0
-  for (const segment of downsampled) {
-    const polyline = encodeURIComponent(encodePolyline(segment.points))
+  for (const points of chunks) {
+    const polyline = encodeURIComponent(encodePolyline(points))
     const overlay = `path-2+${ROUTE_COLOR_HEX}-0.9(${polyline})`
     const addition = overlay.length + (overlays.length > 0 ? 1 : 0)
     if (usedLength + addition > MAPBOX_STATIC_URL_BUDGET) break

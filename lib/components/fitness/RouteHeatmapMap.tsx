@@ -288,7 +288,8 @@ export interface RouteHeatmapMapProps {
   mapboxAccessToken?: string
   /**
    * Tailwind height class for the map surface (and its empty/fallback states).
-   * Defaults to the in-app fixed height; the full-bleed embed passes `h-full`.
+   * Defaults to the in-app fixed height; the full-bleed embed passes a
+   * viewport-height class (`h-dvh`).
    */
   heightClassName?: string
 }
