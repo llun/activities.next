@@ -444,4 +444,53 @@ describe('RegionHeatmapDetail', () => {
     })
     expect(onRename).not.toHaveBeenCalled()
   })
+
+  it('clears the name when an empty (whitespace-only) value is committed', () => {
+    const onRename = vi.fn()
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={rectRegion}
+        onRename={onRename}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Veluwe loop/i }))
+    const input = screen.getByRole('textbox', { name: 'Region name' })
+    fireEvent.change(input, { target: { value: '   ' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    // An emptied field reverts to the default placeholder by saving an empty
+    // name (which the view persists as a cleared label).
+    expect(onRename).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'r1' }),
+      ''
+    )
+  })
+
+  it('reflects an externally-updated name when the editor reopens', () => {
+    const { rerender } = render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={rectRegion}
+        onRename={vi.fn()}
+      />
+    )
+    // The parent persisted a new name (the region list updated) while the field
+    // was idle; reopening the editor must start from the latest value.
+    rerender(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={{ ...rectRegion, name: 'Renamed loop' }}
+        onRename={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Renamed loop/i }))
+    expect(
+      (
+        screen.getByRole('textbox', {
+          name: 'Region name'
+        }) as HTMLInputElement
+      ).value
+    ).toBe('Renamed loop')
+  })
 })

@@ -325,7 +325,11 @@ const EmbedShareSection: FC<EmbedShareSectionProps> = ({
 interface EditableRegionNameProps {
   /** Current area name; falls back to the generic "Map area" placeholder. */
   value?: string
-  /** Fired with the trimmed, changed, non-empty name when an edit commits. */
+  /**
+   * Fired with the trimmed, changed name when an edit commits. An empty string
+   * clears the name (reverting to the "Map area" placeholder), matching the
+   * picker's edit-area composer and the backend, which both support clearing.
+   */
   onRename: (name: string) => void
 }
 
@@ -341,6 +345,12 @@ const EditableRegionName: FC<EditableRegionNameProps> = ({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value ?? '')
   const inputRef = useRef<HTMLInputElement>(null)
+  // Browsers fire a `blur` when the focused input unmounts as the editor closes.
+  // This guard makes closing idempotent so that stray blur can neither
+  // double-commit (Enter) nor resurrect a cancelled edit (Escape). It is reset
+  // every time the editor opens, so it can't poison a later edit if no such
+  // blur fires (e.g. under jsdom).
+  const closingRef = useRef(false)
 
   // Keep the draft in sync with an external rename (e.g. a save elsewhere) while
   // the field is not being edited.
@@ -351,20 +361,24 @@ const EditableRegionName: FC<EditableRegionNameProps> = ({
   // Focus + select the field when entering edit mode so a rename is type-ready.
   useEffect(() => {
     if (editing) {
+      closingRef.current = false
       inputRef.current?.focus()
       inputRef.current?.select()
     }
   }, [editing])
 
-  const commit = () => {
-    const next = draft.trim()
-    // Only persist a real, non-empty change — an empty or unchanged value just
-    // closes the editor and keeps the existing name.
-    if (next && next !== (value ?? '')) onRename(next)
-    setEditing(false)
-  }
-  const cancel = () => {
-    setDraft(value ?? '')
+  // Single close path for Enter / blur / Escape; the reentrancy guard absorbs the
+  // unmount-triggered blur so each close runs its commit logic exactly once.
+  const close = (save: boolean) => {
+    if (closingRef.current) return
+    closingRef.current = true
+    if (save) {
+      const next = draft.trim()
+      // Persist any real change — including clearing the name (next === '') to
+      // revert to the default "Map area". An unchanged value is a no-op. This
+      // matches the picker's edit-area composer, which can also clear a name.
+      if (next !== (value ?? '')) onRename(next)
+    }
     setEditing(false)
   }
 
@@ -378,14 +392,14 @@ const EditableRegionName: FC<EditableRegionNameProps> = ({
         maxLength={80}
         placeholder="Map area"
         onChange={(event) => setDraft(event.target.value)}
-        onBlur={commit}
+        onBlur={() => close(true)}
         onKeyDown={(event) => {
           if (event.key === 'Enter') {
             event.preventDefault()
-            commit()
+            close(true)
           } else if (event.key === 'Escape') {
             event.preventDefault()
-            cancel()
+            close(false)
           }
         }}
         className="w-full max-w-[420px] rounded-md border border-input bg-background px-2 py-1 text-xl font-semibold tracking-tight outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40"
