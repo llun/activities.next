@@ -5,7 +5,10 @@ import { acceptContainsContentTypes } from '@/lib/utils/acceptContainsContentTyp
 import { selectHeaderHost } from '@/lib/utils/host'
 // Direct sub-path import required: the barrel re-exports cors.ts which pulls
 // @/lib/config (fs/path deps) into the middleware Edge Runtime bundle.
-import { getContentSecurityPolicyHeader } from '@/lib/utils/http-headers/csp'
+import {
+  getContentSecurityPolicyHeader,
+  getEmbedContentSecurityPolicyHeader
+} from '@/lib/utils/http-headers/csp'
 
 export const config = {
   matcher: [
@@ -17,8 +20,15 @@ const proxyHeaderHost = (headers: Headers): string => {
   return selectHeaderHost(headers, getProxyHostConfig())
 }
 
-const withContentSecurityPolicy = (response: NextResponse) => {
-  const header = getContentSecurityPolicyHeader()
+const withContentSecurityPolicy = (
+  response: NextResponse,
+  request: NextRequest
+) => {
+  // The public embed widgets are framable by third-party sites, so they get a
+  // CSP with `frame-ancestors *` instead of the default `'none'`.
+  const header = request.nextUrl.pathname.startsWith('/embed/')
+    ? getEmbedContentSecurityPolicyHeader()
+    : getContentSecurityPolicyHeader()
   if (!response.headers.has(header.key)) {
     response.headers.set(header.key, header.value)
   }
@@ -44,7 +54,7 @@ export async function proxy(request: NextRequest) {
         const matches = pathname.match(/^\/@(?<username>\w+)/)
         const apiUrl = request.nextUrl.clone()
         apiUrl.pathname = `/api/users/${matches?.groups?.username}`
-        return withContentSecurityPolicy(NextResponse.rewrite(apiUrl))
+        return withContentSecurityPolicy(NextResponse.rewrite(apiUrl), request)
       }
 
       // Actor status route
@@ -54,7 +64,7 @@ export async function proxy(request: NextRequest) {
         )
         const apiUrl = request.nextUrl.clone()
         apiUrl.pathname = `/api/users/${matches?.groups?.username}/statuses/${matches?.groups?.statusId}`
-        return withContentSecurityPolicy(NextResponse.rewrite(apiUrl))
+        return withContentSecurityPolicy(NextResponse.rewrite(apiUrl), request)
       }
     }
 
@@ -63,7 +73,7 @@ export async function proxy(request: NextRequest) {
       const pathname = request.nextUrl.pathname
       const totalAt = pathname.split('@').length - 1
       if (totalAt === 2) {
-        return withContentSecurityPolicy(NextResponse.next())
+        return withContentSecurityPolicy(NextResponse.next(), request)
       }
 
       const host = proxyHeaderHost(request.headers) || request.nextUrl.host
@@ -72,11 +82,11 @@ export async function proxy(request: NextRequest) {
 
       const cloneUrl = request.nextUrl.clone()
       cloneUrl.pathname = `/${pathItems.join('/')}`
-      return withContentSecurityPolicy(NextResponse.rewrite(cloneUrl))
+      return withContentSecurityPolicy(NextResponse.rewrite(cloneUrl), request)
     }
 
-    return withContentSecurityPolicy(NextResponse.next())
+    return withContentSecurityPolicy(NextResponse.next(), request)
   }
 
-  return withContentSecurityPolicy(NextResponse.next())
+  return withContentSecurityPolicy(NextResponse.next(), request)
 }

@@ -286,6 +286,11 @@ export const computeFocusBounds = (
 export interface RouteHeatmapMapProps {
   heatmap: FitnessRouteHeatmapData | null
   mapboxAccessToken?: string
+  /**
+   * Tailwind height class for the map surface (and its empty/fallback states).
+   * Defaults to the in-app fixed height; the full-bleed embed passes `h-full`.
+   */
+  heightClassName?: string
 }
 
 interface RouteMapProvider {
@@ -296,7 +301,8 @@ interface RouteMapProvider {
 
 export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
   heatmap,
-  mapboxAccessToken
+  mapboxAccessToken,
+  heightClassName = ROUTE_HEATMAP_MAP_HEIGHT_CLASS
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<RouteGlMap | null>(null)
@@ -490,7 +496,7 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
       <div
         className={cn(
           'flex items-center justify-center bg-muted/40 text-sm text-muted-foreground',
-          ROUTE_HEATMAP_MAP_HEIGHT_CLASS
+          heightClassName
         )}
       >
         No route data for this selection
@@ -504,7 +510,7 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
         role="status"
         className={cn(
           'flex flex-col items-center justify-center gap-1 bg-muted/40 px-4 text-center text-sm text-muted-foreground',
-          ROUTE_HEATMAP_MAP_HEIGHT_CLASS
+          heightClassName
         )}
         data-map-fallback-reason={mapFallbackReason}
         data-map-fallback-error={mapFallbackErrorMessage}
@@ -515,12 +521,7 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
   }
 
   return (
-    <div
-      className={cn(
-        'relative overflow-hidden bg-muted',
-        ROUTE_HEATMAP_MAP_HEIGHT_CLASS
-      )}
-    >
+    <div className={cn('relative overflow-hidden bg-muted', heightClassName)}>
       <div
         ref={containerRef}
         role="img"

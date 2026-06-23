@@ -1,14 +1,30 @@
 export type SecurityHeader = { key: string; value: string }
 
-export const getStaticSecurityHeaders = (): SecurityHeader[] => [
+interface StaticSecurityHeaderOptions {
+  /**
+   * Omit `X-Frame-Options: DENY` so the response can be embedded in a third-party
+   * `<iframe>`. Only the public `/embed/*` widget surface sets this; everything
+   * else keeps framing denied. Cross-origin framing for the embed is permitted by
+   * the CSP `frame-ancestors` directive instead (see getEmbedContentSecurityPolicy).
+   */
+  allowFraming?: boolean
+}
+
+export const getStaticSecurityHeaders = ({
+  allowFraming = false
+}: StaticSecurityHeaderOptions = {}): SecurityHeader[] => [
   {
     key: 'X-Content-Type-Options',
     value: 'nosniff'
   },
-  {
-    key: 'X-Frame-Options',
-    value: 'DENY'
-  },
+  ...(allowFraming
+    ? []
+    : [
+        {
+          key: 'X-Frame-Options',
+          value: 'DENY'
+        }
+      ]),
   {
     key: 'Referrer-Policy',
     value: 'strict-origin-when-cross-origin'

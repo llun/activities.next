@@ -78,6 +78,31 @@ export interface FitnessRouteHeatmapDatabase {
   getFitnessRouteHeatmapByKey(
     params: GetFitnessRouteHeatmapByKeyParams
   ): Promise<FitnessRouteHeatmap | null>
+  /**
+   * Resolves a heatmap by its opt-in public share token. The public, no-auth
+   * embed surface uses this — only shared, not-deleted heatmaps resolve.
+   */
+  getFitnessRouteHeatmapByShareToken(params: {
+    shareToken: string
+  }): Promise<FitnessRouteHeatmap | null>
+  /**
+   * Sets the public share token on a heatmap owned by `actorId` (scoped to the
+   * actor so a caller can only share their own heatmaps). Returns true when a
+   * matching, not-already-deleted row was updated.
+   */
+  setFitnessRouteHeatmapShareToken(params: {
+    actorId: string
+    id: string
+    shareToken: string
+  }): Promise<boolean>
+  /**
+   * Clears (revokes) the public share token on a heatmap owned by `actorId`.
+   * Returns true when a matching, not-already-deleted row was updated.
+   */
+  clearFitnessRouteHeatmapShareToken(params: {
+    actorId: string
+    id: string
+  }): Promise<boolean>
   getFitnessRouteHeatmapsForActor(
     params: GetFitnessRouteHeatmapsForActorParams
   ): Promise<FitnessRouteHeatmap[]>
@@ -186,6 +211,7 @@ const parseSQLFitnessRouteHeatmap = (
   totalCount: Number(row.totalCount ?? 0),
   cursorOffset: Number(row.cursorOffset ?? 0),
   isPartial: parseBooleanValue(row.isPartial),
+  shareToken: row.shareToken ?? null,
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt),
   deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
@@ -209,6 +235,7 @@ const parseSQLFitnessRouteHeatmapSummary = (
   totalCount: Number(row.totalCount ?? 0),
   cursorOffset: Number(row.cursorOffset ?? 0),
   isPartial: parseBooleanValue(row.isPartial),
+  shareToken: row.shareToken ?? null,
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt),
   deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
@@ -268,6 +295,7 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
       totalCount: 0,
       cursorOffset: 0,
       isPartial: false,
+      shareToken: null,
       createdAt: currentTime,
       updatedAt: currentTime,
       deletedAt: null
@@ -309,6 +337,62 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     const row = await query.first()
     if (!row) return null
     return parseSQLFitnessRouteHeatmap(row)
+  },
+
+  async getFitnessRouteHeatmapByShareToken({
+    shareToken
+  }: {
+    shareToken: string
+  }) {
+    if (!shareToken) return null
+
+    const row = await database<SQLFitnessRouteHeatmap>('fitness_route_heatmaps')
+      .where('shareToken', shareToken)
+      .whereNull('deletedAt')
+      .first()
+
+    if (!row) return null
+    return parseSQLFitnessRouteHeatmap(row)
+  },
+
+  async setFitnessRouteHeatmapShareToken({
+    actorId,
+    id,
+    shareToken
+  }: {
+    actorId: string
+    id: string
+    shareToken: string
+  }) {
+    const updated = await database('fitness_route_heatmaps')
+      .where('id', id)
+      .where('actorId', actorId)
+      .whereNull('deletedAt')
+      .update({
+        shareToken,
+        updatedAt: new Date()
+      })
+
+    return updated > 0
+  },
+
+  async clearFitnessRouteHeatmapShareToken({
+    actorId,
+    id
+  }: {
+    actorId: string
+    id: string
+  }) {
+    const updated = await database('fitness_route_heatmaps')
+      .where('id', id)
+      .where('actorId', actorId)
+      .whereNull('deletedAt')
+      .update({
+        shareToken: null,
+        updatedAt: new Date()
+      })
+
+    return updated > 0
   },
 
   async getFitnessRouteHeatmapsForActor({
@@ -355,6 +439,7 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
           'totalCount',
           'cursorOffset',
           'isPartial',
+          'shareToken',
           'createdAt',
           'updatedAt',
           'deletedAt'

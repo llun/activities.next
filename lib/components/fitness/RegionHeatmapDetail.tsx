@@ -7,13 +7,15 @@ import {
   Calendar,
   Check,
   Clock,
+  Copy,
   Flame,
   Globe,
   Loader2,
   Maximize,
-  RefreshCw
+  RefreshCw,
+  Share2
 } from 'lucide-react'
-import { FC, ReactNode } from 'react'
+import { FC, ReactNode, useState } from 'react'
 
 import { FitnessRouteHeatmapData } from '@/lib/client'
 import { PickerRegion } from '@/lib/components/fitness/HeatmapRegionPicker'
@@ -189,12 +191,133 @@ const GenerationTaskRow: FC<GenerationTaskRowProps> = ({
   )
 }
 
+interface CopyableSnippetProps {
+  label: string
+  value: string
+}
+
+const CopyableSnippet: FC<CopyableSnippetProps> = ({ label, value }) => {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Clipboard access can be denied; the textarea remains selectable so the
+      // user can still copy manually.
+    }
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-muted-foreground">
+          {label}
+        </span>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7 px-2.5 text-xs"
+          onClick={handleCopy}
+        >
+          {copied ? (
+            <Check className="size-3 text-green-600 dark:text-green-500" />
+          ) : (
+            <Copy className="size-3" />
+          )}
+          {copied ? 'Copied' : 'Copy'}
+        </Button>
+      </div>
+      <textarea
+        readOnly
+        rows={2}
+        value={value}
+        onFocus={(event) => event.currentTarget.select()}
+        className="w-full resize-none rounded-md border bg-muted/40 px-2.5 py-1.5 font-mono text-[11px] leading-relaxed text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      />
+    </div>
+  )
+}
+
+interface EmbedShareSectionProps {
+  shareToken: string | null | undefined
+  embedOrigin: string
+  isSharing: boolean
+  onShare: () => void
+  onUnshare: () => void
+}
+
+const EmbedShareSection: FC<EmbedShareSectionProps> = ({
+  shareToken,
+  embedOrigin,
+  isSharing,
+  onShare,
+  onUnshare
+}) => {
+  const isShared = Boolean(shareToken)
+  const embedUrl = shareToken
+    ? `${embedOrigin}/embed/heatmap/${shareToken}`
+    : ''
+  const iframeSnippet = `<iframe src="${embedUrl}" width="600" height="420" style="border:0;border-radius:12px" loading="lazy" title="Route heatmap"></iframe>`
+  const imageSnippet = `<img src="${embedUrl}/image" width="600" height="400" alt="Route heatmap" />`
+
+  return (
+    <section className="mt-4 rounded-xl border bg-card p-4 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start gap-2">
+          <span className="mt-0.5 flex size-7 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <Share2 className="size-4" />
+          </span>
+          <div>
+            <div className="text-sm font-semibold">Share &amp; embed</div>
+            <div className="text-[11px] text-muted-foreground">
+              {isShared
+                ? 'Anyone with the link can view this heatmap. Paste a snippet into your site.'
+                : 'Publish a public, read-only embed of this heatmap for your website.'}
+            </div>
+          </div>
+        </div>
+        <Button
+          type="button"
+          variant={isShared ? 'outline' : 'default'}
+          size="sm"
+          disabled={isSharing}
+          onClick={isShared ? onUnshare : onShare}
+        >
+          {isSharing ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <Share2 className="size-4" />
+          )}
+          {isShared ? 'Stop sharing' : 'Create embed link'}
+        </Button>
+      </div>
+
+      {isShared && (
+        <div className="mt-3 space-y-3">
+          <CopyableSnippet label="Embed (iframe)" value={iframeSnippet} />
+          <CopyableSnippet label="Image (img)" value={imageSnippet} />
+        </div>
+      )}
+    </section>
+  )
+}
+
 export interface RegionHeatmapDetailProps {
   region: PickerRegion
   /** Pre-formatted activity + period source labels. */
   meta: { activity: string; period: string }
   heatmap: FitnessRouteHeatmapData | null
   mapboxAccessToken?: string
+  /** Origin used to build embed URLs (the actor's own domain). */
+  embedOrigin: string
+  /** A share/unshare request is in flight for this region. */
+  isSharing: boolean
+  onShare: () => void
+  onUnshare: () => void
   currentTime: number
   /** The focused heatmap is being (re)loaded from the server. */
   isLoading: boolean
@@ -218,6 +341,10 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
   meta,
   heatmap,
   mapboxAccessToken,
+  embedOrigin,
+  isSharing,
+  onShare,
+  onUnshare,
   currentTime,
   isLoading,
   busy,
@@ -371,6 +498,13 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
               </span>
             )}
           </div>
+          <EmbedShareSection
+            shareToken={heatmap.shareToken}
+            embedOrigin={embedOrigin}
+            isSharing={isSharing}
+            onShare={onShare}
+            onUnshare={onUnshare}
+          />
         </div>
       ) : showEmptyState ? (
         <div

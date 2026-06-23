@@ -13,7 +13,9 @@ import {
   getFitnessRouteHeatmapRegionNames,
   getFitnessRouteHeatmaps,
   setFitnessRouteHeatmapRegionName,
-  triggerFitnessRouteHeatmap
+  shareFitnessRouteHeatmap,
+  triggerFitnessRouteHeatmap,
+  unshareFitnessRouteHeatmap
 } from '@/lib/client'
 import {
   HeatmapRegionPicker,
@@ -193,6 +195,7 @@ export const FitnessHeatmapView: FC<Props> = ({
   const [error, setError] = useState<string | null>(null)
   const [generationPending, setGenerationPending] = useState(false)
   const [isRetrying, setIsRetrying] = useState(false)
+  const [isSharing, setIsSharing] = useState(false)
   const [pollingStalled, setPollingStalled] = useState(false)
   const [currentTime, setCurrentTime] = useState<number>(() => Date.now())
 
@@ -556,6 +559,77 @@ export const FitnessHeatmapView: FC<Props> = ({
     }
   }, [heatmapData, enqueueGeneration])
 
+  // Embed links use the actor's own canonical origin so a shared snippet points
+  // at the heatmap's home domain (multi-domain correct), falling back to the
+  // current origin if the actor id is not a parseable URL.
+  const embedOrigin = useMemo(() => {
+    try {
+      return new URL(actorId).origin
+    } catch {
+      return typeof window !== 'undefined' ? window.location.origin : ''
+    }
+  }, [actorId])
+
+  const handleShare = useCallback(async () => {
+    if (!openRegionId || openRegionKey === null) return
+    setIsSharing(true)
+    setError(null)
+    try {
+      const shareToken = await shareFitnessRouteHeatmap({
+        actorId,
+        activityType: selectedActivityType,
+        periodType,
+        periodKey: effectivePeriodKey,
+        region: openRegionKey || undefined
+      })
+      setHeatmapData((current) =>
+        current ? { ...current, shareToken } : current
+      )
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Failed to create the embed link.'
+      )
+    } finally {
+      setIsSharing(false)
+    }
+  }, [
+    actorId,
+    selectedActivityType,
+    periodType,
+    effectivePeriodKey,
+    openRegionId,
+    openRegionKey
+  ])
+
+  const handleUnshare = useCallback(async () => {
+    if (!openRegionId || openRegionKey === null) return
+    setIsSharing(true)
+    setError(null)
+    try {
+      await unshareFitnessRouteHeatmap({
+        actorId,
+        activityType: selectedActivityType,
+        periodType,
+        periodKey: effectivePeriodKey,
+        region: openRegionKey || undefined
+      })
+      setHeatmapData((current) =>
+        current ? { ...current, shareToken: null } : current
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to stop sharing.')
+    } finally {
+      setIsSharing(false)
+    }
+  }, [
+    actorId,
+    selectedActivityType,
+    periodType,
+    effectivePeriodKey,
+    openRegionId,
+    openRegionKey
+  ])
+
   const handleRegionRemoved = useCallback(
     async (region: PickerRegion) => {
       // The picker (and so the remove control) only renders in the master view,
@@ -636,6 +710,10 @@ export const FitnessHeatmapView: FC<Props> = ({
         }}
         heatmap={heatmapData}
         mapboxAccessToken={mapboxAccessToken}
+        embedOrigin={embedOrigin}
+        isSharing={isSharing}
+        onShare={handleShare}
+        onUnshare={handleUnshare}
         currentTime={currentTime}
         isLoading={isLoading}
         busy={focusedInFlight && !pollingStalled}

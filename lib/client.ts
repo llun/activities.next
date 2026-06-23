@@ -2224,6 +2224,8 @@ export interface FitnessRouteHeatmapData {
   totalCount: number
   cursorOffset: number
   isPartial: boolean
+  /** Opt-in public embed token; null/undefined when the heatmap is private. */
+  shareToken?: string | null
   error?: string | null
   createdAt: number
   updatedAt: number
@@ -2350,6 +2352,86 @@ export const triggerFitnessRouteHeatmap = async ({
     }
   )
   return response.ok
+}
+
+/**
+ * Enables public sharing for a single route heatmap (identified by its
+ * activity/period/region key) and returns its embed share token. Idempotent: a
+ * heatmap that is already shared keeps its existing token.
+ */
+export const shareFitnessRouteHeatmap = async ({
+  actorId,
+  activityType,
+  periodType,
+  periodKey,
+  region
+}: {
+  actorId: string
+  activityType?: string
+  periodType: string
+  periodKey: string
+  region?: string | null
+}): Promise<string> => {
+  const encodedId = urlToId(actorId)
+  const response = await fetch(
+    `${window.origin}/api/v1/accounts/${encodedId}/fitness-route-heatmap/share`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        period_type: periodType,
+        period_key: periodKey,
+        ...(activityType ? { activity_type: activityType } : {}),
+        ...(region ? { region } : {})
+      })
+    }
+  )
+  if (!response.ok) {
+    throw new Error(
+      await getRouteHeatmapResponseErrorMessage(response, 'heatmap share')
+    )
+  }
+  const json = await response.json()
+  return json.shareToken as string
+}
+
+/**
+ * Disables public sharing (revokes the embed token) for a single route heatmap.
+ */
+export const unshareFitnessRouteHeatmap = async ({
+  actorId,
+  activityType,
+  periodType,
+  periodKey,
+  region
+}: {
+  actorId: string
+  activityType?: string
+  periodType: string
+  periodKey: string
+  region?: string | null
+}): Promise<void> => {
+  const encodedId = urlToId(actorId)
+  const url = new URL(
+    `${window.origin}/api/v1/accounts/${encodedId}/fitness-route-heatmap/share`
+  )
+  url.searchParams.append('period_type', periodType)
+  url.searchParams.append('period_key', periodKey)
+  if (activityType) {
+    url.searchParams.append('activity_type', activityType)
+  }
+  if (region) {
+    url.searchParams.append('region', region)
+  }
+  const response = await fetch(url.toString(), {
+    method: 'DELETE',
+    headers: { Accept: 'application/json' }
+  })
+  if (!response.ok) {
+    throw new Error(
+      await getRouteHeatmapResponseErrorMessage(response, 'heatmap share')
+    )
+  }
 }
 
 /**

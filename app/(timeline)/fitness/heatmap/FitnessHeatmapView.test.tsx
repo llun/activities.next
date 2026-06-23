@@ -52,7 +52,9 @@ vi.mock('@/lib/client', () => ({
   getFitnessRouteHeatmapRegionNames: vi.fn(),
   getFitnessRouteHeatmaps: vi.fn(),
   setFitnessRouteHeatmapRegionName: vi.fn(),
-  triggerFitnessRouteHeatmap: vi.fn()
+  shareFitnessRouteHeatmap: vi.fn(),
+  triggerFitnessRouteHeatmap: vi.fn(),
+  unshareFitnessRouteHeatmap: vi.fn()
 }))
 
 const mockLoadMapboxModule = loadMapboxModule as jest.MockedFunction<

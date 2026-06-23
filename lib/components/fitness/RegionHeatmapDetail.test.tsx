@@ -55,6 +55,10 @@ const defaultProps = {
   region: worldRegion,
   meta: { activity: 'All activities', period: 'All time' },
   heatmap: null as FitnessRouteHeatmapData | null,
+  embedOrigin: 'https://llun.test',
+  isSharing: false,
+  onShare: vi.fn(),
+  onUnshare: vi.fn(),
   currentTime: TEST_NOW,
   isLoading: false,
   busy: false,
@@ -235,6 +239,52 @@ describe('RegionHeatmapDetail', () => {
       'aria-valuenow',
       '45'
     )
+  })
+
+  it('offers a Create embed link action for a completed, unshared heatmap', () => {
+    const onShare = vi.fn()
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        heatmap={completedHeatmap}
+        onShare={onShare}
+      />
+    )
+
+    expect(screen.getByText('Share & embed')).toBeInTheDocument()
+    // No snippets are shown until the heatmap is shared.
+    expect(screen.queryByText('Embed (iframe)')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Create embed link/i }))
+    expect(onShare).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows embed snippets and a stop-sharing action once shared', () => {
+    const onUnshare = vi.fn()
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        heatmap={{ ...completedHeatmap, shareToken: 'tok123' }}
+        onUnshare={onUnshare}
+      />
+    )
+
+    const snippets = screen
+      .getAllByRole('textbox')
+      .map((node) => (node as HTMLTextAreaElement).value)
+    expect(
+      snippets.some((value) =>
+        value.includes('https://llun.test/embed/heatmap/tok123"')
+      )
+    ).toBe(true)
+    expect(
+      snippets.some((value) =>
+        value.includes('https://llun.test/embed/heatmap/tok123/image"')
+      )
+    ).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: /Stop sharing/i }))
+    expect(onUnshare).toHaveBeenCalledTimes(1)
   })
 
   it('invokes onBack from the breadcrumb', () => {

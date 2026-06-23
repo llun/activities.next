@@ -110,6 +110,7 @@ const getRemoteMediaCspSources = (
 }
 
 let cachedContentSecurityPolicy: string | null = null
+let cachedEmbedContentSecurityPolicy: string | null = null
 
 export const resetContentSecurityPolicyCacheForTests = () => {
   if (!process.env.VITEST) {
@@ -117,11 +118,13 @@ export const resetContentSecurityPolicyCacheForTests = () => {
   }
 
   cachedContentSecurityPolicy = null
+  cachedEmbedContentSecurityPolicy = null
 }
 
-export const getContentSecurityPolicy = () => {
-  if (cachedContentSecurityPolicy) return cachedContentSecurityPolicy
-
+// Builds the policy with a caller-supplied `frame-ancestors` value: `'none'` for
+// the app at large, `*` for the public `/embed/*` widgets that are meant to be
+// embedded on third-party sites.
+const buildContentSecurityPolicy = (frameAncestors: string): string => {
   const {
     allowMediaDomains,
     allowRemoteMediaDomains,
@@ -205,7 +208,7 @@ export const getContentSecurityPolicy = () => {
     "default-src 'none'",
     "base-uri 'self'",
     "object-src 'none'",
-    "frame-ancestors 'none'",
+    `frame-ancestors ${frameAncestors}`,
     "form-action 'self'",
     // Next framework hydration still emits inline script/style content here;
     // nonce wiring can be added separately from runtime origin generation.
@@ -223,13 +226,34 @@ export const getContentSecurityPolicy = () => {
     "worker-src 'self' blob:"
   ].join('; ')
 
-  cachedContentSecurityPolicy = csp
+  return csp
+}
+
+export const getContentSecurityPolicy = () => {
+  if (cachedContentSecurityPolicy) return cachedContentSecurityPolicy
+
+  cachedContentSecurityPolicy = buildContentSecurityPolicy("'none'")
   return cachedContentSecurityPolicy
+}
+
+// CSP for the public `/embed/*` widgets: identical to the app policy but with
+// `frame-ancestors *` so any site can embed the heatmap iframe. Operators who
+// want to restrict embedding can front the app with their own header rules.
+export const getEmbedContentSecurityPolicy = () => {
+  if (cachedEmbedContentSecurityPolicy) return cachedEmbedContentSecurityPolicy
+
+  cachedEmbedContentSecurityPolicy = buildContentSecurityPolicy('*')
+  return cachedEmbedContentSecurityPolicy
 }
 
 export const getContentSecurityPolicyHeader = (): SecurityHeader => ({
   key: 'Content-Security-Policy',
   value: getContentSecurityPolicy()
+})
+
+export const getEmbedContentSecurityPolicyHeader = (): SecurityHeader => ({
+  key: 'Content-Security-Policy',
+  value: getEmbedContentSecurityPolicy()
 })
 
 export const getSecurityHeaders = ({
