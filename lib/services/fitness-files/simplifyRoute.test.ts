@@ -130,4 +130,25 @@ describe('simplifySegments', () => {
 
     expect(simplifySegments(segments, 2)).toHaveLength(0)
   })
+
+  it('returns the original array reference when no segment changes', () => {
+    // Two-point segments cannot be simplified further, so nothing changes and
+    // the caller (a useMemo) keeps a stable identity.
+    const segments: FitnessRouteHeatmapSegment[] = [
+      {
+        points: [
+          { lat: 52, lng: 4 },
+          { lat: 52.1, lng: 4.1 }
+        ]
+      },
+      {
+        points: [
+          { lat: 1.3, lng: 103.8 },
+          { lat: 1.31, lng: 103.81 }
+        ]
+      }
+    ]
+
+    expect(simplifySegments(segments, 2)).toBe(segments)
+  })
 })

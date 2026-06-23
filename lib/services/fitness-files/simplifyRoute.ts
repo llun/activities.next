@@ -21,25 +21,17 @@ const EARTH_RADIUS_METERS = 6_371_000
 const DEG_TO_RAD = Math.PI / 180
 const METERS_PER_DEGREE = EARTH_RADIUS_METERS * DEG_TO_RAD
 
-// Squared distance (in meters²) from point `p` to the segment `a`→`b`, using a
-// local equirectangular projection anchored at `refLatRad`. Longitudes are
-// scaled by cos(lat) so east-west and north-south distances share one metric
-// scale; this is accurate to a fraction of a percent over the few-kilometre
-// spans a single route subsegment covers. Distances are compared squared to
-// avoid a sqrt per candidate point.
-const squaredSegmentDistanceMeters = (
-  p: LatLng,
-  a: LatLng,
-  b: LatLng,
-  metersPerDegLng: number
+// Squared distance (in meters²) from a point to the segment `a`→`b`, all already
+// projected to the local equirectangular meters plane (see simplifyPoints).
+// Distances are compared squared to avoid a sqrt per candidate point.
+const squaredSegmentDistance = (
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number
 ): number => {
-  const ax = a.lng * metersPerDegLng
-  const ay = a.lat * METERS_PER_DEGREE
-  const bx = b.lng * metersPerDegLng
-  const by = b.lat * METERS_PER_DEGREE
-  const px = p.lng * metersPerDegLng
-  const py = p.lat * METERS_PER_DEGREE
-
   let x = ax
   let y = ay
   const dx = bx - ax
@@ -47,8 +39,8 @@ const squaredSegmentDistanceMeters = (
   const lengthSquared = dx * dx + dy * dy
 
   if (lengthSquared > 0) {
-    // Project p onto the segment and clamp to its endpoints so a point past the
-    // end measures to the nearer endpoint, not to the infinite line.
+    // Project the point onto the segment and clamp to its endpoints so a point
+    // past the end measures to the nearer endpoint, not to the infinite line.
     const t = ((px - ax) * dx + (py - ay) * dy) / lengthSquared
     if (t > 1) {
       x = bx
@@ -82,26 +74,45 @@ export const simplifyPoints = <T extends LatLng>(
     return points
   }
 
+  // Project every vertex once into a local equirectangular meters plane,
+  // anchored at the first point's latitude (cos(lat) scales longitude so the two
+  // axes share one metric scale). Doing it up front keeps the inner loop free of
+  // repeated trig/projection and property lookups — it would otherwise re-project
+  // each subsegment's endpoints on every comparison.
+  const length = points.length
   const refLatRad = points[0].lat * DEG_TO_RAD
   const metersPerDegLng = METERS_PER_DEGREE * Math.cos(refLatRad)
   const toleranceSquared = toleranceMeters * toleranceMeters
 
-  const keep = new Uint8Array(points.length)
-  keep[0] = 1
-  keep[points.length - 1] = 1
+  const xs = new Float64Array(length)
+  const ys = new Float64Array(length)
+  for (let index = 0; index < length; index += 1) {
+    xs[index] = points[index].lng * metersPerDegLng
+    ys[index] = points[index].lat * METERS_PER_DEGREE
+  }
 
-  const stack: Array<[number, number]> = [[0, points.length - 1]]
+  const keep = new Uint8Array(length)
+  keep[0] = 1
+  keep[length - 1] = 1
+
+  const stack: Array<[number, number]> = [[0, length - 1]]
   while (stack.length > 0) {
     const [start, end] = stack.pop() as [number, number]
+    const ax = xs[start]
+    const ay = ys[start]
+    const bx = xs[end]
+    const by = ys[end]
     let farthestIndex = -1
     let farthestDistance = toleranceSquared
 
     for (let index = start + 1; index < end; index += 1) {
-      const distance = squaredSegmentDistanceMeters(
-        points[index],
-        points[start],
-        points[end],
-        metersPerDegLng
+      const distance = squaredSegmentDistance(
+        xs[index],
+        ys[index],
+        ax,
+        ay,
+        bx,
+        by
       )
       if (distance > farthestDistance) {
         farthestDistance = distance
@@ -111,13 +122,18 @@ export const simplifyPoints = <T extends LatLng>(
 
     if (farthestIndex !== -1) {
       keep[farthestIndex] = 1
-      stack.push([start, farthestIndex])
-      stack.push([farthestIndex, end])
+      // Only recurse into a side that still has an interior vertex to test.
+      if (farthestIndex - start > 1) {
+        stack.push([start, farthestIndex])
+      }
+      if (end - farthestIndex > 1) {
+        stack.push([farthestIndex, end])
+      }
     }
   }
 
   const simplified: T[] = []
-  for (let index = 0; index < points.length; index += 1) {
+  for (let index = 0; index < length; index += 1) {
     if (keep[index]) {
       simplified.push(points[index])
     }
@@ -128,8 +144,9 @@ export const simplifyPoints = <T extends LatLng>(
 /**
  * Apply {@link simplifyPoints} to every segment, preserving the
  * `isHiddenByPrivacy` flag and dropping any segment left with fewer than two
- * points. Returns the input array reference unchanged when `toleranceMeters` is
- * not positive so callers can opt out cheaply.
+ * points. Returns the input array reference unchanged when nothing changed (or
+ * `toleranceMeters` is not positive), so callers — e.g. the `useMemo` in
+ * `RouteHeatmapMap` — can keep a stable identity and skip downstream work.
  */
 export const simplifySegments = (
   segments: FitnessRouteHeatmapSegment[],
@@ -140,11 +157,19 @@ export const simplifySegments = (
   }
 
   const simplified: FitnessRouteHeatmapSegment[] = []
+  let changed = false
   for (const segment of segments) {
     const points = simplifyPoints(segment.points, toleranceMeters)
-    if (points.length >= 2) {
+    if (points.length < 2) {
+      changed = true
+      continue
+    }
+    if (points === segment.points) {
+      simplified.push(segment)
+    } else {
+      changed = true
       simplified.push({ ...segment, points })
     }
   }
-  return simplified
+  return changed ? simplified : segments
 }

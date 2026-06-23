@@ -31,4 +31,47 @@ describe('buildRouteHeatmapPayload', () => {
       }
     ])
   })
+
+  it('caps the stored point count at maxPoints', () => {
+    // A non-collinear staircase so simplification is irrelevant here; this
+    // isolates the uniform maxPoints ceiling.
+    const points = Array.from({ length: 5_000 }, (_value, index) => ({
+      lat: 52 + index * 0.0001 + (index % 2) * 0.0005,
+      lng: 4 + index * 0.0001,
+      isHiddenByPrivacy: false
+    }))
+
+    const payload = buildRouteHeatmapPayload({
+      privacySegments: [{ isHiddenByPrivacy: false, points }],
+      maxPoints: 1_000
+    })
+
+    expect(payload.pointCount).toBeLessThanOrEqual(1_000)
+    expect(payload.pointCount).toBeGreaterThanOrEqual(2)
+  })
+
+  it('simplifies away collinear midpoints when a tolerance is given', () => {
+    const points = [
+      ...Array.from({ length: 200 }, (_value, index) => ({
+        lat: 52,
+        lng: 4 + index * 0.0001,
+        isHiddenByPrivacy: false
+      })),
+      { lat: 52.05, lng: 4 + 199 * 0.0001, isHiddenByPrivacy: false }
+    ]
+
+    const payload = buildRouteHeatmapPayload({
+      privacySegments: [{ isHiddenByPrivacy: false, points }],
+      simplifyToleranceMeters: 2
+    })
+
+    // The 200-point collinear run collapses toward its endpoints while the final
+    // corner survives, so the stored line keeps its shape with far fewer points.
+    expect(payload.segments).toHaveLength(1)
+    expect(payload.pointCount).toBeGreaterThanOrEqual(2)
+    expect(payload.pointCount).toBeLessThan(10)
+    expect(
+      payload.segments[0].points.some((point) => point.lat === 52.05)
+    ).toBe(true)
+  })
 })
