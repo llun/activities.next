@@ -14,6 +14,7 @@ import {
   ERROR_401,
   ERROR_403,
   ERROR_404,
+  ERROR_409,
   ERROR_500,
   apiResponse,
   defaultOptions
@@ -161,6 +162,18 @@ export const POST = traceApiRoute(
         allowedMethods: CORS_HEADERS,
         data: ERROR_404,
         responseStatusCode: 404
+      })
+    }
+
+    // Only a completed heatmap is shareable — a pending/generating/failed run has
+    // no finished routes to publish (and must not expose a partial/failed state
+    // on the public embed).
+    if (existing.status !== 'completed') {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_409,
+        responseStatusCode: 409
       })
     }
 

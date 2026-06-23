@@ -15,8 +15,17 @@ export const dynamic = 'force-dynamic'
 
 const DEFAULT_WIDTH = 600
 const DEFAULT_HEIGHT = 400
-const MIN_DIMENSION = 120
-const MAX_DIMENSION = 1280
+const MIN_DIMENSION = 200
+const MAX_DIMENSION = 1200
+// Snap requested dimensions to this step so the query surface collapses onto a
+// small, cacheable set of variants. Without it, `w`/`h` accept ~1000 values each
+// (~1M combinations), letting anyone with a share token bust the edge cache and
+// drive unbounded billable upstream Mapbox fetches. Snapping bounds it to a
+// handful of buckets per axis.
+const DIMENSION_STEP = 100
+// Bound the upstream Mapbox fetch so a slow provider can't hold the request open
+// (matches the AbortSignal.timeout pattern in lib/services/translation).
+const MAPBOX_FETCH_TIMEOUT_MS = 5000
 // Shared, anonymous, immutable-ish thumbnail — cache at the edge for a while.
 const CACHE_CONTROL = 'public, max-age=300, s-maxage=300'
 
@@ -24,10 +33,15 @@ interface Params {
   token: string
 }
 
-const clampDimension = (raw: string | null, fallback: number): number => {
+const snapDimension = (raw: string | null, fallback: number): number => {
+  // `Number(null)`/`Number('')` are 0 (finite), so guard the absent/blank case
+  // explicitly — otherwise an omitted ?w/?h would snap to MIN_DIMENSION instead
+  // of the intended default.
+  if (raw === null || raw.trim() === '') return fallback
   const value = Number(raw)
   if (!Number.isFinite(value)) return fallback
-  return Math.min(MAX_DIMENSION, Math.max(MIN_DIMENSION, Math.round(value)))
+  const snapped = Math.round(value / DIMENSION_STEP) * DIMENSION_STEP
+  return Math.min(MAX_DIMENSION, Math.max(MIN_DIMENSION, snapped))
 }
 
 const svgResponse = (svg: string) =>
@@ -54,8 +68,8 @@ export const GET = traceApiRoute(
 
     const publicHeatmap = toPublicHeatmap(heatmap)
     const url = new URL(req.url)
-    const width = clampDimension(url.searchParams.get('w'), DEFAULT_WIDTH)
-    const height = clampDimension(url.searchParams.get('h'), DEFAULT_HEIGHT)
+    const width = snapDimension(url.searchParams.get('w'), DEFAULT_WIDTH)
+    const height = snapDimension(url.searchParams.get('h'), DEFAULT_HEIGHT)
 
     const mapboxAccessToken = getPublicMapboxAccessToken(
       getConfig().fitnessStorage?.mapboxAccessToken
@@ -74,7 +88,9 @@ export const GET = traceApiRoute(
       })
       if (mapboxUrl) {
         try {
-          const upstream = await fetch(mapboxUrl)
+          const upstream = await fetch(mapboxUrl, {
+            signal: AbortSignal.timeout(MAPBOX_FETCH_TIMEOUT_MS)
+          })
           if (upstream.ok && upstream.body) {
             return new Response(upstream.body, {
               headers: new Headers([

@@ -22,8 +22,18 @@ export interface StaticHeatmapImageInput {
   height: number
 }
 
+// Drop non-finite vertices (corrupt GPS / parse artifacts) before encoding or
+// projecting — a single NaN/Infinity would corrupt the polyline or the SVG
+// bounding box. Segments left with fewer than 2 points are discarded.
 const usableSegments = (segments: FitnessRouteHeatmapSegment[]) =>
-  segments.filter((segment) => segment.points.length >= 2)
+  segments
+    .map((segment) => ({
+      ...segment,
+      points: segment.points.filter(
+        (point) => Number.isFinite(point.lat) && Number.isFinite(point.lng)
+      )
+    }))
+    .filter((segment) => segment.points.length >= 2)
 
 // Thin geometry toward `maxPoints` total vertices using a global stride, keeping
 // each segment's first and last vertex so routes retain their full extent. A

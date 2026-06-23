@@ -102,6 +102,28 @@ describe('buildHeatmapSvg', () => {
     expect(svg).not.toContain('<polyline')
   })
 
+  it('drops non-finite coordinates so they cannot corrupt the projection', () => {
+    const svg = buildHeatmapSvg({
+      segments: [
+        {
+          points: [
+            { lat: 52.1, lng: 4.2 },
+            { lat: Number.NaN, lng: 4.3 },
+            { lat: 52.3, lng: Number.POSITIVE_INFINITY },
+            { lat: 52.4, lng: 4.5 }
+          ]
+        }
+      ],
+      bounds,
+      width: 600,
+      height: 420
+    })
+
+    expect(svg).toContain('<polyline')
+    expect(svg).not.toContain('NaN')
+    expect(svg).not.toContain('Infinity')
+  })
+
   it('keeps projected coordinates inside the padded viewport', () => {
     const svg = buildHeatmapSvg({
       segments: sampleSegments,

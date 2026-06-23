@@ -127,6 +127,20 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap/share', () => {
     expect(mockDb.setFitnessRouteHeatmapShareToken).not.toHaveBeenCalled()
   })
 
+  it('refuses to share a heatmap that is not completed', async () => {
+    mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue(
+      completedHeatmap({ status: 'generating' })
+    )
+
+    const response = await POST(
+      postRequest({ period_type: 'all_time', period_key: 'all' }),
+      { params: Promise.resolve({ id: encodedId }) }
+    )
+
+    expect(response.status).toBe(409)
+    expect(mockDb.setFitnessRouteHeatmapShareToken).not.toHaveBeenCalled()
+  })
+
   it('rejects a cross-site POST without same-origin proof', async () => {
     const request = new NextRequest(baseUrl, {
       method: 'POST',

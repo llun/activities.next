@@ -61,7 +61,10 @@ const nextConfig: NextConfig = {
         headers: getStaticSecurityHeaders({ allowFraming: true })
       },
       {
-        source: '/:path((?!embed/).*)',
+        // Nameless catch-all with a negative lookahead so multi-segment paths
+        // still receive the static security headers; only `/embed` and its
+        // children (the framable widgets) are excluded.
+        source: '/((?!embed(?:/|$)).*)',
         headers: getStaticSecurityHeaders()
       }
     ]

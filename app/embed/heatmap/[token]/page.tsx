@@ -38,6 +38,10 @@ const Page: FC<PageProps> = async ({ params }) => {
     getConfig().fitnessStorage?.mapboxAccessToken
   )
 
+  // Only forward the fields the map actually consumes. In particular the raw
+  // generation `error` string (a caught exception message) is NOT passed: as a
+  // Client Component prop it would be serialized into the public RSC payload on
+  // this unauthenticated surface, needlessly exposing internal details.
   return (
     <PublicHeatmapEmbed
       heatmap={{
@@ -54,7 +58,6 @@ const Page: FC<PageProps> = async ({ params }) => {
         totalCount: publicHeatmap.totalCount,
         cursorOffset: publicHeatmap.cursorOffset,
         isPartial: publicHeatmap.isPartial,
-        error: publicHeatmap.error ?? null,
         createdAt: publicHeatmap.createdAt,
         updatedAt: publicHeatmap.updatedAt
       }}

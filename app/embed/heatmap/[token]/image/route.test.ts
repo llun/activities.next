@@ -109,6 +109,57 @@ describe('/embed/heatmap/[token]/image', () => {
     }
   })
 
+  it('uses the default dimensions when w/h are omitted', async () => {
+    mockGetConfig.mockReturnValue({
+      fitnessStorage: { mapboxAccessToken: 'pk.test-token' }
+    })
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(new Uint8Array([1]), {
+        headers: { 'content-type': 'image/png' }
+      })
+    )
+
+    try {
+      const response = await GET(imageRequest(), {
+        params: Promise.resolve({ token: 'token-1' })
+      })
+
+      expect(response.status).toBe(200)
+      // Number(null) === 0 must NOT collapse the default to MIN_DIMENSION.
+      const requestedUrl = fetchSpy.mock.calls[0]?.[0] as string
+      expect(requestedUrl).toContain('/600x400@2x')
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
+  it('snaps w/h to coarse buckets to limit the cache surface', async () => {
+    mockGetConfig.mockReturnValue({
+      fitnessStorage: { mapboxAccessToken: 'pk.test-token' }
+    })
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(new Uint8Array([1]), {
+        headers: { 'content-type': 'image/png' }
+      })
+    )
+
+    try {
+      const response = await GET(
+        new NextRequest(
+          'http://llun.test/embed/heatmap/token-1/image?w=637&h=413'
+        ),
+        { params: Promise.resolve({ token: 'token-1' }) }
+      )
+
+      expect(response.status).toBe(200)
+      // 637 → 600, 413 → 400 (snapped to the nearest 100).
+      const requestedUrl = fetchSpy.mock.calls[0]?.[0] as string
+      expect(requestedUrl).toContain('/600x400@2x')
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
   it('falls back to SVG when the Mapbox fetch fails', async () => {
     mockGetConfig.mockReturnValue({
       fitnessStorage: { mapboxAccessToken: 'pk.test-token' }
