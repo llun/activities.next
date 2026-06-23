@@ -1,0 +1,39 @@
+CONTRIBUTING.md
+  s_7dbc295a521b6b::t_188ff00be6814f 131
+  s_7dbc295a521b6b::t_3e207a9de9bf7e 413
+  s_7dbc295a521b6b::t_12d01b7055988c 569
+  s_7dbc295a521b6b::t_17543e6a8b1b8b 371
+  s_7dbc295a521b6b::t_d071fd3f56f79b 254
+docs/architecture.md
+  s_7dbc295a521b6b::t_4506b465bfc018 206
+  s_7dbc295a521b6b::t_06c9937004cd34 22
+  s_7dbc295a521b6b::t_a0a1cac5bdca0f 184-190
+docs/features.md
+  s_7dbc295a521b6b::t_fa3b515823c058 11
+  s_7dbc295a521b6b::t_9ede49ff511a1b 68
+  s_7dbc295a521b6b::t_2f292e3c5fe771 40
+  s_7dbc295a521b6b::t_0079c6c9764b1a 55
+  s_7dbc295a521b6b::t_be6a5429a0497c 57
+  s_7dbc295a521b6b::t_e9619946433a85 94
+docs/fitness-file-storage.md
+  s_7dbc295a521b6b::t_5b2c333d935558 51
+docs/environment-variables.md
+  s_7dbc295a521b6b::t_9fcc6b48f76e5d 198-202
+  s_7dbc295a521b6b::t_91a0cbff1c49ba 203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "0eb460e486ee13f5ce45eae74ab9cb47379923e8",
+  "prompts": {},
+  "sessions": {
+    "s_7dbc295a521b6b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "93b791a5-54b5-4709-955c-74c62bcf3d14",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
