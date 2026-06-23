@@ -365,6 +365,24 @@ describe('RegionHeatmapDetail', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('exposes the editable drawn-area title as a level-2 heading', () => {
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={rectRegion}
+        onRename={vi.fn()}
+      />
+    )
+    // Valid heading markup: the editable title (an <h2> wrapping the edit
+    // button) stays in the document outline.
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Veluwe loop' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /Veluwe loop/i })
+    ).toBeInTheDocument()
+  })
+
   it('commits an inline rename on Enter', () => {
     const onRename = vi.fn()
     render(
