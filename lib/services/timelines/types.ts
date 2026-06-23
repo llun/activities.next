@@ -43,5 +43,3 @@ export interface TimelineRuleParams {
 export type MainTimelineRule = (
   params: TimelineRuleParams
 ) => Promise<Timeline.MAIN | null>
-
-export type TimelineRule = MainTimelineRule

@@ -9,9 +9,12 @@
  *
  * This is a data-only cleanup — it changes no schema, so the reference schema
  * dumps (`migrations/schema.sql`, `migrations/schema.sqlite.sql`) are
- * unaffected. The deleted rows are a rebuildable projection of the `statuses`
- * table (reply/mention notifications, which are the surviving signal, live in
- * the separate `notifications` table and are untouched), so `down` is a no-op.
+ * unaffected. Regeneration was run for both backends per AGENTS.md (129
+ * migrations applied each; `knex_migrations` count verified): no DDL delta, so
+ * the committed dumps stay in lockstep. The deleted rows are a rebuildable
+ * projection of the `statuses` table (reply/mention notifications, which are the
+ * surviving signal, live in the separate `notifications` table and are
+ * untouched), so `down` is a no-op.
  *
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }

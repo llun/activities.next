@@ -136,6 +136,16 @@ describe('addStatusToTimelines', () => {
 
     expect(directTimeline.some((s) => s.id === status.id)).toBe(true)
     expect(mainTimeline.some((s) => s.id === status.id)).toBe(false)
+
+    // Direct statuses early-return in addStatusToTimelines and must never run
+    // the reply/mention notification side effect, even when they carry a
+    // mention tag. Guard the contract so a future regression that drops the
+    // isDirect early-return fails here.
+    const notifications = await database.getNotifications({
+      actorId: ACTOR1_ID,
+      limit: 100
+    })
+    expect(notifications.some((n) => n.statusId === status.id)).toBe(false)
   })
 
   test('it skips timelines when recipient blocks the status actor', async () => {

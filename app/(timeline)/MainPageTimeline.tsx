@@ -48,7 +48,6 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   const [isLoadingMoreStatuses, setLoadingMoreStatuses] =
     useState<boolean>(false)
   const [isLoadMoreVisible, setIsLoadMoreVisible] = useState<boolean>(false)
-  const refreshRequestId = useRef(0)
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const isLoadingRef = useRef<boolean>(false)
   const lastStatusIdRef = useRef<string | null>(
@@ -139,16 +138,16 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
 
   const refreshTimeline = useCallback(async () => {
+    // isLoadingRef serializes refreshes, so only one runs at a time and there
+    // is no concurrent request to guard against.
     if (isLoadingRef.current) return
 
     isLoadingRef.current = true
-    const requestId = ++refreshRequestId.current
     setIsRefreshing(true)
     setLoadingMoreStatuses(true)
 
     try {
       const result = await getTimeline({ timeline: Timeline.MAIN })
-      if (requestId !== refreshRequestId.current) return
       setCurrentStatuses(result.statuses)
       setHasMoreStatuses(
         result.statuses.length > 0 || Boolean(result.nextMaxStatusId)
@@ -161,9 +160,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     } catch (_error) {
       // Error refreshing - existing posts remain visible, user can retry
     } finally {
-      if (requestId === refreshRequestId.current) {
-        setLoadingMoreStatuses(false)
-      }
+      setLoadingMoreStatuses(false)
       isLoadingRef.current = false
       setIsRefreshing(false)
     }
