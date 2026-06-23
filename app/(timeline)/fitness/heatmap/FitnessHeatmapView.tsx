@@ -572,6 +572,9 @@ export const FitnessHeatmapView: FC<Props> = ({
 
   const handleShare = useCallback(async () => {
     if (!openRegionId || openRegionKey === null) return
+    // Capture the focused selection so a slow request that resolves after the
+    // user switched/closed regions does not apply its result to another region.
+    const key = focusKeyRef.current
     setIsSharing(true)
     setError(null)
     try {
@@ -582,10 +585,12 @@ export const FitnessHeatmapView: FC<Props> = ({
         periodKey: effectivePeriodKey,
         region: openRegionKey || undefined
       })
+      if (focusKeyRef.current !== key) return
       setHeatmapData((current) =>
         current ? { ...current, shareToken } : current
       )
     } catch (err) {
+      if (focusKeyRef.current !== key) return
       setError(
         err instanceof Error ? err.message : 'Failed to create the embed link.'
       )
@@ -603,6 +608,7 @@ export const FitnessHeatmapView: FC<Props> = ({
 
   const handleUnshare = useCallback(async () => {
     if (!openRegionId || openRegionKey === null) return
+    const key = focusKeyRef.current
     setIsSharing(true)
     setError(null)
     try {
@@ -613,10 +619,12 @@ export const FitnessHeatmapView: FC<Props> = ({
         periodKey: effectivePeriodKey,
         region: openRegionKey || undefined
       })
+      if (focusKeyRef.current !== key) return
       setHeatmapData((current) =>
         current ? { ...current, shareToken: null } : current
       )
     } catch (err) {
+      if (focusKeyRef.current !== key) return
       setError(err instanceof Error ? err.message : 'Failed to stop sharing.')
     } finally {
       setIsSharing(false)

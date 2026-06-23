@@ -200,6 +200,9 @@ const CopyableSnippet: FC<CopyableSnippetProps> = ({ label, value }) => {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async () => {
+    // navigator.clipboard is undefined in insecure (http) contexts and older
+    // browsers; fall back to the manually-selectable textarea in that case.
+    if (!navigator.clipboard) return
     try {
       await navigator.clipboard.writeText(value)
       setCopied(true)
