@@ -337,4 +337,254 @@ describe('RegionHeatmapDetail', () => {
     render(<RegionHeatmapDetail {...defaultProps} error="queue unavailable" />)
     expect(screen.getByRole('alert')).toHaveTextContent('queue unavailable')
   })
+
+  it('keeps the whole-world title read-only even when onRename is provided', () => {
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={worldRegion}
+        onRename={vi.fn()}
+      />
+    )
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Whole world' })
+    ).toBeInTheDocument()
+    // The world region is never named, so there is no inline edit affordance.
+    expect(
+      screen.queryByRole('button', { name: 'Whole world' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('renders a static drawn-area title when onRename is omitted', () => {
+    render(<RegionHeatmapDetail {...defaultProps} region={rectRegion} />)
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Veluwe loop' })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /Veluwe loop/i })
+    ).not.toBeInTheDocument()
+  })
+
+  it('exposes the editable drawn-area title as a level-2 heading', () => {
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={rectRegion}
+        onRename={vi.fn()}
+      />
+    )
+    // Valid heading markup: the editable title (an <h2> wrapping the edit
+    // button) stays in the document outline.
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Veluwe loop' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /Veluwe loop/i })
+    ).toBeInTheDocument()
+  })
+
+  it('commits an inline rename on Enter', () => {
+    const onRename = vi.fn()
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={rectRegion}
+        onRename={onRename}
+      />
+    )
+
+    // The drawn-area title is an edit button; clicking it opens the field.
+    fireEvent.click(screen.getByRole('button', { name: /Veluwe loop/i }))
+    const input = screen.getByRole('textbox', { name: 'Region name' })
+    fireEvent.change(input, { target: { value: 'Renamed loop' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(onRename).toHaveBeenCalledTimes(1)
+    expect(onRename).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'r1' }),
+      'Renamed loop'
+    )
+  })
+
+  it('commits an inline rename on blur', () => {
+    const onRename = vi.fn()
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={rectRegion}
+        onRename={onRename}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Veluwe loop/i }))
+    const input = screen.getByRole('textbox', { name: 'Region name' })
+    fireEvent.change(input, { target: { value: 'Coastal ride' } })
+    fireEvent.blur(input)
+
+    expect(onRename).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'r1' }),
+      'Coastal ride'
+    )
+  })
+
+  it('cancels an inline rename on Escape without saving', () => {
+    const onRename = vi.fn()
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={rectRegion}
+        onRename={onRename}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Veluwe loop/i }))
+    const input = screen.getByRole('textbox', { name: 'Region name' })
+    fireEvent.change(input, { target: { value: 'Discarded' } })
+    fireEvent.keyDown(input, { key: 'Escape' })
+
+    expect(onRename).not.toHaveBeenCalled()
+    // The original title returns (as the edit button) once editing is cancelled.
+    expect(
+      screen.getByRole('button', { name: /Veluwe loop/i })
+    ).toBeInTheDocument()
+  })
+
+  it('does not save an unchanged inline rename', () => {
+    const onRename = vi.fn()
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={rectRegion}
+        onRename={onRename}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Veluwe loop/i }))
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Region name' }), {
+      key: 'Enter'
+    })
+    expect(onRename).not.toHaveBeenCalled()
+  })
+
+  it('ignores Enter while an IME composition is active', () => {
+    const onRename = vi.fn()
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={rectRegion}
+        onRename={onRename}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Veluwe loop/i }))
+    const input = screen.getByRole('textbox', { name: 'Region name' })
+    fireEvent.change(input, { target: { value: 'あ' } })
+    // Enter during composition confirms the IME candidate; it must not commit or
+    // close the editor.
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
+
+    expect(onRename).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole('textbox', { name: 'Region name' })
+    ).toBeInTheDocument()
+  })
+
+  it('clears the name when an empty (whitespace-only) value is committed', () => {
+    const onRename = vi.fn()
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={rectRegion}
+        onRename={onRename}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Veluwe loop/i }))
+    const input = screen.getByRole('textbox', { name: 'Region name' })
+    fireEvent.change(input, { target: { value: '   ' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    // An emptied field reverts to the default placeholder by saving an empty
+    // name (which the view persists as a cleared label).
+    expect(onRename).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'r1' }),
+      ''
+    )
+  })
+
+  it('renders an editable "Map area" placeholder for a nameless drawn area', () => {
+    const onRename = vi.fn()
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={{
+          id: 'r2',
+          type: 'rect',
+          nw: { lat: 52, lng: 5 },
+          se: { lat: 51, lng: 6 }
+        }}
+        onRename={onRename}
+      />
+    )
+    // The placeholder title is itself the edit affordance (a button, not a
+    // static heading), so a nameless area can be named from its page.
+    fireEvent.click(screen.getByRole('button', { name: /Map area/i }))
+    const input = screen.getByRole('textbox', { name: 'Region name' })
+    fireEvent.change(input, { target: { value: 'Named now' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onRename).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'r2' }),
+      'Named now'
+    )
+  })
+
+  it('shows the "Map area" placeholder once the name is cleared', () => {
+    const { rerender } = render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={rectRegion}
+        onRename={vi.fn()}
+      />
+    )
+    expect(
+      screen.getByRole('button', { name: /Veluwe loop/i })
+    ).toBeInTheDocument()
+    // The parent cleared the name (e.g. after an empty commit); the heading
+    // reverts to the editable placeholder within the session.
+    rerender(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={{ ...rectRegion, name: undefined }}
+        onRename={vi.fn()}
+      />
+    )
+    expect(
+      screen.getByRole('button', { name: /Map area/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /Veluwe loop/i })
+    ).not.toBeInTheDocument()
+  })
+
+  it('reflects an externally-updated name when the editor reopens', () => {
+    const { rerender } = render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={rectRegion}
+        onRename={vi.fn()}
+      />
+    )
+    // The parent persisted a new name (the region list updated) while the field
+    // was idle; reopening the editor must start from the latest value.
+    rerender(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={{ ...rectRegion, name: 'Renamed loop' }}
+        onRename={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Renamed loop/i }))
+    expect(
+      (
+        screen.getByRole('textbox', {
+          name: 'Region name'
+        }) as HTMLInputElement
+      ).value
+    ).toBe('Renamed loop')
+  })
 })

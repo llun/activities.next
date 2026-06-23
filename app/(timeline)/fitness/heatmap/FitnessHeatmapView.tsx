@@ -696,6 +696,26 @@ export const FitnessHeatmapView: FC<Props> = ({
     [actorId]
   )
 
+  const handleRegionRenamed = useCallback(
+    (region: PickerRegion, name: string) => {
+      // Only drawn areas are renameable; the whole-world region is never named.
+      if (region.type !== 'rect') return
+      const trimmed = name.trim() || undefined
+      // Reflect the new name immediately — the open detail page reads its title
+      // from this list, so the heading updates without a refetch (the region key
+      // is coordinate-only, so the heatmap link is unaffected).
+      setRegions((current) =>
+        current.map((entry) =>
+          entry.id === region.id ? { ...entry, name: trimmed } : entry
+        )
+      )
+      // Persist by canonical region key, reusing the picker's save path (which
+      // also surfaces a save failure).
+      void handleRegionSaved({ ...region, name: trimmed })
+    },
+    [handleRegionSaved]
+  )
+
   const focusedProgressPercent = heatmapData
     ? computeProgressPercent(heatmapData.totalCount, heatmapData.cursorOffset)
     : null
@@ -725,6 +745,7 @@ export const FitnessHeatmapView: FC<Props> = ({
         onBack={() => setOpenRegionId(null)}
         onGenerate={runGeneration}
         onRetry={runGeneration}
+        onRename={handleRegionRenamed}
       />
     )
   }
