@@ -93,6 +93,9 @@ const chunkPoints = <T>(points: T[], maxPoints: number): T[][] => {
  * Returns null when there is no usable geometry. The token is embedded in the
  * URL, so callers MUST fetch this server-side and stream the bytes — never hand
  * the URL to the browser.
+ *
+ * Note: `bounds` (part of the shared input type, used by buildHeatmapSvg) is
+ * intentionally ignored here — Mapbox's `/auto/` viewport frames the overlays.
  */
 export const buildMapboxStaticUrl = ({
   segments,

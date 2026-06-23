@@ -26,8 +26,11 @@ const DIMENSION_STEP = 100
 // Bound the upstream Mapbox fetch so a slow provider can't hold the request open
 // (matches the AbortSignal.timeout pattern in lib/services/translation).
 const MAPBOX_FETCH_TIMEOUT_MS = 5000
-// Shared, anonymous, immutable-ish thumbnail — cache at the edge for a while.
-const CACHE_CONTROL = 'public, max-age=300, s-maxage=300'
+// Cache the thumbnail at the edge, but only briefly: when the owner revokes a
+// share (or it is re-queued) the origin starts 404ing, and a short TTL bounds
+// how long a CDN keeps serving an already-cached image after that. 60s trades a
+// little cache efficiency for prompt revocation on a CDN-fronted deploy.
+const CACHE_CONTROL = 'public, max-age=60, s-maxage=60'
 
 interface Params {
   token: string
