@@ -41,6 +41,16 @@ const Page: FC<PageProps> = async ({ params }) => {
     getConfig().fitnessStorage?.mapboxAccessToken
   )
 
+  // The owner-assigned region label (persisted per (actor, region) — see the
+  // region-names store). Shown as a caption so the embed is self-labelled, e.g.
+  // "Netherlands". The world-wide region is never named.
+  const regionNames = await database.getFitnessRouteHeatmapRegionNames({
+    actorId: heatmap.actorId
+  })
+  const regionName = regionNames.find(
+    (entry) => entry.region === heatmap.region
+  )?.name
+
   // Only forward what the map actually renders. The raw generation `error`
   // string is omitted, and the internal generation counters (activityCount,
   // pointCount, totalCount, cursorOffset, isPartial — which reveal the actor's
@@ -67,6 +77,7 @@ const Page: FC<PageProps> = async ({ params }) => {
         updatedAt: publicHeatmap.updatedAt
       }}
       mapboxAccessToken={mapboxAccessToken}
+      regionName={regionName}
     />
   )
 }

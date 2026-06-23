@@ -245,6 +245,8 @@ const CopyableSnippet: FC<CopyableSnippetProps> = ({ label, value }) => {
 interface EmbedShareSectionProps {
   shareToken: string | null | undefined
   embedOrigin: string
+  /** Region label used for the snippet title/alt text (falls back to a generic). */
+  regionLabel?: string
   isSharing: boolean
   onShare: () => void
   onUnshare: () => void
@@ -253,6 +255,7 @@ interface EmbedShareSectionProps {
 const EmbedShareSection: FC<EmbedShareSectionProps> = ({
   shareToken,
   embedOrigin,
+  regionLabel,
   isSharing,
   onShare,
   onUnshare
@@ -261,8 +264,11 @@ const EmbedShareSection: FC<EmbedShareSectionProps> = ({
   const embedUrl = shareToken
     ? `${embedOrigin}/embed/heatmap/${shareToken}`
     : ''
-  const iframeSnippet = `<iframe src="${embedUrl}" width="600" height="420" style="border:0;border-radius:12px" loading="lazy" title="Route heatmap"></iframe>`
-  const imageSnippet = `<img src="${embedUrl}/image" width="600" height="400" alt="Route heatmap" />`
+  const label = regionLabel?.trim() || 'Route heatmap'
+  // Escape double quotes so a region label can't break out of the HTML attribute.
+  const labelAttr = label.replace(/"/g, '&quot;')
+  const iframeSnippet = `<iframe src="${embedUrl}" width="600" height="420" style="border:0;border-radius:12px" loading="lazy" title="${labelAttr}"></iframe>`
+  const imageSnippet = `<img src="${embedUrl}/image" width="600" height="400" alt="${labelAttr}" />`
 
   return (
     <section className="mt-4 rounded-xl border bg-card p-4 shadow-sm">
@@ -501,6 +507,7 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
           <EmbedShareSection
             shareToken={heatmap.shareToken}
             embedOrigin={embedOrigin}
+            regionLabel={isWorld ? undefined : region.name}
             isSharing={isSharing}
             onShare={onShare}
             onUnshare={onUnshare}

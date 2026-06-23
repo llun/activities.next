@@ -287,6 +287,26 @@ describe('RegionHeatmapDetail', () => {
     expect(onUnshare).toHaveBeenCalledTimes(1)
   })
 
+  it('labels the embed snippets with the region name', () => {
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={rectRegion}
+        heatmap={{ ...completedHeatmap, shareToken: 'tok123' }}
+      />
+    )
+
+    const snippets = screen
+      .getAllByRole('textbox')
+      .map((node) => (node as HTMLTextAreaElement).value)
+    expect(
+      snippets.some((value) => value.includes('title="Veluwe loop"'))
+    ).toBe(true)
+    expect(snippets.some((value) => value.includes('alt="Veluwe loop"'))).toBe(
+      true
+    )
+  })
+
   it('invokes onBack from the breadcrumb', () => {
     const onBack = vi.fn()
     render(<RegionHeatmapDetail {...defaultProps} onBack={onBack} />)
