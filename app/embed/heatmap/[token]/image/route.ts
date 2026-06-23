@@ -64,7 +64,11 @@ export const GET = traceApiRoute(
     const heatmap = await database.getFitnessRouteHeatmapByShareToken({
       shareToken: token
     })
-    if (!heatmap) return apiErrorResponse(404)
+    // Only serve a completed heatmap. A shared heatmap that is re-queued for
+    // generation transitions back to pending/generating (segments nulled) while
+    // keeping its token; 404 during that window rather than publish a partial
+    // or empty embed the owner did not intend.
+    if (!heatmap || heatmap.status !== 'completed') return apiErrorResponse(404)
 
     const publicHeatmap = toPublicHeatmap(heatmap)
     const url = new URL(req.url)
@@ -92,17 +96,23 @@ export const GET = traceApiRoute(
             signal: AbortSignal.timeout(MAPBOX_FETCH_TIMEOUT_MS)
           })
           if (upstream.ok && upstream.body) {
+            // Pin the type to an image regardless of what the upstream sets, so
+            // this anonymous, CORS-* response can only ever be image bytes.
+            const upstreamType = upstream.headers.get('content-type')
+            const contentType = upstreamType?.startsWith('image/')
+              ? upstreamType
+              : 'image/png'
             return new Response(upstream.body, {
               headers: new Headers([
-                [
-                  'Content-Type',
-                  upstream.headers.get('content-type') ?? 'image/png'
-                ],
+                ['Content-Type', contentType],
                 ['Cache-Control', CACHE_CONTROL],
                 ['Access-Control-Allow-Origin', '*']
               ])
             })
           }
+          // Release the un-consumed body before falling through, so undici does
+          // not retain the socket until GC on a repeatedly-hit public endpoint.
+          await upstream.body?.cancel().catch(() => {})
         } catch {
           // Fall through to the keyless SVG renderer below.
         }

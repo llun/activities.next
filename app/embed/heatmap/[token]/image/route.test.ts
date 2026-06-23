@@ -69,6 +69,40 @@ describe('/embed/heatmap/[token]/image', () => {
     expect(response.status).toBe(404)
   })
 
+  it('returns 404 for a shared heatmap that is not completed', async () => {
+    mockGetFitnessRouteHeatmapByShareToken.mockResolvedValue({
+      ...sharedHeatmap,
+      status: 'generating'
+    })
+
+    const response = await GET(imageRequest(), {
+      params: Promise.resolve({ token: 'token-1' })
+    })
+
+    expect(response.status).toBe(404)
+  })
+
+  it('pins the response content-type to an image even if upstream lies', async () => {
+    mockGetConfig.mockReturnValue({
+      fitnessStorage: { mapboxAccessToken: 'pk.test-token' }
+    })
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(new Uint8Array([1]), {
+        headers: { 'content-type': 'text/html' }
+      })
+    )
+
+    try {
+      const response = await GET(imageRequest(), {
+        params: Promise.resolve({ token: 'token-1' })
+      })
+
+      expect(response.headers.get('Content-Type')).toBe('image/png')
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
   it('renders an SVG fallback when no Mapbox token is configured', async () => {
     const response = await GET(imageRequest(), {
       params: Promise.resolve({ token: 'token-1' })

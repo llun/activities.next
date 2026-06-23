@@ -29,7 +29,10 @@ const Page: FC<PageProps> = async ({ params }) => {
   const heatmap = await database.getFitnessRouteHeatmapByShareToken({
     shareToken: token
   })
-  if (!heatmap) notFound()
+  // Only render a completed heatmap. A shared heatmap that is re-queued for
+  // generation keeps its token but transitions back to pending/generating; 404
+  // during that window rather than publish a partial/in-progress embed.
+  if (!heatmap || heatmap.status !== 'completed') notFound()
 
   // Flatten the privacy distinction so the public embed shows no hole and no
   // highlight around private locations (see toPublicHeatmap).
