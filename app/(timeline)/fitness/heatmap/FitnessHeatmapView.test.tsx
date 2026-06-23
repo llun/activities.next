@@ -514,6 +514,48 @@ describe('FitnessHeatmapView', () => {
     expect(await screen.findByText('Heatmap source')).toBeInTheDocument()
   })
 
+  it('renames an opened drawn region inline and persists the label', async () => {
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([
+      worldSummary({
+        id: 'hm-rect',
+        region: 'rect:52.60,5.60,52.00,6.20',
+        status: 'completed',
+        updatedAt: TEST_NOW
+      })
+    ])
+    mockGetFitnessRouteHeatmapRegionNames.mockResolvedValue([
+      { region: 'rect:52.60,5.60,52.00,6.20', name: 'Veluwe loop' }
+    ])
+
+    render(
+      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+    )
+
+    // Open the seeded drawn region's own page, then edit its title inline.
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Open Veluwe loop heatmap/i })
+    )
+    fireEvent.click(await screen.findByRole('button', { name: /Veluwe loop/i }))
+    const input = screen.getByRole('textbox', { name: 'Region name' })
+    fireEvent.change(input, { target: { value: 'Renamed loop' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    // The rename persists against the coordinate-only region key.
+    await waitFor(() =>
+      expect(mockSetFitnessRouteHeatmapRegionName).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: ACTOR,
+          region: 'rect:52.60,5.60,52.00,6.20',
+          name: 'Renamed loop'
+        })
+      )
+    )
+    // The detail heading reflects the new name immediately (no refetch needed).
+    expect(
+      await screen.findByRole('button', { name: /Renamed loop/i })
+    ).toBeInTheDocument()
+  })
+
   it('generates a heatmap for the opened region', async () => {
     render(
       <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />

@@ -12,10 +12,11 @@ import {
   Globe,
   Loader2,
   Maximize,
+  Pencil,
   RefreshCw,
   Share2
 } from 'lucide-react'
-import { FC, ReactNode, useState } from 'react'
+import { FC, ReactNode, useEffect, useRef, useState } from 'react'
 
 import { FitnessRouteHeatmapData } from '@/lib/client'
 import { PickerRegion } from '@/lib/components/fitness/HeatmapRegionPicker'
@@ -321,6 +322,92 @@ const EmbedShareSection: FC<EmbedShareSectionProps> = ({
   )
 }
 
+interface EditableRegionNameProps {
+  /** Current area name; falls back to the generic "Map area" placeholder. */
+  value?: string
+  /** Fired with the trimmed, changed, non-empty name when an edit commits. */
+  onRename: (name: string) => void
+}
+
+/**
+ * Renames a drawn area in place on its own page (no popup): click the title or
+ * the pencil to edit; Enter or blur saves, Esc cancels. The rendered title stays
+ * an `<h2>` so the page-level `PageHeader` keeps the only `<h1>`.
+ */
+const EditableRegionName: FC<EditableRegionNameProps> = ({
+  value,
+  onRename
+}) => {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value ?? '')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // Keep the draft in sync with an external rename (e.g. a save elsewhere) while
+  // the field is not being edited.
+  useEffect(() => {
+    if (!editing) setDraft(value ?? '')
+  }, [value, editing])
+
+  // Focus + select the field when entering edit mode so a rename is type-ready.
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }
+  }, [editing])
+
+  const commit = () => {
+    const next = draft.trim()
+    // Only persist a real, non-empty change — an empty or unchanged value just
+    // closes the editor and keeps the existing name.
+    if (next && next !== (value ?? '')) onRename(next)
+    setEditing(false)
+  }
+  const cancel = () => {
+    setDraft(value ?? '')
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type="text"
+        aria-label="Region name"
+        value={draft}
+        maxLength={80}
+        placeholder="Map area"
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            commit()
+          } else if (event.key === 'Escape') {
+            event.preventDefault()
+            cancel()
+          }
+        }}
+        className="w-full max-w-[420px] rounded-md border border-input bg-background px-2 py-1 text-xl font-semibold tracking-tight outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40"
+      />
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      title="Rename"
+      className="group/name -mx-1.5 inline-flex max-w-full items-center gap-1.5 rounded-md px-1.5 py-0.5 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <h2 className="truncate text-xl font-semibold tracking-tight">
+        {value || 'Map area'}
+      </h2>
+      <Pencil className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/name:opacity-100" />
+    </button>
+  )
+}
+
 export interface RegionHeatmapDetailProps {
   region: PickerRegion
   /** Pre-formatted activity + period source labels. */
@@ -349,6 +436,11 @@ export interface RegionHeatmapDetailProps {
   onBack: () => void
   onGenerate: () => void
   onRetry: () => void
+  /**
+   * Renames the (drawn) region from its own page. When omitted — or for the
+   * whole-world region — the title is rendered read-only.
+   */
+  onRename?: (region: PickerRegion, name: string) => void
 }
 
 export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
@@ -370,7 +462,8 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
   error,
   onBack,
   onGenerate,
-  onRetry
+  onRetry,
+  onRename
 }) => {
   const isWorld = region.type === 'world'
   const title = isWorld ? 'Whole world' : region.name || 'Map area'
@@ -409,8 +502,18 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
             )}
           </span>
           <div className="min-w-0">
-            {/* h2: the page-level PageHeader ("Heatmaps") already owns the h1. */}
-            <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+            {/* h2: the page-level PageHeader ("Heatmaps") already owns the h1.
+                Drawn areas get an inline-editable name (click the title or the
+                pencil); the whole-world region and read-only callers keep a
+                static title. */}
+            {isWorld || !onRename ? (
+              <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+            ) : (
+              <EditableRegionName
+                value={region.type === 'rect' ? region.name : undefined}
+                onRename={(name) => onRename(region, name)}
+              />
+            )}
             <div className="mt-0.5 text-xs text-muted-foreground">
               {isWorld
                 ? 'Entire globe — every recorded activity'

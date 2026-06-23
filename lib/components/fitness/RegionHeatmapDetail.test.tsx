@@ -337,4 +337,111 @@ describe('RegionHeatmapDetail', () => {
     render(<RegionHeatmapDetail {...defaultProps} error="queue unavailable" />)
     expect(screen.getByRole('alert')).toHaveTextContent('queue unavailable')
   })
+
+  it('keeps the whole-world title read-only even when onRename is provided', () => {
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={worldRegion}
+        onRename={vi.fn()}
+      />
+    )
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Whole world' })
+    ).toBeInTheDocument()
+    // The world region is never named, so there is no inline edit affordance.
+    expect(
+      screen.queryByRole('button', { name: 'Whole world' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('renders a static drawn-area title when onRename is omitted', () => {
+    render(<RegionHeatmapDetail {...defaultProps} region={rectRegion} />)
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Veluwe loop' })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /Veluwe loop/i })
+    ).not.toBeInTheDocument()
+  })
+
+  it('commits an inline rename on Enter', () => {
+    const onRename = vi.fn()
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={rectRegion}
+        onRename={onRename}
+      />
+    )
+
+    // The drawn-area title is an edit button; clicking it opens the field.
+    fireEvent.click(screen.getByRole('button', { name: /Veluwe loop/i }))
+    const input = screen.getByRole('textbox', { name: 'Region name' })
+    fireEvent.change(input, { target: { value: 'Renamed loop' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(onRename).toHaveBeenCalledTimes(1)
+    expect(onRename).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'r1' }),
+      'Renamed loop'
+    )
+  })
+
+  it('commits an inline rename on blur', () => {
+    const onRename = vi.fn()
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={rectRegion}
+        onRename={onRename}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Veluwe loop/i }))
+    const input = screen.getByRole('textbox', { name: 'Region name' })
+    fireEvent.change(input, { target: { value: 'Coastal ride' } })
+    fireEvent.blur(input)
+
+    expect(onRename).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'r1' }),
+      'Coastal ride'
+    )
+  })
+
+  it('cancels an inline rename on Escape without saving', () => {
+    const onRename = vi.fn()
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={rectRegion}
+        onRename={onRename}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Veluwe loop/i }))
+    const input = screen.getByRole('textbox', { name: 'Region name' })
+    fireEvent.change(input, { target: { value: 'Discarded' } })
+    fireEvent.keyDown(input, { key: 'Escape' })
+
+    expect(onRename).not.toHaveBeenCalled()
+    // The original title returns (as the edit button) once editing is cancelled.
+    expect(
+      screen.getByRole('button', { name: /Veluwe loop/i })
+    ).toBeInTheDocument()
+  })
+
+  it('does not save an unchanged inline rename', () => {
+    const onRename = vi.fn()
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={rectRegion}
+        onRename={onRename}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Veluwe loop/i }))
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Region name' }), {
+      key: 'Enter'
+    })
+    expect(onRename).not.toHaveBeenCalled()
+  })
 })
