@@ -394,6 +394,12 @@ const EditableRegionName: FC<EditableRegionNameProps> = ({
         onChange={(event) => setDraft(event.target.value)}
         onBlur={() => close(true)}
         onKeyDown={(event) => {
+          // While an IME composition is active (e.g. Japanese / Chinese /
+          // Korean), Enter confirms the composition and Escape cancels it — let
+          // the IME handle them instead of closing the editor mid-compose.
+          // `isComposing` lives on the native event (React's synthetic
+          // KeyboardEvent type doesn't surface it).
+          if (event.nativeEvent.isComposing) return
           if (event.key === 'Enter') {
             event.preventDefault()
             close(true)

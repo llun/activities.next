@@ -463,6 +463,28 @@ describe('RegionHeatmapDetail', () => {
     expect(onRename).not.toHaveBeenCalled()
   })
 
+  it('ignores Enter while an IME composition is active', () => {
+    const onRename = vi.fn()
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={rectRegion}
+        onRename={onRename}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Veluwe loop/i }))
+    const input = screen.getByRole('textbox', { name: 'Region name' })
+    fireEvent.change(input, { target: { value: 'あ' } })
+    // Enter during composition confirms the IME candidate; it must not commit or
+    // close the editor.
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
+
+    expect(onRename).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole('textbox', { name: 'Region name' })
+    ).toBeInTheDocument()
+  })
+
   it('clears the name when an empty (whitespace-only) value is committed', () => {
     const onRename = vi.fn()
     render(
