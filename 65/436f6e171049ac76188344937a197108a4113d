@@ -1,0 +1,19 @@
+lib/services/timelines/index.ts
+  s_205c9d4610f915::t_1a725910396fcd 135-137,142-149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "65436f6e171049ac76188344937a197108a4113d",
+  "prompts": {},
+  "sessions": {
+    "s_205c9d4610f915": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b1bda4e5-f883-4fdc-bc59-767c3fa3c860",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
