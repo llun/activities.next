@@ -1,0 +1,103 @@
+lib/services/fitness-files/staticHeatmapImage.test.ts
+  s_923b07ff728f21::t_4cd26a3bed580d 1-124
+app/embed/heatmap/[token]/image/route.test.ts
+  s_923b07ff728f21::t_6e19148dc77c28 8-11,89-93
+  s_923b07ff728f21::t_a5817930a5312c 1-7,12-88,94-131
+lib/components/fitness/RegionHeatmapDetail.tsx
+  s_923b07ff728f21::t_5c63bafb4d99ee 10,15-16,18
+  s_923b07ff728f21::t_7d41254fd72090 194-308,315-320
+  s_923b07ff728f21::t_f4e5a40889a3ea 501-507
+  s_923b07ff728f21::t_aa202d8b04832b 344-347
+app/(timeline)/fitness/heatmap/FitnessHeatmapView.tsx
+  s_923b07ff728f21::t_d5f27627ff810c 562-632
+  s_923b07ff728f21::t_550068a0dd9570 198
+  s_923b07ff728f21::t_42dadc9acb81dc 16-18
+  s_923b07ff728f21::t_9b7ab9337c552e 713-716
+lib/services/fitness-files/publicHeatmap.test.ts
+  s_923b07ff728f21::t_c17822841aad51 1-74
+app/embed/layout.tsx
+  s_923b07ff728f21::t_67a55ae4e73ca6 1-19
+lib/services/fitness-files/staticHeatmapImage.ts
+  s_923b07ff728f21::t_c9e24eac30238f 1-171
+lib/database/sql/fitnessRouteHeatmap.ts
+  s_923b07ff728f21::t_136274e0e9b862 81-105,214,238,298,342-397,442
+app/api/v1/accounts/[id]/fitness-route-heatmap/share/route.ts
+  s_923b07ff728f21::t_9ded4b4f9c96ec 1-316
+migrations/schema.sql
+  s_923b07ff728f21::t_8a5fdefd1f45fd 430-431,1206-1207
+lib/client.ts
+  s_923b07ff728f21::t_e9ce1f25f926b7 2357-2436
+  s_923b07ff728f21::t_7c3bf5488f0ff2 2227-2228
+app/(timeline)/fitness/heatmap/FitnessHeatmapView.test.tsx
+  s_923b07ff728f21::t_d4ba2d7c52b216 55-57
+app/api/v1/accounts/[id]/fitness-route-heatmap/route.test.ts
+  s_923b07ff728f21::t_3196122044b2d6 139
+lib/utils/http-headers/csp.test.ts
+  s_923b07ff728f21::t_feef990059a8bf 5
+  s_923b07ff728f21::t_8b040fce5b5c17 114-147
+app/embed/heatmap/[token]/image/route.ts
+  s_923b07ff728f21::t_a5acb8fb2b484a 1-112
+lib/utils/http-headers/static.ts
+  s_923b07ff728f21::t_92c9c973b86a53 3-15,20-27
+lib/database/sql/fitnessRouteHeatmap.test.ts
+  s_923b07ff728f21::t_9f309dcae5b501 478-573
+lib/utils/polyline.ts
+  s_923b07ff728f21::t_8d5544b5c787ff 1-50
+app/embed/heatmap/[token]/page.tsx
+  s_923b07ff728f21::t_2e9399e8062f5f 1-66
+app/api/v1/accounts/[id]/fitness-route-heatmap/route.ts
+  s_923b07ff728f21::t_2e4d1c12541df5 79
+lib/utils/http-headers/csp.ts
+  s_923b07ff728f21::t_af168812939d67 229-235,239-248,254-256
+  s_923b07ff728f21::t_d811531a73ea02 113,121,124-127
+  s_923b07ff728f21::t_a15d850fc8f277 211
+lib/types/database/fitnessRouteHeatmap.ts
+  s_923b07ff728f21::t_136274e0e9b862 54-58,86-90
+next.config.ts
+  s_923b07ff728f21::t_cabf540aa061aa 56-58,60-64
+lib/components/fitness/RouteHeatmapMap.tsx
+  s_923b07ff728f21::t_4037289e03b7b4 499
+  s_923b07ff728f21::t_ca51e17236f95b 513
+  s_923b07ff728f21::t_1ff3964e3c862c 289-293,304-305
+  s_923b07ff728f21::t_6e19148dc77c28 524
+app/api/v1/accounts/[id]/fitness-route-heatmap/share/route.test.ts
+  s_923b07ff728f21::t_c0fb1dd5e7749c 1-219
+lib/services/fitness-files/publicHeatmap.ts
+  s_923b07ff728f21::t_c9c64b5e6ca414 1-33
+app/embed/heatmap/[token]/PublicHeatmapEmbed.tsx
+  s_923b07ff728f21::t_235420a921d535 1-27
+proxy.ts
+  s_923b07ff728f21::t_f30672e8e05e84 85
+  s_923b07ff728f21::t_7aecc30a7bf89a 57,67
+  s_923b07ff728f21::t_5e78107d1a5bd7 8-11
+  s_923b07ff728f21::t_db1b85ac04667d 23-31
+  s_923b07ff728f21::t_38d909e0622509 76,88
+  s_923b07ff728f21::t_5b54670fc2d130 91
+lib/components/fitness/RegionHeatmapDetail.test.tsx
+  s_923b07ff728f21::t_1b6b96df80ee1a 58-61
+  s_923b07ff728f21::t_6e4258a41f059c 244-257,259-289
+  s_923b07ff728f21::t_6e19148dc77c28 258
+migrations/20260622000000_add_fitness_route_heatmap_share_token.js
+  s_923b07ff728f21::t_136274e0e9b862 1-45
+lib/utils/polyline.test.ts
+  s_923b07ff728f21::t_b8e84f94aded54 1-65
+lib/utils/http-headers/static.test.ts
+  s_923b07ff728f21::t_b100a09d01da88 1-11,15-29
+  s_923b07ff728f21::t_6e19148dc77c28 12-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "1a56a20155ce9df631cdf2fda3f0bccbea2c1fb0",
+  "prompts": {},
+  "sessions": {
+    "s_923b07ff728f21": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8d29f2ad-e9fd-453b-a0d8-6fe875bd4782",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,39 @@
+app/embed/heatmap/[token]/page.tsx
+  s_923b07ff728f21::t_af3be5ad475324 41-44
+lib/services/fitness-files/staticHeatmapImage.ts
+  s_923b07ff728f21::t_18b82461c672ad 25-27,29-36
+next.config.ts
+  s_923b07ff728f21::t_0977105d576b8a 64-67
+app/embed/heatmap/[token]/image/route.test.ts
+  s_923b07ff728f21::t_a224ec016817bc 136-162
+  s_923b07ff728f21::t_43c4fa1179b23e 112-135
+app/embed/heatmap/[token]/image/route.ts
+  s_923b07ff728f21::t_49191ae26b5338 26-28
+  s_923b07ff728f21::t_c93d27e3c5e959 37-40
+  s_923b07ff728f21::t_c14096187f8855 71-72
+  s_923b07ff728f21::t_c2620208aa6dc6 91-93
+  s_923b07ff728f21::t_165ded3f3a7114 18-25,36,43-44
+lib/services/fitness-files/staticHeatmapImage.test.ts
+  s_923b07ff728f21::t_1f85829dd11d1e 105-126
+app/api/v1/accounts/[id]/fitness-route-heatmap/share/route.ts
+  s_923b07ff728f21::t_f0095dee2d808c 17
+  s_923b07ff728f21::t_17e4894f3935fb 168-179
+app/api/v1/accounts/[id]/fitness-route-heatmap/share/route.test.ts
+  s_923b07ff728f21::t_e3adfa55eea08c 130-143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "296a5210ad915d6e303818e2c37ce74380577eac",
+  "prompts": {},
+  "sessions": {
+    "s_923b07ff728f21": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8d29f2ad-e9fd-453b-a0d8-6fe875bd4782",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
