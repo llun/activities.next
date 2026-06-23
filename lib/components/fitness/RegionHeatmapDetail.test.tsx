@@ -307,6 +307,25 @@ describe('RegionHeatmapDetail', () => {
     )
   })
 
+  it('HTML-escapes special characters in the region label for the snippet', () => {
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        region={{ ...rectRegion, name: 'Tom & "Jerry" <loop>' }}
+        heatmap={{ ...completedHeatmap, shareToken: 'tok123' }}
+      />
+    )
+
+    const snippets = screen
+      .getAllByRole('textbox')
+      .map((node) => (node as HTMLTextAreaElement).value)
+    expect(
+      snippets.some((value) =>
+        value.includes('title="Tom &amp; &quot;Jerry&quot; &lt;loop&gt;"')
+      )
+    ).toBe(true)
+  })
+
   it('invokes onBack from the breadcrumb', () => {
     const onBack = vi.fn()
     render(<RegionHeatmapDetail {...defaultProps} onBack={onBack} />)

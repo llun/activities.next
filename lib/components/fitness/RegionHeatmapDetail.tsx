@@ -265,8 +265,14 @@ const EmbedShareSection: FC<EmbedShareSectionProps> = ({
     ? `${embedOrigin}/embed/heatmap/${shareToken}`
     : ''
   const label = regionLabel?.trim() || 'Route heatmap'
-  // Escape double quotes so a region label can't break out of the HTML attribute.
-  const labelAttr = label.replace(/"/g, '&quot;')
+  // Fully escape the label for the snippet's HTML attributes (& first so an
+  // already-escaped entity isn't double-encoded) so a region name containing
+  // &, <, >, or " copies into a valid snippet.
+  const labelAttr = label
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
   const iframeSnippet = `<iframe src="${embedUrl}" width="600" height="420" style="border:0;border-radius:12px" loading="lazy" title="${labelAttr}"></iframe>`
   const imageSnippet = `<img src="${embedUrl}/image" width="600" height="400" alt="${labelAttr}" />`
 
