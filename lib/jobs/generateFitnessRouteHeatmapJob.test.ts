@@ -497,9 +497,12 @@ describe('generateFitnessRouteHeatmapJob', () => {
       'running',
       new Date('2026-06-16T07:00:00.000Z')
     )
+    // A fine zig-zag (~22m amplitude) so Douglas–Peucker simplification keeps
+    // every vertex instead of collapsing a straight line, exercising the render
+    // cap with a known, shape-preserving point count.
     const buildCoordinates = (lngOffset: number) =>
       Array.from({ length: 45_000 }, (_value, index) => ({
-        lat: 52 + index / 1_000_000,
+        lat: 52 + index / 1_000_000 + (index % 2) * 0.0002,
         lng: 4 + lngOffset + index / 1_000_000
       }))
     const firstCoordinates = buildCoordinates(0)
@@ -630,9 +633,13 @@ describe('generateFitnessRouteHeatmapJob', () => {
       'running',
       new Date('2026-01-17T07:00:00.000Z')
     )
+    // A fine zig-zag (~22m amplitude) so Douglas–Peucker simplification keeps
+    // every vertex instead of collapsing a straight line, keeping the
+    // accumulation-cap assertion (point count between the render and
+    // accumulation caps) meaningful.
     const buildCoordinates = (lngOffset: number) =>
       Array.from({ length: 60_000 }, (_value, index) => ({
-        lat: 52 + index / 1_000_000,
+        lat: 52 + index / 1_000_000 + (index % 2) * 0.0002,
         lng: 4 + lngOffset + index / 1_000_000
       }))
     const firstCoordinates = buildCoordinates(0)

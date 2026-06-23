@@ -26,6 +26,7 @@ import {
   splitSegmentByBounds
 } from '@/lib/services/fitness-files/routeHeatmap'
 import type { RouteHeatmapPoint } from '@/lib/services/fitness-files/routeHeatmap'
+import { simplifyPoints } from '@/lib/services/fitness-files/simplifyRoute'
 import { getQueue } from '@/lib/services/queue'
 import type { JobMessage } from '@/lib/services/queue/type'
 import type { FitnessRouteHeatmapSegment } from '@/lib/types/database/fitnessRouteHeatmap'
@@ -466,8 +467,16 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
                 buffer
               })
 
+              // Simplify each route with Douglas–Peucker first so straight
+              // stretches collapse toward their endpoints while bends keep their
+              // shape — this both preserves road fidelity and shrinks the point
+              // count fed into accumulation. The uniform filePointLimit then acts
+              // only as a hard ceiling for a pathological single file.
               const routeCoordinates = downsampleRoutePoints(
-                activityData.coordinates,
+                simplifyPoints(
+                  activityData.coordinates,
+                  routeHeatmapConfig.simplifyToleranceMeters
+                ),
                 routeHeatmapConfig.filePointLimit
               )
 
@@ -560,8 +569,12 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
         })
       }
 
+      // Final stored payload: simplify (not just cap) so the persisted geometry
+      // keeps its road-following shape. Checkpoint payloads above deliberately
+      // skip this — they are resume state that must retain raw points.
       const payload = buildRouteHeatmapPayload({
-        privacySegments: allSegments
+        privacySegments: allSegments,
+        simplifyToleranceMeters: routeHeatmapConfig.simplifyToleranceMeters
       })
 
       await database.updateFitnessRouteHeatmapStatus({

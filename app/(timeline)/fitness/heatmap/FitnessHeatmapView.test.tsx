@@ -1291,6 +1291,48 @@ describe('RouteHeatmapMap', () => {
     expect(renderedVertexCount).toBeLessThanOrEqual(50_000)
   })
 
+  it('keeps a route’s corner while trimming its collinear run when rendering', async () => {
+    // A long straight run into a sharp turn north. Uniform every-Nth thinning
+    // would risk dropping the turn; shape-preserving simplification collapses
+    // the collinear run toward its endpoints yet keeps the corner, so the
+    // rendered line still follows the road at zoom.
+    const straightRun = Array.from({ length: 200 }, (_, index) => ({
+      lat: 52.36,
+      lng: 4.88 + index * 0.00005
+    }))
+    const corner = { lat: 52.38, lng: straightRun[straightRun.length - 1].lng }
+    const cornerHeatmap = worldHeatmap({
+      id: 'route-heatmap-corner',
+      updatedAt: 7,
+      segments: [{ points: [...straightRun, corner] }],
+      pointCount: straightRun.length + 1
+    })
+
+    let renderedCoordinates: Array<[number, number]> = []
+    const mapConstructor = createGlMapConstructor((_id, source) => {
+      const features =
+        (
+          source as {
+            data?: {
+              features?: { geometry: { coordinates: [number, number][] } }[]
+            }
+          }
+        ).data?.features ?? []
+      renderedCoordinates = features[0]?.geometry.coordinates ?? []
+    })
+    mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
+
+    render(<RouteHeatmapMap heatmap={cornerHeatmap} />)
+    await waitFor(() => expect(mapConstructor).toHaveBeenCalled())
+
+    // The 200-point collinear run collapses toward its endpoints, so the line is
+    // a handful of vertices rather than all 201.
+    expect(renderedCoordinates.length).toBeGreaterThanOrEqual(2)
+    expect(renderedCoordinates.length).toBeLessThan(10)
+    // The corner vertex survives — the line keeps its turn.
+    expect(renderedCoordinates.some(([, lat]) => lat === corner.lat)).toBe(true)
+  })
+
   it('thins oversized geometry while preserving each segment’s endpoints', () => {
     const longSegment = {
       points: Array.from({ length: 12 }, (_, index) => ({
