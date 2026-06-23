@@ -50,15 +50,9 @@ describe('addStatusToTimelines', () => {
       actorId: ACTOR1_ID
     })
     expect(mainTimeline).toHaveLength(1)
-
-    const noannounceTimeline = await database.getTimeline({
-      timeline: Timeline.NOANNOUNCE,
-      actorId: ACTOR1_ID
-    })
-    expect(noannounceTimeline).toHaveLength(1)
   })
 
-  test('it adds announce to main timeline but not noannounce timeline for following local actor', async () => {
+  test('it adds announce to main timeline for following local actor', async () => {
     // Actor3 follows Actor2. Announce from Actor2 of Actor1/post-1 (Actor3 doesn't
     // follow Actor1, so the original is not already in Actor3's main timeline).
     const id = randomBytes(16).toString('hex')
@@ -77,18 +71,13 @@ describe('addStatusToTimelines', () => {
       actorId: ACTOR3_ID
     })
     expect(mainTimeline.some((s) => s.id === announce.id)).toBe(true)
-
-    const noannounceTimeline = await database.getTimeline({
-      timeline: Timeline.NOANNOUNCE,
-      actorId: ACTOR3_ID
-    })
-    expect(noannounceTimeline.some((s) => s.id === announce.id)).toBe(false)
   })
 
-  test('it adds status to mention timeline for the mentioned actor', async () => {
+  test('it creates a mention notification for the mentioned actor', async () => {
     // External actor mentions Actor3 directly. Actor3 is in `to` so it is
     // discovered as a local recipient and the mention tag triggers the
-    // MENTION timeline rule.
+    // remote reply/mention notification side effect (the mention timeline
+    // itself was removed).
     const id = randomBytes(16).toString('hex')
     const status = await database.createNote({
       id: `${EXTERNAL_ACTOR1}/statuses/${id}`,
@@ -106,11 +95,16 @@ describe('addStatusToTimelines', () => {
     })
     await addStatusToTimelines(database, status)
 
-    const mentionTimeline = await database.getTimeline({
-      timeline: Timeline.MENTION,
-      actorId: ACTOR3_ID
+    const notifications = await database.getNotifications({
+      actorId: ACTOR3_ID,
+      limit: 100
     })
-    expect(mentionTimeline.some((s) => s.id === status.id)).toBe(true)
+    const mentionNotification = notifications.find(
+      (notification) => notification.statusId === status.id
+    )
+    expect(mentionNotification).toBeDefined()
+    expect(mentionNotification?.type).toBe('mention')
+    expect(mentionNotification?.sourceActorId).toBe(EXTERNAL_ACTOR1)
   })
 
   test('it routes direct statuses only to the direct timeline', async () => {
@@ -139,24 +133,19 @@ describe('addStatusToTimelines', () => {
       timeline: Timeline.MAIN,
       actorId: ACTOR1_ID
     })
-    const noannounceTimeline = await database.getTimeline({
-      timeline: Timeline.NOANNOUNCE,
-      actorId: ACTOR1_ID
-    })
-    const recipientMentionTimeline = await database.getTimeline({
-      timeline: Timeline.MENTION,
-      actorId: ACTOR1_ID
-    })
-    const senderMentionTimeline = await database.getTimeline({
-      timeline: Timeline.MENTION,
-      actorId: ACTOR2_ID
-    })
 
     expect(directTimeline.some((s) => s.id === status.id)).toBe(true)
     expect(mainTimeline.some((s) => s.id === status.id)).toBe(false)
-    expect(noannounceTimeline.some((s) => s.id === status.id)).toBe(false)
-    expect(recipientMentionTimeline.some((s) => s.id === status.id)).toBe(false)
-    expect(senderMentionTimeline.some((s) => s.id === status.id)).toBe(false)
+
+    // Direct statuses early-return in addStatusToTimelines and must never run
+    // the reply/mention notification side effect, even when they carry a
+    // mention tag. Guard the contract so a future regression that drops the
+    // isDirect early-return fails here.
+    const notifications = await database.getNotifications({
+      actorId: ACTOR1_ID,
+      limit: 100
+    })
+    expect(notifications.some((n) => n.statusId === status.id)).toBe(false)
   })
 
   test('it skips timelines when recipient blocks the status actor', async () => {

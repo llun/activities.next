@@ -22,15 +22,29 @@ import { StatusType } from '@/lib/types/domain/status'
 import { TagType } from '@/lib/types/domain/tag'
 import { getTracer } from '@/lib/utils/trace'
 
-import { MentionTimelineRule, Timeline } from './types'
+import { TimelineRuleParams } from './types'
 
-export const mentionTimelineRule: MentionTimelineRule = async ({
+/**
+ * Create reply/mention notifications for an inbound REMOTE status.
+ *
+ * This was formerly `mentionTimelineRule`, which materialized a "mention"
+ * timeline AND created reply/mention notifications. The mention timeline (and
+ * its UI tab) has been removed, but this is still the only place that creates
+ * reply and mention notifications for remote statuses — the local-actor path
+ * lives in `createNote.ts`. It runs purely for its notification side effects
+ * and no longer returns or materializes any timeline.
+ *
+ * Local-authored statuses are skipped early: their notifications are handled in
+ * `createNote.ts`, and every notification branch below already requires
+ * `!status.isLocalActor`.
+ */
+export const notifyRemoteReplyAndMention = async ({
   database,
   currentActor,
   status
-}) =>
+}: TimelineRuleParams): Promise<void> =>
   getTracer().startActiveSpan(
-    'timelines.mentionTimelineRule',
+    'timelines.notifyRemoteReplyAndMention',
     {
       attributes: {
         actorId: currentActor.id,
@@ -39,14 +53,15 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
     },
     async (span) => {
       const config = getConfig()
-      if (status.type === StatusType.enum.Announce) {
+      // Announces, self-authored statuses, and local-authored statuses never
+      // generate a notification through this path.
+      if (
+        status.type === StatusType.enum.Announce ||
+        status.isLocalActor ||
+        status.actorId === currentActor.id
+      ) {
         span.end()
-        return null
-      }
-
-      if (status.actorId === currentActor.id) {
-        span.end()
-        return Timeline.MENTION
+        return
       }
       if (
         await database.isEitherBlocking({
@@ -55,10 +70,9 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
         })
       ) {
         span.end()
-        return null
+        return
       }
 
-      let addToTimeline = false
       const alertEvents: NotificationEvent[] = []
       // A reply that also mentions the recipient is a single event. Once a reply
       // notification is created for this status we suppress the duplicate mention
@@ -66,14 +80,13 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
       let replyNotificationCreated = false
 
       // --- Reply detection ---
-      if (status.reply && !status.isLocalActor) {
+      if (status.reply) {
         try {
           const repliedStatus = await database.getStatus({
             statusId: status.reply,
             withReplies: false
           })
           if (repliedStatus && repliedStatus.actorId === currentActor.id) {
-            addToTimeline = true
             const replyNotification = await createNotificationWithPolicy(
               database,
               {
@@ -134,49 +147,45 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
             tag.value === getActorURL(currentActor))
       )
 
-      if (isMentioned) {
-        addToTimeline = true
+      // Skip the mention notification when a reply notification already covers
+      // this status for the same recipient — they are the same event.
+      if (isMentioned && !replyNotificationCreated) {
         const account = currentActor.account
+        // Error is recorded but not re-thrown: a notification DB failure should
+        // not block the rest of the alert dispatch.
+        let mentionNotification = null
+        try {
+          mentionNotification = await createNotificationWithPolicy(database, {
+            actorId: currentActor.id,
+            type: NotificationType.enum.mention,
+            sourceActorId: status.actorId,
+            statusId: status.id,
+            groupKey: `mention:${status.id}`
+          })
+        } catch (error) {
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: 'Failed to create mention notification record'
+          })
+          span.recordException(
+            error instanceof Error ? error : new Error(String(error))
+          )
+        }
 
-        // Skip the mention notification when a reply notification already covers
-        // this status for the same recipient — they are the same event.
-        if (!status.isLocalActor && !replyNotificationCreated) {
-          // Error is recorded but not re-thrown: a notification DB failure
-          // should not block the mention from being added to the timeline.
-          let mentionNotification = null
-          try {
-            mentionNotification = await createNotificationWithPolicy(database, {
-              actorId: currentActor.id,
-              type: NotificationType.enum.mention,
-              sourceActorId: status.actorId,
-              statusId: status.id,
-              groupKey: `mention:${status.id}`
-            })
-          } catch (error) {
-            span.setStatus({
-              code: SpanStatusCode.ERROR,
-              message: 'Failed to create mention notification record'
-            })
-            span.recordException(
-              error instanceof Error ? error : new Error(String(error))
-            )
+        if (mentionNotification && !mentionNotification.filtered) {
+          const mentionEvent: NotificationEvent = {
+            type: NotificationType.enum.mention,
+            notificationId: mentionNotification.id
           }
-
-          if (mentionNotification && !mentionNotification.filtered) {
-            const mentionEvent: NotificationEvent = {
-              type: NotificationType.enum.mention,
-              notificationId: mentionNotification.id
+          if (config.email && account && status.actor) {
+            mentionEvent.emailContent = {
+              recipientEmail: account.email,
+              subject: getMentionSubject(status.actor),
+              text: getMentionTextContent(status),
+              html: getMentionHTMLContent(status)
             }
-            if (config.email && account && status.actor) {
-              mentionEvent.emailContent = {
-                recipientEmail: account.email,
-                subject: getMentionSubject(status.actor),
-                text: getMentionTextContent(status),
-                html: getMentionHTMLContent(status)
-              }
-            }
-            alertEvents.push(mentionEvent)
           }
+          alertEvents.push(mentionEvent)
         }
       }
 
@@ -192,6 +201,5 @@ export const mentionTimelineRule: MentionTimelineRule = async ({
       }
 
       span.end()
-      return addToTimeline ? Timeline.MENTION : null
     }
   )

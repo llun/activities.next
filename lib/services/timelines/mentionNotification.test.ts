@@ -17,8 +17,7 @@ import { Actor, getActorURL } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
-import { mentionTimelineRule } from './mention'
-import { Timeline } from './types'
+import { notifyRemoteReplyAndMention } from './mentionNotification'
 
 vi.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
   sendNotificationAlerts: vi.fn()
@@ -61,7 +60,21 @@ const createMentionTag = async (
   })
 }
 
-describe('mentionTimelineRule', () => {
+const notificationsForStatus = async (
+  database: Database,
+  actorId: string,
+  statusId: string
+) => {
+  const notifications = await database.getNotifications({
+    actorId,
+    limit: 100
+  })
+  return notifications.filter(
+    (notification) => notification.statusId === statusId
+  )
+}
+
+describe('notifyRemoteReplyAndMention', () => {
   const database = getTestSQLDatabase()
 
   beforeAll(async () => {
@@ -80,20 +93,24 @@ describe('mentionTimelineRule', () => {
     mockSendAlerts.mockClear()
   })
 
-  it('returns null for Announce status', async () => {
+  it('does not notify for an Announce status', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     // ACTOR2 announce is seeded in database.ts
     const status = (await database.getStatus({
       statusId: `${ACTOR2_ID}/statuses/post-3`
     })) as Status
+
+    await notifyRemoteReplyAndMention({ database, currentActor: actor, status })
+
     expect(
-      await mentionTimelineRule({ database, currentActor: actor, status })
-    ).toBeNull()
+      await notificationsForStatus(database, actor.id, status.id)
+    ).toHaveLength(0)
+    expect(mockSendAlerts).not.toHaveBeenCalled()
   })
 
-  it('returns MENTION timeline for self-post without creating a notification', async () => {
+  it('does not notify for a self-post', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
-    // Self-post returns MENTION early via actorId check — no tag needed
+    // Self-post returns early via the actorId check — no tag needed
     const status = await createNote(
       database,
       ACTOR3_ID,
@@ -101,23 +118,15 @@ describe('mentionTimelineRule', () => {
       `${ACTOR3_ID}/followers`
     )
 
-    const result = await mentionTimelineRule({
-      database,
-      currentActor: actor,
-      status
-    })
-    expect(result).toEqual(Timeline.MENTION)
+    await notifyRemoteReplyAndMention({ database, currentActor: actor, status })
 
-    const notifications = await database.getNotifications({
-      actorId: actor.id,
-      limit: 100
-    })
-    expect(notifications.filter((n) => n.statusId === status.id)).toHaveLength(
-      0
-    )
+    expect(
+      await notificationsForStatus(database, actor.id, status.id)
+    ).toHaveLength(0)
+    expect(mockSendAlerts).not.toHaveBeenCalled()
   })
 
-  it('returns null when status has no mention tag for the current actor', async () => {
+  it('does not notify when status has no mention tag for the current actor', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     const status = await createNote(
       database,
@@ -127,12 +136,15 @@ describe('mentionTimelineRule', () => {
     )
     // No mention tag created — rule must not trigger on text content alone
 
+    await notifyRemoteReplyAndMention({ database, currentActor: actor, status })
+
     expect(
-      await mentionTimelineRule({ database, currentActor: actor, status })
-    ).toBeNull()
+      await notificationsForStatus(database, actor.id, status.id)
+    ).toHaveLength(0)
+    expect(mockSendAlerts).not.toHaveBeenCalled()
   })
 
-  it('returns null when status text contains actor URL but has no mention tag', async () => {
+  it('does not notify when status text contains actor URL but has no mention tag', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     const status = await createNote(
       database,
@@ -142,12 +154,15 @@ describe('mentionTimelineRule', () => {
     )
     // Text contains actor URL but no explicit mention tag — must NOT trigger
 
+    await notifyRemoteReplyAndMention({ database, currentActor: actor, status })
+
     expect(
-      await mentionTimelineRule({ database, currentActor: actor, status })
-    ).toBeNull()
+      await notificationsForStatus(database, actor.id, status.id)
+    ).toHaveLength(0)
+    expect(mockSendAlerts).not.toHaveBeenCalled()
   })
 
-  it('returns MENTION timeline and creates notification for remote mention', async () => {
+  it('creates a notification for a remote mention', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     const status = await createNote(
       database,
@@ -155,7 +170,7 @@ describe('mentionTimelineRule', () => {
       `Hey ${getActorURL(actor)} hello from remote!`,
       EXTERNAL_ACTOR1_FOLLOWERS
     )
-    // Simulate createNoteJob: persist mention tag before timeline rules run
+    // Simulate createNoteJob: persist mention tag before the rule runs
     await createMentionTag(
       database,
       status.id,
@@ -163,24 +178,17 @@ describe('mentionTimelineRule', () => {
       actor.username
     )
 
-    const result = await mentionTimelineRule({
-      database,
-      currentActor: actor,
-      status
-    })
-    expect(result).toEqual(Timeline.MENTION)
+    await notifyRemoteReplyAndMention({ database, currentActor: actor, status })
 
-    const notifications = await database.getNotifications({
-      actorId: actor.id,
-      limit: 100
-    })
-    const mentionNotif = notifications.find((n) => n.statusId === status.id)
+    const mentionNotif = (
+      await notificationsForStatus(database, actor.id, status.id)
+    )[0]
     expect(mentionNotif).toBeDefined()
     expect(mentionNotif?.type).toBe(NotificationType.enum.mention)
     expect(mentionNotif?.sourceActorId).toBe(EXTERNAL_ACTOR1)
   })
 
-  it('returns null and does not notify when a remote mention is blocked', async () => {
+  it('does not notify when a remote mention is blocked', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     const status = await createNote(
       database,
@@ -201,21 +209,14 @@ describe('mentionTimelineRule', () => {
     })
 
     try {
-      const result = await mentionTimelineRule({
+      await notifyRemoteReplyAndMention({
         database,
         currentActor: actor,
         status
       })
-      expect(result).toBeNull()
 
-      const notifications = await database.getNotifications({
-        actorId: actor.id,
-        limit: 100
-      })
       expect(
-        notifications.filter(
-          (notification) => notification.statusId === status.id
-        )
+        await notificationsForStatus(database, actor.id, status.id)
       ).toHaveLength(0)
       expect(mockSendAlerts).not.toHaveBeenCalled()
     } finally {
@@ -226,7 +227,7 @@ describe('mentionTimelineRule', () => {
     }
   })
 
-  it('returns MENTION timeline and creates notification when tag value matches actor id', async () => {
+  it('creates a notification when the tag value matches the actor id', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     const status = await createNote(
       database,
@@ -237,21 +238,14 @@ describe('mentionTimelineRule', () => {
     // Some servers use the ActivityPub actor ID as the mention href
     await createMentionTag(database, status.id, actor.id, actor.username)
 
-    const result = await mentionTimelineRule({
-      database,
-      currentActor: actor,
-      status
-    })
-    expect(result).toEqual(Timeline.MENTION)
+    await notifyRemoteReplyAndMention({ database, currentActor: actor, status })
 
-    const notifications = await database.getNotifications({
-      actorId: actor.id,
-      limit: 100
-    })
-    expect(notifications.find((n) => n.statusId === status.id)).toBeDefined()
+    expect(
+      await notificationsForStatus(database, actor.id, status.id)
+    ).toHaveLength(1)
   })
 
-  it('returns MENTION timeline but does NOT create notification for local actor mention', async () => {
+  it('does NOT create a notification for a local actor mention', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     // ACTOR1 is a local actor — local-to-local notifications are handled by createNote.ts
     const status = await createNote(
@@ -260,7 +254,7 @@ describe('mentionTimelineRule', () => {
       `Hey ${getActorURL(actor)} hello from local!`,
       `${ACTOR1_ID}/followers`
     )
-    // Simulate createNote.ts: persist mention tag before timeline rules run
+    // Simulate createNote.ts: persist mention tag before the rule runs
     await createMentionTag(
       database,
       status.id,
@@ -268,21 +262,15 @@ describe('mentionTimelineRule', () => {
       actor.username
     )
 
-    const result = await mentionTimelineRule({
-      database,
-      currentActor: actor,
-      status
-    })
-    expect(result).toEqual(Timeline.MENTION)
+    await notifyRemoteReplyAndMention({ database, currentActor: actor, status })
 
-    const notifications = await database.getNotifications({
-      actorId: actor.id,
-      limit: 100
-    })
-    expect(notifications.find((n) => n.statusId === status.id)).toBeUndefined()
+    expect(
+      await notificationsForStatus(database, actor.id, status.id)
+    ).toHaveLength(0)
+    expect(mockSendAlerts).not.toHaveBeenCalled()
   })
 
-  it('sends notification alerts for remote mention', async () => {
+  it('sends notification alerts for a remote mention', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     const status = await createNote(
       database,
@@ -297,7 +285,7 @@ describe('mentionTimelineRule', () => {
       actor.username
     )
 
-    await mentionTimelineRule({ database, currentActor: actor, status })
+    await notifyRemoteReplyAndMention({ database, currentActor: actor, status })
 
     expect(mockSendAlerts).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -311,7 +299,7 @@ describe('mentionTimelineRule', () => {
     )
   })
 
-  it('does NOT send notification alerts for local actor mention', async () => {
+  it('does NOT send notification alerts for a local actor mention', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     const status = await createNote(
       database,
@@ -326,12 +314,12 @@ describe('mentionTimelineRule', () => {
       actor.username
     )
 
-    await mentionTimelineRule({ database, currentActor: actor, status })
+    await notifyRemoteReplyAndMention({ database, currentActor: actor, status })
 
     expect(mockSendAlerts).not.toHaveBeenCalled()
   })
 
-  it('creates reply notification and returns MENTION for remote reply to own post', async () => {
+  it('creates a reply notification for a remote reply to own post', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     // First create a post by the current actor
     const originalPost = await createNote(
@@ -349,25 +337,20 @@ describe('mentionTimelineRule', () => {
       originalPost.id
     )
 
-    const result = await mentionTimelineRule({
+    await notifyRemoteReplyAndMention({
       database,
       currentActor: actor,
       status: replyStatus
     })
-    expect(result).toEqual(Timeline.MENTION)
 
-    const notifications = await database.getNotifications({
-      actorId: actor.id,
-      limit: 100
-    })
-    const replyNotif = notifications.find(
-      (n) => n.statusId === replyStatus.id && n.type === 'reply'
-    )
+    const replyNotif = (
+      await notificationsForStatus(database, actor.id, replyStatus.id)
+    ).find((n) => n.type === 'reply')
     expect(replyNotif).toBeDefined()
     expect(replyNotif?.sourceActorId).toBe(EXTERNAL_ACTOR1)
   })
 
-  it('returns null and does not notify when a remote reply actor is blocked', async () => {
+  it('does not notify when a remote reply actor is blocked', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     const originalPost = await createNote(
       database,
@@ -389,21 +372,14 @@ describe('mentionTimelineRule', () => {
     })
 
     try {
-      const result = await mentionTimelineRule({
+      await notifyRemoteReplyAndMention({
         database,
         currentActor: actor,
         status: replyStatus
       })
-      expect(result).toBeNull()
 
-      const notifications = await database.getNotifications({
-        actorId: actor.id,
-        limit: 100
-      })
       expect(
-        notifications.filter(
-          (notification) => notification.statusId === replyStatus.id
-        )
+        await notificationsForStatus(database, actor.id, replyStatus.id)
       ).toHaveLength(0)
       expect(mockSendAlerts).not.toHaveBeenCalled()
     } finally {
@@ -414,7 +390,7 @@ describe('mentionTimelineRule', () => {
     }
   })
 
-  it('sends notification alerts for remote reply', async () => {
+  it('sends notification alerts for a remote reply', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     const originalPost = await createNote(
       database,
@@ -430,7 +406,7 @@ describe('mentionTimelineRule', () => {
       originalPost.id
     )
 
-    await mentionTimelineRule({
+    await notifyRemoteReplyAndMention({
       database,
       currentActor: actor,
       status: replyStatus
@@ -446,7 +422,7 @@ describe('mentionTimelineRule', () => {
     )
   })
 
-  it('does NOT create reply notification for local actor reply', async () => {
+  it('does NOT create a reply notification for a local actor reply', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     const originalPost = await createNote(
       database,
@@ -463,21 +439,15 @@ describe('mentionTimelineRule', () => {
       originalPost.id
     )
 
-    const result = await mentionTimelineRule({
+    await notifyRemoteReplyAndMention({
       database,
       currentActor: actor,
       status: replyStatus
     })
-    // Not mentioned and local reply — should not add to mention timeline
-    expect(result).toBeNull()
 
-    const notifications = await database.getNotifications({
-      actorId: actor.id,
-      limit: 100
-    })
     expect(
-      notifications.find(
-        (n) => n.statusId === replyStatus.id && n.type === 'reply'
+      (await notificationsForStatus(database, actor.id, replyStatus.id)).find(
+        (n) => n.type === 'reply'
       )
     ).toBeUndefined()
   })
@@ -505,7 +475,7 @@ describe('mentionTimelineRule', () => {
       actor.username
     )
 
-    await mentionTimelineRule({
+    await notifyRemoteReplyAndMention({
       database,
       currentActor: actor,
       status: replyMentionStatus
@@ -513,23 +483,14 @@ describe('mentionTimelineRule', () => {
 
     // A reply that also mentions the recipient is a single event: keep only the
     // (more specific) reply notification and suppress the duplicate mention one.
-    const notifications = await database.getNotifications({
-      actorId: actor.id,
-      limit: 100
-    })
-    expect(
-      notifications.find(
-        (n) => n.statusId === replyMentionStatus.id && n.type === 'reply'
-      )
-    ).toBeDefined()
-    expect(
-      notifications.find(
-        (n) => n.statusId === replyMentionStatus.id && n.type === 'mention'
-      )
-    ).toBeUndefined()
-    expect(
-      notifications.filter((n) => n.statusId === replyMentionStatus.id)
-    ).toHaveLength(1)
+    const forStatus = await notificationsForStatus(
+      database,
+      actor.id,
+      replyMentionStatus.id
+    )
+    expect(forStatus.find((n) => n.type === 'reply')).toBeDefined()
+    expect(forStatus.find((n) => n.type === 'mention')).toBeUndefined()
+    expect(forStatus).toHaveLength(1)
 
     // sendNotificationAlerts called once with a single reply event.
     expect(mockSendAlerts).toHaveBeenCalledTimes(1)
@@ -560,7 +521,7 @@ describe('mentionTimelineRule', () => {
       actor.username
     )
 
-    await mentionTimelineRule({
+    await notifyRemoteReplyAndMention({
       database,
       currentActor: actor,
       status: replyMentionStatus
@@ -608,7 +569,7 @@ describe('mentionTimelineRule', () => {
         actor.username
       )
 
-      await mentionTimelineRule({
+      await notifyRemoteReplyAndMention({
         database,
         currentActor: actor,
         status: replyMentionStatus
@@ -660,7 +621,7 @@ describe('mentionTimelineRule', () => {
       actor.username
     )
 
-    await mentionTimelineRule({
+    await notifyRemoteReplyAndMention({
       database,
       currentActor: actor,
       status: replyMentionStatus
@@ -669,12 +630,10 @@ describe('mentionTimelineRule', () => {
     // ACTOR3 is not the parent author, so the reply branch does not fire and the
     // mention must NOT be suppressed: exactly one mention notification, carrying
     // the mention email template (not the reply one).
-    const notifications = await database.getNotifications({
-      actorId: actor.id,
-      limit: 100
-    })
-    const forStatus = notifications.filter(
-      (n) => n.statusId === replyMentionStatus.id
+    const forStatus = await notificationsForStatus(
+      database,
+      actor.id,
+      replyMentionStatus.id
     )
     expect(forStatus).toHaveLength(1)
     expect(forStatus[0].type).toBe(NotificationType.enum.mention)
@@ -690,7 +649,7 @@ describe('mentionTimelineRule', () => {
     })
   })
 
-  it('returns null for remote reply to another actor post', async () => {
+  it('does not notify for a remote reply to another actor post', async () => {
     const actor = (await database.getActorFromId({ id: ACTOR3_ID })) as Actor
     // Create a post by ACTOR1 (not the current actor)
     const otherPost = await createNote(
@@ -708,12 +667,16 @@ describe('mentionTimelineRule', () => {
       otherPost.id
     )
 
-    const result = await mentionTimelineRule({
+    await notifyRemoteReplyAndMention({
       database,
       currentActor: actor,
       status: replyStatus
     })
-    // Not a reply to our post and no mention → null
-    expect(result).toBeNull()
+
+    // Not a reply to our post and no mention → no notification.
+    expect(
+      await notificationsForStatus(database, actor.id, replyStatus.id)
+    ).toHaveLength(0)
+    expect(mockSendAlerts).not.toHaveBeenCalled()
   })
 })

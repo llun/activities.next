@@ -149,9 +149,7 @@ export const TimelineSQLDatabaseMixin = (
       }
       case Timeline.MAIN:
       case Timeline.HOME:
-      case Timeline.MENTION:
-      case Timeline.DIRECT:
-      case Timeline.NOANNOUNCE: {
+      case Timeline.DIRECT: {
         if (!actorId) return []
 
         const actualTimeline =
@@ -191,13 +189,9 @@ export const TimelineSQLDatabaseMixin = (
           .where('timeline', actualTimeline)
 
         // Exclusive lists hide their members from the home feed only — the home
-        // tab (MAIN/HOME) and its "no announces" variant — never from the
-        // mention or direct feeds, where such posts must still surface.
-        if (
-          timeline === Timeline.MAIN ||
-          timeline === Timeline.HOME ||
-          timeline === Timeline.NOANNOUNCE
-        ) {
+        // tab (MAIN/HOME) — never from the direct feed, where such posts must
+        // still surface.
+        if (timeline === Timeline.MAIN || timeline === Timeline.HOME) {
           applyExclusiveListFilter({ database, query, viewerActorId: actorId })
         }
 
