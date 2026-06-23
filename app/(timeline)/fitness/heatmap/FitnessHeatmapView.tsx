@@ -49,6 +49,8 @@ type PeriodType = 'all_time' | 'yearly' | 'monthly'
 interface Props {
   actorId: string
   mapboxAccessToken?: string
+  /** Server-computed origin for embed share links (avoids a `window` SSR gap). */
+  embedOrigin: string
 }
 
 const currentYear = new Date().getUTCFullYear()
@@ -176,7 +178,8 @@ const applyRegionNames = (
 
 export const FitnessHeatmapView: FC<Props> = ({
   actorId,
-  mapboxAccessToken
+  mapboxAccessToken,
+  embedOrigin
 }) => {
   const [activityTypes, setActivityTypes] = useState<string[]>([])
   const [selectedType, setSelectedType] = useState<string>('')
@@ -558,17 +561,6 @@ export const FitnessHeatmapView: FC<Props> = ({
       setIsRetrying(false)
     }
   }, [heatmapData, enqueueGeneration])
-
-  // Embed links use the actor's own canonical origin so a shared snippet points
-  // at the heatmap's home domain (multi-domain correct), falling back to the
-  // current origin if the actor id is not a parseable URL.
-  const embedOrigin = useMemo(() => {
-    try {
-      return new URL(actorId).origin
-    } catch {
-      return typeof window !== 'undefined' ? window.location.origin : ''
-    }
-  }, [actorId])
 
   const handleShare = useCallback(async () => {
     if (!openRegionId || openRegionKey === null) return
