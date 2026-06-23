@@ -7,8 +7,7 @@ import { getTracer } from '@/lib/utils/trace'
 
 import { getBlockedRecipientActorIdsForStatus } from './blockFilter'
 import { mainTimelineRule } from './main'
-import { mentionTimelineRule } from './mention'
-import { noannounceTimelineRule } from './noaanounce'
+import { notifyRemoteReplyAndMention } from './mentionNotification'
 import { Timeline } from './types'
 
 // The list and collection feeds are materialized, rebuildable projections of
@@ -113,26 +112,43 @@ export const addStatusToTimelines = async (
               status,
               timeline: Timeline.DIRECT
             })
+            return
           }
 
-          await Promise.all(
-            (isDirect
-              ? []
-              : [mainTimelineRule, noannounceTimelineRule, mentionTimelineRule]
-            ).map(async (timelineFunction) => {
-              const timeline = await timelineFunction({
+          await Promise.all([
+            // Materialize the home (main) timeline.
+            (async () => {
+              const timeline = await mainTimelineRule({
                 currentActor: actor,
                 status,
                 database
               })
               if (!timeline) return
-              return database.createTimelineStatus({
+              await database.createTimelineStatus({
                 actorId: actor.id,
                 status,
                 timeline
               })
+            })(),
+            // Side effect only: create reply/mention notifications for inbound
+            // remote statuses (the "mention" timeline itself was removed). The
+            // local-actor path is handled in createNote.ts. Best-effort, like
+            // the list/collection fan-out above: a notification failure must not
+            // abort home-timeline materialization (or lose the status).
+            notifyRemoteReplyAndMention({
+              currentActor: actor,
+              status,
+              database
+            }).catch((error) => {
+              logger.error({
+                message:
+                  'Failed to create remote reply/mention notifications; continuing',
+                statusId: status.id,
+                actorId: actor.id,
+                error: error instanceof Error ? error.message : String(error)
+              })
             })
-          )
+          ])
         })
       )
       span.end()

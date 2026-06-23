@@ -5,8 +5,6 @@ import { Status } from '@/lib/types/domain/status'
 export enum Timeline {
   MAIN = 'main',
   HOME = 'home',
-  NOANNOUNCE = 'noannounce',
-  MENTION = 'mention',
   DIRECT = 'direct',
   LOCAL_PUBLIC = 'local-public',
   // The "whole known network" feed: remote public statuses ingested from
@@ -45,13 +43,3 @@ export interface TimelineRuleParams {
 export type MainTimelineRule = (
   params: TimelineRuleParams
 ) => Promise<Timeline.MAIN | null>
-
-export type NoAnnounceTimelineRule = (
-  params: TimelineRuleParams
-) => Promise<Timeline.NOANNOUNCE | null>
-
-export type MentionTimelineRule = (
-  params: TimelineRuleParams
-) => Promise<Timeline.MENTION | null>
-
-export type TimelineRule = MainTimelineRule | NoAnnounceTimelineRule

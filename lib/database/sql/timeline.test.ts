@@ -534,43 +534,13 @@ describe('TimelineDatabase', () => {
           expect(ids).toContain(plainId)
         })
 
-        it('hides exclusive-list members from the no-announce timeline', async () => {
-          const exclId = await seed(
-            EXCL_MEMBER,
-            'noann-excl',
-            Timeline.NOANNOUNCE
-          )
-          const plainId = await seed(PLAIN, 'noann-plain', Timeline.NOANNOUNCE)
-
-          const ids = (
-            await database.getTimeline({
-              timeline: Timeline.NOANNOUNCE,
-              actorId: OWNER
-            })
-          ).map((status) => status.id)
-
-          expect(ids).not.toContain(exclId)
-          expect(ids).toContain(plainId)
-        })
-
-        it('still shows exclusive-list members in mention and direct timelines', async () => {
-          const mentionId = await seed(
-            EXCL_MEMBER,
-            'mention-excl',
-            Timeline.MENTION
-          )
+        it('still shows exclusive-list members in the direct timeline', async () => {
           const directId = await seed(
             EXCL_MEMBER,
             'direct-excl',
             Timeline.DIRECT
           )
 
-          const mentionIds = (
-            await database.getTimeline({
-              timeline: Timeline.MENTION,
-              actorId: OWNER
-            })
-          ).map((status) => status.id)
           const directIds = (
             await database.getTimeline({
               timeline: Timeline.DIRECT,
@@ -578,7 +548,6 @@ describe('TimelineDatabase', () => {
             })
           ).map((status) => status.id)
 
-          expect(mentionIds).toContain(mentionId)
           expect(directIds).toContain(directId)
         })
 

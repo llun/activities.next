@@ -10,12 +10,6 @@ import { PostBox } from '@/lib/components/post-box/post-box'
 import { Posts } from '@/lib/components/posts/posts'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
 import { Button } from '@/lib/components/ui/button'
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger
-} from '@/lib/components/ui/tabs'
 import { Timeline } from '@/lib/services/timelines/types'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -23,17 +17,6 @@ import { EditableStatus, Status } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 
 import { clearAction, editAction, statusActionReducer } from './reducer'
-
-interface Tab {
-  name: string
-  timeline: Timeline
-}
-
-const TIMELINES_TABS: Tab[] = [
-  { timeline: Timeline.MAIN, name: 'Home' },
-  { timeline: Timeline.NOANNOUNCE, name: 'No Announces' },
-  { timeline: Timeline.MENTION, name: 'Mention' }
-]
 
 interface MainPageTimelineProps {
   host: string
@@ -54,7 +37,6 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   initialNextMaxStatusId = null,
   postLineLimit
 }) => {
-  const [currentTab, setCurrentTab] = useState<Tab>(TIMELINES_TABS[0])
   const [statusActionState, dispatchStatusAction] = useReducer(
     statusActionReducer,
     {}
@@ -66,7 +48,6 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   const [isLoadingMoreStatuses, setLoadingMoreStatuses] =
     useState<boolean>(false)
   const [isLoadMoreVisible, setIsLoadMoreVisible] = useState<boolean>(false)
-  const tabRequestId = useRef(0)
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const isLoadingRef = useRef<boolean>(false)
   const lastStatusIdRef = useRef<string | null>(
@@ -102,7 +83,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     setLoadingMoreStatuses(true)
     try {
       const result = await getTimeline({
-        timeline: currentTab.timeline,
+        timeline: Timeline.MAIN,
         maxStatusId: lastStatusId
       })
       if (result.statuses.length === 0) {
@@ -122,7 +103,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       isLoadingRef.current = false
       setLoadingMoreStatuses(false)
     }
-  }, [currentTab.timeline])
+  }, [])
 
   // Set up IntersectionObserver for automatic loading
   useEffect(() => {
@@ -157,16 +138,16 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
 
   const refreshTimeline = useCallback(async () => {
+    // isLoadingRef serializes refreshes, so only one runs at a time and there
+    // is no concurrent request to guard against.
     if (isLoadingRef.current) return
 
     isLoadingRef.current = true
-    const requestId = ++tabRequestId.current
     setIsRefreshing(true)
     setLoadingMoreStatuses(true)
 
     try {
-      const result = await getTimeline({ timeline: currentTab.timeline })
-      if (requestId !== tabRequestId.current) return
+      const result = await getTimeline({ timeline: Timeline.MAIN })
       setCurrentStatuses(result.statuses)
       setHasMoreStatuses(
         result.statuses.length > 0 || Boolean(result.nextMaxStatusId)
@@ -179,47 +160,11 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     } catch (_error) {
       // Error refreshing - existing posts remain visible, user can retry
     } finally {
-      if (requestId === tabRequestId.current) {
-        setLoadingMoreStatuses(false)
-      }
+      setLoadingMoreStatuses(false)
       isLoadingRef.current = false
       setIsRefreshing(false)
     }
-  }, [currentTab.timeline])
-
-  const onTabChange = async (value: string) => {
-    const tab = TIMELINES_TABS.find((t) => t.timeline === value)
-    if (!tab) return
-
-    const requestId = tabRequestId.current + 1
-    tabRequestId.current = requestId
-
-    setCurrentTab(tab)
-    setCurrentStatuses([])
-    setHasMoreStatuses(true)
-    setLoadingMoreStatuses(true)
-    lastStatusIdRef.current = null
-
-    try {
-      const result = await getTimeline({
-        timeline: tab.timeline
-      })
-      if (requestId !== tabRequestId.current) return
-      setCurrentStatuses(result.statuses)
-      setHasMoreStatuses(
-        result.statuses.length > 0 || Boolean(result.nextMaxStatusId)
-      )
-      lastStatusIdRef.current =
-        result.nextMaxStatusId ||
-        (result.statuses.length > 0
-          ? result.statuses[result.statuses.length - 1].id
-          : null)
-    } finally {
-      if (requestId === tabRequestId.current) {
-        setLoadingMoreStatuses(false)
-      }
-    }
-  }
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -269,47 +214,33 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         />
       </section>
 
-      <Tabs
-        value={currentTab.timeline}
-        onValueChange={onTabChange}
-        className="w-full"
-      >
-        <TabsList className="grid w-full grid-cols-3">
-          {TIMELINES_TABS.map((tab) => (
-            <TabsTrigger key={tab.timeline} value={tab.timeline}>
-              {tab.name}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
-        <TabsContent value={currentTab.timeline} className="mt-4">
-          {currentStatuses.length > 0 ? (
-            <Posts
-              host={host}
-              currentTime={currentTime}
-              statuses={currentStatuses}
-              currentActor={profile}
-              showActions
-              isMediaUploadEnabled={isMediaUploadEnabled}
-              postLineLimit={postLineLimit}
-              onReplyCreated={onReplyCreated}
-              onEdit={onEdit}
-              onPostDeleted={onPostDeleted}
-            />
-          ) : isLoadingMoreStatuses || isRefreshing ? (
-            <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">
-              <p className="text-sm font-medium">Loading timeline...</p>
-            </div>
-          ) : (
-            <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">
-              <h2 className="mb-2 text-xl font-semibold">
-                Your timeline is empty
-              </h2>
-              <p>Follow some people to see their posts here.</p>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+      <section>
+        {currentStatuses.length > 0 ? (
+          <Posts
+            host={host}
+            currentTime={currentTime}
+            statuses={currentStatuses}
+            currentActor={profile}
+            showActions
+            isMediaUploadEnabled={isMediaUploadEnabled}
+            postLineLimit={postLineLimit}
+            onReplyCreated={onReplyCreated}
+            onEdit={onEdit}
+            onPostDeleted={onPostDeleted}
+          />
+        ) : isLoadingMoreStatuses || isRefreshing ? (
+          <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">
+            <p className="text-sm font-medium">Loading timeline...</p>
+          </div>
+        ) : (
+          <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">
+            <h2 className="mb-2 text-xl font-semibold">
+              Your timeline is empty
+            </h2>
+            <p>Follow some people to see their posts here.</p>
+          </div>
+        )}
+      </section>
 
       {hasMoreStatuses && (
         <div ref={loadMoreRef} className="text-center">

@@ -47,15 +47,6 @@ vi.mock('@/lib/components/posts/posts', () => ({
   )
 }))
 
-vi.mock('@/lib/components/ui/tabs', () => ({
-  Tabs: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  TabsContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  TabsList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  TabsTrigger: ({ children }: { children: ReactNode }) => (
-    <button>{children}</button>
-  )
-}))
-
 vi.mock('@/lib/components/ui/button', () => ({
   Button: ({ children }: { children: ReactNode }) => <button>{children}</button>
 }))
