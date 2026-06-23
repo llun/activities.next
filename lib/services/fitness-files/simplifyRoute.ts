@@ -110,9 +110,13 @@ export const simplifyPoints = <T extends LatLng>(
   // Bounds total comparisons so a pathological input cannot run in O(n²); see
   // MAX_COMPARISONS_PER_POINT. Never trips for real tracks.
   let comparisonsRemaining = length * MAX_COMPARISONS_PER_POINT
-  const stack: Array<[number, number]> = [[0, length - 1]]
+  // Flat [start, end, start, end, …] stack: pushing two numbers instead of a
+  // tuple array avoids per-subsegment allocation (and GC churn) in this hot loop
+  // while keeping the exact same DFS order.
+  const stack: number[] = [0, length - 1]
   while (stack.length > 0) {
-    const [start, end] = stack.pop() as [number, number]
+    const end = stack.pop() as number
+    const start = stack.pop() as number
     const ax = xs[start]
     const ay = ys[start]
     const bx = xs[end]
@@ -140,10 +144,10 @@ export const simplifyPoints = <T extends LatLng>(
       keep[farthestIndex] = 1
       // Only recurse into a side that still has an interior vertex to test.
       if (farthestIndex - start > 1) {
-        stack.push([start, farthestIndex])
+        stack.push(start, farthestIndex)
       }
       if (end - farthestIndex > 1) {
-        stack.push([farthestIndex, end])
+        stack.push(farthestIndex, end)
       }
     }
 
