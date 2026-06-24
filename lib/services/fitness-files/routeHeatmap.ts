@@ -13,7 +13,7 @@ import {
 } from '@/lib/utils/webMercator'
 
 import type { FitnessCoordinate } from './parseFitnessFile'
-import { simplifyPoints } from './simplifyRoute'
+import { MAX_BUDGET_PASSES, simplifyPoints } from './simplifyRoute'
 
 export interface RouteHeatmapPoint extends FitnessCoordinate {
   isHiddenByPrivacy: boolean
@@ -89,6 +89,10 @@ export const splitSegmentByBounds = <T extends FitnessCoordinate>(
   return segments
 }
 
+const countSegmentPoints = (
+  segments: Array<PrivacySegment<RouteHeatmapPoint>>
+): number => segments.reduce((sum, segment) => sum + segment.points.length, 0)
+
 const round6 = (value: number) => Math.round(value * 1_000_000) / 1_000_000
 
 const normalizeCoordinate = (point: FitnessCoordinate) => ({
@@ -115,20 +119,33 @@ export const buildRouteHeatmapPayload = ({
 
   // Shape-preserving simplification first, so the `maxPoints` cap only has to
   // act as a ceiling for pathological caches rather than uniformly decimating
-  // every route (which would cut corners off the road at street zoom). Reuse the
-  // original segment object when simplifyPoints leaves the points untouched.
-  const simplifiedSegments =
-    simplifyToleranceMeters > 0
-      ? filteredSegments
-          .map((segment) => {
-            const points = simplifyPoints(
-              segment.points,
-              simplifyToleranceMeters
-            )
-            return points === segment.points ? segment : { ...segment, points }
-          })
-          .filter((segment) => segment.points.length >= 2)
-      : filteredSegments
+  // every route (which would cut corners off the road at street zoom). Start at
+  // the finest tolerance and, only if the result still overflows the budget,
+  // geometrically coarsen and re-simplify (still Douglas–Peucker, so a dense
+  // region is coarsened rather than corner-cut). Reuse the original segment
+  // object when simplifyPoints leaves the points untouched.
+  const simplifyAt = (tolerance: number) =>
+    filteredSegments
+      .map((segment) => {
+        const points = simplifyPoints(segment.points, tolerance)
+        return points === segment.points ? segment : { ...segment, points }
+      })
+      .filter((segment) => segment.points.length >= 2)
+
+  let simplifiedSegments = filteredSegments
+  if (simplifyToleranceMeters > 0) {
+    let tolerance = simplifyToleranceMeters
+    simplifiedSegments = simplifyAt(tolerance)
+    for (
+      let pass = 0;
+      pass < MAX_BUDGET_PASSES &&
+      countSegmentPoints(simplifiedSegments) > maxPoints;
+      pass += 1
+    ) {
+      tolerance *= 2
+      simplifiedSegments = simplifyAt(tolerance)
+    }
+  }
 
   const sampledSegments = downsamplePrivacySegments(
     simplifiedSegments,

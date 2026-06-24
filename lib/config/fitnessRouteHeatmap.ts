@@ -31,11 +31,12 @@ export const DEFAULT_ROUTE_HEATMAP_ACCUMULATION_POINT_LIMIT =
   DEFAULT_ROUTE_HEATMAP_MAX_POINTS * 2
 export const DEFAULT_ROUTE_HEATMAP_FILE_POINT_LIMIT =
   DEFAULT_ROUTE_HEATMAP_MAX_POINTS
-// 2m keeps the simplified line within a single road lane of the recorded track,
-// so it still hugs the road at street zoom while dropping the redundant samples
-// on straightaways. GPS noise is already a few meters, so a tighter tolerance
-// would mostly preserve jitter at a steep payload cost.
-export const DEFAULT_ROUTE_HEATMAP_SIMPLIFY_TOLERANCE_METERS = 2
+// 1m is the *finest* tolerance: it sits near the GPS-noise floor (a few meters),
+// so it follows gentle road curves closely without amplifying jitter. It is only
+// a floor — dense regions whose combined geometry would overflow the point budget
+// are adaptively coarsened from here (see buildRouteHeatmapPayload /
+// simplifySegmentsToBudget), so finer detail is kept wherever the budget allows.
+export const DEFAULT_ROUTE_HEATMAP_SIMPLIFY_TOLERANCE_METERS = 1
 
 const parsePositiveInteger = (value: string | undefined, fallback: number) => {
   if (!value) return fallback

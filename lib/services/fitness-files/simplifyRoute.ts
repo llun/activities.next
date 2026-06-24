@@ -33,6 +33,17 @@ const METERS_PER_DEGREE = EARTH_RADIUS_METERS * DEG_TO_RAD
 // endpoint-preserving simplification.
 const MAX_COMPARISONS_PER_POINT = 128
 
+// Max times the adaptive budget fit doubles the tolerance. Geometric growth means
+// a handful of passes spans a huge tolerance range (e.g. 1m → 256m after 8 passes
+// collapses almost everything), so this is only a runaway guard — it bounds the
+// adaptive cost at O(passes · n), never trimming a realistic region's detail
+// before it fits.
+export const MAX_BUDGET_PASSES = 8
+
+const totalPointCount = (
+  segments: ReadonlyArray<{ points: ReadonlyArray<unknown> }>
+): number => segments.reduce((sum, segment) => sum + segment.points.length, 0)
+
 // Squared distance (in meters²) from a point to the segment `a`→`b`, all already
 // projected to the local equirectangular meters plane (see simplifyPoints).
 // Distances are compared squared to avoid a sqrt per candidate point.
@@ -201,4 +212,41 @@ export const simplifySegments = (
     }
   }
   return changed ? simplified : segments
+}
+
+/**
+ * Simplify segments to at most `maxPoints` vertices while preserving road shape.
+ *
+ * Starts at the finest `baseToleranceMeters` (max granularity) and, only if the
+ * result still exceeds the budget, geometrically coarsens the tolerance and
+ * re-simplifies the ORIGINAL segments until it fits (or {@link MAX_BUDGET_PASSES}
+ * is reached). Every pass is Douglas–Peucker, so the output is always
+ * shape-preserving — a dense region is coarsened (still following the road)
+ * rather than uniformly decimated (which cuts corners). Returns the input
+ * reference when the base pass already fits and changes nothing.
+ *
+ * This is a best-effort target, not a hard ceiling: callers that need a strict
+ * cap should still apply a final uniform fallback (e.g. `downsampleSegments`),
+ * which now only triggers for pathological many-tiny-segment inputs.
+ */
+export const simplifySegmentsToBudget = (
+  segments: FitnessRouteHeatmapSegment[],
+  maxPoints: number,
+  baseToleranceMeters: number
+): FitnessRouteHeatmapSegment[] => {
+  if (baseToleranceMeters <= 0) {
+    return segments
+  }
+
+  let tolerance = baseToleranceMeters
+  let result = simplifySegments(segments, tolerance)
+  for (
+    let pass = 0;
+    pass < MAX_BUDGET_PASSES && totalPointCount(result) > maxPoints;
+    pass += 1
+  ) {
+    tolerance *= 2
+    result = simplifySegments(segments, tolerance)
+  }
+  return result
 }

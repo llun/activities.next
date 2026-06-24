@@ -79,6 +79,30 @@ describe('buildRouteHeatmapPayload', () => {
     ).toBe(true)
   })
 
+  it('adaptively coarsens the tolerance to fit a dense region under maxPoints', () => {
+    // Ten wiggly in-budget-overflowing segments: at the 1m floor their combined
+    // geometry exceeds the small cap, so the builder coarsens the tolerance
+    // (shape-preserving) until it fits — every segment survives, no uniform cut.
+    const segments = Array.from({ length: 10 }, (_value, segmentIndex) => ({
+      isHiddenByPrivacy: false,
+      points: Array.from({ length: 200 }, (_point, index) => ({
+        lat: 1.3 + index * 0.00002 + (index % 2) * 0.0001,
+        lng: 103 + segmentIndex + index * 0.00002,
+        isHiddenByPrivacy: false
+      }))
+    }))
+
+    const payload = buildRouteHeatmapPayload({
+      privacySegments: segments,
+      maxPoints: 400,
+      simplifyToleranceMeters: 1
+    })
+
+    expect(payload.pointCount).toBeLessThanOrEqual(400)
+    expect(payload.pointCount).toBeGreaterThanOrEqual(2)
+    expect(payload.segments.length).toBe(10)
+  })
+
   it('preserves the privacy flag through tolerance-driven simplification', () => {
     // A long collinear hidden run: simplification must collapse it but keep the
     // segment marked hidden, since the worker calls this path (not simplifySegments)
