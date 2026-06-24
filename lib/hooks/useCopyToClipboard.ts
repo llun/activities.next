@@ -20,14 +20,24 @@ export const useCopyToClipboard = (resetMs = 1600): UseCopyToClipboard => {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined
   )
+  const mountedRef = useRef(true)
 
-  useEffect(() => () => clearTimeout(timeoutRef.current), [])
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      clearTimeout(timeoutRef.current)
+    }
+  }, [])
 
   const copy = useCallback(
     async (text: string) => {
       if (!navigator.clipboard) return
       try {
         await navigator.clipboard.writeText(text)
+        // The write is async, so the component may have unmounted while it was
+        // in flight — skip the state update / timer in that case.
+        if (!mountedRef.current) return
         setCopied(true)
         clearTimeout(timeoutRef.current)
         timeoutRef.current = setTimeout(() => setCopied(false), resetMs)

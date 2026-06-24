@@ -163,6 +163,16 @@ describe('buildSharedHeatmapView', () => {
     expect(view.stats.period).toBe('2025')
   })
 
+  it('does not double the slash when the origin has a trailing slash', () => {
+    const view = buildSharedHeatmapView({
+      heatmap: baseHeatmap,
+      owner,
+      origin: 'https://llun.test/',
+      token: 'tok123'
+    })
+    expect(view.publicUrl).toBe('https://llun.test/u/heatmaps/tok123')
+  })
+
   it('derives the handle from the actor id when the owner is missing', () => {
     const view = buildSharedHeatmapView({
       heatmap: baseHeatmap,

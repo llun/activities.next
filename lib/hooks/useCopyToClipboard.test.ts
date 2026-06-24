@@ -62,6 +62,31 @@ describe('useCopyToClipboard', () => {
     expect(clearSpy).toHaveBeenCalled()
   })
 
+  it('does not flip copied when it unmounts while the write is in flight', async () => {
+    let resolveWrite: (() => void) | undefined
+    const writeText = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveWrite = resolve
+        })
+    )
+    setClipboard(writeText)
+
+    const { result, unmount } = renderHook(() => useCopyToClipboard())
+    let copyPromise: Promise<void> | undefined
+    act(() => {
+      copyPromise = result.current.copy('hello')
+    })
+    // Unmount before the clipboard write resolves, then let it resolve.
+    unmount()
+    await act(async () => {
+      resolveWrite?.()
+      await copyPromise
+    })
+    // The guard skips setCopied after unmount — no act warning, no late update.
+    expect(result.current.copied).toBe(false)
+  })
+
   it('stays uncopied when the clipboard write rejects', async () => {
     const writeText = vi.fn().mockRejectedValue(new Error('denied'))
     setClipboard(writeText)

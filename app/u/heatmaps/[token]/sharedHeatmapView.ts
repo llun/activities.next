@@ -116,7 +116,8 @@ export const buildSharedHeatmapView = ({
       initials: computeInitials(ownerName)
     },
     generatedLabel: formatGeneratedDate(heatmap.updatedAt),
-    publicUrl: `${origin}/u/heatmaps/${token}`,
+    // Drop any trailing slash so a base like `https://host/` can't yield `//`.
+    publicUrl: `${origin.replace(/\/+$/, '')}/u/heatmaps/${token}`,
     heatmap: {
       id: heatmap.id,
       activityType: heatmap.activityType,

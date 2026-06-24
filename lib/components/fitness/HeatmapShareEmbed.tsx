@@ -190,12 +190,13 @@ export const HeatmapShareEmbed: FC<HeatmapShareEmbedProps> = ({
   const altText = `Route heatmap — ${title}`
   const altAttr = escapeAttr(altText)
 
-  const linkUrl = shareToken ? `${embedOrigin}/u/heatmaps/${shareToken}` : ''
-  const embedSrc = shareToken
-    ? `${embedOrigin}/embed/heatmap/${shareToken}`
-    : ''
+  // Normalise away any trailing slash so a base like `https://host/` can't
+  // produce a double slash in the path.
+  const base = embedOrigin.replace(/\/+$/, '')
+  const linkUrl = shareToken ? `${base}/u/heatmaps/${shareToken}` : ''
+  const embedSrc = shareToken ? `${base}/embed/heatmap/${shareToken}` : ''
   const imageUrl = shareToken
-    ? `${embedOrigin}/embed/heatmap/${shareToken}/image?w=${size.width}&h=${size.height}`
+    ? `${base}/embed/heatmap/${shareToken}/image?w=${size.width}&h=${size.height}`
     : ''
 
   const iframeSnippet = `<iframe src="${embedSrc}" width="${size.width}" height="${size.height}"\n  loading="lazy" style="border:0;border-radius:12px"\n  title="${altAttr}"></iframe>`
