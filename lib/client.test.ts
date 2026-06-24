@@ -1054,4 +1054,40 @@ describe('client collection helpers', () => {
       expect.objectContaining({ method: 'GET' })
     )
   })
+
+  it('encodes the cursor params with urlToId for the timeline and feed helpers', async () => {
+    fetchMock.mockResponse(
+      JSON.stringify({
+        statuses: [],
+        nextMaxStatusId: null,
+        prevMinStatusId: null
+      }),
+      { status: 200 }
+    )
+    const maxStatusId = 'https://remote.example/users/a/statuses/older'
+    const minStatusId = 'https://remote.example/users/a/statuses/newer'
+
+    // Parse the requested URL so the assertion is decoding-agnostic (the `:` in
+    // an encoded id is %3A-escaped in the query string) and order-agnostic.
+    const lastRequestUrl = () =>
+      new URL(
+        fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0] as string
+      )
+
+    await getCollectionTimeline({
+      collectionId: 'c1',
+      maxStatusId,
+      minStatusId
+    })
+    const timelineUrl = lastRequestUrl()
+    expect(timelineUrl.pathname).toBe('/api/v1/timelines/collection/c1')
+    expect(timelineUrl.searchParams.get('max_id')).toBe(urlToId(maxStatusId))
+    expect(timelineUrl.searchParams.get('min_id')).toBe(urlToId(minStatusId))
+
+    await getCollectionFeed({ collectionId: 'c1', maxStatusId, minStatusId })
+    const feedUrl = lastRequestUrl()
+    expect(feedUrl.pathname).toBe('/api/v1/collections/c1/feed')
+    expect(feedUrl.searchParams.get('max_id')).toBe(urlToId(maxStatusId))
+    expect(feedUrl.searchParams.get('min_id')).toBe(urlToId(minStatusId))
+  })
 })

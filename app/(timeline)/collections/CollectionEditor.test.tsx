@@ -143,6 +143,25 @@ describe('CollectionEditor', () => {
     )
   })
 
+  it('shows an inline error and does not add the member when the add fails', async () => {
+    ;(addCollectionAccounts as jest.Mock).mockResolvedValue(false)
+    render(
+      <CollectionEditor
+        mode="edit"
+        collection={collection}
+        initialMembers={[]}
+        followingSuggestions={[suggestion]}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not add that account. Please try again.'
+    )
+    expect(screen.queryByText('In this collection · 1')).not.toBeInTheDocument()
+  })
+
   it('removes a member right away', async () => {
     render(
       <CollectionEditor

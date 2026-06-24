@@ -158,6 +158,7 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
 
   const switchProjection = async (next: Projection) => {
     if (next === projection) return
+    const previous = projection
     setProjection(next)
     const requestId = ++requestIdRef.current
     setLoadingMoreStatuses(true)
@@ -172,7 +173,10 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
           : null
       setHasMoreStatuses(Boolean(result.nextMaxStatusId))
     } catch {
-      // Leave the previous feed in place on error; the toggle can be retried.
+      // Revert the projection on failure so the toggle, roster, feed and cursor
+      // stay consistent (the old feed + cursor are still in place). Only revert
+      // if this is still the latest request, so we don't clobber a newer switch.
+      if (requestId === requestIdRef.current) setProjection(previous)
     } finally {
       // Only the latest request owns the loading flags; a superseded request
       // must not clear them out from under the one that replaced it.
