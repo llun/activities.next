@@ -16,6 +16,7 @@ import { FC, useState } from 'react'
 import { FitnessRouteHeatmapData } from '@/lib/client'
 import { RouteHeatmapMap } from '@/lib/components/fitness/RouteHeatmapMap'
 import { Button } from '@/lib/components/ui/button'
+import { useCopyToClipboard } from '@/lib/hooks/useCopyToClipboard'
 import { cn } from '@/lib/utils'
 
 /** Embed/image sizes offered to the owner (mirrors the design kit). */
@@ -65,20 +66,7 @@ interface CopyFieldProps {
  * iframe/img snippets and the public link.
  */
 const CopyField: FC<CopyFieldProps> = ({ value, mono, copyLabel }) => {
-  const [copied, setCopied] = useState(false)
-
-  const handleCopy = async () => {
-    // navigator.clipboard is undefined in insecure (http) contexts and older
-    // browsers; the field stays selectable so the user can copy manually.
-    if (!navigator.clipboard) return
-    try {
-      await navigator.clipboard.writeText(value)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1600)
-    } catch {
-      // Clipboard access can be denied; selection fallback still works.
-    }
-  }
+  const { copied, copy } = useCopyToClipboard()
 
   return (
     <div className="flex items-stretch gap-2">
@@ -103,7 +91,7 @@ const CopyField: FC<CopyFieldProps> = ({ value, mono, copyLabel }) => {
         type="button"
         size="sm"
         className="h-auto shrink-0 self-stretch px-3"
-        onClick={handleCopy}
+        onClick={() => copy(value)}
         aria-label={copyLabel}
       >
         {copied ? (

@@ -1,0 +1,74 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { act, renderHook, waitFor } from '@testing-library/react'
+
+import { useCopyToClipboard } from './useCopyToClipboard'
+
+const setClipboard = (writeText: ReturnType<typeof vi.fn> | undefined) => {
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: writeText ? { writeText } : undefined
+  })
+}
+
+afterEach(() => {
+  vi.useRealTimers()
+  setClipboard(undefined)
+})
+
+describe('useCopyToClipboard', () => {
+  it('writes the text and flips copied true → false after the reset delay', async () => {
+    vi.useFakeTimers()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    setClipboard(writeText)
+
+    const { result } = renderHook(() => useCopyToClipboard(1000))
+    expect(result.current.copied).toBe(false)
+
+    await act(async () => {
+      await result.current.copy('hello')
+    })
+    expect(writeText).toHaveBeenCalledWith('hello')
+    expect(result.current.copied).toBe(true)
+
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(result.current.copied).toBe(false)
+  })
+
+  it('no-ops without throwing when navigator.clipboard is unavailable', async () => {
+    setClipboard(undefined)
+    const { result } = renderHook(() => useCopyToClipboard())
+    await act(async () => {
+      await result.current.copy('hello')
+    })
+    expect(result.current.copied).toBe(false)
+  })
+
+  it('clears the pending reset timer on unmount', async () => {
+    vi.useFakeTimers()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    setClipboard(writeText)
+    const clearSpy = vi.spyOn(globalThis, 'clearTimeout')
+
+    const { result, unmount } = renderHook(() => useCopyToClipboard())
+    await act(async () => {
+      await result.current.copy('hello')
+    })
+    unmount()
+    // The unmount cleanup clears the outstanding reset timer.
+    expect(clearSpy).toHaveBeenCalled()
+  })
+
+  it('stays uncopied when the clipboard write rejects', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('denied'))
+    setClipboard(writeText)
+    const { result } = renderHook(() => useCopyToClipboard())
+    await act(async () => {
+      await result.current.copy('hello')
+    })
+    await waitFor(() => expect(result.current.copied).toBe(false))
+  })
+})
