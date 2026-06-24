@@ -88,6 +88,14 @@ describe('HeatmapShareEmbed', () => {
     expect(screen.getByRole('tab', { name: /Image/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /Link/i })).toBeInTheDocument()
 
+    // The active tab is wired to its panel for screen readers.
+    const panel = screen.getByRole('tabpanel')
+    expect(panel).toHaveAttribute('aria-labelledby', 'share-tab-embed')
+    expect(screen.getByRole('tab', { name: /Embed/i })).toHaveAttribute(
+      'aria-controls',
+      'share-panel-embed'
+    )
+
     // Default (Embed) tab shows the iframe snippet pointing at the embed route.
     expect(
       textboxValues().some((value) =>

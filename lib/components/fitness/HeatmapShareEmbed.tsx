@@ -272,7 +272,9 @@ export const HeatmapShareEmbed: FC<HeatmapShareEmbedProps> = ({
                   key={entry.id}
                   type="button"
                   role="tab"
+                  id={`share-tab-${entry.id}`}
                   aria-selected={active}
+                  aria-controls={`share-panel-${entry.id}`}
                   onClick={() => setTab(entry.id)}
                   className={cn(
                     'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
@@ -320,7 +322,12 @@ export const HeatmapShareEmbed: FC<HeatmapShareEmbedProps> = ({
 
           {/* body */}
           {tab === 'embed' && (
-            <div className="space-y-2">
+            <div
+              role="tabpanel"
+              id="share-panel-embed"
+              aria-labelledby="share-tab-embed"
+              className="space-y-2"
+            >
               <CopyField
                 value={iframeSnippet}
                 mono
@@ -344,7 +351,12 @@ export const HeatmapShareEmbed: FC<HeatmapShareEmbedProps> = ({
           )}
 
           {tab === 'image' && (
-            <div className="space-y-2">
+            <div
+              role="tabpanel"
+              id="share-panel-image"
+              aria-labelledby="share-tab-image"
+              className="space-y-2"
+            >
               <CopyField
                 value={imageSnippet}
                 mono
@@ -358,7 +370,12 @@ export const HeatmapShareEmbed: FC<HeatmapShareEmbedProps> = ({
           )}
 
           {tab === 'link' && (
-            <div className="space-y-2">
+            <div
+              role="tabpanel"
+              id="share-panel-link"
+              aria-labelledby="share-tab-link"
+              className="space-y-2"
+            >
               <CopyField value={linkUrl} copyLabel="Copy public link" />
               <a
                 href={linkUrl}

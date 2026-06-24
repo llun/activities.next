@@ -53,7 +53,7 @@ const Page: FC<PageProps> = async ({ params }) => {
     const regionNames = await database.getFitnessRouteHeatmapRegionNames({
       actorId: heatmap.actorId
     })
-    regionName = regionNames.find(
+    regionName = regionNames?.find(
       (entry) => entry.region === heatmap.region
     )?.name
   } catch {

@@ -62,16 +62,20 @@ export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
     view
 
   return (
-    <div
-      className="min-h-dvh"
-      style={{
-        backgroundImage:
-          'radial-gradient(1200px 600px at 10% -10%, hsl(24 95% 95% / 0.9), transparent 60%),' +
-          'radial-gradient(900px 600px at 90% -10%, hsl(200 80% 94% / 0.8), transparent 55%)',
-        backgroundRepeat: 'no-repeat',
-        backgroundAttachment: 'fixed'
-      }}
-    >
+    <div className="relative min-h-dvh">
+      {/* Branded backdrop. A fixed, behind-content layer rather than
+          `background-attachment: fixed` (which janks/mis-renders on iOS Safari);
+          dimmed in dark mode so the light gradient doesn't glare. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 -z-10 bg-no-repeat dark:opacity-25"
+        style={{
+          backgroundImage:
+            'radial-gradient(1200px 600px at 10% -10%, hsl(24 95% 95% / 0.9), transparent 60%),' +
+            'radial-gradient(900px 600px at 90% -10%, hsl(200 80% 94% / 0.8), transparent 55%)'
+        }}
+      />
+
       {/* public top bar */}
       <header className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-[840px] items-center gap-3 px-4 sm:px-6">
