@@ -1,0 +1,26 @@
+lib/hooks/useCopyToClipboard.ts
+  s_e3afce02c0a6ad::t_cabe1b11aba4ef 11-44,50,69-75
+lib/hooks/useCopyToClipboard.test.ts
+  s_e3afce02c0a6ad::t_e89023fdd86cd3 15-20,47-60,62,110,113
+lib/components/fitness/HeatmapShareEmbed.tsx
+  s_e3afce02c0a6ad::t_68657261e3a234 326
+  s_e3afce02c0a6ad::t_04e4abf5d01995 229
+app/u/heatmaps/[token]/SharedHeatmapPage.tsx
+  s_e3afce02c0a6ad::t_ae94e222843d33 167,169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.11",
+  "base_commit_sha": "c0e299126ce884c51c12291c5271a2969cce2de0",
+  "prompts": {},
+  "sessions": {
+    "s_e3afce02c0a6ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9dbc15c-45f3-47b1-b2ed-bd36140d2887",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
