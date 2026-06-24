@@ -1,5 +1,3 @@
-import type { FitnessRouteHeatmapSegment } from '@/lib/types/database/fitnessRouteHeatmap'
-
 // Shape-preserving line simplification (Ramer–Douglas–Peucker) for GPS routes.
 //
 // Uniform decimation (keeping every Nth point) is cheap but destroys road
@@ -189,22 +187,30 @@ export const simplifyPoints = <T extends LatLng>(
   return simplified.length === length ? points : simplified
 }
 
+// Any segment whose points satisfy LatLng — covers both the client-facing
+// FitnessRouteHeatmapSegment and the worker's PrivacySegment<RouteHeatmapPoint>,
+// so one generic simplifier serves both pipelines while preserving every other
+// field on the segment (e.g. `isHiddenByPrivacy`).
+interface PointSegment<P extends LatLng> {
+  points: P[]
+}
+
 /**
- * Apply {@link simplifyPoints} to every segment, preserving the
- * `isHiddenByPrivacy` flag and dropping any segment left with fewer than two
- * points. Returns the input array reference unchanged when nothing changed (or
- * `toleranceMeters` is not positive), so callers — e.g. the `useMemo` in
+ * Apply {@link simplifyPoints} to every segment, preserving the segment's other
+ * fields (e.g. `isHiddenByPrivacy`) and dropping any segment left with fewer than
+ * two points. Returns the input array reference unchanged when nothing changed
+ * (or `toleranceMeters` is not positive), so callers — e.g. the `useMemo` in
  * `RouteHeatmapMap` — can keep a stable identity and skip downstream work.
  */
-export const simplifySegments = (
-  segments: FitnessRouteHeatmapSegment[],
+export const simplifySegments = <P extends LatLng, S extends PointSegment<P>>(
+  segments: S[],
   toleranceMeters: number
-): FitnessRouteHeatmapSegment[] => {
+): S[] => {
   if (toleranceMeters <= 0) {
     return segments
   }
 
-  const simplified: FitnessRouteHeatmapSegment[] = []
+  const simplified: S[] = []
   let changed = false
   for (const segment of segments) {
     const points = simplifyPoints(segment.points, toleranceMeters)
@@ -237,11 +243,14 @@ export const simplifySegments = (
  * cap should still apply a final uniform fallback (e.g. `downsampleSegments`),
  * which now only triggers for pathological many-tiny-segment inputs.
  */
-export const simplifySegmentsToBudget = (
-  segments: FitnessRouteHeatmapSegment[],
+export const simplifySegmentsToBudget = <
+  P extends LatLng,
+  S extends PointSegment<P>
+>(
+  segments: S[],
   maxPoints: number,
   baseToleranceMeters: number
-): FitnessRouteHeatmapSegment[] => {
+): S[] => {
   if (baseToleranceMeters <= 0) {
     return segments
   }
