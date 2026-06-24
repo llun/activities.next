@@ -13,12 +13,14 @@ export type FitnessRouteHeatmapConfig = {
   accumulationPointLimit: number
   filePointLimit: number
   /**
-   * Ramer–Douglas–Peucker tolerance, in meters, applied to each route before it
-   * is accumulated and to the final stored payload. Vertices closer than this to
-   * the simplified line are dropped, so straight stretches collapse toward their
-   * endpoints while bends keep the detail needed to trace the road. Smaller =
-   * higher fidelity and larger payloads; the default sits inside a road lane so
-   * the rendered line still follows the road when zoomed in. Override via
+   * Finest Ramer–Douglas–Peucker tolerance, in meters, applied to each route
+   * before it is accumulated and to the final stored payload. Vertices closer
+   * than this to the simplified line are dropped, so straight stretches collapse
+   * toward their endpoints while bends keep the detail needed to trace the road.
+   * This is a floor: a dense region whose combined geometry would overflow the
+   * point budget is adaptively coarsened up from here (see
+   * `buildRouteHeatmapPayload`), so finer detail is kept wherever the budget
+   * allows. Smaller = higher fidelity and larger payloads. Override via
    * `ACTIVITIES_FITNESS_ROUTE_HEATMAP_SIMPLIFY_TOLERANCE_METERS`.
    */
   simplifyToleranceMeters: number
