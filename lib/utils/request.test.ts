@@ -42,8 +42,20 @@ vi.mock('got', async () => {
     },
     {
       stream: (url: string, options: GotMockOptions) => {
+        // Abort the in-flight fetch when the consumer tears the stream down —
+        // e.g. the production size-limit guard (readResponseBody) destroys the
+        // body the moment it exceeds maxBodyBytes. Without this, the detached
+        // read below keeps running and node-fetch surfaces an "Invalid response
+        // body" premature-close error that races — and on slower CI runners
+        // sometimes beats — the real "Response body too large" error, flaking
+        // the streamed-size tests.
+        const controller = new AbortController()
         const stream = new Readable({
-          read() {}
+          read() {},
+          destroy(error, callback) {
+            controller.abort()
+            callback(error)
+          }
         })
 
         void (async () => {
@@ -51,7 +63,8 @@ vi.mock('got', async () => {
             const response = await fetch(url, {
               method: options.method,
               body: options.body,
-              headers: options.headers
+              headers: options.headers,
+              signal: controller.signal
             })
             const headers: Record<string, string> = {}
             response.headers.forEach((value, key) => {
@@ -70,6 +83,13 @@ vi.mock('got', async () => {
             stream.push(Buffer.from(body))
             stream.push(null)
           } catch (error) {
+            // Once the consumer has torn the stream down, the in-flight fetch is
+            // aborted and its read rejects (an AbortError, or a premature-close
+            // error if the socket dropped first). That is an expected
+            // consequence of the teardown, not a transport failure to surface —
+            // swallow it so the consumer's real error (e.g. "Response body too
+            // large") wins deterministically instead of racing it.
+            if (stream.destroyed || controller.signal.aborted) return
             stream.destroy(
               error instanceof Error ? error : new Error(String(error))
             )
