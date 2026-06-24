@@ -1,11 +1,14 @@
 name: CI
 
-# Runs on every commit (push to any branch + pull requests). The jobs are
-# chained with `needs:` so they gate each other: lint/prettier must pass before
-# build, and build must pass before the test suite. Mark the `CI / CI Success`
-# job (defined below) as the required status check in branch protection — it
-# aggregates every job's result and avoids the skipped-job-counts-as-passing gap
-# that requiring the individual jobs would have.
+# Runs on every commit (push to any branch + pull requests). The lint/prettier,
+# build, and test jobs run in parallel (no `needs:` chain between them) so the
+# check finishes as fast as the slowest single job instead of the sum of all
+# three. If any one of them fails, the run is reported as failed: the
+# `CI / CI Success` job aggregates every job's result and fails unless all
+# succeeded. Mark that job as the required status check in branch protection — it
+# avoids the skipped-job-counts-as-passing gap that requiring the individual jobs
+# would have. `cancel-in-progress` (below) also kills superseded runs so a new
+# push fails fast past the old one.
 #
 # Everything runs in the normal push/pull_request context: jobs use the default
 # read-only token, pull_request runs check out the PR merge ref (catching
@@ -51,7 +54,6 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: lint-prettier
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -70,7 +72,6 @@ jobs:
   test:
     name: All Tests
     runs-on: ubuntu-latest
-    needs: build
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -89,10 +90,11 @@ jobs:
           TEST_DATABASE_TYPE: sqlite
 
   # Aggregate gate: this is the single check to mark required in branch
-  # protection. It always runs and fails unless every upstream job succeeded.
-  # Without it, a failing lint job would skip build/test, and GitHub treats a
-  # skipped required check as passing — so requiring build/test directly would
-  # not actually block a lint failure.
+  # protection. It always runs (`if: always()`) and fails unless every upstream
+  # job succeeded, so a failure in any one of the parallel jobs fails the overall
+  # required check. It also covers the case where an upstream job is skipped or
+  # cancelled — GitHub treats a skipped required check as passing, so requiring
+  # the individual jobs directly would not reliably block a failure.
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest
