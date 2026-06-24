@@ -5,22 +5,31 @@ import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import {
+  addCollectionAccounts,
+  approveCollectionMembership,
   bookmarkStatus,
   clearFitnessRouteHeatmaps,
+  createCollection,
   createDirectMessage,
   createPoll,
+  deleteCollection,
   deleteFitnessRouteHeatmap,
   getActorStatuses,
   getBookmarks,
+  getCollectionFeed,
+  getCollectionTimeline,
   getFitnessRouteHeatmap,
   getFitnessRouteHeatmaps,
   getTrendingLinks,
   getTrendingStatuses,
   getTrendingTags,
+  removeCollectionAccounts,
+  revokeCollectionMembership,
   search,
   startStravaArchiveImport,
   triggerFitnessRouteHeatmap,
   undoBookmarkStatus,
+  updateCollection,
   updateNote,
   uploadAttachment
 } from './client'
@@ -891,6 +900,157 @@ describe('client trends', () => {
     await expect(getTrendingLinks()).resolves.toEqual([])
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/v1/trends/links',
+      expect.objectContaining({ method: 'GET' })
+    )
+  })
+})
+
+describe('client collection helpers', () => {
+  beforeEach(() => {
+    fetchMock.resetMocks()
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: { origin: 'https://local.example' }
+    })
+  })
+
+  afterEach(() => {
+    Reflect.deleteProperty(globalThis, 'window')
+  })
+
+  it('creates a collection, forwarding feedEnabled as feed_enabled', async () => {
+    fetchMock.mockResponseOnce(
+      JSON.stringify({ id: 'c1', title: 'Builders' }),
+      {
+        status: 200
+      }
+    )
+
+    await expect(
+      createCollection({
+        title: 'Builders',
+        description: 'who I read',
+        topic: 'fediverse',
+        visibility: 'public',
+        feedEnabled: true
+      })
+    ).resolves.toEqual({ id: 'c1', title: 'Builders' })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/collections',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+    )
+    expect(JSON.parse(fetchMock.mock.calls[0][1]?.body as string)).toEqual({
+      title: 'Builders',
+      description: 'who I read',
+      topic: 'fediverse',
+      visibility: 'public',
+      feed_enabled: true
+    })
+  })
+
+  it('returns null when creating a collection fails', async () => {
+    fetchMock.mockResponseOnce('', { status: 422 })
+    await expect(createCollection({ title: 'x' })).resolves.toBeNull()
+  })
+
+  it('PATCHes only provided fields and forwards a null topic to clear it', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({ id: 'c1' }), { status: 200 })
+
+    await updateCollection({
+      collectionId: 'c1',
+      title: 'Renamed',
+      topic: null
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/collections/c1',
+      expect.objectContaining({ method: 'PATCH' })
+    )
+    expect(JSON.parse(fetchMock.mock.calls[0][1]?.body as string)).toEqual({
+      title: 'Renamed',
+      topic: null
+    })
+  })
+
+  it('deletes a collection', async () => {
+    fetchMock.mockResponseOnce('', { status: 200 })
+    await expect(deleteCollection('c1')).resolves.toBe(true)
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/collections/c1',
+      expect.objectContaining({ method: 'DELETE' })
+    )
+  })
+
+  it('adds and removes members via the items endpoint, skipping empty batches', async () => {
+    fetchMock.mockResponse('', { status: 200 })
+
+    await addCollectionAccounts({ collectionId: 'c1', accountIds: ['a1'] })
+    await removeCollectionAccounts({ collectionId: 'c1', accountIds: ['a1'] })
+    // An empty batch is a no-op that resolves true without hitting the network.
+    await expect(
+      addCollectionAccounts({ collectionId: 'c1', accountIds: [] })
+    ).resolves.toBe(true)
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/v1/collections/c1/items',
+      expect.objectContaining({ method: 'POST' })
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/v1/collections/c1/items',
+      expect.objectContaining({ method: 'DELETE' })
+    )
+  })
+
+  it('approves and revokes the caller’s own membership', async () => {
+    fetchMock.mockResponse('', { status: 200 })
+
+    await approveCollectionMembership({ collectionId: 'c1', accountId: 'me' })
+    await revokeCollectionMembership({ collectionId: 'c1', accountId: 'me' })
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/v1/collections/c1/items/me/approve',
+      expect.objectContaining({ method: 'POST' })
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/v1/collections/c1/items/me/revoke',
+      expect.objectContaining({ method: 'POST' })
+    )
+  })
+
+  it('loads the owner timeline and the public feed in the activities_next shape', async () => {
+    fetchMock.mockResponse(
+      JSON.stringify({
+        statuses: [{ id: 's1' }],
+        nextMaxStatusId: '9',
+        prevMinStatusId: '11'
+      }),
+      { status: 200 }
+    )
+
+    await expect(
+      getCollectionTimeline({ collectionId: 'c1', limit: 20 })
+    ).resolves.toEqual({
+      statuses: [{ id: 's1' }],
+      nextMaxStatusId: '9',
+      prevMinStatusId: '11'
+    })
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      'https://local.example/api/v1/timelines/collection/c1?format=activities_next&limit=20',
+      expect.objectContaining({ method: 'GET' })
+    )
+
+    await getCollectionFeed({ collectionId: 'c1', limit: 20 })
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      'https://local.example/api/v1/collections/c1/feed?format=activities_next&limit=20',
       expect.objectContaining({ method: 'GET' })
     )
   })

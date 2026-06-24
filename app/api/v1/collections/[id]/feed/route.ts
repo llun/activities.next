@@ -4,11 +4,13 @@ import {
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
+import { TimelineFormat } from '@/lib/services/timelines/const'
 import {
   parseTimelineQuery,
   timelineErrorBoundary
 } from '@/lib/services/timelines/request'
 import { Scope } from '@/lib/types/database/operations'
+import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
@@ -42,6 +44,7 @@ export const GET = traceApiRoute(
     timelineErrorBoundary(CORS_HEADERS, async (req, { database, params }) => {
       const { id } = await params
       const url = new URL(req.url)
+      const format = url.searchParams.get('format')
       const parsedQuery = parseTimelineQuery(url.searchParams)
       if (!parsedQuery.ok) {
         return apiResponse({
@@ -68,6 +71,23 @@ export const GET = traceApiRoute(
           allowedMethods: CORS_HEADERS,
           data: ERROR_404,
           responseStatusCode: 404
+        })
+      }
+
+      // The activities.next web app renders the public feed with the same
+      // domain-shaped <Posts> path as the list/collection timelines, so it asks
+      // for the internal format. The default (Mastodon entities + Link headers)
+      // stays the public, client-compatible response.
+      if (format === TimelineFormat.enum.activities_next) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: {
+            statuses: statuses.map((item) => cleanJson(item)),
+            nextMaxStatusId:
+              statuses.length > 0 ? statuses[statuses.length - 1].id : null,
+            prevMinStatusId: statuses.length > 0 ? statuses[0].id : null
+          }
         })
       }
 

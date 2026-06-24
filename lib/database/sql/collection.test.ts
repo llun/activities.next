@@ -156,6 +156,27 @@ describe('CollectionDatabase', () => {
         expect(stillThere?.title).toBe('Mine')
       })
     })
+
+    it('reads a collection by id without owner scoping', async () => {
+      await withFreshDatabase(async (database) => {
+        await createLocalAccount(database, 'owner')
+        const owner = await actor(database, 'owner')
+
+        const collection = await database.createCollection({
+          actorId: owner.id,
+          title: 'By id'
+        })
+
+        // Resolvable by id alone (the non-owner-scoped read used by the public
+        // page + member notifications), regardless of the caller.
+        const byId = await database.getCollectionById({ id: collection.id })
+        expect(byId?.id).toBe(collection.id)
+        expect(byId?.ownerActorId).toBe(owner.id)
+
+        // Unknown id resolves to null rather than throwing.
+        expect(await database.getCollectionById({ id: 'missing' })).toBeNull()
+      })
+    })
   })
 
   describe('membership', () => {
