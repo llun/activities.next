@@ -1,14 +1,15 @@
 import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
-import { CollectionMember } from '@/app/(timeline)/collections/CollectionEditor'
 import { CollectionDetail } from '@/app/(timeline)/collections/[id]/CollectionDetail'
+import { toCollectionMember } from '@/app/(timeline)/collections/toCollectionMember'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getMastodonCollection } from '@/lib/services/mastodon/getMastodonCollection'
 import { Mastodon } from '@/lib/types/activitypub'
 import { getActorProfile } from '@/lib/types/domain/actor'
+import { Collection } from '@/lib/types/domain/collection'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -20,39 +21,37 @@ const FEED_PAGE_LIMIT = 20
 // editor. Bounded so the detail render stays cheap.
 const ROSTER_LIMIT = 80
 
+const GENERIC_TITLE = 'Activities.next: Collections'
+
 interface PageProps {
   params: Promise<{ id: string }>
 }
 
-const toMember = (
-  account: Mastodon.Account,
-  host: string
-): CollectionMember => ({
-  id: account.id,
-  name: account.display_name || account.username,
-  handle: account.acct.includes('@') ? account.acct : `${account.acct}@${host}`,
-  avatar: account.avatar
-})
-
 // A non-owner may view a collection only when it has a public projection: a
 // public/unlisted visibility AND an enabled feed. Private (or feed-disabled)
 // collections are owner-only.
-const hasPublicProjection = (collection: {
-  visibility: 'public' | 'unlisted' | 'private'
-  publicFeed: boolean
-}) => collection.visibility !== 'private' && collection.publicFeed
+const hasPublicProjection = (
+  collection: Pick<Collection, 'visibility' | 'publicFeed'>
+) => collection.visibility !== 'private' && collection.publicFeed
 
 export const generateMetadata = async ({
   params
 }: PageProps): Promise<Metadata> => {
   const database = getDatabase()
-  if (!database) return { title: 'Activities.next: Collections' }
+  if (!database) return { title: GENERIC_TITLE }
   const { id } = await params
   const collection = await database.getCollectionById({ id })
+  if (!collection) return { title: GENERIC_TITLE }
+
+  // Do not leak a private collection's title via the page <title>: only expose
+  // it to the owner or when it has a public projection (mirrors the page's own
+  // visibility gate below).
+  const session = await getServerAuthSession()
+  const viewer = await getActorFromSession(database, session)
+  const isOwner = viewer?.id === collection.ownerActorId
+  const visible = isOwner || hasPublicProjection(collection)
   return {
-    title: collection
-      ? `Activities.next: ${collection.title}`
-      : 'Activities.next: Collections'
+    title: visible ? `Activities.next: ${collection.title}` : GENERIC_TITLE
   }
 }
 
@@ -129,7 +128,7 @@ const Page = async ({ params }: PageProps) => {
     id: ownerActorId
   })
   const ownerHandle = ownerAccount
-    ? toMember(ownerAccount, host).handle
+    ? toCollectionMember(ownerAccount, host).handle
     : collection.title
   const ownerProfilePath = `/@${ownerHandle}`
 
@@ -151,10 +150,10 @@ const Page = async ({ params }: PageProps) => {
       totalCount={totalCount}
       approvedCount={approvedCount}
       ownerRoster={ownerMembersPage.accounts.map((account) =>
-        toMember(account, host)
+        toCollectionMember(account, host)
       )}
       publicRoster={publicMembersPage.accounts.map((account) =>
-        toMember(account, host)
+        toCollectionMember(account, host)
       )}
       statuses={statuses.map((status) => cleanJson(status))}
       shareUrl={shareUrl}

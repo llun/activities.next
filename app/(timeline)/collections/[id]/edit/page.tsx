@@ -1,10 +1,8 @@
 import { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 
-import {
-  CollectionEditor,
-  CollectionMember
-} from '@/app/(timeline)/collections/CollectionEditor'
+import { CollectionEditor } from '@/app/(timeline)/collections/CollectionEditor'
+import { toCollectionMember } from '@/app/(timeline)/collections/toCollectionMember'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -28,16 +26,6 @@ const MAX_MEMBER_PAGES = 25
 interface PageProps {
   params: Promise<{ id: string }>
 }
-
-const toMember = (
-  account: Mastodon.Account,
-  host: string
-): CollectionMember => ({
-  id: account.id,
-  name: account.display_name || account.username,
-  handle: account.acct.includes('@') ? account.acct : `${account.acct}@${host}`,
-  avatar: account.avatar
-})
 
 const Page = async ({ params }: PageProps) => {
   const { host } = getConfig()
@@ -95,9 +83,11 @@ const Page = async ({ params }: PageProps) => {
     <CollectionEditor
       mode="edit"
       collection={getMastodonCollection(collection, approvedCounts[id] ?? 0)}
-      initialMembers={memberAccounts.map((account) => toMember(account, host))}
+      initialMembers={memberAccounts.map((account) =>
+        toCollectionMember(account, host)
+      )}
       followingSuggestions={followingAccounts.map((account) =>
-        toMember(account, host)
+        toCollectionMember(account, host)
       )}
     />
   )

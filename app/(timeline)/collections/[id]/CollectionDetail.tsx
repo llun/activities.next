@@ -138,6 +138,12 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
   )
   const [isLoadingMoreStatuses, setLoadingMoreStatuses] = useState(false)
   const isLoadingRef = useRef(false)
+  // Monotonic token tagging the latest feed request. A projection toggle and an
+  // in-flight load-more (or a rapid double-toggle) both mutate the feed state;
+  // each async path captures the token at start and only applies its result when
+  // it is still the latest, so a stale response can't append the wrong
+  // projection's posts or desync the cursor from `projection`.
+  const requestIdRef = useRef(0)
   const lastStatusIdRef = useRef<string | null>(
     statuses.length > 0 ? statuses[statuses.length - 1].id : null
   )
@@ -153,10 +159,12 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
   const switchProjection = async (next: Projection) => {
     if (next === projection) return
     setProjection(next)
+    const requestId = ++requestIdRef.current
     setLoadingMoreStatuses(true)
     isLoadingRef.current = true
     try {
       const result = await fetchPage(next)
+      if (requestId !== requestIdRef.current) return
       setCurrentStatuses(result.statuses)
       lastStatusIdRef.current =
         result.statuses.length > 0
@@ -166,8 +174,12 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
     } catch {
       // Leave the previous feed in place on error; the toggle can be retried.
     } finally {
-      isLoadingRef.current = false
-      setLoadingMoreStatuses(false)
+      // Only the latest request owns the loading flags; a superseded request
+      // must not clear them out from under the one that replaced it.
+      if (requestId === requestIdRef.current) {
+        isLoadingRef.current = false
+        setLoadingMoreStatuses(false)
+      }
     }
   }
 
@@ -180,10 +192,12 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
     const maxStatusId = lastStatusIdRef.current
     if (isLoadingRef.current || !maxStatusId) return
 
+    const requestId = ++requestIdRef.current
     isLoadingRef.current = true
     setLoadingMoreStatuses(true)
     try {
       const result = await fetchPage(projection, maxStatusId)
+      if (requestId !== requestIdRef.current) return
       if (result.statuses.length === 0) {
         setHasMoreStatuses(false)
         return
@@ -194,8 +208,10 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
     } catch {
       // Error loading more — the user can retry via the button.
     } finally {
-      isLoadingRef.current = false
-      setLoadingMoreStatuses(false)
+      if (requestId === requestIdRef.current) {
+        isLoadingRef.current = false
+        setLoadingMoreStatuses(false)
+      }
     }
   }, [fetchPage, projection])
 
@@ -363,11 +379,13 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
             <span className="text-xs font-semibold">
               Highlighted accounts · {roster.length}
             </span>
-            {projection === 'public' && approvedCount < totalCount && (
-              <span className="text-xs text-muted-foreground">
-                {totalCount - approvedCount} hidden by consent
-              </span>
-            )}
+            {isOwner &&
+              projection === 'public' &&
+              approvedCount < totalCount && (
+                <span className="text-xs text-muted-foreground">
+                  {totalCount - approvedCount} hidden by consent
+                </span>
+              )}
           </div>
           <ul className="divide-y">
             {roster.map((member) => (
