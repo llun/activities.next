@@ -26,6 +26,7 @@ import {
   CreateCollectionParams,
   DeleteCollectionParams,
   GetApprovedCollectionMembersParams,
+  GetCollectionByIdParams,
   GetCollectionMemberCountsParams,
   GetCollectionMembersParams,
   GetCollectionParams,
@@ -353,6 +354,16 @@ export const CollectionSQLDatabaseMixin = (
   async getCollection({ id, actorId }: GetCollectionParams) {
     const row = await database<SQLCollection>('collections')
       .where({ id, ownerActorId: actorId })
+      .first()
+    return row ? fixCollectionRow(row) : null
+  },
+
+  // Resolve a collection by id alone (no owner scope). Visibility gating is the
+  // caller's responsibility — used by the public collection page and member
+  // notifications, neither of which is owner-scoped.
+  async getCollectionById({ id }: GetCollectionByIdParams) {
+    const row = await database<SQLCollection>('collections')
+      .where({ id })
       .first()
     return row ? fixCollectionRow(row) : null
   },

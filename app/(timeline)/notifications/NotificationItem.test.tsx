@@ -504,4 +504,97 @@ describe('NotificationItem', () => {
 
     expect(overlayLink(container)).toBeNull()
   })
+
+  const collectionNotification = (
+    overrides: Partial<NotificationItemNotification> = {}
+  ): NotificationItemNotification => ({
+    id: 'notification-added-to-collection',
+    actorId: 'https://llun.social/users/llun',
+    type: 'added_to_collection',
+    sourceActorId: account.id,
+    isRead: true,
+    createdAt: currentTime,
+    updatedAt: currentTime,
+    account,
+    collection: { id: 'col-1', title: 'Fediverse builders' },
+    ...overrides
+  })
+
+  it('renders the consent actions for an added_to_collection notification', () => {
+    render(
+      <NotificationItem
+        notification={collectionNotification()}
+        host="llun.social"
+        isRead
+        currentTime={currentTime}
+        currentAccountId="me"
+        observeElement={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText(/added you to a collection/)).toBeInTheDocument()
+    expect(screen.getByText('Fediverse builders')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /show me publicly/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /keep me hidden/i })
+    ).toBeInTheDocument()
+  })
+
+  it.each([
+    [
+      'the viewer account id is missing',
+      { notification: collectionNotification(), currentAccountId: undefined }
+    ],
+    [
+      'the collection could not be resolved',
+      {
+        notification: collectionNotification({ collection: null }),
+        currentAccountId: 'me'
+      }
+    ]
+  ] as const)(
+    'shows only the verb (no consent actions) when %s',
+    (_label, { notification, currentAccountId }) => {
+      render(
+        <NotificationItem
+          notification={notification}
+          host="llun.social"
+          isRead
+          currentTime={currentTime}
+          currentAccountId={currentAccountId}
+          observeElement={vi.fn()}
+        />
+      )
+
+      expect(screen.getByText(/added you to a collection/)).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /show me publicly/i })
+      ).not.toBeInTheDocument()
+    }
+  )
+
+  it('renders collection_update as an informational row with no consent actions', () => {
+    render(
+      <NotificationItem
+        notification={collectionNotification({
+          id: 'notification-collection-update',
+          type: 'collection_update'
+        })}
+        host="llun.social"
+        isRead
+        currentTime={currentTime}
+        currentAccountId="me"
+        observeElement={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.getByText(/updated a collection you’re in/)
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /show me publicly/i })
+    ).not.toBeInTheDocument()
+  })
 })

@@ -15,6 +15,7 @@ import type { Status } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 
 import { ActivityImportNotification } from './components/ActivityImportNotification'
+import { CollectionConsentNotification } from './components/CollectionConsentNotification'
 import { FollowNotification } from './components/FollowNotification'
 import { FollowRequestNotification } from './components/FollowRequestNotification'
 import { NotificationTypeBadge } from './components/NotificationTypeBadge'
@@ -29,10 +30,16 @@ interface Props {
   notification: GroupedNotification & {
     account: Mastodon.Account | null
     status?: Status | null
+    // The collection a collection-typed notification refers to (resolved from
+    // its groupKey), or null when it has been deleted.
+    collection?: { id: string; title: string } | null
   }
   host: string
   isRead: boolean
   currentTime: number
+  // The viewer's own Mastodon Account id, needed to act on their own collection
+  // membership (consent). Absent for surfaces without a signed-in viewer.
+  currentAccountId?: string
   observeElement: (element: HTMLElement | null) => void
 }
 
@@ -41,6 +48,7 @@ export const NotificationItem = ({
   host,
   isRead,
   currentTime,
+  currentAccountId,
   observeElement
 }: Props) => {
   const elementRef = useRef<HTMLDivElement>(null)
@@ -117,12 +125,24 @@ export const NotificationItem = ({
           {cfg.verb}
         </span>
       )
-      body =
-        notification.type === 'follow' ? (
-          <FollowNotification account={acc} />
-        ) : (
-          <FollowRequestNotification account={acc} />
-        )
+      if (notification.type === 'follow') {
+        body = <FollowNotification account={acc} />
+      } else if (notification.type === 'follow_request') {
+        body = <FollowRequestNotification account={acc} />
+      } else if (notification.type === 'added_to_collection') {
+        // The consent gate: let the member choose whether to appear on the
+        // collection's public link. Needs the collection (from the groupKey)
+        // and the viewer's own account id; without either, show just the verb.
+        body =
+          notification.collection && currentAccountId ? (
+            <CollectionConsentNotification
+              collectionId={notification.collection.id}
+              collectionTitle={notification.collection.title}
+              accountId={currentAccountId}
+            />
+          ) : null
+      }
+      // collection_update is informational — the verb on line 1 is the whole row.
     } else {
       line1 = <span className="font-semibold text-foreground">{cfg.verb}</span>
       const withStatus = hasStatusActor(withAccount) ? withAccount : null

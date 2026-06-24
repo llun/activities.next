@@ -10,6 +10,7 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
 import type { NotificationType } from '@/lib/types/database/operations'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { urlToId } from '@/lib/utils/urlToId'
 
 import { NotificationsList } from './NotificationsList'
 import { MarkAllReadButton } from './components/MarkAllReadButton'
@@ -27,6 +28,19 @@ export const metadata: Metadata = {
 const ITEMS_PER_PAGE = 25
 // Mastodon's "Mentions" tab covers both mentions and replies.
 const MENTION_TYPES: NotificationType[] = ['mention', 'reply']
+// Collection notifications carry the collection id in their groupKey
+// (`<type>:<collectionId>`); the member-consent row needs it to act.
+const COLLECTION_TYPES: NotificationType[] = [
+  'added_to_collection',
+  'collection_update'
+]
+
+const collectionIdFromGroupKey = (groupKey?: string): string | null => {
+  if (!groupKey) return null
+  const separator = groupKey.indexOf(':')
+  if (separator === -1) return null
+  return groupKey.slice(separator + 1) || null
+}
 
 interface Props {
   searchParams: Promise<{ page?: string; type?: string }>
@@ -70,7 +84,26 @@ const Page = async ({ searchParams }: Props) => {
   // Group notifications by groupKey
   const groupedNotifications = groupNotifications(notifications)
 
-  // Transform to include account and status data
+  // Resolve the title of every referenced collection once (deduped). The read
+  // is non-owner-scoped because the recipient is a member, not the owner; a
+  // deleted collection simply resolves to no entry (its consent row is hidden).
+  const referencedCollectionIds = Array.from(
+    new Set(
+      groupedNotifications
+        .filter((notification) => COLLECTION_TYPES.includes(notification.type))
+        .map((notification) => collectionIdFromGroupKey(notification.groupKey))
+        .filter((id): id is string => Boolean(id))
+    )
+  )
+  const collectionTitles = new Map<string, string>()
+  await Promise.all(
+    referencedCollectionIds.map(async (collectionId) => {
+      const collection = await database.getCollectionById({ id: collectionId })
+      if (collection) collectionTitles.set(collectionId, collection.title)
+    })
+  )
+
+  // Transform to include account, status and collection data
   const notificationsWithData = await Promise.all(
     groupedNotifications.map(async (notification) => {
       const account = await database.getMastodonActorFromId({
@@ -85,10 +118,19 @@ const Page = async ({ searchParams }: Props) => {
         })
       }
 
+      const collectionId = COLLECTION_TYPES.includes(notification.type)
+        ? collectionIdFromGroupKey(notification.groupKey)
+        : null
+      const collection =
+        collectionId && collectionTitles.has(collectionId)
+          ? { id: collectionId, title: collectionTitles.get(collectionId)! }
+          : null
+
       return {
         ...notification,
         account,
-        status
+        status,
+        collection
       }
     })
   )
@@ -142,6 +184,7 @@ const Page = async ({ searchParams }: Props) => {
               notifications={notificationsWithData}
               host={host}
               currentTime={Date.now()}
+              currentAccountId={urlToId(actor.id)}
             />
 
             {totalPages > 1 && (

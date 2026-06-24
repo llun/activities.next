@@ -16,6 +16,7 @@ import { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 import type { Announcement } from '@/lib/types/mastodon/announcement'
+import type { CollectionEntity } from '@/lib/types/mastodon/collection'
 import type { CustomEmoji } from '@/lib/types/mastodon/customEmoji'
 import type { FeaturedTag } from '@/lib/types/mastodon/featuredTag'
 import type { Filter as MastodonFilter } from '@/lib/types/mastodon/filter'
@@ -3092,6 +3093,217 @@ export const getListTimeline = async ({
     `${window.origin}/api/v1/timelines/list/${encodeURIComponent(
       listId
     )}?format=${TimelineFormat.enum.activities_next}`
+  )
+  if (minStatusId) url.searchParams.set('min_id', urlToId(minStatusId))
+  if (maxStatusId) url.searchParams.set('max_id', urlToId(maxStatusId))
+  if (limit) url.searchParams.set('limit', `${limit}`)
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  })
+  if (response.status !== 200) {
+    return { statuses: [], nextMaxStatusId: null, prevMinStatusId: null }
+  }
+  const data = await response.json()
+  return {
+    statuses: data.statuses as Status[],
+    nextMaxStatusId: data.nextMaxStatusId ?? null,
+    prevMinStatusId: data.prevMinStatusId ?? null
+  }
+}
+
+// Collections (Mastodon 4.6 Collections API + activities.next feed extension).
+// A collection is a shareable, consent-gated feed of accounts the owner
+// highlights. Like list ids, collection ids are opaque UUIDs (not url/id
+// encoded). Account ids are Mastodon Account ids (the `urlToId`-encoded actor
+// id); the routes decode them with `idToUrl`, so pass them through unchanged.
+
+export interface CollectionParams {
+  title?: string
+  description?: string | null
+  topic?: string | null
+  language?: string | null
+  visibility?: CollectionEntity['visibility']
+  feedEnabled?: boolean
+}
+
+const collectionRequestBody = ({
+  title,
+  description,
+  topic,
+  language,
+  visibility,
+  feedEnabled
+}: CollectionParams) => ({
+  ...(title !== undefined ? { title } : {}),
+  // description/topic/language are nullable: an explicit `null` clears them, so
+  // forward `null` while still omitting an `undefined` (untouched) field.
+  ...(description !== undefined ? { description } : {}),
+  ...(topic !== undefined ? { topic } : {}),
+  ...(language !== undefined ? { language } : {}),
+  ...(visibility !== undefined ? { visibility } : {}),
+  ...(feedEnabled !== undefined ? { feed_enabled: feedEnabled } : {})
+})
+
+export interface CreateCollectionParams extends CollectionParams {
+  title: string
+}
+
+export const createCollection = async (
+  params: CreateCollectionParams
+): Promise<CollectionEntity | null> => {
+  const response = await fetch('/api/v1/collections', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(collectionRequestBody(params))
+  })
+  if (!response.ok) return null
+  return (await response.json()) as CollectionEntity
+}
+
+export interface UpdateCollectionParams extends CollectionParams {
+  collectionId: string
+}
+
+export const updateCollection = async ({
+  collectionId,
+  ...params
+}: UpdateCollectionParams): Promise<CollectionEntity | null> => {
+  const response = await fetch(
+    `/api/v1/collections/${encodeURIComponent(collectionId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(collectionRequestBody(params))
+    }
+  )
+  if (!response.ok) return null
+  return (await response.json()) as CollectionEntity
+}
+
+export const deleteCollection = async (
+  collectionId: string
+): Promise<boolean> => {
+  const response = await fetch(
+    `/api/v1/collections/${encodeURIComponent(collectionId)}`,
+    { method: 'DELETE' }
+  )
+  return response.ok
+}
+
+export interface CollectionAccountsMutationParams {
+  collectionId: string
+  accountIds: string[]
+}
+
+const mutateCollectionAccounts = async (
+  method: 'POST' | 'DELETE',
+  { collectionId, accountIds }: CollectionAccountsMutationParams
+): Promise<boolean> => {
+  if (accountIds.length === 0) return true
+  const response = await fetch(
+    `/api/v1/collections/${encodeURIComponent(collectionId)}/items`,
+    {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ account_ids: accountIds })
+    }
+  )
+  return response.ok
+}
+
+export const addCollectionAccounts = (
+  params: CollectionAccountsMutationParams
+): Promise<boolean> => mutateCollectionAccounts('POST', params)
+
+export const removeCollectionAccounts = (
+  params: CollectionAccountsMutationParams
+): Promise<boolean> => mutateCollectionAccounts('DELETE', params)
+
+export interface CollectionMembershipParams {
+  collectionId: string
+  // The acting member's own Mastodon Account id (the `urlToId`-encoded actor id).
+  // The approve/revoke routes require it to resolve to the authenticated caller.
+  accountId: string
+}
+
+const setCollectionMembership = async (
+  action: 'approve' | 'revoke',
+  { collectionId, accountId }: CollectionMembershipParams
+): Promise<boolean> => {
+  const response = await fetch(
+    `/api/v1/collections/${encodeURIComponent(
+      collectionId
+    )}/items/${encodeURIComponent(accountId)}/${action}`,
+    { method: 'POST' }
+  )
+  return response.ok
+}
+
+// A member opts IN to a collection's public projection (consent gate).
+export const approveCollectionMembership = (
+  params: CollectionMembershipParams
+): Promise<boolean> => setCollectionMembership('approve', params)
+
+// A member opts OUT of a collection's public projection.
+export const revokeCollectionMembership = (
+  params: CollectionMembershipParams
+): Promise<boolean> => setCollectionMembership('revoke', params)
+
+export interface GetCollectionTimelineParams {
+  collectionId: string
+  minStatusId?: string
+  maxStatusId?: string
+  limit?: number
+}
+
+// The owner's private collection feed (every member, owner visibility). Mirrors
+// getListTimeline: a single page fetch, null cursor at the end.
+export const getCollectionTimeline = async ({
+  collectionId,
+  minStatusId,
+  maxStatusId,
+  limit
+}: GetCollectionTimelineParams): Promise<GetTimelineResult> => {
+  const url = new URL(
+    `${window.origin}/api/v1/timelines/collection/${encodeURIComponent(
+      collectionId
+    )}?format=${TimelineFormat.enum.activities_next}`
+  )
+  if (minStatusId) url.searchParams.set('min_id', urlToId(minStatusId))
+  if (maxStatusId) url.searchParams.set('max_id', urlToId(maxStatusId))
+  if (limit) url.searchParams.set('limit', `${limit}`)
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  })
+  if (response.status !== 200) {
+    return { statuses: [], nextMaxStatusId: null, prevMinStatusId: null }
+  }
+  const data = await response.json()
+  return {
+    statuses: data.statuses as Status[],
+    nextMaxStatusId: data.nextMaxStatusId ?? null,
+    prevMinStatusId: data.prevMinStatusId ?? null
+  }
+}
+
+// The public, consent-gated projection of a collection's feed (approved members
+// ∩ public posts). Unauthenticated-readable; used for the owner's "Public
+// preview" toggle and the public collection page. Requests the internal format
+// so the same <Posts> path renders it.
+export const getCollectionFeed = async ({
+  collectionId,
+  minStatusId,
+  maxStatusId,
+  limit
+}: GetCollectionTimelineParams): Promise<GetTimelineResult> => {
+  const url = new URL(
+    `${window.origin}/api/v1/collections/${encodeURIComponent(
+      collectionId
+    )}/feed?format=${TimelineFormat.enum.activities_next}`
   )
   if (minStatusId) url.searchParams.set('min_id', urlToId(minStatusId))
   if (maxStatusId) url.searchParams.set('max_id', urlToId(maxStatusId))
