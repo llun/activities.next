@@ -1,5 +1,3 @@
-import type { FitnessRouteHeatmapSegment } from '@/lib/types/database/fitnessRouteHeatmap'
-
 // Shape-preserving line simplification (Ramer–Douglas–Peucker) for GPS routes.
 //
 // Uniform decimation (keeping every Nth point) is cheap but destroys road
@@ -32,6 +30,25 @@ const METERS_PER_DEGREE = EARTH_RADIUS_METERS * DEG_TO_RAD
 // stops subdividing and the already-marked vertices still form a valid,
 // endpoint-preserving simplification.
 const MAX_COMPARISONS_PER_POINT = 128
+
+// Max times the adaptive budget fit doubles the tolerance. Geometric growth means
+// a handful of passes spans a huge tolerance range (e.g. 1m → 256m after 8 passes
+// collapses almost everything), so this is only a runaway guard — it bounds the
+// adaptive cost at O(passes · n), never trimming a realistic region's detail
+// before it fits.
+export const MAX_BUDGET_PASSES = 8
+
+type CountableSegment = { points: ReadonlyArray<unknown> }
+
+export const totalPointCount = (
+  segments: ReadonlyArray<CountableSegment>
+): number => segments.reduce((sum, segment) => sum + segment.points.length, 0)
+
+// Every segment is already at the 2-point floor that simplifyPoints guarantees,
+// so coarsening the tolerance further cannot drop any more vertices.
+export const everySegmentAtMinimum = (
+  segments: ReadonlyArray<CountableSegment>
+): boolean => segments.every((segment) => segment.points.length <= 2)
 
 // Squared distance (in meters²) from a point to the segment `a`→`b`, all already
 // projected to the local equirectangular meters plane (see simplifyPoints).
@@ -170,22 +187,30 @@ export const simplifyPoints = <T extends LatLng>(
   return simplified.length === length ? points : simplified
 }
 
+// Any segment whose points satisfy LatLng — covers both the client-facing
+// FitnessRouteHeatmapSegment and the worker's PrivacySegment<RouteHeatmapPoint>,
+// so one generic simplifier serves both pipelines while preserving every other
+// field on the segment (e.g. `isHiddenByPrivacy`).
+interface PointSegment<P extends LatLng> {
+  points: P[]
+}
+
 /**
- * Apply {@link simplifyPoints} to every segment, preserving the
- * `isHiddenByPrivacy` flag and dropping any segment left with fewer than two
- * points. Returns the input array reference unchanged when nothing changed (or
- * `toleranceMeters` is not positive), so callers — e.g. the `useMemo` in
+ * Apply {@link simplifyPoints} to every segment, preserving the segment's other
+ * fields (e.g. `isHiddenByPrivacy`) and dropping any segment left with fewer than
+ * two points. Returns the input array reference unchanged when nothing changed
+ * (or `toleranceMeters` is not positive), so callers — e.g. the `useMemo` in
  * `RouteHeatmapMap` — can keep a stable identity and skip downstream work.
  */
-export const simplifySegments = (
-  segments: FitnessRouteHeatmapSegment[],
+export const simplifySegments = <P extends LatLng, S extends PointSegment<P>>(
+  segments: S[],
   toleranceMeters: number
-): FitnessRouteHeatmapSegment[] => {
+): S[] => {
   if (toleranceMeters <= 0) {
     return segments
   }
 
-  const simplified: FitnessRouteHeatmapSegment[] = []
+  const simplified: S[] = []
   let changed = false
   for (const segment of segments) {
     const points = simplifyPoints(segment.points, toleranceMeters)
@@ -201,4 +226,46 @@ export const simplifySegments = (
     }
   }
   return changed ? simplified : segments
+}
+
+/**
+ * Simplify segments to at most `maxPoints` vertices while preserving road shape.
+ *
+ * Starts at the finest `baseToleranceMeters` (max granularity) and, only if the
+ * result still exceeds the budget, geometrically coarsens the tolerance and
+ * re-simplifies the ORIGINAL segments until it fits (or {@link MAX_BUDGET_PASSES}
+ * is reached). Every pass is Douglas–Peucker, so the output is always
+ * shape-preserving — a dense region is coarsened (still following the road)
+ * rather than uniformly decimated (which cuts corners). Returns the input
+ * reference when the base pass already fits and changes nothing.
+ *
+ * This is a best-effort target, not a hard ceiling: callers that need a strict
+ * cap should still apply a final uniform fallback (e.g. `downsampleSegments`),
+ * which now only triggers for pathological many-tiny-segment inputs.
+ */
+export const simplifySegmentsToBudget = <
+  P extends LatLng,
+  S extends PointSegment<P>
+>(
+  segments: S[],
+  maxPoints: number,
+  baseToleranceMeters: number
+): S[] => {
+  if (baseToleranceMeters <= 0) {
+    return segments
+  }
+
+  let tolerance = baseToleranceMeters
+  let result = simplifySegments(segments, tolerance)
+  for (
+    let pass = 0;
+    pass < MAX_BUDGET_PASSES &&
+    totalPointCount(result) > maxPoints &&
+    !everySegmentAtMinimum(result);
+    pass += 1
+  ) {
+    tolerance *= 2
+    result = simplifySegments(segments, tolerance)
+  }
+  return result
 }

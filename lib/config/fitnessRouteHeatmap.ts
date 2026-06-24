@@ -13,12 +13,14 @@ export type FitnessRouteHeatmapConfig = {
   accumulationPointLimit: number
   filePointLimit: number
   /**
-   * Ramer–Douglas–Peucker tolerance, in meters, applied to each route before it
-   * is accumulated and to the final stored payload. Vertices closer than this to
-   * the simplified line are dropped, so straight stretches collapse toward their
-   * endpoints while bends keep the detail needed to trace the road. Smaller =
-   * higher fidelity and larger payloads; the default sits inside a road lane so
-   * the rendered line still follows the road when zoomed in. Override via
+   * Finest Ramer–Douglas–Peucker tolerance, in meters, applied to each route
+   * before it is accumulated and to the final stored payload. Vertices closer
+   * than this to the simplified line are dropped, so straight stretches collapse
+   * toward their endpoints while bends keep the detail needed to trace the road.
+   * This is a floor: a dense region whose combined geometry would overflow the
+   * point budget is adaptively coarsened up from here (see
+   * `buildRouteHeatmapPayload`), so finer detail is kept wherever the budget
+   * allows. Smaller = higher fidelity and larger payloads. Override via
    * `ACTIVITIES_FITNESS_ROUTE_HEATMAP_SIMPLIFY_TOLERANCE_METERS`.
    */
   simplifyToleranceMeters: number
@@ -31,11 +33,12 @@ export const DEFAULT_ROUTE_HEATMAP_ACCUMULATION_POINT_LIMIT =
   DEFAULT_ROUTE_HEATMAP_MAX_POINTS * 2
 export const DEFAULT_ROUTE_HEATMAP_FILE_POINT_LIMIT =
   DEFAULT_ROUTE_HEATMAP_MAX_POINTS
-// 2m keeps the simplified line within a single road lane of the recorded track,
-// so it still hugs the road at street zoom while dropping the redundant samples
-// on straightaways. GPS noise is already a few meters, so a tighter tolerance
-// would mostly preserve jitter at a steep payload cost.
-export const DEFAULT_ROUTE_HEATMAP_SIMPLIFY_TOLERANCE_METERS = 2
+// 1m is the *finest* tolerance: it sits near the GPS-noise floor (a few meters),
+// so it follows gentle road curves closely without amplifying jitter. It is only
+// a floor — dense regions whose combined geometry would overflow the point budget
+// are adaptively coarsened from here (see buildRouteHeatmapPayload /
+// simplifySegmentsToBudget), so finer detail is kept wherever the budget allows.
+export const DEFAULT_ROUTE_HEATMAP_SIMPLIFY_TOLERANCE_METERS = 1
 
 const parsePositiveInteger = (value: string | undefined, fallback: number) => {
   if (!value) return fallback

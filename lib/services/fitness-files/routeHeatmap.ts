@@ -13,7 +13,7 @@ import {
 } from '@/lib/utils/webMercator'
 
 import type { FitnessCoordinate } from './parseFitnessFile'
-import { simplifyPoints } from './simplifyRoute'
+import { simplifySegmentsToBudget } from './simplifyRoute'
 
 export interface RouteHeatmapPoint extends FitnessCoordinate {
   isHiddenByPrivacy: boolean
@@ -113,22 +113,16 @@ export const buildRouteHeatmapPayload = ({
     .flatMap((segment) => splitSegmentByBounds(segment, regionBounds))
     .filter((segment) => segment.points.length >= 2)
 
-  // Shape-preserving simplification first, so the `maxPoints` cap only has to
-  // act as a ceiling for pathological caches rather than uniformly decimating
-  // every route (which would cut corners off the road at street zoom). Reuse the
-  // original segment object when simplifyPoints leaves the points untouched.
-  const simplifiedSegments =
-    simplifyToleranceMeters > 0
-      ? filteredSegments
-          .map((segment) => {
-            const points = simplifyPoints(
-              segment.points,
-              simplifyToleranceMeters
-            )
-            return points === segment.points ? segment : { ...segment, points }
-          })
-          .filter((segment) => segment.points.length >= 2)
-      : filteredSegments
+  // Shape-preserving simplification first, fit to `maxPoints` by adaptively
+  // coarsening the tolerance (Douglas–Peucker every pass, so a dense region is
+  // coarsened rather than corner-cut). The uniform cap below then only has to
+  // backstop pathological caches. Checkpoint payloads pass tolerance 0, which
+  // returns the segments untouched.
+  const simplifiedSegments = simplifySegmentsToBudget(
+    filteredSegments,
+    maxPoints,
+    simplifyToleranceMeters
+  )
 
   const sampledSegments = downsamplePrivacySegments(
     simplifiedSegments,
