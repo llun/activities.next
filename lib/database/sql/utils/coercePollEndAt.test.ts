@@ -28,11 +28,30 @@ describe('coercePollEndAt', () => {
     { description: 'an unparseable string', value: 'not-a-date' },
     { description: 'a non-time object', value: { foo: 'bar' } },
     { description: 'a boolean', value: true }
-  ])('falls back to Date.now() for $description', ({ value }) => {
+  ])('defaults to Date.now() for $description', ({ value }) => {
     const before = Date.now()
     const result = coercePollEndAt(value)
     const after = Date.now()
     expect(result).toBeGreaterThanOrEqual(before)
     expect(result).toBeLessThanOrEqual(after)
+  })
+
+  it.each([
+    { description: 'null', value: null },
+    { description: 'undefined', value: undefined },
+    { description: 'an unparseable string', value: 'not-a-date' },
+    { description: 'a non-time object', value: { foo: 'bar' } },
+    { description: 'a boolean', value: true }
+  ])(
+    'uses the provided fallback instead of Date.now() for $description',
+    ({ value }) => {
+      expect(coercePollEndAt(value, 12_345)).toEqual(12_345)
+    }
+  )
+
+  it('ignores the fallback when endAt is parseable', () => {
+    expect(coercePollEndAt(1_700_000_000_000, 12_345)).toEqual(
+      1_700_000_000_000
+    )
   })
 })

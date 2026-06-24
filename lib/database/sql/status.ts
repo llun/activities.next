@@ -2588,8 +2588,10 @@ export const StatusSQLDatabaseMixin = (
         ...base,
         choices: pollChoices,
         // Coerce to a finite timestamp; guards legacy/corrupt rows where endAt
-        // may be missing or a non-numeric value (see coercePollEndAt).
-        endAt: coercePollEndAt(content.endAt),
+        // may be missing or a non-numeric value (see coercePollEndAt). Falls
+        // back to the status creation time (stable across reads) rather than
+        // Date.now() so hydration stays deterministic.
+        endAt: coercePollEndAt(content.endAt, base.createdAt),
         pollType: content.pollType ?? 'oneOf',
         votersCount,
         voted,
