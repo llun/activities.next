@@ -48,11 +48,7 @@ export const CollectionConsentNotification: FC<Props> = ({
       setState(action === 'approve' ? 'approved' : 'revoked')
       router.refresh()
     } catch {
-      setError(
-        action === 'approve'
-          ? 'Could not update your choice. Please try again.'
-          : 'Could not update your choice. Please try again.'
-      )
+      setError('Could not update your choice. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -67,6 +63,7 @@ export const CollectionConsentNotification: FC<Props> = ({
         <Button
           size="sm"
           variant={state === 'approved' ? 'default' : 'outline'}
+          aria-pressed={state === 'approved'}
           onClick={() => respond('approve')}
           disabled={isLoading}
         >
@@ -76,6 +73,7 @@ export const CollectionConsentNotification: FC<Props> = ({
         <Button
           size="sm"
           variant={state === 'revoked' ? 'default' : 'outline'}
+          aria-pressed={state === 'revoked'}
           onClick={() => respond('revoke')}
           disabled={isLoading}
         >

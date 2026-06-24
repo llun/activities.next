@@ -57,6 +57,10 @@ describe('CollectionConsentNotification', () => {
       })
     )
     expect(await screen.findByText('Featured publicly')).toBeInTheDocument()
+    // The active choice is exposed to assistive tech, not just visually.
+    expect(
+      screen.getByRole('button', { name: /show me publicly/i })
+    ).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('revokes the caller’s own membership and reflects the hidden state', async () => {

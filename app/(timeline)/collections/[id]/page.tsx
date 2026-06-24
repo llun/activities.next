@@ -147,7 +147,12 @@ const Page = async ({ params }: PageProps) => {
       isOwner={isOwner}
       ownerHandle={ownerHandle}
       ownerProfilePath={ownerProfilePath}
-      totalCount={totalCount}
+      // Never serialize the raw total (incl. non-consenting members) to a
+      // non-owner client payload — combined with approvedCount it would let
+      // them recompute the hidden-by-consent count. Non-owner paths only use
+      // totalCount as a `=== 0` empty-state check, so approvedCount is a safe
+      // stand-in there.
+      totalCount={isOwner ? totalCount : approvedCount}
       approvedCount={approvedCount}
       ownerRoster={ownerMembersPage.accounts.map((account) =>
         toCollectionMember(account, host)
