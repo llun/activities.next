@@ -2,6 +2,7 @@ import { Knex } from 'knex'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { incrementLocalStatusBucket } from '@/lib/database/sql/instanceActivity'
+import { coercePollEndAt } from '@/lib/database/sql/utils/coercePollEndAt'
 import {
   CounterKey,
   decreaseCounterValue,
@@ -2586,10 +2587,9 @@ export const StatusSQLDatabaseMixin = (
       return StatusPoll.parse({
         ...base,
         choices: pollChoices,
-        // Defensive fallback: createPoll always persists a non-null endAt, so
-        // this only guards legacy/corrupt rows that predate that guarantee.
-        // StatusPoll.endAt is a required number, so coalesce to "now".
-        endAt: content.endAt ?? Date.now(),
+        // Coerce to a finite timestamp; guards legacy/corrupt rows where endAt
+        // may be missing or a non-numeric value (see coercePollEndAt).
+        endAt: coercePollEndAt(content.endAt),
         pollType: content.pollType ?? 'oneOf',
         votersCount,
         voted,
