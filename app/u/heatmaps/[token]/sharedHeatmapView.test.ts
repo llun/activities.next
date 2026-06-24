@@ -67,17 +67,25 @@ describe('computeInitials', () => {
     { description: 'two words', input: 'Alice Rider', expected: 'AR' },
     { description: 'single word', input: 'alice', expected: 'A' },
     { description: 'caps the first two words', input: 'a b c', expected: 'AB' },
-    { description: 'blank falls back to ?', input: '   ', expected: '?' }
+    { description: 'blank falls back to ?', input: '   ', expected: '?' },
+    {
+      description: 'keeps a non-BMP leading char intact (no broken surrogate)',
+      input: '𝒜lice',
+      expected: '𝒜'
+    }
   ])('$description', ({ input, expected }) => {
     expect(computeInitials(input)).toBe(expected)
   })
 })
 
 describe('formatGeneratedDate', () => {
-  it('formats an absolute long date', () => {
-    const formatted = formatGeneratedDate(Date.UTC(2026, 5, 24, 12))
-    expect(formatted).toMatch(/2026/)
-    expect(formatted).toMatch(/June/)
+  it('formats an absolute long date in UTC', () => {
+    expect(formatGeneratedDate(Date.UTC(2026, 5, 24, 12))).toBe('June 24, 2026')
+  })
+
+  it('does not shift a UTC-midnight instant across the date boundary', () => {
+    // Without timeZone: 'UTC' this would render Dec 31, 2025 west of UTC.
+    expect(formatGeneratedDate(Date.UTC(2026, 0, 1, 0))).toBe('January 1, 2026')
   })
 })
 

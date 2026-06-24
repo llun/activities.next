@@ -23,19 +23,26 @@ export const computeInitials = (name: string): string => {
     .trim()
     .split(/\s+/)
     .filter(Boolean)
-    .map((word) => word[0])
+    // Spread to the first full unicode code point so an emoji / non-BMP leading
+    // character isn't sliced into a broken surrogate half.
+    .map((word) => [...word][0])
     .slice(0, 2)
     .join('')
     .toUpperCase()
   return initials || '?'
 }
 
-/** Absolute "June 24, 2026"-style date for the public "Generated …" line. */
+/**
+ * Absolute "June 24, 2026"-style date for the public "Generated …" line. Pinned
+ * to UTC so the rendered date is deterministic regardless of the server's
+ * timezone (consistent with the rest of the fitness dashboard).
+ */
 export const formatGeneratedDate = (ms: number): string =>
   new Date(ms).toLocaleDateString('en-US', {
     month: 'long',
     day: 'numeric',
-    year: 'numeric'
+    year: 'numeric',
+    timeZone: 'UTC'
   })
 
 export interface SharedHeatmapOwner {

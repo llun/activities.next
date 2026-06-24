@@ -113,9 +113,10 @@ describe('HeatmapShareEmbed', () => {
     )
 
     fireEvent.click(screen.getByRole('tab', { name: /Image/i }))
+    // The `&` between query params is entity-escaped inside the HTML attribute.
     expect(
       textboxValues().some((value) =>
-        value.includes('/embed/heatmap/tok123/image?w=600&h=420')
+        value.includes('/embed/heatmap/tok123/image?w=600&amp;h=420')
       )
     ).toBe(true)
   })
@@ -146,6 +147,22 @@ describe('HeatmapShareEmbed', () => {
       textboxValues().some(
         (value) =>
           value.includes('width="800"') && value.includes('height="560"')
+      )
+    ).toBe(true)
+  })
+
+  it('escapes a quote in the origin so the copyable snippet stays well-formed', () => {
+    render(
+      <HeatmapShareEmbed
+        {...defaultProps}
+        embedOrigin={'https://llun.test"x'}
+        shareToken="tok123"
+        defaultOpen
+      />
+    )
+    expect(
+      textboxValues().some((value) =>
+        value.includes('src="https://llun.test&quot;x/embed/heatmap/tok123"')
       )
     ).toBe(true)
   })

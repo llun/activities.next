@@ -26,19 +26,25 @@ const writeToClipboard = async (text: string): Promise<boolean> => {
     }
   }
 
+  // Restore focus to wherever the user was (e.g. the Copy button) after the
+  // hidden textarea steals it.
+  const previouslyFocused = document.activeElement
+  const textArea = document.createElement('textarea')
   try {
-    const textArea = document.createElement('textarea')
     textArea.value = text
     textArea.setAttribute('readonly', '')
     textArea.style.position = 'fixed'
     textArea.style.opacity = '0'
     document.body.appendChild(textArea)
     textArea.select()
-    const ok = document.execCommand('copy')
-    document.body.removeChild(textArea)
-    return ok
+    return document.execCommand('copy')
   } catch {
     return false
+  } finally {
+    // A `finally` guarantees the temporary node is removed even if execCommand
+    // throws, so it can never leak into the DOM.
+    textArea.remove()
+    if (previouslyFocused instanceof HTMLElement) previouslyFocused.focus()
   }
 }
 

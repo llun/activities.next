@@ -114,7 +114,10 @@ export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
               <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="flex size-5 items-center justify-center rounded-full bg-muted-foreground text-[10px] font-semibold text-background">
+                  <span
+                    aria-hidden="true"
+                    className="flex size-5 items-center justify-center rounded-full bg-muted-foreground text-[10px] font-semibold text-background"
+                  >
                     {owner.initials}
                   </span>
                   <span className="font-medium text-foreground">

@@ -75,6 +75,7 @@ const CopyField: FC<CopyFieldProps> = ({ value, mono, copyLabel }) => {
           readOnly
           rows={3}
           value={value}
+          aria-label={copyLabel}
           onFocus={(event) => event.currentTarget.select()}
           className="min-w-0 flex-1 resize-none rounded-md border bg-muted/40 px-2.5 py-1.5 font-mono text-[11px] leading-relaxed text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
@@ -83,6 +84,7 @@ const CopyField: FC<CopyFieldProps> = ({ value, mono, copyLabel }) => {
           readOnly
           type="text"
           value={value}
+          aria-label={copyLabel}
           onFocus={(event) => event.currentTarget.select()}
           className="min-w-0 flex-1 rounded-md border bg-muted/40 px-2.5 py-1.5 text-[12px] leading-relaxed text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
@@ -199,8 +201,11 @@ export const HeatmapShareEmbed: FC<HeatmapShareEmbedProps> = ({
     ? `${base}/embed/heatmap/${shareToken}/image?w=${size.width}&h=${size.height}`
     : ''
 
-  const iframeSnippet = `<iframe src="${embedSrc}" width="${size.width}" height="${size.height}"\n  loading="lazy" style="border:0;border-radius:12px"\n  title="${altAttr}"></iframe>`
-  const imageSnippet = `<a href="${linkUrl}">\n  <img src="${imageUrl}" width="${size.width}" height="${size.height}" alt="${altAttr}" />\n</a>`
+  // The token (base64url) and origin (a URL.origin) can't contain attribute
+  // delimiters today, but escape the URLs anyway so the copyable HTML stays
+  // well-formed if either ever does — defence in depth.
+  const iframeSnippet = `<iframe src="${escapeAttr(embedSrc)}" width="${size.width}" height="${size.height}"\n  loading="lazy" style="border:0;border-radius:12px"\n  title="${altAttr}"></iframe>`
+  const imageSnippet = `<a href="${escapeAttr(linkUrl)}">\n  <img src="${escapeAttr(imageUrl)}" width="${size.width}" height="${size.height}" alt="${altAttr}" />\n</a>`
 
   if (!open) {
     return (

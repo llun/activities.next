@@ -107,6 +107,20 @@ describe('useCopyToClipboard', () => {
     expect(result.current.copied).toBe(false)
   })
 
+  it('removes the temp textarea even if execCommand throws', async () => {
+    setClipboard(undefined)
+    document.execCommand = vi.fn(() => {
+      throw new Error('boom')
+    })
+    const { result } = renderHook(() => useCopyToClipboard())
+    await act(async () => {
+      await result.current.copy('hello')
+    })
+    expect(result.current.copied).toBe(false)
+    // The finally block must have removed the temporary node from the DOM.
+    expect(document.querySelector('textarea')).toBeNull()
+  })
+
   it('stays uncopied when the clipboard write rejects and execCommand fails', async () => {
     const writeText = vi.fn().mockRejectedValue(new Error('denied'))
     setClipboard(writeText)
