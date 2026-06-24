@@ -9,7 +9,7 @@ import {
   getTags
 } from '@/lib/activities/note'
 import { addStatusToTimelines } from '@/lib/services/timelines'
-import { ENTITY_TYPE_QUESTION, Note, Question } from '@/lib/types/activitypub'
+import { ENTITY_TYPE_QUESTION, Question } from '@/lib/types/activitypub'
 import {
   normalizeActivityPubContent,
   toRecipientArray
@@ -45,9 +45,8 @@ export const createPollJob = createJobHandle(
       return
     }
 
-    // TODO: Move Poll to schema
-    const text = getContent(question as unknown as Note)
-    const summary = getSummary(question as unknown as Note)
+    const text = getContent(question)
+    const summary = getSummary(question)
     const pollType = question.oneOf
       ? 'oneOf'
       : question.anyOf
@@ -91,7 +90,7 @@ export const createPollJob = createJobHandle(
       })
     ])
 
-    const tags = getTags(question as unknown as Note)
+    const tags = getTags(question)
     const seenHashtags = new Set<string>()
     const affectedHashtags: string[] = []
     await Promise.all([
