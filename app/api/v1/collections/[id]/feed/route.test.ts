@@ -130,6 +130,25 @@ describe('GET /api/v1/collections/[id]/feed', () => {
     )
   })
 
+  it('returns the activities_next domain shape when requested', async () => {
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v1/collections/${publicCollectionId}/feed?format=activities_next`
+      ),
+      { params: Promise.resolve({ id: publicCollectionId }) }
+    )
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    // Domain shape: { statuses, nextMaxStatusId, prevMinStatusId } — the same
+    // contract the list timeline returns, so <Posts> can render it directly.
+    expect(Array.isArray(data.statuses)).toBe(true)
+    expect(data.statuses.map((status: { id: string }) => status.id)).toContain(
+      publicPostId
+    )
+    expect(data).toHaveProperty('nextMaxStatusId')
+    expect(data).toHaveProperty('prevMinStatusId')
+  })
+
   it('returns 404 for a private collection', async () => {
     const response = await GET(request(privateCollectionId), {
       params: Promise.resolve({ id: privateCollectionId })

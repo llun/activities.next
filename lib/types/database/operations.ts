@@ -1349,6 +1349,12 @@ export type UpdateCollectionParams = {
   publicFeed?: boolean
 }
 export type GetCollectionParams = { id: string; actorId: string }
+// Resolve a collection by id WITHOUT owner-scoping. Used by surfaces where the
+// viewer is not the owner: the public collection page (which applies its own
+// visibility/feed gate) and member-facing collection notifications (the member
+// is legitimately in the collection, so may see its title). Callers are
+// responsible for any visibility gating.
+export type GetCollectionByIdParams = { id: string }
 export type GetCollectionsParams = { actorId: string }
 export type DeleteCollectionParams = { id: string; actorId: string }
 
@@ -1437,6 +1443,8 @@ export interface CollectionDatabase {
   createCollection(params: CreateCollectionParams): Promise<Collection>
   updateCollection(params: UpdateCollectionParams): Promise<Collection | null>
   getCollection(params: GetCollectionParams): Promise<Collection | null>
+  // Non-owner-scoped lookup by id (see GetCollectionByIdParams).
+  getCollectionById(params: GetCollectionByIdParams): Promise<Collection | null>
   getCollections(params: GetCollectionsParams): Promise<Collection[]>
   deleteCollection(params: DeleteCollectionParams): Promise<boolean>
   // Member counts keyed by collection id. Collections with no (matching) members

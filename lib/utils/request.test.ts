@@ -1,6 +1,4 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
-import { type Server, createServer } from 'node:http'
-import { type AddressInfo } from 'node:net'
 
 import { getConfig } from '@/lib/config'
 
@@ -88,50 +86,6 @@ enableFetchMocks()
 
 const mockGetConfig = getConfig as jest.MockedFunction<typeof getConfig>
 const defaultConfig = mockGetConfig()
-
-const createTestServer = async (
-  body: string,
-  headers: Record<string, string> = {}
-) => {
-  const server = createServer((_request, response) => {
-    response.writeHead(200, { 'content-type': 'text/plain', ...headers })
-    response.end(body)
-  })
-
-  await new Promise<void>((resolve) => {
-    server.listen(0, '127.0.0.1', resolve)
-  })
-
-  const { port } = server.address() as AddressInfo
-  return { server, url: `http://127.0.0.1:${port}` }
-}
-
-const closeServer = async (server: Server) => {
-  await new Promise<void>((resolve, reject) => {
-    server.close((error) => {
-      if (error) {
-        reject(error)
-        return
-      }
-
-      resolve()
-    })
-  })
-}
-
-const withDevelopmentNodeEnv = async (callback: () => Promise<void>) => {
-  const originalNodeEnv = process.env.NODE_ENV
-  process.env.NODE_ENV = 'development'
-  try {
-    await callback()
-  } finally {
-    if (typeof originalNodeEnv === 'undefined') {
-      delete process.env.NODE_ENV
-    } else {
-      process.env.NODE_ENV = originalNodeEnv
-    }
-  }
-}
 
 describe('request utility', () => {
   afterEach(() => {
@@ -225,83 +179,72 @@ describe('request utility', () => {
       )
     })
 
+    // These exercise the response-size guard in readResponseBody. They mock the
+    // fetch response (intercepted by the got.stream mock) rather than spinning up
+    // a real loopback server read through node-fetch, which was flaky on CI: the
+    // detached body read could surface a premature-close "Invalid response body"
+    // error that raced the real "Response body too large" error.
     it('returns a streamed response within the response size limit', async () => {
-      await withDevelopmentNodeEnv(async () => {
-        fetchMock.dontMock()
-        const { server, url } = await createTestServer('small body')
-
-        try {
-          const response = await request({
-            url,
-            numberOfRetry: 0,
-            maxResponseSize: 64
-          })
-
-          expect(response.statusCode).toBe(200)
-          expect(response.body).toBe('small body')
-        } finally {
-          await closeServer(server)
-        }
+      fetchMock.mockResponseOnce('small body', {
+        status: 200,
+        headers: { 'content-type': 'text/plain', 'content-length': '10' }
       })
+
+      const response = await request({
+        url: 'https://example.com/api/test',
+        numberOfRetry: 0,
+        maxResponseSize: 64
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.body).toBe('small body')
     })
 
     it('rejects a streamed response over the response size limit', async () => {
-      await withDevelopmentNodeEnv(async () => {
-        fetchMock.dontMock()
-        const { server, url } = await createTestServer('x'.repeat(32))
-
-        try {
-          await expect(
-            request({
-              url,
-              numberOfRetry: 0,
-              maxResponseSize: 8
-            })
-          ).rejects.toThrow('Response body too large')
-        } finally {
-          await closeServer(server)
-        }
+      // No content-length → exercises the per-chunk streaming guard.
+      fetchMock.mockResponseOnce('x'.repeat(32), {
+        status: 200,
+        headers: { 'content-type': 'text/plain' }
       })
+
+      await expect(
+        request({
+          url: 'https://example.com/api/test',
+          numberOfRetry: 0,
+          maxResponseSize: 8
+        })
+      ).rejects.toThrow('Response body too large')
     })
 
     it('rejects a streamed response with an oversized content length', async () => {
-      await withDevelopmentNodeEnv(async () => {
-        fetchMock.dontMock()
-        const { server, url } = await createTestServer('small body', {
-          'content-length': '32'
-        })
-
-        try {
-          await expect(
-            request({
-              url,
-              numberOfRetry: 0,
-              maxResponseSize: 8
-            })
-          ).rejects.toThrow('Response body too large')
-        } finally {
-          await closeServer(server)
-        }
+      // content-length exceeds the cap → rejected before reading the body.
+      fetchMock.mockResponseOnce('small body', {
+        status: 200,
+        headers: { 'content-type': 'text/plain', 'content-length': '32' }
       })
+
+      await expect(
+        request({
+          url: 'https://example.com/api/test',
+          numberOfRetry: 0,
+          maxResponseSize: 8
+        })
+      ).rejects.toThrow('Response body too large')
     })
 
     it('honors a zero-byte max response size', async () => {
-      await withDevelopmentNodeEnv(async () => {
-        fetchMock.dontMock()
-        const { server, url } = await createTestServer('body')
-
-        try {
-          await expect(
-            request({
-              url,
-              numberOfRetry: 0,
-              maxResponseSize: 0
-            })
-          ).rejects.toThrow('Response body too large')
-        } finally {
-          await closeServer(server)
-        }
+      fetchMock.mockResponseOnce('body', {
+        status: 200,
+        headers: { 'content-type': 'text/plain' }
       })
+
+      await expect(
+        request({
+          url: 'https://example.com/api/test',
+          numberOfRetry: 0,
+          maxResponseSize: 0
+        })
+      ).rejects.toThrow('Response body too large')
     })
 
     it('does not retry URLs blocked by safe remote fetch validation', async () => {

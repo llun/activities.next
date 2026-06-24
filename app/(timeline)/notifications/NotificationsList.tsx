@@ -13,18 +13,22 @@ import { NotificationItem } from './NotificationItem'
 interface NotificationWithData extends GroupedNotification {
   account: Mastodon.Account | null
   status?: Status | null
+  collection?: { id: string; title: string } | null
 }
 
 interface Props {
   notifications: NotificationWithData[]
   host: string
   currentTime: number
+  // The viewer's own Mastodon Account id, forwarded to collection-consent rows.
+  currentAccountId?: string
 }
 
 export const NotificationsList = ({
   notifications,
   host,
-  currentTime
+  currentTime,
+  currentAccountId
 }: Props) => {
   const router = useRouter()
   const [readNotifications, setReadNotifications] = useState<Set<string>>(
@@ -157,6 +161,7 @@ export const NotificationsList = ({
               notification.isRead || readNotifications.has(notification.id)
             }
             currentTime={currentTime}
+            currentAccountId={currentAccountId}
             observeElement={observeElement}
           />
         ))}
