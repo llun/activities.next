@@ -8,7 +8,7 @@ import {
   FitnessRouteHeatmapData,
   FitnessRouteHeatmapSegment
 } from '@/lib/client'
-import { simplifySegments } from '@/lib/services/fitness-files/simplifyRoute'
+import { simplifySegmentsToBudget } from '@/lib/services/fitness-files/simplifyRoute'
 import { cn } from '@/lib/utils'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
 import {
@@ -44,18 +44,19 @@ interface MapFallbackError {
 
 // Target vertex count handed to the GL line layer. A whole-world, all-time
 // cache can aggregate hundreds of thousands of points and staging reproduced
-// blank GL canvases past ~80k. The geometry is first simplified with
-// Douglas–Peucker (shape-preserving, see ROUTE_RENDER_SIMPLIFY_TOLERANCE_METERS)
-// and only then capped at this budget via the uniform downsampleSegments
-// fallback, so a dense cache stays interactive without cutting corners off the
-// road. The budget sits below the ~80k blank-canvas threshold with headroom.
+// blank GL canvases past ~80k. The geometry is fit to this budget by adaptively
+// coarsening the Douglas–Peucker tolerance (shape-preserving, see
+// simplifySegmentsToBudget) and only then capped via the uniform
+// downsampleSegments fallback for pathological inputs, so a dense cache stays
+// interactive without cutting corners off the road. The budget sits below the
+// ~80k blank-canvas threshold with headroom.
 const ROUTE_RENDER_POINT_BUDGET = 60_000
-// Douglas–Peucker tolerance (meters) for the rendered geometry. Mirrors the
-// server-side default so a freshly generated cache renders close to as-stored,
-// while a legacy uniformly-decimated cache still gets its redundant collinear
-// points trimmed at render time. Within a road lane, so the line keeps hugging
-// the road at street zoom.
-const ROUTE_RENDER_SIMPLIFY_TOLERANCE_METERS = 2
+// Finest Douglas–Peucker tolerance (meters) for the rendered geometry. Mirrors
+// the server-side floor so a freshly generated cache renders close to as-stored;
+// a sparse region keeps this full detail, while a dense one is coarsened up from
+// here to fit the budget. Near the GPS-noise floor, so the line hugs the road at
+// street zoom without amplifying jitter.
+const ROUTE_RENDER_SIMPLIFY_TOLERANCE_METERS = 1
 // Fall back to the "Map unavailable" message if the GL map never reaches its
 // 'load' event (e.g. the style/tiles fail to fetch after the JS bundle loaded),
 // instead of spinning the "Loading map…" overlay forever. Mirrors RegionMap.
@@ -364,10 +365,11 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
   const shouldRenderMap = hasRoutes && Boolean(bounds) && !mapFallbackReason
   const downsampledSegments = useMemo(() => {
     if (!hasRoutes || !heatmap) return []
-    // Shape-preserving simplification first (keeps the road shape), then the
-    // uniform budget cap only as a ceiling for pathological caches.
-    const simplified = simplifySegments(
+    // Fit the budget by adaptively coarsening the tolerance (shape-preserving),
+    // then the uniform cap only as a ceiling for pathological caches.
+    const simplified = simplifySegmentsToBudget(
       heatmap.segments,
+      ROUTE_RENDER_POINT_BUDGET,
       ROUTE_RENDER_SIMPLIFY_TOLERANCE_METERS
     )
     return downsampleSegments(simplified, ROUTE_RENDER_POINT_BUDGET)

@@ -1,6 +1,22 @@
 import { FitnessRouteHeatmapSegment } from '@/lib/types/database/fitnessRouteHeatmap'
 
-import { simplifyPoints, simplifySegments } from './simplifyRoute'
+import {
+  simplifyPoints,
+  simplifySegments,
+  simplifySegmentsToBudget
+} from './simplifyRoute'
+
+const totalPoints = (segments: FitnessRouteHeatmapSegment[]) =>
+  segments.reduce((sum, segment) => sum + segment.points.length, 0)
+
+// A wiggly route whose every-other vertex deviates ~`amplitudeDeg`° from the
+// baseline, so at a fine tolerance most vertices survive Douglas–Peucker.
+const wigglyRoute = (count: number, amplitudeDeg: number, lngBase: number) => ({
+  points: Array.from({ length: count }, (_value, index) => ({
+    lat: 1.3 + index * 0.00002 + (index % 2) * amplitudeDeg,
+    lng: lngBase + index * 0.00002
+  }))
+})
 
 describe('simplifyPoints', () => {
   it('returns the input unchanged when there are two or fewer points', () => {
@@ -188,5 +204,51 @@ describe('simplifySegments', () => {
     ]
 
     expect(simplifySegments(segments, 2)).toBe(segments)
+  })
+})
+
+describe('simplifySegmentsToBudget', () => {
+  it('keeps the finest-tolerance detail when it already fits the budget', () => {
+    const segments = [wigglyRoute(100, 0.0001, 103.8)]
+
+    const result = simplifySegmentsToBudget(segments, 10_000, 1)
+
+    // Under budget at the fine tolerance, so most of the wiggle is retained.
+    expect(totalPoints(result)).toBeLessThanOrEqual(10_000)
+    expect(totalPoints(result)).toBeGreaterThan(50)
+  })
+
+  it('coarsens the tolerance until the geometry fits the budget', () => {
+    const segments = Array.from({ length: 10 }, (_value, index) =>
+      wigglyRoute(200, 0.0001, 103 + index)
+    )
+
+    const atFinest = totalPoints(simplifySegments(segments, 1))
+    const fitted = simplifySegmentsToBudget(segments, 500, 1)
+
+    // The fine tolerance overflows the budget; coarsening brings it under while
+    // keeping every segment (>= 2 points), i.e. shape-preserving, not uniformly
+    // decimated.
+    expect(atFinest).toBeGreaterThan(500)
+    expect(totalPoints(fitted)).toBeLessThanOrEqual(500)
+    expect(fitted.every((segment) => segment.points.length >= 2)).toBe(true)
+  })
+
+  it('returns the input reference when the base pass already fits and changes nothing', () => {
+    const segments: FitnessRouteHeatmapSegment[] = [
+      {
+        points: [
+          { lat: 1, lng: 2 },
+          { lat: 1.1, lng: 2.1 }
+        ]
+      }
+    ]
+
+    expect(simplifySegmentsToBudget(segments, 1_000, 1)).toBe(segments)
+  })
+
+  it('returns the input reference when the base tolerance is not positive', () => {
+    const segments = [wigglyRoute(50, 0.0001, 103.8)]
+    expect(simplifySegmentsToBudget(segments, 10, 0)).toBe(segments)
   })
 })
