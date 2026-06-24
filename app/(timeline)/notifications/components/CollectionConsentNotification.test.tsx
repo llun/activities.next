@@ -86,5 +86,10 @@ describe('CollectionConsentNotification', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Could not update your choice. Please try again.'
     )
+    // A failed request must leave the choice unmade (no optimistic state).
+    expect(screen.queryByText('Featured publicly')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /show me publicly/i })
+    ).toHaveAttribute('aria-pressed', 'false')
   })
 })

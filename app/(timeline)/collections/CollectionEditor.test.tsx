@@ -187,6 +187,26 @@ describe('CollectionEditor', () => {
     )
   })
 
+  it('shows an inline error and keeps the member when the remove fails', async () => {
+    ;(removeCollectionAccounts as jest.Mock).mockResolvedValue(false)
+    render(
+      <CollectionEditor
+        mode="edit"
+        collection={collection}
+        initialMembers={[member]}
+        followingSuggestions={[]}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Rin' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not remove that account. Please try again.'
+    )
+    // The member is not optimistically dropped on a failed remove.
+    expect(screen.getByText('In this collection · 1')).toBeInTheDocument()
+  })
+
   it('saves changes and routes back to the collection', async () => {
     render(
       <CollectionEditor
@@ -212,5 +232,41 @@ describe('CollectionEditor', () => {
       })
     )
     expect(mockPush).toHaveBeenCalledWith('/collections/col-1')
+  })
+
+  it('deletes the collection after confirmation and routes back to the index', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    render(<CollectionEditor mode="edit" collection={collection} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete collection' }))
+
+    await waitFor(() => expect(deleteCollection).toHaveBeenCalledWith('col-1'))
+    expect(mockPush).toHaveBeenCalledWith('/lists')
+    confirmSpy.mockRestore()
+  })
+
+  it('does not delete when the confirmation is dismissed', () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    render(<CollectionEditor mode="edit" collection={collection} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete collection' }))
+
+    expect(deleteCollection).not.toHaveBeenCalled()
+    expect(mockPush).not.toHaveBeenCalled()
+    confirmSpy.mockRestore()
+  })
+
+  it('shows an inline error when the delete fails', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    ;(deleteCollection as jest.Mock).mockResolvedValue(false)
+    render(<CollectionEditor mode="edit" collection={collection} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete collection' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not delete the collection. Please try again.'
+    )
+    expect(mockPush).not.toHaveBeenCalled()
+    confirmSpy.mockRestore()
   })
 })
