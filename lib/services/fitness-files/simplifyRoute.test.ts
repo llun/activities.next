@@ -251,4 +251,24 @@ describe('simplifySegmentsToBudget', () => {
     const segments = [wigglyRoute(50, 0.0001, 103.8)]
     expect(simplifySegmentsToBudget(segments, 10, 0)).toBe(segments)
   })
+
+  it('stops coarsening once every segment is at the 2-point minimum', () => {
+    // Five 2-point segments (10 points) over a budget of 4: coarsening cannot
+    // drop any further (each is already minimal), so it returns them unchanged
+    // for the caller's uniform backstop instead of looping.
+    const segments: FitnessRouteHeatmapSegment[] = Array.from(
+      { length: 5 },
+      (_value, index) => ({
+        points: [
+          { lat: index, lng: index },
+          { lat: index + 0.1, lng: index + 0.1 }
+        ]
+      })
+    )
+
+    const result = simplifySegmentsToBudget(segments, 4, 1)
+
+    expect(result).toBe(segments)
+    expect(totalPoints(result)).toBe(10)
+  })
 })

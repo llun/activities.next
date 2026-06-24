@@ -13,7 +13,12 @@ import {
 } from '@/lib/utils/webMercator'
 
 import type { FitnessCoordinate } from './parseFitnessFile'
-import { MAX_BUDGET_PASSES, simplifyPoints } from './simplifyRoute'
+import {
+  MAX_BUDGET_PASSES,
+  everySegmentAtMinimum,
+  simplifyPoints,
+  totalPointCount
+} from './simplifyRoute'
 
 export interface RouteHeatmapPoint extends FitnessCoordinate {
   isHiddenByPrivacy: boolean
@@ -89,10 +94,6 @@ export const splitSegmentByBounds = <T extends FitnessCoordinate>(
   return segments
 }
 
-const countSegmentPoints = (
-  segments: Array<PrivacySegment<RouteHeatmapPoint>>
-): number => segments.reduce((sum, segment) => sum + segment.points.length, 0)
-
 const round6 = (value: number) => Math.round(value * 1_000_000) / 1_000_000
 
 const normalizeCoordinate = (point: FitnessCoordinate) => ({
@@ -139,7 +140,8 @@ export const buildRouteHeatmapPayload = ({
     for (
       let pass = 0;
       pass < MAX_BUDGET_PASSES &&
-      countSegmentPoints(simplifiedSegments) > maxPoints;
+      totalPointCount(simplifiedSegments) > maxPoints &&
+      !everySegmentAtMinimum(simplifiedSegments);
       pass += 1
     ) {
       tolerance *= 2

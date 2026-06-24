@@ -40,9 +40,17 @@ const MAX_COMPARISONS_PER_POINT = 128
 // before it fits.
 export const MAX_BUDGET_PASSES = 8
 
-const totalPointCount = (
-  segments: ReadonlyArray<{ points: ReadonlyArray<unknown> }>
+type CountableSegment = { points: ReadonlyArray<unknown> }
+
+export const totalPointCount = (
+  segments: ReadonlyArray<CountableSegment>
 ): number => segments.reduce((sum, segment) => sum + segment.points.length, 0)
+
+// Every segment is already at the 2-point floor that simplifyPoints guarantees,
+// so coarsening the tolerance further cannot drop any more vertices.
+export const everySegmentAtMinimum = (
+  segments: ReadonlyArray<CountableSegment>
+): boolean => segments.every((segment) => segment.points.length <= 2)
 
 // Squared distance (in meters²) from a point to the segment `a`→`b`, all already
 // projected to the local equirectangular meters plane (see simplifyPoints).
@@ -242,7 +250,9 @@ export const simplifySegmentsToBudget = (
   let result = simplifySegments(segments, tolerance)
   for (
     let pass = 0;
-    pass < MAX_BUDGET_PASSES && totalPointCount(result) > maxPoints;
+    pass < MAX_BUDGET_PASSES &&
+    totalPointCount(result) > maxPoints &&
+    !everySegmentAtMinimum(result);
     pass += 1
   ) {
     tolerance *= 2
