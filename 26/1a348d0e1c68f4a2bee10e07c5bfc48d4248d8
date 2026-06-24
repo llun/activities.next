@@ -1,0 +1,23 @@
+lib/services/fitness-files/simplifyRoute.ts
+  s_dabfd6fcc025d2::t_a814594ed9ff70 190-197,199-202,205-206,208,213
+  s_dabfd6fcc025d2::t_91f0d292a993e8 246-250,253
+lib/services/fitness-files/routeHeatmap.ts
+  s_dabfd6fcc025d2::t_3f9b0bb9360ce3 16
+  s_dabfd6fcc025d2::t_e387e0df7586fc 116-125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.11",
+  "base_commit_sha": "261a348d0e1c68f4a2bee10e07c5bfc48d4248d8",
+  "prompts": {},
+  "sessions": {
+    "s_dabfd6fcc025d2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f5d8a71-454a-4294-9816-1d2edbd74c5e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
