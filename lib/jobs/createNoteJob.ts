@@ -35,6 +35,9 @@ import { actorMatchesVerifiedSender } from './verifiedSender'
 export const createNoteJob = createJobHandle(
   CREATE_NOTE_JOB_NAME,
   async (database, message) => {
+    // Intentionally excludes Question: poll creation is routed to
+    // createPollJob by getJobMessage, so a Question payload never reaches here.
+    // The parsed note-like subset is a subset of BaseNote, so the cast widens.
     const BaseNoteSchema = z.union([
       Note,
       ImageContent,
