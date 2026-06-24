@@ -38,7 +38,7 @@ jobs:
           fi
 
       - name: Checkout oltp branch
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: oltp
           fetch-depth: 0
