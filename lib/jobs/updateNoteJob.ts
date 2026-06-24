@@ -22,6 +22,9 @@ import { UPDATE_NOTE_JOB_NAME } from './names'
 export const updateNoteJob = createJobHandle(
   UPDATE_NOTE_JOB_NAME,
   async (database, message) => {
+    // Intentionally excludes Question: poll updates are routed to updatePollJob
+    // by getJobMessage, so a Question payload never reaches here. The parsed
+    // note-like subset is a subset of BaseNote, so the cast widens.
     const BaseNoteSchema = z.union([
       Note,
       ImageContent,

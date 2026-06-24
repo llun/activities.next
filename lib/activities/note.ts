@@ -7,6 +7,7 @@ import {
   KnownTag,
   Note,
   PageContent,
+  Question,
   type Tag,
   VideoContent
 } from '@/lib/types/activitypub'
@@ -17,6 +18,7 @@ export type BaseNote =
   | PageContent
   | ArticleContent
   | VideoContent
+  | Question
 
 type UrlValue = string | { href?: string } | (string | { href?: string })[]
 

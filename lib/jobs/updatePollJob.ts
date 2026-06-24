@@ -1,5 +1,5 @@
 import { getContent, getSummary } from '@/lib/activities/note'
-import { ENTITY_TYPE_QUESTION, Note, Question } from '@/lib/types/activitypub'
+import { ENTITY_TYPE_QUESTION, Question } from '@/lib/types/activitypub'
 import { StatusType } from '@/lib/types/domain/status'
 import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
 
@@ -22,9 +22,8 @@ export const updatePollJob = createJobHandle(
       return
     }
 
-    // TODO: Move Poll to schema
-    const text = getContent(question as unknown as Note)
-    const summary = getSummary(question as unknown as Note)
+    const text = getContent(question)
+    const summary = getSummary(question)
     await database.updatePoll({
       statusId: question.id,
       summary,
