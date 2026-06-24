@@ -226,7 +226,7 @@ export const HeatmapShareEmbed: FC<HeatmapShareEmbedProps> = ({
             <Share2 className="size-4" />
           </span>
           <div>
-            <div className="text-sm font-semibold">Share &amp; embed</div>
+            <h3 className="text-sm font-semibold">Share &amp; embed</h3>
             <div className="text-[11px] text-muted-foreground">
               Drop this heatmap into any other website — live embed, image, or a
               link.
@@ -323,7 +323,7 @@ export const HeatmapShareEmbed: FC<HeatmapShareEmbedProps> = ({
                 copyLabel="Copy embed code"
               />
               <div
-                className="overflow-hidden rounded-lg border"
+                className="w-full overflow-hidden rounded-lg border"
                 style={{ maxWidth: size.width }}
               >
                 <RouteHeatmapMap

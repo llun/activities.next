@@ -12,6 +12,12 @@ const setClipboard = (writeText: ReturnType<typeof vi.fn> | undefined) => {
   })
 }
 
+beforeEach(() => {
+  // Default the legacy fallback to "unavailable" so tests that exercise the
+  // Clipboard API path don't accidentally succeed via execCommand.
+  document.execCommand = vi.fn(() => false)
+})
+
 afterEach(() => {
   vi.useRealTimers()
   setClipboard(undefined)
@@ -38,8 +44,22 @@ describe('useCopyToClipboard', () => {
     expect(result.current.copied).toBe(false)
   })
 
-  it('no-ops without throwing when navigator.clipboard is unavailable', async () => {
+  it('falls back to execCommand when navigator.clipboard is unavailable', async () => {
     setClipboard(undefined)
+    const execCommand = vi.fn(() => true)
+    document.execCommand = execCommand
+
+    const { result } = renderHook(() => useCopyToClipboard())
+    await act(async () => {
+      await result.current.copy('hello')
+    })
+    expect(execCommand).toHaveBeenCalledWith('copy')
+    expect(result.current.copied).toBe(true)
+  })
+
+  it('stays uncopied when neither clipboard API nor execCommand works', async () => {
+    setClipboard(undefined)
+    document.execCommand = vi.fn(() => false)
     const { result } = renderHook(() => useCopyToClipboard())
     await act(async () => {
       await result.current.copy('hello')
@@ -87,9 +107,10 @@ describe('useCopyToClipboard', () => {
     expect(result.current.copied).toBe(false)
   })
 
-  it('stays uncopied when the clipboard write rejects', async () => {
+  it('stays uncopied when the clipboard write rejects and execCommand fails', async () => {
     const writeText = vi.fn().mockRejectedValue(new Error('denied'))
     setClipboard(writeText)
+    document.execCommand = vi.fn(() => false)
     const { result } = renderHook(() => useCopyToClipboard())
     await act(async () => {
       await result.current.copy('hello')

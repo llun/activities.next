@@ -164,9 +164,9 @@ export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
                 <Flame className="size-5" />
               </span>
               <div>
-                <div className="text-sm font-semibold">
+                <h2 className="text-sm font-semibold">
                   Make a heatmap from your own routes
-                </div>
+                </h2>
                 <p className="mt-0.5 max-w-md text-[13px] leading-relaxed text-muted-foreground">
                   Upload your activities to Activities and aggregate years of
                   rides and runs into a density map like this one.

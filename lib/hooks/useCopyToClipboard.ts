@@ -8,12 +8,46 @@ interface UseCopyToClipboard {
 }
 
 /**
+ * Copies `text` to the clipboard, returning whether it succeeded.
+ *
+ * Prefers the async Clipboard API, but `navigator.clipboard` is unavailable in
+ * insecure (`http`) contexts — which this project supports for self-hosted /
+ * local deployments — so it falls back to a hidden-textarea + the legacy
+ * `document.execCommand('copy')`. The same fallback also covers a denied
+ * Clipboard API write.
+ */
+const writeToClipboard = async (text: string): Promise<boolean> => {
+  if (navigator.clipboard) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch {
+      // Fall through to the legacy fallback below.
+    }
+  }
+
+  try {
+    const textArea = document.createElement('textarea')
+    textArea.value = text
+    textArea.setAttribute('readonly', '')
+    textArea.style.position = 'fixed'
+    textArea.style.opacity = '0'
+    document.body.appendChild(textArea)
+    textArea.select()
+    const ok = document.execCommand('copy')
+    document.body.removeChild(textArea)
+    return ok
+  } catch {
+    return false
+  }
+}
+
+/**
  * Copy-to-clipboard with transient "Copied" feedback.
  *
  * The pending reset timer is tracked in a ref and cleared on unmount (and before
  * each new copy), so it can never call `setState` after the component has
- * unmounted. No-ops where `navigator.clipboard` is unavailable (insecure `http`
- * contexts and older browsers); callers should keep a manual-selection fallback.
+ * unmounted. Works over both HTTPS and insecure HTTP (see writeToClipboard).
  */
 export const useCopyToClipboard = (resetMs = 1600): UseCopyToClipboard => {
   const [copied, setCopied] = useState(false)
@@ -32,18 +66,13 @@ export const useCopyToClipboard = (resetMs = 1600): UseCopyToClipboard => {
 
   const copy = useCallback(
     async (text: string) => {
-      if (!navigator.clipboard) return
-      try {
-        await navigator.clipboard.writeText(text)
-        // The write is async, so the component may have unmounted while it was
-        // in flight — skip the state update / timer in that case.
-        if (!mountedRef.current) return
-        setCopied(true)
-        clearTimeout(timeoutRef.current)
-        timeoutRef.current = setTimeout(() => setCopied(false), resetMs)
-      } catch {
-        // Clipboard access can be denied; the caller's selectable field remains.
-      }
+      const ok = await writeToClipboard(text)
+      // The write may be async, so the component can unmount while it is in
+      // flight — skip the state update / timer if it did, or if it failed.
+      if (!ok || !mountedRef.current) return
+      setCopied(true)
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = setTimeout(() => setCopied(false), resetMs)
     },
     [resetMs]
   )
