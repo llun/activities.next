@@ -804,9 +804,9 @@ export const PostBox: FC<Props> = ({
    * - If there is no reply, always return empty string
    * - If there is reply, but the reply is current actor, don't append current
    *   actor handle name.
-   * - If there is reply, return reply status actor handle name with domain*
-   *
-   * TODO: Instead of using reply actor, it should be reply mention names
+   * - If there is reply, return reply status actor handle name with domain,
+   *   followed by the other mention handles carried on the reply's tags
+   *   (excluding the current actor).
    *
    * @param profile current actor profile
    * @param replyStatus status that user want to reply to

@@ -2586,7 +2586,9 @@ export const StatusSQLDatabaseMixin = (
       return StatusPoll.parse({
         ...base,
         choices: pollChoices,
-        // TODO: Fix this endAt in the data or making sure it's not null
+        // Defensive fallback: createPoll always persists a non-null endAt, so
+        // this only guards legacy/corrupt rows that predate that guarantee.
+        // StatusPoll.endAt is a required number, so coalesce to "now".
         endAt: content.endAt ?? Date.now(),
         pollType: content.pollType ?? 'oneOf',
         votersCount,
