@@ -1,0 +1,22 @@
+app/(timeline)/collections/CollectionEditor.test.tsx
+  s_043c559dbf3a19::t_e2fa5f9dda9258 190-209
+  s_043c559dbf3a19::t_ac355d9ef06d5b 236-271
+app/(timeline)/notifications/components/CollectionConsentNotification.test.tsx
+  s_043c559dbf3a19::t_482eb3fbde0a47 89-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.11",
+  "base_commit_sha": "3a4863cc72a9526102845758b0437d5cf45b5b93",
+  "prompts": {},
+  "sessions": {
+    "s_043c559dbf3a19": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d323a68d-5525-401a-98c2-3fd39dc54af3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
