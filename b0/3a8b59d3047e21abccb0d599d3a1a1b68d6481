@@ -1,0 +1,21 @@
+lib/jobs/createNoteJob.ts
+  s_770acaab97c08d::t_f0234d9b20dfae 38-40
+lib/jobs/updateNoteJob.ts
+  s_770acaab97c08d::t_343c7dcaef9b13 25-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.11",
+  "base_commit_sha": "b03a8b59d3047e21abccb0d599d3a1a1b68d6481",
+  "prompts": {},
+  "sessions": {
+    "s_770acaab97c08d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e01bae28-0b20-42c3-9607-b9b7fad86975",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
