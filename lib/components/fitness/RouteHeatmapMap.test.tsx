@@ -149,4 +149,19 @@ describe('RouteHeatmapMap', () => {
     unmount()
     expect(resizeObservers[0].disconnect).toHaveBeenCalledTimes(1)
   })
+
+  it('mounts without observing when the environment has no ResizeObserver', async () => {
+    // SSR / older environments expose no ResizeObserver; the feature-detect
+    // guard must skip observing rather than throw, and the map must still load.
+    Reflect.deleteProperty(globalThis, 'ResizeObserver')
+    const { gl, map } = createFakeGl()
+    mockLoadMapboxModule.mockResolvedValue(gl as never)
+
+    render(<RouteHeatmapMap heatmap={heatmap} mapboxAccessToken="pk.test" />)
+
+    // The map loaded (resizing once on 'load') without constructing an observer.
+    await screen.findByText('Mapbox')
+    expect(map.resize).toHaveBeenCalledTimes(1)
+    expect(resizeObservers).toHaveLength(0)
+  })
 })
