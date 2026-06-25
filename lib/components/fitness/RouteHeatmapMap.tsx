@@ -407,6 +407,7 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
 
     let cancelled = false
     let loadWatchdog: ReturnType<typeof setTimeout> | undefined
+    let resizeObserver: ResizeObserver | undefined
     setIsMapLoaded(false)
 
     provider
@@ -420,6 +421,24 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
           ...provider.mapOptions
         })
         mapRef.current = map
+
+        // Mapbox/MapLibre GL size their canvas from the container at
+        // construction and only recompute it when map.resize() is called; the
+        // libraries' built-in trackResize listens for *window* resizes only.
+        // When the container itself changes width while the window holds steady
+        // — e.g. the Share & embed preview swapping size as the owner picks
+        // Small/Medium/Large, or a collapsing sidebar — the canvas would keep
+        // its old width and leave blank space beside the map. Observe the
+        // container and resize on every box change so the map always fills it.
+        // (ResizeObserver throttles to animation frames, so resizing directly
+        // in the callback is already frame-batched; it never grows the observed
+        // box, so there is no resize loop.)
+        if (typeof ResizeObserver !== 'undefined') {
+          resizeObserver = new ResizeObserver(() => {
+            mapRef.current?.resize()
+          })
+          resizeObserver.observe(containerRef.current)
+        }
 
         // The module promise resolving only means the JS bundle loaded; if the
         // style/tiles never fetch, 'load' never fires and neither does .catch.
@@ -488,6 +507,7 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
     return () => {
       cancelled = true
       if (loadWatchdog) clearTimeout(loadWatchdog)
+      resizeObserver?.disconnect()
       mapRef.current?.remove()
       mapRef.current = null
     }
