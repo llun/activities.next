@@ -1,0 +1,25 @@
+lib/components/fitness/RouteHeatmapMap.test.tsx
+  s_51414c9b4910b7::t_b860aab60a39ae 21
+  s_51414c9b4910b7::t_dad370a8643c1e 1-20,22-48,54-56,58-95,97-99,101-152
+  s_51414c9b4910b7::t_d1c242e43ebc61 96,100
+  s_51414c9b4910b7::t_fb4ea22f9f70d0 49-53,57
+lib/components/fitness/RouteHeatmapMap.tsx
+  s_51414c9b4910b7::t_cfb0e263d84dc0 410,425-441
+  s_51414c9b4910b7::t_523a24a4db9bb7 510
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "33ab8a3de24334fda5d1cbcbf1eaf2ee3b06339e",
+  "prompts": {},
+  "sessions": {
+    "s_51414c9b4910b7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fb5c2ff2-6364-43b5-ab5a-5e87744dc80a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
