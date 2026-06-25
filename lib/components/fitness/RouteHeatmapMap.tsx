@@ -413,10 +413,14 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
     provider
       .loadModule()
       .then((gl) => {
-        if (cancelled || !containerRef.current) return
+        // Capture the element once: a ref's `.current` is not narrowed across
+        // the calls below, so a local keeps both the map and the observer
+        // strictly non-null.
+        const container = containerRef.current
+        if (cancelled || !container) return
 
         const map = new gl.Map({
-          container: containerRef.current,
+          container,
           attributionControl: true,
           ...provider.mapOptions
         })
@@ -437,7 +441,7 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
           resizeObserver = new ResizeObserver(() => {
             mapRef.current?.resize()
           })
-          resizeObserver.observe(containerRef.current)
+          resizeObserver.observe(container)
         }
 
         // The module promise resolving only means the JS bundle loaded; if the

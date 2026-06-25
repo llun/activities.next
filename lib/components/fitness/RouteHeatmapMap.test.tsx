@@ -108,8 +108,8 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks()
-  // @ts-expect-error reset the polyfill between tests
-  delete globalThis.ResizeObserver
+  // Restore the absent global between tests (jsdom ships no ResizeObserver).
+  Reflect.deleteProperty(globalThis, 'ResizeObserver')
 })
 
 describe('RouteHeatmapMap', () => {
