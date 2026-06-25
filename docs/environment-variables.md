@@ -2,6 +2,10 @@
 
 This document lists all environment variables supported by Activity.next.
 
+> Only getting started? The [Quickstart](quickstart.md) covers the three core
+> settings strictly required to boot a local instance (host, secret phrase, and
+> a database).
+
 Application configuration is provided through environment variables. Root-level `config.json` files are ignored; migrate any previous file settings to the corresponding `ACTIVITIES_*` or `OTEL_EXPORTER_*` variables listed below. Application config is read at runtime, so Docker/standalone builds do not need real `ACTIVITIES_*` or `OTEL_EXPORTER_*` values at build time. Environment variables read outside app config, such as `NODE_ENV`, `BUILD_STANDALONE`, `NEXT_TELEMETRY_DISABLED`, and `LOG_LEVEL`, still apply.
 
 ## Core Configuration
