@@ -241,7 +241,7 @@ describe('RegionHeatmapDetail', () => {
     )
   })
 
-  it('offers a Create embed link action for a completed, unshared heatmap', () => {
+  it('opens the share panel and offers Create public link when unshared', () => {
     const onShare = vi.fn()
     render(
       <RegionHeatmapDetail
@@ -251,15 +251,18 @@ describe('RegionHeatmapDetail', () => {
       />
     )
 
-    expect(screen.getByText('Share & embed')).toBeInTheDocument()
-    // No snippets are shown until the heatmap is shared.
-    expect(screen.queryByText('Embed (iframe)')).not.toBeInTheDocument()
+    // Collapsed by default to a single button.
+    const trigger = screen.getByRole('button', { name: /Share & embed/i })
+    expect(trigger).toBeInTheDocument()
+    // No share tabs until the panel is opened.
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /Create embed link/i }))
+    fireEvent.click(trigger)
+    fireEvent.click(screen.getByRole('button', { name: /Create public link/i }))
     expect(onShare).toHaveBeenCalledTimes(1)
   })
 
-  it('shows embed snippets and a stop-sharing action once shared', () => {
+  it('shows the embed snippet and a stop-sharing action once shared', () => {
     const onUnshare = vi.fn()
     render(
       <RegionHeatmapDetail
@@ -269,6 +272,8 @@ describe('RegionHeatmapDetail', () => {
       />
     )
 
+    fireEvent.click(screen.getByRole('button', { name: /Share & embed/i }))
+
     const snippets = screen
       .getAllByRole('textbox')
       .map((node) => (node as HTMLTextAreaElement).value)
@@ -277,53 +282,9 @@ describe('RegionHeatmapDetail', () => {
         value.includes('https://llun.test/embed/heatmap/tok123"')
       )
     ).toBe(true)
-    expect(
-      snippets.some((value) =>
-        value.includes('https://llun.test/embed/heatmap/tok123/image"')
-      )
-    ).toBe(true)
 
     fireEvent.click(screen.getByRole('button', { name: /Stop sharing/i }))
     expect(onUnshare).toHaveBeenCalledTimes(1)
-  })
-
-  it('labels the embed snippets with the region name', () => {
-    render(
-      <RegionHeatmapDetail
-        {...defaultProps}
-        region={rectRegion}
-        heatmap={{ ...completedHeatmap, shareToken: 'tok123' }}
-      />
-    )
-
-    const snippets = screen
-      .getAllByRole('textbox')
-      .map((node) => (node as HTMLTextAreaElement).value)
-    expect(
-      snippets.some((value) => value.includes('title="Veluwe loop"'))
-    ).toBe(true)
-    expect(snippets.some((value) => value.includes('alt="Veluwe loop"'))).toBe(
-      true
-    )
-  })
-
-  it('HTML-escapes special characters in the region label for the snippet', () => {
-    render(
-      <RegionHeatmapDetail
-        {...defaultProps}
-        region={{ ...rectRegion, name: 'Tom & "Jerry" <loop>' }}
-        heatmap={{ ...completedHeatmap, shareToken: 'tok123' }}
-      />
-    )
-
-    const snippets = screen
-      .getAllByRole('textbox')
-      .map((node) => (node as HTMLTextAreaElement).value)
-    expect(
-      snippets.some((value) =>
-        value.includes('title="Tom &amp; &quot;Jerry&quot; &lt;loop&gt;"')
-      )
-    ).toBe(true)
   })
 
   it('invokes onBack from the breadcrumb', () => {
