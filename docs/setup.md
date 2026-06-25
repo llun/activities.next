@@ -2,6 +2,10 @@
 
 This guide provides an overview of how to set up Activity.next for development or production.
 
+> **Just want to try it locally?** See the [Quickstart](quickstart.md) for the
+> fastest minimal setup (SQLite and the three required variables). This guide
+> covers the full set of configuration options.
+
 ## Prerequisites
 
 - **Node.js 24** or higher
