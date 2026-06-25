@@ -56,7 +56,8 @@ For a more detailed architecture overview, see [docs/architecture.md](docs/archi
 ### Quick Start
 
 > In a hurry? The [Quickstart](docs/quickstart.md) gets a local instance running
-> with the least possible setup — SQLite and the three required variables.
+> with the least possible setup — SQLite and the three core settings (host,
+> secret phrase, and a database).
 
 1. **Clone the repository:**
 
@@ -136,7 +137,7 @@ For PostgreSQL or advanced Docker setups, see:
 
 | Document                                               | Description                                             |
 | ------------------------------------------------------ | ------------------------------------------------------- |
-| [Quickstart](docs/quickstart.md)                       | Fastest minimal local setup (SQLite, 3 required vars)   |
+| [Quickstart](docs/quickstart.md)                       | Fastest minimal local setup (SQLite, 3 core settings)   |
 | [Setup Guide](docs/setup.md)                           | General configuration and first-time setup              |
 | [Architecture](docs/architecture.md)                   | System architecture, data flow, and design decisions    |
 | [SQLite Setup](docs/sqlite-setup.md)                   | SQLite database configuration and Docker deployment     |

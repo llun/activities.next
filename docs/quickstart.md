@@ -2,7 +2,8 @@
 
 The fastest way to get a local Activity.next instance running, with the **least
 amount of setup**. This uses SQLite (a single file, no database server) and the
-three environment variables that are strictly required.
+three core settings that are strictly required: the host, a secret phrase, and a
+database.
 
 For production deployments, federation, media storage, email, and every other
 option, see the [Setup Guide](setup.md) and the
@@ -35,13 +36,20 @@ ACTIVITIES_DATABASE_CLIENT=better-sqlite3
 ACTIVITIES_DATABASE_SQLITE_FILENAME=./dev.sqlite3
 ```
 
+The database is a single setting, but SQLite expresses it as two variables: the
+client (`better-sqlite3`) and the file path. (Alternatively, you can collapse it
+into one `ACTIVITIES_DATABASE` JSON variable — see the
+[Environment Variables Guide](environment-variables.md#database).)
+
 > **Local sign-in over `http`:** add `ACTIVITIES_INSECURE_AUTH=true` so the
 > instance accepts `http://localhost` sign-in. Without it, sign-in is forced to
 > `https` and fails with `403 Invalid origin`.
 >
 > **Restrict who can register (optional but recommended):** add
 > `ACTIVITIES_ALLOW_EMAILS='["you@example.com"]'` (single-quoted so the JSON
-> array survives). Only listed emails can sign up.
+> array survives) so only listed emails can sign up. When it is unset (the
+> default), `ACTIVITIES_ALLOW_EMAILS` falls back to an empty list and
+> registration is open to anyone who can reach the instance.
 
 A practical local `.env.local` therefore looks like:
 
