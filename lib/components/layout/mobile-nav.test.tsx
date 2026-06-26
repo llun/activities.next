@@ -98,14 +98,14 @@ describe('MobileNav', () => {
 
     const items = await screen.findAllByRole('menuitem')
     const names = items.map((item) => item.textContent?.trim())
-    // Design-system overflow order: Explore, Bookmarks, Lists, Favorites,
+    // Design-system overflow order: Explore, Favorites, Bookmarks, Lists,
     // Fitness, Profile, Admin, Settings. (Search is a direct bottom-bar item,
     // so its neighbour Explore leads the overflow.)
     expect(names).toEqual([
       'Explore',
+      'Favorites',
       'Bookmarks',
       'Lists',
-      'Favorites',
       'Fitness',
       'Profile',
       'Admin',
@@ -123,9 +123,9 @@ describe('MobileNav', () => {
     const items = await screen.findAllByRole('menuitem')
     expect(items.map((item) => item.textContent?.trim())).toEqual([
       'Explore',
+      'Favorites',
       'Bookmarks',
       'Lists',
-      'Favorites',
       'Profile',
       'Admin',
       'Settings'
@@ -143,9 +143,9 @@ describe('MobileNav', () => {
     // No Admin entry, so Profile anchors directly before Settings.
     expect(items.map((item) => item.textContent?.trim())).toEqual([
       'Explore',
+      'Favorites',
       'Bookmarks',
       'Lists',
-      'Favorites',
       'Profile',
       'Settings'
     ])
