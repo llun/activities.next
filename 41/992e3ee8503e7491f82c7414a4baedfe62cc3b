@@ -1,0 +1,30 @@
+app/(timeline)/[actor]/ActorTimelines.test.tsx
+  s_354fa8efbc1053::t_fb2eb097be93ba 160-166
+  s_354fa8efbc1053::t_406cf3642f4617 567-587,591-642
+  s_354fa8efbc1053::t_f797fe8d5ce16c 24-27,34-36,57-95
+  s_354fa8efbc1053::t_b419386aa1d849 588-590
+  s_354fa8efbc1053::t_59033a17180d6b 149
+app/(timeline)/[actor]/ActorTimelines.tsx
+  s_354fa8efbc1053::t_6db4bd9af4abf4 86-94
+  s_354fa8efbc1053::t_bc43b16a924c7b 75-85,95-98
+  s_354fa8efbc1053::t_1512a03a917820 319-320
+  s_354fa8efbc1053::t_357986cdbcd7e2 19-24
+  s_354fa8efbc1053::t_e534c770fc3ce4 183-190,194-219
+  s_354fa8efbc1053::t_78221dff970442 220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "41992e3ee8503e7491f82c7414a4baedfe62cc3b",
+  "prompts": {},
+  "sessions": {
+    "s_354fa8efbc1053": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "aaddccdf-3c90-4b07-bd34-54a5877e520e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
