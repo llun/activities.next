@@ -6,6 +6,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ReactNode } from 'react'
 
 import { getActorStatuses } from '@/lib/client'
+import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 
 import { ActorTimelines } from './ActorTimelines'
@@ -17,13 +18,21 @@ vi.mock('@/lib/client', () => ({
 vi.mock('@/lib/components/posts/posts', () => ({
   Posts: ({
     statuses,
-    currentTime
+    currentTime,
+    showActions,
+    showReadOnlyStats
   }: {
     statuses: Status[]
     currentTime: number
+    showActions?: boolean
+    showReadOnlyStats?: boolean
   }) => (
     <div>
       <div data-testid="posts-current-time">{currentTime}</div>
+      <div data-testid="posts-show-actions">{String(Boolean(showActions))}</div>
+      <div data-testid="posts-read-only-stats">
+        {String(Boolean(showReadOnlyStats))}
+      </div>
       {statuses.map((status) => (
         <div key={status.id}>{status.id}</div>
       ))}
@@ -60,7 +69,7 @@ vi.mock('@/lib/components/ui/button', () => ({
   )
 }))
 
-const createStatus = (id: string): Status => {
+const createStatus = (id: string, overrides: Partial<Status> = {}): Status => {
   const now = new Date('2026-04-30T10:00:00.000Z').getTime()
   return {
     id,
@@ -82,9 +91,29 @@ const createStatus = (id: string): Status => {
     isActorLiked: false,
     totalLikes: 0,
     attachments: [],
-    tags: []
-  }
+    tags: [],
+    ...overrides
+  } as Status
 }
+
+const createReplyStatus = (id: string): Status =>
+  createStatus(id, { reply: 'https://remote.example/statuses/parent' })
+
+const createFitnessStatus = (id: string): Status =>
+  createStatus(id, {
+    fitness: {
+      id: `${id}-fit`,
+      fileName: 'morning-run.fit',
+      fileType: 'fit',
+      mimeType: 'application/octet-stream',
+      bytes: 1024,
+      url: `${id}/morning-run.fit`
+    }
+  } as Partial<Status>)
+
+const currentActorProfile = {
+  id: 'https://local.example/users/me'
+} as ActorProfile
 
 const FIXED_CURRENT_TIME = new Date('2026-04-30T10:05:00.000Z').getTime()
 
@@ -128,7 +157,7 @@ describe('ActorTimelines', () => {
     })
     expect(
       screen.getAllByText('https://remote.example/statuses/older')
-    ).toHaveLength(2)
+    ).toHaveLength(1)
     expect(
       screen.queryByRole('button', { name: 'Load more' })
     ).not.toBeInTheDocument()
@@ -181,7 +210,7 @@ describe('ActorTimelines', () => {
     })
     expect(
       screen.getAllByText('https://remote.example/statuses/oldest')
-    ).toHaveLength(2)
+    ).toHaveLength(1)
   })
 
   it('shows load more when the initial actor page has no renderable statuses', async () => {
@@ -217,7 +246,7 @@ describe('ActorTimelines', () => {
     })
     expect(
       screen.getAllByText('https://remote.example/statuses/first-post')
-    ).toHaveLength(2)
+    ).toHaveLength(1)
   })
 
   it('shows a retryable error when loading older statuses fails', async () => {
@@ -316,5 +345,112 @@ describe('ActorTimelines', () => {
     } finally {
       dateNowSpy.mockRestore()
     }
+  })
+
+  it('enables interactive post actions when a current actor is provided', () => {
+    render(
+      <ActorTimelines
+        host="localhost:3000"
+        actorId="https://remote.example/users/actor"
+        statuses={[createStatus('https://remote.example/statuses/post')]}
+        attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={currentActorProfile}
+        statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
+      />
+    )
+
+    for (const node of screen.getAllByTestId('posts-show-actions')) {
+      expect(node).toHaveTextContent('true')
+    }
+    for (const node of screen.getAllByTestId('posts-read-only-stats')) {
+      expect(node).toHaveTextContent('false')
+    }
+  })
+
+  it('renders read-only engagement stats for logged-out viewers', () => {
+    render(
+      <ActorTimelines
+        host="localhost:3000"
+        actorId="https://remote.example/users/actor"
+        statuses={[createStatus('https://remote.example/statuses/post')]}
+        attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
+        statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
+      />
+    )
+
+    for (const node of screen.getAllByTestId('posts-show-actions')) {
+      expect(node).toHaveTextContent('false')
+    }
+    for (const node of screen.getAllByTestId('posts-read-only-stats')) {
+      expect(node).toHaveTextContent('true')
+    }
+  })
+
+  it('separates replies from posts across the Posts and Replies tabs', () => {
+    render(
+      <ActorTimelines
+        host="localhost:3000"
+        actorId="https://remote.example/users/actor"
+        statuses={[
+          createStatus('https://remote.example/statuses/post'),
+          createReplyStatus('https://remote.example/statuses/reply')
+        ]}
+        attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
+        statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
+      />
+    )
+
+    // The Tabs primitive is mocked to render every tab panel, so a post shows
+    // up only under Posts and a reply only under Replies (one occurrence each).
+    expect(
+      screen.getAllByText('https://remote.example/statuses/post')
+    ).toHaveLength(1)
+    expect(
+      screen.getAllByText('https://remote.example/statuses/reply')
+    ).toHaveLength(1)
+  })
+
+  it('omits the Fitness tab when the actor has no fitness data', () => {
+    render(
+      <ActorTimelines
+        host="localhost:3000"
+        actorId="https://remote.example/users/actor"
+        statuses={[createStatus('https://remote.example/statuses/post')]}
+        attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
+        statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
+      />
+    )
+
+    expect(
+      screen.queryByRole('button', { name: 'Fitness' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows fitness posts under the Fitness tab when the actor has fitness data', () => {
+    render(
+      <ActorTimelines
+        host="localhost:3000"
+        actorId="https://remote.example/users/actor"
+        statuses={[
+          createStatus('https://remote.example/statuses/post'),
+          createFitnessStatus('https://remote.example/statuses/run')
+        ]}
+        attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
+        hasFitnessData
+        statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Fitness' })).toBeInTheDocument()
+    // The fitness status appears under both Posts (it is a non-reply note) and
+    // the Fitness tab, so it renders twice with the all-panels Tabs mock.
+    expect(
+      screen.getAllByText('https://remote.example/statuses/run')
+    ).toHaveLength(2)
   })
 })
