@@ -10,6 +10,7 @@ import { Attachment } from '@/lib/types/domain/attachment'
 import { Status } from '@/lib/types/domain/status'
 import { getActorImageUrl } from '@/lib/utils/activitypubActor'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
+import { logger } from '@/lib/utils/logger'
 
 type ProfileData = {
   person: Actor
@@ -97,7 +98,17 @@ export const getProfileData = async (
   // unsigned fetch via the `signingActor`-less branch below.
   const [actorId, signingActor] = await Promise.all([
     getWebfingerSelf({ account: actorHandle.slice(1) }),
-    getFederationSigningActor(database).catch(() => undefined)
+    getFederationSigningActor(database).catch((error) => {
+      // Degrade to an unsigned fetch, but surface the failure so a persistently
+      // broken signer (which would silently 404 every secure-mode profile)
+      // remains diagnosable rather than vanishing.
+      logger.warn({
+        message:
+          'Failed to resolve federation signing actor for remote profile fetch; falling back to an unsigned request',
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return undefined
+    })
   ])
   if (!actorId) return null
 

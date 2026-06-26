@@ -10,6 +10,7 @@ import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status } from '@/lib/types/domain/status'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
+import { logger } from '@/lib/utils/logger'
 
 import { getProfileData } from './getProfileData'
 
@@ -21,6 +22,13 @@ vi.mock('@/lib/activities/getActorPosts')
 vi.mock('@/lib/activities/getWebfingerSelf')
 vi.mock('@/lib/services/federation/getFederationSigningActor')
 vi.mock('@/lib/utils/getPersonFromActor')
+vi.mock('@/lib/utils/logger', () => ({
+  logger: {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn()
+  }
+}))
 
 describe('getProfileData', () => {
   const mockDatabase = {
@@ -313,6 +321,9 @@ describe('getProfileData', () => {
       expect(result).not.toBeNull()
       const personCall = (getActorPerson as jest.Mock).mock.calls[0][0]
       expect('signingActor' in personCall).toBe(false)
+      // The failure is surfaced (not silently swallowed) so a persistently
+      // broken signer stays diagnosable.
+      expect(logger.warn).toHaveBeenCalled()
     })
 
     it('omits the signing actor entirely when no instance actor is available', async () => {
