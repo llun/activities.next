@@ -143,6 +143,18 @@ export interface FitnessFileDatabase {
   countFitnessFilesByActor(
     params: Omit<GetFitnessFilesByActorParams, 'limit' | 'offset'>
   ): Promise<number>
+  /**
+   * Returns the distinct import-batch ids the "retry all failed" action would
+   * requeue for the actor: batches with a failed import, a failed map
+   * processing, or a file stranded in `processing` since before `stuckBefore`.
+   * One lean query (only batch-id strings) instead of paginating every file
+   * row — used by the retry-all endpoint and to decide button visibility across
+   * ALL of the actor's files (not just the current page).
+   */
+  getRetriableFitnessImportBatchIds(params: {
+    actorId: string
+    stuckBefore: Date
+  }): Promise<string[]>
   getFitnessFilesWithStatusForAccount(
     params: GetFitnessFilesForAccountParams
   ): Promise<PaginatedFitnessFiles>
@@ -430,6 +442,34 @@ export const FitnessFileSQLDatabaseMixin = (
     })
 
     return Number(row?.count ?? 0)
+  },
+
+  async getRetriableFitnessImportBatchIds({
+    actorId,
+    stuckBefore
+  }: {
+    actorId: string
+    stuckBefore: Date
+  }) {
+    const rows = await database<SQLFitnessFile>('fitness_files')
+      .where('actorId', actorId)
+      .whereNull('deletedAt')
+      .whereNotNull('importBatchId')
+      .where((builder) => {
+        builder
+          .where('importStatus', 'failed')
+          .orWhere('processingStatus', 'failed')
+          .orWhere((stuck) => {
+            stuck
+              .where('processingStatus', 'processing')
+              .where('updatedAt', '<=', stuckBefore)
+          })
+      })
+      .distinct('importBatchId')
+
+    return rows
+      .map((row) => row.importBatchId)
+      .filter((batchId): batchId is string => Boolean(batchId))
   },
 
   async getFitnessFilesWithStatusForAccount({

@@ -47,7 +47,8 @@ vi.mock('@/lib/client', () => ({
   block: vi.fn(),
   unblock: vi.fn(),
   createReport: vi.fn(),
-  retryFitnessProcessing: vi.fn()
+  retryFitnessProcessing: vi.fn(),
+  getFitnessProcessingState: vi.fn().mockResolvedValue(null)
 }))
 
 const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
@@ -939,7 +940,7 @@ describe('Post', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('shows the processing spinner while a fresh fitness file is still processing', () => {
+  it('shows the staged processing progress while a fresh fitness file is still processing', () => {
     render(
       <Post
         host="activities.local"
@@ -958,7 +959,7 @@ describe('Post', () => {
       />
     )
 
-    expect(screen.getByText(/Processing fitness activity/i)).toBeInTheDocument()
+    expect(screen.getByText(/Generating route map/i)).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: /Retry/i })
     ).not.toBeInTheDocument()
@@ -985,7 +986,7 @@ describe('Post', () => {
 
     expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument()
     expect(
-      screen.queryByText(/Processing fitness activity/i)
+      screen.queryByText(/Generating route map|Queued for processing/i)
     ).not.toBeInTheDocument()
   })
 })

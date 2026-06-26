@@ -1,6 +1,6 @@
 import { formatDistance } from 'date-fns'
 import _ from 'lodash'
-import { Activity, ExternalLink, LoaderCircle, Repeat2 } from 'lucide-react'
+import { Activity, ExternalLink, Repeat2 } from 'lucide-react'
 import { FC } from 'react'
 
 import { PostLineLimit } from '@/lib/types/database/rows'
@@ -33,6 +33,7 @@ import { ActorAvatar, ActorInfo, getActorIdMention } from './actor'
 import { Attachments, OnMediaSelectedHandle } from './attachments'
 import { CollapsibleContent } from './collapsible-content'
 import { ContentWarning } from './content-warning'
+import { FitnessProcessingProgress } from './fitness-processing-progress'
 import { Poll } from './poll'
 import { ReadOnlyStats } from './read-only-stats'
 import { RetryFitnessButton } from './retry-fitness-button'
@@ -192,10 +193,10 @@ export const Post: FC<PostProps> = (props) => {
           </div>
 
           {isFitnessProcessing ? (
-            <div className="mt-2 inline-flex items-center gap-2 text-muted-foreground">
-              <LoaderCircle className="size-3.5 animate-spin" />
-              <span>Processing fitness activity...</span>
-            </div>
+            <FitnessProcessingProgress
+              statusId={actualStatus.id}
+              initialProcessingStatus={fitnessProcessingStatus}
+            />
           ) : null}
 
           {isFitnessFailed ? (

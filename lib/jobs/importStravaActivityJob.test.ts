@@ -112,6 +112,8 @@ type MockDatabase = Pick<
   | 'createNote'
   | 'createNotification'
   | 'getActorMutedConversationRootIds'
+  | 'acquireImportLock'
+  | 'releaseImportLock'
 >
 
 describe('importStravaActivityJob', () => {
@@ -131,7 +133,11 @@ describe('importStravaActivityJob', () => {
     createNotification: vi.fn(),
     // createNotificationWithPolicy checks the recipient's conversation-mute
     // list before persisting; the importer's recipients have none.
-    getActorMutedConversationRootIds: vi.fn().mockResolvedValue([])
+    getActorMutedConversationRootIds: vi.fn().mockResolvedValue([]),
+    // The per-actor import lock serializes concurrent same-ride imports; in
+    // tests it is always immediately granted so the critical section runs.
+    acquireImportLock: vi.fn().mockResolvedValue({ token: 'lock-token' }),
+    releaseImportLock: vi.fn().mockResolvedValue(true)
   }
 
   beforeEach(() => {
@@ -296,6 +302,60 @@ describe('importStravaActivityJob', () => {
         statusId: 'status-1'
       })
     )
+  })
+
+  it('serializes the import critical section behind a per-actor lock', async () => {
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-lock',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123'
+      }
+    })
+
+    expect(database.acquireImportLock).toHaveBeenCalledWith(
+      expect.objectContaining({ lockKey: 'strava-import:actor-1' })
+    )
+    expect(database.releaseImportLock).toHaveBeenCalledWith(
+      expect.objectContaining({ token: 'lock-token' })
+    )
+    // The merge-deciding work runs inside the lock.
+    expect(mockImportFitnessFilesJob).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not acquire the import lock when the activity already has a status', async () => {
+    database.getFitnessFilesByBatchId.mockResolvedValueOnce([
+      {
+        id: 'existing-file',
+        actorId: 'actor-1',
+        statusId: 'status-existing'
+      }
+    ] as never)
+    database.getFitnessFile.mockReset()
+    database.getFitnessFile.mockResolvedValue({
+      id: 'existing-file',
+      actorId: 'actor-1',
+      statusId: 'status-existing',
+      hasMapData: true
+    } as never)
+    database.getStatus.mockResolvedValueOnce({
+      id: 'status-existing',
+      type: 'Note',
+      text: 'Already imported'
+    } as never)
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-lock-skip',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123'
+      }
+    })
+
+    expect(database.acquireImportLock).not.toHaveBeenCalled()
+    expect(mockImportFitnessFilesJob).not.toHaveBeenCalled()
   })
 
   it('seeds activity start time and duration at import so later same-ride imports can merge before processing', async () => {
@@ -858,6 +918,70 @@ describe('importStravaActivityJob', () => {
     })
 
     expect(mockGetQueue().publish).toHaveBeenCalledWith(
+      expect.objectContaining({ name: REGENERATE_FITNESS_MAPS_JOB_NAME })
+    )
+  })
+
+  it('does not queue map regeneration on a fresh import (processing handles the primary map)', async () => {
+    // On a brand-new import the primary file is handed to processFitnessFileJob
+    // (inside importFitnessFilesJob), which generates the single route map.
+    // Publishing a regenerate-map job here too would race that job and, for a
+    // file merged in as non-primary, attach a second map — the duplicate-image
+    // bug. The fallback must stay quiet on fresh imports.
+    const publishMock = vi.fn().mockResolvedValue(undefined)
+    mockGetQueue.mockReturnValue({ publish: publishMock } as never)
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-fresh-no-regen',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123'
+      }
+    })
+
+    expect(publishMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: REGENERATE_FITNESS_MAPS_JOB_NAME })
+    )
+  })
+
+  it('does not queue map regeneration for a merged non-primary file on re-import', async () => {
+    // A re-import whose file ended up non-primary (merged into a sibling's
+    // post) must not regenerate its own map.
+    database.getFitnessFilesByBatchId.mockResolvedValueOnce([
+      {
+        id: 'existing-file',
+        actorId: 'actor-1',
+        statusId: 'status-existing'
+      }
+    ] as never)
+    database.getFitnessFile.mockReset()
+    database.getFitnessFile.mockResolvedValue({
+      id: 'existing-file',
+      actorId: 'actor-1',
+      statusId: 'status-existing',
+      isPrimary: false,
+      hasMapData: false
+    } as never)
+    database.getStatus.mockResolvedValueOnce({
+      id: 'status-existing',
+      type: 'Note',
+      text: 'Already imported'
+    } as never)
+
+    const publishMock = vi.fn().mockResolvedValue(undefined)
+    mockGetQueue.mockReturnValue({ publish: publishMock } as never)
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-reimport-non-primary',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123'
+      }
+    })
+
+    expect(publishMock).not.toHaveBeenCalledWith(
       expect.objectContaining({ name: REGENERATE_FITNESS_MAPS_JOB_NAME })
     )
   })

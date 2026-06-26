@@ -232,3 +232,5 @@ CREATE INDEX `collection_timeline_member` on `collection_timeline` (`memberSeq`)
 CREATE INDEX `collection_timeline_status` on `collection_timeline` (`statusId`);
 CREATE TABLE `fitness_route_heatmap_region_names` (`actorId` varchar(255) not null, `region` varchar(255) not null, `name` varchar(255) not null, `createdAt` datetime not null, `updatedAt` datetime not null, foreign key(`actorId`) references `actors`(`id`) on delete CASCADE, primary key (`actorId`, `region`));
 CREATE UNIQUE INDEX `fitness_route_heatmaps_sharetoken_unique` on `fitness_route_heatmaps` (`shareToken`);
+CREATE TABLE `fitness_import_locks` (`lockKey` varchar(255), `token` varchar(255) not null, `expiresAt` bigint not null, `createdAt` datetime default CURRENT_TIMESTAMP, primary key (`lockKey`));
+CREATE INDEX `fitness_import_locks_expiresat_index` on `fitness_import_locks` (`expiresAt`);
