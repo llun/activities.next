@@ -27,6 +27,9 @@ interface Props {
   status: Status
   variant?: 'detail' | 'comment'
   isMediaUploadEnabled?: boolean
+  // Replies passed through to the fitness activity detail, which renders them
+  // in its Comments section instead of the standalone reply list below.
+  replies?: Status[]
 }
 
 export const StatusBox: FC<Props> = ({
@@ -36,7 +39,8 @@ export const StatusBox: FC<Props> = ({
   currentActor,
   status,
   variant = 'comment',
-  isMediaUploadEnabled
+  isMediaUploadEnabled,
+  replies
 }) => {
   const router = useRouter()
   const [modalMedias, setModalMedias] = useState<{
@@ -59,8 +63,11 @@ export const StatusBox: FC<Props> = ({
         <FitnessStatusDetail
           host={host}
           mapboxAccessToken={mapboxAccessToken}
+          currentTime={currentTime}
           currentActor={currentActor}
           status={actualStatus as StatusNote}
+          replies={replies}
+          isMediaUploadEnabled={isMediaUploadEnabled}
           onShowAttachment={(allMedias, index) => {
             setModalMedias({ medias: allMedias, initialSelection: index })
           }}

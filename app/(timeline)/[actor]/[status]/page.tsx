@@ -256,6 +256,8 @@ const Page: FC<Props> = async ({ params }) => {
             currentActor={currentActorProfile}
             status={cleanJson(status)}
             variant="detail"
+            isMediaUploadEnabled={Boolean(mediaStorage)}
+            replies={replies.map((reply) => cleanJson(reply))}
           />
           {!currentActorProfile ? (
             <div className="px-4 pb-4">

@@ -1996,6 +1996,107 @@ export const getFitnessProcessingState = async (
   }
 }
 
+export interface StatusFitnessFileItem {
+  id: string
+  actorId: string
+  fileName: string
+  fileType: 'fit' | 'gpx' | 'tcx'
+  statusId: string | null
+  isPrimary: boolean
+  processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
+  totalDistanceMeters: number | null
+  totalDurationSeconds: number | null
+  elevationGainMeters: number | null
+  activityType: string | null
+  activityStartTime: number | null
+  hasMapData: boolean
+  description: string | null
+  deviceManufacturer: string | null
+  deviceName: string | null
+  sourceUrl: string | null
+}
+
+export interface FitnessRouteSample {
+  lat: number
+  lng: number
+  elapsedSeconds: number
+  timestamp?: number
+  altitude?: number
+  heartRate?: number
+  speed?: number
+  isHiddenByPrivacy?: boolean
+}
+
+export interface FitnessRouteSegment {
+  isHiddenByPrivacy: boolean
+  samples: FitnessRouteSample[]
+}
+
+export interface FitnessRouteDataResponse {
+  samples: FitnessRouteSample[]
+  segments?: FitnessRouteSegment[]
+  totalDurationSeconds: number
+  powerSeries?: number[]
+  heartRateSeries?: number[]
+  altitudeSeries?: number[]
+  speedSeries?: number[]
+}
+
+/**
+ * Lists every fitness file attached to a status (an activity can aggregate
+ * several uploaded files). Returns null when the endpoint is unavailable so the
+ * caller can fall back to the file metadata embedded in the status payload.
+ */
+export const getFitnessFilesByStatus = async (
+  statusId: string
+): Promise<StatusFitnessFileItem[] | null> => {
+  const response = await fetch(
+    `/api/v1/fitness-files/by-status?statusId=${encodeURIComponent(statusId)}`,
+    {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json'
+      }
+    }
+  )
+
+  if (!response.ok) return null
+
+  const data = (await response.json()) as { files?: StatusFitnessFileItem[] }
+  return Array.isArray(data.files) ? data.files : null
+}
+
+/**
+ * Fetches the parsed route samples and metric time series (altitude / speed /
+ * power / heart rate) for a fitness file, used to draw the activity map and the
+ * Analysis charts. Throws when the request fails or the payload is malformed so
+ * the caller can fall back to the static map preview.
+ */
+export const getFitnessRouteData = async (
+  fitnessFileId: string
+): Promise<FitnessRouteDataResponse> => {
+  const response = await fetch(
+    `/api/v1/fitness-files/${encodeURIComponent(fitnessFileId)}/route-data`,
+    {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json'
+      }
+    }
+  )
+
+  if (!response.ok) {
+    throw new Error(`Route data request failed (${response.status})`)
+  }
+
+  const data = (await response.json()) as FitnessRouteDataResponse
+  if (!Array.isArray(data.samples)) {
+    throw new Error('Route data response is invalid')
+  }
+
+  return data
+}
+
 /**
  * Retries every failed/stuck fitness import for the current actor in one call,
  * so the owner doesn't have to retry each post individually.
