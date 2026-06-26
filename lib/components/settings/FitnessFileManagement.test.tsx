@@ -370,6 +370,81 @@ describe('FitnessFileManagement', () => {
         screen.queryByRole('button', { name: /Retry import/i })
       ).not.toBeInTheDocument()
     })
+
+    it('retries every failed import at once via the Retry all failed button', async () => {
+      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({ retried: 2, batches: 2, failedBatches: 0 })
+      } as Response)
+
+      const files = [
+        {
+          id: 'file-a',
+          actorId: 'https://example.com/users/alice',
+          fileName: 'a.tcx',
+          fileType: 'tcx' as const,
+          mimeType: 'application/vnd.garmin.tcx+xml',
+          bytes: 1024,
+          createdAt: Date.now(),
+          url: '/api/v1/fitness-files/file-a',
+          importStatus: 'failed' as const,
+          importError: 'boom',
+          importBatchId: 'strava-activity:A'
+        }
+      ]
+
+      render(
+        <FitnessFileManagement
+          used={1024}
+          limit={10485760}
+          fitnessFiles={files}
+          currentPage={1}
+          itemsPerPage={25}
+          totalItems={1}
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Retry all failed' }))
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          '/api/v1/fitness/retry-failed',
+          expect.objectContaining({ method: 'POST' })
+        )
+      })
+    })
+
+    it('does not show Retry all failed when no import has failed', () => {
+      const files = [
+        {
+          id: 'file-ok',
+          actorId: 'https://example.com/users/alice',
+          fileName: 'ok.fit',
+          fileType: 'fit' as const,
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1024,
+          createdAt: Date.now(),
+          url: '/api/v1/fitness-files/file-ok',
+          importStatus: 'completed' as const,
+          importBatchId: 'strava-activity:OK'
+        }
+      ]
+
+      render(
+        <FitnessFileManagement
+          used={1024}
+          limit={10485760}
+          fitnessFiles={files}
+          currentPage={1}
+          itemsPerPage={25}
+          totalItems={1}
+        />
+      )
+
+      expect(
+        screen.queryByRole('button', { name: 'Retry all failed' })
+      ).not.toBeInTheDocument()
+    })
   })
 
   describe('delete error handling', () => {

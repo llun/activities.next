@@ -1938,6 +1938,88 @@ export const retryFitnessImportBatch = async (
   return response.json()
 }
 
+export interface FitnessProcessingState {
+  processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
+  processingStuck: boolean
+  hasMapData: boolean
+}
+
+/**
+ * Returns the processing state of a status's primary fitness file so a
+ * processing post can poll for progress and resolve to its finished state
+ * without a manual reload. Returns null when the status has no fitness file
+ * (e.g. it was deleted) so callers can stop polling.
+ */
+export const getFitnessProcessingState = async (
+  statusId: string
+): Promise<FitnessProcessingState | null> => {
+  const response = await fetch(
+    `/api/v1/fitness-files/by-status?statusId=${encodeURIComponent(statusId)}`,
+    {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json'
+      }
+    }
+  )
+
+  if (!response.ok) {
+    const errorDetails = await parseApiError(
+      response,
+      'Failed to fetch fitness processing state.'
+    )
+    throw new ApiRequestError(errorDetails, response.status)
+  }
+
+  const data = (await response.json()) as {
+    files?: Array<{
+      isPrimary?: boolean
+      processingStatus?: FitnessProcessingState['processingStatus']
+      processingStuck?: boolean
+      hasMapData?: boolean
+    }>
+  }
+
+  const files = data.files ?? []
+  if (files.length === 0) {
+    return null
+  }
+
+  // The post surfaces its primary file; fall back to the first file when no
+  // file is flagged primary (older rows default to primary anyway).
+  const primary = files.find((file) => file.isPrimary) ?? files[0]
+
+  return {
+    processingStatus: primary.processingStatus ?? 'pending',
+    processingStuck: Boolean(primary.processingStuck),
+    hasMapData: Boolean(primary.hasMapData)
+  }
+}
+
+/**
+ * Retries every failed/stuck fitness import for the current actor in one call,
+ * so the owner doesn't have to retry each post individually.
+ */
+export const retryAllFitnessImports = async (): Promise<{
+  retried: number
+  batches: number
+  failedBatches: number
+}> => {
+  const response = await fetch('/api/v1/fitness/retry-failed', {
+    method: 'POST'
+  })
+
+  if (!response.ok) {
+    const errorDetails = await parseApiError(
+      response,
+      'Failed to retry fitness imports.'
+    )
+    throw new Error(errorDetails)
+  }
+
+  return response.json()
+}
+
 export const retryFitnessProcessing = async (
   statusId: string
 ): Promise<{ statusId: string; retried: number }> => {

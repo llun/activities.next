@@ -4,7 +4,11 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
-import { deleteFitnessFile, retryFitnessImportBatch } from '@/lib/client'
+import {
+  deleteFitnessFile,
+  retryAllFitnessImports,
+  retryFitnessImportBatch
+} from '@/lib/client'
 import {
   FileListPagination,
   ItemsPerPageDropdown,
@@ -72,6 +76,7 @@ export function FitnessFileManagement({
   const [retryingBatchId, setRetryingBatchId] = useState<string | null>(null)
   const [queuedBatchIds, setQueuedBatchIds] = useState<Set<string>>(new Set())
   const [retryError, setRetryError] = useState<string | null>(null)
+  const [retryingAll, setRetryingAll] = useState(false)
 
   useEffect(() => {
     setFitnessFiles(initialFitnessFiles)
@@ -152,6 +157,33 @@ export function FitnessFileManagement({
     }
   }
 
+  const handleRetryAllFailed = async () => {
+    if (retryingAll) return
+
+    setRetryingAll(true)
+    setRetryError(null)
+    try {
+      // Requeues every failed/stuck fitness import for the actor in one call so
+      // a burst of failed Strava activities doesn't need a per-post retry. The
+      // imports run asynchronously on the queue, so refresh to pick up the new
+      // statuses.
+      await retryAllFitnessImports()
+      router.refresh()
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to retry imports. Please try again.'
+      setRetryError(message)
+    } finally {
+      setRetryingAll(false)
+    }
+  }
+
+  const hasFailedImport = fitnessFiles.some(
+    (file) => file.importStatus === 'failed' && Boolean(file.importBatchId)
+  )
+
   const percentUsed = limit > 0 ? Math.min((currentUsed / limit) * 100, 100) : 0
 
   const handleItemsPerPageChange = (value: number) => {
@@ -197,10 +229,22 @@ export function FitnessFileManagement({
                 All fitness activity files you have uploaded
               </CardDescription>
             </div>
-            <ItemsPerPageDropdown
-              itemsPerPage={itemsPerPage}
-              onChange={handleItemsPerPageChange}
-            />
+            <div className="flex items-center gap-2">
+              {hasFailedImport ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRetryAllFailed}
+                  disabled={retryingAll}
+                >
+                  {retryingAll ? 'Retrying…' : 'Retry all failed'}
+                </Button>
+              ) : null}
+              <ItemsPerPageDropdown
+                itemsPerPage={itemsPerPage}
+                onChange={handleItemsPerPageChange}
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent>

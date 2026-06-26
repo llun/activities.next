@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { isFitnessProcessingStuck } from '@/lib/services/fitness-files/processingState'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { getVisibility } from '@/lib/utils/getVisibility'
@@ -97,6 +98,7 @@ export const GET = traceApiRoute(
       }
 
       const files = await database.getFitnessFilesByStatus({ statusId })
+      const now = Date.now()
 
       return apiResponse({
         req,
@@ -110,6 +112,15 @@ export const GET = traceApiRoute(
             isPrimary: file.isPrimary ?? true,
             statusId: file.statusId ?? null,
             processingStatus: file.processingStatus ?? 'pending',
+            // Computed server-side (no client time math) so a poller can switch
+            // from a spinner to a retry once a `processing` file is stranded.
+            processingStuck: isFitnessProcessingStuck(
+              {
+                processingStatus: file.processingStatus,
+                updatedAt: file.updatedAt
+              },
+              now
+            ),
             totalDistanceMeters: file.totalDistanceMeters ?? null,
             totalDurationSeconds: file.totalDurationSeconds ?? null,
             elevationGainMeters: file.elevationGainMeters ?? null,

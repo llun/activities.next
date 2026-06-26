@@ -398,6 +398,13 @@ CREATE TABLE public.fitness_files (
     "sourceUrl" text
 );
 
+CREATE TABLE public.fitness_import_locks (
+    "lockKey" character varying(255) NOT NULL,
+    token character varying(255) NOT NULL,
+    "expiresAt" bigint NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE public.fitness_route_heatmap_region_names (
     "actorId" character varying(255) NOT NULL,
     region character varying(255) NOT NULL,
@@ -1194,6 +1201,9 @@ ALTER TABLE ONLY public.filters
 ALTER TABLE ONLY public.fitness_files
     ADD CONSTRAINT fitness_files_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.fitness_import_locks
+    ADD CONSTRAINT fitness_import_locks_pkey PRIMARY KEY ("lockKey");
+
 ALTER TABLE ONLY public.fitness_route_heatmap_region_names
     ADD CONSTRAINT fitness_route_heatmap_region_names_pkey PRIMARY KEY ("actorId", region);
 
@@ -1458,6 +1468,8 @@ CREATE INDEX fitness_files_import_batch_id_idx ON public.fitness_files USING btr
 
 CREATE INDEX fitness_files_status_id_idx ON public.fitness_files USING btree ("statusId");
 
+CREATE INDEX fitness_import_locks_expiresat_index ON public.fitness_import_locks USING btree ("expiresAt");
+
 CREATE INDEX fitness_route_heatmaps_actorid_periodtype_index ON public.fitness_route_heatmaps USING btree ("actorId", "periodType");
 
 CREATE INDEX fitness_route_heatmaps_actorid_status_index ON public.fitness_route_heatmaps USING btree ("actorId", status);
@@ -1660,4 +1672,3 @@ ALTER TABLE ONLY public.status_pins
 
 ALTER TABLE ONLY public."twoFactor"
     ADD CONSTRAINT twofactor_userid_foreign FOREIGN KEY ("userId") REFERENCES public.accounts(id) ON DELETE CASCADE;
-

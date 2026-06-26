@@ -335,6 +335,64 @@ describe('regenerateFitnessMapsJob', () => {
     )
   })
 
+  it('heals a non-primary file by removing its stray map instead of regenerating', async () => {
+    const { statusId, entries } = await setupStatusWithMultipleOldMaps()
+    const primaryEntry = entries[0]
+    const nonPrimaryEntry = entries[1]
+
+    // A status carries at most one route map, owned by its primary file. The
+    // second device of a merged same-ride post is non-primary and must not
+    // keep its own map, otherwise the post renders duplicate images.
+    await database.updateFitnessFilePrimary(
+      nonPrimaryEntry.fitnessFileId,
+      false
+    )
+
+    await regenerateFitnessMapsJob(database, {
+      id: 'job-regenerate-non-primary',
+      name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        fitnessFileIds: [nonPrimaryEntry.fitnessFileId]
+      }
+    })
+
+    // The non-primary file is never regenerated.
+    expect(mockGenerateMapImage).not.toHaveBeenCalled()
+
+    const refreshedNonPrimary = await database.getFitnessFile({
+      id: nonPrimaryEntry.fitnessFileId
+    })
+    expect(refreshedNonPrimary?.hasMapData).toBe(false)
+    expect(refreshedNonPrimary?.mapImagePath).toBeUndefined()
+    expect(refreshedNonPrimary?.processingStatus).toBe('completed')
+
+    // Its stray map media is deleted, while the primary file's map is left
+    // untouched.
+    const removedMedia = await database.getMediaByIdForAccount({
+      mediaId: nonPrimaryEntry.oldMediaId,
+      accountId: actor.account!.id
+    })
+    expect(removedMedia).toBeNull()
+    const primaryMedia = await database.getMediaByIdForAccount({
+      mediaId: primaryEntry.oldMediaId,
+      accountId: actor.account!.id
+    })
+    expect(primaryMedia).toBeTruthy()
+
+    const refreshedStatus = await database.getStatus({
+      statusId,
+      withReplies: false
+    })
+    const mapAttachments = refreshedStatus?.attachments.filter((attachment) => {
+      return attachment.name === 'Activity route map'
+    })
+    expect(mapAttachments).toHaveLength(1)
+    expect(mapAttachments?.[0]?.url).toContain(
+      `old-route-map-${statusId.split('/').pop()}-1.webp`
+    )
+  })
+
   it('keeps regenerated maps for other fitness files on the same status', async () => {
     const { statusId, entries } = await setupStatusWithMultipleOldMaps()
 
