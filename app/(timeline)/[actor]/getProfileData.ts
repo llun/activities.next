@@ -4,8 +4,8 @@ import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { Database } from '@/lib/database/types'
+import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { Actor } from '@/lib/types/activitypub'
-import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status } from '@/lib/types/domain/status'
 import { getActorImageUrl } from '@/lib/utils/activitypubActor'
@@ -34,7 +34,6 @@ export const getProfileData = async (
   database: Database,
   actorHandle: string,
   isLoggedIn: boolean = true,
-  signingActor?: DomainActor,
   options: ProfileDataOptions = {}
 ): Promise<ProfileData | null> => {
   const [username, domain] = actorHandle.split('@').slice(1)
@@ -83,6 +82,17 @@ export const getProfileData = async (
   const actorId = await getWebfingerSelf({ account: actorHandle.slice(1) })
   if (!actorId) return null
 
+  // Server-to-server federation fetches must be signed by the dedicated
+  // headless instance actor, never the viewer's user actor. Instances running
+  // in authorized-fetch ("secure") mode reject unsigned requests with 401, and
+  // the viewer may not have a usable signing actor at all (e.g. a logged-in
+  // account without a local actor yet, or one whose key is not publicly
+  // resolvable). The instance actor always exists, always has a private key,
+  // and is served at a publicly resolvable URL so the remote can fetch its key
+  // and verify the signature — matching every other federation fetch in the
+  // codebase (follow, search, remote-status jobs, …). Without this, secure-mode
+  // remote profiles 404.
+  const signingActor = await getFederationSigningActor(database)
   const signingParams = signingActor ? { signingActor } : {}
   const person = await getActorPerson({ actorId, ...signingParams })
   if (!person) return null
