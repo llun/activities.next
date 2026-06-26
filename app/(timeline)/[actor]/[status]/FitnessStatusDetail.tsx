@@ -1145,7 +1145,7 @@ const ActivityMapPanel: FC<{
             <Route className="size-3.5" /> GPS trace
           </div>
           {hasHiddenPrivacySegments ? (
-            <div className="absolute bottom-3 left-3 rounded-md border border-green-300 bg-background/95 px-3 py-2 text-xs font-medium text-green-700 shadow-sm">
+            <div className="absolute bottom-3 left-3 rounded-md border border-green-300 bg-background/95 px-3 py-2 text-xs font-medium text-green-700 shadow-sm dark:border-green-900 dark:text-green-400">
               Green segments are hidden from other viewers
             </div>
           ) : null}
@@ -1927,7 +1927,9 @@ export const FitnessStatusDetail: FC<Props> = ({
       <div
         className="min-w-0"
         role="region"
-        aria-label={tabs.find((tab) => tab.id === activeSection)?.label}
+        aria-label={
+          tabs.find((tab) => tab.id === activeSection)?.label ?? 'Activity'
+        }
       >
         {activeSection === 'overview' && (
           <div className="space-y-4">
