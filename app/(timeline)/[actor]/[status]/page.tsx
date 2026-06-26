@@ -7,6 +7,7 @@ import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { getQueue } from '@/lib/services/queue'
 import {
   canActorReadStatus,
@@ -71,9 +72,32 @@ const Page: FC<Props> = async ({ params }) => {
   let { status, statusId } = resolvedStatus
 
   if (!status && !isStatusHash && fullStatusId) {
+    // Server-to-server federation fetches must be signed by the dedicated
+    // headless instance actor, never the viewer's user actor. Instances running
+    // in authorized-fetch ("secure") mode reject unsigned/unverifiable requests,
+    // and the viewer may not have a usable signing actor at all (e.g. a
+    // logged-in account without a local actor, or one whose key is not publicly
+    // resolvable on a multi-domain setup). The instance actor always exists, has
+    // a private key, and is served at a publicly resolvable URL so the remote
+    // can verify the signature; without it, posts on secure-mode instances 404.
+    // Resolution is best-effort: a missing/failed instance actor must degrade to
+    // an unsigned fetch rather than turning a clean 404 into a 500. The failure
+    // is surfaced (not swallowed) so a persistently broken signer stays
+    // diagnosable. getRemoteStatus is shared with search, which intentionally
+    // signs as the requesting user, so only this call site is changed.
+    const signingActor = await getFederationSigningActor(database).catch(
+      (error) => {
+        logger.warn({
+          message:
+            'Failed to resolve federation signing actor for remote status fetch; falling back to an unsigned request',
+          error: error instanceof Error ? error.message : String(error)
+        })
+        return undefined
+      }
+    )
     status = await getRemoteStatus({
       statusId: fullStatusId,
-      signingActor: currentActor ?? undefined
+      signingActor
     })
     statusId = status?.id ?? ''
 
