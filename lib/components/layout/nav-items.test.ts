@@ -4,15 +4,15 @@ const itemHrefs = (params: Parameters<typeof buildNavItems>[0]) =>
   buildNavItems(params).map((item) => item.href)
 
 describe('buildNavItems', () => {
-  it('places bookmarks before notifications in the base navigation', () => {
+  it('places favorites before bookmarks in the base navigation', () => {
     expect(itemHrefs({})).toEqual([
       '/',
       '/search',
       '/explore',
       '/messages',
+      '/favorites',
       '/bookmarks',
       '/lists',
-      '/favorites',
       '/notifications',
       '/settings'
     ])
@@ -24,9 +24,9 @@ describe('buildNavItems', () => {
       '/search',
       '/explore',
       '/messages',
+      '/favorites',
       '/bookmarks',
       '/lists',
-      '/favorites',
       '/@llun@llun.test/fitness',
       '/notifications',
       '/settings'
@@ -39,9 +39,9 @@ describe('buildNavItems', () => {
       '/search',
       '/explore',
       '/messages',
+      '/favorites',
       '/bookmarks',
       '/lists',
-      '/favorites',
       '/notifications',
       '/admin',
       '/settings'
@@ -56,9 +56,9 @@ describe('buildNavItems', () => {
       '/search',
       '/explore',
       '/messages',
+      '/favorites',
       '/bookmarks',
       '/lists',
-      '/favorites',
       '/@llun@llun.test/fitness',
       '/notifications',
       '/admin',

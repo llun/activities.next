@@ -27,9 +27,9 @@ const baseNavItems: NavItem[] = [
   { href: '/search', label: 'Search', icon: Search },
   { href: '/explore', label: 'Explore', icon: Compass },
   { href: '/messages', label: 'Messages', icon: Mail },
+  { href: '/favorites', label: 'Favorites', icon: Heart },
   { href: '/bookmarks', label: 'Bookmarks', icon: Bookmark },
   { href: '/lists', label: 'Lists', icon: List },
-  { href: '/favorites', label: 'Favorites', icon: Heart },
   {
     href: '/notifications',
     label: 'Notifications',
