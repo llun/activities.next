@@ -1,0 +1,19 @@
+app/(timeline)/[actor]/ActorTimelines.tsx
+  s_354fa8efbc1053::t_1cfb3cac544177 334-347
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "a19e48dfac5e784aca42c29dfa7a8d4746ae6b20",
+  "prompts": {},
+  "sessions": {
+    "s_354fa8efbc1053": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "aaddccdf-3c90-4b07-bd34-54a5877e520e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
