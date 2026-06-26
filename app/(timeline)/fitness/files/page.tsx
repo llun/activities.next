@@ -48,8 +48,8 @@ const Page = async ({
   const parsedLimit = parseInt(params.limit || '25', 10)
   const itemsPerPage = [25, 50, 100].includes(parsedLimit) ? parsedLimit : 25
 
-  const [mediaUsed, fitnessUsed, result, hasRetriableImport] =
-    await Promise.all([
+  const [mediaUsed, fitnessUsed, result, retriableBatchIds] = await Promise.all(
+    [
       database.getStorageUsageForAccount({
         accountId: actor.account.id
       }),
@@ -63,11 +63,12 @@ const Page = async ({
       }),
       // Computed across ALL the actor's files (not just the current page) so the
       // "Retry all failed" button is visible whenever a retry would do work.
-      database.getActorHasRetriableFitnessImport({
+      database.getRetriableFitnessImportBatchIds({
         actorId: actor.id,
         stuckBefore: new Date(Date.now() - STUCK_PROCESSING_THRESHOLD_MS)
       })
-    ])
+    ]
+  )
 
   const limit = getQuotaLimit()
   const used = mediaUsed + fitnessUsed
@@ -97,7 +98,7 @@ const Page = async ({
           importError: fitnessFile.importError ?? null,
           importBatchId: fitnessFile.importBatchId ?? undefined
         }))}
-        hasRetriableImport={hasRetriableImport}
+        hasRetriableImport={retriableBatchIds.length > 0}
         currentPage={page}
         itemsPerPage={itemsPerPage}
         totalItems={result.total}

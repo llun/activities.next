@@ -1,7 +1,5 @@
-import {
-  isRetriableFitnessFile,
-  retryFitnessImportBatch
-} from '@/lib/services/fitness-files/retryImports'
+import { STUCK_PROCESSING_THRESHOLD_MS } from '@/lib/services/fitness-files/processingState'
+import { retryFitnessImportBatch } from '@/lib/services/fitness-files/retryImports'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -11,8 +9,6 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
-
-const FITNESS_FILE_PAGE_SIZE = 200
 
 // Manual upload retries publish as private so a recovery never re-publishes a
 // post more visibly than the owner intended; `strava-activity:<id>` batches
@@ -31,35 +27,19 @@ export const POST = traceApiRoute(
     const { currentActor, database } = context
     const now = Date.now()
 
-    // Collect the distinct batches that have at least one retriable file. A
-    // file with no import batch can't be requeued through the batch importer;
-    // its post keeps its own Retry button.
-    const retriableBatchIds = new Set<string>()
-    let offset = 0
-    while (true) {
-      const page = await database.getFitnessFilesByActor({
-        actorId: currentActor.id,
-        limit: FITNESS_FILE_PAGE_SIZE,
-        offset
-      })
-
-      for (const file of page) {
-        if (file.importBatchId && isRetriableFitnessFile(file, now)) {
-          retriableBatchIds.add(file.importBatchId)
-        }
-      }
-
-      if (page.length < FITNESS_FILE_PAGE_SIZE) {
-        break
-      }
-      offset += FITNESS_FILE_PAGE_SIZE
-    }
+    // One lean query returns just the distinct retriable batch ids (a file with
+    // no import batch can't be requeued through the batch importer and keeps its
+    // own per-post Retry button), instead of paging through every file row.
+    const retriableBatchIds = await database.getRetriableFitnessImportBatchIds({
+      actorId: currentActor.id,
+      stuckBefore: new Date(now - STUCK_PROCESSING_THRESHOLD_MS)
+    })
 
     // Each batch is independent, so requeue them concurrently. allSettled keeps
     // one batch's failure from blocking the rest; retryFitnessImportBatch
     // already rolls back and logs on its own failure.
     const results = await Promise.allSettled(
-      Array.from(retriableBatchIds).map(async (batchId) => {
+      retriableBatchIds.map(async (batchId) => {
         const batchFiles = await database.getFitnessFilesByBatchId({ batchId })
         const ownedFiles = batchFiles.filter(
           (file) => file.actorId === currentActor.id

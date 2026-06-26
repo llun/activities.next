@@ -56,7 +56,7 @@ vi.mock('next/headers', () => ({
 
 type MockDatabase = Pick<
   Database,
-  | 'getFitnessFilesByActor'
+  | 'getRetriableFitnessImportBatchIds'
   | 'getFitnessFilesByBatchId'
   | 'updateFitnessFilesImportStatus'
   | 'updateFitnessFilesProcessingStatus'
@@ -92,7 +92,7 @@ const routeContext = { params: Promise.resolve({}) }
 
 describe('POST /api/v1/fitness/retry-failed', () => {
   const db: jest.Mocked<MockDatabase> = {
-    getFitnessFilesByActor: vi.fn(),
+    getRetriableFitnessImportBatchIds: vi.fn().mockResolvedValue([]),
     getFitnessFilesByBatchId: vi.fn(),
     updateFitnessFilesImportStatus: vi.fn().mockResolvedValue(1),
     updateFitnessFilesProcessingStatus: vi.fn().mockResolvedValue(1),
@@ -113,29 +113,10 @@ describe('POST /api/v1/fitness/retry-failed', () => {
   })
 
   it('requeues every failed/stuck batch and reports the totals', async () => {
-    db.getFitnessFilesByActor.mockResolvedValueOnce([
-      fitnessFile({
-        id: 'a',
-        importBatchId: 'strava-activity:1',
-        importStatus: 'failed'
-      }),
-      fitnessFile({
-        id: 'b',
-        importBatchId: 'strava-activity:2',
-        statusId: `${ACTOR_ID}/statuses/2`,
-        importStatus: 'completed',
-        processingStatus: 'failed'
-      }),
-      // Healthy import — not retried, its batch is ignored.
-      fitnessFile({
-        id: 'c',
-        importBatchId: 'strava-activity:3',
-        statusId: `${ACTOR_ID}/statuses/3`,
-        importStatus: 'completed',
-        processingStatus: 'completed'
-      })
-    ] as never)
-    db.getFitnessFilesByActor.mockResolvedValue([] as never)
+    db.getRetriableFitnessImportBatchIds.mockResolvedValue([
+      'strava-activity:1',
+      'strava-activity:2'
+    ])
 
     db.getFitnessFilesByBatchId.mockImplementation(
       async ({ batchId }: { batchId: string }) => {
@@ -181,17 +162,9 @@ describe('POST /api/v1/fitness/retry-failed', () => {
 
   it('retries a batch whose file is stuck in processing', async () => {
     const stuckUpdatedAt = Date.now() - 60 * 60 * 1000
-    db.getFitnessFilesByActor.mockResolvedValueOnce([
-      fitnessFile({
-        id: 'stuck',
-        importBatchId: 'strava-activity:42',
-        statusId: `${ACTOR_ID}/statuses/42`,
-        importStatus: 'completed',
-        processingStatus: 'processing',
-        updatedAt: stuckUpdatedAt
-      })
-    ] as never)
-    db.getFitnessFilesByActor.mockResolvedValue([] as never)
+    db.getRetriableFitnessImportBatchIds.mockResolvedValue([
+      'strava-activity:42'
+    ])
     db.getFitnessFilesByBatchId.mockResolvedValue([
       fitnessFile({
         id: 'stuck',
@@ -215,15 +188,7 @@ describe('POST /api/v1/fitness/retry-failed', () => {
   })
 
   it('returns zero when nothing is failed or stuck', async () => {
-    db.getFitnessFilesByActor.mockResolvedValue([
-      fitnessFile({
-        id: 'a',
-        importBatchId: 'strava-activity:1',
-        statusId: `${ACTOR_ID}/statuses/1`,
-        importStatus: 'completed',
-        processingStatus: 'completed'
-      })
-    ] as never)
+    db.getRetriableFitnessImportBatchIds.mockResolvedValue([])
 
     const response = await POST(buildRequest(), routeContext)
     const json = (await response.json()) as { retried: number; batches: number }
@@ -235,19 +200,10 @@ describe('POST /api/v1/fitness/retry-failed', () => {
   })
 
   it('continues past a batch whose requeue fails', async () => {
-    db.getFitnessFilesByActor.mockResolvedValueOnce([
-      fitnessFile({
-        id: 'a',
-        importBatchId: 'batch-good',
-        importStatus: 'failed'
-      }),
-      fitnessFile({
-        id: 'b',
-        importBatchId: 'batch-bad',
-        importStatus: 'failed'
-      })
-    ] as never)
-    db.getFitnessFilesByActor.mockResolvedValue([] as never)
+    db.getRetriableFitnessImportBatchIds.mockResolvedValue([
+      'batch-good',
+      'batch-bad'
+    ])
     db.getFitnessFilesByBatchId.mockImplementation(
       async ({ batchId }: { batchId: string }) =>
         [

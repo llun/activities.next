@@ -973,19 +973,19 @@ describe('FitnessFileDatabase', () => {
       })
     })
 
-    describe('getActorHasRetriableFitnessImport', () => {
-      it('detects failed, failed-processing and stuck batch imports', async () => {
+    describe('getRetriableFitnessImportBatchIds', () => {
+      it('returns failed, failed-processing and stuck batch ids', async () => {
         const actorId = actors.empty.id
         const past = new Date(Date.now() - 60 * 60 * 1000)
         const future = new Date(Date.now() + 60 * 60 * 1000)
 
         // No fitness files yet.
         expect(
-          await database.getActorHasRetriableFitnessImport({
+          await database.getRetriableFitnessImportBatchIds({
             actorId,
             stuckBefore: past
           })
-        ).toBe(false)
+        ).toHaveLength(0)
 
         // A file with no import batch is never batch-retriable.
         const orphan = await database.createFitnessFile({
@@ -998,11 +998,11 @@ describe('FitnessFileDatabase', () => {
         })
         await database.updateFitnessFileProcessingStatus(orphan!.id, 'failed')
         expect(
-          await database.getActorHasRetriableFitnessImport({
+          await database.getRetriableFitnessImportBatchIds({
             actorId,
             stuckBefore: past
           })
-        ).toBe(false)
+        ).toHaveLength(0)
 
         // A completed batch import is not retriable.
         const completed = await database.createFitnessFile({
@@ -1020,11 +1020,11 @@ describe('FitnessFileDatabase', () => {
           'completed'
         )
         expect(
-          await database.getActorHasRetriableFitnessImport({
+          await database.getRetriableFitnessImportBatchIds({
             actorId,
             stuckBefore: past
           })
-        ).toBe(false)
+        ).toHaveLength(0)
 
         // A fresh `processing` batch is not stuck for a past threshold...
         const processing = await database.createFitnessFile({
@@ -1041,18 +1041,18 @@ describe('FitnessFileDatabase', () => {
           'processing'
         )
         expect(
-          await database.getActorHasRetriableFitnessImport({
+          await database.getRetriableFitnessImportBatchIds({
             actorId,
             stuckBefore: past
           })
-        ).toBe(false)
+        ).toHaveLength(0)
         // ...but counts as stuck for a future threshold.
         expect(
-          await database.getActorHasRetriableFitnessImport({
+          await database.getRetriableFitnessImportBatchIds({
             actorId,
             stuckBefore: future
           })
-        ).toBe(true)
+        ).toEqual(['strava-activity:empty-proc'])
 
         // A failed batch import is retriable regardless of the threshold.
         const failed = await database.createFitnessFile({
@@ -1069,12 +1069,13 @@ describe('FitnessFileDatabase', () => {
           'failed',
           'boom'
         )
-        expect(
-          await database.getActorHasRetriableFitnessImport({
-            actorId,
-            stuckBefore: past
-          })
-        ).toBe(true)
+        const retriable = await database.getRetriableFitnessImportBatchIds({
+          actorId,
+          stuckBefore: past
+        })
+        expect(retriable).toContain('strava-activity:empty-failed')
+        // The fresh `processing` batch is still not stuck for a past threshold.
+        expect(retriable).not.toContain('strava-activity:empty-proc')
       })
     })
   })

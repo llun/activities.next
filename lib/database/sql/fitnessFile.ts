@@ -144,16 +144,17 @@ export interface FitnessFileDatabase {
     params: Omit<GetFitnessFilesByActorParams, 'limit' | 'offset'>
   ): Promise<number>
   /**
-   * True when the actor has at least one batch-imported fitness file that the
-   * "retry all failed" action would requeue: a failed import, a failed map
+   * Returns the distinct import-batch ids the "retry all failed" action would
+   * requeue for the actor: batches with a failed import, a failed map
    * processing, or a file stranded in `processing` since before `stuckBefore`.
-   * Used to decide button visibility across ALL the actor's files, not just the
-   * current page.
+   * One lean query (only batch-id strings) instead of paginating every file
+   * row — used by the retry-all endpoint and to decide button visibility across
+   * ALL of the actor's files (not just the current page).
    */
-  getActorHasRetriableFitnessImport(params: {
+  getRetriableFitnessImportBatchIds(params: {
     actorId: string
     stuckBefore: Date
-  }): Promise<boolean>
+  }): Promise<string[]>
   getFitnessFilesWithStatusForAccount(
     params: GetFitnessFilesForAccountParams
   ): Promise<PaginatedFitnessFiles>
@@ -443,14 +444,14 @@ export const FitnessFileSQLDatabaseMixin = (
     return Number(row?.count ?? 0)
   },
 
-  async getActorHasRetriableFitnessImport({
+  async getRetriableFitnessImportBatchIds({
     actorId,
     stuckBefore
   }: {
     actorId: string
     stuckBefore: Date
   }) {
-    const row = await database<SQLFitnessFile>('fitness_files')
+    const rows = await database<SQLFitnessFile>('fitness_files')
       .where('actorId', actorId)
       .whereNull('deletedAt')
       .whereNotNull('importBatchId')
@@ -464,9 +465,11 @@ export const FitnessFileSQLDatabaseMixin = (
               .where('updatedAt', '<=', stuckBefore)
           })
       })
-      .first()
+      .distinct('importBatchId')
 
-    return Boolean(row)
+    return rows
+      .map((row) => row.importBatchId)
+      .filter((batchId): batchId is string => Boolean(batchId))
   },
 
   async getFitnessFilesWithStatusForAccount({
