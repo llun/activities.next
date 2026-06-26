@@ -2062,8 +2062,10 @@ export const getFitnessFilesByStatus = async (
 
   if (!response.ok) return null
 
-  const data = (await response.json()) as { files?: StatusFitnessFileItem[] }
-  return Array.isArray(data.files) ? data.files : null
+  const data = (await response.json()) as {
+    files?: StatusFitnessFileItem[]
+  } | null
+  return data && Array.isArray(data.files) ? data.files : null
 }
 
 /**
@@ -2093,8 +2095,11 @@ export const getFitnessRouteData = async (
     throw new ApiRequestError(errorDetails, response.status)
   }
 
-  const data = (await response.json()) as FitnessRouteDataResponse
-  if (!Array.isArray(data.samples)) {
+  const data = (await response.json()) as FitnessRouteDataResponse | null
+  // Throw (rather than return an empty fallback) on a malformed/null payload so
+  // the caller's catch can surface the error state; guard the null case first to
+  // avoid a raw TypeError when reading `.samples`.
+  if (!data || !Array.isArray(data.samples)) {
     throw new Error('Route data response is invalid')
   }
 
