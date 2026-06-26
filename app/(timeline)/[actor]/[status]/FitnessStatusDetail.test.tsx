@@ -381,4 +381,28 @@ describe('FitnessStatusDetail', () => {
       )
     ).toBeInTheDocument()
   })
+
+  it('excludes 0 bpm sensor dropouts from the heart-rate average and max', async () => {
+    // Without filtering, avg over [0,150,0,150,150] would be 60; the positive
+    // samples [150,150,150] give avg 150 / max 150, matching the zone buckets.
+    mockGetFitnessRouteData.mockResolvedValue({
+      ...routeData,
+      heartRateSeries: [0, 150, 0, 150, 150]
+    })
+
+    renderDetail()
+
+    await waitFor(() => expect(screen.getByText('Avg HR')).toBeInTheDocument())
+
+    const menu = await openSectionMenu()
+    fireEvent.click(
+      within(menu).getByRole('menuitem', { name: 'Heart rate zones' })
+    )
+
+    expect(
+      await screen.findByText(
+        (_, element) => element?.textContent === 'avg 150 · max 150 bpm'
+      )
+    ).toBeInTheDocument()
+  })
 })

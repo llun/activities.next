@@ -658,6 +658,7 @@ const HeartRateZonesPanel: FC<{ zones: HeartRateZone[] }> = ({ zones }) => {
             <span
               className="inline-block size-3 shrink-0 rounded-[3px]"
               style={{ background: zone.color }}
+              aria-hidden="true"
             />
             <span className="w-7 shrink-0 text-sm font-semibold tabular-nums">
               {zone.name}
@@ -1170,7 +1171,7 @@ const ActivityMapPanel: FC<{
       ) : null}
 
       {!shouldRenderInteractiveMap && (routeDataError || mapLoadError) ? (
-        <div className="absolute inset-x-3 top-3 rounded-md border border-amber-300 bg-amber-50/95 px-3 py-2 text-xs text-amber-900 shadow-sm">
+        <div className="absolute inset-x-3 top-3 rounded-md border border-amber-300 bg-amber-50/95 px-3 py-2 text-xs text-amber-900 shadow-sm dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
           {routeDataError || mapLoadError}
         </div>
       ) : null}
@@ -1479,36 +1480,47 @@ export const FitnessStatusDetail: FC<Props> = ({
   }, [powerSeries])
 
   const totalWorkKj = useMemo(() => {
-    if (!avgPower || durationSeconds <= 0) return null
+    // 0 W is a valid average (e.g. a fully-coasting segment), so only treat a
+    // genuinely-absent power series (null) as "no total work".
+    if (avgPower === null || durationSeconds <= 0) return null
     return Math.round((avgPower * durationSeconds) / 1000)
   }, [avgPower, durationSeconds])
 
+  // Heart-rate monitors report 0 bpm during sensor dropouts; exclude those so
+  // the avg/max, the Analysis chart, and the zone buckets all agree (unlike
+  // power, 0 bpm is never a real reading). Mirrors computeHeartRateZones.
+  const positiveHeartRateSeries = useMemo(
+    () => heartRateSeries.filter((bpm) => bpm > 0),
+    [heartRateSeries]
+  )
+
   const heartRateStats = useMemo(() => {
-    if (heartRateSeries.length === 0) return null
-    const { maxValue } = getSeriesMinMax(heartRateSeries)
+    if (positiveHeartRateSeries.length === 0) return null
+    const { maxValue } = getSeriesMinMax(positiveHeartRateSeries)
     const avg = Math.round(
-      heartRateSeries.reduce((a, b) => a + b, 0) / heartRateSeries.length
+      positiveHeartRateSeries.reduce((a, b) => a + b, 0) /
+        positiveHeartRateSeries.length
     )
     return { avg, max: Math.round(maxValue) }
-  }, [heartRateSeries])
+  }, [positiveHeartRateSeries])
 
   const heartRateZones = useMemo(
-    () => computeHeartRateZones(heartRateSeries, durationSeconds),
-    [heartRateSeries, durationSeconds]
+    () => computeHeartRateZones(positiveHeartRateSeries, durationSeconds),
+    [positiveHeartRateSeries, durationSeconds]
   )
 
   const activitySeries = useMemo(() => {
     return {
       heartRate:
-        heartRateSeries.length > 0
-          ? downsampleSeries(heartRateSeries, 120)
+        positiveHeartRateSeries.length > 0
+          ? downsampleSeries(positiveHeartRateSeries, 120)
           : [],
       power: powerSeries.length > 0 ? downsampleSeries(powerSeries, 120) : [],
       speed: speedSeries.length > 0 ? downsampleSeries(speedSeries, 120) : [],
       elevation:
         altitudeSeries.length > 0 ? downsampleSeries(altitudeSeries, 120) : []
     }
-  }, [heartRateSeries, powerSeries, speedSeries, altitudeSeries])
+  }, [positiveHeartRateSeries, powerSeries, speedSeries, altitudeSeries])
   const { minValue: elevationMin, maxValue: elevationMax } = useMemo(
     () => getSeriesMinMax(activitySeries.elevation),
     [activitySeries.elevation]
@@ -1631,7 +1643,7 @@ export const FitnessStatusDetail: FC<Props> = ({
     }
   }, [analysisGraphOptions, analysisGraphFilter])
 
-  const hasHeartRate = heartRateSeries.length > 0
+  const hasHeartRate = positiveHeartRateSeries.length > 0
   const hasPower = powerSeries.length > 0
   const hasPhotos = mediaWithoutMap.length > 0
   const hasComments = replies.length > 0 || Boolean(currentActor)
@@ -1918,7 +1930,7 @@ export const FitnessStatusDetail: FC<Props> = ({
       {routeDataError && !shouldRenderMapPanel ? (
         <div
           role="alert"
-          className="rounded-lg border border-amber-300 bg-amber-50/95 px-3 py-2 text-xs text-amber-900"
+          className="rounded-lg border border-amber-300 bg-amber-50/95 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
         >
           {routeDataError}
         </div>
@@ -1983,6 +1995,9 @@ export const FitnessStatusDetail: FC<Props> = ({
 
         {activeSection === 'analysis' && (
           <div className="space-y-4">
+            {/* Keep the heading outline contiguous (h1 -> h2 -> h3); the
+                section is already visually identified by the sub-nav. */}
+            <h2 className="sr-only">Analysis</h2>
             {shouldRenderMapPanel && (
               <ActivityMapPanel
                 mapAttachment={mapAttachment}
