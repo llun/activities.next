@@ -52,7 +52,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Fitness file storage** — Upload .fit, .gpx, and .tcx activity files
 - ✅ **Fitness activity processing** — Parse GPS tracks and metrics from uploaded .fit, .gpx, and .tcx files
 - ✅ **Fitness activity display** — Show route maps, activity statistics, analysis graphs, and device info in posts
-- ✅ **Fitness route heatmaps** — Per-region master/detail heatmaps by actor, activity type, period, and region, rendered on an interactive map (Mapbox when a token is configured, otherwise keyless MapLibre / OpenFreeMap), with live generation progress, per-heatmap retry/remove, inline region renaming, and shareable/embeddable views (iframe + image)
+- ✅ **Fitness route heatmaps** — Per-region master/detail heatmaps by actor and region (aggregated across all activities and all time), rendered on an interactive map (Mapbox when a token is configured, otherwise keyless MapLibre / OpenFreeMap), with live generation progress, per-heatmap retry/remove, inline region renaming, and shareable/embeddable views (iframe + image)
 - ✅ **Strava import** — Import activities through Strava OAuth/webhooks and uploaded Strava archive ZIP files
 - ✅ **Fitness import resilience** — Recover stuck/orphaned imports, resumable Strava archive retries, same-ride upload merging, and per-file retry from the UI; repair scripts cover legacy imports
 - ✅ **Fitness privacy locations** — Hide configured location radii from route maps and heatmaps

@@ -3,20 +3,6 @@ import { deserializeRegions, formatRectRegion } from '@/lib/fitness/regions'
 import { FitnessRouteHeatmap } from '@/lib/types/database/fitnessRouteHeatmap'
 import { getMentionFromActorID } from '@/lib/types/domain/actor'
 
-const numberFormatter = new Intl.NumberFormat()
-
-/** "All activities" or a humanised activity type (e.g. "Trail Run"). */
-export const formatActivityLabel = (type?: string | null): string =>
-  type
-    ? type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-    : 'All activities'
-
-/** "All time" for the all-time period, otherwise the raw period key. */
-export const formatPeriodLabel = (
-  periodType: string,
-  periodKey: string
-): string => (periodType === 'all_time' ? 'All time' : periodKey)
-
 /** Up to two uppercase initials from a display name (falls back to "?"). */
 export const computeInitials = (name: string): string => {
   const initials = name
@@ -51,12 +37,6 @@ export interface SharedHeatmapOwner {
   initials: string
 }
 
-export interface SharedHeatmapStats {
-  routes: string
-  activity: string
-  period: string
-}
-
 export interface SharedHeatmapView {
   title: string
   isWorld: boolean
@@ -68,11 +48,10 @@ export interface SharedHeatmapView {
   /**
    * Map-ready heatmap with the internal generation counters zeroed: as Client
    * Component props they would otherwise be serialised into the public RSC
-   * payload on this unauthenticated surface (mirrors the embed page). Only the
-   * route count is surfaced — and only as a pre-formatted stat string below.
+   * payload on this unauthenticated surface (mirrors the embed page). The public
+   * page renders only the map, so no counter is surfaced.
    */
   heatmap: FitnessRouteHeatmapData
-  stats: SharedHeatmapStats
 }
 
 interface BuildSharedHeatmapViewParams {
@@ -141,11 +120,6 @@ export const buildSharedHeatmapView = ({
       isPartial: false,
       createdAt: heatmap.createdAt,
       updatedAt: heatmap.updatedAt
-    },
-    stats: {
-      routes: numberFormatter.format(Math.max(0, heatmap.activityCount)),
-      activity: formatActivityLabel(heatmap.activityType),
-      period: formatPeriodLabel(heatmap.periodType, heatmap.periodKey)
     }
   }
 }

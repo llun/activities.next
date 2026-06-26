@@ -4,9 +4,7 @@ import { FitnessRouteHeatmap } from '@/lib/types/database/fitnessRouteHeatmap'
 import {
   buildSharedHeatmapView,
   computeInitials,
-  formatActivityLabel,
-  formatGeneratedDate,
-  formatPeriodLabel
+  formatGeneratedDate
 } from './sharedHeatmapView'
 
 const baseHeatmap: FitnessRouteHeatmap = {
@@ -29,38 +27,6 @@ const baseHeatmap: FitnessRouteHeatmap = {
 }
 
 const owner = { name: 'Alice Rider', username: 'alice', domain: 'llun.test' }
-
-describe('formatActivityLabel', () => {
-  it.each([
-    {
-      description: 'undefined → All activities',
-      input: undefined,
-      expected: 'All activities'
-    },
-    {
-      description: 'null → All activities',
-      input: null,
-      expected: 'All activities'
-    },
-    {
-      description: 'humanises trail_run',
-      input: 'trail_run',
-      expected: 'Trail Run'
-    }
-  ])('$description', ({ input, expected }) => {
-    expect(formatActivityLabel(input)).toBe(expected)
-  })
-})
-
-describe('formatPeriodLabel', () => {
-  it('returns All time for the all-time period', () => {
-    expect(formatPeriodLabel('all_time', 'all')).toBe('All time')
-  })
-  it('returns the raw period key otherwise', () => {
-    expect(formatPeriodLabel('yearly', '2025')).toBe('2025')
-    expect(formatPeriodLabel('monthly', '2025-06')).toBe('2025-06')
-  })
-})
 
 describe('computeInitials', () => {
   it.each([
@@ -90,7 +56,7 @@ describe('formatGeneratedDate', () => {
 })
 
 describe('buildSharedHeatmapView', () => {
-  it('builds the world view with read-only stats and a zeroed map heatmap', () => {
+  it('builds the world view with a zeroed map heatmap and no stats', () => {
     const view = buildSharedHeatmapView({
       heatmap: baseHeatmap,
       owner,
@@ -107,11 +73,8 @@ describe('buildSharedHeatmapView', () => {
       initials: 'AR'
     })
     expect(view.publicUrl).toBe('https://llun.test/u/heatmaps/tok123')
-    expect(view.stats).toEqual({
-      routes: '342',
-      activity: 'All activities',
-      period: 'All time'
-    })
+    // The public page renders only the map: no read-only stats are exposed.
+    expect(view).not.toHaveProperty('stats')
     // Internal counters are zeroed in the map payload (no public leak), but the
     // real segments/bounds are kept so the map still renders.
     expect(view.heatmap.activityCount).toBe(0)
@@ -153,22 +116,6 @@ describe('buildSharedHeatmapView', () => {
       token: 'tok123'
     })
     expect(view.title).toBe('Map area')
-  })
-
-  it('humanises a filtered activity and yearly period in the stats', () => {
-    const view = buildSharedHeatmapView({
-      heatmap: {
-        ...baseHeatmap,
-        activityType: 'trail_run',
-        periodType: 'yearly',
-        periodKey: '2025'
-      },
-      owner,
-      origin: 'https://llun.test',
-      token: 'tok123'
-    })
-    expect(view.stats.activity).toBe('Trail Run')
-    expect(view.stats.period).toBe('2025')
   })
 
   it('does not double the slash when the origin has a trailing slash', () => {
