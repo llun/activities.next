@@ -16,6 +16,7 @@ import {
   SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { saveFitnessFile } from '@/lib/services/fitness-files'
+import { withImportLock } from '@/lib/services/fitness-files/importLock'
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
@@ -673,29 +674,40 @@ export const importStravaActivityJob = createJobHandle(
     }
 
     const isNewImport = !targetFitnessFile.statusId
-    if (!targetFitnessFile.statusId) {
-      const actorFitnessFiles = await database.getFitnessFilesByActor({
-        actorId,
-        limit: OVERLAP_CONTEXT_SCAN_LIMIT
-      })
-      const overlapFitnessFileIds = getOverlapContextFitnessFileIds({
-        actorId,
-        fitnessFileId: targetFitnessFile.id,
-        activityStartTime: getStravaActivityStartTimeMs(activity),
-        activityDurationSeconds: getStravaActivityDurationSeconds(activity),
-        files: actorFitnessFiles
-      })
-
-      await importFitnessFilesJob(database, {
-        id: getHashFromString(`${actorId}:strava-import:${stravaActivityId}`),
-        name: IMPORT_FITNESS_FILES_JOB_NAME,
-        data: {
+    if (isNewImport) {
+      // Serialize the post-creation critical section per actor. Strava delivers
+      // one webhook per activity, so a single ride recorded on two devices
+      // arrives as two activities at nearly the same moment and their imports
+      // would otherwise run concurrently — each scanning for a sibling before
+      // either has assigned a status, so each creates its own post (duplicate
+      // same-ride posts). Holding the lock means the sibling's import has
+      // already assigned its status by the time this one scans, so the overlap
+      // merge in importFitnessFilesJob finds it and collapses both files into a
+      // single post.
+      await withImportLock(database, `strava-import:${actorId}`, async () => {
+        const actorFitnessFiles = await database.getFitnessFilesByActor({
           actorId,
-          batchId,
-          fitnessFileIds: [targetFitnessFile.id],
-          overlapFitnessFileIds,
-          visibility: resolvedVisibility
-        }
+          limit: OVERLAP_CONTEXT_SCAN_LIMIT
+        })
+        const overlapFitnessFileIds = getOverlapContextFitnessFileIds({
+          actorId,
+          fitnessFileId: targetFitnessFile.id,
+          activityStartTime: getStravaActivityStartTimeMs(activity),
+          activityDurationSeconds: getStravaActivityDurationSeconds(activity),
+          files: actorFitnessFiles
+        })
+
+        await importFitnessFilesJob(database, {
+          id: getHashFromString(`${actorId}:strava-import:${stravaActivityId}`),
+          name: IMPORT_FITNESS_FILES_JOB_NAME,
+          data: {
+            actorId,
+            batchId,
+            fitnessFileIds: [targetFitnessFile.id],
+            overlapFitnessFileIds,
+            visibility: resolvedVisibility
+          }
+        })
       })
     }
 
@@ -748,7 +760,17 @@ export const importStravaActivityJob = createJobHandle(
       })
     }
 
-    if (!importedFitnessFile.hasMapData) {
+    // Only fall back to a regenerate-map job for a re-imported PRIMARY file
+    // that still lacks a map. On a fresh import the primary is already handed
+    // to processFitnessFileJob, so regenerating here would race that job; and a
+    // file merged in as non-primary must never get its own map (it would render
+    // as a second image on the shared post). `isPrimary` defaults to true for
+    // older rows, so only an explicit `false` is treated as non-primary.
+    if (
+      !isNewImport &&
+      importedFitnessFile.isPrimary !== false &&
+      !importedFitnessFile.hasMapData
+    ) {
       await getQueue().publish({
         id: getHashFromString(
           `${importedFitnessFile.statusId}:${importedFitnessFile.id}:regenerate-map`

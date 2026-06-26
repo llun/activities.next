@@ -177,6 +177,39 @@ export const regenerateFitnessMapsJob = createJobHandle(
           )
         ]
 
+        // A status carries at most one route map, owned by its primary fitness
+        // file. A non-primary file (e.g. the second device of a merged
+        // same-ride post) must not contribute its own map, otherwise the post
+        // renders duplicate images. Heal such a file by removing any stray map
+        // it owns and marking it done, without parsing or regenerating.
+        if (fitnessFile.isPrimary === false) {
+          await removeOldMapAttachmentsAndMedia({
+            database,
+            accountId: actor.account.id,
+            statusId,
+            oldAttachmentIds,
+            oldMediaIds
+          })
+
+          await database.updateFitnessFileActivityData(fitnessFileId, {
+            hasMapData: false,
+            mapImagePath: null
+          })
+          await database.updateFitnessFileProcessingStatus(
+            fitnessFileId,
+            'completed'
+          )
+
+          if (
+            status.type === StatusType.enum.Note &&
+            oldAttachmentIds.length > 0
+          ) {
+            statusesNeedingUpdate.add(statusId)
+          }
+
+          continue
+        }
+
         const fitnessBuffer = await getFitnessFileBuffer(
           database,
           fitnessFileId

@@ -96,6 +96,42 @@ describe('GET /api/v1/fitness-files/by-status', () => {
     expect(json.files[1].id).toBe(first!.id)
   })
 
+  it('reports a fresh processing file as not stuck', async () => {
+    mockGetServerSession.mockResolvedValue(null)
+
+    const status = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/processing-status-files`,
+      url: `${ACTOR1_ID}/statuses/processing-status-files`,
+      actorId: ACTOR1_ID,
+      text: 'Processing import',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [ACTOR1_FOLLOWER_URL]
+    })
+
+    const file = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      statusId: status.id,
+      path: 'fitness/processing-status-file.fit',
+      fileName: 'processing-status-file.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024
+    })
+    await database.updateFitnessFileProcessingStatus(file!.id, 'processing')
+
+    const request = new NextRequest(
+      `https://llun.test/api/v1/fitness-files/by-status?statusId=${encodeURIComponent(status.id)}`
+    )
+    const response = await GET(request)
+    const json = (await response.json()) as {
+      files: Array<{ processingStatus: string; processingStuck: boolean }>
+    }
+
+    expect(response.status).toBe(200)
+    expect(json.files[0].processingStatus).toBe('processing')
+    expect(json.files[0].processingStuck).toBe(false)
+  })
+
   it('returns not found for private statuses without authentication', async () => {
     mockGetServerSession.mockResolvedValue(null)
 

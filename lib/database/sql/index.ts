@@ -19,6 +19,7 @@ import { FitnessSettingsSQLDatabaseMixin } from '@/lib/database/sql/fitnessSetti
 import { FollowerSQLDatabaseMixin } from '@/lib/database/sql/follow'
 import { FollowedTagSQLDatabaseMixin } from '@/lib/database/sql/followedTag'
 import { IdempotencySQLDatabaseMixin } from '@/lib/database/sql/idempotency'
+import { ImportLockSQLDatabaseMixin } from '@/lib/database/sql/importLock'
 import { InstanceActivitySQLDatabaseMixin } from '@/lib/database/sql/instanceActivity'
 import { InstanceRuleSQLDatabaseMixin } from '@/lib/database/sql/instanceRule'
 import { LikeSQLDatabaseMixin } from '@/lib/database/sql/like'
@@ -53,6 +54,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const fitnessRouteHeatmapDatabase =
     FitnessRouteHeatmapSQLDatabaseMixin(database)
   const fitnessSettingsDatabase = FitnessSettingsSQLDatabaseMixin(database)
+  const importLockDatabase = ImportLockSQLDatabaseMixin(database)
   const bookmarkDatabase = BookmarkSQLDatabaseMixin(database)
   const blockDatabase = BlockSQLDatabaseMixin(database)
   const customEmojiDatabase = CustomEmojiSQLDatabaseMixin(database)
@@ -130,6 +132,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...fitnessFileDatabase,
     ...fitnessRouteHeatmapDatabase,
     ...fitnessSettingsDatabase,
+    ...importLockDatabase,
     ...instanceActivityDatabase,
     ...instanceRuleDatabase,
     ...bookmarkDatabase,
