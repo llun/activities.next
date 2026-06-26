@@ -20,12 +20,14 @@ vi.mock('@/lib/components/posts/posts', () => ({
     statuses,
     currentTime,
     showActions,
-    showReadOnlyStats
+    showReadOnlyStats,
+    onReplyCreated
   }: {
     statuses: Status[]
     currentTime: number
     showActions?: boolean
     showReadOnlyStats?: boolean
+    onReplyCreated?: (status: Status, attachments: never[]) => void
   }) => (
     <div>
       <div data-testid="posts-current-time">{currentTime}</div>
@@ -33,6 +35,19 @@ vi.mock('@/lib/components/posts/posts', () => ({
       <div data-testid="posts-read-only-stats">
         {String(Boolean(showReadOnlyStats))}
       </div>
+      {onReplyCreated && (
+        <button
+          data-testid="trigger-reply-created"
+          onClick={() =>
+            onReplyCreated(
+              createReplyStatus('https://local.example/statuses/new-reply'),
+              []
+            )
+          }
+        >
+          trigger reply created
+        </button>
+      )}
       {statuses.map((status) => (
         <div key={status.id}>{status.id}</div>
       ))}
@@ -452,5 +467,51 @@ describe('ActorTimelines', () => {
     expect(
       screen.getAllByText('https://remote.example/statuses/run')
     ).toHaveLength(2)
+  })
+
+  it('surfaces a newly created reply on the viewer’s own profile', () => {
+    render(
+      <ActorTimelines
+        host="localhost:3000"
+        actorId="https://local.example/users/me"
+        statuses={[createStatus('https://local.example/statuses/post')]}
+        attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={currentActorProfile}
+        isCurrentUser
+        statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
+      />
+    )
+
+    expect(
+      screen.queryByText('https://local.example/statuses/new-reply')
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByTestId('trigger-reply-created')[0])
+
+    // The new reply is a reply, so it lands under the Replies tab feed.
+    expect(
+      screen.getByText('https://local.example/statuses/new-reply')
+    ).toBeInTheDocument()
+  })
+
+  it('does not inject a reply into another actor’s profile feed', () => {
+    render(
+      <ActorTimelines
+        host="localhost:3000"
+        actorId="https://remote.example/users/actor"
+        statuses={[createStatus('https://remote.example/statuses/post')]}
+        attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={currentActorProfile}
+        statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
+      />
+    )
+
+    fireEvent.click(screen.getAllByTestId('trigger-reply-created')[0])
+
+    expect(
+      screen.queryByText('https://local.example/statuses/new-reply')
+    ).not.toBeInTheDocument()
   })
 })

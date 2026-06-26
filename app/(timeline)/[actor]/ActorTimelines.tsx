@@ -127,17 +127,27 @@ export const ActorTimelines: FC<Props> = ({
     [currentStatuses]
   )
 
-  // The outbox cursor only feeds the post/reply feeds, so the standalone load
-  // more control is hidden on the media and fitness tabs.
+  // The outbox cursor feeds the post/reply/fitness feeds (all derived from the
+  // loaded status list), so the standalone load more control is offered on
+  // those tabs. The media tab paginates separately via its own gallery loader.
   const canLoadMore =
     Boolean(currentStatusPagination.nextPageUrl) &&
-    (activeTab === 'posts' || activeTab === 'replies')
+    (activeTab === 'posts' ||
+      activeTab === 'replies' ||
+      activeTab === 'fitness')
 
-  const handleReplyCreated = useCallback(() => {
-    // A reply created from this profile's inline composer is the viewer's own
-    // status; it doesn't belong in the viewed actor's feed, so nothing is
-    // inserted here. The composer closes itself after posting.
-  }, [])
+  const handleReplyCreated = useCallback(
+    (status: Status) => {
+      // A reply to another actor's post is the viewer's own status and does not
+      // belong in that actor's feed. On the viewer's own profile, though, the
+      // new reply is theirs — surface it right away (it lands under the Replies
+      // tab) instead of waiting for a reload.
+      if (isCurrentUser) {
+        setCurrentStatuses((previousStatuses) => [status, ...previousStatuses])
+      }
+    },
+    [isCurrentUser]
+  )
 
   const handlePostDeleted = useCallback((status: Status) => {
     setCurrentStatuses((previousStatuses) =>
@@ -255,7 +265,7 @@ export const ActorTimelines: FC<Props> = ({
         onValueChange={(value) => setActiveTab(value as ProfileTab)}
         className="w-full gap-4"
       >
-        <TabsList className="w-full sm:w-fit">
+        <TabsList className="w-full sm:w-fit" aria-label="Profile sections">
           <TabsTrigger value="posts">Posts</TabsTrigger>
           <TabsTrigger value="replies">Replies</TabsTrigger>
           <TabsTrigger value="media">Media</TabsTrigger>
