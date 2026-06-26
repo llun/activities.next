@@ -58,7 +58,9 @@ const Page: FC<Props> = async ({ params }) => {
   }
   const actorDomain = parts[1]
 
-  // Get current actor first so we can use it to sign requests for remote actors
+  // Resolve the viewer's actor for relationship/ownership checks, settings, and
+  // timeline rendering. Remote-fetch signing is handled inside getProfileData
+  // via the headless instance actor, not the viewer.
   const currentActor = await getActorFromSession(database, session)
   const actorSettings = currentActor
     ? await database.getActorSettings({ actorId: currentActor.id })

@@ -293,6 +293,29 @@ describe('getProfileData', () => {
       expect(getActorFollowing).not.toHaveBeenCalled()
       expect(getActorFollowers).not.toHaveBeenCalled()
     })
+
+    it('omits the signing actor entirely when no instance actor is available', async () => {
+      // getFederationSigningActor returns undefined when the instance actor
+      // could not be resolved/provisioned. The fetch must then fall back to an
+      // unsigned request (no `signingActor` key at all) rather than passing
+      // `signingActor: undefined` downstream. This locks in the `: {}` branch.
+      ;(getFederationSigningActor as jest.Mock).mockResolvedValue(undefined)
+
+      const result = await getProfileData(
+        mockDatabase,
+        '@remoteuser@remote.com',
+        true
+      )
+
+      expect(result).not.toBeNull()
+      const personCall = (getActorPerson as jest.Mock).mock.calls[0][0]
+      expect(personCall).toEqual({
+        actorId: 'https://remote.com/users/remoteuser'
+      })
+      expect('signingActor' in personCall).toBe(false)
+      const postsCall = (getActorPosts as jest.Mock).mock.calls[0][0]
+      expect('signingActor' in postsCall).toBe(false)
+    })
   })
 
   describe('when actor does not exist', () => {
@@ -346,6 +369,9 @@ describe('getProfileData', () => {
       ;(getActorFollowers as jest.Mock).mockResolvedValue({
         followerCount: 20
       })
+      ;(getFederationSigningActor as jest.Mock).mockResolvedValue(
+        mockFederationSigningActor
+      )
 
       // Call without isLoggedIn parameter
       const result = await getProfileData(

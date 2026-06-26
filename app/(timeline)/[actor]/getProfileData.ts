@@ -89,9 +89,9 @@ export const getProfileData = async (
   // account without a local actor yet, or one whose key is not publicly
   // resolvable). The instance actor always exists, always has a private key,
   // and is served at a publicly resolvable URL so the remote can fetch its key
-  // and verify the signature — matching every other federation fetch in the
-  // codebase (follow, search, remote-status jobs, …). Without this, secure-mode
-  // remote profiles 404.
+  // and verify the signature. This is the same headless signer used by the
+  // federation jobs and relay/follow flows (getFederationSigningActor); without
+  // it, secure-mode remote profiles 404.
   const signingActor = await getFederationSigningActor(database)
   const signingParams = signingActor ? { signingActor } : {}
   const person = await getActorPerson({ actorId, ...signingParams })
