@@ -21,13 +21,19 @@ vi.mock('@/lib/components/posts/posts', () => ({
     currentTime,
     showActions,
     showReadOnlyStats,
-    onReplyCreated
+    onReplyCreated,
+    onPostDeleted,
+    onLikeChanged,
+    onBookmarkChanged
   }: {
     statuses: Status[]
     currentTime: number
     showActions?: boolean
     showReadOnlyStats?: boolean
     onReplyCreated?: (status: Status, attachments: never[]) => void
+    onPostDeleted?: (status: Status) => void
+    onLikeChanged?: (status: Status, isLiked: boolean) => void
+    onBookmarkChanged?: (status: Status, isBookmarked: boolean) => void
   }) => (
     <div>
       <div data-testid="posts-current-time">{currentTime}</div>
@@ -48,9 +54,45 @@ vi.mock('@/lib/components/posts/posts', () => ({
           trigger reply created
         </button>
       )}
-      {statuses.map((status) => (
-        <div key={status.id}>{status.id}</div>
-      ))}
+      {statuses.map((status) => {
+        // For a boost, the action callbacks fire with the unwrapped original
+        // status (mirroring the real Posts/Actions wiring).
+        const target =
+          status.type === StatusType.enum.Announce
+            ? status.originalStatus
+            : status
+        return (
+          <div key={status.id}>
+            <span>{status.id}</span>
+            <span data-testid={`like-flag-${target.id}`}>
+              {String(target.isActorLiked)}:{target.totalLikes}
+            </span>
+            <span data-testid={`bookmark-flag-${target.id}`}>
+              {String(target.isActorBookmarked)}
+            </span>
+            <button
+              data-testid={`trigger-delete-${target.id}`}
+              onClick={() => onPostDeleted?.(target)}
+            >
+              delete
+            </button>
+            <button
+              data-testid={`trigger-like-${target.id}`}
+              onClick={() => onLikeChanged?.(target, !target.isActorLiked)}
+            >
+              like
+            </button>
+            <button
+              data-testid={`trigger-bookmark-${target.id}`}
+              onClick={() =>
+                onBookmarkChanged?.(target, !target.isActorBookmarked)
+              }
+            >
+              bookmark
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
 }))
@@ -104,6 +146,7 @@ const createStatus = (id: string, overrides: Partial<Status> = {}): Status => {
     replies: [],
     actorAnnounceStatusId: null,
     isActorLiked: false,
+    isActorBookmarked: false,
     totalLikes: 0,
     attachments: [],
     tags: [],
@@ -113,6 +156,13 @@ const createStatus = (id: string, overrides: Partial<Status> = {}): Status => {
 
 const createReplyStatus = (id: string): Status =>
   createStatus(id, { reply: 'https://remote.example/statuses/parent' })
+
+const createAnnounceStatus = (id: string, original: Status): Status =>
+  ({
+    ...createStatus(id),
+    type: StatusType.enum.Announce,
+    originalStatus: original
+  }) as Status
 
 const createFitnessStatus = (id: string): Status =>
   createStatus(id, {
@@ -513,5 +563,81 @@ describe('ActorTimelines', () => {
     expect(
       screen.queryByText('https://local.example/statuses/new-reply')
     ).not.toBeInTheDocument()
+  })
+
+  it('keeps like state in sync across the feed when a post is liked', () => {
+    const postId = 'https://remote.example/statuses/likeable'
+    render(
+      <ActorTimelines
+        host="localhost:3000"
+        actorId="https://remote.example/users/actor"
+        statuses={[createStatus(postId)]}
+        attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={currentActorProfile}
+        statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
+      />
+    )
+
+    expect(screen.getByTestId(`like-flag-${postId}`)).toHaveTextContent(
+      'false:0'
+    )
+
+    fireEvent.click(screen.getByTestId(`trigger-like-${postId}`))
+
+    expect(screen.getByTestId(`like-flag-${postId}`)).toHaveTextContent(
+      'true:1'
+    )
+  })
+
+  it('keeps bookmark state in sync across the feed when a post is bookmarked', () => {
+    const postId = 'https://remote.example/statuses/bookmarkable'
+    render(
+      <ActorTimelines
+        host="localhost:3000"
+        actorId="https://remote.example/users/actor"
+        statuses={[createStatus(postId)]}
+        attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={currentActorProfile}
+        statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
+      />
+    )
+
+    expect(screen.getByTestId(`bookmark-flag-${postId}`)).toHaveTextContent(
+      'false'
+    )
+
+    fireEvent.click(screen.getByTestId(`trigger-bookmark-${postId}`))
+
+    expect(screen.getByTestId(`bookmark-flag-${postId}`)).toHaveTextContent(
+      'true'
+    )
+  })
+
+  it('removes a boost of a post when that post is deleted', () => {
+    const originalId = 'https://local.example/statuses/original'
+    const boostId = 'https://local.example/statuses/boost'
+    const original = createStatus(originalId)
+    render(
+      <ActorTimelines
+        host="localhost:3000"
+        actorId="https://local.example/users/me"
+        statuses={[createAnnounceStatus(boostId, original), original]}
+        attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={currentActorProfile}
+        isCurrentUser
+        statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
+      />
+    )
+
+    expect(screen.getByText(boostId)).toBeInTheDocument()
+    expect(screen.getByText(originalId)).toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByTestId(`trigger-delete-${originalId}`)[0])
+
+    expect(screen.queryByText(boostId)).not.toBeInTheDocument()
+    expect(screen.queryByText(originalId)).not.toBeInTheDocument()
   })
 })

@@ -16,7 +16,12 @@ import {
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusNote,
+  StatusPoll,
+  StatusType
+} from '@/lib/types/domain/status'
 
 import { ActorMediaGallery } from './ActorMediaGallery'
 
@@ -66,6 +71,30 @@ const isReply = (status: Status) => {
 
 const hasFitnessFile = (status: Status) =>
   status.type === StatusType.enum.Note && Boolean(status.fitness)
+
+// Apply an interactive-state patch (like/bookmark toggle) to the status with
+// the given id, reaching inside a boost to patch its original status too, so
+// every rendered copy (Posts/Replies/Fitness tabs share `currentStatuses`)
+// stays consistent across tab switches and remounts.
+const updateMatchingStatus = (
+  statuses: Status[],
+  targetId: string,
+  patch: (target: StatusNote | StatusPoll) => StatusNote | StatusPoll
+): Status[] =>
+  statuses.map((item) => {
+    if (item.type === StatusType.enum.Announce) {
+      const original = item.originalStatus
+      // Boosts wrap a Note/Poll; nested boosts aren't an interactive target.
+      if (
+        original.type !== StatusType.enum.Announce &&
+        original.id === targetId
+      ) {
+        return { ...item, originalStatus: patch(original) }
+      }
+      return item
+    }
+    return item.id === targetId ? patch(item) : item
+  })
 
 const appendUniqueStatuses = (
   previousStatuses: Status[],
@@ -151,9 +180,43 @@ export const ActorTimelines: FC<Props> = ({
 
   const handlePostDeleted = useCallback((status: Status) => {
     setCurrentStatuses((previousStatuses) =>
-      previousStatuses.filter((item) => item.id !== status.id)
+      previousStatuses.filter(
+        (item) =>
+          item.id !== status.id &&
+          !(
+            item.type === StatusType.enum.Announce &&
+            item.originalStatus.id === status.id
+          )
+      )
     )
   }, [])
+
+  const handleLikeChanged = useCallback(
+    (status: StatusNote | StatusPoll, isLiked: boolean) => {
+      setCurrentStatuses((previousStatuses) =>
+        updateMatchingStatus(previousStatuses, status.id, (target) => ({
+          ...target,
+          isActorLiked: isLiked,
+          totalLikes: isLiked
+            ? target.totalLikes + 1
+            : Math.max(0, target.totalLikes - 1)
+        }))
+      )
+    },
+    []
+  )
+
+  const handleBookmarkChanged = useCallback(
+    (status: StatusNote | StatusPoll, isBookmarked: boolean) => {
+      setCurrentStatuses((previousStatuses) =>
+        updateMatchingStatus(previousStatuses, status.id, (target) => ({
+          ...target,
+          isActorBookmarked: isBookmarked
+        }))
+      )
+    },
+    []
+  )
 
   const loadMoreStatuses = useCallback(async () => {
     const nextPageUrl = currentStatusPagination.nextPageUrl
@@ -253,6 +316,8 @@ export const ActorTimelines: FC<Props> = ({
         postLineLimit={postLineLimit}
         onReplyCreated={handleReplyCreated}
         onPostDeleted={handlePostDeleted}
+        onLikeChanged={handleLikeChanged}
+        onBookmarkChanged={handleBookmarkChanged}
       />
     ) : (
       <EmptyState>{emptyMessage}</EmptyState>
