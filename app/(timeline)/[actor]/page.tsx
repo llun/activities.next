@@ -12,6 +12,7 @@ import { getDatabase } from '@/lib/database'
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getMastodonFeaturedTag } from '@/lib/services/mastodon/getMastodonFeaturedTag'
+import { getActorProfile } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { ActorTimelines } from './ActorTimelines'
@@ -43,7 +44,7 @@ export const generateMetadata = async ({
 }
 
 const Page: FC<Props> = async ({ params }) => {
-  const { host } = getConfig()
+  const { host, mediaStorage } = getConfig()
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
 
@@ -80,7 +81,8 @@ const Page: FC<Props> = async ({ params }) => {
     statusesCount,
     statusPagination,
     followingCount,
-    followersCount
+    followersCount,
+    hasFitnessData
   } = actorProfile
 
   const isCurrentUser = currentActor?.id === person.id
@@ -199,18 +201,20 @@ const Page: FC<Props> = async ({ params }) => {
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
-        <ActorTimelines
-          key={person.id}
-          host={host}
-          actorId={person.id}
-          currentTime={Date.now()}
-          statuses={statuses}
-          attachments={attachments}
-          statusPagination={statusPagination}
-          postLineLimit={actorSettings?.postLineLimit}
-        />
-      </section>
+      <ActorTimelines
+        key={person.id}
+        host={host}
+        actorId={person.id}
+        currentTime={Date.now()}
+        statuses={statuses}
+        attachments={attachments}
+        statusPagination={statusPagination}
+        postLineLimit={actorSettings?.postLineLimit}
+        currentActor={currentActor ? getActorProfile(currentActor) : undefined}
+        isCurrentUser={isCurrentUser}
+        hasFitnessData={hasFitnessData}
+        isMediaUploadEnabled={Boolean(mediaStorage)}
+      />
     </div>
   )
 }

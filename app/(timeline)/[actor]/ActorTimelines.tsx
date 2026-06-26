@@ -1,5 +1,7 @@
 'use client'
 
+import { Activity } from 'lucide-react'
+import Link from 'next/link'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { getActorStatuses } from '@/lib/client'
@@ -12,8 +14,14 @@ import {
   TabsTrigger
 } from '@/lib/components/ui/tabs'
 import { PostLineLimit } from '@/lib/types/database/rows'
+import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusNote,
+  StatusPoll,
+  StatusType
+} from '@/lib/types/domain/status'
 
 import { ActorMediaGallery } from './ActorMediaGallery'
 
@@ -28,10 +36,26 @@ interface Props {
     prevPageUrl: string | null
   }
   postLineLimit?: PostLineLimit
+  /**
+   * The signed-in viewer's profile. When present the feed renders interactive
+   * post actions (reply/boost/like/bookmark); when absent (logged-out) it
+   * falls back to read-only engagement counts.
+   */
+  currentActor?: ActorProfile
+  /** True when the signed-in viewer is looking at their own profile. */
+  isCurrentUser?: boolean
+  /**
+   * Whether this actor has any fitness activities. Drives whether the Fitness
+   * tab is offered at all (it lists the actor's public fitness posts).
+   */
+  hasFitnessData?: boolean
+  isMediaUploadEnabled?: boolean
 }
 
 const LOAD_MORE_PAGE_LIMIT = 5
 const LOAD_MORE_ERROR_MESSAGE = 'Failed to load more posts. Please try again.'
+
+type ProfileTab = 'posts' | 'replies' | 'media' | 'fitness'
 
 const isReply = (status: Status) => {
   switch (status.type) {
@@ -44,6 +68,33 @@ const isReply = (status: Status) => {
       return false
   }
 }
+
+const hasFitnessFile = (status: Status) =>
+  status.type === StatusType.enum.Note && Boolean(status.fitness)
+
+// Apply an interactive-state patch (like/bookmark toggle) to the status with
+// the given id, reaching inside a boost to patch its original status too, so
+// every rendered copy (Posts/Replies/Fitness tabs share `currentStatuses`)
+// stays consistent across tab switches and remounts.
+const updateMatchingStatus = (
+  statuses: Status[],
+  targetId: string,
+  patch: (target: StatusNote | StatusPoll) => StatusNote | StatusPoll
+): Status[] =>
+  statuses.map((item) => {
+    if (item.type === StatusType.enum.Announce) {
+      const original = item.originalStatus
+      // Boosts wrap a Note/Poll; nested boosts aren't an interactive target.
+      if (
+        original.type !== StatusType.enum.Announce &&
+        original.id === targetId
+      ) {
+        return { ...item, originalStatus: patch(original) }
+      }
+      return item
+    }
+    return item.id === targetId ? patch(item) : item
+  })
 
 const appendUniqueStatuses = (
   previousStatuses: Status[],
@@ -60,6 +111,10 @@ const appendUniqueStatuses = (
   ]
 }
 
+const EmptyState: FC<{ children: string }> = ({ children }) => (
+  <p className="py-10 text-center text-sm text-muted-foreground">{children}</p>
+)
+
 export const ActorTimelines: FC<Props> = ({
   host,
   actorId,
@@ -67,8 +122,13 @@ export const ActorTimelines: FC<Props> = ({
   statuses,
   attachments,
   statusPagination,
-  postLineLimit
+  postLineLimit,
+  currentActor,
+  isCurrentUser = false,
+  hasFitnessData = false,
+  isMediaUploadEnabled
 }) => {
+  const [activeTab, setActiveTab] = useState<ProfileTab>('posts')
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
   const [currentStatusPagination, setCurrentStatusPagination] = useState({
     nextPageUrl: statusPagination?.nextPageUrl ?? null,
@@ -80,9 +140,82 @@ export const ActorTimelines: FC<Props> = ({
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const isLoadingRef = useRef<boolean>(false)
 
+  const showActions = Boolean(currentActor)
+  const showFitnessTab = Boolean(hasFitnessData)
+
   const postStatuses = useMemo(
     () => currentStatuses.filter((status) => !isReply(status)),
     [currentStatuses]
+  )
+  const replyStatuses = useMemo(
+    () => currentStatuses.filter((status) => isReply(status)),
+    [currentStatuses]
+  )
+  const fitnessStatuses = useMemo(
+    () => currentStatuses.filter((status) => hasFitnessFile(status)),
+    [currentStatuses]
+  )
+
+  // The outbox cursor feeds the post/reply/fitness feeds (all derived from the
+  // loaded status list), so the standalone load more control is offered on
+  // those tabs. The media tab paginates separately via its own gallery loader.
+  const canLoadMore =
+    Boolean(currentStatusPagination.nextPageUrl) &&
+    (activeTab === 'posts' ||
+      activeTab === 'replies' ||
+      activeTab === 'fitness')
+
+  const handleReplyCreated = useCallback(
+    (status: Status) => {
+      // A reply to another actor's post is the viewer's own status and does not
+      // belong in that actor's feed. On the viewer's own profile, though, the
+      // new reply is theirs — surface it right away (it lands under the Replies
+      // tab) instead of waiting for a reload.
+      if (isCurrentUser) {
+        setCurrentStatuses((previousStatuses) => [status, ...previousStatuses])
+      }
+    },
+    [isCurrentUser]
+  )
+
+  const handlePostDeleted = useCallback((status: Status) => {
+    setCurrentStatuses((previousStatuses) =>
+      previousStatuses.filter(
+        (item) =>
+          item.id !== status.id &&
+          !(
+            item.type === StatusType.enum.Announce &&
+            item.originalStatus.id === status.id
+          )
+      )
+    )
+  }, [])
+
+  const handleLikeChanged = useCallback(
+    (status: StatusNote | StatusPoll, isLiked: boolean) => {
+      setCurrentStatuses((previousStatuses) =>
+        updateMatchingStatus(previousStatuses, status.id, (target) => ({
+          ...target,
+          isActorLiked: isLiked,
+          totalLikes: isLiked
+            ? target.totalLikes + 1
+            : Math.max(0, target.totalLikes - 1)
+        }))
+      )
+    },
+    []
+  )
+
+  const handleBookmarkChanged = useCallback(
+    (status: StatusNote | StatusPoll, isBookmarked: boolean) => {
+      setCurrentStatuses((previousStatuses) =>
+        updateMatchingStatus(previousStatuses, status.id, (target) => ({
+          ...target,
+          isActorBookmarked: isBookmarked
+        }))
+      )
+    },
+    []
   )
 
   const loadMoreStatuses = useCallback(async () => {
@@ -168,78 +301,92 @@ export const ActorTimelines: FC<Props> = ({
     return () => {
       observer.disconnect()
     }
-  }, [loadMoreStatuses])
+  }, [loadMoreStatuses, canLoadMore])
+
+  const renderFeed = (feedStatuses: Status[], emptyMessage: string) =>
+    feedStatuses.length > 0 ? (
+      <Posts
+        host={host}
+        currentTime={currentTime}
+        statuses={feedStatuses}
+        currentActor={currentActor}
+        showActions={showActions}
+        showReadOnlyStats={!showActions}
+        isMediaUploadEnabled={isMediaUploadEnabled}
+        postLineLimit={postLineLimit}
+        onReplyCreated={handleReplyCreated}
+        onPostDeleted={handlePostDeleted}
+        onLikeChanged={handleLikeChanged}
+        onBookmarkChanged={handleBookmarkChanged}
+      />
+    ) : (
+      <EmptyState>{emptyMessage}</EmptyState>
+    )
 
   return (
-    <Tabs defaultValue="posts" className="w-full">
-      <TabsList className="grid w-full grid-cols-3 rounded-none border-b bg-muted/40 p-1">
-        <TabsTrigger
-          value="posts"
-          className="rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm"
-        >
-          Posts
-        </TabsTrigger>
-        <TabsTrigger
-          value="replies"
-          className="rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm"
-        >
-          Posts & Replies
-        </TabsTrigger>
-        <TabsTrigger
-          value="media"
-          className="rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm"
-        >
-          Media
-        </TabsTrigger>
-      </TabsList>
+    <div className="space-y-4">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as ProfileTab)}
+        className="w-full gap-4"
+      >
+        <TabsList className="w-full sm:w-fit" aria-label="Profile sections">
+          <TabsTrigger value="posts" className="flex-1 sm:flex-none">
+            Posts
+          </TabsTrigger>
+          <TabsTrigger value="replies" className="flex-1 sm:flex-none">
+            Replies
+          </TabsTrigger>
+          <TabsTrigger value="media" className="flex-1 sm:flex-none">
+            Media
+          </TabsTrigger>
+          {showFitnessTab && (
+            <TabsTrigger value="fitness" className="flex-1 sm:flex-none">
+              Fitness
+            </TabsTrigger>
+          )}
+        </TabsList>
 
-      {/*
-        framed={false} on the feeds below is intentional: this whole tabbed
-        component is already wrapped in the bordered card in
-        app/(timeline)/[actor]/page.tsx (the `border-b` tab strip is its
-        header). A framed Posts box here would nest a bordered card inside that
-        card and produce a concentric double border. Do not change to framed.
-      */}
-      <TabsContent value="posts" className="mt-0">
-        {postStatuses.length > 0 ? (
-          <Posts
-            host={host}
-            framed={false}
-            currentTime={currentTime}
-            statuses={postStatuses}
-            postLineLimit={postLineLimit}
-          />
-        ) : (
-          <p className="p-8 text-center text-muted-foreground">No posts yet</p>
+        <TabsContent value="posts" className="mt-0">
+          {renderFeed(postStatuses, 'No posts yet')}
+        </TabsContent>
+
+        <TabsContent value="replies" className="mt-0">
+          {renderFeed(replyStatuses, 'No replies yet')}
+        </TabsContent>
+
+        <TabsContent value="media" className="mt-0">
+          {attachments.length > 0 ? (
+            <div className="rounded-xl border bg-card p-2 shadow-sm sm:p-4">
+              <ActorMediaGallery
+                actorId={actorId}
+                initialAttachments={attachments}
+              />
+            </div>
+          ) : (
+            <EmptyState>No media yet</EmptyState>
+          )}
+        </TabsContent>
+
+        {showFitnessTab && (
+          <TabsContent value="fitness" className="mt-0 space-y-4">
+            {isCurrentUser && (
+              <div className="flex justify-end">
+                <Button variant="outline" asChild>
+                  <Link href="/fitness">
+                    <Activity className="size-4" aria-hidden="true" />
+                    Fitness dashboard
+                  </Link>
+                </Button>
+              </div>
+            )}
+            {renderFeed(fitnessStatuses, 'No fitness activities yet')}
+          </TabsContent>
         )}
-      </TabsContent>
+      </Tabs>
 
-      <TabsContent value="replies" className="mt-0">
-        <Posts
-          host={host}
-          framed={false}
-          currentTime={currentTime}
-          statuses={currentStatuses}
-          postLineLimit={postLineLimit}
-        />
-      </TabsContent>
-
-      <TabsContent value="media" className="mt-0">
-        {attachments.length > 0 ? (
-          <div className="p-2 sm:p-4">
-            <ActorMediaGallery
-              actorId={actorId}
-              initialAttachments={attachments}
-            />
-          </div>
-        ) : (
-          <p className="p-8 text-center text-muted-foreground">
-            No media posts yet
-          </p>
-        )}
-      </TabsContent>
-      {currentStatusPagination.nextPageUrl && (
-        <div ref={loadMoreRef} className="border-t p-4 text-center">
+      {canLoadMore && (
+        <div ref={loadMoreRef} className="text-center">
           {loadMoreError && (
             <p className="mb-3 text-sm text-destructive" role="alert">
               {loadMoreError}
@@ -254,6 +401,6 @@ export const ActorTimelines: FC<Props> = ({
           </Button>
         </div>
       )}
-    </Tabs>
+    </div>
   )
 }
