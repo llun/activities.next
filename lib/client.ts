@@ -2086,7 +2086,11 @@ export const getFitnessRouteData = async (
   )
 
   if (!response.ok) {
-    throw new Error(`Route data request failed (${response.status})`)
+    const errorDetails = await parseApiError(
+      response,
+      'Failed to load route data.'
+    )
+    throw new ApiRequestError(errorDetails, response.status)
   }
 
   const data = (await response.json()) as FitnessRouteDataResponse

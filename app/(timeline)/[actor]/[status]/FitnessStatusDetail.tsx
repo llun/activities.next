@@ -243,6 +243,9 @@ const computeHeartRateZones = (
 ): HeartRateZone[] => {
   const counts = HEART_RATE_ZONES.map(() => 0)
   for (const bpm of series) {
+    // Heart-rate monitors report 0 (or negative) bpm during sensor dropouts;
+    // skip those so they don't inflate the Z1 (Recovery) bucket.
+    if (bpm <= 0) continue
     const index = HEART_RATE_ZONES.findIndex(
       (zone) => bpm >= zone.lo && (zone.hi === null || bpm < zone.hi)
     )
@@ -621,8 +624,6 @@ const ElevationProfileChart: FC<{ values: number[]; height?: number }> = ({
 }
 
 const HeartRateZonesPanel: FC<{ zones: HeartRateZone[] }> = ({ zones }) => {
-  const totalSeconds = zones.reduce((sum, zone) => sum + zone.seconds, 0)
-
   const formatZoneRange = (zone: HeartRateZone) => {
     if (zone.lo === 0 && zone.hi !== null) return `< ${zone.hi} bpm`
     if (zone.hi === null) return `${zone.lo}+ bpm`
@@ -633,11 +634,13 @@ const HeartRateZonesPanel: FC<{ zones: HeartRateZone[] }> = ({ zones }) => {
     <div>
       <div className="flex h-3 w-full overflow-hidden rounded-full">
         {zones.map((zone) => (
+          // `pct` is the rounded share of samples in the zone — robust even
+          // when the activity duration rounds to 0 seconds.
           <div
             key={zone.name}
             title={`${zone.name} ${zone.pct}%`}
             style={{
-              width: `${totalSeconds > 0 ? (zone.seconds / totalSeconds) * 100 : 0}%`,
+              width: `${zone.pct}%`,
               background: zone.color
             }}
           />
@@ -1336,7 +1339,7 @@ export const FitnessStatusDetail: FC<Props> = ({
   )
   const shouldLoadInteractiveMap = Boolean(mapboxAccessToken && fitness?.id)
   const activityLabel = getActivityLabel(fitness?.activityType ?? undefined)
-  const statusTitle = status.text.trim() || activityLabel
+  const statusTitle = status.text?.trim() || activityLabel
   const activityDate = formatUtcDate(
     fitness?.activityStartTime ?? status.createdAt,
     'p, MMMM d, yyyy'
@@ -1522,7 +1525,12 @@ export const FitnessStatusDetail: FC<Props> = ({
   const histogramMinutes = useMemo(() => {
     if (powerSeries.length === 0) return []
 
-    const computedMaxPower = Math.max(...powerSeries, 100)
+    // Use the stack-safe helper rather than spreading a long series into
+    // Math.max, which can overflow the call stack on large arrays.
+    const computedMaxPower = Math.max(
+      getSeriesMinMax(powerSeries).maxValue,
+      100
+    )
     const bucketCount = Math.ceil((computedMaxPower + 25) / 25)
 
     const buckets = new Array(bucketCount).fill(0)
