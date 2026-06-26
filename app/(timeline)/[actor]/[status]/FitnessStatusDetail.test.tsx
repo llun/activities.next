@@ -230,13 +230,24 @@ describe('FitnessStatusDetail', () => {
     expect(heading).toHaveAttribute('title', 'Morning run & coffee')
   })
 
-  it('falls back to the activity label when the caption is empty or whitespace', () => {
-    renderDetail({ status: buildStatus({ text: '   ' }) })
+  // These inputs all reduce to empty text, so the heading must fall back to the
+  // activity label. The markup cases ('<p></p>', '<br>') are load-bearing: the
+  // previous `status.text?.trim()` kept them (truthy) and rendered raw markup,
+  // whereas `htmlToPlainText` collapses them to '' and triggers the fallback.
+  it.each([
+    { description: 'whitespace-only caption', text: '   ' },
+    { description: 'caption that is empty markup', text: '<p></p>' },
+    { description: 'caption that is only a line break', text: '<br>' }
+  ])(
+    'falls back to the activity label when the caption has no text ($description)',
+    ({ text }) => {
+      renderDetail({ status: buildStatus({ text }) })
 
-    expect(
-      screen.getByRole('heading', { level: 1, name: 'Ride' })
-    ).toBeInTheDocument()
-  })
+      expect(
+        screen.getByRole('heading', { level: 1, name: 'Ride' })
+      ).toBeInTheDocument()
+    }
+  )
 
   it('switches to the heart rate zones section from the sub-navigation', async () => {
     renderDetail()

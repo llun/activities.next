@@ -1349,8 +1349,13 @@ export const FitnessStatusDetail: FC<Props> = ({
   const activityLabel = getActivityLabel(fitness?.activityType ?? undefined)
   // `status.text` holds the post's processed HTML caption, so render the
   // heading as decoded, tag-free plain text rather than raw markup. Falls back
-  // to the activity label when the caption is empty/whitespace-only.
-  const statusTitle = htmlToPlainText(status.text) || activityLabel
+  // to the activity label when the caption is empty/whitespace-only. Memoized
+  // because `htmlToPlainText` parses + sanitizes the HTML and this component
+  // re-renders frequently (e.g. on chart hover).
+  const statusTitle = useMemo(
+    () => htmlToPlainText(status.text ?? '') || activityLabel,
+    [status.text, activityLabel]
+  )
   const activityDate = formatUtcDate(
     fitness?.activityStartTime ?? status.createdAt,
     'p, MMMM d, yyyy'
