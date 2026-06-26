@@ -166,7 +166,7 @@ export const retryFitnessImportBatch = async ({
       actorId: batchActorId,
       batchId,
       retried: retriableFiles.length,
-      error: (error as Error).message
+      error: error instanceof Error ? error.message : String(error)
     })
 
     throw error

@@ -66,7 +66,7 @@ export const withImportLock = async <T>(
       logger.warn({
         message: 'Failed to release import lock',
         lockKey,
-        error: (error as Error).message
+        error: error instanceof Error ? error.message : String(error)
       })
     }
   }
