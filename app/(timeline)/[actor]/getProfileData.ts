@@ -4,12 +4,13 @@ import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { Database } from '@/lib/database/types'
+import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { Actor } from '@/lib/types/activitypub'
-import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status } from '@/lib/types/domain/status'
 import { getActorImageUrl } from '@/lib/utils/activitypubActor'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
+import { logger } from '@/lib/utils/logger'
 
 type ProfileData = {
   person: Actor
@@ -34,7 +35,6 @@ export const getProfileData = async (
   database: Database,
   actorHandle: string,
   isLoggedIn: boolean = true,
-  signingActor?: DomainActor,
   options: ProfileDataOptions = {}
 ): Promise<ProfileData | null> => {
   const [username, domain] = actorHandle.split('@').slice(1)
@@ -80,7 +80,36 @@ export const getProfileData = async (
     return null
   }
 
-  const actorId = await getWebfingerSelf({ account: actorHandle.slice(1) })
+  // Server-to-server federation fetches must be signed by the dedicated
+  // headless instance actor, never the viewer's user actor. Instances running
+  // in authorized-fetch ("secure") mode reject unsigned requests with 401, and
+  // the viewer may not have a usable signing actor at all (e.g. a logged-in
+  // account without a local actor yet, or one whose key is not publicly
+  // resolvable). The instance actor always exists, always has a private key,
+  // and is served at a publicly resolvable URL so the remote can fetch its key
+  // and verify the signature. This is the same headless signer used by the
+  // federation jobs and relay/follow flows (getFederationSigningActor); without
+  // it, secure-mode remote profiles 404.
+  //
+  // WebFinger discovery and signer resolution are independent, so resolve them
+  // concurrently to avoid stacking their latencies on the profile render.
+  // Signer resolution is best-effort: a missing/failed instance actor must not
+  // turn a clean 404 (unknown actor) into a 500, so a failure degrades to an
+  // unsigned fetch via the `signingActor`-less branch below.
+  const [actorId, signingActor] = await Promise.all([
+    getWebfingerSelf({ account: actorHandle.slice(1) }),
+    getFederationSigningActor(database).catch((error) => {
+      // Degrade to an unsigned fetch, but surface the failure so a persistently
+      // broken signer (which would silently 404 every secure-mode profile)
+      // remains diagnosable rather than vanishing.
+      logger.warn({
+        message:
+          'Failed to resolve federation signing actor for remote profile fetch; falling back to an unsigned request',
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return undefined
+    })
+  ])
   if (!actorId) return null
 
   const signingParams = signingActor ? { signingActor } : {}

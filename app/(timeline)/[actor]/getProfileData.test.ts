@@ -4,10 +4,13 @@ import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { Database } from '@/lib/database/types'
+import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { Actor } from '@/lib/types/activitypub'
+import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status } from '@/lib/types/domain/status'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
+import { logger } from '@/lib/utils/logger'
 
 import { getProfileData } from './getProfileData'
 
@@ -17,7 +20,15 @@ vi.mock('@/lib/activities/getActorFollowing')
 vi.mock('@/lib/activities/getActorPerson')
 vi.mock('@/lib/activities/getActorPosts')
 vi.mock('@/lib/activities/getWebfingerSelf')
+vi.mock('@/lib/services/federation/getFederationSigningActor')
 vi.mock('@/lib/utils/getPersonFromActor')
+vi.mock('@/lib/utils/logger', () => ({
+  logger: {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn()
+  }
+}))
 
 describe('getProfileData', () => {
   const mockDatabase = {
@@ -68,6 +79,16 @@ describe('getProfileData', () => {
       publicKeyPem: '-----BEGIN PUBLIC KEY-----\nMOCK\n-----END PUBLIC KEY-----'
     }
   }
+
+  // The dedicated headless instance actor used to sign server-to-server
+  // federation fetches (never the viewer's user actor).
+  const mockFederationSigningActor = {
+    id: 'https://example.com/users/__instance__',
+    type: 'Service',
+    username: '__instance__',
+    domain: 'example.com',
+    privateKey: 'instance-private-key'
+  } as unknown as DomainActor
 
   const mockStatuses: Status[] = []
   const mockAttachments: Attachment[] = []
@@ -178,6 +199,9 @@ describe('getProfileData', () => {
       ;(getActorFollowers as jest.Mock).mockResolvedValue({
         followerCount: 20
       })
+      ;(getFederationSigningActor as jest.Mock).mockResolvedValue(
+        mockFederationSigningActor
+      )
     })
 
     it('should return profile data for logged in user', async () => {
@@ -198,26 +222,52 @@ describe('getProfileData', () => {
         account: 'remoteuser@remote.com'
       })
       expect(getActorPerson).toHaveBeenCalledWith({
-        actorId: 'https://remote.com/users/remoteuser'
+        actorId: 'https://remote.com/users/remoteuser',
+        signingActor: mockFederationSigningActor
+      })
+    })
+
+    it('signs all remote federation fetches with the dedicated instance actor', async () => {
+      // Remote actors hosted on authorized-fetch ("secure mode") instances
+      // reject unsigned requests with 401. Federation fetches must therefore be
+      // signed by the headless instance actor — never the viewer's user actor,
+      // which may be absent or unservable — so the profile resolves instead of
+      // 404ing. See getFederationSigningActor.
+      await getProfileData(mockDatabase, '@remoteuser@remote.com', true)
+
+      expect(getFederationSigningActor).toHaveBeenCalledWith(mockDatabase)
+      expect(getActorPerson).toHaveBeenCalledWith({
+        actorId: 'https://remote.com/users/remoteuser',
+        signingActor: mockFederationSigningActor
+      })
+      expect(getActorPosts).toHaveBeenCalledWith({
+        database: mockDatabase,
+        person: mockPerson,
+        pageUrl: undefined,
+        signingActor: mockFederationSigningActor
+      })
+      expect(getActorFollowing).toHaveBeenCalledWith({
+        person: mockPerson,
+        signingActor: mockFederationSigningActor
+      })
+      expect(getActorFollowers).toHaveBeenCalledWith({
+        person: mockPerson,
+        signingActor: mockFederationSigningActor
       })
     })
 
     it('passes the requested remote status page cursor to the outbox loader', async () => {
-      await getProfileData(
-        mockDatabase,
-        '@remoteuser@remote.com',
-        true,
-        undefined,
-        {
-          statusPageUrl:
-            'https://remote.com/users/remoteuser/outbox?page=true&max_id=1'
-        }
-      )
+      await getProfileData(mockDatabase, '@remoteuser@remote.com', true, {
+        statusPageUrl:
+          'https://remote.com/users/remoteuser/outbox?page=true&max_id=1'
+      })
 
       expect(getActorPosts).toHaveBeenCalledWith({
         database: mockDatabase,
         person: mockPerson,
-        pageUrl: 'https://remote.com/users/remoteuser/outbox?page=true&max_id=1'
+        pageUrl:
+          'https://remote.com/users/remoteuser/outbox?page=true&max_id=1',
+        signingActor: mockFederationSigningActor
       })
     })
 
@@ -244,12 +294,59 @@ describe('getProfileData', () => {
         username: 'remoteuser',
         domain: 'remote.com'
       })
-      // Should NOT call expensive remote APIs
+      // Should NOT call expensive remote APIs — including the signer, so an
+      // anonymous page view never resolves or provisions the instance actor.
       expect(getWebfingerSelf).not.toHaveBeenCalled()
+      expect(getFederationSigningActor).not.toHaveBeenCalled()
       expect(getActorPerson).not.toHaveBeenCalled()
       expect(getActorPosts).not.toHaveBeenCalled()
       expect(getActorFollowing).not.toHaveBeenCalled()
       expect(getActorFollowers).not.toHaveBeenCalled()
+    })
+
+    it('falls back to an unsigned fetch when the signer resolution fails', async () => {
+      // A transient instance-actor failure (DB/keypair error) must not crash
+      // the render: getProfileData resolves the signer best-effort, so a
+      // rejection degrades to an unsigned fetch instead of a 500.
+      ;(getFederationSigningActor as jest.Mock).mockRejectedValue(
+        new Error('signer unavailable')
+      )
+
+      const result = await getProfileData(
+        mockDatabase,
+        '@remoteuser@remote.com',
+        true
+      )
+
+      expect(result).not.toBeNull()
+      const personCall = (getActorPerson as jest.Mock).mock.calls[0][0]
+      expect('signingActor' in personCall).toBe(false)
+      // The failure is surfaced (not silently swallowed) so a persistently
+      // broken signer stays diagnosable.
+      expect(logger.warn).toHaveBeenCalled()
+    })
+
+    it('omits the signing actor entirely when no instance actor is available', async () => {
+      // getFederationSigningActor returns undefined when the instance actor
+      // could not be resolved/provisioned. The fetch must then fall back to an
+      // unsigned request (no `signingActor` key at all) rather than passing
+      // `signingActor: undefined` downstream. This locks in the `: {}` branch.
+      ;(getFederationSigningActor as jest.Mock).mockResolvedValue(undefined)
+
+      const result = await getProfileData(
+        mockDatabase,
+        '@remoteuser@remote.com',
+        true
+      )
+
+      expect(result).not.toBeNull()
+      const personCall = (getActorPerson as jest.Mock).mock.calls[0][0]
+      expect(personCall).toEqual({
+        actorId: 'https://remote.com/users/remoteuser'
+      })
+      expect('signingActor' in personCall).toBe(false)
+      const postsCall = (getActorPosts as jest.Mock).mock.calls[0][0]
+      expect('signingActor' in postsCall).toBe(false)
     })
   })
 
@@ -304,6 +401,9 @@ describe('getProfileData', () => {
       ;(getActorFollowers as jest.Mock).mockResolvedValue({
         followerCount: 20
       })
+      ;(getFederationSigningActor as jest.Mock).mockResolvedValue(
+        mockFederationSigningActor
+      )
 
       // Call without isLoggedIn parameter
       const result = await getProfileData(
