@@ -2606,23 +2606,6 @@ export const getFitnessCalendarData = async ({
   return response.json()
 }
 
-export const getDistinctFitnessActivityTypes = async ({
-  actorId
-}: {
-  actorId: string
-}): Promise<string[]> => {
-  const encodedId = urlToId(actorId)
-  const response = await fetch(
-    `/api/v1/accounts/${encodedId}/fitness-activity-types`,
-    {
-      method: 'GET',
-      headers: { Accept: 'application/json' }
-    }
-  )
-  if (!response.ok) return []
-  return response.json()
-}
-
 export type DirectConversationView = DirectConversation & {
   accounts: MastodonAccount[]
 }

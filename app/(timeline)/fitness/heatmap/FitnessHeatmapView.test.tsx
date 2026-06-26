@@ -6,7 +6,6 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import {
   deleteFitnessRouteHeatmap,
-  getDistinctFitnessActivityTypes,
   getFitnessRouteHeatmap,
   getFitnessRouteHeatmapRegionNames,
   getFitnessRouteHeatmaps,
@@ -47,7 +46,6 @@ vi.mock('@/lib/components/fitness/RegionMap', () => ({
 
 vi.mock('@/lib/client', () => ({
   deleteFitnessRouteHeatmap: vi.fn(),
-  getDistinctFitnessActivityTypes: vi.fn(),
   getFitnessRouteHeatmap: vi.fn(),
   getFitnessRouteHeatmapRegionNames: vi.fn(),
   getFitnessRouteHeatmaps: vi.fn(),
@@ -66,10 +64,6 @@ const mockLoadMaplibreModule = loadMaplibreModule as jest.MockedFunction<
 const mockDeleteFitnessRouteHeatmap =
   deleteFitnessRouteHeatmap as jest.MockedFunction<
     typeof deleteFitnessRouteHeatmap
-  >
-const mockGetDistinctFitnessActivityTypes =
-  getDistinctFitnessActivityTypes as jest.MockedFunction<
-    typeof getDistinctFitnessActivityTypes
   >
 const mockGetFitnessRouteHeatmap =
   getFitnessRouteHeatmap as jest.MockedFunction<typeof getFitnessRouteHeatmap>
@@ -262,7 +256,6 @@ const createFitBoundsCapturingModule = () => {
 describe('FitnessHeatmapView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetDistinctFitnessActivityTypes.mockResolvedValue([])
     mockGetFitnessRouteHeatmap.mockResolvedValue(null)
     mockGetFitnessRouteHeatmaps.mockResolvedValue([])
     mockGetFitnessRouteHeatmapRegionNames.mockResolvedValue([])
@@ -277,12 +270,19 @@ describe('FitnessHeatmapView', () => {
     vi.useRealTimers()
   })
 
-  it('renders the source panel and a default whole-world region', async () => {
+  it('renders the region list with a default whole-world region', async () => {
     render(
       <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
     )
 
-    expect(await screen.findByText('Heatmap source')).toBeInTheDocument()
+    // The Activity + Period source selectors were removed from this page.
+    expect(
+      await screen.findByText(/1 region · 0 generated/i)
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Heatmap source')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('combobox', { name: 'Period' })
+    ).not.toBeInTheDocument()
     // The default whole-world region row (its description is unique to the row,
     // unlike the "Whole world" add button).
     expect(
@@ -290,7 +290,6 @@ describe('FitnessHeatmapView', () => {
     ).toBeInTheDocument()
     // The default region has no heatmap under the all-time source.
     expect(screen.getByText('Not generated')).toBeInTheDocument()
-    expect(screen.getByText(/1 region · 0 generated/i)).toBeInTheDocument()
   })
 
   it('seeds a drawn region from an existing heatmap and shows its status', async () => {
@@ -511,7 +510,9 @@ describe('FitnessHeatmapView', () => {
     ).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /All regions/i }))
-    expect(await screen.findByText('Heatmap source')).toBeInTheDocument()
+    expect(
+      await screen.findByText(/1 region · 0 generated/i)
+    ).toBeInTheDocument()
   })
 
   it('renames an opened drawn region inline and persists the label', async () => {
@@ -779,30 +780,6 @@ describe('FitnessHeatmapView', () => {
         })
       )
     })
-  })
-
-  it('re-derives region status when the period source changes', async () => {
-    mockGetFitnessRouteHeatmaps.mockResolvedValue([
-      worldSummary({ updatedAt: TEST_NOW })
-    ])
-
-    render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
-    )
-
-    // The all-time heatmap matches the default source.
-    expect(await screen.findByText(/^Generated/)).toBeInTheDocument()
-
-    // Switching to a yearly source re-keys the region; the all-time heatmap no
-    // longer matches, so the row flips to "Not generated".
-    fireEvent.change(screen.getByRole('combobox', { name: 'Period' }), {
-      target: { value: 'yearly' }
-    })
-
-    await waitFor(() =>
-      expect(screen.getByText('Not generated')).toBeInTheDocument()
-    )
-    expect(screen.queryByText(/^Generated/)).not.toBeInTheDocument()
   })
 
   it('seeds and dedupes regions from legacy multi-region heatmap keys', async () => {

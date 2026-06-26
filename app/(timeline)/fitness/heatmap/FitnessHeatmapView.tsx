@@ -1,6 +1,5 @@
 'use client'
 
-import { Flame } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
@@ -8,7 +7,6 @@ import {
   FitnessRouteHeatmapRegionNameData,
   FitnessRouteHeatmapSummaryData,
   deleteFitnessRouteHeatmap,
-  getDistinctFitnessActivityTypes,
   getFitnessRouteHeatmap,
   getFitnessRouteHeatmapRegionNames,
   getFitnessRouteHeatmaps,
@@ -25,7 +23,6 @@ import {
   withRegionIds
 } from '@/lib/components/fitness/HeatmapRegionPicker'
 import { RegionHeatmapDetail } from '@/lib/components/fitness/RegionHeatmapDetail'
-import { Select } from '@/lib/components/ui/select'
 import {
   HeatmapRegion,
   deserializeRegions,
@@ -53,13 +50,22 @@ interface Props {
   embedOrigin: string
 }
 
-const currentYear = new Date().getUTCFullYear()
 const ROUTE_HEATMAP_POLLING_INTERVAL_MS = 5000
 const STALLED_POLLING_LIMIT = 30
 // Keep recent background jobs live while ignoring restored/stuck rows that are days old.
 const STALE_IN_FLIGHT_HEATMAP_MS = 15 * 60_000
 
 const WORLD_REGION: PickerRegion = { id: 'world', type: 'world' }
+
+// The Activity + Period source selectors were removed from this page, so the
+// heatmap source is fixed: all activities, all time. These are module constants
+// (not per-render state) so they are evaluated once and stay out of the hook
+// dependency arrays, while the existing source-keyed fetch/poll/share/remove
+// logic — and the detail page's "All activities / All time" meta chips — keep
+// working unchanged.
+const SELECTED_ACTIVITY_TYPE: string | undefined = undefined
+const PERIOD_TYPE: PeriodType = 'all_time'
+const EFFECTIVE_PERIOD_KEY = 'all'
 
 const formatActivityLabel = (type?: string): string =>
   type
@@ -84,24 +90,6 @@ const computeProgressPercent = (
 
 const isRouteHeatmapInFlight = (status?: string): boolean =>
   status === 'generating' || status === 'pending'
-
-const generateYearOptions = (): number[] => {
-  const years: number[] = []
-  for (let y = currentYear; y >= currentYear - 10; y--) {
-    years.push(y)
-  }
-  return years
-}
-
-const generateMonthOptions = (year: number): string[] => {
-  const months: string[] = []
-  const now = new Date()
-  const maxMonth = year === now.getUTCFullYear() ? now.getUTCMonth() : 11
-  for (let m = maxMonth; m >= 0; m--) {
-    months.push(`${year}-${String(m + 1).padStart(2, '0')}`)
-  }
-  return months
-}
 
 /** Maps a region's matching heatmap summary into a display status atom. */
 const summaryToStatus = (
@@ -181,11 +169,6 @@ export const FitnessHeatmapView: FC<Props> = ({
   mapboxAccessToken,
   embedOrigin
 }) => {
-  const [activityTypes, setActivityTypes] = useState<string[]>([])
-  const [selectedType, setSelectedType] = useState<string>('')
-  const [periodType, setPeriodType] = useState<PeriodType>('all_time')
-  const [periodKey, setPeriodKey] = useState<string>('all')
-  const [selectedYear, setSelectedYear] = useState<number>(currentYear)
   // Static id for the default so the initial SSR render and client hydration
   // produce identical state (a dynamically generated id would differ).
   const [regions, setRegions] = useState<PickerRegion[]>(() => [WORLD_REGION])
@@ -215,12 +198,6 @@ export const FitnessHeatmapView: FC<Props> = ({
     return () => clearInterval(id)
   }, [])
 
-  useEffect(() => {
-    getDistinctFitnessActivityTypes({ actorId })
-      .then(setActivityTypes)
-      .catch(() => {})
-  }, [actorId])
-
   // Initial load: reset to the default region list for this actor, then pull
   // the actor's heatmaps and seed in any previously generated regions. This
   // effect runs once per actorId, so the merge happens once (and is idempotent
@@ -249,13 +226,6 @@ export const FitnessHeatmapView: FC<Props> = ({
     }
   }, [actorId])
 
-  const selectedActivityType = selectedType || undefined
-  const effectivePeriodKey = useMemo(() => {
-    if (periodType === 'all_time') return 'all'
-    if (periodType === 'yearly') return `${selectedYear}`
-    return periodKey
-  }, [periodType, selectedYear, periodKey])
-
   const openRegion = useMemo(
     () => regions.find((region) => region.id === openRegionId) ?? null,
     [regions, openRegionId]
@@ -265,7 +235,7 @@ export const FitnessHeatmapView: FC<Props> = ({
     : null
 
   const focusKey = openRegion
-    ? `${actorId}:${selectedActivityType ?? ''}:${periodType}:${effectivePeriodKey}:${openRegionKey}`
+    ? `${actorId}:${SELECTED_ACTIVITY_TYPE ?? ''}:${PERIOD_TYPE}:${EFFECTIVE_PERIOD_KEY}:${openRegionKey}`
     : ''
 
   useEffect(() => {
@@ -283,10 +253,10 @@ export const FitnessHeatmapView: FC<Props> = ({
 
   const sourceMatch = useCallback(
     (heatmap: FitnessRouteHeatmapSummaryData): boolean =>
-      (heatmap.activityType ?? '') === (selectedActivityType ?? '') &&
-      heatmap.periodType === periodType &&
-      heatmap.periodKey === effectivePeriodKey,
-    [selectedActivityType, periodType, effectivePeriodKey]
+      (heatmap.activityType ?? '') === (SELECTED_ACTIVITY_TYPE ?? '') &&
+      heatmap.periodType === PERIOD_TYPE &&
+      heatmap.periodKey === EFFECTIVE_PERIOD_KEY,
+    []
   )
 
   const heatmapForRegion = useCallback(
@@ -323,9 +293,9 @@ export const FitnessHeatmapView: FC<Props> = ({
       const [heatmap, allHeatmaps] = await Promise.all([
         getFitnessRouteHeatmap({
           actorId,
-          activityType: selectedActivityType,
-          periodType,
-          periodKey: effectivePeriodKey,
+          activityType: SELECTED_ACTIVITY_TYPE,
+          periodType: PERIOD_TYPE,
+          periodKey: EFFECTIVE_PERIOD_KEY,
           region: openRegionKey || undefined
         }),
         getFitnessRouteHeatmaps({ actorId })
@@ -343,14 +313,7 @@ export const FitnessHeatmapView: FC<Props> = ({
     } finally {
       if (isCurrent()) setIsLoading(false)
     }
-  }, [
-    actorId,
-    selectedActivityType,
-    periodType,
-    effectivePeriodKey,
-    openRegionId,
-    openRegionKey
-  ])
+  }, [actorId, openRegionId, openRegionKey])
 
   useEffect(() => {
     fetchFocused()
@@ -393,9 +356,9 @@ export const FitnessHeatmapView: FC<Props> = ({
       Promise.all([
         getFitnessRouteHeatmap({
           actorId,
-          activityType: selectedActivityType,
-          periodType,
-          periodKey: effectivePeriodKey,
+          activityType: SELECTED_ACTIVITY_TYPE,
+          periodType: PERIOD_TYPE,
+          periodKey: EFFECTIVE_PERIOD_KEY,
           region: openRegionKey || undefined
         }),
         getFitnessRouteHeatmaps({ actorId })
@@ -467,45 +430,10 @@ export const FitnessHeatmapView: FC<Props> = ({
     shouldPollFocused,
     hasAnyListInFlight,
     actorId,
-    selectedActivityType,
-    periodType,
-    effectivePeriodKey,
     openRegionKey,
     focusKey,
     generationPending
   ])
-
-  const yearOptions = useMemo(() => generateYearOptions(), [])
-  const monthOptions = useMemo(
-    () => generateMonthOptions(selectedYear),
-    [selectedYear]
-  )
-
-  const handlePeriodTypeChange = (newType: PeriodType) => {
-    setPeriodType(newType)
-    if (newType === 'all_time') {
-      setPeriodKey('all')
-    } else if (newType === 'yearly') {
-      setPeriodKey(`${selectedYear}`)
-    } else {
-      const month = String(new Date().getUTCMonth() + 1).padStart(2, '0')
-      setPeriodKey(`${selectedYear}-${month}`)
-    }
-  }
-
-  const handleYearChange = (year: number) => {
-    setSelectedYear(year)
-    if (periodType === 'yearly') {
-      setPeriodKey(`${year}`)
-      return
-    }
-    if (periodType === 'monthly') {
-      const currentMonth = periodKey.split('-')[1] ?? '01'
-      const newKey = `${year}-${currentMonth}`
-      const options = generateMonthOptions(year)
-      setPeriodKey(options.includes(newKey) ? newKey : options[0])
-    }
-  }
 
   const enqueueGeneration = useCallback(
     async (retry: boolean) => {
@@ -513,9 +441,9 @@ export const FitnessHeatmapView: FC<Props> = ({
       const key = focusKeyRef.current
       const success = await triggerFitnessRouteHeatmap({
         actorId,
-        activityType: selectedActivityType,
-        periodType,
-        periodKey: effectivePeriodKey,
+        activityType: SELECTED_ACTIVITY_TYPE,
+        periodType: PERIOD_TYPE,
+        periodKey: EFFECTIVE_PERIOD_KEY,
         region: openRegionKey || undefined,
         retry
       })
@@ -530,14 +458,7 @@ export const FitnessHeatmapView: FC<Props> = ({
         .then(setHeatmaps)
         .catch(() => {})
     },
-    [
-      actorId,
-      selectedActivityType,
-      periodType,
-      effectivePeriodKey,
-      openRegionId,
-      openRegionKey
-    ]
+    [actorId, openRegionId, openRegionKey]
   )
 
   const runGeneration = useCallback(async () => {
@@ -572,9 +493,9 @@ export const FitnessHeatmapView: FC<Props> = ({
     try {
       const shareToken = await shareFitnessRouteHeatmap({
         actorId,
-        activityType: selectedActivityType,
-        periodType,
-        periodKey: effectivePeriodKey,
+        activityType: SELECTED_ACTIVITY_TYPE,
+        periodType: PERIOD_TYPE,
+        periodKey: EFFECTIVE_PERIOD_KEY,
         region: openRegionKey || undefined
       })
       if (focusKeyRef.current !== key) return
@@ -589,14 +510,7 @@ export const FitnessHeatmapView: FC<Props> = ({
     } finally {
       setIsSharing(false)
     }
-  }, [
-    actorId,
-    selectedActivityType,
-    periodType,
-    effectivePeriodKey,
-    openRegionId,
-    openRegionKey
-  ])
+  }, [actorId, openRegionId, openRegionKey])
 
   const handleUnshare = useCallback(async () => {
     if (!openRegionId || openRegionKey === null) return
@@ -606,9 +520,9 @@ export const FitnessHeatmapView: FC<Props> = ({
     try {
       await unshareFitnessRouteHeatmap({
         actorId,
-        activityType: selectedActivityType,
-        periodType,
-        periodKey: effectivePeriodKey,
+        activityType: SELECTED_ACTIVITY_TYPE,
+        periodType: PERIOD_TYPE,
+        periodKey: EFFECTIVE_PERIOD_KEY,
         region: openRegionKey || undefined
       })
       if (focusKeyRef.current !== key) return
@@ -621,14 +535,7 @@ export const FitnessHeatmapView: FC<Props> = ({
     } finally {
       setIsSharing(false)
     }
-  }, [
-    actorId,
-    selectedActivityType,
-    periodType,
-    effectivePeriodKey,
-    openRegionId,
-    openRegionKey
-  ])
+  }, [actorId, openRegionId, openRegionKey])
 
   const handleRegionRemoved = useCallback(
     async (region: PickerRegion) => {
@@ -646,9 +553,9 @@ export const FitnessHeatmapView: FC<Props> = ({
       try {
         await deleteFitnessRouteHeatmap({
           actorId,
-          activityType: selectedActivityType,
-          periodType,
-          periodKey: effectivePeriodKey,
+          activityType: SELECTED_ACTIVITY_TYPE,
+          periodType: PERIOD_TYPE,
+          periodKey: EFFECTIVE_PERIOD_KEY,
           region: key || undefined
         })
       } catch (err) {
@@ -662,7 +569,7 @@ export const FitnessHeatmapView: FC<Props> = ({
         )
       }
     },
-    [actorId, selectedActivityType, periodType, effectivePeriodKey, sourceMatch]
+    [actorId, sourceMatch]
   )
 
   const handleRegionSaved = useCallback(
@@ -725,8 +632,8 @@ export const FitnessHeatmapView: FC<Props> = ({
       <RegionHeatmapDetail
         region={openRegion}
         meta={{
-          activity: formatActivityLabel(selectedActivityType),
-          period: formatPeriodLabel(periodType, effectivePeriodKey)
+          activity: formatActivityLabel(SELECTED_ACTIVITY_TYPE),
+          period: formatPeriodLabel(PERIOD_TYPE, EFFECTIVE_PERIOD_KEY)
         }}
         heatmap={heatmapData}
         mapboxAccessToken={mapboxAccessToken}
@@ -765,92 +672,6 @@ export const FitnessHeatmapView: FC<Props> = ({
           {error}
         </div>
       )}
-
-      {/* Heatmap source — applies to every region you generate below. */}
-      <section className="rounded-xl border bg-card p-4 shadow-sm">
-        <div className="mb-3 flex items-center gap-2">
-          <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <Flame className="size-4" />
-          </span>
-          <div>
-            <div className="text-sm font-semibold">Heatmap source</div>
-            <div className="text-[11px] text-muted-foreground">
-              Applies to every region you generate below.
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className="space-y-1.5">
-            <span className="block text-xs font-medium text-muted-foreground">
-              Activity
-            </span>
-            <Select
-              value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value)}
-            >
-              <option value="">All activities</option>
-              {activityTypes.map((type) => (
-                <option key={type} value={type}>
-                  {formatActivityLabel(type)}
-                </option>
-              ))}
-            </Select>
-          </label>
-
-          <label className="space-y-1.5">
-            <span className="block text-xs font-medium text-muted-foreground">
-              Period
-            </span>
-            <Select
-              value={periodType}
-              onChange={(e) =>
-                handlePeriodTypeChange(e.target.value as PeriodType)
-              }
-            >
-              <option value="all_time">All time</option>
-              <option value="yearly">Yearly</option>
-              <option value="monthly">Monthly</option>
-            </Select>
-          </label>
-
-          {periodType !== 'all_time' && (
-            <label className="space-y-1.5">
-              <span className="block text-xs font-medium text-muted-foreground">
-                Year
-              </span>
-              <Select
-                value={selectedYear}
-                onChange={(e) => handleYearChange(parseInt(e.target.value, 10))}
-              >
-                {yearOptions.map((year) => (
-                  <option key={year} value={year}>
-                    {year}
-                  </option>
-                ))}
-              </Select>
-            </label>
-          )}
-
-          {periodType === 'monthly' && (
-            <label className="space-y-1.5">
-              <span className="block text-xs font-medium text-muted-foreground">
-                Month
-              </span>
-              <Select
-                value={periodKey}
-                onChange={(e) => setPeriodKey(e.target.value)}
-              >
-                {monthOptions.map((month) => (
-                  <option key={month} value={month}>
-                    {month}
-                  </option>
-                ))}
-              </Select>
-            </label>
-          )}
-        </div>
-      </section>
 
       {/* Region list — each opens its own heatmap page. */}
       <section className="rounded-xl border bg-card p-4 shadow-sm">

@@ -1,13 +1,4 @@
-import {
-  Activity,
-  Calendar,
-  ChevronRight,
-  Eye,
-  Flame,
-  Globe,
-  Maximize,
-  Route
-} from 'lucide-react'
+import { ChevronRight, Eye, Flame, Globe, Maximize } from 'lucide-react'
 import Link from 'next/link'
 import { FC } from 'react'
 
@@ -27,29 +18,12 @@ export interface SharedHeatmapPageProps {
   signupUrl: string
 }
 
-interface StatTileProps {
-  icon: FC<{ className?: string }>
-  label: string
-  value: string
-}
-
-const StatTile: FC<StatTileProps> = ({ icon: Icon, label, value }) => (
-  <div className="rounded-xl border bg-card/80 px-4 py-3 shadow-sm">
-    <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-      <Icon className="size-3.5" />
-      {label}
-    </div>
-    <div className="mt-1 truncate text-lg font-semibold leading-tight tracking-tight tabular-nums">
-      {value}
-    </div>
-  </div>
-)
-
 /**
  * The public, read-only destination for a shared route heatmap (at
  * `/u/heatmaps/<token>`). No account required: logged-out chrome, the live heat
- * map, a read-only stats strip, an owner line, and a join CTA. There are no
- * edit / generate / share-panel controls — those live in the in-app region page.
+ * map as the sole content block, an owner line, and a join CTA. There are no
+ * read-only stats and no edit / generate / share-panel controls — the latter
+ * live in the in-app region page.
  */
 export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
   view,
@@ -58,8 +32,7 @@ export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
   signinUrl,
   signupUrl
 }) => {
-  const { title, isWorld, bboxLabel, owner, generatedLabel, publicUrl, stats } =
-    view
+  const { title, isWorld, bboxLabel, owner, generatedLabel, publicUrl } = view
 
   return (
     <div className="relative min-h-dvh">
@@ -150,13 +123,6 @@ export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
             A live, pannable density map — brighter areas are ridden or run more
             often. Drag to explore.
           </p>
-        </div>
-
-        {/* read-only stats */}
-        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <StatTile icon={Route} label="Routes" value={stats.routes} />
-          <StatTile icon={Activity} label="Activity" value={stats.activity} />
-          <StatTile icon={Calendar} label="Period" value={stats.period} />
         </div>
 
         {/* join CTA */}
