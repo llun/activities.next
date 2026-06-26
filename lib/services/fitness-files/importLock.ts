@@ -1,10 +1,15 @@
 import { Database } from '@/lib/database/types'
 import { logger } from '@/lib/utils/logger'
 
-// A lock is held only for the short critical section that scans for an
-// overlapping sibling and creates/merges the post, so a generous TTL still
-// recovers quickly from a crashed holder.
-export const IMPORT_LOCK_TTL_MS = 60 * 1000
+// The TTL must comfortably exceed the QStash per-job timeout
+// (MAX_JOB_TIMEOUT_SECONDS = 30s in lib/services/queue/qstash.ts): the worker
+// running the locked critical section is killed at the job timeout, so a *live*
+// holder can never outlive its lock and have it stolen mid-section. The
+// steal-on-expiry path therefore only ever reclaims a lock from a holder whose
+// worker already died (crash/OOM/SIGTERM) — never from one still executing — so
+// two imports can't run the critical section concurrently. 120s gives ample
+// margin over the 30s job cap.
+export const IMPORT_LOCK_TTL_MS = 120 * 1000
 const DEFAULT_MAX_WAIT_MS = 15 * 1000
 const DEFAULT_POLL_INTERVAL_MS = 250
 

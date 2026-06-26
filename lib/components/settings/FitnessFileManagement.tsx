@@ -47,6 +47,10 @@ interface FitnessFileItem {
   importStatus?: 'pending' | 'completed' | 'failed'
   importError?: string | null
   importBatchId?: string
+  processingStatus?: 'pending' | 'processing' | 'completed' | 'failed'
+  // Server-computed: true when a `processing` file has been stranded long
+  // enough that its worker must have died mid-job.
+  processingStuck?: boolean
 }
 
 interface Props {
@@ -180,8 +184,16 @@ export function FitnessFileManagement({
     }
   }
 
-  const hasFailedImport = fitnessFiles.some(
-    (file) => file.importStatus === 'failed' && Boolean(file.importBatchId)
+  // Mirror the retry-all endpoint's isRetriableFitnessFile predicate (failed
+  // import OR failed processing OR stuck processing) so the button is shown
+  // whenever "Retry all failed" would actually requeue something — not only for
+  // import failures. Files with no import batch can't be batch-retried.
+  const hasRetriableImport = fitnessFiles.some(
+    (file) =>
+      Boolean(file.importBatchId) &&
+      (file.importStatus === 'failed' ||
+        file.processingStatus === 'failed' ||
+        Boolean(file.processingStuck))
   )
 
   const percentUsed = limit > 0 ? Math.min((currentUsed / limit) * 100, 100) : 0
@@ -230,7 +242,7 @@ export function FitnessFileManagement({
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              {hasFailedImport ? (
+              {hasRetriableImport ? (
                 <Button
                   variant="outline"
                   size="sm"

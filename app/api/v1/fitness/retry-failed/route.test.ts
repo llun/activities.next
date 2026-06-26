@@ -179,6 +179,41 @@ describe('POST /api/v1/fitness/retry-failed', () => {
     )
   })
 
+  it('retries a batch whose file is stuck in processing', async () => {
+    const stuckUpdatedAt = Date.now() - 60 * 60 * 1000
+    db.getFitnessFilesByActor.mockResolvedValueOnce([
+      fitnessFile({
+        id: 'stuck',
+        importBatchId: 'strava-activity:42',
+        statusId: `${ACTOR_ID}/statuses/42`,
+        importStatus: 'completed',
+        processingStatus: 'processing',
+        updatedAt: stuckUpdatedAt
+      })
+    ] as never)
+    db.getFitnessFilesByActor.mockResolvedValue([] as never)
+    db.getFitnessFilesByBatchId.mockResolvedValue([
+      fitnessFile({
+        id: 'stuck',
+        importBatchId: 'strava-activity:42',
+        statusId: `${ACTOR_ID}/statuses/42`,
+        importStatus: 'completed',
+        processingStatus: 'processing',
+        updatedAt: stuckUpdatedAt
+      })
+    ] as never)
+
+    const response = await POST(buildRequest(), routeContext)
+    const json = (await response.json()) as { retried: number; batches: number }
+
+    expect(response.status).toBe(200)
+    expect(json.retried).toBe(1)
+    expect(json.batches).toBe(1)
+    expect(getQueue().publish).toHaveBeenCalledWith(
+      expect.objectContaining({ name: IMPORT_STRAVA_ACTIVITY_JOB_NAME })
+    )
+  })
+
   it('returns zero when nothing is failed or stuck', async () => {
     db.getFitnessFilesByActor.mockResolvedValue([
       fitnessFile({

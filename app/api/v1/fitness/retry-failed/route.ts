@@ -3,9 +3,14 @@ import {
   retryFitnessImportBatch
 } from '@/lib/services/fitness-files/retryImports'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
-import { apiResponse } from '@/lib/utils/response'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+
+const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
+
+export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const FITNESS_FILE_PAGE_SIZE = 200
 
@@ -94,7 +99,7 @@ export const POST = traceApiRoute(
 
     return apiResponse({
       req,
-      allowedMethods: [],
+      allowedMethods: CORS_HEADERS,
       data: { retried, batches, failedBatches }
     })
   })

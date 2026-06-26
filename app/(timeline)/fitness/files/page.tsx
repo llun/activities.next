@@ -6,6 +6,7 @@ import { FitnessFileManagement } from '@/lib/components/settings/FitnessFileMana
 import { FitnessImport } from '@/lib/components/settings/FitnessImport'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { isFitnessProcessingStuck } from '@/lib/services/fitness-files/processingState'
 import { getQuotaLimit } from '@/lib/services/medias/quota'
 import { getActorProfile, getMention } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -63,6 +64,7 @@ const Page = async ({
 
   const limit = getQuotaLimit()
   const used = mediaUsed + fitnessUsed
+  const now = Date.now()
 
   return (
     <div className="space-y-6">
@@ -87,7 +89,18 @@ const Page = async ({
           statusId: fitnessFile.statusId ?? undefined,
           importStatus: fitnessFile.importStatus ?? undefined,
           importError: fitnessFile.importError ?? null,
-          importBatchId: fitnessFile.importBatchId ?? undefined
+          importBatchId: fitnessFile.importBatchId ?? undefined,
+          processingStatus: fitnessFile.processingStatus ?? undefined,
+          // Computed server-side (no client time math) so the "Retry all
+          // failed" button can match the endpoint, which also retries files
+          // stranded in `processing` past the stuck threshold.
+          processingStuck: isFitnessProcessingStuck(
+            {
+              processingStatus: fitnessFile.processingStatus,
+              updatedAt: fitnessFile.updatedAt
+            },
+            now
+          )
         }))}
         currentPage={page}
         itemsPerPage={itemsPerPage}

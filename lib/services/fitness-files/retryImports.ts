@@ -115,6 +115,10 @@ export const retryFitnessImportBatch = async ({
   const stravaActivityId = getStravaActivityIdFromBatchId(batchId)
   const retryJob = stravaActivityId
     ? {
+        // A `strava-activity:<id>` batch re-runs the full Strava importer, which
+        // re-fetches the activity for its caption, photos and real visibility —
+        // so `visibility` is intentionally OMITTED here and the job re-derives
+        // the activity's actual Strava visibility. Do not add it back.
         id: getHashFromString(
           `${batchActorId}:strava-activity-retry:${batchId}`
         ),

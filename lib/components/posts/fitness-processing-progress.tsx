@@ -44,7 +44,10 @@ export const FitnessProcessingProgress: FC<Props> = ({
   )
 
   useEffect(() => {
-    if (!isInFlight(status)) return
+    // Gate on the initial prop, not the reactive `status`, so a poll's
+    // setStatus() (which advances the label) does not tear down and reschedule
+    // the poll loop. The loop self-terminates on a terminal/stuck response.
+    if (!isInFlight(initialProcessingStatus)) return
 
     let active = true
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -83,7 +86,7 @@ export const FitnessProcessingProgress: FC<Props> = ({
       active = false
       if (timer) clearTimeout(timer)
     }
-  }, [statusId, status, pollIntervalMs, router])
+  }, [statusId, initialProcessingStatus, pollIntervalMs, router])
 
   const stage = isInFlight(status) ? STAGES[status] : STAGES.processing
 
@@ -94,7 +97,7 @@ export const FitnessProcessingProgress: FC<Props> = ({
       aria-live="polite"
     >
       <div className="inline-flex items-center gap-2 text-muted-foreground">
-        <LoaderCircle className="size-3.5 animate-spin" />
+        <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
         <span>{stage.label}…</span>
       </div>
       <Progress value={stage.percent} className="h-1" />
