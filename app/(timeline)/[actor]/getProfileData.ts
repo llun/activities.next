@@ -79,9 +79,6 @@ export const getProfileData = async (
     return null
   }
 
-  const actorId = await getWebfingerSelf({ account: actorHandle.slice(1) })
-  if (!actorId) return null
-
   // Server-to-server federation fetches must be signed by the dedicated
   // headless instance actor, never the viewer's user actor. Instances running
   // in authorized-fetch ("secure") mode reject unsigned requests with 401, and
@@ -92,7 +89,15 @@ export const getProfileData = async (
   // and verify the signature. This is the same headless signer used by the
   // federation jobs and relay/follow flows (getFederationSigningActor); without
   // it, secure-mode remote profiles 404.
-  const signingActor = await getFederationSigningActor(database)
+  //
+  // WebFinger discovery and signer resolution are independent, so resolve them
+  // concurrently to avoid stacking their latencies on the profile render.
+  const [actorId, signingActor] = await Promise.all([
+    getWebfingerSelf({ account: actorHandle.slice(1) }),
+    getFederationSigningActor(database)
+  ])
+  if (!actorId) return null
+
   const signingParams = signingActor ? { signingActor } : {}
   const person = await getActorPerson({ actorId, ...signingParams })
   if (!person) return null
