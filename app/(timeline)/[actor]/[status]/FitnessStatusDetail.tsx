@@ -234,7 +234,10 @@ const HEART_RATE_ZONES: HeartRateZoneDefinition[] = [
 
 interface HeartRateZone extends HeartRateZoneDefinition {
   seconds: number
+  // Rounded percentage for display; rawPct (unrounded) drives bar widths so
+  // the stacked segments don't under/overflow from rounding.
   pct: number
+  rawPct: number
 }
 
 const computeHeartRateZones = (
@@ -257,6 +260,7 @@ const computeHeartRateZones = (
     return {
       ...zone,
       pct: Math.round(fraction * 100),
+      rawPct: fraction * 100,
       seconds: Math.round(fraction * durationSeconds)
     }
   })
@@ -483,10 +487,10 @@ const SectionTitle: FC<{
   right?: ReactNode
 }> = ({ icon: Icon, children, right }) => (
   <div className="mb-3 flex items-center justify-between gap-2">
-    <h3 className="flex items-center gap-2 text-base font-semibold">
+    <h2 className="flex items-center gap-2 text-base font-semibold">
       {Icon ? <Icon className="size-4 text-muted-foreground" /> : null}
       {children}
-    </h3>
+    </h2>
     {right}
   </div>
 )
@@ -556,7 +560,9 @@ const SectionNav: FC<{
               <DropdownMenuItem
                 key={tab.id}
                 onSelect={() => onChange(tab.id)}
-                aria-current={isActive ? 'page' : undefined}
+                // State-driven menu (no navigation), so use the boolean form
+                // rather than aria-current="page".
+                aria-current={isActive ? 'true' : undefined}
                 className={cn(
                   'flex w-full items-center gap-2',
                   isActive && 'bg-primary/10 font-medium text-primary'
@@ -634,13 +640,13 @@ const HeartRateZonesPanel: FC<{ zones: HeartRateZone[] }> = ({ zones }) => {
     <div>
       <div className="flex h-3 w-full overflow-hidden rounded-full">
         {zones.map((zone) => (
-          // `pct` is the rounded share of samples in the zone — robust even
-          // when the activity duration rounds to 0 seconds.
+          // rawPct (unrounded sample share) keeps the stacked segments from
+          // under/overflowing; pct is only for the displayed label.
           <div
             key={zone.name}
             title={`${zone.name} ${zone.pct}%`}
             style={{
-              width: `${zone.pct}%`,
+              width: `${zone.rawPct}%`,
               background: zone.color
             }}
           />
@@ -665,7 +671,7 @@ const HeartRateZonesPanel: FC<{ zones: HeartRateZone[] }> = ({ zones }) => {
             <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
               <div
                 className="h-full rounded-full"
-                style={{ width: `${zone.pct}%`, background: zone.color }}
+                style={{ width: `${zone.rawPct}%`, background: zone.color }}
               />
             </div>
             <span className="w-12 shrink-0 text-right text-xs font-medium tabular-nums">
@@ -751,7 +757,7 @@ const ChartPanel: FC<{
   return (
     <div className="rounded-xl border bg-background p-4">
       <div className="mb-2 flex items-end justify-between">
-        <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
         <p className="text-xs tabular-nums text-muted-foreground">
           Scale {minScale} - {maxScale}
         </p>
@@ -1430,7 +1436,9 @@ export const FitnessStatusDetail: FC<Props> = ({
         setHeartRateSeries([])
         setAltitudeSeries([])
         setSpeedSeries([])
-        setRouteDataError('Interactive map unavailable. Using static preview.')
+        setRouteDataError(
+          'Could not load route and analysis data for this activity.'
+        )
       } finally {
         if (!cancelled) {
           setIsRouteDataLoading(false)
@@ -1612,10 +1620,26 @@ export const FitnessStatusDetail: FC<Props> = ({
     })
   }, [activitySeries])
 
+  // Reset the graph filter when the selected option no longer has data (e.g.
+  // after switching to a file without that series), so Analysis never gets
+  // stuck on an empty, removed filter. 'all' is always available.
+  useEffect(() => {
+    if (
+      !analysisGraphOptions.some((option) => option.id === analysisGraphFilter)
+    ) {
+      setAnalysisGraphFilter('all')
+    }
+  }, [analysisGraphOptions, analysisGraphFilter])
+
   const hasHeartRate = heartRateSeries.length > 0
   const hasPower = powerSeries.length > 0
   const hasPhotos = mediaWithoutMap.length > 0
   const hasComments = replies.length > 0 || Boolean(currentActor)
+  const hasAnalysisSeries =
+    activitySeries.elevation.length > 0 ||
+    activitySeries.speed.length > 0 ||
+    activitySeries.power.length > 0 ||
+    activitySeries.heartRate.length > 0
 
   const tabs = useMemo<SectionTab[]>(() => {
     const items: SectionTab[] = [
@@ -1690,12 +1714,17 @@ export const FitnessStatusDetail: FC<Props> = ({
       sub: 'watts'
     })
   }
-  secondaryStats.push({
-    icon: Mountain,
-    label: 'Elevation',
-    value: `${Math.max(0, Math.round(elevationGainMeters))} m`,
-    sub: 'total ascent'
-  })
+  // Only surface Elevation here when the header's 4th primary tile is Avg power
+  // (rides). For runs the header already shows "Elev gain", so repeating it as a
+  // secondary tile would duplicate the same number.
+  if (avgPower !== null) {
+    secondaryStats.push({
+      icon: Mountain,
+      label: 'Elevation',
+      value: `${Math.max(0, Math.round(elevationGainMeters))} m`,
+      sub: 'total ascent'
+    })
+  }
 
   return (
     <div className="space-y-4 p-4 sm:p-5">
@@ -1884,7 +1913,22 @@ export const FitnessStatusDetail: FC<Props> = ({
         onChange={setActiveSection}
       />
 
-      <div className="min-w-0">
+      {/* When the route-data load fails and there is no map panel to host the
+          banner, surface the error here so the failure is never invisible. */}
+      {routeDataError && !shouldRenderMapPanel ? (
+        <div
+          role="alert"
+          className="rounded-lg border border-amber-300 bg-amber-50/95 px-3 py-2 text-xs text-amber-900"
+        >
+          {routeDataError}
+        </div>
+      ) : null}
+
+      <div
+        className="min-w-0"
+        role="region"
+        aria-label={tabs.find((tab) => tab.id === activeSection)?.label}
+      >
         {activeSection === 'overview' && (
           <div className="space-y-4">
             {shouldRenderMapPanel && (
@@ -1903,17 +1947,19 @@ export const FitnessStatusDetail: FC<Props> = ({
               />
             )}
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {secondaryStats.map((stat) => (
-                <StatTile
-                  key={stat.label}
-                  icon={stat.icon}
-                  label={stat.label}
-                  value={stat.value}
-                  sub={stat.sub}
-                />
-              ))}
-            </div>
+            {secondaryStats.length > 0 && (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {secondaryStats.map((stat) => (
+                  <StatTile
+                    key={stat.label}
+                    icon={stat.icon}
+                    label={stat.label}
+                    value={stat.value}
+                    sub={stat.sub}
+                  />
+                ))}
+              </div>
+            )}
 
             {activitySeries.elevation.length > 0 && (
               <Card>
@@ -1952,34 +1998,45 @@ export const FitnessStatusDetail: FC<Props> = ({
               />
             )}
 
-            <Card>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Graph display
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {analysisGraphOptions.map((option) => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    aria-pressed={analysisGraphFilter === option.id}
-                    onClick={() => setAnalysisGraphFilter(option.id)}
-                    className={cn(
-                      'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
-                      analysisGraphFilter === option.id
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border bg-background text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                {highlightedElapsedLabel
-                  ? `Selected time: ${highlightedElapsedLabel}`
-                  : 'Hover any graph below to follow that time point on the map.'}
-              </p>
-            </Card>
+            {!hasAnalysisSeries ? (
+              <Card>
+                <p className="text-sm text-muted-foreground">
+                  {isRouteDataLoading
+                    ? 'Loading analysis data…'
+                    : (routeDataError ??
+                      'No analysis data is available for this activity.')}
+                </p>
+              </Card>
+            ) : (
+              <Card>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Graph display
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {analysisGraphOptions.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      aria-pressed={analysisGraphFilter === option.id}
+                      onClick={() => setAnalysisGraphFilter(option.id)}
+                      className={cn(
+                        'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+                        analysisGraphFilter === option.id
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border bg-background text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {highlightedElapsedLabel
+                    ? `Selected time: ${highlightedElapsedLabel}`
+                    : 'Hover any graph below to follow that time point on the map.'}
+                </p>
+              </Card>
+            )}
 
             {(analysisGraphFilter === 'all' ||
               analysisGraphFilter === 'elevation') &&
@@ -1994,7 +2051,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                   durationSeconds={durationSeconds}
                   highlightedElapsedSeconds={highlightedElapsedSeconds}
                   onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                  showHoverMessage={analysisGraphFilter !== 'all'}
+                  showHoverMessage={false}
                 />
               )}
 
@@ -2011,7 +2068,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                   durationSeconds={durationSeconds}
                   highlightedElapsedSeconds={highlightedElapsedSeconds}
                   onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                  showHoverMessage={analysisGraphFilter !== 'all'}
+                  showHoverMessage={false}
                 />
               )}
 
@@ -2028,7 +2085,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                   durationSeconds={durationSeconds}
                   highlightedElapsedSeconds={highlightedElapsedSeconds}
                   onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                  showHoverMessage={analysisGraphFilter !== 'all'}
+                  showHoverMessage={false}
                 />
               )}
 
@@ -2045,7 +2102,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                   durationSeconds={durationSeconds}
                   highlightedElapsedSeconds={highlightedElapsedSeconds}
                   onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                  showHoverMessage={analysisGraphFilter !== 'all'}
+                  showHoverMessage={false}
                 />
               )}
           </div>

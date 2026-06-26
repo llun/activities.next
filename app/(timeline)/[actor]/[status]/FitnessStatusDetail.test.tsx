@@ -12,6 +12,7 @@ import {
 
 import {
   type FitnessRouteDataResponse,
+  type StatusFitnessFileItem,
   getFitnessFilesByStatus,
   getFitnessRouteData
 } from '@/lib/client'
@@ -142,6 +143,29 @@ const routeData: FitnessRouteDataResponse = {
   speedSeries: [18, 22, 25, 28, 20, 16]
 }
 
+const buildFitnessFile = (
+  overrides: Partial<StatusFitnessFileItem> = {}
+): StatusFitnessFileItem => ({
+  id: 'fit-1',
+  actorId: actor.id,
+  fileName: 'ride.fit',
+  fileType: 'fit',
+  statusId: 'https://activities.local/users/athlete/statuses/ride-1',
+  isPrimary: true,
+  processingStatus: 'completed',
+  totalDistanceMeters: 5000,
+  totalDurationSeconds: 1800,
+  elevationGainMeters: 120,
+  activityType: 'ride',
+  activityStartTime: Date.parse('2026-05-27T10:42:00Z'),
+  hasMapData: false,
+  description: null,
+  deviceManufacturer: null,
+  deviceName: null,
+  sourceUrl: null,
+  ...overrides
+})
+
 const renderDetail = (
   props: Partial<Parameters<typeof FitnessStatusDetail>[0]> = {}
 ) =>
@@ -241,5 +265,120 @@ describe('FitnessStatusDetail', () => {
     expect(
       screen.queryByRole('button', { name: 'Reply' })
     ).not.toBeInTheDocument()
+  })
+
+  it('renders the read-only comments thread for a logged-out viewer with replies', async () => {
+    const reply = {
+      id: 'reply-1',
+      type: 'Note',
+      actorId: actor.id,
+      actor
+    } as unknown as Status
+
+    renderDetail({ currentActor: null, replies: [reply] })
+
+    await waitFor(() => expect(screen.getByText('Avg HR')).toBeInTheDocument())
+
+    const menu = await openSectionMenu()
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Comments' }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('reply-post')).toHaveTextContent('reply-1')
+    )
+    // No composer for logged-out viewers.
+    expect(screen.queryByTestId('comment-composer')).not.toBeInTheDocument()
+  })
+
+  it('renders the 25 W power distribution section', async () => {
+    const { container } = renderDetail()
+
+    await waitFor(() => expect(screen.getByText('Avg HR')).toBeInTheDocument())
+
+    const menu = await openSectionMenu()
+    fireEvent.click(
+      within(menu).getByRole('menuitem', { name: '25 W Distribution' })
+    )
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('heading', { name: 'Power distribution' })
+      ).toBeInTheDocument()
+    )
+    // Weighted-average power = mean(powerSeries) = 135 W.
+    expect(screen.getByText(/Average Power\s*135\s*W/)).toBeInTheDocument()
+    expect(container.querySelectorAll('rect').length).toBeGreaterThan(0)
+  })
+
+  it('filters the analysis graphs and syncs the available series', async () => {
+    renderDetail()
+
+    await waitFor(() => expect(screen.getByText('Avg HR')).toBeInTheDocument())
+
+    const menu = await openSectionMenu()
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Analysis' }))
+
+    // Graph-display pills appear for every available series.
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Elevation' })
+      ).toBeInTheDocument()
+    )
+    expect(screen.getByRole('button', { name: 'Speed' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Power' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Heart rate' })
+    ).toBeInTheDocument()
+    // All charts render in the default "All graphs" mode.
+    expect(
+      screen.getByRole('heading', { name: 'Elevation profile' })
+    ).toBeInTheDocument()
+
+    // Selecting a single graph filters the rest out.
+    fireEvent.click(screen.getByRole('button', { name: 'Power' }))
+    expect(screen.getByRole('button', { name: 'Power' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+    expect(
+      screen.queryByRole('heading', { name: 'Elevation profile' })
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Power' })).toBeInTheDocument()
+  })
+
+  it('shows the multi-file activity switcher when several files are aggregated', async () => {
+    mockGetFitnessFilesByStatus.mockResolvedValue([
+      buildFitnessFile({ id: 'fit-1', fileName: 'ride-morning.fit' }),
+      buildFitnessFile({
+        id: 'fit-2',
+        fileName: 'ride-evening.fit',
+        isPrimary: false,
+        activityStartTime: Date.parse('2026-05-27T18:00:00Z')
+      })
+    ])
+
+    renderDetail()
+
+    const select = (await screen.findByLabelText(
+      'Activity file'
+    )) as HTMLSelectElement
+    expect(within(select).getAllByRole('option')).toHaveLength(2)
+    expect(screen.getByText('file 1 of 2')).toBeInTheDocument()
+
+    fireEvent.change(select, { target: { value: 'fit-2' } })
+    await waitFor(() =>
+      expect(screen.getByText('file 2 of 2')).toBeInTheDocument()
+    )
+  })
+
+  it('surfaces an error banner when route data fails to load', async () => {
+    mockGetFitnessRouteData.mockRejectedValue(new Error('boom'))
+
+    renderDetail()
+
+    expect(
+      await screen.findByText(
+        'Could not load route and analysis data for this activity.'
+      )
+    ).toBeInTheDocument()
   })
 })
