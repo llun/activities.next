@@ -331,10 +331,20 @@ export const ActorTimelines: FC<Props> = ({
         className="w-full gap-4"
       >
         <TabsList className="w-full sm:w-fit" aria-label="Profile sections">
-          <TabsTrigger value="posts">Posts</TabsTrigger>
-          <TabsTrigger value="replies">Replies</TabsTrigger>
-          <TabsTrigger value="media">Media</TabsTrigger>
-          {showFitnessTab && <TabsTrigger value="fitness">Fitness</TabsTrigger>}
+          <TabsTrigger value="posts" className="flex-1 sm:flex-none">
+            Posts
+          </TabsTrigger>
+          <TabsTrigger value="replies" className="flex-1 sm:flex-none">
+            Replies
+          </TabsTrigger>
+          <TabsTrigger value="media" className="flex-1 sm:flex-none">
+            Media
+          </TabsTrigger>
+          {showFitnessTab && (
+            <TabsTrigger value="fitness" className="flex-1 sm:flex-none">
+              Fitness
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="posts" className="mt-0">
