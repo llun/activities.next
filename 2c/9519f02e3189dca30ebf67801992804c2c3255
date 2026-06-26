@@ -1,0 +1,98 @@
+migrations/schema.sqlite.sql
+  s_02e5024cb68412::t_2202e1b9103459 235-236
+migrations/20260626000000_add_fitness_import_locks.js
+  s_02e5024cb68412::t_9a36393e79a73e 1-40
+lib/services/fitness-files/importLock.ts
+  s_02e5024cb68412::t_1c52c0a7adc1f4 1-68
+lib/database/sql/importLock.test.ts
+  s_02e5024cb68412::t_8392f2f94999b5 1-115
+lib/jobs/regenerateFitnessMapsJob.ts
+  s_02e5024cb68412::t_c724997dfe5fd1 180-212
+lib/jobs/importStravaActivityJob.ts
+  s_02e5024cb68412::t_e41edb040038c7 763-773
+  s_02e5024cb68412::t_3db599fad7ab7c 677-688,690-710
+  s_02e5024cb68412::t_8695fb9423b30b 19
+lib/database/sql/index.ts
+  s_02e5024cb68412::t_660a6744572fad 135
+  s_02e5024cb68412::t_7436ee9e1c0e53 22
+  s_02e5024cb68412::t_fb9ba424e19e65 57
+lib/client.ts
+  s_02e5024cb68412::t_eab66dc455d14d 1941-1998
+  s_02e5024cb68412::t_30adb72caa17eb 1999-2022
+app/api/v1/fitness-files/by-status/route.ts
+  s_02e5024cb68412::t_1dfa197c8acf67 101,115-123
+  s_02e5024cb68412::t_879d2464b83b4e 5
+lib/database/types.ts
+  s_02e5024cb68412::t_d797dca25f5dee 4
+  s_02e5024cb68412::t_f6d54a5680da1f 57
+lib/database/sql/importLock.ts
+  s_02e5024cb68412::t_8bd2956b39a571 2
+  s_02e5024cb68412::t_18b5b060a437fd 1,3-66
+lib/components/posts/post.test.tsx
+  s_02e5024cb68412::t_df745c6d932e2a 943,962
+  s_02e5024cb68412::t_7f74d8b205b03f 989
+  s_02e5024cb68412::t_3996d5b96004c3 50-51
+app/api/v1/fitness-files/by-status/route.test.ts
+  s_02e5024cb68412::t_08188c40a26211 100-102,105,107-113,116-131,133-134
+  s_02e5024cb68412::t_3a0a341c933854 99,103-104,106,114-115,132
+lib/services/fitness-files/retryImports.ts
+  s_02e5024cb68412::t_8bd2956b39a571 2-5,13-17,128-130
+  s_02e5024cb68412::t_5bc595ab26b451 1,6-12,18-127,131-179
+app/api/v1/fitness/import/[batchId]/route.ts
+  s_02e5024cb68412::t_4432df12b59438 438-445,452,455
+  s_02e5024cb68412::t_3e5d6788472f83 3
+app/api/v1/fitness/retry-failed/route.ts
+  s_02e5024cb68412::t_c3aeee0e978a4f 1-4,6-101
+  s_02e5024cb68412::t_8bd2956b39a571 5
+app/api/v1/fitness/retry-failed/route.test.ts
+  s_02e5024cb68412::t_17272e62e93f2d 163,193,236
+  s_02e5024cb68412::t_f57d140938121c 87-88,90-91
+  s_02e5024cb68412::t_39582af371d68d 1-3,5-13,23-86,89,92-162,164-192,194-227,230-235,237-247
+  s_02e5024cb68412::t_27c50e69b856ee 4
+  s_02e5024cb68412::t_f9cc43ae757e4e 228-229
+  s_02e5024cb68412::t_cdd28e7e68ee54 14-22
+lib/components/settings/FitnessFileManagement.tsx
+  s_02e5024cb68412::t_87e5f6a15e91a3 7-11
+  s_02e5024cb68412::t_20cb7dec391350 160-186
+  s_02e5024cb68412::t_9857ebb3b50024 232-247
+  s_02e5024cb68412::t_df04887ed0a764 79
+migrations/schema.sql
+  s_02e5024cb68412::t_7b8a2b0b9e64f0 401-407,1204-1206,1471-1472
+lib/jobs/importStravaActivityJob.test.ts
+  s_02e5024cb68412::t_163414e35bc5e5 115-116
+  s_02e5024cb68412::t_bd95e11cd05406 136-140
+  s_02e5024cb68412::t_626df3dc0423db 307-360
+  s_02e5024cb68412::t_78fc8e00970cdd 925-988
+lib/components/posts/post.tsx
+  s_02e5024cb68412::t_856170579656e9 36
+  s_02e5024cb68412::t_82eb59021bbee6 3
+  s_02e5024cb68412::t_4e10e4032603ae 196-199
+lib/components/posts/fitness-processing-progress.test.tsx
+  s_02e5024cb68412::t_3a48fb2e450e82 1-138
+lib/services/fitness-files/importLock.test.ts
+  s_02e5024cb68412::t_83a455d975bab8 1-89
+lib/jobs/regenerateFitnessMapsJob.test.ts
+  s_02e5024cb68412::t_8bd2956b39a571 346-349
+  s_02e5024cb68412::t_819e3c7e359b9a 338-345,350-395
+lib/components/posts/fitness-processing-progress.tsx
+  s_02e5024cb68412::t_24817c65d43db4 1-90,96-103
+  s_02e5024cb68412::t_8bd2956b39a571 91-95
+lib/components/settings/FitnessFileManagement.test.tsx
+  s_02e5024cb68412::t_df05faa04c95d0 373-447
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "2c9519f02e3189dca30ebf67801992804c2c3255",
+  "prompts": {},
+  "sessions": {
+    "s_02e5024cb68412": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0672fc92-a95f-4d42-9422-bee485cd0af0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
