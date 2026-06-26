@@ -2,43 +2,71 @@
 
 import { UTCDate } from '@date-fns/utc'
 import { format } from 'date-fns'
-import { Bike, ExternalLink, Footprints, Play, Plus, Waves } from 'lucide-react'
-import { FC, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Activity,
+  BarChart3,
+  Calendar,
+  ChevronDown,
+  Clock,
+  ExternalLink,
+  Flame,
+  Gauge,
+  Globe,
+  HeartPulse,
+  Image as ImageIcon,
+  Lock,
+  type LucideIcon,
+  Mail,
+  MessageCircle,
+  Mountain,
+  Play,
+  Plus,
+  Route,
+  Unlock
+} from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { FC, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 
+import {
+  type FitnessRouteSample,
+  type FitnessRouteSegment,
+  type StatusFitnessFileItem,
+  getFitnessFilesByStatus,
+  getFitnessRouteData
+} from '@/lib/client'
 import { BrandedDeviceLink } from '@/lib/components/posts/BrandedDeviceLink'
-import { VisibilityButton } from '@/lib/components/posts/actions/visibility-button'
+import { BookmarkButton } from '@/lib/components/posts/actions/bookmark-button'
+import { LikeButton } from '@/lib/components/posts/actions/like-button'
+import { PostMenu } from '@/lib/components/posts/actions/post-menu'
+import { ReplyButton } from '@/lib/components/posts/actions/reply-button'
+import { RepostButton } from '@/lib/components/posts/actions/repost-button'
+import { ActorAvatar } from '@/lib/components/posts/actor'
 import { Media } from '@/lib/components/posts/media'
-import { ActorProfile } from '@/lib/types/domain/actor'
+import { Post } from '@/lib/components/posts/post'
+import { StatusReplyBox } from '@/lib/components/posts/status-reply-box'
+import { Button } from '@/lib/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/lib/components/ui/dropdown-menu'
+import { ActorProfile, getMention } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
-import { StatusNote } from '@/lib/types/domain/status'
+import { Status, StatusNote } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 import {
-  formatFitnessDistance,
   formatFitnessDuration,
   getFitnessPaceOrSpeed,
   getFitnessSourceLabel,
   normalizeFitnessSourceUrl
 } from '@/lib/utils/fitness'
 import { getDeviceDisplayLabel } from '@/lib/utils/fitnessDeviceBrands'
+import {
+  type MastodonVisibility,
+  getVisibility
+} from '@/lib/utils/getVisibility'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
-
-const getActivityIcon = (activityType?: string) => {
-  const normalized = activityType?.toLowerCase() ?? ''
-  if (normalized.includes('ride') || normalized.includes('bike')) {
-    return <Bike className="size-5" />
-  }
-  if (
-    normalized.includes('run') ||
-    normalized.includes('walk') ||
-    normalized.includes('hike')
-  ) {
-    return <Footprints className="size-5" />
-  }
-  if (normalized.includes('swim')) {
-    return <Waves className="size-5" />
-  }
-  return <Bike className="size-5" />
-}
 
 const downsampleSeries = (series: number[], targetCount: number) => {
   if (series.length <= targetCount) return series
@@ -57,70 +85,29 @@ const downsampleSeries = (series: number[], targetCount: number) => {
 interface Props {
   host: string
   mapboxAccessToken?: string
+  currentTime: number
   currentActor?: ActorProfile | null
   status: StatusNote
+  replies?: Status[]
+  isMediaUploadEnabled?: boolean
   onShowAttachment: (allMedias: Attachment[], selectedIndex: number) => void
 }
 
-type SectionKey = 'overview' | 'analysis' | '25w-distribution'
+type SectionKey =
+  | 'overview'
+  | 'analysis'
+  | 'heart-rate-zones'
+  | '25w-distribution'
+  | 'photos'
+  | 'comments'
 
 type AnalysisGraphKey = 'elevation' | 'speed' | 'power' | 'heart-rate'
 type AnalysisGraphFilter = 'all' | AnalysisGraphKey
 
-interface NavItem {
+interface SectionTab {
   id: SectionKey
   label: string
-  group?: 'subscription'
-}
-
-interface FitnessRouteSample {
-  lat: number
-  lng: number
-  elapsedSeconds: number
-  timestamp?: number
-  altitude?: number
-  heartRate?: number
-  speed?: number
-  isHiddenByPrivacy?: boolean
-}
-
-interface FitnessRouteSegment {
-  isHiddenByPrivacy: boolean
-  samples: FitnessRouteSample[]
-}
-
-interface FitnessRouteDataResponse {
-  samples: FitnessRouteSample[]
-  segments?: FitnessRouteSegment[]
-  totalDurationSeconds: number
-  powerSeries?: number[]
-  heartRateSeries?: number[]
-  altitudeSeries?: number[]
-  speedSeries?: number[]
-}
-
-interface StatusFitnessFileItem {
-  id: string
-  actorId: string
-  fileName: string
-  fileType: 'fit' | 'gpx' | 'tcx'
-  statusId: string | null
-  isPrimary: boolean
-  processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
-  totalDistanceMeters: number | null
-  totalDurationSeconds: number | null
-  elevationGainMeters: number | null
-  activityType: string | null
-  activityStartTime: number | null
-  hasMapData: boolean
-  description: string | null
-  deviceManufacturer: string | null
-  deviceName: string | null
-  sourceUrl: string | null
-}
-
-interface FitnessFilesByStatusResponse {
-  files: StatusFitnessFileItem[]
+  icon: LucideIcon
 }
 
 interface MapPointGeometry {
@@ -193,12 +180,6 @@ interface MapboxModule {
   ) => MapboxLngLatBounds
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'analysis', label: 'Analysis' },
-  { id: '25w-distribution', label: '25 W Distribution', group: 'subscription' }
-]
-
 const ANALYSIS_GRAPH_OPTIONS: Array<{
   id: AnalysisGraphFilter
   label: string
@@ -210,8 +191,80 @@ const ANALYSIS_GRAPH_OPTIONS: Array<{
   { id: 'heart-rate', label: 'Heart rate' }
 ]
 
-const formatDistance = (distanceMeters?: number) =>
-  formatFitnessDistance(distanceMeters, { fallback: '0.00 km' }) ?? '0.00 km'
+const VISIBILITY_META: Record<
+  MastodonVisibility,
+  { label: string; icon: LucideIcon }
+> = {
+  public: { label: 'Public', icon: Globe },
+  unlisted: { label: 'Unlisted', icon: Unlock },
+  private: { label: 'Followers only', icon: Lock },
+  direct: { label: 'Direct', icon: Mail }
+}
+
+interface HeartRateZoneDefinition {
+  name: string
+  label: string
+  lo: number
+  hi: number | null
+  color: string
+}
+
+// Fixed heart-rate zone boundaries (bpm), mirroring the design system's
+// five-zone model. Real activity files carry a heart-rate sample series but no
+// personalised zones, so we bucket the samples against these shared cut-offs.
+const HEART_RATE_ZONES: HeartRateZoneDefinition[] = [
+  { name: 'Z1', label: 'Recovery', lo: 0, hi: 122, color: 'hsl(205 45% 62%)' },
+  {
+    name: 'Z2',
+    label: 'Endurance',
+    lo: 122,
+    hi: 142,
+    color: 'hsl(142 60% 45%)'
+  },
+  { name: 'Z3', label: 'Tempo', lo: 142, hi: 158, color: 'hsl(45 92% 50%)' },
+  {
+    name: 'Z4',
+    label: 'Threshold',
+    lo: 158,
+    hi: 172,
+    color: 'hsl(24 95% 50%)'
+  },
+  { name: 'Z5', label: 'Anaerobic', lo: 172, hi: null, color: 'hsl(2 78% 55%)' }
+]
+
+interface HeartRateZone extends HeartRateZoneDefinition {
+  seconds: number
+  // Rounded percentage for display; rawPct (unrounded) drives bar widths so
+  // the stacked segments don't under/overflow from rounding.
+  pct: number
+  rawPct: number
+}
+
+const computeHeartRateZones = (
+  series: number[],
+  durationSeconds: number
+): HeartRateZone[] => {
+  const counts = HEART_RATE_ZONES.map(() => 0)
+  for (const bpm of series) {
+    // Heart-rate monitors report 0 (or negative) bpm during sensor dropouts;
+    // skip those so they don't inflate the Z1 (Recovery) bucket.
+    if (bpm <= 0) continue
+    const index = HEART_RATE_ZONES.findIndex(
+      (zone) => bpm >= zone.lo && (zone.hi === null || bpm < zone.hi)
+    )
+    if (index >= 0) counts[index] += 1
+  }
+  const totalSamples = counts.reduce((sum, value) => sum + value, 0)
+  return HEART_RATE_ZONES.map((zone, index) => {
+    const fraction = totalSamples > 0 ? counts[index] / totalSamples : 0
+    return {
+      ...zone,
+      pct: Math.round(fraction * 100),
+      rawPct: fraction * 100,
+      seconds: Math.round(fraction * durationSeconds)
+    }
+  })
+}
 
 const formatDuration = (durationSeconds?: number) =>
   formatFitnessDuration(durationSeconds, { fallback: '0:00' }) ?? '0:00'
@@ -225,7 +278,7 @@ const getActivityLabel = (activityType?: string) => {
 
   const normalized = activityType.toLowerCase()
   if (normalized.includes('ride') || normalized.includes('bike')) {
-    return 'Virtual Ride'
+    return 'Ride'
   }
   if (normalized.includes('run')) return 'Run'
   if (normalized.includes('walk') || normalized.includes('hike')) return 'Walk'
@@ -412,6 +465,226 @@ const buildXAxisLabels = (
   return labels
 }
 
+const Card: FC<{
+  className?: string
+  children: ReactNode
+  padded?: boolean
+}> = ({ className, children, padded = true }) => (
+  <div
+    className={cn(
+      'rounded-xl border bg-card shadow-sm',
+      padded && 'p-5',
+      className
+    )}
+  >
+    {children}
+  </div>
+)
+
+const SectionTitle: FC<{
+  icon?: LucideIcon
+  children: ReactNode
+  right?: ReactNode
+}> = ({ icon: Icon, children, right }) => (
+  <div className="mb-3 flex items-center justify-between gap-2">
+    <h2 className="flex items-center gap-2 text-base font-semibold">
+      {Icon ? <Icon className="size-4 text-muted-foreground" /> : null}
+      {children}
+    </h2>
+    {right}
+  </div>
+)
+
+const StatTile: FC<{
+  icon?: LucideIcon
+  label: string
+  value: string
+  sub?: string
+  accent?: boolean
+  big?: boolean
+}> = ({ icon: Icon, label, value, sub, accent = false, big = false }) => (
+  <div className="rounded-xl border bg-background p-3.5 shadow-sm">
+    <div className="flex items-center gap-1.5 text-muted-foreground">
+      {Icon ? <Icon className="size-3.5" /> : null}
+      <span className="text-[11px] font-medium uppercase tracking-wide">
+        {label}
+      </span>
+    </div>
+    <div
+      className={cn(
+        'mt-1.5 font-semibold leading-none tracking-tight tabular-nums',
+        big ? 'text-[28px]' : 'text-[21px]',
+        accent && 'text-primary'
+      )}
+    >
+      {value}
+    </div>
+    {sub ? (
+      <div className="mt-1 text-[11px] text-muted-foreground">{sub}</div>
+    ) : null}
+  </div>
+)
+
+// State-driven section dropdown that mirrors the shared `SectionNavDropdown`
+// (the design-system sub-nav used by settings/fitness/admin). That component is
+// URL/link-based; the activity detail switches sections in local state, so this
+// renders the same outline trigger + menu but drives `onChange` instead.
+const SectionNav: FC<{
+  tabs: SectionTab[]
+  active: SectionKey
+  onChange: (id: SectionKey) => void
+}> = ({ tabs, active, onChange }) => {
+  const activeTab = tabs.find((tab) => tab.id === active) ?? tabs[0]
+  const ActiveIcon = activeTab.icon
+
+  return (
+    <nav aria-label="Activity sections" className="w-full sm:max-w-[260px]">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className="w-full justify-between">
+            <span className="flex items-center gap-2">
+              <ActiveIcon className="size-4 text-primary" />
+              {activeTab.label}
+            </span>
+            <ChevronDown className="ml-2 size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          className="w-[--radix-dropdown-menu-trigger-width]"
+        >
+          {tabs.map((tab) => {
+            const Icon = tab.icon
+            const isActive = tab.id === activeTab.id
+            return (
+              <DropdownMenuItem
+                key={tab.id}
+                onSelect={() => onChange(tab.id)}
+                // State-driven menu (no navigation), so use the boolean form
+                // rather than aria-current="page".
+                aria-current={isActive ? 'true' : undefined}
+                className={cn(
+                  'flex w-full items-center gap-2',
+                  isActive && 'bg-primary/10 font-medium text-primary'
+                )}
+              >
+                <Icon className="size-4" />
+                {tab.label}
+              </DropdownMenuItem>
+            )
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </nav>
+  )
+}
+
+const ElevationProfileChart: FC<{ values: number[]; height?: number }> = ({
+  values,
+  height = 130
+}) => {
+  const width = 800
+  const { minValue, maxValue } = getSeriesMinMax(values)
+  const line = buildChartPath(values, width, height, minValue, maxValue)
+  const area = `${line} L ${width.toFixed(2)} ${height} L 0 ${height} Z`
+
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
+      className="block w-full"
+      style={{ height }}
+    >
+      <defs>
+        <linearGradient
+          id="fitness-elevation-gradient"
+          x1="0"
+          y1="0"
+          x2="0"
+          y2="1"
+        >
+          <stop offset="0" stopColor="hsl(24 95% 46%)" stopOpacity="0.28" />
+          <stop offset="1" stopColor="hsl(24 95% 46%)" stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+      <line
+        x1={0}
+        y1={height / 2}
+        x2={width}
+        y2={height / 2}
+        className="stroke-border"
+        strokeWidth={1}
+        strokeDasharray="4 4"
+      />
+      <path d={area} fill="url(#fitness-elevation-gradient)" />
+      <path
+        d={line}
+        fill="none"
+        className="stroke-primary"
+        strokeWidth={2.5}
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  )
+}
+
+const HeartRateZonesPanel: FC<{ zones: HeartRateZone[] }> = ({ zones }) => {
+  const formatZoneRange = (zone: HeartRateZone) => {
+    if (zone.lo === 0 && zone.hi !== null) return `< ${zone.hi} bpm`
+    if (zone.hi === null) return `${zone.lo}+ bpm`
+    return `${zone.lo}–${zone.hi} bpm`
+  }
+
+  return (
+    <div>
+      <div className="flex h-3 w-full overflow-hidden rounded-full">
+        {zones.map((zone) => (
+          // rawPct (unrounded sample share) keeps the stacked segments from
+          // under/overflowing; pct is only for the displayed label.
+          <div
+            key={zone.name}
+            title={`${zone.name} ${zone.pct}%`}
+            style={{
+              width: `${zone.rawPct}%`,
+              background: zone.color
+            }}
+          />
+        ))}
+      </div>
+      <div className="mt-4 space-y-2.5">
+        {zones.map((zone) => (
+          <div key={zone.name} className="flex items-center gap-3">
+            <span
+              className="inline-block size-3 shrink-0 rounded-[3px]"
+              style={{ background: zone.color }}
+              aria-hidden="true"
+            />
+            <span className="w-7 shrink-0 text-sm font-semibold tabular-nums">
+              {zone.name}
+            </span>
+            <span className="w-20 shrink-0 text-xs text-muted-foreground">
+              {zone.label}
+            </span>
+            <span className="hidden w-24 shrink-0 text-xs tabular-nums text-muted-foreground sm:block">
+              {formatZoneRange(zone)}
+            </span>
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full"
+                style={{ width: `${zone.rawPct}%`, background: zone.color }}
+              />
+            </div>
+            <span className="w-12 shrink-0 text-right text-xs font-medium tabular-nums">
+              {formatDuration(zone.seconds)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 const ChartPanel: FC<{
   title: string
   unit: string
@@ -483,17 +756,17 @@ const ChartPanel: FC<{
       : null
 
   return (
-    <div className="rounded-lg border bg-white/80 p-4">
+    <div className="rounded-xl border bg-background p-4">
       <div className="mb-2 flex items-end justify-between">
-        <h4 className="text-sm font-semibold text-slate-800">{title}</h4>
-        <p className="text-xs text-slate-500">
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        <p className="text-xs tabular-nums text-muted-foreground">
           Scale {minScale} - {maxScale}
         </p>
       </div>
       <div className="grid grid-cols-[auto_1fr] items-stretch gap-2">
         <div
           className={cn(
-            'flex flex-col justify-between text-[11px] text-slate-500',
+            'flex flex-col justify-between text-[11px] tabular-nums text-muted-foreground',
             GRAPH_HEIGHT_CLASSNAME
           )}
         >
@@ -549,14 +822,14 @@ const ChartPanel: FC<{
             ) : null}
           </svg>
           {xLabels && (
-            <div className="mt-2 flex justify-between text-[11px] text-slate-500">
+            <div className="mt-2 flex justify-between text-[11px] tabular-nums text-muted-foreground">
               {xLabels.map((label, i) => (
                 <span key={i}>{label}</span>
               ))}
             </div>
           )}
           {showHoverMessage ? (
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-muted-foreground">
               {highlightedElapsedLabel
                 ? `Selected time: ${highlightedElapsedLabel}`
                 : 'Hover the chart to follow that time point on the map.'}
@@ -577,7 +850,6 @@ const ActivityMapPanel: FC<{
   routeDataError?: string | null
   isRouteDataLoading?: boolean
   onOpenMap?: () => void
-  compact?: boolean
 }> = ({
   mapAttachment,
   routeSamples,
@@ -586,8 +858,7 @@ const ActivityMapPanel: FC<{
   mapboxAccessToken,
   routeDataError = null,
   isRouteDataLoading = false,
-  onOpenMap,
-  compact = false
+  onOpenMap
 }) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapboxMap | null>(null)
@@ -734,7 +1005,7 @@ const ActivityMapPanel: FC<{
           )
 
           map.fitBounds(routeBounds, {
-            padding: compact ? 28 : 40,
+            padding: 28,
             maxZoom: 16,
             duration: 0
           })
@@ -783,7 +1054,6 @@ const ActivityMapPanel: FC<{
       mapRef.current = null
     }
   }, [
-    compact,
     mapboxAccessToken,
     routeFeatureCollection,
     routeSamplesForBounds,
@@ -827,12 +1097,7 @@ const ActivityMapPanel: FC<{
   }, [activeSample, shouldRenderInteractiveMap])
 
   return (
-    <div
-      className={cn(
-        'relative overflow-hidden border border-slate-300 bg-slate-100',
-        compact ? 'h-56 rounded-lg' : 'h-80 rounded-none'
-      )}
-    >
+    <div className="relative h-72 overflow-hidden rounded-lg border bg-muted">
       {shouldRenderInteractiveMap ? (
         <div ref={mapContainerRef} className="h-full w-full" />
       ) : mapAttachment ? (
@@ -847,41 +1112,41 @@ const ActivityMapPanel: FC<{
           />
         </button>
       ) : (
-        <div className="flex h-full items-center justify-center bg-gradient-to-br from-slate-200 to-slate-300 text-sm text-slate-600">
+        <div className="flex h-full items-center justify-center bg-gradient-to-br from-muted to-muted-foreground/20 text-sm text-muted-foreground">
           Map preview unavailable
         </div>
       )}
 
       {shouldRenderInteractiveMap ? (
         <>
-          <div className="absolute left-3 top-3 flex flex-col overflow-hidden rounded-md border border-slate-300 bg-white/95 shadow-sm">
+          <div className="absolute left-3 top-3 flex flex-col overflow-hidden rounded-md border bg-background/95 shadow-sm">
             <button
               type="button"
               onClick={() => {
                 mapRef.current?.zoomIn({ duration: 250 })
               }}
-              className="flex h-8 w-8 items-center justify-center text-slate-700 hover:bg-slate-100"
+              className="flex size-8 items-center justify-center text-foreground hover:bg-muted"
               aria-label="Zoom in map"
             >
               <Plus className="size-4" />
             </button>
-            <div className="h-px bg-slate-300" />
+            <div className="h-px bg-border" />
             <button
               type="button"
               onClick={() => {
                 mapRef.current?.zoomOut({ duration: 250 })
               }}
-              className="flex h-8 w-8 items-center justify-center text-slate-700 hover:bg-slate-100"
+              className="flex size-8 items-center justify-center text-foreground hover:bg-muted"
               aria-label="Zoom out map"
             >
               <span className="text-base leading-none">-</span>
             </button>
           </div>
-          <div className="absolute right-3 top-3 rounded-md border border-slate-300 bg-white/95 px-3 py-2 text-xs font-medium text-slate-700 shadow-sm">
-            Mapbox
+          <div className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md border bg-background/95 px-2.5 py-1 text-xs font-medium text-muted-foreground shadow-sm">
+            <Route className="size-3.5" /> GPS trace
           </div>
           {hasHiddenPrivacySegments ? (
-            <div className="absolute bottom-3 left-3 rounded-md border border-green-300 bg-white/95 px-3 py-2 text-xs font-medium text-green-700 shadow-sm">
+            <div className="absolute bottom-3 left-3 rounded-md border border-green-300 bg-background/95 px-3 py-2 text-xs font-medium text-green-700 shadow-sm dark:border-green-900 dark:text-green-400">
               Green segments are hidden from other viewers
             </div>
           ) : null}
@@ -890,7 +1155,7 @@ const ActivityMapPanel: FC<{
         <button
           type="button"
           onClick={onOpenMap}
-          className="absolute bottom-3 right-3 inline-flex h-11 w-11 items-center justify-center rounded-md bg-orange-600 text-white shadow"
+          className="absolute bottom-3 right-3 inline-flex size-11 items-center justify-center rounded-md bg-primary text-primary-foreground shadow"
           aria-label="Open route map image"
         >
           <Play className="size-5" />
@@ -900,13 +1165,13 @@ const ActivityMapPanel: FC<{
       {!shouldRenderInteractiveMap &&
       isRouteDataLoading &&
       mapboxAccessToken ? (
-        <div className="absolute left-1/2 top-3 -translate-x-1/2 rounded-md border border-slate-300 bg-white/95 px-3 py-1 text-xs text-slate-700 shadow-sm">
+        <div className="absolute left-1/2 top-3 -translate-x-1/2 rounded-md border bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
           Loading interactive route...
         </div>
       ) : null}
 
       {!shouldRenderInteractiveMap && (routeDataError || mapLoadError) ? (
-        <div className="absolute left-3 right-3 top-3 rounded-md border border-amber-300 bg-amber-50/95 px-3 py-2 text-xs text-amber-900 shadow-sm">
+        <div className="absolute inset-x-3 top-3 rounded-md border border-amber-300 bg-amber-50/95 px-3 py-2 text-xs text-amber-900 shadow-sm dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
           {routeDataError || mapLoadError}
         </div>
       ) : null}
@@ -918,22 +1183,14 @@ const ActivityGallery: FC<{
   attachments: Attachment[]
   onOpenAttachment: (index: number) => void
 }> = ({ attachments, onOpenAttachment }) => {
-  if (attachments.length === 0) {
-    return (
-      <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
-        No additional media for this activity.
-      </div>
-    )
-  }
-
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-      {attachments.slice(0, 6).map((attachment, index) => (
+      {attachments.map((attachment, index) => (
         <button
           key={attachment.id}
           type="button"
           onClick={() => onOpenAttachment(index)}
-          className="relative aspect-video overflow-hidden rounded-md border border-slate-300 transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
+          className="relative aspect-video overflow-hidden rounded-md border transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
           aria-label={`Open media ${index + 1}`}
         >
           <Media
@@ -946,42 +1203,22 @@ const ActivityGallery: FC<{
   )
 }
 
-const MetricCard: FC<{ label: string; value: string; highlight?: boolean }> = ({
-  label,
-  value,
-  highlight = false
-}) => {
-  const match = value.match(/^([\d:.,]+)\s*(.*)$/)
-  const numericValue = match ? match[1] : value
-  const unit = match && match[2] ? match[2] : ''
-
-  return (
-    <div className="flex min-w-0 flex-col justify-center rounded-sm px-4 py-3">
-      <p
-        className={cn(
-          'truncate whitespace-nowrap text-2xl font-semibold leading-tight tracking-tight text-slate-900 sm:text-3xl md:text-4xl',
-          highlight && 'text-orange-600'
-        )}
-      >
-        {numericValue}
-      </p>
-      <p className="mt-1 truncate whitespace-nowrap text-xs font-medium text-slate-500 sm:text-sm">
-        {label}
-        {unit ? ` (${unit})` : ''}
-      </p>
-    </div>
-  )
-}
-
 export const FitnessStatusDetail: FC<Props> = ({
+  host,
   mapboxAccessToken,
+  currentTime,
   currentActor,
   status,
+  replies = [],
+  isMediaUploadEnabled,
   onShowAttachment
 }) => {
+  const router = useRouter()
   const [activeSection, setActiveSection] = useState<SectionKey>('overview')
   const [analysisGraphFilter, setAnalysisGraphFilter] =
     useState<AnalysisGraphFilter>('all')
+  // Force-resets the always-on comment composer after a cancel or a post.
+  const [composerKey, setComposerKey] = useState(0)
 
   const defaultFitnessFiles = useMemo<StatusFitnessFileItem[]>(() => {
     if (!status.fitness) {
@@ -1057,32 +1294,10 @@ export const FitnessStatusDetail: FC<Props> = ({
 
     const loadFitnessFiles = async () => {
       try {
-        const response = await fetch(
-          `/api/v1/fitness-files/by-status?statusId=${encodeURIComponent(
-            status.id
-          )}`,
-          {
-            method: 'GET',
-            headers: {
-              Accept: 'application/json'
-            }
-          }
-        )
-        if (!response.ok) {
-          // Keep the status payload fallback if the list endpoint is unavailable.
-          return
-        }
+        const files = await getFitnessFilesByStatus(status.id)
+        if (cancelled || !files || files.length === 0) return
 
-        const data = (await response.json()) as FitnessFilesByStatusResponse
-        if (
-          cancelled ||
-          !Array.isArray(data.files) ||
-          data.files.length === 0
-        ) {
-          return
-        }
-
-        const ordered = [...data.files].sort((first, second) => {
+        const ordered = [...files].sort((first, second) => {
           const firstStart = first.activityStartTime ?? Number.MAX_SAFE_INTEGER
           const secondStart =
             second.activityStartTime ?? Number.MAX_SAFE_INTEGER
@@ -1118,18 +1333,31 @@ export const FitnessStatusDetail: FC<Props> = ({
   }, [status.id])
 
   const actorName = status.actor?.name || status.actor?.username || 'Athlete'
+  const actorHandle = status.actor ? getMention(status.actor, true) : null
   const fitness = useMemo(
     () =>
       fitnessFiles.find((item) => item.id === selectedFitnessFileId) ??
       fitnessFiles[0],
     [fitnessFiles, selectedFitnessFileId]
   )
+  const selectedFileIndex = useMemo(
+    () => fitnessFiles.findIndex((item) => item.id === fitness?.id),
+    [fitnessFiles, fitness?.id]
+  )
   const shouldLoadInteractiveMap = Boolean(mapboxAccessToken && fitness?.id)
   const activityLabel = getActivityLabel(fitness?.activityType ?? undefined)
-  const statusTitle = status.text.trim() || `${activityLabel} workout`
+  const statusTitle = status.text?.trim() || activityLabel
   const activityDate = formatUtcDate(
-    status.createdAt,
-    'p \u2022 EEEE, MMMM d, yyyy'
+    fitness?.activityStartTime ?? status.createdAt,
+    'p, MMMM d, yyyy'
+  )
+  const visibilityMeta =
+    VISIBILITY_META[getVisibility(status.to, status.cc)] ??
+    VISIBILITY_META.public
+  const VisibilityIcon = visibilityMeta.icon
+  const deviceLabel = getDeviceDisplayLabel(
+    fitness?.deviceName,
+    fitness?.deviceManufacturer
   )
 
   const paceOrSpeed = getFitnessPaceOrSpeed({
@@ -1158,8 +1386,9 @@ export const FitnessStatusDetail: FC<Props> = ({
     (shouldLoadInteractiveMap &&
       (isRouteDataLoading || routeSegments.length > 0))
 
-  const mediaWithoutMap = status.attachments.filter(
-    (_, index) => index !== mapAttachmentIndex
+  const mediaWithoutMap = useMemo(
+    () => status.attachments.filter((_, index) => index !== mapAttachmentIndex),
+    [mapAttachmentIndex, status.attachments]
   )
 
   useEffect(() => {
@@ -1182,27 +1411,9 @@ export const FitnessStatusDetail: FC<Props> = ({
       try {
         setIsRouteDataLoading(true)
 
-        const response = await fetch(
-          `/api/v1/fitness-files/${fitness.id}/route-data`,
-          {
-            method: 'GET',
-            headers: {
-              Accept: 'application/json'
-            }
-          }
-        )
-
-        if (!response.ok) {
-          throw new Error(`Route data request failed (${response.status})`)
-        }
-
-        const data = (await response.json()) as FitnessRouteDataResponse
+        const data = await getFitnessRouteData(fitness.id)
 
         if (cancelled) return
-
-        if (!Array.isArray(data.samples)) {
-          throw new Error('Route data response is invalid')
-        }
 
         const normalizedSamples = data.samples.map((sample) =>
           normalizeRouteSample(sample)
@@ -1226,7 +1437,9 @@ export const FitnessStatusDetail: FC<Props> = ({
         setHeartRateSeries([])
         setAltitudeSeries([])
         setSpeedSeries([])
-        setRouteDataError('Interactive map unavailable. Using static preview.')
+        setRouteDataError(
+          'Could not load route and analysis data for this activity.'
+        )
       } finally {
         if (!cancelled) {
           setIsRouteDataLoading(false)
@@ -1250,6 +1463,9 @@ export const FitnessStatusDetail: FC<Props> = ({
   const distanceMeters = fitness?.totalDistanceMeters ?? 0
   const durationSeconds = fitness?.totalDurationSeconds ?? 0
   const elevationGainMeters = fitness?.elevationGainMeters ?? 0
+  const distanceKm = distanceMeters > 0 ? distanceMeters / 1000 : 0
+  const distanceValue =
+    distanceKm >= 10 ? distanceKm.toFixed(1) : distanceKm.toFixed(2)
 
   const avgPower = useMemo(() => {
     if (powerSeries.length === 0) return null
@@ -1258,23 +1474,53 @@ export const FitnessStatusDetail: FC<Props> = ({
     )
   }, [powerSeries])
 
+  const maxPower = useMemo(() => {
+    if (powerSeries.length === 0) return null
+    return Math.round(getSeriesMinMax(powerSeries).maxValue)
+  }, [powerSeries])
+
   const totalWorkKj = useMemo(() => {
-    if (!avgPower || durationSeconds <= 0) return null
+    // 0 W is a valid average (e.g. a fully-coasting segment), so only treat a
+    // genuinely-absent power series (null) as "no total work".
+    if (avgPower === null || durationSeconds <= 0) return null
     return Math.round((avgPower * durationSeconds) / 1000)
   }, [avgPower, durationSeconds])
+
+  // Heart-rate monitors report 0 bpm during sensor dropouts; exclude those so
+  // the avg/max, the Analysis chart, and the zone buckets all agree (unlike
+  // power, 0 bpm is never a real reading). Mirrors computeHeartRateZones.
+  const positiveHeartRateSeries = useMemo(
+    () => heartRateSeries.filter((bpm) => bpm > 0),
+    [heartRateSeries]
+  )
+
+  const heartRateStats = useMemo(() => {
+    if (positiveHeartRateSeries.length === 0) return null
+    const { maxValue } = getSeriesMinMax(positiveHeartRateSeries)
+    const avg = Math.round(
+      positiveHeartRateSeries.reduce((a, b) => a + b, 0) /
+        positiveHeartRateSeries.length
+    )
+    return { avg, max: Math.round(maxValue) }
+  }, [positiveHeartRateSeries])
+
+  const heartRateZones = useMemo(
+    () => computeHeartRateZones(positiveHeartRateSeries, durationSeconds),
+    [positiveHeartRateSeries, durationSeconds]
+  )
 
   const activitySeries = useMemo(() => {
     return {
       heartRate:
-        heartRateSeries.length > 0
-          ? downsampleSeries(heartRateSeries, 120)
+        positiveHeartRateSeries.length > 0
+          ? downsampleSeries(positiveHeartRateSeries, 120)
           : [],
       power: powerSeries.length > 0 ? downsampleSeries(powerSeries, 120) : [],
       speed: speedSeries.length > 0 ? downsampleSeries(speedSeries, 120) : [],
       elevation:
         altitudeSeries.length > 0 ? downsampleSeries(altitudeSeries, 120) : []
     }
-  }, [heartRateSeries, powerSeries, speedSeries, altitudeSeries])
+  }, [positiveHeartRateSeries, powerSeries, speedSeries, altitudeSeries])
   const { minValue: elevationMin, maxValue: elevationMax } = useMemo(
     () => getSeriesMinMax(activitySeries.elevation),
     [activitySeries.elevation]
@@ -1299,8 +1545,13 @@ export const FitnessStatusDetail: FC<Props> = ({
   const histogramMinutes = useMemo(() => {
     if (powerSeries.length === 0) return []
 
-    const maxPower = Math.max(...powerSeries, 100)
-    const bucketCount = Math.ceil((maxPower + 25) / 25)
+    // Use the stack-safe helper rather than spreading a long series into
+    // Math.max, which can overflow the call stack on large arrays.
+    const computedMaxPower = Math.max(
+      getSeriesMinMax(powerSeries).maxValue,
+      100
+    )
+    const bucketCount = Math.ceil((computedMaxPower + 25) / 25)
 
     const buckets = new Array(bucketCount).fill(0)
     // Actual power data represents samples (usually 1 per second)
@@ -1371,14 +1622,6 @@ export const FitnessStatusDetail: FC<Props> = ({
     return `rgb(${r}, ${g}, ${b})`
   }
 
-  const navItems = useMemo(() => {
-    const items = [...NAV_ITEMS]
-    if (powerSeries.length === 0) {
-      return items.filter((item) => item.id !== '25w-distribution')
-    }
-    return items
-  }, [powerSeries])
-
   const analysisGraphOptions = useMemo(() => {
     return ANALYSIS_GRAPH_OPTIONS.filter((option) => {
       if (option.id === 'elevation') return activitySeries.elevation.length > 0
@@ -1389,251 +1632,428 @@ export const FitnessStatusDetail: FC<Props> = ({
     })
   }, [activitySeries])
 
-  return (
-    <div>
-      <nav
-        className="overflow-x-auto border-b border-border bg-[#f7f7f8]"
-        aria-label="Activity sections"
-      >
-        <ul className="flex min-w-max" role="tablist">
-          {navItems
-            .filter((item) => !item.group)
-            .map((item) => (
-              <li key={item.id} role="presentation">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={activeSection === item.id}
-                  aria-controls={`panel-${item.id}`}
-                  id={`tab-${item.id}`}
-                  onClick={() => setActiveSection(item.id)}
-                  className={cn(
-                    'inline-block cursor-pointer whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500',
-                    activeSection === item.id
-                      ? 'border-b-2 border-primary text-primary'
-                      : 'border-b-2 border-transparent text-muted-foreground'
-                  )}
-                >
-                  {item.label}
-                </button>
-              </li>
-            ))}
-          {navItems.some((item) => item.group === 'subscription') && (
-            <li className="flex items-center px-2" aria-hidden="true">
-              <span className="h-4 w-px bg-border" />
-            </li>
-          )}
-          {navItems
-            .filter((item) => item.group === 'subscription')
-            .map((item) => (
-              <li key={item.id} role="presentation">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={activeSection === item.id}
-                  aria-controls={`panel-${item.id}`}
-                  id={`tab-${item.id}`}
-                  onClick={() => setActiveSection(item.id)}
-                  className={cn(
-                    'inline-block cursor-pointer whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500',
-                    activeSection === item.id
-                      ? 'border-b-2 border-primary text-primary'
-                      : 'border-b-2 border-transparent text-muted-foreground'
-                  )}
-                >
-                  {item.label}
-                </button>
-              </li>
-            ))}
-        </ul>
-      </nav>
+  // Reset the graph filter when the selected option no longer has data (e.g.
+  // after switching to a file without that series), so Analysis never gets
+  // stuck on an empty, removed filter. 'all' is always available.
+  useEffect(() => {
+    if (
+      !analysisGraphOptions.some((option) => option.id === analysisGraphFilter)
+    ) {
+      setAnalysisGraphFilter('all')
+    }
+  }, [analysisGraphOptions, analysisGraphFilter])
 
-      <section className="bg-[#f4f4f6]">
-        <div className="border-b border-slate-300 bg-[#f7f7f8] px-4 py-4 sm:px-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex min-w-0 flex-1 items-start gap-3">
-              <span className="mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-sm bg-orange-100 text-orange-600">
-                {getActivityIcon(fitness?.activityType ?? undefined)}
-              </span>
-              <div className="min-w-0 flex-1">
-                <h1
-                  className="truncate text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl md:text-4xl"
-                  title={`${actorName} - ${activityLabel}`}
+  const hasHeartRate = positiveHeartRateSeries.length > 0
+  const hasPower = powerSeries.length > 0
+  const hasPhotos = mediaWithoutMap.length > 0
+  const hasComments = replies.length > 0 || Boolean(currentActor)
+  const hasAnalysisSeries =
+    activitySeries.elevation.length > 0 ||
+    activitySeries.speed.length > 0 ||
+    activitySeries.power.length > 0 ||
+    activitySeries.heartRate.length > 0
+
+  const tabs = useMemo<SectionTab[]>(() => {
+    const items: SectionTab[] = [
+      { id: 'overview', label: 'Overview', icon: Activity },
+      { id: 'analysis', label: 'Analysis', icon: BarChart3 }
+    ]
+    if (hasHeartRate) {
+      items.push({
+        id: 'heart-rate-zones',
+        label: 'Heart rate zones',
+        icon: HeartPulse
+      })
+    }
+    if (hasPower) {
+      items.push({
+        id: '25w-distribution',
+        label: '25 W Distribution',
+        icon: Gauge
+      })
+    }
+    if (hasPhotos) {
+      items.push({ id: 'photos', label: 'Photos', icon: ImageIcon })
+    }
+    if (hasComments) {
+      items.push({ id: 'comments', label: 'Comments', icon: MessageCircle })
+    }
+    return items
+  }, [hasHeartRate, hasPower, hasPhotos, hasComments])
+
+  // Fall back to Overview if the active section's data went away (e.g. the
+  // selected file has no heart-rate series, so the zones tab is dropped).
+  useEffect(() => {
+    if (!tabs.some((tab) => tab.id === activeSection)) {
+      setActiveSection('overview')
+    }
+  }, [tabs, activeSection])
+
+  const isOwner =
+    Boolean(status.isLocalActor) && currentActor?.id === status.actorId
+
+  const sourceHref = fitness?.id
+    ? `/api/v1/fitness-files/${encodeURIComponent(fitness.id)}`
+    : undefined
+
+  const secondaryStats: Array<{
+    icon: LucideIcon
+    label: string
+    value: string
+    sub?: string
+  }> = []
+  if (heartRateStats) {
+    secondaryStats.push({
+      icon: HeartPulse,
+      label: 'Avg HR',
+      value: `${heartRateStats.avg}`,
+      sub: `max ${heartRateStats.max} bpm`
+    })
+  }
+  if (totalWorkKj !== null) {
+    secondaryStats.push({
+      icon: Flame,
+      label: 'Total work',
+      value: `${totalWorkKj}`,
+      sub: 'kJ'
+    })
+  }
+  if (maxPower !== null) {
+    secondaryStats.push({
+      icon: Gauge,
+      label: 'Max power',
+      value: `${maxPower}`,
+      sub: 'watts'
+    })
+  }
+  // Only surface Elevation here when the header's 4th primary tile is Avg power
+  // (rides). For runs the header already shows "Elev gain", so repeating it as a
+  // secondary tile would duplicate the same number.
+  if (avgPower !== null) {
+    secondaryStats.push({
+      icon: Mountain,
+      label: 'Elevation',
+      value: `${Math.max(0, Math.round(elevationGainMeters))} m`,
+      sub: 'total ascent'
+    })
+  }
+
+  return (
+    <div className="space-y-4 p-4 sm:p-5">
+      {/* Header card */}
+      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+        <div className="p-5">
+          <div className="flex items-center gap-3">
+            <div className="shrink-0">
+              <ActorAvatar
+                actor={status.actor}
+                actorId={status.actorId}
+                statusUrl={status.url}
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-semibold">{actorName}</div>
+              {actorHandle ? (
+                <div className="truncate text-xs text-muted-foreground">
+                  {actorHandle}
+                </div>
+              ) : null}
+            </div>
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+              <Activity className="size-3.5" /> {activityLabel}
+            </span>
+          </div>
+
+          <h1
+            className="mt-3 text-2xl font-semibold tracking-tight"
+            title={statusTitle}
+          >
+            {statusTitle}
+          </h1>
+
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <Calendar className="size-3.5" /> {activityDate}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span
+              className="inline-flex items-center gap-1.5"
+              title={visibilityMeta.label}
+            >
+              <VisibilityIcon className="size-3.5" /> {visibilityMeta.label}
+            </span>
+          </div>
+
+          {deviceLabel ? (
+            <div className="mt-1 text-sm text-muted-foreground">
+              Recorded with{' '}
+              <BrandedDeviceLink
+                deviceName={fitness?.deviceName}
+                deviceManufacturer={fitness?.deviceManufacturer}
+              />
+            </div>
+          ) : null}
+
+          {fitnessSourceUrl ? (
+            <div className="mt-1 text-sm">
+              <a
+                href={fitnessSourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                <ExternalLink className="size-3.5 shrink-0" />
+                {getFitnessSourceLabel(fitnessSourceUrl)}
+              </a>
+            </div>
+          ) : null}
+
+          {fitnessFiles.length > 1 && (
+            <div className="mt-4">
+              <label
+                htmlFor="activity-file-select"
+                className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+              >
+                Activity file
+              </label>
+              <div className="mt-1.5">
+                <select
+                  id="activity-file-select"
+                  value={selectedFitnessFileId ?? ''}
+                  onChange={(event) =>
+                    setSelectedFitnessFileId(event.target.value)
+                  }
+                  className="h-9 rounded-lg border bg-background px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 >
-                  {actorName} - {activityLabel}
-                </h1>
-                <p className="mt-1 truncate text-xs text-slate-500 sm:text-sm">
-                  {activityDate}
-                </p>
-                {getDeviceDisplayLabel(
-                  fitness?.deviceName,
-                  fitness?.deviceManufacturer
-                ) ? (
-                  <p className="mt-1 truncate text-xs text-slate-500 sm:text-sm">
-                    Recorded with{' '}
-                    <BrandedDeviceLink
-                      deviceName={fitness?.deviceName}
-                      deviceManufacturer={fitness?.deviceManufacturer}
-                    />
-                  </p>
-                ) : null}
-                {fitnessSourceUrl ? (
-                  <p className="mt-1 text-xs sm:text-sm">
-                    <a
-                      href={fitnessSourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
-                    >
-                      <ExternalLink className="size-3.5 shrink-0" />
-                      {getFitnessSourceLabel(fitnessSourceUrl)}
-                    </a>
-                  </p>
-                ) : null}
-                <h2
-                  className="mt-2 truncate text-lg font-semibold tracking-tight text-slate-900 sm:text-xl md:text-3xl"
-                  title={statusTitle}
-                >
-                  {statusTitle}
-                </h2>
-                {fitnessFiles.length > 1 && (
-                  <div className="mt-3 flex items-center gap-2">
-                    <label
-                      htmlFor="activity-file-select"
-                      className="text-xs font-medium uppercase tracking-wide text-slate-500"
-                    >
-                      Activity File
-                    </label>
-                    <select
-                      id="activity-file-select"
-                      value={selectedFitnessFileId ?? ''}
-                      onChange={(e) => setSelectedFitnessFileId(e.target.value)}
-                      className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
-                    >
-                      {fitnessFiles.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.fileName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                  {fitnessFiles.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.fileName}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
-            {currentActor?.id === status.actorId && (
-              <div className="flex shrink-0 items-center gap-2 text-muted-foreground">
-                <VisibilityButton status={status} />
-              </div>
+          )}
+
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatTile
+              icon={Route}
+              label="Distance"
+              value={distanceValue}
+              sub="km"
+              big
+            />
+            <StatTile
+              icon={Clock}
+              label="Moving time"
+              value={formatDuration(durationSeconds)}
+              sub="moving"
+              big
+            />
+            <StatTile
+              icon={Gauge}
+              label={paceOrSpeed?.label ?? 'Avg speed'}
+              value={paceOrSpeed?.value ?? '0.0 km/h'}
+              big
+              accent
+            />
+            {avgPower !== null ? (
+              <StatTile
+                icon={Gauge}
+                label="Avg power"
+                value={`${avgPower}`}
+                sub="watts"
+                big
+              />
+            ) : (
+              <StatTile
+                icon={Mountain}
+                label="Elev gain"
+                value={`${Math.max(0, Math.round(elevationGainMeters))}`}
+                sub="m"
+                big
+              />
             )}
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-y-1 border-b border-slate-300 bg-[#f0f1f3] px-2 py-2 sm:grid-cols-3">
-          <MetricCard label="Distance" value={formatDistance(distanceMeters)} />
-          <MetricCard
-            label="Moving Time"
-            value={formatDuration(durationSeconds)}
-          />
-          <MetricCard
-            label="Elevation"
-            value={`${Math.max(0, Math.round(elevationGainMeters))} m`}
-          />
-          <MetricCard
-            label={paceOrSpeed?.label ?? 'Avg speed'}
-            value={paceOrSpeed?.value ?? '0.0 km/h'}
-          />
-          {avgPower !== null && (
-            <MetricCard label="Avg Power" value={`${avgPower} w`} />
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t px-4 py-2.5">
+          {sourceHref ? (
+            <a
+              href={sourceHref}
+              className="inline-flex min-w-0 items-center gap-2 text-xs text-muted-foreground"
+              title={fitness?.fileName}
+            >
+              <Activity className="size-3.5 shrink-0" />
+              <span className="truncate underline decoration-border underline-offset-2">
+                {fitness?.fileName}
+              </span>
+              <span className="shrink-0 uppercase">{fitness?.fileType}</span>
+              {fitnessFiles.length > 1 && selectedFileIndex >= 0 ? (
+                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium">
+                  file {selectedFileIndex + 1} of {fitnessFiles.length}
+                </span>
+              ) : null}
+            </a>
+          ) : (
+            <span />
           )}
-          {totalWorkKj !== null && (
-            <MetricCard label="Total Work" value={`${totalWorkKj} kJ`} />
-          )}
+          {currentActor ? (
+            <div className="flex items-center gap-0.5 text-muted-foreground">
+              <ReplyButton
+                status={status}
+                onReply={() => setActiveSection('comments')}
+              />
+              <RepostButton currentActor={currentActor} status={status} />
+              <LikeButton currentActor={currentActor} status={status} />
+              <BookmarkButton status={status} />
+              <PostMenu
+                status={status}
+                isOwner={isOwner}
+                canEdit={false}
+                onReply={() => setActiveSection('comments')}
+              />
+            </div>
+          ) : null}
         </div>
+      </div>
 
-        {shouldRenderMapPanel && (
-          <ActivityMapPanel
-            mapAttachment={mapAttachment}
-            routeSamples={routeSamples}
-            routeSegments={routeSegments}
-            highlightedElapsedSeconds={highlightedElapsedSeconds}
-            mapboxAccessToken={mapboxAccessToken}
-            routeDataError={routeDataError}
-            isRouteDataLoading={isRouteDataLoading}
-            onOpenMap={() => {
-              if (mapAttachmentIndex >= 0) {
-                onShowAttachment(status.attachments, mapAttachmentIndex)
-              }
-            }}
-          />
-        )}
+      {/* Section sub-navigation */}
+      <SectionNav
+        tabs={tabs}
+        active={activeSection}
+        onChange={setActiveSection}
+      />
 
+      {/* When the route-data load fails and there is no map panel to host the
+          banner, surface the error here so the failure is never invisible. */}
+      {routeDataError && !shouldRenderMapPanel ? (
         <div
-          id="panel-overview"
-          role="tabpanel"
-          aria-labelledby="tab-overview"
-          tabIndex={0}
-          className={cn(
-            'focus-visible:outline-none',
-            activeSection !== 'overview' && 'hidden'
-          )}
+          role="alert"
+          className="rounded-lg border border-amber-300 bg-amber-50/95 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
         >
-          <div className="space-y-6 p-4 sm:p-6">
-            <div className="space-y-3">
-              <h3 className="text-lg font-semibold text-slate-900">Media</h3>
-              <ActivityGallery
-                attachments={mediaWithoutMap}
-                onOpenAttachment={(index) => {
-                  const target = status.attachments.findIndex(
-                    (attachment) => attachment.id === mediaWithoutMap[index]?.id
-                  )
-                  if (target >= 0) {
-                    onShowAttachment(status.attachments, target)
+          {routeDataError}
+        </div>
+      ) : null}
+
+      <div
+        className="min-w-0"
+        role="region"
+        aria-label={
+          tabs.find((tab) => tab.id === activeSection)?.label ?? 'Activity'
+        }
+      >
+        {activeSection === 'overview' && (
+          <div className="space-y-4">
+            {shouldRenderMapPanel && (
+              <ActivityMapPanel
+                mapAttachment={mapAttachment}
+                routeSamples={routeSamples}
+                routeSegments={routeSegments}
+                mapboxAccessToken={mapboxAccessToken}
+                routeDataError={routeDataError}
+                isRouteDataLoading={isRouteDataLoading}
+                onOpenMap={() => {
+                  if (mapAttachmentIndex >= 0) {
+                    onShowAttachment(status.attachments, mapAttachmentIndex)
                   }
                 }}
               />
-            </div>
-          </div>
-        </div>
+            )}
 
-        <div
-          id="panel-analysis"
-          role="tabpanel"
-          aria-labelledby="tab-analysis"
-          tabIndex={0}
-          className={cn(
-            'focus-visible:outline-none',
-            activeSection !== 'analysis' && 'hidden'
-          )}
-        >
-          <div className="space-y-4 p-4 sm:p-6">
-            <div className="rounded-lg border bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Graph display
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {analysisGraphOptions.map((option) => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    aria-pressed={analysisGraphFilter === option.id}
-                    onClick={() => setAnalysisGraphFilter(option.id)}
-                    className={cn(
-                      'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
-                      analysisGraphFilter === option.id
-                        ? 'border-orange-500 bg-orange-50 text-orange-700'
-                        : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-800'
-                    )}
-                  >
-                    {option.label}
-                  </button>
+            {secondaryStats.length > 0 && (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {secondaryStats.map((stat) => (
+                  <StatTile
+                    key={stat.label}
+                    icon={stat.icon}
+                    label={stat.label}
+                    value={stat.value}
+                    sub={stat.sub}
+                  />
                 ))}
               </div>
-              <p className="mt-2 text-xs text-slate-500">
-                {highlightedElapsedLabel
-                  ? `Selected time: ${highlightedElapsedLabel}`
-                  : 'Hover any graph below to follow that time point on the map.'}
-              </p>
-            </div>
+            )}
+
+            {activitySeries.elevation.length > 0 && (
+              <Card>
+                <SectionTitle
+                  icon={Mountain}
+                  right={
+                    <span className="text-xs text-muted-foreground">
+                      {Math.max(0, Math.round(elevationGainMeters))} m gain
+                    </span>
+                  }
+                >
+                  Elevation
+                </SectionTitle>
+                <ElevationProfileChart values={activitySeries.elevation} />
+              </Card>
+            )}
+          </div>
+        )}
+
+        {activeSection === 'analysis' && (
+          <div className="space-y-4">
+            {/* Keep the heading outline contiguous (h1 -> h2 -> h3); the
+                section is already visually identified by the sub-nav. */}
+            <h2 className="sr-only">Analysis</h2>
+            {shouldRenderMapPanel && (
+              <ActivityMapPanel
+                mapAttachment={mapAttachment}
+                routeSamples={routeSamples}
+                routeSegments={routeSegments}
+                highlightedElapsedSeconds={highlightedElapsedSeconds}
+                mapboxAccessToken={mapboxAccessToken}
+                routeDataError={routeDataError}
+                isRouteDataLoading={isRouteDataLoading}
+                onOpenMap={() => {
+                  if (mapAttachmentIndex >= 0) {
+                    onShowAttachment(status.attachments, mapAttachmentIndex)
+                  }
+                }}
+              />
+            )}
+
+            {!hasAnalysisSeries ? (
+              <Card>
+                <p className="text-sm text-muted-foreground">
+                  {isRouteDataLoading
+                    ? 'Loading analysis data…'
+                    : (routeDataError ??
+                      'No analysis data is available for this activity.')}
+                </p>
+              </Card>
+            ) : (
+              <Card>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Graph display
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {analysisGraphOptions.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      aria-pressed={analysisGraphFilter === option.id}
+                      onClick={() => setAnalysisGraphFilter(option.id)}
+                      className={cn(
+                        'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+                        analysisGraphFilter === option.id
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border bg-background text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {highlightedElapsedLabel
+                    ? `Selected time: ${highlightedElapsedLabel}`
+                    : 'Hover any graph below to follow that time point on the map.'}
+                </p>
+              </Card>
+            )}
 
             {(analysisGraphFilter === 'all' ||
               analysisGraphFilter === 'elevation') &&
@@ -1648,7 +2068,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                   durationSeconds={durationSeconds}
                   highlightedElapsedSeconds={highlightedElapsedSeconds}
                   onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                  showHoverMessage={analysisGraphFilter !== 'all'}
+                  showHoverMessage={false}
                 />
               )}
 
@@ -1665,7 +2085,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                   durationSeconds={durationSeconds}
                   highlightedElapsedSeconds={highlightedElapsedSeconds}
                   onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                  showHoverMessage={analysisGraphFilter !== 'all'}
+                  showHoverMessage={false}
                 />
               )}
 
@@ -1682,7 +2102,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                   durationSeconds={durationSeconds}
                   highlightedElapsedSeconds={highlightedElapsedSeconds}
                   onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                  showHoverMessage={analysisGraphFilter !== 'all'}
+                  showHoverMessage={false}
                 />
               )}
 
@@ -1699,215 +2119,315 @@ export const FitnessStatusDetail: FC<Props> = ({
                   durationSeconds={durationSeconds}
                   highlightedElapsedSeconds={highlightedElapsedSeconds}
                   onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                  showHoverMessage={analysisGraphFilter !== 'all'}
+                  showHoverMessage={false}
                 />
               )}
           </div>
-        </div>
+        )}
 
-        <div
-          id="panel-25w-distribution"
-          role="tabpanel"
-          aria-labelledby="tab-25w-distribution"
-          tabIndex={0}
-          className={cn(
-            'focus-visible:outline-none',
-            activeSection !== '25w-distribution' && 'hidden'
-          )}
-        >
-          <div className="space-y-4 p-4 sm:p-6">
-            <h3 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl md:text-5xl">
-              25W Power Distribution
-            </h3>
-            <div className="rounded-sm border border-slate-300 bg-white p-4">
-              <div className="grid grid-cols-[auto_1fr] items-stretch gap-4">
-                <div
-                  className={cn(
-                    'flex flex-col justify-between text-[11px] text-slate-400 py-1',
-                    GRAPH_HEIGHT_CLASSNAME
-                  )}
-                >
-                  {histogramLayout.yAxisTicks
-                    .slice()
-                    .reverse()
-                    .map((tick, i) => (
-                      <span key={`y-tick-${i}`} className="text-right pr-2">
-                        {tick.label}
-                      </span>
-                    ))}
-                </div>
-                <div className="min-w-0 relative pt-1">
-                  <svg
-                    viewBox={`0 0 760 ${histogramLayout.histogramViewHeight}`}
-                    preserveAspectRatio="none"
-                    className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
-                  >
-                    {/* Grid lines */}
-                    {histogramLayout.yAxisTicks.map((tick, i) => (
-                      <line
-                        key={`grid-${i}`}
-                        x1="0"
-                        y1={tick.y}
-                        x2="760"
-                        y2={tick.y}
-                        className="stroke-slate-100 stroke-[1]"
-                      />
-                    ))}
+        {activeSection === 'heart-rate-zones' && (
+          <Card>
+            <SectionTitle
+              icon={HeartPulse}
+              right={
+                heartRateStats ? (
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    avg {heartRateStats.avg} · max {heartRateStats.max} bpm
+                  </span>
+                ) : null
+              }
+            >
+              Heart rate zones
+            </SectionTitle>
+            <HeartRateZonesPanel zones={heartRateZones} />
+          </Card>
+        )}
 
-                    {/* Bars */}
-                    {histogramMinutes.map((value, index) => {
-                      const x =
-                        index *
-                        (histogramLayout.barWidth + histogramLayout.barGap)
-                      const barHeight =
-                        (value / histogramLayout.maxValue) *
-                        histogramLayout.histogramHeight
-                      const y = histogramLayout.histogramViewHeight - barHeight
-                      const isHovered = hoveredBucketIndex === index
-
-                      return (
-                        <rect
-                          key={`bar-${index}`}
-                          x={x}
-                          y={y}
-                          width={histogramLayout.barWidth}
-                          height={barHeight}
-                          fill={getBarColor(index, histogramLayout.barCount)}
-                          className={cn(
-                            'transition-opacity cursor-crosshair',
-                            hoveredBucketIndex !== null && !isHovered
-                              ? 'opacity-40'
-                              : 'opacity-100'
-                          )}
-                          onMouseMove={() => setHoveredBucketIndex(index)}
-                          onMouseLeave={() => setHoveredBucketIndex(null)}
-                        />
-                      )
-                    })}
-
-                    {/* Hover Tooltip */}
-                    {hoveredBucketIndex !== null &&
-                      (() => {
-                        const value = histogramMinutes[hoveredBucketIndex]
-                        const totalMinutes = histogramMinutes.reduce(
-                          (a, b) => a + b,
-                          0
-                        )
-                        const percentage =
-                          totalMinutes > 0 ? (value / totalMinutes) * 100 : 0
-                        const powerRange = `${hoveredBucketIndex * 25}-${
-                          (hoveredBucketIndex + 1) * 25
-                        }W`
-
-                        // Tooltip positioning
-                        const tooltipWidth = 140
-                        const tooltipHeight = 60
-                        let tooltipX =
-                          hoveredBucketIndex *
-                            (histogramLayout.barWidth +
-                              histogramLayout.barGap) +
-                          histogramLayout.barWidth / 2 -
-                          tooltipWidth / 2
-                        // Keep within bounds
-                        tooltipX = Math.max(
-                          0,
-                          Math.min(760 - tooltipWidth, tooltipX)
-                        )
-                        const tooltipY = Math.max(
-                          0,
-                          histogramLayout.histogramViewHeight -
-                            (value / histogramLayout.maxValue) *
-                              histogramLayout.histogramHeight -
-                            tooltipHeight -
-                            10
-                        )
-
-                        return (
-                          <g
-                            transform={`translate(${tooltipX}, ${tooltipY})`}
-                            className="pointer-events-none"
-                          >
-                            <rect
-                              width={tooltipWidth}
-                              height={tooltipHeight}
-                              rx="4"
-                              className="fill-slate-900/90"
-                            />
-                            <text
-                              x={tooltipWidth / 2}
-                              y="20"
-                              textAnchor="middle"
-                              className="fill-white text-[11px] font-bold"
-                            >
-                              {powerRange}
-                            </text>
-                            <text
-                              x={tooltipWidth / 2}
-                              y="38"
-                              textAnchor="middle"
-                              className="fill-slate-300 text-[11px]"
-                            >
-                              {formatDuration(Math.round(value * 60))} (
-                              {percentage.toFixed(1)}%)
-                            </text>
-                          </g>
-                        )
-                      })()}
-
-                    {/* Weighted Average Line */}
-                    <line
-                      x1={histogramLayout.weightedAvgX}
-                      y1={histogramLayout.histogramTopPadding}
-                      x2={histogramLayout.weightedAvgX}
-                      y2={histogramLayout.histogramViewHeight}
-                      stroke="#a65e92"
-                      strokeWidth="1.5"
-                      strokeDasharray="4,4"
-                    />
-                    <text
-                      x={Math.min(
-                        Math.max(histogramLayout.weightedAvgX, 80),
-                        680
-                      )}
-                      y={histogramLayout.histogramTopPadding - 6}
-                      textAnchor="middle"
-                      fill="#a65e92"
-                      fontSize="12"
-                      className="font-medium"
-                    >
-                      Average Power {histogramLayout.weightedAvgPowerValue} W
-                    </text>
-                  </svg>
-
-                  {/* X-Axis labels */}
-                  <div className="mt-2 flex text-[11px] text-slate-400 border-t border-slate-200 pt-2 relative h-6">
-                    {histogramMinutes.map((_, index) => {
-                      // Show label at start of bucket, only every 50W (index % 2 === 0)
-                      if (index % 2 !== 0) return null
-
-                      const leftPercent =
-                        (index / histogramLayout.barCount) * 100
-                      return (
-                        <span
-                          key={`label-${index}`}
-                          className="absolute"
-                          style={{ left: `${leftPercent}%` }}
-                        >
-                          {index * 25} W
-                        </span>
-                      )
-                    })}
-                    {/* Final label at the end */}
-                    <span className="absolute right-0 text-right">
-                      {histogramLayout.barCount * 25} W
+        {activeSection === '25w-distribution' && (
+          <Card>
+            <SectionTitle
+              icon={BarChart3}
+              right={
+                avgPower !== null && maxPower !== null ? (
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    avg {avgPower} · max {maxPower} W
+                  </span>
+                ) : null
+              }
+            >
+              Power distribution
+            </SectionTitle>
+            <div className="grid grid-cols-[auto_1fr] items-stretch gap-4">
+              <div
+                className={cn(
+                  'flex flex-col justify-between py-1 text-[11px] tabular-nums text-muted-foreground',
+                  GRAPH_HEIGHT_CLASSNAME
+                )}
+              >
+                {histogramLayout.yAxisTicks
+                  .slice()
+                  .reverse()
+                  .map((tick, i) => (
+                    <span key={`y-tick-${i}`} className="pr-2 text-right">
+                      {tick.label}
                     </span>
-                  </div>
+                  ))}
+              </div>
+              <div className="relative min-w-0 pt-1">
+                <svg
+                  viewBox={`0 0 760 ${histogramLayout.histogramViewHeight}`}
+                  preserveAspectRatio="none"
+                  className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
+                >
+                  {/* Grid lines */}
+                  {histogramLayout.yAxisTicks.map((tick, i) => (
+                    <line
+                      key={`grid-${i}`}
+                      x1="0"
+                      y1={tick.y}
+                      x2="760"
+                      y2={tick.y}
+                      className="stroke-muted stroke-[1]"
+                    />
+                  ))}
+
+                  {/* Bars */}
+                  {histogramMinutes.map((value, index) => {
+                    const x =
+                      index *
+                      (histogramLayout.barWidth + histogramLayout.barGap)
+                    const barHeight =
+                      (value / histogramLayout.maxValue) *
+                      histogramLayout.histogramHeight
+                    const y = histogramLayout.histogramViewHeight - barHeight
+                    const isHovered = hoveredBucketIndex === index
+
+                    return (
+                      <rect
+                        key={`bar-${index}`}
+                        x={x}
+                        y={y}
+                        width={histogramLayout.barWidth}
+                        height={barHeight}
+                        fill={getBarColor(index, histogramLayout.barCount)}
+                        className={cn(
+                          'cursor-crosshair transition-opacity',
+                          hoveredBucketIndex !== null && !isHovered
+                            ? 'opacity-40'
+                            : 'opacity-100'
+                        )}
+                        onMouseMove={() => setHoveredBucketIndex(index)}
+                        onMouseLeave={() => setHoveredBucketIndex(null)}
+                      />
+                    )
+                  })}
+
+                  {/* Hover Tooltip */}
+                  {hoveredBucketIndex !== null &&
+                    (() => {
+                      const value = histogramMinutes[hoveredBucketIndex]
+                      const totalMinutes = histogramMinutes.reduce(
+                        (a, b) => a + b,
+                        0
+                      )
+                      const percentage =
+                        totalMinutes > 0 ? (value / totalMinutes) * 100 : 0
+                      const powerRange = `${hoveredBucketIndex * 25}-${
+                        (hoveredBucketIndex + 1) * 25
+                      }W`
+
+                      // Tooltip positioning
+                      const tooltipWidth = 140
+                      const tooltipHeight = 60
+                      let tooltipX =
+                        hoveredBucketIndex *
+                          (histogramLayout.barWidth + histogramLayout.barGap) +
+                        histogramLayout.barWidth / 2 -
+                        tooltipWidth / 2
+                      // Keep within bounds
+                      tooltipX = Math.max(
+                        0,
+                        Math.min(760 - tooltipWidth, tooltipX)
+                      )
+                      const tooltipY = Math.max(
+                        0,
+                        histogramLayout.histogramViewHeight -
+                          (value / histogramLayout.maxValue) *
+                            histogramLayout.histogramHeight -
+                          tooltipHeight -
+                          10
+                      )
+
+                      return (
+                        <g
+                          transform={`translate(${tooltipX}, ${tooltipY})`}
+                          className="pointer-events-none"
+                        >
+                          <rect
+                            width={tooltipWidth}
+                            height={tooltipHeight}
+                            rx="4"
+                            className="fill-slate-900/90"
+                          />
+                          <text
+                            x={tooltipWidth / 2}
+                            y="20"
+                            textAnchor="middle"
+                            className="fill-white text-[11px] font-bold"
+                          >
+                            {powerRange}
+                          </text>
+                          <text
+                            x={tooltipWidth / 2}
+                            y="38"
+                            textAnchor="middle"
+                            className="fill-slate-300 text-[11px]"
+                          >
+                            {formatDuration(Math.round(value * 60))} (
+                            {percentage.toFixed(1)}%)
+                          </text>
+                        </g>
+                      )
+                    })()}
+
+                  {/* Weighted Average Line */}
+                  <line
+                    x1={histogramLayout.weightedAvgX}
+                    y1={histogramLayout.histogramTopPadding}
+                    x2={histogramLayout.weightedAvgX}
+                    y2={histogramLayout.histogramViewHeight}
+                    stroke="#a65e92"
+                    strokeWidth="1.5"
+                    strokeDasharray="4,4"
+                  />
+                  <text
+                    x={Math.min(
+                      Math.max(histogramLayout.weightedAvgX, 80),
+                      680
+                    )}
+                    y={histogramLayout.histogramTopPadding - 6}
+                    textAnchor="middle"
+                    fill="#a65e92"
+                    fontSize="12"
+                    className="font-medium"
+                  >
+                    Average Power {histogramLayout.weightedAvgPowerValue} W
+                  </text>
+                </svg>
+
+                {/* X-Axis labels */}
+                <div className="relative mt-2 flex h-6 border-t border-border pt-2 text-[11px] tabular-nums text-muted-foreground">
+                  {histogramMinutes.map((_, index) => {
+                    // Show label at start of bucket, only every 50W (index % 2 === 0)
+                    if (index % 2 !== 0) return null
+
+                    const leftPercent = (index / histogramLayout.barCount) * 100
+                    return (
+                      <span
+                        key={`label-${index}`}
+                        className="absolute"
+                        style={{ left: `${leftPercent}%` }}
+                      >
+                        {index * 25} W
+                      </span>
+                    )
+                  })}
+                  {/* Final label at the end */}
+                  <span className="absolute right-0 text-right">
+                    {histogramLayout.barCount * 25} W
+                  </span>
                 </div>
               </div>
             </div>
+          </Card>
+        )}
+
+        {activeSection === 'photos' && (
+          <Card padded={false} className="p-4">
+            <SectionTitle
+              icon={ImageIcon}
+              right={
+                <span className="text-xs text-muted-foreground">
+                  {mediaWithoutMap.length}{' '}
+                  {mediaWithoutMap.length === 1 ? 'photo' : 'photos'}
+                </span>
+              }
+            >
+              Photos
+            </SectionTitle>
+            <ActivityGallery
+              attachments={mediaWithoutMap}
+              onOpenAttachment={(index) => {
+                const target = status.attachments.findIndex(
+                  (attachment) => attachment.id === mediaWithoutMap[index]?.id
+                )
+                if (target >= 0) {
+                  onShowAttachment(status.attachments, target)
+                }
+              }}
+            />
+          </Card>
+        )}
+
+        {activeSection === 'comments' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: 'Boosts', value: status.totalShares },
+                { label: 'Likes', value: status.totalLikes },
+                { label: 'Comments', value: replies.length }
+              ].map((stat) => (
+                <div
+                  key={stat.label}
+                  className="rounded-xl border bg-background p-3.5 text-center shadow-sm"
+                >
+                  <div className="text-2xl font-semibold tabular-nums">
+                    {stat.value}
+                  </div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">
+                    {stat.label}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {currentActor ? (
+              <StatusReplyBox
+                key={composerKey}
+                profile={currentActor}
+                replyStatus={status}
+                isMediaUploadEnabled={isMediaUploadEnabled}
+                onCancel={() => setComposerKey((value) => value + 1)}
+                onPostCreated={() => {
+                  setComposerKey((value) => value + 1)
+                  router.refresh()
+                }}
+              />
+            ) : null}
+
+            {replies.length > 0 ? (
+              <div className="divide-y rounded-xl border bg-card">
+                {replies.map((reply) => (
+                  <article key={reply.id} className="p-4">
+                    <Post
+                      host={host}
+                      currentActor={currentActor ?? undefined}
+                      currentTime={currentTime}
+                      status={reply}
+                      collapsible
+                      onShowAttachment={onShowAttachment}
+                    />
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-xl border border-dashed bg-background p-6 text-center text-sm text-muted-foreground">
+                No comments yet.
+              </p>
+            )}
           </div>
-        </div>
-      </section>
+        )}
+      </div>
     </div>
   )
 }
