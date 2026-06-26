@@ -55,20 +55,19 @@ export const POST = traceApiRoute(
       offset += FITNESS_FILE_PAGE_SIZE
     }
 
-    let retried = 0
-    let batches = 0
-    let failedBatches = 0
+    // Each batch is independent, so requeue them concurrently. allSettled keeps
+    // one batch's failure from blocking the rest; retryFitnessImportBatch
+    // already rolls back and logs on its own failure.
+    const results = await Promise.allSettled(
+      Array.from(retriableBatchIds).map(async (batchId) => {
+        const batchFiles = await database.getFitnessFilesByBatchId({ batchId })
+        const ownedFiles = batchFiles.filter(
+          (file) => file.actorId === currentActor.id
+        )
+        if (ownedFiles.length === 0) {
+          return 0
+        }
 
-    for (const batchId of retriableBatchIds) {
-      const batchFiles = await database.getFitnessFilesByBatchId({ batchId })
-      const ownedFiles = batchFiles.filter(
-        (file) => file.actorId === currentActor.id
-      )
-      if (ownedFiles.length === 0) {
-        continue
-      }
-
-      try {
         const { retried: batchRetried } = await retryFitnessImportBatch({
           database,
           batchId,
@@ -77,14 +76,20 @@ export const POST = traceApiRoute(
           visibility: RETRY_VISIBILITY,
           now
         })
+        return batchRetried
+      })
+    )
 
-        if (batchRetried > 0) {
-          retried += batchRetried
+    let retried = 0
+    let batches = 0
+    let failedBatches = 0
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        if (result.value > 0) {
+          retried += result.value
           batches += 1
         }
-      } catch {
-        // retryFitnessImportBatch already rolled the batch back and logged the
-        // failure; keep going so one bad batch doesn't block the rest.
+      } else {
         failedBatches += 1
       }
     }

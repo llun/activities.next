@@ -47,16 +47,16 @@ interface FitnessFileItem {
   importStatus?: 'pending' | 'completed' | 'failed'
   importError?: string | null
   importBatchId?: string
-  processingStatus?: 'pending' | 'processing' | 'completed' | 'failed'
-  // Server-computed: true when a `processing` file has been stranded long
-  // enough that its worker must have died mid-job.
-  processingStuck?: boolean
 }
 
 interface Props {
   used: number
   limit: number
   fitnessFiles: FitnessFileItem[]
+  // Computed server-side across ALL the actor's files (failed import / failed
+  // processing / stuck processing), so the "Retry all failed" button stays
+  // visible even when the retriable files are on another page.
+  hasRetriableImport: boolean
   currentPage: number
   itemsPerPage: number
   totalItems: number
@@ -66,6 +66,7 @@ export function FitnessFileManagement({
   used,
   limit,
   fitnessFiles: initialFitnessFiles,
+  hasRetriableImport,
   currentPage,
   itemsPerPage,
   totalItems
@@ -183,18 +184,6 @@ export function FitnessFileManagement({
       setRetryingAll(false)
     }
   }
-
-  // Mirror the retry-all endpoint's isRetriableFitnessFile predicate (failed
-  // import OR failed processing OR stuck processing) so the button is shown
-  // whenever "Retry all failed" would actually requeue something — not only for
-  // import failures. Files with no import batch can't be batch-retried.
-  const hasRetriableImport = fitnessFiles.some(
-    (file) =>
-      Boolean(file.importBatchId) &&
-      (file.importStatus === 'failed' ||
-        file.processingStatus === 'failed' ||
-        Boolean(file.processingStuck))
-  )
 
   const percentUsed = limit > 0 ? Math.min((currentUsed / limit) * 100, 100) : 0
 

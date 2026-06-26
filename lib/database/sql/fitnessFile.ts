@@ -143,6 +143,17 @@ export interface FitnessFileDatabase {
   countFitnessFilesByActor(
     params: Omit<GetFitnessFilesByActorParams, 'limit' | 'offset'>
   ): Promise<number>
+  /**
+   * True when the actor has at least one batch-imported fitness file that the
+   * "retry all failed" action would requeue: a failed import, a failed map
+   * processing, or a file stranded in `processing` since before `stuckBefore`.
+   * Used to decide button visibility across ALL the actor's files, not just the
+   * current page.
+   */
+  getActorHasRetriableFitnessImport(params: {
+    actorId: string
+    stuckBefore: Date
+  }): Promise<boolean>
   getFitnessFilesWithStatusForAccount(
     params: GetFitnessFilesForAccountParams
   ): Promise<PaginatedFitnessFiles>
@@ -430,6 +441,32 @@ export const FitnessFileSQLDatabaseMixin = (
     })
 
     return Number(row?.count ?? 0)
+  },
+
+  async getActorHasRetriableFitnessImport({
+    actorId,
+    stuckBefore
+  }: {
+    actorId: string
+    stuckBefore: Date
+  }) {
+    const row = await database<SQLFitnessFile>('fitness_files')
+      .where('actorId', actorId)
+      .whereNull('deletedAt')
+      .whereNotNull('importBatchId')
+      .where((builder) => {
+        builder
+          .where('importStatus', 'failed')
+          .orWhere('processingStatus', 'failed')
+          .orWhere((stuck) => {
+            stuck
+              .where('processingStatus', 'processing')
+              .where('updatedAt', '<=', stuckBefore)
+          })
+      })
+      .first()
+
+    return Boolean(row)
   },
 
   async getFitnessFilesWithStatusForAccount({

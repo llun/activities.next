@@ -6,7 +6,7 @@ import { FitnessFileManagement } from '@/lib/components/settings/FitnessFileMana
 import { FitnessImport } from '@/lib/components/settings/FitnessImport'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
-import { isFitnessProcessingStuck } from '@/lib/services/fitness-files/processingState'
+import { STUCK_PROCESSING_THRESHOLD_MS } from '@/lib/services/fitness-files/processingState'
 import { getQuotaLimit } from '@/lib/services/medias/quota'
 import { getActorProfile, getMention } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -48,23 +48,29 @@ const Page = async ({
   const parsedLimit = parseInt(params.limit || '25', 10)
   const itemsPerPage = [25, 50, 100].includes(parsedLimit) ? parsedLimit : 25
 
-  const [mediaUsed, fitnessUsed, result] = await Promise.all([
-    database.getStorageUsageForAccount({
-      accountId: actor.account.id
-    }),
-    database.getFitnessStorageUsageForAccount({
-      accountId: actor.account.id
-    }),
-    database.getFitnessFilesWithStatusForAccount({
-      accountId: actor.account.id,
-      limit: itemsPerPage,
-      page
-    })
-  ])
+  const [mediaUsed, fitnessUsed, result, hasRetriableImport] =
+    await Promise.all([
+      database.getStorageUsageForAccount({
+        accountId: actor.account.id
+      }),
+      database.getFitnessStorageUsageForAccount({
+        accountId: actor.account.id
+      }),
+      database.getFitnessFilesWithStatusForAccount({
+        accountId: actor.account.id,
+        limit: itemsPerPage,
+        page
+      }),
+      // Computed across ALL the actor's files (not just the current page) so the
+      // "Retry all failed" button is visible whenever a retry would do work.
+      database.getActorHasRetriableFitnessImport({
+        actorId: actor.id,
+        stuckBefore: new Date(Date.now() - STUCK_PROCESSING_THRESHOLD_MS)
+      })
+    ])
 
   const limit = getQuotaLimit()
   const used = mediaUsed + fitnessUsed
-  const now = Date.now()
 
   return (
     <div className="space-y-6">
@@ -89,19 +95,9 @@ const Page = async ({
           statusId: fitnessFile.statusId ?? undefined,
           importStatus: fitnessFile.importStatus ?? undefined,
           importError: fitnessFile.importError ?? null,
-          importBatchId: fitnessFile.importBatchId ?? undefined,
-          processingStatus: fitnessFile.processingStatus ?? undefined,
-          // Computed server-side (no client time math) so the "Retry all
-          // failed" button can match the endpoint, which also retries files
-          // stranded in `processing` past the stuck threshold.
-          processingStuck: isFitnessProcessingStuck(
-            {
-              processingStatus: fitnessFile.processingStatus,
-              updatedAt: fitnessFile.updatedAt
-            },
-            now
-          )
+          importBatchId: fitnessFile.importBatchId ?? undefined
         }))}
+        hasRetriableImport={hasRetriableImport}
         currentPage={page}
         itemsPerPage={itemsPerPage}
         totalItems={result.total}
