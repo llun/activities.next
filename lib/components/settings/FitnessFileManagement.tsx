@@ -55,8 +55,9 @@ interface Props {
   fitnessFiles: FitnessFileItem[]
   // Computed server-side across ALL the actor's files (failed import / failed
   // processing / stuck processing), so the "Retry all failed" button stays
-  // visible even when the retriable files are on another page.
-  hasRetriableImport: boolean
+  // visible even when the retriable files are on another page. Defaults to a
+  // fail-safe `false` (button hidden) when not provided.
+  hasRetriableImport?: boolean
   currentPage: number
   itemsPerPage: number
   totalItems: number
@@ -66,7 +67,7 @@ export function FitnessFileManagement({
   used,
   limit,
   fitnessFiles: initialFitnessFiles,
-  hasRetriableImport,
+  hasRetriableImport = false,
   currentPage,
   itemsPerPage,
   totalItems
