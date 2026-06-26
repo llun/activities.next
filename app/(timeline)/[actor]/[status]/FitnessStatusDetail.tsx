@@ -67,6 +67,7 @@ import {
   getVisibility
 } from '@/lib/utils/getVisibility'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
+import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
 const downsampleSeries = (series: number[], targetCount: number) => {
   if (series.length <= targetCount) return series
@@ -1346,7 +1347,15 @@ export const FitnessStatusDetail: FC<Props> = ({
   )
   const shouldLoadInteractiveMap = Boolean(mapboxAccessToken && fitness?.id)
   const activityLabel = getActivityLabel(fitness?.activityType ?? undefined)
-  const statusTitle = status.text?.trim() || activityLabel
+  // `status.text` holds the post's processed HTML caption, so render the
+  // heading as decoded, tag-free plain text rather than raw markup. Falls back
+  // to the activity label when the caption is empty/whitespace-only. Memoized
+  // because `htmlToPlainText` parses + sanitizes the HTML and this component
+  // re-renders frequently (e.g. on chart hover).
+  const statusTitle = useMemo(
+    () => htmlToPlainText(status.text ?? '') || activityLabel,
+    [status.text, activityLabel]
+  )
   const activityDate = formatUtcDate(
     fitness?.activityStartTime ?? status.createdAt,
     'p, MMMM d, yyyy'
