@@ -374,7 +374,7 @@ export const ActorTimelines: FC<Props> = ({
               <div className="flex justify-end">
                 <Button variant="outline" asChild>
                   <Link href="/fitness">
-                    <Activity className="size-4" />
+                    <Activity className="size-4" aria-hidden="true" />
                     Fitness dashboard
                   </Link>
                 </Button>
