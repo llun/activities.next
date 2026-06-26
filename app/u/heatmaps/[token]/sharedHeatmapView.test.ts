@@ -74,7 +74,7 @@ describe('buildSharedHeatmapView', () => {
     })
     expect(view.publicUrl).toBe('https://llun.test/u/heatmaps/tok123')
     // The public page renders only the map: no read-only stats are exposed.
-    expect('stats' in view).toBe(false)
+    expect(view).not.toHaveProperty('stats')
     // Internal counters are zeroed in the map payload (no public leak), but the
     // real segments/bounds are kept so the map still renders.
     expect(view.heatmap.activityCount).toBe(0)

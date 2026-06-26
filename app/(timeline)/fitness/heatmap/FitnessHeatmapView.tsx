@@ -57,6 +57,16 @@ const STALE_IN_FLIGHT_HEATMAP_MS = 15 * 60_000
 
 const WORLD_REGION: PickerRegion = { id: 'world', type: 'world' }
 
+// The Activity + Period source selectors were removed from this page, so the
+// heatmap source is fixed: all activities, all time. These are module constants
+// (not per-render state) so they are evaluated once and stay out of the hook
+// dependency arrays, while the existing source-keyed fetch/poll/share/remove
+// logic — and the detail page's "All activities / All time" meta chips — keep
+// working unchanged.
+const SELECTED_ACTIVITY_TYPE: string | undefined = undefined
+const PERIOD_TYPE: PeriodType = 'all_time'
+const EFFECTIVE_PERIOD_KEY = 'all'
+
 const formatActivityLabel = (type?: string): string =>
   type
     ? type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
@@ -216,14 +226,6 @@ export const FitnessHeatmapView: FC<Props> = ({
     }
   }, [actorId])
 
-  // The Activity + Period selectors were removed from this page: every region
-  // heatmap is now aggregated across all activities for all time. These fixed
-  // values keep the existing source-keyed fetch/poll/share/remove logic — and
-  // the detail page's "All activities / All time" meta chips — working unchanged.
-  const selectedActivityType: string | undefined = undefined
-  const periodType: PeriodType = 'all_time'
-  const effectivePeriodKey = 'all'
-
   const openRegion = useMemo(
     () => regions.find((region) => region.id === openRegionId) ?? null,
     [regions, openRegionId]
@@ -233,7 +235,7 @@ export const FitnessHeatmapView: FC<Props> = ({
     : null
 
   const focusKey = openRegion
-    ? `${actorId}:${selectedActivityType ?? ''}:${periodType}:${effectivePeriodKey}:${openRegionKey}`
+    ? `${actorId}:${SELECTED_ACTIVITY_TYPE ?? ''}:${PERIOD_TYPE}:${EFFECTIVE_PERIOD_KEY}:${openRegionKey}`
     : ''
 
   useEffect(() => {
@@ -251,10 +253,10 @@ export const FitnessHeatmapView: FC<Props> = ({
 
   const sourceMatch = useCallback(
     (heatmap: FitnessRouteHeatmapSummaryData): boolean =>
-      (heatmap.activityType ?? '') === (selectedActivityType ?? '') &&
-      heatmap.periodType === periodType &&
-      heatmap.periodKey === effectivePeriodKey,
-    [selectedActivityType, periodType, effectivePeriodKey]
+      (heatmap.activityType ?? '') === (SELECTED_ACTIVITY_TYPE ?? '') &&
+      heatmap.periodType === PERIOD_TYPE &&
+      heatmap.periodKey === EFFECTIVE_PERIOD_KEY,
+    []
   )
 
   const heatmapForRegion = useCallback(
@@ -291,9 +293,9 @@ export const FitnessHeatmapView: FC<Props> = ({
       const [heatmap, allHeatmaps] = await Promise.all([
         getFitnessRouteHeatmap({
           actorId,
-          activityType: selectedActivityType,
-          periodType,
-          periodKey: effectivePeriodKey,
+          activityType: SELECTED_ACTIVITY_TYPE,
+          periodType: PERIOD_TYPE,
+          periodKey: EFFECTIVE_PERIOD_KEY,
           region: openRegionKey || undefined
         }),
         getFitnessRouteHeatmaps({ actorId })
@@ -311,14 +313,7 @@ export const FitnessHeatmapView: FC<Props> = ({
     } finally {
       if (isCurrent()) setIsLoading(false)
     }
-  }, [
-    actorId,
-    selectedActivityType,
-    periodType,
-    effectivePeriodKey,
-    openRegionId,
-    openRegionKey
-  ])
+  }, [actorId, openRegionId, openRegionKey])
 
   useEffect(() => {
     fetchFocused()
@@ -361,9 +356,9 @@ export const FitnessHeatmapView: FC<Props> = ({
       Promise.all([
         getFitnessRouteHeatmap({
           actorId,
-          activityType: selectedActivityType,
-          periodType,
-          periodKey: effectivePeriodKey,
+          activityType: SELECTED_ACTIVITY_TYPE,
+          periodType: PERIOD_TYPE,
+          periodKey: EFFECTIVE_PERIOD_KEY,
           region: openRegionKey || undefined
         }),
         getFitnessRouteHeatmaps({ actorId })
@@ -435,9 +430,6 @@ export const FitnessHeatmapView: FC<Props> = ({
     shouldPollFocused,
     hasAnyListInFlight,
     actorId,
-    selectedActivityType,
-    periodType,
-    effectivePeriodKey,
     openRegionKey,
     focusKey,
     generationPending
@@ -449,9 +441,9 @@ export const FitnessHeatmapView: FC<Props> = ({
       const key = focusKeyRef.current
       const success = await triggerFitnessRouteHeatmap({
         actorId,
-        activityType: selectedActivityType,
-        periodType,
-        periodKey: effectivePeriodKey,
+        activityType: SELECTED_ACTIVITY_TYPE,
+        periodType: PERIOD_TYPE,
+        periodKey: EFFECTIVE_PERIOD_KEY,
         region: openRegionKey || undefined,
         retry
       })
@@ -466,14 +458,7 @@ export const FitnessHeatmapView: FC<Props> = ({
         .then(setHeatmaps)
         .catch(() => {})
     },
-    [
-      actorId,
-      selectedActivityType,
-      periodType,
-      effectivePeriodKey,
-      openRegionId,
-      openRegionKey
-    ]
+    [actorId, openRegionId, openRegionKey]
   )
 
   const runGeneration = useCallback(async () => {
@@ -508,9 +493,9 @@ export const FitnessHeatmapView: FC<Props> = ({
     try {
       const shareToken = await shareFitnessRouteHeatmap({
         actorId,
-        activityType: selectedActivityType,
-        periodType,
-        periodKey: effectivePeriodKey,
+        activityType: SELECTED_ACTIVITY_TYPE,
+        periodType: PERIOD_TYPE,
+        periodKey: EFFECTIVE_PERIOD_KEY,
         region: openRegionKey || undefined
       })
       if (focusKeyRef.current !== key) return
@@ -525,14 +510,7 @@ export const FitnessHeatmapView: FC<Props> = ({
     } finally {
       setIsSharing(false)
     }
-  }, [
-    actorId,
-    selectedActivityType,
-    periodType,
-    effectivePeriodKey,
-    openRegionId,
-    openRegionKey
-  ])
+  }, [actorId, openRegionId, openRegionKey])
 
   const handleUnshare = useCallback(async () => {
     if (!openRegionId || openRegionKey === null) return
@@ -542,9 +520,9 @@ export const FitnessHeatmapView: FC<Props> = ({
     try {
       await unshareFitnessRouteHeatmap({
         actorId,
-        activityType: selectedActivityType,
-        periodType,
-        periodKey: effectivePeriodKey,
+        activityType: SELECTED_ACTIVITY_TYPE,
+        periodType: PERIOD_TYPE,
+        periodKey: EFFECTIVE_PERIOD_KEY,
         region: openRegionKey || undefined
       })
       if (focusKeyRef.current !== key) return
@@ -557,14 +535,7 @@ export const FitnessHeatmapView: FC<Props> = ({
     } finally {
       setIsSharing(false)
     }
-  }, [
-    actorId,
-    selectedActivityType,
-    periodType,
-    effectivePeriodKey,
-    openRegionId,
-    openRegionKey
-  ])
+  }, [actorId, openRegionId, openRegionKey])
 
   const handleRegionRemoved = useCallback(
     async (region: PickerRegion) => {
@@ -582,9 +553,9 @@ export const FitnessHeatmapView: FC<Props> = ({
       try {
         await deleteFitnessRouteHeatmap({
           actorId,
-          activityType: selectedActivityType,
-          periodType,
-          periodKey: effectivePeriodKey,
+          activityType: SELECTED_ACTIVITY_TYPE,
+          periodType: PERIOD_TYPE,
+          periodKey: EFFECTIVE_PERIOD_KEY,
           region: key || undefined
         })
       } catch (err) {
@@ -598,7 +569,7 @@ export const FitnessHeatmapView: FC<Props> = ({
         )
       }
     },
-    [actorId, selectedActivityType, periodType, effectivePeriodKey, sourceMatch]
+    [actorId, sourceMatch]
   )
 
   const handleRegionSaved = useCallback(
@@ -661,8 +632,8 @@ export const FitnessHeatmapView: FC<Props> = ({
       <RegionHeatmapDetail
         region={openRegion}
         meta={{
-          activity: formatActivityLabel(selectedActivityType),
-          period: formatPeriodLabel(periodType, effectivePeriodKey)
+          activity: formatActivityLabel(SELECTED_ACTIVITY_TYPE),
+          period: formatPeriodLabel(PERIOD_TYPE, EFFECTIVE_PERIOD_KEY)
         }}
         heatmap={heatmapData}
         mapboxAccessToken={mapboxAccessToken}
