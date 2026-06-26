@@ -34,8 +34,7 @@ const baseView: SharedHeatmapView = {
     isPartial: false,
     createdAt: 1,
     updatedAt: 2
-  },
-  stats: { routes: '342', activity: 'Trail Run', period: 'All time' }
+  }
 }
 
 const defaultProps = {
@@ -46,7 +45,7 @@ const defaultProps = {
 }
 
 describe('SharedHeatmapPage', () => {
-  it('renders the heatmap title, owner, date and read-only stats', () => {
+  it('renders the heatmap title, owner, date and the map', () => {
     render(<SharedHeatmapPage {...defaultProps} />)
 
     expect(
@@ -58,10 +57,15 @@ describe('SharedHeatmapPage', () => {
       screen.getByText('TL 52.60°N 5.60°E → BR 52.00°N 6.20°E')
     ).toBeInTheDocument()
 
-    expect(screen.getByText('Routes')).toBeInTheDocument()
-    expect(screen.getByText('342')).toBeInTheDocument()
-    expect(screen.getByText('Trail Run')).toBeInTheDocument()
     expect(screen.getByTestId('route-map')).toBeInTheDocument()
+  })
+
+  it('shows only the map — no read-only stats strip', () => {
+    render(<SharedHeatmapPage {...defaultProps} />)
+
+    expect(screen.queryByText('Routes')).not.toBeInTheDocument()
+    expect(screen.queryByText('Activity')).not.toBeInTheDocument()
+    expect(screen.queryByText('Period')).not.toBeInTheDocument()
   })
 
   it('offers a copy-link control pointing at the public URL', () => {
