@@ -216,6 +216,39 @@ describe('FitnessStatusDetail', () => {
     await waitFor(() => expect(screen.getByText('Avg HR')).toBeInTheDocument())
   })
 
+  it('renders the caption as plain text, stripping HTML tags and decoding entities', () => {
+    renderDetail({
+      status: buildStatus({
+        text: '<p>Morning <strong>run</strong> &amp; coffee</p>'
+      })
+    })
+
+    const heading = screen.getByRole('heading', { level: 1 })
+    expect(heading).toHaveTextContent('Morning run & coffee')
+    // No raw markup leaks into the heading text or its title attribute.
+    expect(heading.textContent).toBe('Morning run & coffee')
+    expect(heading).toHaveAttribute('title', 'Morning run & coffee')
+  })
+
+  // These inputs all reduce to empty text, so the heading must fall back to the
+  // activity label. The markup cases ('<p></p>', '<br>') are load-bearing: the
+  // previous `status.text?.trim()` kept them (truthy) and rendered raw markup,
+  // whereas `htmlToPlainText` collapses them to '' and triggers the fallback.
+  it.each([
+    { description: 'whitespace-only caption', text: '   ' },
+    { description: 'caption that is empty markup', text: '<p></p>' },
+    { description: 'caption that is only a line break', text: '<br>' }
+  ])(
+    'falls back to the activity label when the caption has no text ($description)',
+    ({ text }) => {
+      renderDetail({ status: buildStatus({ text }) })
+
+      expect(
+        screen.getByRole('heading', { level: 1, name: 'Ride' })
+      ).toBeInTheDocument()
+    }
+  )
+
   it('switches to the heart rate zones section from the sub-navigation', async () => {
     renderDetail()
 
