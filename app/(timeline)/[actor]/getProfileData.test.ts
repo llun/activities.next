@@ -286,12 +286,33 @@ describe('getProfileData', () => {
         username: 'remoteuser',
         domain: 'remote.com'
       })
-      // Should NOT call expensive remote APIs
+      // Should NOT call expensive remote APIs — including the signer, so an
+      // anonymous page view never resolves or provisions the instance actor.
       expect(getWebfingerSelf).not.toHaveBeenCalled()
+      expect(getFederationSigningActor).not.toHaveBeenCalled()
       expect(getActorPerson).not.toHaveBeenCalled()
       expect(getActorPosts).not.toHaveBeenCalled()
       expect(getActorFollowing).not.toHaveBeenCalled()
       expect(getActorFollowers).not.toHaveBeenCalled()
+    })
+
+    it('falls back to an unsigned fetch when the signer resolution fails', async () => {
+      // A transient instance-actor failure (DB/keypair error) must not crash
+      // the render: getProfileData resolves the signer best-effort, so a
+      // rejection degrades to an unsigned fetch instead of a 500.
+      ;(getFederationSigningActor as jest.Mock).mockRejectedValue(
+        new Error('signer unavailable')
+      )
+
+      const result = await getProfileData(
+        mockDatabase,
+        '@remoteuser@remote.com',
+        true
+      )
+
+      expect(result).not.toBeNull()
+      const personCall = (getActorPerson as jest.Mock).mock.calls[0][0]
+      expect('signingActor' in personCall).toBe(false)
     })
 
     it('omits the signing actor entirely when no instance actor is available', async () => {

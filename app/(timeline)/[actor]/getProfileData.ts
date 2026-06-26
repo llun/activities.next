@@ -92,9 +92,12 @@ export const getProfileData = async (
   //
   // WebFinger discovery and signer resolution are independent, so resolve them
   // concurrently to avoid stacking their latencies on the profile render.
+  // Signer resolution is best-effort: a missing/failed instance actor must not
+  // turn a clean 404 (unknown actor) into a 500, so a failure degrades to an
+  // unsigned fetch via the `signingActor`-less branch below.
   const [actorId, signingActor] = await Promise.all([
     getWebfingerSelf({ account: actorHandle.slice(1) }),
-    getFederationSigningActor(database)
+    getFederationSigningActor(database).catch(() => undefined)
   ])
   if (!actorId) return null
 
