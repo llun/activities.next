@@ -216,6 +216,28 @@ describe('FitnessStatusDetail', () => {
     await waitFor(() => expect(screen.getByText('Avg HR')).toBeInTheDocument())
   })
 
+  it('renders the caption as plain text, stripping HTML tags and decoding entities', () => {
+    renderDetail({
+      status: buildStatus({
+        text: '<p>Morning <strong>run</strong> &amp; coffee</p>'
+      })
+    })
+
+    const heading = screen.getByRole('heading', { level: 1 })
+    expect(heading).toHaveTextContent('Morning run & coffee')
+    // No raw markup leaks into the heading text or its title attribute.
+    expect(heading.textContent).toBe('Morning run & coffee')
+    expect(heading).toHaveAttribute('title', 'Morning run & coffee')
+  })
+
+  it('falls back to the activity label when the caption is empty or whitespace', () => {
+    renderDetail({ status: buildStatus({ text: '   ' }) })
+
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Ride' })
+    ).toBeInTheDocument()
+  })
+
   it('switches to the heart rate zones section from the sub-navigation', async () => {
     renderDetail()
 
