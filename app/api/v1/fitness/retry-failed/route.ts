@@ -35,17 +35,22 @@ export const POST = traceApiRoute(
       stuckBefore: new Date(now - STUCK_PROCESSING_THRESHOLD_MS)
     })
 
-    // Each batch is independent, so requeue them concurrently. allSettled keeps
-    // one batch's failure from blocking the rest; retryFitnessImportBatch
-    // already rolls back and logs on its own failure.
-    const results = await Promise.allSettled(
-      retriableBatchIds.map(async (batchId) => {
+    // Requeue each batch sequentially: this is a rare manual action over a
+    // handful of failed batches, and serial execution keeps the database load
+    // bounded (no fan-out of concurrent queries/updates). A single batch's
+    // failure must not block the rest — retryFitnessImportBatch rolls back its
+    // own batch, and we count and log the failure here so it stays visible.
+    let retried = 0
+    let batches = 0
+    let failedBatches = 0
+    for (const batchId of retriableBatchIds) {
+      try {
         const batchFiles = await database.getFitnessFilesByBatchId({ batchId })
         const ownedFiles = batchFiles.filter(
           (file) => file.actorId === currentActor.id
         )
         if (ownedFiles.length === 0) {
-          return 0
+          continue
         }
 
         const { retried: batchRetried } = await retryFitnessImportBatch({
@@ -56,21 +61,19 @@ export const POST = traceApiRoute(
           visibility: RETRY_VISIBILITY,
           now
         })
-        return batchRetried
-      })
-    )
 
-    let retried = 0
-    let batches = 0
-    let failedBatches = 0
-    for (const result of results) {
-      if (result.status === 'fulfilled') {
-        if (result.value > 0) {
-          retried += result.value
+        if (batchRetried > 0) {
+          retried += batchRetried
           batches += 1
         }
-      } else {
+      } catch (error) {
         failedBatches += 1
+        logger.warn({
+          message: 'Failed to retry fitness import batch',
+          actorId: currentActor.id,
+          batchId,
+          error: error instanceof Error ? error.message : String(error)
+        })
       }
     }
 
