@@ -76,6 +76,34 @@ describe('compactActivityPub', () => {
     expect(result.alsoKnownAs).toEqual(['https://old.example/users/alice'])
   })
 
+  it('forces poll options to arrays even for a single option', async () => {
+    // A single-option poll would otherwise compact `oneOf` to a bare object and
+    // fail the Question schema's `QuestionOption[]`. `@container: @set` keeps it
+    // an array.
+    const result = asRecord(
+      await compactActivityPub({
+        '@context': ACTIVITY_STREAMS_CONTEXT_URL,
+        id: 'https://remote.example/polls/1',
+        type: 'Question',
+        attributedTo: 'https://remote.example/users/alice',
+        published: '2026-01-01T00:00:00Z',
+        endTime: '2026-01-02T00:00:00Z',
+        oneOf: [
+          {
+            type: 'Note',
+            name: 'Only choice',
+            replies: { type: 'Collection', totalItems: 0 }
+          }
+        ]
+      })
+    )
+
+    const options = result.oneOf as Array<Record<string, unknown>>
+    expect(Array.isArray(options)).toBe(true)
+    expect(options).toHaveLength(1)
+    expect(options[0].name).toBe('Only choice')
+  })
+
   it('keeps an embedded object but collapses a bare reference', async () => {
     const create = asRecord(
       await compactActivityPub({
