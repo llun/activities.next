@@ -39,7 +39,14 @@ export const APActor = z.object({
   memorial: z.boolean().optional(),
   suspended: z.boolean().optional(),
   devices: z.string().url().optional(),
-  alsoKnownAs: z.array(z.string()).optional(),
+  // `alsoKnownAs` is a set of ids, but a single alias can arrive as a bare
+  // string (JSON-LD compaction collapses a one-element set, and the raw-input
+  // fallback preserves whatever the peer sent). Accept either shape and
+  // normalise to an array so consumers see one consistent type.
+  alsoKnownAs: z
+    .union([z.string(), z.array(z.string())])
+    .transform((value) => (Array.isArray(value) ? value : [value]))
+    .optional(),
   movedTo: z.string().optional(),
   publicKey: z.object({
     id: z.string(),
