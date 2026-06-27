@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import type { FollowRequestInitialStatus } from '@/app/(timeline)/notifications/types'
 import { markNotificationsRead } from '@/lib/client'
 import type { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 import type { Mastodon } from '@/lib/types/activitypub'
@@ -14,6 +15,7 @@ interface NotificationWithData extends GroupedNotification {
   account: Mastodon.Account | null
   status?: Status | null
   collection?: { id: string; title: string } | null
+  followRequestStatus?: FollowRequestInitialStatus
 }
 
 interface Props {
