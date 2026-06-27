@@ -291,6 +291,103 @@ describe('createApplication', () => {
     expect(response.redirect_uri).toEqual('https://test.llun.dev/callback')
   })
 
+  test('it enables end-session and stores post_logout_redirect_uris as a JSON-array string when provided', async () => {
+    const response = (await createApplication({
+      client_name: 'logoutClient',
+      redirect_uris: 'https://logout.llun.dev/callback',
+      post_logout_redirect_uris: 'https://logout.llun.dev/logout-callback',
+      scopes: 'openid read',
+      website: 'https://logout.llun.dev'
+    })) as SuccessResponse
+
+    expect(response.type).toBe('success')
+
+    const dbClient = await knexDatabase('oauthClient')
+      .where({ id: response.id })
+      .first()
+    expect(dbClient.enableEndSession).toBeTruthy()
+    // Same JSON-array-string format as redirectUris so better-auth's adapter
+    // JSON-parses it back into an array for its postLogoutRedirectUris check.
+    expect(dbClient.postLogoutRedirectUris).toBe(
+      '["https://logout.llun.dev/logout-callback"]'
+    )
+    expect(JSON.parse(dbClient.postLogoutRedirectUris)).toEqual([
+      'https://logout.llun.dev/logout-callback'
+    ])
+  })
+
+  test('it supports newline-separated post_logout_redirect_uris', async () => {
+    const response = (await createApplication({
+      client_name: 'multiLogoutClient',
+      redirect_uris: 'https://multi-logout.llun.dev/callback',
+      post_logout_redirect_uris:
+        'https://multi-logout.llun.dev/logout-a\nhttps://multi-logout.llun.dev/logout-b',
+      scopes: 'openid read',
+      website: 'https://multi-logout.llun.dev'
+    })) as SuccessResponse
+
+    expect(response.type).toBe('success')
+
+    const dbClient = await knexDatabase('oauthClient')
+      .where({ id: response.id })
+      .first()
+    expect(dbClient.enableEndSession).toBeTruthy()
+    expect(JSON.parse(dbClient.postLogoutRedirectUris)).toEqual([
+      'https://multi-logout.llun.dev/logout-a',
+      'https://multi-logout.llun.dev/logout-b'
+    ])
+  })
+
+  test('it leaves end-session disabled when post_logout_redirect_uris is omitted', async () => {
+    const response = (await createApplication({
+      client_name: 'noLogoutClient',
+      redirect_uris: 'https://no-logout.llun.dev/callback',
+      scopes: 'read',
+      website: 'https://no-logout.llun.dev'
+    })) as SuccessResponse
+
+    expect(response.type).toBe('success')
+
+    const dbClient = await knexDatabase('oauthClient')
+      .where({ id: response.id })
+      .first()
+    expect(dbClient.enableEndSession).toBeFalsy()
+    expect(dbClient.postLogoutRedirectUris).toBeNull()
+  })
+
+  test('it ignores whitespace-only post_logout_redirect_uris and keeps end-session disabled', async () => {
+    const response = (await createApplication({
+      client_name: 'blankLogoutClient',
+      redirect_uris: 'https://blank-logout.llun.dev/callback',
+      post_logout_redirect_uris: '   \n\t  ',
+      scopes: 'read',
+      website: 'https://blank-logout.llun.dev'
+    })) as SuccessResponse
+
+    expect(response.type).toBe('success')
+
+    const dbClient = await knexDatabase('oauthClient')
+      .where({ id: response.id })
+      .first()
+    expect(dbClient.enableEndSession).toBeFalsy()
+    expect(dbClient.postLogoutRedirectUris).toBeNull()
+  })
+
+  test('it rejects post_logout_redirect_uris with an unsafe scheme', async () => {
+    const response = await createApplication({
+      client_name: 'unsafeLogoutClient',
+      redirect_uris: 'https://unsafe-logout.llun.dev/callback',
+      post_logout_redirect_uris: 'javascript:alert(1)',
+      scopes: 'read',
+      website: 'https://unsafe-logout.llun.dev'
+    })
+
+    expect(response).toEqual({
+      type: 'error',
+      error: 'Failed to validate request'
+    })
+  })
+
   test('it rate limits app registration floods from the same unauthenticated source', async () => {
     const registrationKey = 'flood-source'
     const now = new Date('2026-05-12T12:00:00.000Z')

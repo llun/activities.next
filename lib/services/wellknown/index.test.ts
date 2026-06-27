@@ -1,4 +1,5 @@
 import { Database } from '@/lib/database/types'
+import { AUTH_BASE_PATH } from '@/lib/services/auth/constants'
 
 import {
   getHostMetaXML,
@@ -74,6 +75,8 @@ describe('wellknown services', () => {
         userinfo_endpoint: 'https://test.example.com/oauth/userinfo',
         jwks_uri: 'https://test.example.com/api/auth/jwks',
         revocation_endpoint: 'https://test.example.com/oauth/revoke',
+        end_session_endpoint:
+          'https://test.example.com/api/auth/oauth2/end-session',
         response_types_supported: ['code'],
         subject_types_supported: ['public'],
         id_token_signing_alg_values_supported: ['RS256'],
@@ -91,6 +94,33 @@ describe('wellknown services', () => {
       // The id_token `iss` is baseURL + basePath; discovery must match it
       // exactly or a strict OIDC relying party rejects the token.
       expect(config.issuer).toBe('https://test.example.com/api/auth')
+    })
+
+    it('advertises the RP-initiated logout end_session_endpoint under the issuer', () => {
+      // django-lasuite/mozilla-django-oidc reads `end_session_endpoint` from
+      // discovery to perform single logout against this instance.
+      const config = getOpenIDConfiguration()
+
+      expect(config.end_session_endpoint).toBe(
+        'https://test.example.com/api/auth/oauth2/end-session'
+      )
+    })
+
+    it('builds the issuer and logout endpoint from the same basePath constant the auth instance uses', () => {
+      // The oauth-provider's RP-initiated logout rejects an id_token unless
+      // `id_token.iss === jwt.issuer ?? ctx.context.baseURL`, where
+      // `ctx.context.baseURL` is `${baseURL}${basePath}` — and `basePath` is the
+      // shared `AUTH_BASE_PATH` constant `auth.ts` passes to better-auth. The
+      // id_token `iss`, the discovery `issuer`, and the end-session check all
+      // resolve to that single value, so a future basePath change moves the
+      // discovery issuer with it instead of silently breaking logout with
+      // "invalid issuer".
+      const config = getOpenIDConfiguration()
+
+      expect(config.issuer).toBe(`https://test.example.com${AUTH_BASE_PATH}`)
+      expect(config.end_session_endpoint).toBe(
+        `${config.issuer}/oauth2/end-session`
+      )
     })
 
     it('keeps a distinct issuer from the RFC 8414 OAuth metadata (bare origin)', () => {

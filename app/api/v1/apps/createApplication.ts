@@ -240,6 +240,25 @@ export const createApplication = async (
             return validationErrorResponse()
           }
         }
+        // Optional OpenID Connect RP-Initiated Logout callbacks (newline-
+        // separated, like redirect_uris). Validate the same way and, when at
+        // least one valid URI is supplied, enable end-session for the client so
+        // it can drive single logout. Omitted ⇒ end-session stays disabled.
+        const postLogoutRedirectUris = (request.post_logout_redirect_uris ?? '')
+          .split('\n')
+          .map((uri) => uri.trim())
+          .filter(Boolean)
+        for (const uri of postLogoutRedirectUris) {
+          try {
+            const parsed = new URL(uri)
+            if (unsafeSchemes.has(parsed.protocol)) {
+              return validationErrorResponse()
+            }
+          } catch {
+            return validationErrorResponse()
+          }
+        }
+        const enableEndSession = postLogoutRedirectUris.length > 0
         const dbId = crypto.randomUUID()
         await db('oauthClient').insert({
           id: dbId,
@@ -248,6 +267,12 @@ export const createApplication = async (
           name: request.client_name,
           scopes: JSON.stringify(parsedScopes),
           redirectUris: JSON.stringify(redirectUris),
+          // Stored as a JSON-array string to match `redirectUris`; better-auth's
+          // adapter JSON-parses `string[]` fields back into arrays on read.
+          postLogoutRedirectUris: enableEndSession
+            ? JSON.stringify(postLogoutRedirectUris)
+            : null,
+          enableEndSession,
           uri: request.website || null,
           // Mastodon /api/v1/apps has no PKCE-capability field; PKCE is opt-in
           // at authorize-time via code_challenge. better-auth still enforces it

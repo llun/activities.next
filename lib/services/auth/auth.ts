@@ -9,6 +9,7 @@ import { getDatabase, getKnex } from '@/lib/database'
 import { UsableScopes } from '@/lib/types/database/operations'
 import { logger } from '@/lib/utils/logger'
 
+import { AUTH_BASE_PATH } from './constants'
 import { knexAdapter } from './knexAdapter'
 import { buildTrustedOrigins } from './trustedOrigins'
 
@@ -37,7 +38,7 @@ const buildAuth = (baseURL: string) => {
       getBaseURL(),
       config.trustedHosts ?? []
     ),
-    basePath: '/api/auth',
+    basePath: AUTH_BASE_PATH,
     database: knexAdapter(db, { passkeyRpID: rpID }),
     disabledPaths: ['/token'], // Disable jwt plugin's /api/auth/token;
     // OAuth tokens are issued via oauthProvider. JWKS stays enabled for OAuthGuard.
