@@ -1,0 +1,35 @@
+app/(timeline)/notifications/followRequestStatus.test.ts
+  s_20f1b1f7038ee1::t_b5d97746516529 1,4-7,25-34,43,51-124
+  s_20f1b1f7038ee1::t_28d97990766386 125
+app/(timeline)/notifications/components/FollowRequestNotification.tsx
+  s_20f1b1f7038ee1::t_fdc1fda11b825b 40-41
+  s_20f1b1f7038ee1::t_508bfee209f595 15,20-23
+app/(timeline)/notifications/types.ts
+  s_20f1b1f7038ee1::t_eb15c1ac3d3ede 5-8,11-18
+app/(timeline)/notifications/page.test.tsx
+  s_20f1b1f7038ee1::t_4793b41293d5e3 1-90,95-117
+  s_20f1b1f7038ee1::t_fdc1fda11b825b 91-94
+app/(timeline)/notifications/followRequestStatus.ts
+  s_20f1b1f7038ee1::t_701a2375435dca 2,5-9,19-20,25-52
+app/(timeline)/notifications/page.tsx
+  s_20f1b1f7038ee1::t_3f3585b2d3fae4 21
+  s_20f1b1f7038ee1::t_5b8ce45581c589 132,135
+app/(timeline)/notifications/components/FollowRequestNotification.test.tsx
+  s_20f1b1f7038ee1::t_e35ad318dd08de 5,7,12-17,19,55-60,91-104,118-160
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "c8988e923e73eab589e8182795d98453cf91c0e0",
+  "prompts": {},
+  "sessions": {
+    "s_20f1b1f7038ee1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e951bd32-cce5-4afa-80c0-b714dbe1af06",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
