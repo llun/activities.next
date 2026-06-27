@@ -1,10 +1,15 @@
 import type { Notification } from '@/lib/types/database/operations'
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
+import { logger } from '@/lib/utils/logger'
 
 import {
   followRequestStatusFromFollow,
   resolveFollowRequestStatus
 } from './followRequestStatus'
+
+vi.mock('@/lib/utils/logger', () => ({
+  logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() }
+}))
 
 const baseFollow: Follow = {
   id: 'follow-1',
@@ -121,5 +126,25 @@ describe('resolveFollowRequestStatus', () => {
     )
 
     expect(result).toBe('resolved')
+  })
+
+  it('falls back to resolved and logs when the follow lookup fails', async () => {
+    const error = new Error('database unavailable')
+    const database = {
+      getFollowFromId: vi.fn().mockRejectedValue(error),
+      getAcceptedOrRequestedFollow: vi.fn()
+    }
+
+    const result = await resolveFollowRequestStatus(
+      database,
+      followRequestNotification,
+      viewerActorId
+    )
+
+    // A transient lookup failure must not crash the page, and must not fall
+    // back to 'pending' (that would re-show stale Approve/Reject); 'resolved'
+    // hides the actions safely.
+    expect(result).toBe('resolved')
+    expect(logger.warn).toHaveBeenCalled()
   })
 })

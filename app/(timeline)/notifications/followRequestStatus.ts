@@ -1,6 +1,7 @@
 import type { FollowRequestInitialStatus } from '@/app/(timeline)/notifications/types'
 import type { Notification } from '@/lib/types/database/operations'
 import { type Follow, FollowStatus } from '@/lib/types/domain/follow'
+import { logger } from '@/lib/utils/logger'
 
 // Map a Follow record to the UI state of its follow-request notification row. A
 // still-Requested follow is actionable; an Accepted one reads as approved; a
@@ -42,11 +43,23 @@ export const resolveFollowRequestStatus = async (
   notification: Pick<Notification, 'followId' | 'sourceActorId'>,
   viewerActorId: string
 ): Promise<FollowRequestInitialStatus> => {
-  const follow = notification.followId
-    ? await database.getFollowFromId({ followId: notification.followId })
-    : await database.getAcceptedOrRequestedFollow({
-        actorId: notification.sourceActorId,
-        targetActorId: viewerActorId
-      })
-  return followRequestStatusFromFollow(follow)
+  try {
+    const follow = notification.followId
+      ? await database.getFollowFromId({ followId: notification.followId })
+      : await database.getAcceptedOrRequestedFollow({
+          actorId: notification.sourceActorId,
+          targetActorId: viewerActorId
+        })
+    return followRequestStatusFromFollow(follow)
+  } catch (error) {
+    // A transient lookup failure must not crash the whole notifications page.
+    // Degrade to 'resolved' (hide the actions) rather than 'pending', so a
+    // failed lookup never re-shows Approve / Reject for an already-handled
+    // request — the row self-heals on the next load.
+    logger.warn(
+      { err: error, followId: notification.followId },
+      'Failed to resolve follow request status; defaulting to resolved'
+    )
+    return 'resolved'
+  }
 }
