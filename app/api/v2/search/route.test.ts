@@ -20,7 +20,15 @@ const mockGetWebfingerSelf = vi.fn()
 const mockGetActorPerson = vi.fn()
 const mockRecordActorIfNeeded = vi.fn()
 const mockGetRemoteStatus = vi.fn()
+const mockGetFederationSigningActor = vi.fn()
 const mockLoggerWarn = vi.fn()
+
+// The dedicated headless federation signer. It is intentionally a different
+// actor from `oauthActor` (the requesting viewer) so the signing assertions
+// fail if the route regresses to signing remote fetches as the viewer.
+const mockInstanceActor = {
+  id: 'https://llun.test/users/__instance__'
+}
 
 const oauthActor = {
   id: 'https://llun.test/users/searcher',
@@ -95,6 +103,11 @@ vi.mock('@/lib/actions/utils', () => ({
   recordActorIfNeeded: (...args: unknown[]) => mockRecordActorIfNeeded(...args)
 }))
 
+vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
+  getFederationSigningActor: (...args: unknown[]) =>
+    mockGetFederationSigningActor(...args)
+}))
+
 vi.mock('@/lib/utils/logger', () => ({
   logger: {
     warn: (...args: unknown[]) => mockLoggerWarn(...args)
@@ -161,6 +174,7 @@ describe('GET /api/v2/search', () => {
     mockGetActorPerson.mockResolvedValue(null)
     mockRecordActorIfNeeded.mockResolvedValue(null)
     mockGetRemoteStatus.mockResolvedValue(null)
+    mockGetFederationSigningActor.mockResolvedValue(mockInstanceActor)
   })
 
   it('allows anonymous account and hashtag search but omits statuses', async () => {
@@ -485,20 +499,84 @@ describe('GET /api/v2/search', () => {
     )
 
     expect(response.status).toBe(200)
+    // Remote status + actor resolution are server-to-server fetches signed by
+    // the instance actor, not the viewer.
     expect(mockGetRemoteStatus).toHaveBeenCalledWith({
       statusId: statusUrl,
-      signingActor: oauthActor
+      signingActor: mockInstanceActor
     })
     expect(mockRecordActorIfNeeded).toHaveBeenCalledWith({
       actorId: remoteStatus.actorId,
       database: expect.any(Object),
-      signingActor: oauthActor
+      signingActor: mockInstanceActor
     })
     expect(mockGetMastodonStatuses).toHaveBeenCalledWith(
       expect.any(Object),
       [remoteStatus],
       oauthActor.id
     )
+  })
+
+  it('resolves remote statuses unsigned and warns when the signing actor cannot be resolved', async () => {
+    const statusUrl = 'http://remote.test/users/alice/statuses/remote'
+    const remoteStatus = {
+      id: statusUrl,
+      actorId: 'https://remote.test/users/alice'
+    }
+    mockGetFederationSigningActor.mockRejectedValue(new Error('database down'))
+    mockGetRemoteStatus.mockResolvedValue(remoteStatus)
+    mockRecordActorIfNeeded.mockResolvedValue({ id: remoteStatus.actorId })
+    mockSearchStatusIds.mockResolvedValue([])
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(statusUrl)}&type=statuses&resolve=2`,
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    // `toHaveBeenCalledWith` treats an omitted key and an explicit `undefined`
+    // as equal, so assert the signer directly to prove the fetch is unsigned.
+    expect(mockGetRemoteStatus.mock.calls[0][0].signingActor).toBe(undefined)
+    expect(mockRecordActorIfNeeded.mock.calls[0][0].signingActor).toBe(
+      undefined
+    )
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining(
+          'Failed to resolve federation signing actor'
+        )
+      })
+    )
+  })
+
+  it('resolves remote statuses unsigned without warning when no signing actor exists', async () => {
+    const statusUrl = 'http://remote.test/users/alice/statuses/remote'
+    const remoteStatus = {
+      id: statusUrl,
+      actorId: 'https://remote.test/users/alice'
+    }
+    mockGetFederationSigningActor.mockResolvedValue(undefined)
+    mockGetRemoteStatus.mockResolvedValue(remoteStatus)
+    mockRecordActorIfNeeded.mockResolvedValue({ id: remoteStatus.actorId })
+    mockSearchStatusIds.mockResolvedValue([])
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(statusUrl)}&type=statuses&resolve=2`,
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetRemoteStatus.mock.calls[0][0].signingActor).toBe(undefined)
+    expect(mockRecordActorIfNeeded.mock.calls[0][0].signingActor).toBe(
+      undefined
+    )
+    expect(mockLoggerWarn).not.toHaveBeenCalled()
   })
 
   it('omits resolved remote statuses when actor recording fails', async () => {
@@ -730,14 +808,16 @@ describe('GET /api/v2/search', () => {
     const data = await response.json()
 
     expect(response.status).toBe(200)
+    // Canonicalizing and recording a remote actor are server-to-server fetches
+    // signed by the instance actor, not the viewer.
     expect(mockGetActorPerson).toHaveBeenCalledWith({
       actorId: accountUrl,
-      signingActor: oauthActor
+      signingActor: mockInstanceActor
     })
     expect(mockRecordActorIfNeeded).toHaveBeenCalledWith({
       actorId: canonicalActorId,
       database: expect.any(Object),
-      signingActor: oauthActor
+      signingActor: mockInstanceActor
     })
     expect(data.accounts).toEqual([
       {
@@ -781,7 +861,7 @@ describe('GET /api/v2/search', () => {
     expect(mockRecordActorIfNeeded).toHaveBeenCalledWith({
       actorId: canonicalActorId,
       database: expect.any(Object),
-      signingActor: oauthActor
+      signingActor: mockInstanceActor
     })
     expect(data.accounts).toEqual([
       {
@@ -915,7 +995,7 @@ describe('GET /api/v2/search', () => {
     expect(mockRecordActorIfNeeded).toHaveBeenCalledWith({
       actorId: 'https://remote.test/users/charlie',
       database: expect.any(Object),
-      signingActor: oauthActor
+      signingActor: mockInstanceActor
     })
     expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
       ids: ['https://remote.test/users/charlie']
