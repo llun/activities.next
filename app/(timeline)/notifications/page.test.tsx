@@ -1,7 +1,30 @@
+import { type ReactNode, isValidElement } from 'react'
+
 import type { Notification } from '@/lib/types/database/operations'
 import { type Follow, FollowStatus } from '@/lib/types/domain/follow'
 
+import { NotificationsList } from './NotificationsList'
 import Page from './page'
+
+// Walk the (unrendered) element tree the Server Component returns and find the
+// first element of a given component type, so a test can read the props the
+// page forwards to a child without rendering the whole client tree.
+const findElementByType = (
+  node: ReactNode,
+  type: unknown
+): { props: Record<string, unknown> } | null => {
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = findElementByType(child, type)
+      if (found) return found
+    }
+    return null
+  }
+  if (!isValidElement(node)) return null
+  if (node.type === type) return node as { props: Record<string, unknown> }
+  const props = node.props as { children?: ReactNode }
+  return findElementByType(props?.children, type)
+}
 
 const mockGetConfig = vi.fn()
 const mockGetDatabase = vi.fn()
@@ -94,7 +117,7 @@ describe('notifications page', () => {
     ])
     mockGetDatabase.mockReturnValue(database)
 
-    await Page({ searchParams: Promise.resolve({}) })
+    const element = await Page({ searchParams: Promise.resolve({}) })
 
     // The exact follow recorded on the notification is looked up; the
     // requester/viewer pair fallback is not used when a followId exists.
@@ -103,6 +126,22 @@ describe('notifications page', () => {
       followId: 'follow-1'
     })
     expect(database.getAcceptedOrRequestedFollow).not.toHaveBeenCalled()
+
+    // The resolved status must actually reach the list, not just be computed:
+    // assert the follow_request row is forwarded with followRequestStatus and
+    // that other rows carry none.
+    const list = findElementByType(element, NotificationsList)
+    const forwarded = (
+      list?.props.notifications as Array<{
+        id: string
+        followRequestStatus?: string
+      }>
+    ).reduce<Record<string, string | undefined>>((map, notification) => {
+      map[notification.id] = notification.followRequestStatus
+      return map
+    }, {})
+    expect(forwarded[followRequestNotification.id]).toBe('accepted')
+    expect(forwarded[likeNotification.id]).toBeUndefined()
   })
 
   it('does not resolve follow state for non follow_request rows', async () => {
