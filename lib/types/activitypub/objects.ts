@@ -177,12 +177,19 @@ export const Question = BaseContent.extend({
     )
     .nullish(),
 
-  // Single-choice poll options (mutually exclusive with anyOf)
-  oneOf: QuestionOption.array()
+  // Single-choice poll options (mutually exclusive with anyOf). A single-option
+  // poll can arrive as a bare object (JSON-LD compaction collapses a one-element
+  // set, and the raw-input fallback preserves whatever the peer sent), so accept
+  // either shape and normalise to an array.
+  oneOf: z
+    .union([QuestionOption, QuestionOption.array()])
+    .transform((value) => (Array.isArray(value) ? value : [value]))
     .describe('Poll options for single-choice polls')
     .optional(),
   // Multiple-choice poll options (mutually exclusive with oneOf)
-  anyOf: QuestionOption.array()
+  anyOf: z
+    .union([QuestionOption, QuestionOption.array()])
+    .transform((value) => (Array.isArray(value) ? value : [value]))
     .describe('Poll options for multiple-choice polls')
     .optional(),
 
