@@ -12,16 +12,15 @@ import { cn } from '@/lib/utils'
 interface Props {
   account: Mastodon.Account
   // The server-resolved state of the request. Defaults to 'pending' so a row
-  // with no resolved status still offers the actions. 'rejected' is only ever
-  // reached from this component's own Reject action, so it is not part of the
-  // server-supplied initial status.
+  // with no resolved status still offers the actions.
   initialStatus?: FollowRequestInitialStatus
 }
 
-type FollowRequestStatus = FollowRequestInitialStatus | 'rejected'
-
 // Labels for the non-pending states (pending renders the action buttons).
-const STATUS_LABEL: Record<Exclude<FollowRequestStatus, 'pending'>, string> = {
+const STATUS_LABEL: Record<
+  Exclude<FollowRequestInitialStatus, 'pending'>,
+  string
+> = {
   accepted: 'Approved',
   rejected: 'Rejected',
   resolved: 'No longer pending'
@@ -38,7 +37,8 @@ export const FollowRequestNotification: FC<Props> = ({
   initialStatus = 'pending'
 }) => {
   const router = useRouter()
-  const [status, setStatus] = useState<FollowRequestStatus>(initialStatus)
+  const [status, setStatus] =
+    useState<FollowRequestInitialStatus>(initialStatus)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

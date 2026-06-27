@@ -2,14 +2,21 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
+import { acceptFollowRequest, rejectFollowRequest } from '@/lib/client'
 import type { Mastodon } from '@/lib/types/activitypub'
 
 import { FollowRequestNotification } from './FollowRequestNotification'
 
+vi.mock('@/lib/client', () => ({
+  acceptFollowRequest: vi.fn(),
+  rejectFollowRequest: vi.fn()
+}))
+
+const mockRefresh = vi.fn()
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() })
+  useRouter: () => ({ refresh: mockRefresh, push: vi.fn() })
 }))
 
 const account: Mastodon.Account = {
@@ -45,6 +52,12 @@ const account: Mastodon.Account = {
 }
 
 describe('FollowRequestNotification', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    ;(acceptFollowRequest as jest.Mock).mockResolvedValue(true)
+    ;(rejectFollowRequest as jest.Mock).mockResolvedValue(true)
+  })
+
   it('shows Approve and Reject actions for a pending request', () => {
     render(<FollowRequestNotification account={account} />)
 
@@ -75,6 +88,20 @@ describe('FollowRequestNotification', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('shows a rejected label and no actions when the request was already rejected', () => {
+    render(
+      <FollowRequestNotification account={account} initialStatus="rejected" />
+    )
+
+    expect(screen.getByText('Rejected')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Approve' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Reject' })
+    ).not.toBeInTheDocument()
+  })
+
   it('shows a resolved label and no actions when the request is no longer pending', () => {
     render(
       <FollowRequestNotification account={account} initialStatus="resolved" />
@@ -87,5 +114,48 @@ describe('FollowRequestNotification', () => {
     expect(
       screen.queryByRole('button', { name: 'Reject' })
     ).not.toBeInTheDocument()
+  })
+
+  it('approves a pending request and swaps the actions for an approved label', async () => {
+    render(<FollowRequestNotification account={account} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+    await waitFor(() =>
+      expect(acceptFollowRequest).toHaveBeenCalledWith({ id: account.url })
+    )
+    expect(await screen.findByText('Approved')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Approve' })
+    ).not.toBeInTheDocument()
+    expect(mockRefresh).toHaveBeenCalled()
+  })
+
+  it('rejects a pending request and swaps the actions for a rejected label', async () => {
+    render(<FollowRequestNotification account={account} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' }))
+
+    await waitFor(() =>
+      expect(rejectFollowRequest).toHaveBeenCalledWith({ id: account.url })
+    )
+    expect(await screen.findByText('Rejected')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Reject' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps the actions and shows an inline error when the request fails', async () => {
+    ;(acceptFollowRequest as jest.Mock).mockResolvedValue(false)
+    render(<FollowRequestNotification account={account} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Failed to accept follow request. Please try again.'
+    )
+    // A failed request must leave the row actionable (no optimistic state).
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument()
+    expect(screen.queryByText('Approved')).not.toBeInTheDocument()
   })
 })
