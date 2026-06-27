@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { acceptFollowRequest, rejectFollowRequest } from '@/lib/client'
 import type { Mastodon } from '@/lib/types/activitypub'
@@ -145,20 +145,33 @@ describe('FollowRequestNotification', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('does not start a second action while one is already in flight', async () => {
-    // Accept never resolves, so the first action stays in flight.
+  it('rejects a same-tick re-click before the disabled state applies', async () => {
+    // The first request never resolves, so the action stays in flight.
+    ;(acceptFollowRequest as jest.Mock).mockReturnValue(new Promise(() => {}))
+    render(<FollowRequestNotification account={account} />)
+    const approve = screen.getByRole('button', { name: 'Approve' })
+
+    // Both clicks are dispatched in one batch, before React flushes the
+    // disabled={isLoading} state — so only the synchronous pendingRef lock can
+    // stop the second click from starting a concurrent request. (Without the
+    // lock, acceptFollowRequest would be called twice.)
+    await act(async () => {
+      approve.click()
+      approve.click()
+    })
+
+    expect(acceptFollowRequest).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables both actions once one is in flight', async () => {
     ;(acceptFollowRequest as jest.Mock).mockReturnValue(new Promise(() => {}))
     render(<FollowRequestNotification account={account} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
 
-    await waitFor(() => expect(acceptFollowRequest).toHaveBeenCalledTimes(1))
-    // Both actions are mutually exclusive while one is pending.
-    fireEvent.click(screen.getByRole('button', { name: 'Reject' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
-    expect(rejectFollowRequest).not.toHaveBeenCalled()
-    expect(acceptFollowRequest).toHaveBeenCalledTimes(1)
-    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled()
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled()
+    )
     expect(screen.getByRole('button', { name: 'Reject' })).toBeDisabled()
   })
 
