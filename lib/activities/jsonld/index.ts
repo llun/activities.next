@@ -129,7 +129,11 @@ const CANONICAL_CONTEXT = {
       to: { '@id': 'as:to', '@type': '@id', '@container': '@set' },
       cc: { '@id': 'as:cc', '@type': '@id', '@container': '@set' },
       tag: { '@id': 'as:tag', '@container': '@set' },
-      attachment: { '@id': 'as:attachment', '@container': '@set' }
+      attachment: { '@id': 'as:attachment', '@container': '@set' },
+      // Poll options are object-valued sets; force arrays so a single-option
+      // poll does not compact to a bare object and fail the Question schema.
+      oneOf: { '@id': 'as:oneOf', '@container': '@set' },
+      anyOf: { '@id': 'as:anyOf', '@container': '@set' }
     }
   ]
 }
