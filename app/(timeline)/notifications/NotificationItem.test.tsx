@@ -268,6 +268,98 @@ describe('NotificationItem', () => {
     expect(screen.getByRole('button', { name: 'Reject' })).toBeInTheDocument()
   })
 
+  // Regression: once a request is approved (the viewer follows back) the row must
+  // stop offering Approve / Reject and read as already handled. The page resolves
+  // the live follow status and forwards it as followRequestStatus.
+  it('renders an already-approved follow request without actions', () => {
+    renderNotificationItem({
+      id: 'notification-follow-request-accepted',
+      actorId: 'https://llun.social/users/llun',
+      type: 'follow_request',
+      sourceActorId: account.id,
+      isRead: true,
+      createdAt: currentTime,
+      updatedAt: currentTime,
+      account,
+      followRequestStatus: 'accepted'
+    })
+
+    expect(screen.getByText(/requested to follow you/)).toBeInTheDocument()
+    expect(screen.getByText('Approved')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Approve' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Reject' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('renders a resolved follow request without actions', () => {
+    renderNotificationItem({
+      id: 'notification-follow-request-resolved',
+      actorId: 'https://llun.social/users/llun',
+      type: 'follow_request',
+      sourceActorId: account.id,
+      isRead: true,
+      createdAt: currentTime,
+      updatedAt: currentTime,
+      account,
+      followRequestStatus: 'resolved'
+    })
+
+    expect(screen.getByText('No longer pending')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Approve' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Reject' })
+    ).not.toBeInTheDocument()
+  })
+
+  // Regression: when a request is handled elsewhere and the page soft-refreshes
+  // (e.g. the mark-as-read refresh), the row must re-seed from the new
+  // server-resolved status rather than keep its mount-time 'pending' state. The
+  // follow-request body is keyed by the resolved status so it remounts on change.
+  it('re-seeds the follow-request row when the resolved status changes on refresh', () => {
+    const followRequest = {
+      id: 'notification-follow-request-reseed',
+      actorId: 'https://llun.social/users/llun',
+      type: 'follow_request' as const,
+      sourceActorId: account.id,
+      isRead: true,
+      createdAt: currentTime,
+      updatedAt: currentTime,
+      account
+    }
+
+    const { rerender } = render(
+      <NotificationItem
+        notification={{ ...followRequest, followRequestStatus: 'pending' }}
+        host="llun.social"
+        isRead
+        currentTime={currentTime}
+        observeElement={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument()
+
+    rerender(
+      <NotificationItem
+        notification={{ ...followRequest, followRequestStatus: 'accepted' }}
+        host="llun.social"
+        isRead
+        currentTime={currentTime}
+        observeElement={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Approved')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Approve' })
+    ).not.toBeInTheDocument()
+  })
+
   it('renders activity import notifications with the fitness card and a view link', () => {
     const { container } = renderNotificationItem({
       id: 'notification-activity-import',

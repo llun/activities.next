@@ -6,6 +6,7 @@ import { ReactNode, useEffect, useRef } from 'react'
 
 import { getNotificationStatusPath } from '@/app/(timeline)/notifications/getNotificationStatusPath'
 import {
+  type FollowRequestInitialStatus,
   type NotificationWithAccount,
   hasStatusActor
 } from '@/app/(timeline)/notifications/types'
@@ -33,6 +34,9 @@ interface Props {
     // The collection a collection-typed notification refers to (resolved from
     // its groupKey), or null when it has been deleted.
     collection?: { id: string; title: string } | null
+    // For follow_request rows: the server-resolved state of the request, so an
+    // already-handled request never renders stale Approve / Reject actions.
+    followRequestStatus?: FollowRequestInitialStatus
   }
   host: string
   isRead: boolean
@@ -128,7 +132,18 @@ export const NotificationItem = ({
       if (notification.type === 'follow') {
         body = <FollowNotification account={acc} />
       } else if (notification.type === 'follow_request') {
-        body = <FollowRequestNotification account={acc} />
+        body = (
+          <FollowRequestNotification
+            // Re-key on the server-resolved status so a request handled
+            // elsewhere (and surfaced on a soft refresh) re-seeds the row
+            // instead of keeping the mount-time state. This NotificationItem is
+            // already keyed by notification.id upstream, so keying by id here
+            // would never reset; the resolved status is what must reset it.
+            key={notification.followRequestStatus ?? 'pending'}
+            account={acc}
+            initialStatus={notification.followRequestStatus}
+          />
+        )
       } else if (notification.type === 'added_to_collection') {
         // The consent gate: let the member choose whether to appear on the
         // collection's public link. Needs the collection (from the groupKey)
