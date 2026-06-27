@@ -373,19 +373,65 @@ describe('createApplication', () => {
     expect(dbClient.postLogoutRedirectUris).toBeNull()
   })
 
-  test('it rejects post_logout_redirect_uris with an unsafe scheme', async () => {
-    const response = await createApplication({
-      client_name: 'unsafeLogoutClient',
-      redirect_uris: 'https://unsafe-logout.llun.dev/callback',
-      post_logout_redirect_uris: 'javascript:alert(1)',
-      scopes: 'read',
-      website: 'https://unsafe-logout.llun.dev'
-    })
+  // The end-session endpoint validates the incoming post_logout_redirect_uri
+  // with SafeUrlSchema (rejects unsafe schemes, fragments, and non-HTTPS except
+  // loopback). Registration mirrors that exactly so a stored URI can't pass
+  // registration yet fail at logout time.
+  test.each([
+    {
+      description: 'an unsafe scheme',
+      uri: 'javascript:alert(1)'
+    },
+    {
+      description: 'a fragment component',
+      uri: 'https://unsafe-logout.llun.dev/logout-callback#frag'
+    },
+    {
+      description: 'a non-HTTPS scheme on a non-loopback host',
+      uri: 'http://unsafe-logout.llun.dev/logout-callback'
+    },
+    {
+      description: 'a value that is not a valid URL',
+      uri: 'not a url'
+    }
+  ])(
+    'it rejects post_logout_redirect_uris with $description',
+    async ({ uri }) => {
+      const response = await createApplication({
+        client_name: 'unsafeLogoutClient',
+        redirect_uris: 'https://unsafe-logout.llun.dev/callback',
+        post_logout_redirect_uris: uri,
+        scopes: 'read',
+        website: 'https://unsafe-logout.llun.dev'
+      })
 
-    expect(response).toEqual({
-      type: 'error',
-      error: 'Failed to validate request'
-    })
+      expect(response).toEqual({
+        type: 'error',
+        error: 'Failed to validate request'
+      })
+    }
+  )
+
+  test('it allows http post_logout_redirect_uris on loopback hosts', async () => {
+    // Parity with the end-session SafeUrlSchema: HTTP is permitted for loopback
+    // (localhost / 127.0.0.1) so local-dev RPs are not over-rejected.
+    const response = (await createApplication({
+      client_name: 'loopbackLogoutClient',
+      redirect_uris: 'https://loopback-logout.llun.dev/callback',
+      post_logout_redirect_uris: 'http://127.0.0.1:3000/logout-callback',
+      scopes: 'read',
+      website: 'https://loopback-logout.llun.dev'
+    })) as SuccessResponse
+
+    expect(response.type).toBe('success')
+
+    const dbClient = await knexDatabase('oauthClient')
+      .where({ id: response.id })
+      .first()
+    expect(dbClient.enableEndSession).toBeTruthy()
+    expect(JSON.parse(dbClient.postLogoutRedirectUris)).toEqual([
+      'http://127.0.0.1:3000/logout-callback'
+    ])
   })
 
   test('it rate limits app registration floods from the same unauthenticated source', async () => {

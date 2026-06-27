@@ -1,3 +1,4 @@
+import { SafeUrlSchema } from '@better-auth/core/utils/redirect-uri'
 import crypto from 'crypto'
 import type { Knex } from 'knex'
 
@@ -241,20 +242,19 @@ export const createApplication = async (
           }
         }
         // Optional OpenID Connect RP-Initiated Logout callbacks (newline-
-        // separated, like redirect_uris). Validate the same way and, when at
-        // least one valid URI is supplied, enable end-session for the client so
-        // it can drive single logout. Omitted ⇒ end-session stays disabled.
+        // separated, like redirect_uris). When at least one valid URI is
+        // supplied, end-session is enabled for the client so it can drive single
+        // logout; omitted ⇒ end-session stays disabled. Validate each URI with
+        // the SAME SafeUrlSchema the end-session endpoint enforces on the
+        // incoming post_logout_redirect_uri query param (rejects fragments and
+        // non-HTTPS except loopback) so a stored URI can never pass registration
+        // yet silently fail at logout time.
         const postLogoutRedirectUris = (request.post_logout_redirect_uris ?? '')
           .split('\n')
           .map((uri) => uri.trim())
           .filter(Boolean)
         for (const uri of postLogoutRedirectUris) {
-          try {
-            const parsed = new URL(uri)
-            if (unsafeSchemes.has(parsed.protocol)) {
-              return validationErrorResponse()
-            }
-          } catch {
+          if (!SafeUrlSchema.safeParse(uri).success) {
             return validationErrorResponse()
           }
         }
