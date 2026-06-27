@@ -188,4 +188,24 @@ describe('FollowRequestNotification', () => {
     expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument()
     expect(screen.queryByText('Approved')).not.toBeInTheDocument()
   })
+
+  it('re-enables the action after a failure so it can be retried', async () => {
+    ;(acceptFollowRequest as jest.Mock).mockResolvedValueOnce(false)
+    render(<FollowRequestNotification account={account} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+    // The finally block must release both isLoading and the pendingRef lock, so
+    // the button is enabled again and a retry actually dispatches.
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Approve' })).not.toBeDisabled()
+    )
+
+    // The retry succeeds (default mock returns true) and swaps to the label.
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+    expect(await screen.findByText('Approved')).toBeInTheDocument()
+    expect(acceptFollowRequest).toHaveBeenCalledTimes(2)
+  })
 })
