@@ -8,6 +8,7 @@ import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { localizeAccounts } from '@/lib/services/accounts/localizeAccount'
+import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import {
   OptionalOAuthGuard,
   corsErrorResponse
@@ -253,13 +254,15 @@ const resolveAccountId = async ({
   currentActor,
   query,
   resolve,
-  following
+  following,
+  signingActor
 }: {
   database: Database
   currentActor: Actor | null
   query: string
   resolve: boolean
   following: boolean
+  signingActor?: Actor
 }) => {
   if (!resolve) return null
 
@@ -269,7 +272,7 @@ const resolveAccountId = async ({
       ? query
       : await getCanonicalAccountActorId({
           query,
-          signingActor: currentActor ?? undefined
+          signingActor
         })
     const actor =
       existingActor ??
@@ -279,7 +282,7 @@ const resolveAccountId = async ({
       (await recordResolvedActorIfNeeded({
         actorId: canonicalActorId,
         database,
-        signingActor: currentActor ?? undefined
+        signingActor
       }))
     if (
       actor &&
@@ -309,7 +312,7 @@ const resolveAccountId = async ({
       ? await recordResolvedActorIfNeeded({
           actorId,
           database,
-          signingActor: currentActor ?? undefined
+          signingActor
         })
       : null
   }
@@ -333,15 +336,20 @@ const getResolvedStatus = async ({
   database,
   currentActor,
   query,
-  resolve
+  resolve,
+  signingActor
 }: {
   database: Database
   currentActor: Actor
   query: string
   resolve: boolean
+  signingActor?: Actor
 }) => {
   if (!resolve || !isUrl(query)) return null
 
+  // Local lookups stay scoped to the requesting user (visibility filtering),
+  // but the remote fetch + actor recording are server-to-server federation
+  // calls and must be signed by the instance actor, not the viewer.
   const localStatus =
     (await database.getStatus({
       statusId: query,
@@ -352,7 +360,7 @@ const getResolvedStatus = async ({
     localStatus ??
     (await getRemoteStatus({
       statusId: query,
-      signingActor: currentActor
+      signingActor
     }))
 
   if (!status) return null
@@ -361,7 +369,7 @@ const getResolvedStatus = async ({
     const actor = await recordResolvedActorIfNeeded({
       actorId: status.actorId,
       database,
-      signingActor: currentActor
+      signingActor
     })
     if (!actor) return null
   }
@@ -380,7 +388,8 @@ const searchAccounts = async ({
   params,
   query,
   limit,
-  offset
+  offset,
+  signingActor
 }: {
   database: Database
   currentActor: Actor | null
@@ -388,6 +397,7 @@ const searchAccounts = async ({
   query: string
   limit: number
   offset: number
+  signingActor?: Actor
 }) => {
   const [resolvedAccountId, indexedIds] = await Promise.all([
     offset === 0
@@ -396,7 +406,8 @@ const searchAccounts = async ({
           currentActor,
           query,
           resolve: params.resolve ?? false,
-          following: params.following ?? false
+          following: params.following ?? false,
+          signingActor
         })
       : Promise.resolve(null),
     database.searchAccountIds({
@@ -450,7 +461,8 @@ const searchStatuses = async ({
   params,
   query,
   limit,
-  offset
+  offset,
+  signingActor
 }: {
   database: Database
   currentActor: Actor
@@ -458,6 +470,7 @@ const searchStatuses = async ({
   query: string
   limit: number
   offset: number
+  signingActor?: Actor
 }) => {
   const indexedLimit = limit * 2
   const [resolvedStatus, indexedIds] = await Promise.all([
@@ -466,7 +479,8 @@ const searchStatuses = async ({
           database,
           currentActor,
           query,
-          resolve: params.resolve ?? false
+          resolve: params.resolve ?? false,
+          signingActor
         })
       : Promise.resolve(null),
     database.searchStatusIds({
@@ -563,6 +577,27 @@ export const GET = traceApiRoute(
       const includeStatuses =
         Boolean(currentActor) && (!params.type || params.type === 'statuses')
 
+      // Only `resolve=true` (on the first page) dereferences a remote actor or
+      // status, and those server-to-server fetches must be signed by the
+      // dedicated headless instance actor — not the requesting user. Secure-mode
+      // remotes reject unsigned/unverifiable requests, and on multi-domain
+      // setups the viewer's key may not be publicly resolvable, so viewer-signed
+      // resolution silently fails. Index search and visibility checks stay
+      // user-scoped (`currentActor`) and are untouched. Resolution is
+      // best-effort: a missing/failed signer degrades to an unsigned fetch
+      // rather than failing the whole search.
+      const requiresRemoteSigner = params.resolve === true && offset === 0
+      const signingActor = requiresRemoteSigner
+        ? await getFederationSigningActor(database).catch((error) => {
+            logger.warn({
+              message:
+                'Failed to resolve federation signing actor for remote search resolution; falling back to an unsigned request',
+              error: error instanceof Error ? error.message : String(error)
+            })
+            return undefined
+          })
+        : undefined
+
       const [accounts, hashtags, domainStatuses] = await Promise.all([
         includeAccounts
           ? searchAccounts({
@@ -571,7 +606,8 @@ export const GET = traceApiRoute(
               params,
               query,
               limit,
-              offset
+              offset,
+              signingActor
             })
           : [],
         includeHashtags
@@ -590,7 +626,8 @@ export const GET = traceApiRoute(
               params,
               query,
               limit,
-              offset
+              offset,
+              signingActor
             })
           : []
       ])
