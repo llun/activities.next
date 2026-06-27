@@ -59,6 +59,23 @@ describe('compactActivityPub', () => {
     expect(result.cc).toEqual(['https://remote.example/users/alice/followers'])
   })
 
+  it('forces alsoKnownAs to an array even for a single migration alias', async () => {
+    // Mastodon emits `alsoKnownAs` as a set of ids. With only one alias the
+    // value compacts to a scalar string unless the canonical context marks it
+    // `@container: @set`, which then fails the actor schema's `string[]`.
+    const result = asRecord(
+      await compactActivityPub({
+        '@context': [ACTIVITY_STREAMS_CONTEXT_URL, SECURITY_V1_CONTEXT_URL],
+        id: 'https://remote.example/users/alice',
+        type: 'Person',
+        preferredUsername: 'alice',
+        alsoKnownAs: ['https://old.example/users/alice']
+      })
+    )
+
+    expect(result.alsoKnownAs).toEqual(['https://old.example/users/alice'])
+  })
+
   it('keeps an embedded object but collapses a bare reference', async () => {
     const create = asRecord(
       await compactActivityPub({

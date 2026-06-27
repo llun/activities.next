@@ -112,7 +112,13 @@ const CANONICAL_CONTEXT = {
       suspended: 'toot:suspended',
       manuallyApprovesFollowers: 'as:manuallyApprovesFollowers',
       movedTo: { '@id': 'as:movedTo', '@type': '@id' },
-      alsoKnownAs: { '@id': 'as:alsoKnownAs', '@type': '@id' },
+      // A set of migration aliases — force an array so a single alias does not
+      // compact to a scalar string and fail the actor schema's `string[]`.
+      alsoKnownAs: {
+        '@id': 'as:alsoKnownAs',
+        '@type': '@id',
+        '@container': '@set'
+      },
       featured: { '@id': 'toot:featured', '@type': '@id' },
       featuredTags: { '@id': 'toot:featuredTags', '@type': '@id' },
       devices: { '@id': 'toot:devices', '@type': '@id' },
