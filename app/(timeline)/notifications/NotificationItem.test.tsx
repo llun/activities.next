@@ -316,6 +316,50 @@ describe('NotificationItem', () => {
     ).not.toBeInTheDocument()
   })
 
+  // Regression: when a request is handled elsewhere and the page soft-refreshes
+  // (e.g. the mark-as-read refresh), the row must re-seed from the new
+  // server-resolved status rather than keep its mount-time 'pending' state. The
+  // follow-request body is keyed by the resolved status so it remounts on change.
+  it('re-seeds the follow-request row when the resolved status changes on refresh', () => {
+    const followRequest = {
+      id: 'notification-follow-request-reseed',
+      actorId: 'https://llun.social/users/llun',
+      type: 'follow_request' as const,
+      sourceActorId: account.id,
+      isRead: true,
+      createdAt: currentTime,
+      updatedAt: currentTime,
+      account
+    }
+
+    const { rerender } = render(
+      <NotificationItem
+        notification={{ ...followRequest, followRequestStatus: 'pending' }}
+        host="llun.social"
+        isRead
+        currentTime={currentTime}
+        observeElement={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument()
+
+    rerender(
+      <NotificationItem
+        notification={{ ...followRequest, followRequestStatus: 'accepted' }}
+        host="llun.social"
+        isRead
+        currentTime={currentTime}
+        observeElement={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Approved')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Approve' })
+    ).not.toBeInTheDocument()
+  })
+
   it('renders activity import notifications with the fitness card and a view link', () => {
     const { container } = renderNotificationItem({
       id: 'notification-activity-import',

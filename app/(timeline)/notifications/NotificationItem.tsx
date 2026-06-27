@@ -134,6 +134,12 @@ export const NotificationItem = ({
       } else if (notification.type === 'follow_request') {
         body = (
           <FollowRequestNotification
+            // Re-key on the server-resolved status so a request handled
+            // elsewhere (and surfaced on a soft refresh) re-seeds the row
+            // instead of keeping the mount-time state. This NotificationItem is
+            // already keyed by notification.id upstream, so keying by id here
+            // would never reset; the resolved status is what must reset it.
+            key={notification.followRequestStatus ?? 'pending'}
             account={acc}
             initialStatus={notification.followRequestStatus}
           />
