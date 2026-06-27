@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { FC, useState } from 'react'
 
+import type { FollowRequestInitialStatus } from '@/app/(timeline)/notifications/types'
 import { acceptFollowRequest, rejectFollowRequest } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
 import type { Mastodon } from '@/lib/types/activitypub'
@@ -10,17 +11,34 @@ import { cn } from '@/lib/utils'
 
 interface Props {
   account: Mastodon.Account
+  // The server-resolved state of the request. Defaults to 'pending' so a row
+  // with no resolved status still offers the actions. 'rejected' is only ever
+  // reached from this component's own Reject action, so it is not part of the
+  // server-supplied initial status.
+  initialStatus?: FollowRequestInitialStatus
+}
+
+type FollowRequestStatus = FollowRequestInitialStatus | 'rejected'
+
+// Labels for the non-pending states (pending renders the action buttons).
+const STATUS_LABEL: Record<Exclude<FollowRequestStatus, 'pending'>, string> = {
+  accepted: 'Approved',
+  rejected: 'Rejected',
+  resolved: 'No longer pending'
 }
 
 // The body of a follow-request notification: the actor handle plus Approve /
 // Reject actions. The "<name> requested to follow you" headline lives in
 // NotificationItem, so the row always reads as a follow request even before the
-// actions.
-export const FollowRequestNotification: FC<Props> = ({ account }) => {
+// actions. When the request is no longer pending (already accepted, rejected,
+// or withdrawn) the actions are replaced by a status label so the row never
+// invites an action that would just 404.
+export const FollowRequestNotification: FC<Props> = ({
+  account,
+  initialStatus = 'pending'
+}) => {
   const router = useRouter()
-  const [status, setStatus] = useState<'pending' | 'accepted' | 'rejected'>(
-    'pending'
-  )
+  const [status, setStatus] = useState<FollowRequestStatus>(initialStatus)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -75,7 +93,7 @@ export const FollowRequestNotification: FC<Props> = ({ account }) => {
                 : 'text-muted-foreground'
             )}
           >
-            {status === 'accepted' ? 'Approved' : 'Rejected'}
+            {STATUS_LABEL[status]}
           </span>
         )}
       </div>

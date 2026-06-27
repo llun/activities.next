@@ -18,6 +18,7 @@ import {
   NotificationFilterTabs,
   type NotificationTab
 } from './components/NotificationFilterTabs'
+import { followRequestStatusFromFollow } from './followRequestStatus'
 
 export const dynamic = 'force-dynamic'
 
@@ -126,11 +127,26 @@ const Page = async ({ searchParams }: Props) => {
           ? { id: collectionId, title: collectionTitles.get(collectionId)! }
           : null
 
+      // For follow_request rows, resolve the live follow state so an already
+      // handled request (accepted, rejected, or withdrawn) never offers stale
+      // Approve / Reject actions. The follower is the source actor; the viewer
+      // is the target.
+      const followRequestStatus =
+        notification.type === 'follow_request'
+          ? followRequestStatusFromFollow(
+              await database.getAcceptedOrRequestedFollow({
+                actorId: notification.sourceActorId,
+                targetActorId: actor.id
+              })
+            )
+          : undefined
+
       return {
         ...notification,
         account,
         status,
-        collection
+        collection,
+        followRequestStatus
       }
     })
   )
