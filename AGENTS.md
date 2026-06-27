@@ -336,6 +336,7 @@ These exact steps are verified to work; the gotchas below are load-bearing.
   - `fix:`, `feat:`, `chore:`, `refactor:`, `test:`, `docs:`, etc. for everything else (patch version bump)
 - PRs should include a clear summary, linked issues (if any), test results, and notes for config/migrations.
 - Include screenshots or clips for UI changes.
+- **Never put production or operational SQL in PR descriptions** (or anywhere committed in the repo). One-off database mutations for a deployment — hotfix `UPDATE`/`INSERT`/`DELETE` statements, data backfills, or any copy-pasteable production runbook — must not live in the PR body. Describe **what** operational change is needed and **why** in prose, and deliver the actual SQL through the deployment runbook or a private ops channel instead. The only place SQL-shaped change belongs in the repo is a Knex migration under `migrations/` (schema changes); illustrative SQL in maintenance docs like the schema-dump steps is fine. This keeps environment-specific identifiers, hostnames, and runbooks out of the public Git history.
 
 ### Version Bump Prefixes
 
