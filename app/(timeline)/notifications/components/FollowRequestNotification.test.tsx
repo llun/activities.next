@@ -145,6 +145,23 @@ describe('FollowRequestNotification', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('does not start a second action while one is already in flight', async () => {
+    // Accept never resolves, so the first action stays in flight.
+    ;(acceptFollowRequest as jest.Mock).mockReturnValue(new Promise(() => {}))
+    render(<FollowRequestNotification account={account} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+    await waitFor(() => expect(acceptFollowRequest).toHaveBeenCalledTimes(1))
+    // Both actions are mutually exclusive while one is pending.
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    expect(rejectFollowRequest).not.toHaveBeenCalled()
+    expect(acceptFollowRequest).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Reject' })).toBeDisabled()
+  })
+
   it('keeps the actions and shows an inline error when the request fails', async () => {
     ;(acceptFollowRequest as jest.Mock).mockResolvedValue(false)
     render(<FollowRequestNotification account={account} />)

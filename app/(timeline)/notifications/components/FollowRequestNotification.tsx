@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { FC, useState } from 'react'
+import { FC, useRef, useState } from 'react'
 
 import type { FollowRequestInitialStatus } from '@/app/(timeline)/notifications/types'
 import { acceptFollowRequest, rejectFollowRequest } from '@/lib/client'
@@ -41,8 +41,16 @@ export const FollowRequestNotification: FC<Props> = ({
     useState<FollowRequestInitialStatus>(initialStatus)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Synchronous re-entrancy lock. Accept and Reject are mutually exclusive, and
+  // `disabled={isLoading}` already blocks the buttons once React re-renders;
+  // this ref additionally rejects a second call dispatched in the same tick
+  // (before the disabled state applies), since the isLoading closure is stale
+  // there. It is not React state because it must update synchronously.
+  const pendingRef = useRef(false)
 
   const respond = async (action: 'accept' | 'reject') => {
+    if (pendingRef.current) return
+    pendingRef.current = true
     setIsLoading(true)
     setError(null)
     try {
@@ -57,6 +65,7 @@ export const FollowRequestNotification: FC<Props> = ({
       setError(`Failed to ${action} follow request. Please try again.`)
     } finally {
       setIsLoading(false)
+      pendingRef.current = false
     }
   }
 
