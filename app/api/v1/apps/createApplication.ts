@@ -1,3 +1,12 @@
+// SafeUrlSchema is a PUBLIC export of @better-auth/core (its `exports` map
+// declares `./utils/*`, and the schema's own doc-comment sanctions external
+// consumption). @better-auth/core is a direct, exact-pinned (1.6.20) dependency,
+// so this resolves under strict package managers (this repo uses Yarn 4) and
+// can't drift on a minor/patch bump. We deliberately reuse it rather than
+// re-implement the policy: the end-session endpoint validates the incoming
+// `post_logout_redirect_uri` with this exact same schema, so reusing it keeps
+// registration-time and logout-time validation byte-for-byte aligned (a local
+// copy would silently drift on any future better-auth change).
 import { SafeUrlSchema } from '@better-auth/core/utils/redirect-uri'
 import crypto from 'crypto'
 import type { Knex } from 'knex'

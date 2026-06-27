@@ -106,15 +106,15 @@ describe('wellknown services', () => {
       )
     })
 
-    it('builds the issuer and logout endpoint from the same basePath constant the auth instance uses', () => {
-      // The oauth-provider's RP-initiated logout rejects an id_token unless
-      // `id_token.iss === jwt.issuer ?? ctx.context.baseURL`, where
-      // `ctx.context.baseURL` is `${baseURL}${basePath}` — and `basePath` is the
-      // shared `AUTH_BASE_PATH` constant `auth.ts` passes to better-auth. The
-      // id_token `iss`, the discovery `issuer`, and the end-session check all
-      // resolve to that single value, so a future basePath change moves the
-      // discovery issuer with it instead of silently breaking logout with
-      // "invalid issuer".
+    it('builds the issuer and logout endpoint from the shared AUTH_BASE_PATH constant', () => {
+      // `auth.ts` passes `AUTH_BASE_PATH` to better-auth as `basePath`, and the
+      // discovery doc builds its `issuer`/endpoints from the same constant, so
+      // the advertised issuer tracks the basePath the id_token `iss` is signed
+      // under (the value the end-session check enforces). This asserts the
+      // discovery side of that coupling — that the issuer and end_session_endpoint
+      // are derived from AUTH_BASE_PATH, not a divergent hardcoded literal. (It
+      // can't observe `auth.ts`'s `basePath` wiring directly; that side is held
+      // by both consuming this one exported constant.)
       const config = getOpenIDConfiguration()
 
       expect(config.issuer).toBe(`https://test.example.com${AUTH_BASE_PATH}`)

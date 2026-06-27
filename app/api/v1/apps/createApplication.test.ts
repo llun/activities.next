@@ -351,6 +351,10 @@ describe('createApplication', () => {
     const dbClient = await knexDatabase('oauthClient')
       .where({ id: response.id })
       .first()
+    // Explicitly disabled, not merely absent: the row carries a written
+    // (non-null) falsy enableEndSession, which the pre-change code (no insert)
+    // could not produce. This keeps the regression guard load-bearing.
+    expect(dbClient.enableEndSession).not.toBeNull()
     expect(dbClient.enableEndSession).toBeFalsy()
     expect(dbClient.postLogoutRedirectUris).toBeNull()
   })
@@ -369,6 +373,7 @@ describe('createApplication', () => {
     const dbClient = await knexDatabase('oauthClient')
       .where({ id: response.id })
       .first()
+    expect(dbClient.enableEndSession).not.toBeNull()
     expect(dbClient.enableEndSession).toBeFalsy()
     expect(dbClient.postLogoutRedirectUris).toBeNull()
   })
@@ -432,6 +437,30 @@ describe('createApplication', () => {
     expect(JSON.parse(dbClient.postLogoutRedirectUris)).toEqual([
       'http://127.0.0.1:3000/logout-callback'
     ])
+  })
+
+  test('it rejects the whole registration when any post_logout_redirect_uri is invalid', async () => {
+    // Validation is all-or-nothing: one bad URI in the list fails the request and
+    // persists nothing — a future refactor that silently filtered out invalid
+    // entries would be a security regression, so pin the behavior.
+    const response = await createApplication({
+      client_name: 'mixedLogoutClient',
+      redirect_uris: 'https://mixed-logout.llun.dev/callback',
+      post_logout_redirect_uris:
+        'https://mixed-logout.llun.dev/logout-callback\njavascript:alert(1)',
+      scopes: 'read',
+      website: 'https://mixed-logout.llun.dev'
+    })
+
+    expect(response).toEqual({
+      type: 'error',
+      error: 'Failed to validate request'
+    })
+
+    const dbClient = await knexDatabase('oauthClient')
+      .where({ name: 'mixedLogoutClient' })
+      .first()
+    expect(dbClient).toBeUndefined()
   })
 
   test('it rate limits app registration floods from the same unauthenticated source', async () => {
