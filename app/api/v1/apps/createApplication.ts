@@ -1,3 +1,13 @@
+// SafeUrlSchema is a PUBLIC export of @better-auth/core (its `exports` map
+// declares `./utils/*`, and the schema's own doc-comment sanctions external
+// consumption). @better-auth/core is a direct, exact-pinned (1.6.20) dependency,
+// so this resolves under strict package managers (this repo uses Yarn 4) and
+// can't drift on a minor/patch bump. We deliberately reuse it rather than
+// re-implement the policy: the end-session endpoint validates the incoming
+// `post_logout_redirect_uri` with this exact same schema, so reusing it keeps
+// registration-time and logout-time validation byte-for-byte aligned (a local
+// copy would silently drift on any future better-auth change).
+import { SafeUrlSchema } from '@better-auth/core/utils/redirect-uri'
 import crypto from 'crypto'
 import type { Knex } from 'knex'
 
@@ -240,6 +250,24 @@ export const createApplication = async (
             return validationErrorResponse()
           }
         }
+        // Optional OpenID Connect RP-Initiated Logout callbacks (newline-
+        // separated, like redirect_uris). When at least one valid URI is
+        // supplied, end-session is enabled for the client so it can drive single
+        // logout; omitted ⇒ end-session stays disabled. Validate each URI with
+        // the SAME SafeUrlSchema the end-session endpoint enforces on the
+        // incoming post_logout_redirect_uri query param (rejects fragments and
+        // non-HTTPS except loopback) so a stored URI can never pass registration
+        // yet silently fail at logout time.
+        const postLogoutRedirectUris = (request.post_logout_redirect_uris ?? '')
+          .split('\n')
+          .map((uri) => uri.trim())
+          .filter(Boolean)
+        for (const uri of postLogoutRedirectUris) {
+          if (!SafeUrlSchema.safeParse(uri).success) {
+            return validationErrorResponse()
+          }
+        }
+        const enableEndSession = postLogoutRedirectUris.length > 0
         const dbId = crypto.randomUUID()
         await db('oauthClient').insert({
           id: dbId,
@@ -248,6 +276,12 @@ export const createApplication = async (
           name: request.client_name,
           scopes: JSON.stringify(parsedScopes),
           redirectUris: JSON.stringify(redirectUris),
+          // Stored as a JSON-array string to match `redirectUris`; better-auth's
+          // adapter JSON-parses `string[]` fields back into arrays on read.
+          postLogoutRedirectUris: enableEndSession
+            ? JSON.stringify(postLogoutRedirectUris)
+            : null,
+          enableEndSession,
           uri: request.website || null,
           // Mastodon /api/v1/apps has no PKCE-capability field; PKCE is opt-in
           // at authorize-time via code_challenge. better-auth still enforces it
