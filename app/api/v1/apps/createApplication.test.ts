@@ -401,7 +401,7 @@ describe('createApplication', () => {
     }
   ])(
     'it rejects post_logout_redirect_uris with $description',
-    async ({ uri }) => {
+    async ({ uri }: { uri: string }) => {
       const response = await createApplication({
         client_name: 'unsafeLogoutClient',
         redirect_uris: 'https://unsafe-logout.llun.dev/callback',
