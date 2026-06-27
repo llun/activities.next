@@ -1,0 +1,24 @@
+app/(timeline)/notifications/followRequestStatus.test.ts
+  s_20f1b1f7038ee1::t_1654fbf5564b99 130-149
+  s_20f1b1f7038ee1::t_7bba54fcfadc8c 3,10-12
+  s_20f1b1f7038ee1::t_18040438fd5e1d 13
+app/(timeline)/notifications/followRequestStatus.ts
+  s_20f1b1f7038ee1::t_d2e7142f998e86 4
+  s_20f1b1f7038ee1::t_1ce00663ddfdf6 46-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "bc766f94edb2c14c5c45cca33d125fcfe49077e2",
+  "prompts": {},
+  "sessions": {
+    "s_20f1b1f7038ee1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e951bd32-cce5-4afa-80c0-b714dbe1af06",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
