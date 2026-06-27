@@ -28,6 +28,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Passkeys** — Register and use passkeys for account authentication
 - ✅ **Two-factor authentication** — TOTP-based second-factor login support
 - ✅ **OAuth 2.0 provider** — App acts as a full OAuth 2.0 / OpenID Connect server
+- ✅ **OIDC RP-Initiated Logout** — `end_session_endpoint` advertised in discovery; OAuth clients registered with `post_logout_redirect_uris` can drive single logout (sign the user out of this instance, not just the relying party)
 - ✅ **OAuth Bearer tokens** — API authentication for third-party clients
 - ✅ **Email verification** — Required for new accounts
 - ✅ **Password reset** — Reset password via email

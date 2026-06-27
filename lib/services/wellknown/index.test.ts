@@ -1,4 +1,5 @@
 import { Database } from '@/lib/database/types'
+import { AUTH_BASE_PATH } from '@/lib/services/auth/constants'
 
 import {
   getHostMetaXML,
@@ -74,6 +75,8 @@ describe('wellknown services', () => {
         userinfo_endpoint: 'https://test.example.com/oauth/userinfo',
         jwks_uri: 'https://test.example.com/api/auth/jwks',
         revocation_endpoint: 'https://test.example.com/oauth/revoke',
+        end_session_endpoint:
+          'https://test.example.com/api/auth/oauth2/end-session',
         response_types_supported: ['code'],
         subject_types_supported: ['public'],
         id_token_signing_alg_values_supported: ['RS256'],
@@ -91,6 +94,33 @@ describe('wellknown services', () => {
       // The id_token `iss` is baseURL + basePath; discovery must match it
       // exactly or a strict OIDC relying party rejects the token.
       expect(config.issuer).toBe('https://test.example.com/api/auth')
+    })
+
+    it('advertises the RP-initiated logout end_session_endpoint under the issuer', () => {
+      // django-lasuite/mozilla-django-oidc reads `end_session_endpoint` from
+      // discovery to perform single logout against this instance.
+      const config = getOpenIDConfiguration()
+
+      expect(config.end_session_endpoint).toBe(
+        'https://test.example.com/api/auth/oauth2/end-session'
+      )
+    })
+
+    it('builds the issuer and logout endpoint from the shared AUTH_BASE_PATH constant', () => {
+      // `auth.ts` passes `AUTH_BASE_PATH` to better-auth as `basePath`, and the
+      // discovery doc builds its `issuer`/endpoints from the same constant, so
+      // the advertised issuer tracks the basePath the id_token `iss` is signed
+      // under (the value the end-session check enforces). This asserts the
+      // discovery side of that coupling — that the issuer and end_session_endpoint
+      // are derived from AUTH_BASE_PATH, not a divergent hardcoded literal. (It
+      // can't observe `auth.ts`'s `basePath` wiring directly; that side is held
+      // by both consuming this one exported constant.)
+      const config = getOpenIDConfiguration()
+
+      expect(config.issuer).toBe(`https://test.example.com${AUTH_BASE_PATH}`)
+      expect(config.end_session_endpoint).toBe(
+        `${config.issuer}/oauth2/end-session`
+      )
     })
 
     it('keeps a distinct issuer from the RFC 8414 OAuth metadata (bare origin)', () => {
