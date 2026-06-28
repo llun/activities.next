@@ -51,7 +51,9 @@ export const resolveSignInRedirect = (
     searchParams.get('response_type') === 'code' &&
     searchParams.get('client_id')
   ) {
-    const oidcRequest: Record<string, string> = {}
+    // Null-proto so a query key that collides with an Object.prototype member
+    // (e.g. `__proto__`, `constructor`) can't pollute the forwarded request.
+    const oidcRequest: Record<string, string> = Object.create(null)
     searchParams.forEach((value, key) => {
       if (!isBetterAuthEnvelopeKey(key)) oidcRequest[key] = value
     })

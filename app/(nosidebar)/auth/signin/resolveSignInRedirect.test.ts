@@ -109,10 +109,11 @@ describe('resolveSignInRedirect', () => {
     )
 
     const result = resolveSignInRedirect(params)
+    const query = new URLSearchParams(result.split('?')[1])
     expect(result.startsWith('/oauth/authorize?')).toBe(true)
-    expect(new URLSearchParams(result.split('?')[1]).get('client_id')).toBe(
-      'docs'
-    )
+    expect(query.get('client_id')).toBe('docs')
+    // The unsafe redirectBack must not be echoed into the resumed query.
+    expect(query.has('redirectBack')).toBe(false)
   })
 
   it('carries request_uri (PAR) through the resume', () => {

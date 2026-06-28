@@ -39,4 +39,22 @@ describe('isSafeInternalPath', () => {
   ])('rejects $description', ({ value }) => {
     expect(isSafeInternalPath(value)).toBe(false)
   })
+
+  it.each([
+    { description: 'a percent-encoded double slash', value: '/%2f%2fevil.com' },
+    { description: 'a percent-encoded backslash', value: '/%5cevil.com' },
+    {
+      description: 'a literal percent that is not an escape',
+      value: '/100%done'
+    }
+  ])(
+    'accepts $description as a same-origin path (percent-encoding is not decoded during navigation)',
+    ({ value }) => {
+      // router.push / server redirect keep these encoded in the path, so they
+      // resolve same-origin (NOT off-origin). Decoding the pathname to "reject"
+      // them would over-reject valid paths like /100%done and throw on malformed
+      // escapes, so they are intentionally treated as safe internal paths.
+      expect(isSafeInternalPath(value)).toBe(true)
+    }
+  )
 })
