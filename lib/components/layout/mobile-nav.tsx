@@ -36,13 +36,16 @@ export function MobileNav({
   const navItems = buildNavItems({ fitnessUrl, isAdmin })
   let allNavItems = navItems
   if (profileNavItem) {
-    // Match the design system's overflow order: Profile sits with the
-    // account-level entries, just before the first of Admin/Settings.
-    // `buildNavItems` keeps Admin ahead of Settings, so the first match
-    // resolves to Admin when present and Settings otherwise. Build a new
+    // Match the design system's overflow order: Profile leads the account-level
+    // cluster, just before the first of Admin/Account/Settings. `buildNavItems`
+    // keeps these in the order Admin → Account → Settings, so the first match
+    // resolves to Admin when present, then Account, then Settings. Build a new
     // array rather than mutating the one `buildNavItems` returned.
     const accountIndex = navItems.findIndex(
-      (item) => item.href === '/admin' || item.href === '/settings'
+      (item) =>
+        item.href === '/admin' ||
+        item.href === '/account' ||
+        item.href === '/settings'
     )
     const profileIndex = accountIndex >= 0 ? accountIndex : navItems.length
     allNavItems = [
