@@ -651,4 +651,38 @@ describe('AuthorizeCard', () => {
     expect(submittedScopes).not.toContain('profile')
     expect(submittedScopes).not.toContain('email')
   })
+
+  it('renders only the locked openid row for a minimal openid-only OIDC request', async () => {
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={{ ...oidcSearchParams, scope: 'openid' }}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    // The identity block still renders for the minimal OIDC request.
+    expect(screen.getByText('rider@example.com')).toBeInTheDocument()
+    // openid is the only scope row, and it is locked.
+    const openidCheckbox = screen.getByLabelText('openid')
+    expect(openidCheckbox).toBeChecked()
+    expect(openidCheckbox).toBeDisabled()
+    expect(screen.queryByLabelText('profile')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('email')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/auth/oauth2/consent',
+        expect.objectContaining({ method: 'POST' })
+      )
+    })
+    const consentCall = (global.fetch as jest.Mock).mock.calls.find(
+      ([url]) => url === '/api/auth/oauth2/consent'
+    )
+    expect(JSON.parse(consentCall[1].body).scope).toBe('openid')
+  })
 })
