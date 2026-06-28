@@ -1,0 +1,19 @@
+app/(nosidebar)/auth/signin/resolveSignInRedirect.test.ts
+  s_38e24bcf2d5456::t_50558f8eff7767 103-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "0408e0b6d0a527f34e22555062e27e586f245050",
+  "prompts": {},
+  "sessions": {
+    "s_38e24bcf2d5456": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10d07056-e5c7-4e51-ae35-e0742cfd7b0c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
