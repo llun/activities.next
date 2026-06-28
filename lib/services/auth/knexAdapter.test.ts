@@ -731,6 +731,151 @@ describe('knexAdapter', () => {
     })
   })
 
+  // Deleting a session that minted OAuth tokens trips the
+  // oauthAccessToken/oauthRefreshToken sessionId FKs on PostgreSQL. The adapter
+  // is what better-auth calls for sign-out and session cleanup, so it must
+  // detach those tokens first. SQLite leaves FKs off by default, so this block
+  // uses a dedicated database with enforcement ON to reproduce the constraint.
+  describe('session deletion detaches OAuth tokens', () => {
+    let fkDb: Knex
+    let fkAdapter: ReturnType<ReturnType<typeof knexAdapter>>
+
+    beforeAll(async () => {
+      fkDb = knex({
+        client: 'better-sqlite3',
+        useNullAsDefault: true,
+        connection: { filename: ':memory:' },
+        pool: {
+          afterCreate: (
+            conn: { pragma: (statement: string) => void },
+            done: (error: Error | null, conn: unknown) => void
+          ) => {
+            conn.pragma('foreign_keys = ON')
+            done(null, conn)
+          }
+        }
+      })
+      await fkDb.schema.createTable('sessions', (table) => {
+        table.text('id').primary()
+        table.text('token').unique()
+      })
+      await fkDb.schema.createTable('oauthAccessToken', (table) => {
+        table.text('id').primary()
+        table.text('sessionId').references('id').inTable('sessions')
+      })
+      await fkDb.schema.createTable('oauthRefreshToken', (table) => {
+        table.text('id').primary()
+        table.text('sessionId').references('id').inTable('sessions')
+      })
+      fkAdapter = knexAdapter(fkDb)({} as never)
+    })
+
+    afterAll(async () => {
+      await fkDb.destroy()
+    })
+
+    beforeEach(async () => {
+      await fkDb('oauthAccessToken').delete()
+      await fkDb('oauthRefreshToken').delete()
+      await fkDb('sessions').delete()
+    })
+
+    const seedSessionWithTokens = async (token: string) => {
+      const sessionId = `sid-${token}`
+      await fkDb('sessions').insert({ id: sessionId, token })
+      await fkDb('oauthAccessToken').insert({ id: `at-${token}`, sessionId })
+      await fkDb('oauthRefreshToken').insert({ id: `rt-${token}`, sessionId })
+    }
+
+    it('delete() detaches OAuth tokens before removing the session', async () => {
+      const [{ foreign_keys: fkEnabled }] = await fkDb.raw(
+        'PRAGMA foreign_keys'
+      )
+      // Guard against a vacuous test: without enforcement the naive delete
+      // would pass too.
+      expect(fkEnabled).toBe(1)
+
+      await seedSessionWithTokens('signout-token')
+
+      await expect(
+        fkAdapter.delete({
+          model: 'sessions',
+          where: [
+            { field: 'token', value: 'signout-token', operator: 'eq' as const }
+          ]
+        })
+      ).resolves.toBeUndefined()
+
+      expect(
+        await fkDb('sessions').where('token', 'signout-token').first()
+      ).toBeUndefined()
+      expect(
+        (await fkDb('oauthAccessToken').where('id', 'at-signout-token').first())
+          ?.sessionId
+      ).toBeNull()
+      expect(
+        (
+          await fkDb('oauthRefreshToken')
+            .where('id', 'rt-signout-token')
+            .first()
+        )?.sessionId
+      ).toBeNull()
+    })
+
+    it('deleteMany() detaches a mixed batch and returns the deleted count', async () => {
+      // bulk-a minted OAuth tokens; bulk-b did not. The realistic "revoke all
+      // other sessions" case is a mix, and both must be deleted.
+      await seedSessionWithTokens('bulk-a')
+      await fkDb('sessions').insert({ id: 'sid-bulk-b', token: 'bulk-b' })
+
+      const count = await fkAdapter.deleteMany({
+        model: 'sessions',
+        where: [
+          {
+            field: 'token',
+            value: ['bulk-a', 'bulk-b'],
+            operator: 'in' as const
+          }
+        ]
+      })
+
+      expect(count).toBe(2)
+      expect(await fkDb('sessions').select()).toHaveLength(0)
+      // bulk-a's tokens must SURVIVE (not be deleted), detached from the
+      // now-deleted session — asserting existence + null sessionId, not just
+      // the absence of non-null links.
+      const access = await fkDb('oauthAccessToken')
+        .where('id', 'at-bulk-a')
+        .first()
+      const refresh = await fkDb('oauthRefreshToken')
+        .where('id', 'rt-bulk-a')
+        .first()
+      expect(access).toBeDefined()
+      expect(access?.sessionId).toBeNull()
+      expect(refresh).toBeDefined()
+      expect(refresh?.sessionId).toBeNull()
+    })
+
+    it('deleteMany() is a no-op returning 0 when no session matches', async () => {
+      await seedSessionWithTokens('survivor')
+
+      const count = await fkAdapter.deleteMany({
+        model: 'sessions',
+        where: [{ field: 'token', value: 'missing', operator: 'eq' as const }]
+      })
+
+      expect(count).toBe(0)
+      // The unrelated session and its (still-attached) tokens are untouched.
+      expect(
+        await fkDb('sessions').where('token', 'survivor').first()
+      ).toBeDefined()
+      expect(
+        (await fkDb('oauthAccessToken').where('id', 'at-survivor').first())
+          ?.sessionId
+      ).toBe('sid-survivor')
+    })
+  })
+
   describe('count', () => {
     beforeEach(async () => {
       await db('users').insert([
