@@ -2,7 +2,7 @@
 
 import { formatDistance, formatRelative } from 'date-fns'
 import { Clock, Monitor, Trash2 } from 'lucide-react'
-import { FC, useMemo, useState } from 'react'
+import { FC, useMemo, useRef, useState } from 'react'
 
 import { LogoutButton } from '@/app/(timeline)/account/LogoutButton'
 import {
@@ -134,8 +134,11 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
   const [error, setError] = useState<string>()
   // Serialize revokes: with optimistic removal + rollback-on-failure,
   // overlapping requests could resurrect an already-revoked row when a slow
-  // failure rolls back over a newer success. Disabling every revoke control
-  // while one is in flight rules that interleaving out entirely.
+  // failure rolls back over a newer success. `pendingRef` is a SYNCHRONOUS
+  // re-entrancy lock — two clicks in the same tick can both pass a `busy` state
+  // check (state updates are async), but only the first sees `pendingRef`
+  // unset. `busy` then drives the disabled UI.
+  const pendingRef = useRef(false)
   const [busy, setBusy] = useState(false)
 
   const others = sessionList.filter((session) => !session.current)
@@ -145,56 +148,66 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
     )
   ).size
 
-  const revokeSession = async (token: string) => {
-    if (busy) return
-    setError(undefined)
+  // Run an optimistic revoke under the synchronous lock: apply the optimistic
+  // update, call the API, and restore + surface an error if it fails.
+  const runRevoke = async (
+    optimistic: () => void,
+    request: () => Promise<boolean>,
+    rollback: () => void,
+    failureMessage: string
+  ) => {
+    if (pendingRef.current) return
+    pendingRef.current = true
     setBusy(true)
-    const previous = sessionList
-    setSessionList((list) => list.filter((session) => session.token !== token))
+    setError(undefined)
+    optimistic()
     try {
-      if (!(await deleteSession({ token }))) {
-        setSessionList(previous)
-        setError('Failed to revoke that session. Please try again.')
+      if (!(await request())) {
+        rollback()
+        setError(failureMessage)
       }
     } finally {
+      pendingRef.current = false
       setBusy(false)
     }
   }
 
-  const revokeAll = async () => {
-    if (busy) return
-    setError(undefined)
-    setBusy(true)
+  const revokeSession = (token: string) => {
     const previous = sessionList
-    setSessionList((list) => list.filter((session) => session.current))
-    try {
-      if (!(await revokeOtherSessions())) {
-        setSessionList(previous)
-        setError('Failed to revoke the other sessions. Please try again.')
-      }
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const revokeApp = async (clientId: string, actorId: string | null) => {
-    if (busy) return
-    setError(undefined)
-    setBusy(true)
-    const previous = appList
-    setAppList((list) =>
-      list.filter(
-        (app) => !(app.clientId === clientId && app.actorId === actorId)
-      )
+    return runRevoke(
+      () =>
+        setSessionList((list) =>
+          list.filter((session) => session.token !== token)
+        ),
+      () => deleteSession({ token }),
+      () => setSessionList(previous),
+      'Failed to revoke that session. Please try again.'
     )
-    try {
-      if (!(await revokeConnectedApp({ clientId, actorId }))) {
-        setAppList(previous)
-        setError('Failed to revoke that app. Please try again.')
-      }
-    } finally {
-      setBusy(false)
-    }
+  }
+
+  const revokeAll = () => {
+    const previous = sessionList
+    return runRevoke(
+      () => setSessionList((list) => list.filter((session) => session.current)),
+      () => revokeOtherSessions(),
+      () => setSessionList(previous),
+      'Failed to revoke the other sessions. Please try again.'
+    )
+  }
+
+  const revokeApp = (clientId: string, actorId: string | null) => {
+    const previous = appList
+    return runRevoke(
+      () =>
+        setAppList((list) =>
+          list.filter(
+            (app) => !(app.clientId === clientId && app.actorId === actorId)
+          )
+        ),
+      () => revokeConnectedApp({ clientId, actorId }),
+      () => setAppList(previous),
+      'Failed to revoke that app. Please try again.'
+    )
   }
 
   // Group sessions and apps by their actor; the group that holds the current

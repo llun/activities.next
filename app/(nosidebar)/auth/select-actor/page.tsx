@@ -11,24 +11,13 @@ import {
 } from '@/lib/components/ui/card'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { isRealAvatar } from '@/lib/utils/isRealAvatar'
 
 import { ActorSelectionList } from './ActorSelectionList'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
   title: 'Activities.next: Select Actor'
-}
-
-const isRealAvatar = (url?: string) => {
-  if (!url) return false
-  if (url.includes('gravatar')) return false
-  if (url.includes('ui-avatars')) return false
-  if (url.includes('robohash')) return false
-  if (url.includes('dicebear')) return false
-  if (url.includes('boringavatars')) return false
-  if (url.includes('default')) return false
-  if (url.includes('placeholder')) return false
-  return true
 }
 
 const Page: FC = async () => {

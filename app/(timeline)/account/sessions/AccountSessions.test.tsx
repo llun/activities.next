@@ -217,4 +217,147 @@ describe('AccountSessions', () => {
       expect(screen.queryByText('Ice Cubes')).not.toBeInTheDocument()
     )
   })
+
+  // A current session plus one other session — a minimal set for the
+  // failure/in-flight cases that needs an unambiguous "Revoke" target.
+  const oneOther: AccountSessionRow[] = [
+    {
+      token: 'cur',
+      actor: anna,
+      createdAt: NOW - HOUR,
+      expireAt: NOW + 7 * DAY,
+      current: true
+    },
+    {
+      token: 'other',
+      actor: anna,
+      createdAt: NOW - 2 * HOUR,
+      expireAt: NOW + 3 * DAY,
+      current: false
+    }
+  ]
+
+  it('restores the session and shows an error when a revoke fails', async () => {
+    deleteSession.mockResolvedValueOnce(false)
+    renderSessions({ sessions: oneOther, apps: [] })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('Failed to revoke that session. Please try again.')
+      ).toBeInTheDocument()
+    )
+    // The optimistic removal is rolled back: both sessions are present again.
+    expect(screen.getAllByText('Web session')).toHaveLength(2)
+  })
+
+  it('restores all sessions and shows an error when revoke-all fails', async () => {
+    revokeOtherSessions.mockResolvedValueOnce(false)
+    renderSessions({ sessions: oneOther, apps: [] })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke all others' }))
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          'Failed to revoke the other sessions. Please try again.'
+        )
+      ).toBeInTheDocument()
+    )
+    expect(screen.getAllByText('Web session')).toHaveLength(2)
+  })
+
+  it('restores the app and shows an error when an app revoke fails', async () => {
+    revokeConnectedApp.mockResolvedValueOnce(false)
+    renderSessions({ sessions: [oneOther[0]], apps: [apps[0]] })
+
+    const row = screen.getByText('Ice Cubes').closest('.flex.items-start')
+    fireEvent.click(
+      within(row as HTMLElement).getByRole('button', { name: 'Revoke' })
+    )
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('Failed to revoke that app. Please try again.')
+      ).toBeInTheDocument()
+    )
+    expect(screen.getByText('Ice Cubes')).toBeInTheDocument()
+  })
+
+  it('disables revoke controls in flight and blocks a re-entrant revoke', async () => {
+    let resolveRevoke: (value: boolean) => void = () => {}
+    revokeOtherSessions.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveRevoke = resolve
+        })
+    )
+    // A current session + one other (drives "Revoke all others") and an app
+    // whose Revoke button stays mounted while the revoke-all is in flight.
+    renderSessions({ sessions: oneOther, apps: [apps[0]] })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke all others' }))
+
+    const appRevoke = () =>
+      within(
+        screen
+          .getByText('Ice Cubes')
+          .closest('.flex.items-start') as HTMLElement
+      ).getByRole('button', { name: 'Revoke' })
+
+    // While the request is pending, every revoke control is disabled and a
+    // second click is a no-op (no extra client call).
+    await waitFor(() => expect(appRevoke()).toBeDisabled())
+    fireEvent.click(appRevoke())
+    expect(revokeConnectedApp).not.toHaveBeenCalled()
+
+    resolveRevoke(true)
+    await waitFor(() => expect(appRevoke()).not.toBeDisabled())
+  })
+
+  it('groups null-actor rows under "Other sessions" and revokes apps with a null actorId', async () => {
+    renderSessions({
+      sessions: [
+        {
+          token: 'orphan',
+          actor: null,
+          createdAt: NOW - HOUR,
+          expireAt: NOW + 3 * DAY,
+          current: false
+        }
+      ],
+      apps: [
+        {
+          clientId: 'client-credentials',
+          actorId: null,
+          actor: null,
+          name: 'Client Credentials',
+          website: null,
+          scopes: ['read'],
+          authorizedLabel: 'Jun 1, 2026',
+          signIn: false
+        }
+      ]
+    })
+
+    expect(screen.getByText('Other sessions')).toBeInTheDocument()
+
+    const row = screen
+      .getByText('Client Credentials')
+      .closest('.flex.items-start')
+    fireEvent.click(
+      within(row as HTMLElement).getByRole('button', { name: 'Revoke' })
+    )
+
+    await waitFor(() =>
+      expect(revokeConnectedApp).toHaveBeenCalledWith({
+        clientId: 'client-credentials',
+        actorId: null
+      })
+    )
+    await waitFor(() =>
+      expect(screen.queryByText('Client Credentials')).not.toBeInTheDocument()
+    )
+  })
 })
