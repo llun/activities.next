@@ -230,13 +230,29 @@ export const AuthorizeCard: FC<Props> = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Authorization required</CardTitle>
+        {/* OIDC requests are authentication ("Sign in with …") flows, so they
+            get sign-in framing instead of the OAuth resource-grant copy. */}
+        <CardTitle>
+          {isOidc
+            ? `Sign in to ${client.name || 'this application'}`
+            : 'Authorization required'}
+        </CardTitle>
         <CardDescription>
-          <strong>{client.name}</strong> would like permission to access your
-          account. It is a third-party application.{' '}
-          <strong>
-            If you do not trust it, then you should not authorize it.
-          </strong>
+          {isOidc ? (
+            <>
+              <strong>{client.name}</strong> wants to verify your identity using
+              your account. It is a third-party application.{' '}
+              <strong>Only continue if you trust it.</strong>
+            </>
+          ) : (
+            <>
+              <strong>{client.name}</strong> would like permission to access
+              your account. It is a third-party application.{' '}
+              <strong>
+                If you do not trust it, then you should not authorize it.
+              </strong>
+            </>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent>

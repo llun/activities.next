@@ -742,4 +742,37 @@ describe('AuthorizeCard', () => {
     )
     expect(JSON.parse(consentCall[1].body).scope).toBe('openid read write')
   })
+
+  it('uses sign-in header copy for OIDC requests', () => {
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={oidcSearchParams}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    // OIDC is an authentication ("Sign in with …") flow, not a resource grant.
+    expect(screen.getByText('Sign in to Phanpy')).toBeInTheDocument()
+    expect(screen.queryByText('Authorization required')).not.toBeInTheDocument()
+  })
+
+  it('uses authorization header copy for non-OIDC requests', () => {
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={signedSearchParams}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    expect(screen.getByText('Authorization required')).toBeInTheDocument()
+    expect(screen.queryByText(/^Sign in to/)).not.toBeInTheDocument()
+  })
 })
