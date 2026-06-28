@@ -162,10 +162,14 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
     setError(undefined)
     optimistic()
     try {
-      if (!(await request())) {
-        rollback()
-        setError(failureMessage)
-      }
+      // The client fns signal failure by returning false; a network error
+      // rejects instead. Treat both the same — roll the optimistic update back
+      // and surface the error — by throwing on a false result and handling it
+      // alongside a rejection in one catch.
+      if (!(await request())) throw new Error(failureMessage)
+    } catch {
+      rollback()
+      setError(failureMessage)
     } finally {
       pendingRef.current = false
       setBusy(false)

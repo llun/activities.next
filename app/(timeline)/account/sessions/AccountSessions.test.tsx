@@ -252,6 +252,22 @@ describe('AccountSessions', () => {
     expect(screen.getAllByText('Web session')).toHaveLength(2)
   })
 
+  it('rolls back and shows an error when the revoke request rejects', async () => {
+    // A network error rejects rather than resolving false; it must still roll
+    // back the optimistic removal and surface the error (not go unhandled).
+    deleteSession.mockRejectedValueOnce(new Error('network down'))
+    renderSessions({ sessions: oneOther, apps: [] })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('Failed to revoke that session. Please try again.')
+      ).toBeInTheDocument()
+    )
+    expect(screen.getAllByText('Web session')).toHaveLength(2)
+  })
+
   it('restores all sessions and shows an error when revoke-all fails', async () => {
     revokeOtherSessions.mockResolvedValueOnce(false)
     renderSessions({ sessions: oneOther, apps: [] })
@@ -285,7 +301,7 @@ describe('AccountSessions', () => {
     expect(screen.getByText('Ice Cubes')).toBeInTheDocument()
   })
 
-  it('disables revoke controls in flight and blocks a re-entrant revoke', async () => {
+  it('disables every revoke control while a request is in flight', async () => {
     let resolveRevoke: (value: boolean) => void = () => {}
     revokeOtherSessions.mockImplementationOnce(
       () =>
@@ -306,8 +322,11 @@ describe('AccountSessions', () => {
           .closest('.flex.items-start') as HTMLElement
       ).getByRole('button', { name: 'Revoke' })
 
-    // While the request is pending, every revoke control is disabled and a
-    // second click is a no-op (no extra client call).
+    // While the request is pending, every other revoke control is disabled, so
+    // a click on one is a DOM no-op (the client fn is never reached). The
+    // synchronous pendingRef lock additionally guards the same-tick,
+    // pre-state-flush double-click that this DOM gate can't — that window isn't
+    // reproducible under React Testing Library, which flushes on each fireEvent.
     await waitFor(() => expect(appRevoke()).toBeDisabled())
     fireEvent.click(appRevoke())
     expect(revokeConnectedApp).not.toHaveBeenCalled()
