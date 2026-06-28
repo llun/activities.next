@@ -17,11 +17,18 @@ const SENTINEL_ORIGIN = 'https://internal.invalid'
 export const isSafeInternalPath = (
   value: string | null | undefined
 ): value is string => {
-  // Reject protocol-relative / multi-slash targets up front as defense in depth
-  // against a parser differential between the URL constructor here and the
-  // browser's own navigation (e.g. `///evil.com`), then confirm the candidate
-  // resolves back to the sentinel origin.
-  if (!value || !value.startsWith('/') || value.startsWith('//')) return false
+  // Reject protocol-relative / multi-slash targets and any backslash up front as
+  // defense in depth against a parser differential between the URL constructor
+  // here and the browser's own navigation (e.g. `///evil.com`, `/\evil.com`),
+  // then confirm the candidate resolves back to the sentinel origin.
+  if (
+    !value ||
+    !value.startsWith('/') ||
+    value.startsWith('//') ||
+    value.includes('\\')
+  ) {
+    return false
+  }
   try {
     return new URL(value, SENTINEL_ORIGIN).origin === SENTINEL_ORIGIN
   } catch {

@@ -24,6 +24,7 @@ describe('isSafeInternalPath', () => {
     { description: 'a protocol-relative path', value: '//evil.com' },
     { description: 'a triple-slash path', value: '///evil.com' },
     { description: 'a backslash-prefixed path', value: '/\\evil.com' },
+    { description: 'a path with a backslash anywhere', value: '/foo\\bar' },
     { description: 'a tab-then-slash path', value: '/\t/evil.com' },
     { description: 'a newline-then-slash path', value: '/\n/evil.com' },
     { description: 'an absolute http URL', value: 'https://evil.com' },
