@@ -64,6 +64,20 @@ const signedSearchParams: SearchParams = {
   exp: '1779800000'
 }
 
+// An OIDC authentication request is identified by the `openid` scope (OIDC
+// Core §3.1.2.1). The consent screen shows the account identity instead of an
+// actor picker for these, because the OIDC subject is the owning account.
+const oidcSearchParams: SearchParams = {
+  ...signedSearchParams,
+  scope: 'openid profile email'
+}
+
+const account = {
+  email: 'rider@example.com',
+  name: 'Ride',
+  iconUrl: null
+}
+
 describe('AuthorizeCard', () => {
   beforeEach(() => {
     mockPush.mockReset()
@@ -103,6 +117,7 @@ describe('AuthorizeCard', () => {
         searchParams={signedSearchParams}
         actors={actors}
         currentActorId="https://activities.local/users/llun"
+        account={account}
         navigate={mockNavigate}
       />
     )
@@ -153,6 +168,7 @@ describe('AuthorizeCard', () => {
         searchParams={signedSearchParams}
         actors={alternateActors}
         currentActorId="https://activities.local/users/testactor2"
+        account={account}
         navigate={mockNavigate}
       />
     )
@@ -238,6 +254,7 @@ describe('AuthorizeCard', () => {
         searchParams={signedSearchParams}
         actors={actors}
         currentActorId="https://activities.local/users/llun"
+        account={account}
         navigate={mockNavigate}
       />
     )
@@ -290,6 +307,7 @@ describe('AuthorizeCard', () => {
         searchParams={signedSearchParams}
         actors={actors}
         currentActorId="https://activities.local/users/llun"
+        account={account}
         navigate={mockNavigate}
       />
     )
@@ -337,6 +355,7 @@ describe('AuthorizeCard', () => {
         searchParams={signedSearchParams}
         actors={actors}
         currentActorId="https://activities.local/users/llun"
+        account={account}
         navigate={mockNavigate}
       />
     )
@@ -376,6 +395,7 @@ describe('AuthorizeCard', () => {
         }}
         actors={actors}
         currentActorId="https://activities.local/users/llun"
+        account={account}
         navigate={mockNavigate}
       />
     )
@@ -387,5 +407,90 @@ describe('AuthorizeCard', () => {
         'https://phanpy.local/?error=access_denied&state=return-state'
       )
     })
+  })
+
+  it('shows the account identity and hides the actor selector for OIDC requests', () => {
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={oidcSearchParams}
+        actors={alternateActors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    // The account email is shown as the signed-in identity.
+    expect(screen.getByText('rider@example.com')).toBeInTheDocument()
+    expect(screen.getByText('Ride')).toBeInTheDocument()
+    // The multi-actor "Authorize as" picker must NOT appear for an OIDC login:
+    // the OIDC subject is the owning account, so persona choice is irrelevant.
+    expect(screen.queryByText('Authorize as')).not.toBeInTheDocument()
+    // OIDC scopes are still listed and checked.
+    expect(screen.getByLabelText('openid')).toBeChecked()
+    expect(screen.getByLabelText('profile')).toBeChecked()
+    expect(screen.getByLabelText('email')).toBeChecked()
+  })
+
+  it('shows the account identity for OIDC even with a single actor', () => {
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={oidcSearchParams}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    expect(screen.getByText('rider@example.com')).toBeInTheDocument()
+    expect(screen.queryByText('Authorize as')).not.toBeInTheDocument()
+  })
+
+  it('keeps the actor selector and hides the account identity for non-OIDC requests', () => {
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={signedSearchParams}
+        actors={alternateActors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    expect(screen.getByText('Authorize as')).toBeInTheDocument()
+    expect(screen.queryByText('rider@example.com')).not.toBeInTheDocument()
+  })
+
+  it('submits the OIDC scopes and persists the current actor on approve', async () => {
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={oidcSearchParams}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/auth/oauth2/consent',
+        expect.objectContaining({ method: 'POST' })
+      )
+    })
+
+    const consentCall = (global.fetch as jest.Mock).mock.calls.find(
+      ([url]) => url === '/api/auth/oauth2/consent'
+    )
+    const body = JSON.parse(consentCall[1].body)
+    expect(body.accept).toBe(true)
+    expect(body.scope).toBe('openid profile email')
   })
 })

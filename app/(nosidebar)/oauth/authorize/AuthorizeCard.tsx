@@ -29,10 +29,17 @@ import { Client } from '@/lib/types/oauth2/client'
 import { buildOAuthQuery } from './authorizeQuery'
 import { SearchParams } from './types'
 
+interface AccountSummary {
+  email: string
+  name?: string | null
+  iconUrl?: string | null
+}
+
 interface Props {
   client: Client
   searchParams: SearchParams
   actors: Actor[]
+  account: AccountSummary
   currentActorId: string
   navigate?: (url: string) => void
 }
@@ -78,12 +85,20 @@ export const AuthorizeCard: FC<Props> = ({
   searchParams,
   client,
   actors,
+  account,
   currentActorId,
   navigate = navigateTo
 }) => {
   const requestedScopes = searchParams.scope.split(' ')
   const router = useRouter()
   const availabledScopes = intersection(UsableScopes, requestedScopes)
+  // An OIDC authentication request is identified by the `openid` scope (OIDC
+  // Core §3.1.2.1). Such a request authenticates the owning account, not a
+  // chosen ActivityPub persona — the id_token/userinfo `sub` is always the
+  // account id — so the consent screen shows the fixed account identity instead
+  // of the multi-actor "Authorize as" picker.
+  const isOidc = requestedScopes.includes('openid')
+  const accountDisplayName = account.name?.trim() || account.email
   const [selectedActorId, setSelectedActorId] = useState(currentActorId)
   const [isSwitching, setIsSwitching] = useState(false)
   const [submittingAction, setSubmittingAction] = useState<
@@ -224,7 +239,33 @@ export const AuthorizeCard: FC<Props> = ({
       </CardHeader>
       <CardContent>
         <form onSubmit={handleApprove} className="space-y-6">
-          {actors.length > 1 && (
+          {isOidc && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-muted-foreground">
+                Signed in as
+              </Label>
+              <div className="flex w-full items-center gap-3 rounded-lg border bg-background p-3">
+                <Avatar className="h-10 w-10">
+                  {account.iconUrl && <AvatarImage src={account.iconUrl} />}
+                  <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                    {getAvatarInitial(accountDisplayName)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 overflow-hidden">
+                  <p className="text-sm font-medium truncate">
+                    {accountDisplayName}
+                  </p>
+                  {account.name?.trim() && (
+                    <p className="text-xs text-muted-foreground truncate">
+                      {account.email}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!isOidc && actors.length > 1 && (
             <div className="space-y-2">
               <Label className="text-sm font-medium text-muted-foreground">
                 Authorize as

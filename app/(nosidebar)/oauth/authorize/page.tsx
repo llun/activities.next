@@ -85,6 +85,11 @@ const Page: FC<Props> = async ({ searchParams }) => {
         searchParams={params}
         client={client}
         actors={actors}
+        account={{
+          email: actor.account.email,
+          name: actor.account.name,
+          iconUrl: actor.account.iconUrl
+        }}
         currentActorId={actor.id}
       />
     </div>
