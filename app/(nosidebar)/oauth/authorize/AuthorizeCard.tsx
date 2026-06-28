@@ -261,8 +261,10 @@ export const AuthorizeCard: FC<Props> = ({
                   </p>
                   {/* Show the email as a secondary line only when a distinct
                       name is the primary identity. Covers name=null, blank, and
-                      name===email (which would otherwise render twice). */}
-                  {accountDisplayName !== account.email && (
+                      name===email (which would otherwise render twice). The
+                      comparison is case-insensitive because emails are. */}
+                  {accountDisplayName.toLowerCase() !==
+                    account.email.toLowerCase() && (
                     <p className="text-xs text-muted-foreground truncate">
                       {account.email}
                     </p>

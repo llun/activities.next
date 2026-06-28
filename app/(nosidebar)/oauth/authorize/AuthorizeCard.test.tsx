@@ -421,7 +421,8 @@ describe('AuthorizeCard', () => {
       />
     )
 
-    // The account email is shown as the signed-in identity.
+    // The OIDC identity caption and the account identity are shown.
+    expect(screen.getByText('Signed in as')).toBeInTheDocument()
     expect(screen.getByText('rider@example.com')).toBeInTheDocument()
     expect(screen.getByText('Ride')).toBeInTheDocument()
     // The multi-actor "Authorize as" picker must NOT appear for an OIDC login:
@@ -611,6 +612,28 @@ describe('AuthorizeCard', () => {
     expect(screen.getAllByText('rider@example.com')).toHaveLength(1)
   })
 
+  it('does not duplicate the email when the name matches it case-insensitively (OIDC)', () => {
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={oidcSearchParams}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={{
+          email: 'rider@example.com',
+          name: 'Rider@Example.com',
+          iconUrl: null
+        }}
+        navigate={mockNavigate}
+      />
+    )
+
+    // The display name differs from the email only by case; emails are
+    // case-insensitive, so the secondary email line is still suppressed.
+    expect(screen.getAllByText('Rider@Example.com')).toHaveLength(1)
+    expect(screen.queryByText('rider@example.com')).not.toBeInTheDocument()
+  })
+
   it('locks the openid scope so it cannot be stripped from an OIDC consent', async () => {
     render(
       <AuthorizeCard
@@ -684,5 +707,39 @@ describe('AuthorizeCard', () => {
       ([url]) => url === '/api/auth/oauth2/consent'
     )
     expect(JSON.parse(consentCall[1].body).scope).toBe('openid')
+  })
+
+  it('flips to the OIDC identity view when openid co-occurs with Mastodon scopes', async () => {
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={{ ...oidcSearchParams, scope: 'openid read write' }}
+        actors={alternateActors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    // A single 'openid' token takes precedence: the identity block shows and
+    // the actor picker is hidden even though Mastodon scopes are also present.
+    expect(screen.getByText('Signed in as')).toBeInTheDocument()
+    expect(screen.queryByText('Authorize as')).not.toBeInTheDocument()
+    // openid is locked; the co-requested Mastodon scopes stay user-toggleable.
+    expect(screen.getByLabelText('openid')).toBeDisabled()
+    expect(screen.getByLabelText('read')).toBeEnabled()
+    expect(screen.getByLabelText('write')).toBeEnabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/auth/oauth2/consent',
+        expect.objectContaining({ method: 'POST' })
+      )
+    })
+    const consentCall = (global.fetch as jest.Mock).mock.calls.find(
+      ([url]) => url === '/api/auth/oauth2/consent'
+    )
+    expect(JSON.parse(consentCall[1].body).scope).toBe('openid read write')
   })
 })
