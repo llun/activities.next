@@ -492,5 +492,83 @@ describe('AuthorizeCard', () => {
     const body = JSON.parse(consentCall[1].body)
     expect(body.accept).toBe(true)
     expect(body.scope).toBe('openid profile email')
+
+    // persistSelectedActor() still runs in OIDC mode: it switches to (and so
+    // persists) the current actor before consent, even though the picker is
+    // hidden. The switch is the first fetch call.
+    expect((global.fetch as jest.Mock).mock.calls[0][0]).toBe(
+      '/api/v1/actors/switch'
+    )
+    expect(
+      JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body)
+    ).toEqual({ actorId: 'https://activities.local/users/llun' })
+  })
+
+  it('renders the email once as the identity when the account has no name (OIDC)', () => {
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={oidcSearchParams}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={{ email: 'rider@example.com', name: null, iconUrl: null }}
+        navigate={mockNavigate}
+      />
+    )
+
+    // With no name, the email is the primary identity and must not be
+    // duplicated as a secondary line.
+    expect(screen.getAllByText('rider@example.com')).toHaveLength(1)
+  })
+
+  it('treats a whitespace-only account name as no name (OIDC)', () => {
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={oidcSearchParams}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={{ email: 'rider@example.com', name: '   ', iconUrl: null }}
+        navigate={mockNavigate}
+      />
+    )
+
+    expect(screen.getAllByText('rider@example.com')).toHaveLength(1)
+  })
+
+  it('does not treat a scope token merely containing "openid" as OIDC', () => {
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={{ ...oidcSearchParams, scope: 'openidfoo profile email' }}
+        actors={alternateActors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    // 'openidfoo' is not the 'openid' token, so this stays the Mastodon path:
+    // the actor picker shows and the account-identity block does not.
+    expect(screen.getByText('Authorize as')).toBeInTheDocument()
+    expect(screen.queryByText('Signed in as')).not.toBeInTheDocument()
+    expect(screen.queryByText('rider@example.com')).not.toBeInTheDocument()
+  })
+
+  it('renders the avatar fallback initial from the account identity (OIDC)', () => {
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={oidcSearchParams}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={{ email: 'rider@example.com', name: 'Ride', iconUrl: null }}
+        navigate={mockNavigate}
+      />
+    )
+
+    // With no iconUrl the Avatar shows the fallback initial derived from the
+    // display name ('Ride' -> 'R').
+    expect(screen.getByText('R')).toBeInTheDocument()
   })
 })

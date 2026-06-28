@@ -111,7 +111,9 @@ export const AuthorizeCard: FC<Props> = ({
 
   const getAvatarInitial = (username: string) => {
     if (!username) return '?'
-    return username[0].toUpperCase()
+    // Spread to the first code point so a surrogate-pair glyph (emoji or a
+    // non-BMP character starting a name) isn't sliced into a broken half.
+    return [...username][0].toUpperCase()
   }
 
   const getHandle = (actor: Actor) => `@${actor.username}@${actor.domain}`
@@ -245,7 +247,7 @@ export const AuthorizeCard: FC<Props> = ({
                 Signed in as
               </Label>
               <div className="flex w-full items-center gap-3 rounded-lg border bg-background p-3">
-                <Avatar className="h-10 w-10">
+                <Avatar className="h-10 w-10" aria-hidden="true">
                   {account.iconUrl && <AvatarImage src={account.iconUrl} />}
                   <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
                     {getAvatarInitial(accountDisplayName)}
