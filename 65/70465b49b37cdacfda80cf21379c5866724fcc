@@ -1,0 +1,19 @@
+lib/database/sql/utils/detachOAuthTokensFromSessions.ts
+  s_e9567742ad147d::t_d41097e376367b 59-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "6570465b49b37cdacfda80cf21379c5866724fcc",
+  "prompts": {},
+  "sessions": {
+    "s_e9567742ad147d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6642b464-c4f6-43bb-b28f-70ae757e4119",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
