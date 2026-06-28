@@ -1,6 +1,7 @@
 import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
+import { AccountIdentityCard } from '@/app/(timeline)/account/AccountIdentityCard'
 import { ChangeEmailForm } from '@/app/(timeline)/account/ChangeEmailForm'
 import { ChangeNameForm } from '@/app/(timeline)/account/ChangeNameForm'
 import { PageHeader } from '@/lib/components/page-header'
@@ -47,6 +48,12 @@ const Page = async ({
       <PageHeader
         title="General"
         description="Your account identity and the actors it contains. These details are shared by every actor."
+      />
+
+      <AccountIdentityCard
+        name={account.name}
+        email={account.email}
+        iconUrl={account.iconUrl}
       />
 
       <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
