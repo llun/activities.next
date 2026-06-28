@@ -100,6 +100,25 @@ describe('resolveSignInRedirect', () => {
     expect(query.has('sig')).toBe(false)
   })
 
+  it('resumes a Mastodon (non-openid) OAuth request the same way', () => {
+    // The resume is OAuth-generic, not OIDC-specific: a Mastodon client that
+    // reaches better-auth's authorize endpoint logged out (its RFC 8414
+    // authorization_endpoint is also /api/auth/oauth2/authorize) is resumed to
+    // the consent page too — which renders the Mastodon actor picker because
+    // the scope has no `openid`.
+    const params = new URLSearchParams(
+      'response_type=code&client_id=phanpy&redirect_uri=https%3A%2F%2Fphanpy.app%2Fcb' +
+        '&scope=read+write+follow+push&sig=S&exp=1'
+    )
+
+    const result = resolveSignInRedirect(params)
+    const query = new URLSearchParams(result.split('?')[1])
+    expect(result.startsWith('/oauth/authorize?')).toBe(true)
+    expect(query.get('client_id')).toBe('phanpy')
+    expect(query.get('scope')).toBe('read write follow push')
+    expect(query.has('sig')).toBe(false)
+  })
+
   it('ignores an unsafe redirectBack and resumes the OIDC request instead', () => {
     // redirectBack=/\evil.com is an open-redirect attempt; it must be dropped,
     // and the genuine OIDC request resumed rather than falling back to '/'.
