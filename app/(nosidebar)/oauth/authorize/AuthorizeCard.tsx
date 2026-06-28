@@ -351,7 +351,7 @@ export const AuthorizeCard: FC<Props> = ({
                 return (
                   <div key={scope} className="flex items-center space-x-2">
                     <input
-                      className="size-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                      className="peer size-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2"
                       name="scope"
                       type="checkbox"
                       value={scope}

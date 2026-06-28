@@ -135,48 +135,65 @@ describe('/oauth/authorize account summary', () => {
     )
   })
 
-  it('passes the account email/name/iconUrl (from actor.account) to AuthorizeCard', async () => {
-    vi.mocked(getActorFromSession).mockResolvedValue({
-      id: 'https://activities.local/users/llun',
-      account: {
-        id: 'account-id',
-        email: 'rider@example.com',
-        name: 'Ride',
-        iconUrl: 'https://cdn.example/a.png'
-      }
-    } as Awaited<ReturnType<typeof getActorFromSession>>)
-
-    vi.mocked(getDatabase).mockReturnValue({
-      getClientFromId: vi.fn().mockResolvedValue({
-        clientId: 'client-id',
-        redirectUris: ['https://app.example/callback']
-      }),
-      getActorsForAccount: vi.fn().mockResolvedValue([])
-    } as unknown as ReturnType<typeof getDatabase>)
-
-    // A live sig/exp pair keeps shouldDelegateToBetterAuth false so the page
-    // renders AuthorizeCard instead of redirecting.
-    const renderParams = {
-      client_id: 'client-id',
-      scope: 'openid profile email',
-      redirect_uri: 'https://app.example/callback',
-      response_type: 'code' as const,
-      sig: 'signed',
-      exp: '9999999999'
+  it.each([
+    {
+      description: 'a fully-populated account',
+      accountName: 'Ride' as string | null,
+      accountIconUrl: 'https://cdn.example/a.png' as string | null
+    },
+    {
+      description:
+        'an account with no name or avatar (nulls propagate as null)',
+      accountName: null as string | null,
+      accountIconUrl: null as string | null
     }
+  ])(
+    'passes the account summary from actor.account to AuthorizeCard for $description',
+    async ({ accountName, accountIconUrl }) => {
+      vi.mocked(getActorFromSession).mockResolvedValue({
+        id: 'https://activities.local/users/llun',
+        account: {
+          id: 'account-id',
+          email: 'rider@example.com',
+          name: accountName,
+          iconUrl: accountIconUrl
+        }
+      } as Awaited<ReturnType<typeof getActorFromSession>>)
 
-    const element = (await Page({
-      searchParams: Promise.resolve(renderParams)
-    })) as ReactElement
+      vi.mocked(getDatabase).mockReturnValue({
+        getClientFromId: vi.fn().mockResolvedValue({
+          clientId: 'client-id',
+          redirectUris: ['https://app.example/callback']
+        }),
+        getActorsForAccount: vi.fn().mockResolvedValue([])
+      } as unknown as ReturnType<typeof getDatabase>)
 
-    expect(redirectMock).not.toHaveBeenCalled()
-    // Page returns <div><AuthorizeCard .../></div>; the account summary must be
-    // sourced from actor.account (a typo passing the actor would fail here).
-    const authorizeCard = (element.props as { children: ReactElement }).children
-    expect((authorizeCard.props as { account: unknown }).account).toEqual({
-      email: 'rider@example.com',
-      name: 'Ride',
-      iconUrl: 'https://cdn.example/a.png'
-    })
-  })
+      // A live sig/exp pair keeps shouldDelegateToBetterAuth false so the page
+      // renders AuthorizeCard instead of redirecting.
+      const renderParams = {
+        client_id: 'client-id',
+        scope: 'openid profile email',
+        redirect_uri: 'https://app.example/callback',
+        response_type: 'code' as const,
+        sig: 'signed',
+        exp: '9999999999'
+      }
+
+      const element = (await Page({
+        searchParams: Promise.resolve(renderParams)
+      })) as ReactElement
+
+      expect(redirectMock).not.toHaveBeenCalled()
+      // Page returns <div><AuthorizeCard .../></div>; the account summary must
+      // be sourced from actor.account (a typo passing the actor would fail
+      // here), and nullish name/iconUrl must propagate unchanged.
+      const authorizeCard = (element.props as { children: ReactElement })
+        .children
+      expect((authorizeCard.props as { account: unknown }).account).toEqual({
+        email: 'rider@example.com',
+        name: accountName,
+        iconUrl: accountIconUrl
+      })
+    }
+  )
 })
