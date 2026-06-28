@@ -4,7 +4,7 @@ const itemHrefs = (params: Parameters<typeof buildNavItems>[0]) =>
   buildNavItems(params).map((item) => item.href)
 
 describe('buildNavItems', () => {
-  it('places favorites before bookmarks in the base navigation', () => {
+  it('places favorites before bookmarks and account before settings in the base navigation', () => {
     expect(itemHrefs({})).toEqual([
       '/',
       '/search',
@@ -14,6 +14,7 @@ describe('buildNavItems', () => {
       '/bookmarks',
       '/lists',
       '/notifications',
+      '/account',
       '/settings'
     ])
   })
@@ -29,11 +30,12 @@ describe('buildNavItems', () => {
       '/lists',
       '/@llun@llun.test/fitness',
       '/notifications',
+      '/account',
       '/settings'
     ])
   })
 
-  it('anchors admin before settings', () => {
+  it('anchors admin before account', () => {
     expect(itemHrefs({ isAdmin: true })).toEqual([
       '/',
       '/search',
@@ -44,6 +46,7 @@ describe('buildNavItems', () => {
       '/lists',
       '/notifications',
       '/admin',
+      '/account',
       '/settings'
     ])
   })
@@ -62,6 +65,7 @@ describe('buildNavItems', () => {
       '/@llun@llun.test/fitness',
       '/notifications',
       '/admin',
+      '/account',
       '/settings'
     ])
   })

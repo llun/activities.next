@@ -42,7 +42,7 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
 
   // Pick the most-specific matching tab: filter to tabs whose url is the path
   // or a parent of it, then take the longest url so e.g.
-  // `/settings/account/verify-email` resolves to Account, not General.
+  // `/account/security/...` resolves to Security, not General.
   const activeTab =
     tabs
       .filter(

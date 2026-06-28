@@ -45,7 +45,7 @@ describe('TwoFactorForm', () => {
   it('verifies an authenticator code and redirects back', async () => {
     mockVerifyTotp.mockResolvedValue({ data: { token: 'token' } })
 
-    render(<TwoFactorForm redirectBack="/settings/account" />)
+    render(<TwoFactorForm redirectBack="/account/security" />)
 
     fireEvent.change(screen.getByLabelText('Verification code'), {
       target: { value: '123456' }
@@ -59,7 +59,7 @@ describe('TwoFactorForm', () => {
         trustDevice: true
       })
     })
-    expect(mockPush).toHaveBeenCalledWith('/settings/account')
+    expect(mockPush).toHaveBeenCalledWith('/account/security')
     expect(mockRefresh).not.toHaveBeenCalled()
   })
 

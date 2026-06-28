@@ -26,7 +26,7 @@ export const POST = traceApiRoute(
 
     if (!parsed.success) {
       return Response.redirect(
-        new URL('/settings/account?error=Invalid+image+URL', req.url),
+        new URL('/account?error=Invalid+image+URL', req.url),
         303
       )
     }
@@ -36,6 +36,6 @@ export const POST = traceApiRoute(
       iconUrl: parsed.data.iconUrl ?? null
     })
 
-    return Response.redirect(new URL('/settings/account', req.url), 303)
+    return Response.redirect(new URL('/account', req.url), 303)
   })
 )

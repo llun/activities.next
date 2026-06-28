@@ -5,12 +5,35 @@ import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   CreateOAuthAccessTokenParams,
+  GetAccountConnectedAppsParams,
   GetClientFromAccessTokenParams,
   GetClientFromIdParams,
   GetClientFromNameParams,
-  OAuthDatabase
+  OAuthDatabase,
+  RevokeAccountConnectedAppParams
 } from '@/lib/types/database/operations'
+import { ConnectedApp } from '@/lib/types/domain/connected-app'
 import { Client } from '@/lib/types/oauth2/client'
+
+// OAuth scope columns are stored inconsistently across tables: oauthClient.scopes
+// is a JSON array, while the better-auth token/consent rows can hold either a
+// JSON array or a space/comma-separated OAuth scope string. Normalise all three
+// shapes into a string[] so an unexpected scope is surfaced, not dropped.
+const parseScopeList = (raw: unknown): string[] => {
+  if (Array.isArray(raw)) return raw.map(String)
+  if (typeof raw !== 'string') return []
+  const trimmed = raw.trim()
+  if (!trimmed) return []
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) return parsed.map(String)
+    } catch {
+      // fall through to delimiter splitting
+    }
+  }
+  return trimmed.split(/[\s,]+/).filter(Boolean)
+}
 
 const parseClientRow = (row: Record<string, unknown>): Client => {
   return Client.parse({
@@ -77,5 +100,76 @@ export const OAuthSQLDatabaseMixin = (database: Knex): OAuthDatabase => ({
       expiresAt: new Date(expiresAt),
       createdAt: new Date()
     })
+  },
+
+  async getAccountConnectedApps({
+    accountId
+  }: GetAccountConnectedAppsParams): Promise<ConnectedApp[]> {
+    // Each consent row is one "you authorized this app" grant for a (client,
+    // actor) pair. Join the registered client for its display name/website.
+    // Left join so a grant still lists even if the client metadata is missing.
+    const rows = await database('oauthConsent')
+      .leftJoin('oauthClient', 'oauthClient.clientId', 'oauthConsent.clientId')
+      .where('oauthConsent.userId', accountId)
+      .select(
+        'oauthConsent.clientId as clientId',
+        'oauthConsent.referenceId as actorId',
+        'oauthConsent.scopes as scopes',
+        'oauthConsent.createdAt as authorizedAt',
+        'oauthClient.name as name',
+        'oauthClient.uri as website'
+      )
+
+    return rows
+      .map((row) => {
+        const scopes = parseScopeList(row.scopes)
+        return ConnectedApp.parse({
+          clientId: row.clientId,
+          actorId: row.actorId ?? null,
+          name: row.name ?? null,
+          website: row.website ?? null,
+          scopes,
+          authorizedAt: getCompatibleTime(
+            row.authorizedAt as string | number | Date
+          ),
+          // OpenID Connect grants are sign-in (SSO) connections; everything else
+          // is an API client.
+          signIn: scopes.includes('openid')
+        })
+      })
+      .sort((a, b) => b.authorizedAt - a.authorizedAt)
+  },
+
+  async revokeAccountConnectedApp({
+    accountId,
+    clientId,
+    actorId
+  }: RevokeAccountConnectedAppParams): Promise<void> {
+    // Scope every delete to the owning account so one account can never revoke
+    // another's grant, and to the specific actor so revoking one actor's grant
+    // leaves the same app authorized under the account's other actors.
+    const scopeToActor = <T extends Knex.QueryBuilder>(query: T): T => {
+      if (actorId === null) query.whereNull('referenceId')
+      else query.where('referenceId', actorId)
+      return query
+    }
+
+    // Delete access tokens before refresh tokens: oauthAccessToken.refreshId is
+    // a FK into oauthRefreshToken, so the children must go first.
+    await scopeToActor(
+      database('oauthAccessToken')
+        .where('clientId', clientId)
+        .andWhere('userId', accountId)
+    ).delete()
+    await scopeToActor(
+      database('oauthRefreshToken')
+        .where('clientId', clientId)
+        .andWhere('userId', accountId)
+    ).delete()
+    await scopeToActor(
+      database('oauthConsent')
+        .where('clientId', clientId)
+        .andWhere('userId', accountId)
+    ).delete()
   }
 })

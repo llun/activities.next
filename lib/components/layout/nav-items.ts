@@ -9,7 +9,8 @@ import {
   Mail,
   Search,
   Settings,
-  Shield
+  Shield,
+  Users
 } from 'lucide-react'
 import { type LucideIcon } from 'lucide-react'
 
@@ -36,6 +37,7 @@ const baseNavItems: NavItem[] = [
     shortLabel: 'Alerts',
     icon: Bell
   },
+  { href: '/account', label: 'Account', icon: Users },
   { href: '/settings', label: 'Settings', icon: Settings }
 ]
 
@@ -62,8 +64,13 @@ export function buildNavItems({
   }
 
   if (isAdmin) {
-    const settingsIndex = items.findIndex((item) => item.href === '/settings')
-    items.splice(settingsIndex >= 0 ? settingsIndex : items.length, 0, {
+    // Admin anchors just before Account in the account-level cluster
+    // (…notifications, admin, account, settings), matching the design's
+    // Sidebar order. Fall back to Settings, then the end, if Account is absent.
+    const anchorIndex = items.findIndex(
+      (item) => item.href === '/account' || item.href === '/settings'
+    )
+    items.splice(anchorIndex >= 0 ? anchorIndex : items.length, 0, {
       href: '/admin',
       label: 'Admin',
       icon: Shield

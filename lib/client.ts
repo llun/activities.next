@@ -1306,6 +1306,39 @@ export const deleteSession = async ({ token }: DeleteSessionParams) => {
   return true
 }
 
+// Revoke every session for the account except the current device.
+export const revokeOtherSessions = async (): Promise<boolean> => {
+  const response = await fetch('/api/v1/accounts/sessions', {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  })
+  return response.ok
+}
+
+interface RevokeConnectedAppParams {
+  clientId: string
+  actorId: string | null
+}
+// Revoke a connected app / SSO sign-in grant for the given actor.
+export const revokeConnectedApp = async ({
+  clientId,
+  actorId
+}: RevokeConnectedAppParams): Promise<boolean> => {
+  const query = actorId ? `?actorId=${encodeURIComponent(actorId)}` : ''
+  const response = await fetch(
+    `/api/v1/accounts/connected-apps/${encodeURIComponent(clientId)}${query}`,
+    {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }
+  )
+  return response.ok
+}
+
 interface UploadMediaParams {
   media: File
   thumbnail?: File

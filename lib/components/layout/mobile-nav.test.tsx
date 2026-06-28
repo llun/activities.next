@@ -66,6 +66,10 @@ describe('MobileNav', () => {
       'href',
       '/admin'
     )
+    expect(screen.getByRole('menuitem', { name: /account/i })).toHaveAttribute(
+      'href',
+      '/account'
+    )
     expect(screen.getByRole('menuitem', { name: /settings/i })).toHaveAttribute(
       'href',
       '/settings'
@@ -99,8 +103,8 @@ describe('MobileNav', () => {
     const items = await screen.findAllByRole('menuitem')
     const names = items.map((item) => item.textContent?.trim())
     // Design-system overflow order: Explore, Favorites, Bookmarks, Lists,
-    // Fitness, Profile, Admin, Settings. (Search is a direct bottom-bar item,
-    // so its neighbour Explore leads the overflow.)
+    // Fitness, Profile, Admin, Account, Settings. (Search is a direct bottom-bar
+    // item, so its neighbour Explore leads the overflow.)
     expect(names).toEqual([
       'Explore',
       'Favorites',
@@ -109,6 +113,7 @@ describe('MobileNav', () => {
       'Fitness',
       'Profile',
       'Admin',
+      'Account',
       'Settings'
     ])
   })
@@ -128,11 +133,12 @@ describe('MobileNav', () => {
       'Lists',
       'Profile',
       'Admin',
+      'Account',
       'Settings'
     ])
   })
 
-  it('places Profile before Settings in the overflow menu (no admin)', async () => {
+  it('places Profile before Account in the overflow menu (no admin)', async () => {
     render(<MobileNav profileUrl="/@llun@llun.test" />)
 
     fireEvent.keyDown(screen.getByRole('button', { name: 'More navigation' }), {
@@ -140,13 +146,15 @@ describe('MobileNav', () => {
     })
 
     const items = await screen.findAllByRole('menuitem')
-    // No Admin entry, so Profile anchors directly before Settings.
+    // No Admin entry, so Profile anchors directly before Account (the first of
+    // the account-level cluster).
     expect(items.map((item) => item.textContent?.trim())).toEqual([
       'Explore',
       'Favorites',
       'Bookmarks',
       'Lists',
       'Profile',
+      'Account',
       'Settings'
     ])
   })

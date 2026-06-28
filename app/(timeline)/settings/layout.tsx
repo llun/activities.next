@@ -6,10 +6,8 @@ import {
   Filter,
   Hash,
   Image as ImageIcon,
-  Monitor,
   Settings as SettingsIcon,
   SlidersHorizontal,
-  User,
   VolumeX
 } from 'lucide-react'
 import { FC, ReactNode } from 'react'
@@ -27,9 +25,11 @@ interface Props {
   children: ReactNode
 }
 
+// Account and Sessions moved out of Settings into the dedicated /account
+// section (they are account-level, shared across actors). Everything here is
+// specific to a single actor.
 const tabs: SectionNavTab[] = [
   { name: 'General', url: '/settings', icon: SettingsIcon },
-  { name: 'Account', url: '/settings/account', icon: User },
   {
     name: 'Preferences',
     url: '/settings/preferences',
@@ -44,8 +44,7 @@ const tabs: SectionNavTab[] = [
   { name: 'Notifications', url: '/settings/notifications', icon: Bell },
   { name: 'Blocked accounts', url: '/settings/blocks', icon: Ban },
   { name: 'Muted accounts', url: '/settings/mutes', icon: VolumeX },
-  { name: 'Filters', url: '/settings/filters', icon: Filter },
-  { name: 'Sessions', url: '/settings/sessions', icon: Monitor }
+  { name: 'Filters', url: '/settings/filters', icon: Filter }
 ]
 
 const Layout: FC<Props> = ({ children }) => {

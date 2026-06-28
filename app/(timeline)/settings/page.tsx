@@ -2,7 +2,6 @@ import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
 import { PageHeader } from '@/lib/components/page-header'
-import { ActorsSection } from '@/lib/components/settings/ActorsSection'
 import { DeleteActorSection } from '@/lib/components/settings/DeleteActorSection'
 import { ImageUploadField } from '@/lib/components/settings/ImageUploadField'
 import { Button } from '@/lib/components/ui/button'
@@ -19,18 +18,6 @@ export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Activities.next: Settings'
-}
-
-const isRealAvatar = (url?: string) => {
-  if (!url) return false
-  if (url.includes('gravatar')) return false
-  if (url.includes('ui-avatars')) return false
-  if (url.includes('robohash')) return false
-  if (url.includes('dicebear')) return false
-  if (url.includes('boringavatars')) return false
-  if (url.includes('default')) return false
-  if (url.includes('placeholder')) return false
-  return true
 }
 
 const Page = async () => {
@@ -54,38 +41,8 @@ const Page = async () => {
     <div className="space-y-6">
       <PageHeader
         title="General"
-        description="Manage your profile and account settings."
+        description="Profile, appearance, and privacy for this actor."
       />
-
-      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <div>
-          <h2 className="text-lg font-semibold">Actors</h2>
-          <p className="text-sm text-muted-foreground">
-            Manage your actors, switch between them, or set a default.
-          </p>
-        </div>
-        <ActorsSection
-          currentActor={{
-            id: actor.id,
-            username: actor.username,
-            domain: actor.domain,
-            name: actor.name,
-            iconUrl: isRealAvatar(actor.iconUrl) ? actor.iconUrl : null,
-            deletionStatus: actor.deletionStatus ?? null,
-            deletionScheduledAt: actor.deletionScheduledAt ?? null
-          }}
-          actors={actors.map((actorItem) => ({
-            id: actorItem.id,
-            username: actorItem.username,
-            domain: actorItem.domain,
-            name: actorItem.name,
-            iconUrl: isRealAvatar(actorItem.iconUrl) ? actorItem.iconUrl : null,
-            deletionStatus: actorItem.deletionStatus ?? null,
-            deletionScheduledAt: actorItem.deletionScheduledAt ?? null
-          }))}
-          currentDefault={actor.account.defaultActorId || null}
-        />
-      </section>
 
       <form action="/api/v1/accounts/profile" method="post">
         <section className="mb-6 space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
