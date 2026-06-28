@@ -2,6 +2,7 @@ import { CleanedWhere, createAdapterFactory } from 'better-auth/adapters'
 import { Knex } from 'knex'
 
 import { recordWeeklyLoginSafely } from '@/lib/database/sql/instanceActivity'
+import { deleteSessionsWithTokenDetach } from '@/lib/database/sql/utils/detachOAuthTokensFromSessions'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 
@@ -197,6 +198,25 @@ const applyWhere = (
   return query
 }
 
+const SESSIONS_TABLE = 'sessions'
+
+// Deleting a session whose grants minted OAuth tokens fails on PostgreSQL's
+// `oauthAccessToken`/`oauthRefreshToken` `sessionId` foreign keys, so detach
+// those tokens before removing the session (see `detachOAuthTokensFromSessions`).
+// Covers every better-auth session removal — sign-out, "revoke session", and
+// expired-session cleanup — that flows through the adapter's delete methods.
+// Wrapped in a transaction so a failure can't leave tokens detached from a
+// session that still exists. Returns the number of sessions deleted.
+const deleteSessionsDetachingOAuthTokens = (
+  db: Knex,
+  where: CleanedWhere[] | undefined
+): Promise<number> =>
+  db.transaction((trx) =>
+    deleteSessionsWithTokenDetach(trx, (query) =>
+      where ? applyWhere(query, SESSIONS_TABLE, where) : query
+    )
+  )
+
 type KnexAdapterOptions = {
   // The WebAuthn rpID this auth instance serves. better-auth's passkey plugin
   // does not persist the rpID a credential was created with (its schema can't be
@@ -345,6 +365,10 @@ export const knexAdapter = (db: Knex, options: KnexAdapterOptions = {}) =>
 
         async delete({ model, where }) {
           const tableName = getModelName(model)
+          if (tableName === SESSIONS_TABLE) {
+            await deleteSessionsDetachingOAuthTokens(db, where)
+            return
+          }
           let query = db(tableName)
           if (where) {
             query = applyWhere(query, tableName, where)
@@ -354,6 +378,9 @@ export const knexAdapter = (db: Knex, options: KnexAdapterOptions = {}) =>
 
         async deleteMany({ model, where }) {
           const tableName = getModelName(model)
+          if (tableName === SESSIONS_TABLE) {
+            return deleteSessionsDetachingOAuthTokens(db, where)
+          }
           let query = db(tableName)
           if (where) {
             query = applyWhere(query, tableName, where)

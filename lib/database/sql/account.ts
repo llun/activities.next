@@ -8,6 +8,7 @@ import {
   increaseCounterValue
 } from '@/lib/database/sql/utils/counter'
 import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
+import { deleteSessionsWithTokenDetach } from '@/lib/database/sql/utils/detachOAuthTokensFromSessions'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
@@ -342,17 +343,20 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   async deleteAccountSession({
     token
   }: DeleteAccountSessionParams): Promise<void> {
-    await database('sessions').where('token', token).delete()
+    await database.transaction((trx) =>
+      deleteSessionsWithTokenDetach(trx, (query) => query.where('token', token))
+    )
   },
 
   async deleteOtherAccountSessions({
     accountId,
     exceptToken
   }: DeleteOtherAccountSessionsParams): Promise<number> {
-    return database('sessions')
-      .where('accountId', accountId)
-      .andWhereNot('token', exceptToken)
-      .delete()
+    return database.transaction((trx) =>
+      deleteSessionsWithTokenDetach(trx, (query) =>
+        query.where('accountId', accountId).andWhereNot('token', exceptToken)
+      )
+    )
   },
 
   async getAccountProviders({ accountId }: GetAccountProvidersParams): Promise<
@@ -700,7 +704,9 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         .onConflict('id')
         .merge({ password: newPasswordHash, updatedAt: now })
 
-      await trx('sessions').where('accountId', targetAccountId).delete()
+      await deleteSessionsWithTokenDetach(trx, (query) =>
+        query.where('accountId', targetAccountId)
+      )
       return targetAccountId
     })
 
@@ -732,7 +738,9 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         })
         .onConflict('id')
         .merge({ password: newPasswordHash, updatedAt: currentTime })
-      await trx('sessions').where('accountId', accountId).delete()
+      await deleteSessionsWithTokenDetach(trx, (query) =>
+        query.where('accountId', accountId)
+      )
     })
   },
 
