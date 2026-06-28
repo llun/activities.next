@@ -1,0 +1,24 @@
+app/(nosidebar)/auth/signin/resolveSignInRedirect.ts
+  s_38e24bcf2d5456::t_5be046a6c633db 54-56
+lib/utils/isSafeInternalPath.test.ts
+  s_38e24bcf2d5456::t_4f3a23ef9e945e 42-45,50-59
+  s_38e24bcf2d5456::t_5f9d75647292bc 46-49
+app/(nosidebar)/auth/signin/resolveSignInRedirect.test.ts
+  s_38e24bcf2d5456::t_e33753fe64d258 112,114-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "444a94ab8f1d103716b2df3c11b106ba5df5b5a2",
+  "prompts": {},
+  "sessions": {
+    "s_38e24bcf2d5456": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10d07056-e5c7-4e51-ae35-e0742cfd7b0c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
