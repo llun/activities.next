@@ -1,0 +1,21 @@
+app/(nosidebar)/oauth/authorize/AuthorizeCard.test.tsx
+  s_38e24bcf2d5456::t_005a4337fdf089 745-777
+app/(nosidebar)/oauth/authorize/AuthorizeCard.tsx
+  s_38e24bcf2d5456::t_8c9d40b8fa9b7d 233-239,241-255
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "2df371f3b741a3aff017f1f6a58cf6ab8f2267bc",
+  "prompts": {},
+  "sessions": {
+    "s_38e24bcf2d5456": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10d07056-e5c7-4e51-ae35-e0742cfd7b0c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
