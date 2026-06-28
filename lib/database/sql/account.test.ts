@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import knex from 'knex'
 
 import { getSQLDatabase } from '@/lib/database/sql'
+import { SESSION_ID_CHUNK_SIZE } from '@/lib/database/sql/utils/detachOAuthTokensFromSessions'
 import {
   TestDatabaseTable,
   databaseBeforeAll,
@@ -1037,6 +1038,98 @@ describe('AccountDatabase', () => {
                 .first()
             )?.sessionId
           ).toBeNull()
+        } finally {
+          await knexDatabase.destroy()
+        }
+      })
+
+      it('revokes more sessions than the bind-parameter chunk size in one call', async () => {
+        const knexDatabase = createForeignKeyEnforcingDatabase()
+        const sqlDatabase = getSQLDatabase(knexDatabase)
+
+        try {
+          await sqlDatabase.migrate()
+
+          const accountId = await sqlDatabase.createAccount({
+            email: `bulk-${crypto.randomUUID()}@${TEST_DOMAIN}`,
+            username: `bulk-${crypto.randomUUID().slice(0, 8)}`,
+            passwordHash: TEST_PASSWORD_HASH,
+            domain: TEST_DOMAIN,
+            privateKey: 'private-bulk-key',
+            publicKey: 'public-bulk-key'
+          })
+
+          const keepToken = `keep-${crypto.randomUUID()}`
+          await sqlDatabase.createAccountSession({
+            accountId,
+            token: keepToken,
+            expireAt: Date.now() + 60_000
+          })
+
+          // Insert more revocable sessions than one chunk holds so the delete
+          // (and the token detach) must span at least two `whereIn` batches.
+          const now = new Date()
+          const revokeCount = SESSION_ID_CHUNK_SIZE + 5
+          const sessionRows = Array.from(
+            { length: revokeCount },
+            (_, index) => ({
+              id: `bulk-sid-${index}`,
+              accountId,
+              token: `bulk-token-${index}`,
+              expireAt: new Date(Date.now() + 60_000),
+              createdAt: now,
+              updatedAt: now
+            })
+          )
+          // Batch the seed insert itself (SQLite caps a compound INSERT at 500
+          // rows) — which is the same class of limit the production chunking
+          // guards against.
+          await knexDatabase.batchInsert('sessions', sessionRows, 100)
+
+          // Put OAuth tokens on sessions in both chunks (first, mid, last) so the
+          // detach has to reach across batches too.
+          const tokenSessionIndexes = [
+            0,
+            SESSION_ID_CHUNK_SIZE,
+            revokeCount - 1
+          ]
+          const seeded = []
+          for (const index of tokenSessionIndexes) {
+            seeded.push(
+              await seedOAuthTokensForSession(knexDatabase, {
+                accountId,
+                sessionId: `bulk-sid-${index}`,
+                suffix: `bulk-${index}`
+              })
+            )
+          }
+
+          const count = await sqlDatabase.deleteOtherAccountSessions({
+            accountId,
+            exceptToken: keepToken
+          })
+          expect(count).toBe(revokeCount)
+
+          const remaining = await sqlDatabase.getAccountAllSessions({
+            accountId
+          })
+          expect(remaining.map((item) => item.token)).toEqual([keepToken])
+          for (const { accessId, refreshId } of seeded) {
+            expect(
+              (
+                await knexDatabase('oauthAccessToken')
+                  .where('id', accessId)
+                  .first()
+              )?.sessionId
+            ).toBeNull()
+            expect(
+              (
+                await knexDatabase('oauthRefreshToken')
+                  .where('id', refreshId)
+                  .first()
+              )?.sessionId
+            ).toBeNull()
+          }
         } finally {
           await knexDatabase.destroy()
         }
