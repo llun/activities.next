@@ -20,22 +20,27 @@ const renderLayout = () =>
 
 describe('Settings Layout', () => {
   it('reflects the most-specific tab in the dropdown trigger', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/settings/account')
+    ;(usePathname as jest.Mock).mockReturnValue('/settings/preferences')
     renderLayout()
 
     const nav = screen.getByRole('navigation', { name: 'Settings' })
-    expect(within(nav).getByRole('button')).toHaveTextContent('Account')
+    expect(within(nav).getByRole('button')).toHaveTextContent('Preferences')
   })
 
-  it('resolves a nested account path to the Account tab, not General', () => {
-    ;(usePathname as jest.Mock).mockReturnValue(
-      '/settings/account/verify-email'
-    )
+  it('does not expose Account or Sessions (moved to the Account section)', async () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/settings')
     renderLayout()
 
     const nav = screen.getByRole('navigation', { name: 'Settings' })
-    // '/settings' is a prefix of the path but must not win over '/settings/account'.
-    expect(within(nav).getByRole('button')).toHaveTextContent('Account')
+    fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
+
+    const menu = await screen.findByRole('menu')
+    expect(
+      within(menu).queryByRole('menuitem', { name: 'Account' })
+    ).not.toBeInTheDocument()
+    expect(
+      within(menu).queryByRole('menuitem', { name: 'Sessions' })
+    ).not.toBeInTheDocument()
   })
 
   it('renders the section-level Settings header above the dropdown nav', () => {
@@ -78,13 +83,13 @@ describe('Settings Layout', () => {
     const menu = await screen.findByRole('menu')
     for (const label of [
       'General',
-      'Account',
+      'Preferences',
       'Featured hashtags',
       'Media',
       'Notifications',
       'Blocked accounts',
       'Muted accounts',
-      'Sessions'
+      'Filters'
     ]) {
       expect(
         within(menu).getByRole('menuitem', { name: label })
@@ -93,16 +98,16 @@ describe('Settings Layout', () => {
   })
 
   it('marks the active section as current in the opened dropdown', async () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/settings/account')
+    ;(usePathname as jest.Mock).mockReturnValue('/settings/preferences')
     renderLayout()
 
     const nav = screen.getByRole('navigation', { name: 'Settings' })
     fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
 
     const menu = await screen.findByRole('menu')
-    const active = within(menu).getByRole('menuitem', { name: 'Account' })
+    const active = within(menu).getByRole('menuitem', { name: 'Preferences' })
     expect(active).toHaveAttribute('aria-current', 'page')
-    expect(active).toHaveAttribute('href', '/settings/account')
+    expect(active).toHaveAttribute('href', '/settings/preferences')
     expect(
       within(menu).getByRole('menuitem', { name: 'General' })
     ).not.toHaveAttribute('aria-current')

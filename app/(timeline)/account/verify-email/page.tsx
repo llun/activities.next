@@ -91,8 +91,8 @@ const Page: FC<Props> = async ({ searchParams }) => {
               <Button>Sign In</Button>
             </Link>
           ) : isLoggedIn ? (
-            <Link href="/settings/account">
-              <Button>Go to Account Settings</Button>
+            <Link href="/account">
+              <Button>Go to Account</Button>
             </Link>
           ) : (
             <Link href="/auth/signin">

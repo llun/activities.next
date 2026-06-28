@@ -20,6 +20,7 @@ import {
   CreateActorForAccountParams,
   CreateCredentialProviderParams,
   DeleteAccountSessionParams,
+  DeleteOtherAccountSessionsParams,
   GetAccountAllSessionsParams,
   GetAccountFromEmailParams,
   GetAccountFromIdParams,
@@ -342,6 +343,16 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     token
   }: DeleteAccountSessionParams): Promise<void> {
     await database('sessions').where('token', token).delete()
+  },
+
+  async deleteOtherAccountSessions({
+    accountId,
+    exceptToken
+  }: DeleteOtherAccountSessionsParams): Promise<number> {
+    return database('sessions')
+      .where('accountId', accountId)
+      .andWhereNot('token', exceptToken)
+      .delete()
   },
 
   async getAccountProviders({ accountId }: GetAccountProvidersParams): Promise<

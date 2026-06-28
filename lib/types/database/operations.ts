@@ -12,6 +12,7 @@ import {
   CollectionFeatureState,
   CollectionVisibility
 } from '@/lib/types/domain/collection'
+import { ConnectedApp } from '@/lib/types/domain/connected-app'
 import { CustomEmojiData } from '@/lib/types/domain/customEmoji'
 import { Endorsement } from '@/lib/types/domain/endorsement'
 import {
@@ -279,6 +280,12 @@ export type GetAccountAllSessionsParams = {
 export type DeleteAccountSessionParams = {
   token: string
 }
+export type DeleteOtherAccountSessionsParams = {
+  accountId: string
+  // The session to keep (the device making the request). Every other session
+  // for the account is revoked.
+  exceptToken: string
+}
 export type UpdateAccountSessionParams = {
   token: string
   expireAt?: number
@@ -370,6 +377,11 @@ export interface AccountDatabase {
   getAccountAllSessions(params: GetAccountAllSessionsParams): Promise<Session[]>
   updateAccountSession(params: UpdateAccountSessionParams): Promise<void>
   deleteAccountSession(params: DeleteAccountSessionParams): Promise<void>
+  // Revoke every session for the account except `exceptToken`. Returns the
+  // number of sessions revoked.
+  deleteOtherAccountSessions(
+    params: DeleteOtherAccountSessionsParams
+  ): Promise<number>
 
   getAccountProviders(params: GetAccountProvidersParams): Promise<
     {
@@ -2897,6 +2909,18 @@ export const GetClientFromIdParams = z.object({
 })
 export type GetClientFromIdParams = z.infer<typeof GetClientFromIdParams>
 
+export type GetAccountConnectedAppsParams = {
+  accountId: string
+}
+
+export type RevokeAccountConnectedAppParams = {
+  accountId: string
+  clientId: string
+  // The actor (consent referenceId) the grant belongs to. Null revokes the
+  // account-scoped grant that has no actor reference.
+  actorId: string | null
+}
+
 export interface OAuthDatabase {
   getClientFromName(params: GetClientFromNameParams): Promise<Client | null>
   getClientFromId(params: GetClientFromIdParams): Promise<Client | null>
@@ -2904,6 +2928,16 @@ export interface OAuthDatabase {
     params: GetClientFromAccessTokenParams
   ): Promise<Client | null>
   createOAuthAccessToken(params: CreateOAuthAccessTokenParams): Promise<void>
+  // List the third-party OAuth grants (API clients + SSO sign-ins) the account
+  // has authorized, newest first.
+  getAccountConnectedApps(
+    params: GetAccountConnectedAppsParams
+  ): Promise<ConnectedApp[]>
+  // Revoke a connected app for the account: deletes the consent and every
+  // access/refresh token issued for that client + actor.
+  revokeAccountConnectedApp(
+    params: RevokeAccountConnectedAppParams
+  ): Promise<void>
 }
 
 export const GetClientFromAccessTokenParams = z.object({

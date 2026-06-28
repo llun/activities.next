@@ -207,7 +207,7 @@ export const PasskeyManager: FC<PasskeyManagerProps> = ({
       domains.some((d) => d.domain === resume)
     ) {
       openDialog(resume)
-      router.replace('/settings/account')
+      router.replace('/account/security')
     }
   }, [searchParams, currentDomain, domains, openDialog, router])
 
@@ -219,7 +219,7 @@ export const PasskeyManager: FC<PasskeyManagerProps> = ({
     // instead of falling back to 80/443.
     if (selectedDomain !== currentDomain) {
       const port = window.location.port ? `:${window.location.port}` : ''
-      window.location.href = `${window.location.protocol}//${selectedDomain}${port}/settings/account?${RESUME_PARAM}=${encodeURIComponent(selectedDomain)}`
+      window.location.href = `${window.location.protocol}//${selectedDomain}${port}/account/security?${RESUME_PARAM}=${encodeURIComponent(selectedDomain)}`
       return
     }
 

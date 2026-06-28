@@ -8,6 +8,7 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorProfile, getMention } from '@/lib/types/domain/actor'
 import { cn } from '@/lib/utils'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { isRealAvatar } from '@/lib/utils/isRealAvatar'
 
 interface LayoutProps {
   children: ReactNode
@@ -30,22 +31,6 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   // `tags/layout.tsx`).
   if (!actor) {
     return <>{children}</>
-  }
-
-  // Check if iconUrl is a real user-uploaded avatar (not auto-generated)
-  // Auto-generated URLs typically contain service identifiers
-  const isRealAvatar = (url?: string) => {
-    if (!url) return false
-    // Skip if URL is from known auto-generation services
-    if (url.includes('gravatar')) return false
-    if (url.includes('ui-avatars')) return false
-    if (url.includes('robohash')) return false
-    if (url.includes('dicebear')) return false
-    if (url.includes('boringavatars')) return false
-    // Skip if URL appears to be a default/placeholder
-    if (url.includes('default')) return false
-    if (url.includes('placeholder')) return false
-    return true
   }
 
   // From here on the visitor is signed in (the logged-out branch returned

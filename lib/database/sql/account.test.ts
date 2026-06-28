@@ -558,6 +558,52 @@ describe('AccountDatabase', () => {
         expect(deleted).toBeNull()
       })
 
+      it('revokes every session except the kept one and leaves other accounts untouched', async () => {
+        const { accountId } = await createTestAccount()
+        const other = await createTestAccount()
+        const expireAt = Date.now() + 60_000
+        const keepToken = `keep-${crypto.randomUUID()}`
+        const otherToken = `other-acct-${crypto.randomUUID()}`
+        await database.createAccountSession({
+          accountId,
+          token: keepToken,
+          expireAt
+        })
+        await database.createAccountSession({
+          accountId,
+          token: `revoke-a-${crypto.randomUUID()}`,
+          expireAt
+        })
+        await database.createAccountSession({
+          accountId,
+          token: `revoke-b-${crypto.randomUUID()}`,
+          expireAt
+        })
+        await database.createAccountSession({
+          accountId: other.accountId,
+          token: otherToken,
+          expireAt
+        })
+
+        const revoked = await database.deleteOtherAccountSessions({
+          accountId,
+          exceptToken: keepToken
+        })
+        expect(revoked).toBe(2)
+
+        const remaining = await database.getAccountAllSessions({ accountId })
+        expect(remaining).toHaveLength(1)
+        expect(remaining[0].token).toBe(keepToken)
+
+        // The other account's session must survive.
+        const otherSessions = await database.getAccountAllSessions({
+          accountId: other.accountId
+        })
+        expect(otherSessions.map((session) => session.token)).toContain(
+          otherToken
+        )
+      })
+
       it('records login counters once per account per UTC week', async () => {
         const knexDatabase = knex({
           client: 'better-sqlite3',
