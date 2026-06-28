@@ -555,20 +555,100 @@ describe('AuthorizeCard', () => {
     expect(screen.queryByText('rider@example.com')).not.toBeInTheDocument()
   })
 
-  it('renders the avatar fallback initial from the account identity (OIDC)', () => {
+  it('derives the avatar fallback initial from the display name, not the email (OIDC)', () => {
     render(
       <AuthorizeCard
         client={client}
         searchParams={oidcSearchParams}
         actors={actors}
         currentActorId="https://activities.local/users/llun"
-        account={{ email: 'rider@example.com', name: 'Ride', iconUrl: null }}
+        account={{ email: 'rider@example.com', name: 'Zoe', iconUrl: null }}
         navigate={mockNavigate}
       />
     )
 
-    // With no iconUrl the Avatar shows the fallback initial derived from the
-    // display name ('Ride' -> 'R').
-    expect(screen.getByText('R')).toBeInTheDocument()
+    // With no iconUrl the Avatar shows a fallback initial. It must come from
+    // the display name ('Zoe' -> 'Z'), not the email ('rider@…' -> 'R').
+    expect(screen.getByText('Z')).toBeInTheDocument()
+    expect(screen.queryByText('R')).not.toBeInTheDocument()
+  })
+
+  it('derives a Unicode-safe avatar initial for a non-BMP name (OIDC)', () => {
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={oidcSearchParams}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={{ email: 'fox@example.com', name: '🦊 Ranger', iconUrl: null }}
+        navigate={mockNavigate}
+      />
+    )
+
+    // The initial is the whole leading code point, not a broken surrogate half
+    // (the pre-fix `name[0]` would have sliced the emoji in two).
+    expect(screen.getByText('🦊')).toBeInTheDocument()
+  })
+
+  it('does not duplicate the email when the account name equals the email (OIDC)', () => {
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={oidcSearchParams}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={{
+          email: 'rider@example.com',
+          name: 'rider@example.com',
+          iconUrl: null
+        }}
+        navigate={mockNavigate}
+      />
+    )
+
+    // When the display name IS the email, the email must still render exactly
+    // once (the secondary line is suppressed), not twice.
+    expect(screen.getAllByText('rider@example.com')).toHaveLength(1)
+  })
+
+  it('locks the openid scope so it cannot be stripped from an OIDC consent', async () => {
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={oidcSearchParams}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    // openid is the OIDC subject scope (gates id_token issuance) and must be
+    // locked: checked and not user-toggleable.
+    const openidCheckbox = screen.getByLabelText('openid')
+    expect(openidCheckbox).toBeChecked()
+    expect(openidCheckbox).toBeDisabled()
+    // Optional OIDC scopes stay user-controllable.
+    expect(screen.getByLabelText('profile')).toBeEnabled()
+    expect(screen.getByLabelText('email')).toBeEnabled()
+
+    // Unchecking the optional scopes must not strip openid from the consent.
+    fireEvent.click(screen.getByLabelText('profile'))
+    fireEvent.click(screen.getByLabelText('email'))
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/auth/oauth2/consent',
+        expect.objectContaining({ method: 'POST' })
+      )
+    })
+    const consentCall = (global.fetch as jest.Mock).mock.calls.find(
+      ([url]) => url === '/api/auth/oauth2/consent'
+    )
+    const submittedScopes = JSON.parse(consentCall[1].body).scope.split(' ')
+    expect(submittedScopes).toContain('openid')
+    expect(submittedScopes).not.toContain('profile')
+    expect(submittedScopes).not.toContain('email')
   })
 })

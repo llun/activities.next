@@ -1,4 +1,7 @@
+import type { ReactElement } from 'react'
+
 import { getBaseURL, getConfig } from '@/lib/config'
+import { getDatabase } from '@/lib/database'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -116,5 +119,64 @@ describe('/oauth/authorize redirect host', () => {
     const target = new URL(redirectMock.mock.calls[0][0])
     expect(target.host).toBe(ALIAS_HOST)
     expect(target.pathname).toBe('/api/auth/oauth2/authorize')
+  })
+})
+
+describe('/oauth/authorize account summary', () => {
+  beforeEach(() => {
+    redirectMock.mockClear()
+    vi.mocked(getConfig).mockReturnValue({
+      host: TEST_DOMAIN,
+      trustedHosts: []
+    } as ReturnType<typeof getConfig>)
+    vi.mocked(getBaseURL).mockReturnValue(`https://${TEST_DOMAIN}`)
+    headersMock.mockReturnValue(
+      new Headers({ 'x-forwarded-host': TEST_DOMAIN })
+    )
+  })
+
+  it('passes the account email/name/iconUrl (from actor.account) to AuthorizeCard', async () => {
+    vi.mocked(getActorFromSession).mockResolvedValue({
+      id: 'https://activities.local/users/llun',
+      account: {
+        id: 'account-id',
+        email: 'rider@example.com',
+        name: 'Ride',
+        iconUrl: 'https://cdn.example/a.png'
+      }
+    } as Awaited<ReturnType<typeof getActorFromSession>>)
+
+    vi.mocked(getDatabase).mockReturnValue({
+      getClientFromId: vi.fn().mockResolvedValue({
+        clientId: 'client-id',
+        redirectUris: ['https://app.example/callback']
+      }),
+      getActorsForAccount: vi.fn().mockResolvedValue([])
+    } as unknown as ReturnType<typeof getDatabase>)
+
+    // A live sig/exp pair keeps shouldDelegateToBetterAuth false so the page
+    // renders AuthorizeCard instead of redirecting.
+    const renderParams = {
+      client_id: 'client-id',
+      scope: 'openid profile email',
+      redirect_uri: 'https://app.example/callback',
+      response_type: 'code' as const,
+      sig: 'signed',
+      exp: '9999999999'
+    }
+
+    const element = (await Page({
+      searchParams: Promise.resolve(renderParams)
+    })) as ReactElement
+
+    expect(redirectMock).not.toHaveBeenCalled()
+    // Page returns <div><AuthorizeCard .../></div>; the account summary must be
+    // sourced from actor.account (a typo passing the actor would fail here).
+    const authorizeCard = (element.props as { children: ReactElement }).children
+    expect((authorizeCard.props as { account: unknown }).account).toEqual({
+      email: 'rider@example.com',
+      name: 'Ride',
+      iconUrl: 'https://cdn.example/a.png'
+    })
   })
 })
