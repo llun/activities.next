@@ -822,9 +822,11 @@ describe('knexAdapter', () => {
       ).toBeNull()
     })
 
-    it('deleteMany() detaches OAuth tokens and returns the deleted count', async () => {
+    it('deleteMany() detaches a mixed batch and returns the deleted count', async () => {
+      // bulk-a minted OAuth tokens; bulk-b did not. The realistic "revoke all
+      // other sessions" case is a mix, and both must be deleted.
       await seedSessionWithTokens('bulk-a')
-      await seedSessionWithTokens('bulk-b')
+      await fkDb('sessions').insert({ id: 'sid-bulk-b', token: 'bulk-b' })
 
       const count = await fkAdapter.deleteMany({
         model: 'sessions',
@@ -839,12 +841,38 @@ describe('knexAdapter', () => {
 
       expect(count).toBe(2)
       expect(await fkDb('sessions').select()).toHaveLength(0)
+      // bulk-a's tokens must SURVIVE (not be deleted), detached from the
+      // now-deleted session — asserting existence + null sessionId, not just
+      // the absence of non-null links.
+      const access = await fkDb('oauthAccessToken')
+        .where('id', 'at-bulk-a')
+        .first()
+      const refresh = await fkDb('oauthRefreshToken')
+        .where('id', 'rt-bulk-a')
+        .first()
+      expect(access).toBeDefined()
+      expect(access?.sessionId).toBeNull()
+      expect(refresh).toBeDefined()
+      expect(refresh?.sessionId).toBeNull()
+    })
+
+    it('deleteMany() is a no-op returning 0 when no session matches', async () => {
+      await seedSessionWithTokens('survivor')
+
+      const count = await fkAdapter.deleteMany({
+        model: 'sessions',
+        where: [{ field: 'token', value: 'missing', operator: 'eq' as const }]
+      })
+
+      expect(count).toBe(0)
+      // The unrelated session and its (still-attached) tokens are untouched.
       expect(
-        await fkDb('oauthAccessToken').whereNotNull('sessionId')
-      ).toHaveLength(0)
+        await fkDb('sessions').where('token', 'survivor').first()
+      ).toBeDefined()
       expect(
-        await fkDb('oauthRefreshToken').whereNotNull('sessionId')
-      ).toHaveLength(0)
+        (await fkDb('oauthAccessToken').where('id', 'at-survivor').first())
+          ?.sessionId
+      ).toBe('sid-survivor')
     })
   })
 

@@ -8,7 +8,7 @@ import {
   increaseCounterValue
 } from '@/lib/database/sql/utils/counter'
 import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
-import { detachOAuthTokensFromSessions } from '@/lib/database/sql/utils/detachOAuthTokensFromSessions'
+import { deleteSessionsWithTokenDetach } from '@/lib/database/sql/utils/detachOAuthTokensFromSessions'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
@@ -343,36 +343,20 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   async deleteAccountSession({
     token
   }: DeleteAccountSessionParams): Promise<void> {
-    await database.transaction(async (trx) => {
-      const rows = await trx('sessions')
-        .where('token', token)
-        .select<{ id: string }[]>('id')
-      // Delete by the resolved primary keys rather than re-running the lookup
-      // filter, so the detach and delete act on exactly the same rows (no row
-      // a concurrent insert added between the two statements can slip through
-      // undetached). `filter(Boolean)` guards against a stray empty id.
-      const ids = rows.map((row) => row.id).filter(Boolean)
-      if (ids.length === 0) return
-      await detachOAuthTokensFromSessions(trx, ids)
-      await trx('sessions').whereIn('id', ids).delete()
-    })
+    await database.transaction((trx) =>
+      deleteSessionsWithTokenDetach(trx, (query) => query.where('token', token))
+    )
   },
 
   async deleteOtherAccountSessions({
     accountId,
     exceptToken
   }: DeleteOtherAccountSessionsParams): Promise<number> {
-    return database.transaction(async (trx) => {
-      const rows = await trx('sessions')
-        .where('accountId', accountId)
-        .andWhereNot('token', exceptToken)
-        .select<{ id: string }[]>('id')
-      const ids = rows.map((row) => row.id).filter(Boolean)
-      if (ids.length === 0) return 0
-      await detachOAuthTokensFromSessions(trx, ids)
-      const deletedCount = await trx('sessions').whereIn('id', ids).delete()
-      return deletedCount
-    })
+    return database.transaction((trx) =>
+      deleteSessionsWithTokenDetach(trx, (query) =>
+        query.where('accountId', accountId).andWhereNot('token', exceptToken)
+      )
+    )
   },
 
   async getAccountProviders({ accountId }: GetAccountProvidersParams): Promise<
@@ -720,7 +704,9 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         .onConflict('id')
         .merge({ password: newPasswordHash, updatedAt: now })
 
-      await trx('sessions').where('accountId', targetAccountId).delete()
+      await deleteSessionsWithTokenDetach(trx, (query) =>
+        query.where('accountId', targetAccountId)
+      )
       return targetAccountId
     })
 
@@ -752,7 +738,9 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         })
         .onConflict('id')
         .merge({ password: newPasswordHash, updatedAt: currentTime })
-      await trx('sessions').where('accountId', accountId).delete()
+      await deleteSessionsWithTokenDetach(trx, (query) =>
+        query.where('accountId', accountId)
+      )
     })
   },
 

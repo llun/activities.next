@@ -905,6 +905,142 @@ describe('AccountDatabase', () => {
           await knexDatabase.destroy()
         }
       })
+
+      it('changePassword wipes sessions that minted OAuth tokens without violating the foreign key', async () => {
+        const knexDatabase = createForeignKeyEnforcingDatabase()
+        const sqlDatabase = getSQLDatabase(knexDatabase)
+
+        try {
+          await sqlDatabase.migrate()
+          const [{ foreign_keys: fkEnabled }] = await knexDatabase.raw(
+            'PRAGMA foreign_keys'
+          )
+          expect(fkEnabled).toBe(1)
+
+          const accountId = await sqlDatabase.createAccount({
+            email: `change-pw-${crypto.randomUUID()}@${TEST_DOMAIN}`,
+            username: `change-pw-${crypto.randomUUID().slice(0, 8)}`,
+            passwordHash: TEST_PASSWORD_HASH,
+            domain: TEST_DOMAIN,
+            privateKey: 'private-change-pw-key',
+            publicKey: 'public-change-pw-key'
+          })
+
+          const token = `change-pw-${crypto.randomUUID()}`
+          await sqlDatabase.createAccountSession({
+            accountId,
+            token,
+            expireAt: Date.now() + 60_000
+          })
+          const session = await knexDatabase('sessions')
+            .where('token', token)
+            .first<{ id: string }>('id')
+          const { accessId, refreshId } = await seedOAuthTokensForSession(
+            knexDatabase,
+            {
+              accountId,
+              sessionId: session.id,
+              suffix: crypto.randomUUID().slice(0, 8)
+            }
+          )
+
+          // Changing a password wipes every session for the account; before the
+          // fix this 500'd on the sessionId FK for accounts with connected apps.
+          await expect(
+            sqlDatabase.changePassword({
+              accountId,
+              newPasswordHash: 'changed_password_hash'
+            })
+          ).resolves.toBeUndefined()
+
+          expect(
+            await sqlDatabase.getAccountAllSessions({ accountId })
+          ).toHaveLength(0)
+          expect(
+            (
+              await knexDatabase('oauthAccessToken')
+                .where('id', accessId)
+                .first()
+            )?.sessionId
+          ).toBeNull()
+          expect(
+            (
+              await knexDatabase('oauthRefreshToken')
+                .where('id', refreshId)
+                .first()
+            )?.sessionId
+          ).toBeNull()
+        } finally {
+          await knexDatabase.destroy()
+        }
+      })
+
+      it('resetPasswordWithCode wipes sessions that minted OAuth tokens without violating the foreign key', async () => {
+        const knexDatabase = createForeignKeyEnforcingDatabase()
+        const sqlDatabase = getSQLDatabase(knexDatabase)
+
+        try {
+          await sqlDatabase.migrate()
+
+          const email = `reset-pw-${crypto.randomUUID()}@${TEST_DOMAIN}`
+          const accountId = await sqlDatabase.createAccount({
+            email,
+            username: `reset-pw-${crypto.randomUUID().slice(0, 8)}`,
+            passwordHash: TEST_PASSWORD_HASH,
+            domain: TEST_DOMAIN,
+            privateKey: 'private-reset-pw-key',
+            publicKey: 'public-reset-pw-key'
+          })
+
+          const token = `reset-pw-${crypto.randomUUID()}`
+          await sqlDatabase.createAccountSession({
+            accountId,
+            token,
+            expireAt: Date.now() + 60_000
+          })
+          const session = await knexDatabase('sessions')
+            .where('token', token)
+            .first<{ id: string }>('id')
+          const { accessId, refreshId } = await seedOAuthTokensForSession(
+            knexDatabase,
+            {
+              accountId,
+              sessionId: session.id,
+              suffix: crypto.randomUUID().slice(0, 8)
+            }
+          )
+
+          const passwordResetCode = `reset-${crypto.randomUUID()}`
+          await sqlDatabase.requestPasswordReset({ email, passwordResetCode })
+
+          await expect(
+            sqlDatabase.resetPasswordWithCode({
+              passwordResetCode,
+              newPasswordHash: 'reset_password_hash'
+            })
+          ).resolves.toMatchObject({ id: accountId })
+
+          expect(
+            await sqlDatabase.getAccountAllSessions({ accountId })
+          ).toHaveLength(0)
+          expect(
+            (
+              await knexDatabase('oauthAccessToken')
+                .where('id', accessId)
+                .first()
+            )?.sessionId
+          ).toBeNull()
+          expect(
+            (
+              await knexDatabase('oauthRefreshToken')
+                .where('id', refreshId)
+                .first()
+            )?.sessionId
+          ).toBeNull()
+        } finally {
+          await knexDatabase.destroy()
+        }
+      })
     })
   })
 })

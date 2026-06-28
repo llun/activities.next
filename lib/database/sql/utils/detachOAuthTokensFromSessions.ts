@@ -25,3 +25,26 @@ export const detachOAuthTokensFromSessions = async (
     .whereIn('sessionId', sessionIds)
     .update({ sessionId: null })
 }
+
+/**
+ * FK-safe session delete. Resolves the session ids matched by `scope`, detaches
+ * their OAuth tokens, then deletes exactly those rows (by primary key). Every
+ * code path that removes `sessions` rows must go through here so none can
+ * reintroduce the `sessionId` FK violation — deleting by the resolved ids also
+ * means a session a concurrent insert added between the lookup and the delete
+ * can't be deleted undetached. Must run inside a transaction; returns the number
+ * of sessions deleted. `filter(Boolean)` guards against a stray empty id.
+ */
+export const deleteSessionsWithTokenDetach = async (
+  trx: Knex.Transaction,
+  scope: (query: Knex.QueryBuilder) => Knex.QueryBuilder
+): Promise<number> => {
+  const rows = await scope(trx('sessions')).select<{ id: string }[]>(
+    'sessions.id'
+  )
+  const ids = rows.map((row) => row.id).filter(Boolean)
+  if (ids.length === 0) return 0
+  await detachOAuthTokensFromSessions(trx, ids)
+  const deletedCount = await trx('sessions').whereIn('id', ids).delete()
+  return deletedCount
+}

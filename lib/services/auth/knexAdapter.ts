@@ -2,7 +2,7 @@ import { CleanedWhere, createAdapterFactory } from 'better-auth/adapters'
 import { Knex } from 'knex'
 
 import { recordWeeklyLoginSafely } from '@/lib/database/sql/instanceActivity'
-import { detachOAuthTokensFromSessions } from '@/lib/database/sql/utils/detachOAuthTokensFromSessions'
+import { deleteSessionsWithTokenDetach } from '@/lib/database/sql/utils/detachOAuthTokensFromSessions'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 
@@ -211,19 +211,11 @@ const deleteSessionsDetachingOAuthTokens = (
   db: Knex,
   where: CleanedWhere[] | undefined
 ): Promise<number> =>
-  db.transaction(async (trx) => {
-    const lookup = trx(SESSIONS_TABLE)
-    const scoped = where ? applyWhere(lookup, SESSIONS_TABLE, where) : lookup
-    const rows = await scoped.select<{ id: string }[]>(`${SESSIONS_TABLE}.id`)
-    // Delete by the resolved primary keys rather than re-running the (possibly
-    // complex) where filter, so the detach and delete act on exactly the same
-    // rows. `filter(Boolean)` guards against a stray empty id.
-    const ids = rows.map((row) => row.id).filter(Boolean)
-    if (ids.length === 0) return 0
-    await detachOAuthTokensFromSessions(trx, ids)
-    const deletedCount = await trx(SESSIONS_TABLE).whereIn('id', ids).delete()
-    return deletedCount
-  })
+  db.transaction((trx) =>
+    deleteSessionsWithTokenDetach(trx, (query) =>
+      where ? applyWhere(query, SESSIONS_TABLE, where) : query
+    )
+  )
 
 type KnexAdapterOptions = {
   // The WebAuthn rpID this auth instance serves. better-auth's passkey plugin
