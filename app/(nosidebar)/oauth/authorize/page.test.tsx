@@ -139,17 +139,26 @@ describe('/oauth/authorize account summary', () => {
     {
       description: 'a fully-populated account',
       accountName: 'Ride' as string | null,
-      accountIconUrl: 'https://cdn.example/a.png' as string | null
+      accountIconUrl: 'https://cdn.example/a.png' as string | null,
+      expectedIconUrl: 'https://cdn.example/a.png' as string | null
     },
     {
       description:
         'an account with no name or avatar (nulls propagate as null)',
       accountName: null as string | null,
-      accountIconUrl: null as string | null
+      accountIconUrl: null as string | null,
+      expectedIconUrl: null as string | null
+    },
+    {
+      description:
+        'an account whose avatar is a generated placeholder (filtered to null)',
+      accountName: 'Ride' as string | null,
+      accountIconUrl: 'https://www.gravatar.com/avatar/abc123' as string | null,
+      expectedIconUrl: null as string | null
     }
   ])(
     'passes the account summary from actor.account to AuthorizeCard for $description',
-    async ({ accountName, accountIconUrl }) => {
+    async ({ accountName, accountIconUrl, expectedIconUrl }) => {
       vi.mocked(getActorFromSession).mockResolvedValue({
         id: 'https://activities.local/users/llun',
         account: {
@@ -186,13 +195,14 @@ describe('/oauth/authorize account summary', () => {
       expect(redirectMock).not.toHaveBeenCalled()
       // Page returns <div><AuthorizeCard .../></div>; the account summary must
       // be sourced from actor.account (a typo passing the actor would fail
-      // here), and nullish name/iconUrl must propagate unchanged.
+      // here), nullish name/iconUrl must propagate, and a generated-placeholder
+      // avatar is filtered to null (consistent with the rest of the account UI).
       const authorizeCard = (element.props as { children: ReactElement })
         .children
       expect((authorizeCard.props as { account: unknown }).account).toEqual({
         email: 'rider@example.com',
         name: accountName,
-        iconUrl: accountIconUrl
+        iconUrl: expectedIconUrl
       })
     }
   )

@@ -53,7 +53,7 @@ const Page = async ({
       <AccountIdentityCard
         name={account.name}
         email={account.email}
-        iconUrl={account.iconUrl}
+        iconUrl={isRealAvatar(account.iconUrl) ? account.iconUrl : null}
       />
 
       <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
