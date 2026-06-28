@@ -8,6 +8,7 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { Actor } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { isRealAvatar } from '@/lib/utils/isRealAvatar'
 
 import { AuthorizeCard } from './AuthorizeCard'
 import {
@@ -85,6 +86,13 @@ const Page: FC<Props> = async ({ searchParams }) => {
         searchParams={params}
         client={client}
         actors={actors}
+        account={{
+          email: actor.account.email,
+          name: actor.account.name,
+          iconUrl: isRealAvatar(actor.account.iconUrl)
+            ? actor.account.iconUrl
+            : null
+        }}
         currentActorId={actor.id}
       />
     </div>

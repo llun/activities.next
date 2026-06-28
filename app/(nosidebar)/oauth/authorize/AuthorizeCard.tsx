@@ -29,10 +29,17 @@ import { Client } from '@/lib/types/oauth2/client'
 import { buildOAuthQuery } from './authorizeQuery'
 import { SearchParams } from './types'
 
+interface AccountSummary {
+  email: string
+  name?: string | null
+  iconUrl?: string | null
+}
+
 interface Props {
   client: Client
   searchParams: SearchParams
   actors: Actor[]
+  account: AccountSummary
   currentActorId: string
   navigate?: (url: string) => void
 }
@@ -78,12 +85,20 @@ export const AuthorizeCard: FC<Props> = ({
   searchParams,
   client,
   actors,
+  account,
   currentActorId,
   navigate = navigateTo
 }) => {
   const requestedScopes = searchParams.scope.split(' ')
   const router = useRouter()
   const availabledScopes = intersection(UsableScopes, requestedScopes)
+  // An OIDC authentication request is identified by the `openid` scope (OIDC
+  // Core §3.1.2.1). Such a request authenticates the owning account, not a
+  // chosen ActivityPub persona — the id_token/userinfo `sub` is always the
+  // account id — so the consent screen shows the fixed account identity instead
+  // of the multi-actor "Authorize as" picker.
+  const isOidc = requestedScopes.includes('openid')
+  const accountDisplayName = account.name?.trim() || account.email
   const [selectedActorId, setSelectedActorId] = useState(currentActorId)
   const [isSwitching, setIsSwitching] = useState(false)
   const [submittingAction, setSubmittingAction] = useState<
@@ -96,7 +111,9 @@ export const AuthorizeCard: FC<Props> = ({
 
   const getAvatarInitial = (username: string) => {
     if (!username) return '?'
-    return username[0].toUpperCase()
+    // Spread to the first code point so a surrogate-pair glyph (emoji or a
+    // non-BMP character starting a name) isn't sliced into a broken half.
+    return [...username][0].toUpperCase()
   }
 
   const getHandle = (actor: Actor) => `@${actor.username}@${actor.domain}`
@@ -213,18 +230,68 @@ export const AuthorizeCard: FC<Props> = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Authorization required</CardTitle>
+        {/* OIDC requests are authentication ("Sign in with …") flows, so they
+            get sign-in framing instead of the OAuth resource-grant copy. */}
+        <CardTitle>
+          {isOidc
+            ? `Sign in to ${client.name || 'this application'}`
+            : 'Authorization required'}
+        </CardTitle>
         <CardDescription>
-          <strong>{client.name}</strong> would like permission to access your
-          account. It is a third-party application.{' '}
-          <strong>
-            If you do not trust it, then you should not authorize it.
-          </strong>
+          {isOidc ? (
+            <>
+              <strong>{client.name || 'This application'}</strong> wants to
+              verify your identity using your account. It is a third-party
+              application. <strong>Only continue if you trust it.</strong>
+            </>
+          ) : (
+            <>
+              <strong>{client.name || 'This application'}</strong> would like
+              permission to access your account. It is a third-party
+              application.{' '}
+              <strong>
+                If you do not trust it, then you should not authorize it.
+              </strong>
+            </>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleApprove} className="space-y-6">
-          {actors.length > 1 && (
+          {isOidc && (
+            <div className="space-y-2">
+              {/* Informational caption — not a form-control label, so a <p>
+                  rather than <Label> (which would label nothing). */}
+              <p className="text-sm font-medium text-muted-foreground">
+                Signed in as
+              </p>
+              <div className="flex w-full items-center gap-3 rounded-lg border bg-background p-3">
+                <Avatar className="h-10 w-10" aria-hidden="true">
+                  {account.iconUrl && <AvatarImage src={account.iconUrl} />}
+                  <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                    {getAvatarInitial(accountDisplayName)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 overflow-hidden">
+                  <p className="text-sm font-medium truncate">
+                    {accountDisplayName}
+                  </p>
+                  {/* Show the email as a secondary line only when a distinct
+                      name is the primary identity. Covers name=null, blank, and
+                      name===email (which would otherwise render twice). The
+                      comparison is case-insensitive because emails are. */}
+                  {accountDisplayName.toLowerCase() !==
+                    account.email.toLowerCase() && (
+                    <p className="text-xs text-muted-foreground truncate">
+                      {account.email}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!isOidc && actors.length > 1 && (
             <div className="space-y-2">
               <Label className="text-sm font-medium text-muted-foreground">
                 Authorize as
@@ -292,24 +359,40 @@ export const AuthorizeCard: FC<Props> = ({
               Review permissions
             </h3>
             <div className="space-y-3">
-              {availabledScopes.map((scope) => (
-                <div key={scope} className="flex items-center space-x-2">
-                  <input
-                    className="size-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                    name="scope"
-                    type="checkbox"
-                    value={scope}
-                    id={`scope-${scope}`}
-                    defaultChecked
-                  />
-                  <Label
-                    htmlFor={`scope-${scope}`}
-                    className="text-sm font-normal leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                  >
-                    {scope}
-                  </Label>
-                </div>
-              ))}
+              {availabledScopes.map((scope) => {
+                // `openid` is what makes this an OIDC authentication request and
+                // gates id_token issuance, so it must not be strippable. Render
+                // it locked (disabled + checked) and submit it via a hidden
+                // field so a disabled checkbox (which a browser omits from form
+                // data) can't silently drop it. Optional OIDC scopes
+                // (profile/email) stay user-toggleable.
+                const lockedOidcScope = isOidc && scope === 'openid'
+                return (
+                  <div key={scope} className="flex items-center space-x-2">
+                    <input
+                      className="peer size-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                      // A disabled control is omitted from form submission, but
+                      // also drop the name so a non-standard serializer can't
+                      // double-submit `openid` alongside the hidden field.
+                      name={lockedOidcScope ? undefined : 'scope'}
+                      type="checkbox"
+                      value={scope}
+                      id={`scope-${scope}`}
+                      defaultChecked
+                      disabled={lockedOidcScope}
+                    />
+                    {lockedOidcScope && (
+                      <input type="hidden" name="scope" value={scope} />
+                    )}
+                    <Label
+                      htmlFor={`scope-${scope}`}
+                      className="text-sm font-normal leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      {scope}
+                    </Label>
+                  </div>
+                )
+              })}
             </div>
           </div>
 
