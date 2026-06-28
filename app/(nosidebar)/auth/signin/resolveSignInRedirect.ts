@@ -1,5 +1,6 @@
 import { buildOAuthAuthorizePath } from '@/app/(nosidebar)/oauth/authorize/authorizeQuery'
 import type { SearchParams } from '@/app/(nosidebar)/oauth/authorize/types'
+import { isSafeInternalPath } from '@/lib/utils/isSafeInternalPath'
 
 // The OAuth/OIDC authorization-request params better-auth forwards in its
 // loginPage redirect. Deliberately excludes the signed envelope (sig/exp and
@@ -16,9 +17,6 @@ const OIDC_REQUEST_PARAM_KEYS = [
   'nonce',
   'prompt'
 ] as const
-
-const isSafeInternalPath = (value: string): boolean =>
-  value.startsWith('/') && !value.startsWith('//')
 
 /**
  * Decides where the sign-in forms navigate after a successful login.
@@ -55,6 +53,10 @@ export const resolveSignInRedirect = (
     searchParams.get('response_type') === 'code' &&
     searchParams.get('client_id')
   ) {
+    // Built by loop so only params actually present are forwarded (an explicit
+    // object would emit empty `state=`/`nonce=` keys). buildOAuthQuery treats
+    // its input as a string record; the cast is needed only because SearchParams
+    // types `response_type` as the literal 'code'.
     const oidcRequest: Record<string, string> = {}
     for (const key of OIDC_REQUEST_PARAM_KEYS) {
       const value = searchParams.get(key)

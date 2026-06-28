@@ -51,7 +51,15 @@ describe('resolveSignInRedirect', () => {
       description: 'an absolute redirectBack',
       redirectBack: 'https://evil.com'
     },
-    { description: 'an empty redirectBack', redirectBack: '' }
+    { description: 'an empty redirectBack', redirectBack: '' },
+    {
+      description: 'a backslash-prefixed redirectBack (resolves off-origin)',
+      redirectBack: '/\\evil.com'
+    },
+    {
+      description: 'a tab-then-slash redirectBack (resolves off-origin)',
+      redirectBack: '/\t/evil.com'
+    }
   ])(
     'falls back to / for $description when there is no OIDC request',
     ({ redirectBack }) => {
@@ -89,5 +97,39 @@ describe('resolveSignInRedirect', () => {
     expect(query.get('nonce')).toBe('n1')
     expect(query.get('prompt')).toBe('consent')
     expect(query.has('sig')).toBe(false)
+  })
+
+  it('ignores an unsafe redirectBack and resumes the OIDC request instead', () => {
+    // redirectBack=/\evil.com is an open-redirect attempt; it must be dropped,
+    // and the genuine OIDC request resumed rather than falling back to '/'.
+    const params = new URLSearchParams(
+      'redirectBack=%2F%5Cevil.com&response_type=code&client_id=docs' +
+        '&redirect_uri=https%3A%2F%2Fx%2Fcb&scope=openid'
+    )
+
+    const result = resolveSignInRedirect(params)
+    expect(result.startsWith('/oauth/authorize?')).toBe(true)
+    expect(new URLSearchParams(result.split('?')[1]).get('client_id')).toBe(
+      'docs'
+    )
+  })
+
+  it('does not resume when client_id is an empty string', () => {
+    const params = new URLSearchParams('response_type=code&client_id=')
+    expect(resolveSignInRedirect(params)).toBe('/')
+  })
+
+  it('carries request_uri (PAR) through the resume', () => {
+    const params = new URLSearchParams(
+      'response_type=code&client_id=docs' +
+        '&request_uri=urn%3Aietf%3Aparams%3Aoauth%3Arequest_uri%3Aabc'
+    )
+
+    const query = new URLSearchParams(
+      resolveSignInRedirect(params).split('?')[1]
+    )
+    expect(query.get('request_uri')).toBe(
+      'urn:ietf:params:oauth:request_uri:abc'
+    )
   })
 })
