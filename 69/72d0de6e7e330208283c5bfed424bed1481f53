@@ -1,0 +1,21 @@
+lib/utils/isSafeInternalPath.ts
+  s_38e24bcf2d5456::t_b887cc4a6260b0 20-31
+lib/utils/isSafeInternalPath.test.ts
+  s_38e24bcf2d5456::t_6a4dd0088affd9 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "6972d0de6e7e330208283c5bfed424bed1481f53",
+  "prompts": {},
+  "sessions": {
+    "s_38e24bcf2d5456": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10d07056-e5c7-4e51-ae35-e0742cfd7b0c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
