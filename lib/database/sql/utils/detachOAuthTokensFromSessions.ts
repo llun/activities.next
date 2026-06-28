@@ -56,6 +56,9 @@ export const deleteSessionsWithTokenDetach = async (
   trx: Knex.Transaction,
   scope: (query: Knex.QueryBuilder) => Knex.QueryBuilder
 ): Promise<number> => {
+  // Knex's `.select<T>()` types the full awaited result, so the array shape
+  // `{ id: string }[]` is intentional here (not a single row); `.select<{ id }>`
+  // would type `rows` as one object and break the `.map` below.
   const rows = await scope(trx('sessions')).select<{ id: string }[]>(
     'sessions.id'
   )
