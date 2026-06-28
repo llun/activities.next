@@ -16,7 +16,7 @@ const SENTINEL_ORIGIN = 'https://internal.invalid'
  */
 export const isSafeInternalPath = (
   value: string | null | undefined
-): boolean => {
+): value is string => {
   // Reject protocol-relative / multi-slash targets up front as defense in depth
   // against a parser differential between the URL constructor here and the
   // browser's own navigation (e.g. `///evil.com`), then confirm the candidate

@@ -43,7 +43,7 @@ export const resolveSignInRedirect = (
   searchParams: Pick<URLSearchParams, 'get' | 'forEach'>
 ): string => {
   const redirectBack = searchParams.get('redirectBack')
-  if (redirectBack && isSafeInternalPath(redirectBack)) {
+  if (isSafeInternalPath(redirectBack)) {
     return redirectBack
   }
 
