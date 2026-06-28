@@ -8,6 +8,7 @@ import {
   increaseCounterValue
 } from '@/lib/database/sql/utils/counter'
 import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
+import { detachOAuthTokensFromSessions } from '@/lib/database/sql/utils/detachOAuthTokensFromSessions'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
@@ -342,17 +343,37 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   async deleteAccountSession({
     token
   }: DeleteAccountSessionParams): Promise<void> {
-    await database('sessions').where('token', token).delete()
+    await database.transaction(async (trx) => {
+      const rows = await trx('sessions')
+        .where('token', token)
+        .select<{ id: string }[]>('id')
+      await detachOAuthTokensFromSessions(
+        trx,
+        rows.map((row) => row.id)
+      )
+      await trx('sessions').where('token', token).delete()
+    })
   },
 
   async deleteOtherAccountSessions({
     accountId,
     exceptToken
   }: DeleteOtherAccountSessionsParams): Promise<number> {
-    return database('sessions')
-      .where('accountId', accountId)
-      .andWhereNot('token', exceptToken)
-      .delete()
+    return database.transaction(async (trx) => {
+      const rows = await trx('sessions')
+        .where('accountId', accountId)
+        .andWhereNot('token', exceptToken)
+        .select<{ id: string }[]>('id')
+      await detachOAuthTokensFromSessions(
+        trx,
+        rows.map((row) => row.id)
+      )
+      const deletedCount = await trx('sessions')
+        .where('accountId', accountId)
+        .andWhereNot('token', exceptToken)
+        .delete()
+      return deletedCount
+    })
   },
 
   async getAccountProviders({ accountId }: GetAccountProvidersParams): Promise<

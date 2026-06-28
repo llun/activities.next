@@ -528,6 +528,67 @@ describe('AccountDatabase', () => {
     })
 
     describe('account sessions', () => {
+      // SQLite leaves foreign keys OFF by default, so the shared test database
+      // never enforces them — which is exactly why the session ↔ OAuth-token FK
+      // violation only surfaced on PostgreSQL in production. Spin up an isolated
+      // database with enforcement ON so these tests reproduce that constraint.
+      const createForeignKeyEnforcingDatabase = () =>
+        knex({
+          client: 'better-sqlite3',
+          useNullAsDefault: true,
+          connection: { filename: ':memory:' },
+          pool: {
+            afterCreate: (
+              conn: { pragma: (statement: string) => void },
+              done: (error: Error | null, conn: unknown) => void
+            ) => {
+              conn.pragma('foreign_keys = ON')
+              done(null, conn)
+            }
+          }
+        })
+
+      // Mint an OAuth access + refresh token bound to `sessionId`, mirroring the
+      // rows better-auth's OAuth provider writes when an app is authorized. Both
+      // tables carry a `sessionId` FK into `sessions.id`.
+      const seedOAuthTokensForSession = async (
+        knexDatabase: ReturnType<typeof knex>,
+        {
+          accountId,
+          sessionId,
+          suffix
+        }: { accountId: string; sessionId: string; suffix: string }
+      ) => {
+        const clientId = `client-${suffix}`
+        await knexDatabase('oauthClient').insert({
+          id: crypto.randomUUID(),
+          clientId,
+          redirectUris: '[]'
+        })
+        const refreshId = crypto.randomUUID()
+        await knexDatabase('oauthRefreshToken').insert({
+          id: refreshId,
+          token: `refresh-${suffix}`,
+          clientId,
+          userId: accountId,
+          sessionId,
+          expiresAt: new Date(Date.now() + 3_600_000),
+          scopes: 'read'
+        })
+        const accessId = crypto.randomUUID()
+        await knexDatabase('oauthAccessToken').insert({
+          id: accessId,
+          token: `access-${suffix}`,
+          clientId,
+          userId: accountId,
+          sessionId,
+          refreshId,
+          expiresAt: new Date(Date.now() + 3_600_000),
+          scopes: 'read'
+        })
+        return { accessId, refreshId }
+      }
+
       it('creates, updates, and deletes account sessions', async () => {
         const { accountId } = await createTestAccount()
         const token = `token-${crypto.randomUUID()}`
@@ -716,6 +777,131 @@ describe('AccountDatabase', () => {
         } finally {
           await new Promise((resolve) => setImmediate(resolve))
           errorSpy.mockRestore()
+          await knexDatabase.destroy()
+        }
+      })
+
+      it('revokes a session that minted OAuth tokens without violating the foreign key', async () => {
+        const knexDatabase = createForeignKeyEnforcingDatabase()
+        const sqlDatabase = getSQLDatabase(knexDatabase)
+
+        try {
+          await sqlDatabase.migrate()
+
+          const [{ foreign_keys: fkEnabled }] = await knexDatabase.raw(
+            'PRAGMA foreign_keys'
+          )
+          // Guard against a vacuous test: without enforcement the old bare
+          // delete would pass too.
+          expect(fkEnabled).toBe(1)
+
+          const accountId = await sqlDatabase.createAccount({
+            email: `revoke-${crypto.randomUUID()}@${TEST_DOMAIN}`,
+            username: `revoke-${crypto.randomUUID().slice(0, 8)}`,
+            passwordHash: TEST_PASSWORD_HASH,
+            domain: TEST_DOMAIN,
+            privateKey: 'private-revoke-key',
+            publicKey: 'public-revoke-key'
+          })
+
+          const token = `revoke-token-${crypto.randomUUID()}`
+          await sqlDatabase.createAccountSession({
+            accountId,
+            token,
+            expireAt: Date.now() + 60_000
+          })
+          const session = await knexDatabase('sessions')
+            .where('token', token)
+            .first<{ id: string }>('id')
+          const { accessId, refreshId } = await seedOAuthTokensForSession(
+            knexDatabase,
+            {
+              accountId,
+              sessionId: session.id,
+              suffix: crypto.randomUUID().slice(0, 8)
+            }
+          )
+
+          // The bug: this threw with PostgreSQL FK error 23503 before the fix.
+          await expect(
+            sqlDatabase.deleteAccountSession({ token })
+          ).resolves.toBeUndefined()
+
+          expect(await sqlDatabase.getAccountSession({ token })).toBeNull()
+          // The tokens survive, detached from the now-deleted session, so the
+          // connected app keeps working.
+          const access = await knexDatabase('oauthAccessToken')
+            .where('id', accessId)
+            .first()
+          const refresh = await knexDatabase('oauthRefreshToken')
+            .where('id', refreshId)
+            .first()
+          expect(access?.sessionId).toBeNull()
+          expect(refresh?.sessionId).toBeNull()
+        } finally {
+          await knexDatabase.destroy()
+        }
+      })
+
+      it('revokes other sessions that minted OAuth tokens and keeps the current one', async () => {
+        const knexDatabase = createForeignKeyEnforcingDatabase()
+        const sqlDatabase = getSQLDatabase(knexDatabase)
+
+        try {
+          await sqlDatabase.migrate()
+
+          const accountId = await sqlDatabase.createAccount({
+            email: `revoke-all-${crypto.randomUUID()}@${TEST_DOMAIN}`,
+            username: `revoke-all-${crypto.randomUUID().slice(0, 8)}`,
+            passwordHash: TEST_PASSWORD_HASH,
+            domain: TEST_DOMAIN,
+            privateKey: 'private-revoke-all-key',
+            publicKey: 'public-revoke-all-key'
+          })
+
+          const keepToken = `keep-${crypto.randomUUID()}`
+          const revokeToken = `revoke-${crypto.randomUUID()}`
+          await sqlDatabase.createAccountSession({
+            accountId,
+            token: keepToken,
+            expireAt: Date.now() + 60_000
+          })
+          await sqlDatabase.createAccountSession({
+            accountId,
+            token: revokeToken,
+            expireAt: Date.now() + 60_000
+          })
+          const revoked = await knexDatabase('sessions')
+            .where('token', revokeToken)
+            .first<{ id: string }>('id')
+          const { accessId, refreshId } = await seedOAuthTokensForSession(
+            knexDatabase,
+            {
+              accountId,
+              sessionId: revoked.id,
+              suffix: crypto.randomUUID().slice(0, 8)
+            }
+          )
+
+          const count = await sqlDatabase.deleteOtherAccountSessions({
+            accountId,
+            exceptToken: keepToken
+          })
+          expect(count).toBe(1)
+
+          const remaining = await sqlDatabase.getAccountAllSessions({
+            accountId
+          })
+          expect(remaining.map((item) => item.token)).toEqual([keepToken])
+          const access = await knexDatabase('oauthAccessToken')
+            .where('id', accessId)
+            .first()
+          const refresh = await knexDatabase('oauthRefreshToken')
+            .where('id', refreshId)
+            .first()
+          expect(access?.sessionId).toBeNull()
+          expect(refresh?.sessionId).toBeNull()
+        } finally {
           await knexDatabase.destroy()
         }
       })
