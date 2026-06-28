@@ -160,26 +160,64 @@ describe('resolveSignInRedirect', () => {
     expect(query.has('ba_pl')).toBe(false)
   })
 
-  it('strips the login/create prompt tokens on resume but keeps consent', () => {
-    // better-auth's GET authorize re-redirects prompt=login/create to the
-    // login page; forwarding them verbatim would bounce the now-authenticated
-    // user back to /auth/signin -> '/'.
-    const loginOnly = new URLSearchParams(
-      'response_type=code&client_id=docs&prompt=login'
-    )
-    expect(
-      new URLSearchParams(resolveSignInRedirect(loginOnly).split('?')[1]).has(
-        'prompt'
-      )
-    ).toBe(false)
+  // better-auth's GET authorize re-redirects prompt=login/create to the login
+  // page, so those tokens must be stripped on resume (the interactive login just
+  // happened) while every other prompt value — notably `none` (silent auth) —
+  // is preserved. `expected: null` means the prompt param is removed entirely.
+  it.each([
+    {
+      description: 'strips a lone login prompt',
+      prompt: 'login',
+      expected: null
+    },
+    {
+      description: 'strips a lone create prompt',
+      prompt: 'create',
+      expected: null
+    },
+    {
+      description: 'strips both login and create, removing the param',
+      prompt: 'login create',
+      expected: null
+    },
+    {
+      description: 'keeps consent while stripping login',
+      prompt: 'login consent',
+      expected: 'consent'
+    },
+    {
+      description: 'keeps consent while stripping create',
+      prompt: 'create consent',
+      expected: 'consent'
+    },
+    {
+      description: 'preserves a lone consent prompt',
+      prompt: 'consent',
+      expected: 'consent'
+    },
+    {
+      description: 'preserves prompt=none (silent authentication)',
+      prompt: 'none',
+      expected: 'none'
+    },
+    {
+      description: 'preserves consent and none together',
+      prompt: 'consent none',
+      expected: 'consent none'
+    }
+  ])('$description on OIDC resume', ({ prompt, expected }) => {
+    const params = new URLSearchParams()
+    params.set('response_type', 'code')
+    params.set('client_id', 'docs')
+    params.set('prompt', prompt)
 
-    const loginAndConsent = new URLSearchParams(
-      'response_type=code&client_id=docs&prompt=login+consent'
+    const query = new URLSearchParams(
+      resolveSignInRedirect(params).split('?')[1]
     )
-    expect(
-      new URLSearchParams(
-        resolveSignInRedirect(loginAndConsent).split('?')[1]
-      ).get('prompt')
-    ).toBe('consent')
+    if (expected === null) {
+      expect(query.has('prompt')).toBe(false)
+    } else {
+      expect(query.get('prompt')).toBe(expected)
+    }
   })
 })
