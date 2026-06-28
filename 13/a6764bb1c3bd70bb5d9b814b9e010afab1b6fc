@@ -1,0 +1,31 @@
+app/(nosidebar)/auth/signin/resolveSignInRedirect.ts
+  s_38e24bcf2d5456::t_9de433a1ed419a 3
+  s_38e24bcf2d5456::t_13c53495af3e53 56-59
+app/(nosidebar)/auth/two-factor/page.tsx
+  s_38e24bcf2d5456::t_5283285dd64e81 13
+  s_38e24bcf2d5456::t_204edffe81cc83 24
+lib/utils/isSafeInternalPath.ts
+  s_38e24bcf2d5456::t_bc5203e5150874 1-26
+lib/utils/isSafeInternalPath.test.ts
+  s_38e24bcf2d5456::t_db0b5ecdd3f793 29-32
+  s_38e24bcf2d5456::t_0fde96e1b80fa1 1-28,33-40
+app/(nosidebar)/auth/signin/resolveSignInRedirect.test.ts
+  s_38e24bcf2d5456::t_6832e263a37124 54-62
+  s_38e24bcf2d5456::t_68b1d67a9ad401 101-134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "13a6764bb1c3bd70bb5d9b814b9e010afab1b6fc",
+  "prompts": {},
+  "sessions": {
+    "s_38e24bcf2d5456": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10d07056-e5c7-4e51-ae35-e0742cfd7b0c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
