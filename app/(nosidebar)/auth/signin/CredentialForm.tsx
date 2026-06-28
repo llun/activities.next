@@ -10,6 +10,8 @@ import { Label } from '@/lib/components/ui/label'
 import { authClient } from '@/lib/services/auth/auth-client'
 import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 
+import { resolveSignInRedirect } from './resolveSignInRedirect'
+
 interface Props {
   providerName: string
 }
@@ -49,9 +51,7 @@ export const CredentialForm: FC<Props> = ({ providerName }) => {
       return
     }
 
-    const raw = searchParams.get('redirectBack') || '/'
-    const redirectBack =
-      raw.startsWith('/') && !raw.startsWith('//') ? raw : '/'
+    const redirectBack = resolveSignInRedirect(searchParams)
 
     try {
       const result = await authClient.signIn.email({
