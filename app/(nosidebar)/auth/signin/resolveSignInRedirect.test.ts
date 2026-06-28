@@ -69,18 +69,19 @@ describe('resolveSignInRedirect', () => {
     }
   )
 
-  it('falls back to / for a plain sign-in with no params', () => {
-    expect(resolveSignInRedirect(new URLSearchParams())).toBe('/')
-  })
-
-  it('does not treat a non-code response_type as an OIDC request', () => {
-    const params = new URLSearchParams('response_type=token&client_id=docs')
-    expect(resolveSignInRedirect(params)).toBe('/')
-  })
-
-  it('does not resume when client_id is missing', () => {
-    const params = new URLSearchParams('response_type=code')
-    expect(resolveSignInRedirect(params)).toBe('/')
+  it.each([
+    { description: 'there are no params', query: '' },
+    {
+      description: 'response_type is not code',
+      query: 'response_type=token&client_id=docs'
+    },
+    { description: 'client_id is missing', query: 'response_type=code' },
+    {
+      description: 'client_id is an empty string',
+      query: 'response_type=code&client_id='
+    }
+  ])('falls back to / when $description', ({ query }) => {
+    expect(resolveSignInRedirect(new URLSearchParams(query))).toBe('/')
   })
 
   it('carries PKCE, nonce and prompt through the resume', () => {
@@ -114,11 +115,6 @@ describe('resolveSignInRedirect', () => {
     )
   })
 
-  it('does not resume when client_id is an empty string', () => {
-    const params = new URLSearchParams('response_type=code&client_id=')
-    expect(resolveSignInRedirect(params)).toBe('/')
-  })
-
   it('carries request_uri (PAR) through the resume', () => {
     const params = new URLSearchParams(
       'response_type=code&client_id=docs' +
@@ -131,5 +127,59 @@ describe('resolveSignInRedirect', () => {
     expect(query.get('request_uri')).toBe(
       'urn:ietf:params:oauth:request_uri:abc'
     )
+  })
+
+  it('forwards other standard OIDC params (response_mode, login_hint, max_age) through the resume', () => {
+    const params = new URLSearchParams(
+      'response_type=code&client_id=docs&response_mode=query' +
+        '&login_hint=user%40example.com&max_age=300&ui_locales=en'
+    )
+
+    const query = new URLSearchParams(
+      resolveSignInRedirect(params).split('?')[1]
+    )
+    expect(query.get('response_mode')).toBe('query')
+    expect(query.get('login_hint')).toBe('user@example.com')
+    expect(query.get('max_age')).toBe('300')
+    expect(query.get('ui_locales')).toBe('en')
+  })
+
+  it('drops the better-auth signature envelope (sig/exp/ba_*) on resume', () => {
+    const params = new URLSearchParams(
+      'response_type=code&client_id=docs' +
+        '&sig=S&exp=1&ba_iat=2&ba_param=client_id&ba_pl=x'
+    )
+
+    const query = new URLSearchParams(
+      resolveSignInRedirect(params).split('?')[1]
+    )
+    expect(query.has('sig')).toBe(false)
+    expect(query.has('exp')).toBe(false)
+    expect(query.has('ba_iat')).toBe(false)
+    expect(query.has('ba_param')).toBe(false)
+    expect(query.has('ba_pl')).toBe(false)
+  })
+
+  it('strips the login/create prompt tokens on resume but keeps consent', () => {
+    // better-auth's GET authorize re-redirects prompt=login/create to the
+    // login page; forwarding them verbatim would bounce the now-authenticated
+    // user back to /auth/signin -> '/'.
+    const loginOnly = new URLSearchParams(
+      'response_type=code&client_id=docs&prompt=login'
+    )
+    expect(
+      new URLSearchParams(resolveSignInRedirect(loginOnly).split('?')[1]).has(
+        'prompt'
+      )
+    ).toBe(false)
+
+    const loginAndConsent = new URLSearchParams(
+      'response_type=code&client_id=docs&prompt=login+consent'
+    )
+    expect(
+      new URLSearchParams(
+        resolveSignInRedirect(loginAndConsent).split('?')[1]
+      ).get('prompt')
+    ).toBe('consent')
   })
 })
