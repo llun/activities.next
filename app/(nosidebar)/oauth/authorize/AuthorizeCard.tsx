@@ -240,14 +240,15 @@ export const AuthorizeCard: FC<Props> = ({
         <CardDescription>
           {isOidc ? (
             <>
-              <strong>{client.name}</strong> wants to verify your identity using
-              your account. It is a third-party application.{' '}
-              <strong>Only continue if you trust it.</strong>
+              <strong>{client.name || 'This application'}</strong> wants to
+              verify your identity using your account. It is a third-party
+              application. <strong>Only continue if you trust it.</strong>
             </>
           ) : (
             <>
-              <strong>{client.name}</strong> would like permission to access
-              your account. It is a third-party application.{' '}
+              <strong>{client.name || 'This application'}</strong> would like
+              permission to access your account. It is a third-party
+              application.{' '}
               <strong>
                 If you do not trust it, then you should not authorize it.
               </strong>
@@ -370,7 +371,10 @@ export const AuthorizeCard: FC<Props> = ({
                   <div key={scope} className="flex items-center space-x-2">
                     <input
                       className="peer size-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                      name="scope"
+                      // A disabled control is omitted from form submission, but
+                      // also drop the name so a non-standard serializer can't
+                      // double-submit `openid` alongside the hidden field.
+                      name={lockedOidcScope ? undefined : 'scope'}
                       type="checkbox"
                       value={scope}
                       id={`scope-${scope}`}

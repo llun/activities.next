@@ -669,10 +669,15 @@ describe('AuthorizeCard', () => {
     const consentCall = (global.fetch as jest.Mock).mock.calls.find(
       ([url]) => url === '/api/auth/oauth2/consent'
     )
-    const submittedScopes = JSON.parse(consentCall[1].body).scope.split(' ')
+    const submittedScopes: string[] = JSON.parse(
+      consentCall[1].body
+    ).scope.split(' ')
     expect(submittedScopes).toContain('openid')
     expect(submittedScopes).not.toContain('profile')
     expect(submittedScopes).not.toContain('email')
+    // openid is submitted exactly once (via the hidden field), never duplicated
+    // by the disabled checkbox.
+    expect(submittedScopes.filter((s) => s === 'openid')).toHaveLength(1)
   })
 
   it('renders only the locked openid row for a minimal openid-only OIDC request', async () => {
@@ -774,5 +779,23 @@ describe('AuthorizeCard', () => {
 
     expect(screen.getByText('Authorization required')).toBeInTheDocument()
     expect(screen.queryByText(/^Sign in to/)).not.toBeInTheDocument()
+  })
+
+  it('uses a fallback name when the OIDC client has no name', () => {
+    render(
+      <AuthorizeCard
+        client={{ ...client, name: null }}
+        searchParams={oidcSearchParams}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    // Both the title and the description name the client via the fallback, so
+    // neither renders a blank subject.
+    expect(screen.getByText('Sign in to this application')).toBeInTheDocument()
+    expect(screen.getByText('This application')).toBeInTheDocument()
   })
 })
