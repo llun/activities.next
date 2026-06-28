@@ -1,0 +1,24 @@
+lib/database/sql/utils/detachOAuthTokensFromSessions.ts
+  s_e9567742ad147d::t_daadb4a867b956 3-17,35-42,52-53,65-68
+lib/database/sql/account.test.ts
+  s_e9567742ad147d::t_42638a765772e3 1045-1072,1088-1090,1096-1136
+  s_e9567742ad147d::t_27ba1430db3ec3 1073-1083,1091-1095
+  s_e9567742ad147d::t_eeb9f4feb3002d 5
+  s_e9567742ad147d::t_39eb02156bba74 1084-1087
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "9b0c11b18e44a248fabaa91f4d2569f2bc66dea8",
+  "prompts": {},
+  "sessions": {
+    "s_e9567742ad147d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6642b464-c4f6-43bb-b28f-70ae757e4119",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
