@@ -212,16 +212,16 @@ const deleteSessionsDetachingOAuthTokens = (
   where: CleanedWhere[] | undefined
 ): Promise<number> =>
   db.transaction(async (trx) => {
-    const scoped = () => {
-      const query = trx(SESSIONS_TABLE)
-      return where ? applyWhere(query, SESSIONS_TABLE, where) : query
-    }
-    const rows = await scoped().select<{ id: string }[]>(`${SESSIONS_TABLE}.id`)
-    await detachOAuthTokensFromSessions(
-      trx,
-      rows.map((row) => row.id)
-    )
-    const deletedCount = await scoped().delete()
+    const lookup = trx(SESSIONS_TABLE)
+    const scoped = where ? applyWhere(lookup, SESSIONS_TABLE, where) : lookup
+    const rows = await scoped.select<{ id: string }[]>(`${SESSIONS_TABLE}.id`)
+    // Delete by the resolved primary keys rather than re-running the (possibly
+    // complex) where filter, so the detach and delete act on exactly the same
+    // rows. `filter(Boolean)` guards against a stray empty id.
+    const ids = rows.map((row) => row.id).filter(Boolean)
+    if (ids.length === 0) return 0
+    await detachOAuthTokensFromSessions(trx, ids)
+    const deletedCount = await trx(SESSIONS_TABLE).whereIn('id', ids).delete()
     return deletedCount
   })
 

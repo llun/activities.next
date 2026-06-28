@@ -347,11 +347,14 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       const rows = await trx('sessions')
         .where('token', token)
         .select<{ id: string }[]>('id')
-      await detachOAuthTokensFromSessions(
-        trx,
-        rows.map((row) => row.id)
-      )
-      await trx('sessions').where('token', token).delete()
+      // Delete by the resolved primary keys rather than re-running the lookup
+      // filter, so the detach and delete act on exactly the same rows (no row
+      // a concurrent insert added between the two statements can slip through
+      // undetached). `filter(Boolean)` guards against a stray empty id.
+      const ids = rows.map((row) => row.id).filter(Boolean)
+      if (ids.length === 0) return
+      await detachOAuthTokensFromSessions(trx, ids)
+      await trx('sessions').whereIn('id', ids).delete()
     })
   },
 
@@ -364,14 +367,10 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         .where('accountId', accountId)
         .andWhereNot('token', exceptToken)
         .select<{ id: string }[]>('id')
-      await detachOAuthTokensFromSessions(
-        trx,
-        rows.map((row) => row.id)
-      )
-      const deletedCount = await trx('sessions')
-        .where('accountId', accountId)
-        .andWhereNot('token', exceptToken)
-        .delete()
+      const ids = rows.map((row) => row.id).filter(Boolean)
+      if (ids.length === 0) return 0
+      await detachOAuthTokensFromSessions(trx, ids)
+      const deletedCount = await trx('sessions').whereIn('id', ids).delete()
       return deletedCount
     })
   },
