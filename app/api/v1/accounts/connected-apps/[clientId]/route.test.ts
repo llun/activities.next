@@ -90,20 +90,26 @@ describe('DELETE /api/v1/accounts/connected-apps/[clientId]', () => {
     })
   })
 
-  it('passes a null actorId when the query param is absent', async () => {
-    await DELETE(
-      buildRequest(
-        'http://llun.test/api/v1/accounts/connected-apps/la-suite-docs'
-      ),
-      { params: Promise.resolve({ clientId: 'la-suite-docs' }) }
-    )
+  it.each([
+    ['absent', 'http://llun.test/api/v1/accounts/connected-apps/la-suite-docs'],
+    [
+      'empty',
+      'http://llun.test/api/v1/accounts/connected-apps/la-suite-docs?actorId='
+    ]
+  ])(
+    'passes a null actorId when the query param is %s',
+    async (_label, url) => {
+      await DELETE(buildRequest(url), {
+        params: Promise.resolve({ clientId: 'la-suite-docs' })
+      })
 
-    expect(mockDb.revokeAccountConnectedApp).toHaveBeenCalledWith({
-      accountId: account.id,
-      clientId: 'la-suite-docs',
-      actorId: null
-    })
-  })
+      expect(mockDb.revokeAccountConnectedApp).toHaveBeenCalledWith({
+        accountId: account.id,
+        clientId: 'la-suite-docs',
+        actorId: null
+      })
+    }
+  )
 
   it('returns 400 when the clientId is missing', async () => {
     const response = await DELETE(

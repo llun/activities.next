@@ -81,14 +81,18 @@ const initials = (value: string) =>
     .split(/[\s@._-]+/)
     .filter(Boolean)
     .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
+    // Spread to a code-point array so a leading emoji / non-BMP character isn't
+    // split through its surrogate pair.
+    .map((part) => [...part][0]?.toUpperCase() ?? '')
     .join('') || '?'
 
 const ActorAvatar: FC<{ actor: SessionActor | null; className: string }> = ({
   actor,
   className
 }) => (
-  <Avatar className={className}>
+  // Decorative: the actor's name and handle are shown as text next to it, so
+  // hide the initials avatar from screen readers to avoid redundant narration.
+  <Avatar className={className} aria-hidden="true">
     {actor?.iconUrl && <AvatarImage src={actor.iconUrl} alt="" />}
     <AvatarFallback className="bg-muted text-xs text-muted-foreground">
       {initials(actor?.name || actor?.handle || 'Unknown')}
@@ -128,6 +132,11 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
   const [sessionList, setSessionList] = useState(sessions)
   const [appList, setAppList] = useState(apps)
   const [error, setError] = useState<string>()
+  // Serialize revokes: with optimistic removal + rollback-on-failure,
+  // overlapping requests could resurrect an already-revoked row when a slow
+  // failure rolls back over a newer success. Disabling every revoke control
+  // while one is in flight rules that interleaving out entirely.
+  const [busy, setBusy] = useState(false)
 
   const others = sessionList.filter((session) => !session.current)
   const actorCount = new Set(
@@ -137,36 +146,54 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
   ).size
 
   const revokeSession = async (token: string) => {
+    if (busy) return
     setError(undefined)
+    setBusy(true)
     const previous = sessionList
     setSessionList((list) => list.filter((session) => session.token !== token))
-    if (!(await deleteSession({ token }))) {
-      setSessionList(previous)
-      setError('Failed to revoke that session. Please try again.')
+    try {
+      if (!(await deleteSession({ token }))) {
+        setSessionList(previous)
+        setError('Failed to revoke that session. Please try again.')
+      }
+    } finally {
+      setBusy(false)
     }
   }
 
   const revokeAll = async () => {
+    if (busy) return
     setError(undefined)
+    setBusy(true)
     const previous = sessionList
     setSessionList((list) => list.filter((session) => session.current))
-    if (!(await revokeOtherSessions())) {
-      setSessionList(previous)
-      setError('Failed to revoke the other sessions. Please try again.')
+    try {
+      if (!(await revokeOtherSessions())) {
+        setSessionList(previous)
+        setError('Failed to revoke the other sessions. Please try again.')
+      }
+    } finally {
+      setBusy(false)
     }
   }
 
   const revokeApp = async (clientId: string, actorId: string | null) => {
+    if (busy) return
     setError(undefined)
+    setBusy(true)
     const previous = appList
     setAppList((list) =>
       list.filter(
         (app) => !(app.clientId === clientId && app.actorId === actorId)
       )
     )
-    if (!(await revokeConnectedApp({ clientId, actorId }))) {
-      setAppList(previous)
-      setError('Failed to revoke that app. Please try again.')
+    try {
+      if (!(await revokeConnectedApp({ clientId, actorId }))) {
+        setAppList(previous)
+        setError('Failed to revoke that app. Please try again.')
+      }
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -225,7 +252,12 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
           Sorted with the most recent first.
         </p>
         {others.length > 0 ? (
-          <Button variant="outline" size="sm" onClick={revokeAll}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={revokeAll}
+            disabled={busy}
+          >
             <Trash2 className="h-4 w-4" />
             Revoke all others
           </Button>
@@ -291,7 +323,14 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
                       )}
                       {soon && <Badge tone="destructive">Expiring soon</Badge>}
                     </div>
-                    <div className="mt-0.5 text-xs text-muted-foreground">
+                    {/* formatRelative renders a localized clock time, which
+                        differs between the server and client timezones; suppress
+                        the hydration warning (matching MessageBubble /
+                        AnnouncementBanner) so the client's local time wins. */}
+                    <div
+                      className="mt-0.5 text-xs text-muted-foreground"
+                      suppressHydrationWarning
+                    >
                       Signed in {formatRelative(session.createdAt, currentTime)}
                     </div>
                     <div
@@ -312,6 +351,7 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
                       variant="outline"
                       size="sm"
                       onClick={() => revokeSession(session.token)}
+                      disabled={busy}
                     >
                       Revoke
                     </Button>
@@ -328,6 +368,7 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
                 <span
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-semibold text-white"
                   style={{ background: appColor(app.clientId) }}
+                  aria-hidden="true"
                 >
                   {initials(app.name || app.clientId)}
                 </span>
@@ -359,6 +400,7 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
                   variant="outline"
                   size="sm"
                   onClick={() => revokeApp(app.clientId, app.actorId)}
+                  disabled={busy}
                 >
                   Revoke
                 </Button>

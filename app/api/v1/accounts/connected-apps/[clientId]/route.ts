@@ -36,7 +36,8 @@ export const DELETE = traceApiRoute(
       })
     }
 
-    const actorId = req.nextUrl.searchParams.get('actorId')
+    // Treat a missing OR empty actorId the same: the null (no-actor) grant.
+    const actorId = req.nextUrl.searchParams.get('actorId') || null
     await database.revokeAccountConnectedApp({ accountId, clientId, actorId })
     return apiResponse({ req, allowedMethods: CORS_HEADERS, data: DEFAULT_202 })
   }),

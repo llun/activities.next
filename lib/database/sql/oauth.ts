@@ -125,7 +125,10 @@ export const OAuthSQLDatabaseMixin = (database: Knex): OAuthDatabase => ({
         const scopes = parseScopeList(row.scopes)
         return ConnectedApp.parse({
           clientId: row.clientId,
-          actorId: row.actorId ?? null,
+          // Normalize an empty-string referenceId to null (matching OAuthGuard's
+          // `|| null`) so a no-actor grant lists and revokes consistently — a
+          // revoke for it sends no actorId and matches on `whereNull`.
+          actorId: row.actorId || null,
           name: row.name ?? null,
           website: row.website ?? null,
           scopes,
@@ -149,27 +152,40 @@ export const OAuthSQLDatabaseMixin = (database: Knex): OAuthDatabase => ({
     // another's grant, and to the specific actor so revoking one actor's grant
     // leaves the same app authorized under the account's other actors.
     const scopeToActor = <T extends Knex.QueryBuilder>(query: T): T => {
-      if (actorId === null) query.whereNull('referenceId')
-      else query.where('referenceId', actorId)
+      // A no-actor grant may be persisted as NULL or as an empty string, and the
+      // read path normalizes both to null — so revoke must match both to stay in
+      // sync. A concrete actorId matches exactly.
+      if (actorId === null) {
+        query.where((builder) =>
+          builder.whereNull('referenceId').orWhere('referenceId', '')
+        )
+      } else {
+        query.where('referenceId', actorId)
+      }
       return query
     }
 
-    // Delete access tokens before refresh tokens: oauthAccessToken.refreshId is
-    // a FK into oauthRefreshToken, so the children must go first.
-    await scopeToActor(
-      database('oauthAccessToken')
-        .where('clientId', clientId)
-        .andWhere('userId', accountId)
-    ).delete()
-    await scopeToActor(
-      database('oauthRefreshToken')
-        .where('clientId', clientId)
-        .andWhere('userId', accountId)
-    ).delete()
-    await scopeToActor(
-      database('oauthConsent')
-        .where('clientId', clientId)
-        .andWhere('userId', accountId)
-    ).delete()
+    // Run the three deletes in one transaction so a partial failure can't leave
+    // a half-revoked grant — e.g. tokens gone but a live refresh token still
+    // able to mint new access tokens, or a lingering consent row.
+    await database.transaction(async (trx) => {
+      // Delete access tokens before refresh tokens: oauthAccessToken.refreshId
+      // is a FK into oauthRefreshToken, so the children must go first.
+      await scopeToActor(
+        trx('oauthAccessToken')
+          .where('clientId', clientId)
+          .andWhere('userId', accountId)
+      ).delete()
+      await scopeToActor(
+        trx('oauthRefreshToken')
+          .where('clientId', clientId)
+          .andWhere('userId', accountId)
+      ).delete()
+      await scopeToActor(
+        trx('oauthConsent')
+          .where('clientId', clientId)
+          .andWhere('userId', accountId)
+      ).delete()
+    })
   }
 })

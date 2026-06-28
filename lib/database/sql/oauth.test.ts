@@ -304,5 +304,54 @@ describe('OAuthDatabase', () => {
       })
       expect(otherApps).toHaveLength(1)
     })
+
+    it('lists and revokes a no-actor grant stored with an empty-string referenceId', async () => {
+      const account = await database.createAccount({
+        email: `noactor-${crypto.randomUUID()}@llun.test`,
+        username: `noactor-${crypto.randomUUID().slice(0, 8)}`,
+        passwordHash: 'hash',
+        domain: 'llun.test',
+        privateKey: 'private-noactor',
+        publicKey: 'public-noactor'
+      })
+      const now = new Date()
+      await knexDatabase('oauthClient').insert({
+        id: crypto.randomUUID(),
+        clientId: 'client-credentials',
+        name: 'Client Credentials',
+        redirectUris: JSON.stringify(['https://example.test/oauth']),
+        createdAt: now,
+        updatedAt: now
+      })
+      // A client-credentials-style grant with no delegated actor — persisted
+      // here as an empty string rather than NULL.
+      await knexDatabase('oauthConsent').insert({
+        id: crypto.randomUUID(),
+        clientId: 'client-credentials',
+        userId: account,
+        referenceId: '',
+        scopes: JSON.stringify(['read']),
+        createdAt: now,
+        updatedAt: now
+      })
+
+      const apps = await database.getAccountConnectedApps({
+        accountId: account
+      })
+      expect(apps).toHaveLength(1)
+      // The empty-string referenceId is normalized to null on read.
+      expect(apps[0].actorId).toBeNull()
+
+      // Revoking the no-actor grant (actorId null) must still match the
+      // empty-string row.
+      await database.revokeAccountConnectedApp({
+        accountId: account,
+        clientId: 'client-credentials',
+        actorId: null
+      })
+      expect(
+        await database.getAccountConnectedApps({ accountId: account })
+      ).toHaveLength(0)
+    })
   })
 })
