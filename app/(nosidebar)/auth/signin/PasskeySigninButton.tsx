@@ -7,6 +7,7 @@ import { Button } from '@/lib/components/ui/button'
 import { authClient } from '@/lib/services/auth/auth-client'
 
 import { passkeyErrorMessage } from './passkeyErrorMessage'
+import { resolveSignInRedirect } from './resolveSignInRedirect'
 
 export const PasskeySigninButton: FC = () => {
   const [error, setError] = useState<string>()
@@ -17,9 +18,7 @@ export const PasskeySigninButton: FC = () => {
   const handlePasskeySignin = async () => {
     setError(undefined)
     setLoading(true)
-    const raw = searchParams.get('redirectBack') || '/'
-    const redirectBack =
-      raw.startsWith('/') && !raw.startsWith('//') ? raw : '/'
+    const redirectBack = resolveSignInRedirect(searchParams)
     try {
       const result = await authClient.signIn.passkey({ autoFill: false })
       if (!result || result.error) {

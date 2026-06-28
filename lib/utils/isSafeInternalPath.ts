@@ -1,0 +1,37 @@
+// Sentinel origin used only to resolve a candidate redirect target. Its exact
+// value is irrelevant — it just has to be an origin nothing else can match.
+const SENTINEL_ORIGIN = 'https://internal.invalid'
+
+/**
+ * Whether `value` is a safe same-origin redirect target (an absolute internal
+ * path), guarding the post-login / post-2FA redirects against open redirects
+ * (CWE-601).
+ *
+ * It resolves the candidate the way the browser / WHATWG URL parser does, so it
+ * also rejects the bypasses a naive `startsWith('/') && !startsWith('//')` check
+ * misses: backslashes and tab/newline characters get normalized such that e.g.
+ * `/\evil.com` and `/<tab>/evil.com` resolve to an off-origin `https://evil.com/`.
+ * A value is safe only if it starts with `/` and still resolves to the sentinel
+ * origin (i.e. it never escapes to another host).
+ */
+export const isSafeInternalPath = (
+  value: string | null | undefined
+): value is string => {
+  // Reject protocol-relative / multi-slash targets and any backslash up front as
+  // defense in depth against a parser differential between the URL constructor
+  // here and the browser's own navigation (e.g. `///evil.com`, `/\evil.com`),
+  // then confirm the candidate resolves back to the sentinel origin.
+  if (
+    !value ||
+    !value.startsWith('/') ||
+    value.startsWith('//') ||
+    value.includes('\\')
+  ) {
+    return false
+  }
+  try {
+    return new URL(value, SENTINEL_ORIGIN).origin === SENTINEL_ORIGIN
+  } catch {
+    return false
+  }
+}

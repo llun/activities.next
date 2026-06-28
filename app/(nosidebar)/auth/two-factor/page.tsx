@@ -10,6 +10,7 @@ import {
   CardTitle
 } from '@/lib/components/ui/card'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { isSafeInternalPath } from '@/lib/utils/isSafeInternalPath'
 
 import { TwoFactorForm } from './TwoFactorForm'
 
@@ -20,7 +21,7 @@ export const metadata: Metadata = {
 
 const getRedirectBack = (value: string | string[] | undefined): string => {
   const raw = Array.isArray(value) ? value[0] : value
-  return raw && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/'
+  return isSafeInternalPath(raw) ? raw : '/'
 }
 
 const Page: FC<{
