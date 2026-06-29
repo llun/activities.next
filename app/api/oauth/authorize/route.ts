@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
-import { getBaseURL } from '@/lib/config'
+import { getConfig } from '@/lib/config'
+import { resolveAuthBaseURL } from '@/lib/services/auth/requestOrigin'
 import {
   oauthLogger,
   sanitizeHeaders,
@@ -30,16 +31,24 @@ const logAuthorizeRequest = (
 }
 
 // Redirect to better-auth's OAuth2 authorize endpoint for Mastodon compatibility
-// Mastodon clients may hit /api/oauth/authorize directly
+// Mastodon clients may hit /api/oauth/authorize directly. Keep the redirect on
+// the host the request arrived on (validated against trusted hosts) so a client
+// using a served alias domain isn't bounced to the canonical host mid-flow.
 export const GET = (req: NextRequest) => {
-  const url = new URL('/api/auth/oauth2/authorize', getBaseURL())
+  const url = new URL(
+    '/api/auth/oauth2/authorize',
+    resolveAuthBaseURL(req.headers, getConfig())
+  )
   url.search = req.nextUrl.search
   logAuthorizeRequest(req, url, 'GET')
   return Response.redirect(url.toString(), 302)
 }
 
 export const POST = async (req: NextRequest) => {
-  const url = new URL('/api/auth/oauth2/authorize', getBaseURL())
+  const url = new URL(
+    '/api/auth/oauth2/authorize',
+    resolveAuthBaseURL(req.headers, getConfig())
+  )
   // Merge query string params
   req.nextUrl.searchParams.forEach((value, key) =>
     url.searchParams.set(key, value)

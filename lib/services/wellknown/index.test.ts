@@ -59,6 +59,30 @@ describe('wellknown services', () => {
       expect(metadata.scopes_supported).toContain('follow')
       expect(metadata.scopes_supported).toContain('push')
     })
+
+    it('advertises a provided baseURL host instead of the configured host (multi-domain alias)', () => {
+      const metadata = getOAuthAuthorizationServerMetadata(
+        'https://alias.example.com'
+      )
+
+      expect(metadata.issuer).toBe('https://alias.example.com')
+      expect(metadata.authorization_endpoint).toBe(
+        'https://alias.example.com/api/auth/oauth2/authorize'
+      )
+      expect(metadata.token_endpoint).toBe(
+        'https://alias.example.com/oauth/token'
+      )
+      expect(metadata.revocation_endpoint).toBe(
+        'https://alias.example.com/oauth/revoke'
+      )
+      expect(metadata.userinfo_endpoint).toBe(
+        'https://alias.example.com/oauth/userinfo'
+      )
+      expect(metadata.jwks_uri).toBe('https://alias.example.com/api/auth/jwks')
+      expect(metadata.app_registration_endpoint).toBe(
+        'https://alias.example.com/api/v1/apps'
+      )
+    })
   })
 
   describe('getOpenIDConfiguration', () => {
@@ -150,6 +174,27 @@ describe('wellknown services', () => {
       expect(config.claims_supported).toContain('email')
       expect(config.claims_supported).toContain('email_verified')
       expect(config.claims_supported).toContain('preferred_username')
+    })
+
+    it('advertises a provided baseURL host (issuer + endpoints) for a served alias domain', () => {
+      const config = getOpenIDConfiguration('https://alias.example.com')
+
+      // The issuer must track the per-request host so the id_token `iss`
+      // better-auth signs for that host matches what the RP discovered.
+      expect(config.issuer).toBe('https://alias.example.com/api/auth')
+      expect(config.authorization_endpoint).toBe(
+        'https://alias.example.com/api/auth/oauth2/authorize'
+      )
+      expect(config.token_endpoint).toBe(
+        'https://alias.example.com/oauth/token'
+      )
+      expect(config.userinfo_endpoint).toBe(
+        'https://alias.example.com/oauth/userinfo'
+      )
+      expect(config.jwks_uri).toBe('https://alias.example.com/api/auth/jwks')
+      expect(config.end_session_endpoint).toBe(
+        'https://alias.example.com/api/auth/oauth2/end-session'
+      )
     })
   })
 
