@@ -21,8 +21,17 @@ export interface OpenIDConfiguration {
   code_challenge_methods_supported: string[]
 }
 
-export const getOpenIDConfiguration = (): OpenIDConfiguration => {
-  const baseURL = getBaseURL()
+// `baseURL` defaults to the configured host; a request handler SHOULD pass the
+// validated per-request origin (`resolveAuthBaseURL`) so the advertised `issuer`
+// and endpoints match the domain the request arrived on. This is REQUIRED for
+// correctness on a multi-domain deployment: better-auth signs id_tokens with
+// `iss = <its per-request baseURL> + AUTH_BASE_PATH` (the catch-all auth route
+// resolves that baseURL from the request host too), so advertising the canonical
+// host here would make a relying party on a served alias domain reject the
+// id_token for an `iss` mismatch.
+export const getOpenIDConfiguration = (
+  baseURL: string = getBaseURL()
+): OpenIDConfiguration => {
   return {
     // Better Auth signs id_tokens with `iss = baseURL + basePath`, so the
     // discovery `issuer` MUST match that value — a strict OIDC relying party
