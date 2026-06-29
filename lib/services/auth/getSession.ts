@@ -30,7 +30,9 @@ export const getServerAuthSession = cache(async () => {
     // Fail closed: log it (this is a deploy-config issue — clear stale `jwks`
     // rows on the RS256 rollout) and treat the request as unauthenticated so
     // public and sign-in paths still render instead of the whole app erroring.
-    logger.error({ message: 'Failed to resolve auth session', error })
+    // Pass the error under `err` so the logger's GCP formatter extracts its
+    // stack trace into `stack_trace` for Error Reporting (see lib/utils/logger).
+    logger.error({ message: 'Failed to resolve auth session', err: error })
     return null
   }
 })

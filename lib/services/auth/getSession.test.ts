@@ -55,8 +55,13 @@ describe('getServerAuthSession', () => {
 
     expect(await getServerAuthSession()).toBeNull()
     expect(loggerErrorMock).toHaveBeenCalledTimes(1)
+    // The error must travel under `err` so the logger's GCP formatter extracts
+    // its stack trace into `stack_trace`.
     expect(loggerErrorMock).toHaveBeenCalledWith(
-      expect.objectContaining({ message: 'Failed to resolve auth session' })
+      expect.objectContaining({
+        message: 'Failed to resolve auth session',
+        err: expect.any(Error)
+      })
     )
   })
 })
