@@ -15,22 +15,54 @@ import {
 import { getBaseURL, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { CredentialForm } from './CredentialForm'
 import { PasskeySigninButton } from './PasskeySigninButton'
+import { resolveSignInRedirect } from './resolveSignInRedirect'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
   title: 'Activities.next: Sign in'
 }
 
-const Page: FC = async () => {
+interface Props {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}
+
+// The sign-in forms resume an in-flight OAuth/OIDC request after a fresh login
+// (see resolveSignInRedirect). A relying party that targets better-auth's
+// authorize endpoint (the advertised authorization_endpoint), or a custom
+// /oauth/authorize link, can also land an *already-authenticated* visitor here
+// — better-auth bounces a logged-out authorize to /auth/signin, and the user may
+// have signed in elsewhere in between. Build the same URLSearchParams the forms
+// see so this server entrypoint resumes the request identically instead of
+// dropping it on the home timeline.
+const toSearchParams = (
+  raw: Record<string, string | string[] | undefined>
+): URLSearchParams => {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(raw)) {
+    if (Array.isArray(value))
+      value.forEach((entry) => params.append(key, entry))
+    else if (value != null) params.append(key, value)
+  }
+  return params
+}
+
+const Page: FC<Props> = async ({ searchParams }) => {
   const database = getDatabase()
   const session = await getServerAuthSession()
 
   if (!database) throw new Error('Database is not available')
   if (session && session.user) {
-    return redirect('/')
+    const target = resolveSignInRedirect(toSearchParams(await searchParams))
+    // Only forward to the consent page when the session has a usable actor —
+    // /oauth/authorize bounces an actor-less session straight back here, so
+    // resuming without one would loop. Plain logins (target '/') skip the lookup.
+    if (target === '/') return redirect('/')
+    const actor = await getActorFromSession(database, session)
+    return redirect(actor ? target : '/')
   }
 
   const { auth, serviceName, registrationOpen } = getConfig()
