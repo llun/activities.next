@@ -5,12 +5,10 @@ import { resolveAuthBaseURL } from '@/lib/services/auth/requestOrigin'
 import { GET, POST } from './route'
 
 vi.mock('@/lib/config', () => ({
-  getConfig: vi
-    .fn()
-    .mockReturnValue({
-      host: 'activities.local',
-      trustedHosts: ['alias.local']
-    })
+  getConfig: vi.fn().mockReturnValue({
+    host: 'activities.local',
+    trustedHosts: ['alias.local']
+  })
 }))
 
 vi.mock('@/lib/services/auth/requestOrigin', () => ({
