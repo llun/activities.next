@@ -64,4 +64,19 @@ describe('getServerAuthSession', () => {
       })
     )
   })
+
+  it('lets a headers() dynamic-rendering bailout propagate instead of swallowing it', async () => {
+    // headers() throws an internal control-flow signal during static generation
+    // to bail the route out to dynamic rendering; it is resolved outside the
+    // try/catch so it must propagate (not be turned into a null session, which
+    // would let Next.js statically cache the page as unauthenticated).
+    const dynamicBailout = new Error('Dynamic server usage')
+    headersMock.mockRejectedValueOnce(dynamicBailout)
+
+    const { getServerAuthSession } = await import('./getSession')
+
+    await expect(getServerAuthSession()).rejects.toThrow(dynamicBailout)
+    expect(getSessionMock).not.toHaveBeenCalled()
+    expect(loggerErrorMock).not.toHaveBeenCalled()
+  })
 })

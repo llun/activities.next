@@ -11,10 +11,14 @@ import { getAuth } from './auth'
 // session independently.
 export const getServerAuthSession = cache(async () => {
   const auth = getAuth()
+  // Resolve headers OUTSIDE the try: `headers()` is a dynamic API that, during
+  // static generation/prerender, throws an internal control-flow signal (e.g.
+  // DynamicServerError) to bail the route out to dynamic rendering. That signal
+  // must propagate — catching it would let Next.js statically cache the page as
+  // unauthenticated. Only better-auth's session lookup is guarded below.
+  const requestHeaders = await headers()
   try {
-    return await auth.api.getSession({
-      headers: await headers()
-    })
+    return await auth.api.getSession({ headers: requestHeaders })
   } catch (error) {
     // better-auth resolves the session and THEN, via the jwt plugin's
     // `/get-session` after-hook, signs a short-lived JWT for the `set-auth-jwt`
