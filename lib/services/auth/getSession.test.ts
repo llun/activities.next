@@ -7,13 +7,9 @@ const headersMock = vi.fn(async () => new Headers())
 vi.mock('next/headers', () => ({ headers: () => headersMock() }))
 
 const loggerErrorMock = vi.fn()
+// getServerAuthSession only calls logger.error, so only that method is mocked.
 vi.mock('@/lib/utils/logger', () => ({
-  logger: {
-    error: (...args: unknown[]) => loggerErrorMock(...args),
-    warn: vi.fn(),
-    info: vi.fn(),
-    debug: vi.fn()
-  }
+  logger: { error: (...args: unknown[]) => loggerErrorMock(...args) }
 }))
 
 describe('getServerAuthSession', () => {
