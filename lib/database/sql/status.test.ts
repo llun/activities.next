@@ -1080,6 +1080,29 @@ describe('StatusDatabase', () => {
         ])
       })
 
+      it('batch-hydrates detected language for actor statuses', async () => {
+        const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const statusId = `${emptyActorId}/statuses/detected-${suffix}`
+
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Status with a detected language'
+        })
+        await database.setDetectedLanguage({ statusId, language: 'th' })
+
+        const statuses = await database.getActorStatuses({
+          actorId: emptyActorId
+        })
+        const match = statuses.find((item) => item.id === statusId) as
+          | StatusNote
+          | undefined
+        expect(match?.detectedLanguage).toBe('th')
+      })
+
       it('paginates statuses that share createdAt using id as a tiebreaker', async () => {
         const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
         const createdAt = Date.UTC(2035, 0, 1)
@@ -1635,6 +1658,42 @@ describe('StatusDatabase', () => {
         expect((replies[1] as StatusNote).text).toBe(
           '<p><span class="h-card"><a href="https://test.llun.dev/@test1@llun.test" target="_blank" class="u-url mention">@<span>test1</span></a></span> This is Actor1 post</p>'
         )
+      })
+
+      it('batch-hydrates detected language for replies', async () => {
+        const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const parentId = `${primaryActorId}/statuses/detected-reply-parent-${suffix}`
+        const replyId = `${replyAuthorId}/statuses/detected-reply-${suffix}`
+
+        await database.createNote({
+          id: parentId,
+          url: parentId,
+          actorId: primaryActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Detected language reply parent'
+        })
+        await database.createNote({
+          id: replyId,
+          url: replyId,
+          actorId: replyAuthorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Detected language reply',
+          reply: parentId
+        })
+        await database.setDetectedLanguage({
+          statusId: replyId,
+          language: 'th'
+        })
+
+        const replies = await database.getStatusReplies({
+          statusId: parentId
+        })
+        const match = replies.find((item) => item.id === replyId) as
+          | StatusNote
+          | undefined
+        expect(match?.detectedLanguage).toBe('th')
       })
 
       it('filters replies to statuses potentially visible to the current actor', async () => {
@@ -2922,6 +2981,26 @@ describe('StatusDatabase', () => {
           })
         ).toBeNull()
         expect(afterDeleteCount).toBe(beforeDeleteCount - 1)
+      })
+
+      it('removes the detected-language row for a deleted status', async () => {
+        const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const statusId = `${primaryActorId}/statuses/delete-detected-${suffix}`
+
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: primaryActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Delete detected language status'
+        })
+        await database.setDetectedLanguage({ statusId, language: 'th' })
+        expect(await database.getDetectedLanguage({ statusId })).toBe('th')
+
+        await database.deleteStatus({ statusId })
+
+        expect(await database.getDetectedLanguage({ statusId })).toBeNull()
       })
 
       it('deletes a status and attachments', async () => {
