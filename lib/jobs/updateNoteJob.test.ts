@@ -152,6 +152,46 @@ describe('updateNoteJob', () => {
     expect(after.detectedLanguage).toEqual('th')
   })
 
+  it('clears a stale detected language when the edit no longer detects confidently', async () => {
+    const note = MockMastodonActivityPubNote({
+      id: `https://somewhere.test/notes/clear-detection-${Date.now()}`,
+      content:
+        '<p>สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร</p>',
+      contentMap: {
+        en: 'สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร'
+      }
+    })
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note
+    })
+
+    const before = (await database.getStatus({ statusId: note.id })) as Status
+    if (before.type !== StatusType.enum.Note) {
+      fail('Status type must be note')
+    }
+    expect(before.detectedLanguage).toEqual('th')
+
+    const updatedNote = {
+      ...note,
+      content: '<p>ok</p>',
+      contentMap: { en: 'ok' }
+    }
+    await updateNoteJob(database, {
+      id: 'id',
+      name: UPDATE_NOTE_JOB_NAME,
+      data: updatedNote
+    })
+
+    const after = (await database.getStatus({ statusId: note.id })) as Status
+    if (after.type !== StatusType.enum.Note) {
+      fail('Status type must be note')
+    }
+    expect(after.text).toEqual('<p>ok</p>')
+    expect(after.detectedLanguage).toBeNull()
+  })
+
   it('updates image activity in database', async () => {
     const image = {
       type: 'Image',

@@ -1,7 +1,8 @@
 import {
   cleanTextForDetection,
   detectLanguage,
-  detectLanguageFromHtml
+  detectLanguageFromHtml,
+  persistDetectedLanguage
 } from './index'
 
 const THAI_TEXT =
@@ -89,5 +90,58 @@ describe('detectLanguageFromHtml', () => {
     { description: 'undefined input', input: undefined }
   ])('returns null for $description', ({ input }) => {
     expect(detectLanguageFromHtml(input)).toBeNull()
+  })
+})
+
+describe('persistDetectedLanguage', () => {
+  const createStore = () => ({
+    setDetectedLanguage: vi.fn().mockResolvedValue(undefined),
+    clearDetectedLanguage: vi.fn().mockResolvedValue(undefined)
+  })
+
+  it('sets the detected language when detection succeeds', async () => {
+    const database = createStore()
+    await persistDetectedLanguage({
+      database,
+      statusId: 'status-1',
+      text: THAI_TEXT
+    })
+
+    expect(database.setDetectedLanguage).toHaveBeenCalledWith({
+      statusId: 'status-1',
+      language: 'th',
+      confidence: expect.any(Number)
+    })
+    expect(database.clearDetectedLanguage).not.toHaveBeenCalled()
+  })
+
+  it('clears any previous detection when re-detection is inconclusive', async () => {
+    const database = createStore()
+    await persistDetectedLanguage({
+      database,
+      statusId: 'status-1',
+      text: 'ok'
+    })
+
+    expect(database.clearDetectedLanguage).toHaveBeenCalledWith({
+      statusId: 'status-1'
+    })
+    expect(database.setDetectedLanguage).not.toHaveBeenCalled()
+  })
+
+  it('strips HTML before detecting when html is true', async () => {
+    const database = createStore()
+    await persistDetectedLanguage({
+      database,
+      statusId: 'status-1',
+      text: `<p>${THAI_TEXT}</p>`,
+      html: true
+    })
+
+    expect(database.setDetectedLanguage).toHaveBeenCalledWith({
+      statusId: 'status-1',
+      language: 'th',
+      confidence: expect.any(Number)
+    })
   })
 })

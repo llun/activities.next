@@ -6,7 +6,7 @@ import {
   getLanguage,
   getSummary
 } from '@/lib/activities/note'
-import { detectLanguageFromHtml } from '@/lib/services/language-detection'
+import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import {
   ArticleContent,
   ImageContent,
@@ -68,14 +68,13 @@ export const updateNoteJob = createJobHandle(
     })
 
     // Re-detect the content language alongside the edit; the previous
-    // detection (if any) is stale once the text changes.
-    const detected = detectLanguageFromHtml(text)
-    if (detected) {
-      await database.setDetectedLanguage({
-        statusId: note.id,
-        language: detected.language,
-        confidence: detected.confidence
-      })
-    }
+    // detection (if any) is stale once the text changes — persistDetectedLanguage
+    // clears the old row when the new content no longer detects confidently.
+    await persistDetectedLanguage({
+      database,
+      statusId: note.id,
+      text,
+      html: true
+    })
   }
 )

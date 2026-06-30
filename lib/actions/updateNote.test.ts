@@ -117,6 +117,28 @@ describe('Update note action', () => {
       })
     })
 
+    it('clears a stale detected language when the edit no longer detects confidently', async () => {
+      if (!actor1) fail('Actor1 is required')
+      const statusId = `${actor1.id}/statuses/post-1`
+
+      const detected = (await updateNoteFromUserInput({
+        statusId,
+        currentActor: actor1,
+        database,
+        text: 'สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร'
+      })) as Status
+      expect(detected).toMatchObject({ detectedLanguage: 'th' })
+
+      const edited = (await updateNoteFromUserInput({
+        statusId,
+        currentActor: actor1,
+        database,
+        text: 'ok'
+      })) as Status
+
+      expect(edited).toMatchObject({ text: 'ok', detectedLanguage: null })
+    })
+
     it('updates content warning without changing text', async () => {
       if (!actor1) fail('Actor1 is required')
       const statusId = `${actor1.id}/statuses/post-1`

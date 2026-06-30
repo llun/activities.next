@@ -1,6 +1,7 @@
 import { Knex } from 'knex'
 
 import {
+  ClearDetectedLanguageParams,
   GetDetectedLanguageParams,
   GetDetectedLanguagesParams,
   SetDetectedLanguageParams,
@@ -41,5 +42,11 @@ export const StatusDetectedLanguageSQLDatabaseMixin = (
       .whereIn('statusId', statusIds)
       .select('statusId', 'language')
     return Object.fromEntries(rows.map((row) => [row.statusId, row.language]))
+  },
+
+  async clearDetectedLanguage({ statusId }: ClearDetectedLanguageParams) {
+    await database('status_detected_languages')
+      .where('statusId', statusId)
+      .delete()
   }
 })

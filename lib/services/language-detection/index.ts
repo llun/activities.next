@@ -60,3 +60,44 @@ export const detectLanguage = (
 export const detectLanguageFromHtml = (
   html: string | null | undefined
 ): DetectedLanguage | null => detectLanguage(htmlToPlainText(html))
+
+// Minimal slice of StatusDetectedLanguageDatabase this module needs — kept
+// inline (rather than importing the Database type) so this module has no
+// dependency on the database layer.
+interface DetectedLanguageStore {
+  setDetectedLanguage(params: {
+    statusId: string
+    language: string
+    confidence?: number | null
+  }): Promise<void>
+  clearDetectedLanguage(params: { statusId: string }): Promise<void>
+}
+
+// Detects and persists a status' content language in one call, used by every
+// write path (local create/edit, federated inbound create/update). Clears any
+// previously stored detection when the new content no longer yields a
+// confident result, so an edit that shortens a post (or replaces it with a
+// link) doesn't leave a stale language behind for the Translate gate to keep
+// using.
+export const persistDetectedLanguage = async ({
+  database,
+  statusId,
+  text,
+  html = false
+}: {
+  database: DetectedLanguageStore
+  statusId: string
+  text: string | null | undefined
+  html?: boolean
+}): Promise<void> => {
+  const detected = html ? detectLanguageFromHtml(text) : detectLanguage(text)
+  if (detected) {
+    await database.setDetectedLanguage({
+      statusId,
+      language: detected.language,
+      confidence: detected.confidence
+    })
+    return
+  }
+  await database.clearDetectedLanguage({ statusId })
+}

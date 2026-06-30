@@ -61,6 +61,30 @@ describe('StatusDetectedLanguage', () => {
     expect(language).toBe('ja')
   })
 
+  describe('clearDetectedLanguage', () => {
+    it('removes a previously recorded detected language', async () => {
+      await database.setDetectedLanguage({
+        statusId: 'status-clear',
+        language: 'th'
+      })
+      expect(
+        await database.getDetectedLanguage({ statusId: 'status-clear' })
+      ).toBe('th')
+
+      await database.clearDetectedLanguage({ statusId: 'status-clear' })
+
+      expect(
+        await database.getDetectedLanguage({ statusId: 'status-clear' })
+      ).toBeNull()
+    })
+
+    it('is a no-op when there is nothing to clear', async () => {
+      await expect(
+        database.clearDetectedLanguage({ statusId: 'status-never-set' })
+      ).resolves.toBeUndefined()
+    })
+  })
+
   describe('getDetectedLanguages', () => {
     it('returns an empty object for an empty statusIds array', async () => {
       const result = await database.getDetectedLanguages({ statusIds: [] })
