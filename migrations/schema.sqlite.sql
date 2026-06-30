@@ -234,3 +234,4 @@ CREATE TABLE `fitness_route_heatmap_region_names` (`actorId` varchar(255) not nu
 CREATE UNIQUE INDEX `fitness_route_heatmaps_sharetoken_unique` on `fitness_route_heatmaps` (`shareToken`);
 CREATE TABLE `fitness_import_locks` (`lockKey` varchar(255), `token` varchar(255) not null, `expiresAt` bigint not null, `createdAt` datetime default CURRENT_TIMESTAMP, primary key (`lockKey`));
 CREATE INDEX `fitness_import_locks_expiresat_index` on `fitness_import_locks` (`expiresAt`);
+CREATE TABLE `status_detected_languages` (`statusId` varchar(255) not null, `language` varchar(16) not null, `confidence` float, `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, primary key (`statusId`));
