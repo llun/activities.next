@@ -5087,6 +5087,7 @@ __metadata:
     sharp: "npm:^0.35.2"
     tailwind-merge: "npm:^3.6.0"
     tailwindcss: "npm:^4.3.1"
+    tinyld: "npm:^1.3.4"
     tw-animate-css: "npm:^1.4.0"
     typescript: "npm:^6.0.3"
     vite: "npm:^8.0.16"
@@ -12165,6 +12166,17 @@ __metadata:
     fdir: "npm:^6.5.0"
     picomatch: "npm:^4.0.4"
   checksum: 10c0/7f7bb0f197c88bc4b20c231e0deca4240ca3bf313a88f5a7fee93a872b84966a4d50220947c0455ad07a60b3b360961c5b7fd979222aeb716a9f99b412002e4c
+  languageName: node
+  linkType: hard
+
+"tinyld@npm:^1.3.4":
+  version: 1.3.4
+  resolution: "tinyld@npm:1.3.4"
+  bin:
+    tinyld: bin/tinyld.js
+    tinyld-heavy: bin/tinyld-heavy.js
+    tinyld-light: bin/tinyld-light.js
+  checksum: 10c0/975a318c6359696dc11b166d9ff80a96a8520a35090ea76e33e5868b24499d8fbd1d039b5ac6f6926b62f3c15a277a9f07d3b1f2ce0687acc3fb6001a42aeaa9
   languageName: node
   linkType: hard
 
