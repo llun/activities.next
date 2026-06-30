@@ -25,6 +25,7 @@ interface MockQuestionParams {
   id?: string
   from?: string
   content?: string
+  contentMap?: { [key: string]: string }
   summary?: string | null
   published?: number
   endTime?: number
@@ -52,6 +53,7 @@ const MockActivityPubQuestion = ({
   id = `https://somewhere.test/actors/pollcreator/questions/${Date.now()}`,
   from = REMOTE_ACTOR_ID,
   content = '<p>What is your favorite color?</p>',
+  contentMap,
   summary = null,
   published = Date.now(),
   endTime = Date.now() + 24 * 60 * 60 * 1000,
@@ -85,6 +87,7 @@ const MockActivityPubQuestion = ({
     to,
     cc,
     content,
+    ...(contentMap ? { contentMap } : null),
     summary,
     published: getISOTimeUTC(published),
     endTime: getISOTimeUTC(endTime),
@@ -135,6 +138,22 @@ describe('createPollJob', () => {
     expect(status?.actorId).toEqual(question.attributedTo)
     expect(status?.to).toEqual(question.to)
     expect(status?.cc).toEqual(question.cc)
+  })
+
+  it('stores the language derived from the question contentMap key', async () => {
+    const question = MockActivityPubQuestion({
+      id: `https://somewhere.test/actors/pollcreator/questions/lang-${Date.now()}`,
+      content: '<p>สีโปรดของคุณคือสีอะไร</p>',
+      contentMap: { th: '<p>สีโปรดของคุณคือสีอะไร</p>' }
+    })
+    await createPollJob(database, {
+      id: 'id-poll-language',
+      name: CREATE_POLL_JOB_NAME,
+      data: question
+    })
+
+    const status = await database.getStatus({ statusId: question.id })
+    expect(status?.language).toEqual('th')
   })
 
   it('does not create polls from blocked actor domains', async () => {
