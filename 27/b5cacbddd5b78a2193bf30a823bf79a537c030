@@ -1,0 +1,52 @@
+lib/actions/createNote.ts
+  s_b4f867a916c2ae::t_dae0042a4dc6f9 18
+  s_b4f867a916c2ae::t_1139cef6a1fc66 441
+lib/types/database/operations.ts
+  s_b4f867a916c2ae::t_ec285727d4ad58 777,785-788
+lib/jobs/updateNoteJob.test.ts
+  s_b4f867a916c2ae::t_e2974c0dd66f91 155-194
+lib/database/sql/statusDetectedLanguage.ts
+  s_b4f867a916c2ae::t_3eba36dbc92ca5 48-50
+  s_b4f867a916c2ae::t_2ff07b1bf179b3 45-47
+  s_b4f867a916c2ae::t_ef2dbefa42c058 4
+lib/jobs/updateNoteJob.ts
+  s_b4f867a916c2ae::t_9b2e79cc5e40ec 71-78
+  s_b4f867a916c2ae::t_a4eb3c9edf015a 9
+lib/actions/updateNote.test.ts
+  s_b4f867a916c2ae::t_cf232333272b2f 120-141
+lib/database/sql/statusDetectedLanguage.test.ts
+  s_b4f867a916c2ae::t_49508033403590 64-87
+lib/services/language-detection/index.ts
+  s_b4f867a916c2ae::t_c1f244d0a83fc5 63-103
+lib/jobs/createNoteJob.ts
+  s_b4f867a916c2ae::t_f1a52882e77d1a 112-117
+  s_b4f867a916c2ae::t_8d191926a7a0e3 16
+lib/actions/createPoll.ts
+  s_b4f867a916c2ae::t_9ac428bffae598 129
+  s_b4f867a916c2ae::t_84e6a6bfe0475d 13
+lib/services/language-detection/index.test.ts
+  s_b4f867a916c2ae::t_ee40ff7ca21ddf 4-5
+  s_b4f867a916c2ae::t_5147e82cbd58b3 95-147
+lib/jobs/createPollJob.ts
+  s_b4f867a916c2ae::t_0e28275cf12bc4 12
+  s_b4f867a916c2ae::t_09117ade5087b7 104-109
+lib/actions/updateNote.ts
+  s_b4f867a916c2ae::t_425499c6268212 4
+  s_b4f867a916c2ae::t_40a96a761af547 72-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "27b5cacbddd5b78a2193bf30a823bf79a537c030",
+  "prompts": {},
+  "sessions": {
+    "s_b4f867a916c2ae": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8a3d91b7-e2e6-4362-972c-c99fcd446161",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
