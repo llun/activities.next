@@ -2,7 +2,12 @@ import identity from 'lodash/identity'
 import { z } from 'zod'
 
 import { AnnounceStatus } from '@/lib/activities/announceStatus'
-import { getContent, getReply, getSummary } from '@/lib/activities/note'
+import {
+  getContent,
+  getLanguage,
+  getReply,
+  getSummary
+} from '@/lib/activities/note'
 import type { Announce as ActivityPubAnnounce } from '@/lib/types/activitypub/activities'
 import { Document } from '@/lib/types/activitypub/objects'
 import {
@@ -222,6 +227,13 @@ export const fromNote = (note: Note): StatusNote => {
 
     text: getContent(note),
     summary: getSummary(note),
+    // Resolve the note's declared language from its content/summary locale maps
+    // so remote-fetched statuses (e.g. profile pages) carry it too. Without this
+    // the Translate control never appears on those feeds, since it is gated on a
+    // known source language. Federated/stored statuses get this via
+    // createNoteJob/updateNoteJob; this is the same resolution for the
+    // fetch-on-render path.
+    language: getLanguage(note),
 
     to: Array.isArray(note.to) ? note.to : [note.to].filter(identity),
     cc: Array.isArray(note.cc) ? note.cc : [note.cc].filter(identity),
