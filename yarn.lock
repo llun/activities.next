@@ -1925,21 +1925,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@next/eslint-plugin-next@npm:16.2.9":
+"@next/eslint-plugin-next@npm:16.2.9, @next/eslint-plugin-next@npm:^16.2.9":
   version: 16.2.9
   resolution: "@next/eslint-plugin-next@npm:16.2.9"
   dependencies:
     fast-glob: "npm:3.3.1"
   checksum: 10c0/74501333ce844ec02f2518c98859a42d3db1bcae3e7365a2c0f6691d38621719783d285572a23ca1c3edd2801f9805c073d6e572990e70a11f2e894361774f69
-  languageName: node
-  linkType: hard
-
-"@next/eslint-plugin-next@npm:^16.2.7":
-  version: 16.2.7
-  resolution: "@next/eslint-plugin-next@npm:16.2.7"
-  dependencies:
-    fast-glob: "npm:3.3.1"
-  checksum: 10c0/2748e5f4bf85be84a886e43bef37437317fa7aad4be267eaf7d0ebbb4e19fd60a0a8a8daac2a9f4e6298017b55f4c28d6f3546ad9b3112720ddfd75b922d6d47
   languageName: node
   linkType: hard
 
@@ -4994,7 +4985,7 @@ __metadata:
     "@eslint/eslintrc": "npm:^3.3.5"
     "@eslint/js": "npm:^10.0.1"
     "@next/env": "npm:^16.2.9"
-    "@next/eslint-plugin-next": "npm:^16.2.7"
+    "@next/eslint-plugin-next": "npm:^16.2.9"
     "@opentelemetry/api": "npm:^1.9.1"
     "@radix-ui/react-avatar": "npm:^1.2.0"
     "@radix-ui/react-dialog": "npm:^1.1.17"
