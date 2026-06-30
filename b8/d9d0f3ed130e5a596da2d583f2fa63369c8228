@@ -1,0 +1,28 @@
+lib/components/posts/post.tsx
+  s_b4f867a916c2ae::t_119540fcc84274 145-153
+lib/components/posts/post.test.tsx
+  s_b4f867a916c2ae::t_809ac96989a287 1054-1056
+  s_b4f867a916c2ae::t_9b56a2193d55e7 62-65
+  s_b4f867a916c2ae::t_e6b367066bd25d 16-19
+  s_b4f867a916c2ae::t_4509477f38c20d 1074
+  s_b4f867a916c2ae::t_78e77384a314d1 1006-1025,1027-1045,1047-1053,1057-1073,1075-1086
+  s_b4f867a916c2ae::t_99c18aa3adb029 1026,1046
+  s_b4f867a916c2ae::t_905a9a42a06b58 5-12,15
+  s_b4f867a916c2ae::t_0f013ebb38e788 1087
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "b8d9d0f3ed130e5a596da2d583f2fa63369c8228",
+  "prompts": {},
+  "sessions": {
+    "s_b4f867a916c2ae": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8a3d91b7-e2e6-4362-972c-c99fcd446161",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
