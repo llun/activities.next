@@ -1,6 +1,7 @@
 import { detectAll } from 'tinyld'
 
 import { normalizeLanguageCode } from '@/lib/services/translation/types'
+import { logger } from '@/lib/utils/logger'
 import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
 export interface DetectedLanguage {
@@ -79,6 +80,10 @@ interface DetectedLanguageStore {
 // confident result, so an edit that shortens a post (or replaces it with a
 // link) doesn't leave a stale language behind for the Translate gate to keep
 // using.
+//
+// This is a best-effort enhancement, not part of the post's actual content,
+// so a failure here (e.g. a transient DB error) is logged and swallowed
+// rather than allowed to fail the surrounding create/update.
 export const persistDetectedLanguage = async ({
   database,
   statusId,
@@ -90,14 +95,18 @@ export const persistDetectedLanguage = async ({
   text: string | null | undefined
   html?: boolean
 }): Promise<void> => {
-  const detected = html ? detectLanguageFromHtml(text) : detectLanguage(text)
-  if (detected) {
-    await database.setDetectedLanguage({
-      statusId,
-      language: detected.language,
-      confidence: detected.confidence
-    })
-    return
+  try {
+    const detected = html ? detectLanguageFromHtml(text) : detectLanguage(text)
+    if (detected) {
+      await database.setDetectedLanguage({
+        statusId,
+        language: detected.language,
+        confidence: detected.confidence
+      })
+      return
+    }
+    await database.clearDetectedLanguage({ statusId })
+  } catch (error) {
+    logger.error({ error, statusId }, 'Failed to persist detected language')
   }
-  await database.clearDetectedLanguage({ statusId })
 }

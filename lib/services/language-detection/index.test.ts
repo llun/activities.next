@@ -1,9 +1,17 @@
+import { logger } from '@/lib/utils/logger'
+
 import {
   cleanTextForDetection,
   detectLanguage,
   detectLanguageFromHtml,
   persistDetectedLanguage
 } from './index'
+
+vi.mock('@/lib/utils/logger', () => ({
+  logger: {
+    error: vi.fn()
+  }
+}))
 
 const THAI_TEXT =
   'สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร'
@@ -97,6 +105,28 @@ describe('persistDetectedLanguage', () => {
   const createStore = () => ({
     setDetectedLanguage: vi.fn().mockResolvedValue(undefined),
     clearDetectedLanguage: vi.fn().mockResolvedValue(undefined)
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('logs and swallows a database failure instead of throwing', async () => {
+    const database = createStore()
+    database.setDetectedLanguage.mockRejectedValue(new Error('connection lost'))
+
+    await expect(
+      persistDetectedLanguage({
+        database,
+        statusId: 'status-1',
+        text: THAI_TEXT
+      })
+    ).resolves.toBeUndefined()
+
+    expect(logger.error).toHaveBeenCalledWith(
+      { error: expect.any(Error), statusId: 'status-1' },
+      'Failed to persist detected language'
+    )
   })
 
   it('sets the detected language when detection succeeds', async () => {
