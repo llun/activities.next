@@ -142,8 +142,15 @@ export const Post: FC<PostProps> = (props) => {
     props.currentActor?.id === actualStatus.actorId
   const summary = actualStatus.summary?.trim()
   // Only offer translation to signed-in viewers (the API needs a token); this
-  // keeps the public landing feed free of dead Translate buttons.
-  const translationLanguage = props.currentActor ? actualStatus.language : null
+  // keeps the public landing feed free of dead Translate buttons. Prefer the
+  // content-detected language over the declared one: a post mislabeled (or
+  // defaulted) to the viewer's language but actually written in another one
+  // would otherwise never offer the control, and a post mislabeled the other
+  // way would show a dead en→en-equivalent button. See
+  // lib/services/language-detection.
+  const translationLanguage = props.currentActor
+    ? (actualStatus.detectedLanguage ?? actualStatus.language)
+    : null
   const statusBody = (
     <TranslationProvider
       // Reset translation state cleanly if a mounted Post is reused for a
