@@ -124,7 +124,8 @@ jobs:
               unmerged files so the workflow can create the final merge commit.
             - If you cannot reach that state, stop and fail.
           claude_args: |
-            --model claude-sonnet-4-6
+            --model claude-sonnet-5
+            --effort low
             --dangerously-skip-permissions
             --max-turns 40
 
