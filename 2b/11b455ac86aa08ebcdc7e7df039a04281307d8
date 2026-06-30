@@ -1,0 +1,64 @@
+lib/actions/createNote.test.ts
+  s_b4f867a916c2ae::t_435cb2a0d644df 106-127
+lib/jobs/createPollJob.test.ts
+  s_b4f867a916c2ae::t_0ffd8e1f8729a6 159-180
+lib/actions/updateNote.ts
+  s_b4f867a916c2ae::t_34d8ff6e950277 4
+  s_b4f867a916c2ae::t_a4cec044de9e16 70-71,73-81
+  s_b4f867a916c2ae::t_c82c199d4da3e3 72
+lib/actions/createPoll.ts
+  s_b4f867a916c2ae::t_19909d70c937e2 126-136
+  s_b4f867a916c2ae::t_b2ae006224723d 13
+  s_b4f867a916c2ae::t_ad683b3adb90cb 137
+lib/actions/createNote.ts
+  s_b4f867a916c2ae::t_f894f199998dd1 438-448
+  s_b4f867a916c2ae::t_121af4c15fa15c 18
+  s_44afd2562a4f35::t_5c1e9ee4af8be8 449
+lib/actions/createPoll.test.ts
+  s_b4f867a916c2ae::t_8952e798b7e7d8 72-85
+lib/jobs/createNoteJob.test.ts
+  s_b4f867a916c2ae::t_3ab906dddc6a58 288,291-293,307
+  s_b4f867a916c2ae::t_3763473c8b4314 289-290,294-306,308-310
+lib/jobs/createNoteJob.ts
+  s_b4f867a916c2ae::t_4117de68cc9e54 111
+  s_b4f867a916c2ae::t_92865d5e67715e 108-110,112-119
+  s_b4f867a916c2ae::t_c838095f3ecc95 16
+  s_b4f867a916c2ae::t_b4bf617df38b34 120
+lib/jobs/createPollJob.ts
+  s_b4f867a916c2ae::t_944c69df884306 103
+  s_b4f867a916c2ae::t_fd0840ecba7bfa 100-102,104-111
+  s_b4f867a916c2ae::t_04ea2509148d23 12
+  s_b4f867a916c2ae::t_693c7bc2256fad 112
+lib/jobs/updateNoteJob.ts
+  s_b4f867a916c2ae::t_3ddbc33b5166b8 69-70,72-79
+  s_b4f867a916c2ae::t_9acb01704b3f90 71
+  s_b4f867a916c2ae::t_972b984c97d0a0 9
+lib/actions/updateNote.test.ts
+  s_b4f867a916c2ae::t_cdf22c7afa93a0 102-119
+lib/jobs/updateNoteJob.test.ts
+  s_b4f867a916c2ae::t_3fbe1c6963e557 115-154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "2b11b455ac86aa08ebcdc7e7df039a04281307d8",
+  "prompts": {},
+  "sessions": {
+    "s_44afd2562a4f35": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b637f2c-837b-4a0c-9943-181d1540dd7d",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_b4f867a916c2ae": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8a3d91b7-e2e6-4362-972c-c99fcd446161",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
