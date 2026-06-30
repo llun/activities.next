@@ -70,6 +70,7 @@ import {
   PinStatusParams,
   RecordPollVotesParams,
   StatusDatabase,
+  StatusDetectedLanguageDatabase,
   StatusEditRevision,
   UpdateNoteParams,
   UpdateNoteVisibilityParams,
@@ -133,6 +134,10 @@ const publicRecipientStatusIds = (database: Knex) =>
 type StatusHydrationContext = {
   bookmarkedStatusIds?: Set<string>
   likedStatusIds?: Set<string>
+  // Pre-batched content-detected languages, keyed by statusId. Viewer-
+  // independent (unlike the like/bookmark sets above), so callers populate it
+  // for any timeline page regardless of whether a viewer is signed in.
+  detectedLanguages?: Record<string, string>
 }
 
 export const buildPubliclyReadableStatusIdsQuery = ({
@@ -240,7 +245,8 @@ export const StatusSQLDatabaseMixin = (
   actorDatabase: ActorDatabase,
   likeDatabase: LikeDatabase,
   bookmarkDatabase: BookmarkDatabase,
-  mediaDatabase: MediaDatabase
+  mediaDatabase: MediaDatabase,
+  statusDetectedLanguageDatabase: StatusDetectedLanguageDatabase
 ): StatusDatabase => {
   const applyPublicReadableStatusFilter = ({
     query,
@@ -502,6 +508,11 @@ export const StatusSQLDatabaseMixin = (
       summary,
       sensitive,
       language,
+      // Content detection runs after this insert (in the actions/jobs layer
+      // that called createNote), so the row this function just wrote has no
+      // detected language yet — matches what a hydrated re-fetch would show
+      // at this same instant.
+      detectedLanguage: null,
       applicationName,
       applicationWebsite,
       reply,
@@ -892,6 +903,11 @@ export const StatusSQLDatabaseMixin = (
       summary,
       sensitive,
       language,
+      // Content detection runs after this insert (in the actions/jobs layer
+      // that called createPoll), so the row this function just wrote has no
+      // detected language yet — matches what a hydrated re-fetch would show
+      // at this same instant.
+      detectedLanguage: null,
       applicationName,
       applicationWebsite,
       reply,
@@ -1084,9 +1100,27 @@ export const StatusSQLDatabaseMixin = (
     }
 
     const statuses = await query
+    // Batch detected-language hydration so this doesn't N+1 one query per
+    // reply (mirroring getStatusesByIds).
+    const hydrationStatusIds = await collectHydrationStatusIds(statuses)
+    const hydrationContext: StatusHydrationContext = {
+      detectedLanguages:
+        hydrationStatusIds.size > 0
+          ? await statusDetectedLanguageDatabase.getDetectedLanguages({
+              statusIds: [...hydrationStatusIds]
+            })
+          : {}
+    }
     const statusesWithAttachments = (
       await Promise.all(
-        statuses.map((item) => getStatusWithAttachmentsFromData(item))
+        statuses.map((item) =>
+          getStatusWithAttachmentsFromData(
+            item,
+            undefined,
+            undefined,
+            hydrationContext
+          )
+        )
       )
     ).filter((status): status is Status => status !== null)
     return statusesWithAttachments
@@ -1298,9 +1332,28 @@ export const StatusSQLDatabaseMixin = (
     }
 
     const statuses = await query
+    // Batch detected-language hydration so this doesn't N+1 one query per
+    // status (mirroring getStatusesByIds) — actor status lists back profile
+    // pages and the Mastodon accounts/:id/statuses endpoint.
+    const hydrationStatusIds = await collectHydrationStatusIds(statuses)
+    const hydrationContext: StatusHydrationContext = {
+      detectedLanguages:
+        hydrationStatusIds.size > 0
+          ? await statusDetectedLanguageDatabase.getDetectedLanguages({
+              statusIds: [...hydrationStatusIds]
+            })
+          : {}
+    }
     const statusesWithAttachments = (
       await Promise.all(
-        statuses.map((item) => getStatusWithAttachmentsFromData(item))
+        statuses.map((item) =>
+          getStatusWithAttachmentsFromData(
+            item,
+            undefined,
+            undefined,
+            hydrationContext
+          )
+        )
       )
     ).filter((status): status is Status => status !== null)
     return statusesWithAttachments
@@ -1405,21 +1458,34 @@ export const StatusSQLDatabaseMixin = (
     }
     const statuses = await query.select()
     const hydrationContext: StatusHydrationContext = {}
+    const hydrationStatusIds = await collectHydrationStatusIds(statuses)
+    const hasHydrationStatusIds = hydrationStatusIds.size > 0
+    // Detected language is viewer-independent, so it's batched for every
+    // fetch (not just signed-in viewers) to avoid falling back to a
+    // per-status query in getStatusWithAttachmentsFromData. Run it in the
+    // same Promise.all as the bookmark/like queries below rather than
+    // sequentially, so all three independent batched lookups overlap.
+    const [detectedLanguages, bookmarkRows, likeRows] = await Promise.all([
+      hasHydrationStatusIds
+        ? statusDetectedLanguageDatabase.getDetectedLanguages({
+            statusIds: [...hydrationStatusIds]
+          })
+        : Promise.resolve({}),
+      currentActorId && hasHydrationStatusIds
+        ? database('bookmarks')
+            .where('actorId', currentActorId)
+            .whereIn('statusId', [...hydrationStatusIds])
+            .select<{ statusId: string }[]>('statusId')
+        : Promise.resolve([]),
+      currentActorId && hasHydrationStatusIds
+        ? database('likes')
+            .where('actorId', currentActorId)
+            .whereIn('statusId', [...hydrationStatusIds])
+            .select<{ statusId: string }[]>('statusId')
+        : Promise.resolve([])
+    ])
+    hydrationContext.detectedLanguages = detectedLanguages
     if (currentActorId) {
-      const hydrationStatusIds = await collectHydrationStatusIds(statuses)
-      const [bookmarkRows, likeRows] =
-        hydrationStatusIds.size > 0
-          ? await Promise.all([
-              database('bookmarks')
-                .where('actorId', currentActorId)
-                .whereIn('statusId', [...hydrationStatusIds])
-                .select<{ statusId: string }[]>('statusId'),
-              database('likes')
-                .where('actorId', currentActorId)
-                .whereIn('statusId', [...hydrationStatusIds])
-                .select<{ statusId: string }[]>('statusId')
-            ])
-          : [[], []]
       hydrationContext.bookmarkedStatusIds = new Set(
         bookmarkRows.map((row) => row.statusId)
       )
@@ -1956,6 +2022,12 @@ export const StatusSQLDatabaseMixin = (
       'statusId',
       statusIdsToDelete
     )
+    await deleteRowsByColumnChunks(
+      trx,
+      'status_detected_languages',
+      'statusId',
+      statusIdsToDelete
+    )
     for (const statusIdChunk of chunkArray(
       statusIdsToDelete,
       getWhereInBatchSize(trx)
@@ -2421,7 +2493,8 @@ export const StatusSQLDatabaseMixin = (
       isActorBookmarkedStatusResult,
       actorAnnounceStatus,
       edits,
-      fitnessFile
+      fitnessFile,
+      detectedLanguage
     ] = await Promise.all([
       mediaDatabase.getAttachments({ statusId: data.id }),
       getTags({ statusId: data.id }),
@@ -2467,7 +2540,12 @@ export const StatusSQLDatabaseMixin = (
         .orderBy('isPrimary', 'desc')
         .orderBy('activityStartTime', 'asc')
         .orderBy('createdAt', 'asc')
-        .first()
+        .first(),
+      hydrationContext?.detectedLanguages
+        ? (hydrationContext.detectedLanguages[data.id] ?? null)
+        : statusDetectedLanguageDatabase.getDetectedLanguage({
+            statusId: data.id
+          })
     ])
 
     const repliesNote = (
@@ -2500,6 +2578,7 @@ export const StatusSQLDatabaseMixin = (
       summary: content.summary,
       sensitive: content.sensitive ?? false,
       language: content.language ?? null,
+      detectedLanguage,
       applicationName: data.applicationName ?? null,
       applicationWebsite: data.applicationWebsite ?? null,
       reply: data.reply,

@@ -15,6 +15,7 @@ import {
   getSubject as getReplySubject,
   getTextContent as getReplyTextContent
 } from '@/lib/services/email/templates/reply'
+import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
@@ -433,6 +434,11 @@ export const createNoteFromUserInput = async ({
     applicationName: application?.name ?? null,
     applicationWebsite: application?.website ?? null
   })
+
+  // Content-detected language, stored separately from the declared `language`
+  // above so the Translate gate can fall back to it when the author's
+  // declared/default language doesn't match what they actually wrote.
+  await persistDetectedLanguage({ database, statusId, text })
 
   // Tags must be persisted before timeline rules run so that
   // notifyRemoteReplyAndMention can verify mentions via tags rather than text

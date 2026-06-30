@@ -91,6 +91,12 @@ export const StatusNote = StatusBase.extend({
   sensitive: z.boolean().optional(),
   // ISO 639 Part 1 two-letter language code, or null when unknown.
   language: z.string().nullable().optional(),
+  // Content-detected language (ISO 639-1), stored separately from the
+  // declared `language` above. Populated by lib/services/language-detection
+  // and used to widen the Translate gate when the two disagree (e.g. a post
+  // declared "en" whose content is actually Thai). Null/absent when
+  // detection hasn't run yet or was inconclusive.
+  detectedLanguage: z.string().nullable().optional(),
   // The registered OAuth client (Mastodon "application") that authored the
   // status, when it was created via an app token. Null/absent for statuses
   // created through the web session. Optional so existing status literals and
@@ -234,6 +240,14 @@ export const fromNote = (note: Note): StatusNote => {
     // createNoteJob/updateNoteJob; this is the same resolution for the
     // fetch-on-render path.
     language: getLanguage(note),
+    // Content-detected language is NOT resolved here: this module's
+    // StatusNote/Status types are imported throughout client components, and
+    // language-detection statically pulls in tinyld's large N-gram tables.
+    // Keeping any reference to it (even a dynamic import) out of this shared
+    // module avoids that dependency leaking into client bundles. Callers that
+    // need it for an ephemeral (not persisted) status — getActorPosts,
+    // getRemoteStatus — attach it after calling fromNote.
+    detectedLanguage: null,
 
     to: Array.isArray(note.to) ? note.to : [note.to].filter(identity),
     cc: Array.isArray(note.cc) ? note.cc : [note.cc].filter(identity),

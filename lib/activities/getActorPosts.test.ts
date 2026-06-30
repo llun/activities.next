@@ -76,6 +76,71 @@ describe('getActorPosts', () => {
     })
   })
 
+  it('attaches a content-detected language to ephemeral outbox statuses', async () => {
+    const actorId = 'https://detected-lang.example/users/actor'
+    const statusId = `${actorId}/statuses/thai-content`
+    const firstPageUrl = `${actorId}/outbox?page=true`
+    const published = Date.now()
+    const person = MockActivityPubPerson({
+      id: actorId,
+      withContext: true
+    }) as Actor
+
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `${actorId}/outbox`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            id: `${actorId}/outbox`,
+            type: 'OrderedCollection',
+            totalItems: 1,
+            first: firstPageUrl
+          })
+        }
+      }
+
+      if (req.url === firstPageUrl) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            id: firstPageUrl,
+            type: 'OrderedCollectionPage',
+            partOf: `${actorId}/outbox`,
+            orderedItems: [
+              {
+                id: `${statusId}/activity`,
+                type: 'Create',
+                actor: actorId,
+                published: new Date(published).toISOString(),
+                object: MockMastodonActivityPubNote({
+                  id: statusId,
+                  from: actorId,
+                  // Declared English, but the content itself is
+                  // unambiguously Thai.
+                  content:
+                    'สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร',
+                  withContext: true
+                })
+              }
+            ]
+          })
+        }
+      }
+
+      return { status: 404, body: 'Not Found' }
+    })
+
+    const response = await getActorPosts({ database, person })
+
+    expect(response.statuses).toHaveLength(1)
+    expect(response.statuses[0]).toMatchObject({
+      id: statusId,
+      language: 'en',
+      detectedLanguage: 'th'
+    })
+  })
+
   it('keeps the boost actor on Announce and does not assign it to the original status', async () => {
     const boosterActorId = 'https://boost.example/users/booster'
     const originalActorId = 'https://origin.example/users/original'

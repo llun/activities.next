@@ -2,10 +2,21 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { ReactNode } from 'react'
 
-import { likeStatus } from '@/lib/client'
+import {
+  getTranslationCapability,
+  getTranslationLanguages,
+  likeStatus
+} from '@/lib/client'
 import {
   StatusAnnounce,
   StatusNote,
@@ -48,7 +59,10 @@ vi.mock('@/lib/client', () => ({
   unblock: vi.fn(),
   createReport: vi.fn(),
   retryFitnessProcessing: vi.fn(),
-  getFitnessProcessingState: vi.fn().mockResolvedValue(null)
+  getFitnessProcessingState: vi.fn().mockResolvedValue(null),
+  getTranslationCapability: vi.fn(),
+  getTranslationLanguages: vi.fn(),
+  translateStatus: vi.fn()
 }))
 
 const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
@@ -988,5 +1002,87 @@ describe('Post', () => {
     expect(
       screen.queryByText(/Generating route map|Queued for processing/i)
     ).not.toBeInTheDocument()
+  })
+
+  describe('Translate gating', () => {
+    beforeEach(() => {
+      ;(getTranslationCapability as jest.Mock).mockResolvedValue({
+        enabled: true,
+        defaultLanguage: 'en'
+      })
+      ;(getTranslationLanguages as jest.Mock).mockResolvedValue({
+        th: ['en']
+      })
+    })
+
+    it('offers Translate when the content-detected language overrides a mislabeled declared language', async () => {
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          status={{
+            ...status,
+            summary: null,
+            language: 'en',
+            detectedLanguage: 'th'
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(
+        await screen.findByRole('button', { name: /Translate from Thai/ })
+      ).toBeInTheDocument()
+    })
+
+    it('does not offer Translate for a signed-out viewer even with a detected language', async () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{
+            ...status,
+            summary: null,
+            language: 'en',
+            detectedLanguage: 'th'
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      await waitFor(() =>
+        expect(getTranslationCapability).not.toHaveBeenCalled()
+      )
+      expect(
+        screen.queryByRole('button', { name: /Translate/ })
+      ).not.toBeInTheDocument()
+    })
+
+    it('does not offer Translate when the resolved source matches the viewer default language', async () => {
+      ;(getTranslationLanguages as jest.Mock).mockResolvedValue({
+        en: ['th']
+      })
+
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          status={{
+            ...status,
+            summary: null,
+            language: 'th',
+            detectedLanguage: 'en'
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      await waitFor(() => expect(getTranslationCapability).toHaveBeenCalled())
+      expect(
+        screen.queryByRole('button', { name: /Translate/ })
+      ).not.toBeInTheDocument()
+    })
   })
 })

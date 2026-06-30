@@ -883,6 +883,14 @@ CREATE TABLE public.sessions (
     "userAgent" text
 );
 
+CREATE TABLE public.status_detected_languages (
+    "statusId" character varying(255) NOT NULL,
+    language character varying(16) NOT NULL,
+    confidence real,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE public.status_history (
     id integer NOT NULL,
     "statusId" character varying(255),
@@ -1350,6 +1358,9 @@ ALTER TABLE ONLY public.server_filters
 
 ALTER TABLE ONLY public.sessions
     ADD CONSTRAINT sessions_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.status_detected_languages
+    ADD CONSTRAINT status_detected_languages_pkey PRIMARY KEY ("statusId");
 
 ALTER TABLE ONLY public.status_history
     ADD CONSTRAINT status_history_pkey PRIMARY KEY (id);

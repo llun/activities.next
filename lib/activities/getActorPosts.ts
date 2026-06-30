@@ -1,6 +1,7 @@
 import { getNote } from '@/lib/activities'
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { Database } from '@/lib/database/types'
+import { detectLanguageFromHtml } from '@/lib/services/language-detection'
 import { Actor } from '@/lib/types/activitypub'
 import {
   Announce,
@@ -46,7 +47,12 @@ const getErrorMessage = (error: unknown) =>
 
 const getStatusFromNote = (note: Note) => {
   try {
-    return fromNote(note)
+    const status = fromNote(note)
+    // Ephemeral status (not persisted), so content-detected language is
+    // computed here rather than read from status_detected_languages.
+    status.detectedLanguage =
+      detectLanguageFromHtml(status.text)?.language ?? null
+    return status
   } catch (error) {
     logger.error(`[getActorPosts] ${getErrorMessage(error)}`)
     return null
