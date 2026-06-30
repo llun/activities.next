@@ -2541,7 +2541,7 @@ export const StatusSQLDatabaseMixin = (
         .orderBy('activityStartTime', 'asc')
         .orderBy('createdAt', 'asc')
         .first(),
-      hydrationContext.detectedLanguages
+      hydrationContext?.detectedLanguages
         ? (hydrationContext.detectedLanguages[data.id] ?? null)
         : statusDetectedLanguageDatabase.getDetectedLanguage({
             statusId: data.id
