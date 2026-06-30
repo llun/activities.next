@@ -1,0 +1,24 @@
+migrations/schema.sql
+  s_b4f867a916c2ae::t_c89463ff62f7bc 886-893,1362-1363
+  s_b4f867a916c2ae::t_fa7db0ba4df46d 1364
+migrations/20260630120000_add_status_detected_languages_table.js
+  s_b4f867a916c2ae::t_48178f16f15fee 1-25
+migrations/schema.sqlite.sql
+  s_b4f867a916c2ae::t_037cb4d3917f61 237
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "77bf526de8c5d8458667e8c35339b671d1e816ed",
+  "prompts": {},
+  "sessions": {
+    "s_b4f867a916c2ae": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8a3d91b7-e2e6-4362-972c-c99fcd446161",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
