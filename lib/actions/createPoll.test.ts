@@ -69,6 +69,20 @@ describe('Create poll action', () => {
       expect(poll?.cc).toContain(`${actor1.id}/followers`)
     })
 
+    it('stores a content-detected language that overrides a mislabeled declared language', async () => {
+      const createdPoll = await createPollFromUserInput({
+        text: 'สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร',
+        currentActor: actor1,
+        choices: ['ใช่', 'ไม่ใช่'],
+        database,
+        endAt: Date.now() + 24 * 60 * 60 * 1000,
+        language: 'en'
+      })
+
+      expect(createdPoll?.language).toBe('en')
+      expect(createdPoll?.detectedLanguage).toBe('th')
+    })
+
     it('returns null for direct polls without explicit recipients', async () => {
       const createdPoll = await createPollFromUserInput({
         text: 'Private poll without a recipient',

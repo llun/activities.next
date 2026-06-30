@@ -1,5 +1,6 @@
 import { getNote } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
+import { detectLanguageFromHtml } from '@/lib/services/language-detection'
 import { Note } from '@/lib/types/activitypub/objects'
 import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
 import { getActorProfileFromPerson } from '@/lib/utils/activitypubActor'
@@ -64,6 +65,10 @@ export const getRemoteStatus = async ({
     logger.error(`[getRemoteStatus] ${getErrorMessage(error)}`)
     return null
   }
+  // Ephemeral status (not persisted), so content-detected language is
+  // computed here rather than read from status_detected_languages.
+  status.detectedLanguage =
+    detectLanguageFromHtml(status.text)?.language ?? null
 
   const actorPerson = await getActorPerson({
     actorId: status.actorId,

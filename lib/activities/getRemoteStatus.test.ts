@@ -71,6 +71,35 @@ describe('getRemoteStatus', () => {
     })
   })
 
+  it('attaches a content-detected language to the ephemeral status', async () => {
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === STATUS_ID) {
+        return JSON.stringify({
+          id: STATUS_ID,
+          type: 'Note',
+          attributedTo: ACTOR_ID,
+          // Declared English via the default contentMap-less `content`, but
+          // the content itself is unambiguously Thai.
+          content:
+            'สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร',
+          to: [PUBLIC_STREAM],
+          cc: [`${ACTOR_ID}/followers`],
+          published: new Date('2026-04-30T12:00:00.000Z').toISOString()
+        })
+      }
+
+      return { status: 404, body: 'Not Found' }
+    })
+
+    await expect(
+      getRemoteStatus({ statusId: STATUS_ID })
+    ).resolves.toMatchObject({
+      id: STATUS_ID,
+      language: null,
+      detectedLanguage: 'th'
+    })
+  })
+
   it('fetches public remote statuses with object-shaped audience entries', async () => {
     fetchMock.mockResponse(async (req) => {
       if (req.url === STATUS_ID) {

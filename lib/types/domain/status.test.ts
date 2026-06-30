@@ -53,6 +53,7 @@ describe('Status', () => {
         text: 'Hello',
         summary: '',
         language: 'en',
+        detectedLanguage: null,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [],
         edits: [],
@@ -114,6 +115,7 @@ describe('Status', () => {
         text: 'Hello',
         summary: '',
         language: 'en',
+        detectedLanguage: null,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [],
         edits: [],
@@ -150,6 +152,20 @@ describe('Status', () => {
       })
       const status = fromNote(note)
       expect(status.language).toBeNull()
+    })
+
+    it('leaves detectedLanguage null — callers attach it after fromNote returns', () => {
+      // language-detection is intentionally not wired into fromNote itself
+      // (this module is imported by client components for its types, and the
+      // detection library is heavy); getActorPosts/getRemoteStatus attach
+      // detectedLanguage themselves after calling fromNote.
+      const note = MockMastodonActivityPubNote({
+        content:
+          'สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร',
+        withContext: true
+      })
+      const status = fromNote(note)
+      expect(status.detectedLanguage).toBeNull()
     })
 
     it('handles inReplyTo as an object with id property', () => {

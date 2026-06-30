@@ -103,6 +103,28 @@ describe('Create note action', () => {
       )
     })
 
+    it('stores a content-detected language that overrides a mislabeled declared language', async () => {
+      const status = (await createNoteFromUserInput({
+        text: 'สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร',
+        currentActor: actor1,
+        language: 'en',
+        database
+      })) as StatusNote
+
+      expect(status.language).toBe('en')
+      expect(status.detectedLanguage).toBe('th')
+    })
+
+    it('leaves the detected language unset for short text', async () => {
+      const status = (await createNoteFromUserInput({
+        text: 'Hello',
+        currentActor: actor1,
+        database
+      })) as StatusNote
+
+      expect(status.detectedLanguage).toBeNull()
+    })
+
     it('stores content warning text as note summary', async () => {
       const status = (await createNoteFromUserInput({
         text: 'Hidden behind a warning',
