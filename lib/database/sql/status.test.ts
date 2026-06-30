@@ -340,6 +340,7 @@ describe('StatusDatabase', () => {
           summary: '',
           sensitive: false,
           language: null,
+          detectedLanguage: null,
           applicationName: null,
           applicationWebsite: null,
           reply: '',
@@ -730,6 +731,46 @@ describe('StatusDatabase', () => {
         expect((results[0] as StatusNote).isActorLiked).toBe(true)
         expect((results[1] as StatusNote).isActorBookmarked).toBe(true)
         expect((results[1] as StatusNote).isActorLiked).toBe(false)
+      })
+
+      it('batch-hydrates detected language regardless of whether a viewer is signed in', async () => {
+        const suffix = `${Date.now()}-${Math.random()}`
+        const detectedStatusId = `${emptyActorId}/statuses/detected-${suffix}`
+        const undetectedStatusId = `${emptyActorId}/statuses/undetected-${suffix}`
+
+        await database.createNote({
+          id: detectedStatusId,
+          url: detectedStatusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Status with a detected language'
+        })
+        await database.createNote({
+          id: undetectedStatusId,
+          url: undetectedStatusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Status without a detected language'
+        })
+        await database.setDetectedLanguage({
+          statusId: detectedStatusId,
+          language: 'th'
+        })
+
+        const signedInResults = await database.getStatusesByIds({
+          statusIds: [detectedStatusId, undetectedStatusId],
+          currentActorId: primaryActorId
+        })
+        expect((signedInResults[0] as StatusNote).detectedLanguage).toBe('th')
+        expect((signedInResults[1] as StatusNote).detectedLanguage).toBeNull()
+
+        const anonymousResults = await database.getStatusesByIds({
+          statusIds: [detectedStatusId, undetectedStatusId]
+        })
+        expect((anonymousResults[0] as StatusNote).detectedLanguage).toBe('th')
+        expect((anonymousResults[1] as StatusNote).detectedLanguage).toBeNull()
       })
 
       it('hydrates actor flags for nested announce originals', async () => {

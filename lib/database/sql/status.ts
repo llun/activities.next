@@ -70,6 +70,7 @@ import {
   PinStatusParams,
   RecordPollVotesParams,
   StatusDatabase,
+  StatusDetectedLanguageDatabase,
   StatusEditRevision,
   UpdateNoteParams,
   UpdateNoteVisibilityParams,
@@ -133,6 +134,10 @@ const publicRecipientStatusIds = (database: Knex) =>
 type StatusHydrationContext = {
   bookmarkedStatusIds?: Set<string>
   likedStatusIds?: Set<string>
+  // Pre-batched content-detected languages, keyed by statusId. Viewer-
+  // independent (unlike the like/bookmark sets above), so callers populate it
+  // for any timeline page regardless of whether a viewer is signed in.
+  detectedLanguages?: Record<string, string>
 }
 
 export const buildPubliclyReadableStatusIdsQuery = ({
@@ -240,7 +245,8 @@ export const StatusSQLDatabaseMixin = (
   actorDatabase: ActorDatabase,
   likeDatabase: LikeDatabase,
   bookmarkDatabase: BookmarkDatabase,
-  mediaDatabase: MediaDatabase
+  mediaDatabase: MediaDatabase,
+  statusDetectedLanguageDatabase: StatusDetectedLanguageDatabase
 ): StatusDatabase => {
   const applyPublicReadableStatusFilter = ({
     query,
@@ -502,6 +508,11 @@ export const StatusSQLDatabaseMixin = (
       summary,
       sensitive,
       language,
+      // Content detection runs after this insert (in the actions/jobs layer
+      // that called createNote), so the row this function just wrote has no
+      // detected language yet — matches what a hydrated re-fetch would show
+      // at this same instant.
+      detectedLanguage: null,
       applicationName,
       applicationWebsite,
       reply,
@@ -892,6 +903,11 @@ export const StatusSQLDatabaseMixin = (
       summary,
       sensitive,
       language,
+      // Content detection runs after this insert (in the actions/jobs layer
+      // that called createPoll), so the row this function just wrote has no
+      // detected language yet — matches what a hydrated re-fetch would show
+      // at this same instant.
+      detectedLanguage: null,
       applicationName,
       applicationWebsite,
       reply,
@@ -1405,8 +1421,17 @@ export const StatusSQLDatabaseMixin = (
     }
     const statuses = await query.select()
     const hydrationContext: StatusHydrationContext = {}
+    const hydrationStatusIds = await collectHydrationStatusIds(statuses)
+    // Detected language is viewer-independent, so it's batched for every
+    // fetch (not just signed-in viewers) to avoid falling back to a
+    // per-status query in getStatusWithAttachmentsFromData.
+    hydrationContext.detectedLanguages =
+      hydrationStatusIds.size > 0
+        ? await statusDetectedLanguageDatabase.getDetectedLanguages({
+            statusIds: [...hydrationStatusIds]
+          })
+        : {}
     if (currentActorId) {
-      const hydrationStatusIds = await collectHydrationStatusIds(statuses)
       const [bookmarkRows, likeRows] =
         hydrationStatusIds.size > 0
           ? await Promise.all([
@@ -2421,7 +2446,8 @@ export const StatusSQLDatabaseMixin = (
       isActorBookmarkedStatusResult,
       actorAnnounceStatus,
       edits,
-      fitnessFile
+      fitnessFile,
+      detectedLanguage
     ] = await Promise.all([
       mediaDatabase.getAttachments({ statusId: data.id }),
       getTags({ statusId: data.id }),
@@ -2467,7 +2493,12 @@ export const StatusSQLDatabaseMixin = (
         .orderBy('isPrimary', 'desc')
         .orderBy('activityStartTime', 'asc')
         .orderBy('createdAt', 'asc')
-        .first()
+        .first(),
+      hydrationContext.detectedLanguages
+        ? (hydrationContext.detectedLanguages[data.id] ?? null)
+        : statusDetectedLanguageDatabase.getDetectedLanguage({
+            statusId: data.id
+          })
     ])
 
     const repliesNote = (
@@ -2500,6 +2531,7 @@ export const StatusSQLDatabaseMixin = (
       summary: content.summary,
       sensitive: content.sensitive ?? false,
       language: content.language ?? null,
+      detectedLanguage,
       applicationName: data.applicationName ?? null,
       applicationWebsite: data.applicationWebsite ?? null,
       reply: data.reply,

@@ -764,6 +764,26 @@ export interface StatusDatabase {
 }
 
 // ============================================================================
+// Status Detected Language Database
+// ============================================================================
+
+export type SetDetectedLanguageParams = {
+  statusId: string
+  language: string
+  confidence?: number | null
+}
+export type GetDetectedLanguageParams = { statusId: string }
+export type GetDetectedLanguagesParams = { statusIds: string[] }
+
+export interface StatusDetectedLanguageDatabase {
+  setDetectedLanguage(params: SetDetectedLanguageParams): Promise<void>
+  getDetectedLanguage(params: GetDetectedLanguageParams): Promise<string | null>
+  getDetectedLanguages(
+    params: GetDetectedLanguagesParams
+  ): Promise<Record<string, string>>
+}
+
+// ============================================================================
 // Search Database
 // ============================================================================
 
