@@ -52,6 +52,7 @@ describe('Status', () => {
         type: StatusType.enum.Note,
         text: 'Hello',
         summary: '',
+        language: 'en',
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [],
         edits: [],
@@ -112,6 +113,7 @@ describe('Status', () => {
         type: StatusType.enum.Note,
         text: 'Hello',
         summary: '',
+        language: 'en',
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [],
         edits: [],
@@ -128,6 +130,26 @@ describe('Status', () => {
         createdAt: expect.toBeNumber(),
         updatedAt: expect.toBeNumber()
       })
+    })
+
+    it('resolves the language from the note content locale map', () => {
+      const note = MockMastodonActivityPubNote({
+        content: 'Hallo',
+        contentMap: { nl: 'Hallo' },
+        withContext: true
+      })
+      const status = fromNote(note)
+      expect(status.language).toBe('nl')
+    })
+
+    it('leaves language null when the note carries no locale map', () => {
+      const note = MockMastodonActivityPubNote({
+        content: 'Hello',
+        contentMap: ['Hello'],
+        withContext: true
+      })
+      const status = fromNote(note)
+      expect(status.language).toBeNull()
     })
 
     it('handles inReplyTo as an object with id property', () => {
