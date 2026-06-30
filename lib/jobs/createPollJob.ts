@@ -9,6 +9,7 @@ import {
   getSummary,
   getTags
 } from '@/lib/activities/note'
+import { detectLanguageFromHtml } from '@/lib/services/language-detection'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { ENTITY_TYPE_QUESTION, Question } from '@/lib/types/activitypub'
 import {
@@ -95,6 +96,19 @@ export const createPollJob = createJobHandle(
         createdAt: new Date(question.published).getTime()
       })
     ])
+
+    // Content-detected language, stored separately from the declared
+    // `language` above so the Translate gate can fall back to it when a
+    // remote poll's declared/default language doesn't match its actual
+    // content.
+    const detected = detectLanguageFromHtml(text)
+    if (detected) {
+      await database.setDetectedLanguage({
+        statusId: status.id,
+        language: detected.language,
+        confidence: detected.confidence
+      })
+    }
 
     const tags = getTags(question)
     const seenHashtags = new Set<string>()

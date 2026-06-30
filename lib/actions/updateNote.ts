@@ -1,6 +1,7 @@
 import { persistEmojiTagsForStatus } from '@/lib/actions/createNote'
 import { Database } from '@/lib/database/types'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { detectLanguage } from '@/lib/services/language-detection'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Actor } from '@/lib/types/domain/actor'
@@ -66,6 +67,18 @@ export const updateNoteFromUserInput = async ({
   if (text !== undefined) {
     await database.deleteStatusTagsByType({ statusId, type: 'emoji' })
     await persistEmojiTagsForStatus({ database, statusId, text })
+
+    // Re-detect the content language alongside the edit; the previous
+    // detection (if any) is stale once the text changes.
+    const detected = detectLanguage(text)
+    if (detected) {
+      await database.setDetectedLanguage({
+        statusId,
+        language: detected.language,
+        confidence: detected.confidence
+      })
+    }
+
     updatedStatus = (await database.getStatus({ statusId })) ?? updatedStatus
   }
 

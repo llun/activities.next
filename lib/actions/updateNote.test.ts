@@ -99,6 +99,24 @@ describe('Update note action', () => {
       })
     })
 
+    it('re-detects the content language when the edited text changes', async () => {
+      if (!actor1) fail('Actor1 is required')
+      const statusId = `${actor1.id}/statuses/post-1`
+
+      const status = (await updateNoteFromUserInput({
+        statusId,
+        currentActor: actor1,
+        database,
+        text: 'สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร',
+        language: 'en'
+      })) as Status
+
+      expect(status).toMatchObject({
+        language: 'en',
+        detectedLanguage: 'th'
+      })
+    })
+
     it('updates content warning without changing text', async () => {
       if (!actor1) fail('Actor1 is required')
       const statusId = `${actor1.id}/statuses/post-1`

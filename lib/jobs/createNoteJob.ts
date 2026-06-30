@@ -13,6 +13,7 @@ import {
   getSummary,
   getTags
 } from '@/lib/activities/note'
+import { detectLanguageFromHtml } from '@/lib/services/language-detection'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import {
   ArticleContent,
@@ -103,6 +104,19 @@ export const createNoteJob = createJobHandle(
         createdAt: publishedAt
       })
     ])
+
+    // Content-detected language, stored separately from the declared
+    // `language` above so the Translate gate can fall back to it when a
+    // remote note's declared/default language doesn't match its actual
+    // content (e.g. mislabeled or untagged posts).
+    const detected = detectLanguageFromHtml(text)
+    if (detected) {
+      await database.setDetectedLanguage({
+        statusId: status.id,
+        language: detected.language,
+        confidence: detected.confidence
+      })
+    }
 
     const tags = getTags(note)
 

@@ -10,6 +10,7 @@ import {
 } from '@/lib/actions/createNote'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
+import { detectLanguage } from '@/lib/services/language-detection'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Actor, getMention } from '@/lib/types/domain/actor'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
@@ -121,6 +122,18 @@ export const createPollFromUserInput = async ({
     applicationName: application?.name ?? null,
     applicationWebsite: application?.website ?? null
   })
+
+  // Content-detected language, stored separately from the declared `language`
+  // above so the Translate gate can fall back to it when the author's
+  // declared/default language doesn't match what they actually wrote.
+  const detected = detectLanguage(text)
+  if (detected) {
+    await database.setDetectedLanguage({
+      statusId,
+      language: detected.language,
+      confidence: detected.confidence
+    })
+  }
 
   await Promise.all([
     addStatusToTimelines(database, createdPoll),

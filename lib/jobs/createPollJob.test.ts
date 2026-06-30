@@ -156,6 +156,28 @@ describe('createPollJob', () => {
     expect(status?.language).toEqual('th')
   })
 
+  it('stores a content-detected language that overrides a mislabeled declared language', async () => {
+    const question = MockActivityPubQuestion({
+      id: `https://somewhere.test/actors/pollcreator/questions/detected-thai-${Date.now()}`,
+      // Declared as English, but the content itself is unambiguously Thai —
+      // the mislabeled-post scenario the Translate gate needs to recover from.
+      content:
+        '<p>สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร</p>',
+      contentMap: {
+        en: '<p>สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร</p>'
+      }
+    })
+    await createPollJob(database, {
+      id: 'id-poll-detected-thai',
+      name: CREATE_POLL_JOB_NAME,
+      data: question
+    })
+
+    const status = await database.getStatus({ statusId: question.id })
+    expect(status?.language).toEqual('en')
+    expect(status?.detectedLanguage).toEqual('th')
+  })
+
   it('does not create polls from blocked actor domains', async () => {
     const question = MockActivityPubQuestion({
       id: 'https://blocked-poll.test/questions/1',

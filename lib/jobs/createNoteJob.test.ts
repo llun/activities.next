@@ -285,6 +285,29 @@ describe('createNoteJob', () => {
     expect(status.language).toEqual('th')
   })
 
+  it('stores a content-detected language that overrides a mislabeled declared language', async () => {
+    const note = MockMastodonActivityPubNote({
+      id: `https://${actor1!.domain}/notes/detected-thai-${Date.now()}`,
+      // Declared as English (the mock's default contentMap key), but the
+      // content itself is unambiguously Thai — the mislabeled-post scenario
+      // the Translate gate needs to recover from.
+      content:
+        '<p>สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร</p>'
+    })
+    await createNoteJob(database, {
+      id: 'id-detected-thai',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note
+    })
+
+    const status = (await database.getStatus({ statusId: note.id })) as Status
+    if (status.type !== StatusType.enum.Note) {
+      fail('Status type must be note')
+    }
+    expect(status.language).toEqual('en')
+    expect(status.detectedLanguage).toEqual('th')
+  })
+
   it('adds note with single content map when contentMap is array', async () => {
     const note = MockMastodonActivityPubNote({
       content: '<p>Hello</p>',
