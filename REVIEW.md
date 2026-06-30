@@ -164,6 +164,15 @@ change doesn't touch.
   `docs/plans/`, `docs/specs/`, `docs/pr-screenshots/` scratch dirs — that belongs
   in the PR description.
 
+## Mastodon and Fediverse Interoperability Quirks
+
+When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD contexts, note the following deliberate deviations from standard web best practices required for Fediverse interoperability in this codebase:
+
+- **Actor URIs vs. Opaque IDs:** `account.url` maps to the full Actor URI (e.g., `https://domain/users/username`), while `account.id` is an opaque, colon-encoded identifier (e.g., `domain:users:username`). Do not flag `account.url` as a profile URL that should be replaced with `account.id` for Actor URI lookups; doing so causes 404s in follow request routes.
+- **Schema.org Namespace:** The JSON-LD `@context` must use `http://schema.org#` (not `https://schema.org#`). Mastodon strictly maps the `schema` prefix to the non-standard `http://schema.org#` base. Changing to HTTPS breaks JSON-LD compaction and silently drops profile fields like `PropertyValue`.
+- **Internal API CORS:** Next.js API routes exclusively consumed by the internal web client (e.g., via `lib/client.ts`) do not require `OPTIONS` handlers or CORS preflight configurations, even if they use `apiResponse` with `allowedMethods`.
+- **Conditional Object Spreading:** Spreading `null` in object literals (e.g., `...(cond ? { ... } : null)`) is a deliberate, consistent no-op pattern used to cleanly omit keys and should not be flagged as confusing or replaced with `{}`.
+
 ## Commits & versioning
 
 - Every commit subject starts with a conventional prefix (`fix:`, `feat:`,
