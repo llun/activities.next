@@ -4,6 +4,7 @@ import {
 } from '@/lib/actions/utils'
 import {
   getContent,
+  getLanguage,
   getReply,
   getSummary,
   getTags
@@ -47,6 +48,10 @@ export const createPollJob = createJobHandle(
 
     const text = getContent(question)
     const summary = getSummary(question)
+    // Mirror createNoteJob: resolve the poll's declared language from its
+    // content/summary locale maps so polls carry it like notes do, which lets
+    // the Translate control appear on polls too.
+    const language = getLanguage(question)
     const pollType = question.oneOf
       ? 'oneOf'
       : question.anyOf
@@ -82,6 +87,7 @@ export const createPollJob = createJobHandle(
         reply: getReply(question.inReplyTo) || '',
         choices,
         pollType,
+        language,
         endAt: question.endTime
           ? new Date(question.endTime).getTime()
           : new Date(question.published).getTime() +
