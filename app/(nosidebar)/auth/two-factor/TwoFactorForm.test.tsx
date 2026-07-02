@@ -42,6 +42,16 @@ describe('TwoFactorForm', () => {
     })
   })
 
+  it('submits with method="post" so the verification code stays out of the URL', () => {
+    render(<TwoFactorForm redirectBack="/" />)
+
+    const form = screen
+      .getByRole('button', { name: 'Verify and sign in' })
+      .closest('form')
+    expect(form).not.toBeNull()
+    expect(form).toHaveAttribute('method', 'post')
+  })
+
   it('verifies an authenticator code and redirects back', async () => {
     mockVerifyTotp.mockResolvedValue({ data: { token: 'token' } })
 

@@ -64,7 +64,10 @@ export const TwoFactorForm: FC<Props> = ({ redirectBack }) => {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    // method="post" keeps the verification/backup code out of the URL if the
+    // form is submitted before hydration or without JS (a method-less form
+    // defaults to GET, which would append the code as a query parameter).
+    <form onSubmit={handleSubmit} method="post" className="space-y-5">
       <div className="grid grid-cols-2 rounded-md border bg-muted p-1">
         <button
           type="button"

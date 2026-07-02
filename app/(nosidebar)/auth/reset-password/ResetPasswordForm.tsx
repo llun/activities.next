@@ -77,7 +77,10 @@ export const ResetPasswordForm: FC<Props> = ({ initialCode }) => {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    // method="post" keeps the reset code and new password out of the URL if the
+    // form is submitted before hydration or without JS (a method-less form
+    // defaults to GET, which would serialize them into the query string).
+    <form onSubmit={handleSubmit} method="post" className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="code">Reset Code</Label>
         <Input
