@@ -62,7 +62,7 @@ export const ChangePasswordForm: FC = () => {
     // method="post" is defense-in-depth: these inputs are controlled and have no
     // `name`, so a native (pre-hydration/no-JS) submit sends nothing today, but a
     // method-less <form> defaults to GET — POST keeps the current/new password out
-    // of the URL if a `name` attribute is ever added for autofill.
+    // of the URL if a `name` attribute is added later.
     <form onSubmit={handleSubmit} method="post" className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="currentPassword">Current Password</Label>
