@@ -6,10 +6,13 @@ import { usePathname } from 'next/navigation'
 
 import { type NavItem, buildNavItems } from '@/lib/components/layout/nav-items'
 import { NotificationBadge } from '@/lib/components/notification-badge/NotificationBadge'
+import { ThemeControl } from '@/lib/components/theme'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/lib/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
@@ -137,6 +140,19 @@ export function MobileNav({
                     </DropdownMenuItem>
                   )
                 })}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                  Theme
+                </DropdownMenuLabel>
+                {/* Quick-access theme switcher. The segments are plain buttons,
+                    not menu items, so stop propagation to keep the sheet open
+                    while switching. */}
+                <div
+                  className="px-2 py-1.5"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <ThemeControl variant="compact" />
+                </div>
               </DropdownMenuContent>
             </DropdownMenu>
           </li>
