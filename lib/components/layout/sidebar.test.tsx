@@ -6,7 +6,6 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { ReactElement } from 'react'
 
 import { Sidebar } from '@/lib/components/layout/sidebar'
-import { ThemeProvider } from '@/lib/components/theme'
 
 const mockPathname = vi.fn(() => '/lists')
 vi.mock('next/navigation', () => ({
@@ -17,10 +16,7 @@ vi.mock('@/lib/components/actor-switcher/ActorSwitcher', () => ({
   ActorSwitcher: () => <div data-testid="actor-switcher" />
 }))
 
-// The sidebar footer hosts the compact ThemeControl, which reads ThemeProvider
-// context, so every render is wrapped just like the real app (root layout).
-const renderSidebar = (ui: ReactElement) =>
-  render(<ThemeProvider>{ui}</ThemeProvider>)
+const renderSidebar = (ui: ReactElement) => render(ui)
 
 const lists = [
   { id: 'a', title: 'Running club' },
