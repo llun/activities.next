@@ -408,6 +408,45 @@ describe('PushSubscription Database', () => {
         expect(sub).toBeNull()
       })
 
+      it('does not return a token-owned subscription to a tokenless (web-session) lookup', async () => {
+        // A web-session request (no bearer token) must stay in the tokenless
+        // partition and never surface a native client's token-owned row —
+        // otherwise it would detect an endpoint mismatch and clobber it.
+        const actorId = 'https://example.com/users/push-tokenless-scope'
+        await database.createPushSubscription({
+          actorId,
+          endpoint: 'https://push.example.com/endpoint/native-only',
+          p256dh: 'k',
+          auth: 'a',
+          accessToken: 'native-token'
+        })
+
+        const sub = await database.getPushSubscriptionForActor({ actorId })
+        expect(sub).toBeNull()
+      })
+
+      it('returns the tokenless row to a tokenless lookup even when a token row is newer', async () => {
+        const actorId = 'https://example.com/users/push-tokenless-partition'
+        const webEndpoint = 'https://push.example.com/endpoint/web-session'
+        await database.createPushSubscription({
+          actorId,
+          endpoint: webEndpoint,
+          p256dh: 'k',
+          auth: 'a'
+        })
+        // Native client registers later, so its row is the most-recent overall.
+        await database.createPushSubscription({
+          actorId,
+          endpoint: 'https://push.example.com/endpoint/native-newer',
+          p256dh: 'k',
+          auth: 'a',
+          accessToken: 'native-token'
+        })
+
+        const sub = await database.getPushSubscriptionForActor({ actorId })
+        expect(sub?.endpoint).toBe(webEndpoint)
+      })
+
       it('returns each token its own subscription regardless of recency', async () => {
         const actorId = 'https://example.com/users/push-get-scoped'
         const endpointA = 'https://push.example.com/endpoint/get-scoped-a'

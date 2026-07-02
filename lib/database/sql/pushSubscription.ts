@@ -92,15 +92,21 @@ export const parseStoredAlerts = (raw: string | null): PushAlerts => {
 }
 
 // Resolves "the caller's subscription" per the Mastodon spec (one subscription
-// per access token). When a token is supplied, only that token's own row can
-// match — never another token's row and never a legacy tokenless row. Scoping
-// strictly to the token is what stops multiple clients (web, iOS, …) from
-// reading, updating, or deleting each other's subscriptions. Legacy tokenless
-// rows (created before the accessToken column, or by web-session requests) are
-// not adopted here; POST migrates them instead, since its endpoint-keyed
-// upsert reassigns ownership when a client re-registers the same endpoint with
-// its token. Tokenless (web-session) lookups keep the most-recent-for-actor
-// behavior, as they have no token to scope by.
+// per access token). Token-scoped and tokenless requests live in disjoint
+// partitions so neither can touch the other's rows — which is what stops
+// multiple clients (web, iOS, …) from reading, updating, or deleting each
+// other's subscriptions:
+//   - With a token, only that token's own row matches — never another token's
+//     row and never a legacy tokenless row.
+//   - Without a token (web-session), only tokenless rows match (accessToken
+//     NULL) — never a native client's token-owned row. If a web-session
+//     lookup fell through to the most-recent row across all tokens, it could
+//     retrieve/delete a native client's subscription and re-introduce the
+//     clobbering this fixes.
+// Legacy tokenless rows (created before the accessToken column) are not
+// adopted by a token here; POST migrates them instead, since its
+// endpoint-keyed upsert reassigns ownership when a client re-registers the
+// same endpoint with its token.
 const findOwnedSubscription = (
   database: Knex,
   {
@@ -117,6 +123,8 @@ const findOwnedSubscription = (
   }
   if (accessToken) {
     query.andWhere({ accessToken })
+  } else {
+    query.whereNull('accessToken')
   }
   return query.orderBy('updatedAt', 'desc').first()
 }
