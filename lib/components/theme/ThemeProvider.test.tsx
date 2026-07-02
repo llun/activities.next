@@ -71,7 +71,12 @@ describe('ThemeProvider', () => {
   it('ignores storage events for unrelated keys', () => {
     localStorage.setItem(THEME_STORAGE_KEY, 'light')
     renderProvider()
+    // Change the stored value first, then fire an event for an unrelated key:
+    // the handler must ignore it and NOT adopt the new 'dark' value. (Without
+    // the key guard it would re-read localStorage and flip to dark, so this
+    // assertion actually exercises the guard.)
     act(() => {
+      localStorage.setItem(THEME_STORAGE_KEY, 'dark')
       window.dispatchEvent(new StorageEvent('storage', { key: 'other-key' }))
     })
     expect(screen.getByTestId('theme')).toHaveTextContent('light')

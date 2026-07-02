@@ -113,5 +113,13 @@ describe('theme-core', () => {
       expect(document.documentElement.classList.contains('dark')).toBe(true)
       expect(document.documentElement.style.colorScheme).toBe('dark')
     })
+
+    it('clears dark for a light preference (catches an always-dark regression)', () => {
+      document.documentElement.classList.add('dark')
+      localStorage.setItem(THEME_STORAGE_KEY, 'light')
+      new Function(THEME_INIT_SCRIPT)()
+      expect(document.documentElement.classList.contains('dark')).toBe(false)
+      expect(document.documentElement.style.colorScheme).toBe('light')
+    })
   })
 })
