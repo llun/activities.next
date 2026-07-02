@@ -4,12 +4,19 @@
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { usePathname } from 'next/navigation'
+import { ReactElement } from 'react'
 
 import { MobileNav } from '@/lib/components/layout/mobile-nav'
+import { ThemeProvider } from '@/lib/components/theme'
 
 vi.mock('next/navigation', () => ({
   usePathname: vi.fn()
 }))
+
+// The overflow "More" sheet hosts the compact ThemeControl, which reads
+// ThemeProvider context, so every render is wrapped just like the real app.
+const renderMobileNav = (ui: ReactElement) =>
+  render(<ThemeProvider>{ui}</ThemeProvider>)
 
 describe('MobileNav', () => {
   beforeEach(() => {
@@ -17,7 +24,7 @@ describe('MobileNav', () => {
   })
 
   it('keeps extra navigation items accessible from the overflow menu', async () => {
-    render(<MobileNav fitnessUrl="/@llun@llun.test/fitness" isAdmin />)
+    renderMobileNav(<MobileNav fitnessUrl="/@llun@llun.test/fitness" isAdmin />)
 
     const nav = screen.getByRole('navigation')
     // The bottom bar uses compact labels: Timeline -> Home, Notifications ->
@@ -76,8 +83,28 @@ describe('MobileNav', () => {
     )
   })
 
+  it('exposes the theme options as accessible radio items in the More menu', async () => {
+    renderMobileNav(<MobileNav fitnessUrl="/@llun@llun.test/fitness" isAdmin />)
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More navigation' }), {
+      key: 'ArrowDown'
+    })
+
+    // Rendered as menuitemradio (not plain buttons) so they are reachable via
+    // the menu's roving keyboard focus and valid inside the role=menu container.
+    expect(
+      await screen.findByRole('menuitemradio', { name: /light/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('menuitemradio', { name: /dark/i })
+    ).toBeInTheDocument()
+    const system = screen.getByRole('menuitemradio', { name: /system/i })
+    // System is the default when nothing is persisted.
+    expect(system).toHaveAttribute('aria-checked', 'true')
+  })
+
   it('uses compact labels (Home, Alerts) for the bottom-bar direct items', () => {
-    render(<MobileNav />)
+    renderMobileNav(<MobileNav />)
 
     const nav = screen.getByRole('navigation')
     expect(within(nav).getByText('Home')).toBeInTheDocument()
@@ -88,7 +115,7 @@ describe('MobileNav', () => {
   })
 
   it('orders Profile before account entries in the overflow menu', async () => {
-    render(
+    renderMobileNav(
       <MobileNav
         fitnessUrl="/@llun@llun.test/fitness"
         profileUrl="/@llun@llun.test"
@@ -119,7 +146,7 @@ describe('MobileNav', () => {
   })
 
   it('places Profile before Admin in the overflow menu (no fitness)', async () => {
-    render(<MobileNav profileUrl="/@llun@llun.test" isAdmin />)
+    renderMobileNav(<MobileNav profileUrl="/@llun@llun.test" isAdmin />)
 
     fireEvent.keyDown(screen.getByRole('button', { name: 'More navigation' }), {
       key: 'ArrowDown'
@@ -139,7 +166,7 @@ describe('MobileNav', () => {
   })
 
   it('places Profile before Account in the overflow menu (no admin)', async () => {
-    render(<MobileNav profileUrl="/@llun@llun.test" />)
+    renderMobileNav(<MobileNav profileUrl="/@llun@llun.test" />)
 
     fireEvent.keyDown(screen.getByRole('button', { name: 'More navigation' }), {
       key: 'ArrowDown'
@@ -160,7 +187,7 @@ describe('MobileNav', () => {
   })
 
   it('adds a Profile entry to the overflow menu when profileUrl is provided', async () => {
-    render(<MobileNav profileUrl="/@llun@llun.test" />)
+    renderMobileNav(<MobileNav profileUrl="/@llun@llun.test" />)
 
     const nav = screen.getByRole('navigation')
     // Profile lives in the overflow, never as a direct item.
@@ -179,7 +206,7 @@ describe('MobileNav', () => {
   })
 
   it('omits the Profile entry when no profileUrl is provided', async () => {
-    render(<MobileNav />)
+    renderMobileNav(<MobileNav />)
 
     fireEvent.keyDown(screen.getByRole('button', { name: 'More navigation' }), {
       key: 'ArrowDown'

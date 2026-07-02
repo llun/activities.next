@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { PageHeader } from '@/lib/components/page-header'
 import { DeleteActorSection } from '@/lib/components/settings/DeleteActorSection'
 import { ImageUploadField } from '@/lib/components/settings/ImageUploadField'
+import { ThemeControl } from '@/lib/components/theme'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
@@ -49,7 +50,18 @@ const Page = async () => {
           <div>
             <h2 className="text-lg font-semibold">Appearance</h2>
             <p className="text-sm text-muted-foreground">
-              Customize how posts appear on your timeline.
+              Theme for this device, and how posts appear on your timeline.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <div className="text-sm font-medium">Theme</div>
+            {/* Device-local preference (persisted in localStorage), so it saves
+                instantly and sits outside the Update/Cancel form flow below. */}
+            <ThemeControl variant="full" />
+            <p className="text-[0.8rem] text-muted-foreground">
+              System follows this device&apos;s setting. Saved instantly on this
+              device — no Update needed.
             </p>
           </div>
 
