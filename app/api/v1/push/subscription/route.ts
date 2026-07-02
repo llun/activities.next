@@ -53,7 +53,7 @@ const getServerKey = () => getConfig().push?.vapidPublicKey ?? ''
 // token), so GET/PUT/DELETE must operate on the requesting token's own row —
 // not the actor's most-recent one — or multiple clients (web, iOS, …) end up
 // reading and deleting each other's subscriptions. Undefined for web-session
-// requests, which fall back to per-actor behavior.
+// requests, which are scoped to the actor's tokenless subscriptions instead.
 const getAccessToken = (req: NextRequest): string | undefined =>
   getTokenFromHeader(req.headers.get('Authorization')) ?? undefined
 
