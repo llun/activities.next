@@ -1,5 +1,4 @@
 export { ThemeControl } from './ThemeControl'
-export { ThemeMenuItems } from './ThemeMenuItems'
 export { ThemeProvider, useTheme } from './ThemeProvider'
 export {
   THEME_INIT_SCRIPT,
