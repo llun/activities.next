@@ -16,6 +16,10 @@ describe('ThemeControl', () => {
   afterEach(() => {
     localStorage.clear()
     document.documentElement.classList.remove('dark')
+    // Reset color-scheme too: clicking a segment sets it via applyTheme, and
+    // leaking it across files could affect other suites (matches the reset in
+    // the sibling ThemeProvider/theme-core tests).
+    document.documentElement.style.colorScheme = ''
   })
 
   it('renders the three theme options in the labelled group', () => {
