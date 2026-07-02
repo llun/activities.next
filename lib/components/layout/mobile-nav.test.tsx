@@ -83,6 +83,26 @@ describe('MobileNav', () => {
     )
   })
 
+  it('exposes the theme options as accessible radio items in the More menu', async () => {
+    renderMobileNav(<MobileNav fitnessUrl="/@llun@llun.test/fitness" isAdmin />)
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More navigation' }), {
+      key: 'ArrowDown'
+    })
+
+    // Rendered as menuitemradio (not plain buttons) so they are reachable via
+    // the menu's roving keyboard focus and valid inside the role=menu container.
+    expect(
+      await screen.findByRole('menuitemradio', { name: /light/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('menuitemradio', { name: /dark/i })
+    ).toBeInTheDocument()
+    const system = screen.getByRole('menuitemradio', { name: /system/i })
+    // System is the default when nothing is persisted.
+    expect(system).toHaveAttribute('aria-checked', 'true')
+  })
+
   it('uses compact labels (Home, Alerts) for the bottom-bar direct items', () => {
     renderMobileNav(<MobileNav />)
 

@@ -6,12 +6,11 @@ import { usePathname } from 'next/navigation'
 
 import { type NavItem, buildNavItems } from '@/lib/components/layout/nav-items'
 import { NotificationBadge } from '@/lib/components/notification-badge/NotificationBadge'
-import { ThemeControl } from '@/lib/components/theme'
+import { ThemeMenuItems } from '@/lib/components/theme'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/lib/components/ui/dropdown-menu'
@@ -141,23 +140,11 @@ export function MobileNav({
                   )
                 })}
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                  Theme
-                </DropdownMenuLabel>
-                {/* Quick-access theme switcher. The segments are plain buttons,
-                    not menu items, so keep pointer and keyboard interaction local
-                    to the switcher: otherwise Radix's menu keyboard manager would
-                    steal Space/Enter/arrow keys or close the sheet. Escape still
-                    bubbles so it can close the sheet. */}
-                <div
-                  className="px-2 py-1.5"
-                  onClick={(event) => event.stopPropagation()}
-                  onKeyDown={(event) => {
-                    if (event.key !== 'Escape') event.stopPropagation()
-                  }}
-                >
-                  <ThemeControl variant="compact" />
-                </div>
+                {/* Quick-access theme switcher as menu radio items: reachable via
+                    the menu's roving keyboard focus and valid ARIA inside the
+                    role=menu container (a nested segmented control would be
+                    keyboard-unreachable here). */}
+                <ThemeMenuItems />
               </DropdownMenuContent>
             </DropdownMenu>
           </li>
