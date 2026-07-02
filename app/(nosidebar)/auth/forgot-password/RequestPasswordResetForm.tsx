@@ -53,7 +53,7 @@ export const RequestPasswordResetForm: FC = () => {
     // method="post" is defense-in-depth. The email input is controlled and has
     // no `name`, so a native (pre-hydration/no-JS) submit sends nothing today, but
     // a method-less <form> defaults to GET — POST guards against the email
-    // reaching the URL if a `name`/autocomplete attribute is added later.
+    // reaching the URL if a `name` attribute is added later.
     <form onSubmit={handleSubmit} method="post" className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="email">Email</Label>

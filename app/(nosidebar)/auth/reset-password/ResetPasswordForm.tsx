@@ -80,7 +80,7 @@ export const ResetPasswordForm: FC<Props> = ({ initialCode }) => {
     // method="post" is defense-in-depth. These inputs are controlled and have no
     // `name`, so a native (pre-hydration/no-JS) submit sends nothing today, but a
     // method-less <form> defaults to GET — POST keeps the reset code and new
-    // password out of the URL if a `name`/autocomplete attribute is added later.
+    // password out of the URL if a `name` attribute is added later.
     <form onSubmit={handleSubmit} method="post" className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="code">Reset Code</Label>

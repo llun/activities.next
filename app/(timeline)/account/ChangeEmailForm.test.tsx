@@ -10,7 +10,7 @@ describe('ChangeEmailForm', () => {
   it('renders the form with method="post" (defense-in-depth against a native GET submit)', () => {
     // Controlled, unnamed input means a native submit sends nothing today, but a
     // method-less <form> defaults to GET; POST keeps the email out of the URL if a
-    // `name`/autocomplete attribute is added later.
+    // `name` attribute is added later.
     const { container } = render(
       <ChangeEmailForm currentEmail="user@example.com" />
     )

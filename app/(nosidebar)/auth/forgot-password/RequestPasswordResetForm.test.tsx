@@ -9,7 +9,7 @@ import { RequestPasswordResetForm } from './RequestPasswordResetForm'
 describe('RequestPasswordResetForm', () => {
   it('renders the form with method="post" (defense-in-depth against a native GET submit)', () => {
     // The email input is controlled and unnamed, so a native submit sends nothing
-    // today; method="post" guards against a `name`/autocomplete addition later,
+    // today; method="post" guards against a `name` addition later,
     // since a method-less <form> defaults to GET.
     render(<RequestPasswordResetForm />)
 

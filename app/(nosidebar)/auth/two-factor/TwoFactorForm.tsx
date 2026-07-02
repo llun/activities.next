@@ -67,7 +67,7 @@ export const TwoFactorForm: FC<Props> = ({ redirectBack }) => {
     // method="post" is defense-in-depth. The code input is controlled and has no
     // `name`, so a native (pre-hydration/no-JS) submit sends nothing today, but a
     // method-less <form> defaults to GET — POST keeps the verification/backup code
-    // out of the URL if a `name`/autocomplete attribute is added later.
+    // out of the URL if a `name` attribute is added later.
     <form onSubmit={handleSubmit} method="post" className="space-y-5">
       <div className="grid grid-cols-2 rounded-md border bg-muted p-1">
         <button

@@ -70,7 +70,7 @@ export const ChangeEmailForm: FC<Props> = ({ currentEmail: _currentEmail }) => {
     // method="post" is defense-in-depth: this input is controlled and has no
     // `name`, so a native (pre-hydration/no-JS) submit sends nothing today, but a
     // method-less <form> defaults to GET — POST keeps the email out of the URL if
-    // a `name`/autocomplete attribute is ever added for autofill.
+    // a `name` attribute is ever added for autofill.
     <form onSubmit={handleSubmit} method="post" className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="newEmail">New Email Address</Label>
