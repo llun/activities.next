@@ -3,8 +3,10 @@
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, within } from '@testing-library/react'
+import { ReactElement } from 'react'
 
 import { Sidebar } from '@/lib/components/layout/sidebar'
+import { ThemeProvider } from '@/lib/components/theme'
 
 const mockPathname = vi.fn(() => '/lists')
 vi.mock('next/navigation', () => ({
@@ -14,6 +16,11 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/lib/components/actor-switcher/ActorSwitcher', () => ({
   ActorSwitcher: () => <div data-testid="actor-switcher" />
 }))
+
+// The sidebar footer hosts the compact ThemeControl, which reads ThemeProvider
+// context, so every render is wrapped just like the real app (root layout).
+const renderSidebar = (ui: ReactElement) =>
+  render(<ThemeProvider>{ui}</ThemeProvider>)
 
 const lists = [
   { id: 'a', title: 'Running club' },
@@ -26,7 +33,7 @@ describe('Sidebar', () => {
   })
 
   it('expands the Lists group into the user lists by default on a lists route', () => {
-    render(<Sidebar lists={lists} />)
+    renderSidebar(<Sidebar lists={lists} />)
 
     const nav = screen.getAllByRole('navigation')[0]
     expect(
@@ -38,7 +45,7 @@ describe('Sidebar', () => {
   })
 
   it('collapses and re-expands the Lists group on toggle', () => {
-    render(<Sidebar lists={lists} />)
+    renderSidebar(<Sidebar lists={lists} />)
 
     const nav = screen.getAllByRole('navigation')[0]
     fireEvent.click(within(nav).getByRole('button', { name: 'Collapse lists' }))
@@ -54,7 +61,7 @@ describe('Sidebar', () => {
 
   it('renders Lists as a plain link when the user has no lists', () => {
     mockPathname.mockReturnValue('/')
-    render(<Sidebar lists={[]} />)
+    renderSidebar(<Sidebar lists={[]} />)
 
     const nav = screen.getAllByRole('navigation')[0]
     expect(within(nav).getByRole('link', { name: 'Lists' })).toHaveAttribute(

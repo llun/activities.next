@@ -49,6 +49,11 @@
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
 
+  /* Raised active segment for segmented controls (the theme switcher), exposed
+     as the `bg-control-active` utility. It lifts above the --muted track; in
+     dark mode it steps up with lightness instead of shadow (surface ramp). */
+  --color-control-active: var(--control-active);
+
   /* Unified desktop content width. Every top-level page in the (timeline)
      route group centers its content (and its page-header title row) at this
      single width, so the column stays aligned as you switch tabs. Exposed as
@@ -77,6 +82,10 @@
   --border: hsl(0 0% 89.8%);
   --input: hsl(0 0% 89.8%);
   --ring: hsl(24 95% 46%);
+
+  /* Raised active segment for the theme switcher: white on the light-grey
+     (--muted) track. */
+  --control-active: hsl(0 0% 100%);
 
   /* Link colors for markdown content */
   --link-color: oklch(0.588 0.158 241.966);
@@ -120,15 +129,22 @@
   --primary-foreground: hsl(0 0% 100%);
   --secondary: hsl(0 0% 14.9%);
   --secondary-foreground: hsl(0 0% 98%);
-  --muted: hsl(0 0% 14.9%);
+  /* Dark surface ramp expresses elevation with lightness, not shadow: muted
+     insets/tracks sit above the card, hairline borders one step above their
+     surface (18%), and input borders one step above that (24%). */
+  --muted: hsl(0 0% 17%);
   --muted-foreground: hsl(0 0% 63.9%);
   --accent: hsl(0 0% 14.9%);
   --accent-foreground: hsl(0 0% 98%);
   --destructive: hsl(0 62.8% 30.6%);
   --destructive-foreground: hsl(0 0% 98%);
-  --border: hsl(0 0% 14.9%);
-  --input: hsl(0 0% 14.9%);
+  --border: hsl(0 0% 18%);
+  --input: hsl(0 0% 24%);
   --ring: hsl(24 95% 46%);
+
+  /* The raised active segment sits ~13% above the --muted track (elevation via
+     lightness, not shadow). */
+  --control-active: hsl(0 0% 30%);
 
   /* Link colors for markdown content */
   --link-color: oklch(0.746 0.16 232.661);
@@ -175,16 +191,18 @@
     background-repeat: no-repeat;
   }
 
+  /* Dark mode keeps the signature dual-radial geometry but desaturates and
+     dims the tints so the brand backdrop reads on the near-black canvas. */
   .dark body {
     background-image:
       radial-gradient(
         1200px 600px at 10% -10%,
-        hsl(24 35% 18% / 0.6),
+        hsl(24 45% 14% / 0.55),
         transparent 60%
       ),
       radial-gradient(
         900px 600px at 90% -10%,
-        hsl(210 25% 18% / 0.6),
+        hsl(200 40% 14% / 0.55),
         transparent 55%
       );
   }
