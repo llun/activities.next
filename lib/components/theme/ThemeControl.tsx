@@ -66,7 +66,7 @@ export const ThemeControl: FC<ThemeControlProps> = ({
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            <Icon className="size-4" aria-hidden />
+            <Icon className="size-4" aria-hidden="true" />
             {!compact && <span>{label}</span>}
           </button>
         )

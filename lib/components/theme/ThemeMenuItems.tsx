@@ -37,7 +37,7 @@ export const ThemeMenuItems: FC = () => {
       >
         {OPTIONS.map(({ mode, label, Icon }) => (
           <DropdownMenuRadioItem key={mode} value={mode}>
-            <Icon className="size-4" aria-hidden />
+            <Icon className="size-4" aria-hidden="true" />
             {label}
           </DropdownMenuRadioItem>
         ))}
