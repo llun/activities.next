@@ -12,7 +12,6 @@ import {
 import { Logo } from '@/lib/components/layout/logo'
 import { buildNavItems } from '@/lib/components/layout/nav-items'
 import { NotificationBadge } from '@/lib/components/notification-badge/NotificationBadge'
-import { ThemeControl } from '@/lib/components/theme'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import {
   Tooltip,
@@ -182,12 +181,6 @@ export function Sidebar({
             })}
           </ul>
         </nav>
-
-        {/* Theme switcher — the compact pill for tight chrome, in the sidebar
-            footer just above the account row. */}
-        <div className="border-t px-4 py-3">
-          <ThemeControl variant="compact" />
-        </div>
 
         {currentActor && actors.length > 0 ? (
           <div className="border-t p-4">
