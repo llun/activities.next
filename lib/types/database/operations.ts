@@ -2712,6 +2712,10 @@ export type UpdatePushSubscriptionParams = {
   endpoint?: string
   alerts?: Partial<PushAlerts>
   policy?: PushPolicy
+  // Scope the update to the subscription owned by this access token (per the
+  // Mastodon spec, one subscription per token). Without it the update falls
+  // back to the actor's most-recent subscription.
+  accessToken?: string
 }
 
 export type DeletePushSubscriptionParams = {
@@ -2725,6 +2729,10 @@ export type GetPushSubscriptionsForActorParams = {
 
 export type GetPushSubscriptionForActorParams = {
   actorId: string
+  // Return the subscription owned by this access token (per the Mastodon
+  // spec, one subscription per token). Without it the lookup falls back to
+  // the actor's most-recent subscription.
+  accessToken?: string
 }
 
 export interface PushSubscriptionDatabase {

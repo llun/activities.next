@@ -124,6 +124,94 @@ describe('PushSubscription Database', () => {
         expect(sub.alerts['admin.report']).toBe(false)
       })
 
+      it('updates the stored access token when the same endpoint is re-registered under a new token', async () => {
+        const actorId = 'https://example.com/users/push-token-transfer'
+        const endpoint = 'https://push.example.com/endpoint/token-transfer'
+        await database.createPushSubscription({
+          actorId,
+          endpoint,
+          p256dh: 'k',
+          auth: 'a',
+          accessToken: 'old-token'
+        })
+
+        const updated = await database.createPushSubscription({
+          actorId,
+          endpoint,
+          p256dh: 'k2',
+          auth: 'a2',
+          accessToken: 'new-token'
+        })
+
+        expect(updated.accessToken).toBe('new-token')
+      })
+
+      it('replaces the same token subscription when its endpoint changes', async () => {
+        const actorId = 'https://example.com/users/push-rotation'
+        const oldEndpoint = 'https://push.example.com/endpoint/rotation-old'
+        const newEndpoint = 'https://push.example.com/endpoint/rotation-new'
+        const otherEndpoint = 'https://push.example.com/endpoint/rotation-other'
+        const legacyEndpoint =
+          'https://push.example.com/endpoint/rotation-legacy'
+        await database.createPushSubscription({
+          actorId,
+          endpoint: oldEndpoint,
+          p256dh: 'k',
+          auth: 'a',
+          accessToken: 'rotating-token'
+        })
+        await database.createPushSubscription({
+          actorId,
+          endpoint: otherEndpoint,
+          p256dh: 'k',
+          auth: 'a',
+          accessToken: 'other-token'
+        })
+        await database.createPushSubscription({
+          actorId,
+          endpoint: legacyEndpoint,
+          p256dh: 'k',
+          auth: 'a'
+        })
+
+        await database.createPushSubscription({
+          actorId,
+          endpoint: newEndpoint,
+          p256dh: 'k',
+          auth: 'a',
+          accessToken: 'rotating-token'
+        })
+
+        const endpoints = (
+          await database.getPushSubscriptionsForActor({ actorId })
+        ).map((sub) => sub.endpoint)
+        // The rotated token keeps a single subscription; other clients'
+        // subscriptions (another token, a legacy tokenless row) survive.
+        expect(endpoints).not.toContain(oldEndpoint)
+        expect(endpoints).toContain(newEndpoint)
+        expect(endpoints).toContain(otherEndpoint)
+        expect(endpoints).toContain(legacyEndpoint)
+      })
+
+      it('does not delete other subscriptions when created without a token', async () => {
+        const actorId = 'https://example.com/users/push-tokenless-create'
+        const endpoints = [
+          'https://push.example.com/endpoint/tokenless-1',
+          'https://push.example.com/endpoint/tokenless-2'
+        ]
+        for (const endpoint of endpoints) {
+          await database.createPushSubscription({
+            actorId,
+            endpoint,
+            p256dh: 'k',
+            auth: 'a'
+          })
+        }
+
+        const subs = await database.getPushSubscriptionsForActor({ actorId })
+        expect(subs).toHaveLength(2)
+      })
+
       it('persists provided alerts, policy and standard', async () => {
         const sub = await database.createPushSubscription({
           actorId: actor1Id,
@@ -197,6 +285,69 @@ describe('PushSubscription Database', () => {
         })
         expect(updated).toBeNull()
       })
+
+      it('updates only the requesting token subscription, leaving other clients untouched', async () => {
+        const actorId = 'https://example.com/users/push-update-scoped'
+        const endpointA = 'https://push.example.com/endpoint/update-scoped-a'
+        const endpointB = 'https://push.example.com/endpoint/update-scoped-b'
+        await database.createPushSubscription({
+          actorId,
+          endpoint: endpointA,
+          p256dh: 'k',
+          auth: 'a',
+          alerts: { mention: true },
+          policy: 'all',
+          accessToken: 'token-a'
+        })
+        await database.createPushSubscription({
+          actorId,
+          endpoint: endpointB,
+          p256dh: 'k',
+          auth: 'a',
+          alerts: { mention: true },
+          policy: 'all',
+          accessToken: 'token-b'
+        })
+
+        const updated = await database.updatePushSubscription({
+          actorId,
+          alerts: { favourite: true },
+          policy: 'followed',
+          accessToken: 'token-a'
+        })
+
+        expect(updated?.endpoint).toBe(endpointA)
+        expect(updated?.alerts.favourite).toBe(true)
+        expect(updated?.alerts.mention).toBe(false)
+        expect(updated?.policy).toBe('followed')
+
+        const other = (
+          await database.getPushSubscriptionsForActor({ actorId })
+        ).find((sub) => sub.endpoint === endpointB)
+        expect(other?.alerts.mention).toBe(true)
+        expect(other?.alerts.favourite).toBe(false)
+        expect(other?.policy).toBe('all')
+      })
+
+      it('claims a legacy tokenless subscription when updating with a token', async () => {
+        const actorId = 'https://example.com/users/push-update-claim'
+        const endpoint = 'https://push.example.com/endpoint/update-claim'
+        await database.createPushSubscription({
+          actorId,
+          endpoint,
+          p256dh: 'k',
+          auth: 'a'
+        })
+
+        const updated = await database.updatePushSubscription({
+          actorId,
+          policy: 'follower',
+          accessToken: 'claiming-token'
+        })
+
+        expect(updated?.endpoint).toBe(endpoint)
+        expect(updated?.accessToken).toBe('claiming-token')
+      })
     })
 
     describe('getPushSubscriptionForActor', () => {
@@ -217,6 +368,71 @@ describe('PushSubscription Database', () => {
       it('returns null when the actor has no subscription', async () => {
         const sub = await database.getPushSubscriptionForActor({
           actorId: 'https://example.com/users/no-sub-actor'
+        })
+        expect(sub).toBeNull()
+      })
+
+      it('returns each token its own subscription regardless of recency', async () => {
+        const actorId = 'https://example.com/users/push-get-scoped'
+        const endpointA = 'https://push.example.com/endpoint/get-scoped-a'
+        const endpointB = 'https://push.example.com/endpoint/get-scoped-b'
+        await database.createPushSubscription({
+          actorId,
+          endpoint: endpointA,
+          p256dh: 'k',
+          auth: 'a',
+          accessToken: 'token-a'
+        })
+        await database.createPushSubscription({
+          actorId,
+          endpoint: endpointB,
+          p256dh: 'k',
+          auth: 'a',
+          accessToken: 'token-b'
+        })
+
+        const subA = await database.getPushSubscriptionForActor({
+          actorId,
+          accessToken: 'token-a'
+        })
+        const subB = await database.getPushSubscriptionForActor({
+          actorId,
+          accessToken: 'token-b'
+        })
+        expect(subA?.endpoint).toBe(endpointA)
+        expect(subB?.endpoint).toBe(endpointB)
+      })
+
+      it('falls back to a legacy tokenless subscription when the token has none', async () => {
+        const actorId = 'https://example.com/users/push-get-legacy'
+        const endpoint = 'https://push.example.com/endpoint/get-legacy'
+        await database.createPushSubscription({
+          actorId,
+          endpoint,
+          p256dh: 'k',
+          auth: 'a'
+        })
+
+        const sub = await database.getPushSubscriptionForActor({
+          actorId,
+          accessToken: 'unseen-token'
+        })
+        expect(sub?.endpoint).toBe(endpoint)
+      })
+
+      it('never returns another token subscription for an unknown token', async () => {
+        const actorId = 'https://example.com/users/push-get-other-token'
+        await database.createPushSubscription({
+          actorId,
+          endpoint: 'https://push.example.com/endpoint/get-other-token',
+          p256dh: 'k',
+          auth: 'a',
+          accessToken: 'token-owner'
+        })
+
+        const sub = await database.getPushSubscriptionForActor({
+          actorId,
+          accessToken: 'unseen-token'
         })
         expect(sub).toBeNull()
       })
