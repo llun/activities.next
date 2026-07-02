@@ -229,6 +229,26 @@ describe('GET /api/v1/push/subscription', () => {
     const res = await GET(req, { params: Promise.resolve({}) })
     expect(res.status).toBe(404)
   })
+
+  it('scopes the lookup to the requesting bearer token', async () => {
+    const req = new NextRequest('http://localhost/api/v1/push/subscription', {
+      headers: { Authorization: 'Bearer token-a' }
+    })
+    await GET(req, { params: Promise.resolve({}) })
+    expect(mockDatabase!.getPushSubscriptionForActor).toHaveBeenCalledWith({
+      actorId: ACTOR1_ID,
+      accessToken: 'token-a'
+    })
+  })
+
+  it('passes no token for web-session requests', async () => {
+    const req = new NextRequest('http://localhost/api/v1/push/subscription')
+    await GET(req, { params: Promise.resolve({}) })
+    expect(mockDatabase!.getPushSubscriptionForActor).toHaveBeenCalledWith({
+      actorId: ACTOR1_ID,
+      accessToken: undefined
+    })
+  })
 })
 
 describe('PUT /api/v1/push/subscription', () => {
@@ -276,6 +296,22 @@ describe('PUT /api/v1/push/subscription', () => {
     expect(mockDatabase!.updatePushSubscription).not.toHaveBeenCalled()
   })
 
+  it('scopes the update to the requesting bearer token', async () => {
+    const req = new NextRequest('http://localhost/api/v1/push/subscription', {
+      method: 'PUT',
+      body: JSON.stringify({ data: { policy: 'followed' } }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost',
+        Authorization: 'Bearer token-a'
+      }
+    })
+    await PUT(req, { params: Promise.resolve({}) })
+    expect(mockDatabase!.updatePushSubscription).toHaveBeenCalledWith(
+      expect.objectContaining({ actorId: ACTOR1_ID, accessToken: 'token-a' })
+    )
+  })
+
   it('returns 404 when there is no subscription to update', async () => {
     mockDatabase!.updatePushSubscription = vi.fn().mockResolvedValue(null)
     const req = new NextRequest('http://localhost/api/v1/push/subscription', {
@@ -303,6 +339,30 @@ describe('DELETE /api/v1/push/subscription', () => {
     expect(body).toEqual({})
     expect(mockDatabase!.deletePushSubscription).toHaveBeenCalledWith({
       endpoint,
+      actorId: ACTOR1_ID
+    })
+  })
+
+  it('deletes the requesting token own subscription', async () => {
+    const tokenEndpoint = 'https://push.example.com/endpoint/token-a'
+    mockDatabase!.getPushSubscriptionForActor = vi
+      .fn()
+      .mockResolvedValue({ ...storedSubscription, endpoint: tokenEndpoint })
+    const req = new NextRequest('http://localhost/api/v1/push/subscription', {
+      method: 'DELETE',
+      headers: {
+        Origin: 'http://localhost',
+        Authorization: 'Bearer token-a'
+      }
+    })
+    const res = await DELETE(req, { params: Promise.resolve({}) })
+    expect(res.status).toBe(200)
+    expect(mockDatabase!.getPushSubscriptionForActor).toHaveBeenCalledWith({
+      actorId: ACTOR1_ID,
+      accessToken: 'token-a'
+    })
+    expect(mockDatabase!.deletePushSubscription).toHaveBeenCalledWith({
+      endpoint: tokenEndpoint,
       actorId: ACTOR1_ID
     })
   })

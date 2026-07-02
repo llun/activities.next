@@ -49,6 +49,14 @@ const requirePushConfig = (req: NextRequest): Response | null => {
 
 const getServerKey = () => getConfig().push?.vapidPublicKey ?? ''
 
+// Mastodon scopes push subscriptions per access token (one subscription per
+// token), so GET/PUT/DELETE must operate on the requesting token's own row —
+// not the actor's most-recent one — or multiple clients (web, iOS, …) end up
+// reading and deleting each other's subscriptions. Undefined for web-session
+// requests, which are scoped to the actor's tokenless subscriptions instead.
+const getAccessToken = (req: NextRequest): string | undefined =>
+  getTokenFromHeader(req.headers.get('Authorization')) ?? undefined
+
 const readBody = async (
   req: Parameters<typeof getRequestBody>[0]
 ): Promise<Record<string, unknown> | null> => {
@@ -88,9 +96,9 @@ export const POST = traceApiRoute(
         policy: parsed.policy,
         standard: parsed.standard,
         // Store the bearer token so the Mastodon Web Push payload can include
-        // it as `access_token`. Null for web-session requests (no bearer token).
-        accessToken:
-          getTokenFromHeader(req.headers.get('Authorization')) ?? undefined
+        // it as `access_token` and so GET/PUT/DELETE can find this token's
+        // subscription. Null for web-session requests (no bearer token).
+        accessToken: getAccessToken(req)
       })
 
       return apiResponse({
@@ -113,7 +121,8 @@ export const GET = traceApiRoute(
       if (pushDisabled) return pushDisabled
 
       const subscription = await database.getPushSubscriptionForActor({
-        actorId: currentActor.id
+        actorId: currentActor.id,
+        accessToken: getAccessToken(req)
       })
       if (!subscription) {
         return apiResponse({
@@ -163,7 +172,8 @@ export const PUT = traceApiRoute(
       const subscription = await database.updatePushSubscription({
         actorId: currentActor.id,
         alerts: Object.keys(parsedAlerts).length > 0 ? parsedAlerts : undefined,
-        policy: parsePolicyInput(body)
+        policy: parsePolicyInput(body),
+        accessToken: getAccessToken(req)
       })
       if (!subscription) {
         return apiResponse({
@@ -191,7 +201,8 @@ export const DELETE = traceApiRoute(
     [Scope.enum.push],
     async (req, { currentActor, database }) => {
       const subscription = await database.getPushSubscriptionForActor({
-        actorId: currentActor.id
+        actorId: currentActor.id,
+        accessToken: getAccessToken(req)
       })
       if (subscription) {
         await database.deletePushSubscription({

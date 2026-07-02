@@ -124,6 +124,119 @@ describe('PushSubscription Database', () => {
         expect(sub.alerts['admin.report']).toBe(false)
       })
 
+      it('updates the stored access token when the same endpoint is re-registered under a new token', async () => {
+        const actorId = 'https://example.com/users/push-token-transfer'
+        const endpoint = 'https://push.example.com/endpoint/token-transfer'
+        await database.createPushSubscription({
+          actorId,
+          endpoint,
+          p256dh: 'k',
+          auth: 'a',
+          accessToken: 'old-token'
+        })
+
+        const updated = await database.createPushSubscription({
+          actorId,
+          endpoint,
+          p256dh: 'k2',
+          auth: 'a2',
+          accessToken: 'new-token'
+        })
+
+        expect(updated.accessToken).toBe('new-token')
+      })
+
+      it('claims a legacy tokenless subscription when its endpoint is re-registered with a token', async () => {
+        // The sole migration path for pre-token rows: a client re-POSTs the
+        // same endpoint carrying its bearer token, and the endpoint-keyed
+        // upsert assigns ownership. This replaces the old read/update/delete
+        // NULL fallback.
+        const actorId = 'https://example.com/users/push-legacy-claim'
+        const endpoint = 'https://push.example.com/endpoint/legacy-claim'
+        await database.createPushSubscription({
+          actorId,
+          endpoint,
+          p256dh: 'k',
+          auth: 'a'
+        })
+
+        const claimed = await database.createPushSubscription({
+          actorId,
+          endpoint,
+          p256dh: 'k',
+          auth: 'a',
+          accessToken: 'claiming-token'
+        })
+
+        expect(claimed.accessToken).toBe('claiming-token')
+      })
+
+      it('replaces the same token subscription when its endpoint changes', async () => {
+        const actorId = 'https://example.com/users/push-rotation'
+        const oldEndpoint = 'https://push.example.com/endpoint/rotation-old'
+        const newEndpoint = 'https://push.example.com/endpoint/rotation-new'
+        const otherEndpoint = 'https://push.example.com/endpoint/rotation-other'
+        const legacyEndpoint =
+          'https://push.example.com/endpoint/rotation-legacy'
+        await database.createPushSubscription({
+          actorId,
+          endpoint: oldEndpoint,
+          p256dh: 'k',
+          auth: 'a',
+          accessToken: 'rotating-token'
+        })
+        await database.createPushSubscription({
+          actorId,
+          endpoint: otherEndpoint,
+          p256dh: 'k',
+          auth: 'a',
+          accessToken: 'other-token'
+        })
+        await database.createPushSubscription({
+          actorId,
+          endpoint: legacyEndpoint,
+          p256dh: 'k',
+          auth: 'a'
+        })
+
+        await database.createPushSubscription({
+          actorId,
+          endpoint: newEndpoint,
+          p256dh: 'k',
+          auth: 'a',
+          accessToken: 'rotating-token'
+        })
+
+        const endpoints = (
+          await database.getPushSubscriptionsForActor({ actorId })
+        ).map((sub) => sub.endpoint)
+        // The rotated token keeps a single subscription; other clients'
+        // subscriptions (another token, a legacy tokenless row) survive.
+        expect(endpoints).not.toContain(oldEndpoint)
+        expect(endpoints).toContain(newEndpoint)
+        expect(endpoints).toContain(otherEndpoint)
+        expect(endpoints).toContain(legacyEndpoint)
+      })
+
+      it('does not delete other subscriptions when created without a token', async () => {
+        const actorId = 'https://example.com/users/push-tokenless-create'
+        const endpoints = [
+          'https://push.example.com/endpoint/tokenless-1',
+          'https://push.example.com/endpoint/tokenless-2'
+        ]
+        for (const endpoint of endpoints) {
+          await database.createPushSubscription({
+            actorId,
+            endpoint,
+            p256dh: 'k',
+            auth: 'a'
+          })
+        }
+
+        const subs = await database.getPushSubscriptionsForActor({ actorId })
+        expect(subs).toHaveLength(2)
+      })
+
       it('persists provided alerts, policy and standard', async () => {
         const sub = await database.createPushSubscription({
           actorId: actor1Id,
@@ -197,6 +310,80 @@ describe('PushSubscription Database', () => {
         })
         expect(updated).toBeNull()
       })
+
+      it('updates only the requesting token subscription, leaving other clients untouched', async () => {
+        const actorId = 'https://example.com/users/push-update-scoped'
+        const endpointA = 'https://push.example.com/endpoint/update-scoped-a'
+        const endpointB = 'https://push.example.com/endpoint/update-scoped-b'
+        await database.createPushSubscription({
+          actorId,
+          endpoint: endpointA,
+          p256dh: 'k',
+          auth: 'a',
+          alerts: { mention: true },
+          policy: 'all',
+          accessToken: 'token-a'
+        })
+        await database.createPushSubscription({
+          actorId,
+          endpoint: endpointB,
+          p256dh: 'k',
+          auth: 'a',
+          alerts: { mention: true },
+          policy: 'all',
+          accessToken: 'token-b'
+        })
+
+        const updated = await database.updatePushSubscription({
+          actorId,
+          alerts: { favourite: true },
+          policy: 'followed',
+          accessToken: 'token-a'
+        })
+
+        expect(updated?.endpoint).toBe(endpointA)
+        expect(updated?.alerts.favourite).toBe(true)
+        expect(updated?.alerts.mention).toBe(false)
+        expect(updated?.policy).toBe('followed')
+
+        const other = (
+          await database.getPushSubscriptionsForActor({ actorId })
+        ).find((sub) => sub.endpoint === endpointB)
+        expect(other?.alerts.mention).toBe(true)
+        expect(other?.alerts.favourite).toBe(false)
+        expect(other?.policy).toBe('all')
+      })
+
+      it('does not touch a legacy tokenless subscription when updating with a token that owns none', async () => {
+        // A token must never mutate a row it does not own — including a legacy
+        // NULL-token row belonging to another client. The update is a no-op
+        // (null) and the legacy row's preferences are left intact.
+        const actorId = 'https://example.com/users/push-update-no-claim'
+        const endpoint = 'https://push.example.com/endpoint/update-no-claim'
+        await database.createPushSubscription({
+          actorId,
+          endpoint,
+          p256dh: 'k',
+          auth: 'a',
+          alerts: { mention: true },
+          policy: 'all'
+        })
+
+        const updated = await database.updatePushSubscription({
+          actorId,
+          policy: 'follower',
+          accessToken: 'unowned-token'
+        })
+
+        expect(updated).toBeNull()
+
+        const legacy = (
+          await database.getPushSubscriptionsForActor({ actorId })
+        ).find((sub) => sub.endpoint === endpoint)
+        expect(legacy?.policy).toBe('all')
+        expect(legacy?.alerts.mention).toBe(true)
+        expect(legacy?.accessToken).toBeUndefined()
+      })
     })
 
     describe('getPushSubscriptionForActor', () => {
@@ -217,6 +404,120 @@ describe('PushSubscription Database', () => {
       it('returns null when the actor has no subscription', async () => {
         const sub = await database.getPushSubscriptionForActor({
           actorId: 'https://example.com/users/no-sub-actor'
+        })
+        expect(sub).toBeNull()
+      })
+
+      it('does not return a token-owned subscription to a tokenless (web-session) lookup', async () => {
+        // A web-session request (no bearer token) must stay in the tokenless
+        // partition and never surface a native client's token-owned row —
+        // otherwise it would detect an endpoint mismatch and clobber it.
+        const actorId = 'https://example.com/users/push-tokenless-scope'
+        await database.createPushSubscription({
+          actorId,
+          endpoint: 'https://push.example.com/endpoint/native-only',
+          p256dh: 'k',
+          auth: 'a',
+          accessToken: 'native-token'
+        })
+
+        const sub = await database.getPushSubscriptionForActor({ actorId })
+        expect(sub).toBeNull()
+      })
+
+      it('returns the tokenless row to a tokenless lookup even when a token row is newer', async () => {
+        const actorId = 'https://example.com/users/push-tokenless-partition'
+        const webEndpoint = 'https://push.example.com/endpoint/web-session'
+        await database.createPushSubscription({
+          actorId,
+          endpoint: webEndpoint,
+          p256dh: 'k',
+          auth: 'a'
+        })
+        // Native client registers later, so its row is the most-recent overall.
+        await database.createPushSubscription({
+          actorId,
+          endpoint: 'https://push.example.com/endpoint/native-newer',
+          p256dh: 'k',
+          auth: 'a',
+          accessToken: 'native-token'
+        })
+
+        const sub = await database.getPushSubscriptionForActor({ actorId })
+        expect(sub?.endpoint).toBe(webEndpoint)
+      })
+
+      it('returns each token its own subscription regardless of recency', async () => {
+        const actorId = 'https://example.com/users/push-get-scoped'
+        const endpointA = 'https://push.example.com/endpoint/get-scoped-a'
+        const endpointB = 'https://push.example.com/endpoint/get-scoped-b'
+        await database.createPushSubscription({
+          actorId,
+          endpoint: endpointA,
+          p256dh: 'k',
+          auth: 'a',
+          accessToken: 'token-a'
+        })
+        await database.createPushSubscription({
+          actorId,
+          endpoint: endpointB,
+          p256dh: 'k',
+          auth: 'a',
+          accessToken: 'token-b'
+        })
+
+        const subA = await database.getPushSubscriptionForActor({
+          actorId,
+          accessToken: 'token-a'
+        })
+        const subB = await database.getPushSubscriptionForActor({
+          actorId,
+          accessToken: 'token-b'
+        })
+        expect(subA?.endpoint).toBe(endpointA)
+        expect(subB?.endpoint).toBe(endpointB)
+      })
+
+      it('does not return a legacy tokenless subscription to a token that owns none', async () => {
+        // A token-scoped GET must never surface a row it does not own (a
+        // legacy NULL-token row belongs to another client). Returning it would
+        // report the wrong endpoint and re-trigger the cross-client re-sync
+        // this change fixes.
+        const actorId = 'https://example.com/users/push-get-legacy'
+        const endpoint = 'https://push.example.com/endpoint/get-legacy'
+        await database.createPushSubscription({
+          actorId,
+          endpoint,
+          p256dh: 'k',
+          auth: 'a'
+        })
+
+        const sub = await database.getPushSubscriptionForActor({
+          actorId,
+          accessToken: 'unseen-token'
+        })
+        expect(sub).toBeNull()
+
+        // The legacy row is still reachable by a tokenless (web-session) lookup.
+        const tokenless = await database.getPushSubscriptionForActor({
+          actorId
+        })
+        expect(tokenless?.endpoint).toBe(endpoint)
+      })
+
+      it('never returns another token subscription for an unknown token', async () => {
+        const actorId = 'https://example.com/users/push-get-other-token'
+        await database.createPushSubscription({
+          actorId,
+          endpoint: 'https://push.example.com/endpoint/get-other-token',
+          p256dh: 'k',
+          auth: 'a',
+          accessToken: 'token-owner'
+        })
+
+        const sub = await database.getPushSubscriptionForActor({
+          actorId,
+          accessToken: 'unseen-token'
         })
         expect(sub).toBeNull()
       })
