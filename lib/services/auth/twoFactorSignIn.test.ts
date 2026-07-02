@@ -9,14 +9,16 @@ import { getSQLDatabase } from '@/lib/database/sql'
 import { Database } from '@/lib/database/types'
 
 // Boot the real better-auth instance (with the two-factor plugin) against an
-// in-memory SQLite database built from the committed schema dump, and drive the
-// full 2FA lifecycle end to end: enable -> verify -> fresh sign-in challenge ->
-// verify. This is the regression guard for the "Invalid two factor cookie" bug:
-// better-auth's two-factor plugin writes `failedVerificationCount`/`lockedUntil`
-// on the `twoFactor` table, and when those columns are missing from the schema,
-// `enable`/`verify-totp` throw a 500 that leaves the sign-in challenge in a state
-// where the retry fails with INVALID_TWO_FACTOR_COOKIE. If the schema dump drifts
-// away from the migrations again, the final verification here fails.
+// in-memory SQLite database built from the committed schema dump — the same way
+// the rest of the SQL suite builds its schema (see lib/database/testUtils.ts),
+// which loads migrations/schema.sqlite.sql rather than running the migration
+// chain — and drive the full 2FA lifecycle end to end: enable -> verify -> fresh
+// sign-in challenge -> verify. This is the regression guard for the "Invalid two
+// factor cookie" bug: better-auth's two-factor plugin writes
+// `failedVerificationCount`/`lockedUntil` on the `twoFactor` table, so if those
+// columns are absent from migrations/schema.sqlite.sql — e.g. a migration landed
+// without the dump being regenerated in lockstep (see AGENTS.md) — `enable` /
+// `verify-totp` throw a 500 and the final verification here fails.
 const HOST = 'test.example.com'
 const BASE_URL = `https://${HOST}`
 const EMAIL = 'twofactor@example.com'

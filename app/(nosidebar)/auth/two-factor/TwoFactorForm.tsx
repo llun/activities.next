@@ -64,9 +64,10 @@ export const TwoFactorForm: FC<Props> = ({ redirectBack }) => {
   }
 
   return (
-    // method="post" keeps the verification/backup code out of the URL if the
-    // form is submitted before hydration or without JS (a method-less form
-    // defaults to GET, which would append the code as a query parameter).
+    // method="post" is defense-in-depth. The code input is controlled and has no
+    // `name`, so a native (pre-hydration/no-JS) submit sends nothing today, but a
+    // method-less <form> defaults to GET — POST keeps the verification/backup code
+    // out of the URL if a `name`/autocomplete attribute is added later.
     <form onSubmit={handleSubmit} method="post" className="space-y-5">
       <div className="grid grid-cols-2 rounded-md border bg-muted p-1">
         <button

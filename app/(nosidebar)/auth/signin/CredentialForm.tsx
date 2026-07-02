@@ -80,12 +80,14 @@ export const CredentialForm: FC<Props> = ({ providerName }) => {
   }
 
   return (
-    // method="post" is a safety net: this is a client-driven form (handleSubmit
-    // calls preventDefault), but if it is submitted before hydration or with JS
-    // disabled the browser falls back to a native submit. A form with no method
-    // defaults to GET, which would serialize the email and password into the URL
-    // query string (leaking them into history, logs, and Referer). Forcing POST
-    // keeps credentials in the request body in every case.
+    // method="post" is required here, not just defense-in-depth: unlike the other
+    // auth forms, these inputs are uncontrolled and NAMED (name="email"/"password",
+    // read via FormData), so they ARE successful form controls. handleSubmit calls
+    // preventDefault, but if the form is submitted before hydration or with JS
+    // disabled the browser falls back to a native submit, and a method-less <form>
+    // defaults to GET — serializing the email and password into the URL query
+    // string (leaking them into history, logs, and Referer). POST keeps the
+    // credentials in the request body in every case.
     <form onSubmit={handleSubmit} method="post" className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="inputEmail">Email</Label>

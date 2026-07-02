@@ -7,9 +7,10 @@ import { render, screen } from '@testing-library/react'
 import { ResetPasswordForm } from './ResetPasswordForm'
 
 describe('ResetPasswordForm', () => {
-  it('submits with method="post" so the reset code and password stay out of the URL', () => {
-    // A method-less <form> defaults to GET, which would serialize the reset code
-    // and new password into the URL if submitted before hydration or without JS.
+  it('renders the form with method="post" (defense-in-depth against a native GET submit)', () => {
+    // These inputs are controlled and unnamed, so a native submit sends nothing
+    // today; method="post" guards against a `name`/autocomplete addition later,
+    // since a method-less <form> defaults to GET.
     render(<ResetPasswordForm />)
 
     const form = screen

@@ -42,7 +42,7 @@ describe('TwoFactorForm', () => {
     })
   })
 
-  it('submits with method="post" so the verification code stays out of the URL', () => {
+  it('renders the form with method="post" (defense-in-depth against a native GET submit)', () => {
     render(<TwoFactorForm redirectBack="/" />)
 
     const form = screen
