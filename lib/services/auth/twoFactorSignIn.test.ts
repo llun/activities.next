@@ -119,7 +119,8 @@ describe('two-factor sign-in flow', () => {
       const index = pair.indexOf('=')
       const name = pair.slice(0, index).trim()
       const value = pair.slice(index + 1).trim()
-      if (value === '' || /expires=thu, 01 jan 1970/i.test(raw)) delete jar[name]
+      if (value === '' || /expires=thu, 01 jan 1970/i.test(raw))
+        delete jar[name]
       else jar[name] = value
     }
   }
@@ -181,8 +182,12 @@ describe('two-factor sign-in flow', () => {
     const enable = await post('/two-factor/enable', { password: PASSWORD })
     expect(enable.status).toBe(200)
     const totpURI = enable.json.totpURI as string
-    // The otpauth URI carries the base32-encoded secret; createOTP keys the HMAC
-    // on the raw secret, so decode it back before generating codes.
+    // The otpauth URI carries the base32-encoded secret. better-auth stores the
+    // secret as a string (`generateRandomString`, ASCII only) and createOTP keys
+    // the HMAC on that string — a non-string secret is forwarded to
+    // `crypto.subtle.sign` as an already-imported key, so a raw Uint8Array can't
+    // stand in. Decode the base32 bytes back into the original ASCII string; the
+    // round-trip is lossless because the secret is ASCII.
     const rawSecret = new TextDecoder().decode(
       base32.decode(new URL(totpURI).searchParams.get('secret') as string)
     )
