@@ -145,11 +145,16 @@ export function MobileNav({
                   Theme
                 </DropdownMenuLabel>
                 {/* Quick-access theme switcher. The segments are plain buttons,
-                    not menu items, so stop propagation to keep the sheet open
-                    while switching. */}
+                    not menu items, so keep pointer and keyboard interaction local
+                    to the switcher: otherwise Radix's menu keyboard manager would
+                    steal Space/Enter/arrow keys or close the sheet. Escape still
+                    bubbles so it can close the sheet. */}
                 <div
                   className="px-2 py-1.5"
                   onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Escape') event.stopPropagation()
+                  }}
                 >
                   <ThemeControl variant="compact" />
                 </div>
