@@ -16,8 +16,10 @@ const OPTIONS: { mode: ThemeMode; label: string; Icon: LucideIcon }[] = [
 ]
 
 interface ThemeControlProps {
-  // `full` is the labeled segmented control for Settings → Appearance; `compact`
-  // is the icon-only pill for tight chrome (sidebar footer, mobile More sheet).
+  // `full` is the labeled segmented control used in Settings → Appearance (the
+  // single home for the theme picker). `compact` is the icon-only pill for tight
+  // chrome; it has no production caller right now (the sidebar/mobile-nav
+  // placements were removed) and is retained for future tight-chrome reuse.
   variant?: 'full' | 'compact'
   className?: string
 }
