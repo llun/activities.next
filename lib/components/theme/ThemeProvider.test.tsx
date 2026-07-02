@@ -8,12 +8,11 @@ import { ThemeProvider, useTheme } from './ThemeProvider'
 import { THEME_STORAGE_KEY } from './theme-core'
 
 const Consumer = () => {
-  const { theme, isDark, mounted, setTheme } = useTheme()
+  const { theme, isDark, setTheme } = useTheme()
   return (
     <div>
       <span data-testid="theme">{theme}</span>
       <span data-testid="isDark">{String(isDark)}</span>
-      <span data-testid="mounted">{String(mounted)}</span>
       <button onClick={() => setTheme('dark')}>dark</button>
       <button onClick={() => setTheme('light')}>light</button>
     </div>
@@ -34,11 +33,10 @@ describe('ThemeProvider', () => {
     document.documentElement.style.colorScheme = ''
   })
 
-  it('reads the persisted theme on mount and marks itself mounted', () => {
+  it('reconciles the persisted theme from localStorage on mount', () => {
     localStorage.setItem(THEME_STORAGE_KEY, 'dark')
     renderProvider()
     expect(screen.getByTestId('theme')).toHaveTextContent('dark')
-    expect(screen.getByTestId('mounted')).toHaveTextContent('true')
   })
 
   it('applies the dark class and persists when set to dark', () => {

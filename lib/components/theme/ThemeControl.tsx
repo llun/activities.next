@@ -26,7 +26,7 @@ export const ThemeControl: FC<ThemeControlProps> = ({
   variant = 'full',
   className
 }) => {
-  const { theme, setTheme, mounted } = useTheme()
+  const { theme, setTheme } = useTheme()
   const compact = variant === 'compact'
 
   return (
@@ -41,11 +41,11 @@ export const ThemeControl: FC<ThemeControlProps> = ({
       )}
     >
       {OPTIONS.map(({ mode, label, Icon }) => {
-        // Gate the active highlight on `mounted`: the server can't know the
-        // per-device stored mode, so rendering it before hydration would
-        // mismatch. The visible page theme is already correct via the inline
-        // init script regardless.
-        const active = mounted && theme === mode
+        // `theme` is 'system' on both the server and the first client render, so
+        // this matches during hydration; the mount effect then swaps in the
+        // persisted value. No mounted gate needed (and gating would flash the
+        // System default off until hydration).
+        const active = theme === mode
         return (
           <button
             key={mode}

@@ -19,15 +19,12 @@ import {
 } from './theme-core'
 
 interface ThemeContextValue {
-  // The chosen mode: 'light' | 'dark' | 'system'.
+  // The chosen mode: 'light' | 'dark' | 'system'. Initialized to 'system' on the
+  // server and first client render, then reconciled from localStorage on mount.
   theme: ThemeMode
   // The resolved appearance (true when `.dark` is applied). In `system` mode
   // this tracks the OS setting live.
   isDark: boolean
-  // Set once the client effect has read the persisted choice. Consumers gate
-  // their active-state rendering on this to avoid a hydration mismatch, since
-  // the server can't know the per-device localStorage value.
-  mounted: boolean
   setTheme: (mode: ThemeMode) => void
 }
 
@@ -44,13 +41,11 @@ export const ThemeProvider: FC<ThemeProviderProps> = ({ children }) => {
   // THEME_INIT_SCRIPT set the `.dark` class before React hydrated.
   const [theme, setThemeState] = useState<ThemeMode>('system')
   const [isDark, setIsDark] = useState(false)
-  const [mounted, setMounted] = useState(false)
 
-  // Sync React state from the DOM/localStorage after hydration.
+  // Reconcile React state with the DOM/localStorage after hydration.
   useEffect(() => {
     setThemeState(getStoredTheme())
     setIsDark(document.documentElement.classList.contains('dark'))
-    setMounted(true)
   }, [])
 
   const setTheme = useCallback((mode: ThemeMode) => {
@@ -84,7 +79,7 @@ export const ThemeProvider: FC<ThemeProviderProps> = ({ children }) => {
   }, [])
 
   return (
-    <ThemeContext.Provider value={{ theme, isDark, mounted, setTheme }}>
+    <ThemeContext.Provider value={{ theme, isDark, setTheme }}>
       {children}
     </ThemeContext.Provider>
   )
