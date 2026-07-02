@@ -80,7 +80,13 @@ export const CredentialForm: FC<Props> = ({ providerName }) => {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    // method="post" is a safety net: this is a client-driven form (handleSubmit
+    // calls preventDefault), but if it is submitted before hydration or with JS
+    // disabled the browser falls back to a native submit. A form with no method
+    // defaults to GET, which would serialize the email and password into the URL
+    // query string (leaking them into history, logs, and Referer). Forcing POST
+    // keeps credentials in the request body in every case.
+    <form onSubmit={handleSubmit} method="post" className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="inputEmail">Email</Label>
         <Input name="email" type="email" id="inputEmail" />
