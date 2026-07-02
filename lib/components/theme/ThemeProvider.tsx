@@ -61,8 +61,13 @@ export const ThemeProvider: FC<ThemeProviderProps> = ({ children }) => {
     const onChange = () => {
       if (getStoredTheme() === 'system') setIsDark(applyTheme('system'))
     }
-    query.addEventListener('change', onChange)
-    return () => query.removeEventListener('change', onChange)
+    // Safari/iOS < 14 only implement the legacy addListener/removeListener API.
+    if (typeof query.addEventListener === 'function') {
+      query.addEventListener('change', onChange)
+      return () => query.removeEventListener('change', onChange)
+    }
+    query.addListener(onChange)
+    return () => query.removeListener(onChange)
   }, [])
 
   // Keep every open tab in sync: a change in one tab fires `storage` in the
