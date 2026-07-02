@@ -37,10 +37,13 @@ export default function RootLayout({
     // and `color-scheme` on <html> before hydration, so the server markup (no
     // class) legitimately differs from the client's first paint.
     <html lang="en" suppressHydrationWarning>
-      <body>
-        {/* Apply the persisted theme before first paint to avoid a light flash
-            for users who chose dark. Runs synchronously ahead of the bundle. */}
+      <head>
+        {/* Apply the persisted theme in <head> so it runs before the body is
+            parsed — eliminating any flash of light mode for dark-mode users.
+            Runs synchronously ahead of the bundle. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
+      <body>
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
