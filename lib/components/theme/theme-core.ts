@@ -50,6 +50,10 @@ export const resolveIsDark = (
 // Returns the resolved dark boolean for callers that track it in state.
 export const applyTheme = (mode: ThemeMode): boolean => {
   const dark = resolveIsDark(mode)
+  // Only ever called from client effects/handlers today, but guard the DOM
+  // access for SSR safety and consistency with the window/localStorage guards
+  // above so the helper stays safe if it is ever reused server-side.
+  if (typeof document === 'undefined') return dark
   const root = document.documentElement
   root.classList.toggle('dark', dark)
   root.style.colorScheme = dark ? 'dark' : 'light'
