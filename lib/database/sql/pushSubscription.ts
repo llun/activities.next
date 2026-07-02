@@ -91,6 +91,44 @@ export const parseStoredAlerts = (raw: string | null): PushAlerts => {
   }
 }
 
+// Resolves "the caller's subscription" per the Mastodon spec (one subscription
+// per access token). Token-scoped and tokenless requests live in disjoint
+// partitions so neither can touch the other's rows — which is what stops
+// multiple clients (web, iOS, …) from reading, updating, or deleting each
+// other's subscriptions:
+//   - With a token, only that token's own row matches — never another token's
+//     row and never a legacy tokenless row.
+//   - Without a token (web-session), only tokenless rows match (accessToken
+//     NULL) — never a native client's token-owned row. If a web-session
+//     lookup fell through to the most-recent row across all tokens, it could
+//     retrieve/delete a native client's subscription and re-introduce the
+//     clobbering this fixes.
+// Legacy tokenless rows (created before the accessToken column) are not
+// adopted by a token here; POST migrates them instead, since its
+// endpoint-keyed upsert reassigns ownership when a client re-registers the
+// same endpoint with its token.
+const findOwnedSubscription = (
+  database: Knex,
+  {
+    actorId,
+    endpoint,
+    accessToken
+  }: { actorId: string; endpoint?: string; accessToken?: string }
+): Promise<SQLPushSubscription | undefined> => {
+  const query = database<SQLPushSubscription>('push_subscriptions').where({
+    actorId
+  })
+  if (endpoint) {
+    query.andWhere({ endpoint })
+  }
+  if (accessToken) {
+    query.andWhere({ accessToken })
+  } else {
+    query.whereNull('accessToken')
+  }
+  return query.orderBy('updatedAt', 'desc').first()
+}
+
 const fixPushSubscription = (row: SQLPushSubscription): PushSubscription => ({
   id: row.id,
   actorId: row.actorId,
@@ -158,6 +196,17 @@ export const PushSubscriptionSQLDatabaseMixin = (
       .onConflict('endpoint')
       .merge(mergeValues)
 
+    // The Mastodon spec allows one subscription per access token, and a
+    // client re-subscribing after its push endpoint rotated (e.g. an iOS
+    // device token refresh) sends a new endpoint. Drop the token's rows for
+    // other endpoints so stale subscriptions don't accumulate.
+    if (accessToken) {
+      await database('push_subscriptions')
+        .where({ actorId, accessToken })
+        .whereNot({ endpoint })
+        .delete()
+    }
+
     const row = await database<SQLPushSubscription>('push_subscriptions')
       .where({ endpoint })
       .first()
@@ -169,15 +218,14 @@ export const PushSubscriptionSQLDatabaseMixin = (
     actorId,
     endpoint,
     alerts,
-    policy
+    policy,
+    accessToken
   }: UpdatePushSubscriptionParams): Promise<PushSubscription | null> {
-    const query = database<SQLPushSubscription>('push_subscriptions').where({
-      actorId
+    const existing = await findOwnedSubscription(database, {
+      actorId,
+      endpoint,
+      accessToken
     })
-    if (endpoint) {
-      query.andWhere({ endpoint })
-    }
-    const existing = await query.orderBy('updatedAt', 'desc').first()
     if (!existing) return null
 
     const update: Record<string, unknown> = { updatedAt: new Date() }
@@ -220,12 +268,10 @@ export const PushSubscriptionSQLDatabaseMixin = (
   },
 
   async getPushSubscriptionForActor({
-    actorId
+    actorId,
+    accessToken
   }: GetPushSubscriptionForActorParams): Promise<PushSubscription | null> {
-    const row = await database<SQLPushSubscription>('push_subscriptions')
-      .where({ actorId })
-      .orderBy('updatedAt', 'desc')
-      .first()
+    const row = await findOwnedSubscription(database, { actorId, accessToken })
     return row ? fixPushSubscription(row) : null
   },
 
