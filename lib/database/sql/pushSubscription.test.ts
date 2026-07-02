@@ -146,6 +146,31 @@ describe('PushSubscription Database', () => {
         expect(updated.accessToken).toBe('new-token')
       })
 
+      it('claims a legacy tokenless subscription when its endpoint is re-registered with a token', async () => {
+        // The sole migration path for pre-token rows: a client re-POSTs the
+        // same endpoint carrying its bearer token, and the endpoint-keyed
+        // upsert assigns ownership. This replaces the old read/update/delete
+        // NULL fallback.
+        const actorId = 'https://example.com/users/push-legacy-claim'
+        const endpoint = 'https://push.example.com/endpoint/legacy-claim'
+        await database.createPushSubscription({
+          actorId,
+          endpoint,
+          p256dh: 'k',
+          auth: 'a'
+        })
+
+        const claimed = await database.createPushSubscription({
+          actorId,
+          endpoint,
+          p256dh: 'k',
+          auth: 'a',
+          accessToken: 'claiming-token'
+        })
+
+        expect(claimed.accessToken).toBe('claiming-token')
+      })
+
       it('replaces the same token subscription when its endpoint changes', async () => {
         const actorId = 'https://example.com/users/push-rotation'
         const oldEndpoint = 'https://push.example.com/endpoint/rotation-old'
@@ -329,24 +354,35 @@ describe('PushSubscription Database', () => {
         expect(other?.policy).toBe('all')
       })
 
-      it('claims a legacy tokenless subscription when updating with a token', async () => {
-        const actorId = 'https://example.com/users/push-update-claim'
-        const endpoint = 'https://push.example.com/endpoint/update-claim'
+      it('does not touch a legacy tokenless subscription when updating with a token that owns none', async () => {
+        // A token must never mutate a row it does not own — including a legacy
+        // NULL-token row belonging to another client. The update is a no-op
+        // (null) and the legacy row's preferences are left intact.
+        const actorId = 'https://example.com/users/push-update-no-claim'
+        const endpoint = 'https://push.example.com/endpoint/update-no-claim'
         await database.createPushSubscription({
           actorId,
           endpoint,
           p256dh: 'k',
-          auth: 'a'
+          auth: 'a',
+          alerts: { mention: true },
+          policy: 'all'
         })
 
         const updated = await database.updatePushSubscription({
           actorId,
           policy: 'follower',
-          accessToken: 'claiming-token'
+          accessToken: 'unowned-token'
         })
 
-        expect(updated?.endpoint).toBe(endpoint)
-        expect(updated?.accessToken).toBe('claiming-token')
+        expect(updated).toBeNull()
+
+        const legacy = (
+          await database.getPushSubscriptionsForActor({ actorId })
+        ).find((sub) => sub.endpoint === endpoint)
+        expect(legacy?.policy).toBe('all')
+        expect(legacy?.alerts.mention).toBe(true)
+        expect(legacy?.accessToken).toBeUndefined()
       })
     })
 
@@ -403,7 +439,11 @@ describe('PushSubscription Database', () => {
         expect(subB?.endpoint).toBe(endpointB)
       })
 
-      it('falls back to a legacy tokenless subscription when the token has none', async () => {
+      it('does not return a legacy tokenless subscription to a token that owns none', async () => {
+        // A token-scoped GET must never surface a row it does not own (a
+        // legacy NULL-token row belongs to another client). Returning it would
+        // report the wrong endpoint and re-trigger the cross-client re-sync
+        // this change fixes.
         const actorId = 'https://example.com/users/push-get-legacy'
         const endpoint = 'https://push.example.com/endpoint/get-legacy'
         await database.createPushSubscription({
@@ -417,7 +457,13 @@ describe('PushSubscription Database', () => {
           actorId,
           accessToken: 'unseen-token'
         })
-        expect(sub?.endpoint).toBe(endpoint)
+        expect(sub).toBeNull()
+
+        // The legacy row is still reachable by a tokenless (web-session) lookup.
+        const tokenless = await database.getPushSubscriptionForActor({
+          actorId
+        })
+        expect(tokenless?.endpoint).toBe(endpoint)
       })
 
       it('never returns another token subscription for an unknown token', async () => {

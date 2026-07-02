@@ -91,13 +91,17 @@ export const parseStoredAlerts = (raw: string | null): PushAlerts => {
   }
 }
 
-// Resolves "the caller's subscription" per the Mastodon spec: when an access
-// token is supplied, only that token's row (or, failing that, a legacy row
-// created before tokens were stored — accessToken NULL) can match; another
-// token's subscription is never returned, so clients can't clobber each
-// other. Tokenless (web-session) lookups keep the most-recent-for-actor
-// behavior.
-const findOwnedSubscription = async (
+// Resolves "the caller's subscription" per the Mastodon spec (one subscription
+// per access token). When a token is supplied, only that token's own row can
+// match — never another token's row and never a legacy tokenless row. Scoping
+// strictly to the token is what stops multiple clients (web, iOS, …) from
+// reading, updating, or deleting each other's subscriptions. Legacy tokenless
+// rows (created before the accessToken column, or by web-session requests) are
+// not adopted here; POST migrates them instead, since its endpoint-keyed
+// upsert reassigns ownership when a client re-registers the same endpoint with
+// its token. Tokenless (web-session) lookups keep the most-recent-for-actor
+// behavior, as they have no token to scope by.
+const findOwnedSubscription = (
   database: Knex,
   {
     actorId,
@@ -105,23 +109,16 @@ const findOwnedSubscription = async (
     accessToken
   }: { actorId: string; endpoint?: string; accessToken?: string }
 ): Promise<SQLPushSubscription | undefined> => {
-  const baseQuery = () => {
-    const query = database<SQLPushSubscription>('push_subscriptions').where({
-      actorId
-    })
-    if (endpoint) {
-      query.andWhere({ endpoint })
-    }
-    return query.orderBy('updatedAt', 'desc')
+  const query = database<SQLPushSubscription>('push_subscriptions').where({
+    actorId
+  })
+  if (endpoint) {
+    query.andWhere({ endpoint })
   }
-
-  if (!accessToken) {
-    return baseQuery().first()
+  if (accessToken) {
+    query.andWhere({ accessToken })
   }
-
-  const owned = await baseQuery().andWhere({ accessToken }).first()
-  if (owned) return owned
-  return baseQuery().whereNull('accessToken').first()
+  return query.orderBy('updatedAt', 'desc').first()
 }
 
 const fixPushSubscription = (row: SQLPushSubscription): PushSubscription => ({
@@ -224,11 +221,6 @@ export const PushSubscriptionSQLDatabaseMixin = (
     if (!existing) return null
 
     const update: Record<string, unknown> = { updatedAt: new Date() }
-    // Claim legacy pre-token rows on write so they converge to token
-    // ownership and stop matching other tokens' NULL fallback.
-    if (accessToken) {
-      update.accessToken = accessToken
-    }
     if (alerts !== undefined) {
       // Mastodon's "change types" PUT replaces the alert set: alert flags not
       // included in the request are treated as false, not merged with the
