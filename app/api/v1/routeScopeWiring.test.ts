@@ -7,18 +7,28 @@
 
 const guardCalls: string[][] = []
 vi.mock('@/lib/services/guards/OAuthGuard', () => {
-  const wrap = (scopes: string[], ..._rest: unknown[]) => {
+  // Record the scope array and tag the returned handler with it so the
+  // per-method assertions below can read each exported method's own scopes.
+  const wrap = (scopes: string[], ..._rest: unknown[]) =>
+    Object.assign(() => new Response(null), { __scopes: scopes })
+  const record = (scopes: string[], ...rest: unknown[]) => {
     guardCalls.push(scopes)
-    return () => new Response(null)
+    return wrap(scopes, ...rest)
   }
   return {
-    OAuthGuard: wrap,
-    OAuthGuardAnyScope: wrap,
-    OptionalOAuthGuard: wrap,
-    OAuthAppGuard: wrap,
+    OAuthGuard: record,
+    OAuthGuardAnyScope: record,
+    OptionalOAuthGuard: record,
+    OAuthAppGuard: record,
     corsErrorResponse: () => () => new Response(null)
   }
 })
+
+// Pass traceApiRoute through so each exported method IS the tagged guard handler,
+// letting the per-method assertions read `mod[METHOD].__scopes`.
+vi.mock('@/lib/utils/traceApiRoute', () => ({
+  traceApiRoute: (_name: string, handler: unknown) => handler
+}))
 
 // Route module -> the exact set of scope strings it should pass across all its
 // guarded methods (deduped). Kept independent of the route source so a wrong
@@ -202,4 +212,44 @@ describe('OAuth scope guard wiring', () => {
       expect(unique(guardCalls.flat())).toEqual(unique(scopes))
     }
   )
+})
+
+// The union assertion above cannot tell a GET<->mutation scope swap apart on
+// multi-method routes (the flattened set is identical). Assert those routes
+// per exported method.
+type ScopedHandler = { __scopes?: string[] }
+const MULTI_METHOD: Array<{
+  module: string
+  methods: Record<string, string[]>
+}> = [
+  {
+    module: '@/app/api/v1/notifications/route',
+    methods: {
+      GET: ['read', 'read:notifications'],
+      POST: ['write', 'write:notifications']
+    }
+  },
+  {
+    module: '@/app/api/v1/notifications/[id]/route',
+    methods: {
+      GET: ['read', 'read:notifications'],
+      POST: ['write', 'write:notifications']
+    }
+  },
+  {
+    module: '@/app/api/v2/notifications/policy/route',
+    methods: {
+      GET: ['read', 'read:notifications'],
+      PATCH: ['write', 'write:notifications']
+    }
+  }
+]
+
+describe('multi-method route scopes are wired per method', () => {
+  it.each(MULTI_METHOD)('$module', async ({ module, methods }) => {
+    const mod = (await import(module)) as Record<string, ScopedHandler>
+    for (const [method, scopes] of Object.entries(methods)) {
+      expect(unique(mod[method]?.__scopes ?? [])).toEqual(unique(scopes))
+    }
+  })
 })
