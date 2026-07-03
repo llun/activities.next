@@ -1,8 +1,5 @@
 export type FitnessProcessingStatus =
-  | 'pending'
-  | 'processing'
-  | 'completed'
-  | 'failed'
+  'pending' | 'processing' | 'completed' | 'failed'
 
 export type FitnessImportStatus = 'pending' | 'completed' | 'failed'
 export type FitnessFileType = 'fit' | 'gpx' | 'tcx' | 'zip'

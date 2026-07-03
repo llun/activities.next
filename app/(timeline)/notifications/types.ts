@@ -12,10 +12,7 @@ import type { Status } from '@/lib/types/domain/status'
 //   - 'resolved' → the follow was withdrawn or is gone; show a neutral label.
 // The component also reuses these states for its own optimistic Approve/Reject.
 export type FollowRequestInitialStatus =
-  | 'pending'
-  | 'accepted'
-  | 'rejected'
-  | 'resolved'
+  'pending' | 'accepted' | 'rejected' | 'resolved'
 
 export interface NotificationWithAccount extends GroupedNotification {
   account: Mastodon.Account

@@ -25,13 +25,11 @@ export const GET = traceApiRoute(
       actorId: currentActor.id,
       limit
     })
-    const suggestions = accounts.map(
-      (account): Suggestion => ({
-        source: 'past_interactions',
-        sources: ['friends_of_friends'],
-        account
-      })
-    )
+    const suggestions = accounts.map((account): Suggestion => ({
+      source: 'past_interactions',
+      sources: ['friends_of_friends'],
+      account
+    }))
     return apiResponse({ req, allowedMethods: CORS_HEADERS, data: suggestions })
   })
 )

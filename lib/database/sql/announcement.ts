@@ -235,13 +235,11 @@ export const AnnouncementSQLDatabaseMixin = (
       .orderBy('announcementId')
       .orderBy('name')) as SQLReactionRollupRow[]
 
-    return rows.map(
-      (row): AnnouncementReactionRollup => ({
-        announcementId: row.announcementId,
-        name: row.name,
-        count: Number(row.count),
-        me: Number(row.mine) === 1
-      })
-    )
+    return rows.map((row): AnnouncementReactionRollup => ({
+      announcementId: row.announcementId,
+      name: row.name,
+      count: Number(row.count),
+      me: Number(row.mine) === 1
+    }))
   }
 })

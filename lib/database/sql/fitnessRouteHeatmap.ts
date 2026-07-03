@@ -557,12 +557,10 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
       .select('region', 'name')
       .orderBy('region', 'asc')
 
-    return rows.map(
-      (row): FitnessRouteHeatmapRegionName => ({
-        region: row.region,
-        name: row.name
-      })
-    )
+    return rows.map((row): FitnessRouteHeatmapRegionName => ({
+      region: row.region,
+      name: row.name
+    }))
   },
 
   async setFitnessRouteHeatmapRegionName({

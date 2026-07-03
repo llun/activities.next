@@ -127,12 +127,10 @@ export const LikeSQLDatabaseMixin = (database: Knex): LikeDatabase => ({
 
     const rows = await query
     const ordered = minId ? rows.reverse() : rows
-    return ordered.map(
-      (row): Like => ({
-        actorId: row.actorId,
-        statusId: row.statusId,
-        createdAt: getCompatibleTime(row.createdAt)
-      })
-    )
+    return ordered.map((row): Like => ({
+      actorId: row.actorId,
+      statusId: row.statusId,
+      createdAt: getCompatibleTime(row.createdAt)
+    }))
   }
 })

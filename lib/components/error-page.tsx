@@ -13,14 +13,7 @@ import { FC } from 'react'
 import { cn } from '@/lib/utils'
 
 export type ErrorCode =
-  | '404'
-  | '403'
-  | '401'
-  | '410'
-  | '429'
-  | '500'
-  | '503'
-  | 'generic'
+  '404' | '403' | '401' | '410' | '429' | '500' | '503' | 'generic'
 
 interface ErrorPageContent {
   /** Short label shown in the eyebrow pill above the hero. */

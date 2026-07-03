@@ -89,9 +89,11 @@ export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
         message: null,
         url: null
       },
-      rules: rules.map(
-        (rule): Rule => ({ id: rule.id, text: rule.text, hint: rule.hint })
-      )
+      rules: rules.map((rule): Rule => ({
+        id: rule.id,
+        text: rule.text,
+        hint: rule.hint
+      }))
     }
   })
 })

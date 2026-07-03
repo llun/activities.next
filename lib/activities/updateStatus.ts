@@ -18,11 +18,6 @@ export interface UpdateStatus extends BaseActivity, ContextEntity {
   to: string | string[]
   cc: string | string[]
   object:
-    | Note
-    | Question
-    | ImageContent
-    | PageContent
-    | ArticleContent
-    | VideoContent
+    Note | Question | ImageContent | PageContent | ArticleContent | VideoContent
   signature?: Signature
 }
