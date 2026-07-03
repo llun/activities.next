@@ -12,6 +12,7 @@ import {
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
+import { Booleanish } from '@/lib/utils/zodBooleanish'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
@@ -23,7 +24,7 @@ const CreateReportBody = z.object({
     .union([z.array(z.string().min(1)), z.string().min(1)])
     .optional(),
   comment: z.string().max(1000).optional(),
-  forward: z.coerce.boolean().optional(),
+  forward: Booleanish.optional(),
   category: ReportCategory.optional(),
   rule_ids: z.union([z.array(z.string().min(1)), z.string().min(1)]).optional()
 })
@@ -33,13 +34,61 @@ const toArray = (value: string[] | string | undefined): string[] => {
   return Array.isArray(value) ? value : [value]
 }
 
+const collectStrings = (values: unknown[]): string[] =>
+  values.filter(
+    (value): value is string => typeof value === 'string' && value.length > 0
+  )
+
+// Build the report object from a form/multipart source. status_ids and rule_ids
+// arrive as bracket arrays (status_ids[]=…); everything else is scalar. The Zod
+// schema then coerces (forward via Booleanish, category via the enum).
+const buildFormReport = (
+  get: (name: string) => unknown,
+  getAll: (name: string) => unknown[]
+) => {
+  const scalar = (name: string) => {
+    const value = get(name)
+    return typeof value === 'string' ? value : undefined
+  }
+  const statusIds = collectStrings(getAll('status_ids[]'))
+  const ruleIds = collectStrings(getAll('rule_ids[]'))
+  return {
+    account_id: scalar('account_id'),
+    status_ids: statusIds.length > 0 ? statusIds : scalar('status_ids'),
+    comment: scalar('comment'),
+    forward: scalar('forward'),
+    category: scalar('category'),
+    rule_ids: ruleIds.length > 0 ? ruleIds : scalar('rule_ids')
+  }
+}
+
+// Accepts JSON, urlencoded, and multipart report bodies.
+const parseReportBody = async (req: Request): Promise<unknown> => {
+  const contentType = req.headers.get('content-type')?.toLowerCase() ?? ''
+  if (contentType.includes('application/x-www-form-urlencoded')) {
+    const params = new URLSearchParams(await req.text())
+    return buildFormReport(
+      (name) => params.get(name),
+      (name) => params.getAll(name)
+    )
+  }
+  if (contentType.includes('multipart/form-data')) {
+    const form = await req.formData()
+    return buildFormReport(
+      (name) => form.get(name),
+      (name) => form.getAll(name)
+    )
+  }
+  return req.json()
+}
+
 // https://docs.joinmastodon.org/methods/reports/#post
 export const POST = traceApiRoute(
   'createReport',
   OAuthGuard(
     [Scope.enum['write:reports']],
     async (req, { database, currentActor }) => {
-      const json = await req.json().catch(() => null)
+      const json = await parseReportBody(req).catch(() => null)
       const parsed = CreateReportBody.safeParse(json)
       if (!parsed.success) {
         return apiResponse({

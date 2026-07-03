@@ -52,6 +52,17 @@ const postRequest = (body: unknown) =>
     body: JSON.stringify(body)
   })
 
+const postFormRequest = (params: Record<string, string>) =>
+  new NextRequest('https://llun.test/api/v1/featured_tags', {
+    method: 'POST',
+    headers: {
+      host: 'llun.test',
+      origin: 'https://llun.test',
+      'content-type': 'application/x-www-form-urlencoded'
+    },
+    body: new URLSearchParams(params).toString()
+  })
+
 describe('featured_tags collection endpoints', () => {
   const database = getTestSQLDatabase()
 
@@ -96,6 +107,21 @@ describe('featured_tags collection endpoints', () => {
     const stored = await database.getFeaturedTagByName({
       actorId: ACTOR1_ID,
       name: 'coffee'
+    })
+    expect(stored).not.toBeNull()
+  })
+
+  it('features a tag from a urlencoded form body (native clients)', async () => {
+    const response = await POST(postFormRequest({ name: '#Tea' }), {
+      params: Promise.resolve({})
+    })
+    expect(response.status).toBe(200)
+    const created = await response.json()
+    expect(created.name).toBe('Tea')
+
+    const stored = await database.getFeaturedTagByName({
+      actorId: ACTOR1_ID,
+      name: 'tea'
     })
     expect(stored).not.toBeNull()
   })
