@@ -58,6 +58,13 @@ const createFormRequest = (body: string) =>
     headers: { 'content-type': 'application/x-www-form-urlencoded' }
   })
 
+const createJsonRequest = (body: unknown) =>
+  new NextRequest(`https://local.test/api/v1/lists/${LIST_ID}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+    headers: { 'content-type': 'application/json' }
+  })
+
 const createMultipartRequest = (form: FormData) => {
   const request = new NextRequest(
     `https://local.test/api/v1/lists/${LIST_ID}`,
@@ -130,6 +137,18 @@ describe('PUT /api/v1/lists/:id', () => {
     expect(response.status).toBe(200)
     expect(mockDatabase.updateList).toHaveBeenCalledWith(
       expect.objectContaining({ title: 'Renamed', exclusive: false })
+    )
+  })
+
+  it('updates the list from a JSON body (regression)', async () => {
+    const response = await PUT(
+      createJsonRequest({ title: 'Renamed', exclusive: true }),
+      { params: Promise.resolve({ id: LIST_ID }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.updateList).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Renamed', exclusive: true })
     )
   })
 })

@@ -41,6 +41,13 @@ const createFormRequest = (body: string) =>
     headers: { 'content-type': 'application/x-www-form-urlencoded' }
   })
 
+const createJsonRequest = (body: unknown) =>
+  new NextRequest('https://local.test/api/v1/reports', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    headers: { 'content-type': 'application/json' }
+  })
+
 describe('POST /api/v1/reports', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -145,6 +152,35 @@ describe('POST /api/v1/reports', () => {
     const call = mockDatabase.createReport.mock.calls[0][0]
     expect(call.statusIds).toEqual([idToUrl('s1'), idToUrl('s2')])
     expect(call.forward).toBe(true)
+  })
+
+  it('parses a JSON body with a real boolean forward and a status_ids array', async () => {
+    // Exercises parseReportBody's default (req.json) branch, Booleanish's
+    // z.boolean() arm (only reached by real JSON booleans), and the JSON
+    // status_ids array-union arm — none of which the form paths cover.
+    const response = await POST(
+      createJsonRequest({
+        account_id: 'acc1',
+        forward: true,
+        status_ids: ['s1', 's2']
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const call = mockDatabase.createReport.mock.calls[0][0]
+    expect(call.forward).toBe(true)
+    expect(call.statusIds).toEqual([idToUrl('s1'), idToUrl('s2')])
+  })
+
+  it('reads a real JSON boolean forward=false', async () => {
+    await POST(createJsonRequest({ account_id: 'acc1', forward: false }), {
+      params: Promise.resolve({})
+    })
+
+    expect(mockDatabase.createReport).toHaveBeenCalledWith(
+      expect.objectContaining({ forward: false })
+    )
   })
 
   it('returns 404 when the target account does not exist', async () => {
