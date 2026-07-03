@@ -142,21 +142,27 @@ describe('GET /api/v1/accounts/verify_credentials', () => {
     expect(data.role).toBeUndefined()
   })
 
-  it('includes source and role for a read:accounts token', async () => {
-    mockGetServerSession.mockResolvedValue(null)
-    setToken('read-token', ['read:accounts'])
+  // The full CredentialAccount is returned for the granular read:accounts scope,
+  // the coarse `read` scope (which satisfies read:accounts via the hierarchy),
+  // and `read` combined with `profile`.
+  it.each([['read:accounts'], ['read'], ['read', 'profile']])(
+    'includes source and role for a token with scopes %j',
+    async (...scopes) => {
+      mockGetServerSession.mockResolvedValue(null)
+      setToken('read-token', scopes)
 
-    const response = await GET(createTokenRequest('read-token'), {
-      params: Promise.resolve({})
-    })
+      const response = await GET(createTokenRequest('read-token'), {
+        params: Promise.resolve({})
+      })
 
-    expect(response.status).toBe(200)
-    const data = await response.json()
-    expect(data.source).toEqual(
-      expect.objectContaining({ privacy: expect.any(String) })
-    )
-    expect(data.role).toEqual(
-      expect.objectContaining({ id: expect.any(String) })
-    )
-  })
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.source).toEqual(
+        expect.objectContaining({ privacy: expect.any(String) })
+      )
+      expect(data.role).toEqual(
+        expect.objectContaining({ id: expect.any(String) })
+      )
+    }
+  )
 })
