@@ -145,6 +145,34 @@ describe('GET /api/v2/notifications', () => {
     }
   )
 
+  it.each([
+    ['min_id', 'min_id'],
+    ['since_id', 'since_id']
+  ])(
+    'collapses %s to since-semantics for the grouped (DESC) scan',
+    async (_label, param) => {
+      mockDatabase.getNotifications.mockResolvedValueOnce([])
+
+      const request = new NextRequest(
+        `https://llun.test/api/v2/notifications?${param}=cursor-1`,
+        { method: 'GET' }
+      )
+      const response = await GET(request, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      // The grouped v2 path always scans DESC (collectNotificationGroups advances
+      // max_id by the oldest row), so both min_id and since_id must reach
+      // getNotifications as the since-semantics lower bound — never as
+      // minNotificationId, which would flip getNotifications to ascending and
+      // break the batching.
+      expect(mockDatabase.getNotifications).toHaveBeenCalledWith(
+        expect.objectContaining({ sinceNotificationId: 'cursor-1' })
+      )
+      const callArg = mockDatabase.getNotifications.mock.calls[0][0]
+      expect(callArg.minNotificationId).toBeUndefined()
+    }
+  )
+
   it('anchors the next (max_id) Link on the last returned group most-recent id', async () => {
     mockDatabase.getNotifications.mockResolvedValueOnce([
       {
