@@ -14,10 +14,13 @@ import { describe, expect, it } from 'vitest'
  * the floor can never silently regress in either theme.
  */
 
+// Strip CSS comments up front so declaration parsing can't be tripped up by
+// colons/semicolons/`--token`-like text inside a comment (the light
+// --muted-foreground now carries a multi-line rationale comment right above it).
 const css = readFileSync(
   fileURLToPath(new URL('./globals.css', import.meta.url)),
   'utf8'
-)
+).replace(/\/\*[\s\S]*?\*\//g, '')
 
 const AA_NORMAL = 4.5
 
@@ -69,14 +72,20 @@ const contrastRatio = (a: Rgb, b: Rgb): number => {
   return (hi + 0.05) / (lo + 0.05)
 }
 
+/** Escape every regex metacharacter (including backslash) in a literal. */
+const escapeRegExp = (literal: string): string =>
+  literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
 /** Extract the flat `--token: value;` declarations of a top-level CSS block. */
 const parseBlock = (selector: string): Record<string, string> => {
-  const escaped = selector.replace(/[.]/g, '\\$&')
+  const escaped = escapeRegExp(selector)
   const match = css.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`))
   if (!match) throw new Error(`Could not find CSS block for ${selector}`)
   const tokens: Record<string, string> = {}
   for (const line of match[1].split(';')) {
-    const decl = line.match(/(--[\w-]+)\s*:\s*(.+)/)
+    // Anchor to statement start so only real declarations match, never a
+    // `--token`-like fragment inside a value.
+    const decl = line.match(/^\s*(--[\w-]+)\s*:\s*(.+)/)
     if (decl) tokens[decl[1].trim()] = decl[2].trim()
   }
   return tokens
