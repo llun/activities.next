@@ -92,7 +92,10 @@ export const PasskeySigninButton: FC<PasskeySigninButtonProps> = ({
           <p className="text-sm font-medium">
             Passkeys aren&apos;t available in this browser
           </p>
-          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+          {/* text-foreground/80 (not text-muted-foreground) so this — the only
+              actionable line in the dead-end state — clears WCAG AA contrast
+              (4.5:1) on the muted panel with margin. */}
+          <p className="mt-0.5 text-xs leading-relaxed text-foreground/80">
             Signing in isn&apos;t available here.
           </p>
         </div>
