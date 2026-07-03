@@ -145,6 +145,32 @@ describe('GET /api/v1/notifications', () => {
     )
   })
 
+  // min_id and since_id must reach the DB in their own slots — since_id must not
+  // be collapsed into minNotificationId (which would give it adjacent-page
+  // instead of newest-slice semantics).
+  it.each([
+    [
+      'min_id=cursor-a',
+      { minNotificationId: 'cursor-a', sinceNotificationId: undefined }
+    ],
+    [
+      'since_id=cursor-b',
+      { sinceNotificationId: 'cursor-b', minNotificationId: undefined }
+    ]
+  ])('routes %s to its own cursor param', async (query, expected) => {
+    mockDatabase.getNotifications.mockResolvedValueOnce([])
+
+    const request = new NextRequest(
+      `https://llun.test/api/v1/notifications?${query}`,
+      { method: 'GET' }
+    )
+    await GET(request, { params: Promise.resolve({}) })
+
+    expect(mockDatabase.getNotifications).toHaveBeenCalledWith(
+      expect.objectContaining(expected)
+    )
+  })
+
   it.each([
     ['1', true],
     ['on', true],

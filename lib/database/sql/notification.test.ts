@@ -193,6 +193,17 @@ describe('Notification Database', () => {
         expect(withMinId.map((n) => n.id)).toEqual([all[2].id, all[3].id])
       })
 
+      it('returns an empty page for an unresolvable min_id cursor', async () => {
+        // A min_id whose row was dismissed/cleared (or a foreign id) must
+        // terminate pagination, not drop the filter and return the oldest page.
+        const result = await database.getNotifications({
+          actorId: actor1Id,
+          minNotificationId: 'does-not-exist',
+          limit: 10
+        })
+        expect(result).toEqual([])
+      })
+
       it('should handle non-existent cursor ID gracefully', async () => {
         const notifications = await database.getNotifications({
           actorId: actor1Id,

@@ -124,20 +124,24 @@ export const NotificationSQLDatabaseMixin = (
         .where('id', minId)
         .andWhere('actorId', actorId)
         .first()
-      if (minNotification) {
-        // Get notifications newer than cursor: (createdAt > cursor) OR (createdAt = cursor AND id > cursor)
-        query = query.where(function () {
-          this.where('createdAt', '>', minNotification.createdAt).orWhere(
-            function () {
-              this.where('createdAt', '=', minNotification.createdAt).andWhere(
-                'id',
-                '>',
-                minNotification.id
-              )
-            }
-          )
-        })
-      }
+      // An unresolvable lower-bound cursor (dismissed/cleared/foreign id)
+      // terminates pagination with an empty page — matching getListTimeline —
+      // rather than dropping the filter and returning the wrong end of the
+      // timeline (which, with the ascending min_id order below, would surface
+      // the OLDEST notifications instead of an adjacent/empty page).
+      if (!minNotification) return []
+      // Get notifications newer than cursor: (createdAt > cursor) OR (createdAt = cursor AND id > cursor)
+      query = query.where(function () {
+        this.where('createdAt', '>', minNotification.createdAt).orWhere(
+          function () {
+            this.where('createdAt', '=', minNotification.createdAt).andWhere(
+              'id',
+              '>',
+              minNotification.id
+            )
+          }
+        )
+      })
     }
 
     // Support offset-based pagination for backward compatibility
