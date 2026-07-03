@@ -1,5 +1,6 @@
 'use client'
 
+import { Fingerprint } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { FC, useEffect, useState } from 'react'
 
@@ -10,15 +11,29 @@ import { passkeyErrorMessage } from './passkeyErrorMessage'
 import { isPlatformPasskeyAvailable } from './passkeySupport'
 import { resolveSignInRedirect } from './resolveSignInRedirect'
 
-export const PasskeySigninButton: FC = () => {
+interface PasskeySigninButtonProps {
+  /**
+   * Whether credential (email/password) sign-in is available on this instance.
+   * When it is, an environment that can't use passkeys simply hides the button
+   * (the visitor signs in with credentials instead). When it is NOT, passkeys
+   * are the only way in, so an unsupported environment shows a short
+   * "unavailable" notice rather than a blank sign-in card. Defaults to true.
+   */
+  credentialEnabled?: boolean
+}
+
+export const PasskeySigninButton: FC<PasskeySigninButtonProps> = ({
+  credentialEnabled = true
+}) => {
   const [error, setError] = useState<string>()
   const [loading, setLoading] = useState(false)
-  // Start hidden and reveal only once we've confirmed the client can complete a
-  // platform passkey ceremony. Both SSR and the first client render produce the
-  // same `null`, so there's no hydration mismatch, and in-app browsers that
-  // can't use passkeys (iOS WKWebView, the Schrift login dialog, …) never show
-  // the button at all.
-  const [supported, setSupported] = useState(false)
+  // `null` while we're still feature-detecting; `true`/`false` once resolved.
+  // Starting at `null` keeps SSR and the first client render identical (both
+  // render nothing), so there's no hydration mismatch — and no flash of the
+  // "unavailable" notice on browsers that do support passkeys. In-app browsers
+  // that can't use passkeys (iOS WKWebView, the Schrift login dialog, …) resolve
+  // to `false`.
+  const [supported, setSupported] = useState<boolean | null>(null)
   const searchParams = useSearchParams()
   const router = useRouter()
 
@@ -53,7 +68,30 @@ export const PasskeySigninButton: FC = () => {
     }
   }
 
-  if (!supported) return null
+  // Still feature-detecting — render nothing yet.
+  if (supported === null) return null
+
+  // Passkeys can't be used in this browser. If credential sign-in is available
+  // the visitor still has a way in, so just hide the button; otherwise passkeys
+  // were the only method, so explain the situation instead of a blank card.
+  if (!supported) {
+    if (credentialEnabled) return null
+    return (
+      <div className="flex items-start gap-3 rounded-lg border bg-muted/40 p-3.5">
+        <span className="mt-px flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+          <Fingerprint className="size-[15px]" />
+        </span>
+        <div>
+          <p className="text-sm font-medium">
+            Passkeys aren&apos;t available in this browser
+          </p>
+          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+            Signing in isn&apos;t available here.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-1">
