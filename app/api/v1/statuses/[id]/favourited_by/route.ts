@@ -34,7 +34,7 @@ const FavouritedByQueryParams = z.object({
 export const GET = traceApiRoute(
   'getStatusFavouritedBy',
   OptionalOAuthGuard<Params>(
-    [Scope.enum.read, Scope.enum['read:accounts'], Scope.enum['read:statuses']],
+    [Scope.enum.read, Scope.enum['read:accounts']],
     async (req, context) => {
       const { database, currentActor, params } = context
       const encodedStatusId = (await params).id
