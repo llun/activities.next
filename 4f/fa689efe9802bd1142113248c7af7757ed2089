@@ -1,0 +1,99 @@
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_f266a8aa6f228f::t_06219b708c26ef 1071
+lib/database/sql/suggestion.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 84-87
+lib/client.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 417-418,1435
+app/api/v2/instance/route.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 92-96
+lib/services/auth/auth.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 99
+lib/types/database/fitnessFile.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 2
+app/api/v1/accounts/follow/route.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 60
+lib/jobs/importStravaActivityJob.merge.test.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 31
+lib/activities/createStatus.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 20
+app/api/v1/instance/rules/route.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 47-51
+lib/database/sql/announcement.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 238-243
+lib/types/database/fitnessRouteHeatmap.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 3
+app/(timeline)/favorites/FavoritesTimeline.test.tsx
+  s_f266a8aa6f228f::t_06219b708c26ef 81
+lib/components/fitness/RegionMap.test.tsx
+  s_f266a8aa6f228f::t_06219b708c26ef 275
+lib/config/opentelemetry.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 36
+lib/database/sql/like.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 130-134
+lib/database/sql/search/status.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 41,93-96,259-262
+lib/database/sql/trends.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 127-131
+lib/activities/updateStatus.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 21
+lib/database/sql/status.test.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 1101,1693
+lib/services/strava/activity.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 18
+lib/database/sql/fitnessRouteHeatmap.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 560-563
+lib/database/sql/status.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 1416-1419,1579-1586
+app/(timeline)/notifications/components/NotificationTypeBadge.tsx
+  s_f266a8aa6f228f::t_06219b708c26ef 16
+app/(timeline)/bookmarks/BookmarksTimeline.test.tsx
+  s_f266a8aa6f228f::t_06219b708c26ef 81
+lib/database/sql/conversation.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 510-514,542-545,698-710,1079-1083
+lib/database/sql/directConversationsMigration.test.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 362-365
+lib/types/activitypub/index.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 16
+lib/components/error-page.tsx
+  s_f266a8aa6f228f::t_06219b708c26ef 16
+app/api/v2/suggestions/route.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 28-32
+lib/components/fitness/HeatmapRegionPicker.tsx
+  s_f266a8aa6f228f::t_06219b708c26ef 41
+lib/services/fitness-files/retryImports.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 14
+lib/utils/safeRemoteFetch.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 45
+app/(timeline)/notifications/types.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 15
+package.json
+  s_f266a8aa6f228f::t_3fcaa1d01f27af 154
+lib/activities/note.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 16
+lib/components/settings/FitnessPrivacyLocationSettings.tsx
+  s_f266a8aa6f228f::t_06219b708c26ef 586
+lib/types/database/stravaArchiveImport.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 2
+lib/services/timelines/request.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 44
+lib/jobs/importFitnessFilesJob.test.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 377
+lib/services/fitness-files/privacy.ts
+  s_f266a8aa6f228f::t_06219b708c26ef 219,244,456
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "4ffa689efe9802bd1142113248c7af7757ed2089",
+  "prompts": {},
+  "sessions": {
+    "s_f266a8aa6f228f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "432e2029-1f33-46ab-95ac-eb3892c591bb",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
