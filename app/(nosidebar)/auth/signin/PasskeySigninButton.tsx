@@ -77,7 +77,14 @@ export const PasskeySigninButton: FC<PasskeySigninButtonProps> = ({
   if (!supported) {
     if (credentialEnabled) return null
     return (
-      <div className="flex items-start gap-3 rounded-lg border bg-muted/40 p-3.5">
+      // The notice is injected after client-side detection, so mark it as a
+      // polite live region — otherwise assistive tech never announces the only
+      // content telling the visitor they can't sign in here (WCAG 2.1 SC 4.1.3).
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex items-start gap-3 rounded-lg border bg-muted/40 p-3.5"
+      >
         <span className="mt-px flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
           <Fingerprint className="size-[15px]" />
         </span>

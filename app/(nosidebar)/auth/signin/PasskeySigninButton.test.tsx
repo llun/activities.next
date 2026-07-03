@@ -88,6 +88,16 @@ describe('PasskeySigninButton', () => {
     expect(unavailableNotice()).toBeInTheDocument()
   })
 
+  it('exposes the notice as a status live region so screen readers announce it when it appears', async () => {
+    setPlatformAuthenticator(() => Promise.resolve(false))
+    await renderButton({ credentialEnabled: false })
+    // The notice is injected after client detection, so it must be a live
+    // region to be announced (WCAG 2.1 SC 4.1.3 Status Messages).
+    expect(screen.getByRole('status')).toHaveTextContent(
+      /passkeys aren't available in this browser/i
+    )
+  })
+
   it('does not show the notice when credential sign-in is enabled (button just hides)', async () => {
     setPlatformAuthenticator(() => Promise.resolve(false))
     await renderButton({ credentialEnabled: true })
