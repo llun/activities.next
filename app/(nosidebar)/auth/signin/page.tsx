@@ -97,7 +97,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
           <CredentialForm providerName={serviceName ?? 'credentials'} />
         )}
 
-        <PasskeySigninButton />
+        <PasskeySigninButton credentialEnabled={credentialEnabled} />
       </CardContent>
       {registrationOpen && (
         <CardFooter className="justify-center">
