@@ -359,9 +359,10 @@ describe('direct conversations migration', () => {
 
     const conversationStatuses = await database('direct_conversation_statuses')
       .whereIn('statusId', [firstReplyStatusId, secondReplyStatusId])
-      .select<
-        { conversationId: string; statusId: string }[]
-      >('conversationId', 'statusId')
+      .select<{ conversationId: string; statusId: string }[]>(
+        'conversationId',
+        'statusId'
+      )
       .orderBy('statusId', 'asc')
     const conversationIds = new Set(
       conversationStatuses.map((status) => status.conversationId)

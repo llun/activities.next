@@ -81,12 +81,10 @@ export const SuggestionSQLDatabaseMixin = (
       ])
       .limit(limit)) as SQLFriendsOfFriendsRow[]
 
-    return rows.map(
-      (row): FriendsOfFriendsSuggestion => ({
-        targetActorId: row.targetActorId,
-        mutuals: Number(row.mutuals)
-      })
-    )
+    return rows.map((row): FriendsOfFriendsSuggestion => ({
+      targetActorId: row.targetActorId,
+      mutuals: Number(row.mutuals)
+    }))
   },
 
   async dismissSuggestion({ actorId, targetActorId }: DismissSuggestionParams) {

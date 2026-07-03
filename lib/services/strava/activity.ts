@@ -15,10 +15,7 @@ const STRAVA_TOKEN_REFRESH_BUFFER_MS = 60_000
 export const STRAVA_OAUTH_SCOPE = 'activity:read_all'
 
 type StravaActivityVisibility =
-  | 'everyone'
-  | 'followers_only'
-  | 'only_me'
-  | string
+  'everyone' | 'followers_only' | 'only_me' | string
 
 interface StravaPhotoUrls {
   [size: string]: string | null | undefined

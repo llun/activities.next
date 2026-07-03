@@ -42,8 +42,7 @@ export type SafeRemoteFetchHeaderBuilder = (
   request: SafeRemoteFetchHeaderBuilderRequest
 ) => SafeRemoteFetchHeaders
 export type SafeRemoteFetchHeaderSource =
-  | SafeRemoteFetchHeaders
-  | SafeRemoteFetchHeaderBuilder
+  SafeRemoteFetchHeaders | SafeRemoteFetchHeaderBuilder
 
 export type ResolvedRemoteAddress = {
   address: string

@@ -38,8 +38,7 @@ export type SQLStatusSearchRow = {
 }
 
 type IndexStatusSearchDocumentParams =
-  | { statusId: string }
-  | { status: SQLStatusSearchRow }
+  { statusId: string } | { status: SQLStatusSearchRow }
 
 type StatusCursor = {
   entityId: string
@@ -91,9 +90,10 @@ const getStatusRecipientIdsByStatusId = async (
       statusIdChunks.map((statusIdChunk) =>
         database('recipients')
           .whereIn('statusId', statusIdChunk)
-          .select<
-            { statusId: string; actorId: string }[]
-          >('statusId', 'actorId')
+          .select<{ statusId: string; actorId: string }[]>(
+            'statusId',
+            'actorId'
+          )
       )
     )
   ).flat()
@@ -256,9 +256,10 @@ const applyCursorFilter = async ({
     const rows = await database(SEARCH_DOCUMENTS_TABLE)
       .where('entityType', 'status')
       .whereIn('entityId', cursorIds)
-      .select<
-        { entityCreatedAt: number | Date; entityId: string }[]
-      >('entityCreatedAt', 'entityId')
+      .select<{ entityCreatedAt: number | Date; entityId: string }[]>(
+        'entityCreatedAt',
+        'entityId'
+      )
     for (const row of rows) {
       cursors.set(row.entityId, row)
     }

@@ -11,10 +11,7 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
 export type RetryFitnessVisibility =
-  | 'public'
-  | 'unlisted'
-  | 'private'
-  | 'direct'
+  'public' | 'unlisted' | 'private' | 'direct'
 
 /**
  * A fitness file is worth retrying when its import failed, its map processing

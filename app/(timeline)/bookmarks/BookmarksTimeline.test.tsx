@@ -78,8 +78,7 @@ const bookmarkedStatus: StatusNote = {
 
 describe('BookmarksTimeline', () => {
   let intersectionObserverCallback:
-    | ((entries: IntersectionObserverEntry[]) => void)
-    | null = null
+    ((entries: IntersectionObserverEntry[]) => void) | null = null
   let intersectionObserverDisconnect: jest.Mock
   let intersectionObserverObserve: jest.Mock
 

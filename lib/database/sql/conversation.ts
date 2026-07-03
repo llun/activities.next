@@ -507,9 +507,11 @@ export const DirectConversationSQLDatabaseMixin = (
         '<=',
         DIRECT_CONVERSATION_FALLBACK_STATUS_BATCH_SIZE
       )
-      .select<
-        DirectConversationStatusRow[]
-      >('conversationId', 'statusId', 'createdAt')
+      .select<DirectConversationStatusRow[]>(
+        'conversationId',
+        'statusId',
+        'createdAt'
+      )
       .orderBy('conversationId', 'asc')
       .orderBy('createdAt', 'desc')
       .orderBy('statusId', 'desc')
@@ -537,9 +539,10 @@ export const DirectConversationSQLDatabaseMixin = (
     const conversationIds = rows.map((row) => row.conversationId)
     const participantRows = await database('direct_conversation_participants')
       .whereIn('conversationId', conversationIds)
-      .select<
-        { conversationId: string; actorId: string }[]
-      >('conversationId', 'actorId')
+      .select<{ conversationId: string; actorId: string }[]>(
+        'conversationId',
+        'actorId'
+      )
     const participantActorIdsByConversationId = participantRows.reduce(
       (output, participant) => {
         output[participant.conversationId] =
@@ -692,9 +695,19 @@ export const DirectConversationSQLDatabaseMixin = (
         'direct_conversations.id'
       )
       .where('direct_conversation_memberships.actorId', actorId)
-      .select<
-        DirectConversationMembershipRow[]
-      >('direct_conversation_memberships.id', 'direct_conversation_memberships.actorId', 'direct_conversation_memberships.conversationId', 'direct_conversations.rootStatusId', 'direct_conversation_memberships.lastStatusId', 'direct_conversation_memberships.lastStatusCreatedAt', 'direct_conversation_memberships.unread', 'direct_conversation_memberships.readAt', 'direct_conversation_memberships.hiddenAt', 'direct_conversation_memberships.createdAt', 'direct_conversation_memberships.updatedAt')
+      .select<DirectConversationMembershipRow[]>(
+        'direct_conversation_memberships.id',
+        'direct_conversation_memberships.actorId',
+        'direct_conversation_memberships.conversationId',
+        'direct_conversations.rootStatusId',
+        'direct_conversation_memberships.lastStatusId',
+        'direct_conversation_memberships.lastStatusCreatedAt',
+        'direct_conversation_memberships.unread',
+        'direct_conversation_memberships.readAt',
+        'direct_conversation_memberships.hiddenAt',
+        'direct_conversation_memberships.createdAt',
+        'direct_conversation_memberships.updatedAt'
+      )
 
     if (!includeHidden)
       query.whereNull('direct_conversation_memberships.hiddenAt')
@@ -1063,9 +1076,11 @@ export const DirectConversationSQLDatabaseMixin = (
 
       const query = database('direct_conversation_statuses')
         .where('conversationId', conversation.conversationId)
-        .select<
-          DirectConversationStatusRow[]
-        >('conversationId', 'statusId', 'createdAt')
+        .select<DirectConversationStatusRow[]>(
+          'conversationId',
+          'statusId',
+          'createdAt'
+        )
 
       if (maxStatusId) {
         const cursor = await database('direct_conversation_statuses')

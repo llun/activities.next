@@ -124,13 +124,11 @@ export const TrendsSQLDatabaseMixin = (database: Knex): TrendsDatabase => ({
       .offset(offset)
       .limit(limit)) as SQLTrendingTagRow[]
 
-    return rows.map(
-      (row): TrendingTag => ({
-        name: row.name,
-        uses: Number(row.uses),
-        accounts: Number(row.accounts)
-      })
-    )
+    return rows.map((row): TrendingTag => ({
+      name: row.name,
+      uses: Number(row.uses),
+      accounts: Number(row.accounts)
+    }))
   },
 
   async getTrendingStatusCandidateIds({

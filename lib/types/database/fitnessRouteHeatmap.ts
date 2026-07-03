@@ -1,9 +1,6 @@
 export type FitnessRouteHeatmapPeriodType = 'all_time' | 'yearly' | 'monthly'
 export type FitnessRouteHeatmapStatus =
-  | 'pending'
-  | 'generating'
-  | 'completed'
-  | 'failed'
+  'pending' | 'generating' | 'completed' | 'failed'
 
 export interface FitnessRouteHeatmapPoint {
   lat: number

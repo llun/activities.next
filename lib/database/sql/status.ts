@@ -1413,9 +1413,10 @@ export const StatusSQLDatabaseMixin = (
         const chunkRows = await database('status_pins')
           .where({ actorId })
           .whereIn('statusId', statusIdChunk)
-          .select<
-            { statusId: string; createdAt: Date | string | number }[]
-          >('statusId', 'createdAt')
+          .select<{ statusId: string; createdAt: Date | string | number }[]>(
+            'statusId',
+            'createdAt'
+          )
         rows.push(...chunkRows)
       }
 
@@ -1575,9 +1576,14 @@ export const StatusSQLDatabaseMixin = (
       rows.push(
         ...(await trx('statuses')
           .whereIn('id', statusIdChunk)
-          .select<
-            StatusDeletionRow[]
-          >('id', 'actorId', 'type', 'reply', 'content', 'originalStatusId'))
+          .select<StatusDeletionRow[]>(
+            'id',
+            'actorId',
+            'type',
+            'reply',
+            'content',
+            'originalStatusId'
+          ))
       )
     }
     return rows

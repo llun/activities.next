@@ -44,8 +44,10 @@ export const GET = traceApiRoute('getInstanceRules', async (req) => {
   return apiResponse({
     req,
     allowedMethods: CORS_HEADERS,
-    data: rules.map(
-      (rule): Rule => ({ id: rule.id, text: rule.text, hint: rule.hint })
-    )
+    data: rules.map((rule): Rule => ({
+      id: rule.id,
+      text: rule.text,
+      hint: rule.hint
+    }))
   })
 })

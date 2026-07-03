@@ -414,9 +414,8 @@ export const getTranslationLanguages = (): Promise<TranslationLanguages> => {
         }
         return response.json()
       })
-      .then(
-        (data): TranslationLanguages =>
-          data && typeof data === 'object' ? data : {}
+      .then((data): TranslationLanguages =>
+        data && typeof data === 'object' ? data : {}
       )
       .catch(() => {
         // Don't pin a transient failure for the whole session — clear the memo
@@ -1433,8 +1432,7 @@ export const completeUploadPresignedUrl = async ({
 }
 
 type CompleteUploadPresignedUrlResult =
-  | { ok: true; attachment: UploadedAttachment }
-  | { ok: false; status: number }
+  { ok: true; attachment: UploadedAttachment } | { ok: false; status: number }
 
 const completeUploadPresignedUrlRequest = async ({
   mediaId

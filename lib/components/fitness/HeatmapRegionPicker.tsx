@@ -38,12 +38,7 @@ export type PickerRegion = HeatmapRegion & { id: string }
  * its own heatmap (one kept version), so the row surfaces that region's status.
  */
 export type RegionDisplayState =
-  | 'idle'
-  | 'pending'
-  | 'generating'
-  | 'completed'
-  | 'partial'
-  | 'failed'
+  'idle' | 'pending' | 'generating' | 'completed' | 'partial' | 'failed'
 
 export interface RegionDisplayStatus {
   state: RegionDisplayState

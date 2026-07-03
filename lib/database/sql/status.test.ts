@@ -1098,8 +1098,7 @@ describe('StatusDatabase', () => {
           actorId: emptyActorId
         })
         const match = statuses.find((item) => item.id === statusId) as
-          | StatusNote
-          | undefined
+          StatusNote | undefined
         expect(match?.detectedLanguage).toBe('th')
       })
 
@@ -1691,8 +1690,7 @@ describe('StatusDatabase', () => {
           statusId: parentId
         })
         const match = replies.find((item) => item.id === replyId) as
-          | StatusNote
-          | undefined
+          StatusNote | undefined
         expect(match?.detectedLanguage).toBe('th')
       })
 

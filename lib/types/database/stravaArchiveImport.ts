@@ -1,8 +1,5 @@
 export type StravaArchiveImportStatus =
-  | 'importing'
-  | 'failed'
-  | 'completed'
-  | 'cancelled'
+  'importing' | 'failed' | 'completed' | 'cancelled'
 
 export interface StravaArchivePendingMediaActivity {
   fitnessFileId: string
