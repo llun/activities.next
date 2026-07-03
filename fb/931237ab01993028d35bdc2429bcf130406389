@@ -1,0 +1,19 @@
+app/(nosidebar)/auth/signin/PasskeySigninButton.tsx
+  s_fb73f68faaf7e8::t_74072b78d0d33c 95-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "fb931237ab01993028d35bdc2429bcf130406389",
+  "prompts": {},
+  "sessions": {
+    "s_fb73f68faaf7e8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e2b0026-31be-493c-8e66-d9895c823724",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
