@@ -84,6 +84,25 @@ describe('POST /api/v1/follow_requests/:id/authorize', () => {
     })
   })
 
+  it('passes a raw http:// actor URL through unchanged (not mangled by idToUrl)', async () => {
+    const httpUrl = 'http://local.test/users/alice'
+    mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue({
+      id: 'follow-1',
+      status: 'Requested',
+      actorId: httpUrl,
+      targetActorId: mockCurrentActor.id
+    })
+    await POST(request(httpUrl), {
+      params: Promise.resolve({ id: httpUrl })
+    })
+    // idToUrl would split the scheme colon and mangle an http:// URL, so the
+    // route must pass it through unchanged like it does an https:// URL.
+    expect(mockDatabase.getAcceptedOrRequestedFollow).toHaveBeenCalledWith({
+      actorId: httpUrl,
+      targetActorId: mockCurrentActor.id
+    })
+  })
+
   it('returns 404 when there is no pending request', async () => {
     mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
     const id = urlToId(followerUrl)

@@ -24,9 +24,11 @@ export const POST = traceApiRoute(
       const { id } = await params
       // Accept both the urlToId-format id every GET endpoint emits (what
       // Mastodon clients send) and a raw actor URL (the first-party UI's
-      // historical shape) so the UI migration is non-breaking.
+      // historical shape) so the UI migration is non-breaking. Match http(s)
+      // so a local/dev http:// actor URL passes through instead of being
+      // mangled by idToUrl (which would split the scheme colon).
       const rawId = decodeURIComponent(id)
-      const accountId = rawId.startsWith('https://') ? rawId : idToUrl(rawId)
+      const accountId = /^https?:\/\//.test(rawId) ? rawId : idToUrl(rawId)
 
       // Find the follow request from this account to current actor
       const follow = await database.getAcceptedOrRequestedFollow({
