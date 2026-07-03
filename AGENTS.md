@@ -385,6 +385,34 @@ chore: update dependencies                            ← patch
   3. `yarn build` to ensure no build errors—**must be green before commit**.
   4. `yarn test` to ensure no test errors—**must be green before commit**.
 
+## Code Review Loop (Sub-Agents & Review Bots)
+
+**Once a PR is ready, drive a sub-agent code-review loop before treating the work as done, and re-run it every time an agent makes further changes to that PR.** "Ready" means the branch is pushed, the PR is open, and the local pre-commit gate (prettier → lint → build → test) is green. This is a required step for every PR an agent produces, not an optional polish pass.
+
+### Fan out sub-agents to review the whole change
+
+- Spawn **sub-agents** (the Task/Agent tool, or the `code-review` skill) to review **all** of the PR's code — correctness bugs plus the project invariants in this file and `REVIEW.md`, security, tests, and style. Use `REVIEW.md` as the checklist. For a sizeable diff, fan several sub-agents out in parallel across different files/dimensions instead of a single pass, then consolidate their findings.
+- **Post every finding as a comment on the PR** — an inline review comment anchored to the offending file and line wherever possible, not just a summary in chat. The `code-review` skill's `--comment` flag posts inline comments directly; otherwise open a pending review with `pull_request_review_write` (method `create`), attach comments with `add_comment_to_pending_review`, and submit with `pull_request_review_write` (method `submit_pending`). The PR threads are the source of truth for what still needs addressing.
+
+### Address → reply → resolve, in rounds
+
+For every open review comment (from your sub-agents or from a bot):
+
+1. **Address it** — make the fix on the branch, or, for a false positive / won't-fix, decide that explicitly and be ready to justify it. Commit and push.
+2. **Reply** on the comment thread with what changed (or why no change is warranted) via `add_reply_to_pull_request_comment`.
+3. **Mark it resolved** via `resolve_review_thread`.
+
+After clearing a batch, **run the sub-agent review again** — fixes can introduce new problems. **Repeat until a full round surfaces no new issues that need addressing, or you reach a maximum of 20 rounds**, whichever comes first. Note the round number as you go so the cap stays visible, and stop early the moment a clean round produces nothing actionable.
+
+### Loop in the other review bots (e.g. Kilo)
+
+- If the repo runs **other review bots** — for example **Kilo Code (Kilo bot)**, GitHub Copilot review, or CodeRabbit — then after you have addressed, replied to, and resolved a round of comments, **ask that bot to review again** (re-request its review or invoke its trigger). Treat whatever it posts exactly like your own findings: address → reply → resolve. A bot round counts toward the same 20-round cap.
+- **While a bot is actively reviewing, let it finish: wait up to 20 minutes and do not interrupt it — do not push new commits or re-trigger it — before it posts its review or that 20-minute window elapses.** Prefer `subscribe_pr_activity` so the bot's review wakes this session as a webhook event instead of polling with `sleep`; only continue the loop once the bot has responded or the 20 minutes are up.
+
+### Done when
+
+A full round — your sub-agent review plus any external bots — yields no new actionable comments, or you have run 20 rounds. Every thread you touched should be replied-to and resolved before you stop.
+
 ## Security & Configuration Tips
 
 - Store secrets and instance settings in environment variables; avoid committing secrets.
