@@ -74,7 +74,13 @@
   --secondary: hsl(0 0% 96.1%);
   --secondary-foreground: hsl(0 0% 9%);
   --muted: hsl(0 0% 96.1%);
-  --muted-foreground: hsl(0 0% 45.1%);
+  /* Muted secondary text. Darkened from 45.1% (#737373) to 43% (#6e6e6e) so it
+     clears WCAG 2.1 AA (4.5:1) even on the lightest muted-family surface —
+     bg-muted/secondary/accent #f5f5f5 — where #737373 only reached ~4.35:1.
+     #6e6e6e gives 4.68:1 on #f5f5f5, 4.89:1 on the card, 5.10:1 on white; the
+     shift is visually negligible. The dark-theme token below is separate and
+     unchanged. */
+  --muted-foreground: hsl(0 0% 43%);
   --accent: hsl(0 0% 96.1%);
   --accent-foreground: hsl(0 0% 9%);
   --destructive: hsl(0 84.2% 60.2%);
