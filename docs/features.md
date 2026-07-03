@@ -81,6 +81,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **WebFinger** — Actor discovery via `/.well-known/webfinger`
 - ✅ **NodeInfo** — Instance metadata at `/.well-known/nodeinfo`
 - ✅ **OAuth Authorization Server metadata** — At `/.well-known/oauth-authorization-server`
+- 📖 **[Mastodon API compatibility reference](./mastodon-api-compatibility.md)** — Intentional divergences (e.g. 7-day OAuth tokens), unplanned endpoints, and activities.next-only extensions
 
 ### Infrastructure
 

@@ -10,7 +10,7 @@ Activity.next is a self-hosted [ActivityPub](https://www.w3.org/TR/activitypub/)
 ## ✨ Highlights
 
 - **Fediverse-ready** — Full ActivityPub federation with other servers
-- **Mastodon API compatible** — Use your favorite Mastodon client apps
+- **Mastodon API compatible** — Use your favorite Mastodon client apps ([compatibility reference](docs/mastodon-api-compatibility.md))
 - **OAuth 2.0 provider** — Acts as a full OAuth 2.0 / OpenID Connect server
 - **Database options** — SQLite and PostgreSQL, with MySQL-compatible Knex configuration paths for advanced deployments
 - **Media and fitness storage** — Store image/video media and fitness files on the local filesystem, AWS S3, or S3-compatible object storage

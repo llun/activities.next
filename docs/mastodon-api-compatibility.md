@@ -1,0 +1,100 @@
+# Mastodon API Compatibility
+
+Activity.next implements a large subset of the [Mastodon client API](https://docs.joinmastodon.org/api/)
+so that standard Mastodon apps (Phanpy, Ivory, Ice Cubes, Elk, and others) can
+sign in and operate against an Activity.next instance. Most endpoints behave
+exactly as documented upstream.
+
+This page is the durable reference for the places where Activity.next
+**intentionally diverges** from Mastodon, the endpoints it **does not plan** to
+implement, and the **extensions** it adds on top of the Mastodon surface. It is
+not an exhaustive endpoint list — see the [Feature Roadmap](./features.md) for
+the feature-level status.
+
+> Keeping this page current is part of the definition of done: any change that
+> closes, adds, or re-scopes one of the items below updates this page in the
+> same pull request.
+
+## Intentional divergences
+
+These behaviors differ from stock Mastodon on purpose. Each is a deliberate
+product or security decision, not a gap to be closed.
+
+- **OAuth access tokens expire after 7 days.** Mastodon access tokens do not
+  expire by default. Activity.next issues short-lived access tokens (7 days)
+  and offers the standard `refresh_token` grant (refresh tokens last 30 days) so
+  well-behaved clients can stay signed in. Both `authorization_code` and
+  `refresh_token` grants are advertised in
+  `/.well-known/oauth-authorization-server`. This is a security choice: leaked
+  tokens age out quickly. Mastodon-only clients that never refresh will need to
+  re-authorize weekly. Configured in `lib/services/auth/auth.ts`.
+
+- **`GET /oauth/userinfo` `sub` is the local account id, not the actor URI.**
+  The OpenID Connect `userinfo` response uses the owning account (user record)
+  id for `sub` so it matches the `sub` claim in the OIDC `id_token`. Actor-scoped
+  profile fields (`profile`, `preferred_username`, etc.) remain sourced from the
+  actor. Set in `lib/services/oauth/userinfo.ts`.
+
+- **Media processing is synchronous.** `POST /api/v2/media` always returns
+  `200 OK` with a fully-processed attachment; it never returns `202 Accepted`
+  with an unprocessed placeholder the way Mastodon does for large uploads.
+  Activity.next processes uploads inline. Clients that poll `GET /api/v1/media/:id`
+  after a `202` still work — they simply receive the finished attachment on the
+  first read. (An asynchronous, presigned direct-to-storage upload path exists as
+  an extension; see below.)
+
+- **`GET /api/v1/trends/links` intentionally returns `[]`.** Activity.next does
+  not store link preview cards, so there is no trending-links data to surface.
+  Trending hashtags (`/api/v1/trends/tags`) and statuses (`/api/v1/trends/statuses`)
+  are fully implemented.
+
+- **`GET /api/v1/timelines/direct` is retained.** Mastodon removed this endpoint
+  in 3.0 in favor of conversations, but Activity.next keeps it for legacy clients.
+  The first-party UI uses `/api/v1/conversations` for threaded direct messages;
+  the `direct` timeline is served by the shared `timelines/[timeline]` handler.
+
+- **The legacy `follow` scope is not honored for granular follow actions.**
+  Mastodon deprecated the aggregate `follow` scope in 3.5 in favor of
+  `read:follows` / `write:follows` / `write:blocks` / `write:mutes`. Activity.next
+  recognizes `follow` at registration for client compatibility but enforces the
+  granular (or coarse `read`/`write`) scopes on the relevant routes.
+
+## Not planned
+
+These endpoints are not implemented and are not currently on the roadmap. They
+can be revisited on demand — file an issue if you need one.
+
+- Admin IP blocks — `/api/v1/admin/ip_blocks`
+- Admin email domain blocks — `/api/v1/admin/email_domain_blocks`
+- Admin canonical email blocks — `/api/v1/admin/canonical_email_blocks`
+- Admin measures / dimensions / retention — `/api/v1/admin/measures`,
+  `/api/v1/admin/dimensions`, `/api/v1/admin/retention`
+- Admin trends moderation — `/api/v1/admin/trends/*`
+- Annual reports ("wrapped") — `/api/v1/annual_reports/*`
+- Link timeline — `/api/v1/timelines/link` (needs stored preview cards)
+- Async refreshes — `/api/v1_alpha/async_refreshes`
+- The out-of-band redirect flow — `urn:ietf:wg:oauth:2.0:oob`
+
+## Extensions
+
+Activity.next adds endpoints and parameters beyond the Mastodon surface. These
+are not part of the Mastodon API and are safe for Mastodon clients to ignore.
+
+- **Multi-actor management** — `/api/v1/actors` and friends (`switch`, `default`,
+  `domains`, `delete`, `cancel-deletion`) let one account own multiple actors.
+- **Fitness tracking** — `/api/v1/fitness/*` (general settings, `.fit`/`.gpx`/`.tcx`
+  imports, Strava sync) plus per-account fitness summaries, calendars, activity
+  types, and route heatmaps under `/api/v1/accounts/:id/fitness-*`.
+- **`?format=activities_next`** — timeline endpoints accept this query flag to
+  return the raw internal status JSON instead of the Mastodon status shape.
+- **Presigned / direct-to-storage media** — `/api/v1/medias/presigned` (and the
+  Strava archive presigned upload) provide an asynchronous upload path that
+  offloads bytes directly to object storage.
+- **Curated collections** — `/api/v1/collections/*`, `/api/v1/accounts/:id/in_collections`,
+  and `/api/v1/timelines/collection/:id` back the shareable public-feed feature,
+  which federates as FEP-7aa9 `FeaturedCollection` objects.
+- **Remote statuses** — `/api/v1/accounts/:id/remote-statuses` exposes cached
+  remote posts for an actor.
+- **Admin CRUD extras** — custom emoji, domain allow/deny lists (with import),
+  announcements, filters, and rules management under `/api/v1/admin/*` and
+  `/api/v2/admin/*`.
