@@ -124,7 +124,8 @@ export const GET = traceApiRoute(
         actorId: currentActor.id,
         limit,
         maxNotificationId: maxId,
-        minNotificationId: minId || sinceId,
+        minNotificationId: minId,
+        sinceNotificationId: sinceId,
         types: internalTypes,
         excludeTypes: internalExcludeTypes,
         includeFiltered

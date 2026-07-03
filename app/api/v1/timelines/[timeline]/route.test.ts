@@ -580,8 +580,11 @@ describe('GET /api/v1/timelines/[timeline]', () => {
         { params: Promise.resolve({ timeline: 'main' }) }
       )
 
+      // The home/direct feed backfills DESC, so its lower bound reaches
+      // getTimeline as sinceStatusId (newest-first). since_id still wins the
+      // collapse over min_id.
       expect(spy).toHaveBeenCalledWith(
-        expect.objectContaining({ minStatusId: sinceUrl })
+        expect.objectContaining({ sinceStatusId: sinceUrl })
       )
       spy.mockRestore()
     })

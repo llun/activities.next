@@ -86,11 +86,7 @@ export const NotificationSQLDatabaseMixin = (
     sinceNotificationId,
     includeFiltered
   }: GetNotificationsParams) {
-    let query = database('notifications')
-      .where('actorId', actorId)
-      .orderBy('createdAt', 'desc')
-      .orderBy('id', 'desc') // Secondary sort for deterministic ordering
-      .limit(limit)
+    let query = database('notifications').where('actorId', actorId).limit(limit)
 
     // By default hide policy-filtered notifications (they live in the requests
     // queue). Mastodon's `include_filtered` opts back into seeing them.
@@ -165,8 +161,18 @@ export const NotificationSQLDatabaseMixin = (
       query = query.whereIn('id', ids)
     }
 
+    // min_id ascends from the cursor — the OLDEST notifications just newer than
+    // it — then reverses to the newest-first response shape, so it returns the
+    // page adjacent to the cursor. since_id (and max_id / no cursor) keep the
+    // newest-first DESC ordering (the newest slice above the cursor).
+    const ascending = Boolean(minNotificationId)
+    query = query
+      .orderBy('createdAt', ascending ? 'asc' : 'desc')
+      .orderBy('id', ascending ? 'asc' : 'desc')
+
     const results = await query
-    return results.map(fixNotificationDataDate)
+    const ordered = ascending ? results.reverse() : results
+    return ordered.map(fixNotificationDataDate)
   },
 
   async getNotificationsCount({
