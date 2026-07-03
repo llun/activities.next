@@ -47,7 +47,11 @@ export const ChangeNameForm: FC<Props> = ({ currentName }) => {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    // method="post" is a real protection here, not just defense-in-depth: this
+    // input is NAMED (name="name"), so on a native (pre-hydration/no-JS) submit it
+    // is a successful control and a method-less <form> — which defaults to GET —
+    // would serialize the name into the URL. POST keeps it in the request body.
+    <form onSubmit={handleSubmit} method="post" className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="inputName">Name</Label>
         <Input
