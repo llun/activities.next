@@ -1112,7 +1112,7 @@ const ActivityMapPanel: FC<{
           />
         </button>
       ) : (
-        <div className="flex h-full items-center justify-center bg-gradient-to-br from-muted to-muted-foreground/20 text-sm text-muted-foreground">
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
           Map preview unavailable
         </div>
       )}
