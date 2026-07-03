@@ -1025,7 +1025,9 @@ CREATE TABLE public."twoFactor" (
     secret text NOT NULL,
     "backupCodes" text NOT NULL,
     "userId" character varying(255) NOT NULL,
-    verified boolean DEFAULT false NOT NULL
+    verified boolean DEFAULT false NOT NULL,
+    "failedVerificationCount" integer DEFAULT 0 NOT NULL,
+    "lockedUntil" timestamp with time zone
 );
 
 CREATE TABLE public.verification (
