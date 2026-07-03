@@ -29,6 +29,19 @@ vi.mock('@/lib/services/guards/OAuthGuard', () => ({
       ) => Promise<Response> | Response
     ) =>
     (req: NextRequest, context: { params: Promise<{ group_key: string }> }) =>
+      handle(req, { currentActor: mockCurrentActor, params: context.params }),
+  OAuthGuardAnyScope:
+    (
+      _scopes: unknown[],
+      handle: (
+        req: NextRequest,
+        context: {
+          currentActor: typeof mockCurrentActor
+          params: Promise<{ group_key: string }>
+        }
+      ) => Promise<Response> | Response
+    ) =>
+    (req: NextRequest, context: { params: Promise<{ group_key: string }> }) =>
       handle(req, { currentActor: mockCurrentActor, params: context.params })
 }))
 

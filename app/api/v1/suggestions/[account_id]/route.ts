@@ -1,4 +1,4 @@
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
@@ -18,8 +18,8 @@ interface Params {
 // account still returns an empty object like Mastodon.
 export const DELETE = traceApiRoute(
   'removeSuggestion',
-  OAuthGuard<Params>(
-    [Scope.enum.write],
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.read, Scope.enum.write],
     async (req, { database, currentActor, params }) => {
       const { account_id: accountId } = await params
       await database.dismissSuggestion({

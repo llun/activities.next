@@ -1,5 +1,5 @@
 import { userUndoAnnounce } from '@/lib/actions/undoAnnounce'
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { mastodonStatusResponse } from '@/lib/services/mastodon/statusActionResponse'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
@@ -25,62 +25,65 @@ interface Params {
 
 export const POST = traceApiRoute(
   'unreblogStatus',
-  OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
-    const { database, currentActor, params } = context
-    const encodedStatusId = (await params).id
-    if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.write, Scope.enum['write:statuses']],
+    async (req, context) => {
+      const { database, currentActor, params } = context
+      const encodedStatusId = (await params).id
+      if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
 
-    const statusId = idToUrl(encodedStatusId)
-    let undoStatusId = statusId
-    const readableStatus = await getReadableStatus({
-      database,
-      statusId,
-      currentActor,
-      withReplies: false
-    })
-    if (
-      readableStatus?.type !== StatusType.enum.Announce ||
-      readableStatus.actorId !== currentActor.id
-    ) {
-      const actorAnnounce = await database.getActorAnnounceStatus({
-        actorId: currentActor.id,
-        statusId
+      const statusId = idToUrl(encodedStatusId)
+      let undoStatusId = statusId
+      const readableStatus = await getReadableStatus({
+        database,
+        statusId,
+        currentActor,
+        withReplies: false
+      })
+      if (
+        readableStatus?.type !== StatusType.enum.Announce ||
+        readableStatus.actorId !== currentActor.id
+      ) {
+        const actorAnnounce = await database.getActorAnnounceStatus({
+          actorId: currentActor.id,
+          statusId
+        })
+
+        if (!actorAnnounce && !readableStatus)
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_404,
+            responseStatusCode: 404
+          })
+
+        undoStatusId = actorAnnounce?.id ?? statusId
+      }
+
+      const undoStatus = await userUndoAnnounce({
+        currentActor,
+        statusId: undoStatusId,
+        database
       })
 
-      if (!actorAnnounce && !readableStatus)
+      if (!undoStatus) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
+          data: ERROR_422,
+          responseStatusCode: 422
         })
+      }
 
-      undoStatusId = actorAnnounce?.id ?? statusId
-    }
-
-    const undoStatus = await userUndoAnnounce({
-      currentActor,
-      statusId: undoStatusId,
-      database
-    })
-
-    if (!undoStatus) {
-      return apiResponse({
+      return mastodonStatusResponse({
         req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_422,
-        responseStatusCode: 422
+        database,
+        currentActor,
+        status: undoStatus,
+        allowedMethods: CORS_HEADERS
       })
     }
-
-    return mastodonStatusResponse({
-      req,
-      database,
-      currentActor,
-      status: undoStatus,
-      allowedMethods: CORS_HEADERS
-    })
-  }),
+  ),
   {
     addAttributes: async (_req, context) => {
       const params = await context.params

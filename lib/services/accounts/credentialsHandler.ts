@@ -16,7 +16,7 @@ import { ERROR_500, apiResponse } from '@/lib/utils/response'
 // Scope: read:accounts (satisfied by the aggregate `read`).
 export const getCredentialAccountHandler = (corsHeaders: HttpMethod[]) =>
   OAuthGuardAnyScope(
-    [Scope.enum.read, Scope.enum['read:accounts']],
+    [Scope.enum.read, Scope.enum['read:accounts'], Scope.enum.profile],
     async (req, context) => {
       const { currentActor, database } = context
       const [account, followRequestsCount] = await Promise.all([

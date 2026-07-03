@@ -33,7 +33,7 @@ const RebloggedByQueryParams = z.object({
 export const GET = traceApiRoute(
   'getStatusRebloggedBy',
   OptionalOAuthGuard<Params>(
-    [Scope.enum.read, Scope.enum['read:accounts']],
+    [Scope.enum.read, Scope.enum['read:accounts'], Scope.enum['read:statuses']],
     async (req, context) => {
       const { database, currentActor, params } = context
       const encodedStatusId = (await params).id

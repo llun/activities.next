@@ -1,5 +1,5 @@
 import { getDatabase } from '@/lib/database'
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonNotificationRequest } from '@/lib/services/notifications/getMastodonNotificationRequest'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -22,8 +22,8 @@ interface Params {
 
 export const GET = traceApiRoute(
   'getNotificationRequest',
-  OAuthGuard<Params>(
-    [Scope.enum.read],
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.read, Scope.enum['read:notifications']],
     async (req, { currentActor, params }) => {
       const database = getDatabase()
       if (!database) {

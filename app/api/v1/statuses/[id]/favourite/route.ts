@@ -1,5 +1,5 @@
 import { sendLike } from '@/lib/activities'
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { refetchedStatusResponse } from '@/lib/services/mastodon/statusActionResponse'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
@@ -18,41 +18,45 @@ interface Params {
 
 export const POST = traceApiRoute(
   'favouriteStatus',
-  OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
-    const { database, currentActor, params } = context
-    const encodedStatusId = (await params).id
-    if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.write, Scope.enum['write:favourites']],
+    async (req, context) => {
+      const { database, currentActor, params } = context
+      const encodedStatusId = (await params).id
+      if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
 
-    const statusId = idToUrl(encodedStatusId)
-    const status = await getReadableStatus({
-      database,
-      statusId,
-      currentActor,
-      withReplies: false
-    })
-    if (!status) return apiCorsError(req, CORS_HEADERS, 404)
+      const statusId = idToUrl(encodedStatusId)
+      const status = await getReadableStatus({
+        database,
+        statusId,
+        currentActor,
+        withReplies: false
+      })
+      if (!status) return apiCorsError(req, CORS_HEADERS, 404)
 
-    // Check if already liked to avoid duplicate activities
-    const alreadyLiked =
-      (status.type === 'Note' || status.type === 'Poll') && status.isActorLiked
+      // Check if already liked to avoid duplicate activities
+      const alreadyLiked =
+        (status.type === 'Note' || status.type === 'Poll') &&
+        status.isActorLiked
 
-    // Create like (database handles idempotency)
-    await database.createLike({ actorId: currentActor.id, statusId })
+      // Create like (database handles idempotency)
+      await database.createLike({ actorId: currentActor.id, statusId })
 
-    // Only send Like activity if not already liked
-    if (!alreadyLiked) {
-      await sendLike({ currentActor, status })
+      // Only send Like activity if not already liked
+      if (!alreadyLiked) {
+        await sendLike({ currentActor, status })
+      }
+
+      // Refetch status to get updated counts
+      return refetchedStatusResponse({
+        req,
+        database,
+        currentActor,
+        statusId,
+        allowedMethods: CORS_HEADERS
+      })
     }
-
-    // Refetch status to get updated counts
-    return refetchedStatusResponse({
-      req,
-      database,
-      currentActor,
-      statusId,
-      allowedMethods: CORS_HEADERS
-    })
-  }),
+  ),
   {
     addAttributes: async (_req, context) => {
       const params = await context.params

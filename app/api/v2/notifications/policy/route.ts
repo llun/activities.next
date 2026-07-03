@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { Database } from '@/lib/database/types'
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { NotificationPolicyValue, Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -48,25 +48,28 @@ const buildPolicyResponse = async (database: Database, actorId: string) => {
 
 export const GET = traceApiRoute(
   'getNotificationPolicy',
-  OAuthGuard([Scope.enum.read], async (req, { currentActor, database }) => {
-    if (!database) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_500,
-        responseStatusCode: 500
-      })
-    }
+  OAuthGuardAnyScope(
+    [Scope.enum.read, Scope.enum['read:notifications']],
+    async (req, { currentActor, database }) => {
+      if (!database) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_500,
+          responseStatusCode: 500
+        })
+      }
 
-    const data = await buildPolicyResponse(database, currentActor.id)
-    return apiResponse({ req, allowedMethods: CORS_HEADERS, data })
-  })
+      const data = await buildPolicyResponse(database, currentActor.id)
+      return apiResponse({ req, allowedMethods: CORS_HEADERS, data })
+    }
+  )
 )
 
 export const PATCH = traceApiRoute(
   'updateNotificationPolicy',
-  OAuthGuard(
-    [Scope.enum.write],
+  OAuthGuardAnyScope(
+    [Scope.enum.write, Scope.enum['write:notifications']],
     async (req: NextRequest, { currentActor, database }) => {
       if (!database) {
         return apiResponse({

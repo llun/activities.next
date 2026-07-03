@@ -3,7 +3,7 @@ import {
   applyFiltersToStatus,
   getActiveFilters
 } from '@/lib/services/filters/applyFilters'
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -27,8 +27,8 @@ export const GET = traceApiRoute(
   // Mastodon's grouped-notifications docs require write:notifications for this
   // endpoint (unusual for a GET, but per spec), unlike the read-scoped list/
   // single/unread endpoints.
-  OAuthGuard<Params>(
-    [Scope.enum.write],
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.write, Scope.enum['write:notifications']],
     async (req, { currentActor, params }) => {
       const database = getDatabase()
       if (!database) {

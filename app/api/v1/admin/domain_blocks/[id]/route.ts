@@ -31,24 +31,28 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const GET = traceApiRoute(
   'adminGetDomainBlock',
-  AdminApiGuard<Params>(CORS_HEADERS, async (req, { database, params }) => {
-    const { id } = await params
-    const block = await database.getDomainBlockById(id)
-    if (!block) {
+  AdminApiGuard<Params>(
+    CORS_HEADERS,
+    async (req, { database, params }) => {
+      const { id } = await params
+      const block = await database.getDomainBlockById(id)
+      if (!block) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: HTTP_STATUS.NOT_FOUND
+        })
+      }
+
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: HTTP_STATUS.NOT_FOUND
+        data: toAdminDomainBlock(block)
       })
-    }
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: toAdminDomainBlock(block)
-    })
-  })
+    },
+    { resource: 'domain_blocks' }
+  )
 )
 
 export const PUT = traceApiRoute(
@@ -102,7 +106,8 @@ export const PUT = traceApiRoute(
         allowedMethods: CORS_HEADERS,
         data: toAdminDomainBlock(block)
       })
-    }
+    },
+    { resource: 'domain_blocks' }
   )
 )
 
@@ -112,22 +117,26 @@ export const PATCH = PUT
 
 export const DELETE = traceApiRoute(
   'adminDeleteDomainBlock',
-  AdminApiGuard<Params>(CORS_HEADERS, async (req, { database, params }) => {
-    const { id } = await params
-    const block = await database.deleteDomainBlock(id)
-    if (!block) {
+  AdminApiGuard<Params>(
+    CORS_HEADERS,
+    async (req, { database, params }) => {
+      const { id } = await params
+      const block = await database.deleteDomainBlock(id)
+      if (!block) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: HTTP_STATUS.NOT_FOUND
+        })
+      }
+
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: HTTP_STATUS.NOT_FOUND
+        data: toAdminDomainBlock(block)
       })
-    }
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: toAdminDomainBlock(block)
-    })
-  })
+    },
+    { resource: 'domain_blocks' }
+  )
 )

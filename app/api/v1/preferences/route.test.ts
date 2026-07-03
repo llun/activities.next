@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
@@ -7,6 +8,19 @@ import { seedActor2 } from '@/lib/stub/seed/actor2'
 
 import { GET } from './route'
 
+// Mirrors the SHA-256 base64url hashing the guard applies before the DB lookup.
+const hashToken = (token: string) =>
+  crypto
+    .createHash('sha256')
+    .update(token)
+    .digest()
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+
+const mockStoredTokens = new Map<string, Record<string, unknown>>()
+
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
@@ -14,7 +28,14 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase
+  getDatabase: () => mockDatabase,
+  // The OAuth bearer path looks the token up via getKnex(); return the
+  // in-memory token store so scope tests can exercise the real guard.
+  getKnex: () => (_table: string) => ({
+    where: (_field: string, value: string) => ({
+      first: () => Promise.resolve(mockStoredTokens.get(value) ?? null)
+    })
+  })
 }))
 
 vi.mock('next/headers', () => ({
@@ -52,10 +73,21 @@ describe('/api/v1/preferences', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockStoredTokens.clear()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
   })
+
+  const setToken = (token: string, scopes: string[]) => {
+    mockStoredTokens.set(hashToken(token), {
+      token: hashToken(token),
+      referenceId: ACTOR1_ID,
+      clientId: 'client-app-1',
+      expiresAt: new Date(Date.now() + 3600000),
+      scopes: JSON.stringify(scopes)
+    })
+  }
 
   it('GET requires authentication', async () => {
     mockGetServerSession.mockResolvedValue(null)
@@ -108,5 +140,35 @@ describe('/api/v1/preferences', () => {
       'reading:expand:spoilers': true,
       'reading:autoplay:gifs': true
     })
+  })
+
+  // The guard now accepts the aggregate `read` scope OR the granular
+  // `read:accounts` scope (OAuthGuardAnyScope). An unrelated granular read
+  // scope must still be rejected.
+  it.each(['read', 'read:accounts'])(
+    'GET accepts a bearer token granted only the %s scope',
+    async (scope) => {
+      mockGetServerSession.mockResolvedValue(null)
+      setToken('prefs-token', [scope])
+      const response = await GET(
+        new NextRequest('https://llun.test/api/v1/preferences', {
+          headers: { Authorization: 'Bearer prefs-token' }
+        }),
+        { params: Promise.resolve({}) }
+      )
+      expect(response.status).toBe(200)
+    }
+  )
+
+  it('GET rejects a bearer token granted only an unrelated scope', async () => {
+    mockGetServerSession.mockResolvedValue(null)
+    setToken('unrelated-token', ['read:statuses'])
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v1/preferences', {
+        headers: { Authorization: 'Bearer unrelated-token' }
+      }),
+      { params: Promise.resolve({}) }
+    )
+    expect(response.status).toBe(401)
   })
 })
