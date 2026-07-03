@@ -272,8 +272,7 @@ describe('RegionMap', () => {
 
   it('ignores a geolocation result that arrives after unmount', async () => {
     let success:
-      | ((position: { coords: GeolocationCoordinates }) => void)
-      | null = null
+      ((position: { coords: GeolocationCoordinates }) => void) | null = null
     const getCurrentPosition = vi.fn((callback) => {
       success = callback
     })

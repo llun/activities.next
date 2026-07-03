@@ -135,7 +135,7 @@ export const MuteSQLDatabaseMixin = (database: Knex): MuteDatabase => ({
   },
 
   async isMuting({ actorId, targetActorId }: IsMutingParams) {
-    const mute = await database<Pick<Mute, 'id' | 'endsAt'>>('mutes')
+    const mute = await database<Mute>('mutes')
       .where({ actorId, targetActorId })
       .first('id', 'endsAt')
     if (!mute) return false

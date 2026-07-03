@@ -57,8 +57,7 @@ const invalidFollowRequestResponse = (req: NextRequest) =>
   })
 
 type ParseFollowRequestBodyResult =
-  | { ok: true; data: FollowRequest }
-  | { ok: false; response: Response }
+  { ok: true; data: FollowRequest } | { ok: false; response: Response }
 
 const parseFollowRequestBody = async (
   req: NextRequest

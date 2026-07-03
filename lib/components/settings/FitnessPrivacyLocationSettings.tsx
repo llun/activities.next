@@ -583,8 +583,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
     }
 
     const source = map.getSource(MAPBOX_MARKER_SOURCE_ID) as
-      | MapboxGeoJSONSource
-      | undefined
+      MapboxGeoJSONSource | undefined
 
     if (!source) {
       return

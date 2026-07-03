@@ -1068,8 +1068,7 @@ const ActivityMapPanel: FC<{
     if (!map) return
 
     const source = map.getSource(MAP_ACTIVE_POINT_SOURCE_ID) as
-      | MapboxGeoJSONSource
-      | undefined
+      MapboxGeoJSONSource | undefined
     if (!source) return
 
     if (!activeSample) {

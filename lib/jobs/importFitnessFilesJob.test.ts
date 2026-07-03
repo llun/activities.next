@@ -374,8 +374,7 @@ describe('importFitnessFilesJob', () => {
     })
 
     const publishedJob = publishMock.mock.calls[0]?.[0] as
-      | { data: { statusId: string } }
-      | undefined
+      { data: { statusId: string } } | undefined
     const createdStatusId = publishedJob?.data.statusId
     expect(createdStatusId).toBeDefined()
 

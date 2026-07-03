@@ -13,8 +13,7 @@ interface Props {
 // row text already names the notification — so it is hidden from assistive tech.
 export const NotificationTypeBadge: FC<Props> = ({ type }) => {
   const cfg = NOTIFICATION_TYPE_CONFIG[type] as
-    | (typeof NOTIFICATION_TYPE_CONFIG)[NotificationType]
-    | undefined
+    (typeof NOTIFICATION_TYPE_CONFIG)[NotificationType] | undefined
   // Defensive: render nothing for an unrecognized type rather than throwing,
   // even though callers only mount this for configured types.
   if (!cfg) return null

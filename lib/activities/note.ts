@@ -13,12 +13,7 @@ import {
 } from '@/lib/types/activitypub'
 
 export type BaseNote =
-  | Note
-  | ImageContent
-  | PageContent
-  | ArticleContent
-  | VideoContent
-  | Question
+  Note | ImageContent | PageContent | ArticleContent | VideoContent | Question
 
 type UrlValue = string | { href?: string } | (string | { href?: string })[]
 

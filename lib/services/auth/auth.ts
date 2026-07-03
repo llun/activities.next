@@ -96,8 +96,7 @@ const buildAuth = (baseURL: string) => {
           shouldRedirect: async () => false,
           consentReferenceId: async ({ session }) => {
             const actorId = (session as Record<string, unknown>)?.actorId as
-              | string
-              | undefined
+              string | undefined
             if (actorId) return actorId
             if (!database || !session?.userId) return undefined
             try {

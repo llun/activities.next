@@ -322,7 +322,7 @@ export const FollowerSQLDatabaseMixin = (
     const uniqueTargetActorIds = [...new Set(targetActorIds)]
     if (uniqueTargetActorIds.length === 0) return []
 
-    const follows = await database<Pick<Follow, 'targetActorId'>>('follows')
+    const follows = await database<Follow>('follows')
       .select('targetActorId')
       .where({
         actorId,

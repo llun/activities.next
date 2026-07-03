@@ -41,8 +41,7 @@ const isTruthyParam = (value: string | undefined): boolean =>
   value === 'true' || value === '1'
 
 export type ParseTimelineQueryResult =
-  | { ok: true; query: ParsedTimelineQuery }
-  | { ok: false }
+  { ok: true; query: ParsedTimelineQuery } | { ok: false }
 
 // undefined → cursor not provided; null → provided but undecodable (→ 400).
 const decodeCursor = (raw: string | undefined): string | null | undefined =>

@@ -216,10 +216,7 @@ export const isPointHiddenByPrivacy = (
 
 const normalizePrivacyLocations = (
   privacyLocation:
-    | FitnessPrivacyLocation
-    | FitnessPrivacyLocation[]
-    | null
-    | undefined
+    FitnessPrivacyLocation | FitnessPrivacyLocation[] | null | undefined
 ): FitnessPrivacyLocation[] => {
   if (!privacyLocation) {
     return []
@@ -244,10 +241,7 @@ export const isPointHiddenByPrivacyLocations = (
 export const annotatePointsWithPrivacy = <T extends Coordinate>(
   points: T[],
   privacyLocation:
-    | FitnessPrivacyLocation
-    | FitnessPrivacyLocation[]
-    | null
-    | undefined
+    FitnessPrivacyLocation | FitnessPrivacyLocation[] | null | undefined
 ): Array<T & { isHiddenByPrivacy: boolean }> => {
   const privacyLocations = normalizePrivacyLocations(privacyLocation)
 
@@ -459,10 +453,7 @@ export const flattenPrivacySegments = <T>(
 export const getVisibleSegments = <T extends Coordinate>(
   points: T[],
   privacyLocation:
-    | FitnessPrivacyLocation
-    | FitnessPrivacyLocation[]
-    | null
-    | undefined
+    FitnessPrivacyLocation | FitnessPrivacyLocation[] | null | undefined
 ): T[][] => {
   const privacyLocations = normalizePrivacyLocations(privacyLocation)
 

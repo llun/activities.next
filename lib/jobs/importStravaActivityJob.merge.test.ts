@@ -28,8 +28,7 @@ vi.mock('@/lib/services/queue', () => ({
     publish: async (message: { name: string }) => {
       const { JOBS } = await import('@/lib/jobs')
       const job = (JOBS as Record<string, unknown>)[message.name] as
-        | ((db: unknown, msg: unknown) => Promise<void>)
-        | undefined
+        ((db: unknown, msg: unknown) => Promise<void>) | undefined
       if (job && hoisted.database) {
         await job(hoisted.database, message)
       }
