@@ -1,0 +1,21 @@
+package.json
+  s_e732b787aaa725::t_cceea43e24228b 28
+yarn.lock
+  s_e732b787aaa725::t_e375c6ae7850c3 738-740,742-744,746,749,751-754,756-767,890,6150,6725,10109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "f3c65dd3260cad96b929547a92af0d1f13224ff9",
+  "prompts": {},
+  "sessions": {
+    "s_e732b787aaa725": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "188cdcb2-aad3-4a72-93d9-d39d4e7619e9",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
