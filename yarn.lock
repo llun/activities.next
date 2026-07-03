@@ -735,20 +735,36 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@better-auth/infra@npm:^0.1.12":
-  version: 0.1.14
-  resolution: "@better-auth/infra@npm:0.1.14"
+"@better-auth/infra@npm:^0.3.4":
+  version: 0.3.4
+  resolution: "@better-auth/infra@npm:0.3.4"
   dependencies:
-    "@better-fetch/fetch": "npm:^1.1.21"
-    better-call: "npm:^1.3.3"
+    "@better-auth/utils": "npm:^0.4.2"
+    "@better-fetch/fetch": "npm:1.3.1"
+    better-call: "npm:1.3.7"
     jose: "npm:^6.1.0"
-    libphonenumber-js: "npm:^1.12.36"
+    libphonenumber-js: "npm:^1.13.3"
   peerDependencies:
     "@better-auth/core": ">=1.4.0"
-    "@better-auth/sso": ">=1.4.0"
+    "@react-native-async-storage/async-storage": ">=1.21.0"
     better-auth: ">=1.4.0"
+    expo-constants: ">=16.0.0"
+    expo-crypto: ">=13.0.0"
+    expo-device: ">=6.0.0"
+    react-native: ">=0.74.0"
     zod: ">=4.1.12"
-  checksum: 10c0/2fe47b0d1d41de8642ef7469b8129675011251b28cb2323fd4b744c9bf851ccd1bba0988bd036d1364e899e8307f3abcdb4bbdfce7e600b0737eac549d1312db
+  peerDependenciesMeta:
+    "@react-native-async-storage/async-storage":
+      optional: true
+    expo-constants:
+      optional: true
+    expo-crypto:
+      optional: true
+    expo-device:
+      optional: true
+    react-native:
+      optional: true
+  checksum: 10c0/ea6fcc33626bd2d630cd41702a13eb2b919d2a8502fbcf351266047179e8566d133bec3b7b0782789f042ece13fcd1c7e4e64fdca4b0d5a41ee754e1274a8a77
   languageName: node
   linkType: hard
 
@@ -871,7 +887,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@better-auth/utils@npm:0.4.2":
+"@better-auth/utils@npm:0.4.2, @better-auth/utils@npm:^0.4.2":
   version: 0.4.2
   resolution: "@better-auth/utils@npm:0.4.2"
   dependencies:
@@ -6131,7 +6147,7 @@ __metadata:
     "@aws-sdk/s3-request-presigner": "npm:^3.1078.0"
     "@aws-sdk/util-utf8-node": "npm:^3.259.0"
     "@better-auth/core": "npm:1.6.23"
-    "@better-auth/infra": "npm:^0.1.12"
+    "@better-auth/infra": "npm:^0.3.4"
     "@better-auth/oauth-provider": "npm:^1.6.23"
     "@better-auth/passkey": "npm:^1.6.23"
     "@better-auth/sso": "npm:^1.6.19"
@@ -6706,7 +6722,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"better-call@npm:1.3.7, better-call@npm:^1.3.3":
+"better-call@npm:1.3.7":
   version: 1.3.7
   resolution: "better-call@npm:1.3.7"
   dependencies:
@@ -10090,7 +10106,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"libphonenumber-js@npm:^1.12.36":
+"libphonenumber-js@npm:^1.13.3":
   version: 1.13.7
   resolution: "libphonenumber-js@npm:1.13.7"
   checksum: 10c0/2064257e26b4a98b098f3d316e92956f0dd06a4e812e7b8b11bce036e01a987a0078a8b3e6aaba639dc98e5eef1fc8c43cf81781f208e9b84bc163cccc72c89a
