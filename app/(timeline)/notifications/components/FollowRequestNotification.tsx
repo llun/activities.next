@@ -54,10 +54,12 @@ export const FollowRequestNotification: FC<Props> = ({
     setIsLoading(true)
     setError(null)
     try {
+      // Send the account id (the urlToId format the API resolves), matching
+      // what a Mastodon client would send; the route still accepts a raw URL.
       const ok =
         action === 'accept'
-          ? await acceptFollowRequest({ id: account.url })
-          : await rejectFollowRequest({ id: account.url })
+          ? await acceptFollowRequest({ id: account.id })
+          : await rejectFollowRequest({ id: account.id })
       if (!ok) throw new Error('request failed')
       setStatus(action === 'accept' ? 'accepted' : 'rejected')
       router.refresh()

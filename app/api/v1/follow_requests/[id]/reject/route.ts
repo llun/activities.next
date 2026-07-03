@@ -1,15 +1,16 @@
 import { rejectFollow } from '@/lib/activities'
 import { FollowRequest } from '@/lib/activities/followAction'
-import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { getRelationship } from '@/lib/services/accounts/relationship'
+import {
+  OAuthGuardAnyScope,
+  corsErrorResponse
+} from '@/lib/services/guards/OAuthGuard'
+import { Scope } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import {
-  ERROR_404,
-  ERROR_500,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { ERROR_404, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
@@ -17,19 +18,15 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const POST = traceApiRoute(
   'rejectFollowRequest',
-  AuthenticatedGuard<{ id: string }>(
+  OAuthGuardAnyScope<{ id: string }>(
+    [Scope.enum.write, Scope.enum['write:follows']],
     async (req, { currentActor, database, params }) => {
-      if (!database) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_500,
-          responseStatusCode: 500
-        })
-      }
-
       const { id } = await params
-      const accountId = decodeURIComponent(id)
+      // Accept both the urlToId-format id every GET endpoint emits (what
+      // Mastodon clients send) and a raw actor URL (the first-party UI's
+      // historical shape) so the UI migration is non-breaking.
+      const rawId = decodeURIComponent(id)
+      const accountId = rawId.startsWith('https://') ? rawId : idToUrl(rawId)
 
       // Find the follow request from this account to current actor
       const follow = await database.getAcceptedOrRequestedFollow({
@@ -74,31 +71,21 @@ export const POST = traceApiRoute(
       }
       await rejectFollow(currentActor, followerActor.inboxUrl, followRequest)
 
-      // Return relationship
-      const relationship = {
-        id: accountId,
-        following: false,
-        showing_reblogs: true,
-        notifying: false,
-        languages: [],
-        followed_by: false,
-        blocking: false,
-        blocked_by: false,
-        muting: false,
-        muting_notifications: false,
-        muting_expires_at: null,
-        requested: false,
-        requested_by: false,
-        domain_blocking: false,
-        endorsed: false,
-        note: ''
-      }
+      // Return the real relationship (the request is no longer pending) rather
+      // than a hardcoded all-false literal, matching the authorize route and
+      // every other relationship response (id in urlToId format, languages null).
+      const relationship = await getRelationship({
+        database,
+        currentActor,
+        targetActorId: accountId
+      })
 
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
         data: relationship
       })
-    }
+    },
+    { errorResponse: corsErrorResponse(CORS_HEADERS) }
   )
 )

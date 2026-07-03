@@ -195,6 +195,15 @@ const EXPECTED: Array<{ module: string; scopes: string[] }> = [
   {
     module: '@/app/api/oauth/userinfo/route',
     scopes: ['openid', 'profile', 'read']
+  },
+  // follow_requests authorize/reject
+  {
+    module: '@/app/api/v1/follow_requests/[id]/authorize/route',
+    scopes: ['write', 'write:follows']
+  },
+  {
+    module: '@/app/api/v1/follow_requests/[id]/reject/route',
+    scopes: ['write', 'write:follows']
   }
 ]
 

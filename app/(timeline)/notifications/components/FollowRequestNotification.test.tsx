@@ -122,7 +122,7 @@ describe('FollowRequestNotification', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
 
     await waitFor(() =>
-      expect(acceptFollowRequest).toHaveBeenCalledWith({ id: account.url })
+      expect(acceptFollowRequest).toHaveBeenCalledWith({ id: account.id })
     )
     expect(await screen.findByText('Approved')).toBeInTheDocument()
     expect(
@@ -137,7 +137,7 @@ describe('FollowRequestNotification', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reject' }))
 
     await waitFor(() =>
-      expect(rejectFollowRequest).toHaveBeenCalledWith({ id: account.url })
+      expect(rejectFollowRequest).toHaveBeenCalledWith({ id: account.id })
     )
     expect(await screen.findByText('Rejected')).toBeInTheDocument()
     expect(
