@@ -1,7 +1,10 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
-import { OAuthGuard, corsErrorResponse } from '@/lib/services/guards/OAuthGuard'
+import {
+  OAuthGuardAnyScope,
+  corsErrorResponse
+} from '@/lib/services/guards/OAuthGuard'
 import { AuthenticatedApiHandle } from '@/lib/services/guards/types'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -71,14 +74,18 @@ const addAttributes = async (
 
 export const PUT = traceApiRoute(
   'addAnnouncementReaction',
-  OAuthGuard<Params>([Scope.enum.write], reactionHandler('add'), guardOptions),
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.write, Scope.enum['write:favourites']],
+    reactionHandler('add'),
+    guardOptions
+  ),
   { addAttributes }
 )
 
 export const DELETE = traceApiRoute(
   'removeAnnouncementReaction',
-  OAuthGuard<Params>(
-    [Scope.enum.write],
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.write, Scope.enum['write:favourites']],
     reactionHandler('remove'),
     guardOptions
   ),

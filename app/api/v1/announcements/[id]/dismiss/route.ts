@@ -1,4 +1,7 @@
-import { OAuthGuard, corsErrorResponse } from '@/lib/services/guards/OAuthGuard'
+import {
+  OAuthGuardAnyScope,
+  corsErrorResponse
+} from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiCorsError, apiResponse, defaultOptions } from '@/lib/utils/response'
@@ -16,8 +19,8 @@ interface Params {
 
 export const POST = traceApiRoute(
   'dismissAnnouncement',
-  OAuthGuard<Params>(
-    [Scope.enum.write],
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.write, Scope.enum['write:accounts']],
     async (req, { database, currentActor, params }) => {
       const { id } = await params
 

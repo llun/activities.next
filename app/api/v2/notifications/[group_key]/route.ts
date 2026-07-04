@@ -1,6 +1,6 @@
 import { getDatabase } from '@/lib/database'
 import { getActiveFilters } from '@/lib/services/filters/applyFilters'
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import {
   getNotificationGroupsEnvelope,
   prepareGroupedNotifications
@@ -26,8 +26,8 @@ interface Params {
 
 export const GET = traceApiRoute(
   'getGroupedNotification',
-  OAuthGuard<Params>(
-    [Scope.enum.read],
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.read, Scope.enum['read:notifications']],
     async (req, { currentActor, params }) => {
       const database = getDatabase()
       if (!database) {

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -30,50 +30,53 @@ const BulkBody = z
 
 export const POST = traceApiRoute(
   'dismissNotificationRequests',
-  OAuthGuard([Scope.enum.write], async (req, { currentActor }) => {
-    const database = getDatabase()
-    if (!database) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_500,
-        responseStatusCode: 500
-      })
-    }
-
-    const contentType = req.headers.get('content-type') ?? ''
-    let rawBody: unknown
-    if (
-      contentType.includes('application/x-www-form-urlencoded') ||
-      contentType.includes('multipart/form-data')
-    ) {
-      const formData = await req.formData().catch(() => null)
-      if (formData) {
-        const ids = formData.getAll('id[]')
-        const idSingle = formData.get('id')
-        rawBody =
-          ids.length > 0 ? { 'id[]': ids } : idSingle ? { id: idSingle } : {}
-      } else {
-        rawBody = {}
+  OAuthGuardAnyScope(
+    [Scope.enum.write, Scope.enum['write:notifications']],
+    async (req, { currentActor }) => {
+      const database = getDatabase()
+      if (!database) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_500,
+          responseStatusCode: 500
+        })
       }
-    } else {
-      rawBody = await req.json().catch(() => ({}))
-    }
-    const parsed = BulkBody.safeParse(rawBody)
-    if (!parsed.success) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_422,
-        responseStatusCode: 422
+
+      const contentType = req.headers.get('content-type') ?? ''
+      let rawBody: unknown
+      if (
+        contentType.includes('application/x-www-form-urlencoded') ||
+        contentType.includes('multipart/form-data')
+      ) {
+        const formData = await req.formData().catch(() => null)
+        if (formData) {
+          const ids = formData.getAll('id[]')
+          const idSingle = formData.get('id')
+          rawBody =
+            ids.length > 0 ? { 'id[]': ids } : idSingle ? { id: idSingle } : {}
+        } else {
+          rawBody = {}
+        }
+      } else {
+        rawBody = await req.json().catch(() => ({}))
+      }
+      const parsed = BulkBody.safeParse(rawBody)
+      if (!parsed.success) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
+        })
+      }
+
+      await database.dismissNotificationRequests({
+        actorId: currentActor.id,
+        sourceActorIds: parsed.data.map((id) => idToUrl(id))
       })
+
+      return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
     }
-
-    await database.dismissNotificationRequests({
-      actorId: currentActor.id,
-      sourceActorIds: parsed.data.map((id) => idToUrl(id))
-    })
-
-    return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
-  })
+  )
 )

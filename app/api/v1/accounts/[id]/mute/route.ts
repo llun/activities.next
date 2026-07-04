@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { applyMute } from '@/lib/actions/applyMute'
 import { getRelationship } from '@/lib/services/accounts/relationship'
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -46,44 +46,47 @@ interface Params {
 
 export const POST = traceApiRoute(
   'muteAccount',
-  OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
-    const { database, currentActor, params } = context
-    const encodedAccountId = (await params).id
-    if (!encodedAccountId) return apiCorsError(req, CORS_HEADERS, 400)
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.write, Scope.enum['write:mutes']],
+    async (req, context) => {
+      const { database, currentActor, params } = context
+      const encodedAccountId = (await params).id
+      if (!encodedAccountId) return apiCorsError(req, CORS_HEADERS, 400)
 
-    const targetActorId = idToUrl(encodedAccountId)
+      const targetActorId = idToUrl(encodedAccountId)
 
-    if (targetActorId !== currentActor.id) {
-      const targetActor = await database.getActorFromId({ id: targetActorId })
-      if (!targetActor) return apiCorsError(req, CORS_HEADERS, 404)
+      if (targetActorId !== currentActor.id) {
+        const targetActor = await database.getActorFromId({ id: targetActorId })
+        if (!targetActor) return apiCorsError(req, CORS_HEADERS, 404)
 
-      const rawBody = await getRequestBody(req).catch(() => ({}))
-      const body = MuteBodySchema.safeParse(rawBody).data ?? {}
-      const notifications: boolean = body.notifications !== false
-      const durationSeconds = body.duration ?? 0
-      const endsAt =
-        durationSeconds > 0 ? Date.now() + durationSeconds * 1000 : null
-      await applyMute({
+        const rawBody = await getRequestBody(req).catch(() => ({}))
+        const body = MuteBodySchema.safeParse(rawBody).data ?? {}
+        const notifications: boolean = body.notifications !== false
+        const durationSeconds = body.duration ?? 0
+        const endsAt =
+          durationSeconds > 0 ? Date.now() + durationSeconds * 1000 : null
+        await applyMute({
+          database,
+          actorId: currentActor.id,
+          targetActorId,
+          notifications,
+          endsAt
+        })
+      }
+
+      const relationship = await getRelationship({
         database,
-        actorId: currentActor.id,
-        targetActorId,
-        notifications,
-        endsAt
+        currentActor,
+        targetActorId
+      })
+
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: relationship
       })
     }
-
-    const relationship = await getRelationship({
-      database,
-      currentActor,
-      targetActorId
-    })
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: relationship
-    })
-  }),
+  ),
   {
     addAttributes: async (_req, context) => {
       const params = await context.params

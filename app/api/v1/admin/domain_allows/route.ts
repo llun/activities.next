@@ -29,70 +29,78 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const GET = traceApiRoute(
   'adminListDomainAllows',
-  AdminApiGuard(CORS_HEADERS, async (req: NextRequest, { database }) => {
-    const queryParams = Object.fromEntries(new URL(req.url).searchParams)
-    const parsedParams = DomainRuleListQueryParams.safeParse(queryParams)
-    if (!parsedParams.success) {
+  AdminApiGuard(
+    CORS_HEADERS,
+    async (req: NextRequest, { database }) => {
+      const queryParams = Object.fromEntries(new URL(req.url).searchParams)
+      const parsedParams = DomainRuleListQueryParams.safeParse(queryParams)
+      if (!parsedParams.success) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: HTTP_STATUS.BAD_REQUEST
+        })
+      }
+
+      const { limit, offset } = parsedParams.data
+      const [allows, stats] = await Promise.all([
+        database.getDomainAllows({ limit, offset }),
+        database.getDomainFederationRuleStats()
+      ])
+
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: HTTP_STATUS.BAD_REQUEST
+        data: allows.map(toAdminDomainAllow),
+        additionalHeaders: [
+          ['X-Total-Count', `${stats.allows}`],
+          ['X-Offset', `${offset}`],
+          ['X-Limit', `${limit}`]
+        ]
       })
-    }
-
-    const { limit, offset } = parsedParams.data
-    const [allows, stats] = await Promise.all([
-      database.getDomainAllows({ limit, offset }),
-      database.getDomainFederationRuleStats()
-    ])
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: allows.map(toAdminDomainAllow),
-      additionalHeaders: [
-        ['X-Total-Count', `${stats.allows}`],
-        ['X-Offset', `${offset}`],
-        ['X-Limit', `${limit}`]
-      ]
-    })
-  })
+    },
+    { resource: 'domain_allows' }
+  )
 )
 
 export const POST = traceApiRoute(
   'adminCreateDomainAllow',
-  AdminApiGuard(CORS_HEADERS, async (req: NextRequest, { database }) => {
-    let data: unknown
-    try {
-      data = await getRequestBody(req)
-    } catch {
+  AdminApiGuard(
+    CORS_HEADERS,
+    async (req: NextRequest, { database }) => {
+      let data: unknown
+      try {
+        data = await getRequestBody(req)
+      } catch {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: HTTP_STATUS.BAD_REQUEST
+        })
+      }
+
+      const parsed = DomainAllowRequest.safeParse(data)
+      if (!parsed.success) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
+        })
+      }
+
+      const allow = await database.createDomainAllow({
+        domain: parsed.data.domain
+      })
+
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: HTTP_STATUS.BAD_REQUEST
+        data: toAdminDomainAllow(allow)
       })
-    }
-
-    const parsed = DomainAllowRequest.safeParse(data)
-    if (!parsed.success) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_422,
-        responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
-      })
-    }
-
-    const allow = await database.createDomainAllow({
-      domain: parsed.data.domain
-    })
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: toAdminDomainAllow(allow)
-    })
-  })
+    },
+    { resource: 'domain_allows' }
+  )
 )

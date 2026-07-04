@@ -1,4 +1,4 @@
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
@@ -12,11 +12,13 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 // the filtered flag), so merges are always complete by the time this is polled.
 export const GET = traceApiRoute(
   'getNotificationRequestsMerged',
-  OAuthGuard([Scope.enum.read], async (req) =>
-    apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: { merged: true }
-    })
+  OAuthGuardAnyScope(
+    [Scope.enum.read, Scope.enum['read:notifications']],
+    async (req) =>
+      apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { merged: true }
+      })
   )
 )

@@ -1,4 +1,4 @@
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
@@ -18,8 +18,12 @@ interface Params {
 // account still returns an empty object like Mastodon.
 export const DELETE = traceApiRoute(
   'removeSuggestion',
-  OAuthGuard<Params>(
-    [Scope.enum.write],
+  // Mastodon documents DELETE /api/v1/suggestions/:account_id as requiring the
+  // read scope (https://docs.joinmastodon.org/methods/suggestions/#remove). Do
+  // not add write here: mixing the two coarse families would let a write-only
+  // token (which Mastodon rejects) through.
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.read],
     async (req, { database, currentActor, params }) => {
       const { account_id: accountId } = await params
       await database.dismissSuggestion({

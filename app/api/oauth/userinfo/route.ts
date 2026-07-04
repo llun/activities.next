@@ -16,7 +16,7 @@ const CORS_HEADERS = [
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const respondWithUserInfo = OAuthGuardAnyScope(
-  [Scope.enum.openid, Scope.enum.read],
+  [Scope.enum.openid, Scope.enum.read, Scope.enum.profile],
   async (req: NextRequest, context) => {
     const { currentActor, grantedScopes } = context
 

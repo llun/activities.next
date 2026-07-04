@@ -21,55 +21,59 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const POST = traceApiRoute(
   'adminImportDomainBlocks',
-  AdminApiGuard(CORS_HEADERS, async (req: NextRequest, { database }) => {
-    let body: unknown
-    try {
-      body = await req.json()
-    } catch {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: HTTP_STATUS.BAD_REQUEST
-      })
-    }
-
-    const source =
-      typeof body === 'object' && body !== null && 'source' in body
-        ? body.source
-        : undefined
-    const parsed = KnownDomainBlocklistSourceId.safeParse(source)
-    if (!parsed.success) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_422,
-        responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
-      })
-    }
-
-    let blocks: Awaited<ReturnType<typeof downloadKnownDomainBlocklist>>
-    let result: Awaited<ReturnType<typeof database.importDomainBlocks>>
-    try {
-      blocks = await downloadKnownDomainBlocklist(parsed.data)
-      result = await database.importDomainBlocks({ blocks })
-    } catch {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: HTTP_STATUS.BAD_REQUEST
-      })
-    }
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: {
-        source: parsed.data,
-        fetched: blocks.length,
-        ...result
+  AdminApiGuard(
+    CORS_HEADERS,
+    async (req: NextRequest, { database }) => {
+      let body: unknown
+      try {
+        body = await req.json()
+      } catch {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: HTTP_STATUS.BAD_REQUEST
+        })
       }
-    })
-  })
+
+      const source =
+        typeof body === 'object' && body !== null && 'source' in body
+          ? body.source
+          : undefined
+      const parsed = KnownDomainBlocklistSourceId.safeParse(source)
+      if (!parsed.success) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
+        })
+      }
+
+      let blocks: Awaited<ReturnType<typeof downloadKnownDomainBlocklist>>
+      let result: Awaited<ReturnType<typeof database.importDomainBlocks>>
+      try {
+        blocks = await downloadKnownDomainBlocklist(parsed.data)
+        result = await database.importDomainBlocks({ blocks })
+      } catch {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: HTTP_STATUS.BAD_REQUEST
+        })
+      }
+
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: {
+          source: parsed.data,
+          fetched: blocks.length,
+          ...result
+        }
+      })
+    },
+    { resource: 'domain_blocks' }
+  )
 )
