@@ -93,10 +93,55 @@ describe('AdminApiGuard', () => {
     )
 
     expect(response.status).toBe(200)
-    // Admin GET accepts coarse read OR the aggregate admin:read scope.
-    // Granular admin:read:* tokens require per-route guard support (Tier 2).
+    // Without a resource option, admin GET accepts coarse read OR the aggregate
+    // admin:read scope only — no granular admin:read:* scope is added.
     expect(mockOAuthGuardAnyScope).toHaveBeenCalledWith(
       [Scope.enum.read, Scope.enum['admin:read']],
+      expect.any(Function)
+    )
+  })
+
+  it('adds the resource granular admin:read scope for a read route', async () => {
+    const guard = AdminApiGuard([HttpMethod.enum.GET], handle, {
+      resource: 'domain_blocks'
+    })
+    await guard(
+      new NextRequest('https://llun.test/api/v1/admin/domain_blocks', {
+        headers: { Authorization: 'Bearer token' }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    // The domain_blocks route additionally accepts its own granular
+    // admin:read:domain_blocks scope, without widening any other admin route.
+    expect(mockOAuthGuardAnyScope).toHaveBeenCalledWith(
+      [
+        Scope.enum.read,
+        Scope.enum['admin:read'],
+        Scope.enum['admin:read:domain_blocks']
+      ],
+      expect.any(Function)
+    )
+  })
+
+  it('adds the resource granular admin:write scope for a non-GET route', async () => {
+    const guard = AdminApiGuard([HttpMethod.enum.POST], handle, {
+      resource: 'domain_allows'
+    })
+    await guard(
+      new NextRequest('https://llun.test/api/v1/admin/domain_allows', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer token' }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(mockOAuthGuardAnyScope).toHaveBeenCalledWith(
+      [
+        Scope.enum.write,
+        Scope.enum['admin:write'],
+        Scope.enum['admin:write:domain_allows']
+      ],
       expect.any(Function)
     )
   })

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { addAcceptedSenders } from '@/lib/services/notifications/evaluateNotificationPolicy'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -31,67 +31,70 @@ const BulkBody = z
 
 export const POST = traceApiRoute(
   'acceptNotificationRequests',
-  OAuthGuard([Scope.enum.write], async (req, { currentActor }) => {
-    const database = getDatabase()
-    if (!database) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_500,
-        responseStatusCode: 500
-      })
-    }
-
-    const contentType = req.headers.get('content-type') ?? ''
-    let rawBody: unknown
-    if (
-      contentType.includes('application/x-www-form-urlencoded') ||
-      contentType.includes('multipart/form-data')
-    ) {
-      const formData = await req.formData().catch(() => null)
-      if (formData) {
-        const ids = formData.getAll('id[]')
-        const idSingle = formData.get('id')
-        rawBody =
-          ids.length > 0 ? { 'id[]': ids } : idSingle ? { id: idSingle } : {}
-      } else {
-        rawBody = {}
-      }
-    } else {
-      rawBody = await req.json().catch(() => ({}))
-    }
-    const parsed = BulkBody.safeParse(rawBody)
-    if (!parsed.success) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_422,
-        responseStatusCode: 422
-      })
-    }
-
-    const allSourceActorIds = parsed.data.map((id) => idToUrl(id))
-    // Only add senders that have an actual pending request to prevent arbitrary
-    // allowlisting of accounts the user never intentionally accepted.
-    const pendingRequests = await Promise.all(
-      allSourceActorIds.map((sourceActorId) =>
-        database.getNotificationRequest({
-          actorId: currentActor.id,
-          sourceActorId
+  OAuthGuardAnyScope(
+    [Scope.enum.write, Scope.enum['write:notifications']],
+    async (req, { currentActor }) => {
+      const database = getDatabase()
+      if (!database) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_500,
+          responseStatusCode: 500
         })
-      )
-    )
-    const sourceActorIds = allSourceActorIds.filter(
-      (_, i) => pendingRequests[i] !== null
-    )
-    await Promise.all([
-      database.acceptNotificationRequests({
-        actorId: currentActor.id,
-        sourceActorIds
-      }),
-      addAcceptedSenders(database, currentActor.id, sourceActorIds)
-    ])
+      }
 
-    return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
-  })
+      const contentType = req.headers.get('content-type') ?? ''
+      let rawBody: unknown
+      if (
+        contentType.includes('application/x-www-form-urlencoded') ||
+        contentType.includes('multipart/form-data')
+      ) {
+        const formData = await req.formData().catch(() => null)
+        if (formData) {
+          const ids = formData.getAll('id[]')
+          const idSingle = formData.get('id')
+          rawBody =
+            ids.length > 0 ? { 'id[]': ids } : idSingle ? { id: idSingle } : {}
+        } else {
+          rawBody = {}
+        }
+      } else {
+        rawBody = await req.json().catch(() => ({}))
+      }
+      const parsed = BulkBody.safeParse(rawBody)
+      if (!parsed.success) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_422,
+          responseStatusCode: 422
+        })
+      }
+
+      const allSourceActorIds = parsed.data.map((id) => idToUrl(id))
+      // Only add senders that have an actual pending request to prevent arbitrary
+      // allowlisting of accounts the user never intentionally accepted.
+      const pendingRequests = await Promise.all(
+        allSourceActorIds.map((sourceActorId) =>
+          database.getNotificationRequest({
+            actorId: currentActor.id,
+            sourceActorId
+          })
+        )
+      )
+      const sourceActorIds = allSourceActorIds.filter(
+        (_, i) => pendingRequests[i] !== null
+      )
+      await Promise.all([
+        database.acceptNotificationRequests({
+          actorId: currentActor.id,
+          sourceActorIds
+        }),
+        addAcceptedSenders(database, currentActor.id, sourceActorIds)
+      ])
+
+      return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
+    }
+  )
 )

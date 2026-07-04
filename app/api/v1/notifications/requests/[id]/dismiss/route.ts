@@ -1,5 +1,5 @@
 import { getDatabase } from '@/lib/database'
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -21,8 +21,8 @@ interface Params {
 
 export const POST = traceApiRoute(
   'dismissNotificationRequest',
-  OAuthGuard<Params>(
-    [Scope.enum.write],
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.write, Scope.enum['write:notifications']],
     async (req, { currentActor, params }) => {
       const database = getDatabase()
       if (!database) {

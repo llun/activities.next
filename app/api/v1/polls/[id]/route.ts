@@ -23,58 +23,62 @@ interface Params {
 
 export const GET = traceApiRoute(
   'getMastodonPoll',
-  OptionalOAuthGuard<Params>([Scope.enum.read], async (req, context) => {
-    const { database, currentActor, params } = context
-    const encodedPollId = (await params).id
-    const statusId = idToUrl(encodedPollId)
-    const status = await database.getStatus({
-      statusId,
-      currentActorId: currentActor?.id,
-      withReplies: false
-    })
+  OptionalOAuthGuard<Params>(
+    [Scope.enum.read, Scope.enum['read:statuses']],
+    async (req, context) => {
+      const { database, currentActor, params } = context
+      const encodedPollId = (await params).id
+      const statusId = idToUrl(encodedPollId)
+      const status = await database.getStatus({
+        statusId,
+        currentActorId: currentActor?.id,
+        withReplies: false
+      })
 
-    if (!status || status.type !== StatusType.enum.Poll) {
+      if (!status || status.type !== StatusType.enum.Poll) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+      }
+
+      // getStatus loads by id; canActorReadStatus is the visibility authority.
+      const hasAccess = await canActorReadStatus({
+        database,
+        status,
+        currentActor
+      })
+      if (!hasAccess) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+      }
+
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        status,
+        currentActor?.id
+      )
+      if (!mastodonStatus?.poll) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_500,
+          responseStatusCode: 500
+        })
+      }
+
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
+        data: mastodonStatus.poll
       })
-    }
-
-    // getStatus loads by id; canActorReadStatus is the visibility authority.
-    const hasAccess = await canActorReadStatus({
-      database,
-      status,
-      currentActor
-    })
-    if (!hasAccess) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_404,
-        responseStatusCode: 404
-      })
-    }
-
-    const mastodonStatus = await getMastodonStatus(
-      database,
-      status,
-      currentActor?.id
-    )
-    if (!mastodonStatus?.poll) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_500,
-        responseStatusCode: 500
-      })
-    }
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: mastodonStatus.poll
-    })
-  })
+    },
+    { matchMode: 'any' }
+  )
 )

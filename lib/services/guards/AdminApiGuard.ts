@@ -24,19 +24,56 @@ type AdminApiHandle<P> = (
 // (admin:read for GET, admin:write for mutations). The actor's admin role
 // checked inside the guard is the real authorization gate.
 //
-// Granular admin scopes (admin:read:domain_blocks, admin:read:accounts, …) are
-// recognised in the vocabulary so admin clients can register and authorize, but
-// they are NOT accepted here because accepting all admin:read:* scopes would
-// allow a token consented only for admin:read:accounts to access domain_blocks
-// and vice-versa. Proper per-route scope enforcement (Tier 2 work) would
-// require each admin route to declare its specific granular scope requirements.
-const getRequiredOAuthScopes = (method: string): Scope[] =>
-  method === HttpMethod.enum.GET
-    ? [Scope.enum.read, Scope.enum['admin:read']]
-    : [Scope.enum.write, Scope.enum['admin:write']]
+// A route may additionally opt into its own resource-specific granular admin
+// scope by passing `{ resource }`. Only that resource's scope is accepted, so a
+// token consented for admin:read:domain_blocks does not gain access to unrelated
+// admin resources — that isolation is why granular admin scopes are opt-in per
+// route rather than accepting every admin:read:* / admin:write:* globally.
+const RESOURCE_ADMIN_SCOPES = {
+  domain_blocks: {
+    read: Scope.enum['admin:read:domain_blocks'],
+    write: Scope.enum['admin:write:domain_blocks']
+  },
+  domain_allows: {
+    read: Scope.enum['admin:read:domain_allows'],
+    write: Scope.enum['admin:write:domain_allows']
+  }
+} as const
+
+type AdminResource = keyof typeof RESOURCE_ADMIN_SCOPES
+
+type AdminApiGuardOptions = {
+  // Accept this resource's granular admin scope in addition to the coarse and
+  // aggregate admin scopes, without widening any other admin route.
+  resource?: AdminResource
+}
+
+const getRequiredOAuthScopes = (
+  method: string,
+  options: AdminApiGuardOptions = {}
+): Scope[] => {
+  const granular = options.resource
+    ? RESOURCE_ADMIN_SCOPES[options.resource]
+    : undefined
+  return method === HttpMethod.enum.GET
+    ? [
+        Scope.enum.read,
+        Scope.enum['admin:read'],
+        ...(granular ? [granular.read] : [])
+      ]
+    : [
+        Scope.enum.write,
+        Scope.enum['admin:write'],
+        ...(granular ? [granular.write] : [])
+      ]
+}
 
 export const AdminApiGuard =
-  <P>(allowedMethods: HttpMethod[], handle: AdminApiHandle<P>) =>
+  <P>(
+    allowedMethods: HttpMethod[],
+    handle: AdminApiHandle<P>,
+    options: AdminApiGuardOptions = {}
+  ) =>
   async (req: NextRequest, context: AppRouterParams<P>) => {
     const database = getDatabase()
     if (!database) {
@@ -75,7 +112,7 @@ export const AdminApiGuard =
 
     const { OAuthGuardAnyScope } = await import('./OAuthGuard')
     return OAuthGuardAnyScope<P>(
-      getRequiredOAuthScopes(req.method),
+      getRequiredOAuthScopes(req.method, options),
       async (oauthReq, { currentActor, database: oauthDatabase, params }) => {
         if (currentActor.account?.role !== 'admin') {
           return apiResponse({

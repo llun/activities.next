@@ -1,4 +1,4 @@
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonNotification } from '@/lib/services/notifications/getMastodonNotification'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -27,8 +27,8 @@ interface Params {
 // never an unsupported type that would need a fallback representation.
 export const GET = traceApiRoute(
   'getNotification',
-  OAuthGuard<Params>(
-    [Scope.enum.read],
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.read, Scope.enum['read:notifications']],
     async (req, { currentActor, database, params }) => {
       if (!database) {
         return apiResponse({
@@ -83,8 +83,8 @@ export const GET = traceApiRoute(
 
 export const POST = traceApiRoute(
   'dismissNotificationById',
-  OAuthGuard<Params>(
-    [Scope.enum.write],
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.write, Scope.enum['write:notifications']],
     async (req, { currentActor, database, params }) => {
       if (!database) {
         return apiResponse({

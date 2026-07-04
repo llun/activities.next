@@ -33,6 +33,22 @@ vi.mock('@/lib/services/guards/OAuthGuard', () => ({
       handle(req, {
         currentActor: mockCurrentActor,
         params: context.params
+      }),
+  OAuthGuardAnyScope:
+    (
+      _scopes: unknown[],
+      handle: (
+        req: NextRequest,
+        context: {
+          currentActor: typeof mockCurrentActor
+          params: Promise<{}>
+        }
+      ) => Promise<Response> | Response
+    ) =>
+    (req: NextRequest, context: { params: Promise<{}> }) =>
+      handle(req, {
+        currentActor: mockCurrentActor,
+        params: context.params
       })
 }))
 

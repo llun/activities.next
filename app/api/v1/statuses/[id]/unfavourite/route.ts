@@ -1,5 +1,5 @@
 import { sendUndoLike } from '@/lib/activities'
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { refetchedStatusResponse } from '@/lib/services/mastodon/statusActionResponse'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
@@ -18,45 +18,48 @@ interface Params {
 
 export const POST = traceApiRoute(
   'unfavouriteStatus',
-  OAuthGuard<Params>([Scope.enum.write], async (req, context) => {
-    const { database, currentActor, params } = context
-    const encodedStatusId = (await params).id
-    if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.write, Scope.enum['write:favourites']],
+    async (req, context) => {
+      const { database, currentActor, params } = context
+      const encodedStatusId = (await params).id
+      if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
 
-    const statusId = idToUrl(encodedStatusId)
-    let status = await getReadableStatus({
-      database,
-      statusId,
-      currentActor,
-      withReplies: false
-    })
-    if (!status) {
-      const isActorLikedStatus = await database.isActorLikedStatus({
-        actorId: currentActor.id,
-        statusId
-      })
-      if (!isActorLikedStatus) return apiCorsError(req, CORS_HEADERS, 404)
-
-      status = await database.getStatus({
+      const statusId = idToUrl(encodedStatusId)
+      let status = await getReadableStatus({
+        database,
         statusId,
-        withReplies: false,
-        currentActorId: currentActor.id
+        currentActor,
+        withReplies: false
       })
-      if (!status) return apiCorsError(req, CORS_HEADERS, 404)
+      if (!status) {
+        const isActorLikedStatus = await database.isActorLikedStatus({
+          actorId: currentActor.id,
+          statusId
+        })
+        if (!isActorLikedStatus) return apiCorsError(req, CORS_HEADERS, 404)
+
+        status = await database.getStatus({
+          statusId,
+          withReplies: false,
+          currentActorId: currentActor.id
+        })
+        if (!status) return apiCorsError(req, CORS_HEADERS, 404)
+      }
+
+      await database.deleteLike({ actorId: currentActor.id, statusId })
+      await sendUndoLike({ currentActor, status })
+
+      // Refetch status to get updated counts
+      return refetchedStatusResponse({
+        req,
+        database,
+        currentActor,
+        statusId,
+        allowedMethods: CORS_HEADERS
+      })
     }
-
-    await database.deleteLike({ actorId: currentActor.id, statusId })
-    await sendUndoLike({ currentActor, status })
-
-    // Refetch status to get updated counts
-    return refetchedStatusResponse({
-      req,
-      database,
-      currentActor,
-      statusId,
-      allowedMethods: CORS_HEADERS
-    })
-  }),
+  ),
   {
     addAttributes: async (_req, context) => {
       const params = await context.params
