@@ -148,26 +148,60 @@ describe('Notification Database', () => {
         )
       })
 
-      it('should return notifications with since_id cursor (same as min_id)', async () => {
-        const allNotifications = await database.getNotifications({
+      it('distinguishes min_id (adjacent page) from since_id (newest slice)', async () => {
+        // beforeEach seeds 3; add 2 more so the window above the cursor exceeds
+        // the page limit and the two cursor kinds diverge.
+        await new Promise((resolve) => setTimeout(resolve, 10))
+        await database.createNotification({
           actorId: actor1Id,
-          limit: 10
+          type: NotificationType.enum.like,
+          sourceActorId: actor2Id,
+          statusId,
+          groupKey: 'like:2'
+        })
+        await new Promise((resolve) => setTimeout(resolve, 10))
+        await database.createNotification({
+          actorId: actor1Id,
+          type: NotificationType.enum.reblog,
+          sourceActorId: actor2Id,
+          statusId,
+          groupKey: 'reblog:2'
         })
 
-        const withMinId = await database.getNotifications({
+        const all = await database.getNotifications({
           actorId: actor1Id,
-          minNotificationId: allNotifications[2].id,
           limit: 10
         })
+        expect(all).toHaveLength(5)
+        const oldestId = all[4].id
 
         const withSinceId = await database.getNotifications({
           actorId: actor1Id,
-          sinceNotificationId: allNotifications[2].id,
-          limit: 10
+          sinceNotificationId: oldestId,
+          limit: 2
+        })
+        const withMinId = await database.getNotifications({
+          actorId: actor1Id,
+          minNotificationId: oldestId,
+          limit: 2
         })
 
-        expect(withMinId).toHaveLength(withSinceId.length)
-        expect(withMinId.map((n) => n.id)).toEqual(withSinceId.map((n) => n.id))
+        // since_id returns the two NEWEST notifications above the cursor.
+        expect(withSinceId.map((n) => n.id)).toEqual([all[0].id, all[1].id])
+        // min_id returns the two OLDEST above the cursor (the adjacent page),
+        // still newest-first — NOT the same slice as since_id.
+        expect(withMinId.map((n) => n.id)).toEqual([all[2].id, all[3].id])
+      })
+
+      it('returns an empty page for an unresolvable min_id cursor', async () => {
+        // A min_id whose row was dismissed/cleared (or a foreign id) must
+        // terminate pagination, not drop the filter and return the oldest page.
+        const result = await database.getNotifications({
+          actorId: actor1Id,
+          minNotificationId: 'does-not-exist',
+          limit: 10
+        })
+        expect(result).toEqual([])
       })
 
       it('should handle non-existent cursor ID gracefully', async () => {

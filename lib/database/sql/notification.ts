@@ -86,11 +86,7 @@ export const NotificationSQLDatabaseMixin = (
     sinceNotificationId,
     includeFiltered
   }: GetNotificationsParams) {
-    let query = database('notifications')
-      .where('actorId', actorId)
-      .orderBy('createdAt', 'desc')
-      .orderBy('id', 'desc') // Secondary sort for deterministic ordering
-      .limit(limit)
+    let query = database('notifications').where('actorId', actorId).limit(limit)
 
     // By default hide policy-filtered notifications (they live in the requests
     // queue). Mastodon's `include_filtered` opts back into seeing them.
@@ -128,20 +124,24 @@ export const NotificationSQLDatabaseMixin = (
         .where('id', minId)
         .andWhere('actorId', actorId)
         .first()
-      if (minNotification) {
-        // Get notifications newer than cursor: (createdAt > cursor) OR (createdAt = cursor AND id > cursor)
-        query = query.where(function () {
-          this.where('createdAt', '>', minNotification.createdAt).orWhere(
-            function () {
-              this.where('createdAt', '=', minNotification.createdAt).andWhere(
-                'id',
-                '>',
-                minNotification.id
-              )
-            }
-          )
-        })
-      }
+      // An unresolvable lower-bound cursor (dismissed/cleared/foreign id)
+      // terminates pagination with an empty page — matching getListTimeline —
+      // rather than dropping the filter and returning the wrong end of the
+      // timeline (which, with the ascending min_id order below, would surface
+      // the OLDEST notifications instead of an adjacent/empty page).
+      if (!minNotification) return []
+      // Get notifications newer than cursor: (createdAt > cursor) OR (createdAt = cursor AND id > cursor)
+      query = query.where(function () {
+        this.where('createdAt', '>', minNotification.createdAt).orWhere(
+          function () {
+            this.where('createdAt', '=', minNotification.createdAt).andWhere(
+              'id',
+              '>',
+              minNotification.id
+            )
+          }
+        )
+      })
     }
 
     // Support offset-based pagination for backward compatibility
@@ -165,8 +165,18 @@ export const NotificationSQLDatabaseMixin = (
       query = query.whereIn('id', ids)
     }
 
+    // min_id ascends from the cursor — the OLDEST notifications just newer than
+    // it — then reverses to the newest-first response shape, so it returns the
+    // page adjacent to the cursor. since_id (and max_id / no cursor) keep the
+    // newest-first DESC ordering (the newest slice above the cursor).
+    const ascending = Boolean(minNotificationId)
+    query = query
+      .orderBy('createdAt', ascending ? 'asc' : 'desc')
+      .orderBy('id', ascending ? 'asc' : 'desc')
+
     const results = await query
-    return results.map(fixNotificationDataDate)
+    const ordered = ascending ? results.reverse() : results
+    return ordered.map(fixNotificationDataDate)
   },
 
   async getNotificationsCount({

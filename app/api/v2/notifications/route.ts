@@ -135,7 +135,12 @@ export const GET = traceApiRoute(
         database,
         baseQuery: {
           actorId: currentActor.id,
-          minNotificationId: minId || sinceId,
+          // The grouped v2 path fetches in DESC batches (collectNotificationGroups
+          // advances max_id by the oldest row), so its lower bound stays
+          // since-semantics — driving it as min_id would flip getNotifications to
+          // ascending and break the batching. Adjacent-page min_id for grouped
+          // notifications is a separate change.
+          sinceNotificationId: minId || sinceId,
           types: mastodonTypesToInternal(types),
           excludeTypes: mastodonTypesToInternal(excludeTypes),
           includeFiltered

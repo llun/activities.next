@@ -71,19 +71,16 @@ export const GET = traceApiRoute(
         }
         const limit = parsedQuery.query.limit
         const maxStatusId = parsedQuery.query.maxStatusId
-        // `min_id` and `since_id` both express a lower-bound cursor; the list
-        // timeline query takes a single min cursor, so collapse them preserving
-        // this route's existing `min_id`-wins precedence. (min/since ordering
-        // semantics are unchanged by this PR — see PR notes.)
-        const minStatusId =
-          parsedQuery.query.minStatusId ?? parsedQuery.query.sinceStatusId
-
+        // Pass min_id and since_id through separately: min_id returns the page
+        // immediately adjacent to the cursor (ascending seek then reversed),
+        // since_id the newest slice above it.
         const statuses = await database.getListTimeline({
           listId,
           actorId: currentActor.id,
           limit,
           maxStatusId,
-          minStatusId
+          minStatusId: parsedQuery.query.minStatusId,
+          sinceStatusId: parsedQuery.query.sinceStatusId
         })
 
         // The list timeline query returns domain statuses newest-first, so the

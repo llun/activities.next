@@ -144,7 +144,7 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
     }
   )
 
-  it('uses min_id over since_id for the lower-bound cursor', async () => {
+  it('passes min_id and since_id through as separate cursors', async () => {
     const minUrl = 'https://llun.test/users/test1/statuses/min-cursor'
     const sinceUrl = 'https://llun.test/users/test1/statuses/since-cursor'
     const spy = vi.spyOn(database, 'getListTimeline').mockResolvedValue([])
@@ -154,9 +154,29 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
       { params: Promise.resolve({ list_id: listId }) }
     )
 
+    // Not collapsed — both reach getListTimeline in their own slots so min_id
+    // gets adjacent-page and since_id gets newest-slice semantics.
     expect(spy).toHaveBeenCalledWith(
-      expect.objectContaining({ minStatusId: minUrl })
+      expect.objectContaining({ minStatusId: minUrl, sinceStatusId: sinceUrl })
     )
+  })
+
+  it.each([
+    { field: 'min_id' as const, slot: 'minStatusId', other: 'sinceStatusId' },
+    { field: 'since_id' as const, slot: 'sinceStatusId', other: 'minStatusId' }
+  ])('routes $field alone to $slot', async ({ field, slot, other }) => {
+    const url = 'https://llun.test/users/test1/statuses/cursor'
+    const spy = vi.spyOn(database, 'getListTimeline').mockResolvedValue([])
+
+    await GET(request({ [field]: urlToId(url) }), {
+      params: Promise.resolve({ list_id: listId })
+    })
+
+    const call = spy.mock.calls[0][0] as Record<string, unknown>
+    expect(call[slot]).toBe(url)
+    // The absent cursor is passed as null (parseTimelineQuery's default), not
+    // collapsed into the other slot.
+    expect(call[other]).toBeNull()
   })
 
   it('returns 200 with the bad row skipped when one status is un-hydratable', async () => {

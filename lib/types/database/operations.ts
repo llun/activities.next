@@ -1338,6 +1338,7 @@ export type GetListTimelineParams = {
   limit?: number
   maxStatusId?: string | null
   minStatusId?: string | null
+  sinceStatusId?: string | null
 }
 export type AddStatusToListTimelinesParams = {
   status: Status
@@ -3005,6 +3006,7 @@ export type GetTimelineParams = {
   timeline: Timeline
   actorId?: string
   minStatusId?: string | null
+  sinceStatusId?: string | null
   maxStatusId?: string | null
   limit?: number
 }

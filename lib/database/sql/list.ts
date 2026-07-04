@@ -349,7 +349,8 @@ export const ListSQLDatabaseMixin = (
     actorId,
     limit = PER_PAGE_LIMIT,
     maxStatusId,
-    minStatusId
+    minStatusId,
+    sinceStatusId
   }: GetListTimelineParams) {
     // The list's replies_policy governs which replies appear. Default to 'list'
     // (Mastodon's default) when the row is missing so behaviour is well-defined.
@@ -408,9 +409,13 @@ export const ListSQLDatabaseMixin = (
     // feed uses), rather than sorting the whole filtered partition. timelines.
     // createdAt mirrors statuses.createdAt (both written as new Date(status.
     // createdAt) on every write path) and timelines.id is a monotonic tie-breaker.
+    // min_id ascends from the cursor (the oldest rows just newer than it) then
+    // reverses to newest-first, returning the page adjacent to the cursor.
+    // since_id / max_id / no cursor keep DESC.
+    const ascending = Boolean(minStatusId)
     query
-      .orderBy('timelines.createdAt', 'desc')
-      .orderBy('timelines.id', 'desc')
+      .orderBy('timelines.createdAt', ascending ? 'asc' : 'desc')
+      .orderBy('timelines.id', ascending ? 'asc' : 'desc')
       .limit(limit)
       .select('statuses.id')
 
@@ -463,10 +468,13 @@ export const ListSQLDatabaseMixin = (
       return true
     }
 
+    const lowerBoundStatusId = minStatusId || sinceStatusId
     if (maxStatusId && !(await applyCursor(maxStatusId, 'older'))) return []
-    if (minStatusId && !(await applyCursor(minStatusId, 'newer'))) return []
+    if (lowerBoundStatusId && !(await applyCursor(lowerBoundStatusId, 'newer')))
+      return []
 
     const rows = await query
+    if (ascending) rows.reverse()
     const statusIds = rows.map((row) => row.id as string)
     if (statusIds.length === 0) return []
     // getStatusesByIds preserves the input order (it re-maps results over the

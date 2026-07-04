@@ -151,7 +151,11 @@ export const getFilteredTimelinePage = async ({
       database.getTimeline({
         timeline,
         actorId,
-        minStatusId,
+        // getFilteredStatusPage backfills by paging max_id DESC, so the lower
+        // bound must keep newest-first (since) ordering here — driving it as
+        // min_id would flip getTimeline to ascending and break the backfill.
+        // Adjacent-page min_id for filtered timelines is a separate change.
+        sinceStatusId: minStatusId,
         maxStatusId: cursor,
         limit: batchLimit
       })
