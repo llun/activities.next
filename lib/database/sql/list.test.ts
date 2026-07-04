@@ -1154,6 +1154,68 @@ describe('ListDatabase', () => {
     })
   })
 
+  it('distinguishes min_id (adjacent page) from since_id (newest slice)', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      // Five posts, oldest → newest by createdAt.
+      const ids: string[] = []
+      for (let i = 1; i <= 5; i++) {
+        const id = `${member.id}/statuses/${i}`
+        await database.createNote({
+          id,
+          url: id,
+          actorId: member.id,
+          text: `post ${i}`,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          createdAt: 1000 * i
+        })
+        ids.push(id)
+      }
+      const [oldest, second, middle, fourth, newest] = ids
+
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Cursor list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+
+      // since_id: the two NEWEST statuses above the cursor.
+      const sincePage = await database.getListTimeline({
+        listId: list.id,
+        actorId: owner.id,
+        sinceStatusId: oldest,
+        limit: 2
+      })
+      expect(sincePage.map((status) => status.id)).toEqual([newest, fourth])
+
+      // min_id: the two OLDEST statuses above the cursor (the adjacent page),
+      // returned newest-first — a different slice than since_id.
+      const minPage = await database.getListTimeline({
+        listId: list.id,
+        actorId: owner.id,
+        minStatusId: oldest,
+        limit: 2
+      })
+      expect(minPage.map((status) => status.id)).toEqual([middle, second])
+    })
+  })
+
   it('paginates from a cursor that exists but is not in the list partition', async () => {
     await withFreshDatabase(async (database) => {
       await createLocalAccount(database, 'owner')

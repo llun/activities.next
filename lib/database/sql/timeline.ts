@@ -20,6 +20,7 @@ export const TimelineSQLDatabaseMixin = (
     timeline,
     actorId,
     minStatusId,
+    sinceStatusId,
     maxStatusId,
     limit = PER_PAGE_LIMIT
   }: GetTimelineParams) {
@@ -176,13 +177,16 @@ export const TimelineSQLDatabaseMixin = (
           return statusRow ? { id: null, createdAt: statusRow.createdAt } : null
         }
 
+        // min_id and since_id are both lower-bound cursors (rows newer than it);
+        // they differ only in ordering, handled below.
+        const lowerBoundStatusId = minStatusId || sinceStatusId
         const [maxRow, minRow] = await Promise.all([
           maxStatusId ? lookupTimelineCursor(maxStatusId) : null,
-          minStatusId ? lookupTimelineCursor(minStatusId) : null
+          lowerBoundStatusId ? lookupTimelineCursor(lowerBoundStatusId) : null
         ])
 
         if (maxStatusId && !maxRow) return []
-        if (minStatusId && !minRow) return []
+        if (lowerBoundStatusId && !minRow) return []
 
         let query = database('timelines')
           .where('actorId', actorId)
@@ -219,6 +223,12 @@ export const TimelineSQLDatabaseMixin = (
           })
         }
 
+        // The home/direct feed is consumed through getFilteredStatusPage, which
+        // backfills by paging max_id DESC, so this query stays newest-first for
+        // both lower-bound cursors. min_id therefore behaves like since_id here
+        // (adjacent-page min_id for the filtered feed is a separate change);
+        // the notification and list-timeline layers, consumed directly, do
+        // implement true min_id.
         const statusesId = await query
           .select('statusId')
           .orderBy([
