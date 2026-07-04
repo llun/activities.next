@@ -7,9 +7,11 @@ import {
 import { getMastodonList } from '@/lib/services/mastodon/getMastodonList'
 import { Scope } from '@/lib/types/database/operations'
 import { ListRepliesPolicy } from '@/lib/types/domain/list'
+import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_422, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+import { Booleanish } from '@/lib/utils/zodBooleanish'
 
 const CORS_HEADERS = [
   HttpMethod.enum.OPTIONS,
@@ -38,7 +40,7 @@ export const GET = traceApiRoute(
 const CreateListBody = z.object({
   title: z.string().trim().min(1).max(255),
   replies_policy: ListRepliesPolicy.optional(),
-  exclusive: z.coerce.boolean().optional()
+  exclusive: Booleanish.optional()
 })
 
 // https://docs.joinmastodon.org/methods/lists/#create
@@ -47,7 +49,7 @@ export const POST = traceApiRoute(
   OAuthGuard(
     [Scope.enum['write:lists']],
     async (req, { database, currentActor }) => {
-      const json = await req.json().catch(() => null)
+      const json = await getRequestBody(req).catch(() => null)
       const parsed = CreateListBody.safeParse(json)
       if (!parsed.success) {
         return apiResponse({

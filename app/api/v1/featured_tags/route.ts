@@ -7,6 +7,7 @@ import {
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonFeaturedTag } from '@/lib/services/mastodon/getMastodonFeaturedTag'
 import { Scope } from '@/lib/types/database/operations'
+import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -70,12 +71,7 @@ export const POST = traceApiRoute(
     async (req, context) => {
       const { database, currentActor } = context
 
-      let json: unknown
-      try {
-        json = await req.json()
-      } catch {
-        json = {}
-      }
+      const json = await getRequestBody(req).catch(() => ({}))
       const parsed = CreateFeaturedTagRequest.safeParse(json)
       if (!parsed.success) {
         return apiResponse({

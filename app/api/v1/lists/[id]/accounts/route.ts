@@ -105,11 +105,43 @@ const AccountIdsBody = z.object({
   account_ids: z.array(z.string().min(1)).min(1)
 })
 
+// Collect account_ids from a repeated-param source, preferring the bracket
+// form (account_ids[]=…) that native clients send, falling back to a bare
+// account_ids key. `getAll` returns string[] (URLSearchParams) or
+// FormDataEntryValue[] (FormData); non-string entries are dropped.
+const collectAccountIds = (getAll: (name: string) => unknown[]): string[] => {
+  const bracket = getAll('account_ids[]')
+  const values = bracket.length > 0 ? bracket : getAll('account_ids')
+  return values.filter(
+    (value): value is string => typeof value === 'string' && value.length > 0
+  )
+}
+
+// Accepts account_ids as a JSON array, a form/multipart bracket array
+// (account_ids[]=…), or — for DELETE, which masto.js serialises into the query
+// string rather than the request body — repeated query params.
 const parseAccountIds = async (req: Request): Promise<string[] | null> => {
-  const json = await req.json().catch(() => null)
-  const parsed = AccountIdsBody.safeParse(json)
-  if (!parsed.success) return null
-  return parsed.data.account_ids
+  const contentType = req.headers.get('content-type')?.toLowerCase() ?? ''
+  let accountIds: string[] = []
+
+  if (contentType.includes('application/x-www-form-urlencoded')) {
+    const params = new URLSearchParams(await req.text())
+    accountIds = collectAccountIds((name) => params.getAll(name))
+  } else if (contentType.includes('multipart/form-data')) {
+    const form = await req.formData()
+    accountIds = collectAccountIds((name) => form.getAll(name))
+  } else {
+    const json = await req.json().catch(() => null)
+    const parsed = AccountIdsBody.safeParse(json)
+    if (parsed.success) accountIds = parsed.data.account_ids
+  }
+
+  if (accountIds.length === 0) {
+    const query = new URL(req.url).searchParams
+    accountIds = collectAccountIds((name) => query.getAll(name))
+  }
+
+  return accountIds.length > 0 ? accountIds : null
 }
 
 // https://docs.joinmastodon.org/methods/lists/#accounts-add
