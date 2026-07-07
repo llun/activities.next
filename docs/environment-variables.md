@@ -34,9 +34,9 @@ Activity.next supports SQLite and PostgreSQL. The configuration loader also acce
 
 ### Full JSON Configuration
 
-| Variable              | Description                                                                                             |
-| --------------------- | ------------------------------------------------------------------------------------------------------- |
-| `ACTIVITIES_DATABASE` | Full database configuration as a JSON string (e.g., `{"type":"sql","client":"pg","connection":{...}}`). |
+| Variable              | Description                                                                                                                                                                                                                                                                                                                                                                                      |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ACTIVITIES_DATABASE` | Full database configuration as a JSON string (e.g., `{"client":"pg","connection":{...}}`). The value is a [Knex configuration object](https://knexjs.org/guide/#configuration-options) passed straight to `knex()`. Note: only the app runtime reads this variable — `yarn migrate` (the Knex CLI) does not; use the individual `ACTIVITIES_DATABASE_*` variables below when running migrations. |
 
 ### Individual Variables (SQLite)
 
@@ -154,7 +154,7 @@ For fitness activity file uploads (.fit, .gpx, .tcx). Falls back to media storag
 | Variable                                                     | Description                                                                                                                                                                                                                                                                                                                                                                                          |
 | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ACTIVITIES_FITNESS_STORAGE_TYPE`                            | Storage backend: `fs`, `s3`, or `object`.                                                                                                                                                                                                                                                                                                                                                            |
-| `ACTIVITIES_FITNESS_STORAGE_PATH`                            | Local filesystem path (default: `uploads/fitness`).                                                                                                                                                                                                                                                                                                                                                  |
+| `ACTIVITIES_FITNESS_STORAGE_PATH`                            | Local filesystem path for `fs` storage. Required when `ACTIVITIES_FITNESS_STORAGE_TYPE=fs` is set (there is no default). When fitness storage is not explicitly configured and media storage is `fs`, fitness files fall back to `<ACTIVITIES_MEDIA_STORAGE_PATH>/fitness` and this variable is ignored.                                                                                             |
 | `ACTIVITIES_FITNESS_STORAGE_BUCKET`                          | S3 bucket name.                                                                                                                                                                                                                                                                                                                                                                                      |
 | `ACTIVITIES_FITNESS_STORAGE_REGION`                          | S3 region.                                                                                                                                                                                                                                                                                                                                                                                           |
 | `ACTIVITIES_FITNESS_STORAGE_HOSTNAME`                        | Public fitness file hostname/CDN. If fitness storage is not explicitly configured, it inherits `ACTIVITIES_MEDIA_STORAGE_HOSTNAME` through the media-storage fallback; if explicit fitness storage is configured and this is unset, no separate fitness public hostname is configured and files are served through the app. This value is not used for S3 API operations.                            |
@@ -172,13 +172,13 @@ For fitness activity file uploads (.fit, .gpx, .tcx). Falls back to media storag
 
 For asynchronous processing of ActivityPub delivery, file processing, etc.
 
-| Variable                               | Description                                                |
-| -------------------------------------- | ---------------------------------------------------------- |
-| `ACTIVITIES_QUEUE_TYPE`                | Queue backend: `qstash`.                                   |
-| `ACTIVITIES_QUEUE_URL`                 | Base URL for queue callbacks (your instance's public URL). |
-| `ACTIVITIES_QUEUE_TOKEN`               | QStash API token.                                          |
-| `ACTIVITIES_QUEUE_CURRENT_SIGNING_KEY` | QStash current signing key (for webhook verification).     |
-| `ACTIVITIES_QUEUE_NEXT_SIGNING_KEY`    | QStash next signing key (for key rotation).                |
+| Variable                               | Description                                                                                                                                                                                      |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ACTIVITIES_QUEUE_TYPE`                | Queue backend: `qstash`.                                                                                                                                                                         |
+| `ACTIVITIES_QUEUE_URL`                 | Full QStash callback endpoint URL of this instance's queue handler, e.g. `https://your-domain.tld/api/v1/queue/qstash`. QStash delivers job messages to exactly this URL — it is not a base URL. |
+| `ACTIVITIES_QUEUE_TOKEN`               | QStash API token.                                                                                                                                                                                |
+| `ACTIVITIES_QUEUE_CURRENT_SIGNING_KEY` | QStash current signing key (for webhook verification).                                                                                                                                           |
+| `ACTIVITIES_QUEUE_NEXT_SIGNING_KEY`    | QStash next signing key (for key rotation).                                                                                                                                                      |
 
 ## Push Notifications
 
@@ -211,7 +211,7 @@ For asynchronous processing of ActivityPub delivery, file processing, etc.
 
 | Variable                              | Description                                                                                                                                                                                                  |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `OTEL_SERVICE_NAME`                   | OpenTelemetry service name (default: `activities.next`).                                                                                                                                                     |
+| `OTEL_SERVICE_NAME`                   | OpenTelemetry service name. The app itself does not read this variable or set a default — it is only meaningful to an externally attached OTel SDK/collector.                                                |
 | `OTEL_EXPORTER_OTLP_ENDPOINT`         | OpenTelemetry collector endpoint URL.                                                                                                                                                                        |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`  | Trace-specific OTLP endpoint URL.                                                                                                                                                                            |
 | `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | Metrics-specific OTLP endpoint URL.                                                                                                                                                                          |

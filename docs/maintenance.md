@@ -139,13 +139,15 @@ NODE_ENV=production ./scripts/maintenance/manageAdminRole.ts remove admin@exampl
 Useful scripts for interrupted imports, route heatmap rebuilds, and Strava maintenance:
 
 ```bash
-NODE_ENV=production ./scripts/fitness/fixStuckFitnessProcessing.ts --actor-id https://your-domain.tld/users/username --dry-run
+NODE_ENV=production ./scripts/fitness/fixStuckFitnessProcessing.ts --actor-id https://your-domain.tld/users/username
 NODE_ENV=production ./scripts/fitness/recreateFitnessRouteHeatmaps.ts --actor-id https://your-domain.tld/users/username --dry-run
 NODE_ENV=production ./scripts/fitness/cleanupLegacyFitnessHeatmaps.ts
 NODE_ENV=production ./scripts/fitness/repairStravaActivityFiles.ts --actor-id https://your-domain.tld/users/username --dry-run
 NODE_ENV=production ./scripts/fitness/retrigerStravaActivities.ts --actor-id https://your-domain.tld/users/username --activity-id 123456789
 NODE_ENV=production ./scripts/fitness/listStravaWebhooks.ts @username@your-domain.tld
 ```
+
+> **Note:** `fixStuckFitnessProcessing.ts` has no dry-run/preview mode — it updates stuck files immediately (it also supports a `--status-hash <64-char-hex>` mode instead of `--actor-id`).
 
 For local archive or one-off activity imports, see the `--help` output from:
 

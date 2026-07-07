@@ -9,8 +9,8 @@ This guide provides an overview of how to set up Activity.next for development o
 
 ## Prerequisites
 
-- **Node.js 24** or higher
-- **Yarn** package manager (v4.15.0 via Corepack)
+- **Node.js 24** (the repo pins `engines.node` to `24.x`)
+- **Yarn 4** package manager via Corepack (the exact version is pinned by the `packageManager` field in `package.json`)
 - **Git** (to clone the repository)
 - A **domain name** (required for federation with other servers)
 
@@ -48,6 +48,8 @@ Set a secret phrase for signing cookies and tokens:
 # Generate with: openssl rand -base64 32
 ACTIVITIES_SECRET_PHASE=your-random-secret-for-sessions
 ```
+
+> **Note:** The production runtime rejects an `ACTIVITIES_SECRET_PHASE` shorter than 32 characters.
 
 ### Access Control
 
@@ -189,19 +191,22 @@ To deploy on Vercel:
 
 ### Docker Deployment
 
-Activity.next provides official Docker images at `ghcr.io/llun/activities.next:latest`.
+Activity.next provides official Docker images at `ghcr.io/llun/activities.next:main` (the image is published with the `main` tag; there is no `latest` tag).
 
 Basic Docker run command (uses SQLite by default):
 
 ```bash
 docker run -p 3000:3000 \
   -e ACTIVITIES_HOST=your.domain.tld \
-  -e ACTIVITIES_SECRET_PHASE=random-secret-for-cookie \
+  -e ACTIVITIES_SECRET_PHASE=change-me-to-a-random-secret-at-least-32-chars \
+  -e ACTIVITIES_DATABASE_SQLITE_FILENAME=/opt/activities.next/data/data.sqlite \
   -e ACTIVITIES_MEDIA_STORAGE_TYPE=fs \
-  -e ACTIVITIES_MEDIA_STORAGE_PATH=/opt/activities.next/uploads \
-  -v /path/to/local/storage:/opt/activities.next \
-  ghcr.io/llun/activities.next:latest
+  -e ACTIVITIES_MEDIA_STORAGE_PATH=/opt/activities.next/data/uploads \
+  -v /path/to/local/storage:/opt/activities.next/data \
+  ghcr.io/llun/activities.next:main
 ```
+
+> **Important:** Mount persistent data under `/opt/activities.next/data` as above — do **not** bind-mount `/opt/activities.next` itself. That directory contains the application (the standalone `server.js`, static assets, etc.), so a host-path mount would shadow it and the container cannot start. See the [SQLite Docker guide](sqlite-setup.md#docker-deployment-with-sqlite) for preparing the mounted database file.
 
 For database-specific Docker deployment instructions:
 

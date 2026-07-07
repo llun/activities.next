@@ -8,17 +8,21 @@
 - `public/` serves static assets; `uploads/` and `data/` are used for local storage in some deployments.
 - `docs/` includes setup and database-specific guides; `scripts/` includes repo utilities.
   - **`docs/` is for durable, general-purpose reference documentation only** (setup, architecture, environment variables, feature guides). **Do NOT add** implementation plans, design docs, task/PR-specific writeups, gap analyses, before/after screenshots, or any other artifact tied to a single change or pull request. Those belong in the PR description or issue tracker, not the repo. Do not create `docs/plans/`, `docs/specs/`, `docs/pr-screenshots/`, or similar scratch directories.
+  - `scripts/` is organized as `mock/`, `maintenance/`, `fitness/`, and `backup/`. Every script runs through the `scripts/run.cjs` bootstrap (`node scripts/run.cjs <script>.ts`), which is also wired into each script's shebang; `yarn search:reindex` is the packaged entry point for `scripts/maintenance/rebuildSearchIndex.ts`. `scripts/` is neither linted nor prettier-checked in CI (see below) — verify scripts by running them.
+- `proxy.ts` at the repo root is the Next.js middleware entrypoint (Next 16's rename of `middleware.ts`) — do **not** add a `middleware.ts`. It runs in the Edge runtime: import helpers via direct sub-paths (e.g. `@/lib/utils/http-headers/csp`), never barrels that transitively pull Node-only dependencies such as `@/lib/config`. It owns the ActivityPub content-negotiation rewrites and CSP header injection.
 - Configuration files live at the repo root (for example `.env.example`, `knexfile.js`, and framework/tooling configs).
+- `.gitignore` intentionally ignores several files agents commonly create: `docker-compose.yml`, `scripts/*.js`, `plans/`, `PR_DESCRIPTION.md`, `VERIFICATION_SUMMARY.md`, `AGENTS.override.md`, all `*.sql` (except the two `!migrations/schema*.sql` negations), `*.sqlite3`/`*.sqlite`, and `.env*` variants. If a file you added is missing from `git status`, check `git status --ignored` before assuming the add failed.
 
 ## Build, Test, and Development Commands
 
 - **Agents:** MUST use Node.js version 24 for running any node commands in this project.
 - **Always use `yarn` for all package management.** Never use `npm install`, `npm ci`, or any other `npm` commands to install or manage packages.
-- `yarn dev` runs the local Next.js development server.
+- `yarn dev` runs the local Next.js development server. The package script binds Next.js to `0.0.0.0`, so the dev server is reachable from the local network — only run it on trusted networks.
 - `yarn build` builds the production app; `yarn start` serves it.
-- `yarn lint` runs ESLint across the workspace.
-- `yarn test` runs the full Jest suite (all tests run in parallel with SQLite in-memory databases).
-- `yarn migrate` applies Knex migrations; `yarn migrate:make <name>` creates a new migration.
+- `yarn lint` runs ESLint over the app and lib code. `eslint.config.mjs` ignores `scripts/**`, `migrations/**`, `plans/**`, and `*.config.*` files, and several documented conventions (no `console.*`, the import-path rules) are review conventions rather than lint rules — a green `yarn lint` does not prove compliance with them.
+- `yarn test` runs the full Vitest suite (all tests run in parallel with SQLite in-memory databases).
+- There is no standalone typecheck script: `yarn build` is the only real TypeScript gate, and `*.test.ts(x)` files are never type-checked by CI. A bare `yarn tsc --noEmit` aborts on TS5101 (deprecated `baseUrl`) having checked nothing — add `--ignoreDeprecations 6.0` if you need a manual check.
+- `yarn migrate` applies Knex migrations; `yarn migrate:make <name>` creates a new migration. Migrations are ESM `.js` files with named `up`/`down` exports generated from `migration.stub` — always create them with `yarn migrate:make`; do not hand-write `.ts` or CommonJS migrations.
 - **Local database is local-only.** For development and tests, use either **SQLite** on `localhost` (`ACTIVITIES_DATABASE_CLIENT=better-sqlite3` with a local `*.sqlite3` file, or the `ACTIVITIES_DATABASE` JSON equivalent) or the **PostgreSQL in the docker-compose stack at `activities.local`**. **Never run the dev server, migrations, or tests against a remote/shared/production database** (e.g. a non-local `ACTIVITIES_DATABASE_PG_HOST` such as `34.79.77.243`). Verify the resolved database target is local before migrating or starting the app. When working in a git worktree, do not copy a main-checkout `.env.local` that points at a remote DB; create a worktree-local SQLite config instead.
 - **Creating test/mock users is allowed** for local verification (for example, to log in and check UI changes), but only against a local database as defined above — never against a remote/shared/production database.
 
@@ -130,7 +134,7 @@ ActivityPub objects are **JSON-LD**, so the same logical object can arrive in ma
 - **Never pass `new Date()` as a prop from a Server Component to a Client Component.** `Date` objects are not safely serializable across the server/client boundary and can cause hydration mismatches.
 - Always pass timestamps as `number` (e.g. `Date.now()`) from Server Components.
 - Client Components should accept `currentTime: number` and construct `new Date(currentTime)` internally before use.
-- This pattern is already used throughout the codebase (e.g. `HashtagTimeline` accepts `currentTime: number` and converts it before passing to `<Posts>`).
+- This pattern is already used throughout the codebase (e.g. `HashtagTimeline` accepts `currentTime: number` and forwards the number unchanged to `<Posts>`, which also takes `currentTime: number`; only leaf components construct `Date` objects from it).
 
 ## Client-Side API Calls
 
@@ -200,7 +204,7 @@ section-navigation patterns; pick by section type.
 
 ### Sticky-header sub-nav (`PageSubnavProvider`)
 
-- `PageSubnavProvider` remains available for sections that need horizontal tabs **inside** the sticky header: wrap the layout's `{children}` in it and pass the rendered tabs as `subnav`. The closest `PageHeader` renders the tabs directly under the title row, inside the sticky chrome. Do **not** render the sub-nav directly in the layout JSX above the header. No top-level section currently uses this — admin moved to the dropdown sub-nav above to match the design system — but the primitive is kept for the nested in-content segmented-control pattern and future admin-style sections.
+- `PageSubnavProvider` remains available for sections that need horizontal tabs **inside** the sticky header: wrap the layout's `{children}` in it and pass the rendered tabs as `subnav`. The closest `PageHeader` renders the tabs directly under the title row, inside the sticky chrome. Do **not** render the sub-nav directly in the layout JSX above the header. No settings-style section layout uses this any more (admin moved to the dropdown sub-nav above to match the design system), but the top-level Notifications page (`app/(timeline)/notifications/page.tsx`) uses it for its sticky-header filter tabs, and the primitive also backs the nested in-content segmented-control pattern.
 
   ```tsx
   import { PageSubnavProvider } from '@/lib/components/page-header'
@@ -211,12 +215,12 @@ section-navigation patterns; pick by section type.
 
 ## Settings Forms (Client Components)
 
-- Settings forms that update user data (name, email, password, etc.) **must be client components** using `fetch()` with JSON bodies — not plain HTML `<form method="post">` with server-side redirects.
-- This matches the pattern used by `ChangeEmailForm`, `ChangePasswordForm`, and `ChangeNameForm`.
+- Settings forms that update user data (name, email, password, etc.) **must be client components** that submit JSON to the API — not plain HTML `<form method="post">` with server-side redirects.
 - Client component forms should:
-  - Call `fetch('/api/v1/...', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })`
+  - Call a named function exported from `lib/client.ts` (which encapsulates the `fetch` call, method, headers, and body serialization), per the Client-Side API Calls section — do **not** call `fetch()` directly in the component
   - Show inline success and error messages (not raw error pages)
   - Manage loading state with `useState`
+- The existing `ChangeEmailForm`, `ChangePasswordForm`, and `ChangeNameForm` components under `app/(timeline)/account/` still call `fetch()` directly — a legacy pattern from before the `lib/client.ts` rule. Migrate them when touched rather than copying the pattern.
 - The corresponding API route should return JSON via `apiResponse()`, not `Response.redirect()`.
 
 ## Better-auth Plugin Guidelines
@@ -229,9 +233,33 @@ section-navigation patterns; pick by section type.
 
 - Vitest is configured via `vitest.config.ts`. The project is ESM-only
   (`"type": "module"`), so tests run as native ES modules. Use the Vitest API
-  (`vi.fn()`, `vi.mock()`, `vi.spyOn()`, …) — there is no `jest` global. The
-  `jest.Mock` / `jest.MockedFunction` / `jest.Mocked` **type** names still work
-  via a compatibility shim in `vitest.d.ts`.
+  (`vi.fn()`, `vi.mock()`, `vi.spyOn()`, …) — do not write `jest.*` calls. (A
+  minimal global `jest` proxy exists only as a compat shim for third-party
+  libraries like `jest-fetch-mock` — see `vitest-shims/jest-global.ts` — and
+  must not be relied on in first-party tests.) The `jest.Mock` /
+  `jest.MockedFunction` / `jest.Mocked` **type** names still work via a
+  compatibility shim in `vitest.d.ts`.
+- The Vitest default environment is `node`. Any test that renders React or
+  touches the DOM must start with a `/** @vitest-environment jsdom */` docblock
+  (Vitest 4 removed `environmentMatchGlobs`, so there is no glob-based opt-in);
+  jsdom tests get `http://localhost:3000` as their URL via
+  `environmentOptions`. A `.test.tsx` without the docblock fails with
+  "document is not defined".
+- `vitest.setup.ts` installs global mocks that apply to EVERY test: the
+  `@/lib/config` barrel (host `test.llun.dev`, in-memory SQLite — a new barrel
+  export must also be added to the setup-file factory and
+  `lib/config/__mocks__/index.ts`, or every test that hits it fails with
+  "x is not a function"), `uuid` (deterministic `test-uuid-…` ids), `got`,
+  `node:dns/promises`, and `fetch` via jest-fetch-mock's global `fetchMock`
+  (passthrough by default — call `fetchMock.doMock()` / `mockResponse…` to
+  stub).
+- CI (`.github/workflows/ci.yml`) runs lint + prettier-check, build, and test
+  as three parallel jobs on every push and PR; the single required
+  branch-protection check is the aggregate `CI / CI Success` job. The test job
+  pins `TEST_DATABASE_TYPE: sqlite`; `lib/database/testUtils.ts` also supports
+  `TEST_DATABASE_TYPE=pg` (with `TEST_DATABASE_HOST` / `TEST_DATABASE_USERNAME`
+  / `TEST_DATABASE_PASSWORD`) for running the suite against a throwaway
+  **local** PostgreSQL.
 - **To grab a mocked module and configure it, use `vi.importMock<T>('@/path')`,
   not `(await import('@/path')) as unknown as T`.** `vi.importMock` is the
   Vitest equivalent of the old `jest.requireMock`: it is purpose-built, always
@@ -303,7 +331,7 @@ These exact steps are verified to work; the gotchas below are load-bearing.
    # CommonJS mode — this resolves the app's extensionless and CommonJS-named
    # imports, which Node's strict ESM loader rejects.
    node scripts/run.cjs scripts/mock/createMockUser.ts      # testuser / test@example.com / testpassword123
-   node scripts/run.cjs scripts/mock/createMockStatuses.ts  # seeds Home/No-Announce timeline posts
+   node scripts/run.cjs scripts/mock/createMockStatuses.ts  # seeds main (home) timeline posts
    ```
 
    The mock user is created already email-verified, so credential sign-in works.
@@ -368,6 +396,8 @@ If the PR title uses a generic prefix (e.g. `feat:`) but an individual commit in
 Commits that change only files under `.github/` are also treated as no-bump by default, unless the commit message explicitly uses `major:` or `minor:`.
 When the repository has no version tag yet, the workflow still bootstraps `v1.0.0` regardless of commit history.
 
+After a merge to `main`, the version-bump workflow opens an auto-merging `Bump version to vX.Y.Z` PR from the reserved `version-bump/main` branch — leave that branch and PR alone. The merged bump commit is tagged by `tag-version.yml`, and `package.yml` builds and publishes multi-arch Docker images (tagged `main`) to GHCR and Docker Hub on every push to `main`.
+
 Examples:
 
 ```text
@@ -384,6 +414,9 @@ chore: update dependencies                            ← patch
   2. `yarn lint` to ensure no linting errors—**must be green before commit**.
   3. `yarn build` to ensure no build errors—**must be green before commit**.
   4. `yarn test` to ensure no test errors—**must be green before commit**.
+- A husky pre-commit hook (`.husky/pre-commit`) runs `yarn lint` on every commit and blocks the commit on lint errors; it does **not** run prettier, build, or tests — run those yourself per the checklist above.
+- The `prettier` / `prettier:check` package scripts only cover `app migrations lib`; the trailing `.` in `yarn run prettier --write .` is what extends formatting to the whole tree. CI's format gate (`yarn prettier:check`) does not check `scripts/`, `docs/`, or `.github/`.
+- PRs are auto-reviewed by external bots. `REVIEW.md` at the repo root is the project's review checklist and documents recurring bot false-flags (e.g. claims that `vi.importMock` does not exist) — read it before acting on review feedback.
 
 ## Code Review Loop (Sub-Agents & Review Bots)
 
@@ -417,6 +450,7 @@ A full round — your sub-agent review plus any external bots — yields no new 
 
 - Store secrets and instance settings in environment variables; avoid committing secrets.
 - Review `docs/setup.md` and the database setup guides before changing auth, host, or database settings.
+- The full environment-variable catalog lives in `.env.example` (annotated) and `docs/environment-variables.md` — consult both before adding a new `ACTIVITIES_*` variable in `lib/config/`.
 
 ## Database Backends & Local Setup
 
@@ -429,9 +463,9 @@ There are **two** committed reference schema dumps, one per supported backend.
 Use the one that matches the database you are reasoning about:
 
 - **`migrations/schema.sql`** — the **PostgreSQL** schema (a `pg_dump`). Use it when inspecting the schema for PostgreSQL deployments.
-- **`migrations/schema.sqlite.sql`** — the **SQLite** schema (a `sqlite3 .schema` dump). Use it when inspecting the schema for SQLite — which is what local dev and the Jest test suite use (tests run against in-memory SQLite). Because the two backends use different SQL dialects (e.g. `character varying`/`jsonb`/`timestamp with time zone` vs `varchar`/`json`/`datetime`), the Postgres dump cannot be loaded into SQLite and vice versa — always read the file for the right backend.
+- **`migrations/schema.sqlite.sql`** — the **SQLite** schema (a `sqlite3 .schema` dump). Use it when inspecting the schema for SQLite — which is what local dev and the Vitest test suite use (tests run against in-memory SQLite). Because the two backends use different SQL dialects (e.g. `character varying`/`jsonb`/`timestamp with time zone` vs `varchar`/`json`/`datetime`), the Postgres dump cannot be loaded into SQLite and vice versa — always read the file for the right backend.
 
-Both are reference artifacts: neither is imported by runtime code (the app and tests run Knex migrations, not these files), so nothing will fail if they drift — they just go silently stale. They are gitignored by the blanket `*.sql` rule and re-included by explicit `!` negations in `.gitignore`.
+The app (`yarn migrate`) runs Knex migrations, but the test suite does **not** — `lib/database/testUtils.ts` builds every test database directly from these dumps (see Testing Guidelines). If the dumps drift from the migrations, tests run against a stale schema, so keeping them in lockstep is load-bearing, not just hygiene. They are gitignored by the blanket `*.sql` rule and re-included by explicit `!` negations in `.gitignore`.
 
 - **Any PR that adds, edits, or removes a Knex migration in `migrations/` MUST regenerate BOTH `migrations/schema.sql` and `migrations/schema.sqlite.sql` in the same PR.** Keep them in lockstep — they must always describe the same migration set.
 - Regenerate them canonically rather than hand-editing — run every migration against a fresh database of each type and dump the result. In both cases verify `SELECT count(*) FROM knex_migrations` equals the number of `migrations/*.js` files first.
@@ -454,7 +488,7 @@ Both are reference artifacts: neither is imported by runtime code (the app and t
 - A Postgres regeneration is a full re-dump, so its diff can be large even for unchanged tables (formatting differs from older dumps). That is expected — do not try to reproduce the old line-by-line formatting by hand. Commit the schema regeneration as `none:` when it is the only change (they are reference artifacts and ship nothing).
 - **Use only a local database for local dev/tests:** SQLite on `localhost`, or the docker-compose PostgreSQL at `activities.local`. Never connect local dev, tests, or user creation to a remote/shared/production database.
 - Tests use isolated SQLite in-memory databases for fast, parallel execution.
-- Docker users should mount a persistent volume to `/opt/activities.next` (see `docs/setup.md`).
+- Docker users should persist data under `/opt/activities.next/data` (bind-mount a host directory there and point the SQLite/media env vars into it). Do **not** bind-mount `/opt/activities.next` itself — that directory contains the application (standalone `server.js`, `.next/static`, …), so a host-path mount shadows the app and the container cannot start (see `docs/setup.md` and the database setup guides).
 
 ## Database Compatibility Guidelines
 
