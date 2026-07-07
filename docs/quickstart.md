@@ -11,7 +11,7 @@ option, see the [Setup Guide](setup.md) and the
 
 ## Prerequisites
 
-- **Node.js 24** or higher
+- **Node.js 24** (the repo pins `engines.node` to `24.x`; newer majors are rejected by Yarn)
 - **Yarn** (enabled via Corepack)
 
 ## 1. Clone and install

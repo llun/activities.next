@@ -20,8 +20,8 @@ This project follows the standard open source code of conduct. Be respectful, in
 
 ### Prerequisites
 
-- **Node.js 24** or higher
-- **Yarn** 4.15.0 (via Corepack)
+- **Node.js 24** (the `engines` field in `package.json` pins `24.x`)
+- **Yarn 4** via Corepack (the exact version is pinned by the `packageManager` field in `package.json`)
 - **Git**
 - A code editor (VS Code recommended)
 
@@ -110,8 +110,8 @@ Keep commits:
 
 The project uses:
 
-- **Prettier** for formatting (runs automatically on commit via Husky)
-- **ESLint** for linting
+- **Prettier** for formatting — the Husky pre-commit hook formats staged files automatically via `lint-staged` (`prettier --write` on the staged files, re-staged before the commit); CI enforces formatting with `yarn prettier:check`. `yarn run prettier --write .` still formats the whole tree manually
+- **ESLint** for linting — the pre-commit hook also runs `yarn lint` and blocks the commit on errors
 - **2-space indentation**
 - **Single quotes**
 - **No semicolons**
@@ -232,9 +232,9 @@ if (!parsed.success) {
 
 ### Settings Forms
 
-- Settings forms (name, email, password, etc.) must be **client components** using `fetch()` with JSON bodies
+- Settings forms (name, email, password, etc.) must be **client components** that submit JSON API calls through named exported functions in `lib/client.ts` — never call `fetch()` directly in a component
 - Do **not** use plain HTML `<form method="post">` with server-side redirects — this breaks error feedback and can cause redirect bugs (307 re-POSTs instead of 303 GET)
-- Follow the pattern in `ChangeEmailForm`, `ChangePasswordForm`, `ChangeNameForm`: manage state with `useState`, show inline success/error messages
+- Manage state with `useState` and show inline success/error messages (the existing `Change*Form` components still call `fetch()` directly — a legacy pattern from before the `lib/client.ts` rule; do not copy it)
 
 ### Better-auth Plugins
 
@@ -301,7 +301,7 @@ yarn test                        # Tests — must pass
 
 Also:
 
-- Update documentation if needed
+- Update every doc your change makes stale — grep `*.md` and `docs/` for renamed or removed commands, env vars, routes, and scripts (see `AGENTS.md` → Documentation Maintenance)
 - Test manually if UI changes are involved
 - Rebase on main to ensure clean history:
 
@@ -325,7 +325,7 @@ Also:
 
 - [ ] Code follows project style guidelines
 - [ ] Tests added/updated and passing
-- [ ] Documentation updated (if applicable)
+- [ ] Documentation updated — if the change adds/renames/removes commands, env vars, routes, scripts, tooling, or conventions, every doc that mentions them (`README.md`, `AGENTS.md`, `CONTRIBUTING.md`, `REVIEW.md`, `docs/`) is updated in the same PR (see `AGENTS.md` → Documentation Maintenance)
 - [ ] No `console.log` statements (use logger for server-side code)
 - [ ] TypeScript types are proper (no `any`)
 - [ ] Commit messages follow convention
@@ -419,10 +419,10 @@ or vice versa. Both files are gitignored by the blanket `*.sql` rule and
 re-included by explicit `!` negations in `.gitignore`.
 
 Any pull request that adds, edits, or removes a migration **must regenerate BOTH
-files in the same PR**, keeping them in lockstep. Nothing imports them at runtime
-(the app and tests run Knex migrations, not these files), so they will not break
-the build if they drift — they just silently go stale, which is how the Postgres
-dump fell behind in the past.
+files in the same PR**, keeping them in lockstep. The app runs Knex migrations,
+but the Vitest suite loads its database schema directly from these dumps
+(`lib/database/testUtils.ts`), so a drifted dump makes the whole test suite run
+against a stale schema — regeneration is mandatory, not just hygiene.
 
 Regenerate them canonically rather than hand-editing. In both cases, run every
 migration against a fresh database first and confirm the `knex_migrations` row

@@ -1,9 +1,8 @@
 import { FC } from 'react'
 
+import { NOTIFICATION_TYPE_CONFIG } from '@/app/(timeline)/notifications/notificationConfig'
 import type { NotificationType } from '@/lib/types/database/operations'
 import { cn } from '@/lib/utils'
-
-import { NOTIFICATION_TYPE_CONFIG } from '../notificationConfig'
 
 interface Props {
   type: NotificationType

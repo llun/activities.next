@@ -19,6 +19,14 @@ Always refer to and follow the guidelines in [AGENTS.md](../AGENTS.md) for all c
 - Always use `apiResponse` and `apiErrorResponse` from `@/lib/utils/response`.
 - **Do NOT** use `Response.json()` directly in API routes.
 
+### Workflow
+
+- Use Node.js 24 and `yarn` only — never `npm` commands.
+- Create a new branch for changes; never commit to `main`.
+- Commit subjects and PR titles start with a conventional prefix (`fix:`, `feat:`, `chore:`, `none:`, `minor:`, `major:`). Never edit `version` in `package.json`.
+- Update every document your change makes stale in the same PR (AGENTS.md → Documentation Maintenance).
+- If you add/edit/remove a migration, regenerate BOTH `migrations/schema.sql` and `migrations/schema.sqlite.sql`.
+
 ### Before Committing
 
 1. Run `yarn run prettier --write .` to format code.
