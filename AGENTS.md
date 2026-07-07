@@ -355,6 +355,20 @@ These exact steps are verified to work; the gotchas below are load-bearing.
    from the server it does not, because both SSR and hydration use the identical
    server value.
 
+## Documentation Maintenance
+
+- **Docs are part of the change.** Any PR that changes behavior described in `AGENTS.md`, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, `REVIEW.md`, or `docs/` MUST update those documents in the same PR. Stale guidance is a bug: these files are the operating manual for both humans and AI agents, and past drift produced broken commands and examples (e.g. docs still saying "Jest" long after the Vitest migration, and Docker examples that could not start).
+- Before opening a PR, grep the repo's Markdown for every command, script, route, environment variable, table, flag, or convention your change renames, removes, or reshapes — `grep -rn "<old-name>" *.md docs/` — and fix every hit.
+- Common triggers and the docs they touch:
+  - `package.json` scripts, tooling, hooks (husky/lint-staged), or CI workflow changes → `AGENTS.md` (Build/Test and Commit sections) and `CONTRIBUTING.md`
+  - Environment variables added/removed/renamed, or defaults/validation changed → `docs/environment-variables.md` and `.env.example` (plus any setup guide that shows the variable)
+  - API routes added/moved, or HTTP methods changed → `docs/architecture.md` and the relevant feature guide (e.g. `docs/fitness-file-storage.md`)
+  - Knex migrations → regenerate both schema dumps (see Database Backends & Local Setup)
+  - `scripts/` utilities added or changed → `docs/maintenance.md` (and the feature guide that lists them)
+  - Deployment, Docker, or runtime-config changes → `README.md`, `docs/setup.md`, and the database setup guides
+  - New or changed coding conventions and patterns → the matching `AGENTS.md` section, the `REVIEW.md` checklist, and (when agents need it at task start) the `CLAUDE.md` key reminders
+- Keep `docs/` durable and general-purpose (see Project Structure): update the reference docs in place; do not add change-specific writeups.
+
 ## Commit & Pull Request Guidelines
 
 - Commit messages must start with one of these prefixes followed by a short imperative description:
@@ -414,7 +428,7 @@ chore: update dependencies                            ← patch
   2. `yarn lint` to ensure no linting errors—**must be green before commit**.
   3. `yarn build` to ensure no build errors—**must be green before commit**.
   4. `yarn test` to ensure no test errors—**must be green before commit**.
-- A husky pre-commit hook (`.husky/pre-commit`) runs `yarn lint` on every commit and blocks the commit on lint errors; it does **not** run prettier, build, or tests — run those yourself per the checklist above.
+- A husky pre-commit hook (`.husky/pre-commit`) runs on every commit: first `lint-staged` (configured in `package.json`), which runs `prettier --write` on the staged files and re-stages the formatted result, then `yarn lint`, which blocks the commit on lint errors. It does **not** run build or tests — run those yourself per the checklist above.
 - The `prettier` / `prettier:check` package scripts only cover `app migrations lib`; the trailing `.` in `yarn run prettier --write .` is what extends formatting to the whole tree. CI's format gate (`yarn prettier:check`) does not check `scripts/`, `docs/`, or `.github/`.
 - PRs are auto-reviewed by external bots. `REVIEW.md` at the repo root is the project's review checklist and documents recurring bot false-flags (e.g. claims that `vi.importMock` does not exist) — read it before acting on review feedback.
 

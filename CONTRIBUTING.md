@@ -110,8 +110,8 @@ Keep commits:
 
 The project uses:
 
-- **Prettier** for formatting — run `yarn run prettier --write .` manually before committing (the Husky pre-commit hook only runs `yarn lint`); CI enforces formatting with `yarn prettier:check`
-- **ESLint** for linting
+- **Prettier** for formatting — the Husky pre-commit hook formats staged files automatically via `lint-staged` (`prettier --write` on the staged files, re-staged before the commit); CI enforces formatting with `yarn prettier:check`. `yarn run prettier --write .` still formats the whole tree manually
+- **ESLint** for linting — the pre-commit hook also runs `yarn lint` and blocks the commit on errors
 - **2-space indentation**
 - **Single quotes**
 - **No semicolons**
@@ -301,7 +301,7 @@ yarn test                        # Tests — must pass
 
 Also:
 
-- Update documentation if needed
+- Update every doc your change makes stale — grep `*.md` and `docs/` for renamed or removed commands, env vars, routes, and scripts (see `AGENTS.md` → Documentation Maintenance)
 - Test manually if UI changes are involved
 - Rebase on main to ensure clean history:
 
@@ -325,7 +325,7 @@ Also:
 
 - [ ] Code follows project style guidelines
 - [ ] Tests added/updated and passing
-- [ ] Documentation updated (if applicable)
+- [ ] Documentation updated — if the change adds/renames/removes commands, env vars, routes, scripts, tooling, or conventions, every doc that mentions them (`README.md`, `AGENTS.md`, `CONTRIBUTING.md`, `REVIEW.md`, `docs/`) is updated in the same PR (see `AGENTS.md` → Documentation Maintenance)
 - [ ] No `console.log` statements (use logger for server-side code)
 - [ ] TypeScript types are proper (no `any`)
 - [ ] Commit messages follow convention

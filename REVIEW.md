@@ -163,6 +163,12 @@ change doesn't touch.
   design docs, PR/task-specific writeups, gap analyses, or screenshots, and no
   `docs/plans/`, `docs/specs/`, `docs/pr-screenshots/` scratch dirs — that belongs
   in the PR description.
+- The diff updates every doc its behavior change makes stale (see
+  `AGENTS.md` → Documentation Maintenance): commands/scripts/tooling →
+  `AGENTS.md` + `CONTRIBUTING.md`; env vars → `docs/environment-variables.md` +
+  `.env.example`; routes → `docs/architecture.md` + feature guides; deployment →
+  `README.md` + setup guides; conventions → `AGENTS.md` + this checklist. Grep
+  the repo's Markdown for identifiers the diff renames or removes.
 
 ## Mastodon and Fediverse Interoperability Quirks
 
