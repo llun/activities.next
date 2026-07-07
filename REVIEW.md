@@ -74,7 +74,8 @@ change doesn't touch.
 - Any PR that adds/edits/removes a migration regenerates **both**
   `migrations/schema.sql` (PostgreSQL) and `migrations/schema.sqlite.sql` (SQLite)
   in the same PR, against fresh local DBs — never hand-edited. Commit a
-  schema-only regeneration as `none:`.
+  schema-only regeneration as `none:`. (CI's Schema Dump Sync job catches
+  SQLite-dump drift; the PostgreSQL dump is not CI-checked.)
 - Better-auth plugins are only registered once their required tables exist in a
   migration; admin/dashboard plugins are gated with explicit access control.
 - Cursor-based pagination: pass the raw cursor row (with its stored representations,
@@ -94,6 +95,8 @@ change doesn't touch.
 
 - React components never call `fetch()` directly — every client→server call is a
   named, typed, exported function in `lib/client.ts`, imported from there.
+  (Lint-enforced; the frozen legacy exception list in `eslint.config.mjs` must
+  only ever shrink.)
 - Server Components never pass `new Date()` to a Client Component. Pass
   `Date.now()` (a `number`); the client takes `currentTime: number` and builds
   `new Date(currentTime)` itself.
@@ -135,9 +138,10 @@ change doesn't touch.
 
 ## Logging
 
-- No `console.*` in committed code. Server-side code uses `logger` from
-  `@/lib/utils/logger` (`logger.info({ message })`). Migrations and `scripts/` may
-  use `console.*`. Do not log from React/client code.
+- No `console.*` in committed code (lint-enforced in `app/`/`lib/`). Server-side
+  code uses `logger` from `@/lib/utils/logger` (`logger.info({ message })`).
+  Migrations and `scripts/` may use `console.*`. Do not log from React/client
+  code.
 
 ## Style, imports & tests
 

@@ -1,5 +1,18 @@
 # Repository Guidelines
 
+## Definition of Done (read this first)
+
+Every change, however small, is done only when ALL of these hold:
+
+1. It is on a feature branch — never commit to `main`.
+2. `yarn run prettier --write .` → `yarn lint` → `yarn build` → `yarn test` all pass, run in that order.
+3. Every document the change makes stale is updated in the same PR (see **Documentation Maintenance**).
+4. If a migration was added/edited/removed, BOTH schema dumps are regenerated (see **Database Backends & Local Setup**; CI fails on SQLite-dump drift).
+5. The commit subject and PR title carry the correct conventional prefix, and `package.json` `version` is untouched (see **Commit & Pull Request Guidelines**).
+6. UI changes are verified in a real browser (see **Local Manual / Browser Testing**) with screenshots in the PR.
+
+For the most common task shapes, follow the step-by-step **Task Recipes** section below instead of improvising.
+
 ## Project Structure & Module Organization
 
 - `app/` contains the Next.js App Router UI and API routes (see `app/api/` and route groups like `app/(nosidebar)/`).
@@ -19,7 +32,7 @@
 - **Always use `yarn` for all package management.** Never use `npm install`, `npm ci`, or any other `npm` commands to install or manage packages.
 - `yarn dev` runs the local Next.js development server. The package script binds Next.js to `0.0.0.0`, so the dev server is reachable from the local network — only run it on trusted networks.
 - `yarn build` builds the production app; `yarn start` serves it.
-- `yarn lint` runs ESLint over the app and lib code. `eslint.config.mjs` ignores `scripts/**`, `migrations/**`, `plans/**`, and `*.config.*` files, and several documented conventions (no `console.*`, the import-path rules) are review conventions rather than lint rules — a green `yarn lint` does not prove compliance with them.
+- `yarn lint` runs ESLint over the app and lib code. `eslint.config.mjs` ignores `scripts/**`, `migrations/**`, `plans/**`, and `*.config.*` files. Several AGENTS.md conventions are **lint-enforced**: no `console.*`, no `../` imports, no `Response.json()`/`NextResponse.json()` or Zod `.parse()` in `app/api` routes, and no direct `fetch()` in component files (a frozen legacy-offender list lives in `eslint.config.mjs` — never add a file to it; shrink it by migrating callers to `lib/client.ts`). The no-env-reads-outside-`lib/config/` rule is enforced by `lib/config/envAccess.test.ts`, and every `ACTIVITIES_*`/`OTEL_*` variable read in `lib/config/` must have a row in `docs/environment-variables.md` (`lib/config/envDocumentation.test.ts` fails otherwise). The remaining conventions in this file are review-enforced.
 - `yarn test` runs the full Vitest suite (all tests run in parallel with SQLite in-memory databases).
 - There is no standalone typecheck script: `yarn build` is the only real TypeScript gate, and `*.test.ts(x)` files are never type-checked by CI. A bare `yarn tsc --noEmit` aborts on TS5101 (deprecated `baseUrl`) having checked nothing — add `--ignoreDeprecations 6.0` if you need a manual check.
 - `yarn migrate` applies Knex migrations; `yarn migrate:make <name>` creates a new migration. Migrations are ESM `.js` files with named `up`/`down` exports generated from `migration.stub` — always create them with `yarn migrate:make`; do not hand-write `.ts` or CommonJS migrations.
@@ -220,7 +233,7 @@ section-navigation patterns; pick by section type.
   - Call a named function exported from `lib/client.ts` (which encapsulates the `fetch` call, method, headers, and body serialization), per the Client-Side API Calls section — do **not** call `fetch()` directly in the component
   - Show inline success and error messages (not raw error pages)
   - Manage loading state with `useState`
-- The existing `ChangeEmailForm`, `ChangePasswordForm`, and `ChangeNameForm` components under `app/(timeline)/account/` still call `fetch()` directly — a legacy pattern from before the `lib/client.ts` rule. Migrate them when touched rather than copying the pattern.
+- A dozen legacy components still call `fetch()` directly (the `Change*Form`s under `app/(timeline)/account/`, `StravaSettingsForm`, the OAuth/password-reset forms, and several `lib/components` settings/actor-switcher dialogs). They are frozen in an exception list in `eslint.config.mjs`; the lint rule blocks any new offender. Migrate them to `lib/client.ts` when touched and remove them from the list — never add to it.
 - The corresponding API route should return JSON via `apiResponse()`, not `Response.redirect()`.
 
 ## Better-auth Plugin Guidelines
@@ -253,13 +266,14 @@ section-navigation patterns; pick by section type.
   `node:dns/promises`, and `fetch` via jest-fetch-mock's global `fetchMock`
   (passthrough by default — call `fetchMock.doMock()` / `mockResponse…` to
   stub).
-- CI (`.github/workflows/ci.yml`) runs lint + prettier-check, build, and test
-  as three parallel jobs on every push and PR; the single required
-  branch-protection check is the aggregate `CI / CI Success` job. The test job
-  pins `TEST_DATABASE_TYPE: sqlite`; `lib/database/testUtils.ts` also supports
-  `TEST_DATABASE_TYPE=pg` (with `TEST_DATABASE_HOST` / `TEST_DATABASE_USERNAME`
-  / `TEST_DATABASE_PASSWORD`) for running the suite against a throwaway
-  **local** PostgreSQL.
+- CI (`.github/workflows/ci.yml`) runs lint + prettier-check, build, test, and
+  Schema Dump Sync (regenerates the SQLite schema dump from the migrations and
+  fails on drift) as four parallel jobs on every push and PR; the single
+  required branch-protection check is the aggregate `CI / CI Success` job. The
+  test job pins `TEST_DATABASE_TYPE: sqlite`; `lib/database/testUtils.ts` also
+  supports `TEST_DATABASE_TYPE=pg` (with `TEST_DATABASE_HOST` /
+  `TEST_DATABASE_USERNAME` / `TEST_DATABASE_PASSWORD`) for running the suite
+  against a throwaway **local** PostgreSQL.
 - **To grab a mocked module and configure it, use `vi.importMock<T>('@/path')`,
   not `(await import('@/path')) as unknown as T`.** `vi.importMock` is the
   Vitest equivalent of the old `jest.requireMock`: it is purpose-built, always
@@ -355,6 +369,48 @@ These exact steps are verified to work; the gotchas below are load-bearing.
    from the server it does not, because both SSR and hydration use the identical
    server value.
 
+## Task Recipes
+
+Ordered checklists for the most common task shapes. Follow them step by step;
+each ends with the Definition of Done gate.
+
+### Adding a Mastodon-style API endpoint
+
+1. Create `app/api/v1/<name>/route.ts` exporting HTTP-method handlers (`GET`, `POST`, …).
+2. Wrap handlers in the right guard from `lib/services/guards/` (e.g. `AuthenticatedGuard`, `AdminApiGuard`) — the guards already handle auth and same-origin proof.
+3. Validate request bodies with Zod `safeParse` (never `.parse()` — lint-enforced); add `.max(n)` for sized columns and the empty→`null` transform for nullable text (see **Zod Validation in API Routes**).
+4. Respond only via `apiResponse` / `apiErrorResponse` from `@/lib/utils/response` (lint-enforced); CORS routes (those exporting `OPTIONS`) use `apiResponse` even for errors.
+5. If the web UI calls the endpoint, add a named exported function to `lib/client.ts` and import it in components — never call `fetch()` in a component (lint-enforced).
+6. Co-locate `route.test.ts`; plain `describe`/`it` names, table-driven `it.each` for input/expected variants (see **Testing Guidelines**).
+7. Update `docs/architecture.md` or the relevant feature guide if they enumerate routes.
+8. Run the Definition of Done gate.
+
+### Adding a database migration
+
+1. `yarn migrate:make <name>` — never hand-write the file (migrations are ESM `.js` with named `up`/`down` from `migration.stub`).
+2. Use the Knex query builder; the migration must work on SQLite and PostgreSQL and avoid breaking MySQL-compatible clients (see **Database Compatibility Guidelines**).
+3. Apply it locally against a throwaway SQLite file with inline env vars: `ACTIVITIES_DATABASE_CLIENT=better-sqlite3 ACTIVITIES_DATABASE_SQLITE_FILENAME=./throwaway.sqlite3 yarn migrate`.
+4. Regenerate BOTH reference schema dumps (see **Keeping the reference schema dumps in sync**). This is not optional: the Vitest suite builds its databases from the dumps, and CI's Schema Dump Sync job fails on SQLite-dump drift.
+5. Update the affected `lib/database/` code and types, plus tests.
+6. Run the Definition of Done gate.
+
+### Adding an environment variable
+
+1. Read it ONLY inside `lib/config/` — add it to the right module and its Zod schema, with tests (`lib/config/envAccess.test.ts` fails on reads elsewhere).
+2. Never read it at build time (`next.config.ts` etc.) — see **Runtime Configuration Guidelines**.
+3. Document it in `docs/environment-variables.md` (the `lib/config/envDocumentation.test.ts` sync test fails otherwise) and add it to `.env.example`.
+4. Update any setup guide that shows related configuration.
+5. Run the Definition of Done gate.
+
+### Adding a page in the `(timeline)` group
+
+1. Create `app/(timeline)/<name>/page.tsx`; render `<PageHeader title="…" />` and inherit the unified `max-w-content` width — no per-page width classes (see **Page Header & Sub-Navigation**).
+2. Settings-style sections use the shared `SectionNavDropdown` on every breakpoint; never a vertical nav rail or in-header tabs.
+3. Pass timestamps as `Date.now()` numbers from Server Components; Client Components accept `currentTime: number` and never call `Date.now()`/`new Date()` during render (see **Date Serialization**).
+4. All client-side data calls go through named functions in `lib/client.ts` (lint-enforced).
+5. Add component tests (`/** @vitest-environment jsdom */` docblock) and verify the page in a real browser (see **Local Manual / Browser Testing**); include screenshots in the PR.
+6. Run the Definition of Done gate.
+
 ## Documentation Maintenance
 
 - **Docs are part of the change.** Any PR that changes behavior described in `AGENTS.md`, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, `REVIEW.md`, or `docs/` MUST update those documents in the same PR. Stale guidance is a bug: these files are the operating manual for both humans and AI agents, and past drift produced broken commands and examples (e.g. docs still saying "Jest" long after the Vitest migration, and Docker examples that could not start).
@@ -367,6 +423,7 @@ These exact steps are verified to work; the gotchas below are load-bearing.
   - `scripts/` utilities added or changed → `docs/maintenance.md` (and the feature guide that lists them)
   - Deployment, Docker, or runtime-config changes → `README.md`, `docs/setup.md`, and the database setup guides
   - New or changed coding conventions and patterns → the matching `AGENTS.md` section, the `REVIEW.md` checklist, and (when agents need it at task start) the `CLAUDE.md` key reminders
+  - Changes to AGENTS.md rules themselves → keep the thin per-tool pointer files in sync (`CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`, `.cursor/rules/agents.mdc`) and the PR checklist in `.github/PULL_REQUEST_TEMPLATE.md`
 - Keep `docs/` durable and general-purpose (see Project Structure): update the reference docs in place; do not add change-specific writeups.
 
 ## Commit & Pull Request Guidelines
@@ -481,7 +538,7 @@ Use the one that matches the database you are reasoning about:
 
 The app (`yarn migrate`) runs Knex migrations, but the test suite does **not** — `lib/database/testUtils.ts` builds every test database directly from these dumps (see Testing Guidelines). If the dumps drift from the migrations, tests run against a stale schema, so keeping them in lockstep is load-bearing, not just hygiene. They are gitignored by the blanket `*.sql` rule and re-included by explicit `!` negations in `.gitignore`.
 
-- **Any PR that adds, edits, or removes a Knex migration in `migrations/` MUST regenerate BOTH `migrations/schema.sql` and `migrations/schema.sqlite.sql` in the same PR.** Keep them in lockstep — they must always describe the same migration set.
+- **Any PR that adds, edits, or removes a Knex migration in `migrations/` MUST regenerate BOTH `migrations/schema.sql` and `migrations/schema.sqlite.sql` in the same PR.** Keep them in lockstep — they must always describe the same migration set. CI's **Schema Dump Sync** job regenerates the SQLite dump from the migrations on every push/PR and fails on drift; the PostgreSQL dump has no CI gate, so regenerating it stays on you.
 - Regenerate them canonically rather than hand-editing — run every migration against a fresh database of each type and dump the result. In both cases verify `SELECT count(*) FROM knex_migrations` equals the number of `migrations/*.js` files first.
 
   Pass the DB settings **inline** on the `yarn migrate` line — do **not** write a `.env.local` (you'd clobber an existing one, and the cleanup would delete it). Because `knexfile.js` uses `dotenv-flow`, which never overrides variables already in the environment, inline values win over any `.env.local`; for the same reason, run in a shell with **no** other `ACTIVITIES_DATABASE*` vars exported (a stray one would be merged in and could target a remote DB — check `env | grep ACTIVITIES_DATABASE`).
