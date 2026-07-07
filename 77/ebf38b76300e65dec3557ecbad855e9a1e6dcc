@@ -1,0 +1,28 @@
+docs/environment-variables.md
+  s_c2b45d1e3d2b49::t_1664b3f05fcdbe 154-165,167-173
+  s_c2b45d1e3d2b49::t_56b71d387f1205 166
+lib/config/mapProvider.test.ts
+  s_c2b45d1e3d2b49::t_1664b3f05fcdbe 49-56,58-60
+  s_c2b45d1e3d2b49::t_5ed45a229510c8 1-48,57,61-188
+lib/config/mapProvider.ts
+  s_c2b45d1e3d2b49::t_4d7dd4eb82df8f 1-32,36-54,57-62,65-87
+  s_c2b45d1e3d2b49::t_1664b3f05fcdbe 33-35,55-56,63-64
+.env.example
+  s_c2b45d1e3d2b49::t_da9bc409431c54 160-170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "77ebf38b76300e65dec3557ecbad855e9a1e6dcc",
+  "prompts": {},
+  "sessions": {
+    "s_c2b45d1e3d2b49": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b970d6ff-c482-4d45-848b-32f588a95c10",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
