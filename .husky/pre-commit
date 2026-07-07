@@ -1,1 +1,3 @@
+set -e
+yarn lint-staged || npx lint-staged
 yarn lint || npm run lint

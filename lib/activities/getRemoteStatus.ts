@@ -2,6 +2,8 @@ import { getNote } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { detectLanguageFromHtml } from '@/lib/services/language-detection'
 import { Note } from '@/lib/types/activitypub/objects'
+import { Actor as DomainActor } from '@/lib/types/domain/actor'
+import { StatusNote, fromNote } from '@/lib/types/domain/status'
 import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
 import { getActorProfileFromPerson } from '@/lib/utils/activitypubActor'
 import {
@@ -9,9 +11,6 @@ import {
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
 import { logger } from '@/lib/utils/logger'
-
-import { Actor as DomainActor } from '../types/domain/actor'
-import { StatusNote, fromNote } from '../types/domain/status'
 
 type GetRemoteStatusParams = {
   statusId: string

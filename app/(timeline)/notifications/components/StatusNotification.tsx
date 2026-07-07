@@ -1,13 +1,15 @@
 import Link from 'next/link'
 import { FC } from 'react'
 
+import {
+  getGroupedName,
+  getInitials
+} from '@/app/(timeline)/notifications/notificationConfig'
 import type { NotificationWithStatus } from '@/app/(timeline)/notifications/types'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { processStatusText } from '@/lib/utils/text/processStatusText'
-
-import { getGroupedName, getInitials } from '../notificationConfig'
 
 interface Props {
   host: string

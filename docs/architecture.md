@@ -82,16 +82,16 @@ User Action ──→ Service Layer ──→ Queue Job
 
 The frontend and API layer, organized using Next.js route groups:
 
-| Directory             | Purpose                                                                   |
-| --------------------- | ------------------------------------------------------------------------- |
-| `app/(timeline)/`     | Main app pages with sidebar (home, profile, notifications, settings)      |
-| `app/(nosidebar)/`    | Authentication pages without sidebar (login, signup, OAuth consent)       |
-| `app/api/auth/`       | Authentication endpoints (better-auth)                                    |
-| `app/api/v1/`         | Mastodon-compatible API v1 (statuses, timelines, accounts, notifications) |
-| `app/api/v2/`         | Mastodon-compatible API v2 (instance info, media, search)                 |
-| `app/api/users/`      | ActivityPub actor endpoints (inbox, outbox, followers, following)         |
-| `app/api/oauth/`      | OAuth 2.0 provider endpoints (authorize, token, userinfo, revoke)         |
-| `app/api/well-known/` | Federation discovery (WebFinger, NodeInfo, OAuth metadata)                |
+| Directory             | Purpose                                                                                                                                                                  |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `app/(timeline)/`     | Main app pages with sidebar (home, profile, notifications, settings)                                                                                                     |
+| `app/(nosidebar)/`    | Authentication pages without sidebar (login, signup, OAuth consent)                                                                                                      |
+| `app/api/auth/`       | Authentication endpoints (better-auth)                                                                                                                                   |
+| `app/api/v1/`         | Mastodon-compatible API v1 (statuses, timelines, accounts, notifications)                                                                                                |
+| `app/api/v2/`         | Mastodon-compatible API v2 (instance info, media, search)                                                                                                                |
+| `app/api/users/`      | ActivityPub actor endpoints (inbox, outbox, followers, following)                                                                                                        |
+| `app/api/oauth/`      | OAuth 2.0 provider endpoints (authorize, userinfo, revoke) — the token endpoint lives at `app/(nosidebar)/oauth/token/`, serving `/oauth/token`                          |
+| `app/api/well-known/` | Federation discovery (WebFinger, host-meta, OAuth/OIDC metadata) — NodeInfo is served from `app/api/nodeinfo/` via a `next.config.ts` rewrite of `/.well-known/nodeinfo` |
 
 ### `lib/` — Core Business Logic
 
@@ -167,9 +167,9 @@ Media files (images and video) and fitness files (.fit, .gpx, .tcx) support mult
 │ id           │     │ id           │     │ id               │
 │ email        │     │ accountId    │     │ actorId          │
 │ passwordHash │     │ username     │     │ type (Note/Poll) │
-│ createdAt    │     │ domain       │     │ text             │
+│ createdAt    │     │ domain       │     │ content          │
 └──────────────┘     │ name         │     │ reply            │
-                     │ iconUrl      │     │ createdAt        │
+                     │ settings     │     │ createdAt        │
                      │ publicKey    │     └────────┬─────────┘
                      │ privateKey   │              │
                      └──────────────┘              │
@@ -177,7 +177,7 @@ Media files (images and video) and fitness files (.fit, .gpx, .tcx) support mult
                 ┌───────────┼───────┐    ┌─────────┼────────┐
                 ▼           ▼       ▼    ▼         ▼        ▼
          ┌──────────┐ ┌────────┐ ┌────────────┐ ┌───────┐ ┌──────────┐
-         │followers │ │ likes  │ │attachments │ │ tags  │ │timelines │
+         │ follows  │ │ likes  │ │attachments │ │ tags  │ │timelines │
          └──────────┘ └────────┘ └────────────┘ └───────┘ └──────────┘
 
 Other tables: sessions, notifications, medias, fitness_files,
@@ -187,24 +187,26 @@ Other tables: sessions, notifications, medias, fitness_files,
               blocks, mutes, filters, reports, markers, endorsements,
               lists, featured_tags, customEmojis, translation_cache,
               domain federation rules, recipients, counters, poll_choices,
-              applications, oauth_access_tokens, oauth_authorization_codes
+              clients, tokens, auth_codes (Mastodon API OAuth),
+              oauthClient, oauthAccessToken, oauthRefreshToken,
+              oauthConsent (better-auth OAuth provider)
 ```
 
 ## Technology Stack
 
-| Layer                | Technology                                                   |
-| -------------------- | ------------------------------------------------------------ |
-| **Runtime**          | Node.js 24                                                   |
-| **Framework**        | Next.js 16 (App Router)                                      |
-| **Language**         | TypeScript (strict mode)                                     |
-| **UI Library**       | React 19                                                     |
-| **Styling**          | Tailwind CSS                                                 |
-| **UI Components**    | Radix UI primitives                                          |
-| **Database**         | Knex.js (SQLite / PostgreSQL; MySQL-compatible config paths) |
-| **Authentication**   | better-auth                                                  |
-| **Logging**          | Pino                                                         |
-| **Testing**          | Vitest (native ESM)                                          |
-| **Code Quality**     | ESLint + Prettier                                            |
-| **Package Manager**  | Yarn 4.15.0                                                  |
-| **Containerization** | Docker (Alpine-based)                                        |
-| **Observability**    | OpenTelemetry (optional)                                     |
+| Layer                | Technology                                                           |
+| -------------------- | -------------------------------------------------------------------- |
+| **Runtime**          | Node.js 24                                                           |
+| **Framework**        | Next.js 16 (App Router)                                              |
+| **Language**         | TypeScript (strict mode)                                             |
+| **UI Library**       | React 19                                                             |
+| **Styling**          | Tailwind CSS                                                         |
+| **UI Components**    | Radix UI primitives                                                  |
+| **Database**         | Knex.js (SQLite / PostgreSQL; MySQL-compatible config paths)         |
+| **Authentication**   | better-auth                                                          |
+| **Logging**          | Pino                                                                 |
+| **Testing**          | Vitest (native ESM)                                                  |
+| **Code Quality**     | ESLint + Prettier                                                    |
+| **Package Manager**  | Yarn 4 (exact version pinned via `packageManager` in `package.json`) |
+| **Containerization** | Docker (Alpine-based)                                                |
+| **Observability**    | OpenTelemetry (optional)                                             |

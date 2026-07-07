@@ -5,6 +5,7 @@
       "@/app/*": ["app/*"],
       "@/lib/*": ["lib/*"],
       "@/pages/*": ["pages/*"],
+      "@/migrations/*": ["migrations/*"],
       "@/package.json": ["package.json"],
       "knex": ["node_modules/knex"]
     },

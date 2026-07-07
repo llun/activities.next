@@ -4,7 +4,7 @@ This guide will help you set up Activity.next using PostgreSQL as your database 
 
 ## Prerequisites
 
-- Node.js 24 and Yarn (v4.15.0 via Corepack)
+- Node.js 24 and Yarn 4 via Corepack (the exact version is pinned by the `packageManager` field in `package.json`)
 - Git (to clone the repository)
 - PostgreSQL server (version 12+)
 
@@ -28,11 +28,20 @@ GRANT ALL PRIVILEGES ON DATABASE activitynext TO activitynext;
 > GRANT ALL ON SCHEMA public TO activitynext;
 > ```
 
-2. Configure the database connection by setting the `ACTIVITIES_DATABASE` environment variable with the following JSON configuration (stringify it first):
+2. Configure the database connection with the individual `ACTIVITIES_DATABASE_*` variables — these are read by both `yarn migrate` and the app runtime:
+
+```bash
+ACTIVITIES_DATABASE_CLIENT=pg
+ACTIVITIES_DATABASE_PG_HOST=localhost
+ACTIVITIES_DATABASE_PG_USER=activitynext
+ACTIVITIES_DATABASE_PG_PASSWORD=your_strong_password
+ACTIVITIES_DATABASE_PG_DATABASE=activitynext
+```
+
+Alternatively, the app runtime (only) also accepts the whole configuration as a JSON string in `ACTIVITIES_DATABASE` — the value is a plain [Knex configuration object](https://knexjs.org/guide/#configuration-options):
 
 ```json
 {
-  "type": "sql",
   "client": "pg",
   "connection": {
     "host": "localhost",
@@ -42,6 +51,8 @@ GRANT ALL PRIVILEGES ON DATABASE activitynext TO activitynext;
   }
 }
 ```
+
+> **Note:** `yarn migrate` (the Knex CLI) does **not** read the `ACTIVITIES_DATABASE` JSON variable — without any `ACTIVITIES_DATABASE_*` variables set it silently falls back to a local SQLite file instead of your PostgreSQL server. Use the individual variables when running migrations.
 
 3. Run database migrations to set up the schema:
 
@@ -103,23 +114,22 @@ You can adjust the database connection configuration as needed for your hosting 
 
 ### Example Configuration for Production
 
+The value of the `ACTIVITIES_DATABASE` environment variable (stringified):
+
 ```json
 {
-  "database": {
-    "type": "sql",
-    "client": "pg",
-    "connection": {
-      "host": "your-postgres-host.example.com",
-      "port": 5432,
-      "user": "activitynext",
-      "password": "your_strong_password",
-      "database": "activitynext",
-      "ssl": true
-    },
-    "pool": {
-      "min": 2,
-      "max": 10
-    }
+  "client": "pg",
+  "connection": {
+    "host": "your-postgres-host.example.com",
+    "port": 5432,
+    "user": "activitynext",
+    "password": "your_strong_password",
+    "database": "activitynext",
+    "ssl": true
+  },
+  "pool": {
+    "min": 2,
+    "max": 10
   }
 }
 ```
@@ -129,7 +139,7 @@ You can adjust the database connection configuration as needed for your hosting 
 When deploying to Vercel, add the database configuration as an environment variable:
 
 ```
-ACTIVITIES_DATABASE='{"type":"sql","client":"pg","connection":{"host":"your-postgres-host.example.com","port":5432,"user":"activitynext","password":"your_strong_password","database":"activitynext","ssl":true},"pool":{"min":2,"max":10}}'
+ACTIVITIES_DATABASE='{"client":"pg","connection":{"host":"your-postgres-host.example.com","port":5432,"user":"activitynext","password":"your_strong_password","database":"activitynext","ssl":true},"pool":{"min":2,"max":10}}'
 ```
 
 ## Docker Deployment with PostgreSQL
@@ -139,10 +149,12 @@ To deploy Activity.next with PostgreSQL using Docker:
 ```bash
 docker run -p 3000:3000 \
   -e ACTIVITIES_HOST=your.domain.tld \
-  -e ACTIVITIES_SECRET_PHASE=random-secret-for-cookie \
-  -e ACTIVITIES_DATABASE='{"type":"sql","client":"pg","connection":{"host":"postgres-host","port":5432,"user":"activitynext","password":"your_strong_password","database":"activitynext"},"pool":{"min":2,"max":10}}' \
-  ghcr.io/llun/activities.next:latest
+  -e ACTIVITIES_SECRET_PHASE=change-me-to-a-random-secret-at-least-32-chars \
+  -e ACTIVITIES_DATABASE='{"client":"pg","connection":{"host":"postgres-host","port":5432,"user":"activitynext","password":"your_strong_password","database":"activitynext"},"pool":{"min":2,"max":10}}' \
+  ghcr.io/llun/activities.next:main
 ```
+
+> **Notes:** The image is published with the `main` tag — there is no `latest` tag on the registry. The production runtime rejects an `ACTIVITIES_SECRET_PHASE` shorter than 32 characters. The runtime image does not include the Knex CLI, so run `yarn migrate` against the PostgreSQL server from a checkout (using the individual `ACTIVITIES_DATABASE_*` variables) before the first start.
 
 For a complete setup with both PostgreSQL and Activity.next in Docker, you can use Docker Compose:
 
@@ -159,13 +171,13 @@ services:
     restart: unless-stopped
 
   activitynext:
-    image: ghcr.io/llun/activities.next:latest
+    image: ghcr.io/llun/activities.next:main
     depends_on:
       - postgres
     environment:
       ACTIVITIES_HOST: your.domain.tld
-      ACTIVITIES_SECRET_PHASE: random-secret-for-cookie
-      ACTIVITIES_DATABASE: '{"type":"sql","client":"pg","connection":{"host":"postgres","port":5432,"user":"activitynext","password":"your_strong_password","database":"activitynext"},"pool":{"min":2,"max":10}}'
+      ACTIVITIES_SECRET_PHASE: change-me-to-a-random-secret-at-least-32-chars
+      ACTIVITIES_DATABASE: '{"client":"pg","connection":{"host":"postgres","port":5432,"user":"activitynext","password":"your_strong_password","database":"activitynext"},"pool":{"min":2,"max":10}}'
     ports:
       - '3000:3000'
     restart: unless-stopped

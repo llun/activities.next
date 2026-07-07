@@ -49,8 +49,8 @@ For a more detailed architecture overview, see [docs/architecture.md](docs/archi
 
 ### Prerequisites
 
-- **Node.js 24** or higher
-- **Yarn** package manager (v4.15.0 via Corepack)
+- **Node.js 24** (the repo pins `engines.node` to `24.x`; newer majors are rejected by Yarn)
+- **Yarn 4** via Corepack (the exact version is pinned by the `packageManager` field in `package.json`)
 - A **domain name** (required for federation)
 
 ### Quick Start
@@ -110,14 +110,15 @@ For detailed setup instructions, see the [Setup Guide](docs/setup.md).
 ```bash
 docker run -p 3000:3000 \
   -e ACTIVITIES_HOST=your.domain.tld \
-  -e ACTIVITIES_SECRET_PHASE=your-random-secret \
+  -e ACTIVITIES_SECRET_PHASE=change-me-to-a-random-secret-at-least-32-chars \
+  -e ACTIVITIES_DATABASE_SQLITE_FILENAME=/opt/activities.next/data/data.sqlite \
   -e ACTIVITIES_MEDIA_STORAGE_TYPE=fs \
-  -e ACTIVITIES_MEDIA_STORAGE_PATH=/opt/activities.next/uploads \
-  -v /path/to/data:/opt/activities.next \
-  ghcr.io/llun/activities.next:latest
+  -e ACTIVITIES_MEDIA_STORAGE_PATH=/opt/activities.next/data/uploads \
+  -v /path/to/data:/opt/activities.next/data \
+  ghcr.io/llun/activities.next:main
 ```
 
-The Docker image defaults to SQLite at `/opt/activities.next/data.sqlite`. The volume mount persists that database and, when local media storage is configured as above, uploaded files between container restarts.
+The image is published with the `main` tag (there is no `latest` tag), and the production runtime rejects an `ACTIVITIES_SECRET_PHASE` shorter than 32 characters. Mount persistent data under `/opt/activities.next/data` as above — do **not** bind-mount `/opt/activities.next` itself, because that directory contains the application and a host-path mount would shadow it. The image ships a pre-migrated SQLite database at `/opt/activities.next/data.sqlite`; when you point `ACTIVITIES_DATABASE_SQLITE_FILENAME` at a mounted path instead, run the Knex migrations against that file first (see the [SQLite Setup](docs/sqlite-setup.md) guide).
 
 For PostgreSQL or advanced Docker setups, see:
 

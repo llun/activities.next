@@ -1,9 +1,9 @@
 name: CI
 
 # Runs on every commit (push to any branch + pull requests). The lint/prettier,
-# build, and test jobs run in parallel (no `needs:` chain between them) so the
-# check finishes as fast as the slowest single job instead of the sum of all
-# three. If any one of them fails, the run is reported as failed: the
+# build, test, and schema-dump-sync jobs run in parallel (no `needs:` chain
+# between them) so the check finishes as fast as the slowest single job instead
+# of the sum of all of them. If any one of them fails, the run is reported as failed: the
 # `CI / CI Success` job aggregates every job's result and fails unless all
 # succeeded. Mark that job as the required status check in branch protection — it
 # avoids the skipped-job-counts-as-passing gap that requiring the individual jobs
@@ -89,6 +89,55 @@ jobs:
         env:
           TEST_DATABASE_TYPE: sqlite
 
+  # Drift gate for the committed SQLite reference schema dump. The Vitest
+  # suite builds every test database from migrations/schema.sqlite.sql (via
+  # lib/database/testUtils.ts) instead of running the Knex migration chain, so
+  # a dump that lags the migrations makes the whole suite test a stale schema.
+  # This job replays all migrations against a fresh SQLite database, applies
+  # the documented dump-and-strip pipeline (CONTRIBUTING.md → "SQLite —
+  # migrations/schema.sqlite.sql"), and fails if the result differs from the
+  # committed file. The PostgreSQL dump (migrations/schema.sql) is still
+  # regenerated manually per the same guide.
+  schema-dump-check:
+    name: Schema Dump Sync
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Enable corepack
+        run: corepack enable
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: yarn
+      - name: Install dependencies
+        run: yarn install --immutable
+      - name: Run migrations against a fresh SQLite database
+        run: |
+          ACTIVITIES_DATABASE_CLIENT=better-sqlite3 \
+          ACTIVITIES_DATABASE_SQLITE_FILENAME=/tmp/schema-check.sqlite3 \
+            yarn migrate
+      - name: Verify every migration file ran
+        run: |
+          applied=$(sqlite3 /tmp/schema-check.sqlite3 'SELECT count(*) FROM knex_migrations;')
+          files=$(ls migrations/*.js | wc -l)
+          echo "applied=$applied files=$files"
+          if [ "$applied" -ne "$files" ]; then
+            echo "::error::knex_migrations has $applied rows but migrations/ has $files files"
+            exit 1
+          fi
+      - name: Diff regenerated dump against migrations/schema.sqlite.sql
+        run: |
+          sqlite3 /tmp/schema-check.sqlite3 '.schema' \
+            | grep -vE "^CREATE TABLE sqlite_sequence" \
+            | grep -vE "^CREATE TABLE IF NOT EXISTS '[A-Za-z_]+_fts_(data|idx|docsize|config|content)'" \
+            > /tmp/schema-regenerated.sql
+          if ! diff -u migrations/schema.sqlite.sql /tmp/schema-regenerated.sql; then
+            echo "::error::migrations/schema.sqlite.sql is out of sync with the migrations. Regenerate BOTH schema dumps in this PR — see AGENTS.md → 'Keeping the reference schema dumps in sync'."
+            exit 1
+          fi
+
   # Aggregate gate: this is the single check to mark required in branch
   # protection. It always runs (`if: always()`) and fails unless every upstream
   # job succeeded, so a failure in any one of the parallel jobs fails the overall
@@ -98,12 +147,12 @@ jobs:
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest
-    needs: [lint-prettier, build, test]
+    needs: [lint-prettier, build, test, schema-dump-check]
     if: ${{ always() }}
     steps:
       - name: Verify all CI jobs succeeded
         env:
-          RESULTS: ${{ needs.lint-prettier.result }} ${{ needs.build.result }} ${{ needs.test.result }}
+          RESULTS: ${{ needs.lint-prettier.result }} ${{ needs.build.result }} ${{ needs.test.result }} ${{ needs.schema-dump-check.result }}
         run: |
           echo "Upstream job results: $RESULTS"
           for result in $RESULTS; do

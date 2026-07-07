@@ -4,16 +4,22 @@ This guide will help you set up Activity.next using SQLite as your database back
 
 ## Prerequisites
 
-- Node.js 24 and Yarn (v4.15.0 via Corepack)
+- Node.js 24 and Yarn 4 via Corepack (the exact version is pinned by the `packageManager` field in `package.json`)
 - Git (to clone the repository)
 
 ## Database Configuration
 
-1. Set the `ACTIVITIES_DATABASE` environment variable with the following JSON configuration (stringify it first):
+1. Configure SQLite with the individual database variables — these are read by both `yarn migrate` and the app runtime:
+
+```bash
+ACTIVITIES_DATABASE_CLIENT=better-sqlite3
+ACTIVITIES_DATABASE_SQLITE_FILENAME=./dev.sqlite3
+```
+
+Alternatively, the app runtime (only) also accepts the whole configuration as a JSON string in `ACTIVITIES_DATABASE` — the value is a plain [Knex configuration object](https://knexjs.org/guide/#configuration-options):
 
 ```json
 {
-  "type": "sql",
   "client": "better-sqlite3",
   "useNullAsDefault": true,
   "connection": {
@@ -21,6 +27,8 @@ This guide will help you set up Activity.next using SQLite as your database back
   }
 }
 ```
+
+> **Note:** `yarn migrate` (the Knex CLI) does **not** read the `ACTIVITIES_DATABASE` JSON variable — without any `ACTIVITIES_DATABASE_*` variables set it silently migrates a default `./activities.sqlite` file instead. Use the individual variables when running migrations.
 
 2. Run database migrations to set up the schema:
 
@@ -88,13 +96,18 @@ To deploy Activity.next with SQLite using Docker:
 ```bash
 docker run -p 3000:3000 \
   -e ACTIVITIES_HOST=your.domain.tld \
-  -e ACTIVITIES_SECRET_PHASE=random-secret-for-cookie \
+  -e ACTIVITIES_SECRET_PHASE=change-me-to-a-random-secret-at-least-32-chars \
   -e ACTIVITIES_DATABASE_CLIENT=better-sqlite3 \
-  -e ACTIVITIES_DATABASE_SQLITE_FILENAME=/opt/activities.next/data.sqlite \
+  -e ACTIVITIES_DATABASE_SQLITE_FILENAME=/opt/activities.next/data/data.sqlite \
   -e ACTIVITIES_MEDIA_STORAGE_TYPE=fs \
-  -e ACTIVITIES_MEDIA_STORAGE_PATH=/opt/activities.next/uploads \
-  -v /path/to/local/storage:/opt/activities.next \
-  ghcr.io/llun/activities.next:latest
+  -e ACTIVITIES_MEDIA_STORAGE_PATH=/opt/activities.next/data/uploads \
+  -v /path/to/local/storage:/opt/activities.next/data \
+  ghcr.io/llun/activities.next:main
 ```
 
-The `-v` option mounts a local directory to the container's `/opt/activities.next` directory, which allows the SQLite database and configured local uploads directory to persist between container restarts. Make sure to create this directory with appropriate permissions beforehand.
+Notes:
+
+- The image is published with the `main` tag — there is no `latest` tag on the registry.
+- The production runtime rejects an `ACTIVITIES_SECRET_PHASE` shorter than 32 characters, so use a sufficiently long random secret.
+- The `-v` option mounts a local directory at `/opt/activities.next/data` so the SQLite database and the local uploads directory persist between container restarts. Create the host directory with appropriate permissions beforehand. Do **not** bind-mount `/opt/activities.next` itself — that directory contains the application (the standalone `server.js`, static assets, etc.), and a host-path mount would shadow it so the container cannot start.
+- The mounted data directory starts empty, and the runtime image does not run migrations. Before the first start, either run the Knex migrations against the mounted file from a checkout (`ACTIVITIES_DATABASE_CLIENT=better-sqlite3 ACTIVITIES_DATABASE_SQLITE_FILENAME=/path/to/local/storage/data.sqlite yarn migrate`) or copy the image's pre-migrated database as a starting point (`docker run --rm -v /path/to/local/storage:/data ghcr.io/llun/activities.next:main cp /opt/activities.next/data.sqlite /data/data.sqlite`).

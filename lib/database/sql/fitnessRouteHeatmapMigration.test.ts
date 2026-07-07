@@ -1,8 +1,8 @@
 import knex from 'knex'
 
-import * as migration from '../../../migrations/20260502190000_replace_fitness_heatmaps_with_route_cache'
-import * as cursorMigration from '../../../migrations/20260503120000_add_fitness_route_heatmap_cursor'
-import * as partialFlagMigration from '../../../migrations/20260503140000_add_fitness_route_heatmap_partial_flag'
+import * as migration from '@/migrations/20260502190000_replace_fitness_heatmaps_with_route_cache'
+import * as cursorMigration from '@/migrations/20260503120000_add_fitness_route_heatmap_cursor'
+import * as partialFlagMigration from '@/migrations/20260503140000_add_fitness_route_heatmap_partial_flag'
 
 describe('route heatmap migration', () => {
   it('captures legacy image paths and replaces the old heatmap table', async () => {

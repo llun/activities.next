@@ -58,28 +58,29 @@ Route heatmap caches are stored in `fitness_route_heatmaps`. They are keyed by a
 - `GET /api/v1/fitness-files/:id` returns file content or redirects to object storage.
 - `GET /api/v1/fitness-files/:id/route-data` returns parsed route samples and analysis series for status detail maps and charts.
 - `GET /api/v1/fitness-files/by-status?statusId=...` returns fitness files attached to a status.
-- `DELETE /api/v1/fitness-files/:id` deletes an uploaded fitness file.
+- `DELETE /api/v1/accounts/fitness-files/:fitnessFileId` deletes an uploaded fitness file.
 
 ### Account Fitness Data
 
 - `GET /api/v1/accounts/:id/fitness-summary`
 - `GET /api/v1/accounts/:id/fitness-calendar`
 - `GET /api/v1/accounts/:id/fitness-activity-types`
-- `GET /api/v1/accounts/:id/fitness-route-heatmaps`
-- `GET` and `POST /api/v1/accounts/:id/fitness-route-heatmap`
+- `GET` and `DELETE /api/v1/accounts/:id/fitness-route-heatmaps`
+- `GET`, `POST`, and `DELETE /api/v1/accounts/:id/fitness-route-heatmap`
 
 The older `/fitness-heatmap` and `/fitness-heatmaps` endpoints are compatibility adapters for route heatmaps. They call the route-heatmap handlers, then return legacy flat payloads with `imagePath: null`; route heatmaps now store serialized route segments, not generated PNG heatmap images.
 
 ### Settings and Imports
 
-- `GET` and `POST /api/v1/settings/fitness/general`
-- `POST /api/v1/settings/fitness/general/regenerate-maps`
-- `GET`, `POST`, and `DELETE /api/v1/settings/fitness/strava`
-- `GET /api/v1/settings/fitness/strava/authorize`
-- `GET /api/v1/settings/fitness/strava/callback`
-- `POST /api/v1/settings/fitness/strava/archive`
-- `POST /api/v1/settings/fitness/strava/archive/presigned`
-- `GET /api/v1/settings/fitness/import/:batchId`
+- `GET` and `POST /api/v1/fitness/general`
+- `POST /api/v1/fitness/general/regenerate-maps`
+- `GET`, `POST`, and `DELETE /api/v1/fitness/strava`
+- `GET /api/v1/fitness/strava/authorize`
+- `GET /api/v1/fitness/strava/callback`
+- `GET`, `POST`, and `PATCH /api/v1/fitness/strava/archive`
+- `POST /api/v1/fitness/strava/archive/presigned`
+- `POST /api/v1/fitness/import`
+- `GET` and `POST /api/v1/fitness/import/:batchId`
 - `POST /api/v1/webhooks/strava/:webhookToken`
 
 ## Processing Pipeline
@@ -108,7 +109,9 @@ Fitness maintenance scripts live in `scripts/`:
 - `scripts/fitness/resumeStravaProcessing.ts`
 - `scripts/fitness/recreateFitnessRouteHeatmaps.ts`
 - `scripts/fitness/fixStuckFitnessProcessing.ts`
+- `scripts/fitness/repairFailedFitnessImports.ts`
 - `scripts/fitness/cleanupLegacyFitnessHeatmaps.ts`
+- `scripts/fitness/cleanupLegacyHeatmapRegions.ts`
 - `scripts/fitness/repairStravaActivityFiles.ts`
 - `scripts/fitness/retrigerStravaActivities.ts`
 - `scripts/fitness/runImportStravaActivity.ts`
