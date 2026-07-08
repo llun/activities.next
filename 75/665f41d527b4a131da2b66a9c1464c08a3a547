@@ -1,0 +1,92 @@
+lib/components/fitness/mapkitSurface.ts
+  s_c2b45d1e3d2b49::t_6b2d686adfead3 59
+docs/environment-variables.md
+  s_c2b45d1e3d2b49::t_4c85a2ef8d7156 165
+  s_c2b45d1e3d2b49::t_766656dba82a8d 167-169
+  s_c2b45d1e3d2b49::t_e0216723988ad6 187-193
+  s_c2b45d1e3d2b49::t_47c7c2b6d15662 203-205
+app/api/v1/fitness/apple-maps-token/route.test.ts
+  s_c2b45d1e3d2b49::t_abfdb97eea294f 50-57,60
+  s_c2b45d1e3d2b49::t_0935ce7284444c 112-164
+  s_c2b45d1e3d2b49::t_5a33444e433e51 1
+  s_c2b45d1e3d2b49::t_35971128429903 61
+  s_c2b45d1e3d2b49::t_5d773aa74a8fc8 165
+lib/components/fitness/mapkitTestDouble.ts
+  s_c2b45d1e3d2b49::t_abf96abfb7e863 150
+  s_c2b45d1e3d2b49::t_282a7cceec50e9 1-28,30-75,77-85,87-89,99-149,151-231,238-272,275-276
+  s_c2b45d1e3d2b49::t_657c2d7e9c1792 76,86,90-98
+  s_c2b45d1e3d2b49::t_773b3ace637aa0 29
+  s_c2b45d1e3d2b49::t_029e417587996e 232-237,273-274
+lib/components/fitness/ActivityRouteMapKit.tsx
+  s_c2b45d1e3d2b49::t_10868831132dde 135-138,142,184,188,190-224
+  s_c2b45d1e3d2b49::t_3d40a31b275127 101
+  s_c2b45d1e3d2b49::t_80a71f30627731 54-74
+  s_c2b45d1e3d2b49::t_8f1303463896a3 117-122
+  s_c2b45d1e3d2b49::t_d319747b0d10c4 13
+lib/components/fitness/PrivacyZoneMapKit.test.tsx
+  s_c2b45d1e3d2b49::t_029e417587996e 86-87,114-115,177-178
+  s_c2b45d1e3d2b49::t_99bc46ba783d5c 7,13-14,19,22-28,83-85,88-113,116-176,179-209
+lib/services/fitness-files/generateMapImage.test.ts
+  s_c2b45d1e3d2b49::t_e5e71dea1879d5 90
+  s_c2b45d1e3d2b49::t_25b68900f5a75b 172-174
+  s_c2b45d1e3d2b49::t_8695a12fd36ceb 41-46
+  s_c2b45d1e3d2b49::t_aab40b88cc838f 139
+lib/components/fitness/ActivityRouteMapKit.test.tsx
+  s_c2b45d1e3d2b49::t_b063e960f32122 8,14-15,20,30-35,37-43,92-94,97-122,125-163,166-190,194-197
+  s_c2b45d1e3d2b49::t_029e417587996e 95-96,123-124,164-165,191-193
+app/embed/heatmap/[token]/image/route.ts
+  s_c2b45d1e3d2b49::t_94ddaf9279c6db 118,122-124
+  s_c2b45d1e3d2b49::t_a4e66bdb32b461 54-68,70-76
+lib/components/fitness/PrivacyZoneMapKit.tsx
+  s_c2b45d1e3d2b49::t_4732a6f6df3494 4
+  s_c2b45d1e3d2b49::t_c309f15823940f 223,235
+  s_c2b45d1e3d2b49::t_1c76b5fb661850 190-206
+lib/components/fitness/RegionMapKit.test.tsx
+  s_c2b45d1e3d2b49::t_dbeabe5f75e4c9 166-168
+  s_c2b45d1e3d2b49::t_029e417587996e 85-86,126-127,146-147,181-182,185-187
+  s_c2b45d1e3d2b49::t_8aa6873c5f5d0f 5,7,14-15,20,44-51,53-59,82-84,87-125,128-145,148-165,169-180,183-184,188-195
+lib/services/fitness-files/appleMapsSnapshot.ts
+  s_c2b45d1e3d2b49::t_2f3a0cd7f50200 205-218,236
+lib/components/fitness/RegionMapKit.tsx
+  s_c2b45d1e3d2b49::t_14573633b7cf62 219-221,233-234,238-239
+  s_c2b45d1e3d2b49::t_77e76a24aa395b 179-181
+  s_c2b45d1e3d2b49::t_77de6e60623cb7 273-276,285-287,291,293-294,300
+  s_c2b45d1e3d2b49::t_af96fa36975f9e 82-99
+app/api/v1/fitness/apple-maps-token/route.ts
+  s_c2b45d1e3d2b49::t_f6b562b1cc25e4 24-29,32-46
+  s_c2b45d1e3d2b49::t_cc01b5bac0435a 79
+  s_c2b45d1e3d2b49::t_caefdffe4cd160 97-98
+  s_c2b45d1e3d2b49::t_39eee9f5f8bd3a 47
+app/embed/heatmap/[token]/image/route.test.ts
+  s_c2b45d1e3d2b49::t_d5e3d69a96d5fb 151,153
+  s_c2b45d1e3d2b49::t_005a12ee3c3b35 160,177-205
+lib/components/fitness/RouteHeatmapMapKit.test.tsx
+  s_c2b45d1e3d2b49::t_e7a428e4bc795e 5,8-9,14-15,20-21,47-57,59-65,94-96,99-122,125-160
+  s_c2b45d1e3d2b49::t_029e417587996e 97-98,123-124
+lib/components/fitness/RouteHeatmapMapKit.tsx
+  s_c2b45d1e3d2b49::t_f25c4341630ce4 16
+  s_c2b45d1e3d2b49::t_f351e03ed62f1a 179,182-183,194-236
+  s_c2b45d1e3d2b49::t_2f4fec38b43edd 86
+  s_c2b45d1e3d2b49::t_7c90f3e205c935 157
+  s_c2b45d1e3d2b49::t_6277cd5425732d 15
+  s_c2b45d1e3d2b49::t_58c72d330951e7 85
+  s_c2b45d1e3d2b49::t_4d48d115ef9667 237-238
+lib/services/fitness-files/appleMapsSnapshot.test.ts
+  s_c2b45d1e3d2b49::t_4e3c3f97cc2292 198-236
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "75665f41d527b4a131da2b66a9c1464c08a3a547",
+  "prompts": {},
+  "sessions": {
+    "s_c2b45d1e3d2b49": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b970d6ff-c482-4d45-848b-32f588a95c10",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
