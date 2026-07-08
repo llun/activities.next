@@ -1,0 +1,73 @@
+lib/components/fitness/RouteHeatmapMapKit.tsx
+  s_c2b45d1e3d2b49::t_0ece913143effe 84-85
+  s_c2b45d1e3d2b49::t_2ac2ccc7549d8e 1-7,9-83,86-119,130-169,171-188,193-215,224-277
+  s_c2b45d1e3d2b49::t_56c8af0a90013d 216-223
+  s_c2b45d1e3d2b49::t_a0bf167843edb0 8
+  s_c2b45d1e3d2b49::t_5c25cb431019cb 120-129
+  s_c2b45d1e3d2b49::t_9878ae9e55f5eb 170
+  s_c2b45d1e3d2b49::t_9b94ab2400f2e8 189-192
+lib/components/fitness/HeatmapRegionPicker.tsx
+  s_c2b45d1e3d2b49::t_d838dc517655be 240,250-253
+  s_c2b45d1e3d2b49::t_06d4a1abd7e71e 197-201,206-207
+  s_c2b45d1e3d2b49::t_15888b37f27373 18
+  s_c2b45d1e3d2b49::t_a979735eef5df7 254-256
+lib/components/fitness/mapGeometry.ts
+  s_c2b45d1e3d2b49::t_9c70c80eae089d 187-219
+  s_c2b45d1e3d2b49::t_1414a1a4351c52 3-4
+lib/components/fitness/RouteHeatmapMapKit.test.tsx
+  s_c2b45d1e3d2b49::t_4e52a17f8fa616 1-72
+lib/components/fitness/PrivacyZoneMapKit.tsx
+  s_c2b45d1e3d2b49::t_b6b7fb44194ecc 186-188
+  s_c2b45d1e3d2b49::t_24acc6bff7bce2 1-185,189-242
+lib/components/fitness/mapkitSurface.ts
+  s_c2b45d1e3d2b49::t_6351b3e111b7a1 1-157
+lib/components/fitness/PrivacyZoneMapKit.test.tsx
+  s_c2b45d1e3d2b49::t_8dacc3d923aec8 1-76
+app/(timeline)/fitness/heatmap/FitnessHeatmapView.test.tsx
+  s_c2b45d1e3d2b49::t_8e0db002053ae5 1202,1210-1213,1215
+  s_c2b45d1e3d2b49::t_a61a93861f12f1 36-41
+lib/components/fitness/RouteHeatmapMap.tsx
+  s_c2b45d1e3d2b49::t_3824d274c703cd 138-142,147-172
+  s_c2b45d1e3d2b49::t_fc90f52a1c1118 198
+  s_c2b45d1e3d2b49::t_9b94ab2400f2e8 7
+lib/components/settings/FitnessPrivacyLocationSettings.tsx
+  s_c2b45d1e3d2b49::t_338d34dfdcd674 858-884
+  s_c2b45d1e3d2b49::t_86175c37b414a8 12
+  s_c2b45d1e3d2b49::t_63991c456a6da8 334-335,340-343
+  s_c2b45d1e3d2b49::t_68d815d7be91c8 487
+lib/components/fitness/RegionMapKit.test.tsx
+  s_c2b45d1e3d2b49::t_7076635123160b 1-67
+lib/components/fitness/RegionMapKit.tsx
+  s_c2b45d1e3d2b49::t_baa20aaefaa83f 1-345
+lib/components/fitness/ActivityRouteMapKit.test.tsx
+  s_c2b45d1e3d2b49::t_65234671e3ffaa 1-79
+lib/components/fitness/HeatmapRegionPicker.test.tsx
+  s_c2b45d1e3d2b49::t_064e7e11a1d2fc 141,151-155
+  s_c2b45d1e3d2b49::t_a324bac7f8081f 29-31,39-40
+  s_c2b45d1e3d2b49::t_517485e621a7da 8
+  s_c2b45d1e3d2b49::t_fa2452e5f6206a 41
+lib/components/fitness/ActivityRouteMapKit.tsx
+  s_c2b45d1e3d2b49::t_69a68375807749 1-264
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_c2b45d1e3d2b49::t_3054cc15c765ba 37-38
+  s_c2b45d1e3d2b49::t_5f7c156ae64ea7 1091-1096,1100-1102
+  s_c2b45d1e3d2b49::t_9b94ab2400f2e8 896-900,1097-1099
+  s_c2b45d1e3d2b49::t_80985b6ed8df51 1123-1148
+  s_c2b45d1e3d2b49::t_9a26087d6c0d33 854-855,860-863,867
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c1e98e7bee9e06ba98be24393ea33a9866fb6354",
+  "prompts": {},
+  "sessions": {
+    "s_c2b45d1e3d2b49": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b970d6ff-c482-4d45-848b-32f588a95c10",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
