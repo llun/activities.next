@@ -161,6 +161,7 @@ interface MapboxMap {
   addSource: (id: string, source: Record<string, unknown>) => void
   addLayer: (layer: Record<string, unknown>) => void
   once: (event: 'load', listener: () => void) => void
+  on: (event: 'error', listener: () => void) => void
   getSource: (id: string) => unknown
   getZoom: () => number
   fitBounds: (
@@ -295,6 +296,12 @@ const GRAPH_VIEW_HEIGHT = 250
 const GRAPH_HEIGHT_CLASSNAME = 'h-[190px] lg:h-[250px]'
 const MAP_ROUTE_SOURCE_ID = 'activity-route'
 const MAP_ACTIVE_POINT_SOURCE_ID = 'activity-active-point'
+// The interactive map now renders for every provider, so a style/tile failure
+// (CDN outage, blocked origin, offline) must still surface the pre-generated
+// static preview. `loadModule()` has its own 15s timeout, but once the GL module
+// is in memory a failing style simply never fires `load` — hence the watchdog,
+// matching RouteHeatmapMap.
+const MAP_LOAD_TIMEOUT_MS = 20_000
 
 const clampNumber = (value: number, min: number, max: number) => {
   return Math.max(min, Math.min(max, value))
@@ -904,6 +911,21 @@ const ActivityMapPanel: FC<{
     }
 
     let cancelled = false
+    let loadWatchdog: number | undefined
+
+    const clearLoadWatchdog = () => {
+      if (loadWatchdog === undefined) return
+      window.clearTimeout(loadWatchdog)
+      loadWatchdog = undefined
+    }
+
+    const failToStaticPreview = () => {
+      if (cancelled) return
+      clearLoadWatchdog()
+      mapRef.current?.remove()
+      mapRef.current = null
+      setMapLoadError('Interactive map unavailable. Using static preview.')
+    }
 
     const initializeMap = async () => {
       try {
@@ -921,7 +943,16 @@ const ActivityMapPanel: FC<{
 
         mapRef.current = map
 
+        // A style/tile failure never fires `load`; fall back rather than leave an
+        // empty container behind.
+        loadWatchdog = window.setTimeout(
+          failToStaticPreview,
+          MAP_LOAD_TIMEOUT_MS
+        )
+        map.on('error', failToStaticPreview)
+
         map.once('load', () => {
+          clearLoadWatchdog()
           if (cancelled || !mapRef.current) return
 
           map.addSource(MAP_ROUTE_SOURCE_ID, {
@@ -1030,10 +1061,7 @@ const ActivityMapPanel: FC<{
           )
         })
       } catch (_error) {
-        if (cancelled) return
-        mapRef.current?.remove()
-        mapRef.current = null
-        setMapLoadError('Interactive map unavailable. Using static preview.')
+        failToStaticPreview()
       }
     }
 
@@ -1041,6 +1069,7 @@ const ActivityMapPanel: FC<{
 
     return () => {
       cancelled = true
+      clearLoadWatchdog()
       mapRef.current?.remove()
       mapRef.current = null
     }

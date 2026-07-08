@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -18,6 +19,7 @@ import {
 } from '@/lib/client'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusNote } from '@/lib/types/domain/status'
+import { loadMaplibreModule } from '@/lib/utils/maplibre'
 
 import { FitnessStatusDetail } from './FitnessStatusDetail'
 
@@ -202,6 +204,58 @@ describe('FitnessStatusDetail', () => {
     mockGetFitnessRouteData.mockReset()
     mockGetFitnessFilesByStatus.mockResolvedValue(null)
     mockGetFitnessRouteData.mockResolvedValue(routeData)
+    // Default: the GL loader never settles, so the map stays initializing.
+    vi.mocked(loadMaplibreModule).mockImplementation(
+      () => new Promise(() => {})
+    )
+  })
+
+  it('falls back to the static preview when the interactive map never finishes loading', async () => {
+    mockGetFitnessFilesByStatus.mockResolvedValue([
+      buildFitnessFile({ hasMapData: true })
+    ])
+    // The GL module loads, but the style/tiles never do, so `load` never fires.
+    // Without the load watchdog the panel would sit on an empty container.
+    const map = { on: vi.fn(), once: vi.fn(), remove: vi.fn() }
+    // Must be a plain function, not an arrow: the component calls `new mapbox.Map()`
+    // and an arrow implementation is not constructible (it would throw and take the
+    // catch branch, masking whether the watchdog actually fired).
+    const MapConstructor = vi.fn(function MapStub() {
+      return map
+    })
+    vi.mocked(loadMaplibreModule).mockResolvedValue({
+      Map: MapConstructor
+    } as never)
+
+    vi.useFakeTimers()
+    try {
+      renderDetail()
+      // Flush the chained fitness-file -> route-data fetches (each resolves a
+      // promise and commits state) so the map effect runs and arms the watchdog.
+      for (let flush = 0; flush < 6; flush += 1) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(0)
+        })
+      }
+      // The map was constructed successfully, so the fallback below can only come
+      // from the watchdog (not from the constructor's catch branch).
+      expect(MapConstructor).toHaveBeenCalledTimes(1)
+      expect(map.on.mock.calls.map((call) => call[0])).toContain('error')
+      expect(
+        screen.queryByText('Interactive map unavailable. Using static preview.')
+      ).not.toBeInTheDocument()
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(20_000)
+      })
+
+      expect(
+        screen.getByText('Interactive map unavailable. Using static preview.')
+      ).toBeInTheDocument()
+      expect(map.remove).toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('renders the activity header with the type badge, title and primary stats', async () => {
