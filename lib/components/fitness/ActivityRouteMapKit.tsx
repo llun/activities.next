@@ -10,6 +10,7 @@ import {
   MAPKIT_LOAD_TIMEOUT_MS,
   type MapKitAnnotation,
   type MapKitMapSurface,
+  type MapKitOverlay,
   type MapKitSurfaceModule,
   boundsToRegion,
   loadMapKitSurface
@@ -50,6 +51,27 @@ const getRouteBounds = (samples: FitnessRouteSample[]) => {
   return { minLat, maxLat, minLng, maxLng }
 }
 
+/**
+ * Value signature of the drawable route. Callers hand us freshly-built arrays on
+ * every render, so effects key on this string instead of array identity — that is
+ * what keeps a chart hover from rebuilding the overlays (or the map itself).
+ */
+const getRouteSignature = (segments: FitnessRouteSegment[]) =>
+  segments
+    .map((segment) => {
+      const first = segment.samples[0]
+      const last = segment.samples[segment.samples.length - 1]
+      return [
+        segment.isHiddenByPrivacy ? 'hidden' : 'visible',
+        segment.samples.length,
+        first.lat,
+        first.lng,
+        last.lat,
+        last.lng
+      ].join(',')
+    })
+    .join('|')
+
 export interface ActivityRouteMapKitProps {
   /** Drawable route segments (each with at least two samples). */
   routeSegments: FitnessRouteSegment[]
@@ -76,6 +98,7 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
   const mapRef = useRef<MapKitMapSurface | null>(null)
   const mapkitRef = useRef<MapKitSurfaceModule | null>(null)
   const markerRef = useRef<MapKitAnnotation | null>(null)
+  const overlaysRef = useRef<MapKitOverlay[]>([])
   const onUnavailableRef = useRef(onUnavailable)
   const [isMapLoaded, setIsMapLoaded] = useState(false)
 
@@ -91,6 +114,12 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
     () => drawableRouteSegments.flatMap((segment) => segment.samples),
     [drawableRouteSegments]
   )
+  const routeSignature = useMemo(
+    () => getRouteSignature(drawableRouteSegments),
+    [drawableRouteSegments]
+  )
+  const hasDrawableRoute = routeSamplesForBounds.length > 0
+
   const segmentsRef = useRef(drawableRouteSegments)
   const boundsSamplesRef = useRef(routeSamplesForBounds)
   useEffect(() => {
@@ -103,10 +132,14 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
     return findRouteSampleForElapsed(routeSamples, highlightedElapsedSeconds)
   }, [highlightedElapsedSeconds, routeSamples])
 
+  // Create the map once. The route arrays are read from refs (never from the
+  // dependency array) so a chart hover — which hands this component brand-new
+  // array identities on every parent render — can't tear the map down and
+  // rebuild it. Route data changes are handled by the overlay effect below.
   useEffect(() => {
     // SSR guard: MapKit is a browser-only CDN script.
     if (typeof window === 'undefined') return
-    if (boundsSamplesRef.current.length === 0) return
+    if (!hasDrawableRoute) return
 
     const container = containerRef.current
     if (!container) return
@@ -129,28 +162,6 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
           mapkitRef.current = mapkit
           mapRef.current = map
 
-          const visibleStyle = new mapkit.Style(VISIBLE_ROUTE_STYLE)
-          const hiddenStyle = new mapkit.Style(HIDDEN_ROUTE_STYLE)
-          const overlays = segmentsRef.current.map(
-            (segment) =>
-              new mapkit.PolylineOverlay(
-                segment.samples.map(
-                  (sample) => new mapkit.Coordinate(sample.lat, sample.lng)
-                ),
-                {
-                  style: segment.isHiddenByPrivacy ? hiddenStyle : visibleStyle
-                }
-              )
-          )
-          if (overlays.length > 0) {
-            map.addOverlays(overlays)
-          }
-
-          map.region = boundsToRegion(
-            mapkit,
-            getRouteBounds(boundsSamplesRef.current)
-          )
-
           clearTimeout(loadWatchdog)
           setIsMapLoaded(true)
         } catch {
@@ -170,11 +181,47 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
       cancelled = true
       clearTimeout(loadWatchdog)
       markerRef.current = null
+      overlaysRef.current = []
       mapRef.current?.destroy()
       mapRef.current = null
       mapkitRef.current = null
+      setIsMapLoaded(false)
     }
-  }, [drawableRouteSegments, routeSamplesForBounds])
+  }, [hasDrawableRoute])
+
+  // (Re)draw the route overlays and re-frame the region whenever the route data
+  // actually changes — keyed on the geometry's value signature, not its identity.
+  useEffect(() => {
+    const map = mapRef.current
+    const mapkit = mapkitRef.current
+    if (!isMapLoaded || !map || !mapkit) return
+
+    if (overlaysRef.current.length > 0) {
+      map.removeOverlays(overlaysRef.current)
+      overlaysRef.current = []
+    }
+
+    const boundsSamples = boundsSamplesRef.current
+    if (boundsSamples.length === 0) return
+
+    const visibleStyle = new mapkit.Style(VISIBLE_ROUTE_STYLE)
+    const hiddenStyle = new mapkit.Style(HIDDEN_ROUTE_STYLE)
+    const overlays = segmentsRef.current.map(
+      (segment) =>
+        new mapkit.PolylineOverlay(
+          segment.samples.map(
+            (sample) => new mapkit.Coordinate(sample.lat, sample.lng)
+          ),
+          { style: segment.isHiddenByPrivacy ? hiddenStyle : visibleStyle }
+        )
+    )
+    if (overlays.length > 0) {
+      map.addOverlays(overlays)
+      overlaysRef.current = overlays
+    }
+
+    map.region = boundsToRegion(mapkit, getRouteBounds(boundsSamples))
+  }, [isMapLoaded, routeSignature])
 
   // Move (or clear) the highlighted-position marker as the chart hover changes.
   useEffect(() => {

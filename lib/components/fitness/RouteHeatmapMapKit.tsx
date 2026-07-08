@@ -5,7 +5,6 @@ import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import { FitnessRouteHeatmapData } from '@/lib/client'
 import {
-  type RouteFocusBounds,
   computeFocusBounds,
   downsampleSegments
 } from '@/lib/components/fitness/mapGeometry'
@@ -13,6 +12,8 @@ import {
   APPLE_MAPS_LABEL,
   MAPKIT_LOAD_TIMEOUT_MS,
   type MapKitMapSurface,
+  type MapKitOverlay,
+  type MapKitSurfaceModule,
   boundsToRegion,
   loadMapKitSurface
 } from '@/lib/components/fitness/mapkitSurface'
@@ -81,8 +82,8 @@ export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapKitMapSurface | null>(null)
-  const segmentsRef = useRef<FitnessRouteHeatmapData['segments']>([])
-  const focusRef = useRef<RouteFocusBounds | null>(null)
+  const mapkitRef = useRef<MapKitSurfaceModule | null>(null)
+  const overlaysRef = useRef<MapKitOverlay[]>([])
   const [mapFallbackReason, setMapFallbackReason] =
     useState<MapFallbackReason | null>(null)
   const [mapFallbackError, setMapFallbackError] =
@@ -116,16 +117,6 @@ export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
     () => (bounds ? computeFocusBounds(downsampledSegments, bounds) : null),
     [downsampledSegments, bounds]
   )
-
-  // The map is created once per cache; these refs let the asynchronous MapKit
-  // callback read the latest geometry instead of a stale closure.
-  useEffect(() => {
-    segmentsRef.current = downsampledSegments
-  }, [downsampledSegments])
-
-  useEffect(() => {
-    focusRef.current = focus
-  }, [focus])
 
   // Clear the fallback whenever the cache changes so a recovered map gets a
   // fresh attempt.
@@ -163,33 +154,8 @@ export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
           const map = new mapkit.Map(container, {
             showsMapTypeControl: false
           })
+          mapkitRef.current = mapkit
           mapRef.current = map
-
-          const visibleStyle = new mapkit.Style(VISIBLE_LINE_STYLE)
-          const hiddenStyle = new mapkit.Style(HIDDEN_LINE_STYLE)
-          const overlays = segmentsRef.current
-            .filter((segment) => segment.points.length >= 2)
-            .map(
-              (segment) =>
-                new mapkit.PolylineOverlay(
-                  segment.points.map(
-                    (point) => new mapkit.Coordinate(point.lat, point.lng)
-                  ),
-                  {
-                    style: segment.isHiddenByPrivacy
-                      ? hiddenStyle
-                      : visibleStyle
-                  }
-                )
-            )
-          if (overlays.length > 0) {
-            map.addOverlays(overlays)
-          }
-
-          map.region = boundsToRegion(
-            mapkit,
-            focusRef.current?.bounds ?? bounds
-          )
 
           clearTimeout(loadWatchdog)
           setIsMapLoaded(true)
@@ -210,8 +176,11 @@ export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
     return () => {
       cancelled = true
       clearTimeout(loadWatchdog)
+      overlaysRef.current = []
       mapRef.current?.destroy()
       mapRef.current = null
+      mapkitRef.current = null
+      setIsMapLoaded(false)
     }
   }, [
     bounds?.maxLat,
@@ -220,6 +189,51 @@ export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
     bounds?.minLng,
     heatmap?.id,
     shouldRenderMap
+  ])
+
+  // The GL sibling repaints an in-place cache update through `source.setData`;
+  // MapKit has no data source, so the polyline overlays are rebuilt (and the
+  // region re-framed) whenever the rendered geometry changes.
+  useEffect(() => {
+    const map = mapRef.current
+    const mapkit = mapkitRef.current
+    if (!isMapLoaded || !map || !mapkit) return
+
+    if (overlaysRef.current.length > 0) {
+      map.removeOverlays(overlaysRef.current)
+      overlaysRef.current = []
+    }
+
+    const visibleStyle = new mapkit.Style(VISIBLE_LINE_STYLE)
+    const hiddenStyle = new mapkit.Style(HIDDEN_LINE_STYLE)
+    const overlays = downsampledSegments
+      .filter((segment) => segment.points.length >= 2)
+      .map(
+        (segment) =>
+          new mapkit.PolylineOverlay(
+            segment.points.map(
+              (point) => new mapkit.Coordinate(point.lat, point.lng)
+            ),
+            { style: segment.isHiddenByPrivacy ? hiddenStyle : visibleStyle }
+          )
+      )
+    if (overlays.length > 0) {
+      map.addOverlays(overlays)
+      overlaysRef.current = overlays
+    }
+
+    const framing = focus?.bounds ?? bounds
+    if (framing) {
+      map.region = boundsToRegion(mapkit, framing)
+    }
+  }, [
+    bounds?.maxLat,
+    bounds?.maxLng,
+    bounds?.minLat,
+    bounds?.minLng,
+    downsampledSegments,
+    focus,
+    isMapLoaded
   ])
 
   if (!hasRoutes || !heatmap) {

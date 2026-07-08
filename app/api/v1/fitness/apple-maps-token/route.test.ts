@@ -1,4 +1,4 @@
-import { decodeJwt, decodeProtectedHeader } from 'jose'
+import { decodeJwt, decodeProtectedHeader, importSPKI, jwtVerify } from 'jose'
 import { NextRequest } from 'next/server'
 import { generateKeyPairSync } from 'node:crypto'
 
@@ -47,10 +47,17 @@ vi.mock('@/lib/config/host', () => ({
 
 const params = { params: Promise.resolve({}) }
 
-const createPrivateKeyPem = () => {
-  const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' })
-  return privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
+const createKeyPairPem = () => {
+  const { privateKey, publicKey } = generateKeyPairSync('ec', {
+    namedCurve: 'P-256'
+  })
+  return {
+    privateKey: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+    publicKey: publicKey.export({ type: 'spki', format: 'pem' }).toString()
+  }
 }
+
+const createPrivateKeyPem = () => createKeyPairPem().privateKey
 
 describe('GET /api/v1/fitness/apple-maps-token', () => {
   beforeEach(() => {
@@ -100,6 +107,60 @@ describe('GET /api/v1/fitness/apple-maps-token', () => {
       1800,
       -1
     )
+  })
+
+  it('marks the minted token response as no-store', async () => {
+    state.mapProvider = {
+      type: 'apple',
+      teamId: TEAM_ID,
+      keyId: KEY_ID,
+      privateKey: createPrivateKeyPem()
+    }
+
+    const response = await GET(
+      new NextRequest('https://maps.llun.test/api/v1/fitness/apple-maps-token'),
+      params
+    )
+
+    expect(response.status).toBe(200)
+    // Anonymous, CORS-enabled endpoint returning a credential: no CDN may store
+    // and replay it.
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
+  })
+
+  it('re-imports the private key when the configured key changes', async () => {
+    const first = createKeyPairPem()
+    const second = createKeyPairPem()
+
+    const mint = async (privateKey: string) => {
+      state.mapProvider = {
+        type: 'apple',
+        teamId: TEAM_ID,
+        keyId: KEY_ID,
+        privateKey
+      }
+      const response = await GET(
+        new NextRequest(
+          'https://maps.llun.test/api/v1/fitness/apple-maps-token'
+        ),
+        params
+      )
+      const body = (await response.json()) as { token: string }
+      return body.token
+    }
+
+    const firstToken = await mint(first.privateKey)
+    // Same key twice: served from the memoized CryptoKey, still verifiable.
+    const cachedToken = await mint(first.privateKey)
+    const secondToken = await mint(second.privateKey)
+
+    const firstPublicKey = await importSPKI(first.publicKey, 'ES256')
+    const secondPublicKey = await importSPKI(second.publicKey, 'ES256')
+
+    await expect(jwtVerify(firstToken, firstPublicKey)).resolves.toBeDefined()
+    await expect(jwtVerify(cachedToken, firstPublicKey)).resolves.toBeDefined()
+    await expect(jwtVerify(secondToken, secondPublicKey)).resolves.toBeDefined()
+    await expect(jwtVerify(secondToken, firstPublicKey)).rejects.toThrow()
   })
 
   it('bounds the token origin to the host and its trusted hosts, deduped', async () => {

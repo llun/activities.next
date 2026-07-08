@@ -51,13 +51,29 @@ const snapDimension = (raw: string | null, fallback: number): number => {
   return Math.min(MAX_DIMENSION, Math.max(MIN_DIMENSION, snapped))
 }
 
-// Apple Web Snapshots clamp each dimension into 50..640 (before `scale`), so the
-// snapped embed dimensions are clamped again for that provider.
-const clampAppleDimension = (value: number): number =>
-  Math.min(
-    APPLE_SNAPSHOT_MAX_DIMENSION,
-    Math.max(APPLE_SNAPSHOT_MIN_DIMENSION, value)
+// Apple Web Snapshots clamp each dimension into 50..640 (before `scale`). Scale
+// both axes by a single factor so an oversized embed keeps its requested aspect
+// ratio (a 1200x400 banner becomes 640x213, not a squashed 640x400), then clamp
+// each axis into Apple's range. `scale=2` recovers the pixel density lost by the
+// smaller logical size.
+const APPLE_SNAPSHOT_SCALE = 2
+
+const fitAppleDimensions = (
+  width: number,
+  height: number
+): { width: number; height: number } => {
+  const factor = Math.min(
+    1,
+    APPLE_SNAPSHOT_MAX_DIMENSION / width,
+    APPLE_SNAPSHOT_MAX_DIMENSION / height
   )
+  const clamp = (value: number) =>
+    Math.min(
+      APPLE_SNAPSHOT_MAX_DIMENSION,
+      Math.max(APPLE_SNAPSHOT_MIN_DIMENSION, Math.round(value))
+    )
+  return { width: clamp(width * factor), height: clamp(height * factor) }
+}
 
 const imageResponse = (body: BodyInit, contentType: string) =>
   new Response(body, {
@@ -99,12 +115,13 @@ export const GET = traceApiRoute(
     // signed with the developer private key, so it is built, signed, and fetched
     // server-side and only the bytes are streamed back.
     if (mapProvider.type === 'apple') {
+      const appleSize = fitAppleDimensions(width, height)
       const snapshot = await fetchAppleSnapshot(
         {
           segments: publicHeatmap.segments,
-          width: clampAppleDimension(width),
-          height: clampAppleDimension(height),
-          scale: 2
+          width: appleSize.width,
+          height: appleSize.height,
+          scale: APPLE_SNAPSHOT_SCALE
         },
         mapProvider
       )

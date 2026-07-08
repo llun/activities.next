@@ -2,18 +2,22 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 
 import type { FitnessRouteHeatmapData } from '@/lib/client'
+import { createMapKitTestDouble } from '@/lib/components/fitness/mapkitTestDouble'
+import { loadMapKitModule } from '@/lib/utils/mapkit'
 
 import { RouteHeatmapMapKit } from './RouteHeatmapMapKit'
 
 // MapKit is a browser-only CDN script that never loads in jsdom, so the loader is
-// stubbed with a never-resolving promise — the component must stay in its loading
-// state without throwing. Mirrors how the GL component tests stub their loaders.
+// stubbed with a never-resolving promise by default. Tests that need the post-load
+// behaviour resolve it with the in-memory MapKit test double instead.
 vi.mock('@/lib/utils/mapkit', () => ({
   loadMapKitModule: vi.fn(() => new Promise(() => {}))
 }))
+
+const mockLoadMapKitModule = vi.mocked(loadMapKitModule)
 
 const heatmap: FitnessRouteHeatmapData = {
   id: 'hm-1',
@@ -40,7 +44,25 @@ const heatmap: FitnessRouteHeatmapData = {
   updatedAt: 2
 }
 
+const VISIBLE_STYLE = {
+  strokeColor: '#ef4444',
+  lineWidth: 2.8,
+  strokeOpacity: 0.55
+}
+const HIDDEN_STYLE = {
+  strokeColor: '#2563eb',
+  lineWidth: 2.2,
+  strokeOpacity: 0.4
+}
+
 describe('RouteHeatmapMapKit', () => {
+  beforeEach(() => {
+    mockLoadMapKitModule.mockReset()
+    mockLoadMapKitModule.mockImplementation(
+      (() => new Promise(() => {})) as never
+    )
+  })
+
   afterEach(() => {
     vi.clearAllMocks()
   })
@@ -68,5 +90,72 @@ describe('RouteHeatmapMapKit', () => {
     )
 
     expect(container.firstElementChild).toHaveClass('h-dvh')
+  })
+
+  it('builds one styled polyline overlay per segment once MapKit resolves', async () => {
+    const double = createMapKitTestDouble()
+    mockLoadMapKitModule.mockImplementation((() =>
+      Promise.resolve(double.mapkit)) as never)
+
+    render(
+      <RouteHeatmapMapKit
+        heatmap={{
+          ...heatmap,
+          segments: [
+            heatmap.segments[0],
+            { ...heatmap.segments[0], isHiddenByPrivacy: true }
+          ]
+        }}
+      />
+    )
+
+    await waitFor(() =>
+      expect(double.getMap()?.currentOverlays).toHaveLength(2)
+    )
+    expect(
+      double.overlaysOfKind('polyline').map((overlay) => overlay.styleOptions)
+    ).toEqual([VISIBLE_STYLE, HIDDEN_STYLE])
+    expect(await screen.findByText('Apple Maps')).toBeInTheDocument()
+  })
+
+  it('refreshes the overlays when the cached route geometry changes in place', async () => {
+    const double = createMapKitTestDouble()
+    mockLoadMapKitModule.mockImplementation((() =>
+      Promise.resolve(double.mapkit)) as never)
+
+    const { rerender } = render(<RouteHeatmapMapKit heatmap={heatmap} />)
+    await waitFor(() =>
+      expect(double.getMap()?.currentOverlays).toHaveLength(1)
+    )
+
+    // Same heatmap id and bounds, new geometry — the GL sibling repaints this via
+    // `source.setData`, so MapKit must rebuild its overlays rather than go stale.
+    rerender(
+      <RouteHeatmapMapKit
+        heatmap={{
+          ...heatmap,
+          updatedAt: 3,
+          segments: [
+            heatmap.segments[0],
+            {
+              isHiddenByPrivacy: true,
+              points: [
+                { lat: 52.1, lng: 5.7 },
+                { lat: 52.5, lng: 6.1 }
+              ]
+            }
+          ]
+        }}
+      />
+    )
+
+    await waitFor(() =>
+      expect(double.getMap()?.currentOverlays).toHaveLength(2)
+    )
+    expect(double.getMap()?.removedOverlays).toHaveLength(1)
+    expect(double.overlaysOfKind('polyline')).toHaveLength(3)
+    // The map itself is reused, only the overlays are rebuilt.
+    expect(double.maps).toHaveLength(1)
+    expect(double.getMap()?.destroyCount).toBe(0)
   })
 })

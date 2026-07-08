@@ -21,7 +21,29 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 const TOKEN_TTL_SECONDS = 30 * 60
 const TOKEN_TTL_MS = TOKEN_TTL_SECONDS * 1000
 
+// The body carries a signed, time-limited credential and this endpoint is
+// anonymous + CORS-enabled, so no intermediary (this app is commonly deployed
+// behind CloudFront) may store and replay the response. `dynamic` only pins
+// Next's rendering strategy; the header is what a CDN honours.
+const NO_STORE_HEADERS: [string, string][] = [['Cache-Control', 'no-store']]
+
 export const OPTIONS = defaultOptions(CORS_HEADERS)
+
+// Importing an EC private key is not free; the key only changes when the
+// deployment config changes (or a test swaps it), so cache the imported
+// CryptoKey keyed on the PEM string.
+let cachedPrivateKeyPem: string | null = null
+let cachedPrivateKey: CryptoKey | null = null
+
+const importPrivateKey = async (privateKey: string): Promise<CryptoKey> => {
+  if (cachedPrivateKey && cachedPrivateKeyPem === privateKey) {
+    return cachedPrivateKey
+  }
+  const key = await importPKCS8(privateKey, 'ES256')
+  cachedPrivateKeyPem = privateKey
+  cachedPrivateKey = key
+  return key
+}
 
 /**
  * Comma separated list of origins the minted token is valid for.
@@ -54,7 +76,7 @@ export const GET = traceApiRoute(
     }
 
     try {
-      const key = await importPKCS8(mapProvider.privateKey, 'ES256')
+      const key = await importPrivateKey(mapProvider.privateKey)
       const token = await new SignJWT({
         origin: getAllowedOrigins(),
         scope: 'mapkit_js'
@@ -72,7 +94,8 @@ export const GET = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { token, expiresAt: Date.now() + TOKEN_TTL_MS }
+        data: { token, expiresAt: Date.now() + TOKEN_TTL_MS },
+        additionalHeaders: NO_STORE_HEADERS
       })
     } catch (error) {
       logger.error({

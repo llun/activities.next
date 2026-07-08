@@ -56,6 +56,7 @@ export interface MapKitMapSurface {
   addOverlay: (overlay: MapKitOverlay) => void
   addOverlays: (overlays: MapKitOverlay[]) => void
   removeOverlay: (overlay: MapKitOverlay) => void
+  removeOverlays: (overlays: MapKitOverlay[]) => void
   addAnnotation: (annotation: MapKitAnnotation) => void
   removeAnnotation: (annotation: MapKitAnnotation) => void
   addEventListener: (

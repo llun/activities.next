@@ -1,7 +1,7 @@
 'use client'
 
 import { Loader2 } from 'lucide-react'
-import { FC, useEffect, useRef, useState } from 'react'
+import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   APPLE_MAPS_LABEL,
@@ -187,6 +187,23 @@ export const PrivacyZoneMapKit: FC<PrivacyZoneMapKitProps> = ({
     // literal doesn't re-add the annotation on every parent render.
   }, [isMapReady, marker?.latitude, marker?.longitude])
 
+  // Keyed on the zone values, not the array identity, so an inline prop literal
+  // doesn't rebuild every circle overlay on each parent render.
+  const zonesSignature = useMemo(
+    () =>
+      zones
+        .map(
+          (zone) =>
+            `${zone.latitude},${zone.longitude},${zone.hideRadiusMeters}`
+        )
+        .join('|'),
+    [zones]
+  )
+  const zonesRef = useRef(zones)
+  useEffect(() => {
+    zonesRef.current = zones
+  }, [zones])
+
   // Draw the saved zones as circles at their hide radius.
   useEffect(() => {
     const map = mapRef.current
@@ -203,7 +220,7 @@ export const PrivacyZoneMapKit: FC<PrivacyZoneMapKitProps> = ({
       fillColor: ZONE_COLOR,
       fillOpacity: 0.2
     })
-    const overlays = zones.map(
+    const overlays = zonesRef.current.map(
       (zone) =>
         new mapkit.CircleOverlay(
           new mapkit.Coordinate(zone.latitude, zone.longitude),
@@ -215,7 +232,7 @@ export const PrivacyZoneMapKit: FC<PrivacyZoneMapKitProps> = ({
       map.addOverlay(overlay)
     }
     zoneOverlaysRef.current = overlays
-  }, [isMapReady, zones])
+  }, [isMapReady, zonesSignature])
 
   return (
     <>

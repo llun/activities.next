@@ -148,15 +148,16 @@ describe('/embed/heatmap/[token]/image', () => {
       expect(requestedUrl).toContain(
         'https://snapshot.apple-mapkit.com/api/v1/snapshot?'
       )
-      // The default 600x400 embed size is clamped into Apple's 50..640 range.
+      // The default 600x400 embed size already fits Apple's 50..640 range.
       expect(requestedUrl).toContain('size=600x400')
+      expect(requestedUrl).toContain('scale=2')
       expect(requestedUrl).toContain('&signature=')
     } finally {
       fetchSpy.mockRestore()
     }
   })
 
-  it('clamps oversized embed dimensions into the Apple snapshot range', async () => {
+  it('scales oversized embed dimensions into the Apple snapshot range', async () => {
     mockGetMapProviderConfig.mockReturnValue(appleProvider)
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(new Uint8Array([1]), {
@@ -173,7 +174,35 @@ describe('/embed/heatmap/[token]/image', () => {
       )
 
       const requestedUrl = fetchSpy.mock.calls[0]?.[0] as string
-      expect(requestedUrl).toContain('size=640x640')
+      // 1200x1000 scaled by 640/1200, not clamped per-axis to 640x640.
+      expect(requestedUrl).toContain('size=640x533')
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
+  it('preserves the requested aspect ratio for a wide Apple snapshot', async () => {
+    mockGetMapProviderConfig.mockReturnValue(appleProvider)
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(new Uint8Array([1]), {
+        headers: { 'content-type': 'image/png' }
+      })
+    )
+
+    try {
+      await GET(
+        new NextRequest(
+          'http://llun.test/embed/heatmap/token-1/image?w=1200&h=400'
+        ),
+        { params: Promise.resolve({ token: 'token-1' }) }
+      )
+
+      const requestedUrl = fetchSpy.mock.calls[0]?.[0] as string
+      // A 3:1 banner stays 3:1 (640x213), instead of being squashed to 640x400.
+      expect(requestedUrl).toContain('size=640x213')
+      expect(requestedUrl).not.toContain('size=640x400')
+      // The lost logical size is recovered with a 2x pixel density.
+      expect(requestedUrl).toContain('scale=2')
     } finally {
       fetchSpy.mockRestore()
     }

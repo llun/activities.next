@@ -195,6 +195,45 @@ describe('signAppleSnapshotPath', () => {
       )
     ).toBe(true)
   })
+
+  it('signs with the memoized key on repeat calls and re-imports a changed key', () => {
+    const path = buildAppleSnapshotPath(
+      { segments: straightRoute, width: 640, height: 480 },
+      credentials
+    ) as string
+    const otherKeyPair = crypto.generateKeyPairSync('ec', {
+      namedCurve: 'prime256v1'
+    })
+    const otherPrivateKeyPem = otherKeyPair.privateKey
+      .export({ type: 'pkcs8', format: 'pem' })
+      .toString()
+
+    const signatureOf = (privateKey: string) => {
+      const signedUrl = signAppleSnapshotPath(path, privateKey)
+      return Buffer.from(
+        signedUrl.slice(signedUrl.indexOf('&signature=') + 11),
+        'base64url'
+      )
+    }
+
+    const verify = (signature: Buffer, publicKey: crypto.KeyObject) =>
+      crypto.verify(
+        'sha256',
+        Buffer.from(path),
+        { key: publicKey, dsaEncoding: 'ieee-p1363' },
+        signature
+      )
+
+    const first = signatureOf(privateKeyPem)
+    const cached = signatureOf(privateKeyPem)
+    const other = signatureOf(otherPrivateKeyPem)
+
+    expect(verify(first, keyPair.publicKey)).toBe(true)
+    expect(verify(cached, keyPair.publicKey)).toBe(true)
+    // A different key is re-imported rather than served from the memo.
+    expect(verify(other, otherKeyPair.publicKey)).toBe(true)
+    expect(verify(other, keyPair.publicKey)).toBe(false)
+  })
 })
 
 describe('fetchAppleSnapshot', () => {

@@ -202,6 +202,20 @@ export const buildAppleSnapshotPath = (
   return buildPath({ overlays, width, height, scale, teamId, keyId })
 }
 
+// Parsing a PEM into a KeyObject is CPU-heavy and the key only changes when the
+// deployment config does, so memoize it — bulk map regeneration signs one
+// snapshot per status.
+let cachedKeyPem: string | null = null
+let cachedKeyObject: crypto.KeyObject | null = null
+
+const loadPrivateKey = (normalizedKey: string): crypto.KeyObject => {
+  if (cachedKeyObject && cachedKeyPem === normalizedKey) return cachedKeyObject
+  const key = crypto.createPrivateKey(normalizedKey)
+  cachedKeyPem = normalizedKey
+  cachedKeyObject = key
+  return key
+}
+
 /**
  * Sign an Apple Web Snapshot path with the MapKit private key and return the
  * full URL.
@@ -219,7 +233,7 @@ export const signAppleSnapshotPath = (
   // multi-line one (getMapProviderConfig already expands the escaped form).
   const normalizedKey = privateKey.replace(/\\n/g, '\n')
   const signature = crypto.sign('sha256', Buffer.from(path), {
-    key: crypto.createPrivateKey(normalizedKey),
+    key: loadPrivateKey(normalizedKey),
     dsaEncoding: 'ieee-p1363'
   })
 

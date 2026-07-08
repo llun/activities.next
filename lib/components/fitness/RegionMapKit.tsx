@@ -79,6 +79,24 @@ export const RegionMapKit: FC<RegionMapKitProps> = ({
     centerOnUserRef.current = centerOnUser
   }, [centerOnUser])
 
+  // Panning/zooming is suspended for the duration of a draw drag only, and is
+  // restored the moment the drag ends — wherever it ends (on the map, outside it,
+  // on a cancelled pointer, or on unmount).
+  const setMapGesturesEnabled = (enabled: boolean) => {
+    const map = mapRef.current
+    if (!map) return
+    map.isScrollEnabled = enabled
+    map.isZoomEnabled = enabled
+    map.isRotationEnabled = enabled
+  }
+
+  const endDraw = () => {
+    if (!drawingRef.current) return
+    drawingRef.current = false
+    startRef.current = null
+    setMapGesturesEnabled(true)
+  }
+
   const drawBoxOverlay = (nextBox: Box) => {
     const mapkit = mapkitRef.current
     const map = mapRef.current
@@ -158,12 +176,9 @@ export const RegionMapKit: FC<RegionMapKitProps> = ({
     let cancelled = false
 
     // A pointer released outside the map element (or off-window) still ends the
-    // drag, so drawingRef can't get stuck and keep redrawing on the next move.
-    const stopDraw = () => {
-      drawingRef.current = false
-    }
-    window.addEventListener('pointerup', stopDraw)
-    window.addEventListener('pointercancel', stopDraw)
+    // drag, so drawingRef can't get stuck and the map gestures always come back.
+    window.addEventListener('pointerup', endDraw)
+    window.addEventListener('pointercancel', endDraw)
 
     // If MapKit never becomes usable, fall back to the coordinate fields instead
     // of showing "Loading map…" forever.
@@ -201,6 +216,9 @@ export const RegionMapKit: FC<RegionMapKitProps> = ({
             drawingRef.current = true
             didDrawRef.current = true
             startRef.current = point
+            // Suspend MapKit's own pan/zoom/rotate gestures so the drag draws the
+            // rectangle instead of moving the map.
+            setMapGesturesEnabled(false)
             onChangeRef.current(boxFromPoints(point, point))
           }
           const onPointerMove = (event: PointerEvent) => {
@@ -209,17 +227,16 @@ export const RegionMapKit: FC<RegionMapKitProps> = ({
             if (!point) return
             onChangeRef.current(boxFromPoints(startRef.current, point))
           }
-          const onPointerUp = () => {
-            drawingRef.current = false
-          }
 
           map.element.addEventListener('pointerdown', onPointerDown)
           map.element.addEventListener('pointermove', onPointerMove)
-          map.element.addEventListener('pointerup', onPointerUp)
+          map.element.addEventListener('pointerup', endDraw)
+          map.element.addEventListener('pointercancel', endDraw)
           detachPointerListeners = () => {
             map.element.removeEventListener('pointerdown', onPointerDown)
             map.element.removeEventListener('pointermove', onPointerMove)
-            map.element.removeEventListener('pointerup', onPointerUp)
+            map.element.removeEventListener('pointerup', endDraw)
+            map.element.removeEventListener('pointercancel', endDraw)
           }
 
           const current = boxRef.current
@@ -253,8 +270,10 @@ export const RegionMapKit: FC<RegionMapKitProps> = ({
     return () => {
       cancelled = true
       clearTimeout(loadWatchdog)
-      window.removeEventListener('pointerup', stopDraw)
-      window.removeEventListener('pointercancel', stopDraw)
+      window.removeEventListener('pointerup', endDraw)
+      window.removeEventListener('pointercancel', endDraw)
+      // Unmounting mid-drag still restores the map's gestures before teardown.
+      endDraw()
       detachPointerListeners?.()
       boxOverlayRef.current = null
       mapRef.current?.destroy()
@@ -263,22 +282,22 @@ export const RegionMapKit: FC<RegionMapKitProps> = ({
     }
   }, [])
 
-  // Keep the drawn rectangle overlay in sync with the box (drawn or typed).
+  // Keep the drawn rectangle overlay in sync with the box (drawn or typed). Keyed
+  // on the corner values, not the object identity, so an inline prop literal
+  // doesn't redraw the overlay on every parent render.
   useEffect(() => {
     if (!isReady) return
     drawBoxOverlay(box)
-  }, [box, isReady])
+  }, [isReady, box.nw.lat, box.nw.lng, box.se.lat, box.se.lng])
 
-  // Draw mode disables map gestures so a drag draws the rectangle instead. MapKit
-  // has no `isRubberBandingEnabled`, so scroll/zoom/rotation are toggled directly.
+  // Draw mode only arms the gesture and swaps the cursor; MapKit's pan/zoom/rotate
+  // are suspended for the duration of an actual drag (see `onPointerDown`).
   useEffect(() => {
     drawModeRef.current = drawMode
     const map = mapRef.current
     if (!map || !isReady) return
-    map.isScrollEnabled = !drawMode
-    map.isZoomEnabled = !drawMode
-    map.isRotationEnabled = !drawMode
     map.element.style.cursor = drawMode ? 'crosshair' : ''
+    if (!drawMode) endDraw()
   }, [drawMode, isReady])
 
   return (

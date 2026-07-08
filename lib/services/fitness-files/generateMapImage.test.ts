@@ -38,6 +38,12 @@ const pngTile = async () =>
     .png()
     .toBuffer()
 
+// Match on the parsed hostname rather than a substring of the whole URL: an
+// `includes('mapbox.com')` style check also matches `evil.com/?x=mapbox.com`,
+// so it both misroutes the fetch mock and trips CodeQL's
+// js/incomplete-url-substring-sanitization rule.
+const hostnameOf = (url: unknown) => new URL(String(url)).hostname
+
 describe('generateMapImage', () => {
   const originalFetch = global.fetch
 
@@ -81,7 +87,7 @@ describe('generateMapImage', () => {
 
     const tileBuffer = await pngTile()
     global.fetch = vi.fn().mockImplementation(async (url: string) => {
-      if (String(url).includes('snapshot.apple-mapkit.com')) {
+      if (hostnameOf(url) === 'snapshot.apple-mapkit.com') {
         return new Response('too long', { status: 413 })
       }
       return new Response(Buffer.from(tileBuffer), {
@@ -130,7 +136,7 @@ describe('generateMapImage', () => {
 
     const tileBuffer = await pngTile()
     global.fetch = vi.fn().mockImplementation(async (url: string) => {
-      if (String(url).includes('mapbox.com')) {
+      if (hostnameOf(url) === 'api.mapbox.com') {
         return new Response('nope', { status: 401 })
       }
       return new Response(Buffer.from(tileBuffer), {
@@ -163,9 +169,9 @@ describe('generateMapImage', () => {
     const requestedUrls = (global.fetch as jest.Mock).mock.calls.map((call) =>
       String(call[0])
     )
-    expect(requestedUrls.every((url) => !url.includes('api.mapbox.com'))).toBe(
-      true
-    )
+    expect(
+      requestedUrls.every((url) => hostnameOf(url) !== 'api.mapbox.com')
+    ).toBe(true)
   })
 
   it('caps mapbox route geometry point count for heavily segmented routes', async () => {
