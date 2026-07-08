@@ -1,0 +1,24 @@
+lib/utils/mapkit.test.ts
+  s_c2b45d1e3d2b49::t_9a1339e8ab0c5c 17-18,35,38-41,153,168,186,197,201
+  s_c2b45d1e3d2b49::t_4053f24247b8a8 36-37
+  s_c2b45d1e3d2b49::t_f178f67b1701b1 1-16,19-34,42-46,49-152,154-167,169-185,187-196,198-200,202-203
+  s_c2b45d1e3d2b49::t_c57503dcccb51f 47-48
+lib/utils/mapkit.ts
+  s_c2b45d1e3d2b49::t_61509a3afdd462 1-232
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b4b0d51f075e68183c3ba4ef9d69cd2780611cb9",
+  "prompts": {},
+  "sessions": {
+    "s_c2b45d1e3d2b49": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b970d6ff-c482-4d45-848b-32f588a95c10",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
