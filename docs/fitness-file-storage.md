@@ -25,6 +25,8 @@ Fitness storage is configured in `lib/config/fitnessStorage.ts`.
 - `ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN` - Mapbox token, required when the provider is `mapbox`
 - `ACTIVITIES_FITNESS_APPLE_MAPS_TEAM_ID`, `ACTIVITIES_FITNESS_APPLE_MAPS_KEY_ID`, `ACTIVITIES_FITNESS_APPLE_MAPS_PRIVATE_KEY` - Apple MapKit JS credentials, required when the provider is `apple`
 
+With the `apple` provider, per-activity route-map images are rendered by Apple Web Snapshots. Heatmap embed images are not: a heatmap draws one polyline overlay per activity segment, and each overlay costs ~145 characters of the ~5,000-character snapshot URL limit, so any heatmap with more than a couple of dozen segments is skipped (without running simplification) and rendered by the built-in SVG heatmap renderer instead.
+
 See [environment-variables.md](./environment-variables.md) for the full provider reference.
 
 If no fitness-specific storage is configured, the app falls back to the media storage backend with a separate local `fitness` directory or S3 `fitness/` prefix.

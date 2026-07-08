@@ -352,9 +352,57 @@ describe('loadMapKitModule', () => {
     fake.emit('error', { status: 'Unauthorized' })
 
     await expect(promise).rejects.toThrow(/Unauthorized/)
-    // The namespace listeners are detached once the loader settles.
-    expect(fake.listenerCount('error')).toBe(0)
-    expect(fake.listenerCount('configuration-change')).toBe(0)
+    // The namespace listeners stay attached for the document lifetime: MapKit
+    // invokes the ready callback once, so detaching them would make a late
+    // authorization result unobservable.
+    expect(fake.listenerCount('error')).toBe(1)
+    expect(fake.listenerCount('configuration-change')).toBe(1)
+  })
+
+  it('marks MapKit ready when Initialized arrives after the watchdog rejected', async () => {
+    vi.useFakeTimers()
+    try {
+      const { loadMapKitModule } = await import('@/lib/utils/mapkit')
+      const promise = loadMapKitModule()
+      promise.catch(() => {})
+
+      // A slow connection: the SDK is ready at t=8s but Apple only authorizes at
+      // t=16s, one second after the watchdog has already given up.
+      const fake = publishGlobal()
+      invokeReadyCallback()
+      await vi.advanceTimersByTimeAsync(16000)
+      await expect(promise).rejects.toThrow(/not initialized/i)
+
+      fake.emit('configuration-change', { status: 'Initialized' })
+
+      // MapKit is genuinely usable now, so the next mount must not wait again.
+      await expect(loadMapKitModule()).resolves.toBe(fake)
+      expect(document.querySelectorAll(MAPKIT_SCRIPT_SELECTOR)).toHaveLength(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('rejects immediately on a second load after a terminal authorization failure', async () => {
+    vi.useFakeTimers()
+    try {
+      const { loadMapKitModule } = await import('@/lib/utils/mapkit')
+      const promise = loadMapKitModule()
+      promise.catch(() => {})
+
+      const fake = publishGlobal()
+      invokeReadyCallback()
+      fake.emit('error', { status: 'Unauthorized' })
+      await expect(promise).rejects.toThrow(/Unauthorized/)
+
+      // The ready callback already ran and can never run again, so waiting out
+      // the watchdog would be pure latency: reject without advancing any timer.
+      await expect(loadMapKitModule()).rejects.toThrow(/Unauthorized/)
+      expect(document.querySelectorAll(MAPKIT_SCRIPT_SELECTOR)).toHaveLength(1)
+      expect(fake.init).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('keeps the authorization callback re-runnable for token refreshes', async () => {

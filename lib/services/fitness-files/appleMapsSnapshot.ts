@@ -33,6 +33,13 @@ const OVERLAY_MAX_POINTS = 120
 const ROUTE_COLOR_HEX = 'ef4444'
 const ROUTE_STROKE_OPACITY = 0.9
 const ROUTE_LINE_WIDTH = 4
+// Longest team/key identifier we budget for (Apple issues 10-character ids).
+const CREDENTIAL_LENGTH_ALLOWANCE = 16
+// URL characters kept aside for the encoded polylines themselves. Encoded
+// vertices cost ~6.4 chars each, so this carries ~110 vertices — enough for the
+// coarsest rungs of the ladder to draw every overlay's 2-point floor plus some
+// shape.
+const VERTEX_CHAR_RESERVE = 700
 
 // Apple clamps each snapshot dimension into this range (before `scale`).
 export const APPLE_SNAPSHOT_MIN_DIMENSION = 50
@@ -141,6 +148,63 @@ const buildPath = ({
   `&teamId=${encodeURIComponent(teamId)}` +
   `&keyId=${encodeURIComponent(keyId)}`
 
+// Structural (zero-vertex) cost of an overlay once the overlay array has been
+// JSON.stringify'd and percent-encoded into the query string. Measured, not
+// guessed: one empty overlay costs 148 chars and every additional one costs 145
+// (the JSON braces/keys plus `%22`/`%2C` escapes). Derive it here so a change to
+// the overlay shape (colour, width, extra key) re-measures itself.
+const measureEncodedOverlays = (count: number): number =>
+  encodeURIComponent(
+    JSON.stringify(
+      Array.from({ length: count }, () => ({
+        type: 'polyline',
+        points: '',
+        strokeColor: ROUTE_COLOR_HEX,
+        strokeOpacity: ROUTE_STROKE_OPACITY,
+        lineWidth: ROUTE_LINE_WIDTH
+      }))
+    )
+  ).length
+
+const OVERLAY_STRUCTURAL_COST =
+  measureEncodedOverlays(2) - measureEncodedOverlays(1)
+
+// Everything in the signed URL that is not an overlay: host, the fixed query
+// parameters at their worst-case sizes, the empty overlay array, and the
+// signature that is appended after the budget check.
+const FIXED_URL_OVERHEAD =
+  SNAPSHOT_HOST.length +
+  buildPath({
+    overlays: [],
+    width: APPLE_SNAPSHOT_MAX_DIMENSION,
+    height: APPLE_SNAPSHOT_MAX_DIMENSION,
+    scale: 3,
+    teamId: 'X'.repeat(CREDENTIAL_LENGTH_ALLOWANCE),
+    keyId: 'X'.repeat(CREDENTIAL_LENGTH_ALLOWANCE)
+  }).length +
+  SIGNATURE_RESERVE
+
+/**
+ * Hard ceiling on the number of polyline overlays a snapshot URL can carry.
+ *
+ * Each overlay costs ~145 URL characters of pure structure before a single
+ * coordinate is encoded, and only ~4,220 characters remain once the host, fixed
+ * query parameters and signature are accounted for. Reserving
+ * {@link VERTEX_CHAR_RESERVE} characters for the geometry leaves room for ~24
+ * overlays.
+ *
+ * This matters because a region heatmap aggregates one segment per imported
+ * activity, and simplification can never take a segment below 2 points — so its
+ * overlay count is bounded below by its segment count. Such inputs are infeasible
+ * at ANY fidelity, and the ladder below cannot rescue them (`simplifySegments`
+ * stops coarsening once every segment is at that 2-point floor, so every rung
+ * would recompute the same over-budget geometry).
+ */
+export const MAX_SNAPSHOT_OVERLAYS = Math.floor(
+  (SNAPSHOT_URL_BUDGET - FIXED_URL_OVERHEAD - VERTEX_CHAR_RESERVE) /
+    OVERLAY_STRUCTURAL_COST
+)
+
 /**
  * Builds the unsigned path + query of an Apple Web Snapshot request that draws
  * the route lines over an Apple basemap. Geometry is simplified
@@ -152,8 +216,16 @@ const buildPath = ({
  * {@link SNAPSHOT_URL_BUDGET} wins. Overlays are never dropped — doing so would
  * discard the tail of the ride and make `center=auto` frame only its beginning.
  *
- * Returns null when there is no usable geometry, or when even the coarsest rung
- * overflows the budget (callers then fall back to the OSM tile renderer). The
+ * Inputs with more than {@link MAX_SNAPSHOT_OVERLAYS} usable segments (e.g. a
+ * region heatmap aggregating dozens of rides) are rejected up front, before any
+ * simplification runs: each segment always yields at least one overlay, so their
+ * URL is over budget at every rung and running the ladder would only burn CPU on
+ * this anonymous endpoint. Segments are never merged — a heatmap's segments are
+ * disjoint rides, and joining them would draw lines between unrelated activities.
+ *
+ * Returns null when there is no usable geometry, when there are too many
+ * segments, or when even the coarsest rung overflows the budget (callers then
+ * fall back to the OSM tile renderer / SVG heatmap). The
  * caller signs the returned path with {@link signAppleSnapshotPath}; the signed
  * URL embeds the developer credentials, so callers MUST fetch it server-side and
  * stream the bytes — never hand the URL to the browser.
@@ -171,6 +243,9 @@ export const buildAppleSnapshotPath = (
 
   const usable = usableSegments(input.segments)
   if (usable.length === 0) return null
+  // Minimum possible overlay count: simplification never takes a segment below
+  // 2 points, so it can only ever grow (chunking) from here.
+  if (usable.length > MAX_SNAPSHOT_OVERLAYS) return null
 
   for (const pointBudget of POINT_BUDGET_LADDER) {
     const simplified = simplifySegmentsToBudget(
@@ -182,6 +257,9 @@ export const buildAppleSnapshotPath = (
       chunkPoints(segment.points, OVERLAY_MAX_POINTS)
     )
     if (chunks.length === 0) continue
+    // Chunking a long contiguous route can still overflow the overlay ceiling at
+    // a fine rung; a coarser one will produce fewer chunks.
+    if (chunks.length > MAX_SNAPSHOT_OVERLAYS) continue
 
     const overlays: PolylineOverlay[] = chunks.map((points) => ({
       type: 'polyline',

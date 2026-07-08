@@ -208,6 +208,35 @@ describe('/embed/heatmap/[token]/image', () => {
     }
   })
 
+  it('renders the SVG heatmap for an Apple provider with too many segments', async () => {
+    // Every segment costs one polyline overlay, so a many-activity heatmap can
+    // never fit Apple's snapshot URL budget — no snapshot fetch should happen.
+    mockGetMapProviderConfig.mockReturnValue(appleProvider)
+    mockGetFitnessRouteHeatmapByShareToken.mockResolvedValue({
+      ...sharedHeatmap,
+      segments: Array.from({ length: 50 }, (_, index) => ({
+        isHiddenByPrivacy: false,
+        points: [
+          { lat: 52.1 + index * 0.01, lng: 4.2 + index * 0.01 },
+          { lat: 52.2 + index * 0.01, lng: 4.3 + index * 0.01 }
+        ]
+      }))
+    })
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+
+    try {
+      const response = await GET(imageRequest(), {
+        params: Promise.resolve({ token: 'token-1' })
+      })
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Content-Type')).toContain('image/svg+xml')
+      expect(fetchSpy).not.toHaveBeenCalled()
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
   it('falls back to SVG when the Apple Maps snapshot fails', async () => {
     mockGetMapProviderConfig.mockReturnValue(appleProvider)
     const fetchSpy = vi

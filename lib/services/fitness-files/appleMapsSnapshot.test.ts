@@ -1,12 +1,31 @@
 import crypto from 'node:crypto'
 
+import { simplifySegmentsToBudget } from '@/lib/services/fitness-files/simplifyRoute'
 import { encodePolyline } from '@/lib/utils/polyline'
 
 import {
+  MAX_SNAPSHOT_OVERLAYS,
   buildAppleSnapshotPath,
   fetchAppleSnapshot,
   signAppleSnapshotPath
 } from './appleMapsSnapshot'
+
+type SimplifyRouteModule =
+  typeof import('@/lib/services/fitness-files/simplifyRoute')
+
+vi.mock('@/lib/services/fitness-files/simplifyRoute', async () => {
+  const actual = await vi.importActual<SimplifyRouteModule>(
+    '@/lib/services/fitness-files/simplifyRoute'
+  )
+  return {
+    MAX_BUDGET_PASSES: actual.MAX_BUDGET_PASSES,
+    totalPointCount: vi.fn(actual.totalPointCount),
+    everySegmentAtMinimum: vi.fn(actual.everySegmentAtMinimum),
+    simplifyPoints: vi.fn(actual.simplifyPoints),
+    simplifySegments: vi.fn(actual.simplifySegments),
+    simplifySegmentsToBudget: vi.fn(actual.simplifySegmentsToBudget)
+  }
+})
 
 const SNAPSHOT_HOST = 'https://snapshot.apple-mapkit.com'
 const URL_BUDGET = 4500
@@ -162,6 +181,45 @@ describe('buildAppleSnapshotPath', () => {
     expect(
       buildAppleSnapshotPath({ segments, width: 640, height: 480 }, credentials)
     ).toBeNull()
+  })
+
+  it('returns null without simplifying when there are too many segments', () => {
+    vi.mocked(simplifySegmentsToBudget).mockClear()
+
+    const manySegments = Array.from({ length: 50 }, (_, index) =>
+      route([
+        { lat: 52.1 + index * 0.01, lng: 5.1 + index * 0.01 },
+        { lat: 52.11 + index * 0.01, lng: 5.11 + index * 0.01 },
+        { lat: 52.12 + index * 0.01, lng: 5.13 + index * 0.01 }
+      ])
+    )
+
+    expect(
+      buildAppleSnapshotPath(
+        { segments: manySegments, width: 640, height: 480 },
+        credentials
+      )
+    ).toBeNull()
+    expect(vi.mocked(simplifySegmentsToBudget)).not.toHaveBeenCalled()
+  })
+
+  it('still builds a path for a feasible multi-segment route', () => {
+    const fewSegments = Array.from({ length: 3 }, (_, index) =>
+      route([
+        { lat: 52.1 + index * 0.01, lng: 5.1 + index * 0.01 },
+        { lat: 52.11 + index * 0.01, lng: 5.11 + index * 0.01 },
+        { lat: 52.12 + index * 0.01, lng: 5.13 + index * 0.01 }
+      ])
+    )
+
+    const path = buildAppleSnapshotPath(
+      { segments: fewSegments, width: 640, height: 480 },
+      credentials
+    )
+
+    expect(path).not.toBeNull()
+    expect(overlaysOf(path as string)).toHaveLength(3)
+    expect(MAX_SNAPSHOT_OVERLAYS).toBeGreaterThanOrEqual(3)
   })
 
   it.each([
