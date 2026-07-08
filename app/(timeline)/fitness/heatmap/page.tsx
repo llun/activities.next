@@ -3,11 +3,11 @@ import { notFound, redirect } from 'next/navigation'
 import { FC } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
-import { getBaseURL, getConfig } from '@/lib/config'
+import { getBaseURL } from '@/lib/config'
+import { getPublicMapProvider } from '@/lib/config/mapProvider'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-import { getPublicMapboxAccessToken } from '@/lib/utils/mapbox'
 
 import { FitnessHeatmapView } from './FitnessHeatmapView'
 
@@ -35,9 +35,7 @@ const Page: FC = async () => {
     return notFound()
   }
 
-  const mapboxAccessToken = getPublicMapboxAccessToken(
-    getConfig().fitnessStorage?.mapboxAccessToken
-  )
+  const mapProvider = getPublicMapProvider()
 
   // Compute the embed origin on the server (the actor's own canonical domain,
   // falling back to the instance base URL) so the share snippets are identical
@@ -58,7 +56,7 @@ const Page: FC = async () => {
 
       <FitnessHeatmapView
         actorId={currentActor.id}
-        mapboxAccessToken={mapboxAccessToken}
+        mapProvider={mapProvider}
         embedOrigin={embedOrigin}
       />
     </div>

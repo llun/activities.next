@@ -55,8 +55,9 @@ vi.mock('@/lib/utils/getActorFromSession', async () => ({
   getActorFromSession: vi.fn()
 }))
 
-vi.mock('@/lib/utils/mapbox', async () => ({
-  getPublicMapboxAccessToken: vi.fn(() => undefined)
+vi.mock('@/lib/config/mapProvider', async () => ({
+  getMapProviderConfig: vi.fn(() => ({ type: 'osm' })),
+  getPublicMapProvider: vi.fn(() => ({ type: 'osm' }))
 }))
 
 vi.mock('./resolveStatusFromPath', async () => ({

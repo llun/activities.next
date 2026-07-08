@@ -1,13 +1,12 @@
 import { NextRequest } from 'next/server'
 
-import { getConfig } from '@/lib/config'
+import { getMapProviderConfig } from '@/lib/config/mapProvider'
 import { getDatabase } from '@/lib/database'
 import { toPublicHeatmap } from '@/lib/services/fitness-files/publicHeatmap'
 import {
   buildHeatmapSvg,
   buildMapboxStaticUrl
 } from '@/lib/services/fitness-files/staticHeatmapImage'
-import { getPublicMapboxAccessToken } from '@/lib/utils/mapbox'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -78,20 +77,22 @@ export const GET = traceApiRoute(
     const width = snapDimension(url.searchParams.get('w'), DEFAULT_WIDTH)
     const height = snapDimension(url.searchParams.get('h'), DEFAULT_HEIGHT)
 
-    const mapboxAccessToken = getPublicMapboxAccessToken(
-      getConfig().fitnessStorage?.mapboxAccessToken
-    )
+    // TODO(apple-maps): an Apple Maps snapshot path for this route is added in
+    // the server-static-images task; until then Apple falls through to the
+    // keyless SVG renderer below.
+    const mapProvider = getMapProviderConfig()
 
     // Preferred: routes over a real Mapbox basemap. The static URL embeds the
     // token, so it is fetched server-side and the bytes are streamed back — the
-    // token never reaches the browser.
-    if (mapboxAccessToken) {
+    // token never reaches the browser. Any Mapbox token works here (including a
+    // secret `sk.` one), unlike the browser-side descriptor.
+    if (mapProvider.type === 'mapbox') {
       const mapboxUrl = buildMapboxStaticUrl({
         segments: publicHeatmap.segments,
         bounds: publicHeatmap.bounds ?? null,
         width,
         height,
-        token: mapboxAccessToken
+        token: mapProvider.accessToken
       })
       if (mapboxUrl) {
         try {

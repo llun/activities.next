@@ -12,11 +12,10 @@ import {
 } from '@/lib/components/fitness/mapGeometry'
 import { simplifySegmentsToBudget } from '@/lib/services/fitness-files/simplifyRoute'
 import { cn } from '@/lib/utils'
-import { loadMapboxModule } from '@/lib/utils/mapbox'
 import {
-  OPENFREEMAP_HEATMAP_STYLE_URL,
-  loadMaplibreModule
-} from '@/lib/utils/maplibre'
+  type PublicMapProvider,
+  buildGlProviderOptions
+} from '@/lib/utils/mapProvider'
 
 // The Mapbox GL / MapLibre GL surface — only the members this component drives.
 // Both libraries share this subset, so one component can drive either provider.
@@ -119,7 +118,8 @@ const getMapFallbackError = (error: unknown): MapFallbackError => {
 
 export interface RouteHeatmapMapProps {
   heatmap: FitnessRouteHeatmapData | null
-  mapboxAccessToken?: string
+  /** Which map backend renders this heatmap (Mapbox, keyless OSM, or Apple). */
+  mapProvider: PublicMapProvider
   /**
    * Tailwind height class for the map surface (and its empty/fallback states).
    * Defaults to the in-app fixed height; the full-bleed embed passes a
@@ -134,9 +134,18 @@ interface RouteMapProvider {
   label: string
 }
 
+// TODO(apple-maps): Apple renders through MapKit JS, not a GL engine. Until the
+// dedicated MapKit renderer lands (the MapKit-renderers task), fall back to the
+// keyless OpenFreeMap GL map so an Apple-configured instance keeps rendering
+// heatmaps instead of crashing. That task replaces this branch.
+const toGlProvider = (
+  provider: PublicMapProvider
+): Exclude<PublicMapProvider, { type: 'apple' }> =>
+  provider.type === 'apple' ? { type: 'osm' } : provider
+
 export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
   heatmap,
-  mapboxAccessToken,
+  mapProvider,
   heightClassName = ROUTE_HEATMAP_MAP_HEIGHT_CLASS
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -156,31 +165,20 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
 
   // Mapbox when a public token is configured; otherwise the keyless MapLibre +
   // OpenFreeMap provider, so the heatmap always renders on a real, interactive
-  // map without an API key (instead of a static, non-interactive image).
-  const provider = useMemo<RouteMapProvider>(
-    () =>
-      mapboxAccessToken
-        ? {
-            loadModule: () => loadMapboxModule<RouteGlModule>(),
-            mapOptions: {
-              // Light 2D basemap so the coloured routes stand out, and an
-              // explicit mercator projection so a wide cache opens as a flat,
-              // pannable map instead of Mapbox GL v3's default zoomed-out globe.
-              style: 'mapbox://styles/mapbox/light-v11',
-              projection: 'mercator',
-              accessToken: mapboxAccessToken
-            },
-            label: 'Mapbox'
-          }
-        : {
-            loadModule: () => loadMaplibreModule<RouteGlModule>(),
-            // MapLibre renders a flat mercator map by default; the light
-            // "positron" style keeps the route overlay legible.
-            mapOptions: { style: OPENFREEMAP_HEATMAP_STYLE_URL },
-            label: 'OpenFreeMap'
-          },
-    [mapboxAccessToken]
-  )
+  // map without an API key (instead of a static, non-interactive image). Keyed
+  // on the descriptor's fields (not its object identity) so an inline prop
+  // literal doesn't tear the map down on every parent render.
+  const providerType = mapProvider.type
+  const providerAccessToken =
+    mapProvider.type === 'mapbox' ? mapProvider.accessToken : undefined
+  const provider = useMemo<RouteMapProvider>(() => {
+    const options = buildGlProviderOptions(toGlProvider(mapProvider), 'light')
+    return {
+      loadModule: () => options.loadModule() as Promise<RouteGlModule>,
+      mapOptions: options.mapOptions,
+      label: options.label
+    }
+  }, [providerType, providerAccessToken])
 
   const mapFallbackErrorMessage =
     process.env.NODE_ENV !== 'production'

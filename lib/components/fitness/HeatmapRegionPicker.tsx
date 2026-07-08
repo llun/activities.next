@@ -26,8 +26,10 @@ import {
   serializeRegion
 } from '@/lib/fitness/regions'
 import { cn } from '@/lib/utils'
-import { loadMapboxModule } from '@/lib/utils/mapbox'
-import { OPENFREEMAP_STYLE_URL, loadMaplibreModule } from '@/lib/utils/maplibre'
+import {
+  type PublicMapProvider,
+  buildGlProviderOptions
+} from '@/lib/utils/mapProvider'
 
 /** A region plus a stable client id for list keys and edit targeting. */
 export type PickerRegion = HeatmapRegion & { id: string }
@@ -47,6 +49,15 @@ export interface RegionDisplayStatus {
   /** Pre-formatted relative time (e.g. "2h ago") for completed/partial rows. */
   generatedLabel?: string | null
 }
+
+// TODO(apple-maps): Apple renders through MapKit JS, not a GL engine. Until the
+// dedicated MapKit renderer lands (the MapKit-renderers task), fall back to the
+// keyless OpenFreeMap GL map so an Apple-configured instance can still draw a
+// region. That task replaces this branch.
+const toGlProvider = (
+  provider: PublicMapProvider
+): Exclude<PublicMapProvider, { type: 'apple' }> =>
+  provider.type === 'apple' ? { type: 'osm' } : provider
 
 let regionUid = 0
 const createRegionId = (): string =>
@@ -167,15 +178,15 @@ const CoordField: FC<CoordFieldProps> = ({
 
 interface RectComposerProps {
   initial?: RectRegion | null
-  /** Public Mapbox token; when absent the free MapLibre/OpenFreeMap map is used. */
-  mapboxAccessToken?: string
+  /** Which map backend renders the draw surface. */
+  mapProvider: PublicMapProvider
   onCancel: () => void
   onSave: (rect: RectRegion) => void
 }
 
 const RectComposer: FC<RectComposerProps> = ({
   initial,
-  mapboxAccessToken,
+  mapProvider,
   onCancel,
   onSave
 }) => {
@@ -193,24 +204,22 @@ const RectComposer: FC<RectComposerProps> = ({
 
   // Mapbox when a token is configured; otherwise the keyless MapLibre +
   // OpenFreeMap provider. Either way a new area starts at the user's location.
-  const mapProvider = useMemo(
-    () =>
-      mapboxAccessToken
-        ? {
-            loadModule: () => loadMapboxModule<GlModule>(),
-            mapOptions: {
-              style: 'mapbox://styles/mapbox/outdoors-v12',
-              accessToken: mapboxAccessToken
-            },
-            providerLabel: 'Mapbox'
-          }
-        : {
-            loadModule: () => loadMaplibreModule<GlModule>(),
-            mapOptions: { style: OPENFREEMAP_STYLE_URL },
-            providerLabel: 'OpenFreeMap'
-          },
-    [mapboxAccessToken]
-  )
+  // Keyed on the descriptor's fields (not its object identity) so an inline prop
+  // literal doesn't recreate the map on every parent render.
+  const providerType = mapProvider.type
+  const providerAccessToken =
+    mapProvider.type === 'mapbox' ? mapProvider.accessToken : undefined
+  const glProvider = useMemo(() => {
+    const options = buildGlProviderOptions(
+      toGlProvider(mapProvider),
+      'outdoors'
+    )
+    return {
+      loadModule: () => options.loadModule() as Promise<GlModule>,
+      mapOptions: options.mapOptions,
+      providerLabel: options.label
+    }
+  }, [providerType, providerAccessToken])
 
   return (
     <div className="rounded-lg border bg-background p-3">
@@ -241,9 +250,9 @@ const RectComposer: FC<RectComposerProps> = ({
         <RegionMap
           box={box}
           onChange={setBox}
-          loadModule={mapProvider.loadModule}
-          mapOptions={mapProvider.mapOptions}
-          providerLabel={mapProvider.providerLabel}
+          loadModule={glProvider.loadModule}
+          mapOptions={glProvider.mapOptions}
+          providerLabel={glProvider.providerLabel}
           centerOnUser={!initial}
           onUnavailable={() => setMapUnavailable(true)}
         />
@@ -470,8 +479,8 @@ const RegionRow: FC<RegionRowProps> = ({
 interface HeatmapRegionPickerProps {
   value: PickerRegion[]
   onChange: (regions: PickerRegion[]) => void
-  /** Public Mapbox token; when absent the free MapLibre/OpenFreeMap map is used. */
-  mapboxAccessToken?: string
+  /** Which map backend renders the draw surface. */
+  mapProvider: PublicMapProvider
   /** Opens a region's own heatmap page. When omitted, rows are not clickable. */
   onOpen?: (region: PickerRegion) => void
   /** Per-region heatmap status under the current activity/period source. */
@@ -493,7 +502,7 @@ interface ComposerState {
 export const HeatmapRegionPicker: FC<HeatmapRegionPickerProps> = ({
   value,
   onChange,
-  mapboxAccessToken,
+  mapProvider,
   onOpen,
   getRegionStatus,
   onRegionRemoved,
@@ -571,7 +580,7 @@ export const HeatmapRegionPicker: FC<HeatmapRegionPickerProps> = ({
       {composer ? (
         <RectComposer
           initial={editingRect}
-          mapboxAccessToken={mapboxAccessToken}
+          mapProvider={mapProvider}
           onCancel={() => setComposer(null)}
           onSave={saveRect}
         />

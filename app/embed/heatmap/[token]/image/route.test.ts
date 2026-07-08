@@ -13,9 +13,10 @@ vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-const mockGetConfig = vi.fn()
-vi.mock('@/lib/config', () => ({
-  getConfig: () => mockGetConfig()
+const mockGetMapProviderConfig = vi.fn()
+vi.mock('@/lib/config/mapProvider', () => ({
+  getMapProviderConfig: () => mockGetMapProviderConfig(),
+  getPublicMapProvider: vi.fn()
 }))
 
 const sharedHeatmap = {
@@ -56,7 +57,7 @@ describe('/embed/heatmap/[token]/image', () => {
       getFitnessRouteHeatmapByShareToken: mockGetFitnessRouteHeatmapByShareToken
     }
     mockGetFitnessRouteHeatmapByShareToken.mockResolvedValue(sharedHeatmap)
-    mockGetConfig.mockReturnValue({ fitnessStorage: { mapboxAccessToken: '' } })
+    mockGetMapProviderConfig.mockReturnValue({ type: 'osm' })
   })
 
   it('returns 404 for an unknown share token', async () => {
@@ -83,8 +84,9 @@ describe('/embed/heatmap/[token]/image', () => {
   })
 
   it('pins the response content-type to an image even if upstream lies', async () => {
-    mockGetConfig.mockReturnValue({
-      fitnessStorage: { mapboxAccessToken: 'pk.test-token' }
+    mockGetMapProviderConfig.mockReturnValue({
+      type: 'mapbox',
+      accessToken: 'pk.test-token'
     })
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(new Uint8Array([1]), {
@@ -103,7 +105,7 @@ describe('/embed/heatmap/[token]/image', () => {
     }
   })
 
-  it('renders an SVG fallback when no Mapbox token is configured', async () => {
+  it('renders an SVG fallback for the keyless OpenStreetMap provider', async () => {
     const response = await GET(imageRequest(), {
       params: Promise.resolve({ token: 'token-1' })
     })
@@ -116,9 +118,59 @@ describe('/embed/heatmap/[token]/image', () => {
     expect(body).toContain('stroke="#ef4444"')
   })
 
+  it('renders an SVG fallback for the Apple Maps provider', async () => {
+    mockGetMapProviderConfig.mockReturnValue({
+      type: 'apple',
+      teamId: 'team',
+      keyId: 'key',
+      privateKey: 'pem'
+    })
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+
+    try {
+      const response = await GET(imageRequest(), {
+        params: Promise.resolve({ token: 'token-1' })
+      })
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Content-Type')).toContain('image/svg+xml')
+      expect(fetchSpy).not.toHaveBeenCalled()
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
+  it('proxies the Mapbox static image for a secret sk. token', async () => {
+    // The static URL is fetched server-side, so a secret token never reaches the
+    // browser — an sk.-only deployment still gets a real Mapbox embed image.
+    mockGetMapProviderConfig.mockReturnValue({
+      type: 'mapbox',
+      accessToken: 'sk.secret-token'
+    })
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(new Uint8Array([1]), {
+        headers: { 'content-type': 'image/png' }
+      })
+    )
+
+    try {
+      const response = await GET(imageRequest(), {
+        params: Promise.resolve({ token: 'token-1' })
+      })
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Content-Type')).toBe('image/png')
+      const requestedUrl = fetchSpy.mock.calls[0]?.[0] as string
+      expect(requestedUrl).toContain('access_token=sk.secret-token')
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
   it('proxies the Mapbox static image when a token is configured', async () => {
-    mockGetConfig.mockReturnValue({
-      fitnessStorage: { mapboxAccessToken: 'pk.test-token' }
+    mockGetMapProviderConfig.mockReturnValue({
+      type: 'mapbox',
+      accessToken: 'pk.test-token'
     })
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(new Uint8Array([1, 2, 3]), {
@@ -144,8 +196,9 @@ describe('/embed/heatmap/[token]/image', () => {
   })
 
   it('uses the default dimensions when w/h are omitted', async () => {
-    mockGetConfig.mockReturnValue({
-      fitnessStorage: { mapboxAccessToken: 'pk.test-token' }
+    mockGetMapProviderConfig.mockReturnValue({
+      type: 'mapbox',
+      accessToken: 'pk.test-token'
     })
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(new Uint8Array([1]), {
@@ -168,8 +221,9 @@ describe('/embed/heatmap/[token]/image', () => {
   })
 
   it('snaps w/h to coarse buckets to limit the cache surface', async () => {
-    mockGetConfig.mockReturnValue({
-      fitnessStorage: { mapboxAccessToken: 'pk.test-token' }
+    mockGetMapProviderConfig.mockReturnValue({
+      type: 'mapbox',
+      accessToken: 'pk.test-token'
     })
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(new Uint8Array([1]), {
@@ -195,8 +249,9 @@ describe('/embed/heatmap/[token]/image', () => {
   })
 
   it('falls back to SVG when the Mapbox fetch fails', async () => {
-    mockGetConfig.mockReturnValue({
-      fitnessStorage: { mapboxAccessToken: 'pk.test-token' }
+    mockGetMapProviderConfig.mockReturnValue({
+      type: 'mapbox',
+      accessToken: 'pk.test-token'
     })
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')

@@ -30,6 +30,14 @@ vi.mock('@/lib/utils/mapbox', () => ({
   loadMapboxModule: vi.fn()
 }))
 
+// The keyless GL loader never resolves here, so the interactive map stays in its
+// initializing state (no real MapLibre script is injected in jsdom).
+vi.mock('@/lib/utils/maplibre', () => ({
+  loadMaplibreModule: vi.fn(() => new Promise(() => {})),
+  OPENFREEMAP_STYLE_URL: 'https://tiles.openfreemap.org/styles/bright',
+  OPENFREEMAP_HEATMAP_STYLE_URL: 'https://tiles.openfreemap.org/styles/positron'
+}))
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() })
 }))
@@ -172,6 +180,7 @@ const renderDetail = (
   render(
     <FitnessStatusDetail
       host="activities.local"
+      mapProvider={{ type: 'osm' }}
       currentTime={Date.parse('2026-05-27T12:00:00Z')}
       currentActor={actor}
       status={buildStatus()}

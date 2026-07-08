@@ -66,8 +66,20 @@ import {
   type MastodonVisibility,
   getVisibility
 } from '@/lib/utils/getVisibility'
-import { loadMapboxModule } from '@/lib/utils/mapbox'
+import {
+  type PublicMapProvider,
+  buildGlProviderOptions
+} from '@/lib/utils/mapProvider'
 import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
+
+// TODO(apple-maps): Apple renders through MapKit JS, not a GL engine. Until the
+// dedicated MapKit renderer lands (the MapKit-renderers task), fall back to the
+// keyless OpenFreeMap GL map so an Apple-configured instance keeps rendering the
+// activity route. That task replaces this branch.
+const toGlProvider = (
+  provider: PublicMapProvider
+): Exclude<PublicMapProvider, { type: 'apple' }> =>
+  provider.type === 'apple' ? { type: 'osm' } : provider
 
 const downsampleSeries = (series: number[], targetCount: number) => {
   if (series.length <= targetCount) return series
@@ -85,7 +97,8 @@ const downsampleSeries = (series: number[], targetCount: number) => {
 
 interface Props {
   host: string
-  mapboxAccessToken?: string
+  /** Which map backend renders the activity route map. */
+  mapProvider: PublicMapProvider
   currentTime: number
   currentActor?: ActorProfile | null
   status: StatusNote
@@ -168,13 +181,10 @@ interface MapboxMap {
   remove: () => void
 }
 
+// The Mapbox GL / MapLibre GL surface this panel drives — both libraries expose
+// the same `Map` + `LngLatBounds` constructors, so one code path renders either.
 interface MapboxModule {
-  accessToken: string
-  Map: new (options: {
-    container: HTMLElement
-    style: string
-    attributionControl: boolean
-  }) => MapboxMap
+  Map: new (options: Record<string, unknown>) => MapboxMap
   LngLatBounds: new (
     sw: [number, number],
     ne: [number, number]
@@ -847,7 +857,7 @@ const ActivityMapPanel: FC<{
   routeSamples: FitnessRouteSample[]
   routeSegments: FitnessRouteSegment[]
   highlightedElapsedSeconds?: number | null
-  mapboxAccessToken?: string
+  mapProvider: PublicMapProvider
   routeDataError?: string | null
   isRouteDataLoading?: boolean
   onOpenMap?: () => void
@@ -856,7 +866,7 @@ const ActivityMapPanel: FC<{
   routeSamples,
   routeSegments,
   highlightedElapsedSeconds = null,
-  mapboxAccessToken,
+  mapProvider,
   routeDataError = null,
   isRouteDataLoading = false,
   onOpenMap
@@ -877,11 +887,20 @@ const ActivityMapPanel: FC<{
     [drawableRouteSegments]
   )
 
+  // Keyed on the descriptor's fields (not its object identity) so an inline prop
+  // literal doesn't tear the map down on every parent render.
+  const providerType = mapProvider.type
+  const providerAccessToken =
+    mapProvider.type === 'mapbox' ? mapProvider.accessToken : undefined
+  const glProvider = useMemo(
+    () => buildGlProviderOptions(toGlProvider(mapProvider), 'outdoors'),
+    [providerType, providerAccessToken]
+  )
+
+  // Every provider now renders a real, interactive GL map — the pre-generated
+  // static image stays as the fallback for a map that fails to load.
   const shouldRenderInteractiveMap =
-    Boolean(mapboxAccessToken) &&
-    drawableRouteSegments.length > 0 &&
-    !routeDataError &&
-    !mapLoadError
+    drawableRouteSegments.length > 0 && !routeDataError && !mapLoadError
 
   const routeFeatureCollection = useMemo(
     (): MapFeatureCollection<MapLineStringGeometry, RouteLineProperties> => ({
@@ -917,16 +936,16 @@ const ActivityMapPanel: FC<{
 
     const initializeMap = async () => {
       try {
-        const mapbox = await loadMapboxModule<MapboxModule>()
+        const mapbox = (await glProvider.loadModule()) as MapboxModule
         if (cancelled || !mapContainerRef.current) return
 
         setMapLoadError(null)
-        mapbox.accessToken = mapboxAccessToken ?? ''
 
         const map = new mapbox.Map({
           container: mapContainerRef.current,
-          style: 'mapbox://styles/mapbox/outdoors-v12',
-          attributionControl: false
+          attributionControl: false,
+          // style (and, for Mapbox, accessToken) come from the resolved provider.
+          ...glProvider.mapOptions
         })
 
         mapRef.current = map
@@ -1055,7 +1074,7 @@ const ActivityMapPanel: FC<{
       mapRef.current = null
     }
   }, [
-    mapboxAccessToken,
+    glProvider,
     routeFeatureCollection,
     routeSamplesForBounds,
     shouldRenderInteractiveMap
@@ -1162,9 +1181,7 @@ const ActivityMapPanel: FC<{
         </button>
       ) : null}
 
-      {!shouldRenderInteractiveMap &&
-      isRouteDataLoading &&
-      mapboxAccessToken ? (
+      {!shouldRenderInteractiveMap && isRouteDataLoading ? (
         <div className="absolute left-1/2 top-3 -translate-x-1/2 rounded-md border bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
           Loading interactive route...
         </div>
@@ -1205,7 +1222,7 @@ const ActivityGallery: FC<{
 
 export const FitnessStatusDetail: FC<Props> = ({
   host,
-  mapboxAccessToken,
+  mapProvider,
   currentTime,
   currentActor,
   status,
@@ -1344,7 +1361,9 @@ export const FitnessStatusDetail: FC<Props> = ({
     () => fitnessFiles.findIndex((item) => item.id === fitness?.id),
     [fitnessFiles, fitness?.id]
   )
-  const shouldLoadInteractiveMap = Boolean(mapboxAccessToken && fitness?.id)
+  // Every provider renders an interactive map, so route data is loaded whenever
+  // there is a fitness file to load it from.
+  const shouldLoadInteractiveMap = Boolean(fitness?.id)
   const activityLabel = getActivityLabel(fitness?.activityType ?? undefined)
   // `status.text` holds the post's processed HTML caption, so render the
   // heading as decoded, tag-free plain text rather than raw markup. Falls back
@@ -1958,7 +1977,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                 mapAttachment={mapAttachment}
                 routeSamples={routeSamples}
                 routeSegments={routeSegments}
-                mapboxAccessToken={mapboxAccessToken}
+                mapProvider={mapProvider}
                 routeDataError={routeDataError}
                 isRouteDataLoading={isRouteDataLoading}
                 onOpenMap={() => {
@@ -2012,7 +2031,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                 routeSamples={routeSamples}
                 routeSegments={routeSegments}
                 highlightedElapsedSeconds={highlightedElapsedSeconds}
-                mapboxAccessToken={mapboxAccessToken}
+                mapProvider={mapProvider}
                 routeDataError={routeDataError}
                 isRouteDataLoading={isRouteDataLoading}
                 onOpenMap={() => {

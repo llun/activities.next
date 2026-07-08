@@ -25,10 +25,23 @@ import {
   sanitizePrivacyLocationSettings,
   sanitizePrivacyRadiusMeters
 } from '@/lib/services/fitness-files/privacy'
-import { loadMapboxModule } from '@/lib/utils/mapbox'
+import {
+  type PublicMapProvider,
+  buildGlProviderOptions
+} from '@/lib/utils/mapProvider'
+
+// TODO(apple-maps): Apple renders through MapKit JS, not a GL engine. Until the
+// dedicated MapKit renderer lands (the MapKit-renderers task), fall back to the
+// keyless OpenFreeMap GL map so an Apple-configured instance keeps a working
+// location picker. That task replaces this branch.
+const toGlProvider = (
+  provider: PublicMapProvider
+): Exclude<PublicMapProvider, { type: 'apple' }> =>
+  provider.type === 'apple' ? { type: 'osm' } : provider
 
 interface Props {
-  mapboxAccessToken?: string
+  /** Which map backend renders the location picker. */
+  mapProvider: PublicMapProvider
 }
 
 interface PrivacyLocationInput {
@@ -77,15 +90,10 @@ interface MapboxMap {
   remove: () => void
 }
 
+// The Mapbox GL / MapLibre GL surface this picker drives — both libraries share
+// the `Map` constructor subset used here, so one code path renders either.
 interface MapboxModule {
-  accessToken: string
-  Map: new (options: {
-    container: HTMLElement
-    style: string
-    attributionControl: boolean
-    center: [number, number]
-    zoom: number
-  }) => MapboxMap
+  Map: new (options: Record<string, unknown>) => MapboxMap
 }
 
 const MAPBOX_MARKER_SOURCE_ID = 'fitness-privacy-home-marker'
@@ -306,9 +314,7 @@ const getInitialMapView = async (): Promise<{
   }
 }
 
-export const FitnessPrivacyLocationSettings: FC<Props> = ({
-  mapboxAccessToken
-}) => {
+export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapboxMap | null>(null)
   const markerCoordinatesRef = useRef<[number, number] | null>(null)
@@ -331,6 +337,16 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [mapLoadError, setMapLoadError] = useState<string | null>(null)
+
+  // Keyed on the descriptor's fields (not its object identity) so an inline prop
+  // literal doesn't recreate the map on every parent render.
+  const providerType = mapProvider.type
+  const providerAccessToken =
+    mapProvider.type === 'mapbox' ? mapProvider.accessToken : undefined
+  const glProvider = useMemo(
+    () => buildGlProviderOptions(toGlProvider(mapProvider), 'outdoors'),
+    [providerType, providerAccessToken]
+  )
 
   const markerCoordinates = useMemo<[number, number] | null>(() => {
     const latitude = parseCoordinateInput(latitudeInput)
@@ -449,7 +465,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
   }, [])
 
   useEffect(() => {
-    if (!mapboxAccessToken || !isMapReady || isLoading) {
+    if (!isMapReady || isLoading) {
       return
     }
 
@@ -467,13 +483,12 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
     isMapReady,
     latitudeInput,
     longitudeInput,
-    mapboxAccessToken,
     privacyLocations.length,
     syncWithCurrentLocation
   ])
 
   useEffect(() => {
-    if (!mapboxAccessToken || !mapContainerRef.current) {
+    if (!mapContainerRef.current) {
       mapRef.current?.remove()
       mapRef.current = null
       setIsMapReady(false)
@@ -484,21 +499,20 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
 
     const initializeMap = async () => {
       try {
-        const mapbox = await loadMapboxModule<MapboxModule>()
+        const mapbox = (await glProvider.loadModule()) as MapboxModule
         if (cancelled || !mapContainerRef.current) {
           return
         }
-
-        mapbox.accessToken = mapboxAccessToken
 
         const initialView = await getInitialMapView()
 
         const map = new mapbox.Map({
           container: mapContainerRef.current,
-          style: 'mapbox://styles/mapbox/outdoors-v12',
           attributionControl: false,
           center: initialView.center,
-          zoom: initialView.zoom
+          zoom: initialView.zoom,
+          // style (and, for Mapbox, accessToken) come from the resolved provider.
+          ...glProvider.mapOptions
         })
 
         mapRef.current = map
@@ -574,7 +588,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
       mapRef.current = null
       setIsMapReady(false)
     }
-  }, [mapboxAccessToken])
+  }, [glProvider])
 
   useEffect(() => {
     const map = mapRef.current
@@ -840,27 +854,22 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {mapboxAccessToken ? (
-          <div className="space-y-2">
-            <Label>Location Marker</Label>
-            <div className="relative h-64 overflow-hidden rounded-md border">
-              <div ref={mapContainerRef} className="h-full w-full" />
-              {mapLoadError ? (
-                <div className="absolute inset-0 flex items-center justify-center bg-background/95 px-4 text-sm text-muted-foreground">
-                  {mapLoadError}
-                </div>
-              ) : null}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Click the map to set coordinates for a location you want to add.
-            </p>
+        {/* Every provider renders an interactive picker; the manual latitude /
+            longitude fields below stay as the fallback when it fails to load. */}
+        <div className="space-y-2">
+          <Label>Location Marker</Label>
+          <div className="relative h-64 overflow-hidden rounded-md border">
+            <div ref={mapContainerRef} className="h-full w-full" />
+            {mapLoadError ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-background/95 px-4 text-sm text-muted-foreground">
+                {mapLoadError}
+              </div>
+            ) : null}
           </div>
-        ) : (
-          <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-            Mapbox access token is not configured. Enter latitude and longitude
-            manually.
-          </div>
-        )}
+          <p className="text-xs text-muted-foreground">
+            Click the map to set coordinates for a location you want to add.
+          </p>
+        </div>
 
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">

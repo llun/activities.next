@@ -24,6 +24,7 @@ import { Button } from '@/lib/components/ui/button'
 import { formatRectRegion } from '@/lib/fitness/regions'
 import { formatRelativeTime } from '@/lib/fitness/relativeTime'
 import { cn } from '@/lib/utils'
+import type { PublicMapProvider } from '@/lib/utils/mapProvider'
 
 const numberFormatter = new Intl.NumberFormat()
 const formatCount = (value: number): string => numberFormatter.format(value)
@@ -305,7 +306,8 @@ export interface RegionHeatmapDetailProps {
   /** Pre-formatted activity + period source labels. */
   meta: { activity: string; period: string }
   heatmap: FitnessRouteHeatmapData | null
-  mapboxAccessToken?: string
+  /** Which map backend renders the map. */
+  mapProvider: PublicMapProvider
   /** Origin used to build embed URLs (the actor's own domain). */
   embedOrigin: string
   /** A share/unshare request is in flight for this region. */
@@ -339,7 +341,7 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
   region,
   meta,
   heatmap,
-  mapboxAccessToken,
+  mapProvider,
   embedOrigin,
   isSharing,
   onShare,
@@ -488,10 +490,7 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
             </div>
           )}
           <div className="overflow-hidden rounded-xl border">
-            <RouteHeatmapMap
-              heatmap={heatmap}
-              mapboxAccessToken={mapboxAccessToken}
-            />
+            <RouteHeatmapMap heatmap={heatmap} mapProvider={mapProvider} />
           </div>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
@@ -514,7 +513,7 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
             regionLabel={region.type === 'rect' ? region.name : undefined}
             isWorld={isWorld}
             heatmap={heatmap}
-            mapboxAccessToken={mapboxAccessToken}
+            mapProvider={mapProvider}
             isSharing={isSharing}
             onShare={onShare}
             onUnshare={onUnshare}

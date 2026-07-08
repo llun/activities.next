@@ -267,7 +267,11 @@ describe('FitnessHeatmapView', () => {
 
   it('renders the region list with a default whole-world region', async () => {
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     // The Activity + Period source selectors were removed from this page.
@@ -298,7 +302,11 @@ describe('FitnessHeatmapView', () => {
     ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     // The whole world (default) plus the seeded drawn area.
@@ -321,7 +329,11 @@ describe('FitnessHeatmapView', () => {
     ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     // The persisted label is used; the generic fallback never appears.
@@ -331,7 +343,11 @@ describe('FitnessHeatmapView', () => {
 
   it('persists a region name when an area is saved', async () => {
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     // Open the draw composer, give the area a name, and save it.
@@ -366,7 +382,11 @@ describe('FitnessHeatmapView', () => {
   it('surfaces an error when saving a region name is rejected by the server', async () => {
     mockSetFitnessRouteHeatmapRegionName.mockResolvedValue(false)
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     await drawAndSaveArea('Coastal ride')
@@ -381,7 +401,11 @@ describe('FitnessHeatmapView', () => {
       new Error('network down')
     )
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     await drawAndSaveArea('Coastal ride')
@@ -394,7 +418,11 @@ describe('FitnessHeatmapView', () => {
   it('clears a prior save error once a later save succeeds', async () => {
     mockSetFitnessRouteHeatmapRegionName.mockResolvedValueOnce(false)
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     await drawAndSaveArea('Coastal ride')
@@ -422,7 +450,11 @@ describe('FitnessHeatmapView', () => {
     mockGetFitnessRouteHeatmapRegionNames.mockReturnValue(namesDeferred.promise)
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     // Draw + name an area whose canonical key already has a (now-stale) stored
@@ -458,7 +490,11 @@ describe('FitnessHeatmapView', () => {
     ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     // The discovered region keeps the generic fallback; the unrelated label is
@@ -481,7 +517,11 @@ describe('FitnessHeatmapView', () => {
     )
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     // The discovered region still appears (labels just fall back to "Map area").
@@ -491,7 +531,11 @@ describe('FitnessHeatmapView', () => {
 
   it('opens a region detail page and returns to the list', async () => {
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     await openWorldRegion()
@@ -524,7 +568,11 @@ describe('FitnessHeatmapView', () => {
     ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     // Open the seeded drawn region's own page, then edit its title inline.
@@ -566,7 +614,11 @@ describe('FitnessHeatmapView', () => {
     ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     fireEvent.click(
@@ -590,7 +642,11 @@ describe('FitnessHeatmapView', () => {
 
   it('generates a heatmap for the opened region', async () => {
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     await openWorldRegion()
@@ -622,7 +678,11 @@ describe('FitnessHeatmapView', () => {
     mockGetFitnessRouteHeatmap.mockResolvedValue(worldHeatmap())
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     await openWorldRegion()
@@ -653,7 +713,11 @@ describe('FitnessHeatmapView', () => {
     )
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     await openWorldRegion()
@@ -674,7 +738,11 @@ describe('FitnessHeatmapView', () => {
     ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     const removeButton = await screen.findByRole('button', {
@@ -709,7 +777,11 @@ describe('FitnessHeatmapView', () => {
     ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     expect(await screen.findByText(/Generating… 50%/)).toBeInTheDocument()
@@ -721,7 +793,11 @@ describe('FitnessHeatmapView', () => {
     )
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     await openWorldRegion()
@@ -756,7 +832,11 @@ describe('FitnessHeatmapView', () => {
     )
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     fireEvent.click(
@@ -791,7 +871,11 @@ describe('FitnessHeatmapView', () => {
     ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     // 1 world (default) + 2 split rects = 3 regions. Only the world matches a
@@ -823,7 +907,11 @@ describe('FitnessHeatmapView', () => {
       ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     // Flush the initial heatmaps fetch.
@@ -871,7 +959,11 @@ describe('FitnessHeatmapView', () => {
     ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     // The default world row renders synchronously; open it.
@@ -905,7 +997,11 @@ describe('FitnessHeatmapView', () => {
     ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     await waitFor(() => {
@@ -939,7 +1035,11 @@ describe('FitnessHeatmapView', () => {
     ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     await waitFor(() => {
@@ -968,7 +1068,9 @@ describe('RouteHeatmapMap', () => {
     const mapConstructor = createGlMapConstructor()
     mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
 
-    const { container } = render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
+    const { container } = render(
+      <RouteHeatmapMap heatmap={worldHeatmap()} mapProvider={{ type: 'osm' }} />
+    )
 
     await waitFor(() => expect(mapConstructor).toHaveBeenCalled())
     expect(await screen.findByText('OpenFreeMap')).toBeInTheDocument()
@@ -990,7 +1092,9 @@ describe('RouteHeatmapMap', () => {
     const deferred = createDeferred<{ Map: ReturnType<typeof vi.fn> }>()
     mockLoadMaplibreModule.mockReturnValue(deferred.promise)
 
-    render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
+    render(
+      <RouteHeatmapMap heatmap={worldHeatmap()} mapProvider={{ type: 'osm' }} />
+    )
 
     // The module hasn't resolved yet, so the map is still initializing.
     expect(await screen.findByText('Loading map…')).toBeInTheDocument()
@@ -1021,7 +1125,9 @@ describe('RouteHeatmapMap', () => {
     })
     mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
 
-    const { rerender } = render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
+    const { rerender } = render(
+      <RouteHeatmapMap heatmap={worldHeatmap()} mapProvider={{ type: 'osm' }} />
+    )
     await screen.findByText('OpenFreeMap')
     setData.mockClear()
 
@@ -1039,6 +1145,7 @@ describe('RouteHeatmapMap', () => {
             }
           ]
         })}
+        mapProvider={{ type: 'osm' }}
       />
     )
 
@@ -1049,6 +1156,7 @@ describe('RouteHeatmapMap', () => {
     render(
       <RouteHeatmapMap
         heatmap={worldHeatmap({ segments: [], pointCount: 0, bounds: null })}
+        mapProvider={{ type: 'osm' }}
       />
     )
 
@@ -1059,14 +1167,14 @@ describe('RouteHeatmapMap', () => {
     expect(mockLoadMapboxModule).not.toHaveBeenCalled()
   })
 
-  it('uses Mapbox when a token is configured', async () => {
+  it('uses Mapbox when a public token is configured', async () => {
     const mapConstructor = createGlMapConstructor()
     mockLoadMapboxModule.mockResolvedValue({ Map: mapConstructor })
 
     const { container } = render(
       <RouteHeatmapMap
         heatmap={worldHeatmap()}
-        mapboxAccessToken="mapbox-token"
+        mapProvider={{ type: 'mapbox', accessToken: 'pk.test-token' }}
       />
     )
 
@@ -1076,7 +1184,7 @@ describe('RouteHeatmapMap', () => {
     expect(mockLoadMaplibreModule).not.toHaveBeenCalled()
     expect(mapConstructor).toHaveBeenCalledWith(
       expect.objectContaining({
-        accessToken: 'mapbox-token',
+        accessToken: 'pk.test-token',
         attributionControl: true,
         // Light 2D basemap + flat mercator projection (no zoomed-out globe).
         style: 'mapbox://styles/mapbox/light-v11',
@@ -1085,13 +1193,32 @@ describe('RouteHeatmapMap', () => {
     )
   })
 
+  it('falls back to the keyless OpenFreeMap map for the Apple provider', async () => {
+    // TODO(apple-maps): the MapKit renderer lands in a follow-up task; until then
+    // Apple renders the keyless GL map instead of crashing.
+    const mapConstructor = createGlMapConstructor()
+    mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
+
+    render(
+      <RouteHeatmapMap
+        heatmap={worldHeatmap()}
+        mapProvider={{ type: 'apple' }}
+      />
+    )
+
+    expect(await screen.findByText('OpenFreeMap')).toBeInTheDocument()
+    expect(mockLoadMapboxModule).not.toHaveBeenCalled()
+  })
+
   it('shows a non-SVG fallback message when the map fails to render', async () => {
     const mapConstructor = createGlMapConstructor(() => {
       throw new Error('source unavailable')
     })
     mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
 
-    const { container } = render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
+    const { container } = render(
+      <RouteHeatmapMap heatmap={worldHeatmap()} mapProvider={{ type: 'osm' }} />
+    )
 
     expect(
       await screen.findByText('Map unavailable. Try regenerating this heatmap.')
@@ -1109,7 +1236,9 @@ describe('RouteHeatmapMap', () => {
   it('shows a non-SVG fallback message when the map module fails to load', async () => {
     mockLoadMaplibreModule.mockRejectedValue(new Error('module unavailable'))
 
-    const { container } = render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
+    const { container } = render(
+      <RouteHeatmapMap heatmap={worldHeatmap()} mapProvider={{ type: 'osm' }} />
+    )
 
     expect(
       await screen.findByText('Map unavailable. Try regenerating this heatmap.')
@@ -1141,7 +1270,12 @@ describe('RouteHeatmapMap', () => {
       })
       mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
 
-      const { container } = render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
+      const { container } = render(
+        <RouteHeatmapMap
+          heatmap={worldHeatmap()}
+          mapProvider={{ type: 'osm' }}
+        />
+      )
 
       // Flush the module-load promise so the map is created and the watchdog armed.
       await act(async () => {
@@ -1173,7 +1307,12 @@ describe('RouteHeatmapMap', () => {
       const mapConstructor = createGlMapConstructor()
       mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
 
-      const { container } = render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
+      const { container } = render(
+        <RouteHeatmapMap
+          heatmap={worldHeatmap()}
+          mapProvider={{ type: 'osm' }}
+        />
+      )
 
       await act(async () => {
         await Promise.resolve()
@@ -1206,7 +1345,7 @@ describe('RouteHeatmapMap', () => {
     mockLoadMaplibreModule.mockResolvedValue({ Map: failingMapConstructor })
 
     const { container, rerender } = render(
-      <RouteHeatmapMap heatmap={worldHeatmap()} />
+      <RouteHeatmapMap heatmap={worldHeatmap()} mapProvider={{ type: 'osm' }} />
     )
 
     await waitFor(() =>
@@ -1218,7 +1357,12 @@ describe('RouteHeatmapMap', () => {
     const workingMapConstructor = createGlMapConstructor()
     mockLoadMaplibreModule.mockResolvedValue({ Map: workingMapConstructor })
 
-    rerender(<RouteHeatmapMap heatmap={worldHeatmap({ updatedAt: 3 })} />)
+    rerender(
+      <RouteHeatmapMap
+        heatmap={worldHeatmap({ updatedAt: 3 })}
+        mapProvider={{ type: 'osm' }}
+      />
+    )
 
     await waitFor(() => expect(workingMapConstructor).toHaveBeenCalled())
     expect(await screen.findByText('OpenFreeMap')).toBeInTheDocument()
@@ -1246,7 +1390,9 @@ describe('RouteHeatmapMap', () => {
     })
     mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
 
-    const { container } = render(<RouteHeatmapMap heatmap={largeHeatmap} />)
+    const { container } = render(
+      <RouteHeatmapMap heatmap={largeHeatmap} mapProvider={{ type: 'osm' }} />
+    )
 
     await waitFor(() => expect(mapConstructor).toHaveBeenCalled())
     expect(await screen.findByText('OpenFreeMap')).toBeInTheDocument()
@@ -1294,7 +1440,9 @@ describe('RouteHeatmapMap', () => {
     })
     mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
 
-    render(<RouteHeatmapMap heatmap={cornerHeatmap} />)
+    render(
+      <RouteHeatmapMap heatmap={cornerHeatmap} mapProvider={{ type: 'osm' }} />
+    )
     await waitFor(() => expect(mapConstructor).toHaveBeenCalled())
 
     // The 200-point collinear run collapses toward its endpoints, so the line is
@@ -1311,7 +1459,9 @@ describe('RouteHeatmapMap', () => {
     const { Map, fitBounds } = createFitBoundsCapturingModule()
     mockLoadMaplibreModule.mockResolvedValue({ Map })
 
-    render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
+    render(
+      <RouteHeatmapMap heatmap={worldHeatmap()} mapProvider={{ type: 'osm' }} />
+    )
 
     await waitFor(() => expect(fitBounds).toHaveBeenCalled())
     expect(fitBounds.mock.calls[0][0]).toEqual([
@@ -1330,7 +1480,12 @@ describe('RouteHeatmapMap', () => {
     const { Map, fitBounds } = createFitBoundsCapturingModule()
     mockLoadMaplibreModule.mockResolvedValue({ Map })
 
-    render(<RouteHeatmapMap heatmap={disjointWorldHeatmap()} />)
+    render(
+      <RouteHeatmapMap
+        heatmap={disjointWorldHeatmap()}
+        mapProvider={{ type: 'osm' }}
+      />
+    )
 
     await waitFor(() => expect(fitBounds).toHaveBeenCalled())
     // The initial view tightens to the dense Singapore cluster (not the global

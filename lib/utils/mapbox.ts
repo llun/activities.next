@@ -5,17 +5,6 @@ const MAPBOX_LOAD_TIMEOUT_MS = 15000
 
 let mapboxModulePromise: Promise<unknown> | null = null
 
-export const getPublicMapboxAccessToken = (
-  token: string | null | undefined
-): string | undefined => {
-  const trimmedToken = token?.trim()
-  if (!trimmedToken?.startsWith('pk.')) {
-    return undefined
-  }
-
-  return trimmedToken
-}
-
 export const loadMapboxModule = async <T>(): Promise<T> => {
   if (typeof window === 'undefined') {
     throw new Error('Mapbox can only be loaded in a browser')
