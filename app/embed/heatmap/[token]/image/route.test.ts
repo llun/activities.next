@@ -2,8 +2,28 @@ import { NextRequest } from 'next/server'
 import crypto from 'node:crypto'
 
 import { Database } from '@/lib/database/types'
+import { simplifySegmentsToBudget } from '@/lib/services/fitness-files/simplifyRoute'
 
 import { GET } from './route'
+
+// Wraps the real implementations so every other test keeps real behaviour, while
+// letting the many-segment case assert that no Douglas-Peucker work is done at
+// all. That CPU bail is the point of MAX_SNAPSHOT_OVERLAYS on this anonymous,
+// CORS-enabled route: without it the assertion below still passes (the ladder
+// also returns null), so a plain "serves SVG" assertion cannot fail.
+vi.mock('@/lib/services/fitness-files/simplifyRoute', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/services/fitness-files/simplifyRoute')
+  >('@/lib/services/fitness-files/simplifyRoute')
+  return {
+    MAX_BUDGET_PASSES: actual.MAX_BUDGET_PASSES,
+    totalPointCount: vi.fn(actual.totalPointCount),
+    everySegmentAtMinimum: vi.fn(actual.everySegmentAtMinimum),
+    simplifyPoints: vi.fn(actual.simplifyPoints),
+    simplifySegments: vi.fn(actual.simplifySegments),
+    simplifySegmentsToBudget: vi.fn(actual.simplifySegmentsToBudget)
+  }
+})
 
 const mockGetFitnessRouteHeatmapByShareToken = vi.fn()
 let mockDatabase: Pick<Database, 'getFitnessRouteHeatmapByShareToken'> | null =
@@ -223,6 +243,7 @@ describe('/embed/heatmap/[token]/image', () => {
       }))
     })
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    vi.mocked(simplifySegmentsToBudget).mockClear()
 
     try {
       const response = await GET(imageRequest(), {
@@ -232,6 +253,10 @@ describe('/embed/heatmap/[token]/image', () => {
       expect(response.status).toBe(200)
       expect(response.headers.get('Content-Type')).toContain('image/svg+xml')
       expect(fetchSpy).not.toHaveBeenCalled()
+      // The real assertion: an infeasible heatmap must be rejected BEFORE any
+      // route simplification runs. Serving SVG alone proves nothing here — the
+      // ladder would also end up returning null, just after burning the CPU.
+      expect(vi.mocked(simplifySegmentsToBudget)).not.toHaveBeenCalled()
     } finally {
       fetchSpy.mockRestore()
     }
