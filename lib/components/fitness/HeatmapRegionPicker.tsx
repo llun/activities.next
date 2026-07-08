@@ -15,6 +15,7 @@ import {
 import { FC, useMemo, useState } from 'react'
 
 import { GlModule, RegionMap } from '@/lib/components/fitness/RegionMap'
+import { RegionMapKit } from '@/lib/components/fitness/RegionMapKit'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import {
@@ -49,15 +50,6 @@ export interface RegionDisplayStatus {
   /** Pre-formatted relative time (e.g. "2h ago") for completed/partial rows. */
   generatedLabel?: string | null
 }
-
-// TODO(apple-maps): Apple renders through MapKit JS, not a GL engine. Until the
-// dedicated MapKit renderer lands (the MapKit-renderers task), fall back to the
-// keyless OpenFreeMap GL map so an Apple-configured instance can still draw a
-// region. That task replaces this branch.
-const toGlProvider = (
-  provider: PublicMapProvider
-): Exclude<PublicMapProvider, { type: 'apple' }> =>
-  provider.type === 'apple' ? { type: 'osm' } : provider
 
 let regionUid = 0
 const createRegionId = (): string =>
@@ -202,18 +194,17 @@ const RectComposer: FC<RectComposerProps> = ({
     }))
   const valid = isValidRect({ type: 'rect', nw: box.nw, se: box.se })
 
-  // Mapbox when a token is configured; otherwise the keyless MapLibre +
-  // OpenFreeMap provider. Either way a new area starts at the user's location.
-  // Keyed on the descriptor's fields (not its object identity) so an inline prop
-  // literal doesn't recreate the map on every parent render.
+  // Apple renders through MapKit JS (a separate draw surface); Mapbox when a
+  // token is configured; otherwise the keyless MapLibre + OpenFreeMap provider.
+  // Either way a new area starts at the user's location. Keyed on the
+  // descriptor's fields (not its object identity) so an inline prop literal
+  // doesn't recreate the map on every parent render.
   const providerType = mapProvider.type
   const providerAccessToken =
     mapProvider.type === 'mapbox' ? mapProvider.accessToken : undefined
   const glProvider = useMemo(() => {
-    const options = buildGlProviderOptions(
-      toGlProvider(mapProvider),
-      'outdoors'
-    )
+    if (mapProvider.type === 'apple') return null
+    const options = buildGlProviderOptions(mapProvider, 'outdoors')
     return {
       loadModule: () => options.loadModule() as Promise<GlModule>,
       mapOptions: options.mapOptions,
@@ -246,13 +237,20 @@ const RectComposer: FC<RectComposerProps> = ({
         >
           Map unavailable — enter the corner coordinates below.
         </div>
-      ) : (
+      ) : glProvider ? (
         <RegionMap
           box={box}
           onChange={setBox}
           loadModule={glProvider.loadModule}
           mapOptions={glProvider.mapOptions}
           providerLabel={glProvider.providerLabel}
+          centerOnUser={!initial}
+          onUnavailable={() => setMapUnavailable(true)}
+        />
+      ) : (
+        <RegionMapKit
+          box={box}
+          onChange={setBox}
           centerOnUser={!initial}
           onUnavailable={() => setMapUnavailable(true)}
         />

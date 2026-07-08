@@ -34,6 +34,8 @@ import {
   getFitnessFilesByStatus,
   getFitnessRouteData
 } from '@/lib/client'
+import { ActivityRouteMapKit } from '@/lib/components/fitness/ActivityRouteMapKit'
+import { findRouteSampleForElapsed } from '@/lib/components/fitness/mapGeometry'
 import { BrandedDeviceLink } from '@/lib/components/posts/BrandedDeviceLink'
 import { BookmarkButton } from '@/lib/components/posts/actions/bookmark-button'
 import { LikeButton } from '@/lib/components/posts/actions/like-button'
@@ -71,15 +73,6 @@ import {
   buildGlProviderOptions
 } from '@/lib/utils/mapProvider'
 import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
-
-// TODO(apple-maps): Apple renders through MapKit JS, not a GL engine. Until the
-// dedicated MapKit renderer lands (the MapKit-renderers task), fall back to the
-// keyless OpenFreeMap GL map so an Apple-configured instance keeps rendering the
-// activity route. That task replaces this branch.
-const toGlProvider = (
-  provider: PublicMapProvider
-): Exclude<PublicMapProvider, { type: 'apple' }> =>
-  provider.type === 'apple' ? { type: 'osm' } : provider
 
 const downsampleSeries = (series: number[], targetCount: number) => {
   if (series.length <= targetCount) return series
@@ -305,36 +298,6 @@ const MAP_ACTIVE_POINT_SOURCE_ID = 'activity-active-point'
 
 const clampNumber = (value: number, min: number, max: number) => {
   return Math.max(min, Math.min(max, value))
-}
-
-const findRouteSampleForElapsed = (
-  samples: FitnessRouteSample[],
-  elapsedSeconds: number
-): FitnessRouteSample | null => {
-  if (samples.length === 0) return null
-  if (!Number.isFinite(elapsedSeconds)) return null
-
-  let low = 0
-  let high = samples.length - 1
-
-  while (low < high) {
-    const mid = Math.floor((low + high) / 2)
-    if (samples[mid].elapsedSeconds < elapsedSeconds) {
-      low = mid + 1
-    } else {
-      high = mid
-    }
-  }
-
-  if (low <= 0) return samples[0]
-
-  const candidate = samples[low]
-  const previousCandidate = samples[low - 1]
-
-  return Math.abs(previousCandidate.elapsedSeconds - elapsedSeconds) <
-    Math.abs(candidate.elapsedSeconds - elapsedSeconds)
-    ? previousCandidate
-    : candidate
 }
 
 const normalizeRouteSample = (
@@ -888,16 +851,20 @@ const ActivityMapPanel: FC<{
   )
 
   // Keyed on the descriptor's fields (not its object identity) so an inline prop
-  // literal doesn't tear the map down on every parent render.
+  // literal doesn't tear the map down on every parent render. Apple renders
+  // through MapKit JS, not a GL engine, so it has no GL provider descriptor.
   const providerType = mapProvider.type
   const providerAccessToken =
     mapProvider.type === 'mapbox' ? mapProvider.accessToken : undefined
   const glProvider = useMemo(
-    () => buildGlProviderOptions(toGlProvider(mapProvider), 'outdoors'),
+    () =>
+      mapProvider.type === 'apple'
+        ? null
+        : buildGlProviderOptions(mapProvider, 'outdoors'),
     [providerType, providerAccessToken]
   )
 
-  // Every provider now renders a real, interactive GL map — the pre-generated
+  // Every provider now renders a real, interactive map — the pre-generated
   // static image stays as the fallback for a map that fails to load.
   const shouldRenderInteractiveMap =
     drawableRouteSegments.length > 0 && !routeDataError && !mapLoadError
@@ -926,7 +893,11 @@ const ActivityMapPanel: FC<{
   }, [highlightedElapsedSeconds, routeSamples, shouldRenderInteractiveMap])
 
   useEffect(() => {
-    if (!shouldRenderInteractiveMap || !mapContainerRef.current) {
+    if (
+      !glProvider ||
+      !shouldRenderInteractiveMap ||
+      !mapContainerRef.current
+    ) {
       mapRef.current?.remove()
       mapRef.current = null
       return
@@ -1117,7 +1088,18 @@ const ActivityMapPanel: FC<{
 
   return (
     <div className="relative h-72 overflow-hidden rounded-lg border bg-muted">
-      {shouldRenderInteractiveMap ? (
+      {shouldRenderInteractiveMap && !glProvider ? (
+        <ActivityRouteMapKit
+          routeSegments={drawableRouteSegments}
+          routeSamples={routeSamples}
+          highlightedElapsedSeconds={highlightedElapsedSeconds}
+          onUnavailable={() =>
+            setMapLoadError(
+              'Interactive map unavailable. Using static preview.'
+            )
+          }
+        />
+      ) : shouldRenderInteractiveMap ? (
         <div ref={mapContainerRef} className="h-full w-full" />
       ) : mapAttachment ? (
         <button
@@ -1138,29 +1120,32 @@ const ActivityMapPanel: FC<{
 
       {shouldRenderInteractiveMap ? (
         <>
-          <div className="absolute left-3 top-3 flex flex-col overflow-hidden rounded-md border bg-background/95 shadow-sm">
-            <button
-              type="button"
-              onClick={() => {
-                mapRef.current?.zoomIn({ duration: 250 })
-              }}
-              className="flex size-8 items-center justify-center text-foreground hover:bg-muted"
-              aria-label="Zoom in map"
-            >
-              <Plus className="size-4" />
-            </button>
-            <div className="h-px bg-border" />
-            <button
-              type="button"
-              onClick={() => {
-                mapRef.current?.zoomOut({ duration: 250 })
-              }}
-              className="flex size-8 items-center justify-center text-foreground hover:bg-muted"
-              aria-label="Zoom out map"
-            >
-              <span className="text-base leading-none">-</span>
-            </button>
-          </div>
+          {/* MapKit renders its own zoom controls (it has no zoomIn/zoomOut). */}
+          {glProvider ? (
+            <div className="absolute left-3 top-3 flex flex-col overflow-hidden rounded-md border bg-background/95 shadow-sm">
+              <button
+                type="button"
+                onClick={() => {
+                  mapRef.current?.zoomIn({ duration: 250 })
+                }}
+                className="flex size-8 items-center justify-center text-foreground hover:bg-muted"
+                aria-label="Zoom in map"
+              >
+                <Plus className="size-4" />
+              </button>
+              <div className="h-px bg-border" />
+              <button
+                type="button"
+                onClick={() => {
+                  mapRef.current?.zoomOut({ duration: 250 })
+                }}
+                className="flex size-8 items-center justify-center text-foreground hover:bg-muted"
+                aria-label="Zoom out map"
+              >
+                <span className="text-base leading-none">-</span>
+              </button>
+            </div>
+          ) : null}
           <div className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md border bg-background/95 px-2.5 py-1 text-xs font-medium text-muted-foreground shadow-sm">
             <Route className="size-3.5" /> GPS trace
           </div>

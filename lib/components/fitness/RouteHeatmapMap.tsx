@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import { FitnessRouteHeatmapData } from '@/lib/client'
+import { RouteHeatmapMapKit } from '@/lib/components/fitness/RouteHeatmapMapKit'
 import {
   RouteFocusBounds,
   buildRouteGeoJson,
@@ -134,19 +135,41 @@ interface RouteMapProvider {
   label: string
 }
 
-// TODO(apple-maps): Apple renders through MapKit JS, not a GL engine. Until the
-// dedicated MapKit renderer lands (the MapKit-renderers task), fall back to the
-// keyless OpenFreeMap GL map so an Apple-configured instance keeps rendering
-// heatmaps instead of crashing. That task replaces this branch.
-const toGlProvider = (
-  provider: PublicMapProvider
-): Exclude<PublicMapProvider, { type: 'apple' }> =>
-  provider.type === 'apple' ? { type: 'osm' } : provider
-
+/**
+ * Renders the heatmap with the configured provider's engine. Apple renders
+ * through MapKit JS, not a GL engine, so it delegates to the MapKit sibling;
+ * Mapbox and OpenFreeMap share the GL surface below.
+ */
 export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
   heatmap,
   mapProvider,
   heightClassName = ROUTE_HEATMAP_MAP_HEIGHT_CLASS
+}) => {
+  if (mapProvider.type === 'apple') {
+    return (
+      <RouteHeatmapMapKit heatmap={heatmap} heightClassName={heightClassName} />
+    )
+  }
+
+  return (
+    <RouteHeatmapGlMap
+      heatmap={heatmap}
+      mapProvider={mapProvider}
+      heightClassName={heightClassName}
+    />
+  )
+}
+
+interface RouteHeatmapGlMapProps {
+  heatmap: FitnessRouteHeatmapData | null
+  mapProvider: Exclude<PublicMapProvider, { type: 'apple' }>
+  heightClassName: string
+}
+
+const RouteHeatmapGlMap: FC<RouteHeatmapGlMapProps> = ({
+  heatmap,
+  mapProvider,
+  heightClassName
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<RouteGlMap | null>(null)
@@ -172,7 +195,7 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
   const providerAccessToken =
     mapProvider.type === 'mapbox' ? mapProvider.accessToken : undefined
   const provider = useMemo<RouteMapProvider>(() => {
-    const options = buildGlProviderOptions(toGlProvider(mapProvider), 'light')
+    const options = buildGlProviderOptions(mapProvider, 'light')
     return {
       loadModule: () => options.loadModule() as Promise<RouteGlModule>,
       mapOptions: options.mapOptions,

@@ -33,6 +33,12 @@ vi.mock('@/lib/utils/maplibre', () => ({
   loadMaplibreModule: vi.fn()
 }))
 
+// MapKit is a browser-only CDN script that never loads in jsdom; the Apple
+// renderer stays on its loading state with this never-resolving loader.
+vi.mock('@/lib/utils/mapkit', () => ({
+  loadMapKitModule: vi.fn(() => new Promise(() => {}))
+}))
+
 // RegionMap is only mounted inside the draw composer; stub it so the picker can
 // render without a real GL map in jsdom.
 vi.mock('@/lib/components/fitness/RegionMap', () => ({
@@ -1193,12 +1199,7 @@ describe('RouteHeatmapMap', () => {
     )
   })
 
-  it('falls back to the keyless OpenFreeMap map for the Apple provider', async () => {
-    // TODO(apple-maps): the MapKit renderer lands in a follow-up task; until then
-    // Apple renders the keyless GL map instead of crashing.
-    const mapConstructor = createGlMapConstructor()
-    mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
-
+  it('renders the MapKit surface for the Apple provider instead of a GL map', async () => {
     render(
       <RouteHeatmapMap
         heatmap={worldHeatmap()}
@@ -1206,8 +1207,12 @@ describe('RouteHeatmapMap', () => {
       />
     )
 
-    expect(await screen.findByText('OpenFreeMap')).toBeInTheDocument()
+    // MapKit never resolves in jsdom, so the sibling stays on its loading state —
+    // and neither GL engine is loaded.
+    expect(await screen.findByLabelText('Fitness route heatmap')).toBeVisible()
+    expect(screen.getByText(/Loading map/i)).toBeInTheDocument()
     expect(mockLoadMapboxModule).not.toHaveBeenCalled()
+    expect(mockLoadMaplibreModule).not.toHaveBeenCalled()
   })
 
   it('shows a non-SVG fallback message when the map fails to render', async () => {

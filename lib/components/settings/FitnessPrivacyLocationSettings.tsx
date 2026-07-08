@@ -9,6 +9,7 @@ import {
   regenerateFitnessMaps,
   updateFitnessGeneralSettings
 } from '@/lib/client'
+import { PrivacyZoneMapKit } from '@/lib/components/fitness/PrivacyZoneMapKit'
 import { Button } from '@/lib/components/ui/button'
 import {
   Card,
@@ -29,15 +30,6 @@ import {
   type PublicMapProvider,
   buildGlProviderOptions
 } from '@/lib/utils/mapProvider'
-
-// TODO(apple-maps): Apple renders through MapKit JS, not a GL engine. Until the
-// dedicated MapKit renderer lands (the MapKit-renderers task), fall back to the
-// keyless OpenFreeMap GL map so an Apple-configured instance keeps a working
-// location picker. That task replaces this branch.
-const toGlProvider = (
-  provider: PublicMapProvider
-): Exclude<PublicMapProvider, { type: 'apple' }> =>
-  provider.type === 'apple' ? { type: 'osm' } : provider
 
 interface Props {
   /** Which map backend renders the location picker. */
@@ -339,12 +331,16 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
   const [mapLoadError, setMapLoadError] = useState<string | null>(null)
 
   // Keyed on the descriptor's fields (not its object identity) so an inline prop
-  // literal doesn't recreate the map on every parent render.
+  // literal doesn't recreate the map on every parent render. Apple renders
+  // through MapKit JS, not a GL engine, so it has no GL provider descriptor.
   const providerType = mapProvider.type
   const providerAccessToken =
     mapProvider.type === 'mapbox' ? mapProvider.accessToken : undefined
   const glProvider = useMemo(
-    () => buildGlProviderOptions(toGlProvider(mapProvider), 'outdoors'),
+    () =>
+      mapProvider.type === 'apple'
+        ? null
+        : buildGlProviderOptions(mapProvider, 'outdoors'),
     [providerType, providerAccessToken]
   )
 
@@ -488,7 +484,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
   ])
 
   useEffect(() => {
-    if (!mapContainerRef.current) {
+    if (!glProvider || !mapContainerRef.current) {
       mapRef.current?.remove()
       mapRef.current = null
       setIsMapReady(false)
@@ -859,7 +855,33 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
         <div className="space-y-2">
           <Label>Location Marker</Label>
           <div className="relative h-64 overflow-hidden rounded-md border">
-            <div ref={mapContainerRef} className="h-full w-full" />
+            {glProvider ? (
+              <div ref={mapContainerRef} className="h-full w-full" />
+            ) : (
+              <PrivacyZoneMapKit
+                marker={
+                  markerCoordinates
+                    ? {
+                        latitude: markerCoordinates[1],
+                        longitude: markerCoordinates[0]
+                      }
+                    : null
+                }
+                zones={privacyLocations}
+                onPick={({ latitude, longitude }) => {
+                  setLatitudeInput(latitude.toFixed(6))
+                  setLongitudeInput(longitude.toFixed(6))
+                  setError(null)
+                  setMessage(null)
+                }}
+                onReady={() => setIsMapReady(true)}
+                onUnavailable={() =>
+                  setMapLoadError(
+                    'Map picker unavailable. Use manual coordinates below.'
+                  )
+                }
+              />
+            )}
             {mapLoadError ? (
               <div className="absolute inset-0 flex items-center justify-center bg-background/95 px-4 text-sm text-muted-foreground">
                 {mapLoadError}

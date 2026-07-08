@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
 
 import { loadMapboxModule } from '@/lib/utils/mapbox'
+import { loadMapKitModule } from '@/lib/utils/mapkit'
 import { loadMaplibreModule } from '@/lib/utils/maplibre'
 
 import {
@@ -25,12 +26,18 @@ vi.mock('@/lib/utils/maplibre', () => ({
   OPENFREEMAP_STYLE_URL: 'https://tiles.openfreemap.org/styles/bright',
   OPENFREEMAP_HEATMAP_STYLE_URL: 'https://tiles.openfreemap.org/styles/positron'
 }))
+vi.mock('@/lib/utils/mapkit', () => ({
+  loadMapKitModule: vi.fn(() => new Promise(() => {}))
+}))
 
 const mockLoadMapboxModule = loadMapboxModule as jest.MockedFunction<
   typeof loadMapboxModule
 >
 const mockLoadMaplibreModule = loadMaplibreModule as jest.MockedFunction<
   typeof loadMaplibreModule
+>
+const mockLoadMapKitModule = loadMapKitModule as jest.MockedFunction<
+  typeof loadMapKitModule
 >
 
 const worldValue: PickerRegion[] = [{ id: 'w1', type: 'world' }]
@@ -131,9 +138,7 @@ describe('HeatmapRegionPicker', () => {
     expect(mockLoadMapboxModule).not.toHaveBeenCalled()
   })
 
-  it('falls back to the keyless MapLibre map for the Apple provider', () => {
-    // TODO(apple-maps): the MapKit renderer lands in a follow-up task; until then
-    // Apple renders the keyless GL map instead of crashing.
+  it('renders the MapKit draw surface for the Apple provider', () => {
     render(
       <HeatmapRegionPicker
         value={[]}
@@ -143,7 +148,11 @@ describe('HeatmapRegionPicker', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: /Draw area on map/i }))
 
-    expect(mockLoadMaplibreModule).toHaveBeenCalled()
+    // MapKit never resolves in jsdom, so the sibling stays on its loading state —
+    // and neither GL engine is loaded.
+    expect(mockLoadMapKitModule).toHaveBeenCalled()
+    expect(screen.getByText(/Loading map/i)).toBeInTheDocument()
+    expect(mockLoadMaplibreModule).not.toHaveBeenCalled()
     expect(mockLoadMapboxModule).not.toHaveBeenCalled()
   })
 

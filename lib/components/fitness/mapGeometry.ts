@@ -1,6 +1,7 @@
 import type {
   FitnessRouteHeatmapBounds,
-  FitnessRouteHeatmapSegment
+  FitnessRouteHeatmapSegment,
+  FitnessRouteSample
 } from '@/lib/client'
 import type { LatLng } from '@/lib/fitness/regions'
 
@@ -181,6 +182,39 @@ export const computeFocusBounds = (
   }
 
   return { bounds: { minLat, maxLat, minLng, maxLng }, focused: true }
+}
+
+// Binary-search the route sample nearest to an elapsed offset (the samples are
+// ordered by elapsedSeconds). Drives the "follow the chart hover on the map"
+// highlight in both the GL and MapKit activity route maps.
+export const findRouteSampleForElapsed = (
+  samples: FitnessRouteSample[],
+  elapsedSeconds: number
+): FitnessRouteSample | null => {
+  if (samples.length === 0) return null
+  if (!Number.isFinite(elapsedSeconds)) return null
+
+  let low = 0
+  let high = samples.length - 1
+
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2)
+    if (samples[mid].elapsedSeconds < elapsedSeconds) {
+      low = mid + 1
+    } else {
+      high = mid
+    }
+  }
+
+  if (low <= 0) return samples[0]
+
+  const candidate = samples[low]
+  const previousCandidate = samples[low - 1]
+
+  return Math.abs(previousCandidate.elapsedSeconds - elapsedSeconds) <
+    Math.abs(candidate.elapsedSeconds - elapsedSeconds)
+    ? previousCandidate
+    : candidate
 }
 
 export type Box = { nw: LatLng; se: LatLng }
