@@ -10,14 +10,19 @@ import { encodePolyline } from '@/lib/utils/polyline'
 const SNAPSHOT_HOST = 'https://snapshot.apple-mapkit.com'
 const SNAPSHOT_PATH = '/api/v1/snapshot'
 
-// Apple answers with HTTP 413 once the request URL grows too long, so the
-// overlays are packed greedily until this budget is reached.
+// Apple answers with HTTP 413 once the request URL grows too long, so the whole
+// route is re-simplified at a coarser fidelity until the URL fits this budget.
 const SNAPSHOT_URL_BUDGET = 4500
 // `&signature=<base64url ES256>` is appended after the budget check, so reserve
 // room for it (11 chars + 86 chars of base64url for a P-256 r||s signature).
 const SIGNATURE_RESERVE = 128
-// A static thumbnail does not need every vertex.
-const SNAPSHOT_POINT_BUDGET = 2000
+// Vertex budgets tried in order, finest first. A static thumbnail does not need
+// every vertex, and the whole route must always be drawn — so when a rung's URL
+// overflows we coarsen the simplification of the ENTIRE route rather than
+// dropping its tail (which would leave `center=auto` framing only the first part
+// of the ride). At ~6.4 URL chars per encoded vertex, ~650 vertices is the
+// practical ceiling, so the finest rungs mostly serve short routes.
+const POINT_BUDGET_LADDER = [2000, 1200, 800, 500, 320, 200, 120, 80]
 // Finest Douglas-Peucker tolerance; coarsened automatically when the route does
 // not fit the point budget.
 const BASE_TOLERANCE_METERS = 2
@@ -138,15 +143,20 @@ const buildPath = ({
 
 /**
  * Builds the unsigned path + query of an Apple Web Snapshot request that draws
- * the route lines over an Apple basemap. Geometry is simplified (Douglas–Peucker)
- * and encoded as Google Encoded Polylines inside `overlays`, greedily packed
- * until adding the next chunk would exceed the URL budget (Apple answers 413 on
- * overflow; a thumbnail need not show every vertex).
+ * the route lines over an Apple basemap. Geometry is simplified
+ * (Douglas–Peucker) and encoded as Google Encoded Polylines inside `overlays`.
  *
- * Returns null when there is no usable geometry. The caller signs the returned
- * path with {@link signAppleSnapshotPath}; the signed URL embeds the developer
- * credentials, so callers MUST fetch it server-side and stream the bytes —
- * never hand the URL to the browser.
+ * The whole route is always drawn: {@link POINT_BUDGET_LADDER} is walked from
+ * the finest vertex budget down, and for each rung EVERY chunk of EVERY segment
+ * is encoded and the complete URL measured. The first rung whose signed URL fits
+ * {@link SNAPSHOT_URL_BUDGET} wins. Overlays are never dropped — doing so would
+ * discard the tail of the ride and make `center=auto` frame only its beginning.
+ *
+ * Returns null when there is no usable geometry, or when even the coarsest rung
+ * overflows the budget (callers then fall back to the OSM tile renderer). The
+ * caller signs the returned path with {@link signAppleSnapshotPath}; the signed
+ * URL embeds the developer credentials, so callers MUST fetch it server-side and
+ * stream the bytes — never hand the URL to the browser.
  */
 export const buildAppleSnapshotPath = (
   input: AppleSnapshotInput,
@@ -159,47 +169,37 @@ export const buildAppleSnapshotPath = (
   const height = clampDimension(input.height)
   const scale = clampScale(input.scale)
 
-  const simplified = simplifySegmentsToBudget(
-    usableSegments(input.segments),
-    SNAPSHOT_POINT_BUDGET,
-    BASE_TOLERANCE_METERS
-  )
-  const chunks = simplified.flatMap((segment) =>
-    chunkPoints(segment.points, OVERLAY_MAX_POINTS)
-  )
+  const usable = usableSegments(input.segments)
+  if (usable.length === 0) return null
 
-  const overlays: PolylineOverlay[] = []
-  for (const points of chunks) {
-    const candidate = [
-      ...overlays,
-      {
-        type: 'polyline' as const,
-        points: encodePolyline(points),
-        strokeColor: ROUTE_COLOR_HEX,
-        strokeOpacity: ROUTE_STROKE_OPACITY,
-        lineWidth: ROUTE_LINE_WIDTH
-      }
-    ]
-    const path = buildPath({
-      overlays: candidate,
-      width,
-      height,
-      scale,
-      teamId,
-      keyId
-    })
+  for (const pointBudget of POINT_BUDGET_LADDER) {
+    const simplified = simplifySegmentsToBudget(
+      usable,
+      pointBudget,
+      BASE_TOLERANCE_METERS
+    )
+    const chunks = simplified.flatMap((segment) =>
+      chunkPoints(segment.points, OVERLAY_MAX_POINTS)
+    )
+    if (chunks.length === 0) continue
+
+    const overlays: PolylineOverlay[] = chunks.map((points) => ({
+      type: 'polyline',
+      points: encodePolyline(points),
+      strokeColor: ROUTE_COLOR_HEX,
+      strokeOpacity: ROUTE_STROKE_OPACITY,
+      lineWidth: ROUTE_LINE_WIDTH
+    }))
+    const path = buildPath({ overlays, width, height, scale, teamId, keyId })
     if (
-      SNAPSHOT_HOST.length + path.length + SIGNATURE_RESERVE >
+      SNAPSHOT_HOST.length + path.length + SIGNATURE_RESERVE <=
       SNAPSHOT_URL_BUDGET
     ) {
-      break
+      return path
     }
-    overlays.push(candidate[candidate.length - 1])
   }
 
-  if (overlays.length === 0) return null
-
-  return buildPath({ overlays, width, height, scale, teamId, keyId })
+  return null
 }
 
 // Parsing a PEM into a KeyObject is CPU-heavy and the key only changes when the

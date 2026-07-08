@@ -40,14 +40,38 @@ const authorizationCallbackOf = (init: ReturnType<typeof vi.fn>) =>
   (init.mock.calls[0][0] as { authorizationCallback: AuthorizationCallback })
     .authorizationCallback
 
+type MapKitEvent = { status?: string }
+type MapKitEventListener = (event: MapKitEvent) => void
+
 /**
  * A stand-in for the `mapkit` global. `Map` must exist: the loader treats a
- * library constructor as proof the `data-libraries` finished loading.
+ * library constructor as proof the `data-libraries` finished loading. The
+ * namespace is an event emitter — MapKit reports the authorization outcome
+ * through `configuration-change` / `error` events, not through `init()`.
  */
-const fakeMapKit = () => ({
-  init: vi.fn(),
-  Map: class {}
-})
+const fakeMapKit = () => {
+  const listeners = new Map<string, MapKitEventListener[]>()
+
+  return {
+    init: vi.fn(),
+    Map: class {},
+    addEventListener: vi.fn((type: string, listener: MapKitEventListener) => {
+      listeners.set(type, [...(listeners.get(type) ?? []), listener])
+    }),
+    removeEventListener: vi.fn(
+      (type: string, listener: MapKitEventListener) => {
+        listeners.set(
+          type,
+          (listeners.get(type) ?? []).filter((entry) => entry !== listener)
+        )
+      }
+    ),
+    emit: (type: string, event: MapKitEvent = {}) => {
+      ;[...(listeners.get(type) ?? [])].forEach((listener) => listener(event))
+    },
+    listenerCount: (type: string) => (listeners.get(type) ?? []).length
+  }
+}
 
 /** Mimics mapkit.core.js publishing its global part-way through bootstrap. */
 const publishGlobal = () => {
@@ -61,6 +85,12 @@ const invokeReadyCallback = () => {
   const callback = testWindow()[MAPKIT_CALLBACK_NAME]
   expect(typeof callback).toBe('function')
   callback?.()
+}
+
+/** The ready callback plus the first successful authorization. */
+const completeBootstrap = (fake: ReturnType<typeof fakeMapKit>) => {
+  invokeReadyCallback()
+  fake.emit('configuration-change', { status: 'Initialized' })
 }
 
 const PENDING = Symbol('pending')
@@ -111,12 +141,18 @@ describe('loadMapKitModule', () => {
     await expect(settledOrPending(promise)).resolves.toBe(PENDING)
     expect(fake.init).not.toHaveBeenCalled()
 
-    // Settle the load so the timeout watchdog stops polling.
+    // The ready callback alone is not readiness either: it only registers the
+    // namespace listeners and calls init(), whose authorization may still fail.
     invokeReadyCallback()
+    expect(fake.init).toHaveBeenCalledTimes(1)
+    await expect(settledOrPending(promise)).resolves.toBe(PENDING)
+
+    // Only a successful authorization settles the loader.
+    fake.emit('configuration-change', { status: 'Initialized' })
     await expect(promise).resolves.toBe(fake)
   })
 
-  it('injects the pinned MapKit script exactly once and resolves only from the ready callback', async () => {
+  it('injects the pinned MapKit script exactly once and resolves only once MapKit authorizes', async () => {
     const { loadMapKitModule } = await import('@/lib/utils/mapkit')
     const first = loadMapKitModule()
     const second = loadMapKitModule()
@@ -147,7 +183,7 @@ describe('loadMapKitModule', () => {
     await expect(settledOrPending(third)).resolves.toBe(PENDING)
     expect(document.querySelectorAll(MAPKIT_SCRIPT_SELECTOR)).toHaveLength(1)
 
-    invokeReadyCallback()
+    completeBootstrap(fake)
 
     expect(fake.init).toHaveBeenCalledTimes(1)
     expect(fake.init.mock.calls[0][0]).toHaveProperty(
@@ -164,7 +200,7 @@ describe('loadMapKitModule', () => {
     const { loadMapKitModule } = await import('@/lib/utils/mapkit')
     const promise = loadMapKitModule()
     const fake = publishGlobal()
-    invokeReadyCallback()
+    completeBootstrap(fake)
     await expect(promise).resolves.toBe(fake)
 
     await expect(loadMapKitModule()).resolves.toBe(fake)
@@ -194,7 +230,7 @@ describe('loadMapKitModule', () => {
     expect(document.querySelectorAll(MAPKIT_SCRIPT_SELECTOR)).toHaveLength(1)
 
     const fake = publishGlobal()
-    invokeReadyCallback()
+    completeBootstrap(fake)
     await expect(retried).resolves.toBe(fake)
   })
 
@@ -228,7 +264,7 @@ describe('loadMapKitModule', () => {
     const promise = loadMapKitModule()
 
     const fake = publishGlobal()
-    invokeReadyCallback()
+    completeBootstrap(fake)
 
     expect(fake.init).toHaveBeenCalledTimes(1)
     const authorizationCallback = authorizationCallbackOf(fake.init)
@@ -238,19 +274,72 @@ describe('loadMapKitModule', () => {
     await vi.waitFor(() => expect(done).toHaveBeenCalledWith('apple-token'))
     expect(getAppleMapsToken).toHaveBeenCalledTimes(1)
 
-    // The callback is safe to invoke repeatedly: MapKit re-invokes it when the
-    // token expires, and each call must fetch a fresh token.
-    vi.mocked(getAppleMapsToken).mockResolvedValue('refreshed-token')
-    authorizationCallback(done)
-    await vi.waitFor(() => expect(done).toHaveBeenCalledWith('refreshed-token'))
-    expect(getAppleMapsToken).toHaveBeenCalledTimes(2)
-
     await expect(promise).resolves.toBe(fake)
   })
 
-  it('does not call done when no Apple Maps token is available', async () => {
+  it('rejects and never calls done when no Apple Maps token can be fetched', async () => {
+    vi.useFakeTimers()
+    try {
+      const { getAppleMapsToken } = await clientMock()
+      vi.mocked(getAppleMapsToken).mockResolvedValue(null)
+
+      const { loadMapKitModule } = await import('@/lib/utils/mapkit')
+      const promise = loadMapKitModule()
+      promise.catch(() => {})
+
+      const fake = publishGlobal()
+      invokeReadyCallback()
+
+      const done = vi.fn()
+      authorizationCallbackOf(fake.init)(done)
+
+      // Three attempts, each separated by the retry backoff.
+      await vi.advanceTimersByTimeAsync(2000)
+      expect(getAppleMapsToken).toHaveBeenCalledTimes(3)
+      expect(done).not.toHaveBeenCalled()
+
+      // A map that can never authorize must fail the loader instead of hanging
+      // until the watchdog and leaving a permanently blank surface.
+      await expect(promise).rejects.toThrow(
+        /no Apple Maps authorization token/i
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('authorizes after a transient token fetch failure', async () => {
+    vi.useFakeTimers()
+    try {
+      const { getAppleMapsToken } = await clientMock()
+      vi.mocked(getAppleMapsToken)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue('apple-token')
+
+      const { loadMapKitModule } = await import('@/lib/utils/mapkit')
+      const promise = loadMapKitModule()
+      promise.catch(() => {})
+
+      const fake = publishGlobal()
+      invokeReadyCallback()
+
+      const done = vi.fn()
+      authorizationCallbackOf(fake.init)(done)
+
+      await vi.advanceTimersByTimeAsync(300)
+      expect(getAppleMapsToken).toHaveBeenCalledTimes(2)
+      expect(done).toHaveBeenCalledWith('apple-token')
+
+      fake.emit('configuration-change', { status: 'Initialized' })
+      await expect(promise).resolves.toBe(fake)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('rejects when MapKit reports an authorization error', async () => {
     const { getAppleMapsToken } = await clientMock()
-    vi.mocked(getAppleMapsToken).mockResolvedValue(null)
+    vi.mocked(getAppleMapsToken).mockResolvedValue('rejected-token')
 
     const { loadMapKitModule } = await import('@/lib/utils/mapkit')
     const promise = loadMapKitModule()
@@ -258,11 +347,32 @@ describe('loadMapKitModule', () => {
     const fake = publishGlobal()
     invokeReadyCallback()
 
+    // Apple accepts `done` and only later rejects the token: MapKit surfaces that
+    // asynchronously as a namespace 'error' event.
+    fake.emit('error', { status: 'Unauthorized' })
+
+    await expect(promise).rejects.toThrow(/Unauthorized/)
+    // The namespace listeners are detached once the loader settles.
+    expect(fake.listenerCount('error')).toBe(0)
+    expect(fake.listenerCount('configuration-change')).toBe(0)
+  })
+
+  it('keeps the authorization callback re-runnable for token refreshes', async () => {
+    const { getAppleMapsToken } = await clientMock()
+    vi.mocked(getAppleMapsToken).mockResolvedValue('apple-token')
+
+    const { loadMapKitModule } = await import('@/lib/utils/mapkit')
+    const promise = loadMapKitModule()
+
+    const fake = publishGlobal()
+    completeBootstrap(fake)
+    await expect(promise).resolves.toBe(fake)
+
+    // MapKit re-invokes the callback when the token expires; each call fetches a
+    // fresh short-lived token rather than replaying a cached one.
+    vi.mocked(getAppleMapsToken).mockResolvedValue('refreshed-token')
     const done = vi.fn()
     authorizationCallbackOf(fake.init)(done)
-    await vi.waitFor(() => expect(getAppleMapsToken).toHaveBeenCalledTimes(1))
-    expect(done).not.toHaveBeenCalled()
-
-    await expect(promise).resolves.toBe(fake)
+    await vi.waitFor(() => expect(done).toHaveBeenCalledWith('refreshed-token'))
   })
 })

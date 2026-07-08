@@ -38,8 +38,69 @@ const denseRoute = [
   )
 ]
 
+// A long, curvy ride: at the finest rung of the fidelity ladder it still holds
+// far more vertices than the URL budget can carry, so the builder must coarsen
+// the whole route instead of dropping its tail.
+const longRide = [
+  route(
+    Array.from({ length: 6000 }, (_, index) => {
+      const progress = index / 6000
+      return {
+        lat:
+          52.1 +
+          Math.sin(progress * 12) * 0.05 +
+          Math.sin(index * 0.7) * 0.00008 +
+          progress * 0.1,
+        lng:
+          5.1 +
+          Math.cos(progress * 9) * 0.06 +
+          Math.cos(index * 0.9) * 0.00008 +
+          progress * 0.12
+      }
+    })
+  )
+]
+
 const queryParams = (path: string) =>
   new URLSearchParams(path.slice(path.indexOf('?') + 1))
+
+// Inverse of encodePolyline (precision 5); the module only ships an encoder.
+const decodePolyline = (encoded: string): { lat: number; lng: number }[] => {
+  const points: { lat: number; lng: number }[] = []
+  let index = 0
+  let lat = 0
+  let lng = 0
+
+  const readValue = () => {
+    let result = 0
+    let shift = 0
+    let byte: number
+    do {
+      byte = encoded.charCodeAt(index) - 63
+      index += 1
+      result |= (byte & 0x1f) << shift
+      shift += 5
+    } while (byte >= 0x20)
+    return result & 1 ? ~(result >> 1) : result >> 1
+  }
+
+  while (index < encoded.length) {
+    lat += readValue()
+    lng += readValue()
+    points.push({ lat: lat / 1e5, lng: lng / 1e5 })
+  }
+  return points
+}
+
+const overlaysOf = (path: string) =>
+  JSON.parse(queryParams(path).get('overlays') as string) as PolylineOverlay[]
+
+const boundsOf = (points: { lat: number; lng: number }[]) => ({
+  minLat: Math.min(...points.map((point) => point.lat)),
+  maxLat: Math.max(...points.map((point) => point.lat)),
+  minLng: Math.min(...points.map((point) => point.lng)),
+  maxLng: Math.max(...points.map((point) => point.lng))
+})
 
 interface PolylineOverlay {
   type: string
@@ -134,6 +195,82 @@ describe('buildAppleSnapshotPath', () => {
     ) as PolylineOverlay[]
     expect(overlays.length).toBeGreaterThan(0)
     expect(overlays.every((overlay) => overlay.type === 'polyline')).toBe(true)
+  })
+
+  it('draws the whole route when the finest fidelity overflows the url budget', () => {
+    const path = buildAppleSnapshotPath(
+      { segments: longRide, width: 640, height: 480, scale: 2 },
+      credentials
+    )
+
+    expect(path).not.toBeNull()
+    expect(
+      signAppleSnapshotPath(path as string, privateKeyPem).length
+    ).toBeLessThanOrEqual(URL_BUDGET)
+
+    const drawn = overlaysOf(path as string).flatMap((overlay) =>
+      decodePolyline(overlay.points)
+    )
+    const input = longRide[0].points
+
+    // Endpoints survive Douglas-Peucker, so the drawn line must start at the
+    // first vertex and end at the last one — the greedy pack-until-full builder
+    // dropped the tail chunks and ended a quarter of the way in.
+    expect(drawn[0].lat).toBeCloseTo(input[0].lat, 4)
+    expect(drawn[0].lng).toBeCloseTo(input[0].lng, 4)
+    expect(drawn[drawn.length - 1].lat).toBeCloseTo(
+      input[input.length - 1].lat,
+      4
+    )
+    expect(drawn[drawn.length - 1].lng).toBeCloseTo(
+      input[input.length - 1].lng,
+      4
+    )
+
+    // `center=auto` frames the overlays, so they must span the full extent.
+    const drawnBounds = boundsOf(drawn)
+    const inputBounds = boundsOf(input)
+    expect(drawnBounds.minLat).toBeCloseTo(inputBounds.minLat, 2)
+    expect(drawnBounds.maxLat).toBeCloseTo(inputBounds.maxLat, 2)
+    expect(drawnBounds.minLng).toBeCloseTo(inputBounds.minLng, 2)
+    expect(drawnBounds.maxLng).toBeCloseTo(inputBounds.maxLng, 2)
+  })
+
+  it('keeps every segment of a multi segment route', () => {
+    const segments = Array.from({ length: 5 }, (_, segmentIndex) =>
+      route(
+        Array.from({ length: 1200 }, (_, index) => ({
+          lat:
+            52 + segmentIndex * 0.5 + index * 0.0005 + (index % 2 ? 0.0004 : 0),
+          lng:
+            5 + segmentIndex * 0.5 + index * 0.0004 + (index % 3 ? 0.0003 : 0)
+        }))
+      )
+    )
+
+    const path = buildAppleSnapshotPath(
+      { segments, width: 640, height: 480, scale: 2 },
+      credentials
+    )
+
+    expect(path).not.toBeNull()
+    const overlays = overlaysOf(path as string)
+    const drawn = overlays.map((overlay) => decodePolyline(overlay.points))
+
+    // Each segment is far away from the others, so every one of them must still
+    // contribute at least one overlay near its own last vertex.
+    for (const segment of segments) {
+      const last = segment.points[segment.points.length - 1]
+      expect(
+        drawn.some((points) =>
+          points.some(
+            (point) =>
+              Math.abs(point.lat - last.lat) < 0.01 &&
+              Math.abs(point.lng - last.lng) < 0.01
+          )
+        )
+      ).toBe(true)
+    }
   })
 })
 

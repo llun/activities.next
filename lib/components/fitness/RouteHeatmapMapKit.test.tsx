@@ -92,6 +92,27 @@ describe('RouteHeatmapMapKit', () => {
     expect(container.firstElementChild).toHaveClass('h-dvh')
   })
 
+  it('falls back when MapKit never becomes usable', async () => {
+    // The loader rejects whenever MapKit cannot authorize (an invalid Apple Maps
+    // token, a rejected key), not only when the CDN script fails to load.
+    mockLoadMapKitModule.mockImplementation((() =>
+      Promise.reject(
+        new Error('MapKit was not initialized: Unauthorized')
+      )) as never)
+
+    const { container } = render(<RouteHeatmapMapKit heatmap={heatmap} />)
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('Map unavailable. Try regenerating this heatmap.')
+      ).toBeInTheDocument()
+    )
+    expect(
+      container.querySelector('[data-map-fallback-reason]')
+    ).toHaveAttribute('data-map-fallback-reason', 'module-load-failed')
+    expect(screen.queryByText(/Loading map/i)).not.toBeInTheDocument()
+  })
+
   it('builds one styled polyline overlay per segment once MapKit resolves', async () => {
     const double = createMapKitTestDouble()
     mockLoadMapKitModule.mockImplementation((() =>
