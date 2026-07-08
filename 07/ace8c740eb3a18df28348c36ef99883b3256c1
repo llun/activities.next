@@ -1,0 +1,21 @@
+app/embed/heatmap/[token]/image/route.test.ts
+  s_c2b45d1e3d2b49::t_36780a80f0733b 5,9-26
+  s_c2b45d1e3d2b49::t_8fd8f71378cd10 246,256-259
+  s_c2b45d1e3d2b49::t_39d6ef6cd9eb7a 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "07ace8c740eb3a18df28348c36ef99883b3256c1",
+  "prompts": {},
+  "sessions": {
+    "s_c2b45d1e3d2b49": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b970d6ff-c482-4d45-848b-32f588a95c10",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
