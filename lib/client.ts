@@ -2100,6 +2100,29 @@ export const getFitnessFilesByStatus = async (
 }
 
 /**
+ * Fetches a short-lived Apple MapKit JS authorization token. Returns `null` when
+ * the instance is not configured for the Apple map provider, or on any failure,
+ * so the caller can fall back to another provider. The token is deliberately not
+ * cached: MapKit re-invokes its `authorizationCallback` when the token expires.
+ */
+export const getAppleMapsToken = async (): Promise<string | null> => {
+  try {
+    const response = await fetch('/api/v1/fitness/apple-maps-token', {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json'
+      }
+    })
+    if (!response.ok) return null
+
+    const data = (await response.json()) as { token?: string } | null
+    return typeof data?.token === 'string' ? data.token : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Fetches the parsed route samples and metric time series (altitude / speed /
  * power / heart rate) for a fitness file, used to draw the activity map and the
  * Analysis charts. Throws when the request fails or the payload is malformed so
