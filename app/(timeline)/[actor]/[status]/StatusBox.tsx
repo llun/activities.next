@@ -15,13 +15,15 @@ import {
   getOriginalStatus
 } from '@/lib/types/domain/status'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
+import type { PublicMapProvider } from '@/lib/utils/mapProvider'
 
 import { FitnessStatusDetail } from './FitnessStatusDetail'
 import { StatusLikes } from './StatusLikes'
 
 interface Props {
   host: string
-  mapboxAccessToken?: string
+  /** Which map backend renders the fitness activity map. */
+  mapProvider: PublicMapProvider
   currentTime: number
   currentActor?: ActorProfile | null
   status: Status
@@ -34,7 +36,7 @@ interface Props {
 
 export const StatusBox: FC<Props> = ({
   host,
-  mapboxAccessToken,
+  mapProvider,
   currentTime,
   currentActor,
   status,
@@ -62,7 +64,7 @@ export const StatusBox: FC<Props> = ({
       <>
         <FitnessStatusDetail
           host={host}
-          mapboxAccessToken={mapboxAccessToken}
+          mapProvider={mapProvider}
           currentTime={currentTime}
           currentActor={currentActor}
           status={actualStatus as StatusNote}

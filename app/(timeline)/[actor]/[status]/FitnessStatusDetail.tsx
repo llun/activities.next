@@ -34,6 +34,8 @@ import {
   getFitnessFilesByStatus,
   getFitnessRouteData
 } from '@/lib/client'
+import { ActivityRouteMapKit } from '@/lib/components/fitness/ActivityRouteMapKit'
+import { findRouteSampleForElapsed } from '@/lib/components/fitness/mapGeometry'
 import { BrandedDeviceLink } from '@/lib/components/posts/BrandedDeviceLink'
 import { BookmarkButton } from '@/lib/components/posts/actions/bookmark-button'
 import { LikeButton } from '@/lib/components/posts/actions/like-button'
@@ -66,7 +68,10 @@ import {
   type MastodonVisibility,
   getVisibility
 } from '@/lib/utils/getVisibility'
-import { loadMapboxModule } from '@/lib/utils/mapbox'
+import {
+  type PublicMapProvider,
+  buildGlProviderOptions
+} from '@/lib/utils/mapProvider'
 import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
 const downsampleSeries = (series: number[], targetCount: number) => {
@@ -85,7 +90,8 @@ const downsampleSeries = (series: number[], targetCount: number) => {
 
 interface Props {
   host: string
-  mapboxAccessToken?: string
+  /** Which map backend renders the activity route map. */
+  mapProvider: PublicMapProvider
   currentTime: number
   currentActor?: ActorProfile | null
   status: StatusNote
@@ -168,13 +174,10 @@ interface MapboxMap {
   remove: () => void
 }
 
+// The Mapbox GL / MapLibre GL surface this panel drives — both libraries expose
+// the same `Map` + `LngLatBounds` constructors, so one code path renders either.
 interface MapboxModule {
-  accessToken: string
-  Map: new (options: {
-    container: HTMLElement
-    style: string
-    attributionControl: boolean
-  }) => MapboxMap
+  Map: new (options: Record<string, unknown>) => MapboxMap
   LngLatBounds: new (
     sw: [number, number],
     ne: [number, number]
@@ -292,39 +295,15 @@ const GRAPH_VIEW_HEIGHT = 250
 const GRAPH_HEIGHT_CLASSNAME = 'h-[190px] lg:h-[250px]'
 const MAP_ROUTE_SOURCE_ID = 'activity-route'
 const MAP_ACTIVE_POINT_SOURCE_ID = 'activity-active-point'
+// The interactive map now renders for every provider, so a style/tile failure
+// (CDN outage, blocked origin, offline) must still surface the pre-generated
+// static preview. `loadModule()` has its own 15s timeout, but once the GL module
+// is in memory a failing style simply never fires `load` — hence the watchdog,
+// matching RouteHeatmapMap.
+const MAP_LOAD_TIMEOUT_MS = 20_000
 
 const clampNumber = (value: number, min: number, max: number) => {
   return Math.max(min, Math.min(max, value))
-}
-
-const findRouteSampleForElapsed = (
-  samples: FitnessRouteSample[],
-  elapsedSeconds: number
-): FitnessRouteSample | null => {
-  if (samples.length === 0) return null
-  if (!Number.isFinite(elapsedSeconds)) return null
-
-  let low = 0
-  let high = samples.length - 1
-
-  while (low < high) {
-    const mid = Math.floor((low + high) / 2)
-    if (samples[mid].elapsedSeconds < elapsedSeconds) {
-      low = mid + 1
-    } else {
-      high = mid
-    }
-  }
-
-  if (low <= 0) return samples[0]
-
-  const candidate = samples[low]
-  const previousCandidate = samples[low - 1]
-
-  return Math.abs(previousCandidate.elapsedSeconds - elapsedSeconds) <
-    Math.abs(candidate.elapsedSeconds - elapsedSeconds)
-    ? previousCandidate
-    : candidate
 }
 
 const normalizeRouteSample = (
@@ -847,7 +826,7 @@ const ActivityMapPanel: FC<{
   routeSamples: FitnessRouteSample[]
   routeSegments: FitnessRouteSegment[]
   highlightedElapsedSeconds?: number | null
-  mapboxAccessToken?: string
+  mapProvider: PublicMapProvider
   routeDataError?: string | null
   isRouteDataLoading?: boolean
   onOpenMap?: () => void
@@ -856,7 +835,7 @@ const ActivityMapPanel: FC<{
   routeSamples,
   routeSegments,
   highlightedElapsedSeconds = null,
-  mapboxAccessToken,
+  mapProvider,
   routeDataError = null,
   isRouteDataLoading = false,
   onOpenMap
@@ -877,11 +856,24 @@ const ActivityMapPanel: FC<{
     [drawableRouteSegments]
   )
 
+  // Keyed on the descriptor's fields (not its object identity) so an inline prop
+  // literal doesn't tear the map down on every parent render. Apple renders
+  // through MapKit JS, not a GL engine, so it has no GL provider descriptor.
+  const providerType = mapProvider.type
+  const providerAccessToken =
+    mapProvider.type === 'mapbox' ? mapProvider.accessToken : undefined
+  const glProvider = useMemo(
+    () =>
+      mapProvider.type === 'apple'
+        ? null
+        : buildGlProviderOptions(mapProvider, 'outdoors'),
+    [providerType, providerAccessToken]
+  )
+
+  // Every provider now renders a real, interactive map — the pre-generated
+  // static image stays as the fallback for a map that fails to load.
   const shouldRenderInteractiveMap =
-    Boolean(mapboxAccessToken) &&
-    drawableRouteSegments.length > 0 &&
-    !routeDataError &&
-    !mapLoadError
+    drawableRouteSegments.length > 0 && !routeDataError && !mapLoadError
 
   const routeFeatureCollection = useMemo(
     (): MapFeatureCollection<MapLineStringGeometry, RouteLineProperties> => ({
@@ -907,31 +899,62 @@ const ActivityMapPanel: FC<{
   }, [highlightedElapsedSeconds, routeSamples, shouldRenderInteractiveMap])
 
   useEffect(() => {
-    if (!shouldRenderInteractiveMap || !mapContainerRef.current) {
+    if (
+      !glProvider ||
+      !shouldRenderInteractiveMap ||
+      !mapContainerRef.current
+    ) {
       mapRef.current?.remove()
       mapRef.current = null
       return
     }
 
     let cancelled = false
+    let loadWatchdog: number | undefined
+
+    const clearLoadWatchdog = () => {
+      if (loadWatchdog === undefined) return
+      window.clearTimeout(loadWatchdog)
+      loadWatchdog = undefined
+    }
+
+    const failToStaticPreview = () => {
+      if (cancelled) return
+      clearLoadWatchdog()
+      mapRef.current?.remove()
+      mapRef.current = null
+      setMapLoadError('Interactive map unavailable. Using static preview.')
+    }
 
     const initializeMap = async () => {
       try {
-        const mapbox = await loadMapboxModule<MapboxModule>()
+        const mapbox = (await glProvider.loadModule()) as MapboxModule
         if (cancelled || !mapContainerRef.current) return
 
         setMapLoadError(null)
-        mapbox.accessToken = mapboxAccessToken ?? ''
 
         const map = new mapbox.Map({
           container: mapContainerRef.current,
-          style: 'mapbox://styles/mapbox/outdoors-v12',
-          attributionControl: false
+          attributionControl: false,
+          // style (and, for Mapbox, accessToken) come from the resolved provider.
+          ...glProvider.mapOptions
         })
 
         mapRef.current = map
 
+        // A style/tile failure never fires `load`; fall back rather than leave an
+        // empty container behind. Deliberately watchdog-only, matching
+        // RouteHeatmapMap: GL's `error` event is not a fatal-only channel (it also
+        // fires for a single missing tile, a failed sprite/glyph fetch, or a
+        // request aborted while panning), so treating it as fatal would tear down
+        // a working, fully rendered map.
+        loadWatchdog = window.setTimeout(
+          failToStaticPreview,
+          MAP_LOAD_TIMEOUT_MS
+        )
+
         map.once('load', () => {
+          clearLoadWatchdog()
           if (cancelled || !mapRef.current) return
 
           map.addSource(MAP_ROUTE_SOURCE_ID, {
@@ -1040,10 +1063,7 @@ const ActivityMapPanel: FC<{
           )
         })
       } catch (_error) {
-        if (cancelled) return
-        mapRef.current?.remove()
-        mapRef.current = null
-        setMapLoadError('Interactive map unavailable. Using static preview.')
+        failToStaticPreview()
       }
     }
 
@@ -1051,11 +1071,12 @@ const ActivityMapPanel: FC<{
 
     return () => {
       cancelled = true
+      clearLoadWatchdog()
       mapRef.current?.remove()
       mapRef.current = null
     }
   }, [
-    mapboxAccessToken,
+    glProvider,
     routeFeatureCollection,
     routeSamplesForBounds,
     shouldRenderInteractiveMap
@@ -1098,7 +1119,18 @@ const ActivityMapPanel: FC<{
 
   return (
     <div className="relative h-72 overflow-hidden rounded-lg border bg-muted">
-      {shouldRenderInteractiveMap ? (
+      {shouldRenderInteractiveMap && !glProvider ? (
+        <ActivityRouteMapKit
+          routeSegments={drawableRouteSegments}
+          routeSamples={routeSamples}
+          highlightedElapsedSeconds={highlightedElapsedSeconds}
+          onUnavailable={() =>
+            setMapLoadError(
+              'Interactive map unavailable. Using static preview.'
+            )
+          }
+        />
+      ) : shouldRenderInteractiveMap ? (
         <div ref={mapContainerRef} className="h-full w-full" />
       ) : mapAttachment ? (
         <button
@@ -1119,29 +1151,32 @@ const ActivityMapPanel: FC<{
 
       {shouldRenderInteractiveMap ? (
         <>
-          <div className="absolute left-3 top-3 flex flex-col overflow-hidden rounded-md border bg-background/95 shadow-sm">
-            <button
-              type="button"
-              onClick={() => {
-                mapRef.current?.zoomIn({ duration: 250 })
-              }}
-              className="flex size-8 items-center justify-center text-foreground hover:bg-muted"
-              aria-label="Zoom in map"
-            >
-              <Plus className="size-4" />
-            </button>
-            <div className="h-px bg-border" />
-            <button
-              type="button"
-              onClick={() => {
-                mapRef.current?.zoomOut({ duration: 250 })
-              }}
-              className="flex size-8 items-center justify-center text-foreground hover:bg-muted"
-              aria-label="Zoom out map"
-            >
-              <span className="text-base leading-none">-</span>
-            </button>
-          </div>
+          {/* MapKit renders its own zoom controls (it has no zoomIn/zoomOut). */}
+          {glProvider ? (
+            <div className="absolute left-3 top-3 flex flex-col overflow-hidden rounded-md border bg-background/95 shadow-sm">
+              <button
+                type="button"
+                onClick={() => {
+                  mapRef.current?.zoomIn({ duration: 250 })
+                }}
+                className="flex size-8 items-center justify-center text-foreground hover:bg-muted"
+                aria-label="Zoom in map"
+              >
+                <Plus className="size-4" />
+              </button>
+              <div className="h-px bg-border" />
+              <button
+                type="button"
+                onClick={() => {
+                  mapRef.current?.zoomOut({ duration: 250 })
+                }}
+                className="flex size-8 items-center justify-center text-foreground hover:bg-muted"
+                aria-label="Zoom out map"
+              >
+                <span className="text-base leading-none">-</span>
+              </button>
+            </div>
+          ) : null}
           <div className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md border bg-background/95 px-2.5 py-1 text-xs font-medium text-muted-foreground shadow-sm">
             <Route className="size-3.5" /> GPS trace
           </div>
@@ -1162,9 +1197,7 @@ const ActivityMapPanel: FC<{
         </button>
       ) : null}
 
-      {!shouldRenderInteractiveMap &&
-      isRouteDataLoading &&
-      mapboxAccessToken ? (
+      {!shouldRenderInteractiveMap && isRouteDataLoading ? (
         <div className="absolute left-1/2 top-3 -translate-x-1/2 rounded-md border bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
           Loading interactive route...
         </div>
@@ -1205,7 +1238,7 @@ const ActivityGallery: FC<{
 
 export const FitnessStatusDetail: FC<Props> = ({
   host,
-  mapboxAccessToken,
+  mapProvider,
   currentTime,
   currentActor,
   status,
@@ -1344,7 +1377,9 @@ export const FitnessStatusDetail: FC<Props> = ({
     () => fitnessFiles.findIndex((item) => item.id === fitness?.id),
     [fitnessFiles, fitness?.id]
   )
-  const shouldLoadInteractiveMap = Boolean(mapboxAccessToken && fitness?.id)
+  // Every provider renders an interactive map, so route data is loaded whenever
+  // there is a fitness file to load it from.
+  const shouldLoadInteractiveMap = Boolean(fitness?.id)
   const activityLabel = getActivityLabel(fitness?.activityType ?? undefined)
   // `status.text` holds the post's processed HTML caption, so render the
   // heading as decoded, tag-free plain text rather than raw markup. Falls back
@@ -1958,7 +1993,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                 mapAttachment={mapAttachment}
                 routeSamples={routeSamples}
                 routeSegments={routeSegments}
-                mapboxAccessToken={mapboxAccessToken}
+                mapProvider={mapProvider}
                 routeDataError={routeDataError}
                 isRouteDataLoading={isRouteDataLoading}
                 onOpenMap={() => {
@@ -2012,7 +2047,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                 routeSamples={routeSamples}
                 routeSegments={routeSegments}
                 highlightedElapsedSeconds={highlightedElapsedSeconds}
-                mapboxAccessToken={mapboxAccessToken}
+                mapProvider={mapProvider}
                 routeDataError={routeDataError}
                 isRouteDataLoading={isRouteDataLoading}
                 onOpenMap={() => {

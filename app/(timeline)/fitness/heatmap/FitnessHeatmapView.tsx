@@ -29,23 +29,18 @@ import {
   serializeRegion
 } from '@/lib/fitness/regions'
 import { formatRelativeTime } from '@/lib/fitness/relativeTime'
+import type { PublicMapProvider } from '@/lib/utils/mapProvider'
 
 // Re-exported so existing imports/tests keep resolving the route map from here.
-export {
-  RouteHeatmapMap,
-  computeFocusBounds,
-  downsampleSegments
-} from '@/lib/components/fitness/RouteHeatmapMap'
-export type {
-  RouteFocusBounds,
-  RouteHeatmapMapProps
-} from '@/lib/components/fitness/RouteHeatmapMap'
+export { RouteHeatmapMap } from '@/lib/components/fitness/RouteHeatmapMap'
+export type { RouteHeatmapMapProps } from '@/lib/components/fitness/RouteHeatmapMap'
 
 type PeriodType = 'all_time' | 'yearly' | 'monthly'
 
 interface Props {
   actorId: string
-  mapboxAccessToken?: string
+  /** Which map backend renders the region maps. */
+  mapProvider: PublicMapProvider
   /** Server-computed origin for embed share links (avoids a `window` SSR gap). */
   embedOrigin: string
 }
@@ -166,7 +161,7 @@ const applyRegionNames = (
 
 export const FitnessHeatmapView: FC<Props> = ({
   actorId,
-  mapboxAccessToken,
+  mapProvider,
   embedOrigin
 }) => {
   // Static id for the default so the initial SSR render and client hydration
@@ -636,7 +631,7 @@ export const FitnessHeatmapView: FC<Props> = ({
           period: formatPeriodLabel(PERIOD_TYPE, EFFECTIVE_PERIOD_KEY)
         }}
         heatmap={heatmapData}
-        mapboxAccessToken={mapboxAccessToken}
+        mapProvider={mapProvider}
         embedOrigin={embedOrigin}
         isSharing={isSharing}
         onShare={handleShare}
@@ -686,7 +681,7 @@ export const FitnessHeatmapView: FC<Props> = ({
         <HeatmapRegionPicker
           value={regions}
           onChange={setRegions}
-          mapboxAccessToken={mapboxAccessToken}
+          mapProvider={mapProvider}
           onOpen={(region) => setOpenRegionId(region.id)}
           getRegionStatus={getRegionStatus}
           onRegionRemoved={handleRegionRemoved}

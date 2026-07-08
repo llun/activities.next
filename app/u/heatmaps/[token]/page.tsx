@@ -3,9 +3,9 @@ import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
 import { getBaseURL, getConfig } from '@/lib/config'
+import { getPublicMapProvider } from '@/lib/config/mapProvider'
 import { getDatabase } from '@/lib/database'
 import { toPublicHeatmap } from '@/lib/services/fitness-files/publicHeatmap'
-import { getPublicMapboxAccessToken } from '@/lib/utils/mapbox'
 
 import { SharedHeatmapPage } from './SharedHeatmapPage'
 import { buildSharedHeatmapView } from './sharedHeatmapView'
@@ -80,14 +80,12 @@ const Page: FC<PageProps> = async ({ params }) => {
   })
 
   const config = getConfig()
-  const mapboxAccessToken = getPublicMapboxAccessToken(
-    config.fitnessStorage?.mapboxAccessToken
-  )
+  const mapProvider = getPublicMapProvider()
 
   return (
     <SharedHeatmapPage
       view={view}
-      mapboxAccessToken={mapboxAccessToken}
+      mapProvider={mapProvider}
       signupOpen={config.registrationOpen}
       signinUrl="/auth/signin"
       signupUrl="/auth/signup"

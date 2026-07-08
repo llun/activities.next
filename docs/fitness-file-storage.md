@@ -21,7 +21,13 @@ Fitness storage is configured in `lib/config/fitnessStorage.ts`.
 - `ACTIVITIES_FITNESS_STORAGE_PREFIX` - S3 key prefix, default `fitness/`
 - `ACTIVITIES_FITNESS_STORAGE_MAX_FILE_SIZE` - Max file size, default 50 MiB
 - `ACTIVITIES_FITNESS_STORAGE_QUOTA_PER_ACCOUNT` - Account quota override shared by media and fitness files
-- `ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN` - Mapbox token for browser maps and static route images
+- `ACTIVITIES_FITNESS_MAP_PROVIDER` - Map provider for browser maps and static route images: `apple`, `mapbox`, or `osm`. Missing or invalid credentials for the selected provider fall back to keyless `osm` (MapLibre GL JS + OpenFreeMap tiles). When unset, a configured Mapbox token selects `mapbox`, otherwise `osm`.
+- `ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN` - Mapbox token, required when the provider is `mapbox`
+- `ACTIVITIES_FITNESS_APPLE_MAPS_TEAM_ID`, `ACTIVITIES_FITNESS_APPLE_MAPS_KEY_ID`, `ACTIVITIES_FITNESS_APPLE_MAPS_PRIVATE_KEY` - Apple MapKit JS credentials, required when the provider is `apple`
+
+With the `apple` provider, per-activity route-map images are rendered by Apple Web Snapshots. Heatmap embed images are not: a heatmap draws one polyline overlay per activity segment, and each overlay costs ~145 characters of the ~5,000-character snapshot URL limit, so any heatmap with more than a couple of dozen segments is skipped (without running simplification) and rendered by the built-in SVG heatmap renderer instead.
+
+See [environment-variables.md](./environment-variables.md) for the full provider reference.
 
 If no fitness-specific storage is configured, the app falls back to the media storage backend with a separate local `fitness` directory or S3 `fitness/` prefix.
 
@@ -82,6 +88,12 @@ The older `/fitness-heatmap` and `/fitness-heatmaps` endpoints are compatibility
 - `POST /api/v1/fitness/import`
 - `GET` and `POST /api/v1/fitness/import/:batchId`
 - `POST /api/v1/webhooks/strava/:webhookToken`
+
+### Map Provider Tokens
+
+- `GET /api/v1/fitness/apple-maps-token` returns a short-lived (30 minute) signed MapKit JS token used to initialise Apple Maps in the browser. It responds `404` unless `ACTIVITIES_FITNESS_MAP_PROVIDER=apple`.
+
+This endpoint is **anonymous / unauthenticated** on purpose: public embeds and shared heatmap pages render maps for logged-out visitors, so there is no session to authenticate against. Abuse of a leaked token is bounded by the token's `origin` claim, which is restricted to this instance's own origins (`ACTIVITIES_HOST` plus any trusted hosts) and compared by MapKit against the browser's `Origin` header. Responses are sent with `Cache-Control: no-store` so no intermediary cache or CDN stores and replays the credential.
 
 ## Processing Pipeline
 

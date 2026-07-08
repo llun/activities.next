@@ -20,12 +20,7 @@ import type {
 import { loadMapboxModule } from '@/lib/utils/mapbox'
 import { loadMaplibreModule } from '@/lib/utils/maplibre'
 
-import {
-  FitnessHeatmapView,
-  RouteHeatmapMap,
-  computeFocusBounds,
-  downsampleSegments
-} from './FitnessHeatmapView'
+import { FitnessHeatmapView, RouteHeatmapMap } from './FitnessHeatmapView'
 
 vi.mock('@/lib/utils/mapbox', () => ({
   loadMapboxModule: vi.fn()
@@ -36,6 +31,12 @@ vi.mock('@/lib/utils/maplibre', () => ({
   OPENFREEMAP_HEATMAP_STYLE_URL:
     'https://tiles.openfreemap.org/styles/positron',
   loadMaplibreModule: vi.fn()
+}))
+
+// MapKit is a browser-only CDN script that never loads in jsdom; the Apple
+// renderer stays on its loading state with this never-resolving loader.
+vi.mock('@/lib/utils/mapkit', () => ({
+  loadMapKitModule: vi.fn(() => new Promise(() => {}))
 }))
 
 // RegionMap is only mounted inside the draw composer; stub it so the picker can
@@ -272,7 +273,11 @@ describe('FitnessHeatmapView', () => {
 
   it('renders the region list with a default whole-world region', async () => {
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     // The Activity + Period source selectors were removed from this page.
@@ -303,7 +308,11 @@ describe('FitnessHeatmapView', () => {
     ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     // The whole world (default) plus the seeded drawn area.
@@ -326,7 +335,11 @@ describe('FitnessHeatmapView', () => {
     ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     // The persisted label is used; the generic fallback never appears.
@@ -336,7 +349,11 @@ describe('FitnessHeatmapView', () => {
 
   it('persists a region name when an area is saved', async () => {
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     // Open the draw composer, give the area a name, and save it.
@@ -371,7 +388,11 @@ describe('FitnessHeatmapView', () => {
   it('surfaces an error when saving a region name is rejected by the server', async () => {
     mockSetFitnessRouteHeatmapRegionName.mockResolvedValue(false)
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     await drawAndSaveArea('Coastal ride')
@@ -386,7 +407,11 @@ describe('FitnessHeatmapView', () => {
       new Error('network down')
     )
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     await drawAndSaveArea('Coastal ride')
@@ -399,7 +424,11 @@ describe('FitnessHeatmapView', () => {
   it('clears a prior save error once a later save succeeds', async () => {
     mockSetFitnessRouteHeatmapRegionName.mockResolvedValueOnce(false)
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     await drawAndSaveArea('Coastal ride')
@@ -427,7 +456,11 @@ describe('FitnessHeatmapView', () => {
     mockGetFitnessRouteHeatmapRegionNames.mockReturnValue(namesDeferred.promise)
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     // Draw + name an area whose canonical key already has a (now-stale) stored
@@ -463,7 +496,11 @@ describe('FitnessHeatmapView', () => {
     ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     // The discovered region keeps the generic fallback; the unrelated label is
@@ -486,7 +523,11 @@ describe('FitnessHeatmapView', () => {
     )
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     // The discovered region still appears (labels just fall back to "Map area").
@@ -496,7 +537,11 @@ describe('FitnessHeatmapView', () => {
 
   it('opens a region detail page and returns to the list', async () => {
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     await openWorldRegion()
@@ -529,7 +574,11 @@ describe('FitnessHeatmapView', () => {
     ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     // Open the seeded drawn region's own page, then edit its title inline.
@@ -571,7 +620,11 @@ describe('FitnessHeatmapView', () => {
     ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     fireEvent.click(
@@ -595,7 +648,11 @@ describe('FitnessHeatmapView', () => {
 
   it('generates a heatmap for the opened region', async () => {
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     await openWorldRegion()
@@ -627,7 +684,11 @@ describe('FitnessHeatmapView', () => {
     mockGetFitnessRouteHeatmap.mockResolvedValue(worldHeatmap())
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     await openWorldRegion()
@@ -658,7 +719,11 @@ describe('FitnessHeatmapView', () => {
     )
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     await openWorldRegion()
@@ -679,7 +744,11 @@ describe('FitnessHeatmapView', () => {
     ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     const removeButton = await screen.findByRole('button', {
@@ -714,7 +783,11 @@ describe('FitnessHeatmapView', () => {
     ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     expect(await screen.findByText(/Generating… 50%/)).toBeInTheDocument()
@@ -726,7 +799,11 @@ describe('FitnessHeatmapView', () => {
     )
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     await openWorldRegion()
@@ -761,7 +838,11 @@ describe('FitnessHeatmapView', () => {
     )
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     fireEvent.click(
@@ -796,7 +877,11 @@ describe('FitnessHeatmapView', () => {
     ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     // 1 world (default) + 2 split rects = 3 regions. Only the world matches a
@@ -828,7 +913,11 @@ describe('FitnessHeatmapView', () => {
       ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     // Flush the initial heatmaps fetch.
@@ -876,7 +965,11 @@ describe('FitnessHeatmapView', () => {
     ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     // The default world row renders synchronously; open it.
@@ -910,7 +1003,11 @@ describe('FitnessHeatmapView', () => {
     ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     await waitFor(() => {
@@ -944,7 +1041,11 @@ describe('FitnessHeatmapView', () => {
     ])
 
     render(
-      <FitnessHeatmapView actorId={ACTOR} embedOrigin="https://test.example" />
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
     )
 
     await waitFor(() => {
@@ -973,7 +1074,9 @@ describe('RouteHeatmapMap', () => {
     const mapConstructor = createGlMapConstructor()
     mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
 
-    const { container } = render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
+    const { container } = render(
+      <RouteHeatmapMap heatmap={worldHeatmap()} mapProvider={{ type: 'osm' }} />
+    )
 
     await waitFor(() => expect(mapConstructor).toHaveBeenCalled())
     expect(await screen.findByText('OpenFreeMap')).toBeInTheDocument()
@@ -995,7 +1098,9 @@ describe('RouteHeatmapMap', () => {
     const deferred = createDeferred<{ Map: ReturnType<typeof vi.fn> }>()
     mockLoadMaplibreModule.mockReturnValue(deferred.promise)
 
-    render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
+    render(
+      <RouteHeatmapMap heatmap={worldHeatmap()} mapProvider={{ type: 'osm' }} />
+    )
 
     // The module hasn't resolved yet, so the map is still initializing.
     expect(await screen.findByText('Loading map…')).toBeInTheDocument()
@@ -1026,7 +1131,9 @@ describe('RouteHeatmapMap', () => {
     })
     mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
 
-    const { rerender } = render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
+    const { rerender } = render(
+      <RouteHeatmapMap heatmap={worldHeatmap()} mapProvider={{ type: 'osm' }} />
+    )
     await screen.findByText('OpenFreeMap')
     setData.mockClear()
 
@@ -1044,6 +1151,7 @@ describe('RouteHeatmapMap', () => {
             }
           ]
         })}
+        mapProvider={{ type: 'osm' }}
       />
     )
 
@@ -1054,6 +1162,7 @@ describe('RouteHeatmapMap', () => {
     render(
       <RouteHeatmapMap
         heatmap={worldHeatmap({ segments: [], pointCount: 0, bounds: null })}
+        mapProvider={{ type: 'osm' }}
       />
     )
 
@@ -1064,14 +1173,14 @@ describe('RouteHeatmapMap', () => {
     expect(mockLoadMapboxModule).not.toHaveBeenCalled()
   })
 
-  it('uses Mapbox when a token is configured', async () => {
+  it('uses Mapbox when a public token is configured', async () => {
     const mapConstructor = createGlMapConstructor()
     mockLoadMapboxModule.mockResolvedValue({ Map: mapConstructor })
 
     const { container } = render(
       <RouteHeatmapMap
         heatmap={worldHeatmap()}
-        mapboxAccessToken="mapbox-token"
+        mapProvider={{ type: 'mapbox', accessToken: 'pk.test-token' }}
       />
     )
 
@@ -1081,7 +1190,7 @@ describe('RouteHeatmapMap', () => {
     expect(mockLoadMaplibreModule).not.toHaveBeenCalled()
     expect(mapConstructor).toHaveBeenCalledWith(
       expect.objectContaining({
-        accessToken: 'mapbox-token',
+        accessToken: 'pk.test-token',
         attributionControl: true,
         // Light 2D basemap + flat mercator projection (no zoomed-out globe).
         style: 'mapbox://styles/mapbox/light-v11',
@@ -1090,13 +1199,31 @@ describe('RouteHeatmapMap', () => {
     )
   })
 
+  it('renders the MapKit surface for the Apple provider instead of a GL map', async () => {
+    render(
+      <RouteHeatmapMap
+        heatmap={worldHeatmap()}
+        mapProvider={{ type: 'apple' }}
+      />
+    )
+
+    // MapKit never resolves in jsdom, so the sibling stays on its loading state —
+    // and neither GL engine is loaded.
+    expect(await screen.findByLabelText('Fitness route heatmap')).toBeVisible()
+    expect(screen.getByText(/Loading map/i)).toBeInTheDocument()
+    expect(mockLoadMapboxModule).not.toHaveBeenCalled()
+    expect(mockLoadMaplibreModule).not.toHaveBeenCalled()
+  })
+
   it('shows a non-SVG fallback message when the map fails to render', async () => {
     const mapConstructor = createGlMapConstructor(() => {
       throw new Error('source unavailable')
     })
     mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
 
-    const { container } = render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
+    const { container } = render(
+      <RouteHeatmapMap heatmap={worldHeatmap()} mapProvider={{ type: 'osm' }} />
+    )
 
     expect(
       await screen.findByText('Map unavailable. Try regenerating this heatmap.')
@@ -1114,7 +1241,9 @@ describe('RouteHeatmapMap', () => {
   it('shows a non-SVG fallback message when the map module fails to load', async () => {
     mockLoadMaplibreModule.mockRejectedValue(new Error('module unavailable'))
 
-    const { container } = render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
+    const { container } = render(
+      <RouteHeatmapMap heatmap={worldHeatmap()} mapProvider={{ type: 'osm' }} />
+    )
 
     expect(
       await screen.findByText('Map unavailable. Try regenerating this heatmap.')
@@ -1146,7 +1275,12 @@ describe('RouteHeatmapMap', () => {
       })
       mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
 
-      const { container } = render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
+      const { container } = render(
+        <RouteHeatmapMap
+          heatmap={worldHeatmap()}
+          mapProvider={{ type: 'osm' }}
+        />
+      )
 
       // Flush the module-load promise so the map is created and the watchdog armed.
       await act(async () => {
@@ -1178,7 +1312,12 @@ describe('RouteHeatmapMap', () => {
       const mapConstructor = createGlMapConstructor()
       mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
 
-      const { container } = render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
+      const { container } = render(
+        <RouteHeatmapMap
+          heatmap={worldHeatmap()}
+          mapProvider={{ type: 'osm' }}
+        />
+      )
 
       await act(async () => {
         await Promise.resolve()
@@ -1211,7 +1350,7 @@ describe('RouteHeatmapMap', () => {
     mockLoadMaplibreModule.mockResolvedValue({ Map: failingMapConstructor })
 
     const { container, rerender } = render(
-      <RouteHeatmapMap heatmap={worldHeatmap()} />
+      <RouteHeatmapMap heatmap={worldHeatmap()} mapProvider={{ type: 'osm' }} />
     )
 
     await waitFor(() =>
@@ -1223,7 +1362,12 @@ describe('RouteHeatmapMap', () => {
     const workingMapConstructor = createGlMapConstructor()
     mockLoadMaplibreModule.mockResolvedValue({ Map: workingMapConstructor })
 
-    rerender(<RouteHeatmapMap heatmap={worldHeatmap({ updatedAt: 3 })} />)
+    rerender(
+      <RouteHeatmapMap
+        heatmap={worldHeatmap({ updatedAt: 3 })}
+        mapProvider={{ type: 'osm' }}
+      />
+    )
 
     await waitFor(() => expect(workingMapConstructor).toHaveBeenCalled())
     expect(await screen.findByText('OpenFreeMap')).toBeInTheDocument()
@@ -1251,7 +1395,9 @@ describe('RouteHeatmapMap', () => {
     })
     mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
 
-    const { container } = render(<RouteHeatmapMap heatmap={largeHeatmap} />)
+    const { container } = render(
+      <RouteHeatmapMap heatmap={largeHeatmap} mapProvider={{ type: 'osm' }} />
+    )
 
     await waitFor(() => expect(mapConstructor).toHaveBeenCalled())
     expect(await screen.findByText('OpenFreeMap')).toBeInTheDocument()
@@ -1299,7 +1445,9 @@ describe('RouteHeatmapMap', () => {
     })
     mockLoadMaplibreModule.mockResolvedValue({ Map: mapConstructor })
 
-    render(<RouteHeatmapMap heatmap={cornerHeatmap} />)
+    render(
+      <RouteHeatmapMap heatmap={cornerHeatmap} mapProvider={{ type: 'osm' }} />
+    )
     await waitFor(() => expect(mapConstructor).toHaveBeenCalled())
 
     // The 200-point collinear run collapses toward its endpoints, so the line is
@@ -1312,53 +1460,13 @@ describe('RouteHeatmapMap', () => {
     ).toBe(true)
   })
 
-  it('thins oversized geometry while preserving each segment’s endpoints', () => {
-    const longSegment = {
-      points: Array.from({ length: 12 }, (_, index) => ({
-        lat: index,
-        lng: index
-      }))
-    }
-    const shortSegment = {
-      points: [
-        { lat: 0, lng: 0 },
-        { lat: 1, lng: 1 }
-      ]
-    }
-
-    const result = downsampleSegments([longSegment, shortSegment], 6)
-    const [thinned, untouched] = result
-
-    // No segment is dropped — the route count is preserved.
-    expect(result).toHaveLength(2)
-    expect(thinned.points.length).toBeLessThan(longSegment.points.length)
-    expect(thinned.points[0]).toEqual(longSegment.points[0])
-    expect(thinned.points[thinned.points.length - 1]).toEqual(
-      longSegment.points[longSegment.points.length - 1]
-    )
-    // Segments with two or fewer points are left exactly as-is.
-    expect(untouched).toBe(shortSegment)
-  })
-
-  it('returns the original segments unchanged when under the budget', () => {
-    const segments = [
-      {
-        points: [
-          { lat: 0, lng: 0 },
-          { lat: 1, lng: 1 },
-          { lat: 2, lng: 2 }
-        ]
-      }
-    ]
-
-    expect(downsampleSegments(segments, 100)).toBe(segments)
-  })
-
   it('fits the full bounds (no zoom cap) for a single contiguous region', async () => {
     const { Map, fitBounds } = createFitBoundsCapturingModule()
     mockLoadMaplibreModule.mockResolvedValue({ Map })
 
-    render(<RouteHeatmapMap heatmap={worldHeatmap()} />)
+    render(
+      <RouteHeatmapMap heatmap={worldHeatmap()} mapProvider={{ type: 'osm' }} />
+    )
 
     await waitFor(() => expect(fitBounds).toHaveBeenCalled())
     expect(fitBounds.mock.calls[0][0]).toEqual([
@@ -1377,7 +1485,12 @@ describe('RouteHeatmapMap', () => {
     const { Map, fitBounds } = createFitBoundsCapturingModule()
     mockLoadMaplibreModule.mockResolvedValue({ Map })
 
-    render(<RouteHeatmapMap heatmap={disjointWorldHeatmap()} />)
+    render(
+      <RouteHeatmapMap
+        heatmap={disjointWorldHeatmap()}
+        mapProvider={{ type: 'osm' }}
+      />
+    )
 
     await waitFor(() => expect(fitBounds).toHaveBeenCalled())
     // The initial view tightens to the dense Singapore cluster (not the global
@@ -1390,260 +1503,6 @@ describe('RouteHeatmapMap', () => {
       padding: 56,
       duration: 0,
       maxZoom: 12
-    })
-  })
-})
-
-describe('computeFocusBounds', () => {
-  it('keeps the full bounds for a single contiguous region', () => {
-    const bounds = { minLat: 52.36, maxLat: 52.39, minLng: 4.88, maxLng: 4.91 }
-    const result = computeFocusBounds(
-      [
-        {
-          points: [
-            { lat: 52.36, lng: 4.88 },
-            { lat: 52.39, lng: 4.91 }
-          ]
-        }
-      ],
-      bounds
-    )
-
-    expect(result.focused).toBe(false)
-    expect(result.bounds).toBe(bounds)
-  })
-
-  it('keeps the full bounds for a region spanning several adjacent cells', () => {
-    // Points spread contiguously across ~8° of longitude (several 5° cells that
-    // are 8-connected), so there is a single cluster — show the whole extent.
-    const bounds = { minLat: 50, maxLat: 52, minLng: 4, maxLng: 12 }
-    const result = computeFocusBounds(
-      [
-        {
-          points: [
-            { lat: 50, lng: 4 },
-            { lat: 51, lng: 8 },
-            { lat: 52, lng: 12 }
-          ]
-        }
-      ],
-      bounds
-    )
-
-    expect(result.focused).toBe(false)
-    expect(result.bounds).toBe(bounds)
-  })
-
-  it('tightens to the densest cluster for disjoint regions', () => {
-    const bounds = { minLat: 1.3, maxLat: 52.39, minLng: 4.88, maxLng: 103.9 }
-    const result = computeFocusBounds(
-      [
-        {
-          points: [
-            { lat: 52.36, lng: 4.88 },
-            { lat: 52.39, lng: 4.91 }
-          ]
-        },
-        { points: SINGAPORE_CLUSTER_POINTS }
-      ],
-      bounds
-    )
-
-    expect(result.focused).toBe(true)
-    expect(result.bounds).toEqual(SINGAPORE_CLUSTER_BOUNDS)
-  })
-
-  it('ignores a sparse far-away outlier and frames the main cluster', () => {
-    const bounds = { minLat: 52.36, maxLat: 52.39, minLng: 4.88, maxLng: 40 }
-    const result = computeFocusBounds(
-      [
-        {
-          points: [
-            { lat: 52.36, lng: 4.88 },
-            { lat: 52.37, lng: 4.89 },
-            { lat: 52.39, lng: 4.91 }
-          ]
-        },
-        // A single stray point far east in its own, disconnected cell.
-        { points: [{ lat: 52.36, lng: 40 }] }
-      ],
-      bounds
-    )
-
-    expect(result.focused).toBe(true)
-    expect(result.bounds).toEqual({
-      minLat: 52.36,
-      maxLat: 52.39,
-      minLng: 4.88,
-      maxLng: 4.91
-    })
-  })
-
-  it('returns the full bounds for an empty segment list', () => {
-    const bounds = { minLat: 0, maxLat: 0, minLng: 0, maxLng: 0 }
-    const result = computeFocusBounds([], bounds)
-
-    expect(result.focused).toBe(false)
-    expect(result.bounds).toBe(bounds)
-  })
-
-  it('skips non-finite vertices so they create no spurious cluster', () => {
-    const bounds = { minLat: 52.36, maxLat: 52.39, minLng: 4.88, maxLng: 4.91 }
-    const result = computeFocusBounds(
-      [
-        {
-          points: [
-            { lat: 52.36, lng: 4.88 },
-            { lat: 52.39, lng: 4.91 }
-          ]
-        },
-        // An entirely non-finite segment must contribute no grid cell; otherwise
-        // it would look like a second region and flip the result to focused.
-        {
-          points: [
-            { lat: NaN, lng: NaN },
-            { lat: Infinity, lng: -Infinity }
-          ]
-        }
-      ],
-      bounds
-    )
-
-    expect(result.focused).toBe(false)
-    expect(result.bounds).toBe(bounds)
-  })
-
-  it('ignores non-finite vertices when framing a focused cluster', () => {
-    const bounds = { minLat: 1.3, maxLat: 52.39, minLng: 4.88, maxLng: 103.9 }
-    const result = computeFocusBounds(
-      [
-        {
-          points: [
-            { lat: 52.36, lng: 4.88 },
-            { lat: 52.37, lng: 4.89 },
-            { lat: 52.39, lng: 4.91 }
-          ]
-        },
-        // The denser cluster carries a stray non-finite vertex that must not
-        // widen (or NaN-poison) the focused box.
-        { points: [{ lat: NaN, lng: 103.8 }, ...SINGAPORE_CLUSTER_POINTS] }
-      ],
-      bounds
-    )
-
-    expect(result.focused).toBe(true)
-    expect(result.bounds).toEqual(SINGAPORE_CLUSTER_BOUNDS)
-  })
-
-  it('does not merge clusters straddling the antimeridian (documented limitation)', () => {
-    // Two clusters at opposite signs near ±180° lon fall in non-adjacent grid
-    // cells, so the focus frames only the denser one rather than spanning the
-    // shorter way around the globe.
-    const bounds = { minLat: 0, maxLat: 1, minLng: -179.9, maxLng: 179.9 }
-    const result = computeFocusBounds(
-      [
-        {
-          points: [
-            { lat: 0.5, lng: 179.5 },
-            { lat: 0.6, lng: 179.7 },
-            { lat: 0.55, lng: 179.9 }
-          ]
-        },
-        { points: [{ lat: 0.5, lng: -179.9 }] }
-      ],
-      bounds
-    )
-
-    expect(result.focused).toBe(true)
-    expect(result.bounds).toEqual({
-      minLat: 0.5,
-      maxLat: 0.6,
-      minLng: 179.5,
-      maxLng: 179.9
-    })
-  })
-
-  it('merges cells that touch only diagonally (8-connectivity)', () => {
-    const bounds = { minLat: 52, maxLat: 55, minLng: 4, maxLng: 8 }
-    // The two 5° cells (0:10 and 1:11) are diagonal neighbours — connected only
-    // at a corner. 8-connectivity merges them into one contiguous cluster, so
-    // the full bounds are kept (a 4-connected flood fill would NOT merge these).
-    const result = computeFocusBounds(
-      [
-        {
-          points: [
-            { lat: 52, lng: 4 },
-            { lat: 55, lng: 8 }
-          ]
-        }
-      ],
-      bounds
-    )
-
-    expect(result.focused).toBe(false)
-    expect(result.bounds).toBe(bounds)
-  })
-
-  it('does not merge cells a knight’s-move apart, focusing the densest cell', () => {
-    const bounds = { minLat: 52, maxLat: 55, minLng: 4, maxLng: 13 }
-    // Cell 0:10 (two points) is strictly denser than cell 2:11 (one point), and
-    // the two cells are a knight's move apart (dx=2), so they stay separate — this
-    // pins that grid adjacency (not mere proximity) is what merges clusters, and
-    // that the seed is chosen by density rather than Map insertion order.
-    const result = computeFocusBounds(
-      [
-        {
-          points: [
-            { lat: 52, lng: 4 },
-            { lat: 53, lng: 4 },
-            { lat: 55, lng: 13 }
-          ]
-        }
-      ],
-      bounds
-    )
-
-    expect(result.focused).toBe(true)
-    expect(result.bounds).toEqual({
-      minLat: 52,
-      maxLat: 53,
-      minLng: 4,
-      maxLng: 4
-    })
-  })
-
-  it('frames the densest cell even when another cluster has more cells', () => {
-    // Cluster A spans two 8-adjacent cells (0:0 and 0:1) of one point each — the
-    // largest connected cluster by cell count. Cluster B is a single isolated cell
-    // (8:0) holding three points — the densest cell. The focus must frame B (seed
-    // = densest cell, then its cluster), proving the helper does not instead pick
-    // the cluster with the most cells.
-    const bounds = { minLat: 0, maxLat: 7, minLng: 2, maxLng: 40.2 }
-    const result = computeFocusBounds(
-      [
-        {
-          points: [
-            { lat: 2, lng: 2 },
-            { lat: 7, lng: 2 }
-          ]
-        },
-        {
-          points: [
-            { lat: 0, lng: 40 },
-            { lat: 0.1, lng: 40.1 },
-            { lat: 0.2, lng: 40.2 }
-          ]
-        }
-      ],
-      bounds
-    )
-
-    expect(result.focused).toBe(true)
-    expect(result.bounds).toEqual({
-      minLat: 0,
-      maxLat: 0.2,
-      minLng: 40,
-      maxLng: 40.2
     })
   })
 })

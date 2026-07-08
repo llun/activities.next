@@ -13,11 +13,11 @@ import { RouteHeatmapMap } from './RouteHeatmapMap'
 // Mapbox script (none load in jsdom). MapLibre is stubbed to a never-resolving
 // loader because these tests always supply a Mapbox token.
 vi.mock('@/lib/utils/mapbox', () => ({
-  getPublicMapboxAccessToken: (token: string) => token,
   loadMapboxModule: vi.fn()
 }))
 vi.mock('@/lib/utils/maplibre', () => ({
   loadMaplibreModule: vi.fn(() => new Promise(() => {})),
+  OPENFREEMAP_STYLE_URL: 'https://tiles.openfreemap.org/styles/bright',
   OPENFREEMAP_HEATMAP_STYLE_URL: 'https://tiles.openfreemap.org/styles/positron'
 }))
 
@@ -117,7 +117,12 @@ describe('RouteHeatmapMap', () => {
     const { gl, map } = createFakeGl()
     mockLoadMapboxModule.mockResolvedValue(gl as never)
 
-    render(<RouteHeatmapMap heatmap={heatmap} mapboxAccessToken="pk.test" />)
+    render(
+      <RouteHeatmapMap
+        heatmap={heatmap}
+        mapProvider={{ type: 'mapbox', accessToken: 'pk.test' }}
+      />
+    )
 
     // The provider badge only renders once the map fires 'load'.
     await screen.findByText('Mapbox')
@@ -140,7 +145,10 @@ describe('RouteHeatmapMap', () => {
     mockLoadMapboxModule.mockResolvedValue(gl as never)
 
     const { unmount } = render(
-      <RouteHeatmapMap heatmap={heatmap} mapboxAccessToken="pk.test" />
+      <RouteHeatmapMap
+        heatmap={heatmap}
+        mapProvider={{ type: 'mapbox', accessToken: 'pk.test' }}
+      />
     )
 
     await screen.findByText('Mapbox')
@@ -157,7 +165,12 @@ describe('RouteHeatmapMap', () => {
     const { gl, map } = createFakeGl()
     mockLoadMapboxModule.mockResolvedValue(gl as never)
 
-    render(<RouteHeatmapMap heatmap={heatmap} mapboxAccessToken="pk.test" />)
+    render(
+      <RouteHeatmapMap
+        heatmap={heatmap}
+        mapProvider={{ type: 'mapbox', accessToken: 'pk.test' }}
+      />
+    )
 
     // The map loaded (resizing once on 'load') without constructing an observer.
     await screen.findByText('Mapbox')

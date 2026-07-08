@@ -8,8 +8,9 @@
  *    Permissions-Policy) to every response via source: '/:path*'.
  *
  * 2. Middleware (proxy.ts) — adds Content-Security-Policy per-request so
- *    runtime config (storage hostnames, Mapbox token) is reflected. Uses an
- *    idempotent guard: does not set the header if already present.
+ *    runtime config (storage hostnames, the selected fitness map provider and
+ *    its origins) is reflected. Uses an idempotent guard: does not set the
+ *    header if already present.
  *
  * 3. Route handlers (lib/utils/response.ts apiResponse / defaultOptions) —
  *    adds the four Access-Control-* CORS headers per-request, derived from

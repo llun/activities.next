@@ -6,6 +6,17 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { FitnessPrivacyLocationSettings } from './FitnessPrivacyLocationSettings'
 
+// The GL loaders never resolve here, so the picker stays in its initializing
+// state (no real CDN/Mapbox/MapLibre script is injected in jsdom).
+vi.mock('@/lib/utils/mapbox', () => ({
+  loadMapboxModule: vi.fn(() => new Promise(() => {}))
+}))
+vi.mock('@/lib/utils/maplibre', () => ({
+  loadMaplibreModule: vi.fn(() => new Promise(() => {})),
+  OPENFREEMAP_STYLE_URL: 'https://tiles.openfreemap.org/styles/bright',
+  OPENFREEMAP_HEATMAP_STYLE_URL: 'https://tiles.openfreemap.org/styles/positron'
+}))
+
 describe('FitnessPrivacyLocationSettings', () => {
   interface BrowserCurrentLocationOptions {
     maximumAge?: number
@@ -21,7 +32,7 @@ describe('FitnessPrivacyLocationSettings', () => {
     })
   })
 
-  it('shows manual coordinate mode when mapbox token is missing', async () => {
+  it('renders the map picker alongside the manual coordinate fields', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -29,11 +40,13 @@ describe('FitnessPrivacyLocationSettings', () => {
       })
     } as Response)
 
-    render(<FitnessPrivacyLocationSettings />)
+    render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
 
+    // Every provider now renders an interactive picker — the keyless OSM map
+    // included — so the manual fields are the fallback, not the default.
     expect(
       await screen.findByText(
-        'Mapbox access token is not configured. Enter latitude and longitude manually.'
+        'Click the map to set coordinates for a location you want to add.'
       )
     ).toBeInTheDocument()
 
@@ -97,7 +110,7 @@ describe('FitnessPrivacyLocationSettings', () => {
         throw new Error('Unexpected fetch call')
       })
 
-    render(<FitnessPrivacyLocationSettings />)
+    render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
 
     await screen.findByText('No privacy locations added yet.')
 
@@ -179,7 +192,7 @@ describe('FitnessPrivacyLocationSettings', () => {
       })
     } as Response)
 
-    render(<FitnessPrivacyLocationSettings />)
+    render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
 
     const useCurrentLocationButton = await screen.findByRole('button', {
       name: 'Use current location'
@@ -236,7 +249,7 @@ describe('FitnessPrivacyLocationSettings', () => {
       })
     } as Response)
 
-    render(<FitnessPrivacyLocationSettings />)
+    render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
 
     const useCurrentLocationButton = await screen.findByRole('button', {
       name: 'Use current location'
@@ -291,7 +304,7 @@ describe('FitnessPrivacyLocationSettings', () => {
         throw new Error('Unexpected fetch call')
       })
 
-    render(<FitnessPrivacyLocationSettings />)
+    render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
 
     await screen.findByText('13.756300, 100.501800')
 
@@ -372,7 +385,7 @@ describe('FitnessPrivacyLocationSettings', () => {
       throw new Error('Unexpected fetch call')
     })
 
-    render(<FitnessPrivacyLocationSettings />)
+    render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
 
     await screen.findByText('13.756300, 100.501800')
 
@@ -442,7 +455,7 @@ describe('FitnessPrivacyLocationSettings', () => {
       throw new Error('Unexpected fetch call')
     })
 
-    render(<FitnessPrivacyLocationSettings />)
+    render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
 
     await screen.findByText('13.756300, 100.501800')
 
@@ -499,7 +512,7 @@ describe('FitnessPrivacyLocationSettings', () => {
         throw new Error('Unexpected fetch call')
       })
 
-    render(<FitnessPrivacyLocationSettings />)
+    render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
 
     const regenerateButton = await screen.findByRole('button', {
       name: 'Regenerate maps for old statuses'

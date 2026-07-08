@@ -55,23 +55,43 @@ describe('getContentSecurityPolicy img-src app origin', () => {
 })
 
 describe('getContentSecurityPolicy map providers', () => {
-  const originalToken = process.env.ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN
+  const MAP_PROVIDER_ENV_KEYS = [
+    'ACTIVITIES_FITNESS_MAP_PROVIDER',
+    'ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN',
+    'ACTIVITIES_FITNESS_APPLE_MAPS_TEAM_ID',
+    'ACTIVITIES_FITNESS_APPLE_MAPS_KEY_ID',
+    'ACTIVITIES_FITNESS_APPLE_MAPS_PRIVATE_KEY'
+  ] as const
+  const originalEnv = Object.fromEntries(
+    MAP_PROVIDER_ENV_KEYS.map((key) => [key, process.env[key]])
+  )
+
+  const clearMapProviderEnv = () => {
+    for (const key of MAP_PROVIDER_ENV_KEYS) delete process.env[key]
+  }
 
   beforeEach(() => {
+    clearMapProviderEnv()
     resetContentSecurityPolicyCacheForTests()
   })
 
   afterEach(() => {
-    if (originalToken === undefined) {
-      delete process.env.ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN
-    } else {
-      process.env.ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN = originalToken
+    clearMapProviderEnv()
+    for (const [key, value] of Object.entries(originalEnv)) {
+      if (value !== undefined) process.env[key] = value
     }
     resetContentSecurityPolicyCacheForTests()
   })
 
+  const getEmbedDirectiveSources = (name: string) =>
+    getEmbedContentSecurityPolicy()
+      .split(';')
+      .map((directive) => directive.trim())
+      .find((directive) => directive.startsWith(`${name} `))
+      ?.split(/\s+/)
+      .slice(1) ?? []
+
   it('allows the keyless MapLibre + OpenFreeMap sources when no Mapbox token is set', () => {
-    delete process.env.ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN
     resetContentSecurityPolicyCacheForTests()
 
     expect(getDirectiveSources('script-src')).toContain(
@@ -109,6 +129,51 @@ describe('getContentSecurityPolicy map providers', () => {
     expect(getDirectiveSources('connect-src')).not.toContain(
       'https://tiles.openfreemap.org'
     )
+  })
+
+  it('falls back to the keyless free-map sources for a server-only Mapbox token', () => {
+    process.env.ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN = 'sk.secret-token'
+    resetContentSecurityPolicyCacheForTests()
+
+    expect(getDirectiveSources('script-src')).toContain(
+      'https://cdn.jsdelivr.net'
+    )
+    expect(getDirectiveSources('connect-src')).toContain(
+      'https://tiles.openfreemap.org'
+    )
+    expect(getContentSecurityPolicy()).not.toContain('mapbox.com')
+  })
+
+  it('allows the Apple MapKit JS sources in both the app and embed policies when Apple is configured', () => {
+    process.env.ACTIVITIES_FITNESS_MAP_PROVIDER = 'apple'
+    process.env.ACTIVITIES_FITNESS_APPLE_MAPS_TEAM_ID = 'TEAM123456'
+    process.env.ACTIVITIES_FITNESS_APPLE_MAPS_KEY_ID = 'KEY1234567'
+    process.env.ACTIVITIES_FITNESS_APPLE_MAPS_PRIVATE_KEY =
+      '-----BEGIN PRIVATE KEY-----\\nkey\\n-----END PRIVATE KEY-----'
+    resetContentSecurityPolicyCacheForTests()
+
+    for (const getSources of [getDirectiveSources, getEmbedDirectiveSources]) {
+      expect(getSources('script-src')).toEqual(
+        expect.arrayContaining([
+          'https://cdn.apple-mapkit.com',
+          "'wasm-unsafe-eval'"
+        ])
+      )
+      expect(getSources('style-src')).toContain('https://cdn.apple-mapkit.com')
+      expect(getSources('connect-src')).toContain('https://*.apple-mapkit.com')
+      expect(getSources('img-src')).toContain('https://*.apple-mapkit.com')
+      expect(getSources('worker-src')).toEqual([
+        "'self'",
+        'blob:',
+        'https://*.apple-mapkit.com'
+      ])
+      // The other providers' origins stay out of the policy.
+      expect(getSources('script-src')).not.toContain('https://cdn.jsdelivr.net')
+      expect(getSources('connect-src')).not.toContain('https://api.mapbox.com')
+    }
+
+    expect(getContentSecurityPolicy()).not.toContain('frame-src')
+    expect(getContentSecurityPolicy()).not.toContain('child-src')
   })
 })
 

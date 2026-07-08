@@ -2,10 +2,9 @@ import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
-import { getConfig } from '@/lib/config'
+import { getPublicMapProvider } from '@/lib/config/mapProvider'
 import { getDatabase } from '@/lib/database'
 import { toPublicHeatmap } from '@/lib/services/fitness-files/publicHeatmap'
-import { getPublicMapboxAccessToken } from '@/lib/utils/mapbox'
 
 import { PublicHeatmapEmbed } from './PublicHeatmapEmbed'
 
@@ -37,9 +36,7 @@ const Page: FC<PageProps> = async ({ params }) => {
   // Flatten the privacy distinction so the public embed shows no hole and no
   // highlight around private locations (see toPublicHeatmap).
   const publicHeatmap = toPublicHeatmap(heatmap)
-  const mapboxAccessToken = getPublicMapboxAccessToken(
-    getConfig().fitnessStorage?.mapboxAccessToken
-  )
+  const mapProvider = getPublicMapProvider()
 
   // The owner-assigned region label (persisted per (actor, region) — see the
   // region-names store). Shown as a caption so the embed is self-labelled, e.g.
@@ -83,7 +80,7 @@ const Page: FC<PageProps> = async ({ params }) => {
         createdAt: publicHeatmap.createdAt,
         updatedAt: publicHeatmap.updatedAt
       }}
-      mapboxAccessToken={mapboxAccessToken}
+      mapProvider={mapProvider}
       regionName={regionName}
     />
   )

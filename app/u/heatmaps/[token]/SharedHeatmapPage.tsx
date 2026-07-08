@@ -5,13 +5,15 @@ import { FC } from 'react'
 import { RouteHeatmapMap } from '@/lib/components/fitness/RouteHeatmapMap'
 import { Logo } from '@/lib/components/layout/logo'
 import { Button } from '@/lib/components/ui/button'
+import type { PublicMapProvider } from '@/lib/utils/mapProvider'
 
 import { CopyLinkButton } from './CopyLinkButton'
 import { SharedHeatmapView } from './sharedHeatmapView'
 
 export interface SharedHeatmapPageProps {
   view: SharedHeatmapView
-  mapboxAccessToken?: string
+  /** Which map backend renders the map. */
+  mapProvider: PublicMapProvider
   /** Whether the instance accepts new sign-ups (gates the Create-account CTAs). */
   signupOpen: boolean
   signinUrl: string
@@ -27,7 +29,7 @@ export interface SharedHeatmapPageProps {
  */
 export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
   view,
-  mapboxAccessToken,
+  mapProvider,
   signupOpen,
   signinUrl,
   signupUrl
@@ -115,7 +117,7 @@ export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
           <div className="overflow-hidden rounded-xl border">
             <RouteHeatmapMap
               heatmap={view.heatmap}
-              mapboxAccessToken={mapboxAccessToken}
+              mapProvider={mapProvider}
               heightClassName="h-[440px]"
             />
           </div>

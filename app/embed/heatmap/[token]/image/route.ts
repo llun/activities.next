@@ -1,13 +1,17 @@
 import { NextRequest } from 'next/server'
 
-import { getConfig } from '@/lib/config'
+import { getMapProviderConfig } from '@/lib/config/mapProvider'
 import { getDatabase } from '@/lib/database'
+import {
+  APPLE_SNAPSHOT_MAX_DIMENSION,
+  APPLE_SNAPSHOT_MIN_DIMENSION,
+  fetchAppleSnapshot
+} from '@/lib/services/fitness-files/appleMapsSnapshot'
 import { toPublicHeatmap } from '@/lib/services/fitness-files/publicHeatmap'
 import {
   buildHeatmapSvg,
   buildMapboxStaticUrl
 } from '@/lib/services/fitness-files/staticHeatmapImage'
-import { getPublicMapboxAccessToken } from '@/lib/utils/mapbox'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -47,14 +51,41 @@ const snapDimension = (raw: string | null, fallback: number): number => {
   return Math.min(MAX_DIMENSION, Math.max(MIN_DIMENSION, snapped))
 }
 
-const svgResponse = (svg: string) =>
-  new Response(svg, {
+// Apple Web Snapshots clamp each dimension into 50..640 (before `scale`). Scale
+// both axes by a single factor so an oversized embed keeps its requested aspect
+// ratio (a 1200x400 banner becomes 640x213, not a squashed 640x400), then clamp
+// each axis into Apple's range. `scale=2` recovers the pixel density lost by the
+// smaller logical size.
+const APPLE_SNAPSHOT_SCALE = 2
+
+const fitAppleDimensions = (
+  width: number,
+  height: number
+): { width: number; height: number } => {
+  const factor = Math.min(
+    1,
+    APPLE_SNAPSHOT_MAX_DIMENSION / width,
+    APPLE_SNAPSHOT_MAX_DIMENSION / height
+  )
+  const clamp = (value: number) =>
+    Math.min(
+      APPLE_SNAPSHOT_MAX_DIMENSION,
+      Math.max(APPLE_SNAPSHOT_MIN_DIMENSION, Math.round(value))
+    )
+  return { width: clamp(width * factor), height: clamp(height * factor) }
+}
+
+const imageResponse = (body: BodyInit, contentType: string) =>
+  new Response(body, {
     headers: new Headers([
-      ['Content-Type', 'image/svg+xml; charset=utf-8'],
+      ['Content-Type', contentType],
       ['Cache-Control', CACHE_CONTROL],
       ['Access-Control-Allow-Origin', '*']
     ])
   })
+
+const svgResponse = (svg: string) =>
+  imageResponse(svg, 'image/svg+xml; charset=utf-8')
 
 export const GET = traceApiRoute(
   'getFitnessRouteHeatmapEmbedImage',
@@ -78,20 +109,39 @@ export const GET = traceApiRoute(
     const width = snapDimension(url.searchParams.get('w'), DEFAULT_WIDTH)
     const height = snapDimension(url.searchParams.get('h'), DEFAULT_HEIGHT)
 
-    const mapboxAccessToken = getPublicMapboxAccessToken(
-      getConfig().fitnessStorage?.mapboxAccessToken
-    )
+    const mapProvider = getMapProviderConfig()
+
+    // Preferred for Apple: routes over an Apple basemap. The snapshot URL is
+    // signed with the developer private key, so it is built, signed, and fetched
+    // server-side and only the bytes are streamed back.
+    if (mapProvider.type === 'apple') {
+      const appleSize = fitAppleDimensions(width, height)
+      const snapshot = await fetchAppleSnapshot(
+        {
+          segments: publicHeatmap.segments,
+          width: appleSize.width,
+          height: appleSize.height,
+          scale: APPLE_SNAPSHOT_SCALE
+        },
+        mapProvider
+      )
+      // Apple Web Snapshots answer with PNG bytes; pin the type rather than
+      // trusting the upstream header on this anonymous, CORS-* response.
+      if (snapshot) return imageResponse(new Uint8Array(snapshot), 'image/png')
+      // Otherwise fall through to the keyless SVG renderer below.
+    }
 
     // Preferred: routes over a real Mapbox basemap. The static URL embeds the
     // token, so it is fetched server-side and the bytes are streamed back — the
-    // token never reaches the browser.
-    if (mapboxAccessToken) {
+    // token never reaches the browser. Any Mapbox token works here (including a
+    // secret `sk.` one), unlike the browser-side descriptor.
+    if (mapProvider.type === 'mapbox') {
       const mapboxUrl = buildMapboxStaticUrl({
         segments: publicHeatmap.segments,
         bounds: publicHeatmap.bounds ?? null,
         width,
         height,
-        token: mapboxAccessToken
+        token: mapProvider.accessToken
       })
       if (mapboxUrl) {
         try {
@@ -105,13 +155,7 @@ export const GET = traceApiRoute(
             const contentType = upstreamType?.startsWith('image/')
               ? upstreamType
               : 'image/png'
-            return new Response(upstream.body, {
-              headers: new Headers([
-                ['Content-Type', contentType],
-                ['Cache-Control', CACHE_CONTROL],
-                ['Access-Control-Allow-Origin', '*']
-              ])
-            })
+            return imageResponse(upstream.body, contentType)
           }
           // Release the un-consumed body before falling through, so undici does
           // not retain the socket until GC on a repeatedly-hit public endpoint.
