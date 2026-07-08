@@ -1,10 +1,11 @@
 /**
  * Google Encoded Polyline Algorithm Format encoder.
  *
- * Used to compress route geometry into the compact `path(...)` overlays the
- * Mapbox Static Images API accepts, so many route vertices fit inside the
- * provider's URL-length limit. Precision 5 (1e5) is Mapbox's default for path
- * overlays.
+ * Used to compress route geometry into the compact overlays the static map APIs
+ * accept — the Mapbox Static Images API `path(...)` overlay and the Apple Maps
+ * Snapshots `overlays[].points` value — so many route vertices fit inside each
+ * provider's URL-length limit. Precision 5 (1e5) is the default both providers
+ * expect for encoded polyline overlays.
  *
  * https://developers.google.com/maps/documentation/utilities/polylinealgorithm
  */

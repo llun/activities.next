@@ -21,7 +21,11 @@ Fitness storage is configured in `lib/config/fitnessStorage.ts`.
 - `ACTIVITIES_FITNESS_STORAGE_PREFIX` - S3 key prefix, default `fitness/`
 - `ACTIVITIES_FITNESS_STORAGE_MAX_FILE_SIZE` - Max file size, default 50 MiB
 - `ACTIVITIES_FITNESS_STORAGE_QUOTA_PER_ACCOUNT` - Account quota override shared by media and fitness files
-- `ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN` - Mapbox token for browser maps and static route images
+- `ACTIVITIES_FITNESS_MAP_PROVIDER` - Map provider for browser maps and static route images: `apple`, `mapbox`, or `osm`. Missing or invalid credentials for the selected provider fall back to keyless `osm` (MapLibre GL JS + OpenFreeMap tiles). When unset, a configured Mapbox token selects `mapbox`, otherwise `osm`.
+- `ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN` - Mapbox token, required when the provider is `mapbox`
+- `ACTIVITIES_FITNESS_APPLE_MAPS_TEAM_ID`, `ACTIVITIES_FITNESS_APPLE_MAPS_KEY_ID`, `ACTIVITIES_FITNESS_APPLE_MAPS_PRIVATE_KEY` - Apple MapKit JS credentials, required when the provider is `apple`
+
+See [environment-variables.md](./environment-variables.md) for the full provider reference.
 
 If no fitness-specific storage is configured, the app falls back to the media storage backend with a separate local `fitness` directory or S3 `fitness/` prefix.
 
