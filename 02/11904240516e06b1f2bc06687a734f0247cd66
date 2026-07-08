@@ -1,0 +1,47 @@
+lib/utils/mapkit.ts
+  s_c2b45d1e3d2b49::t_9912eb2e287463 48-51,55-64
+  s_c2b45d1e3d2b49::t_77a0baf7b0762c 75-76
+  s_c2b45d1e3d2b49::t_70054c5122b288 9,16-30
+  s_c2b45d1e3d2b49::t_4224b6821d2c69 197-213,221,231
+  s_c2b45d1e3d2b49::t_a398c4a682c6fa 121-146,150-156,158-161,164,167,169-174
+  s_c2b45d1e3d2b49::t_0f39af515a0095 271
+  s_c2b45d1e3d2b49::t_61a25641c48bad 283-287,294-323
+  s_c2b45d1e3d2b49::t_25778c093c4249 65
+lib/services/fitness-files/appleMapsSnapshot.ts
+  s_c2b45d1e3d2b49::t_a4eba1611acd46 172-193,195,198,202
+  s_c2b45d1e3d2b49::t_d7d0cca8983ecc 13-14,19-25
+  s_c2b45d1e3d2b49::t_8b9cd5c4fd8466 146-147,149-159
+lib/utils/mapkit.test.ts
+  s_c2b45d1e3d2b49::t_4d3e1a8467f4db 43-45,48-50,52-74,90-94
+  s_c2b45d1e3d2b49::t_933cf7356ecd2c 144-145,147-151,186,203,233,267,280-302,306-340,342,350-362,364-368,370-376
+  s_c2b45d1e3d2b49::t_9dd7c7fafaf5b5 303-305
+  s_c2b45d1e3d2b49::t_837dc479b6b763 155
+  s_c2b45d1e3d2b49::t_2db0d1d32d9d66 95
+docs/fitness-file-storage.md
+  s_c2b45d1e3d2b49::t_5593b752e967b7 90-95
+lib/components/fitness/RouteHeatmapMapKit.test.tsx
+  s_c2b45d1e3d2b49::t_74e4514c1103ad 95-115
+lib/services/fitness-files/appleMapsSnapshot.test.ts
+  s_c2b45d1e3d2b49::t_2fda4182853a1d 77
+  s_c2b45d1e3d2b49::t_42760ecef839b8 41-63,67-76,78-103
+  s_c2b45d1e3d2b49::t_b02c7a3dae0f65 243,245-246
+  s_c2b45d1e3d2b49::t_444f0b3782a7c7 244
+  s_c2b45d1e3d2b49::t_63f021971fad3a 199-242,247-274
+  s_c2b45d1e3d2b49::t_928eaaf5ef757c 104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0211904240516e06b1f2bc06687a734f0247cd66",
+  "prompts": {},
+  "sessions": {
+    "s_c2b45d1e3d2b49": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b970d6ff-c482-4d45-848b-32f588a95c10",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
