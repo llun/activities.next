@@ -315,6 +315,58 @@ describe('next config security hardening', () => {
     })
   })
 
+  it('allows Apple MapKit JS browser sources when the Apple map provider is configured', () => {
+    withEnv(
+      {
+        NODE_ENV: 'production',
+        ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN: undefined,
+        ACTIVITIES_FITNESS_MAP_PROVIDER: 'apple',
+        ACTIVITIES_FITNESS_APPLE_MAPS_TEAM_ID: 'TEAM123456',
+        ACTIVITIES_FITNESS_APPLE_MAPS_KEY_ID: 'KEY1234567',
+        ACTIVITIES_FITNESS_APPLE_MAPS_PRIVATE_KEY:
+          '-----BEGIN PRIVATE KEY-----\\nkey\\n-----END PRIVATE KEY-----'
+      },
+      () => {
+        const csp = getSecurityHeaders().find(
+          (header) => header.key === 'Content-Security-Policy'
+        )
+
+        expect(getCspDirectiveSources('script-src')).toEqual([
+          "'self'",
+          "'unsafe-inline'",
+          'https://cdn.apple-mapkit.com',
+          "'wasm-unsafe-eval'"
+        ])
+        expect(getCspDirectiveSources('style-src')).toEqual([
+          "'self'",
+          "'unsafe-inline'",
+          'https://cdn.apple-mapkit.com'
+        ])
+        expect(getCspDirectiveSources('connect-src')).toEqual([
+          "'self'",
+          'https://*.apple-mapkit.com'
+        ])
+        expect(getCspDirectiveSources('img-src')).toEqual([
+          "'self'",
+          'data:',
+          'blob:',
+          'https://*.apple-mapkit.com',
+          'https:'
+        ])
+        expect(getCspDirectiveSources('worker-src')).toEqual([
+          "'self'",
+          'blob:',
+          'https://*.apple-mapkit.com'
+        ])
+        // Apple replaces the other providers; no framing directives are added.
+        expect(csp?.value).not.toContain('mapbox.com')
+        expect(csp?.value).not.toContain('cdn.jsdelivr.net')
+        expect(csp?.value).not.toContain('child-src')
+        expect(csp?.value).not.toContain('frame-src')
+      }
+    )
+  })
+
   it('disables next/image optimization for unbounded federated avatars', () => {
     expect(nextConfig.images?.unoptimized).toBe(true)
   })
