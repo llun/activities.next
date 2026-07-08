@@ -1,0 +1,39 @@
+lib/utils/http-headers/csp.ts
+  s_c2b45d1e3d2b49::t_2c39f010c2a7c7 211-214,220-226
+  s_c2b45d1e3d2b49::t_73fe39920dcf80 248
+  s_c2b45d1e3d2b49::t_fe34fcf1e559db 174
+  s_c2b45d1e3d2b49::t_e53d158b8092ab 147-156
+  s_c2b45d1e3d2b49::t_052f1f820d50a5 191
+  s_c2b45d1e3d2b49::t_04bdd4c8908f01 2,13-19
+  s_8c866bdb7fcfb2::t_60b233a02eec5c 20
+lib/utils/http-headers/csp.test.ts
+  s_c2b45d1e3d2b49::t_7fcd3f9bcd6d7f 133-177
+  s_c2b45d1e3d2b49::t_8fd09118a45604 58-71,74,79-81,86-92
+  s_c2b45d1e3d2b49::t_8745294239b0db 93
+next.config.test.ts
+  s_c2b45d1e3d2b49::t_faa90bd7fc296e 318-369
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bdef71a43bcabe61e26a3b6f34504cd82a79c0aa",
+  "prompts": {},
+  "sessions": {
+    "s_8c866bdb7fcfb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7275375c-d7e8-42b8-8f72-87827b0a7d35",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_c2b45d1e3d2b49": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b970d6ff-c482-4d45-848b-32f588a95c10",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
