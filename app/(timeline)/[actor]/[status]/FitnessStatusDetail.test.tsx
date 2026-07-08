@@ -237,13 +237,16 @@ describe('FitnessStatusDetail', () => {
           await vi.advanceTimersByTimeAsync(0)
         })
       }
-      // The map was constructed successfully, so the fallback below can only come
-      // from the watchdog (not from the constructor's catch branch).
+      // The map constructed successfully and nothing has failed yet, so the
+      // fallback asserted below can only come from the watchdog — not from the
+      // constructor's catch branch.
       expect(MapConstructor).toHaveBeenCalledTimes(1)
-      expect(map.on.mock.calls.map((call) => call[0])).toContain('error')
       expect(
         screen.queryByText('Interactive map unavailable. Using static preview.')
       ).not.toBeInTheDocument()
+      // Deliberately no `error` subscription: GL fires `error` for transient tile
+      // and sprite failures, which must not tear down a working map.
+      expect(map.on).not.toHaveBeenCalled()
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(20_000)

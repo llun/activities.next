@@ -161,7 +161,6 @@ interface MapboxMap {
   addSource: (id: string, source: Record<string, unknown>) => void
   addLayer: (layer: Record<string, unknown>) => void
   once: (event: 'load', listener: () => void) => void
-  on: (event: 'error', listener: () => void) => void
   getSource: (id: string) => unknown
   getZoom: () => number
   fitBounds: (
@@ -944,12 +943,15 @@ const ActivityMapPanel: FC<{
         mapRef.current = map
 
         // A style/tile failure never fires `load`; fall back rather than leave an
-        // empty container behind.
+        // empty container behind. Deliberately watchdog-only, matching
+        // RouteHeatmapMap: GL's `error` event is not a fatal-only channel (it also
+        // fires for a single missing tile, a failed sprite/glyph fetch, or a
+        // request aborted while panning), so treating it as fatal would tear down
+        // a working, fully rendered map.
         loadWatchdog = window.setTimeout(
           failToStaticPreview,
           MAP_LOAD_TIMEOUT_MS
         )
-        map.on('error', failToStaticPreview)
 
         map.once('load', () => {
           clearLoadWatchdog()
