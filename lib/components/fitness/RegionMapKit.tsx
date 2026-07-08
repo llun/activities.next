@@ -292,12 +292,23 @@ export const RegionMapKit: FC<RegionMapKitProps> = ({
 
   // Draw mode only arms the gesture and swaps the cursor; MapKit's pan/zoom/rotate
   // are suspended for the duration of an actual drag (see `onPointerDown`).
+  //
+  // `touch-action: none` is required while armed: the rectangle is drawn from raw
+  // pointer events on `map.element`, and without it a touch drag is claimed by the
+  // browser's default panning, which scrolls the page and cancels the gesture.
   useEffect(() => {
     drawModeRef.current = drawMode
     const map = mapRef.current
     if (!map || !isReady) return
+
     map.element.style.cursor = drawMode ? 'crosshair' : ''
+    map.element.style.touchAction = drawMode ? 'none' : ''
     if (!drawMode) endDraw()
+
+    return () => {
+      map.element.style.cursor = ''
+      map.element.style.touchAction = ''
+    }
   }, [drawMode, isReady])
 
   return (

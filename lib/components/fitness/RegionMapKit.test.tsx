@@ -141,6 +141,29 @@ describe('RegionMapKit', () => {
     expect(map.isRotationEnabled).toBe(true)
   })
 
+  it('suppresses default touch panning only while draw mode is armed', async () => {
+    const double = createMapKitTestDouble()
+    mockLoadMapKitModule.mockImplementation((() =>
+      Promise.resolve(double.mapkit)) as never)
+
+    renderRegionMapKit()
+    await waitFor(() => expect(double.maps).toHaveLength(1))
+    const map = double.getMap()
+    if (!map) throw new Error('map was never created')
+
+    expect(map.element.style.touchAction).toBe('')
+
+    // The rectangle is drawn from raw pointer events, so the browser must not
+    // claim a touch drag for scrolling while drawing.
+    fireEvent.click(screen.getByRole('button', { name: 'Draw' }))
+    expect(map.element.style.touchAction).toBe('none')
+    expect(map.element.style.cursor).toBe('crosshair')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Drawing…' }))
+    expect(map.element.style.touchAction).toBe('')
+    expect(map.element.style.cursor).toBe('')
+  })
+
   it('restores the map gestures and removes the pointer listeners on unmount', async () => {
     const double = createMapKitTestDouble()
     mockLoadMapKitModule.mockImplementation((() =>
