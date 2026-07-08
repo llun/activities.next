@@ -1,6 +1,7 @@
 import sharp from 'sharp'
 
-import { getConfig } from '@/lib/config'
+import { getMapProviderConfig } from '@/lib/config/mapProvider'
+import { fetchAppleSnapshot } from '@/lib/services/fitness-files/appleMapsSnapshot'
 import { downsamplePrivacySegments } from '@/lib/services/fitness-files/privacy'
 import type { PrivacySegment } from '@/lib/services/fitness-files/privacy'
 import { logger } from '@/lib/utils/logger'
@@ -23,6 +24,11 @@ export interface GenerateMapImageParams {
 
 const DEFAULT_WIDTH = 800
 const DEFAULT_HEIGHT = 600
+// Apple Web Snapshots clamp each dimension to 640, so ask for the largest
+// allowed 4:3 frame at retina scale instead of the default 800x600.
+const APPLE_SNAPSHOT_WIDTH = 640
+const APPLE_SNAPSHOT_HEIGHT = 480
+const APPLE_SNAPSHOT_SCALE = 2
 
 const flattenRouteSegments = (routeSegments: FitnessCoordinate[][]) => {
   return routeSegments.flat()
@@ -255,32 +261,62 @@ export const generateMapImage = async ({
     return null
   }
 
-  const mapboxAccessToken =
-    getConfig().fitnessStorage?.mapboxAccessToken?.trim() ?? ''
-
-  if (mapboxAccessToken.length > 0) {
-    try {
-      const response = await fetch(
-        buildMapboxUrl({
-          routeSegments: normalizedRouteSegments,
-          width,
-          height,
-          accessToken: mapboxAccessToken
+  // Every hosted provider is best-effort: a failure (or missing geometry) falls
+  // back to the self-rendered OSM tiles below. OSM tile errors keep propagating
+  // to the caller.
+  const mapProvider = getMapProviderConfig()
+  switch (mapProvider.type) {
+    case 'apple': {
+      try {
+        // The signed snapshot URL carries the developer credentials, so it is
+        // fetched server-side inside fetchAppleSnapshot and never exposed.
+        const snapshot = await fetchAppleSnapshot(
+          {
+            segments: normalizedRouteSegments.map((points) => ({ points })),
+            width: APPLE_SNAPSHOT_WIDTH,
+            height: APPLE_SNAPSHOT_HEIGHT,
+            scale: APPLE_SNAPSHOT_SCALE
+          },
+          mapProvider
+        )
+        if (snapshot) return snapshot
+        throw new Error('Apple Maps snapshot returned no image')
+      } catch (error) {
+        logger.warn({
+          message: 'Apple Maps snapshot rendering failed; using OSM fallback',
+          error: (error as Error).message
         })
-      )
-
-      if (!response.ok) {
-        throw new Error(`Mapbox request failed with status ${response.status}`)
       }
-
-      return Buffer.from(await response.arrayBuffer())
-    } catch (error) {
-      const nodeError = error as Error
-      logger.warn({
-        message: 'Mapbox map rendering failed; using OSM fallback',
-        error: nodeError.message
-      })
+      break
     }
+    case 'mapbox': {
+      try {
+        const response = await fetch(
+          buildMapboxUrl({
+            routeSegments: normalizedRouteSegments,
+            width,
+            height,
+            accessToken: mapProvider.accessToken
+          })
+        )
+
+        if (!response.ok) {
+          throw new Error(
+            `Mapbox request failed with status ${response.status}`
+          )
+        }
+
+        return Buffer.from(await response.arrayBuffer())
+      } catch (error) {
+        logger.warn({
+          message: 'Mapbox map rendering failed; using OSM fallback',
+          error: (error as Error).message
+        })
+      }
+      break
+    }
+    default:
+      break
   }
 
   return renderOsmMap({

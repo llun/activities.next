@@ -2,6 +2,11 @@ import { NextRequest } from 'next/server'
 
 import { getMapProviderConfig } from '@/lib/config/mapProvider'
 import { getDatabase } from '@/lib/database'
+import {
+  APPLE_SNAPSHOT_MAX_DIMENSION,
+  APPLE_SNAPSHOT_MIN_DIMENSION,
+  fetchAppleSnapshot
+} from '@/lib/services/fitness-files/appleMapsSnapshot'
 import { toPublicHeatmap } from '@/lib/services/fitness-files/publicHeatmap'
 import {
   buildHeatmapSvg,
@@ -46,14 +51,25 @@ const snapDimension = (raw: string | null, fallback: number): number => {
   return Math.min(MAX_DIMENSION, Math.max(MIN_DIMENSION, snapped))
 }
 
-const svgResponse = (svg: string) =>
-  new Response(svg, {
+// Apple Web Snapshots clamp each dimension into 50..640 (before `scale`), so the
+// snapped embed dimensions are clamped again for that provider.
+const clampAppleDimension = (value: number): number =>
+  Math.min(
+    APPLE_SNAPSHOT_MAX_DIMENSION,
+    Math.max(APPLE_SNAPSHOT_MIN_DIMENSION, value)
+  )
+
+const imageResponse = (body: BodyInit, contentType: string) =>
+  new Response(body, {
     headers: new Headers([
-      ['Content-Type', 'image/svg+xml; charset=utf-8'],
+      ['Content-Type', contentType],
       ['Cache-Control', CACHE_CONTROL],
       ['Access-Control-Allow-Origin', '*']
     ])
   })
+
+const svgResponse = (svg: string) =>
+  imageResponse(svg, 'image/svg+xml; charset=utf-8')
 
 export const GET = traceApiRoute(
   'getFitnessRouteHeatmapEmbedImage',
@@ -77,10 +93,26 @@ export const GET = traceApiRoute(
     const width = snapDimension(url.searchParams.get('w'), DEFAULT_WIDTH)
     const height = snapDimension(url.searchParams.get('h'), DEFAULT_HEIGHT)
 
-    // TODO(apple-maps): an Apple Maps snapshot path for this route is added in
-    // the server-static-images task; until then Apple falls through to the
-    // keyless SVG renderer below.
     const mapProvider = getMapProviderConfig()
+
+    // Preferred for Apple: routes over an Apple basemap. The snapshot URL is
+    // signed with the developer private key, so it is built, signed, and fetched
+    // server-side and only the bytes are streamed back.
+    if (mapProvider.type === 'apple') {
+      const snapshot = await fetchAppleSnapshot(
+        {
+          segments: publicHeatmap.segments,
+          width: clampAppleDimension(width),
+          height: clampAppleDimension(height),
+          scale: 2
+        },
+        mapProvider
+      )
+      // Apple Web Snapshots answer with PNG bytes; pin the type rather than
+      // trusting the upstream header on this anonymous, CORS-* response.
+      if (snapshot) return imageResponse(new Uint8Array(snapshot), 'image/png')
+      // Otherwise fall through to the keyless SVG renderer below.
+    }
 
     // Preferred: routes over a real Mapbox basemap. The static URL embeds the
     // token, so it is fetched server-side and the bytes are streamed back — the
@@ -106,13 +138,7 @@ export const GET = traceApiRoute(
             const contentType = upstreamType?.startsWith('image/')
               ? upstreamType
               : 'image/png'
-            return new Response(upstream.body, {
-              headers: new Headers([
-                ['Content-Type', contentType],
-                ['Cache-Control', CACHE_CONTROL],
-                ['Access-Control-Allow-Origin', '*']
-              ])
-            })
+            return imageResponse(upstream.body, contentType)
           }
           // Release the un-consumed body before falling through, so undici does
           // not retain the socket until GC on a repeatedly-hit public endpoint.

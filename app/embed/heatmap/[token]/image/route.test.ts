@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import crypto from 'node:crypto'
 
 import { Database } from '@/lib/database/types'
 
@@ -18,6 +19,16 @@ vi.mock('@/lib/config/mapProvider', () => ({
   getMapProviderConfig: () => mockGetMapProviderConfig(),
   getPublicMapProvider: vi.fn()
 }))
+
+const appleProvider = {
+  type: 'apple' as const,
+  teamId: 'TEAM123',
+  keyId: 'KEY456',
+  privateKey: crypto
+    .generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+    .privateKey.export({ type: 'pkcs8', format: 'pem' })
+    .toString()
+}
 
 const sharedHeatmap = {
   id: 'heatmap-1',
@@ -118,14 +129,61 @@ describe('/embed/heatmap/[token]/image', () => {
     expect(body).toContain('stroke="#ef4444"')
   })
 
-  it('renders an SVG fallback for the Apple Maps provider', async () => {
-    mockGetMapProviderConfig.mockReturnValue({
-      type: 'apple',
-      teamId: 'team',
-      keyId: 'key',
-      privateKey: 'pem'
-    })
-    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+  it('proxies the signed Apple Maps snapshot for the Apple provider', async () => {
+    mockGetMapProviderConfig.mockReturnValue(appleProvider)
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(new Uint8Array([1, 2, 3]), {
+        headers: { 'content-type': 'image/png' }
+      })
+    )
+
+    try {
+      const response = await GET(imageRequest(), {
+        params: Promise.resolve({ token: 'token-1' })
+      })
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Content-Type')).toBe('image/png')
+      const requestedUrl = fetchSpy.mock.calls[0]?.[0] as string
+      expect(requestedUrl).toContain(
+        'https://snapshot.apple-mapkit.com/api/v1/snapshot?'
+      )
+      // The default 600x400 embed size is clamped into Apple's 50..640 range.
+      expect(requestedUrl).toContain('size=600x400')
+      expect(requestedUrl).toContain('&signature=')
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
+  it('clamps oversized embed dimensions into the Apple snapshot range', async () => {
+    mockGetMapProviderConfig.mockReturnValue(appleProvider)
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(new Uint8Array([1]), {
+        headers: { 'content-type': 'image/png' }
+      })
+    )
+
+    try {
+      await GET(
+        new NextRequest(
+          'http://llun.test/embed/heatmap/token-1/image?w=1200&h=1000'
+        ),
+        { params: Promise.resolve({ token: 'token-1' }) }
+      )
+
+      const requestedUrl = fetchSpy.mock.calls[0]?.[0] as string
+      expect(requestedUrl).toContain('size=640x640')
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
+  it('falls back to SVG when the Apple Maps snapshot fails', async () => {
+    mockGetMapProviderConfig.mockReturnValue(appleProvider)
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('network down'))
 
     try {
       const response = await GET(imageRequest(), {
@@ -134,7 +192,7 @@ describe('/embed/heatmap/[token]/image', () => {
 
       expect(response.status).toBe(200)
       expect(response.headers.get('Content-Type')).toContain('image/svg+xml')
-      expect(fetchSpy).not.toHaveBeenCalled()
+      expect(fetchSpy).toHaveBeenCalled()
     } finally {
       fetchSpy.mockRestore()
     }
