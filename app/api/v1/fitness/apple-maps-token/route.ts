@@ -1,6 +1,7 @@
 import { SignJWT, importPKCS8 } from 'jose'
 import { NextRequest } from 'next/server'
 
+import { buildBaseURL } from '@/lib/config'
 import { getProxyHostConfig } from '@/lib/config/host'
 import { getMapProviderConfig } from '@/lib/config/mapProvider'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -23,18 +24,24 @@ const TOKEN_TTL_MS = TOKEN_TTL_SECONDS * 1000
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 /**
- * Comma separated list of `https://` origins the minted token is valid for.
+ * Comma separated list of origins the minted token is valid for.
  *
  * The endpoint is intentionally anonymous (public embeds and shared heatmap
  * pages render maps for logged-out visitors), so binding the token to this
  * instance's own origins is what bounds abuse of a leaked token.
+ *
+ * MapKit compares this claim against the browser's `Origin` header, so the
+ * scheme has to match how the app is actually served. `buildBaseURL` applies the
+ * configured auth scheme (`http` only under the local-dev-only
+ * `ACTIVITIES_INSECURE_AUTH`, `https` everywhere else) and leaves hosts that
+ * already carry a scheme untouched.
  */
 const getAllowedOrigins = (): string => {
   const { host, trustedHosts } = getProxyHostConfig()
   const origins = [host, ...trustedHosts]
     .map((value) => value.trim())
     .filter((value) => value.length > 0)
-    .map((value) => `https://${value}`)
+    .map((value) => buildBaseURL(value))
   return Array.from(new Set(origins)).join(',')
 }
 

@@ -10,12 +10,25 @@ const TEAM_ID = 'TEAM123456'
 const KEY_ID = 'KEY1234567'
 
 const state = vi.hoisted(() => ({
-  mapProvider: { type: 'osm' } as MapProviderConfig
+  mapProvider: { type: 'osm' } as MapProviderConfig,
+  authScheme: 'https' as 'http' | 'https'
 }))
 
 vi.mock('@/lib/config/mapProvider', () => ({
   getMapProviderConfig: () => state.mapProvider,
   getPublicMapProvider: () => ({ type: 'osm' })
+}))
+
+// Overrides the global `@/lib/config` barrel mock from vitest.setup.ts so the
+// resolved auth scheme is controllable. MapKit matches the token's `origin`
+// claim against the browser's `Origin` header, so the scheme must follow how the
+// app is actually served rather than being hardcoded to https.
+vi.mock('@/lib/config', () => ({
+  getConfig: vi.fn().mockReturnValue({ host: 'maps.llun.test' }),
+  getAuthScheme: () => state.authScheme,
+  buildBaseURL: (host: string) =>
+    host.includes('://') ? host : `${state.authScheme}://${host}`,
+  getBaseURL: () => `${state.authScheme}://maps.llun.test`
 }))
 
 vi.mock('@/lib/config/host', () => ({
@@ -42,6 +55,7 @@ const createPrivateKeyPem = () => {
 describe('GET /api/v1/fitness/apple-maps-token', () => {
   beforeEach(() => {
     state.mapProvider = { type: 'osm' }
+    state.authScheme = 'https'
   })
 
   it('mints a MapKit JS token signed with the configured Apple credentials', async () => {
@@ -105,6 +119,27 @@ describe('GET /api/v1/fitness/apple-maps-token', () => {
     expect(payload.origin?.split(',')).toEqual([
       'https://maps.llun.test',
       'https://alias.llun.test'
+    ])
+  })
+
+  it('derives the token origin scheme from the configured auth scheme', async () => {
+    state.authScheme = 'http'
+    state.mapProvider = {
+      type: 'apple',
+      teamId: TEAM_ID,
+      keyId: KEY_ID,
+      privateKey: createPrivateKeyPem()
+    }
+
+    const response = await GET(
+      new NextRequest('http://maps.llun.test/api/v1/fitness/apple-maps-token'),
+      params
+    )
+    const body = (await response.json()) as { token: string }
+    const payload = decodeJwt(body.token) as { origin?: string }
+    expect(payload.origin?.split(',')).toEqual([
+      'http://maps.llun.test',
+      'http://alias.llun.test'
     ])
   })
 
