@@ -40,6 +40,41 @@ const authorizationCallbackOf = (init: ReturnType<typeof vi.fn>) =>
   (init.mock.calls[0][0] as { authorizationCallback: AuthorizationCallback })
     .authorizationCallback
 
+/**
+ * A stand-in for the `mapkit` global. `Map` must exist: the loader treats a
+ * library constructor as proof the `data-libraries` finished loading.
+ */
+const fakeMapKit = () => ({
+  init: vi.fn(),
+  Map: class {}
+})
+
+/** Mimics mapkit.core.js publishing its global part-way through bootstrap. */
+const publishGlobal = () => {
+  const fake = fakeMapKit()
+  testWindow().mapkit = fake
+  return fake
+}
+
+/** Mimics Apple invoking the script's `data-callback` once the SDK is ready. */
+const invokeReadyCallback = () => {
+  const callback = testWindow()[MAPKIT_CALLBACK_NAME]
+  expect(typeof callback).toBe('function')
+  callback?.()
+}
+
+const PENDING = Symbol('pending')
+
+/** Resolves to PENDING when `promise` has not settled within a short window. */
+const settledOrPending = (promise: Promise<unknown>) =>
+  Promise.race([
+    promise.then(
+      () => 'settled',
+      () => 'settled'
+    ),
+    new Promise((resolve) => setTimeout(() => resolve(PENDING), 20))
+  ])
+
 describe('loadMapKitModule', () => {
   beforeEach(() => {
     // Each test gets a fresh module instance (the loader memoizes its promise).
@@ -63,16 +98,25 @@ describe('loadMapKitModule', () => {
     }
   })
 
-  it('resolves with the existing global when MapKit is already present', async () => {
-    const fake = { init: vi.fn() }
-    testWindow().mapkit = fake
-
+  it('does not resolve on a bare script load before the ready callback fires', async () => {
     const { loadMapKitModule } = await import('@/lib/utils/mapkit')
-    await expect(loadMapKitModule()).resolves.toBe(fake)
-    expect(currentScript()).toBeNull()
+    const promise = loadMapKitModule()
+    promise.catch(() => {})
+
+    // mapkit.core.js assigns window.mapkit while it is still executing, then the
+    // resource fires 'load' — neither means the libraries loaded or init() ran.
+    const fake = publishGlobal()
+    currentScript()?.dispatchEvent(new Event('load'))
+
+    await expect(settledOrPending(promise)).resolves.toBe(PENDING)
+    expect(fake.init).not.toHaveBeenCalled()
+
+    // Settle the load so the timeout watchdog stops polling.
+    invokeReadyCallback()
+    await expect(promise).resolves.toBe(fake)
   })
 
-  it('injects the pinned MapKit script exactly once and resolves on load', async () => {
+  it('injects the pinned MapKit script exactly once and resolves only from the ready callback', async () => {
     const { loadMapKitModule } = await import('@/lib/utils/mapkit')
     const first = loadMapKitModule()
     const second = loadMapKitModule()
@@ -93,12 +137,38 @@ describe('loadMapKitModule', () => {
     // Apple publishes no SRI hashes for mapkit.core.js.
     expect(script?.getAttribute('integrity')).toBeNull()
 
-    const fake = { init: vi.fn() }
-    testWindow().mapkit = fake
+    const fake = publishGlobal()
     script?.dispatchEvent(new Event('load'))
 
+    // A late consumer arriving mid-bootstrap must await the same promise rather
+    // than short-circuiting on the half-initialised global.
+    const third = loadMapKitModule()
+    third.catch(() => {})
+    await expect(settledOrPending(third)).resolves.toBe(PENDING)
+    expect(document.querySelectorAll(MAPKIT_SCRIPT_SELECTOR)).toHaveLength(1)
+
+    invokeReadyCallback()
+
+    expect(fake.init).toHaveBeenCalledTimes(1)
+    expect(fake.init.mock.calls[0][0]).toHaveProperty(
+      'authorizationCallback',
+      expect.any(Function)
+    )
     await expect(first).resolves.toBe(fake)
     await expect(second).resolves.toBe(fake)
+    await expect(third).resolves.toBe(fake)
+    expect(document.querySelectorAll(MAPKIT_SCRIPT_SELECTOR)).toHaveLength(1)
+  })
+
+  it('resolves immediately once a previous load initialized MapKit', async () => {
+    const { loadMapKitModule } = await import('@/lib/utils/mapkit')
+    const promise = loadMapKitModule()
+    const fake = publishGlobal()
+    invokeReadyCallback()
+    await expect(promise).resolves.toBe(fake)
+
+    await expect(loadMapKitModule()).resolves.toBe(fake)
+    expect(fake.init).toHaveBeenCalledTimes(1)
     expect(document.querySelectorAll(MAPKIT_SCRIPT_SELECTOR)).toHaveLength(1)
   })
 
@@ -123,13 +193,12 @@ describe('loadMapKitModule', () => {
     expect(script).not.toBeNull()
     expect(document.querySelectorAll(MAPKIT_SCRIPT_SELECTOR)).toHaveLength(1)
 
-    const fake = { init: vi.fn() }
-    testWindow().mapkit = fake
-    script?.dispatchEvent(new Event('load'))
+    const fake = publishGlobal()
+    invokeReadyCallback()
     await expect(retried).resolves.toBe(fake)
   })
 
-  it('rejects when the MapKit global never appears', async () => {
+  it('rejects when the ready callback never fires', async () => {
     vi.useFakeTimers()
     try {
       const { loadMapKitModule } = await import('@/lib/utils/mapkit')
@@ -137,7 +206,9 @@ describe('loadMapKitModule', () => {
       // Avoid an unhandled rejection while advancing timers.
       promise.catch(() => {})
 
-      // The script resource loads fine, but window.mapkit never appears.
+      // The script resource loads fine and even publishes its global, but Apple
+      // never invokes the data-callback, so the SDK is never usable.
+      publishGlobal()
       currentScript()?.dispatchEvent(new Event('load'))
       await vi.advanceTimersByTimeAsync(16000)
 
@@ -156,16 +227,11 @@ describe('loadMapKitModule', () => {
     const { loadMapKitModule } = await import('@/lib/utils/mapkit')
     const promise = loadMapKitModule()
 
-    const init = vi.fn()
-    testWindow().mapkit = { init }
+    const fake = publishGlobal()
+    invokeReadyCallback()
 
-    // MapKit invokes the registered data-callback once its global is ready.
-    const callback = testWindow()[MAPKIT_CALLBACK_NAME]
-    expect(typeof callback).toBe('function')
-    callback?.()
-
-    expect(init).toHaveBeenCalledTimes(1)
-    const authorizationCallback = authorizationCallbackOf(init)
+    expect(fake.init).toHaveBeenCalledTimes(1)
+    const authorizationCallback = authorizationCallbackOf(fake.init)
 
     const done = vi.fn()
     authorizationCallback(done)
@@ -179,7 +245,7 @@ describe('loadMapKitModule', () => {
     await vi.waitFor(() => expect(done).toHaveBeenCalledWith('refreshed-token'))
     expect(getAppleMapsToken).toHaveBeenCalledTimes(2)
 
-    await expect(promise).resolves.toBe(testWindow().mapkit)
+    await expect(promise).resolves.toBe(fake)
   })
 
   it('does not call done when no Apple Maps token is available', async () => {
@@ -189,15 +255,14 @@ describe('loadMapKitModule', () => {
     const { loadMapKitModule } = await import('@/lib/utils/mapkit')
     const promise = loadMapKitModule()
 
-    const init = vi.fn()
-    testWindow().mapkit = { init }
-    testWindow()[MAPKIT_CALLBACK_NAME]?.()
+    const fake = publishGlobal()
+    invokeReadyCallback()
 
     const done = vi.fn()
-    authorizationCallbackOf(init)(done)
+    authorizationCallbackOf(fake.init)(done)
     await vi.waitFor(() => expect(getAppleMapsToken).toHaveBeenCalledTimes(1))
     expect(done).not.toHaveBeenCalled()
 
-    await expect(promise).resolves.toBe(testWindow().mapkit)
+    await expect(promise).resolves.toBe(fake)
   })
 })

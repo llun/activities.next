@@ -3,8 +3,21 @@ import { getAppleMapsToken } from '@/lib/client'
 // Apple MapKit JS loader for the Apple fitness map provider.
 //
 // Mirrors lib/utils/maplibre.ts and lib/utils/mapbox.ts: a singleton promise that
-// injects Apple's CDN script once, waits for the `mapkit` global, and resolves it
-// so callers can render maps without bundling the SDK.
+// injects Apple's CDN script once and resolves the `mapkit` global so callers can
+// render maps without bundling the SDK.
+//
+// READINESS CONTRACT — the `data-callback` is the ONLY resolve path.
+// `mapkit.core.js` assigns `window.mapkit` synchronously while it is still
+// executing, long before the `data-libraries` (map, overlays, annotations) have
+// loaded and before anyone has called `mapkit.init()`. So the presence of the
+// global proves nothing: resolving on it hands callers a module whose
+// `mapkit.Map` / `mapkit.PolylineOverlay` constructors are still `undefined` and
+// whose authorization token has never been configured. Apple invokes the global
+// named by `data-callback` only once the SDK and its libraries are ready; that
+// callback runs `mapkit.init()`, flips `mapkitInitialized`, and resolves the
+// singleton. The script `load` listener and the polling loop are therefore pure
+// FAILURE detectors — they never resolve, they only reject (script error, or the
+// callback never firing within MAPKIT_LOAD_TIMEOUT_MS).
 //
 // MAPKIT_VERSION is a deliberately pinned exact version — bump it consciously
 // rather than tracking Apple's floating `6.x.x` alias. Unlike the MapLibre bundle
@@ -64,6 +77,19 @@ type MapKitWindow = Window & {
 }
 
 let mapkitModulePromise: Promise<unknown> | null = null
+// Flipped inside the `data-callback` right after `mapkit.init()` succeeds. Never
+// reset: once MapKit is initialized for this document it stays initialized.
+let mapkitInitialized = false
+
+/**
+ * MapKit is usable only when we have initialized it AND its libraries are loaded.
+ * Apple's own bootstrap guard checks `window.mapkit.loadedLibraries.length === 0`;
+ * checking that a library-provided constructor such as `Map` exists is the same
+ * signal expressed through our structural type (which does not declare
+ * `loadedLibraries`), and it is what callers actually need.
+ */
+const isMapKitReady = (globalWindow: MapKitWindow) =>
+  mapkitInitialized && typeof globalWindow.mapkit?.Map === 'function'
 
 /**
  * MapKit re-invokes `authorizationCallback` whenever the token expires, so this
@@ -90,13 +116,17 @@ export const loadMapKitModule = async <T = MapKitModule>(): Promise<T> => {
   }
 
   const globalWindow = window as MapKitWindow
-  if (globalWindow.mapkit) {
+  if (isMapKitReady(globalWindow)) {
     return globalWindow.mapkit as T
   }
 
+  // A bootstrap is already in flight: await the same callback rather than
+  // short-circuiting on a half-initialised `window.mapkit`.
   if (!mapkitModulePromise) {
     const loadPromise = new Promise<unknown>((resolve, reject) => {
       let settled = false
+      // Only one deadline per load, however many times the watchdog is armed.
+      let watchdogArmed = false
 
       const resolveOnce = (value: unknown) => {
         if (settled) {
@@ -130,32 +160,31 @@ export const loadMapKitModule = async <T = MapKitModule>(): Promise<T> => {
         rejectOnce(new Error('Failed to load MapKit script'))
       }
 
-      const resolveIfLoaded = () => {
-        if (!globalWindow.mapkit) {
-          return false
+      // Pure failure detector. It never resolves: only the `data-callback` can do
+      // that. The poll exists so a script that loads (or hangs) without ever
+      // invoking the callback rejects instead of leaving callers pending forever.
+      const watchForInitTimeout = (timeoutMs = MAPKIT_LOAD_TIMEOUT_MS) => {
+        if (watchdogArmed) {
+          return
         }
 
-        resolveOnce(globalWindow.mapkit)
-        return true
-      }
-
-      const waitForMapKitGlobal = (timeoutMs = MAPKIT_LOAD_TIMEOUT_MS) => {
+        watchdogArmed = true
         const startedAt = Date.now()
 
         const poll = () => {
-          // Stop polling once the promise is settled (e.g. the script fired
-          // 'error' and rejected) so we don't keep scheduling timers until the
-          // timeout elapses.
+          // Stop polling once the promise is settled (the callback resolved, or
+          // the script fired 'error' and rejected) so we don't keep scheduling
+          // timers until the timeout elapses.
           if (settled) {
             return
           }
 
-          if (resolveIfLoaded()) {
-            return
-          }
-
           if (Date.now() - startedAt >= timeoutMs) {
-            rejectOnce(new Error('MapKit global was not initialized'))
+            rejectOnce(
+              new Error(
+                'MapKit was not initialized: the MapKit ready callback never fired'
+              )
+            )
             return
           }
 
@@ -165,8 +194,10 @@ export const loadMapKitModule = async <T = MapKitModule>(): Promise<T> => {
         poll()
       }
 
-      // Registered before the script is injected: MapKit reads `data-callback` off
-      // the script tag and invokes this global as soon as the SDK is ready.
+      // The sole resolve path. Registered before the script is injected: MapKit
+      // reads `data-callback` off the script tag and invokes this global once the
+      // SDK *and* its `data-libraries` are ready — which is the earliest moment
+      // `mapkit.init()` may run and `mapkit.Map` exists.
       globalWindow[MAPKIT_CALLBACK_NAME] = () => {
         const mapkit = globalWindow.mapkit
         if (!mapkit) {
@@ -174,6 +205,7 @@ export const loadMapKitModule = async <T = MapKitModule>(): Promise<T> => {
         }
 
         initializeMapKit(mapkit)
+        mapkitInitialized = true
         resolveOnce(mapkit)
       }
 
@@ -182,22 +214,15 @@ export const loadMapKitModule = async <T = MapKitModule>(): Promise<T> => {
       )
 
       if (existingScript) {
-        if (resolveIfLoaded()) {
+        // A previous load already completed the bootstrap; nothing left to wait
+        // for. Anything short of full readiness must wait for the callback.
+        if (isMapKitReady(globalWindow)) {
+          resolveOnce(globalWindow.mapkit)
           return
         }
 
-        existingScript.addEventListener(
-          'load',
-          () => {
-            if (!resolveIfLoaded()) {
-              waitForMapKitGlobal()
-            }
-          },
-          { once: true }
-        )
         existingScript.addEventListener('error', onScriptError, { once: true })
-
-        waitForMapKitGlobal()
+        watchForInitTimeout()
         return
       }
 
@@ -208,18 +233,18 @@ export const loadMapKitModule = async <T = MapKitModule>(): Promise<T> => {
       script.setAttribute('data-libraries', MAPKIT_LIBRARIES)
       script.setAttribute('data-callback', MAPKIT_CALLBACK_NAME)
       script.setAttribute('data-apple-mapkit-script', 'true')
-      script.addEventListener(
-        'load',
-        () => {
-          if (!resolveIfLoaded()) {
-            waitForMapKitGlobal()
-          }
-        },
-        { once: true }
-      )
+      // 'load' only proves the resource arrived — the libraries may still be
+      // loading and `mapkit.init()` has not run. It is a failure detector, not a
+      // readiness signal, so it merely (re)arms the timeout watchdog.
+      script.addEventListener('load', () => watchForInitTimeout(), {
+        once: true
+      })
       script.addEventListener('error', onScriptError, { once: true })
 
       document.head.appendChild(script)
+      // Arm the watchdog immediately so a script that never loads at all (and
+      // never errors) still rejects.
+      watchForInitTimeout()
     })
 
     mapkitModulePromise = loadPromise.catch((error) => {
