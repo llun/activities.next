@@ -1,0 +1,31 @@
+docs/features.md
+  s_c2b45d1e3d2b49::t_2ff22cd6fa8135 57
+  s_c2b45d1e3d2b49::t_1ea692432868c4 56
+docs/environment-variables.md
+  s_c2b45d1e3d2b49::t_8c6748f44b4925 175-201
+  s_c2b45d1e3d2b49::t_c0eebd5c700429 166
+  s_c2b45d1e3d2b49::t_43f600c181426f 154-165,167-173
+  s_c2b45d1e3d2b49::t_2a414cace100ad 174
+docs/fitness-file-storage.md
+  s_c2b45d1e3d2b49::t_de93acad31aa50 24-28
+lib/utils/http-headers/index.ts
+  s_c2b45d1e3d2b49::t_8cb012dc7fe09d 11-13
+lib/utils/polyline.ts
+  s_c2b45d1e3d2b49::t_c0a29ff15cc87f 4-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4b978857a1c43f0ccc63ed2fa57b599b1d57ebfd",
+  "prompts": {},
+  "sessions": {
+    "s_c2b45d1e3d2b49": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b970d6ff-c482-4d45-848b-32f588a95c10",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
