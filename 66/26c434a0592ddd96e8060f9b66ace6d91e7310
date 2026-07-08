@@ -1,0 +1,45 @@
+app/embed/heatmap/[token]/image/route.test.ts
+  s_c2b45d1e3d2b49::t_cba7608dc31b19 23-32
+  s_c2b45d1e3d2b49::t_e82cbd3c8202ae 2
+  s_c2b45d1e3d2b49::t_898df3fa373b7e 132-186,195
+lib/services/fitness-files/generateMapImage.ts
+  s_c2b45d1e3d2b49::t_afe7be4f57f7f7 264-287,290-307,309-316,318-319
+  s_c2b45d1e3d2b49::t_63246ea0f05794 3-4
+  s_c2b45d1e3d2b49::t_c4158ab97fc546 27-31
+lib/services/fitness-files/appleMapsSnapshot.test.ts
+  s_c2b45d1e3d2b49::t_dabc0bc6edca34 1-114,120-181,187,197-202,207-276
+  s_c2b45d1e3d2b49::t_e82cbd3c8202ae 115-119
+  s_c2b45d1e3d2b49::t_979b68d5c87818 182-186,188-196
+  s_c2b45d1e3d2b49::t_de1bd23c3576db 203-206
+lib/services/fitness-files/generateMapImage.test.ts
+  s_c2b45d1e3d2b49::t_7dae7b1e86a2d0 1,4,8-10,13-39,50,57-66,68-85,87-109,114,118,125-128,131-150,154,158,163-165,174-177
+  s_c2b45d1e3d2b49::t_e82cbd3c8202ae 166-168
+app/embed/heatmap/[token]/image/route.ts
+  s_c2b45d1e3d2b49::t_a6c41edf9b7317 98-112,114-115
+  s_c2b45d1e3d2b49::t_522360ef3f6b7b 54-63,65
+  s_c2b45d1e3d2b49::t_89b7c6764b5662 5-9
+  s_c2b45d1e3d2b49::t_0ade7416ba3fad 113
+  s_c2b45d1e3d2b49::t_4a993e2c107bd6 72
+  s_c2b45d1e3d2b49::t_a68ccfdba453b6 141
+  s_c2b45d1e3d2b49::t_3e2c7a8702e2b8 71
+  s_c2b45d1e3d2b49::t_35b9e1974218d3 73
+  s_c2b45d1e3d2b49::t_013c9ea6dd8903 116
+lib/services/fitness-files/appleMapsSnapshot.ts
+  s_c2b45d1e3d2b49::t_3c04e0010db441 1-258
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6626c434a0592ddd96e8060f9b66ace6d91e7310",
+  "prompts": {},
+  "sessions": {
+    "s_c2b45d1e3d2b49": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b970d6ff-c482-4d45-848b-32f588a95c10",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
