@@ -4,10 +4,12 @@ import { FC } from 'react'
 
 import { FitnessRouteHeatmapData } from '@/lib/client'
 import { RouteHeatmapMap } from '@/lib/components/fitness/RouteHeatmapMap'
+import type { PublicMapProvider } from '@/lib/utils/mapProvider'
 
 interface PublicHeatmapEmbedProps {
   heatmap: FitnessRouteHeatmapData
-  mapboxAccessToken?: string
+  /** Which map backend renders the map. */
+  mapProvider: PublicMapProvider
   /** Owner-assigned region label, shown as a caption (e.g. "Netherlands"). */
   regionName?: string
 }
@@ -17,7 +19,7 @@ interface PublicHeatmapEmbedProps {
 // route uniformly here.
 export const PublicHeatmapEmbed: FC<PublicHeatmapEmbedProps> = ({
   heatmap,
-  mapboxAccessToken,
+  mapProvider,
   regionName
 }) => {
   const caption = regionName?.trim()
@@ -26,7 +28,7 @@ export const PublicHeatmapEmbed: FC<PublicHeatmapEmbedProps> = ({
     <div className="relative h-dvh w-full">
       <RouteHeatmapMap
         heatmap={heatmap}
-        mapboxAccessToken={mapboxAccessToken}
+        mapProvider={mapProvider}
         heightClassName="h-dvh"
       />
       {caption && (

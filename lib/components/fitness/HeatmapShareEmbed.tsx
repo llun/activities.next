@@ -18,6 +18,7 @@ import { RouteHeatmapMap } from '@/lib/components/fitness/RouteHeatmapMap'
 import { Button } from '@/lib/components/ui/button'
 import { useCopyToClipboard } from '@/lib/hooks/useCopyToClipboard'
 import { cn } from '@/lib/utils'
+import type { PublicMapProvider } from '@/lib/utils/mapProvider'
 
 /** Embed/image sizes offered to the owner (mirrors the design kit). */
 interface EmbedSize {
@@ -148,7 +149,8 @@ export interface HeatmapShareEmbedProps {
   isWorld: boolean
   /** Completed heatmap data, used for the in-panel live preview. */
   heatmap: FitnessRouteHeatmapData
-  mapboxAccessToken?: string
+  /** Which map backend renders the map. */
+  mapProvider: PublicMapProvider
   /** A share/unshare request is in flight for this region. */
   isSharing: boolean
   onShare: () => void
@@ -175,7 +177,7 @@ export const HeatmapShareEmbed: FC<HeatmapShareEmbedProps> = ({
   regionLabel,
   isWorld,
   heatmap,
-  mapboxAccessToken,
+  mapProvider,
   isSharing,
   onShare,
   onUnshare,
@@ -333,7 +335,7 @@ export const HeatmapShareEmbed: FC<HeatmapShareEmbedProps> = ({
               >
                 <RouteHeatmapMap
                   heatmap={heatmap}
-                  mapboxAccessToken={mapboxAccessToken}
+                  mapProvider={mapProvider}
                   heightClassName="h-[280px]"
                 />
               </div>

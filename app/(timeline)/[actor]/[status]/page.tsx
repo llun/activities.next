@@ -4,6 +4,7 @@ import { FC } from 'react'
 
 import { getRemoteStatus } from '@/lib/activities/getRemoteStatus'
 import { getConfig } from '@/lib/config'
+import { getPublicMapProvider } from '@/lib/config/mapProvider'
 import { getDatabase } from '@/lib/database'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -23,7 +24,6 @@ import { cn } from '@/lib/utils'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { logger } from '@/lib/utils/logger'
-import { getPublicMapboxAccessToken } from '@/lib/utils/mapbox'
 
 import { Header } from './Header'
 import { RemoteStatusLoading } from './RemoteStatusLoading'
@@ -46,10 +46,8 @@ export const generateMetadata = async ({
 }
 
 const Page: FC<Props> = async ({ params }) => {
-  const { host, fitnessStorage, mediaStorage, registrationOpen } = getConfig()
-  const mapboxAccessToken = getPublicMapboxAccessToken(
-    fitnessStorage?.mapboxAccessToken
-  )
+  const { host, mediaStorage, registrationOpen } = getConfig()
+  const mapProvider = getPublicMapProvider()
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
 
@@ -275,7 +273,7 @@ const Page: FC<Props> = async ({ params }) => {
         <div className="border-b bg-background">
           <StatusBox
             host={host}
-            mapboxAccessToken={mapboxAccessToken}
+            mapProvider={mapProvider}
             currentTime={currentTime}
             currentActor={currentActorProfile}
             status={cleanJson(status)}
@@ -326,7 +324,7 @@ const Page: FC<Props> = async ({ params }) => {
         >
           <StatusBox
             host={host}
-            mapboxAccessToken={mapboxAccessToken}
+            mapProvider={mapProvider}
             currentTime={currentTime}
             currentActor={currentActorProfile}
             status={cleanJson(item)}
@@ -337,7 +335,7 @@ const Page: FC<Props> = async ({ params }) => {
       <div className="border-b bg-background">
         <StatusBox
           host={host}
-          mapboxAccessToken={mapboxAccessToken}
+          mapProvider={mapProvider}
           currentTime={currentTime}
           currentActor={currentActorProfile}
           status={cleanJson(status)}
@@ -370,7 +368,7 @@ const Page: FC<Props> = async ({ params }) => {
               <StatusBox
                 key={reply.id}
                 host={host}
-                mapboxAccessToken={mapboxAccessToken}
+                mapProvider={mapProvider}
                 currentTime={currentTime}
                 currentActor={currentActorProfile}
                 status={cleanJson(reply)}

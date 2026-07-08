@@ -3,11 +3,14 @@
 import { Crosshair, Loader2, LocateFixed } from 'lucide-react'
 import { FC, useEffect, useRef, useState } from 'react'
 
+import {
+  Box,
+  boxFromPoints,
+  boxToPolygon
+} from '@/lib/components/fitness/mapGeometry'
 import { Button } from '@/lib/components/ui/button'
 import { LatLng } from '@/lib/fitness/regions'
 import { cn } from '@/lib/utils'
-
-type Box = { nw: LatLng; se: LatLng }
 
 // The Mapbox GL / MapLibre GL surface — only the members this component drives.
 // The two libraries share this subset, so one component drives either provider.
@@ -46,38 +49,6 @@ const BOX_SOURCE_ID = 'region-box'
 const SELECTION_COLOR = '#ea580c'
 // Fall back to the coordinate fields if the map never finishes loading.
 const MAP_LOAD_TIMEOUT_MS = 20000
-
-const round2 = (value: number): number => Number(value.toFixed(2))
-
-// Normalize any two points to nw (top-left) / se (bottom-right), rounded to the
-// same 2-dp precision the coordinate fields and serialization use.
-const boxFromPoints = (a: LatLng, b: LatLng): Box => ({
-  nw: {
-    lat: round2(Math.max(a.lat, b.lat)),
-    lng: round2(Math.min(a.lng, b.lng))
-  },
-  se: {
-    lat: round2(Math.min(a.lat, b.lat)),
-    lng: round2(Math.max(a.lng, b.lng))
-  }
-})
-
-const boxToPolygon = (box: Box) => ({
-  type: 'Feature' as const,
-  properties: {},
-  geometry: {
-    type: 'Polygon' as const,
-    coordinates: [
-      [
-        [box.nw.lng, box.nw.lat],
-        [box.se.lng, box.nw.lat],
-        [box.se.lng, box.se.lat],
-        [box.nw.lng, box.se.lat],
-        [box.nw.lng, box.nw.lat]
-      ]
-    ]
-  }
-})
 
 interface RegionMapProps {
   box: Box

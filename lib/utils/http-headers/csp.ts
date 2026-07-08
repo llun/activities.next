@@ -1,4 +1,5 @@
 import { getProxyHostConfig } from '@/lib/config/host'
+import { getPublicMapProvider } from '@/lib/config/mapProvider'
 import { getSecurityHeaderConfig } from '@/lib/config/securityHeaders'
 
 import { type SecurityHeader, getStaticSecurityHeaders } from './static'
@@ -8,6 +9,14 @@ const MAPBOX_CSP_SOURCES = [
   'https://events.mapbox.com',
   'https://*.tiles.mapbox.com'
 ]
+
+// Apple MapKit JS: the loader script and its stylesheet are served from Apple's
+// CDN, while the tiles, glyphs, and service endpoints live on the wildcard
+// `*.apple-mapkit.com` origins. MapKit renders through a WebAssembly module in a
+// blob worker, so script-src needs `'wasm-unsafe-eval'` and worker-src needs the
+// Apple origin alongside `blob:`.
+const APPLE_MAPKIT_CDN_CSP_SOURCES = ['https://cdn.apple-mapkit.com']
+const APPLE_MAPKIT_CSP_SOURCES = ['https://*.apple-mapkit.com']
 
 // Free, keyless map provider for the heatmap region picker when no Mapbox token
 // is configured: MapLibre GL JS is loaded from jsDelivr and renders OpenFreeMap's
@@ -87,10 +96,6 @@ const getDefaultS3CspSources = (storage: unknown) => {
   ]
 }
 
-const hasPublicMapboxAccessToken = (
-  fitnessStorage: ReturnType<typeof getSecurityHeaderConfig>['fitnessStorage']
-) => fitnessStorage?.mapboxAccessToken?.trim().startsWith('pk.') ?? false
-
 const getConfiguredCspSources = (sources: string[]) =>
   sources.flatMap((source) => {
     const cspSource = getCspSource(source)
@@ -139,10 +144,16 @@ const buildContentSecurityPolicy = (frameAncestors: string): string => {
   const fitnessStorageEndpointSource = getCspSource(
     getStorageEndpoint(fitnessStorage)
   )
-  const allowMapboxSources = hasPublicMapboxAccessToken(fitnessStorage)
-  // Without a Mapbox token the region picker falls back to the keyless
-  // MapLibre + OpenFreeMap map, so allow those origins instead.
-  const allowFreeMapSources = !allowMapboxSources
+  // The browser-facing map provider decides which map origins the page needs.
+  // `getPublicMapProvider` already resolves the fallbacks (a server-only `sk.`
+  // Mapbox token or incomplete Apple credentials degrade to keyless OSM), so the
+  // three branches below are mutually exclusive.
+  const mapProvider = getPublicMapProvider().type
+  const allowMapboxSources = mapProvider === 'mapbox'
+  const allowAppleMapSources = mapProvider === 'apple'
+  // Without a browser-usable Mapbox/Apple provider the maps fall back to the
+  // keyless MapLibre + OpenFreeMap stack, so allow those origins instead.
+  const allowFreeMapSources = mapProvider === 'osm'
   const serviceMediaSources = getConfiguredCspSources(allowMediaDomains)
   const remoteMediaSources = getRemoteMediaCspSources(allowRemoteMediaDomains)
   // The canonical app origin (ACTIVITIES_HOST). Server-rendered pages load the
@@ -160,6 +171,7 @@ const buildContentSecurityPolicy = (frameAncestors: string): string => {
       "'self'",
       ...(allowMapboxSources ? MAPBOX_CSP_SOURCES : []),
       ...(allowFreeMapSources ? OPENFREEMAP_CSP_SOURCES : []),
+      ...(allowAppleMapSources ? APPLE_MAPKIT_CSP_SOURCES : []),
       ...(mediaStorageSource ? [mediaStorageSource] : []),
       ...(fitnessStorageSource ? [fitnessStorageSource] : []),
       ...(mediaStorageEndpointSource ? [mediaStorageEndpointSource] : []),
@@ -176,6 +188,7 @@ const buildContentSecurityPolicy = (frameAncestors: string): string => {
       'blob:',
       ...(appOriginSource ? [appOriginSource] : []),
       ...(allowFreeMapSources ? OPENFREEMAP_CSP_SOURCES : []),
+      ...(allowAppleMapSources ? APPLE_MAPKIT_CSP_SOURCES : []),
       ...remoteMediaSources,
       ...serviceMediaSources,
       ...(mediaStorageSource ? [mediaStorageSource] : [])
@@ -195,13 +208,22 @@ const buildContentSecurityPolicy = (frameAncestors: string): string => {
     "'unsafe-inline'",
     ...(isDevelopment() ? ["'unsafe-eval'"] : []),
     ...(allowMapboxSources ? ['https://api.mapbox.com'] : []),
-    ...(allowFreeMapSources ? MAPLIBRE_CDN_CSP_SOURCES : [])
+    ...(allowFreeMapSources ? MAPLIBRE_CDN_CSP_SOURCES : []),
+    ...(allowAppleMapSources
+      ? [...APPLE_MAPKIT_CDN_CSP_SOURCES, "'wasm-unsafe-eval'"]
+      : [])
   ].join(' ')
   const styleSources = [
     "'self'",
     "'unsafe-inline'",
     ...(allowMapboxSources ? ['https://api.mapbox.com'] : []),
-    ...(allowFreeMapSources ? MAPLIBRE_CDN_CSP_SOURCES : [])
+    ...(allowFreeMapSources ? MAPLIBRE_CDN_CSP_SOURCES : []),
+    ...(allowAppleMapSources ? APPLE_MAPKIT_CDN_CSP_SOURCES : [])
+  ].join(' ')
+  const workerSources = [
+    "'self'",
+    'blob:',
+    ...(allowAppleMapSources ? APPLE_MAPKIT_CSP_SOURCES : [])
   ].join(' ')
 
   const csp = [
@@ -223,7 +245,7 @@ const buildContentSecurityPolicy = (frameAncestors: string): string => {
     "font-src 'self' data:",
     "manifest-src 'self'",
     `media-src ${mediaSources}`,
-    "worker-src 'self' blob:"
+    `worker-src ${workerSources}`
   ].join('; ')
 
   return csp

@@ -1,8 +1,29 @@
 import { NextRequest } from 'next/server'
+import crypto from 'node:crypto'
 
 import { Database } from '@/lib/database/types'
+import { simplifySegmentsToBudget } from '@/lib/services/fitness-files/simplifyRoute'
 
 import { GET } from './route'
+
+// Wraps the real implementations so every other test keeps real behaviour, while
+// letting the many-segment case assert that no Douglas-Peucker work is done at
+// all. That CPU bail is the point of MAX_SNAPSHOT_OVERLAYS on this anonymous,
+// CORS-enabled route: without it the assertion below still passes (the ladder
+// also returns null), so a plain "serves SVG" assertion cannot fail.
+vi.mock('@/lib/services/fitness-files/simplifyRoute', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/services/fitness-files/simplifyRoute')
+  >('@/lib/services/fitness-files/simplifyRoute')
+  return {
+    MAX_BUDGET_PASSES: actual.MAX_BUDGET_PASSES,
+    totalPointCount: vi.fn(actual.totalPointCount),
+    everySegmentAtMinimum: vi.fn(actual.everySegmentAtMinimum),
+    simplifyPoints: vi.fn(actual.simplifyPoints),
+    simplifySegments: vi.fn(actual.simplifySegments),
+    simplifySegmentsToBudget: vi.fn(actual.simplifySegmentsToBudget)
+  }
+})
 
 const mockGetFitnessRouteHeatmapByShareToken = vi.fn()
 let mockDatabase: Pick<Database, 'getFitnessRouteHeatmapByShareToken'> | null =
@@ -13,10 +34,21 @@ vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-const mockGetConfig = vi.fn()
-vi.mock('@/lib/config', () => ({
-  getConfig: () => mockGetConfig()
+const mockGetMapProviderConfig = vi.fn()
+vi.mock('@/lib/config/mapProvider', () => ({
+  getMapProviderConfig: () => mockGetMapProviderConfig(),
+  getPublicMapProvider: vi.fn()
 }))
+
+const appleProvider = {
+  type: 'apple' as const,
+  teamId: 'TEAM123',
+  keyId: 'KEY456',
+  privateKey: crypto
+    .generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+    .privateKey.export({ type: 'pkcs8', format: 'pem' })
+    .toString()
+}
 
 const sharedHeatmap = {
   id: 'heatmap-1',
@@ -56,7 +88,7 @@ describe('/embed/heatmap/[token]/image', () => {
       getFitnessRouteHeatmapByShareToken: mockGetFitnessRouteHeatmapByShareToken
     }
     mockGetFitnessRouteHeatmapByShareToken.mockResolvedValue(sharedHeatmap)
-    mockGetConfig.mockReturnValue({ fitnessStorage: { mapboxAccessToken: '' } })
+    mockGetMapProviderConfig.mockReturnValue({ type: 'osm' })
   })
 
   it('returns 404 for an unknown share token', async () => {
@@ -83,8 +115,9 @@ describe('/embed/heatmap/[token]/image', () => {
   })
 
   it('pins the response content-type to an image even if upstream lies', async () => {
-    mockGetConfig.mockReturnValue({
-      fitnessStorage: { mapboxAccessToken: 'pk.test-token' }
+    mockGetMapProviderConfig.mockReturnValue({
+      type: 'mapbox',
+      accessToken: 'pk.test-token'
     })
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(new Uint8Array([1]), {
@@ -103,7 +136,7 @@ describe('/embed/heatmap/[token]/image', () => {
     }
   })
 
-  it('renders an SVG fallback when no Mapbox token is configured', async () => {
+  it('renders an SVG fallback for the keyless OpenStreetMap provider', async () => {
     const response = await GET(imageRequest(), {
       params: Promise.resolve({ token: 'token-1' })
     })
@@ -116,9 +149,169 @@ describe('/embed/heatmap/[token]/image', () => {
     expect(body).toContain('stroke="#ef4444"')
   })
 
+  it('proxies the signed Apple Maps snapshot for the Apple provider', async () => {
+    mockGetMapProviderConfig.mockReturnValue(appleProvider)
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(new Uint8Array([1, 2, 3]), {
+        headers: { 'content-type': 'image/png' }
+      })
+    )
+
+    try {
+      const response = await GET(imageRequest(), {
+        params: Promise.resolve({ token: 'token-1' })
+      })
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Content-Type')).toBe('image/png')
+      const requestedUrl = fetchSpy.mock.calls[0]?.[0] as string
+      expect(requestedUrl).toContain(
+        'https://snapshot.apple-mapkit.com/api/v1/snapshot?'
+      )
+      // The default 600x400 embed size already fits Apple's 50..640 range.
+      expect(requestedUrl).toContain('size=600x400')
+      expect(requestedUrl).toContain('scale=2')
+      expect(requestedUrl).toContain('&signature=')
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
+  it('scales oversized embed dimensions into the Apple snapshot range', async () => {
+    mockGetMapProviderConfig.mockReturnValue(appleProvider)
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(new Uint8Array([1]), {
+        headers: { 'content-type': 'image/png' }
+      })
+    )
+
+    try {
+      await GET(
+        new NextRequest(
+          'http://llun.test/embed/heatmap/token-1/image?w=1200&h=1000'
+        ),
+        { params: Promise.resolve({ token: 'token-1' }) }
+      )
+
+      const requestedUrl = fetchSpy.mock.calls[0]?.[0] as string
+      // 1200x1000 scaled by 640/1200, not clamped per-axis to 640x640.
+      expect(requestedUrl).toContain('size=640x533')
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
+  it('preserves the requested aspect ratio for a wide Apple snapshot', async () => {
+    mockGetMapProviderConfig.mockReturnValue(appleProvider)
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(new Uint8Array([1]), {
+        headers: { 'content-type': 'image/png' }
+      })
+    )
+
+    try {
+      await GET(
+        new NextRequest(
+          'http://llun.test/embed/heatmap/token-1/image?w=1200&h=400'
+        ),
+        { params: Promise.resolve({ token: 'token-1' }) }
+      )
+
+      const requestedUrl = fetchSpy.mock.calls[0]?.[0] as string
+      // A 3:1 banner stays 3:1 (640x213), instead of being squashed to 640x400.
+      expect(requestedUrl).toContain('size=640x213')
+      expect(requestedUrl).not.toContain('size=640x400')
+      // The lost logical size is recovered with a 2x pixel density.
+      expect(requestedUrl).toContain('scale=2')
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
+  it('renders the SVG heatmap for an Apple provider with too many segments', async () => {
+    // Every segment costs one polyline overlay, so a many-activity heatmap can
+    // never fit Apple's snapshot URL budget — no snapshot fetch should happen.
+    mockGetMapProviderConfig.mockReturnValue(appleProvider)
+    mockGetFitnessRouteHeatmapByShareToken.mockResolvedValue({
+      ...sharedHeatmap,
+      segments: Array.from({ length: 50 }, (_, index) => ({
+        isHiddenByPrivacy: false,
+        points: [
+          { lat: 52.1 + index * 0.01, lng: 4.2 + index * 0.01 },
+          { lat: 52.2 + index * 0.01, lng: 4.3 + index * 0.01 }
+        ]
+      }))
+    })
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    vi.mocked(simplifySegmentsToBudget).mockClear()
+
+    try {
+      const response = await GET(imageRequest(), {
+        params: Promise.resolve({ token: 'token-1' })
+      })
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Content-Type')).toContain('image/svg+xml')
+      expect(fetchSpy).not.toHaveBeenCalled()
+      // The real assertion: an infeasible heatmap must be rejected BEFORE any
+      // route simplification runs. Serving SVG alone proves nothing here — the
+      // ladder would also end up returning null, just after burning the CPU.
+      expect(vi.mocked(simplifySegmentsToBudget)).not.toHaveBeenCalled()
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
+  it('falls back to SVG when the Apple Maps snapshot fails', async () => {
+    mockGetMapProviderConfig.mockReturnValue(appleProvider)
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('network down'))
+
+    try {
+      const response = await GET(imageRequest(), {
+        params: Promise.resolve({ token: 'token-1' })
+      })
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Content-Type')).toContain('image/svg+xml')
+      expect(fetchSpy).toHaveBeenCalled()
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
+  it('proxies the Mapbox static image for a secret sk. token', async () => {
+    // The static URL is fetched server-side, so a secret token never reaches the
+    // browser — an sk.-only deployment still gets a real Mapbox embed image.
+    mockGetMapProviderConfig.mockReturnValue({
+      type: 'mapbox',
+      accessToken: 'sk.secret-token'
+    })
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(new Uint8Array([1]), {
+        headers: { 'content-type': 'image/png' }
+      })
+    )
+
+    try {
+      const response = await GET(imageRequest(), {
+        params: Promise.resolve({ token: 'token-1' })
+      })
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Content-Type')).toBe('image/png')
+      const requestedUrl = fetchSpy.mock.calls[0]?.[0] as string
+      expect(requestedUrl).toContain('access_token=sk.secret-token')
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
   it('proxies the Mapbox static image when a token is configured', async () => {
-    mockGetConfig.mockReturnValue({
-      fitnessStorage: { mapboxAccessToken: 'pk.test-token' }
+    mockGetMapProviderConfig.mockReturnValue({
+      type: 'mapbox',
+      accessToken: 'pk.test-token'
     })
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(new Uint8Array([1, 2, 3]), {
@@ -144,8 +337,9 @@ describe('/embed/heatmap/[token]/image', () => {
   })
 
   it('uses the default dimensions when w/h are omitted', async () => {
-    mockGetConfig.mockReturnValue({
-      fitnessStorage: { mapboxAccessToken: 'pk.test-token' }
+    mockGetMapProviderConfig.mockReturnValue({
+      type: 'mapbox',
+      accessToken: 'pk.test-token'
     })
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(new Uint8Array([1]), {
@@ -168,8 +362,9 @@ describe('/embed/heatmap/[token]/image', () => {
   })
 
   it('snaps w/h to coarse buckets to limit the cache surface', async () => {
-    mockGetConfig.mockReturnValue({
-      fitnessStorage: { mapboxAccessToken: 'pk.test-token' }
+    mockGetMapProviderConfig.mockReturnValue({
+      type: 'mapbox',
+      accessToken: 'pk.test-token'
     })
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(new Uint8Array([1]), {
@@ -195,8 +390,9 @@ describe('/embed/heatmap/[token]/image', () => {
   })
 
   it('falls back to SVG when the Mapbox fetch fails', async () => {
-    mockGetConfig.mockReturnValue({
-      fitnessStorage: { mapboxAccessToken: 'pk.test-token' }
+    mockGetMapProviderConfig.mockReturnValue({
+      type: 'mapbox',
+      accessToken: 'pk.test-token'
     })
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')

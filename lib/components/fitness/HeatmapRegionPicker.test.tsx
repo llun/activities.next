@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
 
 import { loadMapboxModule } from '@/lib/utils/mapbox'
+import { loadMapKitModule } from '@/lib/utils/mapkit'
 import { loadMaplibreModule } from '@/lib/utils/maplibre'
 
 import {
@@ -22,7 +23,11 @@ vi.mock('@/lib/utils/mapbox', () => ({
 }))
 vi.mock('@/lib/utils/maplibre', () => ({
   loadMaplibreModule: vi.fn(() => new Promise(() => {})),
-  OPENFREEMAP_STYLE_URL: 'https://tiles.openfreemap.org/styles/bright'
+  OPENFREEMAP_STYLE_URL: 'https://tiles.openfreemap.org/styles/bright',
+  OPENFREEMAP_HEATMAP_STYLE_URL: 'https://tiles.openfreemap.org/styles/positron'
+}))
+vi.mock('@/lib/utils/mapkit', () => ({
+  loadMapKitModule: vi.fn(() => new Promise(() => {}))
 }))
 
 const mockLoadMapboxModule = loadMapboxModule as jest.MockedFunction<
@@ -30,6 +35,9 @@ const mockLoadMapboxModule = loadMapboxModule as jest.MockedFunction<
 >
 const mockLoadMaplibreModule = loadMaplibreModule as jest.MockedFunction<
   typeof loadMaplibreModule
+>
+const mockLoadMapKitModule = loadMapKitModule as jest.MockedFunction<
+  typeof loadMapKitModule
 >
 
 const worldValue: PickerRegion[] = [{ id: 'w1', type: 'world' }]
@@ -49,12 +57,24 @@ beforeEach(() => {
 
 describe('HeatmapRegionPicker', () => {
   it('renders the empty state when there are no regions', () => {
-    render(<HeatmapRegionPicker value={[]} onChange={vi.fn()} />)
+    render(
+      <HeatmapRegionPicker
+        value={[]}
+        onChange={vi.fn()}
+        mapProvider={{ type: 'osm' }}
+      />
+    )
     expect(screen.getByText(/No regions yet/i)).toBeInTheDocument()
   })
 
   it('renders a whole-world region row and disables the world button', () => {
-    render(<HeatmapRegionPicker value={worldValue} onChange={vi.fn()} />)
+    render(
+      <HeatmapRegionPicker
+        value={worldValue}
+        onChange={vi.fn()}
+        mapProvider={{ type: 'osm' }}
+      />
+    )
     // The row's unique description distinguishes it from the "Whole world" button.
     expect(
       screen.getByText(/Entire globe — every recorded activity/i)
@@ -64,7 +84,13 @@ describe('HeatmapRegionPicker', () => {
 
   it('adds the whole world when the world button is clicked', () => {
     const onChange = vi.fn()
-    render(<HeatmapRegionPicker value={[]} onChange={onChange} />)
+    render(
+      <HeatmapRegionPicker
+        value={[]}
+        onChange={onChange}
+        mapProvider={{ type: 'osm' }}
+      />
+    )
     fireEvent.click(screen.getByRole('button', { name: /Whole world/i }))
     expect(onChange).toHaveBeenCalledTimes(1)
     const next = onChange.mock.calls[0][0] as PickerRegion[]
@@ -74,7 +100,13 @@ describe('HeatmapRegionPicker', () => {
 
   it('adds a rectangle through the composer with the default box', () => {
     const onChange = vi.fn()
-    render(<HeatmapRegionPicker value={[]} onChange={onChange} />)
+    render(
+      <HeatmapRegionPicker
+        value={[]}
+        onChange={onChange}
+        mapProvider={{ type: 'osm' }}
+      />
+    )
 
     fireEvent.click(screen.getByRole('button', { name: /Draw area on map/i }))
     // Composer is open: the interactive map (here still loading) and the Add
@@ -92,11 +124,35 @@ describe('HeatmapRegionPicker', () => {
     })
   })
 
-  it('uses the keyless MapLibre map when no Mapbox token is provided', () => {
-    render(<HeatmapRegionPicker value={[]} onChange={vi.fn()} />)
+  it('uses the keyless MapLibre map for the OpenStreetMap provider', () => {
+    render(
+      <HeatmapRegionPicker
+        value={[]}
+        onChange={vi.fn()}
+        mapProvider={{ type: 'osm' }}
+      />
+    )
     fireEvent.click(screen.getByRole('button', { name: /Draw area on map/i }))
 
     expect(mockLoadMaplibreModule).toHaveBeenCalled()
+    expect(mockLoadMapboxModule).not.toHaveBeenCalled()
+  })
+
+  it('renders the MapKit draw surface for the Apple provider', () => {
+    render(
+      <HeatmapRegionPicker
+        value={[]}
+        onChange={vi.fn()}
+        mapProvider={{ type: 'apple' }}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Draw area on map/i }))
+
+    // MapKit never resolves in jsdom, so the sibling stays on its loading state —
+    // and neither GL engine is loaded.
+    expect(mockLoadMapKitModule).toHaveBeenCalled()
+    expect(screen.getByText(/Loading map/i)).toBeInTheDocument()
+    expect(mockLoadMaplibreModule).not.toHaveBeenCalled()
     expect(mockLoadMapboxModule).not.toHaveBeenCalled()
   })
 
@@ -105,7 +161,7 @@ describe('HeatmapRegionPicker', () => {
       <HeatmapRegionPicker
         value={[]}
         onChange={vi.fn()}
-        mapboxAccessToken="pk.test-token"
+        mapProvider={{ type: 'mapbox', accessToken: 'pk.test-token' }}
       />
     )
     fireEvent.click(screen.getByRole('button', { name: /Draw area on map/i }))
@@ -118,7 +174,13 @@ describe('HeatmapRegionPicker', () => {
     mockLoadMaplibreModule.mockImplementationOnce(() =>
       Promise.reject(new Error('no map'))
     )
-    render(<HeatmapRegionPicker value={[]} onChange={vi.fn()} />)
+    render(
+      <HeatmapRegionPicker
+        value={[]}
+        onChange={vi.fn()}
+        mapProvider={{ type: 'osm' }}
+      />
+    )
     fireEvent.click(screen.getByRole('button', { name: /Draw area on map/i }))
 
     expect(await screen.findByText(/Map unavailable/i)).toBeInTheDocument()
@@ -130,7 +192,13 @@ describe('HeatmapRegionPicker', () => {
 
   it('clamps an out-of-range coordinate when the field commits', () => {
     const onChange = vi.fn()
-    render(<HeatmapRegionPicker value={[]} onChange={onChange} />)
+    render(
+      <HeatmapRegionPicker
+        value={[]}
+        onChange={onChange}
+        mapProvider={{ type: 'osm' }}
+      />
+    )
 
     fireEvent.click(screen.getByRole('button', { name: /Draw area on map/i }))
     // Textbox order: Area name, NW latitude, NW longitude, SE latitude, SE longitude.
@@ -150,7 +218,13 @@ describe('HeatmapRegionPicker', () => {
 
   it('keeps drawn rectangles when the whole world is added', () => {
     const onChange = vi.fn()
-    render(<HeatmapRegionPicker value={rectValue} onChange={onChange} />)
+    render(
+      <HeatmapRegionPicker
+        value={rectValue}
+        onChange={onChange}
+        mapProvider={{ type: 'osm' }}
+      />
+    )
     fireEvent.click(screen.getByRole('button', { name: /Whole world/i }))
     const next = onChange.mock.calls[0][0] as PickerRegion[]
     // Each region owns its own heatmap now, so the two kinds coexist.
@@ -169,7 +243,13 @@ describe('HeatmapRegionPicker', () => {
         se: { lat: 50, lng: 7 }
       }
     ]
-    render(<HeatmapRegionPicker value={existing} onChange={onChange} />)
+    render(
+      <HeatmapRegionPicker
+        value={existing}
+        onChange={onChange}
+        mapProvider={{ type: 'osm' }}
+      />
+    )
     fireEvent.click(screen.getByRole('button', { name: /Draw area on map/i }))
     fireEvent.click(screen.getByRole('button', { name: /Add area/i }))
 
@@ -181,7 +261,13 @@ describe('HeatmapRegionPicker', () => {
 
   it('keeps the whole world when a rectangle is drawn', () => {
     const onChange = vi.fn()
-    render(<HeatmapRegionPicker value={worldValue} onChange={onChange} />)
+    render(
+      <HeatmapRegionPicker
+        value={worldValue}
+        onChange={onChange}
+        mapProvider={{ type: 'osm' }}
+      />
+    )
     fireEvent.click(screen.getByRole('button', { name: /Draw area on map/i }))
     fireEvent.click(screen.getByRole('button', { name: /Add area/i }))
     const next = onChange.mock.calls[0][0] as PickerRegion[]
@@ -191,7 +277,13 @@ describe('HeatmapRegionPicker', () => {
 
   it('removes a region when its remove button is clicked', () => {
     const onChange = vi.fn()
-    render(<HeatmapRegionPicker value={worldValue} onChange={onChange} />)
+    render(
+      <HeatmapRegionPicker
+        value={worldValue}
+        onChange={onChange}
+        mapProvider={{ type: 'osm' }}
+      />
+    )
     fireEvent.click(screen.getByRole('button', { name: /Remove region/i }))
     expect(onChange).toHaveBeenCalledWith([])
   })
@@ -202,6 +294,7 @@ describe('HeatmapRegionPicker', () => {
       <HeatmapRegionPicker
         value={rectValue}
         onChange={vi.fn()}
+        mapProvider={{ type: 'osm' }}
         onRegionRemoved={onRegionRemoved}
       />
     )
@@ -216,6 +309,7 @@ describe('HeatmapRegionPicker', () => {
       <HeatmapRegionPicker
         value={[]}
         onChange={vi.fn()}
+        mapProvider={{ type: 'osm' }}
         onRegionSaved={onRegionSaved}
       />
     )
@@ -247,6 +341,7 @@ describe('HeatmapRegionPicker', () => {
       <HeatmapRegionPicker
         value={existing}
         onChange={vi.fn()}
+        mapProvider={{ type: 'osm' }}
         onRegionSaved={onRegionSaved}
       />
     )
@@ -266,6 +361,7 @@ describe('HeatmapRegionPicker', () => {
       <HeatmapRegionPicker
         value={rectValue}
         onChange={vi.fn()}
+        mapProvider={{ type: 'osm' }}
         onRegionSaved={onRegionSaved}
       />
     )
@@ -282,7 +378,13 @@ describe('HeatmapRegionPicker', () => {
   })
 
   it('labels the remove control per region kind (area vs region)', () => {
-    render(<HeatmapRegionPicker value={rectValue} onChange={vi.fn()} />)
+    render(
+      <HeatmapRegionPicker
+        value={rectValue}
+        onChange={vi.fn()}
+        mapProvider={{ type: 'osm' }}
+      />
+    )
     expect(
       screen.getByRole('button', { name: /Remove area/i })
     ).toBeInTheDocument()
@@ -297,6 +399,7 @@ describe('HeatmapRegionPicker', () => {
       <HeatmapRegionPicker
         value={worldValue}
         onChange={vi.fn()}
+        mapProvider={{ type: 'osm' }}
         onOpen={onOpen}
       />
     )
@@ -312,6 +415,7 @@ describe('HeatmapRegionPicker', () => {
       <HeatmapRegionPicker
         value={worldValue}
         onChange={vi.fn()}
+        mapProvider={{ type: 'osm' }}
         onOpen={vi.fn()}
         getRegionStatus={() => ({
           state: 'completed',
@@ -327,6 +431,7 @@ describe('HeatmapRegionPicker', () => {
       <HeatmapRegionPicker
         value={worldValue}
         onChange={vi.fn()}
+        mapProvider={{ type: 'osm' }}
         onOpen={vi.fn()}
         getRegionStatus={() => ({ state: 'generating', progressPercent: 42 })}
       />
