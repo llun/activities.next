@@ -3011,6 +3011,32 @@ describe('StatusDatabase', () => {
         expect(withNone.map((status) => status.id)).toEqual([baseOnlyStatusId])
       })
 
+      it('requires every all[] tag to be present (AND across multiple tags)', async () => {
+        const suffix = Date.now()
+        const baseTag = `allbase${suffix}`
+        const tagA = `alla${suffix}`
+        const tagB = `allb${suffix}`
+        const bothStatusId = `${primaryActorId}/statuses/hashtag-all-both-${suffix}`
+        const partialStatusId = `${primaryActorId}/statuses/hashtag-all-partial-${suffix}`
+        await createTaggedNote({
+          statusId: bothStatusId,
+          tags: [baseTag, tagA, tagB]
+        })
+        // Has the base tag and tagA but NOT tagB, so it must be excluded — a
+        // regression collapsing the per-tag AND loop into an OR (whereIn) would
+        // wrongly include it.
+        await createTaggedNote({
+          statusId: partialStatusId,
+          tags: [baseTag, tagA]
+        })
+
+        const results = await database.getStatusesByHashtag({
+          hashtag: baseTag,
+          allTags: [tagA, tagB]
+        })
+        expect(results.map((status) => status.id)).toEqual([bothStatusId])
+      })
+
       it('scopes results to local or remote authors', async () => {
         const suffix = Date.now()
         const tag = `scope${suffix}`
