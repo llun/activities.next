@@ -86,6 +86,19 @@ describe('getMastodonStatusEdits', () => {
       text: 'Live version',
       sensitive: true
     })
+    // Give the live status an attachment so the legacy revision (whose media
+    // snapshot is null) must fall back to the CURRENT, non-empty media list —
+    // a regressed fallback returning [] would fail the length assertion below.
+    await database.createAttachment({
+      actorId: ACTOR1_ID,
+      statusId,
+      mediaType: 'image/jpeg',
+      url: 'https://llun.test/api/v1/files/medias/legacy-fallback.jpg',
+      width: 320,
+      height: 240,
+      name: 'legacy fallback alt',
+      mediaId: 'legacy-fallback-media'
+    })
     // A history row written before snapshots existed: only text/summary.
     await knexInstance('status_history').insert({
       statusId,
@@ -100,6 +113,11 @@ describe('getMastodonStatusEdits', () => {
     expect(edits).toHaveLength(2)
     expect(edits[0].content).toContain('Legacy version')
     expect(edits[0]).toMatchObject({ sensitive: true })
+    // The legacy null-snapshot revision falls back to the current media list.
+    expect(edits[0].media_attachments).toHaveLength(1)
+    expect(edits[0].media_attachments[0]).toMatchObject({
+      url: 'https://llun.test/api/v1/files/medias/legacy-fallback.jpg'
+    })
     expect(edits[0].media_attachments).toEqual(edits[1].media_attachments)
   })
 })
