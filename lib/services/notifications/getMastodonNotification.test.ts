@@ -130,6 +130,49 @@ describe('getMastodonNotification', () => {
       })
       expect(mastodonNotification?.group_key).toBe('ungrouped-gk-2')
     })
+
+    it('reports ungrouped-<id> for a non-groupable type with a stored internal groupKey', async () => {
+      // Mentions/replies/collections carry an internal stored groupKey (e.g.
+      // `mention:<statusId>`) that is not a Mastodon group_key. A raw row of a
+      // non-groupable type must report `ungrouped-<id>` — the same value the v2
+      // grouped API emits — rather than leaking the internal key.
+      const mastodonNotification = await getMastodonNotification(database, {
+        id: 'gk-3',
+        actorId: actor1Id,
+        type: NotificationType.enum.mention,
+        sourceActorId: actor2Id,
+        statusId,
+        isRead: false,
+        filtered: false,
+        groupKey: `mention:${statusId}`,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      })
+      expect(mastodonNotification?.group_key).toBe('ungrouped-gk-3')
+    })
+
+    it('keeps the computed group_key for already-grouped input', async () => {
+      // includeGrouping means the grouping step already computed the key
+      // (honoring the requested grouped_types), so it is trusted as-is rather
+      // than re-gated on the default-groupable set.
+      const mastodonNotification = await getMastodonNotification(
+        database,
+        {
+          id: 'gk-4',
+          actorId: actor1Id,
+          type: NotificationType.enum.mention,
+          sourceActorId: actor2Id,
+          statusId,
+          isRead: false,
+          filtered: false,
+          groupKey: `mention:${statusId}`,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        },
+        { includeGrouping: true }
+      )
+      expect(mastodonNotification?.group_key).toBe(`mention:${statusId}`)
+    })
   })
 
   describe('account serialization', () => {

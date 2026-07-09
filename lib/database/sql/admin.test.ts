@@ -576,7 +576,7 @@ describe('domain rule cursor pagination', () => {
     }
   })
 
-  it('pages domain allows forward with maxId', async () => {
+  it('pages domain allows with maxId, minId, and sinceId cursors', async () => {
     const database = getTestSQLDatabase()
     await database.migrate()
     try {
@@ -585,11 +585,33 @@ describe('domain rule cursor pagination', () => {
         await database.createDomainAllow({ domain })
       }
       const firstPage = await database.getDomainAllows({ limit: 2 })
+      expect(firstPage.map((allow) => allow.domain)).toEqual([
+        'a.allow.test',
+        'b.allow.test'
+      ])
+
       const nextPage = await database.getDomainAllows({
         limit: 2,
         maxId: firstPage[1].id
       })
       expect(nextPage.map((allow) => allow.domain)).toEqual(['c.allow.test'])
+
+      // minId returns the page before the cursor in domain-ascending order
+      // (the branch orders desc then reverses — a dropped reverse would surface).
+      const prevPage = await database.getDomainAllows({
+        limit: 2,
+        minId: nextPage[0].id
+      })
+      expect(prevPage.map((allow) => allow.domain)).toEqual([
+        'a.allow.test',
+        'b.allow.test'
+      ])
+
+      const sincePage = await database.getDomainAllows({
+        limit: 1,
+        sinceId: nextPage[0].id
+      })
+      expect(sincePage.map((allow) => allow.domain)).toEqual(['a.allow.test'])
     } finally {
       await database.destroy()
     }
