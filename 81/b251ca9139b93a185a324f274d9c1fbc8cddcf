@@ -1,0 +1,21 @@
+lib/services/mastodon/instance.ts
+  s_f7b91ac6284bd0::t_aa7e8029d4eb22 13-16,21
+lib/database/sql/instanceActivity.ts
+  s_f7b91ac6284bd0::t_5ea0e21210a925 244
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "81b251ca9139b93a185a324f274d9c1fbc8cddcf",
+  "prompts": {},
+  "sessions": {
+    "s_f7b91ac6284bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e5d29e0-cb70-4516-b716-6108a10b94a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
