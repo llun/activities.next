@@ -14,6 +14,9 @@ const STATUS_STRING_FIELDS = [
 
 const MEDIA_ID_FIELDS = ['media_ids', 'media_ids[]'] as const
 const POLL_OPTION_FIELDS = ['poll[options][]', 'poll[options]'] as const
+const MEDIA_ATTRIBUTE_ID_FIELD = 'media_attributes[][id]'
+const MEDIA_ATTRIBUTE_DESCRIPTION_FIELD = 'media_attributes[][description]'
+const MEDIA_ATTRIBUTE_FOCUS_FIELD = 'media_attributes[][focus]'
 
 const collectStatusFields = (
   get: (name: string) => unknown,
@@ -57,6 +60,34 @@ const collectStatusFields = (
     const hideTotals = get('poll[hide_totals]')
     if (typeof hideTotals === 'string') poll.hide_totals = hideTotals
     body.poll = poll
+  }
+
+  // Reconstruct the `media_attributes` array-of-hashes Mastodon form clients
+  // flatten into repeated `media_attributes[][id]` / `[][description]` /
+  // `[][focus]` fields. With bare `[]` fields the description/focus values
+  // associate with ids purely by position, so a partial submission (fewer
+  // description/focus values than ids) is ambiguous: apply a field only when
+  // EVERY id has a corresponding value, otherwise leave it untouched rather
+  // than risk mapping a value to the wrong media. Clients needing per-item
+  // control should send a JSON body — the nested array is unambiguous and
+  // carries these values natively (skipping this path).
+  const mediaAttributeIds = getAll(MEDIA_ATTRIBUTE_ID_FIELD).filter(
+    (value): value is string => typeof value === 'string'
+  )
+  if (mediaAttributeIds.length > 0) {
+    const descriptions = getAll(MEDIA_ATTRIBUTE_DESCRIPTION_FIELD).filter(
+      (value): value is string => typeof value === 'string'
+    )
+    const focuses = getAll(MEDIA_ATTRIBUTE_FOCUS_FIELD).filter(
+      (value): value is string => typeof value === 'string'
+    )
+    const alignedDescriptions = descriptions.length === mediaAttributeIds.length
+    const alignedFocuses = focuses.length === mediaAttributeIds.length
+    body.media_attributes = mediaAttributeIds.map((id, index) => ({
+      id,
+      ...(alignedDescriptions ? { description: descriptions[index] } : {}),
+      ...(alignedFocuses ? { focus: focuses[index] } : {})
+    }))
   }
 
   return body

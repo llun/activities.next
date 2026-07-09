@@ -2129,6 +2129,68 @@ describe('StatusDatabase', () => {
       })
     })
 
+    describe('createPoll', () => {
+      it.each([
+        {
+          description: 'persists hideTotals true when provided',
+          hideTotals: true,
+          expected: true
+        },
+        {
+          description: 'defaults hideTotals to false when omitted',
+          hideTotals: undefined,
+          expected: false
+        }
+      ])('$description', async ({ hideTotals, expected }) => {
+        const pollId = `${emptyActorId}/statuses/poll-hide-totals-${expected}`
+        await database.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Hide totals poll',
+          choices: ['Yes', 'No'],
+          endAt: Date.now() + 60_000,
+          ...(hideTotals === undefined ? {} : { hideTotals })
+        })
+
+        const fetched = (await database.getStatus({
+          statusId: pollId
+        })) as StatusPoll
+        expect(fetched.hideTotals).toBe(expected)
+      })
+
+      it('preserves hideTotals across a poll text update', async () => {
+        const pollId = `${emptyActorId}/statuses/poll-hide-totals-preserved`
+        await database.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Original hidden poll',
+          choices: ['Yes', 'No'],
+          endAt: Date.now() + 60_000,
+          hideTotals: true
+        })
+
+        await database.updatePoll({
+          statusId: pollId,
+          text: 'Edited hidden poll',
+          choices: [
+            { title: 'Yes', totalVotes: 0 },
+            { title: 'No', totalVotes: 0 }
+          ]
+        })
+
+        const fetched = (await database.getStatus({
+          statusId: pollId
+        })) as StatusPoll
+        expect(fetched.hideTotals).toBe(true)
+      })
+    })
+
     describe('updateNote', () => {
       it('updates note content and records edit history', async () => {
         const statusId = `${emptyActorId}/statuses/update-note`
@@ -2435,6 +2497,94 @@ describe('StatusDatabase', () => {
           url: 'https://example.com/new.png'
         })
       })
+
+      it('snapshots sensitive, attachments and poll options into edit history revisions', async () => {
+        const statusId = `${emptyActorId}/statuses/update-note-history-snapshot`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Snapshot original',
+          sensitive: true
+        })
+        await database.createAttachment({
+          actorId: emptyActorId,
+          statusId,
+          mediaType: 'image/jpeg',
+          url: 'https://example.com/snapshot-old.jpg',
+          width: 320,
+          height: 240,
+          name: 'old alt text',
+          mediaId: 'snapshot-old-media'
+        })
+
+        await database.updateNote({
+          statusId,
+          text: 'Snapshot updated',
+          summary: null,
+          sensitive: false,
+          attachments: []
+        })
+
+        const revisions = await database.getStatusEditHistory({ statusId })
+        expect(revisions).toHaveLength(1)
+        expect(revisions[0]).toMatchObject({
+          text: 'Snapshot original',
+          sensitive: true,
+          pollOptions: null
+        })
+        expect(revisions[0].attachments).toHaveLength(1)
+        expect(revisions[0].attachments?.[0]).toMatchObject({
+          url: 'https://example.com/snapshot-old.jpg',
+          name: 'old alt text',
+          mediaId: 'snapshot-old-media'
+        })
+      })
+
+      it('refreshes the copied name on attachments kept across an edit', async () => {
+        const statusId = `${emptyActorId}/statuses/update-note-refresh-name`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Refresh name target'
+        })
+        await database.createAttachment({
+          actorId: emptyActorId,
+          statusId,
+          mediaType: 'image/jpeg',
+          url: 'https://example.com/kept.jpg',
+          width: 320,
+          height: 240,
+          name: 'old alt',
+          mediaId: 'kept-media'
+        })
+
+        const updated = await database.updateNote({
+          statusId,
+          text: 'Refresh name target',
+          summary: null,
+          attachments: [
+            {
+              type: 'upload',
+              id: 'kept-media',
+              mediaType: 'image/jpeg',
+              url: 'https://example.com/kept.jpg',
+              width: 320,
+              height: 240,
+              name: 'new alt'
+            }
+          ]
+        })
+
+        expect(updated?.attachments).toEqual([
+          expect.objectContaining({ mediaId: 'kept-media', name: 'new alt' })
+        ])
+      })
     })
 
     describe('updateNoteVisibility', () => {
@@ -2547,6 +2697,179 @@ describe('StatusDatabase', () => {
           { title: 'Alpha', totalVotes: 2 },
           { title: 'Beta', totalVotes: 1 }
         ])
+      })
+
+      it('normalizes an empty summary to null without a spurious edit revision', async () => {
+        const pollId = `${emptyActorId}/statuses/poll-empty-summary`
+        await database.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: emptyActorId,
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [],
+          text: 'No CW poll',
+          summary: null,
+          choices: ['Alpha', 'Beta'],
+          endAt: Date.now() + 1000
+        })
+
+        // Editing a null-CW poll with the conventional empty spoiler keeps the
+        // summary null (not ''), matching createPoll's `|| null` normalization,
+        // so nothing user-visible changes and no edit revision is recorded.
+        await database.updatePoll({
+          statusId: pollId,
+          summary: '',
+          choices: [
+            { title: 'Alpha', totalVotes: 0 },
+            { title: 'Beta', totalVotes: 0 }
+          ]
+        })
+
+        const fetched = (await database.getStatus({
+          statusId: pollId
+        })) as StatusPoll
+        expect(fetched.summary ?? null).toBeNull()
+        expect(fetched.edits).toHaveLength(0)
+      })
+
+      it('records no spurious revision when a createPoll-default ("") summary is cleared', async () => {
+        const pollId = `${emptyActorId}/statuses/poll-default-summary`
+        await database.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: emptyActorId,
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [],
+          text: 'Default summary poll',
+          // No summary -> createPoll default '' (the action would pass null);
+          // clearing it must still be treated as unchanged vs null.
+          choices: ['Alpha', 'Beta'],
+          endAt: Date.now() + 1000
+        })
+
+        await database.updatePoll({
+          statusId: pollId,
+          summary: '',
+          choices: [
+            { title: 'Alpha', totalVotes: 0 },
+            { title: 'Beta', totalVotes: 0 }
+          ]
+        })
+
+        const fetched = (await database.getStatus({
+          statusId: pollId
+        })) as StatusPoll
+        expect(fetched.edits).toHaveLength(0)
+      })
+
+      it('snapshots previous poll options into edit history when poll content changes', async () => {
+        const pollId = `${emptyActorId}/statuses/poll-history-snapshot`
+        await database.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Original poll text',
+          choices: ['Old A', 'Old B'],
+          endAt: Date.now() + 60_000
+        })
+
+        await database.updatePoll({
+          statusId: pollId,
+          text: 'Updated poll text',
+          choices: [
+            { title: 'Old A', totalVotes: 0 },
+            { title: 'Old B', totalVotes: 0 }
+          ]
+        })
+
+        const revisions = await database.getStatusEditHistory({
+          statusId: pollId
+        })
+        expect(revisions).toHaveLength(1)
+        expect(revisions[0]).toMatchObject({
+          text: 'Original poll text',
+          sensitive: false,
+          attachments: [],
+          pollOptions: ['Old A', 'Old B']
+        })
+      })
+
+      it('replaces poll options and resets votes when resetVotes is true', async () => {
+        const pollId = `${emptyActorId}/statuses/poll-replace-options`
+        await database.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Replace options poll',
+          choices: ['Old A', 'Old B'],
+          endAt: Date.now() + 60_000
+        })
+        await database.recordPollVotes({
+          statusId: pollId,
+          actorId: primaryActorId,
+          choices: [0]
+        })
+
+        const updated = (await database.updatePoll({
+          statusId: pollId,
+          text: 'Replace options poll',
+          choices: [
+            { title: 'New A', totalVotes: 0 },
+            { title: 'New B', totalVotes: 0 },
+            { title: 'New C', totalVotes: 0 }
+          ],
+          endAt: Date.now() + 120_000,
+          hideTotals: true,
+          resetVotes: true
+        })) as StatusPoll
+
+        expect(updated.choices.map((choice) => choice.title)).toEqual([
+          'New A',
+          'New B',
+          'New C'
+        ])
+        expect(updated.choices.every((choice) => choice.totalVotes === 0)).toBe(
+          true
+        )
+        expect(updated.votersCount).toBe(0)
+        expect(updated.hideTotals).toBe(true)
+
+        const revisions = await database.getStatusEditHistory({
+          statusId: pollId
+        })
+        expect(revisions).toHaveLength(1)
+        expect(revisions[0].pollOptions).toEqual(['Old A', 'Old B'])
+      })
+
+      it('does not record an edit revision for a tally-only update', async () => {
+        const pollId = `${emptyActorId}/statuses/poll-tally-only`
+        await database.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Tally poll',
+          choices: ['Yes', 'No'],
+          endAt: Date.now() + 60_000
+        })
+
+        await database.updatePoll({
+          statusId: pollId,
+          text: 'Tally poll',
+          choices: [
+            { title: 'Yes', totalVotes: 5 },
+            { title: 'No', totalVotes: 2 }
+          ]
+        })
+
+        await expect(
+          database.getStatusEditHistory({ statusId: pollId })
+        ).resolves.toEqual([])
       })
     })
 

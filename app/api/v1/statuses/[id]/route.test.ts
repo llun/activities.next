@@ -6,6 +6,7 @@ import { encodeFavouritedByCursor } from '@/lib/database/sql/utils/favouritedByC
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { MAX_PINNED_STATUSES } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { deleteMediaFile } from '@/lib/services/medias'
 import { getQueue } from '@/lib/services/queue'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
@@ -27,7 +28,7 @@ import { POST as muteStatus } from './mute/route'
 import { POST as pinStatus } from './pin/route'
 import { POST as reblogStatus } from './reblog/route'
 import { GET as getStatusRebloggedBy } from './reblogged_by/route'
-import { GET, PUT } from './route'
+import { DELETE, GET, PUT } from './route'
 import { GET as getStatusSource } from './source/route'
 import { POST as unbookmarkStatus } from './unbookmark/route'
 import { POST as unfavouriteStatus } from './unfavourite/route'
@@ -63,7 +64,13 @@ vi.mock('@/lib/services/queue', async () => ({
 
 vi.mock('@/lib/activities', async () => ({
   sendLike: vi.fn().mockResolvedValue(undefined),
-  sendUndoLike: vi.fn().mockResolvedValue(undefined)
+  sendUndoLike: vi.fn().mockResolvedValue(undefined),
+  deleteStatus: vi.fn().mockResolvedValue(undefined)
+}))
+
+vi.mock('@/lib/services/medias', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/services/medias')>()),
+  deleteMediaFile: vi.fn().mockResolvedValue(true)
 }))
 
 vi.mock('@/lib/config', async () => ({
@@ -2251,6 +2258,621 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(updatedStatus?.cc).toEqual([`${ACTOR1_ID}/followers`])
       expect(getQueue().publish).not.toHaveBeenCalled()
     })
+
+    it('updates attachment description and focus through media_attributes', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-media-attributes`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Media attributes target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-attributes.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-attributes.jpg'
+        },
+        description: 'Old description'
+      })
+      expect(media).not.toBeNull()
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: media!.original.mimeType,
+        url: 'https://llun.test/api/v1/files/medias/api-edit-attributes.webp',
+        width: 320,
+        height: 240,
+        name: 'Old description',
+        mediaId: media!.id
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_attributes: [
+                {
+                  id: media!.id,
+                  description: 'New description',
+                  focus: '0.5,-0.5'
+                }
+              ]
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.media_attachments).toHaveLength(1)
+      expect(data.media_attachments[0]).toMatchObject({
+        description: 'New description'
+      })
+
+      const actor = await database.getActorFromId({ id: ACTOR1_ID })
+      const updatedMedia = await database.getMediaByIdForAccount({
+        mediaId: media!.id,
+        accountId: actor!.account!.id
+      })
+      expect(updatedMedia?.description).toBe('New description')
+      expect(updatedMedia?.focus).toEqual({ x: 0.5, y: -0.5 })
+    })
+
+    it('keeps the existing description when media_attributes only updates focus', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-media-attributes-focus`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Focus only target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-attributes-focus.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-attributes-focus.jpg'
+        },
+        description: 'Keep description'
+      })
+      expect(media).not.toBeNull()
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: media!.original.mimeType,
+        url: 'https://llun.test/api/v1/files/medias/api-edit-attributes-focus.webp',
+        width: 320,
+        height: 240,
+        name: 'Keep description',
+        mediaId: media!.id
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_attributes: [{ id: media!.id, focus: '0,1' }]
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const actor = await database.getActorFromId({ id: ACTOR1_ID })
+      const updatedMedia = await database.getMediaByIdForAccount({
+        mediaId: media!.id,
+        accountId: actor!.account!.id
+      })
+      // An omitted description must be left untouched (not cleared to null).
+      expect(updatedMedia?.description).toBe('Keep description')
+      expect(updatedMedia?.focus).toEqual({ x: 0, y: 1 })
+    })
+
+    it('clears an attachment description when media_attributes sends description null', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-media-attributes-clear`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Clear description target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-attributes-clear.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-attributes-clear.jpg'
+        },
+        description: 'Alt text to clear'
+      })
+      expect(media).not.toBeNull()
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: media!.original.mimeType,
+        url: 'https://llun.test/api/v1/files/medias/api-edit-attributes-clear.webp',
+        width: 320,
+        height: 240,
+        name: 'Alt text to clear',
+        mediaId: media!.id
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_attributes: [{ id: media!.id, description: null }]
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const actor = await database.getActorFromId({ id: ACTOR1_ID })
+      const updatedMedia = await database.getMediaByIdForAccount({
+        mediaId: media!.id,
+        accountId: actor!.account!.id
+      })
+      // Explicit null clears the stored alt text (blank/null normalise to null).
+      expect(updatedMedia?.description ?? null).toBeNull()
+    })
+
+    it('rejects media_attributes for media the actor does not own', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-media-attributes-foreign`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Foreign media attributes target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const foreignMedia = await database.createMedia({
+        actorId: ACTOR2_ID,
+        original: {
+          path: 'medias/api-edit-attributes-foreign.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-attributes-foreign.jpg'
+        }
+      })
+      expect(foreignMedia).not.toBeNull()
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_attributes: [
+                { id: foreignMedia!.id, description: 'Hijacked' }
+              ]
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(422)
+    })
+
+    it('edits poll options with vote reset and snapshots the old options in history', async () => {
+      const pollId = `${ACTOR1_ID}/statuses/api-edit-poll-options`
+      await database.createPoll({
+        id: pollId,
+        url: pollId,
+        actorId: ACTOR1_ID,
+        text: 'Editable poll',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        choices: ['Old A', 'Old B'],
+        endAt: Date.now() + 60_000
+      })
+      await database.recordPollVotes({
+        statusId: pollId,
+        actorId: ACTOR2_ID,
+        choices: [0]
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(pollId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              status: 'Editable poll v2',
+              poll: {
+                options: ['New A', 'New B'],
+                expires_in: 7200,
+                hide_totals: true
+              }
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(pollId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.content).toContain('Editable poll v2')
+      // Replaced options start from zero and hide_totals nulls the running
+      // tallies per option.
+      expect(data.poll.options).toEqual([
+        { title: 'New A', votes_count: null },
+        { title: 'New B', votes_count: null }
+      ])
+      expect(data.poll.votes_count).toBe(0)
+      expect(data.poll.voters_count).toBe(0)
+      // expires_in (7200s) is rebased from now into expires_at (seconds -> ms).
+      const expiresAt = new Date(data.poll.expires_at).getTime()
+      expect(Math.abs(expiresAt - (Date.now() + 7200 * 1000))).toBeLessThan(
+        60_000
+      )
+
+      const historyResponse = await getStatusHistory(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(pollId)}/history`
+        ),
+        { params: Promise.resolve({ id: urlToId(pollId) }) }
+      )
+      const revisions = await historyResponse.json()
+      expect(revisions).toHaveLength(2)
+      expect(revisions[0].poll).toEqual({
+        options: [{ title: 'Old A' }, { title: 'Old B' }]
+      })
+      expect(revisions[1].poll).toEqual({
+        options: [{ title: 'New A' }, { title: 'New B' }]
+      })
+    })
+
+    it('keeps existing votes when only hide_totals changes on a poll edit', async () => {
+      const pollId = `${ACTOR1_ID}/statuses/api-edit-poll-hide-totals-only`
+      await database.createPoll({
+        id: pollId,
+        url: pollId,
+        actorId: ACTOR1_ID,
+        text: 'Hide totals only poll',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        choices: ['Yes', 'No'],
+        endAt: Date.now() + 60_000
+      })
+      await database.recordPollVotes({
+        statusId: pollId,
+        actorId: ACTOR2_ID,
+        choices: [0]
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(pollId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              poll: { options: ['Yes', 'No'], hide_totals: true }
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(pollId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      // Votes survive; hide_totals only masks the per-option numbers.
+      expect(data.poll.votes_count).toBe(1)
+      expect(data.poll.voters_count).toBe(1)
+      expect(data.poll.options).toEqual([
+        { title: 'Yes', votes_count: null },
+        { title: 'No', votes_count: null }
+      ])
+    })
+
+    it('resets votes and switches to anyOf when a poll edit flips multiple to true', async () => {
+      const pollId = `${ACTOR1_ID}/statuses/api-edit-poll-multiple-flip`
+      await database.createPoll({
+        id: pollId,
+        url: pollId,
+        actorId: ACTOR1_ID,
+        text: 'Single choice poll',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        choices: ['Red', 'Blue'],
+        endAt: Date.now() + 60_000
+      })
+      await database.recordPollVotes({
+        statusId: pollId,
+        actorId: ACTOR2_ID,
+        choices: [0]
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(pollId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              poll: { options: ['Red', 'Blue'], multiple: true }
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(pollId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      // Same options, but flipping the multiple-choice mode resets votes and
+      // switches the poll to anyOf (Mastodon UpdateStatusService#update_poll!).
+      expect(data.poll.multiple).toBe(true)
+      expect(data.poll.votes_count).toBe(0)
+      expect(data.poll.voters_count).toBe(0)
+    })
+
+    it.each([
+      {
+        description: 'a poll payload on a note edit',
+        body: { poll: { options: ['A', 'B'] } }
+      }
+    ])('rejects $description with 422', async ({ body }) => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-note-no-poll`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Note cannot gain a poll',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify(body),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(422)
+    })
+
+    it.each([
+      { param: 'media_ids', body: { media_ids: ['1'] } },
+      {
+        param: 'media_attributes',
+        body: { media_attributes: [{ id: '1', description: 'x' }] }
+      },
+      { param: 'visibility', body: { visibility: 'private' } }
+    ])(
+      'rejects a poll edit that also changes $param with 422',
+      async ({ param, body }) => {
+        const pollId = `${ACTOR1_ID}/statuses/api-edit-poll-reject-${param}`
+        await database.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: ACTOR1_ID,
+          text: 'Poll cannot change media or visibility',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          choices: ['Yes', 'No'],
+          endAt: Date.now() + 60_000
+        })
+
+        const response = await PUT(
+          new NextRequest(
+            `https://llun.test/api/v1/statuses/${urlToId(pollId)}`,
+            {
+              method: 'PUT',
+              body: JSON.stringify(body),
+              headers: {
+                'Content-Type': 'application/json',
+                Origin: 'https://llun.test'
+              }
+            }
+          ),
+          { params: Promise.resolve({ id: urlToId(pollId) }) }
+        )
+
+        expect(response.status).toBe(422)
+      }
+    )
+
+    it('allows a poll edit that carries an empty media_ids array', async () => {
+      const pollId = `${ACTOR1_ID}/statuses/api-edit-poll-empty-media`
+      await database.createPoll({
+        id: pollId,
+        url: pollId,
+        actorId: ACTOR1_ID,
+        text: 'Poll with an empty media edit',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        choices: ['Yes', 'No'],
+        endAt: Date.now() + 60_000
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(pollId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              // Many clients send an empty media_ids by default; on a poll edit
+              // that must be ignored, not rejected with 422.
+              media_ids: [],
+              poll: { options: ['Yes', 'No'], hide_totals: true }
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(pollId) }) }
+      )
+
+      expect(response.status).toBe(200)
+    })
+  })
+
+  describe('status delete', () => {
+    const createNoteWithMedia = async (suffix: string) => {
+      const statusId = `${ACTOR1_ID}/statuses/api-delete-${suffix}`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Delete target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: `medias/api-delete-${suffix}.webp`,
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: `api-delete-${suffix}.jpg`
+        },
+        thumbnail: {
+          path: `medias/api-delete-${suffix}-thumb.webp`,
+          bytes: 128,
+          mimeType: 'image/webp',
+          metaData: { width: 32, height: 24 }
+        }
+      })
+      expect(media).not.toBeNull()
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: media!.original.mimeType,
+        url: `https://llun.test/api/v1/files/medias/api-delete-${suffix}.webp`,
+        width: 320,
+        height: 240,
+        name: 'Delete media',
+        mediaId: media!.id
+      })
+      return { statusId, media: media! }
+    }
+
+    const deleteStatusRequest = (statusId: string, query = '') =>
+      DELETE(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}${query}`,
+          { method: 'DELETE', headers: { Origin: 'https://llun.test' } }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+    it('destroys media rows and storage files when delete_media is true', async () => {
+      const { statusId, media } = await createNoteWithMedia('with-media')
+
+      const response = await deleteStatusRequest(statusId, '?delete_media=true')
+
+      expect(response.status).toBe(200)
+      await expect(
+        database.getStatus({ statusId, withReplies: false })
+      ).resolves.toBeNull()
+
+      const actor = await database.getActorFromId({ id: ACTOR1_ID })
+      await expect(
+        database.getMediaByIdForAccount({
+          mediaId: media.id,
+          accountId: actor!.account!.id
+        })
+      ).resolves.toBeNull()
+      expect(deleteMediaFile).toHaveBeenCalledWith(
+        expect.anything(),
+        'medias/api-delete-with-media.webp'
+      )
+      expect(deleteMediaFile).toHaveBeenCalledWith(
+        expect.anything(),
+        'medias/api-delete-with-media-thumb.webp'
+      )
+    })
+
+    it.each([
+      { description: 'omits delete_media', suffix: 'keep-default', query: '' },
+      {
+        description: 'sends delete_media=false',
+        suffix: 'keep-false',
+        query: '?delete_media=false'
+      }
+    ])(
+      'keeps media rows for redrafting when the client $description',
+      async ({ suffix, query }) => {
+        const { statusId, media } = await createNoteWithMedia(suffix)
+
+        const response = await deleteStatusRequest(statusId, query)
+
+        expect(response.status).toBe(200)
+        const actor = await database.getActorFromId({ id: ACTOR1_ID })
+        await expect(
+          database.getMediaByIdForAccount({
+            mediaId: media.id,
+            accountId: actor!.account!.id
+          })
+        ).resolves.not.toBeNull()
+        expect(deleteMediaFile).not.toHaveBeenCalled()
+      }
+    )
   })
 
   describe('status with replies', () => {

@@ -27,6 +27,8 @@ interface CreatePollFromUserInputParams {
   database: Database
   endAt: number
   pollType?: 'oneOf' | 'anyOf'
+  // Mastodon poll[hide_totals]: hide per-option tallies until the poll expires.
+  hideTotals?: boolean
   visibility?: MastodonVisibility
   sensitive?: boolean
   language?: string | null
@@ -43,6 +45,7 @@ export const createPollFromUserInput = async ({
   database,
   endAt,
   pollType,
+  hideTotals = false,
   visibility,
   sensitive = false,
   language = null,
@@ -117,6 +120,7 @@ export const createPollFromUserInput = async ({
     choices,
     endAt,
     pollType,
+    hideTotals,
     sensitive,
     language,
     applicationName: application?.name ?? null,

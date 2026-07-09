@@ -119,4 +119,71 @@ describe('parseStatusRequestBody', () => {
     expect(body).toEqual({ media_ids: [] })
     expect('media_ids' in body).toBe(true)
   })
+
+  it('reconstructs media_attributes entries from a urlencoded body', async () => {
+    const params = new URLSearchParams()
+    params.append('media_attributes[][id]', '10')
+    params.append('media_attributes[][description]', 'first alt')
+    params.append('media_attributes[][focus]', '0.5,-0.5')
+    params.append('media_attributes[][id]', '11')
+    params.append('media_attributes[][description]', 'second alt')
+    params.append('media_attributes[][focus]', '0,0')
+    const body = await parseStatusRequestBody(
+      createRequest('application/x-www-form-urlencoded', params.toString())
+    )
+    expect(body).toEqual({
+      media_attributes: [
+        { id: '10', description: 'first alt', focus: '0.5,-0.5' },
+        { id: '11', description: 'second alt', focus: '0,0' }
+      ]
+    })
+  })
+
+  it('does not zip partial media_attributes fields to avoid mis-assigning them', async () => {
+    // Two ids but only one description: with positional bare-[] fields this is
+    // ambiguous (the description could belong to either id), so it must NOT be
+    // applied to the wrong media — both entries stay id-only. Clients needing
+    // per-item control should use a JSON body.
+    const params = new URLSearchParams()
+    params.append('media_attributes[][id]', '10')
+    params.append('media_attributes[][id]', '11')
+    params.append('media_attributes[][description]', 'only alt')
+    const body = await parseStatusRequestBody(
+      createRequest('application/x-www-form-urlencoded', params.toString())
+    )
+    expect(body).toEqual({
+      media_attributes: [{ id: '10' }, { id: '11' }]
+    })
+  })
+
+  it('applies aligned media_attributes fields independently (description without focus)', async () => {
+    // 2 ids + 2 descriptions (aligned -> apply) but only 1 focus (ambiguous ->
+    // skip): the description and focus alignment checks are independent, so the
+    // aligned descriptions must still apply even though focus does not.
+    const params = new URLSearchParams()
+    params.append('media_attributes[][id]', '10')
+    params.append('media_attributes[][description]', 'alt A')
+    params.append('media_attributes[][focus]', '0,0')
+    params.append('media_attributes[][id]', '11')
+    params.append('media_attributes[][description]', 'alt B')
+    const body = await parseStatusRequestBody(
+      createRequest('application/x-www-form-urlencoded', params.toString())
+    )
+    expect(body).toEqual({
+      media_attributes: [
+        { id: '10', description: 'alt A' },
+        { id: '11', description: 'alt B' }
+      ]
+    })
+  })
+
+  it('omits media_attributes when a urlencoded body sends none', async () => {
+    const body = await parseStatusRequestBody(
+      createRequest(
+        'application/x-www-form-urlencoded',
+        new URLSearchParams({ status: 'no media attributes' }).toString()
+      )
+    )
+    expect(body).toEqual({ status: 'no media attributes' })
+  })
 })
