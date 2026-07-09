@@ -21,7 +21,9 @@ import { SearchParams } from './types'
 export const dynamic = 'force-dynamic'
 
 interface Props {
-  searchParams: Promise<SearchParams>
+  // Raw query params as Next.js provides them; SearchParams.safeParse below
+  // produces the typed/coerced form.
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
 const Page: FC<Props> = async ({ searchParams }) => {
@@ -36,7 +38,10 @@ const Page: FC<Props> = async ({ searchParams }) => {
   if (!parsedResult.success) {
     return notFound()
   }
-  const params = parsedResult.data
+  // `lang` is accepted for Mastodon compatibility but intentionally unused
+  // (the consent UI is not localized); destructure it away so it is never
+  // forwarded to better-auth or into sign-in redirectBack URLs.
+  const { lang: _lang, ...params } = parsedResult.data
 
   const actor = await getActorFromSession(database, session)
 

@@ -122,6 +122,75 @@ describe('/oauth/authorize redirect host', () => {
   })
 })
 
+describe('/oauth/authorize Mastodon authorize params', () => {
+  beforeEach(() => {
+    redirectMock.mockClear()
+    vi.mocked(getConfig).mockReturnValue({
+      host: TEST_DOMAIN,
+      trustedHosts: []
+    } as ReturnType<typeof getConfig>)
+    vi.mocked(getBaseURL).mockReturnValue(`https://${TEST_DOMAIN}`)
+    vi.mocked(getActorFromSession).mockResolvedValue(null)
+    headersMock.mockReturnValue(
+      new Headers({ 'x-forwarded-host': TEST_DOMAIN })
+    )
+  })
+
+  it('defaults a missing scope to read instead of returning 404', async () => {
+    await Page({
+      searchParams: Promise.resolve({
+        client_id: 'client-id',
+        redirect_uri: 'https://app.example/callback',
+        response_type: 'code'
+      })
+    })
+
+    expect(redirectMock).toHaveBeenCalledTimes(1)
+    const target = new URL(redirectMock.mock.calls[0][0])
+    expect(target.pathname).toBe('/auth/signin')
+    const redirectBack = new URLSearchParams(
+      (target.searchParams.get('redirectBack') as string).split('?')[1]
+    )
+    expect(redirectBack.get('scope')).toBe('read')
+  })
+
+  it('delegates with the defaulted read scope for an authenticated session', async () => {
+    vi.mocked(getActorFromSession).mockResolvedValue({
+      id: 'actor-id',
+      account: { id: 'account-id' }
+    } as Awaited<ReturnType<typeof getActorFromSession>>)
+
+    await Page({
+      searchParams: Promise.resolve({
+        client_id: 'client-id',
+        redirect_uri: 'https://app.example/callback',
+        response_type: 'code'
+      })
+    })
+
+    const target = new URL(redirectMock.mock.calls[0][0])
+    expect(target.pathname).toBe('/api/auth/oauth2/authorize')
+    expect(target.searchParams.get('scope')).toBe('read')
+  })
+
+  it('accepts the Mastodon lang param and never forwards it', async () => {
+    // Regression pin: before this change lang was silently stripped by Zod;
+    // now it is an explicit schema member that must still not leak into
+    // forwarded queries.
+    await Page({
+      searchParams: Promise.resolve({ ...searchParams, lang: 'fr' })
+    })
+
+    expect(redirectMock).toHaveBeenCalledTimes(1)
+    const target = new URL(redirectMock.mock.calls[0][0])
+    expect(target.pathname).toBe('/auth/signin')
+    const redirectBack = new URLSearchParams(
+      (target.searchParams.get('redirectBack') as string).split('?')[1]
+    )
+    expect(redirectBack.has('lang')).toBe(false)
+  })
+})
+
 describe('/oauth/authorize account summary', () => {
   beforeEach(() => {
     redirectMock.mockClear()
