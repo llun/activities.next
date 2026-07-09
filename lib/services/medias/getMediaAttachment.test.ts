@@ -88,6 +88,22 @@ describe('getMediaAttachment', () => {
     expect(attachment.description).toBeNull()
   })
 
+  it('normalises a whitespace-only stored description to null', () => {
+    const attachment = getMediaAttachment(
+      { ...baseMedia, description: '   ' },
+      'llun.test'
+    )
+    expect(attachment.description).toBeNull()
+  })
+
+  it('returns a real description verbatim, without trimming', () => {
+    const attachment = getMediaAttachment(
+      { ...baseMedia, description: '  a cat  ' },
+      'llun.test'
+    )
+    expect(attachment.description).toBe('  a cat  ')
+  })
+
   it.each([
     {
       description: 'image/png maps to image',
