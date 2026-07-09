@@ -101,6 +101,37 @@ describe('getMastodonNotification', () => {
     )
   })
 
+  describe('group key', () => {
+    it('emits the stored groupKey as group_key', async () => {
+      const mastodonNotification = await getMastodonNotification(database, {
+        id: 'gk-1',
+        actorId: actor1Id,
+        type: NotificationType.enum.like,
+        sourceActorId: actor2Id,
+        isRead: false,
+        filtered: false,
+        groupKey: `like:${statusId}`,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      })
+      expect(mastodonNotification?.group_key).toBe(`like:${statusId}`)
+    })
+
+    it('falls back to ungrouped-<id> when no groupKey is stored', async () => {
+      const mastodonNotification = await getMastodonNotification(database, {
+        id: 'gk-2',
+        actorId: actor1Id,
+        type: NotificationType.enum.follow,
+        sourceActorId: actor2Id,
+        isRead: false,
+        filtered: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      })
+      expect(mastodonNotification?.group_key).toBe('ungrouped-gk-2')
+    })
+  })
+
   describe('account serialization', () => {
     it('should include account in notification', async () => {
       const notification = await database.createNotification({

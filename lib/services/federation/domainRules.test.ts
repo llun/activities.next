@@ -4,11 +4,25 @@ import {
   domainDigest,
   domainMatchesRule,
   findMatchingDomainRule,
+  isDomainBlockStricter,
   normalizeDomain,
   toPublicDomainBlock
 } from './domainRules'
 
 describe('domainRules', () => {
+  it.each([
+    { candidate: 'suspend', existing: 'silence', expected: true },
+    { candidate: 'silence', existing: 'noop', expected: true },
+    { candidate: 'silence', existing: 'silence', expected: false },
+    { candidate: 'silence', existing: 'suspend', expected: false },
+    { candidate: 'noop', existing: 'silence', expected: false }
+  ] as const)(
+    'isDomainBlockStricter($candidate, $existing) is $expected',
+    ({ candidate, existing, expected }) => {
+      expect(isDomainBlockStricter(candidate, existing)).toBe(expected)
+    }
+  )
+
   it('normalizes domains from bare domains and URLs', () => {
     expect(normalizeDomain('Example.Social')).toBe('example.social')
     expect(normalizeDomain('https://Sub.Example.Social/path')).toBe(

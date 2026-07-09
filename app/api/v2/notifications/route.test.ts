@@ -213,4 +213,90 @@ describe('GET /api/v2/notifications', () => {
     expect(link).toContain('min_id=like-new')
     expect(link).toContain('rel="prev"')
   })
+
+  it('splits accounts into full and partial with expand_accounts=partial_avatars', async () => {
+    mockDatabase.getMastodonActorsFromIds.mockImplementation(
+      ({ ids }: { ids: string[] }) =>
+        Promise.resolve(
+          ids.map((id) => ({
+            id: id.replace(/https?:\/\//, '').replaceAll('/', ':'),
+            acct: 'user@other.test',
+            url: id,
+            avatar: 'https://other.test/avatar.png',
+            avatar_static: 'https://other.test/avatar.png',
+            locked: false,
+            bot: false,
+            display_name: 'Only in the full shape'
+          }))
+        )
+    )
+    mockDatabase.getNotifications.mockResolvedValueOnce([
+      {
+        id: 'n1',
+        type: 'like',
+        sourceActorId: 'https://other.test/users/alice',
+        statusId: 'https://other.test/statuses/1',
+        groupKey: 'like:https://other.test/statuses/1',
+        isRead: false,
+        filtered: false,
+        createdAt: 2000,
+        updatedAt: 2000
+      },
+      {
+        id: 'n2',
+        type: 'like',
+        sourceActorId: 'https://other.test/users/bob',
+        statusId: 'https://other.test/statuses/1',
+        groupKey: 'like:https://other.test/statuses/1',
+        isRead: false,
+        filtered: false,
+        createdAt: 1000,
+        updatedAt: 1000
+      }
+    ])
+
+    const request = new NextRequest(
+      'https://llun.test/api/v2/notifications?expand_accounts=partial_avatars',
+      { method: 'GET' }
+    )
+    const response = await GET(request, { params: Promise.resolve({}) })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    // Only the group's most recent account (alice) is rendered in full.
+    expect(data.accounts).toHaveLength(1)
+    expect(data.accounts[0].id).toBe('other.test:users:alice')
+    // The rest ship as truncated PartialAccountWithAvatar entries.
+    expect(data.partial_accounts).toEqual([
+      {
+        id: 'other.test:users:bob',
+        acct: 'user@other.test',
+        url: 'https://other.test/users/bob',
+        avatar: 'https://other.test/avatar.png',
+        avatar_static: 'https://other.test/avatar.png',
+        locked: false,
+        bot: false
+      }
+    ])
+  })
+
+  it('omits partial_accounts with the default expand_accounts=full', async () => {
+    mockDatabase.getNotifications.mockResolvedValueOnce([])
+    const request = new NextRequest('https://llun.test/api/v2/notifications', {
+      method: 'GET'
+    })
+    const response = await GET(request, { params: Promise.resolve({}) })
+    const data = await response.json()
+    expect(response.status).toBe(200)
+    expect(data.partial_accounts).toBeUndefined()
+  })
+
+  it('rejects an unknown expand_accounts value', async () => {
+    const request = new NextRequest(
+      'https://llun.test/api/v2/notifications?expand_accounts=bogus',
+      { method: 'GET' }
+    )
+    const response = await GET(request, { params: Promise.resolve({}) })
+    expect(response.status).toBe(422)
+  })
 })

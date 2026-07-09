@@ -2,7 +2,8 @@ import crypto from 'crypto'
 
 import {
   databaseBeforeAll,
-  getTestDatabaseTable
+  getTestDatabaseTable,
+  getTestSQLDatabase
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
@@ -531,5 +532,66 @@ describe('AdminDatabase', () => {
         })
       })
     })
+  })
+})
+
+describe('domain rule cursor pagination', () => {
+  it('pages domain blocks forward with maxId and back with minId/sinceId', async () => {
+    const database = getTestSQLDatabase()
+    await database.migrate()
+    try {
+      const domains = ['a.cursor.test', 'b.cursor.test', 'c.cursor.test']
+      for (const domain of domains) {
+        await database.createDomainBlock({ domain })
+      }
+
+      const firstPage = await database.getDomainBlocks({ limit: 2 })
+      expect(firstPage.map((block) => block.domain)).toEqual([
+        'a.cursor.test',
+        'b.cursor.test'
+      ])
+
+      const nextPage = await database.getDomainBlocks({
+        limit: 2,
+        maxId: firstPage[1].id
+      })
+      expect(nextPage.map((block) => block.domain)).toEqual(['c.cursor.test'])
+
+      const prevPage = await database.getDomainBlocks({
+        limit: 2,
+        minId: nextPage[0].id
+      })
+      expect(prevPage.map((block) => block.domain)).toEqual([
+        'a.cursor.test',
+        'b.cursor.test'
+      ])
+
+      const sincePage = await database.getDomainBlocks({
+        limit: 1,
+        sinceId: nextPage[0].id
+      })
+      expect(sincePage.map((block) => block.domain)).toEqual(['a.cursor.test'])
+    } finally {
+      await database.destroy()
+    }
+  })
+
+  it('pages domain allows forward with maxId', async () => {
+    const database = getTestSQLDatabase()
+    await database.migrate()
+    try {
+      const domains = ['a.allow.test', 'b.allow.test', 'c.allow.test']
+      for (const domain of domains) {
+        await database.createDomainAllow({ domain })
+      }
+      const firstPage = await database.getDomainAllows({ limit: 2 })
+      const nextPage = await database.getDomainAllows({
+        limit: 2,
+        maxId: firstPage[1].id
+      })
+      expect(nextPage.map((allow) => allow.domain)).toEqual(['c.allow.test'])
+    } finally {
+      await database.destroy()
+    }
   })
 })

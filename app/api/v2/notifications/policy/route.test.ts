@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { DEFAULT_NOTIFICATION_POLICY } from '@/lib/types/database/operations'
 
-import { GET, PATCH } from './route'
+import { GET, PATCH, PUT } from './route'
 
 const mockDatabase = {
   getNotificationPolicy: vi.fn(),
@@ -104,6 +104,24 @@ describe('/api/v2/notifications/policy', () => {
 
     expect(response.status).toBe(200)
     expect(data.for_not_following).toBe('filter')
+    expect(mockDatabase.updateNotificationPolicy).toHaveBeenCalledWith({
+      actorId: mockCurrentActor.id,
+      for_not_following: 'filter'
+    })
+  })
+
+  it('updates the policy on PUT exactly like PATCH (Rails routes both verbs)', async () => {
+    const request = new NextRequest(
+      'https://llun.test/api/v2/notifications/policy',
+      {
+        method: 'PUT',
+        body: JSON.stringify({ for_not_following: 'filter' })
+      }
+    )
+
+    const response = await PUT(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
     expect(mockDatabase.updateNotificationPolicy).toHaveBeenCalledWith({
       actorId: mockCurrentActor.id,
       for_not_following: 'filter'

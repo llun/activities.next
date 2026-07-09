@@ -92,4 +92,47 @@ describe('/api/v1/admin/domain_allows', () => {
     expect(response.status).toBe(400)
     expect(mockDatabase.createDomainAllow).not.toHaveBeenCalled()
   })
+
+  it('paginates with max_id and emits Link headers instead of offset headers', async () => {
+    mockDatabase.getDomainAllows.mockResolvedValue([
+      {
+        id: 'allow-2',
+        type: 'allow',
+        domain: 'b.test',
+        createdAt: 0,
+        updatedAt: 0
+      },
+      {
+        id: 'allow-3',
+        type: 'allow',
+        domain: 'c.test',
+        createdAt: 0,
+        updatedAt: 0
+      }
+    ])
+    mockDatabase.getDomainFederationRuleStats.mockResolvedValue({
+      blocks: 0,
+      allows: 3,
+      sourceBlocks: 0,
+      sourceCounts: {}
+    })
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/admin/domain_allows?limit=2&max_id=allow-1'
+      ),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.getDomainAllows).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 2, maxId: 'allow-1' })
+    )
+    const link = response.headers.get('link') ?? ''
+    expect(link).toContain('max_id=allow-3')
+    expect(link).toContain('rel="next"')
+    expect(link).toContain('min_id=allow-2')
+    expect(link).toContain('rel="prev"')
+    expect(response.headers.get('x-total-count')).toBeNull()
+  })
 })

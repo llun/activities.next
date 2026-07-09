@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { SEND_FLAG_JOB_NAME } from '@/lib/jobs/names'
 import { idToUrl } from '@/lib/utils/urlToId'
 
 import { POST } from './route'
@@ -12,6 +13,11 @@ const mockCurrentActor = {
   id: 'https://local.test/users/me',
   domain: 'local.test'
 }
+
+const mockPublish = vi.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: () => ({ publish: mockPublish })
+}))
 
 vi.mock('@/lib/services/guards/OAuthGuard', () => ({
   OAuthGuard:
@@ -63,7 +69,8 @@ describe('POST /api/v1/reports', () => {
       forward: input.forward,
       createdAt: Date.now(),
       statusIds: input.statusIds,
-      ruleIds: input.ruleIds
+      ruleIds: input.ruleIds,
+      collectionIds: input.collectionIds ?? []
     }))
   })
 
@@ -192,5 +199,72 @@ describe('POST /api/v1/reports', () => {
 
     expect(response.status).toBe(404)
     expect(mockDatabase.createReport).not.toHaveBeenCalled()
+  })
+
+  it('persists and echoes collection_ids', async () => {
+    const response = await POST(
+      createJsonRequest({
+        account_id: 'acc1',
+        collection_ids: ['collection-1', 'collection-2']
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.createReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collectionIds: ['collection-1', 'collection-2']
+      })
+    )
+    const data = await response.json()
+    expect(data.collection_ids).toEqual(['collection-1', 'collection-2'])
+  })
+
+  it('parses repeated collection_ids[] from a urlencoded body', async () => {
+    const response = await POST(
+      createFormRequest(
+        'account_id=acc1&collection_ids[]=c1&collection_ids[]=c2'
+      ),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const call = mockDatabase.createReport.mock.calls[0][0]
+    expect(call.collectionIds).toEqual(['c1', 'c2'])
+  })
+
+  it('federates a Flag job when forward=true', async () => {
+    const response = await POST(
+      createJsonRequest({
+        account_id: 'acc1',
+        forward: true,
+        comment: 'spam',
+        status_ids: ['s1']
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockPublish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: SEND_FLAG_JOB_NAME,
+        data: expect.objectContaining({
+          reportId: 'report-1',
+          targetActorId: idToUrl('acc1'),
+          statusIds: [idToUrl('s1')],
+          content: 'spam'
+        })
+      })
+    )
+  })
+
+  it('does not federate a Flag job when forward=false', async () => {
+    const response = await POST(
+      createJsonRequest({ account_id: 'acc1', forward: false }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockPublish).not.toHaveBeenCalled()
   })
 })

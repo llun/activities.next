@@ -13,6 +13,20 @@ export type FederationMode = (typeof FEDERATION_MODE_VALUES)[number]
 
 export const DEFAULT_DOMAIN_BLOCK_SEVERITY: DomainBlockSeverity = 'suspend'
 
+// Severity strictness order for re-block conflict checks (Mastodon allows a
+// new block over a covering rule only when it is stricter).
+const DOMAIN_BLOCK_SEVERITY_RANK: Record<DomainBlockSeverity, number> = {
+  noop: 0,
+  silence: 1,
+  suspend: 2
+}
+
+export const isDomainBlockStricter = (
+  candidate: DomainBlockSeverity,
+  existing: DomainBlockSeverity
+): boolean =>
+  DOMAIN_BLOCK_SEVERITY_RANK[candidate] > DOMAIN_BLOCK_SEVERITY_RANK[existing]
+
 export const normalizeDomain = (value: string): string | null => {
   const trimmed = value.trim().toLowerCase()
   if (!trimmed) return null

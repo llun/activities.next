@@ -29,6 +29,10 @@ export interface MastodonNotification {
   id: string
   type: MastodonNotificationType
   created_at: string
+  // The stable grouping key: the stored groupKey for groupable notifications,
+  // else `ungrouped-<id>` — the same value the v2 grouped API addresses
+  // groups by.
+  group_key: string
   account: Mastodon.Account
   status?: Mastodon.Status
   // Non-standard fields for grouping support (backward compatibility)
@@ -136,6 +140,7 @@ export const getMastodonNotification = async (
     id: notification.id,
     type: mapNotificationType(notification.type),
     created_at: getISOTimeUTC(notification.createdAt),
+    group_key: notification.groupKey ?? `ungrouped-${notification.id}`,
     account,
     status
   }
