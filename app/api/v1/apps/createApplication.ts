@@ -313,7 +313,10 @@ export const createApplication = async (
           // Mastodon 4.3+: 0 means the client secret never expires.
           client_secret_expires_at: 0,
           name: request.client_name,
-          website: request.website ?? null,
+          // Match the persisted value (line uses `|| null`): a present-but-blank
+          // website is stored as null and read back as null by verify_credentials,
+          // so the create response must report null too, not "".
+          website: request.website || null,
           scopes: parsedScopes,
           redirect_uris: redirectUris,
           // Deprecated in Mastodon 4.3 but still returned: the newline-joined

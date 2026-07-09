@@ -316,6 +316,18 @@ describe('createApplication', () => {
     expect(response.website).toBeNull()
   })
 
+  test('it returns website null when the registration passes a blank website', async () => {
+    const response = (await createApplication({
+      client_name: 'blankWebsiteClient',
+      redirect_uris: 'https://blank-website.llun.dev/callback',
+      scopes: 'read',
+      website: ''
+    })) as SuccessResponse
+
+    expect(response.type).toBe('success')
+    expect(response.website).toBeNull()
+  })
+
   test('it accepts redirect_uris as an array of URIs (Mastodon 4.3 form)', async () => {
     const response = (await createApplication({
       client_name: 'arrayRedirectClient',
