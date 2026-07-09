@@ -139,6 +139,23 @@ describe('parseStatusRequestBody', () => {
     })
   })
 
+  it('does not zip partial media_attributes fields to avoid mis-assigning them', async () => {
+    // Two ids but only one description: with positional bare-[] fields this is
+    // ambiguous (the description could belong to either id), so it must NOT be
+    // applied to the wrong media — both entries stay id-only. Clients needing
+    // per-item control should use a JSON body.
+    const params = new URLSearchParams()
+    params.append('media_attributes[][id]', '10')
+    params.append('media_attributes[][id]', '11')
+    params.append('media_attributes[][description]', 'only alt')
+    const body = await parseStatusRequestBody(
+      createRequest('application/x-www-form-urlencoded', params.toString())
+    )
+    expect(body).toEqual({
+      media_attributes: [{ id: '10' }, { id: '11' }]
+    })
+  })
+
   it('omits media_attributes when a urlencoded body sends none', async () => {
     const body = await parseStatusRequestBody(
       createRequest(

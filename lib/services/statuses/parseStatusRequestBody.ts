@@ -64,10 +64,13 @@ const collectStatusFields = (
 
   // Reconstruct the `media_attributes` array-of-hashes Mastodon form clients
   // flatten into repeated `media_attributes[][id]` / `[][description]` /
-  // `[][focus]` fields. Fields are zipped by position (the nth occurrence of
-  // each field belongs to the nth entry), which holds for clients that send
-  // the same fields for every entry; JSON bodies carry the nested array
-  // natively and skip this path.
+  // `[][focus]` fields. With bare `[]` fields the description/focus values
+  // associate with ids purely by position, so a partial submission (fewer
+  // description/focus values than ids) is ambiguous: apply a field only when
+  // EVERY id has a corresponding value, otherwise leave it untouched rather
+  // than risk mapping a value to the wrong media. Clients needing per-item
+  // control should send a JSON body — the nested array is unambiguous and
+  // carries these values natively (skipping this path).
   const mediaAttributeIds = getAll(MEDIA_ATTRIBUTE_ID_FIELD).filter(
     (value): value is string => typeof value === 'string'
   )
@@ -78,12 +81,12 @@ const collectStatusFields = (
     const focuses = getAll(MEDIA_ATTRIBUTE_FOCUS_FIELD).filter(
       (value): value is string => typeof value === 'string'
     )
+    const alignedDescriptions = descriptions.length === mediaAttributeIds.length
+    const alignedFocuses = focuses.length === mediaAttributeIds.length
     body.media_attributes = mediaAttributeIds.map((id, index) => ({
       id,
-      ...(index < descriptions.length
-        ? { description: descriptions[index] }
-        : {}),
-      ...(index < focuses.length ? { focus: focuses[index] } : {})
+      ...(alignedDescriptions ? { description: descriptions[index] } : {}),
+      ...(alignedFocuses ? { focus: focuses[index] } : {})
     }))
   }
 
