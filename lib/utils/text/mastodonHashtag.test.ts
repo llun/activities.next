@@ -46,7 +46,22 @@ describe('normalizeHashtagParam', () => {
       param: '100%zz',
       expected: null
     },
-    { description: 'an empty string', param: '', expected: null }
+    { description: 'an empty string', param: '', expected: null },
+    {
+      description: 'a decoded name at the 255 limit',
+      param: 'a'.repeat(255),
+      expected: 'a'.repeat(255)
+    },
+    {
+      description: 'a decoded name over the 255 limit',
+      param: 'a'.repeat(256),
+      expected: null
+    },
+    {
+      description: 'a short unicode name whose encoded length exceeds 255',
+      param: encodeURIComponent('あ'.repeat(30)),
+      expected: 'あ'.repeat(30)
+    }
   ])('returns $expected for $description', ({ param, expected }) => {
     expect(normalizeHashtagParam(param)).toBe(expected)
   })

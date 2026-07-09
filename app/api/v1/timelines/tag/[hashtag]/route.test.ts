@@ -147,10 +147,9 @@ describe('GET /api/v1/timelines/tag/:hashtag', () => {
       expect(mockDatabase.getStatusesByHashtag).not.toHaveBeenCalled()
     })
 
-    it('returns 400 for an over-length primary hashtag', async () => {
-      // Params caps the primary at .max(255); it is the only length guard on
-      // this path (the Unicode validator has no upper bound), so an unbounded
-      // name must never reach getStatusesByHashtag.
+    it('returns 400 for an over-length primary hashtag (decoded > 255)', async () => {
+      // The 255-char cap is enforced on the decoded name, the only length guard
+      // on this path, so an unbounded name never reaches getStatusesByHashtag.
       const param = 'a'.repeat(256)
       const response = await GET(
         new NextRequest(`https://local.test/api/v1/timelines/tag/${param}`),
@@ -158,6 +157,23 @@ describe('GET /api/v1/timelines/tag/:hashtag', () => {
       )
       expect(response.status).toBe(400)
       expect(mockDatabase.getStatusesByHashtag).not.toHaveBeenCalled()
+    })
+
+    it('accepts a Unicode hashtag whose percent-encoded length exceeds 255', async () => {
+      // Each Japanese char percent-encodes to 9 chars, so a 30-char name is 270
+      // encoded — over the decoded 255 limit but a valid short name. The raw
+      // param cap must not reject it before decoding.
+      const name = 'あ'.repeat(30)
+      const encoded = encodeURIComponent(name)
+      expect(encoded.length).toBeGreaterThan(255)
+      const response = await GET(
+        new NextRequest(`https://local.test/api/v1/timelines/tag/${encoded}`),
+        { params: Promise.resolve({ hashtag: encoded }) }
+      )
+      expect(response.status).toBe(200)
+      expect(mockDatabase.getStatusesByHashtag).toHaveBeenCalledWith(
+        expect.objectContaining({ hashtag: name })
+      )
     })
   })
 

@@ -16,6 +16,7 @@ import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
 import {
+  MAX_ENCODED_HASHTAG_PARAM_LENGTH,
   isMastodonHashtagName,
   normalizeHashtagParam
 } from '@/lib/utils/text/mastodonHashtag'
@@ -29,7 +30,9 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const Params = z.object({
-  hashtag: z.string().min(1).max(255)
+  // Bound the raw (percent-encoded) param; the 255-char limit applies to the
+  // decoded name inside normalizeHashtagParam so Unicode tags aren't rejected.
+  hashtag: z.string().min(1).max(MAX_ENCODED_HASHTAG_PARAM_LENGTH)
 })
 
 interface RouteParams {
