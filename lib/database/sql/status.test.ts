@@ -2128,6 +2128,68 @@ describe('StatusDatabase', () => {
       })
     })
 
+    describe('createPoll', () => {
+      it.each([
+        {
+          description: 'persists hideTotals true when provided',
+          hideTotals: true,
+          expected: true
+        },
+        {
+          description: 'defaults hideTotals to false when omitted',
+          hideTotals: undefined,
+          expected: false
+        }
+      ])('$description', async ({ hideTotals, expected }) => {
+        const pollId = `${emptyActorId}/statuses/poll-hide-totals-${expected}`
+        await database.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Hide totals poll',
+          choices: ['Yes', 'No'],
+          endAt: Date.now() + 60_000,
+          ...(hideTotals === undefined ? {} : { hideTotals })
+        })
+
+        const fetched = (await database.getStatus({
+          statusId: pollId
+        })) as StatusPoll
+        expect(fetched.hideTotals).toBe(expected)
+      })
+
+      it('preserves hideTotals across a poll text update', async () => {
+        const pollId = `${emptyActorId}/statuses/poll-hide-totals-preserved`
+        await database.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Original hidden poll',
+          choices: ['Yes', 'No'],
+          endAt: Date.now() + 60_000,
+          hideTotals: true
+        })
+
+        await database.updatePoll({
+          statusId: pollId,
+          text: 'Edited hidden poll',
+          choices: [
+            { title: 'Yes', totalVotes: 0 },
+            { title: 'No', totalVotes: 0 }
+          ]
+        })
+
+        const fetched = (await database.getStatus({
+          statusId: pollId
+        })) as StatusPoll
+        expect(fetched.hideTotals).toBe(true)
+      })
+    })
+
     describe('updateNote', () => {
       it('updates note content and records edit history', async () => {
         const statusId = `${emptyActorId}/statuses/update-note`

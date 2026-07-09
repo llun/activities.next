@@ -123,6 +123,9 @@ export const StatusPoll = StatusNote.extend({
   choices: PollChoice.array(),
   endAt: z.number(),
   pollType: z.enum(['oneOf', 'anyOf']).default('oneOf'),
+  // Mastodon poll[hide_totals]: per-option tallies stay hidden until the poll
+  // expires. Optional so existing rows/literals default to false.
+  hideTotals: z.boolean().optional(),
   votersCount: z.number().optional(),
   voted: z.boolean().optional(),
   ownVotes: z.array(z.number()).optional()

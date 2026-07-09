@@ -805,6 +805,7 @@ export const StatusSQLDatabaseMixin = (
     endAt,
     choices,
     pollType = 'oneOf',
+    hideTotals = false,
     sensitive = false,
     language = null,
     applicationName = null,
@@ -821,7 +822,8 @@ export const StatusSQLDatabaseMixin = (
       sensitive,
       language,
       endAt,
-      pollType
+      pollType,
+      hideTotals
     }
     const statusContent = JSON.stringify(content)
     const searchStatus: SQLStatusSearchRow = {
@@ -930,6 +932,7 @@ export const StatusSQLDatabaseMixin = (
       actorAnnounceStatusId: null,
       endAt,
       pollType,
+      hideTotals,
       isLocalActor: Boolean(actor?.account),
       createdAt: getCompatibleTime(statusCreatedAt),
       updatedAt: getCompatibleTime(statusUpdatedAt)
@@ -957,7 +960,8 @@ export const StatusSQLDatabaseMixin = (
       sensitive: data.sensitive ?? false,
       language: data.language ?? null,
       endAt: data.endAt,
-      pollType: data.pollType
+      pollType: data.pollType,
+      hideTotals: data.hideTotals ?? false
     }
     const statusContent = JSON.stringify(content)
     const searchStatus: SQLStatusSearchRow = {
@@ -2704,6 +2708,7 @@ export const StatusSQLDatabaseMixin = (
         // Date.now() so hydration stays deterministic.
         endAt: coercePollEndAt(content.endAt, base.createdAt),
         pollType: content.pollType ?? 'oneOf',
+        hideTotals: content.hideTotals ?? false,
         votersCount,
         voted,
         ownVotes
