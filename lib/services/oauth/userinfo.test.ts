@@ -36,10 +36,29 @@ const makeAccount = (overrides: Partial<Account> = {}): Account => {
   }
 }
 
+// The same `${baseURL}${AUTH_BASE_PATH}` value the discovery document
+// advertises; the route passes it in per request.
+const ISSUER = 'https://example.com/api/auth'
+
 describe('getUserInfo', () => {
+  it('includes iss matching the discovery issuer', () => {
+    const userInfo = getUserInfo({
+      actor: makeActor(),
+      account: makeAccount(),
+      issuer: ISSUER,
+      scopes: ['openid']
+    })
+
+    expect(userInfo.iss).toBe(ISSUER)
+  })
+
   it('uses the account id as the sub claim, not the actor id', () => {
     const account = makeAccount({ id: 'account-sub-123' })
-    const userInfo = getUserInfo({ actor: makeActor(), account })
+    const userInfo = getUserInfo({
+      actor: makeActor(),
+      account,
+      issuer: ISSUER
+    })
 
     // OIDC §5.3.2: the userinfo sub MUST match the id_token sub. Better Auth
     // signs the id_token with the account (user) id, so the canonical subject
@@ -60,6 +79,7 @@ describe('getUserInfo', () => {
     const userInfo = getUserInfo({
       actor: makeActor(),
       account,
+      issuer: ISSUER,
       scopes: ['openid']
     })
 
@@ -68,7 +88,11 @@ describe('getUserInfo', () => {
 
   it('returns sub, profile and email claims when no scopes are specified (legacy/session)', () => {
     const account = makeAccount({ id: 'account-1' })
-    const userInfo = getUserInfo({ actor: makeActor(), account })
+    const userInfo = getUserInfo({
+      actor: makeActor(),
+      account,
+      issuer: ISSUER
+    })
 
     expect(userInfo.sub).toBe('account-1')
     expect(userInfo.name).toBe('Test User')
@@ -79,19 +103,16 @@ describe('getUserInfo', () => {
     expect(userInfo.email_verified).toBe(true)
   })
 
-  it('returns only sub for openid-only scope', () => {
+  it('returns only iss and sub for openid-only scope', () => {
     const account = makeAccount({ id: 'account-1' })
     const userInfo = getUserInfo({
       actor: makeActor(),
       account,
+      issuer: ISSUER,
       scopes: ['openid']
     })
 
-    expect(userInfo.sub).toBe('account-1')
-    expect(userInfo).not.toHaveProperty('name')
-    expect(userInfo).not.toHaveProperty('preferred_username')
-    expect(userInfo).not.toHaveProperty('email')
-    expect(userInfo).not.toHaveProperty('email_verified')
+    expect(userInfo).toEqual({ iss: ISSUER, sub: 'account-1' })
   })
 
   it('includes profile claims when profile scope is granted', () => {
@@ -99,6 +120,7 @@ describe('getUserInfo', () => {
     const userInfo = getUserInfo({
       actor: makeActor(),
       account,
+      issuer: ISSUER,
       scopes: ['openid', 'profile']
     })
 
@@ -114,6 +136,7 @@ describe('getUserInfo', () => {
     const userInfo = getUserInfo({
       actor: makeActor(),
       account: makeAccount(),
+      issuer: ISSUER,
       scopes: ['read']
     })
 
@@ -121,16 +144,19 @@ describe('getUserInfo', () => {
     expect(userInfo.preferred_username).toBe('testuser')
   })
 
-  it('omits name and picture when actor has null values', () => {
+  it('returns empty-string name and picture when the actor has none', () => {
     const userInfo = getUserInfo({
       actor: makeActor({ name: null, iconUrl: null }),
       account: makeAccount(),
+      issuer: ISSUER,
       scopes: ['openid', 'profile']
     })
 
-    expect(userInfo).not.toHaveProperty('name')
+    // Mastodon always returns these claims from /oauth/userinfo; empty
+    // string, not omission.
+    expect(userInfo.name).toBe('')
+    expect(userInfo.picture).toBe('')
     expect(userInfo.preferred_username).toBe('testuser')
-    expect(userInfo).not.toHaveProperty('picture')
     expect(userInfo.profile).toBe('https://example.com/users/testuser')
   })
 
@@ -144,6 +170,7 @@ describe('getUserInfo', () => {
     const userInfo = getUserInfo({
       actor: makeActor({ account }),
       account,
+      issuer: ISSUER,
       scopes: ['openid', 'email']
     })
 
@@ -162,6 +189,7 @@ describe('getUserInfo', () => {
     const userInfo = getUserInfo({
       actor: makeActor({ account }),
       account,
+      issuer: ISSUER,
       scopes: ['openid', 'profile']
     })
 
@@ -180,6 +208,7 @@ describe('getUserInfo', () => {
     const userInfo = getUserInfo({
       actor: makeActor({ account }),
       account,
+      issuer: ISSUER,
       scopes: ['openid', 'email']
     })
 
@@ -198,6 +227,7 @@ describe('getUserInfo', () => {
     const userInfo = getUserInfo({
       actor: makeActor({ account }),
       account,
+      issuer: ISSUER,
       scopes: ['openid', 'email']
     })
 
@@ -215,6 +245,7 @@ describe('getUserInfo', () => {
     const userInfo = getUserInfo({
       actor: makeActor({ account }),
       account,
+      issuer: ISSUER,
       scopes: ['openid', 'email']
     })
 

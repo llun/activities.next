@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server'
-import { z } from 'zod'
 
 import {
   OAuthGuardAnyScope,
@@ -10,7 +9,7 @@ import { AuthenticatedApiHandle } from '@/lib/services/guards/types'
 import { deleteMediaFile, saveMediaThumbnail } from '@/lib/services/medias'
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { getMediaAttachment } from '@/lib/services/medias/getMediaAttachment'
-import { FileSchema, FocusSchema } from '@/lib/services/medias/types'
+import { FileSchema, MediaSchema } from '@/lib/services/medias/types'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -41,21 +40,15 @@ interface Params {
   id: string
 }
 
-// `description` is stored in a varchar(255) column; cap it to avoid a runtime
-// DB error. Empty/whitespace-only (and explicit null) descriptions are
-// normalised to null so clients can clear alt text by sending "" or null.
-// `focus` is "x,y" (each axis in [-1.0, 1.0]); a malformed value fails parsing
-// and yields a 422. Both fields are optional; field-level presence is detected
-// from the raw payload so a partial update never clears the field the client
+// Reuse MediaSchema's `description` + `focus` validation so the update path can
+// never drift from the upload path (same 1500-char cap, same empty/whitespace/
+// null -> null normalization, same focus "x,y" parsing that yields a 422 on
+// malformed input). Both fields are optional; field-level presence is detected
+// from the raw payload so a partial update never clears a field the client
 // omitted.
-const UpdateMediaRequest = z.object({
-  description: z
-    .string()
-    .max(255)
-    .nullable()
-    .optional()
-    .transform((value) => (value && value.trim() ? value : null)),
-  focus: FocusSchema.optional()
+const UpdateMediaRequest = MediaSchema.pick({
+  description: true,
+  focus: true
 })
 
 const readPayload = async (

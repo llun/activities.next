@@ -7,6 +7,7 @@ import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
+import { StatusPoll } from '@/lib/types/domain/status'
 import { ScheduledStatusParams } from '@/lib/types/mastodon/scheduledStatus'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
@@ -124,6 +125,35 @@ describe('publishScheduledStatusJob', () => {
 
     const row = await database.getScheduledStatusById({ id: scheduled.id })
     expect(row).toBeNull()
+  })
+
+  it('carries poll hide_totals through to the published poll', async () => {
+    const text = `Hidden totals scheduled poll ${Date.now()}`
+    const scheduled = await database.createScheduledStatus({
+      actorId: actor1.id,
+      scheduledAt: Date.now() - 1_000,
+      params: baseParams({
+        text,
+        poll: {
+          options: ['Yes', 'No'],
+          expires_in: 3600,
+          multiple: false,
+          hide_totals: true
+        }
+      })
+    })
+
+    await publishScheduledStatusJob(database, {
+      id: 'job-poll-hide-totals',
+      name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+      data: { scheduledStatusId: scheduled.id }
+    })
+
+    const statuses = await database.getActorStatuses({ actorId: actor1.id })
+    const published = statuses.find((status) =>
+      status.text.includes(text)
+    ) as StatusPoll
+    expect(published.hideTotals).toBe(true)
   })
 
   it('drops the scheduled row without re-publishing when the idempotency key already maps to a status', async () => {

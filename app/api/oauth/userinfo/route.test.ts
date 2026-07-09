@@ -27,6 +27,17 @@ vi.mock('@/lib/services/guards/OAuthGuard', () => ({
       })
 }))
 
+vi.mock('@/lib/config', () => ({
+  getConfig: () => ({ host: 'example.com', trustedHosts: [] })
+}))
+
+// Host resolution is unit-tested in lib/services/auth/requestOrigin.test.ts;
+// here it only has to be deterministic so
+// iss = 'https://example.com' + AUTH_BASE_PATH.
+vi.mock('@/lib/services/auth/requestOrigin', () => ({
+  resolveAuthBaseURL: () => 'https://example.com'
+}))
+
 const { GET } = await import('./route')
 
 const makeAccount = (overrides: Partial<Account> = {}): Account => {
@@ -91,12 +102,14 @@ describe('GET /oauth/userinfo', () => {
     expect(response.status).toBe(200)
     // OIDC §5.3.2: the userinfo sub is the account id (matches the id_token sub).
     expect(body.sub).toBe('account-sub-xyz')
+    // Same value the discovery document advertises as `issuer`.
+    expect(body.iss).toBe('https://example.com/api/auth')
     expect(body.preferred_username).toBe('testuser')
     expect(body.email).toBe('test@example.com')
     expect(body.email_verified).toBe(true)
   })
 
-  it('returns only sub for openid-only scope', async () => {
+  it('returns only iss and sub for openid-only scope', async () => {
     const account = makeAccount({ id: 'account-openid-only' })
     guardState.currentActor = makeActor(account)
     guardState.grantedScopes = ['openid']
@@ -106,6 +119,7 @@ describe('GET /oauth/userinfo', () => {
 
     expect(response.status).toBe(200)
     expect(body.sub).toBe('account-openid-only')
+    expect(body.iss).toBe('https://example.com/api/auth')
     expect(body).not.toHaveProperty('preferred_username')
     expect(body).not.toHaveProperty('email')
   })

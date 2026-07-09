@@ -2,6 +2,7 @@ import knex, { Knex } from 'knex'
 
 import {
   getInstanceActivityFromCounters,
+  getInstanceAdminActorIdFromAccounts,
   recordWeeklyLogin,
   recordWeeklyLoginSafely
 } from '@/lib/database/sql/instanceActivity'
@@ -281,5 +282,99 @@ describe('instance activity counters', () => {
     } finally {
       loggerErrorSpy.mockRestore()
     }
+  })
+})
+
+describe('getInstanceAdminActorIdFromAccounts', () => {
+  let database: Knex
+
+  beforeEach(async () => {
+    database = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: { filename: ':memory:' }
+    })
+
+    await database.schema.createTable('accounts', (table) => {
+      table.string('id').primary()
+      table.string('role').nullable()
+    })
+    await database.schema.createTable('actors', (table) => {
+      table.string('id').primary()
+      table.string('accountId').nullable()
+      table.string('deletionStatus').nullable()
+      table.timestamp('createdAt', { useTz: true })
+    })
+  })
+
+  afterEach(async () => {
+    await database.destroy()
+  })
+
+  it('returns null when no account has the admin role', async () => {
+    await database('accounts').insert({ id: 'account-1', role: null })
+    await database('actors').insert({
+      id: 'https://llun.test/users/user1',
+      accountId: 'account-1',
+      createdAt: new Date('2026-01-01T00:00:00.000Z')
+    })
+
+    await expect(
+      getInstanceAdminActorIdFromAccounts(database)
+    ).resolves.toBeNull()
+  })
+
+  it('returns the earliest-created actor owned by an admin account', async () => {
+    await database('accounts').insert([
+      { id: 'account-user', role: null },
+      { id: 'account-admin', role: 'admin' }
+    ])
+    await database('actors').insert([
+      {
+        id: 'https://llun.test/users/user1',
+        accountId: 'account-user',
+        createdAt: new Date('2026-01-01T00:00:00.000Z')
+      },
+      {
+        id: 'https://remote.test/users/remote',
+        accountId: null,
+        createdAt: new Date('2026-01-02T00:00:00.000Z')
+      },
+      {
+        id: 'https://llun.test/users/admin-alias',
+        accountId: 'account-admin',
+        createdAt: new Date('2026-03-01T00:00:00.000Z')
+      },
+      {
+        id: 'https://llun.test/users/admin',
+        accountId: 'account-admin',
+        createdAt: new Date('2026-02-01T00:00:00.000Z')
+      }
+    ])
+
+    await expect(getInstanceAdminActorIdFromAccounts(database)).resolves.toBe(
+      'https://llun.test/users/admin'
+    )
+  })
+
+  it('skips admin actors that are scheduled for deletion', async () => {
+    await database('accounts').insert({ id: 'account-admin', role: 'admin' })
+    await database('actors').insert([
+      {
+        id: 'https://llun.test/users/deleted-admin',
+        accountId: 'account-admin',
+        deletionStatus: 'scheduled',
+        createdAt: new Date('2026-01-01T00:00:00.000Z')
+      },
+      {
+        id: 'https://llun.test/users/admin',
+        accountId: 'account-admin',
+        createdAt: new Date('2026-02-01T00:00:00.000Z')
+      }
+    ])
+
+    await expect(getInstanceAdminActorIdFromAccounts(database)).resolves.toBe(
+      'https://llun.test/users/admin'
+    )
   })
 })

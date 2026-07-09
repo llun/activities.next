@@ -547,7 +547,13 @@ export const StatusSQLDatabaseMixin = (
 
     const previousData = {
       text: status.text,
-      summary: status.summary
+      summary: status.summary,
+      // Snapshot the state each /statuses/:id/history revision needs; rows
+      // without these keys (written before snapshotting) read back as null and
+      // fall back to the status's current values in the serializer.
+      sensitive: status.sensitive ?? false,
+      attachments: status.attachments,
+      pollOptions: null
     }
     const currentTime = new Date()
     const content = {
@@ -635,6 +641,35 @@ export const StatusSQLDatabaseMixin = (
               updatedAt: attachmentCreatedAt
             })
           })
+        )
+
+        // Attachments kept across the edit refresh their copied metadata (alt
+        // text): the attachment row snapshots media.description at attach
+        // time, so a media_attributes edit must re-copy it or the status keeps
+        // serving the stale description. Only rows whose alt text actually
+        // changed are rewritten, so an edit that leaves the media untouched
+        // preserves the existing row (createdAt/updatedAt) unchanged.
+        const existingNameByMediaId = new Map(
+          existingReplaceableAttachments.map((attachment) => [
+            attachment.mediaId,
+            attachment.name ?? ''
+          ])
+        )
+        const keptAttachments = attachments.filter(
+          (attachment) =>
+            existingMediaIds.has(attachment.id) &&
+            (attachment.name ?? '') !== existingNameByMediaId.get(attachment.id)
+        )
+        await Promise.all(
+          keptAttachments.map((attachment) =>
+            trx('attachments')
+              .where('statusId', status.id)
+              .where('mediaId', attachment.id)
+              .update({
+                name: attachment.name ?? '',
+                updatedAt: currentTime
+              })
+          )
         )
       }
     })
@@ -799,6 +834,7 @@ export const StatusSQLDatabaseMixin = (
     endAt,
     choices,
     pollType = 'oneOf',
+    hideTotals = false,
     sensitive = false,
     language = null,
     applicationName = null,
@@ -815,7 +851,8 @@ export const StatusSQLDatabaseMixin = (
       sensitive,
       language,
       endAt,
-      pollType
+      pollType,
+      hideTotals
     }
     const statusContent = JSON.stringify(content)
     const searchStatus: SQLStatusSearchRow = {
@@ -924,6 +961,7 @@ export const StatusSQLDatabaseMixin = (
       actorAnnounceStatusId: null,
       endAt,
       pollType,
+      hideTotals,
       isLocalActor: Boolean(actor?.account),
       createdAt: getCompatibleTime(statusCreatedAt),
       updatedAt: getCompatibleTime(statusUpdatedAt)
@@ -934,7 +972,13 @@ export const StatusSQLDatabaseMixin = (
     statusId,
     text,
     summary,
-    choices
+    choices,
+    sensitive,
+    language,
+    endAt,
+    pollType,
+    hideTotals,
+    resetVotes = false
   }: UpdatePollParams) {
     const existingStatus = await database('statuses')
       .where('id', statusId)
@@ -943,15 +987,23 @@ export const StatusSQLDatabaseMixin = (
     const currentTime = new Date()
     const data = getCompatibleJSON(existingStatus.content)
     const nextText = text ?? data.text
-    const nextSummary = summary ?? data.summary
+    // undefined = keep the existing summary; a provided value (including an
+    // empty/whitespace string) normalizes to null when blank, matching
+    // createPoll's `summary?.trim() || null` so a cleared CW never persists as
+    // '' (which would flip contentChanged and record a spurious edit revision).
+    const nextSummary =
+      summary === undefined ? data.summary : summary?.trim() || null
     const content = {
       url: data.url,
       text: nextText,
       summary: nextSummary,
-      sensitive: data.sensitive ?? false,
-      language: data.language ?? null,
-      endAt: data.endAt,
-      pollType: data.pollType
+      sensitive:
+        sensitive === undefined ? (data.sensitive ?? false) : sensitive,
+      language: language === undefined ? (data.language ?? null) : language,
+      endAt: endAt ?? data.endAt,
+      pollType: pollType ?? data.pollType,
+      hideTotals:
+        hideTotals === undefined ? (data.hideTotals ?? false) : hideTotals
     }
     const statusContent = JSON.stringify(content)
     const searchStatus: SQLStatusSearchRow = {
@@ -962,11 +1014,33 @@ export const StatusSQLDatabaseMixin = (
       createdAt: existingStatus.createdAt
     }
 
+    // Any user-visible change records an edit revision; a tally-only refresh
+    // (federated vote sync) must not.
+    const contentChanged =
+      nextText !== data.text ||
+      // Treat an empty-string summary the same as null: a poll created with the
+      // createPoll default ('') edited with a blank spoiler normalizes to null,
+      // which is not a user-visible change and must not record a revision.
+      (nextSummary || null) !== (data.summary || null) ||
+      content.sensitive !== (data.sensitive ?? false) ||
+      content.language !== (data.language ?? null) ||
+      content.endAt !== data.endAt ||
+      content.pollType !== data.pollType ||
+      content.hideTotals !== (data.hideTotals ?? false) ||
+      resetVotes
+
     await database.transaction(async (trx) => {
-      if (nextText !== data.text || nextSummary !== data.summary) {
+      if (contentChanged) {
+        const previousChoices = await trx('poll_choices')
+          .where('statusId', statusId)
+          .orderBy('choiceId', 'asc')
+          .select<{ title: string }[]>('title')
         const previousData = {
           text: data.text,
-          summary: data.summary
+          summary: data.summary,
+          sensitive: data.sensitive ?? false,
+          attachments: [],
+          pollOptions: previousChoices.map((choice) => choice.title)
         }
         await trx('status_history').insert({
           statusId,
@@ -982,6 +1056,24 @@ export const StatusSQLDatabaseMixin = (
             content: statusContent,
             updatedAt: currentTime
           })
+      }
+      if (resetVotes) {
+        // Mastodon resets a poll whose options changed: all recorded votes are
+        // removed and the replacement options start from zero. Sequential
+        // inserts keep choiceId order deterministic for hydration.
+        await trx('poll_answers').where('statusId', statusId).delete()
+        await trx('poll_voters').where('statusId', statusId).delete()
+        await trx('poll_choices').where('statusId', statusId).delete()
+        for (const choice of choices) {
+          await trx('poll_choices').insert({
+            statusId,
+            title: choice.title,
+            totalVotes: 0,
+            createdAt: currentTime,
+            updatedAt: currentTime
+          })
+        }
+        return
       }
       for (const choice of choices) {
         await trx('poll_choices')
@@ -1059,9 +1151,22 @@ export const StatusSQLDatabaseMixin = (
       .orderBy('id', 'asc')
     return rows.map((row) => {
       const content = getCompatibleJSON(row.data)
+      // Rows written before per-revision snapshots only carry text/summary;
+      // the extended fields parse to null so readers can fall back to the
+      // status's current values.
+      const attachments = Attachment.array().safeParse(content?.attachments)
+      const pollOptions = Array.isArray(content?.pollOptions)
+        ? content.pollOptions.filter(
+            (option: unknown): option is string => typeof option === 'string'
+          )
+        : null
       return {
         text: content?.text ?? '',
         summary: content?.summary ?? null,
+        sensitive:
+          typeof content?.sensitive === 'boolean' ? content.sensitive : null,
+        attachments: attachments.success ? attachments.data : null,
+        pollOptions,
         supersededAt: getCompatibleTime(row.updatedAt)
       }
     })
@@ -2758,6 +2863,7 @@ export const StatusSQLDatabaseMixin = (
         // Date.now() so hydration stays deterministic.
         endAt: coercePollEndAt(content.endAt, base.createdAt),
         pollType: content.pollType ?? 'oneOf',
+        hideTotals: content.hideTotals ?? false,
         votersCount,
         voted,
         ownVotes

@@ -3,7 +3,11 @@ import { NextRequest } from 'next/server'
 
 import { POST, resetAppRegistrationWarningStateForTests } from './route'
 
-const mockGetConfig = vi.fn(() => ({
+type MockConfig = {
+  secretPhase: string
+  push?: { vapidPublicKey: string }
+}
+const mockGetConfig = vi.fn((): MockConfig => ({
   secretPhase: 'registration-pepper-secret'
 }))
 const mockGetTrustProxyIpHeadersConfig = vi.fn(() => false)
@@ -63,9 +67,12 @@ describe('apps route', () => {
       id: 'app-id',
       client_id: 'client-id',
       client_secret: 'client-secret',
+      client_secret_expires_at: 0,
       name: 'client',
       website: null,
-      redirect_uri: 'https://client.llun.dev/callback'
+      scopes: ['read'],
+      redirect_uri: 'https://client.llun.dev/callback',
+      redirect_uris: ['https://client.llun.dev/callback']
     })
   })
 
@@ -168,6 +175,81 @@ describe('apps route', () => {
 
     expect(mockCreateApplication).toHaveBeenCalledTimes(2)
     expect(mockLoggerWarn).toHaveBeenCalledTimes(1)
+  })
+
+  test('accepts the Mastodon 4.3 array form of redirect_uris', async () => {
+    const req = new NextRequest('https://llun.test/api/v1/apps', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'array-client',
+        redirect_uris: [
+          'https://client.llun.dev/callback',
+          'https://client.llun.dev/alt-callback'
+        ]
+      })
+    })
+
+    const response = await POST(req)
+
+    expect(response.status).toBe(200)
+    expect(mockCreateApplication).toHaveBeenCalledWith(
+      expect.objectContaining({
+        redirect_uris: [
+          'https://client.llun.dev/callback',
+          'https://client.llun.dev/alt-callback'
+        ]
+      }),
+      { registrationKey: undefined }
+    )
+  })
+
+  test('includes the configured vapid_key in the registration response', async () => {
+    mockGetConfig.mockReturnValue({
+      secretPhase: 'registration-pepper-secret',
+      push: { vapidPublicKey: 'vapid-public-key' }
+    })
+    const req = new NextRequest('https://llun.test/api/v1/apps', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'client',
+        redirect_uris: 'https://client.llun.dev/callback'
+      })
+    })
+
+    const response = await POST(req)
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body).toEqual({
+      id: 'app-id',
+      client_id: 'client-id',
+      client_secret: 'client-secret',
+      client_secret_expires_at: 0,
+      name: 'client',
+      website: null,
+      scopes: ['read'],
+      redirect_uri: 'https://client.llun.dev/callback',
+      redirect_uris: ['https://client.llun.dev/callback'],
+      vapid_key: 'vapid-public-key'
+    })
+  })
+
+  test('returns vapid_key null when web push is not configured', async () => {
+    const req = new NextRequest('https://llun.test/api/v1/apps', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'client',
+        redirect_uris: 'https://client.llun.dev/callback'
+      })
+    })
+
+    const response = await POST(req)
+    const body = await response.json()
+
+    expect(body.vapid_key).toBeNull()
   })
 
   test('returns too many requests when app registration is throttled', async () => {

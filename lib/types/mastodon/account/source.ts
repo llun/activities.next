@@ -17,6 +17,12 @@ export const Source = z.object({
   language: z
     .string()
     .describe('The default posting language for new statuses'),
+  attribution_domains: z
+    .string()
+    .array()
+    .describe(
+      'Domains of websites allowed to credit this account in link previews'
+    ),
   follow_requests_count: z
     .number()
     .describe('The number of pending follow requests')

@@ -71,6 +71,19 @@ describe('GET /api/v1/accounts/:id', () => {
     expect(data).toHaveProperty('followers_count')
   })
 
+  it('includes modern account fields on the public account', async () => {
+    const response = await GET(createRequest(ACTOR1_ID), {
+      params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
+    })
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data.uri).toBe(ACTOR1_ID)
+    expect(data.roles).toEqual([])
+    expect(data.indexable).toBe(false)
+    expect(data.hide_collections).toBeNull()
+    expect(data.source.attribution_domains).toEqual([])
+  })
+
   it('returns 404 for an unknown account', async () => {
     const unknown = 'https://llun.test/users/nope'
     const response = await GET(createRequest(unknown), {

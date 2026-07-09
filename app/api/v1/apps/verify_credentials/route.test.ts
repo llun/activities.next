@@ -103,8 +103,12 @@ describe('GET /api/v1/apps/verify_credentials', () => {
 
     expect(response.status).toBe(200)
     expect(data).toEqual({
+      id: 'client-row-1',
       name: 'Test App',
       website: 'https://app.example.com',
+      scopes: ['read'],
+      redirect_uris: ['https://app.example.com/callback'],
+      redirect_uri: 'https://app.example.com/callback',
       vapid_key: 'vapid-public-key'
     })
     // App tokens have no actor; the route never resolves one.
@@ -132,8 +136,43 @@ describe('GET /api/v1/apps/verify_credentials', () => {
     expect(data).toEqual({
       name: 'Web',
       website: null,
+      scopes: [],
+      redirect_uris: [],
+      redirect_uri: '',
       vapid_key: 'vapid-public-key'
     })
+  })
+
+  test('joins multiple registered redirect URIs with newlines in redirect_uri', async () => {
+    mockStoredTokens.set(hashToken('multi-token'), {
+      token: hashToken('multi-token'),
+      referenceId: null,
+      clientId: 'client-app-1',
+      expiresAt: new Date(Date.now() + 3600000),
+      scopes: JSON.stringify(['read'])
+    })
+    mockClients.set(
+      'client-app-1',
+      buildClient({
+        redirectUris: [
+          'https://app.example.com/callback',
+          'https://app.example.com/alt-callback'
+        ]
+      })
+    )
+
+    const response = await GET(createRequest('multi-token'), {
+      params: Promise.resolve({})
+    })
+    const data = await response.json()
+
+    expect(data.redirect_uris).toEqual([
+      'https://app.example.com/callback',
+      'https://app.example.com/alt-callback'
+    ])
+    expect(data.redirect_uri).toBe(
+      'https://app.example.com/callback\nhttps://app.example.com/alt-callback'
+    )
   })
 
   test('returns 200 for a user token', async () => {

@@ -122,6 +122,7 @@ export const publishScheduledStatusJob = createJobHandle(
         choices: params.poll.options,
         endAt: Date.now() + params.poll.expires_in * 1000,
         pollType: params.poll.multiple ? 'anyOf' : 'oneOf',
+        hideTotals: params.poll.hide_totals,
         visibility: params.visibility,
         sensitive: params.sensitive ?? false,
         language: params.language ?? null,
