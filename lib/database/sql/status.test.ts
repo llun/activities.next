@@ -2434,6 +2434,51 @@ describe('StatusDatabase', () => {
           url: 'https://example.com/new.png'
         })
       })
+
+      it('snapshots sensitive, attachments and poll options into edit history revisions', async () => {
+        const statusId = `${emptyActorId}/statuses/update-note-history-snapshot`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Snapshot original',
+          sensitive: true
+        })
+        await database.createAttachment({
+          actorId: emptyActorId,
+          statusId,
+          mediaType: 'image/jpeg',
+          url: 'https://example.com/snapshot-old.jpg',
+          width: 320,
+          height: 240,
+          name: 'old alt text',
+          mediaId: 'snapshot-old-media'
+        })
+
+        await database.updateNote({
+          statusId,
+          text: 'Snapshot updated',
+          summary: null,
+          sensitive: false,
+          attachments: []
+        })
+
+        const revisions = await database.getStatusEditHistory({ statusId })
+        expect(revisions).toHaveLength(1)
+        expect(revisions[0]).toMatchObject({
+          text: 'Snapshot original',
+          sensitive: true,
+          pollOptions: null
+        })
+        expect(revisions[0].attachments).toHaveLength(1)
+        expect(revisions[0].attachments?.[0]).toMatchObject({
+          url: 'https://example.com/snapshot-old.jpg',
+          name: 'old alt text',
+          mediaId: 'snapshot-old-media'
+        })
+      })
     })
 
     describe('updateNoteVisibility', () => {
@@ -2546,6 +2591,40 @@ describe('StatusDatabase', () => {
           { title: 'Alpha', totalVotes: 2 },
           { title: 'Beta', totalVotes: 1 }
         ])
+      })
+
+      it('snapshots previous poll options into edit history when poll content changes', async () => {
+        const pollId = `${emptyActorId}/statuses/poll-history-snapshot`
+        await database.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Original poll text',
+          choices: ['Old A', 'Old B'],
+          endAt: Date.now() + 60_000
+        })
+
+        await database.updatePoll({
+          statusId: pollId,
+          text: 'Updated poll text',
+          choices: [
+            { title: 'Old A', totalVotes: 0 },
+            { title: 'Old B', totalVotes: 0 }
+          ]
+        })
+
+        const revisions = await database.getStatusEditHistory({
+          statusId: pollId
+        })
+        expect(revisions).toHaveLength(1)
+        expect(revisions[0]).toMatchObject({
+          text: 'Original poll text',
+          sensitive: false,
+          attachments: [],
+          pollOptions: ['Old A', 'Old B']
+        })
       })
     })
 

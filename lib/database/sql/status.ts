@@ -547,7 +547,13 @@ export const StatusSQLDatabaseMixin = (
 
     const previousData = {
       text: status.text,
-      summary: status.summary
+      summary: status.summary,
+      // Snapshot the state each /statuses/:id/history revision needs; rows
+      // without these keys (written before snapshotting) read back as null and
+      // fall back to the status's current values in the serializer.
+      sensitive: status.sensitive ?? false,
+      attachments: status.attachments,
+      pollOptions: null
     }
     const currentTime = new Date()
     const content = {
@@ -964,9 +970,16 @@ export const StatusSQLDatabaseMixin = (
 
     await database.transaction(async (trx) => {
       if (nextText !== data.text || nextSummary !== data.summary) {
+        const previousChoices = await trx('poll_choices')
+          .where('statusId', statusId)
+          .orderBy('choiceId', 'asc')
+          .select<{ title: string }[]>('title')
         const previousData = {
           text: data.text,
-          summary: data.summary
+          summary: data.summary,
+          sensitive: data.sensitive ?? false,
+          attachments: [],
+          pollOptions: previousChoices.map((choice) => choice.title)
         }
         await trx('status_history').insert({
           statusId,
@@ -1059,9 +1072,22 @@ export const StatusSQLDatabaseMixin = (
       .orderBy('id', 'asc')
     return rows.map((row) => {
       const content = getCompatibleJSON(row.data)
+      // Rows written before per-revision snapshots only carry text/summary;
+      // the extended fields parse to null so readers can fall back to the
+      // status's current values.
+      const attachments = Attachment.array().safeParse(content?.attachments)
+      const pollOptions = Array.isArray(content?.pollOptions)
+        ? content.pollOptions.filter(
+            (option: unknown): option is string => typeof option === 'string'
+          )
+        : null
       return {
         text: content?.text ?? '',
         summary: content?.summary ?? null,
+        sensitive:
+          typeof content?.sensitive === 'boolean' ? content.sensitive : null,
+        attachments: attachments.success ? attachments.data : null,
+        pollOptions,
         supersededAt: getCompatibleTime(row.updatedAt)
       }
     })

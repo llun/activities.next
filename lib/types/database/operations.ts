@@ -496,6 +496,11 @@ export type GetStatusEditHistoryParams = BaseStatusParams
 export type StatusEditRevision = {
   text: string
   summary: string | null
+  // Per-revision snapshots. Null on rows written before snapshotting existed;
+  // readers fall back to the status's current values for those.
+  sensitive: boolean | null
+  attachments: Attachment[] | null
+  pollOptions: string[] | null
   supersededAt: number
 }
 export type DeleteStatusParams = BaseStatusParams & {
