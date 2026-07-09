@@ -119,4 +119,33 @@ describe('parseStatusRequestBody', () => {
     expect(body).toEqual({ media_ids: [] })
     expect('media_ids' in body).toBe(true)
   })
+
+  it('reconstructs media_attributes entries from a urlencoded body', async () => {
+    const params = new URLSearchParams()
+    params.append('media_attributes[][id]', '10')
+    params.append('media_attributes[][description]', 'first alt')
+    params.append('media_attributes[][focus]', '0.5,-0.5')
+    params.append('media_attributes[][id]', '11')
+    params.append('media_attributes[][description]', 'second alt')
+    params.append('media_attributes[][focus]', '0,0')
+    const body = await parseStatusRequestBody(
+      createRequest('application/x-www-form-urlencoded', params.toString())
+    )
+    expect(body).toEqual({
+      media_attributes: [
+        { id: '10', description: 'first alt', focus: '0.5,-0.5' },
+        { id: '11', description: 'second alt', focus: '0,0' }
+      ]
+    })
+  })
+
+  it('omits media_attributes when a urlencoded body sends none', async () => {
+    const body = await parseStatusRequestBody(
+      createRequest(
+        'application/x-www-form-urlencoded',
+        new URLSearchParams({ status: 'no media attributes' }).toString()
+      )
+    )
+    expect(body).toEqual({ status: 'no media attributes' })
+  })
 })

@@ -14,6 +14,7 @@ import {
 import { MAX_STATUS_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { deleteMediaFile } from '@/lib/services/medias'
+import { FocusSchema } from '@/lib/services/medias/types'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
@@ -103,10 +104,27 @@ export const GET = traceApiRoute(
   )
 )
 
+// Matches PUT /api/v1/media/:id's update rules: description capped at the
+// varchar(255) column with blank/explicit-null normalised to null (clears alt
+// text), focus parsed from Mastodon's "x,y" string form. `.optional()` stays
+// OUTERMOST on description so an omitted field short-circuits to undefined
+// (leave untouched) instead of running the transform and clearing alt text.
+const EditMediaAttributeSchema = z.object({
+  id: z.coerce.string(),
+  description: z
+    .string()
+    .max(255)
+    .nullable()
+    .transform((value) => (value && value.trim() ? value : null))
+    .optional(),
+  focus: FocusSchema.optional()
+})
+
 const EditNoteSchema = z.object({
   status: z.string().optional(),
   spoiler_text: z.string().nullish(),
   media_ids: z.array(z.coerce.string()).optional(),
+  media_attributes: z.array(EditMediaAttributeSchema).optional(),
   visibility: z.enum(['public', 'unlisted', 'private', 'direct']).optional(),
   language: z.string().trim().min(1).optional(),
   sensitive: Booleanish.optional()
@@ -147,6 +165,7 @@ export const PUT = traceApiRoute(
           })
         }
         const changes = parsed.data
+        const mediaAttributes = changes.media_attributes
         const mediaIds =
           changes.media_ids === undefined
             ? undefined
@@ -169,6 +188,7 @@ export const PUT = traceApiRoute(
           changes.status !== undefined ||
           changes.spoiler_text !== undefined ||
           mediaIds !== undefined ||
+          mediaAttributes !== undefined ||
           changes.sensitive !== undefined ||
           changes.language !== undefined
         const visibility = changes.visibility
@@ -196,10 +216,64 @@ export const PUT = traceApiRoute(
           })
         }
 
+        // Apply per-attachment metadata edits (Mastodon media_attributes[])
+        // before resolving attachments so the refreshed description/focus flow
+        // into the status's attachment rows below. Reuses the same updateMedia
+        // path as PUT /api/v1/media/:id, including its owner check.
+        if (mediaAttributes !== undefined && mediaAttributes.length > 0) {
+          const account = currentActor.account
+          if (!account) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: ERROR_422,
+              responseStatusCode: 422
+            })
+          }
+          for (const attribute of mediaAttributes) {
+            const updatedMedia = await database.updateMedia({
+              mediaId: attribute.id,
+              accountId: account.id,
+              ...(attribute.description !== undefined
+                ? { description: attribute.description }
+                : {}),
+              ...(attribute.focus !== undefined
+                ? { focus: attribute.focus }
+                : {})
+            })
+            if (!updatedMedia) {
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: ERROR_422,
+                responseStatusCode: 422
+              })
+            }
+          }
+        }
+
+        // media_attributes without media_ids re-resolves the status's current
+        // media set so the updated metadata is copied onto the attachment rows.
+        const attachmentMediaIds =
+          mediaIds ??
+          (mediaAttributes !== undefined && mediaAttributes.length > 0
+            ? existingStatus.attachments
+                .filter(
+                  (attachment) =>
+                    !isFitnessStatusAttachment(attachment) &&
+                    attachment.mediaId !== null &&
+                    attachment.mediaId !== undefined
+                )
+                .map((attachment) => String(attachment.mediaId))
+            : undefined)
         const attachments =
-          mediaIds === undefined
+          attachmentMediaIds === undefined
             ? undefined
-            : await getAttachmentsFromMediaIds(database, currentActor, mediaIds)
+            : await getAttachmentsFromMediaIds(
+                database,
+                currentActor,
+                attachmentMediaIds
+              )
         if (attachments === null) {
           return apiResponse({
             req,
@@ -209,7 +283,7 @@ export const PUT = traceApiRoute(
           })
         }
         const changesTextOrMedia =
-          changes.status !== undefined || mediaIds !== undefined
+          changes.status !== undefined || attachmentMediaIds !== undefined
         if (changesTextOrMedia) {
           const effectiveText =
             changes.status === undefined ? existingStatus.text : changes.status

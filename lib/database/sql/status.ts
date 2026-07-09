@@ -642,6 +642,35 @@ export const StatusSQLDatabaseMixin = (
             })
           })
         )
+
+        // Attachments kept across the edit refresh their copied metadata (alt
+        // text): the attachment row snapshots media.description at attach
+        // time, so a media_attributes edit must re-copy it or the status keeps
+        // serving the stale description. Only rows whose alt text actually
+        // changed are rewritten, so an edit that leaves the media untouched
+        // preserves the existing row (createdAt/updatedAt) unchanged.
+        const existingNameByMediaId = new Map(
+          existingReplaceableAttachments.map((attachment) => [
+            attachment.mediaId,
+            attachment.name ?? ''
+          ])
+        )
+        const keptAttachments = attachments.filter(
+          (attachment) =>
+            existingMediaIds.has(attachment.id) &&
+            (attachment.name ?? '') !== existingNameByMediaId.get(attachment.id)
+        )
+        await Promise.all(
+          keptAttachments.map((attachment) =>
+            trx('attachments')
+              .where('statusId', status.id)
+              .where('mediaId', attachment.id)
+              .update({
+                name: attachment.name ?? '',
+                updatedAt: currentTime
+              })
+          )
+        )
       }
     })
     await indexStatusSearchDocument(database, { status: searchStatus })

@@ -2258,6 +2258,183 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(updatedStatus?.cc).toEqual([`${ACTOR1_ID}/followers`])
       expect(getQueue().publish).not.toHaveBeenCalled()
     })
+
+    it('updates attachment description and focus through media_attributes', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-media-attributes`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Media attributes target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-attributes.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-attributes.jpg'
+        },
+        description: 'Old description'
+      })
+      expect(media).not.toBeNull()
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: media!.original.mimeType,
+        url: 'https://llun.test/api/v1/files/medias/api-edit-attributes.webp',
+        width: 320,
+        height: 240,
+        name: 'Old description',
+        mediaId: media!.id
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_attributes: [
+                {
+                  id: media!.id,
+                  description: 'New description',
+                  focus: '0.5,-0.5'
+                }
+              ]
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.media_attachments).toHaveLength(1)
+      expect(data.media_attachments[0]).toMatchObject({
+        description: 'New description'
+      })
+
+      const actor = await database.getActorFromId({ id: ACTOR1_ID })
+      const updatedMedia = await database.getMediaByIdForAccount({
+        mediaId: media!.id,
+        accountId: actor!.account!.id
+      })
+      expect(updatedMedia?.description).toBe('New description')
+      expect(updatedMedia?.focus).toEqual({ x: 0.5, y: -0.5 })
+    })
+
+    it('keeps the existing description when media_attributes only updates focus', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-media-attributes-focus`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Focus only target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-attributes-focus.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-attributes-focus.jpg'
+        },
+        description: 'Keep description'
+      })
+      expect(media).not.toBeNull()
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: media!.original.mimeType,
+        url: 'https://llun.test/api/v1/files/medias/api-edit-attributes-focus.webp',
+        width: 320,
+        height: 240,
+        name: 'Keep description',
+        mediaId: media!.id
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_attributes: [{ id: media!.id, focus: '0,1' }]
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const actor = await database.getActorFromId({ id: ACTOR1_ID })
+      const updatedMedia = await database.getMediaByIdForAccount({
+        mediaId: media!.id,
+        accountId: actor!.account!.id
+      })
+      // An omitted description must be left untouched (not cleared to null).
+      expect(updatedMedia?.description).toBe('Keep description')
+      expect(updatedMedia?.focus).toEqual({ x: 0, y: 1 })
+    })
+
+    it('rejects media_attributes for media the actor does not own', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-media-attributes-foreign`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Foreign media attributes target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const foreignMedia = await database.createMedia({
+        actorId: ACTOR2_ID,
+        original: {
+          path: 'medias/api-edit-attributes-foreign.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-attributes-foreign.jpg'
+        }
+      })
+      expect(foreignMedia).not.toBeNull()
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_attributes: [
+                { id: foreignMedia!.id, description: 'Hijacked' }
+              ]
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(422)
+    })
   })
 
   describe('status delete', () => {

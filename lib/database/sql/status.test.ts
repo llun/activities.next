@@ -2541,6 +2541,49 @@ describe('StatusDatabase', () => {
           mediaId: 'snapshot-old-media'
         })
       })
+
+      it('refreshes the copied name on attachments kept across an edit', async () => {
+        const statusId = `${emptyActorId}/statuses/update-note-refresh-name`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Refresh name target'
+        })
+        await database.createAttachment({
+          actorId: emptyActorId,
+          statusId,
+          mediaType: 'image/jpeg',
+          url: 'https://example.com/kept.jpg',
+          width: 320,
+          height: 240,
+          name: 'old alt',
+          mediaId: 'kept-media'
+        })
+
+        const updated = await database.updateNote({
+          statusId,
+          text: 'Refresh name target',
+          summary: null,
+          attachments: [
+            {
+              type: 'upload',
+              id: 'kept-media',
+              mediaType: 'image/jpeg',
+              url: 'https://example.com/kept.jpg',
+              width: 320,
+              height: 240,
+              name: 'new alt'
+            }
+          ]
+        })
+
+        expect(updated?.attachments).toEqual([
+          expect.objectContaining({ mediaId: 'kept-media', name: 'new alt' })
+        ])
+      })
     })
 
     describe('updateNoteVisibility', () => {

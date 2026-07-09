@@ -14,6 +14,9 @@ const STATUS_STRING_FIELDS = [
 
 const MEDIA_ID_FIELDS = ['media_ids', 'media_ids[]'] as const
 const POLL_OPTION_FIELDS = ['poll[options][]', 'poll[options]'] as const
+const MEDIA_ATTRIBUTE_ID_FIELD = 'media_attributes[][id]'
+const MEDIA_ATTRIBUTE_DESCRIPTION_FIELD = 'media_attributes[][description]'
+const MEDIA_ATTRIBUTE_FOCUS_FIELD = 'media_attributes[][focus]'
 
 const collectStatusFields = (
   get: (name: string) => unknown,
@@ -57,6 +60,31 @@ const collectStatusFields = (
     const hideTotals = get('poll[hide_totals]')
     if (typeof hideTotals === 'string') poll.hide_totals = hideTotals
     body.poll = poll
+  }
+
+  // Reconstruct the `media_attributes` array-of-hashes Mastodon form clients
+  // flatten into repeated `media_attributes[][id]` / `[][description]` /
+  // `[][focus]` fields. Fields are zipped by position (the nth occurrence of
+  // each field belongs to the nth entry), which holds for clients that send
+  // the same fields for every entry; JSON bodies carry the nested array
+  // natively and skip this path.
+  const mediaAttributeIds = getAll(MEDIA_ATTRIBUTE_ID_FIELD).filter(
+    (value): value is string => typeof value === 'string'
+  )
+  if (mediaAttributeIds.length > 0) {
+    const descriptions = getAll(MEDIA_ATTRIBUTE_DESCRIPTION_FIELD).filter(
+      (value): value is string => typeof value === 'string'
+    )
+    const focuses = getAll(MEDIA_ATTRIBUTE_FOCUS_FIELD).filter(
+      (value): value is string => typeof value === 'string'
+    )
+    body.media_attributes = mediaAttributeIds.map((id, index) => ({
+      id,
+      ...(index < descriptions.length
+        ? { description: descriptions[index] }
+        : {}),
+      ...(index < focuses.length ? { focus: focuses[index] } : {})
+    }))
   }
 
   return body
