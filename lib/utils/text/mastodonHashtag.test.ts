@@ -1,7 +1,4 @@
-import {
-  isMastodonHashtagName,
-  normalizeHashtagParam
-} from './mastodonHashtag'
+import { isMastodonHashtagName, normalizeHashtagParam } from './mastodonHashtag'
 
 describe('isMastodonHashtagName', () => {
   it.each([
@@ -23,8 +20,16 @@ describe('isMastodonHashtagName', () => {
 
 describe('normalizeHashtagParam', () => {
   it.each([
-    { description: 'a plain ascii name', param: 'running', expected: 'running' },
-    { description: 'a decoded unicode name', param: '日本語', expected: '日本語' },
+    {
+      description: 'a plain ascii name',
+      param: 'running',
+      expected: 'running'
+    },
+    {
+      description: 'a decoded unicode name',
+      param: '日本語',
+      expected: '日本語'
+    },
     {
       description: 'a percent-encoded unicode name',
       param: '%E6%97%A5%E6%9C%AC%E8%AA%9E',
