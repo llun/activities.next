@@ -9,6 +9,7 @@ import {
   getNote,
   rejectFollow,
   sendAnnounce,
+  sendFlag,
   sendLike,
   sendNote,
   sendUndoLike,
@@ -21,6 +22,7 @@ import { mockRequests } from '@/lib/stub/activities'
 import { MockActor } from '@/lib/stub/actor'
 import { TEST_SHARED_INBOX, seedDatabase } from '@/lib/stub/database'
 import { MockMastodonActivityPubNote } from '@/lib/stub/note'
+import { MockActivityPubPerson } from '@/lib/stub/person'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
 import { Relay } from '@/lib/types/domain/relay'
@@ -397,6 +399,81 @@ describe('activities', () => {
 
       // Should not have made any requests
       expect(fetchMock.mock.calls.length).toBe(0)
+    })
+  })
+
+  describe('sendFlag', () => {
+    it('posts a Flag activity to the inbox resolved from the target person', async () => {
+      if (!actor1) fail('Actor1 is required')
+      const targetId = 'https://somewhere.test/actors/test1'
+      const statusId = 'https://somewhere.test/actors/test1/statuses/1'
+      // Resolve a person whose inbox is deliberately NOT `${targetId}/inbox`,
+      // so this pins the getActorPerson lookup rather than the guessed
+      // fallback (actors on subpath/group deployments have custom inboxes).
+      const resolvedInbox = 'https://somewhere.test/custom-delivery/test1'
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          ...MockActivityPubPerson({ id: targetId }),
+          inbox: resolvedInbox
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/activity+json' }
+        }
+      )
+
+      const result = await sendFlag({
+        uri: `${actor1.id}#reports/report-1`,
+        currentActor: actor1,
+        targetActorId: targetId,
+        objects: [targetId, statusId],
+        content: 'spam report',
+        signingActor: actor1
+      })
+
+      const flagCall = fetchMock.mock.calls.find((call) => {
+        if (!call[1]?.body) return false
+        return JSON.parse(call[1].body as string).type === 'Flag'
+      })
+      expect(flagCall?.[0]).toEqual(resolvedInbox)
+      const body = JSON.parse(flagCall![1]!.body as string)
+      expect(body).toMatchObject({
+        id: `${actor1.id}#reports/report-1`,
+        type: 'Flag',
+        actor: actor1.id,
+        object: [targetId, statusId],
+        content: 'spam report'
+      })
+      expect(result.uri).toBe(`${actor1.id}#reports/report-1`)
+    })
+
+    it.each([
+      { description: 'is ok on a 202 Accepted inbox response', status: 202 },
+      { description: 'is not ok on a non-202 inbox response', status: 200 }
+    ])('falls back to {actor}/inbox and $description', async ({ status }) => {
+      if (!actor1) fail('Actor1 is required')
+      const targetId = 'https://notfound.test/users/nobody'
+      // 1st fetch: the getActorPerson lookup fails, so sendFlag posts to the
+      // `${targetActorId}/inbox` fallback. 2nd fetch: that inbox POST, whose
+      // status decides `ok` (Mastodon answers 202 Accepted).
+      fetchMock.mockResponseOnce('', { status: 404 })
+      fetchMock.mockResponseOnce('', { status })
+
+      const result = await sendFlag({
+        uri: `${actor1.id}#reports/report-2`,
+        currentActor: actor1,
+        targetActorId: targetId,
+        objects: targetId,
+        content: '',
+        signingActor: actor1
+      })
+
+      const flagCall = fetchMock.mock.calls.find((call) => {
+        if (!call[1]?.body) return false
+        return JSON.parse(call[1].body as string).type === 'Flag'
+      })
+      expect(flagCall?.[0]).toEqual(`${targetId}/inbox`)
+      expect(result.ok).toBe(status === 202)
     })
   })
 

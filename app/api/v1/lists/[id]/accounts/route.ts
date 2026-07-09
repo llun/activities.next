@@ -1,6 +1,5 @@
 import { z } from 'zod'
 
-import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import {
   OAuthGuard,
   OAuthGuardAnyScope
@@ -24,6 +23,7 @@ const CORS_HEADERS = [
   HttpMethod.enum.DELETE
 ]
 const MAX_LIMIT = 80
+const DEFAULT_LIMIT = 40
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -50,13 +50,16 @@ export const GET = traceApiRoute(
 
       const url = new URL(req.url)
       const parsedLimit = parseInt(
-        url.searchParams.get('limit') ?? `${PER_PAGE_LIMIT}`,
+        url.searchParams.get('limit') ?? `${DEFAULT_LIMIT}`,
         10
       )
-      const limit =
-        Number.isSafeInteger(parsedLimit) && parsedLimit > 0
+      // Mastodon: limit=0 means "return all members without pagination".
+      const fetchAll = parsedLimit === 0
+      const limit = fetchAll
+        ? 0
+        : Number.isSafeInteger(parsedLimit) && parsedLimit > 0
           ? Math.min(parsedLimit, MAX_LIMIT)
-          : PER_PAGE_LIMIT
+          : DEFAULT_LIMIT
 
       const { accounts, nextMaxId, prevMinId } = await database.getListAccounts(
         {
@@ -80,14 +83,16 @@ export const GET = traceApiRoute(
           cursorParam === 'max_id' ? 'next' : 'prev'
         }"`
       }
-      const links = [
-        accounts.length === limit && nextMaxId
-          ? buildLink('max_id', nextMaxId)
-          : null,
-        prevMinId ? buildLink('min_id', prevMinId) : null
-      ]
-        .filter(Boolean)
-        .join(', ')
+      const links = fetchAll
+        ? ''
+        : [
+            accounts.length === limit && nextMaxId
+              ? buildLink('max_id', nextMaxId)
+              : null,
+            prevMinId ? buildLink('min_id', prevMinId) : null
+          ]
+            .filter(Boolean)
+            .join(', ')
 
       return apiResponse({
         req,
@@ -171,10 +176,31 @@ export const POST = traceApiRoute(
         })
       }
 
+      const targetActorIds = accountIds.map((accountId) => idToUrl(accountId))
+      // Mastodon only allows adding accounts the requester follows; anything
+      // else (including bogus ids) is a 404 so no dangling membership rows
+      // are created for actors that don't resolve.
+      const followChecks = await Promise.all(
+        targetActorIds.map((targetActorId) =>
+          database.isCurrentActorFollowing({
+            currentActorId: currentActor.id,
+            followingActorId: targetActorId
+          })
+        )
+      )
+      if (followChecks.some((isFollowing) => !isFollowing)) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+      }
+
       await database.addListAccounts({
         listId: id,
         actorId: currentActor.id,
-        targetActorIds: accountIds.map((accountId) => idToUrl(accountId))
+        targetActorIds
       })
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
     }

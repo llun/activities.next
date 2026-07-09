@@ -18,7 +18,7 @@ export const Filter = z.object({
     )
     .nullable(),
   filter_action: z
-    .enum(['warn', 'hide'])
+    .enum(['warn', 'blur', 'hide'])
     .describe('The action to be taken when a status matches this filter'),
   keywords: FilterKeyword.array().describe(
     'The keywords grouped under this filter'

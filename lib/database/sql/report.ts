@@ -19,6 +19,7 @@ type SQLReport = {
   forward: boolean | number
   statusIds: string
   ruleIds: string
+  collectionIds: string
   actionTaken: boolean | number
   createdAt: number | Date
   updatedAt: number | Date
@@ -33,6 +34,7 @@ const fixReport = (row: SQLReport): Report => ({
   forward: Boolean(row.forward),
   statusIds: getCompatibleJSON<string[]>(row.statusIds) ?? [],
   ruleIds: getCompatibleJSON<string[]>(row.ruleIds) ?? [],
+  collectionIds: getCompatibleJSON<string[]>(row.collectionIds) ?? [],
   actionTaken: Boolean(row.actionTaken),
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt)
@@ -46,7 +48,8 @@ export const ReportSQLDatabaseMixin = (database: Knex): ReportDatabase => ({
     comment = '',
     forward = false,
     statusIds = [],
-    ruleIds = []
+    ruleIds = [],
+    collectionIds = []
   }: CreateReportParams) {
     const currentTime = new Date()
     const row = {
@@ -58,6 +61,7 @@ export const ReportSQLDatabaseMixin = (database: Knex): ReportDatabase => ({
       forward,
       statusIds: JSON.stringify(statusIds),
       ruleIds: JSON.stringify(ruleIds),
+      collectionIds: JSON.stringify(collectionIds),
       actionTaken: false,
       createdAt: currentTime,
       updatedAt: currentTime

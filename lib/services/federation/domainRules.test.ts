@@ -4,11 +4,87 @@ import {
   domainDigest,
   domainMatchesRule,
   findMatchingDomainRule,
+  isDomainBlockStricter,
   normalizeDomain,
   toPublicDomainBlock
 } from './domainRules'
 
 describe('domainRules', () => {
+  // Mirrors Mastodon's DomainBlock#stricter_than?: suspend always wins, a lower
+  // severity never does, and otherwise the candidate must not relax
+  // reject_media/reject_reports (so an equal-severity block that adds a flag is
+  // stricter, and one that drops a flag is not).
+  const strictness = (
+    severity: 'noop' | 'silence' | 'suspend',
+    rejectMedia = false,
+    rejectReports = false
+  ) => ({ severity, rejectMedia, rejectReports })
+
+  it.each([
+    {
+      description: 'suspend is stricter than silence',
+      candidate: strictness('suspend'),
+      existing: strictness('silence'),
+      expected: true
+    },
+    {
+      description: 'suspend is stricter even when it relaxes reject_media',
+      candidate: strictness('suspend', false),
+      existing: strictness('silence', true),
+      expected: true
+    },
+    {
+      description: 'silence is stricter than noop',
+      candidate: strictness('silence'),
+      existing: strictness('noop'),
+      expected: true
+    },
+    {
+      description: 'equal severity with equal flags is not a relaxation',
+      candidate: strictness('silence'),
+      existing: strictness('silence'),
+      expected: true
+    },
+    {
+      description: 'equal severity that adds reject_media is stricter',
+      candidate: strictness('silence', true),
+      existing: strictness('silence', false),
+      expected: true
+    },
+    {
+      description: 'equal severity that adds reject_reports is stricter',
+      candidate: strictness('silence', false, true),
+      existing: strictness('silence', false, false),
+      expected: true
+    },
+    {
+      description: 'equal severity that drops reject_media is not stricter',
+      candidate: strictness('silence', false),
+      existing: strictness('silence', true),
+      expected: false
+    },
+    {
+      description: 'equal severity that drops reject_reports is not stricter',
+      candidate: strictness('silence', false, false),
+      existing: strictness('silence', false, true),
+      expected: false
+    },
+    {
+      description: 'silence is not stricter than suspend',
+      candidate: strictness('silence'),
+      existing: strictness('suspend'),
+      expected: false
+    },
+    {
+      description: 'noop is not stricter than silence',
+      candidate: strictness('noop'),
+      existing: strictness('silence'),
+      expected: false
+    }
+  ])('$description', ({ candidate, existing, expected }) => {
+    expect(isDomainBlockStricter(candidate, existing)).toBe(expected)
+  })
+
   it('normalizes domains from bare domains and URLs', () => {
     expect(normalizeDomain('Example.Social')).toBe('example.social')
     expect(normalizeDomain('https://Sub.Example.Social/path')).toBe(

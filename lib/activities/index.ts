@@ -7,6 +7,7 @@ import { AnnounceStatus } from '@/lib/activities/announceStatus'
 import { BlockRequest } from '@/lib/activities/blockAction'
 import { CreateStatus } from '@/lib/activities/createStatus'
 import { DeleteStatus } from '@/lib/activities/deleteStatus'
+import { FlagRequest } from '@/lib/activities/flagAction'
 import { FollowRequest } from '@/lib/activities/followAction'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { compactActivityPub } from '@/lib/activities/jsonld'
@@ -566,6 +567,60 @@ export const block = async ({
         currentActor,
         activity,
         logPrefix: 'block'
+      })
+      span.end()
+      return { ok: statusCode === 202, uri }
+    }
+  )
+
+interface FlagParams {
+  uri: string
+  currentActor: Actor
+  targetActorId: string
+  objects: string | string[]
+  content: string
+  signingActor?: Actor
+}
+
+export const sendFlag = async ({
+  uri,
+  currentActor,
+  targetActorId,
+  objects,
+  content,
+  signingActor
+}: FlagParams) =>
+  getTracer().startActiveSpan(
+    'activities.sendFlag',
+    {
+      attributes: {
+        actorId: currentActor.id,
+        targetActorId,
+        uri
+      }
+    },
+    async (span) => {
+      const activity: FlagRequest = {
+        '@context': ACTIVITY_STREAM_URL,
+        id: uri,
+        type: 'Flag',
+        actor: currentActor.id,
+        content,
+        object: objects
+      }
+
+      const person = await getActorPerson({
+        actorId: targetActorId,
+        signingActor
+      })
+      const targetInbox = person?.inbox ?? `${targetActorId}/inbox`
+
+      const statusCode = await postActivityToInbox({
+        span,
+        inbox: targetInbox,
+        currentActor,
+        activity,
+        logPrefix: 'sendFlag'
       })
       span.end()
       return { ok: statusCode === 202, uri }

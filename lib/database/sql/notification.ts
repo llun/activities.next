@@ -77,6 +77,7 @@ export const NotificationSQLDatabaseMixin = (
     actorId,
     limit,
     offset = 0,
+    sourceActorId,
     types,
     excludeTypes,
     onlyUnread,
@@ -92,6 +93,10 @@ export const NotificationSQLDatabaseMixin = (
     // queue). Mastodon's `include_filtered` opts back into seeing them.
     if (!includeFiltered) {
       query = query.where('filtered', false)
+    }
+
+    if (sourceActorId) {
+      query = query.where('sourceActorId', sourceActorId)
     }
 
     // Support cursor-based pagination

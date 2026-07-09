@@ -13,6 +13,45 @@ export type FederationMode = (typeof FEDERATION_MODE_VALUES)[number]
 
 export const DEFAULT_DOMAIN_BLOCK_SEVERITY: DomainBlockSeverity = 'suspend'
 
+// Severity strictness order for re-block conflict checks (Mastodon allows a
+// new block over a covering rule only when it is stricter).
+const DOMAIN_BLOCK_SEVERITY_RANK: Record<DomainBlockSeverity, number> = {
+  noop: 0,
+  silence: 1,
+  suspend: 2
+}
+
+export interface DomainBlockStrictness {
+  severity: DomainBlockSeverity
+  rejectMedia: boolean
+  rejectReports: boolean
+}
+
+/**
+ * Mastodon's `DomainBlock#stricter_than?` (app/models/domain_block.rb): a
+ * `suspend` is always stricter; a lower severity never is; and at an equal (or
+ * higher-but-not-suspend) severity the candidate counts as stricter only when
+ * it does not relax `reject_media`/`reject_reports`. That last clause is what
+ * lets an admin escalate e.g. `silence` → `silence + reject_media` over a
+ * covering wildcard rule instead of being rejected as a duplicate.
+ */
+export const isDomainBlockStricter = (
+  candidate: DomainBlockStrictness,
+  existing: DomainBlockStrictness
+): boolean => {
+  if (candidate.severity === 'suspend') return true
+  if (
+    DOMAIN_BLOCK_SEVERITY_RANK[candidate.severity] <
+    DOMAIN_BLOCK_SEVERITY_RANK[existing.severity]
+  ) {
+    return false
+  }
+  return (
+    (candidate.rejectMedia || !existing.rejectMedia) &&
+    (candidate.rejectReports || !existing.rejectReports)
+  )
+}
+
 export const normalizeDomain = (value: string): string | null => {
   const trimmed = value.trim().toLowerCase()
   if (!trimmed) return null

@@ -33,6 +33,7 @@ import {
   RELAY_ANNOUNCE_JOB_NAME,
   SEND_ANNOUNCE_JOB_NAME,
   SEND_BLOCK_JOB_NAME,
+  SEND_FLAG_JOB_NAME,
   SEND_NOTE_JOB_NAME,
   SEND_UNBLOCK_JOB_NAME,
   SEND_UNDO_ANNOUNCE_JOB_NAME,
@@ -46,6 +47,7 @@ import { publishScheduledStatusJob } from './publishScheduledStatusJob'
 import { regenerateFitnessMapsJob } from './regenerateFitnessMapsJob'
 import { sendAnnounceJob } from './sendAnnounceJob'
 import { sendBlockJob } from './sendBlockJob'
+import { sendFlagJob } from './sendFlagJob'
 import { sendNoteJob } from './sendNoteJob'
 import { sendUnblockJob } from './sendUnblockJob'
 import { sendUndoAnnounceJob } from './sendUndoAnnounceJob'
@@ -81,6 +83,7 @@ export const JOBS: Record<string, JobHandle> = {
   [SEND_UNDO_ANNOUNCE_JOB_NAME]: sendUndoAnnounceJob,
   [SEND_UNDO_FOLLOW_JOB_NAME]: sendUndoFollowJob,
   [SEND_UNBLOCK_JOB_NAME]: sendUnblockJob,
+  [SEND_FLAG_JOB_NAME]: sendFlagJob,
   [FETCH_REMOTE_STATUS_JOB_NAME]: fetchRemoteStatusJob,
   [PUBLISH_SCHEDULED_STATUS_JOB_NAME]: publishScheduledStatusJob,
   [INGEST_COLLECTION_MEMBER_JOB_NAME]: ingestCollectionMemberJob

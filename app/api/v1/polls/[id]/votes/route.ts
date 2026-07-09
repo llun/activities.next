@@ -23,14 +23,18 @@ const MAX_POLL_CHOICES_PER_VOTE = 20
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
+// Mastodon documents `choices` as an array of STRING indices, so accept numbers
+// and non-blank numeric strings alike. Everything else becomes NaN and 422s:
+// blanket `Number()` coercion maps '', ' ', null, false and [] all to 0, which
+// would silently record a vote for option 0. This mirrors parseFormChoices.
+const PollChoice = z.preprocess((value) => {
+  if (typeof value === 'number') return value
+  if (typeof value === 'string' && value.trim() !== '') return Number(value)
+  return Number.NaN
+}, z.number().int().nonnegative())
+
 const VotePollRequest = z.object({
-  choices: z
-    .number()
-    .int()
-    .nonnegative()
-    .array()
-    .min(1)
-    .max(MAX_POLL_CHOICES_PER_VOTE)
+  choices: PollChoice.array().min(1).max(MAX_POLL_CHOICES_PER_VOTE)
 })
 
 const parseFormChoices = (formData: Pick<FormData, 'getAll'>) => {

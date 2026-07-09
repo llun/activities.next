@@ -16,6 +16,7 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 const CORS_HEADERS = [
   HttpMethod.enum.OPTIONS,
   HttpMethod.enum.GET,
+  HttpMethod.enum.PUT,
   HttpMethod.enum.PATCH
 ]
 
@@ -119,3 +120,7 @@ export const PATCH = traceApiRoute(
     }
   )
 )
+
+// Rails `resource :policy` maps update to both PUT and PATCH; some clients
+// send PUT. Bind it to the same handler so it does not 405.
+export const PUT = PATCH

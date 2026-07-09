@@ -196,6 +196,23 @@ describe('GET /api/v1/notifications', () => {
       )
     }
   )
+
+  it('pushes account_id filtering into the database query', async () => {
+    mockDatabase.getNotifications.mockResolvedValueOnce([])
+
+    const request = new NextRequest(
+      'https://llun.test/api/v1/notifications?account_id=other.test:users:alice',
+      { method: 'GET' }
+    )
+
+    await GET(request, { params: Promise.resolve({}) })
+
+    expect(mockDatabase.getNotifications).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceActorId: 'https://other.test/users/alice'
+      })
+    )
+  })
 })
 
 describe('POST /api/v1/notifications (clear-all)', () => {
