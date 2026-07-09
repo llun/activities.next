@@ -1,5 +1,8 @@
 import { NextRequest } from 'next/server'
 
+import { getConfig } from '@/lib/config'
+import { AUTH_BASE_PATH } from '@/lib/services/auth/constants'
+import { resolveAuthBaseURL } from '@/lib/services/auth/requestOrigin'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { getUserInfo } from '@/lib/services/oauth/userinfo'
 import { Scope } from '@/lib/types/database/operations'
@@ -38,6 +41,10 @@ const respondWithUserInfo = OAuthGuardAnyScope(
     const userInfo = getUserInfo({
       actor: currentActor,
       account,
+      // Same issuer the discovery document advertises (and better-auth stamps
+      // into id_tokens): the validated per-request origin + auth basePath, so
+      // a relying party can match userinfo `iss` against the id_token `iss`.
+      issuer: `${resolveAuthBaseURL(req.headers, getConfig())}${AUTH_BASE_PATH}`,
       scopes: grantedScopes
     })
 

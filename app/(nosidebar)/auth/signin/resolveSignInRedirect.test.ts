@@ -27,6 +27,20 @@ describe('resolveSignInRedirect', () => {
     expect(query.has('ba_param')).toBe(false)
   })
 
+  it('drops force_login when resuming an OIDC request after a fresh login', () => {
+    const params = new URLSearchParams(
+      'response_type=code&client_id=app&redirect_uri=https%3A%2F%2Fapp.local%2Fcb' +
+        '&scope=read&force_login=true'
+    )
+
+    const result = resolveSignInRedirect(params)
+
+    expect(result.startsWith('/oauth/authorize?')).toBe(true)
+    const query = new URLSearchParams(result.split('?')[1])
+    expect(query.has('force_login')).toBe(false)
+    expect(query.get('client_id')).toBe('app')
+  })
+
   it('prefers a safe redirectBack over OIDC params', () => {
     const params = new URLSearchParams(
       'redirectBack=%2Ffitness&response_type=code&client_id=docs'

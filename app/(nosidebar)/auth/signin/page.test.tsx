@@ -108,6 +108,38 @@ describe('/auth/signin already-authenticated resume', () => {
     expect(redirectMock.mock.calls[0][0]).toBe('/')
   })
 
+  it('renders the sign-in form for an authenticated user when force_login is true', async () => {
+    vi.mocked(getServerAuthSession).mockResolvedValue(aSession)
+
+    const element = await Page({
+      searchParams: Promise.resolve({
+        redirectBack: '/oauth/authorize?client_id=phanpy&scope=read',
+        force_login: 'true'
+      })
+    })
+
+    expect(redirectMock).not.toHaveBeenCalled()
+    expect(element).toBeTruthy()
+  })
+
+  it('still resumes an authenticated user when force_login is the falsy value "false"', async () => {
+    // force_login='false' is a legitimate Mastodon value meaning "do NOT force
+    // re-login": Booleanish parses it as success:true/data:false, so the page
+    // must still auto-resume. Pins that the gate reads `.data`, not just
+    // `.success` (which absent-param and 'true' cases can't distinguish).
+    vi.mocked(getServerAuthSession).mockResolvedValue(aSession)
+
+    await Page({
+      searchParams: Promise.resolve({
+        redirectBack: '/fitness',
+        force_login: 'false'
+      })
+    })
+
+    expect(redirectMock).toHaveBeenCalledTimes(1)
+    expect(redirectMock.mock.calls[0][0]).toBe('/fitness')
+  })
+
   it('renders the sign-in form for a logged-out visitor (no redirect)', async () => {
     vi.mocked(getServerAuthSession).mockResolvedValue(null)
 
