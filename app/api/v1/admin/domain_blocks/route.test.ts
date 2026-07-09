@@ -416,4 +416,58 @@ describe('/api/v1/admin/domain_blocks', () => {
     })
     expect(mockDatabase.createDomainBlock).not.toHaveBeenCalled()
   })
+
+  it('allows an equal-severity block that adds reject_media under a covering wildcard', async () => {
+    // Mastodon's stricter_than? treats an equal-severity block that newly
+    // rejects media as stricter, so the escalation is created, not 422d.
+    mockDatabase.getDomainBlockForDomain.mockResolvedValue({
+      id: 'block-w3',
+      type: 'block',
+      domain: '*.covered.test',
+      severity: 'silence',
+      rejectMedia: false,
+      rejectReports: false,
+      privateComment: null,
+      publicComment: null,
+      obfuscate: false,
+      source: null,
+      createdAt: 0,
+      updatedAt: 0
+    })
+    mockDatabase.createDomainBlock.mockResolvedValue({
+      id: 'block-6',
+      type: 'block',
+      domain: 'sub.covered.test',
+      severity: 'silence',
+      rejectMedia: true,
+      rejectReports: false,
+      privateComment: null,
+      publicComment: null,
+      obfuscate: false,
+      source: null,
+      createdAt: 0,
+      updatedAt: 0
+    })
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/admin/domain_blocks', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          Origin: 'https://llun.test'
+        },
+        body: JSON.stringify({
+          domain: 'sub.covered.test',
+          severity: 'silence',
+          reject_media: true
+        })
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.createDomainBlock).toHaveBeenCalledWith(
+      expect.objectContaining({ domain: 'sub.covered.test', rejectMedia: true })
+    )
+  })
 })

@@ -133,7 +133,14 @@ export const POST = traceApiRoute(
       if (
         existing &&
         (existing.domain === normalizedDomain ||
-          !isDomainBlockStricter(parsed.data.severity, existing.severity))
+          !isDomainBlockStricter(
+            {
+              severity: parsed.data.severity,
+              rejectMedia: parsed.data.reject_media,
+              rejectReports: parsed.data.reject_reports
+            },
+            existing
+          ))
       ) {
         return apiResponse({
           req,
