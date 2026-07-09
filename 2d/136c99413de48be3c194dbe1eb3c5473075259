@@ -1,0 +1,29 @@
+app/api/v2/instance/route.test.ts
+  s_f7b91ac6284bd0::t_43cdc3ab45bf16 53
+app/api/v2/instance/route.ts
+  s_f7b91ac6284bd0::t_43cdc3ab45bf16 137-141
+lib/services/mastodon/instance.test.ts
+  s_f7b91ac6284bd0::t_43cdc3ab45bf16 29-30
+app/api/v1/instance/route.test.ts
+  s_f7b91ac6284bd0::t_48ef16f063184c 3-5,8-13,15-16,19-34,38-60,62-63,93-155
+  s_f7b91ac6284bd0::t_43cdc3ab45bf16 61
+app/api/v1/instance/route.ts
+  s_f7b91ac6284bd0::t_69a2c04886d0c2 3-4,10-14,19-20,22,31-33,36-56,58,64,66-76,78,104-105
+  s_f7b91ac6284bd0::t_43cdc3ab45bf16 106-110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2d136c99413de48be3c194dbe1eb3c5473075259",
+  "prompts": {},
+  "sessions": {
+    "s_f7b91ac6284bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e5d29e0-cb70-4516-b716-6108a10b94a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": null
+    }
+  }
+}
