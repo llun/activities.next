@@ -22,6 +22,7 @@ import { mockRequests } from '@/lib/stub/activities'
 import { MockActor } from '@/lib/stub/actor'
 import { TEST_SHARED_INBOX, seedDatabase } from '@/lib/stub/database'
 import { MockMastodonActivityPubNote } from '@/lib/stub/note'
+import { MockActivityPubPerson } from '@/lib/stub/person'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
 import { Relay } from '@/lib/types/domain/relay'
@@ -402,10 +403,24 @@ describe('activities', () => {
   })
 
   describe('sendFlag', () => {
-    it('posts a Flag activity to the target actor inbox', async () => {
+    it('posts a Flag activity to the inbox resolved from the target person', async () => {
       if (!actor1) fail('Actor1 is required')
       const targetId = 'https://somewhere.test/actors/test1'
       const statusId = 'https://somewhere.test/actors/test1/statuses/1'
+      // Resolve a person whose inbox is deliberately NOT `${targetId}/inbox`,
+      // so this pins the getActorPerson lookup rather than the guessed
+      // fallback (actors on subpath/group deployments have custom inboxes).
+      const resolvedInbox = 'https://somewhere.test/custom-delivery/test1'
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          ...MockActivityPubPerson({ id: targetId }),
+          inbox: resolvedInbox
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/activity+json' }
+        }
+      )
 
       const result = await sendFlag({
         uri: `${actor1.id}#reports/report-1`,
@@ -420,7 +435,7 @@ describe('activities', () => {
         if (!call[1]?.body) return false
         return JSON.parse(call[1].body as string).type === 'Flag'
       })
-      expect(flagCall?.[0]).toEqual('https://somewhere.test/actors/test1/inbox')
+      expect(flagCall?.[0]).toEqual(resolvedInbox)
       const body = JSON.parse(flagCall![1]!.body as string)
       expect(body).toMatchObject({
         id: `${actor1.id}#reports/report-1`,
