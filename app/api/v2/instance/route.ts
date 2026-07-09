@@ -1,12 +1,18 @@
 import { NextRequest } from 'next/server'
 
-import { getConfig } from '@/lib/config'
+import { buildBaseURL, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import {
+  MASTODON_INSTANCE_API_VERSION,
   MAX_PINNED_STATUSES,
   MAX_STATUS_MEDIA_ATTACHMENTS
 } from '@/lib/services/mastodon/constants'
+import {
+  getInstanceContactAccount,
+  getInstanceContactEmail,
+  getInstanceStats
+} from '@/lib/services/mastodon/instance'
 import {
   ACCEPTED_FILE_TYPES,
   MAX_FILE_SIZE
@@ -27,8 +33,11 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 // Public per Mastodon: GET /api/v2/instance is served unauthenticated.
 export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
   const config = getConfig()
+  const domain = headerHost(req.headers)
+  const baseUrl = buildBaseURL(domain)
   // The instance payload must stay robust: when the database is unavailable,
-  // serve the static configuration with an empty rules list instead of failing.
+  // serve the static configuration with an empty rules list, zeroed usage and
+  // a null contact account instead of failing.
   const database = getDatabase()
   let rules: InstanceRuleData[] = []
   if (database) {
@@ -43,19 +52,51 @@ export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
       })
     }
   }
+  const [stats, contactAccount] = await Promise.all([
+    getInstanceStats(database, config.host),
+    getInstanceContactAccount(database)
+  ])
   return apiResponse({
     req,
     allowedMethods: CORS_HEADERS,
     data: {
-      domain: headerHost(req.headers),
+      domain,
       title: config.serviceName ?? 'Activities.next',
       version: VERSION,
       source_url: 'https://github.com/llun/activities.next',
       description:
         config.serviceDescription ??
         'Personal activity pub server with Next.js',
+      usage: {
+        users: {
+          active_month: stats.activeMonth
+        }
+      },
+      thumbnail: {
+        url: `${baseUrl}/logo.png`,
+        versions: {
+          '@1x': `${baseUrl}/logo.png`,
+          '@2x': `${baseUrl}/logo.png`
+        }
+      },
+      icon: [
+        { src: `${baseUrl}/icon-192.png`, size: '192x192' },
+        { src: `${baseUrl}/icon-512.png`, size: '512x512' }
+      ],
       languages: config.languages,
+      api_versions: {
+        mastodon: MASTODON_INSTANCE_API_VERSION
+      },
       configuration: {
+        // No streaming API yet: keep the documented key present but empty so
+        // JS clients treat it as falsy and fall back to REST polling instead
+        // of opening a WebSocket that would fail.
+        urls: {
+          streaming: ''
+        },
+        vapid: {
+          public_key: config.push?.vapidPublicKey ?? ''
+        },
         accounts: {
           max_featured_tags: 10,
           max_pinned_statuses: MAX_PINNED_STATUSES
@@ -84,16 +125,18 @@ export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
         }
       },
       registrations: {
-        enabled: false,
+        enabled: config.registrationOpen,
         approval_required: false,
         message: null,
         url: null
       },
-      rules: rules.map((rule): Rule => ({
-        id: rule.id,
-        text: rule.text,
-        hint: rule.hint
-      }))
+      contact: {
+        email: getInstanceContactEmail(config),
+        account: contactAccount
+      },
+      rules: rules.map(
+        (rule): Rule => ({ id: rule.id, text: rule.text, hint: rule.hint })
+      )
     }
   })
 })

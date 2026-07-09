@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import type { Config } from '@/lib/config'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 
 import { GET } from './route'
@@ -11,15 +12,25 @@ vi.mock('@/lib/database', () => ({
 }))
 
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn().mockReturnValue({
-    host: 'llun.test',
-    trustedHosts: ['alias.llun.test'],
-    serviceName: undefined,
-    serviceDescription: undefined,
-    languages: ['en'],
-    mediaStorage: undefined
-  })
+  getConfig: vi.fn(),
+  buildBaseURL: (host: string) => `https://${host}`
 }))
+
+const baseConfig = {
+  host: 'llun.test',
+  trustedHosts: ['alias.llun.test'],
+  serviceName: undefined,
+  serviceDescription: undefined,
+  languages: ['en'],
+  mediaStorage: undefined,
+  registrationOpen: true,
+  push: {
+    vapidPublicKey: 'test-vapid-public-key',
+    vapidPrivateKey: 'test-vapid-private-key',
+    vapidEmail: 'mailto:push@llun.test'
+  },
+  email: { type: 'smtp', serviceFromAddress: 'admin@llun.test' }
+}
 
 const params = { params: Promise.resolve({}) }
 
@@ -34,6 +45,14 @@ describe('GET /api/v2/instance', () => {
   afterAll(async () => {
     mockDatabase = null
     await database.destroy()
+  })
+
+  beforeEach(async () => {
+    const config =
+      await vi.importMock<typeof import('@/lib/config')>('@/lib/config')
+    vi.mocked(config.getConfig).mockReturnValue(
+      baseConfig as unknown as Config
+    )
   })
 
   it('serves the instance payload for an unauthenticated request', async () => {
@@ -112,6 +131,78 @@ describe('GET /api/v2/instance', () => {
     ])
   })
 
+  it('completes the v2 entity with usage, thumbnail, icon and api versions', async () => {
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v2/instance'),
+      params
+    )
+    const body = await response.json()
+    expect(body.usage).toEqual({ users: { active_month: 0 } })
+    expect(body.thumbnail).toEqual({
+      url: 'https://llun.test/logo.png',
+      versions: {
+        '@1x': 'https://llun.test/logo.png',
+        '@2x': 'https://llun.test/logo.png'
+      }
+    })
+    expect(body.icon).toEqual([
+      { src: 'https://llun.test/icon-192.png', size: '192x192' },
+      { src: 'https://llun.test/icon-512.png', size: '512x512' }
+    ])
+    expect(body.api_versions).toEqual({ mastodon: 2 })
+  })
+
+  it('serves streaming and vapid configuration', async () => {
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v2/instance'),
+      params
+    )
+    const body = await response.json()
+    expect(body.configuration.urls).toEqual({ streaming: '' })
+    expect(body.configuration.vapid).toEqual({
+      public_key: 'test-vapid-public-key'
+    })
+  })
+
+  it('serves the contact email with a null account when no admin exists', async () => {
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v2/instance'),
+      params
+    )
+    const body = await response.json()
+    expect(body.contact).toEqual({ email: 'admin@llun.test', account: null })
+  })
+
+  it.each([
+    {
+      description: 'reports registrations enabled when registration is open',
+      registrationOpen: true
+    },
+    {
+      description: 'reports registrations closed when registration is closed',
+      registrationOpen: false
+    }
+  ])('$description', async ({ registrationOpen }) => {
+    const config =
+      await vi.importMock<typeof import('@/lib/config')>('@/lib/config')
+    vi.mocked(config.getConfig).mockReturnValue({
+      ...baseConfig,
+      registrationOpen
+    } as unknown as Config)
+
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v2/instance'),
+      params
+    )
+    const body = await response.json()
+    expect(body.registrations).toEqual({
+      enabled: registrationOpen,
+      approval_required: false,
+      message: null,
+      url: null
+    })
+  })
+
   it('returns empty rules instead of failing when the database is unavailable', async () => {
     mockDatabase = null
     try {
@@ -123,6 +214,11 @@ describe('GET /api/v2/instance', () => {
       const body = await response.json()
       expect(body.domain).toBe('llun.test')
       expect(body.rules).toEqual([])
+      expect(body.usage).toEqual({ users: { active_month: 0 } })
+      expect(body.contact).toEqual({
+        email: 'admin@llun.test',
+        account: null
+      })
     } finally {
       mockDatabase = database
     }
