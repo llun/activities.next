@@ -54,7 +54,9 @@ const parseAdditionalTags = (
   const tags = new Set<string>()
   for (const value of values) {
     const name = value.replace(/^#+/, '')
-    if (!isMastodonHashtagName(name)) return null
+    // Bound the length like the primary hashtag (max 255) so an unbounded tag
+    // name can't reach the DB query; then validate the Unicode alphabet.
+    if (name.length > 255 || !isMastodonHashtagName(name)) return null
     // Dedupe so duplicate tags don't append redundant (esp. `all[]`) subqueries.
     tags.add(name)
   }

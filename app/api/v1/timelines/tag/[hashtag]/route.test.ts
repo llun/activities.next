@@ -211,6 +211,12 @@ describe('GET /api/v1/timelines/tag/:hashtag', () => {
       )
     })
 
+    it('rejects an over-length additional tag name with 400', async () => {
+      const response = await requestWithQuery({ 'any[]': 'a'.repeat(256) })
+      expect(response.status).toBe(400)
+      expect(mockDatabase.getStatusesByHashtag).not.toHaveBeenCalled()
+    })
+
     it('forwards only_media to the hashtag query', async () => {
       await requestWithQuery({ only_media: 'true' })
       expect(mockDatabase.getStatusesByHashtag).toHaveBeenCalledWith(
