@@ -357,7 +357,8 @@ export const StatusSQLDatabaseMixin = (
     content,
     step,
     trx,
-    currentTime
+    currentTime,
+    statusCreatedAt
   }: {
     actorId: string
     type: StatusType
@@ -367,6 +368,9 @@ export const StatusSQLDatabaseMixin = (
     step: 'increment' | 'decrement'
     trx: Knex.Transaction
     currentTime: Date
+    // The new status's own createdAt (may be backdated for federated/imported
+    // statuses), used to advance the actor's persisted `lastStatusAt`.
+    statusCreatedAt: Date
   }) => {
     const adjust =
       step === 'increment' ? increaseCounterValue : decreaseCounterValue
@@ -375,6 +379,17 @@ export const StatusSQLDatabaseMixin = (
     await adjust(trx, CounterKey.serviceTotalStatuses(), 1, currentTime)
     if (step === 'increment') {
       await incrementBucket(trx, 'statuses', 1, currentTime)
+      // Advance the actor's persisted last-status timestamp. Guarded set-if-newer
+      // (keyed on the status createdAt, not currentTime) so a backdated or
+      // out-of-order insert never lowers a more recent value.
+      await trx('actors')
+        .where('id', actorId)
+        .andWhere((builder) =>
+          builder
+            .whereNull('lastStatusAt')
+            .orWhere('lastStatusAt', '<', statusCreatedAt)
+        )
+        .update({ lastStatusAt: statusCreatedAt })
     }
 
     const actor = await trx('actors')
@@ -464,7 +479,8 @@ export const StatusSQLDatabaseMixin = (
         content,
         step: 'increment',
         trx,
-        currentTime
+        currentTime,
+        statusCreatedAt
       })
       await Promise.all(
         to.map((actorId) =>
@@ -736,7 +752,8 @@ export const StatusSQLDatabaseMixin = (
         content: originalStatusId,
         step: 'increment',
         trx,
-        currentTime
+        currentTime,
+        statusCreatedAt
       })
       await Promise.all(
         to.map((actorId) =>
@@ -848,7 +865,8 @@ export const StatusSQLDatabaseMixin = (
         content,
         step: 'increment',
         trx,
-        currentTime
+        currentTime,
+        statusCreatedAt
       })
       await Promise.all(
         choices.map((choice) =>
@@ -1747,6 +1765,35 @@ export const StatusSQLDatabaseMixin = (
     }
   }
 
+  // Recompute the persisted `actors.lastStatusAt` for each affected actor after
+  // their statuses have been physically deleted. A correlated subquery yields the
+  // greatest remaining `statuses.createdAt`, or NULL when none remain — so
+  // deleting an actor's most-recent (or last) status keeps `lastStatusAt` and the
+  // directory `active` order correct. MUST run after the `statuses` rows are gone.
+  const recomputeActorsLastStatusAt = async ({
+    actorIds,
+    trx
+  }: {
+    actorIds: string[]
+    trx: Knex.Transaction
+  }) => {
+    const uniqueActorIds = [...new Set(actorIds)]
+    if (uniqueActorIds.length === 0) return
+
+    for (const actorIdChunk of chunkArray(
+      uniqueActorIds,
+      getWhereInBatchSize(trx)
+    )) {
+      await trx('actors')
+        .whereIn('id', actorIdChunk)
+        .update({
+          lastStatusAt: trx('statuses')
+            .max('createdAt')
+            .where('statuses.actorId', trx.ref('actors.id'))
+        })
+    }
+  }
+
   const collectStatusDeletionRows = async ({
     actorId,
     statusId,
@@ -2045,6 +2092,10 @@ export const StatusSQLDatabaseMixin = (
     await deleteStatusRowsByIdChunks({
       actorId,
       statuses: statusesToDelete,
+      trx
+    })
+    await recomputeActorsLastStatusAt({
+      actorIds: statusesToDelete.map((status) => status.actorId),
       trx
     })
     await deleteStatusSearchDocumentsByStatusIds(trx, statusIdsToDelete)

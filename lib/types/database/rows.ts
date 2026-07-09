@@ -86,6 +86,12 @@ export interface SQLActor {
   deletionStatus?: ActorDeletionStatus
   deletionScheduledAt?: number | Date | null
 
+  // Greatest `createdAt` across all of the actor's `statuses` rows (including
+  // Announce reblogs), or null when the actor has never posted. Maintained
+  // inside the status create/delete transactions; backs the directory
+  // `order=active` sort and the serializer's `last_status_at`.
+  lastStatusAt?: number | Date | null
+
   createdAt: number | Date
   updatedAt: number | Date
 }

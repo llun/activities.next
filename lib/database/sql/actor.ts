@@ -85,14 +85,14 @@ export interface SQLActorDatabase extends ActorDatabase {
 }
 
 const getActorCounterSummary = async (
-  trx: Knex.Transaction,
+  database: Knex | Knex.Transaction,
   actorId: string
 ): Promise<{
   followersCount: number
   followingCount: number
   statusCount: number
 }> => {
-  const counters = await getCounterValues(trx, [
+  const counters = await getCounterValues(database, [
     CounterKey.totalFollowers(actorId),
     CounterKey.totalFollowing(actorId),
     CounterKey.totalStatus(actorId)
@@ -197,23 +197,6 @@ const federationSigningActorCreationLocks = new Map<
 const isMastodonBotActorType = (type: SQLActor['type']) =>
   type === 'Service' || type === 'Application' || type === 'Organization'
 
-const getLastStatusCreatedAtByActorId = async (
-  database: Knex,
-  actorIds: string[]
-) => {
-  if (actorIds.length === 0) return new Map<string, number | Date>()
-
-  const rows = await database('statuses')
-    .whereIn('actorId', actorIds)
-    .groupBy('actorId')
-    .select<{ actorId: string; createdAt: number | Date }[]>(
-      'actorId',
-      database.raw('MAX(??) as ??', ['createdAt', 'createdAt'])
-    )
-
-  return new Map(rows.map((row) => [row.actorId, row.createdAt]))
-}
-
 const getActorCounterSummaries = async (database: Knex, actorIds: string[]) => {
   const counterValues = await getCounterValues(
     database,
@@ -236,10 +219,16 @@ const getActorCounterSummaries = async (database: Knex, actorIds: string[]) => {
   )
 }
 
+// The persisted `lastStatusAt` as an epoch-millis number for the domain `Actor`
+// (0 when the actor has never posted). `lastStatusAt` is now a column on
+// `actors` maintained inside the status create/delete transactions, so callers
+// read it straight off the row instead of re-aggregating `statuses`.
+const getSqlActorLastStatusAtTime = (sqlActor: SQLActor): number =>
+  sqlActor.lastStatusAt ? getCompatibleTime(sqlActor.lastStatusAt) : 0
+
 const getMastodonAccountFromSQLActor = ({
   sqlActor,
-  counters,
-  lastStatusCreatedAt
+  counters
 }: {
   sqlActor: SQLActor
   counters: {
@@ -247,7 +236,6 @@ const getMastodonAccountFromSQLActor = ({
     followingCount: number
     statusCount: number
   }
-  lastStatusCreatedAt: number | Date | undefined
 }) => {
   const settings = getCompatibleJSON(sqlActor.settings)
   const isLocalHeadlessSigner = isValidFederationSigningSQLActor(
@@ -314,8 +302,8 @@ const getMastodonAccountFromSQLActor = ({
     },
 
     created_at: getISOTimeUTC(getCompatibleTime(sqlActor.createdAt)),
-    last_status_at: lastStatusCreatedAt
-      ? getISOTimeUTC(getCompatibleTime(lastStatusCreatedAt), true)
+    last_status_at: sqlActor.lastStatusAt
+      ? getISOTimeUTC(getCompatibleTime(sqlActor.lastStatusAt), true)
       : null,
 
     followers_count: counters.followersCount,
@@ -347,28 +335,19 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .first()
     if (!persistedActor) return null
 
-    const [account, counters, lastStatus] = await database.transaction(
-      async (trx) => {
-        return Promise.all([
-          trx<Account>('accounts')
-            .where('id', persistedActor.accountId)
-            .first(),
-          getActorCounterSummary(trx, persistedActor.id),
-          trx('statuses')
-            .where('actorId', persistedActor.id)
-            .orderBy('createdAt', 'desc')
-            .first<{ createdAt: number | Date }>('createdAt')
-        ])
-      }
-    )
+    const [account, counters] = await database.transaction(async (trx) => {
+      return Promise.all([
+        trx<Account>('accounts').where('id', persistedActor.accountId).first(),
+        getActorCounterSummary(trx, persistedActor.id)
+      ])
+    })
 
-    const lastStatusCreatedAt = lastStatus?.createdAt ? lastStatus.createdAt : 0
     return this.getActor(
       persistedActor,
       counters.followingCount,
       counters.followersCount,
       counters.statusCount,
-      getCompatibleTime(lastStatusCreatedAt),
+      getSqlActorLastStatusAtTime(persistedActor),
       account
     )
   },
@@ -403,28 +382,19 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .first()
     if (!persistedActor) return null
 
-    const [account, counters, lastStatus] = await database.transaction(
-      async (trx) => {
-        return Promise.all([
-          trx<Account>('accounts')
-            .where('id', persistedActor.accountId)
-            .first(),
-          getActorCounterSummary(trx, persistedActor.id),
-          trx('statuses')
-            .where('actorId', persistedActor.id)
-            .orderBy('createdAt', 'desc')
-            .first<{ createdAt: number | Date }>('createdAt')
-        ])
-      }
-    )
+    const [account, counters] = await database.transaction(async (trx) => {
+      return Promise.all([
+        trx<Account>('accounts').where('id', persistedActor.accountId).first(),
+        getActorCounterSummary(trx, persistedActor.id)
+      ])
+    })
 
-    const lastStatusCreatedAt = lastStatus?.createdAt ? lastStatus.createdAt : 0
     return this.getActor(
       persistedActor,
       counters.followingCount,
       counters.followersCount,
       counters.statusCount,
-      getCompatibleTime(lastStatusCreatedAt),
+      getSqlActorLastStatusAtTime(persistedActor),
       account
     )
   },
@@ -552,50 +522,29 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     if (!persistedActor) return null
 
     if (!persistedActor.accountId) {
-      const [counters, lastStatus] = await database.transaction(async (trx) => {
-        return Promise.all([
-          getActorCounterSummary(trx, persistedActor.id),
-          trx('statuses')
-            .where('actorId', persistedActor.id)
-            .orderBy('createdAt', 'desc')
-            .first<{ createdAt: number | Date }>('createdAt')
-        ])
-      })
-
-      const lastStatusCreatedAt = lastStatus?.createdAt
-        ? lastStatus.createdAt
-        : 0
+      const counters = await getActorCounterSummary(database, persistedActor.id)
       return this.getActor(
         persistedActor,
         counters.followingCount,
         counters.followersCount,
         counters.statusCount,
-        getCompatibleTime(lastStatusCreatedAt)
+        getSqlActorLastStatusAtTime(persistedActor)
       )
     }
 
-    const [account, counters, lastStatus] = await database.transaction(
-      async (trx) => {
-        return Promise.all([
-          trx<Account>('accounts')
-            .where('id', persistedActor.accountId)
-            .first(),
-          getActorCounterSummary(trx, persistedActor.id),
-          trx('statuses')
-            .where('actorId', persistedActor.id)
-            .orderBy('createdAt', 'desc')
-            .first<{ createdAt: number | Date }>('createdAt')
-        ])
-      }
-    )
+    const [account, counters] = await database.transaction(async (trx) => {
+      return Promise.all([
+        trx<Account>('accounts').where('id', persistedActor.accountId).first(),
+        getActorCounterSummary(trx, persistedActor.id)
+      ])
+    })
 
-    const lastStatusCreatedAt = lastStatus?.createdAt ? lastStatus.createdAt : 0
     return this.getActor(
       persistedActor,
       counters.followingCount,
       counters.followersCount,
       counters.statusCount,
-      getCompatibleTime(lastStatusCreatedAt),
+      getSqlActorLastStatusAtTime(persistedActor),
       account
     )
   },
@@ -616,14 +565,12 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           .filter((accountId): accountId is string => Boolean(accountId))
       )
     ]
-    const [accounts, countersByActorId, lastStatusCreatedAtByActorId] =
-      await Promise.all([
-        accountIds.length > 0
-          ? database<SQLAccount>('accounts').whereIn('id', accountIds)
-          : [],
-        getActorCounterSummaries(database, actorIds),
-        getLastStatusCreatedAtByActorId(database, actorIds)
-      ])
+    const [accounts, countersByActorId] = await Promise.all([
+      accountIds.length > 0
+        ? database<SQLAccount>('accounts').whereIn('id', accountIds)
+        : [],
+      getActorCounterSummaries(database, actorIds)
+    ])
     const accountById = new Map(
       accounts.map((account) => [account.id, account])
     )
@@ -638,14 +585,13 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           followingCount: 0,
           statusCount: 0
         }
-        const lastStatusCreatedAt = lastStatusCreatedAtByActorId.get(actorId)
 
         return this.getActor(
           actor,
           counters.followingCount,
           counters.followersCount,
           counters.statusCount,
-          getCompatibleTime(lastStatusCreatedAt ?? 0),
+          getSqlActorLastStatusAtTime(actor),
           actor.accountId ? accountById.get(actor.accountId) : undefined
         )
       })
@@ -753,7 +699,8 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
   async getLocalMastodonActors({
     localDomain,
     limit = 40,
-    offset = 0
+    offset = 0,
+    order = 'active'
   }: GetLocalActorsParams) {
     // Actors store the bare host in `domain`, but callers may pass a configured
     // host that includes a scheme (e.g. `https://example.com`). Normalize so the
@@ -761,16 +708,26 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     const normalizedDomain = localDomain.includes('://')
       ? new URL(localDomain).host
       : localDomain
-    // `lastStatusAt` is not persisted on actors (see updateActorLastStatusAt),
-    // so the directory is ordered by account creation time for both the
-    // `active` and `new` Mastodon orderings.
-    const rows = await database<SQLActor>('actors')
+    const query = database<SQLActor>('actors')
       .where('domain', normalizedDomain)
       .whereNotNull('accountId')
-      .orderBy('createdAt', 'desc')
-      .limit(limit)
-      .offset(offset)
-      .pluck('id')
+
+    if (order === 'active') {
+      // Mastodon's `active` order is most-recently-active first, using the
+      // persisted `lastStatusAt`. Actors who have never posted (NULL) sort last
+      // on both SQLite and PostgreSQL: `(lastStatusAt IS NULL)` yields 0 before
+      // 1, so an explicit `NULLS LAST` — which the two dialects disagree on by
+      // default — is not needed. `createdAt` breaks ties deterministically.
+      query
+        .orderByRaw('(?? is null) asc', ['lastStatusAt'])
+        .orderBy('lastStatusAt', 'desc')
+        .orderBy('createdAt', 'desc')
+    } else {
+      // `new` order is most-recently-created first.
+      query.orderBy('createdAt', 'desc')
+    }
+
+    const rows = await query.limit(limit).offset(offset).pluck('id')
 
     return this.getMastodonActors(rows)
   },
@@ -787,11 +744,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
     const sqlActorById = new Map(sqlActors.map((actor) => [actor.id, actor]))
     const existingActorIds = sqlActors.map((actor) => actor.id)
-    const [countersByActorId, lastStatusCreatedAtByActorId] = await Promise.all(
-      [
-        getActorCounterSummaries(database, existingActorIds),
-        getLastStatusCreatedAtByActorId(database, existingActorIds)
-      ]
+    const countersByActorId = await getActorCounterSummaries(
+      database,
+      existingActorIds
     )
 
     return actorIds.flatMap((id) => {
@@ -804,8 +759,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           followersCount: 0,
           followingCount: 0,
           statusCount: 0
-        },
-        lastStatusCreatedAt: lastStatusCreatedAtByActorId.get(id)
+        }
       })
     })
   },
@@ -1013,8 +967,19 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     )
   },
 
-  async updateActorLastStatusAt(_actorId: string, _time: number) {
-    // `lastStatusAt` is derived from statuses and not persisted on actors.
+  async updateActorLastStatusAt(actorId: string, time: number) {
+    // Guarded set-if-newer so an out-of-order or backdated write cannot lower a
+    // more recent value. The status create path maintains this inline inside its
+    // own transaction; this method exists for callers outside that path.
+    const lastStatusAt = new Date(time)
+    await database<SQLActor>('actors')
+      .where('id', actorId)
+      .andWhere((builder) =>
+        builder
+          .whereNull('lastStatusAt')
+          .orWhere('lastStatusAt', '<', lastStatusAt)
+      )
+      .update({ lastStatusAt })
   },
 
   async getActorFollowingCount({ actorId }: GetActorFollowingCountParams) {

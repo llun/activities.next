@@ -74,7 +74,8 @@ CREATE TABLE public.actors (
     domain character varying(255),
     "deletionStatus" character varying(255),
     "deletionScheduledAt" timestamp with time zone,
-    type character varying(255) DEFAULT 'Person'::character varying NOT NULL
+    type character varying(255) DEFAULT 'Person'::character varying NOT NULL,
+    "lastStatusAt" timestamp with time zone
 );
 
 CREATE TABLE public.announcement_reactions (
@@ -1416,6 +1417,8 @@ CREATE INDEX "accountsIndex" ON public.accounts USING btree (email, "createdAt",
 CREATE INDEX "actorsIndex" ON public.actors USING btree (username, "createdAt", "updatedAt");
 
 CREATE INDEX "actors_accountId_idx" ON public.actors USING btree ("accountId");
+
+CREATE INDEX actors_domain_last_status_at_idx ON public.actors USING btree (domain, "lastStatusAt");
 
 CREATE INDEX "attachmentsIndex" ON public.attachments USING btree ("statusId", "createdAt", "updatedAt");
 
