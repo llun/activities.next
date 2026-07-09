@@ -763,7 +763,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
   async getLocalMastodonActors({
     localDomain,
     limit = 40,
-    offset = 0
+    offset = 0,
+    order = 'active',
+    local = true
   }: GetLocalActorsParams) {
     // Actors store the bare host in `domain`, but callers may pass a configured
     // host that includes a scheme (e.g. `https://example.com`). Normalize so the
@@ -771,18 +773,52 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     const normalizedDomain = localDomain.includes('://')
       ? new URL(localDomain).host
       : localDomain
-    // `lastStatusAt` is not persisted on actors (see updateActorLastStatusAt),
-    // so the directory is ordered by account creation time for both the
-    // `active` and `new` Mastodon orderings.
-    const rows = await database<SQLActor>('actors')
-      .where('domain', normalizedDomain)
-      .whereNotNull('accountId')
-      .orderBy('createdAt', 'desc')
-      .limit(limit)
-      .offset(offset)
-      .pluck('id')
+    const query = database<SQLActor>('actors').limit(limit).offset(offset)
 
-    return this.getMastodonActors(rows)
+    // local=false lists every known profile (Mastodon's default directory);
+    // local=true keeps only this server's account-backed actors.
+    if (local) {
+      query
+        .where('actors.domain', normalizedDomain)
+        .whereNotNull('actors.accountId')
+    } else {
+      // Even the all-profiles view must not expose internal system actors —
+      // the headless federation signer and any other local actor with no
+      // backing account (accountId null on the local domain). Remote actors
+      // (foreign domain) and local account-backed actors are still listed.
+      query.whereNot(function () {
+        this.where('actors.domain', normalizedDomain).whereNull(
+          'actors.accountId'
+        )
+      })
+    }
+
+    if (order === 'active') {
+      // `active` sorts by the actor's most recent status — the same
+      // MAX(statuses.createdAt) the serializer exposes as last_status_at
+      // (Mastodon orders by account_stats.last_status_at, which likewise
+      // counts non-public statuses). The grouped subquery walks the
+      // (actorId, createdAt, ...) statuses index; actors with no statuses
+      // sort last, newest account first among them. The boolean `is null`
+      // pre-sort is the portable NULLS LAST pattern the search document
+      // queries use for non-Postgres dialects (documents.ts) and is valid on
+      // Postgres too.
+      const lastStatuses = database('statuses')
+        .select('actorId')
+        .max({ lastStatusAt: 'createdAt' })
+        .groupBy('actorId')
+        .as('last_statuses')
+      query
+        .leftJoin(lastStatuses, 'actors.id', 'last_statuses.actorId')
+        .orderByRaw('?? is null', ['last_statuses.lastStatusAt'])
+        .orderBy('last_statuses.lastStatusAt', 'desc')
+        .orderBy('actors.createdAt', 'desc')
+    } else {
+      query.orderBy('actors.createdAt', 'desc')
+    }
+
+    const rows = await query.select<{ id: string }[]>({ id: 'actors.id' })
+    return this.getMastodonActors(rows.map((row) => row.id))
   },
 
   async getMastodonActors(actorIds: string[]) {

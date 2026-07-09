@@ -88,13 +88,21 @@ export const FollowedTagSQLDatabaseMixin = (
     actorId,
     limit = PER_PAGE_LIMIT,
     maxId,
+    minId,
     sinceId
   }: GetFollowedTagsParams) {
     const query = database<SQLFollowedTag>('followed_tags')
       .where('actorId', actorId)
-      .orderBy('createdAt', 'desc')
-      .orderBy('id', 'desc')
       .limit(limit)
+
+    // min_id pages the window immediately newer than the cursor (ascending
+    // scan, reversed back to newest-first below); since_id keeps the newest
+    // rows (plain descending scan). Mirrors getBookmarks.
+    if (minId) {
+      query.orderBy('createdAt', 'asc').orderBy('id', 'asc')
+    } else {
+      query.orderBy('createdAt', 'desc').orderBy('id', 'desc')
+    }
 
     // Ids are random UUIDs, so they cannot drive chronological pagination.
     // Resolve the cursor row's createdAt and paginate on that, using id as a
@@ -121,10 +129,11 @@ export const FollowedTagSQLDatabaseMixin = (
     }
 
     if (maxId) await applyCursor(maxId, 'older')
-    if (sinceId) await applyCursor(sinceId, 'newer')
+    const newerCursorId = minId || sinceId
+    if (newerCursorId) await applyCursor(newerCursorId, 'newer')
 
     const rows = await query
-    return rows.map(fixFollowedTag)
+    return (minId ? rows.reverse() : rows).map(fixFollowedTag)
   },
 
   async isFollowingTag({ actorId, name }: IsFollowingTagParams) {

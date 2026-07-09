@@ -4,7 +4,8 @@ import {
   getTestSQLDatabase
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
-import { EXTERNAL_ACTORS, TEST_DOMAIN } from '@/lib/stub/const'
+import { EXTERNAL_ACTORS, TEST_DOMAIN, testUserId } from '@/lib/stub/const'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 const withFreshDatabase = async (
   test: (database: Database) => Promise<void>
@@ -80,6 +81,91 @@ describe('directory and peers', () => {
           offset: 2
         })
         expect(secondPage).toHaveLength(1)
+      })
+    })
+
+    it('orders by the most recent status when order is active', async () => {
+      await withFreshDatabase(async (database) => {
+        await createLocalAccount(database, 'alice')
+        await createLocalAccount(database, 'bob')
+        await createLocalAccount(database, 'carol')
+
+        const now = Date.now()
+        const createNote = (username: string, createdAt: number) =>
+          database.createNote({
+            id: `${testUserId(username)}/statuses/1`,
+            url: `${testUserId(username)}/statuses/1`,
+            actorId: testUserId(username),
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: `post by ${username}`,
+            createdAt
+          })
+        // bob posted most recently, alice earlier, carol never.
+        await createNote('alice', now - 60_000)
+        await createNote('bob', now - 1000)
+
+        const actors = await database.getLocalMastodonActors({
+          localDomain: TEST_DOMAIN,
+          order: 'active'
+        })
+        expect(actors.map((actor) => actor.username)).toEqual([
+          'bob',
+          'alice',
+          'carol'
+        ])
+      })
+    })
+
+    it('includes known remote actors when local is false', async () => {
+      await withFreshDatabase(async (database) => {
+        await createLocalAccount(database, 'alice')
+        await database.createActor({
+          actorId: EXTERNAL_ACTORS[0].id,
+          username: EXTERNAL_ACTORS[0].username,
+          domain: EXTERNAL_ACTORS[0].domain,
+          followersUrl: EXTERNAL_ACTORS[0].followers_url,
+          inboxUrl: EXTERNAL_ACTORS[0].inbox_url,
+          sharedInboxUrl: EXTERNAL_ACTORS[0].inbox_url,
+          publicKey: 'remote-public-key',
+          createdAt: Date.now()
+        })
+
+        const actors = await database.getLocalMastodonActors({
+          localDomain: TEST_DOMAIN,
+          local: false
+        })
+        const usernames = actors.map((actor) => actor.username).sort()
+        expect(usernames).toEqual(['actor_id', 'alice'])
+      })
+    })
+
+    it('excludes internal local system actors (no account) when local is false', async () => {
+      await withFreshDatabase(async (database) => {
+        await createLocalAccount(database, 'alice')
+        // A local-domain actor with no backing account stands in for an
+        // internal system actor such as the headless federation signer
+        // (accountId null on the local domain). It must never surface in the
+        // public directory, even in the all-profiles (local=false) view.
+        const systemActorId = testUserId('__system__')
+        await database.createActor({
+          actorId: systemActorId,
+          username: '__system__',
+          domain: TEST_DOMAIN,
+          followersUrl: `${systemActorId}/followers`,
+          inboxUrl: `${systemActorId}/inbox`,
+          sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
+          publicKey: 'system-public-key',
+          createdAt: Date.now()
+        })
+
+        const actors = await database.getLocalMastodonActors({
+          localDomain: TEST_DOMAIN,
+          local: false
+        })
+        const usernames = actors.map((actor) => actor.username)
+        expect(usernames).toContain('alice')
+        expect(usernames).not.toContain('__system__')
       })
     })
   })

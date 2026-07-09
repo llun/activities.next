@@ -66,4 +66,27 @@ describe('FollowedTagDatabase', () => {
       ).toBeNull()
     })
   })
+
+  it('pages the window immediately newer than min_id, newest first', async () => {
+    await withFreshDatabase(async (database) => {
+      for (const name of ['first', 'second', 'third', 'fourth']) {
+        await database.followTag({ actorId: ACTOR_ID, name })
+      }
+
+      // Newest-first baseline; index 3 is the oldest row.
+      const all = await database.getFollowedTags({ actorId: ACTOR_ID })
+      expect(all).toHaveLength(4)
+
+      const page = await database.getFollowedTags({
+        actorId: ACTOR_ID,
+        minId: all[3].id,
+        limit: 2
+      })
+
+      // min_id pages upward from the cursor: the two rows immediately newer
+      // than the oldest one, still returned newest-first. since_id semantics
+      // would instead return the two newest rows (all[0], all[1]).
+      expect(page.map((tag) => tag.id)).toEqual([all[1].id, all[2].id])
+    })
+  })
 })

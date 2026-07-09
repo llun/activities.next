@@ -40,7 +40,13 @@ export const GET = traceApiRoute(
 
     const { limit, offset } = parsedParams.data
     const [blocks, stats] = await Promise.all([
-      database.getDomainBlocks({ limit, offset, severity: 'suspend' }),
+      // Mastodon lists every block with user-facing impact: silenced
+      // (limited) domains as well as suspended ones. noop rows stay private.
+      database.getDomainBlocks({
+        limit,
+        offset,
+        severities: ['silence', 'suspend']
+      }),
       database.getDomainFederationRuleStats()
     ])
 
@@ -49,7 +55,7 @@ export const GET = traceApiRoute(
       allowedMethods: CORS_HEADERS,
       data: blocks.map(toPublicDomainBlock),
       additionalHeaders: [
-        ['X-Total-Count', `${stats.suspendBlocks}`],
+        ['X-Total-Count', `${stats.suspendBlocks + stats.silenceBlocks}`],
         ['X-Offset', `${offset}`],
         ['X-Limit', `${limit}`]
       ]

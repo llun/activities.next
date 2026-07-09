@@ -7,6 +7,7 @@ import { clampedLimit, clampedOffset } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+import { Booleanish } from '@/lib/utils/zodBooleanish'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -16,16 +17,15 @@ const DirectoryParams = z.object({
   offset: clampedOffset(),
   limit: clampedLimit(80, 40),
   order: z.enum(['active', 'new']).default('active'),
-  local: z
-    .enum(['true', 'false'])
-    .transform((v) => v === 'true')
-    .optional()
+  // Mastodon semantics: local=true restricts the listing to this server's
+  // accounts; the default directory includes known remote actors. Booleanish
+  // coerces the string param and treats garbage as false instead of 400ing.
+  local: Booleanish.default(false)
 })
 
 // https://docs.joinmastodon.org/methods/directory/
-// Lists the local profiles hosted on this server. Remote-only directories are
-// not maintained, so the `local` parameter is accepted but the listing is always
-// the local actors.
+// Lists known profiles: every actor this server has seen by default, or only
+// this server's own accounts when local=true.
 export const GET = traceApiRoute(
   'getDirectory',
   OptionalOAuthGuard([Scope.enum.read], async (req, { database }) => {
@@ -42,12 +42,13 @@ export const GET = traceApiRoute(
       })
     }
 
-    const { offset, limit, order } = parsed.data
+    const { offset, limit, order, local } = parsed.data
     const actors = await database.getLocalMastodonActors({
       localDomain: getConfig().host,
       limit,
       offset,
-      order
+      order,
+      local
     })
 
     return apiResponse({ req, allowedMethods: CORS_HEADERS, data: actors })
