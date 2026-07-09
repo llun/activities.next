@@ -22,7 +22,8 @@ export const TimelineSQLDatabaseMixin = (
     minStatusId,
     sinceStatusId,
     maxStatusId,
-    limit = PER_PAGE_LIMIT
+    limit = PER_PAGE_LIMIT,
+    onlyMedia = false
   }: GetTimelineParams) {
     switch (timeline) {
       case Timeline.LOCAL_PUBLIC: {
@@ -53,6 +54,14 @@ export const TimelineSQLDatabaseMixin = (
           .whereNotNull('actors.privateKey')
           .where('statuses.reply', '')
           .limit(limit)
+
+        if (onlyMedia) {
+          query = query.whereExists(function () {
+            this.select(database.raw('1'))
+              .from('attachments')
+              .whereRaw('?? = ??', ['attachments.statusId', 'statuses.id'])
+          })
+        }
 
         if (maxRow) {
           query = query.where((wb) => {
@@ -115,6 +124,14 @@ export const TimelineSQLDatabaseMixin = (
           // timeline semantics (replies are excluded).
           .where('statuses.reply', '')
           .limit(limit)
+
+        if (onlyMedia) {
+          query = query.whereExists(function () {
+            this.select(database.raw('1'))
+              .from('attachments')
+              .whereRaw('?? = ??', ['attachments.statusId', 'statuses.id'])
+          })
+        }
 
         if (maxRow) {
           query = query.where((wb) => {

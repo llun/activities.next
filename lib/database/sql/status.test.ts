@@ -29,6 +29,7 @@ import {
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { waitFor } from '@/lib/utils/waitFor'
 
 import { buildPubliclyReadableStatusIdsQuery } from './status'
 
@@ -2859,6 +2860,35 @@ describe('StatusDatabase', () => {
         expect(ids).toContain(statusId)
       })
 
+      it.each([{ cursor: 'maxStatusId' }, { cursor: 'minStatusId' }])(
+        'returns [] when the $cursor cursor status does not exist',
+        async ({ cursor }) => {
+          const statusId = `${primaryActorId}/statuses/hashtag-cursor-${cursor}-${Date.now()}`
+          await database.createNote({
+            id: statusId,
+            url: statusId,
+            actorId: primaryActorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Hello #cursortag'
+          })
+          await database.createTag({
+            statusId,
+            name: '#cursortag',
+            value: `https://${actors.primary.domain}/tags/cursortag`,
+            type: 'hashtag'
+          })
+
+          // An unresolvable cursor yields no page (repo keyset convention),
+          // rather than silently falling back to the first page.
+          const results = await database.getStatusesByHashtag({
+            hashtag: 'cursortag',
+            [cursor]: `${primaryActorId}/statuses/does-not-exist`
+          })
+          expect(results).toEqual([])
+        }
+      )
+
       it('returns compact public statuses with a given hashtag', async () => {
         const statusId = `${primaryActorId}/statuses/compact-hashtag-test-${Date.now()}`
         await database.createNote({
@@ -2888,6 +2918,167 @@ describe('StatusDatabase', () => {
           hashtag: 'nonexistent_tag_xyz'
         })
         expect(results).toHaveLength(0)
+      })
+
+      const createTaggedNote = async ({
+        statusId,
+        tags,
+        actorId = primaryActorId
+      }: {
+        statusId: string
+        tags: string[]
+        actorId?: string
+      }) => {
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: tags.map((name) => `#${name}`).join(' ')
+        })
+        for (const name of tags) {
+          await database.createTag({
+            statusId,
+            name: `#${name}`,
+            value: `https://${actors.primary.domain}/tags/${name}`,
+            type: 'hashtag'
+          })
+        }
+      }
+
+      it('filters to statuses with attachments when onlyMedia is set', async () => {
+        const suffix = Date.now()
+        const tag = `mediaonly${suffix}`
+        const mediaStatusId = `${primaryActorId}/statuses/hashtag-media-${suffix}`
+        const textStatusId = `${primaryActorId}/statuses/hashtag-text-${suffix}`
+        await createTaggedNote({ statusId: mediaStatusId, tags: [tag] })
+        await createTaggedNote({ statusId: textStatusId, tags: [tag] })
+        await database.createAttachment({
+          actorId: primaryActorId,
+          statusId: mediaStatusId,
+          mediaType: 'image/png',
+          url: `${mediaStatusId}/image.png`
+        })
+
+        const results = await database.getStatusesByHashtag({
+          hashtag: tag,
+          onlyMedia: true
+        })
+        expect(results.map((status) => status.id)).toEqual([mediaStatusId])
+      })
+
+      it('widens the match to statuses carrying any additional tag', async () => {
+        const suffix = Date.now()
+        const primaryTag = `anybase${suffix}`
+        const extraTag = `anyextra${suffix}`
+        const baseStatusId = `${primaryActorId}/statuses/hashtag-any-base-${suffix}`
+        const extraStatusId = `${primaryActorId}/statuses/hashtag-any-extra-${suffix}`
+        await createTaggedNote({ statusId: baseStatusId, tags: [primaryTag] })
+        await createTaggedNote({ statusId: extraStatusId, tags: [extraTag] })
+
+        const results = await database.getStatusesByHashtag({
+          hashtag: primaryTag,
+          anyTags: [extraTag]
+        })
+        expect(results.map((status) => status.id).sort()).toEqual(
+          [baseStatusId, extraStatusId].sort()
+        )
+      })
+
+      it('applies all[] and none[] tag constraints', async () => {
+        const suffix = Date.now()
+        const baseTag = `constraint${suffix}`
+        const extraTag = `extra${suffix}`
+        const bothStatusId = `${primaryActorId}/statuses/hashtag-both-${suffix}`
+        const baseOnlyStatusId = `${primaryActorId}/statuses/hashtag-base-${suffix}`
+        await createTaggedNote({
+          statusId: bothStatusId,
+          tags: [baseTag, extraTag]
+        })
+        await createTaggedNote({ statusId: baseOnlyStatusId, tags: [baseTag] })
+
+        const withAll = await database.getStatusesByHashtag({
+          hashtag: baseTag,
+          allTags: [extraTag]
+        })
+        expect(withAll.map((status) => status.id)).toEqual([bothStatusId])
+
+        const withNone = await database.getStatusesByHashtag({
+          hashtag: baseTag,
+          noneTags: [extraTag]
+        })
+        expect(withNone.map((status) => status.id)).toEqual([baseOnlyStatusId])
+      })
+
+      it('requires every all[] tag to be present (AND across multiple tags)', async () => {
+        const suffix = Date.now()
+        const baseTag = `allbase${suffix}`
+        const tagA = `alla${suffix}`
+        const tagB = `allb${suffix}`
+        const bothStatusId = `${primaryActorId}/statuses/hashtag-all-both-${suffix}`
+        const partialStatusId = `${primaryActorId}/statuses/hashtag-all-partial-${suffix}`
+        await createTaggedNote({
+          statusId: bothStatusId,
+          tags: [baseTag, tagA, tagB]
+        })
+        // Has the base tag and tagA but NOT tagB, so it must be excluded — a
+        // regression collapsing the per-tag AND loop into an OR (whereIn) would
+        // wrongly include it.
+        await createTaggedNote({
+          statusId: partialStatusId,
+          tags: [baseTag, tagA]
+        })
+
+        const results = await database.getStatusesByHashtag({
+          hashtag: baseTag,
+          allTags: [tagA, tagB]
+        })
+        expect(results.map((status) => status.id)).toEqual([bothStatusId])
+      })
+
+      it('scopes results to local or remote authors', async () => {
+        const suffix = Date.now()
+        const tag = `scope${suffix}`
+        const localStatusId = `${primaryActorId}/statuses/hashtag-local-${suffix}`
+        const remoteActorId = DatabaseSeed.externalActors.primary.id
+        const remoteStatusId = `${remoteActorId}/statuses/hashtag-remote-${suffix}`
+        await createTaggedNote({ statusId: localStatusId, tags: [tag] })
+        await createTaggedNote({
+          statusId: remoteStatusId,
+          tags: [tag],
+          actorId: remoteActorId
+        })
+
+        const localOnly = await database.getStatusesByHashtag({
+          hashtag: tag,
+          local: true
+        })
+        expect(localOnly.map((status) => status.id)).toEqual([localStatusId])
+
+        const remoteOnly = await database.getStatusesByHashtag({
+          hashtag: tag,
+          remote: true
+        })
+        expect(remoteOnly.map((status) => status.id)).toEqual([remoteStatusId])
+      })
+
+      it('returns only statuses newer than minStatusId', async () => {
+        const suffix = Date.now()
+        const tag = `mincursor${suffix}`
+        const ids: string[] = []
+        for (let n = 1; n <= 3; n++) {
+          const statusId = `${primaryActorId}/statuses/hashtag-min-${suffix}-${n}`
+          await createTaggedNote({ statusId, tags: [tag] })
+          ids.push(statusId)
+          await waitFor(5)
+        }
+
+        const results = await database.getStatusesByHashtag({
+          hashtag: tag,
+          minStatusId: ids[0]
+        })
+        expect(results.map((status) => status.id)).toEqual([ids[2], ids[1]])
       })
     })
 

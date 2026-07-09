@@ -632,7 +632,19 @@ export type DeleteStatusTagsByTypeParams = {
 export type GetStatusesByHashtagParams = {
   hashtag: string
   limit?: number
+  minStatusId?: string
   maxStatusId?: string
+  // Attachments-only filter (Mastodon `only_media`).
+  onlyMedia?: boolean
+  // Author-locality scope (Mastodon `local`/`remote`): local means the author
+  // has an actors row with a privateKey (this server hosts it).
+  local?: boolean
+  remote?: boolean
+  // Mastodon tag-timeline modes: `anyTags` widen the primary match, `allTags`
+  // must all be present, `noneTags` must all be absent. Bare names, no `#`.
+  anyTags?: string[]
+  allTags?: string[]
+  noneTags?: string[]
 }
 export type GetHashtagStatusesPageParams = {
   hashtag: string
@@ -3009,6 +3021,9 @@ export type GetTimelineParams = {
   sinceStatusId?: string | null
   maxStatusId?: string | null
   limit?: number
+  // Attachments-only filter (Mastodon `only_media`). Honored by the
+  // LOCAL_PUBLIC and FEDERATED_PUBLIC timelines; other timelines ignore it.
+  onlyMedia?: boolean
 }
 export type CreateTimelineStatusParams = {
   timeline: Timeline

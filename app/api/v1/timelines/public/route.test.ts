@@ -90,6 +90,37 @@ describe('GET /api/v1/timelines/public', () => {
     ])
   })
 
+  it('applies instance-wide server hide filters for anonymous viewers', async () => {
+    await database.createServerFilter({
+      title: 'Server hidden',
+      context: ['public'],
+      filterAction: 'hide',
+      expiresAt: null,
+      keywords: [{ keyword: 'serverhidden', wholeWord: false }]
+    })
+    const hiddenStatus = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/public-server-hidden`,
+      url: `${ACTOR1_ID}/statuses/public-server-hidden`,
+      actorId: ACTOR1_ID,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      text: 'serverhidden content'
+    })
+    vi.spyOn(database, 'getTimeline').mockResolvedValue([
+      hiddenStatus,
+      publicStatus
+    ])
+
+    const response = await GET(request(), { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    const ids = (await response.json()).map((s: { id: string }) => s.id)
+    // The server-wide hide filter drops the matching status even for a
+    // signed-out (anonymous) viewer; the non-matching status survives.
+    expect(ids).not.toContain(urlToId(hiddenStatus.id))
+    expect(ids).toContain(urlToId(publicStatus.id))
+  })
+
   it.each([
     { description: 'junk opaque id', value: 'apurl_@@@@' },
     { description: 'percent signs', value: '%%%' },
@@ -171,6 +202,72 @@ describe('GET /api/v1/timelines/public', () => {
       const queried = spy.mock.calls.map((call) => call[0].timeline)
       expect(queried).toContain('federated-public')
       expect(queried).not.toContain('local-public')
+    })
+  })
+
+  describe('min_id/since_id wiring and prev Link', () => {
+    it.each([
+      { description: 'min_id', param: 'min_id' },
+      { description: 'since_id', param: 'since_id' }
+    ])(
+      'passes the decoded $description cursor to the timeline queries',
+      async ({ param }) => {
+        const spy = vi.spyOn(database, 'getTimeline').mockResolvedValue([])
+        const response = await GET(
+          request({ [param]: urlToId(publicStatus.id) }),
+          { params: Promise.resolve({}) }
+        )
+        expect(response.status).toBe(200)
+        expect(spy).toHaveBeenCalledWith(
+          expect.objectContaining({ minStatusId: publicStatus.id })
+        )
+      }
+    )
+
+    it('prefers min_id over since_id when both are provided', async () => {
+      const spy = vi.spyOn(database, 'getTimeline').mockResolvedValue([])
+      await GET(
+        request({
+          min_id: urlToId(publicStatus.id),
+          since_id: urlToId(`${ACTOR1_ID}/statuses/public-other`)
+        }),
+        { params: Promise.resolve({}) }
+      )
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({ minStatusId: publicStatus.id })
+      )
+    })
+
+    it('emits a rel="prev" Link with a min_id cursor for a non-empty page', async () => {
+      vi.spyOn(database, 'getTimeline').mockResolvedValue([publicStatus])
+      const response = await GET(request(), { params: Promise.resolve({}) })
+      const link = response.headers.get('Link')
+      expect(link).toContain('rel="prev"')
+      const prevPart = link!
+        .split(', ')
+        .find((part) => part.includes('rel="prev"'))
+      const prevUrl = new URL(prevPart!.match(/<([^>]+)>/)![1])
+      expect(prevUrl.searchParams.get('min_id')).toBe(urlToId(publicStatus.id))
+    })
+  })
+
+  describe('only_media', () => {
+    it('passes onlyMedia=true to the timeline queries', async () => {
+      const spy = vi.spyOn(database, 'getTimeline').mockResolvedValue([])
+      await GET(request({ only_media: 'true' }), {
+        params: Promise.resolve({})
+      })
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({ onlyMedia: true })
+      )
+    })
+
+    it('carries only_media into the pagination Links', async () => {
+      vi.spyOn(database, 'getTimeline').mockResolvedValue([publicStatus])
+      const response = await GET(request({ only_media: 'true' }), {
+        params: Promise.resolve({})
+      })
+      expect(response.headers.get('Link')).toContain('only_media=true')
     })
   })
 
