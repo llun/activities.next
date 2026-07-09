@@ -14,3 +14,8 @@ export const MAX_POLL_EXPIRATION_SECONDS = 60 * 60 * 24 * 31
 export const MIN_SCHEDULED_STATUS_AHEAD_MS = 5 * 60 * 1000
 export const SCHEDULED_AT_TOO_SOON_ERROR =
   'Validation failed: Scheduled at must be at least 5 minutes in the future'
+
+// Advertised in the v2 instance entity (api_versions.mastodon). Mastodon 4.3
+// introduced the field with value 2; this server implements the 4.3-era API
+// surface, so advertise 2 and bump only alongside newer API features.
+export const MASTODON_INSTANCE_API_VERSION = 2

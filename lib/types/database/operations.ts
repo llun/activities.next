@@ -3277,6 +3277,10 @@ export interface InstanceActivityDatabase {
     params?: GetInstanceActivityParams
   ): Promise<InstanceActivityWeek[]>
   getInstancePeers(params?: GetInstancePeersParams): Promise<string[]>
+  // Earliest-created local actor owned by an account with the admin role,
+  // used as the Mastodon instance contact account; null when the instance
+  // has no admin.
+  getInstanceAdminActorId(): Promise<string | null>
 }
 
 export type GetInstancePeersParams = {
