@@ -269,7 +269,7 @@ export class S3FileStorage implements MediaStorage {
             aspect: presignedMedia.width / presignedMedia.height
           }
         },
-        description: '',
+        description: null,
         blurhash: null
       },
       headers: {

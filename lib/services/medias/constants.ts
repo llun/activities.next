@@ -15,3 +15,7 @@ export const ACCEPTED_FILE_TYPES = [
   'video/webm',
   'audio/mp4'
 ]
+
+// Mastodon caps media descriptions (alt text) at 1,500 characters.
+// https://docs.joinmastodon.org/user/posting/#media
+export const MAX_MEDIA_DESCRIPTION_LENGTH = 1500
