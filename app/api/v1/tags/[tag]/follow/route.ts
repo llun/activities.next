@@ -6,7 +6,10 @@ import { getTagHistory } from '@/lib/services/trends/tagHistory'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
-import { normalizeHashtagParam } from '@/lib/utils/text/mastodonHashtag'
+import {
+  MAX_ENCODED_HASHTAG_PARAM_LENGTH,
+  normalizeHashtagParam
+} from '@/lib/utils/text/mastodonHashtag'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
@@ -14,7 +17,9 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const Params = z.object({
-  tag: z.string().max(255)
+  // Cap the raw (percent-encoded) param; normalizeHashtagParam enforces the
+  // 255-char limit on the decoded name so Unicode tags aren't rejected early.
+  tag: z.string().max(MAX_ENCODED_HASHTAG_PARAM_LENGTH)
 })
 
 interface RouteParams {

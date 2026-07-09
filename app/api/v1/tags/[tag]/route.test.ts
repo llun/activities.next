@@ -141,4 +141,20 @@ describe('GET /api/v1/tags/:tag', () => {
     )
     expect(response.status).toBe(expectedStatus)
   })
+
+  it('accepts a unicode tag whose percent-encoded length exceeds 255', async () => {
+    // 30 Japanese chars → 270 percent-encoded chars: over the decoded 255 limit
+    // but a valid short name. The raw param cap must not reject it before
+    // normalizeHashtagParam decodes it.
+    const name = 'あ'.repeat(30)
+    const encoded = encodeURIComponent(name)
+    expect(encoded.length).toBeGreaterThan(255)
+    const response = await GET(
+      new NextRequest(`https://local.test/api/v1/tags/${encoded}`),
+      { params: Promise.resolve({ tag: encoded }) }
+    )
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.name).toBe(name)
+  })
 })
