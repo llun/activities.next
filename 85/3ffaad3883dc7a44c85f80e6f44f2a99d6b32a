@@ -1,0 +1,35 @@
+lib/database/sql/status.test.ts
+  s_f7b91ac6284bd0::t_a0a492e733e85f 2734-2809
+lib/actions/updatePoll.ts
+  s_f7b91ac6284bd0::t_d9991821db67cd 1-106
+lib/types/database/operations.ts
+  s_f7b91ac6284bd0::t_6dfac1626611d8 481-490
+app/api/v1/statuses/[id]/route.test.ts
+  s_f7b91ac6284bd0::t_1b86ba3c369877 2438-2607
+app/api/v1/statuses/[id]/route.ts
+  s_f7b91ac6284bd0::t_4702954a8dedf0 15-22
+  s_f7b91ac6284bd0::t_b2c8f8fee4889d 219
+  s_f7b91ac6284bd0::t_e129cabf673ec8 6
+  s_f7b91ac6284bd0::t_344e40b61b74ff 236-237,248-320
+  s_f7b91ac6284bd0::t_c462b28dd2e052 131-148,154
+  s_f7b91ac6284bd0::t_d347bc0b73cd57 321
+lib/database/sql/status.ts
+  s_f7b91ac6284bd0::t_2fbb481480bce9 975-981,995-1000,1011-1022,1024,1051-1067
+  s_f7b91ac6284bd0::t_5ba82957ab39d3 1068
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "853ffaad3883dc7a44c85f80e6f44f2a99d6b32a",
+  "prompts": {},
+  "sessions": {
+    "s_f7b91ac6284bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e5d29e0-cb70-4516-b716-6108a10b94a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
