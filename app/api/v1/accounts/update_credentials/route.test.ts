@@ -34,6 +34,7 @@ vi.mock('@/lib/config', () => ({
   getConfig: vi.fn().mockReturnValue({
     allowEmails: [],
     host: 'llun.test',
+    trustedHosts: ['alias.llun.test'],
     secretPhase: 'test-secret'
   })
 }))
@@ -362,6 +363,36 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     updateActor.mockRestore()
   })
 
+  it('rejects more than 100 attribution_domains with 422', async () => {
+    const updateActor = vi.spyOn(database, 'updateActor')
+    const form = new FormData()
+    for (let i = 0; i < 101; i += 1) {
+      form.append('attribution_domains[]', `domain${i}.example.com`)
+    }
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(422)
+    expect(updateActor).not.toHaveBeenCalled()
+    updateActor.mockRestore()
+  })
+
+  it('rejects an attribution domain longer than 255 characters with 422', async () => {
+    const updateActor = vi.spyOn(database, 'updateActor')
+    const form = new FormData()
+    form.append('attribution_domains[]', 'a'.repeat(256))
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(422)
+    expect(updateActor).not.toHaveBeenCalled()
+    updateActor.mockRestore()
+  })
+
   it('persists fields_attributes, bot, discoverable and source defaults (multipart)', async () => {
     const updateActor = vi.spyOn(database, 'updateActor')
     const form = new FormData()
@@ -405,6 +436,118 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
       { name: 'Pronouns', value: 'they/them', verified_at: null }
     ])
     expect(data.source.privacy).toBe('private')
+    updateActor.mockRestore()
+  })
+
+  it('persists indexable and hide_collections flags (multipart)', async () => {
+    const updateActor = vi.spyOn(database, 'updateActor')
+    const form = new FormData()
+    form.set('indexable', 'true')
+    form.set('hide_collections', 'true')
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: ACTOR1_ID,
+        indexable: true,
+        hideCollections: true
+      })
+    )
+    const data = await response.json()
+    expect(data.indexable).toBe(true)
+    expect(data.hide_collections).toBe(true)
+    updateActor.mockRestore()
+  })
+
+  it.each([
+    {
+      description:
+        'collects repeated attribution_domains[] multipart entries into an array',
+      key: 'attribution_domains[]'
+    },
+    {
+      description:
+        'collects repeated bare attribution_domains multipart entries into an array',
+      key: 'attribution_domains'
+    }
+  ])('$description', async ({ key }) => {
+    const updateActor = vi.spyOn(database, 'updateActor')
+    const form = new FormData()
+    form.append(key, 'Blog.example.com ')
+    form.append(key, 'news.example.com')
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attributionDomains: ['blog.example.com', 'news.example.com']
+      })
+    )
+    updateActor.mockRestore()
+  })
+
+  it('deduplicates attribution_domains and drops empty/whitespace entries', async () => {
+    const updateActor = vi.spyOn(database, 'updateActor')
+    const form = new FormData()
+    form.append('attribution_domains[]', 'blog.example.com')
+    form.append('attribution_domains[]', 'BLOG.example.com')
+    form.append('attribution_domains[]', '   ')
+    form.append('attribution_domains[]', 'blog.example.com')
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attributionDomains: ['blog.example.com']
+      })
+    )
+    updateActor.mockRestore()
+  })
+
+  it('accepts modern fields via a JSON body and clears attribution domains with []', async () => {
+    const updateActor = vi.spyOn(database, 'updateActor')
+    const req = new NextRequest(
+      'https://llun.test/api/v1/accounts/update_credentials',
+      {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body: JSON.stringify({
+          indexable: false,
+          hide_collections: false,
+          attribution_domains: []
+        })
+      }
+    )
+
+    const response = await PATCH(req, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        indexable: false,
+        hideCollections: false,
+        attributionDomains: []
+      })
+    )
+    // The spied updateActor calls through to the real test DB, so the response
+    // reflects the persisted values: a stored `false` must serialize as `false`,
+    // not `null` — the one branch a `?? null` -> `|| null` regression would break.
+    const data = await response.json()
+    expect(data.indexable).toBe(false)
+    expect(data.hide_collections).toBe(false)
     updateActor.mockRestore()
   })
 
@@ -468,5 +611,28 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
       })
     )
     updateActor.mockRestore()
+  })
+
+  it('localizes the returned acct to the access domain', async () => {
+    const req = new NextRequest(
+      'https://llun.test/api/v1/accounts/update_credentials',
+      {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test',
+          'x-forwarded-host': 'alias.llun.test'
+        },
+        body: JSON.stringify({})
+      }
+    )
+
+    const response = await PATCH(req, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    // Actor1 lives on llun.test; seen through the alias access domain the acct
+    // must be qualified, matching verify_credentials behavior.
+    expect(data.acct).toBe('test1@llun.test')
   })
 })

@@ -282,6 +282,9 @@ const getMastodonAccountFromSQLActor = ({
     username: sqlActor.username,
     acct: isLocalActor ? sqlActor.username : qualifiedAcct,
     url: sqlActor.id,
+    // The ActivityPub actor id. This service uses the actor id as the profile
+    // URL too, so `uri` and `url` carry the same value.
+    uri: sqlActor.id,
     display_name: sqlActor.name ?? '',
     note,
 
@@ -298,6 +301,12 @@ const getMastodonAccountFromSQLActor = ({
     group: sqlActor.type === 'Group',
     discoverable: settings.discoverable ?? !isLocalHeadlessSigner,
     noindex: isLocalHeadlessSigner,
+    // No roles system: every account serializes an empty public role list (the
+    // credential endpoints still overlay the singular default `role`).
+    roles: [],
+    // Mastodon's opt-in full-text-search flag; false by default like Mastodon.
+    indexable: settings.indexable ?? false,
+    hide_collections: settings.hideCollections ?? null,
 
     // `source.note` is the plain-text bio and `source.fields` mirror the public
     // fields. The default privacy/sensitive/language come from the account's
@@ -310,6 +319,7 @@ const getMastodonAccountFromSQLActor = ({
       privacy: settings.defaultPrivacy ?? 'public',
       sensitive: settings.defaultSensitive ?? false,
       language: settings.defaultLanguage ?? 'en',
+      attribution_domains: settings.attributionDomains ?? [],
       follow_requests_count: 0
     },
 
@@ -821,6 +831,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     fields,
     bot,
     discoverable,
+    indexable,
+    hideCollections,
+    attributionDomains,
     defaultPrivacy,
     defaultSensitive,
     defaultLanguage,
@@ -860,6 +873,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       ...(fields !== undefined ? { fields } : null),
       ...(bot !== undefined ? { bot } : null),
       ...(discoverable !== undefined ? { discoverable } : null),
+      ...(indexable !== undefined ? { indexable } : null),
+      ...(hideCollections !== undefined ? { hideCollections } : null),
+      ...(attributionDomains !== undefined ? { attributionDomains } : null),
       ...(defaultPrivacy !== undefined ? { defaultPrivacy } : null),
       ...(defaultSensitive !== undefined ? { defaultSensitive } : null),
       ...(defaultLanguage !== undefined ? { defaultLanguage } : null),

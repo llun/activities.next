@@ -1,10 +1,12 @@
 import { z } from 'zod'
 
 import { buildCredentialAccount } from '@/lib/services/accounts/credentialAccount'
+import { localizeAccount } from '@/lib/services/accounts/localizeAccount'
 import {
   OAuthGuardAnyScope,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { saveMedia } from '@/lib/services/medias'
 import { MediaSchema } from '@/lib/services/medias/types'
 import { Scope } from '@/lib/types/database/operations'
@@ -30,6 +32,10 @@ const UpdateCredentialsRequest = z.object({
   locked: z.union([z.boolean(), z.string()]).optional(),
   bot: z.union([z.boolean(), z.string()]).optional(),
   discoverable: z.union([z.boolean(), z.string()]).optional(),
+  indexable: z.union([z.boolean(), z.string()]).optional(),
+  hide_collections: z.union([z.boolean(), z.string()]).optional(),
+  // Mastodon caps attribution domains at 100 entries; a hostname fits in 255.
+  attribution_domains: z.string().max(255).array().max(100).optional(),
   fields: FieldAttribute.array().max(4).optional(),
   source: z
     .object({
@@ -76,6 +82,18 @@ const assignFieldsFromForm = (
       continue
     }
     if (typeof raw !== 'string') continue
+
+    // Rails-style repeated array param (`attribution_domains[]`). The generic
+    // scalar fallthrough below is last-write-wins, so arrays are collected
+    // explicitly. The bare key is accepted too for lenient clients.
+    if (key === 'attribution_domains[]' || key === 'attribution_domains') {
+      const domains = Array.isArray(scalars.attribution_domains)
+        ? (scalars.attribution_domains as string[])
+        : []
+      domains.push(raw)
+      scalars.attribution_domains = domains
+      continue
+    }
 
     const sourceMatch = key.match(/^source\[(\w+)\]$/)
     if (sourceMatch) {
@@ -175,8 +193,18 @@ export const updateCredentialsHandler = (corsHeaders: HttpMethod[]) =>
         })
       }
 
-      const { display_name, note, locked, bot, discoverable, fields, source } =
-        parsed.data
+      const {
+        display_name,
+        note,
+        locked,
+        bot,
+        discoverable,
+        indexable,
+        hide_collections,
+        attribution_domains,
+        fields,
+        source
+      } = parsed.data
 
       // Persist avatar/header through the shared media-save pipeline and store
       // the resulting URLs as actor settings. An invalid file (wrong type/too
@@ -205,7 +233,21 @@ export const updateCredentialsHandler = (corsHeaders: HttpMethod[]) =>
       const manuallyApprovesFollowers = parseBoolean(locked)
       const botFlag = parseBoolean(bot)
       const discoverableFlag = parseBoolean(discoverable)
+      const indexableFlag = parseBoolean(indexable)
+      const hideCollectionsFlag = parseBoolean(hide_collections)
       const sensitiveFlag = parseBoolean(source?.sensitive)
+      // Normalize attribution domains: trim, lowercase, drop empties, dedupe.
+      // An explicit empty array clears the stored list.
+      const attributionDomains =
+        attribution_domains !== undefined
+          ? [
+              ...new Set(
+                attribution_domains
+                  .map((domain) => domain.trim().toLowerCase())
+                  .filter((domain) => domain.length > 0)
+              )
+            ]
+          : undefined
 
       await database.updateActor({
         actorId: currentActor.id,
@@ -218,6 +260,11 @@ export const updateCredentialsHandler = (corsHeaders: HttpMethod[]) =>
         ...(discoverableFlag !== undefined
           ? { discoverable: discoverableFlag }
           : null),
+        ...(indexableFlag !== undefined ? { indexable: indexableFlag } : null),
+        ...(hideCollectionsFlag !== undefined
+          ? { hideCollections: hideCollectionsFlag }
+          : null),
+        ...(attributionDomains !== undefined ? { attributionDomains } : null),
         ...(fields !== undefined ? { fields } : null),
         ...(source?.privacy !== undefined
           ? { defaultPrivacy: source.privacy }
@@ -245,10 +292,15 @@ export const updateCredentialsHandler = (corsHeaders: HttpMethod[]) =>
           responseStatusCode: 500
         })
       }
+      // Render the acct relative to the domain the client connected through,
+      // matching getCredentialAccountHandler (verify_credentials).
       return apiResponse({
         req,
         allowedMethods: corsHeaders,
-        data: buildCredentialAccount({ account, followRequestsCount })
+        data: buildCredentialAccount({
+          account: localizeAccount(account, headerHost(req.headers)),
+          followRequestsCount
+        })
       })
     },
     { errorResponse: corsErrorResponse(corsHeaders) }
