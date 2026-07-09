@@ -1,7 +1,9 @@
 import { Mute } from '@/lib/types/domain/mute'
-import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
+import type { MutedAccount } from '@/lib/types/mastodon/account/mutedAccount'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { urlToId } from '@/lib/utils/urlToId'
+
+import { getMuteExpiresAt } from './getMuteExpiresAt'
 
 const UUID_LIKE_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -28,7 +30,7 @@ const getFallbackUsername = (mute: Mute) => {
   return decodedSegment
 }
 
-export const getFallbackMutedAccount = (mute: Mute): MastodonAccount => {
+export const getFallbackMutedAccount = (mute: Mute): MutedAccount => {
   const username = getFallbackUsername(mute)
   const acct =
     username === mute.targetActorHost
@@ -65,6 +67,7 @@ export const getFallbackMutedAccount = (mute: Mute): MastodonAccount => {
     last_status_at: null,
     statuses_count: 0,
     followers_count: 0,
-    following_count: 0
+    following_count: 0,
+    mute_expires_at: getMuteExpiresAt(mute)
   }
 }

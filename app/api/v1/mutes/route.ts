@@ -1,8 +1,10 @@
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { getFallbackMutedAccount } from '@/lib/services/accounts/getFallbackMutedAccount'
+import { getMuteExpiresAt } from '@/lib/services/accounts/getMuteExpiresAt'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
+import type { MutedAccount } from '@/lib/types/mastodon/account/mutedAccount'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { buildPaginationLinkHeader } from '@/lib/utils/paginationLinkHeader'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
@@ -44,10 +46,13 @@ export const GET = traceApiRoute(
       const accountsByUrl = new Map(
         hydratedAccounts.map((account) => [account.url, account])
       )
-      const accounts = mutes.map(
-        (mute) =>
-          accountsByUrl.get(mute.targetActorId) ?? getFallbackMutedAccount(mute)
-      )
+      // MutedAccount = Account + mute_expires_at. The fallback already carries
+      // the field; hydrated accounts get it layered on from the mute row here.
+      const accounts = mutes.map((mute): MutedAccount => {
+        const hydrated = accountsByUrl.get(mute.targetActorId)
+        if (!hydrated) return getFallbackMutedAccount(mute)
+        return { ...hydrated, mute_expires_at: getMuteExpiresAt(mute) }
+      })
 
       const additionalHeaders = buildPaginationLinkHeader({
         host: headerHost(req.headers),
