@@ -408,6 +408,91 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     updateActor.mockRestore()
   })
 
+  it('persists indexable and hide_collections flags (multipart)', async () => {
+    const updateActor = vi.spyOn(database, 'updateActor')
+    const form = new FormData()
+    form.set('indexable', 'true')
+    form.set('hide_collections', 'true')
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: ACTOR1_ID,
+        indexable: true,
+        hideCollections: true
+      })
+    )
+    const data = await response.json()
+    expect(data.indexable).toBe(true)
+    expect(data.hide_collections).toBe(true)
+    updateActor.mockRestore()
+  })
+
+  it.each([
+    {
+      description:
+        'collects repeated attribution_domains[] multipart entries into an array',
+      key: 'attribution_domains[]'
+    },
+    {
+      description:
+        'collects repeated bare attribution_domains multipart entries into an array',
+      key: 'attribution_domains'
+    }
+  ])('$description', async ({ key }) => {
+    const updateActor = vi.spyOn(database, 'updateActor')
+    const form = new FormData()
+    form.append(key, 'Blog.example.com ')
+    form.append(key, 'news.example.com')
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attributionDomains: ['blog.example.com', 'news.example.com']
+      })
+    )
+    updateActor.mockRestore()
+  })
+
+  it('accepts modern fields via a JSON body and clears attribution domains with []', async () => {
+    const updateActor = vi.spyOn(database, 'updateActor')
+    const req = new NextRequest(
+      'https://llun.test/api/v1/accounts/update_credentials',
+      {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body: JSON.stringify({
+          indexable: false,
+          hide_collections: false,
+          attribution_domains: []
+        })
+      }
+    )
+
+    const response = await PATCH(req, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        indexable: false,
+        hideCollections: false,
+        attributionDomains: []
+      })
+    )
+    updateActor.mockRestore()
+  })
+
   it('accepts fields_attributes via a JSON body', async () => {
     const updateActor = vi.spyOn(database, 'updateActor')
     const req = new NextRequest(
