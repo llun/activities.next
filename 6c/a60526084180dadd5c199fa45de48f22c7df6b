@@ -1,0 +1,21 @@
+lib/services/accounts/getMuteExpiresAt.test.ts
+  s_f7b91ac6284bd0::t_93279b236e1480 1-18
+lib/services/accounts/getMuteExpiresAt.ts
+  s_f7b91ac6284bd0::t_edfcee2ac2cd78 1-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6ca60526084180dadd5c199fa45de48f22c7df6b",
+  "prompts": {},
+  "sessions": {
+    "s_f7b91ac6284bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e5d29e0-cb70-4516-b716-6108a10b94a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
