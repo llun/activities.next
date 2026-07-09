@@ -221,4 +221,31 @@ describe('GET /api/v2/instance', () => {
       mockDatabase = database
     }
   })
+
+  it('maps usage.users.active_month from the active-month stat, not another counter', async () => {
+    // Distinct counters so a wrong-field mapping (e.g. active_month = userCount)
+    // is caught; with the empty test DB all four are 0 and indistinguishable.
+    const nodeInfoSpy = vi
+      .spyOn(database, 'getNodeInfoStats')
+      .mockResolvedValue({
+        totalUsers: 9,
+        activeMonth: 6,
+        activeHalfyear: 8,
+        localPosts: 15
+      })
+    const peersSpy = vi
+      .spyOn(database, 'getInstancePeers')
+      .mockResolvedValue(['a.test', 'b.test', 'c.test', 'd.test'])
+    try {
+      const response = await GET(
+        new NextRequest('https://llun.test/api/v2/instance'),
+        params
+      )
+      const body = await response.json()
+      expect(body.usage.users.active_month).toBe(6)
+    } finally {
+      nodeInfoSpy.mockRestore()
+      peersSpy.mockRestore()
+    }
+  })
 })

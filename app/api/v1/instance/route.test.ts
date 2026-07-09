@@ -153,4 +153,25 @@ describe('GET /api/v1/instance', () => {
       mockDatabase = database
     }
   })
+
+  it('degrades to an empty rules list when getInstanceRules rejects but the database is present (still 200)', async () => {
+    // The DB-unavailable test above sets mockDatabase = null, which short-circuits
+    // the `if (database)` guard before the rules try/catch. This exercises the
+    // catch itself: a present database whose getInstanceRules() rejects must still
+    // return 200 with rules: [], not a 500 on the public endpoint.
+    const rulesSpy = vi
+      .spyOn(database, 'getInstanceRules')
+      .mockRejectedValue(new Error('rules query failed'))
+    try {
+      const response = await GET(
+        new NextRequest('https://llun.test/api/v1/instance'),
+        params
+      )
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body.rules).toEqual([])
+    } finally {
+      rulesSpy.mockRestore()
+    }
+  })
 })
