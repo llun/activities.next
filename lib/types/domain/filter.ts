@@ -9,7 +9,7 @@ export const FilterContext = z.enum([
 ])
 export type FilterContext = z.infer<typeof FilterContext>
 
-export const FilterAction = z.enum(['warn', 'hide'])
+export const FilterAction = z.enum(['warn', 'blur', 'hide'])
 export type FilterAction = z.infer<typeof FilterAction>
 
 export const Filter = z.object({

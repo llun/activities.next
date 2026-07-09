@@ -14,16 +14,20 @@ export const GET = traceApiRoute(
     [Scope.enum.read, Scope.enum['read:accounts']],
     async (req, context) => {
       const { database, currentActor } = context
-      const account = await database.getMastodonActorFromId({
-        id: currentActor.id
-      })
+      const [account, settings] = await Promise.all([
+        database.getMastodonActorFromId({ id: currentActor.id }),
+        database.getActorSettings({ actorId: currentActor.id })
+      ])
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
         data: {
           'posting:default:visibility': account?.source?.privacy ?? 'public',
           'posting:default:sensitive': account?.source?.sensitive ?? false,
-          'posting:default:language': account?.source?.language ?? 'en',
+          // Mastodon leaves this null when the account never chose a posting
+          // language. The Account serializer defaults source.language to 'en',
+          // so read the raw setting instead of the serialized account.
+          'posting:default:language': settings?.defaultLanguage ?? null,
           'reading:expand:media': currentActor.readingExpandMedia ?? 'default',
           'reading:expand:spoilers':
             currentActor.readingExpandSpoilers ?? false,

@@ -1288,3 +1288,50 @@ describe('ListDatabase', () => {
     })
   })
 })
+
+describe('getListAccounts', () => {
+  it('returns every member without pagination when limit is 0', async () => {
+    await withFreshDatabase(async (database) => {
+      for (const username of ['listowner', 'member1', 'member2', 'member3']) {
+        await createLocalAccount(database, username)
+      }
+      const owner = await database.getActorFromUsername({
+        username: 'listowner',
+        domain: TEST_DOMAIN
+      })
+      if (!owner) throw new Error('owner not created')
+      const memberIds: string[] = []
+      for (const username of ['member1', 'member2', 'member3']) {
+        const member = await database.getActorFromUsername({
+          username,
+          domain: TEST_DOMAIN
+        })
+        if (!member) throw new Error(`${username} not created`)
+        memberIds.push(member.id)
+      }
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Everyone'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: memberIds
+      })
+
+      const limited = await database.getListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        limit: 2
+      })
+      expect(limited.accounts).toHaveLength(2)
+
+      const all = await database.getListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        limit: 0
+      })
+      expect(all.accounts).toHaveLength(3)
+    })
+  })
+})

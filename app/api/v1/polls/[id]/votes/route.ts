@@ -24,7 +24,9 @@ const MAX_POLL_CHOICES_PER_VOTE = 20
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const VotePollRequest = z.object({
-  choices: z
+  // Mastodon documents `choices` as an array of STRING indices; coerce so
+  // JSON bodies like {"choices":["1"]} validate alongside numeric arrays.
+  choices: z.coerce
     .number()
     .int()
     .nonnegative()
