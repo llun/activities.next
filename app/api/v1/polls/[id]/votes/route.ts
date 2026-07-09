@@ -23,16 +23,15 @@ const MAX_POLL_CHOICES_PER_VOTE = 20
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-// Mastodon documents `choices` as an array of STRING indices; coerce so JSON
-// bodies like {"choices":["1"]} validate alongside numeric arrays. Blank and
-// whitespace-only strings must not slip through: `Number('')` is 0, so plain
-// coercion would silently vote for option 0. Map them to NaN first — the same
-// guard parseFormChoices applies — so they fail `.int()` and 422.
-const PollChoice = z.preprocess(
-  (value) =>
-    typeof value === 'string' && value.trim() === '' ? Number.NaN : value,
-  z.coerce.number().int().nonnegative()
-)
+// Mastodon documents `choices` as an array of STRING indices, so accept numbers
+// and non-blank numeric strings alike. Everything else becomes NaN and 422s:
+// blanket `Number()` coercion maps '', ' ', null, false and [] all to 0, which
+// would silently record a vote for option 0. This mirrors parseFormChoices.
+const PollChoice = z.preprocess((value) => {
+  if (typeof value === 'number') return value
+  if (typeof value === 'string' && value.trim() !== '') return Number(value)
+  return Number.NaN
+}, z.number().int().nonnegative())
 
 const VotePollRequest = z.object({
   choices: PollChoice.array().min(1).max(MAX_POLL_CHOICES_PER_VOTE)

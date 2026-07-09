@@ -263,9 +263,12 @@ describe('GET /api/v2/notifications', () => {
     const data = await response.json()
 
     expect(response.status).toBe(200)
-    // Only the group's most recent account (alice) is rendered in full.
+    // Only the group's most recent account (alice) is rendered in full — and it
+    // keeps the fields a PartialAccountWithAvatar would have stripped, so a
+    // regression that truncated the full array too would fail here.
     expect(data.accounts).toHaveLength(1)
     expect(data.accounts[0].id).toBe('other.test:users:alice')
+    expect(data.accounts[0].display_name).toBe('Only in the full shape')
     // The rest ship as truncated PartialAccountWithAvatar entries.
     expect(data.partial_accounts).toEqual([
       {

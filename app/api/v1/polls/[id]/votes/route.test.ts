@@ -98,12 +98,18 @@ describe('POST /api/v1/polls/[id]/votes', () => {
 
   it.each([
     { description: 'an empty string choice', choice: '' },
-    { description: 'a whitespace-only choice', choice: ' ' }
+    { description: 'a whitespace-only choice', choice: ' ' },
+    { description: 'a null choice', choice: null },
+    { description: 'a false choice', choice: false },
+    { description: 'a true choice', choice: true },
+    { description: 'a nested array choice', choice: [] },
+    { description: 'an object choice', choice: {} }
   ])(
     'rejects $description instead of voting for option 0',
     async ({ choice }) => {
-      // Number('') === 0, so plain coercion would silently record a vote for
-      // the first option. Blank input must 422, matching the form-body path.
+      // Number() maps '', ' ', null, false and [] all to 0, so blanket coercion
+      // would silently record a vote for the first option. These must 422,
+      // matching the form-body path.
       const response = await POST(createRequest({ choices: [choice] }), {
         params: Promise.resolve({ id: urlToId(POLL_ID) })
       })
