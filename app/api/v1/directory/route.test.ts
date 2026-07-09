@@ -63,6 +63,44 @@ describe('GET /api/v1/directory', () => {
 
   it.each([
     {
+      description: 'defaults order to active',
+      query: '',
+      expectedOrder: 'active'
+    },
+    {
+      description: 'passes through order=new',
+      query: '?order=new',
+      expectedOrder: 'new'
+    },
+    {
+      description: 'passes through order=active',
+      query: '?order=active',
+      expectedOrder: 'active'
+    }
+  ])('$description', async ({ query, expectedOrder }) => {
+    const response = await GET(
+      new NextRequest(`https://local.test/api/v1/directory${query}`),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.getLocalMastodonActors).toHaveBeenCalledWith(
+      expect.objectContaining({ order: expectedOrder })
+    )
+  })
+
+  it('rejects an unknown order value', async () => {
+    const response = await GET(
+      new NextRequest('https://local.test/api/v1/directory?order=bogus'),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockDatabase.getLocalMastodonActors).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
       description: 'includes remote actors by default (local=false)',
       query: '',
       expectedLocal: false
@@ -87,18 +125,6 @@ describe('GET /api/v1/directory', () => {
     expect(response.status).toBe(200)
     expect(mockDatabase.getLocalMastodonActors).toHaveBeenCalledWith(
       expect.objectContaining({ local: expectedLocal })
-    )
-  })
-
-  it('forwards the order parameter', async () => {
-    const response = await GET(
-      new NextRequest('https://local.test/api/v1/directory?order=new'),
-      { params: Promise.resolve({}) }
-    )
-
-    expect(response.status).toBe(200)
-    expect(mockDatabase.getLocalMastodonActors).toHaveBeenCalledWith(
-      expect.objectContaining({ order: 'new' })
     )
   })
 })
