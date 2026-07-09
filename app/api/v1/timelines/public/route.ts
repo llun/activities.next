@@ -62,64 +62,55 @@ export const GET = traceApiRoute(
         })
       }
       const pageLimit = parsedQuery.query.limit
-      const { local, remote } = parsedQuery.query
+      const { local, remote, onlyMedia, maxStatusId } = parsedQuery.query
+      // `min_id` and `since_id` both express a lower-bound cursor; the timeline
+      // query takes a single min cursor, so collapse them with `min_id`-wins
+      // precedence (matching the list/collection timelines). Both return the
+      // newest page above the bound, like every other timeline route here.
+      const minStatusId =
+        parsedQuery.query.minStatusId ?? parsedQuery.query.sinceStatusId
+
+      const queryTimeline =
+        (timeline: Timeline) =>
+        ({
+          maxStatusId: cursor,
+          limit
+        }: {
+          maxStatusId: string | null
+          limit: number
+        }) =>
+          database.getTimeline({
+            timeline,
+            maxStatusId: cursor,
+            minStatusId,
+            onlyMedia,
+            limit
+          })
 
       // Mastodon scope: local=true → local only, remote=true → federated only,
       // neither (default) → the federated view (local + relay-sourced remote).
       const fetchBatch =
         local && !remote
-          ? ({
-              maxStatusId,
-              limit
-            }: {
-              maxStatusId: string | null
-              limit: number
-            }) =>
-              database.getTimeline({
-                timeline: Timeline.LOCAL_PUBLIC,
-                maxStatusId,
-                limit
-              })
+          ? queryTimeline(Timeline.LOCAL_PUBLIC)
           : remote && !local
-            ? ({
-                maxStatusId,
-                limit
-              }: {
-                maxStatusId: string | null
-                limit: number
-              }) =>
-                database.getTimeline({
-                  timeline: Timeline.FEDERATED_PUBLIC,
-                  maxStatusId,
-                  limit
-                })
-            : async ({
-                maxStatusId,
-                limit
-              }: {
-                maxStatusId: string | null
-                limit: number
-              }) => {
+            ? queryTimeline(Timeline.FEDERATED_PUBLIC)
+            : async (batch: { maxStatusId: string | null; limit: number }) => {
                 const [localStatuses, remoteStatuses] = await Promise.all([
-                  database.getTimeline({
-                    timeline: Timeline.LOCAL_PUBLIC,
-                    maxStatusId,
-                    limit
-                  }),
-                  database.getTimeline({
-                    timeline: Timeline.FEDERATED_PUBLIC,
-                    maxStatusId,
-                    limit
-                  })
+                  queryTimeline(Timeline.LOCAL_PUBLIC)(batch),
+                  queryTimeline(Timeline.FEDERATED_PUBLIC)(batch)
                 ])
-                return mergePublicStatuses(localStatuses, remoteStatuses, limit)
+                return mergePublicStatuses(
+                  localStatuses,
+                  remoteStatuses,
+                  batch.limit
+                )
               }
 
-      const { statuses, nextMaxStatusId, filterRecords } =
+      const { statuses, nextMaxStatusId, prevMinStatusId, filterRecords } =
         await getFilteredStatusPage({
           database,
           actorId: currentActor?.id,
-          maxStatusId: parsedQuery.query.maxStatusId,
+          maxStatusId,
           limit: pageLimit,
           filterContext: currentActor ? 'public' : undefined,
           fetchBatch
@@ -135,15 +126,27 @@ export const GET = traceApiRoute(
         filterRecords ?? []
       )
       const host = headerHost(req.headers)
-      // Only `next` (older) is emitted: the public timeline query pages forward
-      // by `max_id` only and has no lower-bound cursor, so a `prev`/`min_id`
-      // link would not actually page to newer statuses.
-      const scopeParam = local && !remote ? '&local=true' : ''
-      const remoteScopeParam = remote && !local ? '&remote=true' : ''
+      const linkBaseParams = new URLSearchParams()
+      linkBaseParams.set('limit', `${pageLimit}`)
+      if (local && !remote) linkBaseParams.set('local', 'true')
+      if (remote && !local) linkBaseParams.set('remote', 'true')
+      if (onlyMedia) linkBaseParams.set('only_media', 'true')
+      const buildLink = (
+        cursorName: 'max_id' | 'min_id',
+        cursorValue: string
+      ) => {
+        const linkParams = new URLSearchParams(linkBaseParams)
+        linkParams.set(cursorName, urlToId(cursorValue))
+        const rel = cursorName === 'max_id' ? 'next' : 'prev'
+        return `<https://${host}/api/v1/timelines/public?${linkParams.toString()}>; rel="${rel}"`
+      }
       const nextLink = nextMaxStatusId
-        ? `<https://${host}/api/v1/timelines/public?limit=${pageLimit}&max_id=${urlToId(nextMaxStatusId)}${scopeParam}${remoteScopeParam}>; rel="next"`
+        ? buildLink('max_id', nextMaxStatusId)
         : null
-      const links = [nextLink].filter(Boolean).join(', ')
+      const prevLink = prevMinStatusId
+        ? buildLink('min_id', prevMinStatusId)
+        : null
+      const links = [nextLink, prevLink].filter(Boolean).join(', ')
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,

@@ -174,6 +174,72 @@ describe('GET /api/v1/timelines/public', () => {
     })
   })
 
+  describe('min_id/since_id wiring and prev Link', () => {
+    it.each([
+      { description: 'min_id', param: 'min_id' },
+      { description: 'since_id', param: 'since_id' }
+    ])(
+      'passes the decoded $description cursor to the timeline queries',
+      async ({ param }) => {
+        const spy = vi.spyOn(database, 'getTimeline').mockResolvedValue([])
+        const response = await GET(
+          request({ [param]: urlToId(publicStatus.id) }),
+          { params: Promise.resolve({}) }
+        )
+        expect(response.status).toBe(200)
+        expect(spy).toHaveBeenCalledWith(
+          expect.objectContaining({ minStatusId: publicStatus.id })
+        )
+      }
+    )
+
+    it('prefers min_id over since_id when both are provided', async () => {
+      const spy = vi.spyOn(database, 'getTimeline').mockResolvedValue([])
+      await GET(
+        request({
+          min_id: urlToId(publicStatus.id),
+          since_id: urlToId(`${ACTOR1_ID}/statuses/public-other`)
+        }),
+        { params: Promise.resolve({}) }
+      )
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({ minStatusId: publicStatus.id })
+      )
+    })
+
+    it('emits a rel="prev" Link with a min_id cursor for a non-empty page', async () => {
+      vi.spyOn(database, 'getTimeline').mockResolvedValue([publicStatus])
+      const response = await GET(request(), { params: Promise.resolve({}) })
+      const link = response.headers.get('Link')
+      expect(link).toContain('rel="prev"')
+      const prevPart = link!
+        .split(', ')
+        .find((part) => part.includes('rel="prev"'))
+      const prevUrl = new URL(prevPart!.match(/<([^>]+)>/)![1])
+      expect(prevUrl.searchParams.get('min_id')).toBe(urlToId(publicStatus.id))
+    })
+  })
+
+  describe('only_media', () => {
+    it('passes onlyMedia=true to the timeline queries', async () => {
+      const spy = vi.spyOn(database, 'getTimeline').mockResolvedValue([])
+      await GET(request({ only_media: 'true' }), {
+        params: Promise.resolve({})
+      })
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({ onlyMedia: true })
+      )
+    })
+
+    it('carries only_media into the pagination Links', async () => {
+      vi.spyOn(database, 'getTimeline').mockResolvedValue([publicStatus])
+      const response = await GET(request({ only_media: 'true' }), {
+        params: Promise.resolve({})
+      })
+      expect(response.headers.get('Link')).toContain('only_media=true')
+    })
+  })
+
   describe('merged default scope and Link scope', () => {
     const REMOTE_ACTOR = 'https://somewhere.test/users/bob'
 
