@@ -55,6 +55,11 @@ const parseAdditionalTags = (
   const tags = new Set<string>()
   for (const value of values) {
     const name = value.replace(/^#+/, '')
+    // A blank value (e.g. `?any[]=` or a bare `#`) is an empty filter slot, not
+    // a malformed tag — skip it rather than 400 the whole request, matching
+    // parseTimelineQuery's blank-cursor coercion and Mastodon's lookup-not-reject
+    // behavior (a missing tag simply matches nothing).
+    if (!name) continue
     // Bound the length like the primary hashtag (max 255) so an unbounded tag
     // name can't reach the DB query; then validate the Unicode alphabet.
     if (name.length > 255 || !isMastodonHashtagName(name)) return null

@@ -260,6 +260,16 @@ describe('GET /api/v1/timelines/tag/:hashtag', () => {
       expect(mockDatabase.getStatusesByHashtag).not.toHaveBeenCalled()
     })
 
+    it('ignores a blank additional tag value instead of 400ing', async () => {
+      // An empty filter slot (`?any[]=`) is not a malformed tag — serve the
+      // timeline with that mode empty rather than rejecting the whole request.
+      const response = await requestWithQuery({ 'any[]': '' })
+      expect(response.status).toBe(200)
+      expect(mockDatabase.getStatusesByHashtag).toHaveBeenCalledWith(
+        expect.objectContaining({ anyTags: [] })
+      )
+    })
+
     it('forwards only_media to the hashtag query', async () => {
       await requestWithQuery({ only_media: 'true' })
       expect(mockDatabase.getStatusesByHashtag).toHaveBeenCalledWith(
@@ -276,6 +286,19 @@ describe('GET /api/v1/timelines/tag/:hashtag', () => {
         )
       }
     )
+
+    it('prefers min_id over since_id when both are provided', async () => {
+      // The route collapses both lower-bound cursors with min_id-wins
+      // precedence (matching the public timeline). Pin it so a swapped operand
+      // order can't regress silently.
+      await requestWithQuery({
+        min_id: urlToId(status.id),
+        since_id: urlToId('https://local.test/users/alice/statuses/other')
+      })
+      expect(mockDatabase.getStatusesByHashtag).toHaveBeenCalledWith(
+        expect.objectContaining({ minStatusId: status.id })
+      )
+    })
   })
 
   describe('keyword filters and prev Link', () => {
