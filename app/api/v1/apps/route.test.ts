@@ -7,9 +7,9 @@ type MockConfig = {
   secretPhase: string
   push?: { vapidPublicKey: string }
 }
-const mockGetConfig = vi.fn(
-  (): MockConfig => ({ secretPhase: 'registration-pepper-secret' })
-)
+const mockGetConfig = vi.fn((): MockConfig => ({
+  secretPhase: 'registration-pepper-secret'
+}))
 const mockGetTrustProxyIpHeadersConfig = vi.fn(() => false)
 
 const hashIpRegistrationKey = (ip: string) =>
