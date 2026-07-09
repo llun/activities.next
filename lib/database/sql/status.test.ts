@@ -2860,6 +2860,35 @@ describe('StatusDatabase', () => {
         expect(ids).toContain(statusId)
       })
 
+      it.each([{ cursor: 'maxStatusId' }, { cursor: 'minStatusId' }])(
+        'returns [] when the $cursor cursor status does not exist',
+        async ({ cursor }) => {
+          const statusId = `${primaryActorId}/statuses/hashtag-cursor-${cursor}-${Date.now()}`
+          await database.createNote({
+            id: statusId,
+            url: statusId,
+            actorId: primaryActorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Hello #cursortag'
+          })
+          await database.createTag({
+            statusId,
+            name: '#cursortag',
+            value: `https://${actors.primary.domain}/tags/cursortag`,
+            type: 'hashtag'
+          })
+
+          // An unresolvable cursor yields no page (repo keyset convention),
+          // rather than silently falling back to the first page.
+          const results = await database.getStatusesByHashtag({
+            hashtag: 'cursortag',
+            [cursor]: `${primaryActorId}/statuses/does-not-exist`
+          })
+          expect(results).toEqual([])
+        }
+      )
+
       it('returns compact public statuses with a given hashtag', async () => {
         const statusId = `${primaryActorId}/statuses/compact-hashtag-test-${Date.now()}`
         await database.createNote({

@@ -204,6 +204,13 @@ describe('GET /api/v1/timelines/tag/:hashtag', () => {
       )
     })
 
+    it('deduplicates repeated tags before querying', async () => {
+      await requestWithQuery({ 'all[]': ['cycling', 'cycling', 'running'] })
+      expect(mockDatabase.getStatusesByHashtag).toHaveBeenCalledWith(
+        expect.objectContaining({ allTags: ['cycling', 'running'] })
+      )
+    })
+
     it('forwards only_media to the hashtag query', async () => {
       await requestWithQuery({ only_media: 'true' })
       expect(mockDatabase.getStatusesByHashtag).toHaveBeenCalledWith(

@@ -51,13 +51,14 @@ const parseAdditionalTags = (
     ...searchParams.getAll(`${key}[]`),
     ...searchParams.getAll(key)
   ]
-  const tags: string[] = []
+  const tags = new Set<string>()
   for (const value of values) {
     const name = value.replace(/^#+/, '')
     if (!isMastodonHashtagName(name)) return null
-    tags.push(name)
+    // Dedupe so duplicate tags don't append redundant (esp. `all[]`) subqueries.
+    tags.add(name)
   }
-  return tags.slice(0, TAGS_PER_MODE_LIMIT)
+  return Array.from(tags).slice(0, TAGS_PER_MODE_LIMIT)
 }
 
 // https://docs.joinmastodon.org/methods/timelines/#tag

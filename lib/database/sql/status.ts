@@ -2410,17 +2410,17 @@ export const StatusSQLDatabaseMixin = (
         .where('id', maxStatusId)
         .select('createdAt')
         .first<{ createdAt: Date }>()
-      if (cursor) {
-        query = query.where((wb) => {
-          wb.where('statuses.createdAt', '<', cursor.createdAt).orWhere(
-            (wb2) => {
-              wb2
-                .where('statuses.createdAt', '=', cursor.createdAt)
-                .where('statuses.id', '<', maxStatusId)
-            }
-          )
+      // An unresolvable cursor yields no page, matching the repo-wide keyset
+      // convention (bookmark/block/follow/mute/scheduledStatus) rather than
+      // silently falling back to the first page.
+      if (!cursor) return []
+      query = query.where((wb) => {
+        wb.where('statuses.createdAt', '<', cursor.createdAt).orWhere((wb2) => {
+          wb2
+            .where('statuses.createdAt', '=', cursor.createdAt)
+            .where('statuses.id', '<', maxStatusId)
         })
-      }
+      })
     }
 
     if (minStatusId) {
@@ -2428,17 +2428,14 @@ export const StatusSQLDatabaseMixin = (
         .where('id', minStatusId)
         .select('createdAt')
         .first<{ createdAt: Date }>()
-      if (cursor) {
-        query = query.where((wb) => {
-          wb.where('statuses.createdAt', '>', cursor.createdAt).orWhere(
-            (wb2) => {
-              wb2
-                .where('statuses.createdAt', '=', cursor.createdAt)
-                .where('statuses.id', '>', minStatusId)
-            }
-          )
+      if (!cursor) return []
+      query = query.where((wb) => {
+        wb.where('statuses.createdAt', '>', cursor.createdAt).orWhere((wb2) => {
+          wb2
+            .where('statuses.createdAt', '=', cursor.createdAt)
+            .where('statuses.id', '>', minStatusId)
         })
-      }
+      })
     }
 
     const rows = await query
