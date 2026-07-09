@@ -189,6 +189,46 @@ describe('/oauth/authorize Mastodon authorize params', () => {
     )
     expect(redirectBack.has('lang')).toBe(false)
   })
+
+  it('redirects an authenticated session to sign-in when force_login is true', async () => {
+    vi.mocked(getActorFromSession).mockResolvedValue({
+      id: 'actor-id',
+      account: { id: 'account-id' }
+    } as Awaited<ReturnType<typeof getActorFromSession>>)
+
+    await Page({
+      searchParams: Promise.resolve({ ...searchParams, force_login: 'true' })
+    })
+
+    expect(redirectMock).toHaveBeenCalledTimes(1)
+    const target = new URL(redirectMock.mock.calls[0][0])
+    expect(target.pathname).toBe('/auth/signin')
+    expect(target.searchParams.get('force_login')).toBe('true')
+    // redirectBack must NOT carry force_login or the resumed request would
+    // bounce straight back to sign-in forever.
+    const redirectBack = new URLSearchParams(
+      (target.searchParams.get('redirectBack') as string).split('?')[1]
+    )
+    expect(redirectBack.has('force_login')).toBe(false)
+    expect(redirectBack.get('client_id')).toBe('client-id')
+  })
+
+  it('proceeds with the active session when force_login is false', async () => {
+    // Regression pin: a falsy force_login must not force re-authentication
+    // and must not leak into the delegated better-auth query.
+    vi.mocked(getActorFromSession).mockResolvedValue({
+      id: 'actor-id',
+      account: { id: 'account-id' }
+    } as Awaited<ReturnType<typeof getActorFromSession>>)
+
+    await Page({
+      searchParams: Promise.resolve({ ...searchParams, force_login: 'false' })
+    })
+
+    const target = new URL(redirectMock.mock.calls[0][0])
+    expect(target.pathname).toBe('/api/auth/oauth2/authorize')
+    expect(target.searchParams.has('force_login')).toBe(false)
+  })
 })
 
 describe('/oauth/authorize account summary', () => {

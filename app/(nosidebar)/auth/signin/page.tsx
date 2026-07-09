@@ -16,6 +16,7 @@ import { getBaseURL, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { Booleanish } from '@/lib/utils/zodBooleanish'
 
 import { CredentialForm } from './CredentialForm'
 import { PasskeySigninButton } from './PasskeySigninButton'
@@ -55,8 +56,16 @@ const Page: FC<Props> = async ({ searchParams }) => {
   const session = await getServerAuthSession()
 
   if (!database) throw new Error('Database is not available')
-  if (session && session.user) {
-    const target = resolveSignInRedirect(toSearchParams(await searchParams))
+  const params = toSearchParams(await searchParams)
+  // Mastodon `force_login`: /oauth/authorize forwards force_login=true when
+  // the client demands a fresh interactive login. Skip the
+  // already-authenticated auto-resume so the form renders; the eventual
+  // sign-in resumes via the accompanying redirectBack (which omits
+  // force_login). safeParse fails on a missing param, which reads as false.
+  const forceLoginParam = Booleanish.safeParse(params.get('force_login'))
+  const forceLogin = forceLoginParam.success && forceLoginParam.data
+  if (session && session.user && !forceLogin) {
+    const target = resolveSignInRedirect(params)
     // Only forward to the consent page when the session has a usable actor —
     // /oauth/authorize bounces an actor-less session straight back here, so
     // resuming without one would loop. Plain logins (target '/') skip the lookup.

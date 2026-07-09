@@ -108,6 +108,20 @@ describe('/auth/signin already-authenticated resume', () => {
     expect(redirectMock.mock.calls[0][0]).toBe('/')
   })
 
+  it('renders the sign-in form for an authenticated user when force_login is true', async () => {
+    vi.mocked(getServerAuthSession).mockResolvedValue(aSession)
+
+    const element = await Page({
+      searchParams: Promise.resolve({
+        redirectBack: '/oauth/authorize?client_id=phanpy&scope=read',
+        force_login: 'true'
+      })
+    })
+
+    expect(redirectMock).not.toHaveBeenCalled()
+    expect(element).toBeTruthy()
+  })
+
   it('renders the sign-in form for a logged-out visitor (no redirect)', async () => {
     vi.mocked(getServerAuthSession).mockResolvedValue(null)
 

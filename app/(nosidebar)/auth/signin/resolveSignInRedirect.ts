@@ -9,10 +9,15 @@ import { isSafeInternalPath } from '@/lib/utils/isSafeInternalPath'
 // request: response_type, client_id, redirect_uri, scope, state, PKCE, nonce,
 // prompt, and any other standard param like response_mode/login_hint/max_age)
 // is preserved.
+// `force_login` is not part of the better-auth envelope, but it is consumed
+// here for the same reason prompt=login is stripped below: the interactive
+// login it demanded has just happened, so forwarding it would bounce the
+// now-authenticated user back to the sign-in form in a loop.
 const isBetterAuthEnvelopeKey = (key: string): boolean =>
   key === 'redirectBack' ||
   key === 'sig' ||
   key === 'exp' ||
+  key === 'force_login' ||
   key.startsWith('ba_')
 
 /**
