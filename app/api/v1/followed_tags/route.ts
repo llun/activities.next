@@ -3,6 +3,7 @@ import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonTag } from '@/lib/services/mastodon/getMastodonTag'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { buildPaginationLinkHeader } from '@/lib/utils/paginationLinkHeader'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -28,30 +29,31 @@ export const GET = traceApiRoute(
           ? Math.min(parsedLimit, MAX_LIMIT)
           : DEFAULT_LIMIT
 
-      const maxId = url.searchParams.get('max_id')
-      const sinceId = url.searchParams.get('since_id')
       const followedTags = await database.getFollowedTags({
         actorId: currentActor.id,
         limit,
-        maxId,
-        sinceId
+        maxId: url.searchParams.get('max_id'),
+        minId: url.searchParams.get('min_id'),
+        sinceId: url.searchParams.get('since_id')
       })
 
-      const host = headerHost(req.headers)
-      const last = followedTags[followedTags.length - 1]
-      const nextLink =
-        followedTags.length === limit && last
-          ? `<https://${host}/api/v1/followed_tags?limit=${limit}&max_id=${last.id}>; rel="next"`
-          : null
-      const links = [nextLink].filter(Boolean).join(', ')
+      // Cursor conventions shared with the other paginated Mastodon routes:
+      // `next` when the page is full (there may be older rows), `prev`
+      // whenever the page has rows (newer rows may have appeared since).
+      const lastTag = followedTags[followedTags.length - 1]
+      const additionalHeaders = buildPaginationLinkHeader({
+        host: headerHost(req.headers),
+        path: '/api/v1/followed_tags',
+        limit,
+        nextMaxId: followedTags.length === limit && lastTag ? lastTag.id : null,
+        prevMinId: followedTags.length > 0 ? followedTags[0].id : null
+      })
 
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
         data: followedTags.map((tag) => getMastodonTag(tag.name, true)),
-        additionalHeaders: [
-          ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
-        ]
+        additionalHeaders
       })
     }
   )

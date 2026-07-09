@@ -76,8 +76,25 @@ export const findMatchingDomainRule = <
 export const shouldSuspendDomainBlock = (block: DomainBlock): boolean =>
   block.severity === 'suspend'
 
+// Mastodon's DomainBlock#public_domain rule (app/models/domain_block.rb):
+// keep the first floor(length / 4) + 1 characters, the last floor(length / 4)
+// characters, and every '.', starring the rest — e.g. 'example.com' →
+// 'exa****.*om'. Clients expect this partially-starred form; the full SHA-256
+// stays available in `digest`.
+const obfuscateDomain = (domain: string): string => {
+  const length = domain.length
+  const visibleRatio = Math.floor(length / 4)
+  return [...domain]
+    .map((char, index) =>
+      index > visibleRatio && index < length - visibleRatio && char !== '.'
+        ? '*'
+        : char
+    )
+    .join('')
+}
+
 export const toPublicDomainBlock = (block: DomainBlock) => ({
-  domain: block.obfuscate ? domainDigest(block.domain) : block.domain,
+  domain: block.obfuscate ? obfuscateDomain(block.domain) : block.domain,
   digest: domainDigest(block.domain),
   severity: block.severity,
   comment: block.publicComment
