@@ -34,6 +34,7 @@ vi.mock('@/lib/config', () => ({
   getConfig: vi.fn().mockReturnValue({
     allowEmails: [],
     host: 'llun.test',
+    trustedHosts: ['alias.llun.test'],
     secretPhase: 'test-secret'
   })
 }))
@@ -553,5 +554,28 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
       })
     )
     updateActor.mockRestore()
+  })
+
+  it('localizes the returned acct to the access domain', async () => {
+    const req = new NextRequest(
+      'https://llun.test/api/v1/accounts/update_credentials',
+      {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test',
+          'x-forwarded-host': 'alias.llun.test'
+        },
+        body: JSON.stringify({})
+      }
+    )
+
+    const response = await PATCH(req, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    // Actor1 lives on llun.test; seen through the alias access domain the acct
+    // must be qualified, matching verify_credentials behavior.
+    expect(data.acct).toBe('test1@llun.test')
   })
 })

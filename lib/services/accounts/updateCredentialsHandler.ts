@@ -1,10 +1,12 @@
 import { z } from 'zod'
 
 import { buildCredentialAccount } from '@/lib/services/accounts/credentialAccount'
+import { localizeAccount } from '@/lib/services/accounts/localizeAccount'
 import {
   OAuthGuardAnyScope,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { saveMedia } from '@/lib/services/medias'
 import { MediaSchema } from '@/lib/services/medias/types'
 import { Scope } from '@/lib/types/database/operations'
@@ -290,10 +292,15 @@ export const updateCredentialsHandler = (corsHeaders: HttpMethod[]) =>
           responseStatusCode: 500
         })
       }
+      // Render the acct relative to the domain the client connected through,
+      // matching getCredentialAccountHandler (verify_credentials).
       return apiResponse({
         req,
         allowedMethods: corsHeaders,
-        data: buildCredentialAccount({ account, followRequestsCount })
+        data: buildCredentialAccount({
+          account: localizeAccount(account, headerHost(req.headers)),
+          followRequestsCount
+        })
       })
     },
     { errorResponse: corsErrorResponse(corsHeaders) }
