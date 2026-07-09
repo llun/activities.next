@@ -267,29 +267,20 @@ export const FollowerSQLDatabaseMixin = (
         .select('actors.*')
       return Promise.all(
         localActors.map(async (actor) => {
-          const [account, counters, lastStatus] = await Promise.all([
+          const [account, counters] = await Promise.all([
             trx<Account>('accounts').where('id', actor.accountId).first(),
             getCounterValues(trx, [
               CounterKey.totalFollowers(actor.id),
               CounterKey.totalFollowing(actor.id),
               CounterKey.totalStatus(actor.id)
-            ]),
-            trx('statuses')
-              .where('actorId', actor.id)
-              .orderBy('createdAt', 'desc')
-              .first<{ createdAt: number | Date }>('createdAt')
+            ])
           ])
-          const lastStatusCreatedAt = lastStatus?.createdAt
-            ? lastStatus.createdAt
-            : 0
           return actorDatabase.getActor(
             actor,
             counters[CounterKey.totalFollowing(actor.id)] ?? 0,
             counters[CounterKey.totalFollowers(actor.id)] ?? 0,
             counters[CounterKey.totalStatus(actor.id)] ?? 0,
-            typeof lastStatusCreatedAt === 'number'
-              ? lastStatusCreatedAt
-              : lastStatusCreatedAt.getTime(),
+            actor.lastStatusAt ? getCompatibleTime(actor.lastStatusAt) : 0,
             account
           )
         })

@@ -31,7 +31,7 @@ CREATE UNIQUE INDEX `applications_clientname_unique` on "clients" ("name");
 CREATE TABLE `tokens` (`accessToken` varchar(255), `refreshToken` varchar(255) null, `accessTokenExpiresAt` datetime, `refreshTokenExpiresAt` datetime null, `clientId` varchar(255), `actorId` varchar(255), `accountId` varchar(255), `scopes` json, `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, primary key (`accessToken`));
 CREATE TABLE `auth_codes` (`code` varchar(255), `redirectUri` varchar(255) null, `codeChallenge` varchar(255) null, `codeChallengeMethod` varchar(255) null, `clientId` varchar(255), `actorId` varchar(255), `accountId` varchar(255), `scopes` json, `expiresAt` datetime, `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, primary key (`code`));
 CREATE INDEX `statusesReplyIndex` on `statuses` (`reply`);
-CREATE TABLE IF NOT EXISTS "actors" (`id` varchar(255), `username` varchar(255), `accountId` varchar(255), `name` varchar(255), `summary` text, `publicKey` text, `privateKey` text, `createdAt` datetime DEFAULT CURRENT_TIMESTAMP, `updatedAt` datetime DEFAULT CURRENT_TIMESTAMP, `settings` json, `domain` varchar(255), `deletionStatus` varchar(255) null, `deletionScheduledAt` datetime null, `type` varchar(255) not null default 'Person', FOREIGN KEY (`accountId`) REFERENCES `accounts` (`id`));
+CREATE TABLE IF NOT EXISTS "actors" (`id` varchar(255), `username` varchar(255), `accountId` varchar(255), `name` varchar(255), `summary` text, `publicKey` text, `privateKey` text, `createdAt` datetime DEFAULT CURRENT_TIMESTAMP, `updatedAt` datetime DEFAULT CURRENT_TIMESTAMP, `settings` json, `domain` varchar(255), `deletionStatus` varchar(255) null, `deletionScheduledAt` datetime null, `type` varchar(255) not null default 'Person', `lastStatusAt` datetime null, FOREIGN KEY (`accountId`) REFERENCES `accounts` (`id`));
 CREATE UNIQUE INDEX `actors_id_unique` on `actors` (`id`);
 CREATE INDEX `actorsIndex` on `actors` (`username`, `createdAt`, `updatedAt`);
 CREATE UNIQUE INDEX `actors_username_domain_unique` on `actors` (`username`, `domain`);
@@ -235,3 +235,4 @@ CREATE TABLE IF NOT EXISTS "medias" (`id` integer PRIMARY KEY AUTOINCREMENT NOT 
 CREATE INDEX `medias_accountId_originalMimeType_idx` on `medias` (`accountId`, `originalMimeType`);
 CREATE INDEX `medias_actorId_originalMimeType_idx` on `medias` (`actorId`, `originalMimeType`);
 CREATE INDEX `medias_actorId_createdAt_idx` on `medias` (`actorId`, `createdAt`);
+CREATE INDEX `actors_domain_last_status_at_idx` on `actors` (`domain`, `lastStatusAt`);
