@@ -972,7 +972,13 @@ export const StatusSQLDatabaseMixin = (
     statusId,
     text,
     summary,
-    choices
+    choices,
+    sensitive,
+    language,
+    endAt,
+    pollType,
+    hideTotals,
+    resetVotes = false
   }: UpdatePollParams) {
     const existingStatus = await database('statuses')
       .where('id', statusId)
@@ -986,11 +992,13 @@ export const StatusSQLDatabaseMixin = (
       url: data.url,
       text: nextText,
       summary: nextSummary,
-      sensitive: data.sensitive ?? false,
-      language: data.language ?? null,
-      endAt: data.endAt,
-      pollType: data.pollType,
-      hideTotals: data.hideTotals ?? false
+      sensitive:
+        sensitive === undefined ? (data.sensitive ?? false) : sensitive,
+      language: language === undefined ? (data.language ?? null) : language,
+      endAt: endAt ?? data.endAt,
+      pollType: pollType ?? data.pollType,
+      hideTotals:
+        hideTotals === undefined ? (data.hideTotals ?? false) : hideTotals
     }
     const statusContent = JSON.stringify(content)
     const searchStatus: SQLStatusSearchRow = {
@@ -1001,8 +1009,20 @@ export const StatusSQLDatabaseMixin = (
       createdAt: existingStatus.createdAt
     }
 
+    // Any user-visible change records an edit revision; a tally-only refresh
+    // (federated vote sync) must not.
+    const contentChanged =
+      nextText !== data.text ||
+      nextSummary !== data.summary ||
+      content.sensitive !== (data.sensitive ?? false) ||
+      content.language !== (data.language ?? null) ||
+      content.endAt !== data.endAt ||
+      content.pollType !== data.pollType ||
+      content.hideTotals !== (data.hideTotals ?? false) ||
+      resetVotes
+
     await database.transaction(async (trx) => {
-      if (nextText !== data.text || nextSummary !== data.summary) {
+      if (contentChanged) {
         const previousChoices = await trx('poll_choices')
           .where('statusId', statusId)
           .orderBy('choiceId', 'asc')
@@ -1028,6 +1048,24 @@ export const StatusSQLDatabaseMixin = (
             content: statusContent,
             updatedAt: currentTime
           })
+      }
+      if (resetVotes) {
+        // Mastodon resets a poll whose options changed: all recorded votes are
+        // removed and the replacement options start from zero. Sequential
+        // inserts keep choiceId order deterministic for hydration.
+        await trx('poll_answers').where('statusId', statusId).delete()
+        await trx('poll_voters').where('statusId', statusId).delete()
+        await trx('poll_choices').where('statusId', statusId).delete()
+        for (const choice of choices) {
+          await trx('poll_choices').insert({
+            statusId,
+            title: choice.title,
+            totalVotes: 0,
+            createdAt: currentTime,
+            updatedAt: currentTime
+          })
+        }
+        return
       }
       for (const choice of choices) {
         await trx('poll_choices')

@@ -478,6 +478,16 @@ export type CreatePollParams = BaseCreateStatusParams & {
 export type UpdatePollParams = Pick<CreatePollParams, 'text' | 'summary'> &
   BaseStatusParams & {
     choices: { title: string; totalVotes: number }[]
+    // Omit to preserve the existing values; provide to overwrite (user edits).
+    sensitive?: boolean
+    language?: string | null
+    endAt?: number
+    pollType?: 'oneOf' | 'anyOf'
+    hideTotals?: boolean
+    // When true `choices` replaces the option set and all recorded votes are
+    // cleared (Mastodon edit semantics); when false/omitted `choices` only
+    // refreshes tallies for the existing titles (federated poll refresh).
+    resetVotes?: boolean
   }
 
 export type GetStatusParams = BaseStatusParams & {

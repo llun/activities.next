@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
 import { updateNoteFromUserInput } from '@/lib/actions/updateNote'
 import { updateNoteVisibilityFromUserInput } from '@/lib/actions/updateNoteVisibility'
+import { updatePollFromUserInput } from '@/lib/actions/updatePoll'
 import {
   annotateMastodonStatusesWithFilters,
   getActiveFilters
@@ -11,7 +12,14 @@ import {
   OAuthGuardAnyScope,
   OptionalOAuthGuard
 } from '@/lib/services/guards/OAuthGuard'
-import { MAX_STATUS_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
+import {
+  MAX_POLL_EXPIRATION_SECONDS,
+  MAX_POLL_OPTIONS,
+  MAX_POLL_OPTION_CHARS,
+  MAX_STATUS_MEDIA_ATTACHMENTS,
+  MIN_POLL_EXPIRATION_SECONDS,
+  MIN_POLL_OPTIONS
+} from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { deleteMediaFile } from '@/lib/services/medias'
 import { FocusSchema } from '@/lib/services/medias/types'
@@ -120,11 +128,30 @@ const EditMediaAttributeSchema = z.object({
   focus: FocusSchema.optional()
 })
 
+// Same bounds as the POST route's PollSchema; expires_in is optional on edit
+// (omitted keeps the current expiry, provided rebases it from now — Mastodon
+// edit semantics).
+const EditPollSchema = z.object({
+  options: z
+    .array(z.string().trim().min(1).max(MAX_POLL_OPTION_CHARS))
+    .min(MIN_POLL_OPTIONS)
+    .max(MAX_POLL_OPTIONS),
+  expires_in: z.coerce
+    .number()
+    .int()
+    .min(MIN_POLL_EXPIRATION_SECONDS)
+    .max(MAX_POLL_EXPIRATION_SECONDS)
+    .optional(),
+  multiple: Booleanish.optional(),
+  hide_totals: Booleanish.optional()
+})
+
 const EditNoteSchema = z.object({
   status: z.string().optional(),
   spoiler_text: z.string().nullish(),
   media_ids: z.array(z.coerce.string()).optional(),
   media_attributes: z.array(EditMediaAttributeSchema).optional(),
+  poll: EditPollSchema.optional(),
   visibility: z.enum(['public', 'unlisted', 'private', 'direct']).optional(),
   language: z.string().trim().min(1).optional(),
   sensitive: Booleanish.optional()
@@ -189,6 +216,7 @@ export const PUT = traceApiRoute(
           changes.spoiler_text !== undefined ||
           mediaIds !== undefined ||
           mediaAttributes !== undefined ||
+          changes.poll !== undefined ||
           changes.sensitive !== undefined ||
           changes.language !== undefined
         const visibility = changes.visibility
@@ -205,7 +233,8 @@ export const PUT = traceApiRoute(
         const existingStatus = await database.getStatus({ statusId })
         if (
           !existingStatus ||
-          existingStatus.type !== StatusType.enum.Note ||
+          (existingStatus.type !== StatusType.enum.Note &&
+            existingStatus.type !== StatusType.enum.Poll) ||
           existingStatus.actorId !== currentActor.id
         ) {
           return apiResponse({
@@ -213,6 +242,80 @@ export const PUT = traceApiRoute(
             allowedMethods: CORS_HEADERS,
             data: ERROR_403,
             responseStatusCode: 403
+          })
+        }
+
+        if (existingStatus.type === StatusType.enum.Poll) {
+          // Poll statuses carry no media, and visibility editing is only
+          // implemented for notes (updateNoteVisibility rejects polls).
+          if (
+            mediaIds !== undefined ||
+            mediaAttributes !== undefined ||
+            visibility !== undefined
+          ) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: ERROR_422,
+              responseStatusCode: 422
+            })
+          }
+          const updatedPoll = await updatePollFromUserInput({
+            statusId,
+            currentActor,
+            text: changes.status,
+            summary: changes.spoiler_text,
+            sensitive: changes.sensitive,
+            language: changes.language,
+            ...(changes.poll
+              ? {
+                  poll: {
+                    options: changes.poll.options,
+                    expiresIn: changes.poll.expires_in,
+                    multiple: changes.poll.multiple,
+                    hideTotals: changes.poll.hide_totals
+                  }
+                }
+              : {}),
+            status: existingStatus,
+            database
+          })
+          if (!updatedPoll) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: ERROR_403,
+              responseStatusCode: 403
+            })
+          }
+          const mastodonPollStatus = await getMastodonStatus(
+            database,
+            updatedPoll,
+            currentActor.id
+          )
+          if (!mastodonPollStatus) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: ERROR_500,
+              responseStatusCode: 500
+            })
+          }
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: mastodonPollStatus
+          })
+        }
+
+        // Notes cannot gain a poll after the fact (Mastodon's note→poll
+        // conversion on edit is not supported here).
+        if (changes.poll !== undefined) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_422,
+            responseStatusCode: 422
           })
         }
 

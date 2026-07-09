@@ -2731,6 +2731,82 @@ describe('StatusDatabase', () => {
           pollOptions: ['Old A', 'Old B']
         })
       })
+
+      it('replaces poll options and resets votes when resetVotes is true', async () => {
+        const pollId = `${emptyActorId}/statuses/poll-replace-options`
+        await database.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Replace options poll',
+          choices: ['Old A', 'Old B'],
+          endAt: Date.now() + 60_000
+        })
+        await database.recordPollVotes({
+          statusId: pollId,
+          actorId: primaryActorId,
+          choices: [0]
+        })
+
+        const updated = (await database.updatePoll({
+          statusId: pollId,
+          text: 'Replace options poll',
+          choices: [
+            { title: 'New A', totalVotes: 0 },
+            { title: 'New B', totalVotes: 0 },
+            { title: 'New C', totalVotes: 0 }
+          ],
+          endAt: Date.now() + 120_000,
+          hideTotals: true,
+          resetVotes: true
+        })) as StatusPoll
+
+        expect(updated.choices.map((choice) => choice.title)).toEqual([
+          'New A',
+          'New B',
+          'New C'
+        ])
+        expect(updated.choices.every((choice) => choice.totalVotes === 0)).toBe(
+          true
+        )
+        expect(updated.votersCount).toBe(0)
+        expect(updated.hideTotals).toBe(true)
+
+        const revisions = await database.getStatusEditHistory({
+          statusId: pollId
+        })
+        expect(revisions).toHaveLength(1)
+        expect(revisions[0].pollOptions).toEqual(['Old A', 'Old B'])
+      })
+
+      it('does not record an edit revision for a tally-only update', async () => {
+        const pollId = `${emptyActorId}/statuses/poll-tally-only`
+        await database.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Tally poll',
+          choices: ['Yes', 'No'],
+          endAt: Date.now() + 60_000
+        })
+
+        await database.updatePoll({
+          statusId: pollId,
+          text: 'Tally poll',
+          choices: [
+            { title: 'Yes', totalVotes: 5 },
+            { title: 'No', totalVotes: 2 }
+          ]
+        })
+
+        await expect(
+          database.getStatusEditHistory({ statusId: pollId })
+        ).resolves.toEqual([])
+      })
     })
 
     describe('poll votes', () => {

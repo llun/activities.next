@@ -2435,6 +2435,185 @@ describe('GET /api/v1/statuses/[id]', () => {
 
       expect(response.status).toBe(422)
     })
+
+    it('edits poll options with vote reset and snapshots the old options in history', async () => {
+      const pollId = `${ACTOR1_ID}/statuses/api-edit-poll-options`
+      await database.createPoll({
+        id: pollId,
+        url: pollId,
+        actorId: ACTOR1_ID,
+        text: 'Editable poll',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        choices: ['Old A', 'Old B'],
+        endAt: Date.now() + 60_000
+      })
+      await database.recordPollVotes({
+        statusId: pollId,
+        actorId: ACTOR2_ID,
+        choices: [0]
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(pollId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              status: 'Editable poll v2',
+              poll: {
+                options: ['New A', 'New B'],
+                expires_in: 7200,
+                hide_totals: true
+              }
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(pollId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.content).toContain('Editable poll v2')
+      // Replaced options start from zero and hide_totals nulls the running
+      // tallies per option.
+      expect(data.poll.options).toEqual([
+        { title: 'New A', votes_count: null },
+        { title: 'New B', votes_count: null }
+      ])
+      expect(data.poll.votes_count).toBe(0)
+      expect(data.poll.voters_count).toBe(0)
+
+      const historyResponse = await getStatusHistory(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(pollId)}/history`
+        ),
+        { params: Promise.resolve({ id: urlToId(pollId) }) }
+      )
+      const revisions = await historyResponse.json()
+      expect(revisions).toHaveLength(2)
+      expect(revisions[0].poll).toEqual({
+        options: [{ title: 'Old A' }, { title: 'Old B' }]
+      })
+      expect(revisions[1].poll).toEqual({
+        options: [{ title: 'New A' }, { title: 'New B' }]
+      })
+    })
+
+    it('keeps existing votes when only hide_totals changes on a poll edit', async () => {
+      const pollId = `${ACTOR1_ID}/statuses/api-edit-poll-hide-totals-only`
+      await database.createPoll({
+        id: pollId,
+        url: pollId,
+        actorId: ACTOR1_ID,
+        text: 'Hide totals only poll',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        choices: ['Yes', 'No'],
+        endAt: Date.now() + 60_000
+      })
+      await database.recordPollVotes({
+        statusId: pollId,
+        actorId: ACTOR2_ID,
+        choices: [0]
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(pollId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              poll: { options: ['Yes', 'No'], hide_totals: true }
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(pollId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      // Votes survive; hide_totals only masks the per-option numbers.
+      expect(data.poll.votes_count).toBe(1)
+      expect(data.poll.voters_count).toBe(1)
+      expect(data.poll.options).toEqual([
+        { title: 'Yes', votes_count: null },
+        { title: 'No', votes_count: null }
+      ])
+    })
+
+    it.each([
+      {
+        description: 'a poll payload on a note edit',
+        body: { poll: { options: ['A', 'B'] } }
+      }
+    ])('rejects $description with 422', async ({ body }) => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-note-no-poll`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Note cannot gain a poll',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify(body),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(422)
+    })
+
+    it('rejects media params on a poll edit with 422', async () => {
+      const pollId = `${ACTOR1_ID}/statuses/api-edit-poll-no-media`
+      await database.createPoll({
+        id: pollId,
+        url: pollId,
+        actorId: ACTOR1_ID,
+        text: 'Poll cannot gain media',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        choices: ['Yes', 'No'],
+        endAt: Date.now() + 60_000
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(pollId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({ media_ids: ['1'] }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(pollId) }) }
+      )
+
+      expect(response.status).toBe(422)
+    })
   })
 
   describe('status delete', () => {

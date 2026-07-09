@@ -431,7 +431,8 @@ export const getMastodonStatus = async (
     // Mastodon's Poll#show_totals_now?: a hide_totals poll keeps per-option
     // tallies hidden (null) until it expires; the top-level votes_count and
     // voters_count stay numeric per the Poll entity spec.
-    const showTotals = !(status.hideTotals ?? false) || Date.now() > status.endAt
+    const showTotals =
+      !(status.hideTotals ?? false) || Date.now() > status.endAt
 
     pollData = Mastodon.Poll.parse({
       id: urlToId(status.id),

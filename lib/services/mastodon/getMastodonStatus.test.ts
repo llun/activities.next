@@ -432,7 +432,11 @@ describe('getMastodonStatus', () => {
       })
 
       const status = (await database.getStatus({ statusId: pollId })) as Status
-      const mastodonStatus = await getMastodonStatus(database, status, ACTOR3_ID)
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        status,
+        ACTOR3_ID
+      )
 
       expect(mastodonStatus?.poll?.options).toEqual([
         { title: 'First', votes_count: null },
@@ -465,7 +469,11 @@ describe('getMastodonStatus', () => {
       })
 
       const status = (await database.getStatus({ statusId: pollId })) as Status
-      const mastodonStatus = await getMastodonStatus(database, status, ACTOR3_ID)
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        status,
+        ACTOR3_ID
+      )
 
       expect(mastodonStatus?.poll?.expired).toBe(true)
       expect(mastodonStatus?.poll?.options).toEqual([
