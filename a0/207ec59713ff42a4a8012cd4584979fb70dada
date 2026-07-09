@@ -1,0 +1,41 @@
+lib/actions/createPoll.ts
+  s_f7b91ac6284bd0::t_1707103675cbe4 123
+  s_f7b91ac6284bd0::t_4ac08214139e89 30-31,48
+app/api/v1/statuses/route.test.ts
+  s_f7b91ac6284bd0::t_3b6c2ee78b63cd 466-490
+  s_f7b91ac6284bd0::t_b17b006c03e69a 14
+lib/types/domain/status.ts
+  s_f7b91ac6284bd0::t_8bf03189cd976c 126-128
+lib/database/sql/status.test.ts
+  s_f7b91ac6284bd0::t_9ef4ae49217514 2131-2192
+lib/jobs/publishScheduledStatusJob.test.ts
+  s_f7b91ac6284bd0::t_705ff6bf250d21 130-158
+  s_f7b91ac6284bd0::t_882f3fc38bdf25 10
+lib/database/sql/status.ts
+  s_f7b91ac6284bd0::t_f854a66f115164 808,825-826
+  s_f7b91ac6284bd0::t_856e7a135392ee 935
+  s_f7b91ac6284bd0::t_102c8e014889b9 963-964
+  s_f7b91ac6284bd0::t_7c4d789eee055c 2711
+lib/jobs/publishScheduledStatusJob.ts
+  s_f7b91ac6284bd0::t_6b9990957f6644 125
+lib/types/database/operations.ts
+  s_f7b91ac6284bd0::t_670215006fd5e3 475-476
+app/api/v1/statuses/route.ts
+  s_f7b91ac6284bd0::t_845b401a39d0c1 341
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a0207ec59713ff42a4a8012cd4584979fb70dada",
+  "prompts": {},
+  "sessions": {
+    "s_f7b91ac6284bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e5d29e0-cb70-4516-b716-6108a10b94a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
