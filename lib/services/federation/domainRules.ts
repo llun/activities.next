@@ -82,9 +82,13 @@ export const shouldSuspendDomainBlock = (block: DomainBlock): boolean =>
 // 'exa****.*om'. Clients expect this partially-starred form; the full SHA-256
 // stays available in `digest`.
 const obfuscateDomain = (domain: string): string => {
-  const length = domain.length
+  // Count in code points, not UTF-16 units, so the length/index math lines up
+  // with the code-point array we map over (matters for IDN domains with astral
+  // characters) and matches Mastodon's code-point-based public_domain rule.
+  const chars = [...domain]
+  const length = chars.length
   const visibleRatio = Math.floor(length / 4)
-  return [...domain]
+  return chars
     .map((char, index) =>
       index > visibleRatio && index < length - visibleRatio && char !== '.'
         ? '*'

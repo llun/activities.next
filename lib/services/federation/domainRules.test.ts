@@ -83,6 +83,14 @@ describe('domainRules', () => {
       description: 'keeps the edges of a short domain',
       domain: 'ab.cd',
       expected: 'ab.*d'
+    },
+    {
+      // Astral code points count as two UTF-16 units each; the obfuscation must
+      // measure/index by code point (9 here, not 13) so an IDN domain is starred
+      // correctly rather than off by the surrogate-pair count.
+      description: 'stars an IDN domain by code point, not UTF-16 unit',
+      domain: '𝔞𝔟𝔠𝔡.test',
+      expected: '𝔞𝔟𝔠*.**st'
     }
   ])('$description', ({ domain, expected }) => {
     const publicBlock = toPublicDomainBlock(block({ domain, obfuscate: true }))
