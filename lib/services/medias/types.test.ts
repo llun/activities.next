@@ -18,19 +18,30 @@ describe('PresigedMediaInput', () => {
 describe('MediaSchema', () => {
   const descriptionOnly = MediaSchema.pick({ description: true })
 
+  it('rejects alt text longer than 1500 characters', () => {
+    const result = descriptionOnly.safeParse({ description: 'a'.repeat(1501) })
+    expect(result.success).toBe(false)
+  })
+
   it.each([
     {
-      description: 'accepts alt text at the 1500-character Mastodon limit',
+      description: 'keeps alt text at the 1500-character Mastodon limit',
       value: 'a'.repeat(1500),
-      success: true
+      expected: 'a'.repeat(1500)
     },
     {
-      description: 'rejects alt text longer than 1500 characters',
-      value: 'a'.repeat(1501),
-      success: false
+      description: 'normalises an empty description to null',
+      value: '',
+      expected: null
+    },
+    {
+      description: 'normalises a whitespace-only description to null',
+      value: '   ',
+      expected: null
     }
-  ])('$description', ({ value, success }) => {
+  ])('$description', ({ value, expected }) => {
     const result = descriptionOnly.safeParse({ description: value })
-    expect(result.success).toBe(success)
+    expect(result.success).toBe(true)
+    expect(result.success && result.data.description).toBe(expected)
   })
 })

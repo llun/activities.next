@@ -55,8 +55,8 @@ const UpdateMediaRequest = z.object({
     .string()
     .max(MAX_MEDIA_DESCRIPTION_LENGTH)
     .nullable()
-    .optional()
-    .transform((value) => (value && value.trim() ? value : null)),
+    .transform((value) => (value && value.trim() ? value : null))
+    .optional(),
   focus: FocusSchema.optional()
 })
 
