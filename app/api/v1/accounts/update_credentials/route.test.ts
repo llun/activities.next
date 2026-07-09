@@ -463,6 +463,27 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     updateActor.mockRestore()
   })
 
+  it('deduplicates attribution_domains and drops empty/whitespace entries', async () => {
+    const updateActor = vi.spyOn(database, 'updateActor')
+    const form = new FormData()
+    form.append('attribution_domains[]', 'blog.example.com')
+    form.append('attribution_domains[]', 'BLOG.example.com')
+    form.append('attribution_domains[]', '   ')
+    form.append('attribution_domains[]', 'blog.example.com')
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attributionDomains: ['blog.example.com']
+      })
+    )
+    updateActor.mockRestore()
+  })
+
   it('accepts modern fields via a JSON body and clears attribution domains with []', async () => {
     const updateActor = vi.spyOn(database, 'updateActor')
     const req = new NextRequest(
@@ -491,6 +512,12 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
         attributionDomains: []
       })
     )
+    // The spied updateActor calls through to the real test DB, so the response
+    // reflects the persisted values: a stored `false` must serialize as `false`,
+    // not `null` — the one branch a `?? null` -> `|| null` regression would break.
+    const data = await response.json()
+    expect(data.indexable).toBe(false)
+    expect(data.hide_collections).toBe(false)
     updateActor.mockRestore()
   })
 
