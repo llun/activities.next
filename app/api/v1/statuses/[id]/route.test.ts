@@ -2392,6 +2392,66 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(updatedMedia?.focus).toEqual({ x: 0, y: 1 })
     })
 
+    it('clears an attachment description when media_attributes sends description null', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-media-attributes-clear`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Clear description target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-attributes-clear.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-attributes-clear.jpg'
+        },
+        description: 'Alt text to clear'
+      })
+      expect(media).not.toBeNull()
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: media!.original.mimeType,
+        url: 'https://llun.test/api/v1/files/medias/api-edit-attributes-clear.webp',
+        width: 320,
+        height: 240,
+        name: 'Alt text to clear',
+        mediaId: media!.id
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_attributes: [{ id: media!.id, description: null }]
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const actor = await database.getActorFromId({ id: ACTOR1_ID })
+      const updatedMedia = await database.getMediaByIdForAccount({
+        mediaId: media!.id,
+        accountId: actor!.account!.id
+      })
+      // Explicit null clears the stored alt text (blank/null normalise to null).
+      expect(updatedMedia?.description ?? null).toBeNull()
+    })
+
     it('rejects media_attributes for media the actor does not own', async () => {
       const statusId = `${ACTOR1_ID}/statuses/api-edit-media-attributes-foreign`
       await database.createNote({
@@ -2487,6 +2547,11 @@ describe('GET /api/v1/statuses/[id]', () => {
       ])
       expect(data.poll.votes_count).toBe(0)
       expect(data.poll.voters_count).toBe(0)
+      // expires_in (7200s) is rebased from now into expires_at (seconds -> ms).
+      const expiresAt = new Date(data.poll.expires_at).getTime()
+      expect(Math.abs(expiresAt - (Date.now() + 7200 * 1000))).toBeLessThan(
+        60_000
+      )
 
       const historyResponse = await getStatusHistory(
         new NextRequest(
@@ -2548,6 +2613,50 @@ describe('GET /api/v1/statuses/[id]', () => {
         { title: 'Yes', votes_count: null },
         { title: 'No', votes_count: null }
       ])
+    })
+
+    it('resets votes and switches to anyOf when a poll edit flips multiple to true', async () => {
+      const pollId = `${ACTOR1_ID}/statuses/api-edit-poll-multiple-flip`
+      await database.createPoll({
+        id: pollId,
+        url: pollId,
+        actorId: ACTOR1_ID,
+        text: 'Single choice poll',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        choices: ['Red', 'Blue'],
+        endAt: Date.now() + 60_000
+      })
+      await database.recordPollVotes({
+        statusId: pollId,
+        actorId: ACTOR2_ID,
+        choices: [0]
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(pollId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              poll: { options: ['Red', 'Blue'], multiple: true }
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(pollId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      // Same options, but flipping the multiple-choice mode resets votes and
+      // switches the poll to anyOf (Mastodon UpdateStatusService#update_poll!).
+      expect(data.poll.multiple).toBe(true)
+      expect(data.poll.votes_count).toBe(0)
+      expect(data.poll.voters_count).toBe(0)
     })
 
     it.each([
