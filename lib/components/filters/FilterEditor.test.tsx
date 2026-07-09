@@ -8,23 +8,41 @@ import { ClientFilter } from '@/lib/client'
 
 import { FilterEditor } from './FilterEditor'
 
-const blurFilter = {
-  id: 'f-blur',
-  title: 'Spoilers',
-  context: ['home'],
-  filter_action: 'blur',
-  expires_at: null,
-  keywords: []
-} as unknown as ClientFilter
+const filterWithAction = (filterAction: string) =>
+  ({
+    id: `f-${filterAction}`,
+    title: 'Spoilers',
+    context: ['home'],
+    filter_action: filterAction,
+    expires_at: null,
+    keywords: []
+  }) as unknown as ClientFilter
 
 describe('FilterEditor', () => {
-  it('falls back to the warn card when the filter action has no card (e.g. blur)', () => {
-    // The editor only offers warn/hide cards. A filter saved with `blur` (valid
-    // via the API since Mastodon 4.4) must open with the warn card selected
-    // rather than leaving the radiogroup with nothing checked.
+  // The editor only offers warn/hide cards. A valid card action opens with its
+  // own card selected; a filter saved with another action (e.g. `blur`, valid
+  // via the API since Mastodon 4.4) opens as warn rather than leaving the
+  // radiogroup with nothing checked.
+  it.each([
+    {
+      description: 'keeps warn selected',
+      filterAction: 'warn',
+      checked: 'warn'
+    },
+    {
+      description: 'keeps hide selected',
+      filterAction: 'hide',
+      checked: 'hide'
+    },
+    {
+      description: 'falls back to warn for a non-card action (blur)',
+      filterAction: 'blur',
+      checked: 'warn'
+    }
+  ])('$description', ({ filterAction, checked }) => {
     render(
       <FilterEditor
-        initial={blurFilter}
+        initial={filterWithAction(filterAction)}
         scope="account"
         currentTime={0}
         saving={false}
@@ -38,7 +56,13 @@ describe('FilterEditor', () => {
       name: /Hide with a warning/i
     })
     const hideRadio = screen.getByRole('radio', { name: /Hide completely/i })
-    expect(warnRadio).toHaveAttribute('aria-checked', 'true')
-    expect(hideRadio).toHaveAttribute('aria-checked', 'false')
+    expect(warnRadio).toHaveAttribute(
+      'aria-checked',
+      checked === 'warn' ? 'true' : 'false'
+    )
+    expect(hideRadio).toHaveAttribute(
+      'aria-checked',
+      checked === 'hide' ? 'true' : 'false'
+    )
   })
 })
