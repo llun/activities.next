@@ -2324,9 +2324,18 @@ export const StatusSQLDatabaseMixin = (
   async function getStatusesByHashtag({
     hashtag,
     limit = PER_PAGE_LIMIT,
-    maxStatusId
+    minStatusId,
+    maxStatusId,
+    onlyMedia = false,
+    local = false,
+    remote = false,
+    anyTags = [],
+    allTags = [],
+    noneTags = []
   }: GetStatusesByHashtagParams): Promise<Status[]> {
-    const normalizedNames = getHashtagLookupNames(hashtag)
+    // `any[]` widens the primary tag match: a status qualifies when it carries
+    // the main hashtag OR any of the additional tags (Mastodon semantics).
+    const normalizedNames = [hashtag, ...anyTags].flatMap(getHashtagLookupNames)
     let query = database('tags')
       .innerJoin('statuses', 'tags.statusId', 'statuses.id')
       .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
@@ -2340,22 +2349,93 @@ export const StatusSQLDatabaseMixin = (
       .orderBy('statuses.id', 'desc')
       .limit(limit)
 
+    // `all[]`: every additional tag must also be present on the status.
+    for (const tag of allTags) {
+      const lookupNames = getHashtagLookupNames(tag)
+      if (lookupNames.length === 0) {
+        query = query.whereRaw('1 = 0')
+        continue
+      }
+      query = query.whereExists(function () {
+        this.select(database.raw('1'))
+          .from('tags as all_tags')
+          .whereRaw('?? = ??', ['all_tags.statusId', 'statuses.id'])
+          .where('all_tags.type', 'hashtag')
+          .whereIn('all_tags.nameNormalized', lookupNames)
+      })
+    }
+
+    // `none[]`: statuses carrying any of these tags are excluded.
+    const noneLookupNames = noneTags.flatMap(getHashtagLookupNames)
+    if (noneLookupNames.length > 0) {
+      query = query.whereNotExists(function () {
+        this.select(database.raw('1'))
+          .from('tags as none_tags')
+          .whereRaw('?? = ??', ['none_tags.statusId', 'statuses.id'])
+          .where('none_tags.type', 'hashtag')
+          .whereIn('none_tags.nameNormalized', noneLookupNames)
+      })
+    }
+
+    if (onlyMedia) {
+      query = query.whereExists(function () {
+        this.select(database.raw('1'))
+          .from('attachments')
+          .whereRaw('?? = ??', ['attachments.statusId', 'statuses.id'])
+      })
+    }
+
+    // Mastodon `local`/`remote` scope. A status is local when its author is an
+    // actor this server hosts (privateKey set), mirroring the LOCAL_PUBLIC
+    // timeline selection; remote is the complement (including statuses whose
+    // author has no actors row at all).
+    if (local && !remote) {
+      query = query.whereExists(function () {
+        this.select(database.raw('1'))
+          .from('actors')
+          .whereRaw('?? = ??', ['actors.id', 'statuses.actorId'])
+          .whereNotNull('actors.privateKey')
+      })
+    } else if (remote && !local) {
+      query = query.whereNotExists(function () {
+        this.select(database.raw('1'))
+          .from('actors')
+          .whereRaw('?? = ??', ['actors.id', 'statuses.actorId'])
+          .whereNotNull('actors.privateKey')
+      })
+    }
+
     if (maxStatusId) {
       const cursor = await database('statuses')
         .where('id', maxStatusId)
         .select('createdAt')
         .first<{ createdAt: Date }>()
-      if (cursor) {
-        query = query.where((wb) => {
-          wb.where('statuses.createdAt', '<', cursor.createdAt).orWhere(
-            (wb2) => {
-              wb2
-                .where('statuses.createdAt', '=', cursor.createdAt)
-                .where('statuses.id', '<', maxStatusId)
-            }
-          )
+      // An unresolvable cursor yields no page, matching the repo-wide keyset
+      // convention (bookmark/block/follow/mute/scheduledStatus) rather than
+      // silently falling back to the first page.
+      if (!cursor) return []
+      query = query.where((wb) => {
+        wb.where('statuses.createdAt', '<', cursor.createdAt).orWhere((wb2) => {
+          wb2
+            .where('statuses.createdAt', '=', cursor.createdAt)
+            .where('statuses.id', '<', maxStatusId)
         })
-      }
+      })
+    }
+
+    if (minStatusId) {
+      const cursor = await database('statuses')
+        .where('id', minStatusId)
+        .select('createdAt')
+        .first<{ createdAt: Date }>()
+      if (!cursor) return []
+      query = query.where((wb) => {
+        wb.where('statuses.createdAt', '>', cursor.createdAt).orWhere((wb2) => {
+          wb2
+            .where('statuses.createdAt', '=', cursor.createdAt)
+            .where('statuses.id', '>', minStatusId)
+        })
+      })
     }
 
     const rows = await query

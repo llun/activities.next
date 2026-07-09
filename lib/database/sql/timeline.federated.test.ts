@@ -142,4 +142,27 @@ describe('Timeline.FEDERATED_PUBLIC', () => {
       ).toEqual([])
     })
   })
+
+  it('returns only statuses with attachments when onlyMedia is set', async () => {
+    await withFreshDatabase(async (database) => {
+      const textStatus = await seedFederatedStatus(database, 1)
+      await waitFor(5)
+      const mediaStatus = await seedFederatedStatus(database, 2)
+      await database.createAttachment({
+        actorId: REMOTE,
+        statusId: mediaStatus.id,
+        mediaType: 'image/png',
+        url: `${mediaStatus.id}/image.png`
+      })
+
+      const statuses = await database.getTimeline({
+        timeline: Timeline.FEDERATED_PUBLIC,
+        onlyMedia: true
+      })
+
+      const ids = statuses.map((status) => status.id)
+      expect(ids).toEqual([mediaStatus.id])
+      expect(ids).not.toContain(textStatus.id)
+    })
+  })
 })

@@ -363,6 +363,35 @@ describe('TimelineDatabase', () => {
           }
         }, 10000)
 
+        it('returns only statuses with attachments when onlyMedia is set', async () => {
+          const mediaStatusId = `${TEST_ID_PUBLIC}/statuses/public-media-1`
+          await database.createNote({
+            actorId: TEST_ID_PUBLIC,
+            cc: [],
+            to: [ACTIVITY_STREAM_PUBLIC],
+            id: mediaStatusId,
+            text: 'This is a public status with media',
+            url: mediaStatusId,
+            reply: '',
+            createdAt: Date.now()
+          })
+          await database.createAttachment({
+            actorId: TEST_ID_PUBLIC,
+            statusId: mediaStatusId,
+            mediaType: 'image/png',
+            url: `${mediaStatusId}/image.png`
+          })
+
+          const statuses = await database.getTimeline({
+            timeline: Timeline.LOCAL_PUBLIC,
+            onlyMedia: true
+          })
+
+          const ids = statuses.map((status) => status.id)
+          expect(ids).toContain(mediaStatusId)
+          expect(ids).not.toContain(`${TEST_ID_PUBLIC}/statuses/public-1`)
+        })
+
         it('continues paginating when a public cursor recipient row is gone', async () => {
           const olderStatusId = `${TEST_ID_PUBLIC}/statuses/public-cursor-older`
           const cursorStatusId = `${TEST_ID_PUBLIC}/statuses/public-cursor`

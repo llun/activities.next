@@ -21,7 +21,10 @@ const TimelineQuerySchema = z.object({
   // Mastodon's public-timeline scope filters. Only the public timeline reads
   // them; other endpoints ignore them.
   local: z.string().optional(),
-  remote: z.string().optional()
+  remote: z.string().optional(),
+  // Media-only filter for the public and hashtag timelines. Other endpoints
+  // ignore it.
+  only_media: z.string().optional()
 })
 
 export interface ParsedTimelineQuery {
@@ -35,6 +38,8 @@ export interface ParsedTimelineQuery {
   // string forms Mastodon accepts (`true`/`1`).
   local: boolean
   remote: boolean
+  // Public/hashtag timeline media filter (Mastodon `only_media`).
+  onlyMedia: boolean
 }
 
 const isTruthyParam = (value: string | undefined): boolean =>
@@ -64,7 +69,8 @@ export const parseTimelineQuery = (
     min_id: searchParams.get('min_id') || undefined,
     since_id: searchParams.get('since_id') || undefined,
     local: searchParams.get('local') || undefined,
-    remote: searchParams.get('remote') || undefined
+    remote: searchParams.get('remote') || undefined,
+    only_media: searchParams.get('only_media') || undefined
   })
   if (!parsed.success) return { ok: false }
 
@@ -95,7 +101,8 @@ export const parseTimelineQuery = (
       minStatusId: minStatusId ?? null,
       sinceStatusId: sinceStatusId ?? null,
       local: isTruthyParam(parsed.data.local),
-      remote: isTruthyParam(parsed.data.remote)
+      remote: isTruthyParam(parsed.data.remote),
+      onlyMedia: isTruthyParam(parsed.data.only_media)
     }
   }
 }

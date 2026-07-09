@@ -10,6 +10,7 @@ import { Scope } from '@/lib/types/database/operations'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
+import { isMastodonHashtagName } from '@/lib/utils/text/mastodonHashtag'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [
@@ -27,14 +28,13 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 // Mastodon hashtag names are word characters only. Strip a single leading `#`
 // and any surrounding whitespace before validating the bare name.
-const FeaturedTagNameRegex = /^[\p{L}\p{N}_]+$/u
 const CreateFeaturedTagRequest = z.object({
   name: z
     .string()
     .trim()
     .max(255)
     .transform((value) => value.replace(/^#+/, ''))
-    .refine((value) => FeaturedTagNameRegex.test(value), {
+    .refine((value) => isMastodonHashtagName(value), {
       message: 'Invalid hashtag name'
     })
 })
