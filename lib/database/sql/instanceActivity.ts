@@ -230,6 +230,22 @@ export const getInstancePeersFromActors = async (
   return rows.filter((domain): domain is string => Boolean(domain))
 }
 
+export const getInstanceAdminActorIdFromAccounts = async (
+  database: Knex
+): Promise<string | null> => {
+  // Remote actors have a null accountId, so the inner join naturally limits
+  // the lookup to local actors. Earliest-created wins so the contact account
+  // is stable across requests.
+  const row = await database('actors')
+    .join('accounts', 'actors.accountId', 'accounts.id')
+    .where('accounts.role', 'admin')
+    .whereNull('actors.deletionStatus')
+    .orderBy('actors.createdAt', 'asc')
+    .first<{ id: string } | undefined>('actors.id as id')
+
+  return row?.id ?? null
+}
+
 export const InstanceActivitySQLDatabaseMixin = (
   database: Knex
 ): InstanceActivityDatabase => ({
@@ -240,5 +256,8 @@ export const InstanceActivitySQLDatabaseMixin = (
     return getInstancePeersFromActors(database, {
       localDomain: params?.localDomain ?? ''
     })
+  },
+  getInstanceAdminActorId() {
+    return getInstanceAdminActorIdFromAccounts(database)
   }
 })
