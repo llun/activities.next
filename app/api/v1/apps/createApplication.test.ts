@@ -291,6 +291,42 @@ describe('createApplication', () => {
     expect(response.redirect_uri).toEqual('https://test.llun.dev/callback')
   })
 
+  test('it accepts redirect_uris as an array of URIs (Mastodon 4.3 form)', async () => {
+    const response = (await createApplication({
+      client_name: 'arrayRedirectClient',
+      redirect_uris: [
+        'https://array.llun.dev/callback',
+        'https://array.llun.dev/alt-callback'
+      ],
+      scopes: 'read',
+      website: 'https://array.llun.dev'
+    })) as SuccessResponse
+
+    expect(response.type).toBe('success')
+
+    const dbClient = await knexDatabase('oauthClient')
+      .where({ id: response.id })
+      .first()
+    expect(JSON.parse(dbClient.redirectUris)).toEqual([
+      'https://array.llun.dev/callback',
+      'https://array.llun.dev/alt-callback'
+    ])
+  })
+
+  test('it errors when redirect_uris is an empty array', async () => {
+    const response = await createApplication({
+      client_name: 'emptyArrayRedirectClient',
+      redirect_uris: [],
+      scopes: 'read',
+      website: 'https://empty-array.llun.dev'
+    })
+
+    expect(response).toEqual({
+      type: 'error',
+      error: 'Failed to validate request'
+    })
+  })
+
   test('it enables end-session and stores post_logout_redirect_uris as a JSON-array string when provided', async () => {
     const response = (await createApplication({
       client_name: 'logoutClient',

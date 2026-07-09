@@ -229,9 +229,13 @@ export const createApplication = async (
           }
           parsedScopes.push(parsed.data)
         }
-        // Mastodon API: multiple redirect URIs are newline-separated
-        const redirectUris = request.redirect_uris
-          .split('\n')
+        // Mastodon API: multiple redirect URIs arrive as a JSON array (4.3+)
+        // or as a single newline-separated string (deprecated pre-4.3 form).
+        const redirectUris = (
+          Array.isArray(request.redirect_uris)
+            ? request.redirect_uris
+            : request.redirect_uris.split('\n')
+        )
           .map((uri) => uri.trim())
           .filter(Boolean)
         if (redirectUris.length === 0) {

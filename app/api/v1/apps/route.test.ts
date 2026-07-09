@@ -170,6 +170,33 @@ describe('apps route', () => {
     expect(mockLoggerWarn).toHaveBeenCalledTimes(1)
   })
 
+  test('accepts the Mastodon 4.3 array form of redirect_uris', async () => {
+    const req = new NextRequest('https://llun.test/api/v1/apps', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'array-client',
+        redirect_uris: [
+          'https://client.llun.dev/callback',
+          'https://client.llun.dev/alt-callback'
+        ]
+      })
+    })
+
+    const response = await POST(req)
+
+    expect(response.status).toBe(200)
+    expect(mockCreateApplication).toHaveBeenCalledWith(
+      expect.objectContaining({
+        redirect_uris: [
+          'https://client.llun.dev/callback',
+          'https://client.llun.dev/alt-callback'
+        ]
+      }),
+      { registrationKey: undefined }
+    )
+  })
+
   test('returns too many requests when app registration is throttled', async () => {
     mockCreateApplication.mockResolvedValue({
       type: 'error',
