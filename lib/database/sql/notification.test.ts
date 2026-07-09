@@ -68,6 +68,33 @@ describe('Notification Database', () => {
       })
     })
 
+    describe('getNotifications with sourceActorId', () => {
+      it('filters by source actor in the database query', async () => {
+        const recipient = 'https://example.com/users/source-filter-recipient'
+        await database.createNotification({
+          actorId: recipient,
+          type: NotificationType.enum.like,
+          sourceActorId: actor2Id,
+          statusId
+        })
+        await database.createNotification({
+          actorId: recipient,
+          type: NotificationType.enum.like,
+          sourceActorId: 'https://example.com/users/actor3',
+          statusId
+        })
+
+        const rows = await database.getNotifications({
+          actorId: recipient,
+          limit: 10,
+          sourceActorId: actor2Id
+        })
+
+        expect(rows).toHaveLength(1)
+        expect(rows[0].sourceActorId).toBe(actor2Id)
+      })
+    })
+
     describe('getNotifications with cursor pagination', () => {
       beforeEach(async () => {
         // Clean up notifications

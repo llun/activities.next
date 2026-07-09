@@ -421,12 +421,17 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
     }
   },
 
-  async getDomainBlocks({ limit = 100, offset = 0, severities } = {}) {
+  async getDomainBlocks({
+    limit = 100,
+    offset = 0,
+    severities,
+    maxId,
+    minId,
+    sinceId
+  } = {}) {
     const query = database<SQLDomainFederationRule>('domain_federation_rules')
       .where('type', 'block')
-      .orderBy('domain', 'asc')
       .limit(limit)
-      .offset(offset)
 
     // Block rows always persist a severity (only allow rows store null), so a
     // whereIn filter cannot drop legacy rows.
@@ -434,20 +439,85 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
       query.whereIn('severity', severities)
     }
 
-    const rows = await query
+    const cursorDomain = async (id: string) => {
+      const row = await database<SQLDomainFederationRule>(
+        'domain_federation_rules'
+      )
+        .where({ id, type: 'block' })
+        .select('domain')
+        .first()
+      return row?.domain ?? null
+    }
 
+    // The list is ordered by domain ascending, so max_id pages toward larger
+    // domains ("next") and min_id toward smaller ones ("prev", fetched
+    // descending then restored to ascending). since_id returns the FIRST rows
+    // before the cursor, matching Mastodon since_id semantics.
+    if (maxId) {
+      const domain = await cursorDomain(maxId)
+      if (domain) query.where('domain', '>', domain)
+      const rows = await query.orderBy('domain', 'asc')
+      return rows.map(toDomainBlock)
+    }
+    if (minId) {
+      const domain = await cursorDomain(minId)
+      if (domain) query.where('domain', '<', domain)
+      const rows = await query.orderBy('domain', 'desc')
+      return rows.reverse().map(toDomainBlock)
+    }
+    if (sinceId) {
+      const domain = await cursorDomain(sinceId)
+      if (domain) query.where('domain', '<', domain)
+      const rows = await query.orderBy('domain', 'asc')
+      return rows.map(toDomainBlock)
+    }
+
+    const rows = await query.orderBy('domain', 'asc').offset(offset)
     return rows.map(toDomainBlock)
   },
 
-  async getDomainAllows({ limit = 100, offset = 0 } = {}) {
-    const rows = await database<SQLDomainFederationRule>(
-      'domain_federation_rules'
-    )
+  async getDomainAllows({
+    limit = 100,
+    offset = 0,
+    maxId,
+    minId,
+    sinceId
+  } = {}) {
+    const query = database<SQLDomainFederationRule>('domain_federation_rules')
       .where('type', 'allow')
-      .orderBy('domain', 'asc')
       .limit(limit)
-      .offset(offset)
 
+    const cursorDomain = async (id: string) => {
+      const row = await database<SQLDomainFederationRule>(
+        'domain_federation_rules'
+      )
+        .where({ id, type: 'allow' })
+        .select('domain')
+        .first()
+      return row?.domain ?? null
+    }
+
+    // Same cursor semantics as getDomainBlocks over the domain-ascending order.
+    if (maxId) {
+      const domain = await cursorDomain(maxId)
+      if (domain) query.where('domain', '>', domain)
+      const rows = await query.orderBy('domain', 'asc')
+      return rows.map(toDomainAllow)
+    }
+    if (minId) {
+      const domain = await cursorDomain(minId)
+      if (domain) query.where('domain', '<', domain)
+      const rows = await query.orderBy('domain', 'desc')
+      return rows.reverse().map(toDomainAllow)
+    }
+    if (sinceId) {
+      const domain = await cursorDomain(sinceId)
+      if (domain) query.where('domain', '<', domain)
+      const rows = await query.orderBy('domain', 'asc')
+      return rows.map(toDomainAllow)
+    }
+
+    const rows = await query.orderBy('domain', 'asc').offset(offset)
     return rows.map(toDomainAllow)
   },
 

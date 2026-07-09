@@ -2,6 +2,7 @@ import { Database } from '@/lib/database/types'
 import { applyFiltersToStatus } from '@/lib/services/filters/applyFilters'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
+import { DEFAULT_GROUPABLE_TYPES } from '@/lib/services/notifications/notificationTypeMapping'
 import { Mastodon } from '@/lib/types/activitypub'
 import {
   ActiveFilterRecord,
@@ -29,6 +30,12 @@ export interface MastodonNotification {
   id: string
   type: MastodonNotificationType
   created_at: string
+  // The stable grouping key. For already-grouped input it is the key the
+  // grouping step computed. For raw (ungrouped) rows it is the stored groupKey
+  // only when the type is groupable by default (like/reblog/follow), otherwise
+  // `ungrouped-<id>` — so mentions/replies/collections, whose stored groupKey
+  // is an internal key, report the same `ungrouped-<id>` the v2 grouped API does.
+  group_key: string
   account: Mastodon.Account
   status?: Mastodon.Status
   // Non-standard fields for grouping support (backward compatibility)
@@ -131,11 +138,21 @@ export const getMastodonNotification = async (
     }
   }
 
+  // Already-grouped input carries the key the grouping step computed (which
+  // already honors the requested grouped_types). Raw rows only surface their
+  // stored groupKey for default-groupable types; a non-groupable type's stored
+  // key is internal, so it reports `ungrouped-<id>` to match the v2 API.
+  const groupKey =
+    includeGrouping || DEFAULT_GROUPABLE_TYPES.has(notification.type)
+      ? (notification.groupKey ?? `ungrouped-${notification.id}`)
+      : `ungrouped-${notification.id}`
+
   // Base notification
   const mastodonNotification: MastodonNotification = {
     id: notification.id,
     type: mapNotificationType(notification.type),
     created_at: getISOTimeUTC(notification.createdAt),
+    group_key: groupKey,
     account,
     status
   }

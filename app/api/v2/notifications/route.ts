@@ -6,8 +6,10 @@ import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { collectNotificationGroups } from '@/lib/services/notifications/collectNotificationGroups'
 import {
+  NotificationGroupsEnvelope,
   getNotificationGroupsEnvelope,
-  prepareGroupedNotifications
+  prepareGroupedNotifications,
+  toPartialAccountWithAvatar
 } from '@/lib/services/notifications/getNotificationGroupsEnvelope'
 import {
   DEFAULT_GROUPABLE_TYPES,
@@ -48,6 +50,7 @@ const QueryParams = z.object({
   exclude_types: z.array(z.string()).optional(),
   grouped_types: z.array(z.string()).optional(),
   account_id: z.string().optional(),
+  expand_accounts: z.enum(['full', 'partial_avatars']).optional(),
   include_filtered: z
     .string()
     .transform((val) => {
@@ -113,6 +116,7 @@ export const GET = traceApiRoute(
         exclude_types: excludeTypes,
         grouped_types: groupedTypesMastodon,
         account_id: accountId,
+        expand_accounts: expandAccounts = 'full',
         include_filtered: includeFiltered = false
       } = parsed.data
 
@@ -181,11 +185,36 @@ export const GET = traceApiRoute(
       const keptActorIds = new Set(
         survivingGroups.flatMap((g) => g.sample_account_ids)
       )
-      const envelope = {
-        notification_groups: survivingGroups,
-        accounts: fullEnvelope.accounts.filter((a) => keptActorIds.has(a.id)),
-        statuses: fullEnvelope.statuses.filter((s) => keptStatusIds.has(s.id))
-      }
+      const keptAccounts = fullEnvelope.accounts.filter((a) =>
+        keptActorIds.has(a.id)
+      )
+      const keptStatuses = fullEnvelope.statuses.filter((s) =>
+        keptStatusIds.has(s.id)
+      )
+      // expand_accounts=partial_avatars: only each group's most recent account
+      // (the first sample id — groups are built newest-member-first) is rendered
+      // in full; every other sampled account ships as a truncated
+      // PartialAccountWithAvatar so bursty groups don't duplicate full accounts.
+      const fullAccountIds = new Set(
+        survivingGroups
+          .map((group) => group.sample_account_ids[0])
+          .filter((id): id is string => Boolean(id))
+      )
+      const envelope: NotificationGroupsEnvelope =
+        expandAccounts === 'partial_avatars'
+          ? {
+              notification_groups: survivingGroups,
+              accounts: keptAccounts.filter((a) => fullAccountIds.has(a.id)),
+              partial_accounts: keptAccounts
+                .filter((a) => !fullAccountIds.has(a.id))
+                .map(toPartialAccountWithAvatar),
+              statuses: keptStatuses
+            }
+          : {
+              notification_groups: survivingGroups,
+              accounts: keptAccounts,
+              statuses: keptStatuses
+            }
 
       // Pagination cursors anchor on the returned groups' most-recent notification
       // ids. Groups are ordered by most-recent member, so the last returned group's

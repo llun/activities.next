@@ -21,8 +21,35 @@ import {
 export interface NotificationGroupsEnvelope {
   notification_groups: MastodonNotificationGroup[]
   accounts: Mastodon.Account[]
+  // Present only for expand_accounts=partial_avatars: accounts that are not a
+  // group's most recent sample, truncated to the avatar-rendering fields.
+  partial_accounts?: PartialAccountWithAvatar[]
   statuses: Mastodon.Status[]
 }
+
+// Mastodon PartialAccountWithAvatar entity (4.3): the truncated account shape
+// used by expand_accounts=partial_avatars.
+export interface PartialAccountWithAvatar {
+  id: string
+  acct: string
+  url: string
+  avatar: string
+  avatar_static: string
+  locked: boolean
+  bot: boolean
+}
+
+export const toPartialAccountWithAvatar = (
+  account: Mastodon.Account
+): PartialAccountWithAvatar => ({
+  id: account.id,
+  acct: account.acct,
+  url: account.url,
+  avatar: account.avatar,
+  avatar_static: account.avatar_static,
+  locked: account.locked,
+  bot: account.bot
+})
 
 const resolveAccounts = async (
   database: Database,

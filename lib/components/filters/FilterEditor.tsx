@@ -101,9 +101,15 @@ export const FilterEditor: FC<FilterEditorProps> = ({
   const [context, setContext] = useState<FilterContext[]>(
     initial ? [...initial.context] : ['home']
   )
-  const [action, setAction] = useState<FilterAction>(
-    initial?.filter_action ?? 'warn'
-  )
+  // The editor only offers warn/hide cards; a filter saved with another
+  // action (e.g. 'blur' created via the API) opens as 'warn' rather than
+  // rendering with no selected card.
+  const [action, setAction] = useState<FilterAction>(() => {
+    const initialAction = initial?.filter_action ?? 'warn'
+    return ACTION_CARDS.some((card) => card.id === initialAction)
+      ? initialAction
+      : 'warn'
+  })
   const [expiryValue, setExpiryValue] = useState(() =>
     expiryOptionForExpiresAt(
       initial?.expires_at ? Date.parse(initial.expires_at) : null,

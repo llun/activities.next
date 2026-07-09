@@ -34,6 +34,15 @@ export const POST = traceApiRoute(
         targetActorId
       })
 
+      // Unknown target: Mastodon 404s instead of answering with an all-false
+      // Relationship. A target the actor follows always has a local row, so
+      // the existence check only matters when there is no follow to undo
+      // (mirrors the mute route's local getActorFromId check).
+      if (!existingFollow) {
+        const targetActor = await database.getActorFromId({ id: targetActorId })
+        if (!targetActor) return apiCorsError(req, CORS_HEADERS, 404)
+      }
+
       if (existingFollow) {
         const canFederate = await canFederateWithDomain(database, targetActorId)
         const signingActor = canFederate

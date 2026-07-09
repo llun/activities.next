@@ -110,7 +110,7 @@ describe('/api/v1/preferences', () => {
     expect(await response.json()).toEqual({
       'posting:default:visibility': 'public',
       'posting:default:sensitive': false,
-      'posting:default:language': 'en',
+      'posting:default:language': null,
       'reading:expand:media': 'default',
       'reading:expand:spoilers': false,
       'reading:autoplay:gifs': false

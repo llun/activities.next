@@ -112,6 +112,27 @@ describe('/api/v2/filters', () => {
     ).toBeTruthy()
   })
 
+  it.each([{ action: 'warn' }, { action: 'blur' }, { action: 'hide' }])(
+    'accepts the $action filter_action (Mastodon 4.4 adds blur)',
+    async ({ action }) => {
+      const postResponse = await POST(
+        baseRequest({
+          method: 'POST',
+          body: {
+            title: `Action ${action}`,
+            context: ['home'],
+            filter_action: action,
+            keywords_attributes: [{ keyword: 'spoiler', whole_word: true }]
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+      expect(postResponse.status).toBe(200)
+      const created = await postResponse.json()
+      expect(created.filter_action).toBe(action)
+    }
+  )
+
   it('returns 422 when the body is missing title or context', async () => {
     const response = await POST(
       baseRequest({

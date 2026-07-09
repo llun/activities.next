@@ -4,8 +4,10 @@ import { z } from 'zod'
 import { DomainAllowRequest } from '@/app/api/v1/admin/domain_allows/schema'
 import { toAdminDomainAllow } from '@/lib/services/federation/domainRules'
 import { AdminApiGuard } from '@/lib/services/guards/AdminApiGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { buildPaginationLinkHeader } from '@/lib/utils/paginationLinkHeader'
 import {
   ERROR_400,
   ERROR_422,
@@ -22,7 +24,10 @@ const CORS_HEADERS = [
 ]
 const DomainRuleListQueryParams = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(100),
-  offset: z.coerce.number().int().min(0).default(0)
+  offset: z.coerce.number().int().min(0).default(0),
+  max_id: z.string().max(255).optional(),
+  since_id: z.string().max(255).optional(),
+  min_id: z.string().max(255).optional()
 })
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
@@ -43,21 +48,44 @@ export const GET = traceApiRoute(
         })
       }
 
-      const { limit, offset } = parsedParams.data
+      const {
+        limit,
+        offset,
+        max_id: maxId,
+        since_id: sinceId,
+        min_id: minId
+      } = parsedParams.data
+      const hasCursor = Boolean(maxId || sinceId || minId)
       const [allows, stats] = await Promise.all([
-        database.getDomainAllows({ limit, offset }),
+        database.getDomainAllows({ limit, offset, maxId, minId, sinceId }),
         database.getDomainFederationRuleStats()
       ])
+
+      const additionalHeaders: [string, string][] = [
+        ...buildPaginationLinkHeader({
+          host: headerHost(req.headers),
+          path: '/api/v1/admin/domain_allows',
+          limit,
+          nextMaxId:
+            allows.length === limit ? allows[allows.length - 1].id : null,
+          prevMinId: allows.length > 0 ? allows[0].id : null
+        }),
+        // The offset/X-Total-Count listing is kept as an extension for the
+        // admin UI when no cursor parameter is used.
+        ...(hasCursor
+          ? []
+          : ([
+              ['X-Total-Count', `${stats.allows}`],
+              ['X-Offset', `${offset}`],
+              ['X-Limit', `${limit}`]
+            ] as [string, string][]))
+      ]
 
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
         data: allows.map(toAdminDomainAllow),
-        additionalHeaders: [
-          ['X-Total-Count', `${stats.allows}`],
-          ['X-Offset', `${offset}`],
-          ['X-Limit', `${limit}`]
-        ]
+        additionalHeaders
       })
     },
     { resource: 'domain_allows' }

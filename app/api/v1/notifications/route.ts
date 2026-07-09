@@ -17,7 +17,7 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { urlToId } from '@/lib/utils/urlToId'
+import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [
   HttpMethod.enum.OPTIONS,
@@ -119,27 +119,26 @@ export const GET = traceApiRoute(
       const internalTypes = mastodonTypesToInternal(types)
       const internalExcludeTypes = mastodonTypesToInternal(excludeTypes)
 
-      // Fetch notifications
+      // Fetch notifications; account_id filtering happens in the query so a
+      // filtered page fills from the database instead of coming back empty
+      // (with no Link header) while older matches exist.
       const notifications = await database.getNotifications({
         actorId: currentActor.id,
         limit,
         maxNotificationId: maxId,
         minNotificationId: minId,
         sinceNotificationId: sinceId,
+        sourceActorId: accountId ? idToUrl(accountId) : undefined,
         types: internalTypes,
         excludeTypes: internalExcludeTypes,
         includeFiltered
       })
 
-      // Group notifications if requested
-      const processedNotifications = groupNotifications(notifications, grouped)
-
-      // Filter by account_id if specified
-      const filteredNotifications = accountId
-        ? processedNotifications.filter(
-            (n) => urlToId(n.sourceActorId) === accountId
-          )
-        : processedNotifications
+      // Group notifications only when requested; ungrouped responses keep the
+      // raw rows so each notification's stored groupKey feeds group_key.
+      const processedNotifications = grouped
+        ? groupNotifications(notifications, true)
+        : notifications
 
       const filterRecords = await getActiveFilters(
         database,
@@ -150,7 +149,7 @@ export const GET = traceApiRoute(
       // Transform to Mastodon-compatible format
       const mastodonNotifications = (
         await Promise.all(
-          filteredNotifications.map((notification) =>
+          processedNotifications.map((notification) =>
             getMastodonNotification(database, notification, {
               includeGrouping: grouped,
               currentActorId: currentActor.id,
@@ -191,10 +190,11 @@ export const GET = traceApiRoute(
       }
 
       // Pagination cursors come from the notification page scanned from the
-      // DB (post account_id filter, but pre hide-filter / pre groupedAccount
-      // hydration) so that pages whose statuses are entirely hide-filtered
-      // still advertise next/prev links to keep the client paginating.
-      const paginationCandidates = filteredNotifications
+      // DB (account_id is applied inside the query; this is pre hide-filter /
+      // pre groupedAccount hydration) so that pages whose statuses are entirely
+      // hide-filtered still advertise next/prev links to keep the client
+      // paginating.
+      const paginationCandidates = processedNotifications
       const nextLink =
         paginationCandidates.length > 0
           ? buildPaginationUrl(

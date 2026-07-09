@@ -826,7 +826,8 @@ CREATE TABLE public.reports (
     "ruleIds" text DEFAULT '[]'::text NOT NULL,
     "actionTaken" boolean DEFAULT false NOT NULL,
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    "collectionIds" text DEFAULT '[]'::text NOT NULL
 );
 
 CREATE TABLE public.scheduled_statuses (

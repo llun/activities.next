@@ -20,7 +20,8 @@ export const DomainBlockRequest = z.object({
     .min(1)
     .max(255)
     .refine((value) => normalizeDomain(value) !== null),
-  severity: DomainBlockSeverity.default('suspend'),
+  // Mastodon's DomainBlock model defaults to silence; suspend is opt-in.
+  severity: DomainBlockSeverity.default('silence'),
   reject_media: Booleanish.default(false),
   reject_reports: Booleanish.default(false),
   private_comment: CreateComment,

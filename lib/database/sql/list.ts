@@ -193,7 +193,9 @@ export const ListSQLDatabaseMixin = (
       .where({ listId, actorId })
       .orderBy('createdAt', 'desc')
       .orderBy('id', 'desc')
-      .limit(limit)
+
+    // Mastodon: limit=0 returns ALL members without pagination.
+    if (limit > 0) query.limit(limit)
 
     // Membership ids are random UUIDs, so they cannot be compared with </> for
     // chronological pagination. Resolve the cursor row's createdAt and paginate
