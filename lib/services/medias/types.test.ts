@@ -38,6 +38,11 @@ describe('MediaSchema', () => {
       description: 'normalises a whitespace-only description to null',
       value: '   ',
       expected: null
+    },
+    {
+      description: 'accepts an explicit null description as null',
+      value: null,
+      expected: null
     }
   ])('$description', ({ value, expected }) => {
     const result = descriptionOnly.safeParse({ description: value })

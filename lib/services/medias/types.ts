@@ -61,6 +61,7 @@ export const MediaSchema = z.object({
   description: z
     .string()
     .max(MAX_MEDIA_DESCRIPTION_LENGTH)
+    .nullable()
     .transform((value) => (value && value.trim() ? value : null))
     .optional(),
   focus: FocusSchema.optional()
