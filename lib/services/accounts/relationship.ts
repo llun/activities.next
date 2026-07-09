@@ -4,6 +4,8 @@ import { Actor } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { urlToId } from '@/lib/utils/urlToId'
 
+import { getMuteExpiresAt } from './getMuteExpiresAt'
+
 interface GetRelationshipParams {
   database: Database
   currentActor: Actor
@@ -19,6 +21,7 @@ export const getRelationship = async ({
     isFollowing,
     isFollowedBy,
     follow,
+    incomingFollow,
     isBlocking,
     isBlockedBy,
     muteRecord,
@@ -36,6 +39,12 @@ export const getRelationship = async ({
     database.getAcceptedOrRequestedFollow({
       actorId: currentActor.id,
       targetActorId
+    }),
+    // Mirror of the outgoing lookup: the target's follow row pointing at the
+    // current actor. Requested status = a pending incoming follow request.
+    database.getAcceptedOrRequestedFollow({
+      actorId: targetActorId,
+      targetActorId: currentActor.id
     }),
     database.isBlocking({
       actorId: currentActor.id,
@@ -62,6 +71,9 @@ export const getRelationship = async ({
   const isRequested = Boolean(
     follow && follow.status === FollowStatus.enum.Requested
   )
+  const isRequestedBy = Boolean(
+    incomingFollow && incomingFollow.status === FollowStatus.enum.Requested
+  )
 
   return Mastodon.Relationship.parse({
     id: urlToId(targetActorId),
@@ -75,10 +87,13 @@ export const getRelationship = async ({
     blocked_by: isBlockedBy,
     muting: muteRecord !== null,
     muting_notifications: muteRecord?.notifications ?? false,
-    // Mutes are permanent here; no expiry is tracked.
-    muting_expires_at: null,
+    // Timed mutes persist endsAt and getMute already filters expired rows,
+    // so a live mute has either a future expiry or null (indefinite).
+    muting_expires_at: muteRecord ? getMuteExpiresAt(muteRecord) : null,
     requested: isRequested,
-    requested_by: false,
+    requested_by: isRequestedBy,
+    // User-level domain blocks are not implemented yet — they land in
+    // Phase 3.1. Until then this is honestly false for every relationship.
     domain_blocking: false,
     endorsed: endorsement !== null,
     // Report the stored language filter honestly: the saved list when set,
