@@ -177,6 +177,24 @@ describe('GET /api/v1/timelines/tag/:hashtag', () => {
       )
     })
 
+    it('strips a leading # from an additional tag before querying', async () => {
+      // isMastodonHashtagName rejects '#', so parseAdditionalTags must strip the
+      // leading hash; otherwise a `#cycling` additional tag would 400 the request.
+      await requestWithQuery({ 'any[]': ['#cycling'] })
+      expect(mockDatabase.getStatusesByHashtag).toHaveBeenCalledWith(
+        expect.objectContaining({ anyTags: ['cycling'] })
+      )
+    })
+
+    it('accepts the bare-key (no []) additional tag form', async () => {
+      // Mastodon reads Array(params[:any]), so `any=cycling` without the []
+      // suffix must widen the OR-set the same as `any[]=cycling`.
+      await requestWithQuery({ any: 'cycling' })
+      expect(mockDatabase.getStatusesByHashtag).toHaveBeenCalledWith(
+        expect.objectContaining({ anyTags: ['cycling'] })
+      )
+    })
+
     it('caps all[]/none[] at four tags like Mastodon', async () => {
       await requestWithQuery({
         'all[]': ['a1', 'a2', 'a3', 'a4', 'a5'],
