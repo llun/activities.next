@@ -1,0 +1,22 @@
+lib/services/mastodon/getMastodonStatusEdits.test.ts
+  s_f7b91ac6284bd0::t_914642ef91d896 1-105
+lib/services/mastodon/getMastodonStatusEdits.ts
+  s_f7b91ac6284bd0::t_f3fe527349f269 4-5
+  s_f7b91ac6284bd0::t_8819fc31ca2e84 40-44,46-50,60,62-63,66,68-109,114,120,124,129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2166cbe9c4a1fa11051ad382cdb9a79bc141b108",
+  "prompts": {},
+  "sessions": {
+    "s_f7b91ac6284bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e5d29e0-cb70-4516-b716-6108a10b94a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
