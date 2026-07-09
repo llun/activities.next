@@ -146,6 +146,19 @@ describe('GET /api/v1/timelines/tag/:hashtag', () => {
       expect(response.status).toBe(400)
       expect(mockDatabase.getStatusesByHashtag).not.toHaveBeenCalled()
     })
+
+    it('returns 400 for an over-length primary hashtag', async () => {
+      // Params caps the primary at .max(255); it is the only length guard on
+      // this path (the Unicode validator has no upper bound), so an unbounded
+      // name must never reach getStatusesByHashtag.
+      const param = 'a'.repeat(256)
+      const response = await GET(
+        new NextRequest(`https://local.test/api/v1/timelines/tag/${param}`),
+        { params: Promise.resolve({ hashtag: param }) }
+      )
+      expect(response.status).toBe(400)
+      expect(mockDatabase.getStatusesByHashtag).not.toHaveBeenCalled()
+    })
   })
 
   describe('tag filters and scope params', () => {
