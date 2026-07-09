@@ -310,9 +310,15 @@ export const createApplication = async (
           id: dbId,
           client_id: clientId,
           client_secret: clientSecret,
+          // Mastodon 4.3+: 0 means the client secret never expires.
+          client_secret_expires_at: 0,
           name: request.client_name,
-          website: request.website,
-          redirect_uri: redirectUris[0]
+          website: request.website ?? null,
+          scopes: parsedScopes,
+          redirect_uris: redirectUris,
+          // Deprecated in Mastodon 4.3 but still returned: the newline-joined
+          // form of ALL registered URIs (previously only the first).
+          redirect_uri: redirectUris.join('\n')
         }
         return response
       } catch (error) {

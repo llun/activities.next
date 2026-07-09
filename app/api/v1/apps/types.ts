@@ -21,10 +21,15 @@ export const SuccessResponse = z.object({
   type: z.literal('success'),
   id: z.string(),
   name: z.string(),
-  website: z.string().optional(),
+  website: z.string().nullable(),
+  scopes: z.string().array(),
+  // Deprecated in Mastodon 4.3 but still returned: newline-join of all URIs.
   redirect_uri: z.string(),
+  redirect_uris: z.string().array(),
   client_id: z.string(),
-  client_secret: z.string()
+  client_secret: z.string(),
+  // 0 means the client secret never expires (Mastodon 4.3+).
+  client_secret_expires_at: z.literal(0)
 })
 export type SuccessResponse = z.infer<typeof SuccessResponse>
 
