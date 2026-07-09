@@ -53,8 +53,16 @@ export const MediaSchema = z.object({
   file: FileSchema,
   thumbnail: FileSchema.optional(),
   // Mastodon's alt-text limit. The column is `text`, so this cap is API
-  // compatibility, not a storage constraint.
-  description: z.string().max(MAX_MEDIA_DESCRIPTION_LENGTH).optional(),
+  // compatibility, not a storage constraint. Empty/whitespace-only alt text is
+  // normalised to null so the upload path clears the description the same way
+  // the update path (UpdateMediaRequest) does. `.optional()` stays OUTERMOST so
+  // an omitted field remains an optional key (callers construct MediaSchema
+  // values without a description); a present-but-blank value becomes null.
+  description: z
+    .string()
+    .max(MAX_MEDIA_DESCRIPTION_LENGTH)
+    .transform((value) => (value && value.trim() ? value : null))
+    .optional(),
   focus: FocusSchema.optional()
 })
 export type MediaSchema = z.infer<typeof MediaSchema>
