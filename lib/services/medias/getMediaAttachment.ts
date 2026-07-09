@@ -64,7 +64,9 @@ export const getMediaAttachment = (
         : {}),
       ...(media.focus ? { focus: media.focus } : {})
     },
-    description: media.description ?? '',
+    // Mastodon emits null (not '') when no alt text is set; '' from legacy rows
+    // is normalised to null too.
+    description: media.description || null,
     blurhash: null
   })
 }

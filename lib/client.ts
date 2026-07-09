@@ -1465,7 +1465,7 @@ const completeUploadPresignedUrlRequest = async ({
       posterUrl: result.media.preview_url ?? undefined,
       width: result.media.meta.original.width,
       height: result.media.meta.original.height,
-      name: result.media.description
+      name: result.media.description ?? undefined
     }
   }
 }

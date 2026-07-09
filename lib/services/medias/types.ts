@@ -88,7 +88,8 @@ export const MediaStorageSaveFileOutput = z.object({
     small: MediaMeta.optional(),
     focus: z.object({ x: z.number(), y: z.number() }).optional()
   }),
-  description: z.string(),
+  // Alt text. Mastodon serialises "no description" as null, never ''.
+  description: z.string().nullable(),
   // BlurHash for blurred placeholders. We do not compute it yet, so it is always
   // null, but the field is always present to match Mastodon's serializer.
   blurhash: z.string().nullable()

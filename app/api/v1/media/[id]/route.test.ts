@@ -224,7 +224,7 @@ describe('/api/v1/media/[id]', () => {
 
     expect(response.status).toBe(200)
     const data = await response.json()
-    expect(data.description).toBe('')
+    expect(data.description).toBeNull()
   })
 
   it('PUT leaves the description untouched when not provided', async () => {
