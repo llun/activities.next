@@ -177,10 +177,35 @@ describe('GET /api/v1/timelines/tag/:hashtag', () => {
       )
     })
 
-    it('caps each tag mode at four tags like Mastodon', async () => {
+    it('caps all[]/none[] at four tags like Mastodon', async () => {
+      await requestWithQuery({
+        'all[]': ['a1', 'a2', 'a3', 'a4', 'a5'],
+        'none[]': ['n1', 'n2', 'n3', 'n4', 'n5']
+      })
+      expect(mockDatabase.getStatusesByHashtag).toHaveBeenCalledWith(
+        expect.objectContaining({
+          allTags: ['a1', 'a2', 'a3', 'a4'],
+          noneTags: ['n1', 'n2', 'n3', 'n4']
+        })
+      )
+    })
+
+    it('counts the primary hashtag toward the any[] cap (three extra max)', async () => {
+      // Mastodon unions the primary tag into the any[] OR-set before capping
+      // at four (tags_for(Array(tag.name) | Array(params[:any]))), so the
+      // primary counts toward the limit and only three additional names pass.
       await requestWithQuery({ 'any[]': ['a1', 'a2', 'a3', 'a4', 'a5'] })
       expect(mockDatabase.getStatusesByHashtag).toHaveBeenCalledWith(
-        expect.objectContaining({ anyTags: ['a1', 'a2', 'a3', 'a4'] })
+        expect.objectContaining({ anyTags: ['a1', 'a2', 'a3'] })
+      )
+    })
+
+    it('drops the primary hashtag from any[] to avoid double-counting', async () => {
+      // any[]=running on tag `running` is redundant with the primary term, so
+      // the OR-set stays {running, a1, a2, a3} rather than spending a slot on it.
+      await requestWithQuery({ 'any[]': ['running', 'a1', 'a2', 'a3'] })
+      expect(mockDatabase.getStatusesByHashtag).toHaveBeenCalledWith(
+        expect.objectContaining({ anyTags: ['a1', 'a2', 'a3'] })
       )
     })
 
@@ -399,9 +424,16 @@ describe('GET /api/v1/timelines/tag/:hashtag', () => {
       expect(data[0].filtered?.length ?? 0).toBeGreaterThan(0)
     })
 
-    it('emits a rel="prev" Link carrying the tag filters', async () => {
+    // buildLink shares one linkBaseParams between the prev and next Links, so
+    // asserting the prev Link's base params covers the shared param-building
+    // path (the any/all/none loop plus the local/remote/only_media setters).
+    it('emits a rel="prev" Link carrying every tag filter and scope param', async () => {
       const url = new URL('https://local.test/api/v1/timelines/tag/running')
       url.searchParams.append('any[]', 'cycling')
+      url.searchParams.append('all[]', 'fitness')
+      url.searchParams.append('none[]', 'walking')
+      url.searchParams.set('only_media', 'true')
+      url.searchParams.set('local', 'true')
       const response = await GET(new NextRequest(url.toString()), {
         params: Promise.resolve({ hashtag: 'running' })
       })
@@ -413,6 +445,25 @@ describe('GET /api/v1/timelines/tag/:hashtag', () => {
       const prevUrl = new URL(prevPart!.match(/<([^>]+)>/)![1])
       expect(prevUrl.searchParams.get('min_id')).toBe(urlToId(status.id))
       expect(prevUrl.searchParams.getAll('any[]')).toEqual(['cycling'])
+      expect(prevUrl.searchParams.getAll('all[]')).toEqual(['fitness'])
+      expect(prevUrl.searchParams.getAll('none[]')).toEqual(['walking'])
+      expect(prevUrl.searchParams.get('only_media')).toBe('true')
+      expect(prevUrl.searchParams.get('local')).toBe('true')
+    })
+
+    it('carries the remote scope (not local) into the prev Link', async () => {
+      const url = new URL('https://local.test/api/v1/timelines/tag/running')
+      url.searchParams.set('remote', 'true')
+      const response = await GET(new NextRequest(url.toString()), {
+        params: Promise.resolve({ hashtag: 'running' })
+      })
+      const prevPart = response.headers
+        .get('Link')!
+        .split(', ')
+        .find((part) => part.includes('rel="prev"'))
+      const prevUrl = new URL(prevPart!.match(/<([^>]+)>/)![1])
+      expect(prevUrl.searchParams.get('remote')).toBe('true')
+      expect(prevUrl.searchParams.has('local')).toBe(false)
     })
   })
 })

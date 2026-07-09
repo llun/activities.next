@@ -36,8 +36,9 @@ interface RouteParams {
   hashtag: string
 }
 
-// Mastodon caps each of any[]/all[]/none[] at 4 additional tags
-// (HashtagQueryService LIMIT_PER_MODE).
+// Mastodon's HashtagQueryService caps each mode at LIMIT_PER_MODE tags. For
+// all[]/none[] the cap applies to the array on its own; for any[] the primary
+// hashtag is unioned in first (see effectiveAnyTags below), so it counts too.
 const TAGS_PER_MODE_LIMIT = 4
 
 // Collect the repeated `key[]` (and bare `key`) query params as bare hashtag
@@ -97,6 +98,17 @@ export const GET = traceApiRoute(
         return badRequest()
       }
 
+      // `any[]` is special-cased in Mastodon's HashtagQueryService: the primary
+      // hashtag is unioned into the OR-set *before* the LIMIT_PER_MODE cap
+      // (`tags_for(Array(tag.name) | Array(params[:any]))`), so the primary
+      // counts toward the four. Drop the primary and any duplicates, then keep
+      // at most three additional names, so the combined OR-set
+      // `[hashtag, ...effectiveAnyTags]` built by getStatusesByHashtag never
+      // exceeds four. (all[]/none[] stay capped on their own arrays.)
+      const effectiveAnyTags = Array.from(new Set([hashtag, ...anyTags]))
+        .slice(0, TAGS_PER_MODE_LIMIT)
+        .filter((name) => name !== hashtag)
+
       const effectiveLimit = parsedQuery.query.limit
       const { local, remote, onlyMedia, maxStatusId } = parsedQuery.query
       // `min_id` and `since_id` both express a lower-bound cursor; collapse
@@ -125,7 +137,7 @@ export const GET = traceApiRoute(
               onlyMedia,
               local: local && !remote,
               remote: remote && !local,
-              anyTags,
+              anyTags: effectiveAnyTags,
               allTags,
               noneTags
             })
@@ -136,7 +148,7 @@ export const GET = traceApiRoute(
       const linkBaseParams = new URLSearchParams()
       linkBaseParams.set('limit', `${effectiveLimit}`)
       for (const [mode, tags] of [
-        ['any', anyTags],
+        ['any', effectiveAnyTags],
         ['all', allTags],
         ['none', noneTags]
       ] as const) {
