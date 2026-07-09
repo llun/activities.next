@@ -2731,6 +2731,36 @@ describe('StatusDatabase', () => {
         expect(fetched.edits).toHaveLength(0)
       })
 
+      it('records no spurious revision when a createPoll-default ("") summary is cleared', async () => {
+        const pollId = `${emptyActorId}/statuses/poll-default-summary`
+        await database.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: emptyActorId,
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [],
+          text: 'Default summary poll',
+          // No summary -> createPoll default '' (the action would pass null);
+          // clearing it must still be treated as unchanged vs null.
+          choices: ['Alpha', 'Beta'],
+          endAt: Date.now() + 1000
+        })
+
+        await database.updatePoll({
+          statusId: pollId,
+          summary: '',
+          choices: [
+            { title: 'Alpha', totalVotes: 0 },
+            { title: 'Beta', totalVotes: 0 }
+          ]
+        })
+
+        const fetched = (await database.getStatus({
+          statusId: pollId
+        })) as StatusPoll
+        expect(fetched.edits).toHaveLength(0)
+      })
+
       it('snapshots previous poll options into edit history when poll content changes', async () => {
         const pollId = `${emptyActorId}/statuses/poll-history-snapshot`
         await database.createPoll({

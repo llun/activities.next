@@ -247,10 +247,13 @@ export const PUT = traceApiRoute(
 
         if (existingStatus.type === StatusType.enum.Poll) {
           // Poll statuses carry no media, and visibility editing is only
-          // implemented for notes (updateNoteVisibility rejects polls).
+          // implemented for notes (updateNoteVisibility rejects polls). Only a
+          // non-empty media set is a real conflict — many clients send an empty
+          // `media_ids: []`/`media_attributes: []` by default on every edit, and
+          // rejecting those would break ordinary poll edits.
           if (
-            mediaIds !== undefined ||
-            mediaAttributes !== undefined ||
+            (mediaIds !== undefined && mediaIds.length > 0) ||
+            (mediaAttributes !== undefined && mediaAttributes.length > 0) ||
             visibility !== undefined
           ) {
             return apiResponse({

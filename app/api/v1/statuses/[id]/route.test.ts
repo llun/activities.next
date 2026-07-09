@@ -2733,6 +2733,42 @@ describe('GET /api/v1/statuses/[id]', () => {
         expect(response.status).toBe(422)
       }
     )
+
+    it('allows a poll edit that carries an empty media_ids array', async () => {
+      const pollId = `${ACTOR1_ID}/statuses/api-edit-poll-empty-media`
+      await database.createPoll({
+        id: pollId,
+        url: pollId,
+        actorId: ACTOR1_ID,
+        text: 'Poll with an empty media edit',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        choices: ['Yes', 'No'],
+        endAt: Date.now() + 60_000
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(pollId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              // Many clients send an empty media_ids by default; on a poll edit
+              // that must be ignored, not rejected with 422.
+              media_ids: [],
+              poll: { options: ['Yes', 'No'], hide_totals: true }
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(pollId) }) }
+      )
+
+      expect(response.status).toBe(200)
+    })
   })
 
   describe('status delete', () => {

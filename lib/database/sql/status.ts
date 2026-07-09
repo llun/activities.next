@@ -1018,7 +1018,10 @@ export const StatusSQLDatabaseMixin = (
     // (federated vote sync) must not.
     const contentChanged =
       nextText !== data.text ||
-      nextSummary !== data.summary ||
+      // Treat an empty-string summary the same as null: a poll created with the
+      // createPoll default ('') edited with a blank spoiler normalizes to null,
+      // which is not a user-visible change and must not record a revision.
+      (nextSummary || null) !== (data.summary || null) ||
       content.sensitive !== (data.sensitive ?? false) ||
       content.language !== (data.language ?? null) ||
       content.endAt !== data.endAt ||
