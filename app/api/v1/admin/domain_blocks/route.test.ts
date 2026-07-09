@@ -373,4 +373,47 @@ describe('/api/v1/admin/domain_blocks', () => {
     expect(response.status).toBe(200)
     expect(mockDatabase.createDomainBlock).toHaveBeenCalled()
   })
+
+  it('returns 422 for a non-stricter block under a covering wildcard rule', async () => {
+    // The covering wildcard is already suspend; a new sub-domain block that is
+    // only silence is not stricter, so Mastodon 422s with the covering rule
+    // rather than creating a redundant weaker block.
+    mockDatabase.getDomainBlockForDomain.mockResolvedValue({
+      id: 'block-w2',
+      type: 'block',
+      domain: '*.covered.test',
+      severity: 'suspend',
+      rejectMedia: false,
+      rejectReports: false,
+      privateComment: null,
+      publicComment: null,
+      obfuscate: false,
+      source: null,
+      createdAt: 0,
+      updatedAt: 0
+    })
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/admin/domain_blocks', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          Origin: 'https://llun.test'
+        },
+        body: JSON.stringify({
+          domain: 'sub.covered.test',
+          severity: 'silence'
+        })
+      }),
+      { params: Promise.resolve({}) }
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(422)
+    expect(data.existing_domain_block).toMatchObject({
+      domain: '*.covered.test',
+      severity: 'suspend'
+    })
+    expect(mockDatabase.createDomainBlock).not.toHaveBeenCalled()
+  })
 })

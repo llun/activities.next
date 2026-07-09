@@ -9,6 +9,7 @@ import {
   getNote,
   rejectFollow,
   sendAnnounce,
+  sendFlag,
   sendLike,
   sendNote,
   sendUndoLike,
@@ -397,6 +398,61 @@ describe('activities', () => {
 
       // Should not have made any requests
       expect(fetchMock.mock.calls.length).toBe(0)
+    })
+  })
+
+  describe('sendFlag', () => {
+    it('posts a Flag activity to the target actor inbox', async () => {
+      if (!actor1) fail('Actor1 is required')
+      const targetId = 'https://somewhere.test/actors/test1'
+      const statusId = 'https://somewhere.test/actors/test1/statuses/1'
+
+      const result = await sendFlag({
+        uri: `${actor1.id}#reports/report-1`,
+        currentActor: actor1,
+        targetActorId: targetId,
+        objects: [targetId, statusId],
+        content: 'spam report',
+        signingActor: actor1
+      })
+
+      const flagCall = fetchMock.mock.calls.find((call) => {
+        if (!call[1]?.body) return false
+        return JSON.parse(call[1].body as string).type === 'Flag'
+      })
+      expect(flagCall?.[0]).toEqual('https://somewhere.test/actors/test1/inbox')
+      const body = JSON.parse(flagCall![1]!.body as string)
+      expect(body).toMatchObject({
+        id: `${actor1.id}#reports/report-1`,
+        type: 'Flag',
+        actor: actor1.id,
+        object: [targetId, statusId],
+        content: 'spam report'
+      })
+      expect(result.uri).toBe(`${actor1.id}#reports/report-1`)
+    })
+
+    it('falls back to {actor}/inbox when the target person cannot be resolved', async () => {
+      if (!actor1) fail('Actor1 is required')
+      // A target host that mockRequests answers 404 for: getActorPerson returns
+      // null, so sendFlag posts to the `${targetActorId}/inbox` fallback.
+      const targetId = 'https://notfound.test/users/nobody'
+      fetchMock.mockResponseOnce('', { status: 404 })
+
+      await sendFlag({
+        uri: `${actor1.id}#reports/report-2`,
+        currentActor: actor1,
+        targetActorId: targetId,
+        objects: targetId,
+        content: '',
+        signingActor: actor1
+      })
+
+      const flagCall = fetchMock.mock.calls.find((call) => {
+        if (!call[1]?.body) return false
+        return JSON.parse(call[1].body as string).type === 'Flag'
+      })
+      expect(flagCall?.[0]).toEqual(`${targetId}/inbox`)
     })
   })
 

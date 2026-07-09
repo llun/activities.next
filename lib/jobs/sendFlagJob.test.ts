@@ -106,4 +106,18 @@ describe('sendFlagJob', () => {
 
     expect(sendFlag).not.toHaveBeenCalled()
   })
+
+  it('throws when sendFlag reports failure so the queue retries', async () => {
+    vi.mocked(sendFlag).mockResolvedValue({ ok: false, uri: 'flag-uri' })
+    const database = createDatabase()
+
+    await expect(
+      runJob(database, {
+        reportId: 'report-1',
+        targetActorId: TARGET,
+        statusIds: [],
+        content: ''
+      })
+    ).rejects.toThrow('Failed to send Flag')
+  })
 })
