@@ -8,6 +8,7 @@ import {
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { AuthenticatedApiHandle } from '@/lib/services/guards/types'
 import { deleteMediaFile, saveMediaThumbnail } from '@/lib/services/medias'
+import { MAX_MEDIA_DESCRIPTION_LENGTH } from '@/lib/services/medias/constants'
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { getMediaAttachment } from '@/lib/services/medias/getMediaAttachment'
 import { FileSchema, FocusSchema } from '@/lib/services/medias/types'
@@ -41,9 +42,10 @@ interface Params {
   id: string
 }
 
-// `description` is stored in a varchar(255) column; cap it to avoid a runtime
-// DB error. Empty/whitespace-only (and explicit null) descriptions are
-// normalised to null so clients can clear alt text by sending "" or null.
+// `description` is capped at Mastodon's 1500-character alt-text limit (the
+// column is `text`, so the cap is API compatibility, not a storage limit).
+// Empty/whitespace-only (and explicit null) descriptions are normalised to
+// null so clients can clear alt text by sending "" or null.
 // `focus` is "x,y" (each axis in [-1.0, 1.0]); a malformed value fails parsing
 // and yields a 422. Both fields are optional; field-level presence is detected
 // from the raw payload so a partial update never clears the field the client
@@ -51,7 +53,7 @@ interface Params {
 const UpdateMediaRequest = z.object({
   description: z
     .string()
-    .max(255)
+    .max(MAX_MEDIA_DESCRIPTION_LENGTH)
     .nullable()
     .optional()
     .transform((value) => (value && value.trim() ? value : null)),

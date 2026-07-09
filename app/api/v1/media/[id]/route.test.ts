@@ -239,6 +239,41 @@ describe('/api/v1/media/[id]', () => {
     expect(data.description).toBe('before')
   })
 
+  it("PUT accepts alt text up to Mastodon's 1500-character limit", async () => {
+    const id = await createMediaFor(ACTOR1_ID, 'put-long-description')
+    const longDescription = 'a'.repeat(1500)
+
+    const response = await PUT(
+      putRequest(id, { description: longDescription }),
+      {
+        params: Promise.resolve({ id })
+      }
+    )
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data.description).toBe(longDescription)
+
+    const stored = await database.getMediaByIdForAccount({
+      mediaId: id,
+      accountId: (await database.getActorFromId({ id: ACTOR1_ID }))!.account!.id
+    })
+    expect(stored?.description).toBe(longDescription)
+  })
+
+  it('PUT returns 422 when alt text exceeds 1500 characters', async () => {
+    const id = await createMediaFor(ACTOR1_ID, 'put-description-too-long')
+
+    const response = await PUT(
+      putRequest(id, { description: 'a'.repeat(1501) }),
+      {
+        params: Promise.resolve({ id })
+      }
+    )
+
+    expect(response.status).toBe(422)
+  })
+
   it('PUT returns 404 for media owned by another account', async () => {
     const id = await createMediaFor(ACTOR2_ID, 'put-foreign')
 

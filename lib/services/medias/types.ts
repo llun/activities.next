@@ -3,7 +3,11 @@ import { z } from 'zod'
 import { getConfig } from '@/lib/config'
 import { Actor } from '@/lib/types/domain/actor'
 
-import { ACCEPTED_FILE_TYPES, MAX_FILE_SIZE } from './constants'
+import {
+  ACCEPTED_FILE_TYPES,
+  MAX_FILE_SIZE,
+  MAX_MEDIA_DESCRIPTION_LENGTH
+} from './constants'
 
 const FILE_TYPE_ERROR_MESSAGE = `Only ${ACCEPTED_FILE_TYPES.join(',')} are accepted`
 const FILE_SIZE_ERROR_MESSAGE = 'File is larger than the limit.'
@@ -48,7 +52,9 @@ export type FocusSchema = z.infer<typeof FocusSchema>
 export const MediaSchema = z.object({
   file: FileSchema,
   thumbnail: FileSchema.optional(),
-  description: z.string().optional(),
+  // Mastodon's alt-text limit. The column is `text`, so this cap is API
+  // compatibility, not a storage constraint.
+  description: z.string().max(MAX_MEDIA_DESCRIPTION_LENGTH).optional(),
   focus: FocusSchema.optional()
 })
 export type MediaSchema = z.infer<typeof MediaSchema>
