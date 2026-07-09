@@ -2698,6 +2698,39 @@ describe('StatusDatabase', () => {
         ])
       })
 
+      it('normalizes an empty summary to null without a spurious edit revision', async () => {
+        const pollId = `${emptyActorId}/statuses/poll-empty-summary`
+        await database.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: emptyActorId,
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [],
+          text: 'No CW poll',
+          summary: null,
+          choices: ['Alpha', 'Beta'],
+          endAt: Date.now() + 1000
+        })
+
+        // Editing a null-CW poll with the conventional empty spoiler keeps the
+        // summary null (not ''), matching createPoll's `|| null` normalization,
+        // so nothing user-visible changes and no edit revision is recorded.
+        await database.updatePoll({
+          statusId: pollId,
+          summary: '',
+          choices: [
+            { title: 'Alpha', totalVotes: 0 },
+            { title: 'Beta', totalVotes: 0 }
+          ]
+        })
+
+        const fetched = (await database.getStatus({
+          statusId: pollId
+        })) as StatusPoll
+        expect(fetched.summary ?? null).toBeNull()
+        expect(fetched.edits).toHaveLength(0)
+      })
+
       it('snapshots previous poll options into edit history when poll content changes', async () => {
         const pollId = `${emptyActorId}/statuses/poll-history-snapshot`
         await database.createPoll({

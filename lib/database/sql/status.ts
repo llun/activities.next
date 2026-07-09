@@ -987,7 +987,12 @@ export const StatusSQLDatabaseMixin = (
     const currentTime = new Date()
     const data = getCompatibleJSON(existingStatus.content)
     const nextText = text ?? data.text
-    const nextSummary = summary ?? data.summary
+    // undefined = keep the existing summary; a provided value (including an
+    // empty/whitespace string) normalizes to null when blank, matching
+    // createPoll's `summary?.trim() || null` so a cleared CW never persists as
+    // '' (which would flip contentChanged and record a spurious edit revision).
+    const nextSummary =
+      summary === undefined ? data.summary : summary?.trim() || null
     const content = {
       url: data.url,
       text: nextText,

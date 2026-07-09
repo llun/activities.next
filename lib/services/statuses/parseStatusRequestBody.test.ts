@@ -156,6 +156,27 @@ describe('parseStatusRequestBody', () => {
     })
   })
 
+  it('applies aligned media_attributes fields independently (description without focus)', async () => {
+    // 2 ids + 2 descriptions (aligned -> apply) but only 1 focus (ambiguous ->
+    // skip): the description and focus alignment checks are independent, so the
+    // aligned descriptions must still apply even though focus does not.
+    const params = new URLSearchParams()
+    params.append('media_attributes[][id]', '10')
+    params.append('media_attributes[][description]', 'alt A')
+    params.append('media_attributes[][focus]', '0,0')
+    params.append('media_attributes[][id]', '11')
+    params.append('media_attributes[][description]', 'alt B')
+    const body = await parseStatusRequestBody(
+      createRequest('application/x-www-form-urlencoded', params.toString())
+    )
+    expect(body).toEqual({
+      media_attributes: [
+        { id: '10', description: 'alt A' },
+        { id: '11', description: 'alt B' }
+      ]
+    })
+  })
+
   it('omits media_attributes when a urlencoded body sends none', async () => {
     const body = await parseStatusRequestBody(
       createRequest(

@@ -2693,36 +2693,46 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(response.status).toBe(422)
     })
 
-    it('rejects media params on a poll edit with 422', async () => {
-      const pollId = `${ACTOR1_ID}/statuses/api-edit-poll-no-media`
-      await database.createPoll({
-        id: pollId,
-        url: pollId,
-        actorId: ACTOR1_ID,
-        text: 'Poll cannot gain media',
-        to: [ACTIVITY_STREAM_PUBLIC],
-        cc: [],
-        choices: ['Yes', 'No'],
-        endAt: Date.now() + 60_000
-      })
+    it.each([
+      { param: 'media_ids', body: { media_ids: ['1'] } },
+      {
+        param: 'media_attributes',
+        body: { media_attributes: [{ id: '1', description: 'x' }] }
+      },
+      { param: 'visibility', body: { visibility: 'private' } }
+    ])(
+      'rejects a poll edit that also changes $param with 422',
+      async ({ param, body }) => {
+        const pollId = `${ACTOR1_ID}/statuses/api-edit-poll-reject-${param}`
+        await database.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: ACTOR1_ID,
+          text: 'Poll cannot change media or visibility',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          choices: ['Yes', 'No'],
+          endAt: Date.now() + 60_000
+        })
 
-      const response = await PUT(
-        new NextRequest(
-          `https://llun.test/api/v1/statuses/${urlToId(pollId)}`,
-          {
-            method: 'PUT',
-            body: JSON.stringify({ media_ids: ['1'] }),
-            headers: {
-              'Content-Type': 'application/json',
-              Origin: 'https://llun.test'
+        const response = await PUT(
+          new NextRequest(
+            `https://llun.test/api/v1/statuses/${urlToId(pollId)}`,
+            {
+              method: 'PUT',
+              body: JSON.stringify(body),
+              headers: {
+                'Content-Type': 'application/json',
+                Origin: 'https://llun.test'
+              }
             }
-          }
-        ),
-        { params: Promise.resolve({ id: urlToId(pollId) }) }
-      )
+          ),
+          { params: Promise.resolve({ id: urlToId(pollId) }) }
+        )
 
-      expect(response.status).toBe(422)
-    })
+        expect(response.status).toBe(422)
+      }
+    )
   })
 
   describe('status delete', () => {
