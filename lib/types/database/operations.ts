@@ -94,6 +94,9 @@ export type UpdateActorParams = {
   // Mastodon `bot`/`discoverable` flags and `source.*` posting defaults.
   bot?: boolean
   discoverable?: boolean
+  indexable?: boolean
+  hideCollections?: boolean
+  attributionDomains?: string[]
   defaultPrivacy?: 'public' | 'unlisted' | 'private' | 'direct'
   defaultSensitive?: boolean
   defaultLanguage?: string

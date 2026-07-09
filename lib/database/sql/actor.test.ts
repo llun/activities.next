@@ -908,6 +908,32 @@ describe('ActorDatabase', () => {
         expect(mastodonActor?.bot).toBeTrue()
       })
 
+      it.each([
+        {
+          description:
+            'persists true flags and attribution domains in settings',
+          update: {
+            indexable: true,
+            hideCollections: true,
+            attributionDomains: ['blog.example.com', 'news.example.com']
+          }
+        },
+        {
+          description: 'keeps persisted false flags (not treated as unset)',
+          update: { indexable: false, hideCollections: false }
+        }
+      ])('$description', async ({ update }) => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `modern-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+
+        await database.updateActor({ actorId, ...update })
+
+        const settings = await database.getActorSettings({ actorId })
+        expect(settings).toMatchObject(update)
+      })
+
       it('preserves other settings updates passed alongside an append', async () => {
         const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
         await database.updateActor({
