@@ -139,6 +139,35 @@ describe('directory and peers', () => {
         expect(usernames).toEqual(['actor_id', 'alice'])
       })
     })
+
+    it('excludes internal local system actors (no account) when local is false', async () => {
+      await withFreshDatabase(async (database) => {
+        await createLocalAccount(database, 'alice')
+        // A local-domain actor with no backing account stands in for an
+        // internal system actor such as the headless federation signer
+        // (accountId null on the local domain). It must never surface in the
+        // public directory, even in the all-profiles (local=false) view.
+        const systemActorId = testUserId('__system__')
+        await database.createActor({
+          actorId: systemActorId,
+          username: '__system__',
+          domain: TEST_DOMAIN,
+          followersUrl: `${systemActorId}/followers`,
+          inboxUrl: `${systemActorId}/inbox`,
+          sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
+          publicKey: 'system-public-key',
+          createdAt: Date.now()
+        })
+
+        const actors = await database.getLocalMastodonActors({
+          localDomain: TEST_DOMAIN,
+          local: false
+        })
+        const usernames = actors.map((actor) => actor.username)
+        expect(usernames).toContain('alice')
+        expect(usernames).not.toContain('__system__')
+      })
+    })
   })
 
   describe('getInstancePeers', () => {

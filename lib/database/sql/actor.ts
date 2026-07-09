@@ -781,6 +781,16 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       query
         .where('actors.domain', normalizedDomain)
         .whereNotNull('actors.accountId')
+    } else {
+      // Even the all-profiles view must not expose internal system actors —
+      // the headless federation signer and any other local actor with no
+      // backing account (accountId null on the local domain). Remote actors
+      // (foreign domain) and local account-backed actors are still listed.
+      query.whereNot(function () {
+        this.where('actors.domain', normalizedDomain).whereNull(
+          'actors.accountId'
+        )
+      })
     }
 
     if (order === 'active') {
