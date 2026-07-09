@@ -241,7 +241,7 @@ export const getInstanceAdminActorIdFromAccounts = async (
     .where('accounts.role', 'admin')
     .whereNull('actors.deletionStatus')
     .orderBy('actors.createdAt', 'asc')
-    .first<{ id: string } | undefined>('actors.id as id')
+    .first<{ id: string }>('actors.id as id')
 
   return row?.id ?? null
 }

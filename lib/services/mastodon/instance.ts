@@ -10,12 +10,15 @@ export interface InstanceStats {
   activeMonth: number
 }
 
-export const EMPTY_INSTANCE_STATS: InstanceStats = {
+// Frozen: getInstanceStats returns this shared constant by reference on the
+// no-database / query-failure paths, so a caller mutating the result must not
+// be able to corrupt the singleton.
+export const EMPTY_INSTANCE_STATS: Readonly<InstanceStats> = Object.freeze({
   userCount: 0,
   statusCount: 0,
   domainCount: 0,
   activeMonth: 0
-}
+})
 
 // Normalizes VAPID-style `mailto:` prefixes and `Name <address>` sender
 // formats down to the bare address.
