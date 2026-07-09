@@ -23,7 +23,8 @@ describe('parseTimelineQuery', () => {
         minStatusId: null,
         sinceStatusId: null,
         local: false,
-        remote: false
+        remote: false,
+        onlyMedia: false
       }
     })
   })
@@ -44,7 +45,8 @@ describe('parseTimelineQuery', () => {
         minStatusId: realStatusUrl,
         sinceStatusId: realStatusUrl,
         local: false,
-        remote: false
+        remote: false,
+        onlyMedia: false
       }
     })
   })
@@ -61,9 +63,29 @@ describe('parseTimelineQuery', () => {
         minStatusId: null,
         sinceStatusId: null,
         local: false,
-        remote: false
+        remote: false,
+        onlyMedia: false
       }
     })
+  })
+
+  it.each([
+    { description: 'only_media=true sets the media-only flag', value: 'true' },
+    { description: 'only_media=1 sets the media-only flag', value: '1' }
+  ])('$description', ({ value }) => {
+    const result = parseTimelineQuery(params({ only_media: value }))
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.query.onlyMedia).toBe(true)
+    }
+  })
+
+  it('treats a non-truthy only_media value as false', () => {
+    const result = parseTimelineQuery(params({ only_media: 'false' }))
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.query.onlyMedia).toBe(false)
+    }
   })
 
   it.each([
