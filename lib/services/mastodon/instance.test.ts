@@ -26,7 +26,8 @@ describe('getInstanceContactEmail', () => {
       expected: 'admin@llun.test'
     },
     {
-      description: 'falls back to the vapid contact and strips the mailto prefix',
+      description:
+        'falls back to the vapid contact and strips the mailto prefix',
       config: {
         push: {
           vapidPublicKey: 'pub',

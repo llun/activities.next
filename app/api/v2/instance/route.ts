@@ -134,9 +134,11 @@ export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
         email: getInstanceContactEmail(config),
         account: contactAccount
       },
-      rules: rules.map(
-        (rule): Rule => ({ id: rule.id, text: rule.text, hint: rule.hint })
-      )
+      rules: rules.map((rule): Rule => ({
+        id: rule.id,
+        text: rule.text,
+        hint: rule.hint
+      }))
     }
   })
 })

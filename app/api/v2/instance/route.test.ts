@@ -50,9 +50,7 @@ describe('GET /api/v2/instance', () => {
   beforeEach(async () => {
     const config =
       await vi.importMock<typeof import('@/lib/config')>('@/lib/config')
-    vi.mocked(config.getConfig).mockReturnValue(
-      baseConfig as unknown as Config
-    )
+    vi.mocked(config.getConfig).mockReturnValue(baseConfig as unknown as Config)
   })
 
   it('serves the instance payload for an unauthenticated request', async () => {
