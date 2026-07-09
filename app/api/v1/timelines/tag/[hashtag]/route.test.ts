@@ -16,6 +16,9 @@ const mockDatabase = {
 const mockCurrentActor = {
   id: 'https://local.test/users/me'
 }
+// Overridable per test so the anonymous (signed-out) path can be exercised.
+let currentActorForRequest: typeof mockCurrentActor | undefined =
+  mockCurrentActor
 
 vi.mock('@/lib/services/guards/OAuthGuard', () => ({
   OptionalOAuthGuard:
@@ -33,7 +36,7 @@ vi.mock('@/lib/services/guards/OAuthGuard', () => ({
     (req: NextRequest, context: { params: Promise<{ hashtag: string }> }) =>
       handle(req, {
         database: mockDatabase,
-        currentActor: mockCurrentActor,
+        currentActor: currentActorForRequest,
         params: context.params
       }),
   corsErrorResponse: vi.fn()
@@ -53,6 +56,7 @@ const status = {
 describe('GET /api/v1/timelines/tag/:hashtag', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    currentActorForRequest = mockCurrentActor
     mockDatabase.getBlockRelations.mockResolvedValue([])
     mockDatabase.getMuteRelations.mockResolvedValue([])
     mockDatabase.getStatusesByHashtag.mockResolvedValue([status])
@@ -207,12 +211,15 @@ describe('GET /api/v1/timelines/tag/:hashtag', () => {
       )
     })
 
-    it('passes the decoded min_id cursor to the hashtag query', async () => {
-      await requestWithQuery({ min_id: urlToId(status.id) })
-      expect(mockDatabase.getStatusesByHashtag).toHaveBeenCalledWith(
-        expect.objectContaining({ minStatusId: status.id })
-      )
-    })
+    it.each([{ param: 'min_id' }, { param: 'since_id' }])(
+      'passes the decoded $param cursor as minStatusId to the hashtag query',
+      async ({ param }) => {
+        await requestWithQuery({ [param]: urlToId(status.id) })
+        expect(mockDatabase.getStatusesByHashtag).toHaveBeenCalledWith(
+          expect.objectContaining({ minStatusId: status.id })
+        )
+      }
+    )
   })
 
   describe('keyword filters and prev Link', () => {
@@ -225,6 +232,158 @@ describe('GET /api/v1/timelines/tag/:hashtag', () => {
         actorId: mockCurrentActor.id,
         context: 'public'
       })
+    })
+
+    it('drops a status matched by a hide keyword filter before serializing', async () => {
+      const spoilerStatus = {
+        id: 'https://local.test/users/alice/statuses/spoiler',
+        actorId: 'https://local.test/users/alice',
+        type: StatusType.enum.Note,
+        text: 'major blockword spoiler',
+        summary: null
+      } as unknown as Status
+      mockDatabase.getStatusesByHashtag.mockResolvedValue([spoilerStatus])
+      mockDatabase.getActiveFiltersForActor.mockResolvedValue([
+        {
+          filter: {
+            id: 'f-hide',
+            actorId: mockCurrentActor.id,
+            title: 'Spoilers',
+            context: ['public'],
+            filterAction: 'hide',
+            expiresAt: null,
+            createdAt: 0,
+            updatedAt: 0
+          },
+          keywords: [
+            {
+              id: 'f-hide:kw',
+              filterId: 'f-hide',
+              keyword: 'blockword',
+              wholeWord: false,
+              createdAt: 0,
+              updatedAt: 0
+            }
+          ],
+          statuses: []
+        }
+      ])
+
+      await GET(
+        new NextRequest('https://local.test/api/v1/timelines/tag/running'),
+        { params: Promise.resolve({ hashtag: 'running' }) }
+      )
+
+      // getFilteredStatusPage drops the hide match before serialization, so the
+      // Mastodon serializer receives an empty list (not the leaked statuses).
+      expect(mockGetMastodonStatuses).toHaveBeenCalledWith(
+        mockDatabase,
+        [],
+        mockCurrentActor.id
+      )
+    })
+
+    it('applies instance-wide server hide filters for signed-out viewers', async () => {
+      currentActorForRequest = undefined
+      const serverBlocked = {
+        id: 'https://local.test/users/alice/statuses/server-blocked',
+        actorId: 'https://local.test/users/alice',
+        type: StatusType.enum.Note,
+        text: 'serverblock content',
+        summary: null
+      } as unknown as Status
+      mockDatabase.getStatusesByHashtag.mockResolvedValue([serverBlocked])
+      mockDatabase.getActiveServerFilters.mockResolvedValue([
+        {
+          filter: {
+            id: 'sf-hide',
+            title: 'Server hide',
+            context: ['public'],
+            filterAction: 'hide',
+            expiresAt: null,
+            createdAt: 0,
+            updatedAt: 0
+          },
+          keywords: [
+            {
+              id: 'sf-hide:kw',
+              filterId: 'sf-hide',
+              keyword: 'serverblock',
+              wholeWord: false,
+              createdAt: 0,
+              updatedAt: 0
+            }
+          ]
+        }
+      ])
+
+      await GET(
+        new NextRequest('https://local.test/api/v1/timelines/tag/running'),
+        { params: Promise.resolve({ hashtag: 'running' }) }
+      )
+
+      // Anonymous: per-actor filters are skipped (no actor), but instance-wide
+      // server filters still load and drop the matching status.
+      expect(mockDatabase.getActiveFiltersForActor).not.toHaveBeenCalled()
+      expect(mockDatabase.getActiveServerFilters).toHaveBeenCalledWith({
+        context: 'public'
+      })
+      expect(mockGetMastodonStatuses).toHaveBeenCalledWith(
+        mockDatabase,
+        [],
+        undefined
+      )
+    })
+
+    it('annotates a warn-filtered status via the response filtered field', async () => {
+      const warnStatus = {
+        id: 'https://local.test/users/alice/statuses/warn',
+        actorId: 'https://local.test/users/alice',
+        type: StatusType.enum.Note,
+        text: 'contains warnword here',
+        summary: null
+      } as unknown as Status
+      mockDatabase.getStatusesByHashtag.mockResolvedValue([warnStatus])
+      // annotateMastodonStatusesWithFilters pairs by status id, so the mock
+      // Mastodon status must carry the domain status's id.
+      mockGetMastodonStatuses.mockResolvedValue([
+        { id: urlToId(warnStatus.id) }
+      ])
+      mockDatabase.getActiveFiltersForActor.mockResolvedValue([
+        {
+          filter: {
+            id: 'f-warn',
+            actorId: mockCurrentActor.id,
+            title: 'Warn',
+            context: ['public'],
+            filterAction: 'warn',
+            expiresAt: null,
+            createdAt: 0,
+            updatedAt: 0
+          },
+          keywords: [
+            {
+              id: 'f-warn:kw',
+              filterId: 'f-warn',
+              keyword: 'warnword',
+              wholeWord: false,
+              createdAt: 0,
+              updatedAt: 0
+            }
+          ],
+          statuses: []
+        }
+      ])
+
+      const response = await GET(
+        new NextRequest('https://local.test/api/v1/timelines/tag/running'),
+        { params: Promise.resolve({ hashtag: 'running' }) }
+      )
+      const data = await response.json()
+      // Warn matches are kept but annotated: the response uses
+      // annotateMastodonStatusesWithFilters, not the raw serialized statuses.
+      expect(data).toHaveLength(1)
+      expect(data[0].filtered?.length ?? 0).toBeGreaterThan(0)
     })
 
     it('emits a rel="prev" Link carrying the tag filters', async () => {

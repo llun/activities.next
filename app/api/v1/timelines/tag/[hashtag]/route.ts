@@ -107,9 +107,12 @@ export const GET = traceApiRoute(
           actorId: currentActor?.id,
           maxStatusId,
           limit: effectiveLimit,
-          // Hashtag pages use the public keyword-filter context, mirroring the
-          // public timeline: hide-filters drop rows, warn-filters annotate.
-          filterContext: currentActor ? 'public' : undefined,
+          // Hashtag pages use the public keyword-filter context: hide-filters
+          // drop rows, warn-filters annotate. Applied unconditionally so
+          // instance-wide server filters reach signed-out viewers too
+          // (getActiveFilters returns only server filters when actorId is
+          // undefined), per REVIEW.md's cross-view filtering invariant.
+          filterContext: 'public',
           fetchBatch: ({ maxStatusId: cursor, limit }) =>
             database.getStatusesByHashtag({
               hashtag,

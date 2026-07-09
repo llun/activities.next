@@ -112,7 +112,11 @@ export const GET = traceApiRoute(
           actorId: currentActor?.id,
           maxStatusId,
           limit: pageLimit,
-          filterContext: currentActor ? 'public' : undefined,
+          // Applied unconditionally so instance-wide server filters reach
+          // signed-out viewers too (getActiveFilters returns only server
+          // filters when actorId is undefined), per REVIEW.md's cross-view
+          // filtering invariant — matching the anon status detail/context views.
+          filterContext: 'public',
           fetchBatch
         })
       const mastodonStatuses = await getMastodonStatuses(
