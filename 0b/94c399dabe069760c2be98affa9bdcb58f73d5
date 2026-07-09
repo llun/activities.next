@@ -1,0 +1,27 @@
+lib/jobs/sendFlagJob.test.ts
+  s_f7b91ac6284bd0::t_b6ca549d39aa16 109-122
+lib/activities/index.test.ts
+  s_f7b91ac6284bd0::t_f32d8e060c3fce 404-431,433-458
+  s_f7b91ac6284bd0::t_d5395b3db5b6cc 12
+  s_f7b91ac6284bd0::t_11b83c975e2503 432
+lib/components/filters/FilterEditor.test.tsx
+  s_f7b91ac6284bd0::t_b29ce9ebc0971c 1-44
+app/api/v1/admin/domain_blocks/route.test.ts
+  s_f7b91ac6284bd0::t_50e92ee56dd4be 376-418
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0b94c399dabe069760c2be98affa9bdcb58f73d5",
+  "prompts": {},
+  "sessions": {
+    "s_f7b91ac6284bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e5d29e0-cb70-4516-b716-6108a10b94a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
