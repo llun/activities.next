@@ -152,6 +152,46 @@ describe('actors.lastStatusAt maintenance', () => {
     })
   })
 
+  it('recomputes each affected actor independently when a cross-actor reply subtree is deleted', async () => {
+    await withDatabase(async (database) => {
+      const aliceId = await createLocalActor(database, 'alice')
+      const bobId = await createLocalActor(database, 'bob')
+
+      // alice: an old standalone post (survives) + a newer parent (deleted).
+      await createNoteAt(database, aliceId, 'p1', at('2026-03-01T10:00:00Z'))
+      const parent = await createNoteAt(
+        database,
+        aliceId,
+        'parent',
+        at('2026-03-10T10:00:00Z')
+      )
+      // bob: an old standalone post (survives) + a newer reply to the parent
+      // (deleted along with the parent subtree).
+      await createNoteAt(database, bobId, 'r2', at('2026-03-04T10:00:00Z'))
+      await database.createNote({
+        id: `${bobId}/statuses/r1`,
+        url: `${bobId}/statuses/r1`,
+        actorId: bobId,
+        text: 'reply',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        reply: parent.id,
+        createdAt: at('2026-03-09T10:00:00Z')
+      })
+
+      expect(await lastStatusDate(database, aliceId)).toBe('2026-03-10')
+      expect(await lastStatusDate(database, bobId)).toBe('2026-03-09')
+
+      // Delete the parent with no actorId so the whole cross-actor reply subtree
+      // (alice's parent + bob's reply) is removed in one delete.
+      await database.deleteStatus({ statusId: parent.id })
+
+      // Each actor is recomputed to its own remaining maximum, not a shared value.
+      expect(await lastStatusDate(database, aliceId)).toBe('2026-03-01')
+      expect(await lastStatusDate(database, bobId)).toBe('2026-03-04')
+    })
+  })
+
   it('clears it to null when the last remaining status is deleted', async () => {
     await withDatabase(async (database, instance) => {
       const actorId = await createLocalActor(database, 'alice')

@@ -1784,6 +1784,15 @@ export const StatusSQLDatabaseMixin = (
       uniqueActorIds,
       getWhereInBatchSize(trx)
     )) {
+      // Lock the affected actor rows before recomputing (no-op on SQLite, which
+      // serializes writers; matches the pinStatus precedent). This recompute is
+      // an unconditional overwrite, so without the lock a concurrent create — whose
+      // guarded lastStatusAt bump holds the same row lock until it commits — could,
+      // under PostgreSQL READ COMMITTED, let this statement's stale snapshot
+      // clobber the just-committed newer value with an older MAX (or NULL). Taking
+      // the lock first serializes the two and forces the following UPDATE to take a
+      // fresh snapshot that already sees the new status.
+      await trx('actors').whereIn('id', actorIdChunk).select('id').forUpdate()
       await trx('actors')
         .whereIn('id', actorIdChunk)
         .update({
