@@ -432,14 +432,19 @@ describe('activities', () => {
       expect(result.uri).toBe(`${actor1.id}#reports/report-1`)
     })
 
-    it('falls back to {actor}/inbox when the target person cannot be resolved', async () => {
+    it.each([
+      { description: 'is ok on a 202 Accepted inbox response', status: 202 },
+      { description: 'is not ok on a non-202 inbox response', status: 200 }
+    ])('falls back to {actor}/inbox and $description', async ({ status }) => {
       if (!actor1) fail('Actor1 is required')
-      // A target host that mockRequests answers 404 for: getActorPerson returns
-      // null, so sendFlag posts to the `${targetActorId}/inbox` fallback.
       const targetId = 'https://notfound.test/users/nobody'
+      // 1st fetch: the getActorPerson lookup fails, so sendFlag posts to the
+      // `${targetActorId}/inbox` fallback. 2nd fetch: that inbox POST, whose
+      // status decides `ok` (Mastodon answers 202 Accepted).
       fetchMock.mockResponseOnce('', { status: 404 })
+      fetchMock.mockResponseOnce('', { status })
 
-      await sendFlag({
+      const result = await sendFlag({
         uri: `${actor1.id}#reports/report-2`,
         currentActor: actor1,
         targetActorId: targetId,
@@ -453,6 +458,7 @@ describe('activities', () => {
         return JSON.parse(call[1].body as string).type === 'Flag'
       })
       expect(flagCall?.[0]).toEqual(`${targetId}/inbox`)
+      expect(result.ok).toBe(status === 202)
     })
   })
 

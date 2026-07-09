@@ -95,4 +95,20 @@ describe('POST /api/v1/polls/[id]/votes', () => {
     expect(response.status).toBe(422)
     expect(mockDatabase.recordPollVotes).not.toHaveBeenCalled()
   })
+
+  it.each([
+    { description: 'an empty string choice', choice: '' },
+    { description: 'a whitespace-only choice', choice: ' ' }
+  ])(
+    'rejects $description instead of voting for option 0',
+    async ({ choice }) => {
+      // Number('') === 0, so plain coercion would silently record a vote for
+      // the first option. Blank input must 422, matching the form-body path.
+      const response = await POST(createRequest({ choices: [choice] }), {
+        params: Promise.resolve({ id: urlToId(POLL_ID) })
+      })
+      expect(response.status).toBe(422)
+      expect(mockDatabase.recordPollVotes).not.toHaveBeenCalled()
+    }
+  )
 })
