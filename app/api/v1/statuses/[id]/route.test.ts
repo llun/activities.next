@@ -6,6 +6,7 @@ import { encodeFavouritedByCursor } from '@/lib/database/sql/utils/favouritedByC
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { MAX_PINNED_STATUSES } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { deleteMediaFile } from '@/lib/services/medias'
 import { getQueue } from '@/lib/services/queue'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
@@ -27,7 +28,7 @@ import { POST as muteStatus } from './mute/route'
 import { POST as pinStatus } from './pin/route'
 import { POST as reblogStatus } from './reblog/route'
 import { GET as getStatusRebloggedBy } from './reblogged_by/route'
-import { GET, PUT } from './route'
+import { DELETE, GET, PUT } from './route'
 import { GET as getStatusSource } from './source/route'
 import { POST as unbookmarkStatus } from './unbookmark/route'
 import { POST as unfavouriteStatus } from './unfavourite/route'
@@ -63,7 +64,13 @@ vi.mock('@/lib/services/queue', async () => ({
 
 vi.mock('@/lib/activities', async () => ({
   sendLike: vi.fn().mockResolvedValue(undefined),
-  sendUndoLike: vi.fn().mockResolvedValue(undefined)
+  sendUndoLike: vi.fn().mockResolvedValue(undefined),
+  deleteStatus: vi.fn().mockResolvedValue(undefined)
+}))
+
+vi.mock('@/lib/services/medias', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/services/medias')>()),
+  deleteMediaFile: vi.fn().mockResolvedValue(true)
 }))
 
 vi.mock('@/lib/config', async () => ({
@@ -2251,6 +2258,110 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(updatedStatus?.cc).toEqual([`${ACTOR1_ID}/followers`])
       expect(getQueue().publish).not.toHaveBeenCalled()
     })
+  })
+
+  describe('status delete', () => {
+    const createNoteWithMedia = async (suffix: string) => {
+      const statusId = `${ACTOR1_ID}/statuses/api-delete-${suffix}`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Delete target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: `medias/api-delete-${suffix}.webp`,
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: `api-delete-${suffix}.jpg`
+        },
+        thumbnail: {
+          path: `medias/api-delete-${suffix}-thumb.webp`,
+          bytes: 128,
+          mimeType: 'image/webp',
+          metaData: { width: 32, height: 24 }
+        }
+      })
+      expect(media).not.toBeNull()
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: media!.original.mimeType,
+        url: `https://llun.test/api/v1/files/medias/api-delete-${suffix}.webp`,
+        width: 320,
+        height: 240,
+        name: 'Delete media',
+        mediaId: media!.id
+      })
+      return { statusId, media: media! }
+    }
+
+    const deleteStatusRequest = (statusId: string, query = '') =>
+      DELETE(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}${query}`,
+          { method: 'DELETE', headers: { Origin: 'https://llun.test' } }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+    it('destroys media rows and storage files when delete_media is true', async () => {
+      const { statusId, media } = await createNoteWithMedia('with-media')
+
+      const response = await deleteStatusRequest(statusId, '?delete_media=true')
+
+      expect(response.status).toBe(200)
+      await expect(
+        database.getStatus({ statusId, withReplies: false })
+      ).resolves.toBeNull()
+
+      const actor = await database.getActorFromId({ id: ACTOR1_ID })
+      await expect(
+        database.getMediaByIdForAccount({
+          mediaId: media.id,
+          accountId: actor!.account!.id
+        })
+      ).resolves.toBeNull()
+      expect(deleteMediaFile).toHaveBeenCalledWith(
+        expect.anything(),
+        'medias/api-delete-with-media.webp'
+      )
+      expect(deleteMediaFile).toHaveBeenCalledWith(
+        expect.anything(),
+        'medias/api-delete-with-media-thumb.webp'
+      )
+    })
+
+    it.each([
+      { description: 'omits delete_media', suffix: 'keep-default', query: '' },
+      {
+        description: 'sends delete_media=false',
+        suffix: 'keep-false',
+        query: '?delete_media=false'
+      }
+    ])(
+      'keeps media rows for redrafting when the client $description',
+      async ({ suffix, query }) => {
+        const { statusId, media } = await createNoteWithMedia(suffix)
+
+        const response = await deleteStatusRequest(statusId, query)
+
+        expect(response.status).toBe(200)
+        const actor = await database.getActorFromId({ id: ACTOR1_ID })
+        await expect(
+          database.getMediaByIdForAccount({
+            mediaId: media.id,
+            accountId: actor!.account!.id
+          })
+        ).resolves.not.toBeNull()
+        expect(deleteMediaFile).not.toHaveBeenCalled()
+      }
+    )
   })
 
   describe('status with replies', () => {

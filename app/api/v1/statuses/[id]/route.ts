@@ -13,6 +13,7 @@ import {
 } from '@/lib/services/guards/OAuthGuard'
 import { MAX_STATUS_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { deleteMediaFile } from '@/lib/services/medias'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
@@ -20,6 +21,7 @@ import { Scope } from '@/lib/types/database/operations'
 import { isFitnessAttachment } from '@/lib/types/domain/attachment'
 import { StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { logger } from '@/lib/utils/logger'
 import {
   ERROR_400,
   ERROR_403,
@@ -350,6 +352,34 @@ export const DELETE = traceApiRoute(
         })
       }
 
+      // Mastodon's delete_media param: when truthy the status's uploaded media
+      // is destroyed immediately instead of being kept for redrafting. An
+      // absent param means false; Booleanish mirrors Mastodon's string
+      // boolean coercion for query/form values.
+      const deleteMediaRaw = new URL(req.url).searchParams.get('delete_media')
+      const deleteMediaParsed = Booleanish.safeParse(deleteMediaRaw ?? 'false')
+      const shouldDeleteMedia =
+        deleteMediaParsed.success && deleteMediaParsed.data
+
+      // Capture the media-manager ids before deletion — the attachment rows
+      // are removed with the status. Fitness attachments are not media-manager
+      // uploads and are never storage-deleted here.
+      const mediaIdsToDelete =
+        shouldDeleteMedia && status.type !== StatusType.enum.Announce
+          ? [
+              ...new Set(
+                status.attachments
+                  .filter(
+                    (attachment) =>
+                      !isFitnessStatusAttachment(attachment) &&
+                      attachment.mediaId !== null &&
+                      attachment.mediaId !== undefined
+                  )
+                  .map((attachment) => String(attachment.mediaId))
+              )
+            ]
+          : []
+
       // Get the status for return before deletion
       const mastodonStatus = await getMastodonStatus(
         database,
@@ -359,6 +389,44 @@ export const DELETE = traceApiRoute(
 
       // Delete the status and send Delete activity
       await deleteStatusFromUserInput({ currentActor, statusId, database })
+
+      // With the status (and its attachment rows) gone, reuse the media-manager
+      // DELETE flow: row + usage counters inside a transaction, then
+      // best-effort storage cleanup. deleteMediaForAccount still reports
+      // 'in-use' when the media is attached to another status, so shared media
+      // is never destroyed from under a surviving status.
+      const account = currentActor.account
+      if (mediaIdsToDelete.length > 0 && account) {
+        for (const mediaId of mediaIdsToDelete) {
+          const result = await database.deleteMediaForAccount({
+            mediaId,
+            accountId: account.id
+          })
+          if (result.status !== 'deleted') {
+            logger.warn({
+              message: 'Skipped media cleanup while deleting status',
+              statusId,
+              mediaId,
+              reason: result.status
+            })
+            continue
+          }
+          const deletions = await Promise.allSettled(
+            result.files.map((filePath) => deleteMediaFile(database, filePath))
+          )
+          deletions.forEach((deletion, index) => {
+            if (deletion.status === 'rejected' || !deletion.value) {
+              logger.warn({
+                message:
+                  'Failed to delete storage file for deleted status media',
+                filePath: result.files[index],
+                statusId,
+                mediaId
+              })
+            }
+          })
+        }
+      }
 
       return apiResponse({
         req,
