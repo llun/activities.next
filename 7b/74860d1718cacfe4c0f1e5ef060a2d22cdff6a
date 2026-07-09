@@ -1,0 +1,108 @@
+lib/utils/text/mastodonHashtag.test.ts
+  s_f7b91ac6284bd0::t_ff2ed2ed0f5c23 2-22,33-48,65-68
+  s_f7b91ac6284bd0::t_2fee9ba0b5b8a1 1,23-32
+  s_f7b91ac6284bd0::t_ff5c67694b6bd6 49-64
+lib/utils/text/mastodonHashtag.ts
+  s_f7b91ac6284bd0::t_33467f593a0e33 1-7,22-28,31-39,43
+  s_f7b91ac6284bd0::t_7f88cafbb682e4 8-21,29-30,40-42
+app/api/v1/featured_tags/route.ts
+  s_f7b91ac6284bd0::t_03a3e30e7d4c7c 13
+  s_f7b91ac6284bd0::t_7235749d7beb5e 37
+lib/services/timelines/request.test.ts
+  s_f7b91ac6284bd0::t_a857f3ea2da9d3 26-27
+  s_f7b91ac6284bd0::t_dcacd5cbf1c3e5 48-49
+  s_f7b91ac6284bd0::t_b647d232545748 66-67,72-89
+  s_f7b91ac6284bd0::t_04eb6d20ab2d3d 90
+lib/services/timelines/request.ts
+  s_f7b91ac6284bd0::t_e7f60931c6134c 24-27
+  s_f7b91ac6284bd0::t_c095430d52c0ab 72-73
+  s_f7b91ac6284bd0::t_dc5acf71772b6c 104-105
+  s_f7b91ac6284bd0::t_71b8ab2fcad674 41-42
+lib/types/database/operations.ts
+  s_f7b91ac6284bd0::t_6119899287cc7f 3044-3046
+  s_f7b91ac6284bd0::t_baebc67b7a0b3d 655,657-667
+lib/database/sql/timeline.test.ts
+  s_f7b91ac6284bd0::t_824159060e36f5 366-394
+lib/database/sql/timeline.federated.test.ts
+  s_f7b91ac6284bd0::t_6bf412ef598f3f 145-167
+lib/database/sql/timeline.ts
+  s_f7b91ac6284bd0::t_3db99c90ccfc59 25-26
+  s_f7b91ac6284bd0::t_ed8a61ea412f12 58-65
+  s_f7b91ac6284bd0::t_39149530a95bac 128-135
+lib/database/sql/status.ts
+  s_f7b91ac6284bd0::t_4a446454145019 2432-2439,2441-2443,2457-2512,2531-2535,2544
+  s_f7b91ac6284bd0::t_4dc448c1a3fde9 2542
+  s_f7b91ac6284bd0::t_e0cc45cd275414 2545
+  s_f7b91ac6284bd0::t_831fc4737e5e8d 2518-2526,2528,2536-2541,2543
+lib/database/sql/status.test.ts
+  s_f7b91ac6284bd0::t_310d94fa575b08 32
+  s_f7b91ac6284bd0::t_b4135572bb65f4 3245-3336,3363-3405
+  s_f7b91ac6284bd0::t_3bfa4b260733f5 3186-3214
+  s_f7b91ac6284bd0::t_b9d20f346bd252 3337-3362
+app/api/v1/timelines/public/route.test.ts
+  s_f7b91ac6284bd0::t_b7e523ccd38240 208-273
+  s_f7b91ac6284bd0::t_773b41ab50c546 93-123
+app/api/v1/timelines/public/route.ts
+  s_f7b91ac6284bd0::t_1a0390fc8e2249 65-88,94,96-97,99-100,102-106,109,113,133-146,148-151,153
+  s_f7b91ac6284bd0::t_0ee0f888102936 115-119
+app/api/v1/timelines/tag/[hashtag]/route.ts
+  s_f7b91ac6284bd0::t_9d8b913430d32f 3,18,20-22,45-57,59-60,71,73-74,82-83,90-97,100-106,108,121-125,127-132,139-147,149-152,156-158,160-176,178,180-183,189-193,198
+  s_f7b91ac6284bd0::t_0b642a4b38b7b9 133-138
+  s_f7b91ac6284bd0::t_40c31fd98329e9 58,69-70,72
+  s_f7b91ac6284bd0::t_727006a8970064 66-68
+  s_f7b91ac6284bd0::t_5178e9a484d897 109-119
+  s_f7b91ac6284bd0::t_788b681dbfe255 148
+  s_f7b91ac6284bd0::t_74fcdd96436d34 42-44
+  s_f7b91ac6284bd0::t_3cab4ecaaef1f8 159
+  s_f7b91ac6284bd0::t_587e130e4cec0a 61-65
+  s_f7b91ac6284bd0::t_77a76299eb758f 33-35
+  s_f7b91ac6284bd0::t_f79fb8fab1401b 19
+app/api/v1/timelines/tag/[hashtag]/route.test.ts
+  s_f7b91ac6284bd0::t_dbebb75dffac27 113-148,178-208,244-245,256-278,302-308,327-344,501-502,507-517,537-538
+  s_f7b91ac6284bd0::t_18446392063c9e 4,12-14
+  s_f7b91ac6284bd0::t_d6d8c622b33904 64-65
+  s_f7b91ac6284bd0::t_6be177966114a7 345-445
+  s_f7b91ac6284bd0::t_50c8215ed6e868 309-317
+  s_f7b91ac6284bd0::t_2a75d683724143 446-454,460-496
+  s_f7b91ac6284bd0::t_102b3035134557 455-459
+  s_f7b91ac6284bd0::t_5174116bb1c4fd 39
+  s_f7b91ac6284bd0::t_d4b217a69ac783 59
+  s_f7b91ac6284bd0::t_30380f3f810339 19-21
+  s_f7b91ac6284bd0::t_df6119b8a33a76 279-285
+  s_f7b91ac6284bd0::t_b98941f536c649 286-291
+  s_f7b91ac6284bd0::t_bc712ad611ce80 227-243,246-255
+  s_f7b91ac6284bd0::t_89aeb2cf7ae563 497-500,503-506,518-536
+  s_f7b91ac6284bd0::t_c73a21b38ef6dc 209-226
+  s_f7b91ac6284bd0::t_4d48304165c0f9 292-301
+  s_f7b91ac6284bd0::t_4cf3e3c23482dc 318-330
+  s_f7b91ac6284bd0::t_7d5c2c8d1701d3 149,153-160
+  s_f7b91ac6284bd0::t_bad5ae5c6553e9 150-152,161-176
+  s_f7b91ac6284bd0::t_3b0e5231a6b759 177
+lib/services/trends/request.ts
+  s_f7b91ac6284bd0::t_4d14022ed3979e 4-8,11-15,18-19,22-32
+  s_f7b91ac6284bd0::t_f228c305d4fc33 33
+app/api/v1/trends/statuses/route.ts
+  s_f7b91ac6284bd0::t_1f8a5ec69b48dc 4-5
+  s_f7b91ac6284bd0::t_aab4689d7124da 26
+app/api/v1/trends/statuses/route.test.ts
+  s_f7b91ac6284bd0::t_ff9266b4d98794 209-289
+lib/services/trends/request.test.ts
+  s_f7b91ac6284bd0::t_83b4feede91faf 4-5,7-8
+  s_f7b91ac6284bd0::t_5a45d40b84ac5e 95-136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7b74860d1718cacfe4c0f1e5ef060a2d22cdff6a",
+  "prompts": {},
+  "sessions": {
+    "s_f7b91ac6284bd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e5d29e0-cb70-4516-b716-6108a10b94a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
