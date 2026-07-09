@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
 
+import { domainDigest } from '@/lib/services/federation/domainRules'
+
 import { GET } from './route'
 
 const mockGetDatabase = vi.fn()
@@ -31,11 +33,26 @@ describe('GET /api/v1/instance/domain_blocks', () => {
         source: null,
         createdAt: 0,
         updatedAt: 0
+      },
+      {
+        id: '2',
+        type: 'block',
+        domain: 'silenced.test',
+        severity: 'silence',
+        rejectMedia: false,
+        rejectReports: false,
+        privateComment: null,
+        publicComment: 'limited',
+        obfuscate: true,
+        source: null,
+        createdAt: 0,
+        updatedAt: 0
       }
     ])
     const getDomainFederationRuleStats = vi.fn().mockResolvedValue({
       blocks: 42,
       suspendBlocks: 7,
+      silenceBlocks: 3,
       allows: 0
     })
 
@@ -56,19 +73,25 @@ describe('GET /api/v1/instance/domain_blocks', () => {
     expect(getDomainBlocks).toHaveBeenCalledWith({
       limit: 25,
       offset: 5,
-      severity: 'suspend'
+      severities: ['silence', 'suspend']
     })
     expect(getDomainFederationRuleStats).toHaveBeenCalledTimes(1)
-    expect(response.headers.get('X-Total-Count')).toBe('7')
+    expect(response.headers.get('X-Total-Count')).toBe('10')
     expect(response.headers.get('X-Offset')).toBe('5')
     expect(response.headers.get('X-Limit')).toBe('25')
     expect(data).toEqual([
       {
         domain: 'blocked.test',
-        digest:
-          'cc5ac927c0bbef58bde4777f9afc52f3ed6c8d0652af02e650d33035030398f2',
+        digest: domainDigest('blocked.test'),
         severity: 'suspend',
         comment: 'spam'
+      },
+      {
+        // Mastodon quarter-visible obfuscation, not the raw digest.
+        domain: 'sile****.*est',
+        digest: domainDigest('silenced.test'),
+        severity: 'silence',
+        comment: 'limited'
       }
     ])
   })
@@ -80,6 +103,7 @@ describe('GET /api/v1/instance/domain_blocks', () => {
       getDomainFederationRuleStats: vi.fn().mockResolvedValue({
         blocks: 0,
         suspendBlocks: 0,
+        silenceBlocks: 0,
         allows: 0
       })
     })
@@ -95,7 +119,7 @@ describe('GET /api/v1/instance/domain_blocks', () => {
     expect(getDomainBlocks).toHaveBeenCalledWith({
       limit: 1000,
       offset: 0,
-      severity: 'suspend'
+      severities: ['silence', 'suspend']
     })
   })
 })

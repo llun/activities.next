@@ -8,6 +8,7 @@ const mockDatabase = {
   getBlockRelations: vi.fn(),
   getMuteRelations: vi.fn(),
   getStatusesByHashtag: vi.fn(),
+  getTagDailyHistory: vi.fn(),
   isFollowingTag: vi.fn()
 }
 const mockCurrentActor = {
@@ -52,6 +53,7 @@ describe('GET /api/v1/tags/:tag', () => {
     mockDatabase.getBlockRelations.mockResolvedValue([])
     mockDatabase.getMuteRelations.mockResolvedValue([])
     mockDatabase.getStatusesByHashtag.mockResolvedValue([status])
+    mockDatabase.getTagDailyHistory.mockResolvedValue(new Map())
     mockDatabase.isFollowingTag.mockResolvedValue(true)
   })
 
@@ -83,5 +85,76 @@ describe('GET /api/v1/tags/:tag', () => {
     const body = await response.json()
     expect(Array.isArray(body.statuses)).toBe(true)
     expect(mockDatabase.getStatusesByHashtag).toHaveBeenCalled()
+  })
+
+  it('includes the seven-day usage history in the Tag entity', async () => {
+    const DAY_MS = 86_400_000
+    const todayBucketMs = Math.floor(Date.now() / DAY_MS) * DAY_MS
+    mockDatabase.getTagDailyHistory.mockResolvedValue(
+      new Map([
+        ['running', [{ dayBucketMs: todayBucketMs, uses: 3, accounts: 2 }]]
+      ])
+    )
+
+    const response = await GET(
+      new NextRequest('https://local.test/api/v1/tags/running'),
+      { params: Promise.resolve({ tag: 'running' }) }
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.history).toHaveLength(7)
+    expect(body.history[0]).toEqual({
+      day: String(todayBucketMs / 1000),
+      uses: '3',
+      accounts: '2'
+    })
+    expect(body.history[1]).toEqual({
+      day: String((todayBucketMs - DAY_MS) / 1000),
+      uses: '0',
+      accounts: '0'
+    })
+  })
+
+  it.each([
+    {
+      description: 'accepts a unicode hashtag name',
+      tag: 'こんにちは',
+      expectedStatus: 200
+    },
+    {
+      description: 'accepts an all-numeric hashtag name',
+      tag: '2026',
+      expectedStatus: 200
+    },
+    {
+      description: 'rejects a name containing spaces',
+      tag: 'not a tag',
+      expectedStatus: 400
+    }
+  ])('$description', async ({ tag, expectedStatus }) => {
+    const response = await GET(
+      new NextRequest(
+        `https://local.test/api/v1/tags/${encodeURIComponent(tag)}`
+      ),
+      { params: Promise.resolve({ tag }) }
+    )
+    expect(response.status).toBe(expectedStatus)
+  })
+
+  it('accepts a unicode tag whose percent-encoded length exceeds 255', async () => {
+    // 30 Japanese chars → 270 percent-encoded chars: over the decoded 255 limit
+    // but a valid short name. The raw param cap must not reject it before
+    // normalizeHashtagParam decodes it.
+    const name = 'あ'.repeat(30)
+    const encoded = encodeURIComponent(name)
+    expect(encoded.length).toBeGreaterThan(255)
+    const response = await GET(
+      new NextRequest(`https://local.test/api/v1/tags/${encoded}`),
+      { params: Promise.resolve({ tag: encoded }) }
+    )
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.name).toBe(name)
   })
 })

@@ -5,8 +5,12 @@ import {
   normalizeTrendsLimit,
   normalizeTrendsOffset
 } from '@/lib/services/trends/request'
-import { Scope, TagDailyHistoryPoint } from '@/lib/types/database/operations'
-import { Tag, TagHistory } from '@/lib/types/mastodon/tag'
+import {
+  getCurrentDayBucketMs,
+  getSevenDayHistory
+} from '@/lib/services/trends/tagHistory'
+import { Scope } from '@/lib/types/database/operations'
+import { Tag } from '@/lib/types/mastodon/tag'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -14,27 +18,6 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
-
-const DAY_MS = 86_400_000
-
-// Seven UTC-day buckets newest first, zero-filled for days without uses.
-// `day` is the unix-second start of the UTC day; all values are strings per
-// the Mastodon Tag history shape.
-const getSevenDayHistory = (
-  todayBucketMs: number,
-  points: TagDailyHistoryPoint[]
-): TagHistory[] => {
-  const pointsByDay = new Map(points.map((point) => [point.dayBucketMs, point]))
-  return Array.from({ length: TRENDS_DAYS }, (_, index) => {
-    const dayBucketMs = todayBucketMs - index * DAY_MS
-    const point = pointsByDay.get(dayBucketMs)
-    return {
-      day: String(dayBucketMs / 1000),
-      uses: String(point?.uses ?? 0),
-      accounts: String(point?.accounts ?? 0)
-    }
-  })
-}
 
 // https://docs.joinmastodon.org/methods/trends/#tags
 // Local trends computed live from public hashtag usage on this instance over
@@ -58,7 +41,7 @@ export const GET = traceApiRoute(
         days: TRENDS_DAYS
       })
 
-      const todayBucketMs = Math.floor(Date.now() / DAY_MS) * DAY_MS
+      const todayBucketMs = getCurrentDayBucketMs()
       const tags = await Promise.all(
         trendingTags.map(async (trendingTag): Promise<Tag> => {
           const following = currentActor

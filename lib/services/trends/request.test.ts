@@ -1,8 +1,11 @@
 import {
   TRENDS_DEFAULT_LIMIT,
   TRENDS_MAX_LIMIT,
+  TRENDS_STATUSES_DEFAULT_LIMIT,
+  TRENDS_STATUSES_MAX_LIMIT,
   normalizeTrendsLimit,
-  normalizeTrendsOffset
+  normalizeTrendsOffset,
+  normalizeTrendsStatusesLimit
 } from './request'
 
 describe('normalizeTrendsLimit', () => {
@@ -87,5 +90,47 @@ describe('normalizeTrendsOffset', () => {
     }
   ])('$description', ({ value, expected }) => {
     expect(normalizeTrendsOffset(value)).toBe(expected)
+  })
+})
+
+describe('normalizeTrendsStatusesLimit', () => {
+  it.each([
+    {
+      description: 'valid in-range limit above the tags cap passes through',
+      value: '25',
+      expected: 25
+    },
+    {
+      description: 'limit above the max clamps to the max',
+      value: '41',
+      expected: TRENDS_STATUSES_MAX_LIMIT
+    },
+    {
+      description: 'limit at the max stays at the max',
+      value: '40',
+      expected: TRENDS_STATUSES_MAX_LIMIT
+    },
+    {
+      description: 'zero limit falls back to the default',
+      value: '0',
+      expected: TRENDS_STATUSES_DEFAULT_LIMIT
+    },
+    {
+      description: 'negative limit falls back to the default',
+      value: '-5',
+      expected: TRENDS_STATUSES_DEFAULT_LIMIT
+    },
+    {
+      description: 'non-numeric limit falls back to the default',
+      value: 'garbage',
+      expected: TRENDS_STATUSES_DEFAULT_LIMIT
+    },
+    {
+      description: 'absent limit falls back to the default',
+      value: null,
+      expected: TRENDS_STATUSES_DEFAULT_LIMIT
+    }
+  ])('$description', ({ value, expected }) => {
+    expect(normalizeTrendsStatusesLimit(value)).toBe(expected)
   })
 })

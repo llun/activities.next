@@ -11,10 +11,15 @@ import {
   getFilteredStatusPage,
   normalizeTimelineLimit
 } from '@/lib/services/timelines/getFilteredTimelinePage'
+import { getTagHistory } from '@/lib/services/trends/tagHistory'
 import { Scope } from '@/lib/types/database/operations'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  MAX_ENCODED_HASHTAG_PARAM_LENGTH,
+  normalizeHashtagParam
+} from '@/lib/utils/text/mastodonHashtag'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
@@ -23,7 +28,9 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const Params = z.object({
-  tag: z.string().regex(/^[a-zA-Z0-9_]*[a-zA-Z_][a-zA-Z0-9_]*$/)
+  // Cap the raw (percent-encoded) param; normalizeHashtagParam enforces the
+  // 255-char limit on the decoded name so Unicode tags aren't rejected early.
+  tag: z.string().max(MAX_ENCODED_HASHTAG_PARAM_LENGTH)
 })
 
 interface RouteParams {
@@ -46,7 +53,15 @@ export const GET = traceApiRoute(
           responseStatusCode: 400
         })
 
-      const { tag } = parseResult.data
+      const tag = normalizeHashtagParam(parseResult.data.tag)
+      if (!tag)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+
       const url = new URL(req.url)
       const format = url.searchParams.get('format')
 
@@ -54,16 +69,19 @@ export const GET = traceApiRoute(
       // including whether the current actor follows it.
       // https://docs.joinmastodon.org/methods/tags/#get
       if (format !== TimelineFormat.enum.activities_next) {
-        const following = currentActor
-          ? await database.isFollowingTag({
-              actorId: currentActor.id,
-              name: tag
-            })
-          : false
+        const [following, history] = await Promise.all([
+          currentActor
+            ? database.isFollowingTag({
+                actorId: currentActor.id,
+                name: tag
+              })
+            : Promise.resolve(false),
+          getTagHistory(database, tag)
+        ])
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: getMastodonTag(tag, following)
+          data: getMastodonTag(tag, following, history)
         })
       }
 

@@ -421,15 +421,17 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
     }
   },
 
-  async getDomainBlocks({ limit = 100, offset = 0, severity } = {}) {
+  async getDomainBlocks({ limit = 100, offset = 0, severities } = {}) {
     const query = database<SQLDomainFederationRule>('domain_federation_rules')
       .where('type', 'block')
       .orderBy('domain', 'asc')
       .limit(limit)
       .offset(offset)
 
-    if (severity) {
-      query.where('severity', severity)
+    // Block rows always persist a severity (only allow rows store null), so a
+    // whereIn filter cannot drop legacy rows.
+    if (severities && severities.length > 0) {
+      query.whereIn('severity', severities)
     }
 
     const rows = await query
@@ -532,30 +534,42 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
   },
 
   async getDomainFederationRuleStats() {
-    const [blockCount, suspendBlockCount, allowCount, sourceRows] =
-      await Promise.all([
-        database('domain_federation_rules')
-          .where('type', 'block')
-          .count<{ count: string | number }>('id as count')
-          .first(),
-        database('domain_federation_rules')
-          .where({
-            type: 'block',
-            severity: DEFAULT_DOMAIN_BLOCK_SEVERITY
-          })
-          .count<{ count: string | number }>('id as count')
-          .first(),
-        database('domain_federation_rules')
-          .where('type', 'allow')
-          .count<{ count: string | number }>('id as count')
-          .first(),
-        database('domain_federation_rules')
-          .select('source')
-          .where('type', 'block')
-          .whereNotNull('source')
-          .groupBy('source')
-          .count<{ source: string; count: string | number }>('id as count')
-      ])
+    const [
+      blockCount,
+      suspendBlockCount,
+      silenceBlockCount,
+      allowCount,
+      sourceRows
+    ] = await Promise.all([
+      database('domain_federation_rules')
+        .where('type', 'block')
+        .count<{ count: string | number }>('id as count')
+        .first(),
+      database('domain_federation_rules')
+        .where({
+          type: 'block',
+          severity: DEFAULT_DOMAIN_BLOCK_SEVERITY
+        })
+        .count<{ count: string | number }>('id as count')
+        .first(),
+      database('domain_federation_rules')
+        .where({
+          type: 'block',
+          severity: 'silence'
+        })
+        .count<{ count: string | number }>('id as count')
+        .first(),
+      database('domain_federation_rules')
+        .where('type', 'allow')
+        .count<{ count: string | number }>('id as count')
+        .first(),
+      database('domain_federation_rules')
+        .select('source')
+        .where('type', 'block')
+        .whereNotNull('source')
+        .groupBy('source')
+        .count<{ source: string; count: string | number }>('id as count')
+    ])
     const sourceCounts = Object.fromEntries(
       (
         sourceRows as unknown as {
@@ -572,6 +586,7 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
     return {
       blocks: Number(blockCount?.count ?? 0),
       suspendBlocks: Number(suspendBlockCount?.count ?? 0),
+      silenceBlocks: Number(silenceBlockCount?.count ?? 0),
       allows: Number(allowCount?.count ?? 0),
       sourceBlocks,
       sourceCounts
