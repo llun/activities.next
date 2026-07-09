@@ -1,8 +1,8 @@
 import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import {
-  normalizeTrendsLimit,
-  normalizeTrendsOffset
+  normalizeTrendsOffset,
+  normalizeTrendsStatusesLimit
 } from '@/lib/services/trends/request'
 import { getTrendingStatuses } from '@/lib/services/trends/trendingStatuses'
 import { Scope } from '@/lib/types/database/operations'
@@ -23,7 +23,7 @@ export const GET = traceApiRoute(
     [Scope.enum.read],
     async (req, { database, currentActor }) => {
       const searchParams = new URL(req.url).searchParams
-      const limit = normalizeTrendsLimit(searchParams.get('limit'))
+      const limit = normalizeTrendsStatusesLimit(searchParams.get('limit'))
       const offset = normalizeTrendsOffset(searchParams.get('offset'))
 
       const statuses = await getTrendingStatuses({ database, limit, offset })
