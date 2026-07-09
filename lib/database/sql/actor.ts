@@ -270,6 +270,9 @@ const getMastodonAccountFromSQLActor = ({
     username: sqlActor.username,
     acct: isLocalActor ? sqlActor.username : qualifiedAcct,
     url: sqlActor.id,
+    // The ActivityPub actor id. This service uses the actor id as the profile
+    // URL too, so `uri` and `url` carry the same value.
+    uri: sqlActor.id,
     display_name: sqlActor.name ?? '',
     note,
 
@@ -286,6 +289,12 @@ const getMastodonAccountFromSQLActor = ({
     group: sqlActor.type === 'Group',
     discoverable: settings.discoverable ?? !isLocalHeadlessSigner,
     noindex: isLocalHeadlessSigner,
+    // No roles system: every account serializes an empty public role list (the
+    // credential endpoints still overlay the singular default `role`).
+    roles: [],
+    // Mastodon's opt-in full-text-search flag; false by default like Mastodon.
+    indexable: settings.indexable ?? false,
+    hide_collections: settings.hideCollections ?? null,
 
     // `source.note` is the plain-text bio and `source.fields` mirror the public
     // fields. The default privacy/sensitive/language come from the account's
@@ -298,6 +307,7 @@ const getMastodonAccountFromSQLActor = ({
       privacy: settings.defaultPrivacy ?? 'public',
       sensitive: settings.defaultSensitive ?? false,
       language: settings.defaultLanguage ?? 'en',
+      attribution_domains: settings.attributionDomains ?? [],
       follow_requests_count: 0
     },
 
@@ -700,7 +710,8 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     localDomain,
     limit = 40,
     offset = 0,
-    order = 'active'
+    order = 'active',
+    local = true
   }: GetLocalActorsParams) {
     // Actors store the bare host in `domain`, but callers may pass a configured
     // host that includes a scheme (e.g. `https://example.com`). Normalize so the
@@ -708,28 +719,45 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     const normalizedDomain = localDomain.includes('://')
       ? new URL(localDomain).host
       : localDomain
-    const query = database<SQLActor>('actors')
-      .where('domain', normalizedDomain)
-      .whereNotNull('accountId')
+    const query = database<SQLActor>('actors').limit(limit).offset(offset)
 
-    if (order === 'active') {
-      // Mastodon's `active` order is most-recently-active first, using the
-      // persisted `lastStatusAt`. Actors who have never posted (NULL) sort last
-      // on both SQLite and PostgreSQL: `(lastStatusAt IS NULL)` yields 0 before
-      // 1, so an explicit `NULLS LAST` — which the two dialects disagree on by
-      // default — is not needed. `createdAt` breaks ties deterministically.
+    // local=false lists every known profile (Mastodon's default directory);
+    // local=true keeps only this server's account-backed actors.
+    if (local) {
       query
-        .orderByRaw('(?? is null) asc', ['lastStatusAt'])
-        .orderBy('lastStatusAt', 'desc')
-        .orderBy('createdAt', 'desc')
+        .where('actors.domain', normalizedDomain)
+        .whereNotNull('actors.accountId')
     } else {
-      // `new` order is most-recently-created first.
-      query.orderBy('createdAt', 'desc')
+      // Even the all-profiles view must not expose internal system actors —
+      // the headless federation signer and any other local actor with no
+      // backing account (accountId null on the local domain). Remote actors
+      // (foreign domain) and local account-backed actors are still listed.
+      query.whereNot(function () {
+        this.where('actors.domain', normalizedDomain).whereNull(
+          'actors.accountId'
+        )
+      })
     }
 
-    const rows = await query.limit(limit).offset(offset).pluck('id')
+    if (order === 'active') {
+      // `active` sorts by the actor's most recent status via the persisted
+      // `actors.lastStatusAt` column (maintained inside the status
+      // create/delete transactions), so the directory no longer runs a
+      // per-request MAX(statuses.createdAt) GROUP BY aggregation. Actors who
+      // have never posted (NULL) sort last on both SQLite and PostgreSQL:
+      // `?? is null` yields false (0) before true (1), the portable NULLS LAST
+      // pattern the search document queries also use (documents.ts); newest
+      // account breaks ties.
+      query
+        .orderByRaw('?? is null', ['actors.lastStatusAt'])
+        .orderBy('actors.lastStatusAt', 'desc')
+        .orderBy('actors.createdAt', 'desc')
+    } else {
+      query.orderBy('actors.createdAt', 'desc')
+    }
 
-    return this.getMastodonActors(rows)
+    const rows = await query.select<{ id: string }[]>({ id: 'actors.id' })
+    return this.getMastodonActors(rows.map((row) => row.id))
   },
 
   async getMastodonActors(actorIds: string[]) {
@@ -775,6 +803,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     fields,
     bot,
     discoverable,
+    indexable,
+    hideCollections,
+    attributionDomains,
     defaultPrivacy,
     defaultSensitive,
     defaultLanguage,
@@ -814,6 +845,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       ...(fields !== undefined ? { fields } : null),
       ...(bot !== undefined ? { bot } : null),
       ...(discoverable !== undefined ? { discoverable } : null),
+      ...(indexable !== undefined ? { indexable } : null),
+      ...(hideCollections !== undefined ? { hideCollections } : null),
+      ...(attributionDomains !== undefined ? { attributionDomains } : null),
       ...(defaultPrivacy !== undefined ? { defaultPrivacy } : null),
       ...(defaultSensitive !== undefined ? { defaultSensitive } : null),
       ...(defaultLanguage !== undefined ? { defaultLanguage } : null),

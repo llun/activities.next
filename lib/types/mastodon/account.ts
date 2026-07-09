@@ -2,6 +2,7 @@
 import { z } from 'zod'
 
 import { Field } from './account/field'
+import { Role } from './account/role'
 import { Source } from './account/source'
 import { CustomEmoji } from './customEmoji'
 
@@ -20,6 +21,9 @@ const BaseAccount = z.object({
       'The Webfinger actor URI. Equal to username for local users, or username@domain for remote users'
     ),
   url: z.string().describe("The location of the user's profile page"),
+  uri: z
+    .string()
+    .describe('The ActivityPub actor id (canonical URI) of the account'),
   display_name: z.string().describe("The profile's display name"),
   note: z.string().describe("The profile's bio or description"),
   avatar: z
@@ -66,6 +70,22 @@ const BaseAccount = z.object({
     .boolean()
     .describe(
       'Whether the actor has opted into discovery features such as the profile directory'
+    )
+    .nullable(),
+  roles: Role.pick({ id: true, name: true, color: true })
+    .array()
+    .describe(
+      'The publicly visible roles assigned to the account. Always empty because this service has no roles system'
+    ),
+  indexable: z
+    .boolean()
+    .describe(
+      'Whether the account has opted its public posts into full-text search by anyone. Mastodon defaults this to false (opt-in)'
+    ),
+  hide_collections: z
+    .boolean()
+    .describe(
+      'Whether the account hides its followers and following collections'
     )
     .nullable(),
   noindex: z

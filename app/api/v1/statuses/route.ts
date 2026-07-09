@@ -338,6 +338,7 @@ export const POST = traceApiRoute(
             choices: note.poll.options,
             endAt: Date.now() + note.poll.expires_in * 1000,
             pollType: note.poll.multiple ? 'anyOf' : 'oneOf',
+            hideTotals: note.poll.hide_totals,
             visibility: note.visibility,
             sensitive: note.sensitive,
             language: note.language ?? null,

@@ -21,7 +21,9 @@ import { SearchParams } from './types'
 export const dynamic = 'force-dynamic'
 
 interface Props {
-  searchParams: Promise<SearchParams>
+  // Raw query params as Next.js provides them; SearchParams.safeParse below
+  // produces the typed/coerced form.
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
 const Page: FC<Props> = async ({ searchParams }) => {
@@ -36,7 +38,11 @@ const Page: FC<Props> = async ({ searchParams }) => {
   if (!parsedResult.success) {
     return notFound()
   }
-  const params = parsedResult.data
+  // `lang` is accepted for Mastodon compatibility but intentionally unused
+  // (the consent UI is not localized); destructure it — and force_login,
+  // which is consumed right below — away so neither is ever forwarded to
+  // better-auth or into sign-in redirectBack URLs.
+  const { force_login: forceLogin, lang: _lang, ...params } = parsedResult.data
 
   const actor = await getActorFromSession(database, session)
 
@@ -49,9 +55,16 @@ const Page: FC<Props> = async ({ searchParams }) => {
   const { protocol } = new URL(getBaseURL())
   const requestBaseURL = `${protocol}//${requestHost}`
 
-  if (!actor || !actor.account) {
+  // Mastodon `force_login=true` forces re-authentication even when a session
+  // exists. redirectBack deliberately omits force_login: once the fresh login
+  // happens the requirement is satisfied, and keeping it would bounce the
+  // resumed request back to sign-in forever. The extra force_login param on
+  // the sign-in URL tells that page to skip its already-authenticated
+  // auto-resume so the form actually renders.
+  if (!actor || !actor.account || forceLogin) {
     const url = new URL('/auth/signin', requestBaseURL)
     url.searchParams.append('redirectBack', buildOAuthAuthorizePath(params))
+    if (forceLogin) url.searchParams.append('force_login', 'true')
     return redirect(url.toString())
   }
 

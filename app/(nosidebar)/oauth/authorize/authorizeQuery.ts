@@ -33,7 +33,11 @@ const shouldIncludeOAuthParam = (
 
 export const buildOAuthQuery = (params: SearchParams): string => {
   const oauthQuery = new URLSearchParams()
-  const values = params as Record<string, string | null | undefined>
+  // SearchParams carries non-string members (e.g. the coerced `force_login`
+  // boolean); the page strips those before building any query, so treat the
+  // input as the string record this helper actually forwards. The `unknown`
+  // bridge is required because `boolean` no longer overlaps the string record.
+  const values = params as unknown as Record<string, string | null | undefined>
   for (const key of BetterAuthAuthorizationParamOrder) {
     const value = values[key]
     if (shouldIncludeOAuthParam(key, value)) oauthQuery.set(key, value)

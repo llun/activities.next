@@ -206,3 +206,84 @@ describe('GET /api/v1/trends/statuses', () => {
     )
   })
 })
+
+describe('GET /api/v1/trends/statuses limit clamping', () => {
+  const database = getTestSQLDatabase()
+  const AUTHOR_ID = 'https://llun.test/users/author'
+  const LIKER_ID = 'https://llun.test/users/liker'
+  const SEEDED_STATUS_COUNT = 22
+
+  const createActor = (id: string, username: string) =>
+    database.createActor({
+      actorId: id,
+      username,
+      domain: 'llun.test',
+      inboxUrl: `${id}/inbox`,
+      sharedInboxUrl: 'https://llun.test/inbox',
+      followersUrl: `${id}/followers`,
+      publicKey: 'public-key',
+      privateKey: 'private-key',
+      createdAt: 1
+    })
+
+  beforeAll(async () => {
+    await database.migrate()
+    await createActor(AUTHOR_ID, 'author')
+    await createActor(LIKER_ID, 'liker')
+
+    // 22 public notes, each with one like so every candidate has score > 0.
+    // 22 > the old cap of 20 and > the new default of 20, which makes the
+    // default and the cap independently observable below.
+    const now = Date.now()
+    for (let index = 0; index < SEEDED_STATUS_COUNT; index++) {
+      const statusId = `${AUTHOR_ID}/statuses/bulk-${index}`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: AUTHOR_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: `Trending candidate ${index}`,
+        createdAt: now - index * 1000
+      })
+      await database.createLike({ actorId: LIKER_ID, statusId })
+    }
+    mockDatabase = database
+  })
+
+  afterAll(async () => {
+    mockDatabase = null
+    await database.destroy()
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetServerSession.mockResolvedValue(null)
+  })
+
+  const request = (query = '') =>
+    new NextRequest(`https://llun.test/api/v1/trends/statuses${query}`)
+
+  it.each([
+    {
+      description: 'defaults to 20 statuses (not the tags default of 10)',
+      query: '',
+      expectedCount: 20
+    },
+    {
+      description: 'serves limits above the old tags cap of 20',
+      query: '?limit=25',
+      expectedCount: 22
+    },
+    {
+      description: 'falls back to the default of 20 for garbage limits',
+      query: '?limit=garbage',
+      expectedCount: 20
+    }
+  ])('$description', async ({ query, expectedCount }) => {
+    const response = await GET(request(query), { params: Promise.resolve({}) })
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data).toHaveLength(expectedCount)
+  })
+})

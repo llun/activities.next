@@ -101,6 +101,7 @@ This document tracks the implemented and planned features for Activity.next.
 - [ ] Streaming API for real-time updates
 - [ ] Moderation review dashboard for submitted reports
 - [ ] Bookmark collections
+- [ ] Media attachment `blurhash` computation and animated-GIF `gifv` detection (Mastodon `MediaAttachment` parity — currently always `blurhash: null`, and GIFs are served as `type: "image"`)
 
 ## Feature Requests
 

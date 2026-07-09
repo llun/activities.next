@@ -138,6 +138,16 @@ export const POST = traceApiRoute('createApp', async (req: NextRequest) => {
     })
   }
 
-  const { type: _type, ...data } = response
-  return apiResponse({ req, allowedMethods: CORS_HEADERS, data })
+  const { type: _type, ...application } = response
+  return apiResponse({
+    req,
+    allowedMethods: CORS_HEADERS,
+    data: {
+      ...application,
+      // Same source as GET /api/v1/apps/verify_credentials: the Web Push VAPID
+      // public key, or null when push is not configured. Deprecated in
+      // Mastodon 4.3 but still part of the CredentialApplication entity.
+      vapid_key: getConfig().push?.vapidPublicKey ?? null
+    }
+  })
 })

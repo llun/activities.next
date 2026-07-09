@@ -411,6 +411,77 @@ describe('getMastodonStatus', () => {
       expect(mastodonStatus.poll?.voters_count).toEqual(1)
     })
 
+    it('hides per-option tallies for a running hide_totals poll', async () => {
+      const pollId = `${ACTOR3_ID}/statuses/mastodon-hide-totals-running-${Date.now()}`
+      await database.createPoll({
+        id: pollId,
+        url: pollId,
+        actorId: ACTOR3_ID,
+        text: 'Hidden totals poll',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        choices: ['First', 'Second'],
+        pollType: 'oneOf',
+        endAt: Date.now() + 60_000,
+        hideTotals: true
+      })
+      await database.recordPollVotes({
+        statusId: pollId,
+        actorId: ACTOR1_ID,
+        choices: [0]
+      })
+
+      const status = (await database.getStatus({ statusId: pollId })) as Status
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        status,
+        ACTOR3_ID
+      )
+
+      expect(mastodonStatus?.poll?.options).toEqual([
+        { title: 'First', votes_count: null },
+        { title: 'Second', votes_count: null }
+      ])
+      // Mastodon's PollSerializer keeps the top-level counts numeric even while
+      // per-option tallies are hidden.
+      expect(mastodonStatus?.poll?.votes_count).toEqual(1)
+      expect(mastodonStatus?.poll?.voters_count).toEqual(1)
+    })
+
+    it('reveals per-option tallies for a hide_totals poll after expiry', async () => {
+      const pollId = `${ACTOR3_ID}/statuses/mastodon-hide-totals-expired-${Date.now()}`
+      await database.createPoll({
+        id: pollId,
+        url: pollId,
+        actorId: ACTOR3_ID,
+        text: 'Expired hidden totals poll',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        choices: ['First', 'Second'],
+        pollType: 'oneOf',
+        endAt: Date.now() - 60_000,
+        hideTotals: true
+      })
+      await database.recordPollVotes({
+        statusId: pollId,
+        actorId: ACTOR1_ID,
+        choices: [0]
+      })
+
+      const status = (await database.getStatus({ statusId: pollId })) as Status
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        status,
+        ACTOR3_ID
+      )
+
+      expect(mastodonStatus?.poll?.expired).toBe(true)
+      expect(mastodonStatus?.poll?.options).toEqual([
+        { title: 'First', votes_count: 1 },
+        { title: 'Second', votes_count: 0 }
+      ])
+    })
+
     it('keys hydrated account cache by actor id when account url is a profile url', async () => {
       const status = (await database.getStatus({
         statusId: `${ACTOR1_ID}/statuses/post-1`

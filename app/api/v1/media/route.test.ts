@@ -133,4 +133,50 @@ describe('POST /api/v1/media', () => {
     expect(data).toMatchObject({ id: '7', type: 'image', blurhash: null })
     expect(mockSaveMedia).toHaveBeenCalledTimes(1)
   })
+
+  it('accepts a 1500-character description and forwards it to saveMedia', async () => {
+    mockStoredToken.mockResolvedValue({
+      expiresAt: new Date(Date.now() + 60_000),
+      referenceId: ACTOR1_ID,
+      scopes: 'write:media'
+    })
+    const longDescription = 'a'.repeat(1500)
+    const form = buildForm()
+    form.set('description', longDescription)
+    const req = new NextRequest('https://llun.test/api/v1/media', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer write-media-token' }
+    })
+    Object.defineProperty(req, 'formData', {
+      value: vi.fn().mockResolvedValue(form)
+    })
+
+    const response = await POST(req, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    const media = mockSaveMedia.mock.calls[0][2]
+    expect(media.description).toBe(longDescription)
+  })
+
+  it('returns 422 when the description exceeds 1500 characters', async () => {
+    mockStoredToken.mockResolvedValue({
+      expiresAt: new Date(Date.now() + 60_000),
+      referenceId: ACTOR1_ID,
+      scopes: 'write:media'
+    })
+    const form = buildForm()
+    form.set('description', 'a'.repeat(1501))
+    const req = new NextRequest('https://llun.test/api/v1/media', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer write-media-token' }
+    })
+    Object.defineProperty(req, 'formData', {
+      value: vi.fn().mockResolvedValue(form)
+    })
+
+    const response = await POST(req, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(422)
+    expect(mockSaveMedia).not.toHaveBeenCalled()
+  })
 })

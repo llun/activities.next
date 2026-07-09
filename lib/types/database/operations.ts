@@ -75,6 +75,10 @@ export type GetLocalActorsParams = {
   limit?: number
   offset?: number
   order?: 'active' | 'new'
+  // false lists every known profile (Mastodon's default directory); true
+  // keeps only this server's account-backed actors. Defaults to true at the
+  // database layer to preserve the method's historical behavior.
+  local?: boolean
 }
 export type IsCurrentActorFollowingParams = {
   currentActorId: string
@@ -94,6 +98,9 @@ export type UpdateActorParams = {
   // Mastodon `bot`/`discoverable` flags and `source.*` posting defaults.
   bot?: boolean
   discoverable?: boolean
+  indexable?: boolean
+  hideCollections?: boolean
+  attributionDomains?: string[]
   defaultPrivacy?: 'public' | 'unlisted' | 'private' | 'direct'
   defaultSensitive?: boolean
   defaultLanguage?: string
@@ -472,10 +479,22 @@ export type CreatePollParams = BaseCreateStatusParams & {
   choices: string[]
   endAt: number
   pollType?: 'oneOf' | 'anyOf'
+  // Mastodon poll[hide_totals]: hide per-option tallies until the poll expires.
+  hideTotals?: boolean
 }
 export type UpdatePollParams = Pick<CreatePollParams, 'text' | 'summary'> &
   BaseStatusParams & {
     choices: { title: string; totalVotes: number }[]
+    // Omit to preserve the existing values; provide to overwrite (user edits).
+    sensitive?: boolean
+    language?: string | null
+    endAt?: number
+    pollType?: 'oneOf' | 'anyOf'
+    hideTotals?: boolean
+    // When true `choices` replaces the option set and all recorded votes are
+    // cleared (Mastodon edit semantics); when false/omitted `choices` only
+    // refreshes tallies for the existing titles (federated poll refresh).
+    resetVotes?: boolean
   }
 
 export type GetStatusParams = BaseStatusParams & {
@@ -496,6 +515,11 @@ export type GetStatusEditHistoryParams = BaseStatusParams
 export type StatusEditRevision = {
   text: string
   summary: string | null
+  // Per-revision snapshots. Null on rows written before snapshotting existed;
+  // readers fall back to the status's current values for those.
+  sensitive: boolean | null
+  attachments: Attachment[] | null
+  pollOptions: string[] | null
   supersededAt: number
 }
 export type DeleteStatusParams = BaseStatusParams & {
@@ -1557,6 +1581,7 @@ export type GetFollowedTagsParams = {
   actorId: string
   limit?: number
   maxId?: string | null
+  minId?: string | null
   sinceId?: string | null
 }
 export type IsFollowingTagParams = { actorId: string; name: string }
@@ -3225,6 +3250,7 @@ export type ImportDomainBlockParams = CreateDomainBlockParams
 export type DomainFederationRuleStats = {
   blocks: number
   suspendBlocks: number
+  silenceBlocks: number
   allows: number
   sourceBlocks: number
   sourceCounts: Record<string, number>
@@ -3243,7 +3269,7 @@ export interface AdminDatabase {
   getDomainBlocks(params?: {
     limit?: number
     offset?: number
-    severity?: DomainBlockSeverity
+    severities?: DomainBlockSeverity[]
   }): Promise<DomainBlock[]>
   getDomainAllows(params?: {
     limit?: number
@@ -3277,6 +3303,10 @@ export interface InstanceActivityDatabase {
     params?: GetInstanceActivityParams
   ): Promise<InstanceActivityWeek[]>
   getInstancePeers(params?: GetInstancePeersParams): Promise<string[]>
+  // Earliest-created local actor owned by an account with the admin role,
+  // used as the Mastodon instance contact account; null when the instance
+  // has no admin.
+  getInstanceAdminActorId(): Promise<string | null>
 }
 
 export type GetInstancePeersParams = {

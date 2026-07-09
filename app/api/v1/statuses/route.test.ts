@@ -11,7 +11,7 @@ import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
-import { Status } from '@/lib/types/domain/status'
+import { Status, StatusPoll } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { urlToId } from '@/lib/utils/urlToId'
@@ -461,6 +461,31 @@ describe('POST /api/v1/statuses', () => {
       { title: 'Coffee', votes_count: 0 }
     ])
     expect(mastodonStatus.poll.multiple).toBe(false)
+  })
+
+  it('persists poll hide_totals on a JSON poll create', async () => {
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'Secret tally?',
+          poll: { options: ['Yes', 'No'], expires_in: 3600, hide_totals: true }
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const mastodonStatus = await response.json()
+    const status = (await database.getStatus({
+      statusId: mastodonStatus.uri,
+      withReplies: false
+    })) as StatusPoll
+    expect(status.hideTotals).toBe(true)
   })
 
   it('rejects a status that carries both media and a poll with 422', async () => {

@@ -70,13 +70,16 @@ describe('GET /api/v1/mutes', () => {
   })
 
   const createdTargets: string[] = []
-  const createMute = async (targetActorId: string) => {
+  const createMute = async (
+    targetActorId: string,
+    endsAt: number | null = null
+  ) => {
     createdTargets.push(targetActorId)
     await database.createMute({
       actorId: ACTOR1_ID,
       targetActorId,
       notifications: true,
-      endsAt: null
+      endsAt
     })
   }
 
@@ -208,6 +211,57 @@ describe('GET /api/v1/mutes', () => {
       expect.objectContaining({
         url: orphanedTarget,
         display_name: 'Account unavailable'
+      })
+    )
+  })
+
+  it('returns mute_expires_at from the stored expiry for a timed mute', async () => {
+    await createMute(ACTOR2_ID, Date.UTC(2100, 0, 1))
+
+    const response = await GET(createRequest(), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data).toHaveLength(1)
+    expect(data[0]).toEqual(
+      expect.objectContaining({
+        url: ACTOR2_ID,
+        mute_expires_at: '2100-01-01T00:00:00.000Z'
+      })
+    )
+  })
+
+  it('returns mute_expires_at=null for an indefinite mute', async () => {
+    await createMute(ACTOR2_ID)
+
+    const response = await GET(createRequest(), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data[0]).toEqual(
+      expect.objectContaining({ url: ACTOR2_ID, mute_expires_at: null })
+    )
+  })
+
+  it('includes mute_expires_at on the fallback account', async () => {
+    const orphanedTarget = 'https://remote.test/users/ghost-mute-target'
+    await createMute(orphanedTarget, Date.UTC(2100, 5, 15, 8, 30, 0))
+
+    const response = await GET(createRequest(), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data[0]).toEqual(
+      expect.objectContaining({
+        url: orphanedTarget,
+        display_name: 'Account unavailable',
+        mute_expires_at: '2100-06-15T08:30:00.000Z'
       })
     )
   })

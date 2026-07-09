@@ -588,7 +588,7 @@ CREATE TABLE public.medias (
     "actorId" character varying(255),
     original character varying(255),
     thumbnail character varying(255),
-    description character varying(255),
+    description text,
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     "accountId" character varying(255),

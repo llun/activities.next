@@ -346,6 +346,40 @@ describe('ActorDatabase', () => {
         })
       })
 
+      it('serializes uri, roles, indexable and hide_collections with defaults', async () => {
+        const id = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+        const actor = await database.getMastodonActorFromId({ id })
+
+        expect(actor).toMatchObject({
+          uri: id,
+          roles: [],
+          indexable: false,
+          hide_collections: null
+        })
+        expect(actor?.source.attribution_domains).toEqual([])
+      })
+
+      it('serializes persisted modern flags and attribution domains', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `modern-serialize-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+        await database.updateActor({
+          actorId,
+          indexable: true,
+          hideCollections: true,
+          attributionDomains: ['blog.example.com']
+        })
+
+        const actor = await database.getMastodonActorFromId({ id: actorId })
+
+        expect(actor).toMatchObject({
+          indexable: true,
+          hide_collections: true
+        })
+        expect(actor?.source.attribution_domains).toEqual(['blog.example.com'])
+      })
+
       it('returns mastodon actors from ids in request order', async () => {
         await withFreshDatabase(async (database) => {
           const suffix = crypto.randomUUID().slice(0, 8)
@@ -730,6 +764,7 @@ describe('ActorDatabase', () => {
           username: EXTERNAL_ACTORS[1].username,
           acct: `${EXTERNAL_ACTORS[1].username}@${EXTERNAL_ACTORS[1].domain}`,
           url: EXTERNAL_ACTORS[1].id,
+          uri: EXTERNAL_ACTORS[1].id,
           display_name: EXTERNAL_ACTORS[1].name,
           note: '',
           avatar: '',
@@ -745,6 +780,9 @@ describe('ActorDatabase', () => {
           group: false,
           discoverable: true,
           noindex: false,
+          roles: [],
+          indexable: false,
+          hide_collections: null,
 
           source: {
             fields: [],
@@ -752,7 +790,8 @@ describe('ActorDatabase', () => {
             language: 'en',
             note: '',
             privacy: 'public',
-            sensitive: false
+            sensitive: false,
+            attribution_domains: []
           },
 
           created_at: getISOTimeUTC(currentTime),
@@ -906,6 +945,32 @@ describe('ActorDatabase', () => {
           domain
         })
         expect(mastodonActor?.bot).toBeTrue()
+      })
+
+      it.each([
+        {
+          description:
+            'persists true flags and attribution domains in settings',
+          update: {
+            indexable: true,
+            hideCollections: true,
+            attributionDomains: ['blog.example.com', 'news.example.com']
+          }
+        },
+        {
+          description: 'keeps persisted false flags (not treated as unset)',
+          update: { indexable: false, hideCollections: false }
+        }
+      ])('$description', async ({ update }) => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `modern-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+
+        await database.updateActor({ actorId, ...update })
+
+        const settings = await database.getActorSettings({ actorId })
+        expect(settings).toMatchObject(update)
       })
 
       it('preserves other settings updates passed alongside an append', async () => {

@@ -98,4 +98,33 @@ describe('GET /api/v1/directory', () => {
     expect(response.status).toBe(400)
     expect(mockDatabase.getLocalMastodonActors).not.toHaveBeenCalled()
   })
+
+  it.each([
+    {
+      description: 'includes remote actors by default (local=false)',
+      query: '',
+      expectedLocal: false
+    },
+    {
+      description: 'restricts to local actors when local=true',
+      query: '?local=true',
+      expectedLocal: true
+    },
+    {
+      description:
+        'coerces a garbage local value to false instead of rejecting',
+      query: '?local=banana',
+      expectedLocal: false
+    }
+  ])('$description', async ({ query, expectedLocal }) => {
+    const response = await GET(
+      new NextRequest(`https://local.test/api/v1/directory${query}`),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.getLocalMastodonActors).toHaveBeenCalledWith(
+      expect.objectContaining({ local: expectedLocal })
+    )
+  })
 })

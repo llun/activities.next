@@ -294,10 +294,11 @@ describe('AdminDatabase', () => {
         const after = await database.getDomainFederationRuleStats()
         expect(after.blocks).toBe(before.blocks + 3)
         expect(after.suspendBlocks).toBe(before.suspendBlocks + 1)
+        expect(after.silenceBlocks).toBe(before.silenceBlocks + 1)
 
         const suspendBlocks = await database.getDomainBlocks({
           limit: 1000,
-          severity: 'suspend'
+          severities: ['suspend']
         })
         const suspendDomains = new Set(
           suspendBlocks.map((block) => block.domain)
@@ -305,6 +306,16 @@ describe('AdminDatabase', () => {
         expect(suspendDomains.has(suspendDomain)).toBe(true)
         expect(suspendDomains.has(silenceDomain)).toBe(false)
         expect(suspendDomains.has(noopDomain)).toBe(false)
+
+        // The public instance endpoint lists both user-facing severities.
+        const publicBlocks = await database.getDomainBlocks({
+          limit: 1000,
+          severities: ['silence', 'suspend']
+        })
+        const publicDomains = new Set(publicBlocks.map((block) => block.domain))
+        expect(publicDomains.has(suspendDomain)).toBe(true)
+        expect(publicDomains.has(silenceDomain)).toBe(true)
+        expect(publicDomains.has(noopDomain)).toBe(false)
       })
 
       it('matches exact domains before wildcard rules in SQL', async () => {

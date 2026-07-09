@@ -20,6 +20,15 @@ export interface ActorSettings {
   // the builder falls back to a sensible default for the actor type.
   bot?: boolean
   discoverable?: boolean
+  // Mastodon 4.x account flags stored alongside bot/discoverable. `indexable`
+  // opts the account's public posts into full-text search by anyone (Mastodon
+  // defaults this to false / opt-in); `hideCollections` hides the follower and
+  // following collections on the profile; `attributionDomains` lists domains
+  // allowed to credit this account (update_credentials
+  // `attribution_domains[]`).
+  indexable?: boolean
+  hideCollections?: boolean
+  attributionDomains?: string[]
   // Mastodon `source.*` posting defaults surfaced by the credential endpoints.
   defaultPrivacy?: 'public' | 'unlisted' | 'private' | 'direct'
   defaultSensitive?: boolean

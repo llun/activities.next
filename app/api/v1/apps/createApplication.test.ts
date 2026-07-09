@@ -61,9 +61,12 @@ describe('createApplication', () => {
       id: expect.toBeString(),
       client_id: expect.toBeString(),
       client_secret: expect.toBeString(),
+      client_secret_expires_at: 0,
       name: 'client1',
       website: 'https://test.llun.dev',
-      redirect_uri: 'https://test.llun.dev/apps/redirect'
+      scopes: ['read', 'write'],
+      redirect_uri: 'https://test.llun.dev/apps/redirect',
+      redirect_uris: ['https://test.llun.dev/apps/redirect']
     })
     expect(response.id).not.toEqual(response.client_id)
     expect(response.id).toMatch(
@@ -86,9 +89,12 @@ describe('createApplication', () => {
       id: expect.toBeString(),
       client_id: expect.toBeString(),
       client_secret: expect.toBeString(),
+      client_secret_expires_at: 0,
       name: 'existsClient',
       website: 'https://test.llun.dev',
-      redirect_uri: 'https://test.llun.dev/apps/redirect'
+      scopes: ['read', 'write'],
+      redirect_uri: 'https://test.llun.dev/apps/redirect',
+      redirect_uris: ['https://test.llun.dev/apps/redirect']
     })
   })
 
@@ -288,7 +294,74 @@ describe('createApplication', () => {
       { registrationKey: 'multi-redirect-source' }
     )) as SuccessResponse
     expect(response.type).toEqual('success')
-    expect(response.redirect_uri).toEqual('https://test.llun.dev/callback')
+    // Deprecated field: 4.3 semantics are the newline-join of ALL URIs, no
+    // longer just the first one.
+    expect(response.redirect_uri).toEqual(
+      'https://test.llun.dev/callback\nhttps://test.llun.dev/alt-callback'
+    )
+    expect(response.redirect_uris).toEqual([
+      'https://test.llun.dev/callback',
+      'https://test.llun.dev/alt-callback'
+    ])
+  })
+
+  test('it returns website null when the registration omits website', async () => {
+    const response = (await createApplication({
+      client_name: 'noWebsiteClient',
+      redirect_uris: 'https://no-website.llun.dev/callback',
+      scopes: 'read'
+    })) as SuccessResponse
+
+    expect(response.type).toBe('success')
+    expect(response.website).toBeNull()
+  })
+
+  test('it returns website null when the registration passes a blank website', async () => {
+    const response = (await createApplication({
+      client_name: 'blankWebsiteClient',
+      redirect_uris: 'https://blank-website.llun.dev/callback',
+      scopes: 'read',
+      website: ''
+    })) as SuccessResponse
+
+    expect(response.type).toBe('success')
+    expect(response.website).toBeNull()
+  })
+
+  test('it accepts redirect_uris as an array of URIs (Mastodon 4.3 form)', async () => {
+    const response = (await createApplication({
+      client_name: 'arrayRedirectClient',
+      redirect_uris: [
+        'https://array.llun.dev/callback',
+        'https://array.llun.dev/alt-callback'
+      ],
+      scopes: 'read',
+      website: 'https://array.llun.dev'
+    })) as SuccessResponse
+
+    expect(response.type).toBe('success')
+
+    const dbClient = await knexDatabase('oauthClient')
+      .where({ id: response.id })
+      .first()
+    expect(JSON.parse(dbClient.redirectUris)).toEqual([
+      'https://array.llun.dev/callback',
+      'https://array.llun.dev/alt-callback'
+    ])
+  })
+
+  test('it errors when redirect_uris is an empty array', async () => {
+    const response = await createApplication({
+      client_name: 'emptyArrayRedirectClient',
+      redirect_uris: [],
+      scopes: 'read',
+      website: 'https://empty-array.llun.dev'
+    })
+
+    expect(response).toEqual({
+      type: 'error',
+      error: 'Failed to validate request'
+    })
   })
 
   test('it enables end-session and stores post_logout_redirect_uris as a JSON-array string when provided', async () => {

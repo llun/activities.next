@@ -86,6 +86,50 @@ describe('getRelationship', () => {
     expect(relationship.requested).toBe(true)
   })
 
+  it('returns requested_by=true when the target has a pending follow request to the current actor', async () => {
+    mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
+    mockDatabase.getAcceptedOrRequestedFollow.mockImplementation(
+      async ({ actorId }: { actorId: string }) =>
+        actorId === 'https://example.com/users/target'
+          ? { status: FollowStatus.enum.Requested }
+          : null
+    )
+
+    const relationship = await getRelationship({
+      database: mockDatabase as unknown as Database,
+      currentActor: mockCurrentActor as unknown as Actor,
+      targetActorId: 'https://example.com/users/target'
+    })
+
+    expect(relationship.requested).toBe(false)
+    expect(relationship.requested_by).toBe(true)
+    expect(mockDatabase.getAcceptedOrRequestedFollow).toHaveBeenCalledWith({
+      actorId: 'https://example.com/users/target',
+      targetActorId: mockCurrentActor.id
+    })
+  })
+
+  it('returns requested_by=false when the incoming follow is already accepted', async () => {
+    mockDatabase.isCurrentActorFollowing
+      .mockResolvedValueOnce(false) // current follows target
+      .mockResolvedValueOnce(true) // target follows current
+    mockDatabase.getAcceptedOrRequestedFollow.mockImplementation(
+      async ({ actorId }: { actorId: string }) =>
+        actorId === 'https://example.com/users/target'
+          ? { status: FollowStatus.enum.Accepted }
+          : null
+    )
+
+    const relationship = await getRelationship({
+      database: mockDatabase as unknown as Database,
+      currentActor: mockCurrentActor as unknown as Actor,
+      targetActorId: 'https://example.com/users/target'
+    })
+
+    expect(relationship.followed_by).toBe(true)
+    expect(relationship.requested_by).toBe(false)
+  })
+
   it('returns correct Mastodon Relationship structure', async () => {
     mockDatabase.isCurrentActorFollowing
       .mockResolvedValueOnce(true)
@@ -286,5 +330,41 @@ describe('getRelationship', () => {
 
     expect(relationship.muting).toBe(false)
     expect(relationship.muting_notifications).toBe(false)
+  })
+
+  it.each([
+    {
+      description: 'reports muting_expires_at as ISO 8601 for a timed mute',
+      endsAt: Date.UTC(2026, 5, 1, 12, 0, 0),
+      expected: '2026-06-01T12:00:00.000Z'
+    },
+    {
+      description: 'reports muting_expires_at=null for an indefinite mute',
+      endsAt: null,
+      expected: null
+    }
+  ])('$description', async ({ endsAt, expected }) => {
+    mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
+    mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
+    mockDatabase.getMute.mockResolvedValue({
+      id: 'mute-3',
+      actorId: mockCurrentActor.id,
+      actorHost: 'example.com',
+      targetActorId: 'https://example.com/users/target',
+      targetActorHost: 'example.com',
+      notifications: false,
+      endsAt,
+      createdAt: 0,
+      updatedAt: 0
+    })
+
+    const relationship = await getRelationship({
+      database: mockDatabase as unknown as Database,
+      currentActor: mockCurrentActor as unknown as Actor,
+      targetActorId: 'https://example.com/users/target'
+    })
+
+    expect(relationship.muting).toBe(true)
+    expect(relationship.muting_expires_at).toEqual(expected)
   })
 })

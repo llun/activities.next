@@ -17,7 +17,6 @@ CREATE TABLE `poll_answers` (`answerId` integer not null primary key autoincreme
 CREATE TABLE IF NOT EXISTS "account_providers" (`id` varchar(255), `accountId` varchar(255), `provider` varchar(255), `providerId` varchar(255), `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, `password` text null, `accessToken` text null, `refreshToken` text null, `idToken` text null, `accessTokenExpiresAt` datetime null, `refreshTokenExpiresAt` datetime null, `scope` text null, primary key (`id`));
 CREATE TABLE `sessions` (`id` varchar(255), `accountId` varchar(255), `token` varchar(255), `expireAt` datetime, `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, `actorId` varchar(255) null, `ipAddress` text null, `userAgent` text null, primary key (`id`));
 CREATE TABLE `status_history` (`id` integer not null primary key autoincrement, `statusId` varchar(255), `data` json, `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP);
-CREATE TABLE `medias` (`id` integer not null primary key autoincrement, `actorId` varchar(255), `original` varchar(255), `thumbnail` varchar(255) null, `description` varchar(255) null, `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, `accountId` varchar(255), "originalMimeType" varchar(255), "originalBytes" bigint, `thumbnailBytes` bigint null, `thumbnailMimeType` varchar(255) null, `originalMetaData` json, `thumbnailMetaData` json null, `originalFileName` varchar(255) null, `focusX` float null, `focusY` float null);
 CREATE UNIQUE INDEX `timelines_actorId_timeline_statusId_unique` on `timelines` (`actorId`, `timeline`, `statusId`);
 CREATE INDEX `account_providers_accountId_provider_providerId_idx` on `account_providers` (`accountId`, `provider`, `providerId`);
 CREATE INDEX `recipiences_statusId_type_idx` on `recipients` (`statusId`, `type`, `createdAt`, `updatedAt`);
@@ -25,8 +24,6 @@ CREATE INDEX `sessions_accountId_token_idx` on `sessions` (`accountId`, `token`)
 CREATE INDEX `status_history_statusId_idx` on `status_history` (`statusId`, `createdAt`, `updatedAt`);
 CREATE INDEX `statuses_actorId_idx` on `statuses` (`actorId`, `createdAt`, `updatedAt`);
 CREATE INDEX `tags_statusId_type_idx` on `tags` (`statusId`, `type`, `createdAt`, `updatedAt`);
-CREATE INDEX `medias_accountId_originalMimeType_idx` on `medias` (`accountId`, `originalMimeType`);
-CREATE INDEX `medias_actorId_originalMimeType_idx` on `medias` (`actorId`, `originalMimeType`);
 CREATE INDEX `verificationCodeIndex` on `accounts` (`verificationCode`);
 CREATE INDEX `attachments_actorId_idx` on `attachments` (`actorId`);
 CREATE TABLE IF NOT EXISTS "clients" (`id` varchar(255), "name" varchar(255), `secret` varchar(255), `redirectUris` text, `scopes` text, `website` varchar(255), `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, primary key (`id`));
@@ -56,7 +53,6 @@ CREATE TABLE IF NOT EXISTS "counters" (`id` text, `value` bigint not null defaul
 CREATE INDEX `countersIndex` on `counters` (`id`, `createdAt`, `updatedAt`);
 CREATE INDEX `statusesUrlHashIndex` on `statuses` (`urlHash`);
 CREATE INDEX `actors_accountId_idx` on `actors` (`accountId`);
-CREATE INDEX `medias_actorId_createdAt_idx` on `medias` (`actorId`, `createdAt`);
 CREATE INDEX `attachments_mediaId_idx` on `attachments` (`mediaId`);
 CREATE INDEX `recipients_type_actor_created_status_idx` on `recipients` (`type`, `actorId`, `createdAt`, `statusId`);
 CREATE INDEX `passwordResetCodeIndex` on `accounts` (`passwordResetCode`);
@@ -235,4 +231,8 @@ CREATE UNIQUE INDEX `fitness_route_heatmaps_sharetoken_unique` on `fitness_route
 CREATE TABLE `fitness_import_locks` (`lockKey` varchar(255), `token` varchar(255) not null, `expiresAt` bigint not null, `createdAt` datetime default CURRENT_TIMESTAMP, primary key (`lockKey`));
 CREATE INDEX `fitness_import_locks_expiresat_index` on `fitness_import_locks` (`expiresAt`);
 CREATE TABLE `status_detected_languages` (`statusId` varchar(255) not null, `language` varchar(16) not null, `confidence` float, `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, primary key (`statusId`));
+CREATE TABLE IF NOT EXISTS "medias" (`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL, `actorId` varchar(255), `original` varchar(255), `thumbnail` varchar(255) NULL, `description` text NULL, `createdAt` datetime DEFAULT CURRENT_TIMESTAMP, `updatedAt` datetime DEFAULT CURRENT_TIMESTAMP, `accountId` varchar(255), `originalMimeType` varchar(255), `originalBytes` bigint, `thumbnailBytes` bigint NULL, `thumbnailMimeType` varchar(255) NULL, `originalMetaData` json, `thumbnailMetaData` json NULL, `originalFileName` varchar(255) NULL, `focusX` float NULL, `focusY` float NULL);
+CREATE INDEX `medias_accountId_originalMimeType_idx` on `medias` (`accountId`, `originalMimeType`);
+CREATE INDEX `medias_actorId_originalMimeType_idx` on `medias` (`actorId`, `originalMimeType`);
+CREATE INDEX `medias_actorId_createdAt_idx` on `medias` (`actorId`, `createdAt`);
 CREATE INDEX `actors_domain_last_status_at_idx` on `actors` (`domain`, `lastStatusAt`);
