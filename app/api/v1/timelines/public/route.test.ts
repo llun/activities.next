@@ -90,6 +90,37 @@ describe('GET /api/v1/timelines/public', () => {
     ])
   })
 
+  it('applies instance-wide server hide filters for anonymous viewers', async () => {
+    await database.createServerFilter({
+      title: 'Server hidden',
+      context: ['public'],
+      filterAction: 'hide',
+      expiresAt: null,
+      keywords: [{ keyword: 'serverhidden', wholeWord: false }]
+    })
+    const hiddenStatus = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/public-server-hidden`,
+      url: `${ACTOR1_ID}/statuses/public-server-hidden`,
+      actorId: ACTOR1_ID,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      text: 'serverhidden content'
+    })
+    vi.spyOn(database, 'getTimeline').mockResolvedValue([
+      hiddenStatus,
+      publicStatus
+    ])
+
+    const response = await GET(request(), { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    const ids = (await response.json()).map((s: { id: string }) => s.id)
+    // The server-wide hide filter drops the matching status even for a
+    // signed-out (anonymous) viewer; the non-matching status survives.
+    expect(ids).not.toContain(urlToId(hiddenStatus.id))
+    expect(ids).toContain(urlToId(publicStatus.id))
+  })
+
   it.each([
     { description: 'junk opaque id', value: 'apurl_@@@@' },
     { description: 'percent signs', value: '%%%' },
