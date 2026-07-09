@@ -363,6 +363,36 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     updateActor.mockRestore()
   })
 
+  it('rejects more than 100 attribution_domains with 422', async () => {
+    const updateActor = vi.spyOn(database, 'updateActor')
+    const form = new FormData()
+    for (let i = 0; i < 101; i += 1) {
+      form.append('attribution_domains[]', `domain${i}.example.com`)
+    }
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(422)
+    expect(updateActor).not.toHaveBeenCalled()
+    updateActor.mockRestore()
+  })
+
+  it('rejects an attribution domain longer than 255 characters with 422', async () => {
+    const updateActor = vi.spyOn(database, 'updateActor')
+    const form = new FormData()
+    form.append('attribution_domains[]', 'a'.repeat(256))
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(422)
+    expect(updateActor).not.toHaveBeenCalled()
+    updateActor.mockRestore()
+  })
+
   it('persists fields_attributes, bot, discoverable and source defaults (multipart)', async () => {
     const updateActor = vi.spyOn(database, 'updateActor')
     const form = new FormData()
