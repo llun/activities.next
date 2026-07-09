@@ -8,6 +8,7 @@ const mockDatabase = {
   getBlockRelations: vi.fn(),
   getMuteRelations: vi.fn(),
   getStatusesByHashtag: vi.fn(),
+  getTagDailyHistory: vi.fn(),
   isFollowingTag: vi.fn()
 }
 const mockCurrentActor = {
@@ -52,6 +53,7 @@ describe('GET /api/v1/tags/:tag', () => {
     mockDatabase.getBlockRelations.mockResolvedValue([])
     mockDatabase.getMuteRelations.mockResolvedValue([])
     mockDatabase.getStatusesByHashtag.mockResolvedValue([status])
+    mockDatabase.getTagDailyHistory.mockResolvedValue(new Map())
     mockDatabase.isFollowingTag.mockResolvedValue(true)
   })
 
@@ -83,5 +85,60 @@ describe('GET /api/v1/tags/:tag', () => {
     const body = await response.json()
     expect(Array.isArray(body.statuses)).toBe(true)
     expect(mockDatabase.getStatusesByHashtag).toHaveBeenCalled()
+  })
+
+  it('includes the seven-day usage history in the Tag entity', async () => {
+    const DAY_MS = 86_400_000
+    const todayBucketMs = Math.floor(Date.now() / DAY_MS) * DAY_MS
+    mockDatabase.getTagDailyHistory.mockResolvedValue(
+      new Map([
+        ['running', [{ dayBucketMs: todayBucketMs, uses: 3, accounts: 2 }]]
+      ])
+    )
+
+    const response = await GET(
+      new NextRequest('https://local.test/api/v1/tags/running'),
+      { params: Promise.resolve({ tag: 'running' }) }
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.history).toHaveLength(7)
+    expect(body.history[0]).toEqual({
+      day: String(todayBucketMs / 1000),
+      uses: '3',
+      accounts: '2'
+    })
+    expect(body.history[1]).toEqual({
+      day: String((todayBucketMs - DAY_MS) / 1000),
+      uses: '0',
+      accounts: '0'
+    })
+  })
+
+  it.each([
+    {
+      description: 'accepts a unicode hashtag name',
+      tag: 'こんにちは',
+      expectedStatus: 200
+    },
+    {
+      description: 'accepts an all-numeric hashtag name',
+      tag: '2026',
+      expectedStatus: 200
+    },
+    {
+      description: 'rejects a name containing spaces',
+      tag: 'not a tag',
+      expectedStatus: 400
+    }
+  ])('$description', async ({ tag, expectedStatus }) => {
+    const response = await GET(
+      new NextRequest(
+        `https://local.test/api/v1/tags/${encodeURIComponent(tag)}`
+      ),
+      { params: Promise.resolve({ tag }) }
+    )
+    expect(response.status).toBe(expectedStatus)
   })
 })

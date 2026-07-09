@@ -2,9 +2,11 @@ import { z } from 'zod'
 
 import { OAuthGuard, corsErrorResponse } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonTag } from '@/lib/services/mastodon/getMastodonTag'
+import { getTagHistory } from '@/lib/services/trends/tagHistory'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
+import { normalizeHashtagParam } from '@/lib/utils/text/mastodonHashtag'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
@@ -12,7 +14,7 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const Params = z.object({
-  tag: z.string().regex(/^[a-zA-Z0-9_]*[a-zA-Z_][a-zA-Z0-9_]*$/)
+  tag: z.string().max(255)
 })
 
 interface RouteParams {
@@ -35,12 +37,22 @@ export const POST = traceApiRoute(
         })
       }
 
-      const { tag } = parsed.data
+      const tag = normalizeHashtagParam(parsed.data.tag)
+      if (!tag) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+      }
+
       await database.followTag({ actorId: currentActor.id, name: tag })
+      const history = await getTagHistory(database, tag)
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: getMastodonTag(tag, true)
+        data: getMastodonTag(tag, true, history)
       })
     },
     { errorResponse: corsErrorResponse(CORS_HEADERS) }
