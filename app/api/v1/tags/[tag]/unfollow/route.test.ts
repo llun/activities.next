@@ -94,5 +94,9 @@ describe('POST /api/v1/tags/:tag/unfollow', () => {
       { params: Promise.resolve({ tag }) }
     )
     expect(response.status).toBe(expectedStatus)
+    if (expectedStatus === 400) {
+      // A rejected tag must not trigger an unfollow write (guard runs first).
+      expect(mockDatabase.unfollowTag).not.toHaveBeenCalled()
+    }
   })
 })

@@ -99,5 +99,9 @@ describe('POST /api/v1/tags/:tag/follow', () => {
       { params: Promise.resolve({ tag }) }
     )
     expect(response.status).toBe(expectedStatus)
+    if (expectedStatus === 400) {
+      // A rejected tag must not persist a follow row (guard runs before the write).
+      expect(mockDatabase.followTag).not.toHaveBeenCalled()
+    }
   })
 })
