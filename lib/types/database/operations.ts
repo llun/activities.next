@@ -3009,6 +3009,9 @@ export type GetTimelineParams = {
   sinceStatusId?: string | null
   maxStatusId?: string | null
   limit?: number
+  // Attachments-only filter (Mastodon `only_media`). Honored by the
+  // LOCAL_PUBLIC and FEDERATED_PUBLIC timelines; other timelines ignore it.
+  onlyMedia?: boolean
 }
 export type CreateTimelineStatusParams = {
   timeline: Timeline
