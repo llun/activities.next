@@ -1,8 +1,10 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { FEATURED_TAGS_LIMIT } from '@/lib/services/mastodon/featureTag'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { seedActor2 } from '@/lib/stub/seed/actor2'
 
 import { POST } from './route'
 
@@ -97,6 +99,27 @@ describe('POST /api/v1/tags/:tag/feature', () => {
 
     const featured = await database.getFeaturedTags({ actorId: ACTOR1_ID })
     expect(featured.filter((item) => item.name === 'twice')).toHaveLength(1)
+  })
+
+  it('returns 422 once the per-account featured-tags limit is reached', async () => {
+    // Use a fresh actor (Actor2) so the cap starts from zero.
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor2.email }
+    })
+    for (let index = 0; index < FEATURED_TAGS_LIMIT; index += 1) {
+      const response = await POST(postRequest(`limit${index}`), {
+        params: Promise.resolve({ tag: `limit${index}` })
+      })
+      expect(response.status).toBe(200)
+    }
+
+    const overflow = await POST(postRequest('overflow'), {
+      params: Promise.resolve({ tag: 'overflow' })
+    })
+    expect(overflow.status).toBe(422)
+    expect(await overflow.json()).toEqual({
+      error: `You can only feature up to ${FEATURED_TAGS_LIMIT} hashtags`
+    })
   })
 
   it('returns 400 for an invalid tag name', async () => {
