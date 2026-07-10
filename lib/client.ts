@@ -3411,7 +3411,9 @@ export const updateCollection = async ({
     }
   )
   if (!response.ok) return null
-  return (await response.json()) as CollectionEntity
+  // Mastodon 4.6 wraps the updated collection; unwrap for component callers.
+  const data = (await response.json()) as { collection: CollectionEntity }
+  return data.collection
 }
 
 export const deleteCollection = async (
