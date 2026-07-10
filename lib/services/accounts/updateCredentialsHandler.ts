@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { buildCredentialAccount } from '@/lib/services/accounts/credentialAccount'
 import { localizeAccount } from '@/lib/services/accounts/localizeAccount'
+import { buildProfile } from '@/lib/services/accounts/profile'
 import {
   OAuthGuardAnyScope,
   corsErrorResponse
@@ -37,6 +38,16 @@ const UpdateCredentialsRequest = z.object({
   // Mastodon caps attribution domains at 100 entries; a hostname fits in 255.
   attribution_domains: z.string().max(255).array().max(100).optional(),
   fields: FieldAttribute.array().max(4).optional(),
+  // Mastodon 4.6 PATCH /api/v1/profile appearance params. Accepted on both
+  // PATCH endpoints so they share one param surface; update_credentials
+  // clients simply never send them. Descriptions cap at 1500 chars (Mastodon's
+  // media-description limit). Booleans accept the string forms exactly like
+  // locked/bot/discoverable because form bodies deliver strings.
+  avatar_description: z.string().max(1500).optional(),
+  header_description: z.string().max(1500).optional(),
+  show_media: z.union([z.boolean(), z.string()]).optional(),
+  show_media_replies: z.union([z.boolean(), z.string()]).optional(),
+  show_featured: z.union([z.boolean(), z.string()]).optional(),
   source: z
     .object({
       privacy: z.enum(['public', 'unlisted', 'private', 'direct']).optional(),
@@ -137,12 +148,19 @@ const normalizeJsonBody = (json: Record<string, unknown>) => {
 
 // Shared handler for PATCH /api/v1/accounts/update_credentials and
 // PATCH /api/v1/profile. Updates the current actor's profile fields (display
-// name / note / fields / privacy / avatar / header / ...) and returns the
-// updated CredentialAccount.
-// The CORS allow-list differs per route (update_credentials = OPTIONS,PATCH;
+// name / note / fields / privacy / avatar / header / appearance flags / ...).
+// The response entity differs per route: update_credentials returns the
+// CredentialAccount (default `responseEntity: 'credential_account'`), profile
+// returns the Mastodon 4.6 Profile entity (`responseEntity: 'profile'`).
+// The CORS allow-list also differs (update_credentials = OPTIONS,PATCH;
 // profile = OPTIONS,GET,PATCH), so it is passed in.
 // Scope: write:accounts (satisfied by the aggregate `write`).
-export const updateCredentialsHandler = (corsHeaders: HttpMethod[]) =>
+export const updateCredentialsHandler = (
+  corsHeaders: HttpMethod[],
+  {
+    responseEntity = 'credential_account'
+  }: { responseEntity?: 'credential_account' | 'profile' } = {}
+) =>
   OAuthGuardAnyScope(
     [Scope.enum.write, Scope.enum['write:accounts']],
     async (req, context) => {
@@ -203,7 +221,12 @@ export const updateCredentialsHandler = (corsHeaders: HttpMethod[]) =>
         hide_collections,
         attribution_domains,
         fields,
-        source
+        source,
+        avatar_description,
+        header_description,
+        show_media,
+        show_media_replies,
+        show_featured
       } = parsed.data
 
       // Persist avatar/header through the shared media-save pipeline and store
@@ -235,6 +258,9 @@ export const updateCredentialsHandler = (corsHeaders: HttpMethod[]) =>
       const discoverableFlag = parseBoolean(discoverable)
       const indexableFlag = parseBoolean(indexable)
       const hideCollectionsFlag = parseBoolean(hide_collections)
+      const showMediaFlag = parseBoolean(show_media)
+      const showMediaRepliesFlag = parseBoolean(show_media_replies)
+      const showFeaturedFlag = parseBoolean(show_featured)
       const sensitiveFlag = parseBoolean(source?.sensitive)
       // Normalize attribution domains: trim, lowercase, drop empties, dedupe.
       // An explicit empty array clears the stored list.
@@ -276,7 +302,20 @@ export const updateCredentialsHandler = (corsHeaders: HttpMethod[]) =>
           ? { defaultLanguage: source.language }
           : null),
         ...(iconUrl !== undefined ? { iconUrl } : null),
-        ...(headerImageUrl !== undefined ? { headerImageUrl } : null)
+        ...(headerImageUrl !== undefined ? { headerImageUrl } : null),
+        ...(avatar_description !== undefined
+          ? { avatarDescription: avatar_description }
+          : null),
+        ...(header_description !== undefined
+          ? { headerDescription: header_description }
+          : null),
+        ...(showMediaFlag !== undefined ? { showMedia: showMediaFlag } : null),
+        ...(showMediaRepliesFlag !== undefined
+          ? { showMediaReplies: showMediaRepliesFlag }
+          : null),
+        ...(showFeaturedFlag !== undefined
+          ? { showFeatured: showFeaturedFlag }
+          : null)
       })
 
       const [account, followRequestsCount] = await Promise.all([
@@ -290,6 +329,16 @@ export const updateCredentialsHandler = (corsHeaders: HttpMethod[]) =>
           allowedMethods: corsHeaders,
           data: { error: 'Account not found' },
           responseStatusCode: 500
+        })
+      }
+      if (responseEntity === 'profile') {
+        const settings = await database.getActorSettings({
+          actorId: currentActor.id
+        })
+        return apiResponse({
+          req,
+          allowedMethods: corsHeaders,
+          data: buildProfile({ account, settings })
         })
       }
       // Render the acct relative to the domain the client connected through,

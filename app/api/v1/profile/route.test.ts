@@ -148,17 +148,103 @@ describe('PATCH /api/v1/profile', () => {
 
     expect(response.status).toBe(200)
     const data = await response.json()
+    // The PATCH now returns a Profile: `note` is top-level raw text and there
+    // is no CredentialAccount `source`/`role`.
     expect(data).toEqual(
       expect.objectContaining({
         id: expect.any(String),
         display_name: 'Profile Name',
-        source: expect.objectContaining({ note: 'Profile bio' })
+        note: 'Profile bio'
       })
     )
+    expect(data.source).toBeUndefined()
+    expect(data.role).toBeUndefined()
 
     const actor = await database.getActorFromId({ id: ACTOR1_ID })
     expect(actor?.name).toBe('Profile Name')
     expect(actor?.summary).toBe('Profile bio')
+  })
+
+  it.each([
+    {
+      description: 'persists avatar_description',
+      body: { avatar_description: 'Coffee cup close-up' },
+      responseKey: 'avatar_description',
+      expected: 'Coffee cup close-up',
+      settingsKey: 'avatarDescription'
+    },
+    {
+      description: 'persists header_description',
+      body: { header_description: 'Mountains at dawn' },
+      responseKey: 'header_description',
+      expected: 'Mountains at dawn',
+      settingsKey: 'headerDescription'
+    },
+    {
+      description: 'persists show_media false',
+      body: { show_media: false },
+      responseKey: 'show_media',
+      expected: false,
+      settingsKey: 'showMedia'
+    },
+    {
+      description: 'persists show_media_replies false',
+      body: { show_media_replies: false },
+      responseKey: 'show_media_replies',
+      expected: false,
+      settingsKey: 'showMediaReplies'
+    },
+    {
+      description: 'persists show_featured false',
+      body: { show_featured: false },
+      responseKey: 'show_featured',
+      expected: false,
+      settingsKey: 'showFeatured'
+    },
+    {
+      description: 'persists attribution_domains',
+      body: { attribution_domains: ['news.example.com'] },
+      responseKey: 'attribution_domains',
+      expected: ['news.example.com'],
+      settingsKey: 'attributionDomains'
+    }
+  ])('$description', async ({ body, responseKey, expected, settingsKey }) => {
+    const response = await PATCH(createJsonRequest(body), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data[responseKey]).toEqual(expected)
+
+    const settings = await database.getActorSettings({ actorId: ACTOR1_ID })
+    expect(settings?.[settingsKey as keyof typeof settings]).toEqual(expected)
+  })
+
+  it('collects attribution_domains[] entries from form bodies', async () => {
+    const form = new FormData()
+    form.append('attribution_domains[]', 'news.example.com')
+    form.append('attribution_domains[]', 'blog.example.com')
+
+    // undici in this test env cannot materialise a multipart body from a
+    // FormData passed to NextRequest, so mock formData() directly — the same
+    // pattern the update_credentials route tests use.
+    const req = new NextRequest('https://llun.test/api/v1/profile', {
+      method: 'PATCH',
+      headers: { origin: 'https://llun.test' }
+    })
+    Object.defineProperty(req, 'formData', {
+      value: vi.fn().mockResolvedValue(form)
+    })
+
+    const response = await PATCH(req, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data.attribution_domains).toEqual([
+      'news.example.com',
+      'blog.example.com'
+    ])
   })
 
   it('requires authentication', async () => {

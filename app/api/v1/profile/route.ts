@@ -18,11 +18,12 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 // Scope: `profile` or read:accounts (satisfied by the aggregate `read`).
 export const GET = traceApiRoute('getProfile', getProfileHandler(CORS_HEADERS))
 
-// PATCH /api/v1/profile — update the current actor's profile and return the
-// updated CredentialAccount. Same semantics as update_credentials.
+// PATCH /api/v1/profile — update the current actor's profile (same param
+// handling as update_credentials plus the 4.6 appearance params) and return
+// the updated Profile entity.
 // https://docs.joinmastodon.org/methods/profile/#update
 // Scope: write:accounts (satisfied by the aggregate `write`).
 export const PATCH = traceApiRoute(
   'patchProfile',
-  updateCredentialsHandler(CORS_HEADERS)
+  updateCredentialsHandler(CORS_HEADERS, { responseEntity: 'profile' })
 )

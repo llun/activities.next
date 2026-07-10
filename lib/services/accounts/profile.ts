@@ -8,9 +8,9 @@ import { ActorSettings } from '@/lib/types/database/rows'
 // - display_name/note/fields carry the RAW stored values — the same values
 //   verify_credentials exposes under `source` — never rendered HTML
 // - avatar/header are null when unset (Account serializes them as '')
-// hide_collections and indexable are not stored preferences yet, so the
-// documented nullable/default shapes (null / false) are emitted; their
-// storage plus update_credentials params are Phase 2 (PR 2.5) territory.
+// hide_collections is nullable and indexable defaults to false when the actor
+// has no stored preference; both flow from the actor settings that
+// update_credentials / PATCH profile persist.
 export const buildProfile = ({
   account,
   settings
@@ -31,9 +31,9 @@ export const buildProfile = ({
     header_description: settings?.headerDescription ?? '',
     locked: account.locked,
     bot: account.bot,
-    hide_collections: null,
+    hide_collections: settings?.hideCollections ?? null,
     discoverable: account.discoverable,
-    indexable: false,
+    indexable: settings?.indexable ?? false,
     show_media: settings?.showMedia ?? true,
     show_media_replies: settings?.showMediaReplies ?? true,
     show_featured: settings?.showFeatured ?? true,
