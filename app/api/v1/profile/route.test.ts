@@ -63,9 +63,13 @@ describe('GET /api/v1/profile', () => {
     expect(response.status).toBe(401)
   })
 
-  it('returns the current actor CredentialAccount', async () => {
+  it('returns the Profile entity with null avatar and raw note', async () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
+    })
+    await database.updateActor({
+      actorId: ACTOR1_ID,
+      summary: 'raw profile bio'
     })
 
     const response = await GET(createRequest(), { params: Promise.resolve({}) })
@@ -75,23 +79,33 @@ describe('GET /api/v1/profile', () => {
     expect(allowedMethods).toContain('GET')
     expect(allowedMethods).toContain('PATCH')
     expect(allowedMethods).toContain('OPTIONS')
+
     const data = await response.json()
-    expect(data).toEqual(
-      expect.objectContaining({
-        id: expect.any(String),
-        username: seedActor1.username,
-        acct: seedActor1.username,
-        source: expect.objectContaining({
-          note: expect.any(String),
-          privacy: expect.any(String),
-          follow_requests_count: expect.any(Number)
-        }),
-        role: expect.objectContaining({
-          id: expect.any(String),
-          permissions: expect.any(String)
-        })
-      })
-    )
+    expect(data).toEqual({
+      id: expect.any(String),
+      display_name: expect.any(String),
+      note: 'raw profile bio',
+      fields: [],
+      avatar: null,
+      avatar_static: null,
+      avatar_description: '',
+      header: null,
+      header_static: null,
+      header_description: '',
+      locked: true,
+      bot: false,
+      hide_collections: null,
+      discoverable: true,
+      indexable: false,
+      show_media: true,
+      show_media_replies: true,
+      show_featured: true,
+      attribution_domains: []
+    })
+    // CredentialAccount-only keys must be gone from this endpoint.
+    expect(data.source).toBeUndefined()
+    expect(data.role).toBeUndefined()
+    expect(data.acct).toBeUndefined()
   })
 })
 

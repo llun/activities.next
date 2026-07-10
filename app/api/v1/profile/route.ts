@@ -1,4 +1,4 @@
-import { getCredentialAccountHandler } from '@/lib/services/accounts/credentialsHandler'
+import { getProfileHandler } from '@/lib/services/accounts/profileHandler'
 import { updateCredentialsHandler } from '@/lib/services/accounts/updateCredentialsHandler'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { defaultOptions } from '@/lib/utils/response'
@@ -12,13 +12,11 @@ const CORS_HEADERS = [
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
-// GET /api/v1/profile — view the current actor's CredentialAccount.
+// GET /api/v1/profile — view the current actor's Profile entity (raw field
+// values, nullable avatar/header).
 // https://docs.joinmastodon.org/methods/profile/#get
-// Scope: read:accounts (satisfied by the aggregate `read`).
-export const GET = traceApiRoute(
-  'getProfile',
-  getCredentialAccountHandler(CORS_HEADERS)
-)
+// Scope: `profile` or read:accounts (satisfied by the aggregate `read`).
+export const GET = traceApiRoute('getProfile', getProfileHandler(CORS_HEADERS))
 
 // PATCH /api/v1/profile — update the current actor's profile and return the
 // updated CredentialAccount. Same semantics as update_credentials.
