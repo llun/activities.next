@@ -16,6 +16,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Multiple actors per account** — Create and switch between multiple handles under one account (e.g., `@user@domain.tld` and `@ride@domain.tld`)
 - ✅ **Multi-domain support** — Different domains for different actors
 - ✅ **Account blocks** — Block or unblock remote accounts and list blocked accounts
+- ✅ **Domain blocks** — Block or unblock an entire remote domain and list your blocked domains via `/api/v1/domain_blocks`; blocking hides that domain's posts (and boosts) from your timelines, is reflected in `domain_blocking` on relationships, and severs follows in both directions
 - ✅ **Follow requests** — Review, authorize, and reject follow requests
 - ✅ **Custom emoji** — Instance-defined custom emoji with a sticker/emoji picker in the post box
 - ✅ **Featured hashtags** — Feature hashtags on your profile and manage them from settings
@@ -68,7 +69,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Search** — Search accounts, hashtags, and statuses via `/api/v2/search` (status search backed by a full-text index)
 - ✅ **Lists** — Create and manage timeline lists, their members, replies policy, and exclusive flag
 - ✅ **Collections** — Mastodon 4.6-compatible curated account collections via `/api/v1/collections` (create/update/delete, members, per-member approve/revoke consent, `in_collections`), plus an activities.next shareable **public feed** of each collection (owner-private and public projections, the public one limited to approved members and public-visibility posts) with a per-collection capped materialized feed. Collections federate outbound as **FEP-7aa9 `FeaturedCollection`** objects, auto-follow and backfill remote members' existing posts when they are added, and emit added-to-collection / collection-update notifications
-- ✅ **Filters** — Keyword/status filters via `/api/v2/filters` with notification filtering
+- ✅ **Filters** — Keyword/status filters via `/api/v2/filters` with notification filtering, plus the deprecated Mastodon v1 `/api/v1/filters` (and `/api/v1/filters/:id`) compatibility shim served as a view over the same v2 filter storage
 - ✅ **Reports** — Submit reports against accounts and statuses via `/api/v1/reports`
 - ✅ **Markers** — Save and restore per-timeline read positions
 - ✅ **Announcements** — Read active instance announcements via `GET /api/v1/announcements`, dismiss them with `POST /api/v1/announcements/:id/dismiss`, and react with `PUT`/`DELETE /api/v1/announcements/:id/reactions/:name`; unread active announcements surface as a dismissible banner at the top of the home timeline for signed-in users, and admins manage them in the admin area (`/admin/announcements`) backed by `/api/v2/admin/announcements`

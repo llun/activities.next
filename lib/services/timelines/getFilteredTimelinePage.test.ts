@@ -10,6 +10,7 @@ import { getFilteredStatusPage } from './getFilteredTimelinePage'
 const readerActorId = 'https://llun.test/users/reader'
 const blockedActorId = 'https://blocked.test/users/blocked'
 const mutedActorId = 'https://muted.test/users/muted'
+const blockedDomainActorId = 'https://blocked-domain.test/users/author'
 
 const createStatus = (name: string, actorId = readerActorId) =>
   ({
@@ -34,7 +35,8 @@ describe('getFilteredStatusPage', () => {
     const getMuteRelations = vi.fn(async () => [])
     const database = {
       getBlockRelations,
-      getMuteRelations
+      getMuteRelations,
+      getActorDomainBlocks: vi.fn(async () => [])
     } as unknown as Database
     const fetchBatch = vi.fn(({ maxStatusId }) =>
       Promise.resolve(batches.get(maxStatusId) ?? [])
@@ -75,7 +77,8 @@ describe('getFilteredStatusPage', () => {
     const getMuteRelations = vi.fn(async () => [])
     const database = {
       getBlockRelations,
-      getMuteRelations
+      getMuteRelations,
+      getActorDomainBlocks: vi.fn(async () => [])
     } as unknown as Database
 
     const page = await getFilteredStatusPage({
@@ -114,7 +117,8 @@ describe('getFilteredStatusPage', () => {
     const getMuteRelations = vi.fn(async () => [])
     const database = {
       getBlockRelations,
-      getMuteRelations
+      getMuteRelations,
+      getActorDomainBlocks: vi.fn(async () => [])
     } as unknown as Database
 
     const page = await getFilteredStatusPage({
@@ -151,7 +155,8 @@ describe('getFilteredStatusPage', () => {
     const getMuteRelations = vi.fn(async () => [])
     const database = {
       getBlockRelations,
-      getMuteRelations
+      getMuteRelations,
+      getActorDomainBlocks: vi.fn(async () => [])
     } as unknown as Database
 
     const page = await getFilteredStatusPage({
@@ -224,7 +229,8 @@ describe('getFilteredStatusPage', () => {
     const getMuteRelations = vi.fn(async () => [])
     const database = {
       getBlockRelations,
-      getMuteRelations
+      getMuteRelations,
+      getActorDomainBlocks: vi.fn(async () => [])
     } as unknown as Database
 
     const page = await getFilteredStatusPage({
@@ -268,7 +274,8 @@ describe('getFilteredStatusPage', () => {
     )
     const database = {
       getBlockRelations,
-      getMuteRelations
+      getMuteRelations,
+      getActorDomainBlocks: vi.fn(async () => [])
     } as unknown as Database
 
     const page = await getFilteredStatusPage({
@@ -285,5 +292,52 @@ describe('getFilteredStatusPage', () => {
       visible3.id
     ])
     expect(page.nextMaxStatusId).toBeNull()
+  })
+
+  it('fetches the viewer domain blocks once per page and drops statuses from blocked domains', async () => {
+    const domainBlocked = createStatus('domain-blocked', blockedDomainActorId)
+    const visible1 = createStatus('visible-1')
+    const visible2 = createStatus('visible-2')
+    const visible3 = createStatus('visible-3')
+    const batches = new Map<string | null, Status[]>([
+      [null, [domainBlocked, visible1, visible2]],
+      [visible2.id, [visible3]]
+    ])
+    const getBlockRelations = vi.fn(async () => [])
+    const getMuteRelations = vi.fn(async () => [])
+    const getActorDomainBlocks = vi.fn(async () => [
+      {
+        id: 'domain-block-1',
+        actorId: readerActorId,
+        domain: 'blocked-domain.test',
+        createdAt: 0,
+        updatedAt: 0
+      }
+    ])
+    const database = {
+      getBlockRelations,
+      getMuteRelations,
+      getActorDomainBlocks
+    } as unknown as Database
+
+    const page = await getFilteredStatusPage({
+      database,
+      actorId: readerActorId,
+      limit: 3,
+      fetchBatch: ({ maxStatusId }) =>
+        Promise.resolve(batches.get(maxStatusId) ?? [])
+    })
+
+    expect(page.statuses.map((status) => status.id)).toEqual([
+      visible1.id,
+      visible2.id,
+      visible3.id
+    ])
+    // Two batches were scanned, but the viewer's domain blocks are loaded
+    // once per page request, not per batch.
+    expect(getActorDomainBlocks).toHaveBeenCalledTimes(1)
+    expect(getActorDomainBlocks).toHaveBeenCalledWith({
+      actorId: readerActorId
+    })
   })
 })

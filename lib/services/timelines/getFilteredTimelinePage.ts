@@ -10,6 +10,7 @@ import { FilterContext } from '@/lib/types/domain/filter'
 import { Status } from '@/lib/types/domain/status'
 
 import { filterBlockedStatuses } from './blockFilter'
+import { filterDomainBlockedStatuses } from './domainBlockFilter'
 import { filterMutedStatuses } from './muteFilter'
 
 export const MAX_TIMELINE_LIMIT = 80
@@ -60,6 +61,17 @@ export const getFilteredStatusPage = async ({
     ? await getActiveFilters(database, actorId, filterContext)
     : []
 
+  // User-level domain blocks apply to every batch, so load the viewer's set
+  // once per page request (indexed on actorId) and filter in memory next to
+  // the block/mute filters.
+  const blockedDomains = new Set(
+    actorId
+      ? (await database.getActorDomainBlocks({ actorId })).map(
+          (block) => block.domain
+        )
+      : []
+  )
+
   while (statuses.length < pageLimit && iterations < MAX_BACKFILL_ITERATIONS) {
     iterations++
     const batch = await fetchBatch({
@@ -71,10 +83,14 @@ export const getFilteredStatusPage = async ({
       break
     }
 
+    const domainFilteredBatch = filterDomainBlockedStatuses(
+      blockedDomains,
+      batch
+    )
     const blockFilteredBatch = await filterBlockedStatuses(
       database,
       actorId,
-      batch
+      domainFilteredBatch
     )
     const muteFilteredBatch = await filterMutedStatuses(
       database,
