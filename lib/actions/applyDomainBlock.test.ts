@@ -72,6 +72,47 @@ describe('applyDomainBlock', () => {
     })
   })
 
+  it('decides federation from follow.actorId without a per-follow actor lookup', async () => {
+    const domain = 'noquery.test'
+    const outbound = await database.createFollow({
+      actorId: ACTOR1_ID,
+      targetActorId: `https://${domain}/users/followed`,
+      inbox: `https://${domain}/users/followed/inbox`,
+      sharedInbox: `https://${domain}/inbox`,
+      status: FollowStatus.enum.Accepted
+    })
+    await database.createFollow({
+      actorId: `https://${domain}/users/follower`,
+      targetActorId: ACTOR1_ID,
+      inbox: `https://${domain}/users/follower/inbox`,
+      sharedInbox: `https://${domain}/inbox`,
+      status: FollowStatus.enum.Accepted
+    })
+
+    const getActorFromId = vi.spyOn(database, 'getActorFromId')
+    try {
+      await applyDomainBlock({ database, actorId: ACTOR1_ID, domain })
+      // The caller's own outbound follow is identified by comparing
+      // follow.actorId to the blocking actor — no getActorFromId call per
+      // severed follow (that was an N+1 across up to SEVER_BATCH_SIZE rows every
+      // batch). Assert before mockRestore(), which clears the recorded calls.
+      expect(getActorFromId).not.toHaveBeenCalled()
+    } finally {
+      getActorFromId.mockRestore()
+    }
+
+    // Only the caller's own outbound follow federates an Undo Follow.
+    expect(getQueue().publish).toHaveBeenCalledTimes(1)
+    expect(getQueue().publish).toHaveBeenCalledWith({
+      id: getHashFromString(`${outbound.id}/undo`),
+      name: SEND_UNDO_FOLLOW_JOB_NAME,
+      data: {
+        actorId: outbound.actorId,
+        follow: outbound
+      }
+    })
+  })
+
   it('leaves follows with other domains untouched', async () => {
     const keptFollow = await database.createFollow({
       actorId: ACTOR1_ID,

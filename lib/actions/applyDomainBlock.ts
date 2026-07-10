@@ -1,7 +1,7 @@
 import { Database } from '@/lib/database/types'
 import { SEND_UNDO_FOLLOW_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
-import { Follow, FollowStatus } from '@/lib/types/domain/follow'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
@@ -46,20 +46,16 @@ export const applyDomainBlock = async ({
     )
     severedCount += follows.length
 
-    // Federate Undo Follow only for severed follows whose actor is local
-    // (has a signing key) — i.e. the caller's own outbound follows. Dropped
-    // remote followers are severed locally without federation, matching
-    // applyBlock.
-    const followsToFederate = (
-      await Promise.all(
-        follows.map(async (follow) => {
-          const followActor = await database.getActorFromId({
-            id: follow.actorId
-          })
-          return followActor?.privateKey ? follow : null
-        })
-      )
-    ).filter((follow): follow is Follow => Boolean(follow))
+    // Federate an Undo Follow only for the caller's own outbound follows —
+    // the ones the local blocking actor initiated, i.e. `follow.actorId ===
+    // actorId`. Dropped followers (whose `follow.actorId` is the other actor on
+    // the blocked domain) are severed locally without federation, matching
+    // applyBlock. Comparing ids identifies the caller's follows directly, so we
+    // avoid a per-follow `getActorFromId` lookup (an N+1 across up to
+    // SEVER_BATCH_SIZE rows every batch).
+    const followsToFederate = follows.filter(
+      (follow) => follow.actorId === actorId
+    )
 
     const results = await Promise.allSettled(
       followsToFederate.map((follow) =>

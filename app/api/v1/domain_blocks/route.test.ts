@@ -251,6 +251,24 @@ describe('/api/v1/domain_blocks', () => {
       ).resolves.toBe(true)
     })
 
+    it('returns 422 (not 500) for a well-formed non-object JSON body', async () => {
+      // A JSON body of literal `null` parses to null, not a Record; the route
+      // must treat it as unprocessable, not throw on property access.
+      const response = await POST(
+        new NextRequest('https://llun.test/api/v1/domain_blocks', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            origin: 'https://llun.test'
+          },
+          body: 'null'
+        }),
+        params
+      )
+
+      expect(response.status).toBe(422)
+    })
+
     it.each(['write', 'write:blocks'])(
       'accepts a token holding the %s scope',
       async (scope) => {
