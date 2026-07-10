@@ -57,6 +57,13 @@ export interface UpdateFitnessRouteHeatmapStatusParams {
   isPartial?: boolean
   clearDeleted?: boolean
   clearDeletedBefore?: number
+  /**
+   * When true, skip the write if the row has since been cancelled. A worker uses
+   * this for its mid-run checkpoint/complete/fail writes so a user cancel that
+   * lands while a pass is executing is not silently overwritten (the row stays
+   * `cancelled` and the update reports `false`).
+   */
+  abortIfCancelled?: boolean
 }
 
 export interface GetDistinctActivityTypesParams {
@@ -125,8 +132,12 @@ export interface FitnessRouteHeatmapDatabase {
    * Cancels an in-flight (`pending`/`generating`) route-heatmap run owned by
    * `actorId`, moving it to a terminal `cancelled` state and resetting the run
    * fields so a later Generate/Retry starts clean. No-op (returns false) on a
-   * terminal or deleted row. Resetting `cursorOffset` to 0 also invalidates any
-   * outstanding continuation (its requested cursor no longer matches).
+   * terminal or deleted row. Resetting `cursorOffset` to 0 invalidates a
+   * continuation that was already queued before the cancel (its requested cursor
+   * no longer matches); a continuation the still-running worker would publish
+   * *after* the cancel is prevented separately, because the worker's
+   * checkpoint/complete/fail writes pass `abortIfCancelled` and skip a cancelled
+   * row.
    */
   cancelFitnessRouteHeatmapGeneration(params: {
     actorId: string
@@ -480,7 +491,8 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     cursorOffset,
     isPartial,
     clearDeleted,
-    clearDeletedBefore
+    clearDeletedBefore,
+    abortIfCancelled
   }: UpdateFitnessRouteHeatmapStatusParams) {
     const updateData: Record<string, unknown> = {
       status,
@@ -525,6 +537,10 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
           .whereNull('deletedAt')
           .orWhere('deletedAt', '<=', new Date(clearDeletedCutoff))
       })
+    }
+    // A cancel that landed mid-run must win: never resurrect a cancelled row.
+    if (abortIfCancelled) {
+      query.whereNot('status', 'cancelled')
     }
     const result = await query.update(updateData)
 

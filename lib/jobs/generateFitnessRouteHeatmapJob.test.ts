@@ -984,6 +984,72 @@ describe('generateFitnessRouteHeatmapJob', () => {
     await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
   })
 
+  it('does not resurrect a run cancelled while a pass is executing', async () => {
+    const fileId = await createCompletedFitnessFile(
+      'running',
+      new Date('2099-06-15T07:00:00.000Z')
+    )
+
+    // Simulate a user cancelling mid-pass: cancel the row the first time a file
+    // is parsed, i.e. before the job's completion write lands.
+    mockParseFitnessFile.mockImplementationOnce(async () => {
+      const row = await database.getFitnessRouteHeatmapByKey({
+        actorId: actor.id,
+        activityType: 'running',
+        periodType: 'monthly',
+        periodKey: '2099-06'
+      })
+      if (row) {
+        await database.cancelFitnessRouteHeatmapGeneration({
+          actorId: actor.id,
+          id: row.id
+        })
+      }
+      return {
+        coordinates: [
+          { lat: 52.36, lng: 4.88 },
+          { lat: 52.37, lng: 4.89 }
+        ],
+        trackPoints: [
+          { lat: 52.36, lng: 4.88 },
+          { lat: 52.37, lng: 4.89 }
+        ],
+        totalDistanceMeters: 1_000,
+        totalDurationSeconds: 300,
+        elevationGainMeters: 10,
+        activityType: 'running',
+        startTime: new Date('2099-06-15T07:00:00.000Z')
+      }
+    })
+
+    await generateFitnessRouteHeatmapJob(database, {
+      id: 'job-route-heatmap-cancel-midrun',
+      name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        activityType: 'running',
+        periodType: 'monthly',
+        periodKey: '2099-06'
+      }
+    })
+
+    const heatmap = await database.getFitnessRouteHeatmapByKey({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2099-06'
+    })
+
+    // The completion write is refused (abortIfCancelled), so the cancel sticks
+    // instead of being overwritten with a completed/populated cache.
+    expect(heatmap?.status).toBe('cancelled')
+    expect(heatmap?.pointCount).toBe(0)
+    expect(mockPublish).not.toHaveBeenCalled()
+
+    await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+    await database.deleteFitnessFile({ id: fileId })
+  })
+
   it('resumes failed rows that still have checkpointed progress', async () => {
     const created = await database.createFitnessRouteHeatmap({
       actorId: actor.id,
@@ -1134,7 +1200,8 @@ describe('generateFitnessRouteHeatmapJob', () => {
     expect(updateFitnessRouteHeatmapStatus).toHaveBeenLastCalledWith({
       id: 'heatmap-failed',
       status: 'failed',
-      error: 'privacy settings failed'
+      error: 'privacy settings failed',
+      abortIfCancelled: true
     })
   })
 })

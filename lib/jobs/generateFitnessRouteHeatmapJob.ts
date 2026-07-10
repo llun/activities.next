@@ -400,7 +400,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           maxPoints: routeHeatmapConfig.accumulationPointLimit
         })
 
-        await database.updateFitnessRouteHeatmapStatus({
+        const checkpointed = await database.updateFitnessRouteHeatmapStatus({
           id: routeHeatmapId,
           status: 'generating',
           bounds: payload.bounds,
@@ -410,8 +410,23 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           totalCount,
           cursorOffset: nextCursorOffset,
           isPartial: false,
-          error: null
+          error: null,
+          abortIfCancelled: true
         })
+
+        // The user cancelled while this pass was running: stop the chain here
+        // (leave the row cancelled, publish no continuation) instead of reviving
+        // it.
+        if (!checkpointed) {
+          logger.info({
+            message: 'Fitness route heatmap generation cancelled; stopping',
+            actorId,
+            periodType,
+            periodKey,
+            cursorOffset: nextCursorOffset
+          })
+          return
+        }
 
         const continuationId = getHashFromString(
           `${message.id}:route-heatmap-continuation:${routeHeatmapId}:${nextCursorOffset}`
@@ -577,7 +592,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
         simplifyToleranceMeters: routeHeatmapConfig.simplifyToleranceMeters
       })
 
-      await database.updateFitnessRouteHeatmapStatus({
+      const completed = await database.updateFitnessRouteHeatmapStatus({
         id: routeHeatmapId,
         status: 'completed',
         bounds: payload.bounds,
@@ -587,8 +602,22 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
         totalCount,
         cursorOffset: reachedPageLimit ? cursorOffset : 0,
         isPartial: reachedPageLimit,
-        error: null
+        error: null,
+        abortIfCancelled: true
       })
+
+      // The user cancelled before this pass finished: keep the row cancelled
+      // rather than marking it completed.
+      if (!completed) {
+        logger.info({
+          message:
+            'Fitness route heatmap generation cancelled before completion',
+          actorId,
+          periodType,
+          periodKey
+        })
+        return
+      }
 
       logger.info({
         message: 'Fitness route heatmap cache generated successfully',
@@ -610,10 +639,13 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
 
       if (heatmapId) {
         try {
+          // Don't overwrite a user cancellation that landed mid-run with a
+          // failure status.
           await database.updateFitnessRouteHeatmapStatus({
             id: heatmapId,
             status: 'failed',
-            error: nodeError.message
+            error: nodeError.message,
+            abortIfCancelled: true
           })
         } catch (statusError) {
           logger.error({
