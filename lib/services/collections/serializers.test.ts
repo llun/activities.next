@@ -1,7 +1,9 @@
+import { Database } from '@/lib/database/types'
 import { Collection } from '@/lib/types/domain/collection'
 
 import {
   COLLECTION_ITEMS_PREVIEW_LIMIT,
+  getCollectionEntities,
   serializeCollection,
   serializeCollectionItem,
   wrapCollection,
@@ -147,6 +149,49 @@ describe('wrapCollectionItem', () => {
     const serialized = serializeCollectionItem(item({}))
     expect(wrapCollectionItem(serialized)).toEqual({
       collection_item: serialized
+    })
+  })
+})
+
+describe('getCollectionEntities', () => {
+  const buildDatabase = () => {
+    const getCollectionItems = vi.fn().mockResolvedValue({ 'col-1': [] })
+    const countCollectionItems = vi.fn().mockResolvedValue({ 'col-1': 0 })
+    const database = {
+      getCollectionItems,
+      countCollectionItems
+    } as unknown as Database
+    return { database, getCollectionItems, countCollectionItems }
+  }
+
+  it('skips the redundant all-states count query in the public projection', async () => {
+    const { database, getCollectionItems, countCollectionItems } =
+      buildDatabase()
+    await getCollectionEntities(database, [collection], 'public')
+    expect(getCollectionItems).toHaveBeenCalledWith({
+      collectionIds: ['col-1'],
+      approvedOnly: true
+    })
+    // Public projection reads approved counts only, so the all-states total
+    // query must not run: exactly one count query, approved-only.
+    expect(countCollectionItems).toHaveBeenCalledTimes(1)
+    expect(countCollectionItems).toHaveBeenCalledWith({
+      collectionIds: ['col-1'],
+      approvedOnly: true
+    })
+  })
+
+  it('runs both count queries in the owner projection', async () => {
+    const { database, countCollectionItems } = buildDatabase()
+    await getCollectionEntities(database, [collection], 'owner')
+    // Owner projection needs the all-states total AND the approved count.
+    expect(countCollectionItems).toHaveBeenCalledTimes(2)
+    expect(countCollectionItems).toHaveBeenCalledWith({
+      collectionIds: ['col-1']
+    })
+    expect(countCollectionItems).toHaveBeenCalledWith({
+      collectionIds: ['col-1'],
+      approvedOnly: true
     })
   })
 })

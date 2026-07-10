@@ -112,7 +112,11 @@ export const getCollectionEntities = async (
   const approvedOnly = projection === 'public'
   const [itemsMap, totalCounts, approvedCounts] = await Promise.all([
     database.getCollectionItems({ collectionIds, approvedOnly }),
-    database.countCollectionItems({ collectionIds }),
+    // The public projection reports approved counts for both item_count and
+    // size, so the all-states total is never read — skip that query entirely.
+    approvedOnly
+      ? Promise.resolve<Record<string, number>>({})
+      : database.countCollectionItems({ collectionIds }),
     database.countCollectionItems({ collectionIds, approvedOnly: true })
   ])
   return collections.map((collection) =>
