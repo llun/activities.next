@@ -1,0 +1,48 @@
+lib/components/fitness/HeatmapRegionPicker.tsx
+  s_7cdd5e2adb1e54::t_50c07d2df67c4d 5
+  s_7cdd5e2adb1e54::t_68e61429229058 45-51
+  s_7cdd5e2adb1e54::t_9038eecc4e2977 385-391
+lib/components/fitness/RegionHeatmapDetail.tsx
+  s_7cdd5e2adb1e54::t_703852985e79be 7
+  s_7cdd5e2adb1e54::t_d1ce69f57188e5 605,607
+  s_7cdd5e2adb1e54::t_292d3b33e05a4f 48-49,56-57
+  s_7cdd5e2adb1e54::t_6769a10072555e 354-355,362
+  s_7cdd5e2adb1e54::t_4104eb9e73d137 128-130,134-136
+  s_7cdd5e2adb1e54::t_92f33df7335aa3 192-204
+  s_7cdd5e2adb1e54::t_e1f3c9b09af928 460-480
+  s_7cdd5e2adb1e54::t_66148e371fbffe 115,117
+  s_7cdd5e2adb1e54::t_2b4221100b6a86 385,391
+  s_7cdd5e2adb1e54::t_a69ce59c9c6ced 102-106
+lib/components/fitness/RegionHeatmapDetail.test.tsx
+  s_7cdd5e2adb1e54::t_e72ab069400522 219-265
+  s_7cdd5e2adb1e54::t_4b6c71c9902ee2 68,73-74
+app/(timeline)/fitness/heatmap/FitnessHeatmapView.tsx
+  s_7cdd5e2adb1e54::t_b4909390c2aadf 181
+  s_7cdd5e2adb1e54::t_d967a178810401 466-468,472
+  s_7cdd5e2adb1e54::t_fa9671a5f7d09e 106
+  s_7cdd5e2adb1e54::t_2c1b5d358efdfb 486-517
+  s_7cdd5e2adb1e54::t_1e68490e2ca745 9
+  s_7cdd5e2adb1e54::t_65a7b6b2985a4b 682,688
+app/(timeline)/fitness/heatmap/FitnessHeatmapView.test.tsx
+  s_7cdd5e2adb1e54::t_eaa766c3d56f24 8
+  s_7cdd5e2adb1e54::t_02e4d9271821bb 50
+  s_7cdd5e2adb1e54::t_bd6f2a05a70211 748-795
+  s_7cdd5e2adb1e54::t_97346ef93570f5 87-90
+  s_7cdd5e2adb1e54::t_416938ffaa4025 272
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.11",
+  "base_commit_sha": "eb74a1c9cff581f1d7c088b5f67288ec4b4b0e57",
+  "prompts": {},
+  "sessions": {
+    "s_7cdd5e2adb1e54": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ba078085-1dfb-4717-b4d7-be2ec72f4bd6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
