@@ -498,20 +498,26 @@ export const FitnessHeatmapView: FC<Props> = ({
         periodKey: EFFECTIVE_PERIOD_KEY,
         region: openRegionKey || undefined
       })
-      if (focusKeyRef.current !== key) return
-      setGenerationPending(false)
-      setPollingStalled(false)
-      pollingProgressRef.current = null
-      // Refetch so the focused row + list flip to the cancelled state and the
-      // in-flight spinner stops.
-      await fetchFocused()
+      // Only apply the result to the region still in focus.
+      if (focusKeyRef.current === key) {
+        setGenerationPending(false)
+        setPollingStalled(false)
+        pollingProgressRef.current = null
+        // Refetch so the focused row + list flip to the cancelled state and the
+        // in-flight spinner stops.
+        await fetchFocused()
+      }
     } catch (err) {
-      if (focusKeyRef.current !== key) return
-      setError(
-        err instanceof Error ? err.message : 'Failed to cancel generation.'
-      )
+      if (focusKeyRef.current === key) {
+        setError(
+          err instanceof Error ? err.message : 'Failed to cancel generation.'
+        )
+      }
     } finally {
-      if (focusKeyRef.current === key) setIsCancelling(false)
+      // Always clear the flag — it is component-wide, not per-region, so gating
+      // the reset on the focus key would wedge every Cancel button disabled if
+      // the user switched regions before the request settled.
+      setIsCancelling(false)
     }
   }, [actorId, openRegionId, openRegionKey, fetchFocused])
 

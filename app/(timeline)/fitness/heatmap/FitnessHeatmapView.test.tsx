@@ -793,6 +793,66 @@ describe('FitnessHeatmapView', () => {
     })
   })
 
+  it('re-enables Cancel after leaving the region mid-cancel', async () => {
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([
+      worldSummary({
+        status: 'generating',
+        totalCount: 20,
+        cursorOffset: 10,
+        updatedAt: TEST_NOW
+      })
+    ])
+    mockGetFitnessRouteHeatmap.mockResolvedValue(
+      worldHeatmap({
+        status: 'generating',
+        totalCount: 20,
+        cursorOffset: 10,
+        segments: [],
+        bounds: null,
+        pointCount: 0
+      })
+    )
+    // Hold the cancel request open so we can switch away before it settles.
+    const deferred = createDeferred<boolean>()
+    mockCancelFitnessRouteHeatmap.mockReturnValue(deferred.promise)
+
+    render(
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
+    )
+
+    await openWorldRegion()
+
+    // Start a cancel (isCancelling → true)…
+    const cancelButtons = await screen.findAllByRole('button', {
+      name: /Cancel/i
+    })
+    fireEvent.click(cancelButtons[0])
+
+    // …then leave the region before it resolves, and let the stale request land.
+    fireEvent.click(screen.getByRole('button', { name: /All regions/i }))
+    await act(async () => {
+      deferred.resolve(true)
+      await deferred.promise
+    })
+
+    // Re-open: the Cancel control must be usable again, not wedged disabled by a
+    // leftover isCancelling=true.
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Open Whole world heatmap/i })
+    )
+    const reopenedCancel = await screen.findAllByRole('button', {
+      name: /Cancel/i
+    })
+    expect(reopenedCancel.length).toBeGreaterThanOrEqual(1)
+    expect(
+      reopenedCancel.every((button) => !button.hasAttribute('disabled'))
+    ).toBe(true)
+  })
+
   it('removes a region and prunes its cached heatmap', async () => {
     mockGetFitnessRouteHeatmaps.mockResolvedValue([
       worldSummary({ updatedAt: TEST_NOW })
