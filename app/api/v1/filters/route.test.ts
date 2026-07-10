@@ -197,6 +197,35 @@ describe('/api/v1/filters', () => {
     }
   })
 
+  it('returns 422 for an out-of-range expires_in without persisting a row', async () => {
+    // expires_in this large resolves past the max JavaScript Date value: the
+    // expiry must be rejected before any write, not persisted and then crashed
+    // with a RangeError (HTTP 500) when the response is serialized.
+    const response = await POST(
+      jsonRequest({
+        method: 'POST',
+        body: {
+          phrase: 'overflow-expiry',
+          context: ['home'],
+          expires_in: '99999999999999'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(422)
+
+    const v2Response = await v2ListFilters(jsonRequest(), {
+      params: Promise.resolve({})
+    })
+    const v2Filters = await v2Response.json()
+    expect(
+      v2Filters.find(
+        (filter: { title: string }) => filter.title === 'overflow-expiry'
+      )
+    ).toBeUndefined()
+  })
+
   it.each([
     {
       description: 'returns 422 without a phrase',

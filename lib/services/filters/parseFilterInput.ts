@@ -168,6 +168,17 @@ const normalizeContextArray = (value: unknown): FilterContext[] | undefined => {
 const INVALID_EXPIRES = Symbol('invalid_expires_at')
 type ResolvedExpiresAt = number | null | undefined | typeof INVALID_EXPIRES
 
+// Largest millisecond timestamp a JavaScript Date can represent (the ECMAScript
+// time-value limit of ±100,000,000 days from the epoch). A value beyond this is
+// an Invalid Date, and formatting it later (getISOTimeUTC -> date-fns format)
+// throws a RangeError. Rejecting an out-of-range expiry here — before any DB
+// write — yields a clean 422 instead of persisting a bad row and then blowing
+// up with a 500 at serialization time.
+const MAX_TIMESTAMP_MS = 8_640_000_000_000_000
+
+const isTimestampInRange = (value: number): boolean =>
+  Number.isFinite(value) && Math.abs(value) <= MAX_TIMESTAMP_MS
+
 const resolveExpiresAt = (
   expiresIn: unknown,
   expiresAt: unknown,
@@ -177,7 +188,9 @@ const resolveExpiresAt = (
     const numeric = coerceNullableNumber(expiresIn)
     if (numeric === undefined) return INVALID_EXPIRES
     if (numeric === null) return null
-    return now + Math.max(0, Math.floor(numeric)) * 1000
+    const resolved = now + Math.max(0, Math.floor(numeric)) * 1000
+    if (!isTimestampInRange(resolved)) return INVALID_EXPIRES
+    return resolved
   }
   if (expiresAt === undefined) return undefined
   if (expiresAt === null) return null
@@ -185,7 +198,8 @@ const resolveExpiresAt = (
   const trimmed = expiresAt.trim()
   if (trimmed === '') return null
   const parsed = Date.parse(trimmed)
-  if (Number.isNaN(parsed)) return INVALID_EXPIRES
+  // isTimestampInRange also rejects NaN from an unparseable string.
+  if (!isTimestampInRange(parsed)) return INVALID_EXPIRES
   return parsed
 }
 

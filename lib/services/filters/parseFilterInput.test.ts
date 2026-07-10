@@ -95,6 +95,13 @@ describe('parseV1FilterCreateInput', () => {
     {
       description: 'rejects an unparseable expires_in',
       body: { phrase: 'taboo', context: ['home'], expires_in: 'soon' }
+    },
+    {
+      // An expires_in this large resolves past the max JavaScript Date value,
+      // which would otherwise persist a bad row and throw a RangeError when the
+      // expiry is formatted for the response.
+      description: 'rejects an out-of-range expires_in',
+      body: { phrase: 'taboo', context: ['home'], expires_in: '99999999999999' }
     }
   ])('$description', ({ body }) => {
     expect(parseV1FilterCreateInput(body)).toBeNull()
@@ -126,7 +133,11 @@ describe('parseV1FilterUpdateInput', () => {
 
   it.each([
     { description: 'still requires phrase', body: { context: ['home'] } },
-    { description: 'still requires context', body: { phrase: 'taboo' } }
+    { description: 'still requires context', body: { phrase: 'taboo' } },
+    {
+      description: 'rejects an out-of-range expires_in',
+      body: { phrase: 'taboo', context: ['home'], expires_in: '99999999999999' }
+    }
   ])('$description', ({ body }) => {
     expect(parseV1FilterUpdateInput(body)).toBeNull()
   })
