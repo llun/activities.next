@@ -1,18 +1,21 @@
-import { randomUUID } from 'crypto'
 import { z } from 'zod'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
-import { INGEST_COLLECTION_MEMBER_JOB_NAME } from '@/lib/jobs/names'
+import {
+  MAX_COLLECTION_ACCOUNT_IDS,
+  addMembersToCollection
+} from '@/lib/services/collections/addMembers'
+import {
+  serializeCollectionItem,
+  wrapCollectionItem
+} from '@/lib/services/collections/serializers'
 import {
   OAuthGuard,
   OAuthGuardAnyScope
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
-import { notifyAddedToCollection } from '@/lib/services/notifications/collectionNotifications'
-import { getQueue } from '@/lib/services/queue'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { logger } from '@/lib/utils/logger'
 import {
   ERROR_404,
   ERROR_422,
@@ -29,9 +32,6 @@ const CORS_HEADERS = [
   HttpMethod.enum.DELETE
 ]
 const MAX_LIMIT = 80
-// Cap the per-request batch of account ids to bound worst-case DB load on a
-// single add/remove (collections are curated; clients can page large changes).
-const MAX_ACCOUNT_IDS = 100
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -114,7 +114,7 @@ export const GET = traceApiRoute(
 )
 
 const AccountIdsBody = z.object({
-  account_ids: z.array(z.string().min(1)).min(1).max(MAX_ACCOUNT_IDS)
+  account_ids: z.array(z.string().min(1)).min(1).max(MAX_COLLECTION_ACCOUNT_IDS)
 })
 
 const parseAccountIds = async (req: Request): Promise<string[] | null> => {
@@ -123,6 +123,14 @@ const parseAccountIds = async (req: Request): Promise<string[] | null> => {
   if (!parsed.success) return null
   return parsed.data.account_ids
 }
+
+// POST accepts the Mastodon 4.6 single `account_id` (returning the created
+// WrappedCollectionItem) or the activities.next bulk `account_ids` extension
+// (returning {}).
+const AddItemsBody = z.union([
+  z.object({ account_id: z.string().min(1) }),
+  AccountIdsBody
+])
 
 export const POST = traceApiRoute(
   'addCollectionItems',
@@ -143,8 +151,9 @@ export const POST = traceApiRoute(
         })
       }
 
-      const accountIds = await parseAccountIds(req)
-      if (!accountIds) {
+      const json = await req.json().catch(() => null)
+      const parsed = AddItemsBody.safeParse(json)
+      if (!parsed.success) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
@@ -153,45 +162,37 @@ export const POST = traceApiRoute(
         })
       }
 
-      const addedActorIds = await database.addCollectionMembers({
-        id,
-        actorId: currentActor.id,
-        targetActorIds: accountIds.map((accountId) => idToUrl(accountId))
-      })
-      // Notify the newly-added local members (added_to_collection). Best-effort:
-      // a notification failure must not fail the membership change.
-      await notifyAddedToCollection(database, {
+      const accountIds =
+        'account_id' in parsed.data
+          ? [parsed.data.account_id]
+          : parsed.data.account_ids
+      await addMembersToCollection({
+        database,
         collectionId: id,
         ownerActorId: currentActor.id,
-        addedActorIds
-      }).catch(() => {})
-      // Kick off remote-member ingestion (instance actor follows + backfills
-      // their recent posts) out of band so federation never blocks the response
-      // (fire-and-forget, mirroring the block/unblock routes). Only remote
-      // members need ingestion — local members' posts already fan into the
-      // collection feed on create — so pre-filter to remote and dedupe before
-      // publishing one job each. The job re-guards remote/already-followed, so
-      // this is purely to avoid enqueuing known no-ops. Member ids are stored
-      // actor URLs (built via idToUrl), so `new URL` is safe without a guard.
-      const ownerHost = new URL(currentActor.id).host
-      const remoteMemberActorIds = [...new Set(addedActorIds)].filter(
-        (memberActorId) => new URL(memberActorId).host !== ownerHost
-      )
-      for (const memberActorId of remoteMemberActorIds) {
-        getQueue()
-          .publish({
-            id: randomUUID(),
-            name: INGEST_COLLECTION_MEMBER_JOB_NAME,
-            data: { memberActorId }
+        accountIds
+      })
+
+      // Spec form: answer with the (possibly pre-existing — the add is
+      // idempotent) membership row as WrappedCollectionItem.
+      if ('account_id' in parsed.data) {
+        const item = await database.getCollectionItemByAccount({
+          collectionId: id,
+          targetActorId: idToUrl(parsed.data.account_id)
+        })
+        if (!item) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_422,
+            responseStatusCode: 422
           })
-          .catch((error) => {
-            logger.warn({
-              message: 'Failed to queue collection member ingestion',
-              collectionId: id,
-              memberActorId,
-              error
-            })
-          })
+        }
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: wrapCollectionItem(serializeCollectionItem(item))
+        })
       }
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
     }

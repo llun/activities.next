@@ -1,11 +1,14 @@
 import { z } from 'zod'
 
-import { Database } from '@/lib/database/types'
+import {
+  getCollectionEntities,
+  resolveCollectionWrite,
+  wrapCollection
+} from '@/lib/services/collections/serializers'
 import {
   OAuthGuard,
-  OAuthGuardAnyScope
+  OptionalOAuthGuard
 } from '@/lib/services/guards/OAuthGuard'
-import { getMastodonCollection } from '@/lib/services/mastodon/getMastodonCollection'
 import { notifyCollectionUpdated } from '@/lib/services/notifications/collectionNotifications'
 import { Scope } from '@/lib/types/database/operations'
 import { CollectionVisibility } from '@/lib/types/domain/collection'
@@ -18,6 +21,7 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [
   HttpMethod.enum.OPTIONS,
@@ -32,30 +36,21 @@ interface Params {
   id: string
 }
 
-const approvedSize = async (
-  database: Database,
-  actorId: string,
-  collectionId: string
-): Promise<number> => {
-  const sizes = await database.getCollectionMemberCounts({
-    actorId,
-    collectionIds: [collectionId],
-    approvedOnly: true
-  })
-  return sizes[collectionId] ?? 0
-}
-
+// Read a single collection as Mastodon 4.6 CollectionWithAccounts. Anonymous
+// and non-owner viewers may read public (discoverable) and unlisted
+// (link-shareable) collections in the public projection (approved members
+// only); private collections answer 404 to everyone but the owner
+// (existence-hiding). The owner reads every consent state.
 export const GET = traceApiRoute(
   'getCollection',
-  OAuthGuardAnyScope<Params>(
+  OptionalOAuthGuard<Params>(
     [Scope.enum.read, Scope.enum['read:collections']],
     async (req, { database, currentActor, params }) => {
       const { id } = await params
-      const collection = await database.getCollection({
-        id,
-        actorId: currentActor.id
-      })
-      if (!collection) {
+      const collection = await database.getCollectionById({ id })
+      const isOwner =
+        currentActor !== null && collection?.ownerActorId === currentActor.id
+      if (!collection || (!isOwner && collection.visibility === 'private')) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
@@ -63,25 +58,36 @@ export const GET = traceApiRoute(
           responseStatusCode: 404
         })
       }
+      const [entity] = await getCollectionEntities(
+        database,
+        [collection],
+        isOwner ? 'owner' : 'public'
+      )
+      const accounts = await database.getMastodonActorsFromIds({
+        ids: entity.items.map((item) => idToUrl(item.account_id))
+      })
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: getMastodonCollection(
-          collection,
-          await approvedSize(database, currentActor.id, id)
-        )
+        data: { accounts, collection: entity }
       })
-    }
+    },
+    { matchMode: 'any' }
   )
 )
 
+// Dual vocabulary, matching POST minus account_ids (see collections/route.ts).
 const UpdateCollectionBody = z.object({
+  name: z.string().trim().min(1).max(255).optional(),
+  tag_name: CollectionTopicInput,
+  discoverable: z.boolean().optional(),
+  sensitive: z.boolean().optional(),
   title: z.string().trim().min(1).max(255).optional(),
-  description: z.string().max(2000).nullable().optional(),
   topic: CollectionTopicInput,
-  language: z.string().trim().max(10).nullable().optional(),
   visibility: CollectionVisibility.optional(),
-  feed_enabled: z.coerce.boolean().optional()
+  feed_enabled: z.coerce.boolean().optional(),
+  description: z.string().max(2000).nullable().optional(),
+  language: z.string().trim().max(10).nullable().optional()
 })
 
 // Mastodon 4.6 uses PATCH to update a collection.
@@ -102,14 +108,16 @@ export const PATCH = traceApiRoute(
         })
       }
 
+      const { title, topic, visibility } = resolveCollectionWrite(parsed.data)
       const collection = await database.updateCollection({
         id,
         actorId: currentActor.id,
-        title: parsed.data.title,
+        title,
         description: parsed.data.description,
-        topic: parsed.data.topic,
+        topic,
         language: parsed.data.language,
-        visibility: parsed.data.visibility,
+        visibility,
+        sensitive: parsed.data.sensitive,
         publicFeed: parsed.data.feed_enabled
       })
       if (!collection) {
@@ -122,14 +130,16 @@ export const PATCH = traceApiRoute(
       }
 
       // Notify approved local members when the collection's METADATA changed
-      // (title/description/topic/language/visibility) — not for a feed-only
-      // toggle. Best-effort: notification failures must not fail the update.
+      // (title/description/topic/language/visibility/sensitive) — not for a
+      // feed-only toggle. Best-effort: notification failures must not fail the
+      // update.
       const metadataChanged =
-        parsed.data.title !== undefined ||
+        title !== undefined ||
         parsed.data.description !== undefined ||
-        parsed.data.topic !== undefined ||
+        topic !== undefined ||
         parsed.data.language !== undefined ||
-        parsed.data.visibility !== undefined
+        visibility !== undefined ||
+        parsed.data.sensitive !== undefined
       if (metadataChanged) {
         const members = await database.getApprovedCollectionMembers({
           id,
@@ -142,13 +152,15 @@ export const PATCH = traceApiRoute(
         }).catch(() => {})
       }
 
+      const [entity] = await getCollectionEntities(
+        database,
+        [collection],
+        'owner'
+      )
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: getMastodonCollection(
-          collection,
-          await approvedSize(database, currentActor.id, id)
-        )
+        data: wrapCollection(entity)
       })
     }
   )

@@ -3,6 +3,8 @@ import { NextRequest } from 'next/server'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { urlToId } from '@/lib/utils/urlToId'
 
 import { GET, POST } from './route'
 
@@ -71,23 +73,108 @@ describe('/api/v1/collections', () => {
 
   const context = { params: Promise.resolve({}) }
 
-  it('creates a collection and returns the Mastodon entity', async () => {
+  it('creates a collection and returns the wrapped Mastodon entity', async () => {
     const response = await POST(postRequest({ title: 'Cool people' }), context)
     expect(response.status).toBe(200)
     const data = await response.json()
-    expect(data.title).toBe('Cool people')
-    expect(data.visibility).toBe('public')
-    expect(data.feed_enabled).toBe(true)
-    expect(data.size).toBe(0)
-    expect(typeof data.id).toBe('string')
+    expect(data.collection.title).toBe('Cool people')
+    expect(data.collection.name).toBe('Cool people')
+    expect(data.collection.visibility).toBe('public')
+    expect(data.collection.discoverable).toBe(true)
+    expect(data.collection.sensitive).toBe(false)
+    expect(data.collection.feed_enabled).toBe(true)
+    expect(data.collection.size).toBe(0)
+    expect(data.collection.item_count).toBe(0)
+    expect(data.collection.items).toEqual([])
+    expect(data.collection.local).toBe(true)
+    expect(typeof data.collection.id).toBe('string')
+    expect(data.collection.account_id).toBe('llun.test:users:test1')
+    expect(data.collection.uri).toBe(
+      `https://llun.test/users/test1/collections/featured-collections/${data.collection.id}`
+    )
+    expect(data.collection.url).toBe(
+      `https://llun.test/collections/${data.collection.id}`
+    )
   })
 
-  it('rejects a collection without a title', async () => {
+  it.each([
+    {
+      vocabulary: 'the Mastodon 4.6 params',
+      body: {
+        name: 'Wildlife photographers',
+        tag_name: 'birds',
+        discoverable: false,
+        sensitive: true
+      }
+    },
+    {
+      vocabulary: 'the activities.next extension params',
+      body: {
+        title: 'Wildlife photographers',
+        topic: 'birds',
+        visibility: 'unlisted',
+        sensitive: true
+      }
+    }
+  ])('creates a collection from $vocabulary', async ({ body }) => {
+    const response = await POST(postRequest(body), context)
+    expect(response.status).toBe(200)
+    const { collection } = await response.json()
+    expect(collection.name).toBe('Wildlife photographers')
+    expect(collection.title).toBe('Wildlife photographers')
+    expect(collection.tag).toEqual({
+      name: 'birds',
+      url: 'https://llun.test/tags/birds'
+    })
+    expect(collection.topic).toBe('birds')
+    expect(collection.discoverable).toBe(false)
+    expect(collection.visibility).toBe('unlisted')
+    expect(collection.sensitive).toBe(true)
+  })
+
+  it('prefers the spec vocabulary when both are present', async () => {
     const response = await POST(
-      postRequest({ description: 'no title' }),
+      postRequest({
+        name: 'Spec name',
+        title: 'Extension title',
+        discoverable: true,
+        visibility: 'private'
+      }),
+      context
+    )
+    expect(response.status).toBe(200)
+    const { collection } = await response.json()
+    expect(collection.name).toBe('Spec name')
+    expect(collection.visibility).toBe('public')
+  })
+
+  it('rejects a collection with neither name nor title', async () => {
+    const response = await POST(
+      postRequest({ description: 'no name at all' }),
       context
     )
     expect(response.status).toBe(422)
+  })
+
+  it('features initial members from account_ids as pending items', async () => {
+    const response = await POST(
+      postRequest({
+        name: 'Seeded',
+        account_ids: [urlToId(ACTOR2_ID)]
+      }),
+      context
+    )
+    expect(response.status).toBe(200)
+    const { collection } = await response.json()
+    expect(collection.item_count).toBe(1)
+    expect(collection.items).toHaveLength(1)
+    expect(collection.items[0]).toMatchObject({
+      account_id: urlToId(ACTOR2_ID),
+      state: 'pending'
+    })
+    expect(typeof collection.items[0].id).toBe('string')
+    // The consent gate keeps un-approved members out of the public size.
+    expect(collection.size).toBe(0)
   })
 
   it.each([
@@ -104,7 +191,7 @@ describe('/api/v1/collections', () => {
       context
     )
     expect(response.status).toBe(200)
-    expect((await response.json()).topic).toBe('fediverse')
+    expect((await response.json()).collection.topic).toBe('fediverse')
   })
 
   it('lists the actor’s collections', async () => {

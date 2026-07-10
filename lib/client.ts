@@ -3388,7 +3388,10 @@ export const createCollection = async (
     body: JSON.stringify(collectionRequestBody(params))
   })
   if (!response.ok) return null
-  return (await response.json()) as CollectionEntity
+  // Mastodon 4.6 wraps the created collection; unwrap so component callers
+  // keep receiving the entity itself.
+  const data = (await response.json()) as { collection: CollectionEntity }
+  return data.collection
 }
 
 export interface UpdateCollectionParams extends CollectionParams {
@@ -3408,7 +3411,9 @@ export const updateCollection = async ({
     }
   )
   if (!response.ok) return null
-  return (await response.json()) as CollectionEntity
+  // Mastodon 4.6 wraps the updated collection; unwrap for component callers.
+  const data = (await response.json()) as { collection: CollectionEntity }
+  return data.collection
 }
 
 export const deleteCollection = async (
@@ -3452,8 +3457,10 @@ export const removeCollectionAccounts = (
 
 export interface CollectionMembershipParams {
   collectionId: string
-  // The acting member's own Mastodon Account id (the `urlToId`-encoded actor id).
-  // The approve/revoke routes require it to resolve to the authenticated caller.
+  // The acting member's own Mastodon Account id (the `urlToId`-encoded actor
+  // id). The approve/revoke routes accept it as an extension alongside the
+  // Mastodon 4.6 CollectionItem id and require it to resolve to the
+  // authenticated caller.
   accountId: string
 }
 
