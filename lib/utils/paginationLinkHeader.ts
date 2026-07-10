@@ -37,3 +37,42 @@ export const buildPaginationLinkHeader = ({
 
   return links.length > 0 ? [['Link', links.join(', ')]] : []
 }
+
+interface OffsetLinkHeaderParams {
+  host: string | null | undefined
+  path: string
+  limit: number
+  offset: number
+  hasNext: boolean
+}
+
+/**
+ * Builds the Mastodon-style `Link` header entry for OFFSET pagination (used by
+ * the account-scoped collection listings). The caller decides when a next page
+ * may exist via `hasNext` (typically a full page: `results.length === limit`);
+ * a `prev` link is emitted whenever `offset > 0`. Returns an `additionalHeaders`
+ * array ready for `apiResponse` — empty when there is no host or no cursors.
+ */
+export const buildOffsetPaginationLinkHeader = ({
+  host,
+  path,
+  limit,
+  offset,
+  hasNext
+}: OffsetLinkHeaderParams): [string, string][] => {
+  if (!host) return []
+
+  const buildLink = (rel: 'next' | 'prev', value: number) => {
+    const params = new URLSearchParams()
+    params.set('limit', `${limit}`)
+    params.set('offset', `${value}`)
+    return `<https://${host}${path}?${params.toString()}>; rel="${rel}"`
+  }
+
+  const links = [
+    hasNext ? buildLink('next', offset + limit) : null,
+    offset > 0 ? buildLink('prev', Math.max(offset - limit, 0)) : null
+  ].filter((link): link is string => Boolean(link))
+
+  return links.length > 0 ? [['Link', links.join(', ')]] : []
+}

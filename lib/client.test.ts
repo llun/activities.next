@@ -920,7 +920,7 @@ describe('client collection helpers', () => {
 
   it('creates a collection, forwarding feedEnabled as feed_enabled', async () => {
     fetchMock.mockResponseOnce(
-      JSON.stringify({ id: 'c1', title: 'Builders' }),
+      JSON.stringify({ collection: { id: 'c1', title: 'Builders' } }),
       {
         status: 200
       }
@@ -958,13 +958,18 @@ describe('client collection helpers', () => {
   })
 
   it('PATCHes only provided fields and forwards a null topic to clear it', async () => {
-    fetchMock.mockResponseOnce(JSON.stringify({ id: 'c1' }), { status: 200 })
-
-    await updateCollection({
-      collectionId: 'c1',
-      title: 'Renamed',
-      topic: null
+    fetchMock.mockResponseOnce(JSON.stringify({ collection: { id: 'c1' } }), {
+      status: 200
     })
+
+    await expect(
+      updateCollection({
+        collectionId: 'c1',
+        title: 'Renamed',
+        topic: null
+      })
+      // Mastodon 4.6 wraps the updated collection; the client unwraps it.
+    ).resolves.toEqual({ id: 'c1' })
 
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/v1/collections/c1',
