@@ -66,13 +66,14 @@ type RawBody = Record<string, unknown>
 const ensureArray = (value: unknown): unknown[] =>
   Array.isArray(value) ? value : value === undefined ? [] : [value]
 
-const collectFormBody = async (req: NextRequest): Promise<RawBody> => {
-  const formData = await req.formData()
+const collectBodyEntries = (
+  entries: Iterable<[string, FormDataEntryValue]>
+): RawBody => {
   const body: RawBody = {}
   const keywordsByIndex = new Map<number, Record<string, unknown>>()
   let unindexedKeywordCounter = 0
 
-  for (const [rawKey, rawValue] of formData.entries()) {
+  for (const [rawKey, rawValue] of entries) {
     if (typeof rawValue !== 'string') continue
     const key = rawKey
 
@@ -124,6 +125,19 @@ const collectFormBody = async (req: NextRequest): Promise<RawBody> => {
   }
 
   return body
+}
+
+const collectFormBody = async (req: NextRequest): Promise<RawBody> => {
+  const contentType = req.headers.get('content-type') ?? ''
+  // URLSearchParams parses urlencoded bodies without req.formData(), which
+  // rejects the synthetic request bodies vitest builds (the same trade-off
+  // documented in lib/utils/getRequestBody.ts). Production behavior is
+  // identical; multipart bodies still need the formData() parser.
+  if (contentType.includes('application/x-www-form-urlencoded')) {
+    return collectBodyEntries(new URLSearchParams(await req.text()).entries())
+  }
+  const formData = await req.formData()
+  return collectBodyEntries(formData.entries())
 }
 
 export const parseFilterBody = async (req: NextRequest): Promise<RawBody> => {
@@ -348,4 +362,104 @@ export const parseStatusCreateInput = (body: unknown): string | null => {
   )
     return null
   return parsed.data.status_id
+}
+
+// ----------------------------------------------------------------------------
+// Deprecated v1 filter API input (POST/PUT /api/v1/filters).
+//
+// https://docs.joinmastodon.org/methods/filters/#v1: `phrase` and `context`
+// are required on both create and update; `irreversible`, `whole_word` and
+// `expires_in` are optional. v1-era clients send form-encoded bodies with
+// string booleans, so everything is coerced liberally.
+// ----------------------------------------------------------------------------
+
+const V1FilterBodySchema = z.object({
+  phrase: z.string().max(100).optional(),
+  context: z.array(FilterContext).optional(),
+  irreversible: z.union([z.boolean(), z.string(), z.number()]).optional(),
+  whole_word: z.union([z.boolean(), z.string(), z.number()]).optional(),
+  expires_in: z.union([z.number(), z.string(), z.null()]).optional()
+})
+
+export interface ParsedV1FilterCreateInput {
+  phrase: string
+  context: FilterContext[]
+  irreversible: boolean
+  wholeWord: boolean
+  expiresAt: number | null
+}
+
+export interface ParsedV1FilterUpdateInput {
+  phrase: string
+  context: FilterContext[]
+  // undefined = the client did not send the field; keep the stored value.
+  irreversible?: boolean
+  wholeWord?: boolean
+  expiresAt: number | null | undefined
+}
+
+const parseV1FilterBase = (body: unknown, now: number) => {
+  const candidate =
+    typeof body === 'object' && body !== null
+      ? (body as RawBody)
+      : ({} as RawBody)
+  const normalized: RawBody = {
+    ...candidate,
+    context: normalizeContextArray(candidate.context)
+  }
+  const parsed = V1FilterBodySchema.safeParse(normalized)
+  if (!parsed.success) return null
+  const data = parsed.data
+  if (
+    typeof data.phrase !== 'string' ||
+    data.phrase.trim().length === 0 ||
+    !data.context ||
+    data.context.length === 0
+  ) {
+    return null
+  }
+  const expiresAt = resolveExpiresAt(data.expires_in, undefined, now)
+  if (expiresAt === INVALID_EXPIRES) return null
+  return {
+    data,
+    phrase: data.phrase.trim(),
+    context: data.context,
+    expiresAt
+  }
+}
+
+export const parseV1FilterCreateInput = (
+  body: unknown,
+  now: number = Date.now()
+): ParsedV1FilterCreateInput | null => {
+  const base = parseV1FilterBase(body, now)
+  if (!base) return null
+  return {
+    phrase: base.phrase,
+    context: base.context,
+    irreversible: coerceBoolean(base.data.irreversible, false),
+    wholeWord: coerceBoolean(base.data.whole_word, false),
+    expiresAt: base.expiresAt ?? null
+  }
+}
+
+export const parseV1FilterUpdateInput = (
+  body: unknown,
+  now: number = Date.now()
+): ParsedV1FilterUpdateInput | null => {
+  const base = parseV1FilterBase(body, now)
+  if (!base) return null
+  return {
+    phrase: base.phrase,
+    context: base.context,
+    irreversible:
+      base.data.irreversible === undefined
+        ? undefined
+        : coerceBoolean(base.data.irreversible, false),
+    wholeWord:
+      base.data.whole_word === undefined
+        ? undefined
+        : coerceBoolean(base.data.whole_word, false),
+    expiresAt: base.expiresAt
+  }
 }
