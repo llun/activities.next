@@ -74,6 +74,14 @@ export interface ActorSettings {
   // Per-sender accept list: senders in this list always have their notifications
   // accepted regardless of the notification policy dimensions.
   notificationAcceptedSenders?: string[]
+  // Mastodon 4.6 Profile-entity appearance settings (PATCH /api/v1/profile):
+  // avatar/header alt texts, the profile Media/Featured tab visibility flags,
+  // and the domains allowed to credit this account in link previews.
+  avatarDescription?: string
+  headerDescription?: string
+  showMedia?: boolean
+  showMediaReplies?: boolean
+  showFeatured?: boolean
 }
 
 export type ActorDeletionStatus = 'scheduled' | 'deleting' | null

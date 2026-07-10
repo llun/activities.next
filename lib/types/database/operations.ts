@@ -142,6 +142,14 @@ export type UpdateActorParams = {
   // Atomically appends IDs to notificationAcceptedSenders inside updateActor's
   // transaction, avoiding the read-modify-write race of separate read + write.
   appendNotificationAcceptedSenders?: string[]
+  // Mastodon 4.6 Profile-entity appearance settings (PATCH /api/v1/profile):
+  // avatar/header alt texts, the profile Media/Featured tab visibility flags,
+  // and the domains allowed to credit this account in link previews.
+  avatarDescription?: string
+  headerDescription?: string
+  showMedia?: boolean
+  showMediaReplies?: boolean
+  showFeatured?: boolean
 
   publicKey?: string
 
