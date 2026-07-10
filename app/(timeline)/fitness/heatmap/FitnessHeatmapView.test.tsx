@@ -853,6 +853,40 @@ describe('FitnessHeatmapView', () => {
     ).toBe(true)
   })
 
+  it('retries a cancelled region with a fresh (non-resume) run', async () => {
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([
+      worldSummary({ status: 'cancelled', updatedAt: TEST_NOW })
+    ])
+    mockGetFitnessRouteHeatmap.mockResolvedValue(
+      worldHeatmap({
+        status: 'cancelled',
+        segments: [],
+        bounds: null,
+        pointCount: 0,
+        cursorOffset: 0
+      })
+    )
+
+    render(
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
+    )
+
+    await openWorldRegion()
+
+    const retryButton = await screen.findByRole('button', { name: /Retry/i })
+    fireEvent.click(retryButton)
+
+    await waitFor(() => {
+      expect(mockTriggerFitnessRouteHeatmap).toHaveBeenCalledWith(
+        expect.objectContaining({ actorId: ACTOR, retry: true })
+      )
+    })
+  })
+
   it('removes a region and prunes its cached heatmap', async () => {
     mockGetFitnessRouteHeatmaps.mockResolvedValue([
       worldSummary({ updatedAt: TEST_NOW })

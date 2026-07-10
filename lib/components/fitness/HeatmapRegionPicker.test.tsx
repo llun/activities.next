@@ -438,6 +438,19 @@ describe('HeatmapRegionPicker', () => {
     )
     expect(screen.getByText(/Generating… 42%/)).toBeInTheDocument()
   })
+
+  it('renders a neutral Canceled chip for a cancelled region', () => {
+    render(
+      <HeatmapRegionPicker
+        value={worldValue}
+        onChange={vi.fn()}
+        mapProvider={{ type: 'osm' }}
+        onOpen={vi.fn()}
+        getRegionStatus={() => ({ state: 'cancelled' })}
+      />
+    )
+    expect(screen.getByText('Canceled')).toBeInTheDocument()
+  })
 })
 
 describe('withRegionIds', () => {

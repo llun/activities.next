@@ -643,6 +643,49 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
     expect(mockPublish).not.toHaveBeenCalled()
   })
 
+  it('does not cancel a soft-deleted row', async () => {
+    const deletedAt = Date.now() - 1000
+    mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue({
+      id: 'route-heatmap-deleted-cancel',
+      actorId: ACTOR1_ID,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-04',
+      region: REGION,
+      status: 'generating',
+      segments: [],
+      activityCount: 0,
+      pointCount: 0,
+      totalCount: 0,
+      cursorOffset: 3,
+      isPartial: false,
+      createdAt: deletedAt - 1000,
+      updatedAt: deletedAt,
+      deletedAt
+    })
+
+    const request = new NextRequest(baseUrl, {
+      method: 'POST',
+      headers: { Origin: 'https://test.llun.dev' },
+      body: JSON.stringify({
+        activity_type: 'running',
+        period_type: 'monthly',
+        period_key: '2026-04',
+        region: REGION,
+        cancel: true
+      })
+    })
+    const response = await POST(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+
+    expect(response.status).toBe(200)
+    const json = await response.json()
+    expect(json.cancelled).toBe(false)
+    expect(mockDb.cancelFitnessRouteHeatmapGeneration).not.toHaveBeenCalled()
+    expect(mockPublish).not.toHaveBeenCalled()
+  })
+
   it('uses a unique retry job id for a cancelled cache', async () => {
     const retryNonce = '00000000-0000-4000-8000-000000000000'
     const randomUUIDSpy = vi
