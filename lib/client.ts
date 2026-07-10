@@ -3457,8 +3457,10 @@ export const removeCollectionAccounts = (
 
 export interface CollectionMembershipParams {
   collectionId: string
-  // The acting member's own Mastodon Account id (the `urlToId`-encoded actor id).
-  // The approve/revoke routes require it to resolve to the authenticated caller.
+  // The acting member's own Mastodon Account id (the `urlToId`-encoded actor
+  // id). The approve/revoke routes accept it as an extension alongside the
+  // Mastodon 4.6 CollectionItem id and require it to resolve to the
+  // authenticated caller.
   accountId: string
 }
 
