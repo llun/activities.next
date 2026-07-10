@@ -1,0 +1,23 @@
+lib/utils/text/escapeHtml.test.ts
+  s_ab97d21f52c341::t_d6e81ae0817b85 1-24
+lib/utils/text/escapeHtml.ts
+  s_ab97d21f52c341::t_df8631b866ac4a 1-10
+app/api/v1/instance/extended_description/route.ts
+  s_ab97d21f52c341::t_3d72ee0fac7027 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7fd8fb654a65f1c6621d7160655c50c9d0afda68",
+  "prompts": {},
+  "sessions": {
+    "s_ab97d21f52c341": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "62bf221b-714f-4225-95d2-e37f0d6fd6a3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
