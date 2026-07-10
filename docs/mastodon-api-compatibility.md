@@ -59,6 +59,24 @@ product or security decision, not a gap to be closed.
   recognizes `follow` at registration for client compatibility but enforces the
   granular (or coarse `read`/`write`) scopes on the relevant routes.
 
+- **`GET /health` returns JSON, not `text/plain`.** Mastodon's health endpoint
+  renders `text/plain` body `OK`; Activity.next returns `{"status":"UP"}` with a
+  `200 OK`. Liveness probes should assert on the `200` status, not the body.
+
+- **`GET /api/v1/instance/privacy_policy` returns 404 when unset.** Mastodon
+  falls back to a bundled default privacy policy when the admin has not set one.
+  Activity.next ships no default, so the endpoint returns `404` until
+  `ACTIVITIES_PRIVACY_POLICY` is configured (clients hide the link on a 404). The
+  companion `GET /api/v1/instance/terms_of_service` (and `/:date`) 404-when-unset
+  already matches Mastodon; both report `1970-01-01` as their single effective
+  date, the same "no date tracked" placeholder `extended_description` uses.
+
+- **`GET /api/oembed` emits a static blockquote embed.** Activity.next has no
+  per-status embed widget, so the oEmbed `html` field is a `blockquote` linking
+  to the status page rather than Mastodon's `<iframe src=".../embed">`. The
+  provider resolves only this instance's own public or unlisted status URLs
+  (including on configured trusted hosts).
+
 ## Not planned
 
 These endpoints are not implemented and are not currently on the roadmap. They
