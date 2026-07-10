@@ -853,6 +853,54 @@ describe('FitnessHeatmapView', () => {
     ).toBe(true)
   })
 
+  it('re-enables Generate after leaving the region mid-enqueue', async () => {
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([
+      worldSummary({ status: 'cancelled', updatedAt: TEST_NOW })
+    ])
+    mockGetFitnessRouteHeatmap.mockResolvedValue(
+      worldHeatmap({
+        status: 'cancelled',
+        segments: [],
+        bounds: null,
+        pointCount: 0,
+        cursorOffset: 0
+      })
+    )
+    // Hold the trigger open so we can switch away before it settles.
+    const deferred = createDeferred<boolean>()
+    mockTriggerFitnessRouteHeatmap.mockReturnValue(deferred.promise)
+
+    render(
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
+    )
+
+    await openWorldRegion()
+
+    // Start an enqueue (isRetrying → true) via the cancelled-state Retry…
+    const retryButton = await screen.findByRole('button', { name: /Retry/i })
+    fireEvent.click(retryButton)
+
+    // …then leave the region before it resolves, and let the stale request land.
+    fireEvent.click(screen.getByRole('button', { name: /All regions/i }))
+    await act(async () => {
+      deferred.resolve(true)
+      await deferred.promise
+    })
+
+    // Re-open: the Generate control must be usable again, not stuck "Enqueuing…".
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Open Whole world heatmap/i })
+    )
+    const generate = await screen.findByRole('button', {
+      name: /Generate heatmap/i
+    })
+    expect(generate).not.toBeDisabled()
+  })
+
   it('retries a cancelled region with a fresh (non-resume) run', async () => {
     mockGetFitnessRouteHeatmaps.mockResolvedValue([
       worldSummary({ status: 'cancelled', updatedAt: TEST_NOW })

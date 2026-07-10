@@ -134,10 +134,15 @@ export interface FitnessRouteHeatmapDatabase {
    * fields so a later Generate/Retry starts clean. No-op (returns false) on a
    * terminal or deleted row. Resetting `cursorOffset` to 0 invalidates a
    * continuation that was already queued before the cancel (its requested cursor
-   * no longer matches); a continuation the still-running worker would publish
-   * *after* the cancel is prevented separately, because the worker's
-   * checkpoint/complete/fail writes pass `abortIfCancelled` and skip a cancelled
-   * row.
+   * no longer matches), and while the row stays `cancelled` an orphaned worker
+   * pass can't revive it either, because that worker's checkpoint/complete/fail
+   * writes pass `abortIfCancelled` and skip a cancelled row.
+   *
+   * Note: if the user immediately re-generates, a fresh run reclaims the row
+   * (back to `generating`) — at which point an orphaned pass from the cancelled
+   * run races the new one exactly as a retry-against-a-`generating`-row already
+   * would. Fully fencing two concurrent runs on one row would need a per-run
+   * token and is out of scope here.
    */
   cancelFitnessRouteHeatmapGeneration(params: {
     actorId: string

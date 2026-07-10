@@ -242,13 +242,14 @@ export const FitnessHeatmapView: FC<Props> = ({
 
   // Reset the focused state whenever the focused selection changes (including
   // closing the detail), so a stale map/status never carries across regions.
-  // isCancelling is component-wide, so clearing it here keeps a cancel that was
-  // still in flight when the user switched regions from wedging the next
-  // region's Cancel button disabled.
+  // isRetrying/isCancelling are component-wide, so clearing them here keeps an
+  // enqueue/cancel that was still in flight when the user switched regions from
+  // wedging the next region's Generate/Cancel button disabled.
   useEffect(() => {
     setHeatmapData(null)
     setGenerationPending(false)
     setPollingStalled(false)
+    setIsRetrying(false)
     setIsCancelling(false)
     pollingProgressRef.current = null
   }, [focusKey])
@@ -464,6 +465,10 @@ export const FitnessHeatmapView: FC<Props> = ({
   )
 
   const runGeneration = useCallback(async () => {
+    // Capture the focused selection so a slow enqueue that resolves after the
+    // user switched/closed regions neither surfaces its error on, nor clears the
+    // retry flag of, a different region.
+    const key = focusKeyRef.current
     setIsRetrying(true)
     setError(null)
     try {
@@ -477,13 +482,15 @@ export const FitnessHeatmapView: FC<Props> = ({
         Boolean(heatmapData?.status === 'completed' && heatmapData?.isPartial)
       await enqueueGeneration(retry)
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Failed to enqueue route heatmap refresh.'
-      )
+      if (focusKeyRef.current === key) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Failed to enqueue route heatmap refresh.'
+        )
+      }
     } finally {
-      setIsRetrying(false)
+      if (focusKeyRef.current === key) setIsRetrying(false)
     }
   }, [heatmapData, enqueueGeneration])
 
