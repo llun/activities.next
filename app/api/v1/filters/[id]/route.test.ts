@@ -396,6 +396,90 @@ describe('/api/v1/filters/[id]', () => {
     expect(storedFilter).toMatchObject({ title: 'Fruits' })
   })
 
+  it('renames a keyword of a blur-action multi-keyword filter when the v1 irreversible projection is unchanged', async () => {
+    // `blur` and `warn` both project to the v1 view's `irreversible: false`
+    // (getV1Filter maps irreversible = filterAction === 'hide'). A v1 client
+    // echoing the filter's own `irreversible: false` is not changing the
+    // v1-visible value, so the multi-keyword guard must allow it. Comparing the
+    // derived tri-state filterAction ('warn') against the stored 'blur' used to
+    // reject this with a spurious 422.
+    const { filter, keywords } = await createFilterFixture({
+      title: 'blur-parent',
+      filterAction: 'blur',
+      keywords: [
+        { keyword: 'blur-a', wholeWord: false },
+        { keyword: 'blur-b', wholeWord: false }
+      ]
+    })
+    const id = keywordId(keywords, 'blur-a')
+
+    const response = await PUT(
+      requestFor(id, {
+        method: 'PUT',
+        body: { phrase: 'blur-renamed', context: ['home'], irreversible: false }
+      }),
+      { params: Promise.resolve({ id }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      id,
+      phrase: 'blur-renamed',
+      irreversible: false
+    })
+
+    const storedKeyword = await database.getFilterKeyword({
+      actorId: ACTOR1_ID,
+      id
+    })
+    expect(storedKeyword).toMatchObject({ keyword: 'blur-renamed' })
+    // The shared parent filter_action stays 'blur', untouched by the rename.
+    const storedFilter = await database.getFilter({
+      actorId: ACTOR1_ID,
+      id: filter.id
+    })
+    expect(storedFilter).toMatchObject({ filterAction: 'blur' })
+  })
+
+  it('allows a whole_word toggle when the context is reordered but equal on a multi-keyword filter', async () => {
+    // The multi-keyword context guard is order-insensitive (contextsDiffer sorts
+    // both sides). A v1 client resending the parent's context in a different
+    // order changes nothing shared, so the update is allowed. If the sort
+    // normalization regressed to an element-wise compare, this would 422 and
+    // leave whole_word untouched — the assertion below fails in that case.
+    const { keywords } = await createFilterFixture({
+      title: 'reorder-parent',
+      context: ['home', 'public'],
+      keywords: [
+        { keyword: 'reorder-a', wholeWord: false },
+        { keyword: 'reorder-b', wholeWord: false }
+      ]
+    })
+    const id = keywordId(keywords, 'reorder-a')
+
+    const response = await PUT(
+      requestFor(id, {
+        method: 'PUT',
+        body: {
+          phrase: 'reorder-a',
+          context: ['public', 'home'],
+          whole_word: true
+        }
+      }),
+      { params: Promise.resolve({ id }) }
+    )
+
+    expect(response.status).toBe(200)
+    const storedKeyword = await database.getFilterKeyword({
+      actorId: ACTOR1_ID,
+      id
+    })
+    expect(storedKeyword).toMatchObject({
+      keyword: 'reorder-a',
+      wholeWord: true
+    })
+  })
+
   it('returns 422 when renaming a keyword to a sibling keyword', async () => {
     const { keywords } = await createFilterFixture({
       // Title matches the target phrase so the multi-keyword guard passes

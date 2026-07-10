@@ -140,9 +140,17 @@ export const PUT = traceApiRoute(
       // are deliberately excluded here and may always change — including a
       // secondary keyword whose phrase differs from the parent title. The check
       // runs before any write so a rejected request changes nothing.
+      //
+      // `irreversible` is the two-state v1 projection of the tri-state
+      // filter_action (`getV1Filter` maps `irreversible = filterAction ===
+      // 'hide'`), so `warn` and `blur` both project to `false`. Compare the
+      // projected boolean rather than the derived `filterAction`: a v1 client
+      // echoing a `blur` filter's own `irreversible: false` is not changing the
+      // v1-visible value, so it must not be rejected.
       const parentAttributesWouldChange =
         contextsDiffer(input.context, filter.context) ||
-        (filterAction !== undefined && filterAction !== filter.filterAction) ||
+        (input.irreversible !== undefined &&
+          input.irreversible !== (filter.filterAction === 'hide')) ||
         (input.expiresAt !== undefined && input.expiresAt !== filter.expiresAt)
       if (parentAttributesWouldChange && isMultiKeyword)
         return apiResponse({
