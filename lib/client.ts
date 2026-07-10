@@ -2602,6 +2602,47 @@ export const triggerFitnessRouteHeatmap = async ({
 }
 
 /**
+ * Cancels an in-flight route-heatmap generation for a region. Resolves to true
+ * when a run was actually cancelled (false when nothing was in flight).
+ */
+export const cancelFitnessRouteHeatmap = async ({
+  actorId,
+  activityType,
+  periodType,
+  periodKey,
+  region
+}: {
+  actorId: string
+  activityType?: string
+  periodType: string
+  periodKey: string
+  region?: string | null
+}): Promise<boolean> => {
+  const encodedId = urlToId(actorId)
+  const response = await fetch(
+    `${window.origin}/api/v1/accounts/${encodedId}/fitness-route-heatmap`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        period_type: periodType,
+        period_key: periodKey,
+        ...(activityType ? { activity_type: activityType } : {}),
+        ...(region ? { region } : {}),
+        cancel: true
+      })
+    }
+  )
+  if (!response.ok) {
+    throw new Error(
+      await getRouteHeatmapResponseErrorMessage(response, 'route heatmap')
+    )
+  }
+  const json = await response.json()
+  return Boolean(json.cancelled)
+}
+
+/**
  * Enables public sharing for a single route heatmap (identified by its
  * activity/period/region key) and returns its embed share token. Idempotent: a
  * heatmap that is already shared keeps its existing token.

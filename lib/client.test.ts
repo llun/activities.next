@@ -8,6 +8,7 @@ import {
   addCollectionAccounts,
   approveCollectionMembership,
   bookmarkStatus,
+  cancelFitnessRouteHeatmap,
   clearFitnessRouteHeatmaps,
   createCollection,
   createDirectMessage,
@@ -603,6 +604,36 @@ describe('fitness route heatmap client calls', () => {
         periodKey: 'all'
       })
     ).rejects.toThrow('Failed to load route heatmap (403): owner only')
+  })
+
+  it('sends a cancel flag when cancelling a route heatmap job', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({ cancelled: true }), {
+      status: 200
+    })
+
+    await expect(
+      cancelFitnessRouteHeatmap({
+        actorId: 'https://llun.test/users/test1',
+        activityType: 'running',
+        periodType: 'monthly',
+        periodKey: '2026-04',
+        region: 'netherlands'
+      })
+    ).resolves.toBe(true)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://llun.test/api/v1/accounts/llun.test:users:test1/fitness-route-heatmap',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          period_type: 'monthly',
+          period_key: '2026-04',
+          activity_type: 'running',
+          region: 'netherlands',
+          cancel: true
+        })
+      })
+    )
   })
 
   it('sends an explicit retry flag when triggering a retry route heatmap job', async () => {
