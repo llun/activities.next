@@ -59,6 +59,13 @@ product or security decision, not a gap to be closed.
   recognizes `follow` at registration for client compatibility but enforces the
   granular (or coarse `read`/`write`) scopes on the relevant routes.
 
+- **`GET /api/v1/tags/:name` always includes `following` and `featuring`.**
+  Mastodon omits these optional `Tag` fields for unauthorized tokens;
+  Activity.next always returns them, defaulting both to `false` for anonymous or
+  unauthenticated requests, so clients get a consistent `Tag` shape. The
+  `featuring` flag (Mastodon 4.4.0) also appears on the `POST /api/v1/tags/:name/feature`
+  and `POST /api/v1/tags/:name/unfeature` responses.
+
 ## Not planned
 
 These endpoints are not implemented and are not currently on the roadmap. They

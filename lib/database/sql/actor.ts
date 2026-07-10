@@ -819,6 +819,11 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     notificationAcceptedSenders,
     appendNotificationAcceptedSenders,
     fitness,
+    avatarDescription,
+    headerDescription,
+    showMedia,
+    showMediaReplies,
+    showFeatured,
 
     publicKey,
 
@@ -866,6 +871,11 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       // appendNotificationAcceptedSenders is handled inside the transaction
       // with a fresh read to prevent lost-update races.
       ...(fitness !== undefined ? { fitness } : null),
+      ...(avatarDescription !== undefined ? { avatarDescription } : null),
+      ...(headerDescription !== undefined ? { headerDescription } : null),
+      ...(showMedia !== undefined ? { showMedia } : null),
+      ...(showMediaReplies !== undefined ? { showMediaReplies } : null),
+      ...(showFeatured !== undefined ? { showFeatured } : null),
 
       ...(followersUrl ? { followersUrl } : null),
       ...(inboxUrl ? { inboxUrl } : null),

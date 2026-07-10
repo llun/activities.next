@@ -996,6 +996,29 @@ describe('ActorDatabase', () => {
         expect(settings.defaultPrivacy).toBe('private')
       })
 
+      it('persists profile appearance settings including explicit false flags', async () => {
+        const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+        await database.updateActor({
+          actorId,
+          avatarDescription: 'Coffee cup close-up',
+          headerDescription: 'Mountains at dawn',
+          showMedia: false,
+          showMediaReplies: false,
+          showFeatured: false,
+          attributionDomains: ['news.example.com']
+        })
+
+        const settings = await database.getActorSettings({ actorId })
+        expect(settings).toMatchObject({
+          avatarDescription: 'Coffee cup close-up',
+          headerDescription: 'Mountains at dawn',
+          showMedia: false,
+          showMediaReplies: false,
+          showFeatured: false,
+          attributionDomains: ['news.example.com']
+        })
+      })
+
       it('persists and returns reading preferences', async () => {
         const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
         await database.updateActor({
