@@ -1,0 +1,39 @@
+lib/database/types.ts
+  s_ab97d21f52c341::t_a1354dc5486277 10
+  s_ab97d21f52c341::t_698981ba800b57 52
+lib/database/sql/actorDomainBlock.ts
+  s_ab97d21f52c341::t_592c2e8d1d64c4 1-135
+lib/types/database/operations.ts
+  s_ab97d21f52c341::t_92532b01a62847 1183-1221
+  s_ab97d21f52c341::t_72b6cccb8090cd 7
+lib/database/sql/actorDomainBlock.test.ts
+  s_ab97d21f52c341::t_55d883f533494b 1-131
+migrations/20260710000000_add_actor_domain_blocks.js
+  s_ab97d21f52c341::t_779b0cf0875f27 1-27
+lib/types/domain/actorDomainBlock.ts
+  s_ab97d21f52c341::t_ec256a00bb6835 1-14
+lib/database/sql/index.ts
+  s_ab97d21f52c341::t_edd0e3fc80ae27 136
+  s_ab97d21f52c341::t_c28178d808e515 53
+  s_ab97d21f52c341::t_c7a3b24d0e32ef 6
+migrations/schema.sql
+  s_ab97d21f52c341::t_4b43583ba1f4f4 63-70,1095-1100,1432-1433
+migrations/schema.sqlite.sql
+  s_ab97d21f52c341::t_c8c82f7f3601a4 239-241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "23f118aa8659f75d3a21bdda93bb190b32a8f873",
+  "prompts": {},
+  "sessions": {
+    "s_ab97d21f52c341": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "62bf221b-714f-4225-95d2-e37f0d6fd6a3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
