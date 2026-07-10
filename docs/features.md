@@ -16,6 +16,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Multiple actors per account** — Create and switch between multiple handles under one account (e.g., `@user@domain.tld` and `@ride@domain.tld`)
 - ✅ **Multi-domain support** — Different domains for different actors
 - ✅ **Account blocks** — Block or unblock remote accounts and list blocked accounts
+- ✅ **Domain blocks** — Block or unblock an entire remote domain and list your blocked domains via `/api/v1/domain_blocks`; blocking hides that domain's posts (and boosts) from your timelines, is reflected in `domain_blocking` on relationships, and severs follows in both directions
 - ✅ **Follow requests** — Review, authorize, and reject follow requests
 - ✅ **Custom emoji** — Instance-defined custom emoji with a sticker/emoji picker in the post box
 - ✅ **Featured hashtags** — Feature hashtags on your profile and manage them from settings
