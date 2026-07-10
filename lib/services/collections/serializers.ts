@@ -2,7 +2,8 @@ import { Database } from '@/lib/database/types'
 import { CollectionItemRow } from '@/lib/types/database/operations'
 import {
   Collection,
-  CollectionFeatureState
+  CollectionFeatureState,
+  CollectionVisibility
 } from '@/lib/types/domain/collection'
 import {
   CollectionItemEntity,
@@ -125,3 +126,26 @@ export const getCollectionEntities = async (
     })
   )
 }
+
+// Map the dual request vocabulary (Mastodon 4.6 name/tag_name/discoverable +
+// activities.next title/topic/visibility) onto storage params; spec params win
+// when both are present. discoverable=true → 'public', discoverable=false →
+// 'unlisted' (link-shareable); 'private' is only reachable via the extension
+// `visibility` param.
+export const resolveCollectionWrite = (body: {
+  name?: string
+  title?: string
+  tag_name?: string | null
+  topic?: string | null
+  discoverable?: boolean
+  visibility?: CollectionVisibility
+}) => ({
+  title: body.name ?? body.title,
+  topic: body.tag_name !== undefined ? body.tag_name : body.topic,
+  visibility:
+    body.discoverable !== undefined
+      ? body.discoverable
+        ? ('public' as const)
+        : ('unlisted' as const)
+      : body.visibility
+})

@@ -3388,7 +3388,10 @@ export const createCollection = async (
     body: JSON.stringify(collectionRequestBody(params))
   })
   if (!response.ok) return null
-  return (await response.json()) as CollectionEntity
+  // Mastodon 4.6 wraps the created collection; unwrap so component callers
+  // keep receiving the entity itself.
+  const data = (await response.json()) as { collection: CollectionEntity }
+  return data.collection
 }
 
 export interface UpdateCollectionParams extends CollectionParams {
