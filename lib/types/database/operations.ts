@@ -1081,6 +1081,11 @@ export type GetFollowersParams = {
   minId?: string | null
   sinceId?: string | null
 }
+export type GetAcceptedOrRequestedFollowsWithDomainParams = {
+  actorId: string
+  domain: string
+  limit: number
+}
 export type GetFollowRequestsParams = {
   targetActorId: string
   limit: number
@@ -1110,6 +1115,9 @@ export interface FollowDatabase {
   getAcceptedOrRequestedFollow(
     params: GetAcceptedOrRequestedFollowParams
   ): Promise<Follow | null>
+  getAcceptedOrRequestedFollowsWithDomain(
+    params: GetAcceptedOrRequestedFollowsWithDomainParams
+  ): Promise<Follow[]>
   getAcceptedFollowTargetActorIds(
     params: GetAcceptedFollowTargetActorIdsParams
   ): Promise<string[]>
