@@ -1,8 +1,11 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
-import { Database } from '@/lib/database/types'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
+import {
+  getNotificationPolicyResponse,
+  readNotificationPolicyBody
+} from '@/lib/services/notifications/notificationPolicy'
 import { NotificationPolicyValue, Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -30,23 +33,6 @@ const UpdatePolicyBody = z.object({
   for_limited_accounts: NotificationPolicyValue.optional()
 })
 
-const buildPolicyResponse = async (database: Database, actorId: string) => {
-  const [policy, pendingNotificationsCount, pendingRequestsCount] =
-    await Promise.all([
-      database.getNotificationPolicy({ actorId }),
-      database.getNotificationsCount({ actorId, filteredOnly: true }),
-      database.getNotificationRequestsCount({ actorId })
-    ])
-
-  return {
-    ...policy,
-    summary: {
-      pending_requests_count: pendingRequestsCount,
-      pending_notifications_count: pendingNotificationsCount
-    }
-  }
-}
-
 export const GET = traceApiRoute(
   'getNotificationPolicy',
   OAuthGuardAnyScope(
@@ -61,7 +47,10 @@ export const GET = traceApiRoute(
         })
       }
 
-      const data = await buildPolicyResponse(database, currentActor.id)
+      const data = await getNotificationPolicyResponse(
+        database,
+        currentActor.id
+      )
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data })
     }
   )
@@ -81,25 +70,7 @@ export const PATCH = traceApiRoute(
         })
       }
 
-      const contentType = req.headers.get('content-type') ?? ''
-      let body: unknown
-      if (
-        contentType.includes('application/x-www-form-urlencoded') ||
-        contentType.includes('multipart/form-data')
-      ) {
-        const formData = await req.formData().catch(() => null)
-        if (formData) {
-          const obj: Record<string, string> = {}
-          formData.forEach((value, key) => {
-            obj[key] = String(value)
-          })
-          body = obj
-        } else {
-          body = {}
-        }
-      } else {
-        body = await req.json().catch(() => ({}))
-      }
+      const body = await readNotificationPolicyBody(req)
       const parsed = UpdatePolicyBody.safeParse(body)
       if (!parsed.success) {
         return apiResponse({
@@ -115,7 +86,10 @@ export const PATCH = traceApiRoute(
         ...parsed.data
       })
 
-      const data = await buildPolicyResponse(database, currentActor.id)
+      const data = await getNotificationPolicyResponse(
+        database,
+        currentActor.id
+      )
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data })
     }
   )

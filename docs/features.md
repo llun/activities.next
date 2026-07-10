@@ -84,6 +84,10 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **WebFinger** — Actor discovery via `/.well-known/webfinger`
 - ✅ **NodeInfo** — Instance metadata at `/.well-known/nodeinfo`
 - ✅ **OAuth Authorization Server metadata** — At `/.well-known/oauth-authorization-server`
+- ✅ **Instance legal documents** — Admin-configured plain-text pages via `GET /api/v1/instance/privacy_policy` and `GET /api/v1/instance/terms_of_service` (plus `GET /api/v1/instance/terms_of_service/:date`), backed by the optional `ACTIVITIES_PRIVACY_POLICY` / `ACTIVITIES_TERMS_OF_SERVICE` config keys; each returns 404 when its document is unset
+- ✅ **Health check** — Unauthenticated `GET /health` liveness probe returning `{"status":"UP"}`
+- ✅ **oEmbed provider** — `GET /api/oembed` returns rich embed metadata for this instance's public/unlisted status pages, discoverable via the `application/json+oembed` `<link>` emitted on every status page
+- ✅ **Notification policy** — Filtered-notification policy via `GET|PUT|PATCH /api/v2/notifications/policy`, plus the deprecated `GET|PUT|PATCH /api/v1/notifications/policy` alias serving the legacy `filter_*` boolean entity
 - 📖 **[Mastodon API compatibility reference](./mastodon-api-compatibility.md)** — Intentional divergences (e.g. 7-day OAuth tokens), unplanned endpoints, and activities.next-only extensions
 
 ### Infrastructure

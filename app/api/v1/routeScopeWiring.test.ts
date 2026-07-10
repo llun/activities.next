@@ -166,6 +166,10 @@ const EXPECTED: Array<{ module: string; scopes: string[] }> = [
     module: '@/app/api/v1/notifications/requests/[id]/dismiss/route',
     scopes: ['write', 'write:notifications']
   },
+  {
+    module: '@/app/api/v1/notifications/policy/route',
+    scopes: ['read', 'read:notifications', 'write', 'write:notifications']
+  },
   // v2 notifications
   {
     module: '@/app/api/v2/notifications/route',
@@ -249,6 +253,14 @@ const MULTI_METHOD: Array<{
     module: '@/app/api/v2/notifications/policy/route',
     methods: {
       GET: ['read', 'read:notifications'],
+      PATCH: ['write', 'write:notifications']
+    }
+  },
+  {
+    module: '@/app/api/v1/notifications/policy/route',
+    methods: {
+      GET: ['read', 'read:notifications'],
+      PUT: ['write', 'write:notifications'],
       PATCH: ['write', 'write:notifications']
     }
   }

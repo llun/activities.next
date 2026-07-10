@@ -33,6 +33,10 @@ const Config = z.object({
   host: z.string(),
   serviceName: z.string().nullish(),
   serviceDescription: z.string().nullish(),
+  // Plain text served (escaped + paragraph-wrapped) by the public instance
+  // legal endpoints; both endpoints 404 when their key is unset.
+  privacyPolicy: z.string().nullish(),
+  termsOfService: z.string().nullish(),
   languages: z.string().array().default(['en']),
   database: z.custom<Knex.Config>(),
   queue: QueueConfig.optional(),
@@ -119,6 +123,8 @@ const getConfigFromEnvironment = () => {
       host: hostConfig.host,
       serviceName: process.env.ACTIVITIES_SERVICE_NAME,
       serviceDescription: process.env.ACTIVITIES_SERVICE_DESCRIPTION,
+      privacyPolicy: process.env.ACTIVITIES_PRIVACY_POLICY,
+      termsOfService: process.env.ACTIVITIES_TERMS_OF_SERVICE,
       languages: getLanguagesConfig(),
       secretPhase: process.env.ACTIVITIES_SECRET_PHASE || '',
       allowEmails: JSON.parse(process.env.ACTIVITIES_ALLOW_EMAILS || '[]'),
