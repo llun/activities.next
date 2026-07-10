@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { applyDomainBlock } from '@/lib/actions/applyDomainBlock'
-import { normalizeDomain } from '@/lib/services/federation/domainRules'
+import { normalizeActorHost } from '@/lib/services/federation/domainRules'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
@@ -34,16 +34,17 @@ const DomainBlocksQuery = z.object({
   limit: clampedLimit(MAX_LIMIT, DEFAULT_LIMIT)
 })
 
-// `domain` column is varchar(255); normalizeDomain also rejects >255 chars.
+// `domain` column is varchar(255); normalizeActorHost also rejects >255 chars.
 const DomainBlockBody = z.object({
   domain: z.string().min(1).max(255)
 })
 
 // Mastodon documents `domain` as a form-data parameter for POST and DELETE;
 // real clients also send it JSON-encoded or (for DELETE) in the query string.
-// Returns the normalized hostname, or null when missing/invalid — the caller
-// maps null to 422. User-level blocks target one exact domain, so the
-// wildcard forms the admin-level normalizeDomain permits are rejected here.
+// Returns the normalized host (hostname plus a non-default port), matching the
+// `new URL(actorId).host` form every read site compares against, or null when
+// missing/invalid — the caller maps null to 422. User-level blocks target one
+// exact domain, so the wildcard forms are rejected here.
 const resolveDomain = async (req: NextRequest): Promise<string | null> => {
   const rawBody = await getRequestBody(req).catch(
     (): Record<string, unknown> => ({})
@@ -54,7 +55,7 @@ const resolveDomain = async (req: NextRequest): Promise<string | null> => {
   })
   if (!parsed.success) return null
 
-  const domain = normalizeDomain(parsed.data.domain)
+  const domain = normalizeActorHost(parsed.data.domain)
   if (!domain || domain.includes('*')) return null
   return domain
 }

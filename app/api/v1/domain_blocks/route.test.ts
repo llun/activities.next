@@ -359,6 +359,58 @@ describe('/api/v1/domain_blocks', () => {
         })
       ).resolves.toBeNull()
     })
+
+    it('stores a port-bearing domain in the host form used at read sites', async () => {
+      // The stored block must equal `new URL(actorId).host` (non-default port
+      // retained) so the timeline filter, relationship lookup, and severing
+      // query — all keyed on that `.host` form — actually match. Normalizing via
+      // URL.hostname (port dropped) would silently no-op every port-bearing
+      // block.
+      const response = await POST(
+        formRequest(
+          'POST',
+          new URLSearchParams({ domain: 'dev.example:8443' })
+        ),
+        params
+      )
+
+      expect(response.status).toBe(200)
+      await expect(
+        database.isDomainBlockedByActor({
+          actorId: ACTOR1_ID,
+          domain: 'dev.example:8443'
+        })
+      ).resolves.toBe(true)
+    })
+
+    it('severs a follow whose target is served on a non-default port', async () => {
+      const targetActorId = 'https://ported.test:8443/users/followed'
+      await database.createFollow({
+        actorId: ACTOR1_ID,
+        targetActorId,
+        inbox: `${targetActorId}/inbox`,
+        sharedInbox: 'https://ported.test:8443/inbox',
+        status: FollowStatus.enum.Accepted
+      })
+
+      const response = await POST(
+        formRequest(
+          'POST',
+          new URLSearchParams({ domain: 'ported.test:8443' })
+        ),
+        params
+      )
+
+      expect(response.status).toBe(200)
+      // follows.targetActorHost is stored as `ported.test:8443`; the block must
+      // be stored in the same port-bearing form for the severing query to hit.
+      await expect(
+        database.getAcceptedOrRequestedFollow({
+          actorId: ACTOR1_ID,
+          targetActorId
+        })
+      ).resolves.toBeNull()
+    })
   })
 
   describe('DELETE /api/v1/domain_blocks', () => {
