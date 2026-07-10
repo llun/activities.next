@@ -6,6 +6,7 @@ import { GET } from './route'
 
 const mockDatabase = {
   getBlockRelations: vi.fn(),
+  getFeaturedTagByName: vi.fn(),
   getMuteRelations: vi.fn(),
   getStatusesByHashtag: vi.fn(),
   getTagDailyHistory: vi.fn(),
@@ -52,13 +53,17 @@ describe('GET /api/v1/tags/:tag', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockDatabase.getBlockRelations.mockResolvedValue([])
+    mockDatabase.getFeaturedTagByName.mockResolvedValue({
+      id: 'featured-1',
+      name: 'running'
+    })
     mockDatabase.getMuteRelations.mockResolvedValue([])
     mockDatabase.getStatusesByHashtag.mockResolvedValue([status])
     mockDatabase.getTagDailyHistory.mockResolvedValue(new Map())
     mockDatabase.isFollowingTag.mockResolvedValue(true)
   })
 
-  it('returns the Mastodon Tag entity by default with the following flag', async () => {
+  it('returns the Mastodon Tag entity by default with following and featuring flags', async () => {
     const response = await GET(
       new NextRequest('https://local.test/api/v1/tags/running'),
       { params: Promise.resolve({ tag: 'running' }) }
@@ -68,7 +73,12 @@ describe('GET /api/v1/tags/:tag', () => {
     const body = await response.json()
     expect(body.name).toBe('running')
     expect(body.following).toBe(true)
+    expect(body.featuring).toBe(true)
     expect(mockDatabase.isFollowingTag).toHaveBeenCalledWith({
+      actorId: mockCurrentActor.id,
+      name: 'running'
+    })
+    expect(mockDatabase.getFeaturedTagByName).toHaveBeenCalledWith({
       actorId: mockCurrentActor.id,
       name: 'running'
     })

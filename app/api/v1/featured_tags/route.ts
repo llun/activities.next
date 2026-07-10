@@ -5,6 +5,10 @@ import {
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import {
+  FEATURED_TAGS_LIMIT,
+  featureTag
+} from '@/lib/services/mastodon/featureTag'
 import { getMastodonFeaturedTag } from '@/lib/services/mastodon/getMastodonFeaturedTag'
 import { Scope } from '@/lib/types/database/operations'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
@@ -20,9 +24,6 @@ const CORS_HEADERS = [
 ]
 
 const guardOptions = { errorResponse: corsErrorResponse(CORS_HEADERS) }
-
-// Mastodon caps featured tags per account at FeaturedTag::LIMIT = 10.
-const FEATURED_TAGS_LIMIT = 10
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -85,31 +86,12 @@ export const POST = traceApiRoute(
       const { name } = parsed.data
       const host = headerHost(req.headers)
 
-      // Idempotent, matching Mastodon's CreateFeaturedTagService
-      // (find_or_initialize_by): re-featuring an already-featured tag returns
-      // the existing entry with 200 rather than erroring.
-      const existing = await database.getFeaturedTagByName({
+      const result = await featureTag({
+        database,
         actorId: currentActor.id,
         name
       })
-      if (existing) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: getMastodonFeaturedTag({
-            host,
-            actor: currentActor,
-            tag: existing
-          })
-        })
-      }
-
-      // The per-account cap only applies when adding a NEW tag (re-featuring an
-      // existing one above is always allowed).
-      const featuredCount = await database.countFeaturedTags({
-        actorId: currentActor.id
-      })
-      if (featuredCount >= FEATURED_TAGS_LIMIT) {
+      if (result.status === 'limit_reached') {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
@@ -120,14 +102,14 @@ export const POST = traceApiRoute(
         })
       }
 
-      const tag = await database.createFeaturedTag({
-        actorId: currentActor.id,
-        name
-      })
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: getMastodonFeaturedTag({ host, actor: currentActor, tag })
+        data: getMastodonFeaturedTag({
+          host,
+          actor: currentActor,
+          tag: result.tag
+        })
       })
     },
     guardOptions
