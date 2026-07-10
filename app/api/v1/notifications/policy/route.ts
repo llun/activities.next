@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
-import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import {
   getNotificationPolicyResponse,
   readNotificationPolicyBody,
@@ -62,25 +62,28 @@ const LEGACY_TO_POLICY_KEY = [
 // booleans instead of the v2 for_* accept/filter/drop strings.
 export const GET = traceApiRoute(
   'getNotificationPolicyV1',
-  OAuthGuard([Scope.enum.read], async (req, { currentActor, database }) => {
-    if (!database) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_500,
-        responseStatusCode: 500
-      })
-    }
+  OAuthGuardAnyScope(
+    [Scope.enum.read, Scope.enum['read:notifications']],
+    async (req, { currentActor, database }) => {
+      if (!database) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_500,
+          responseStatusCode: 500
+        })
+      }
 
-    const data = toV1NotificationPolicy(
-      await getNotificationPolicyResponse(database, currentActor.id)
-    )
-    return apiResponse({ req, allowedMethods: CORS_HEADERS, data })
-  })
+      const data = toV1NotificationPolicy(
+        await getNotificationPolicyResponse(database, currentActor.id)
+      )
+      return apiResponse({ req, allowedMethods: CORS_HEADERS, data })
+    }
+  )
 )
 
-const updatePolicyV1 = OAuthGuard(
-  [Scope.enum.write],
+const updatePolicyV1 = OAuthGuardAnyScope(
+  [Scope.enum.write, Scope.enum['write:notifications']],
   async (req: NextRequest, { currentActor, database }) => {
     if (!database) {
       return apiResponse({

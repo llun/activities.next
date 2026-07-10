@@ -13,8 +13,8 @@ const mockDatabase = {
 
 const mockCurrentActor = { id: 'https://llun.test/users/llun' }
 
-vi.mock('@/lib/services/guards/OAuthGuard', () => ({
-  OAuthGuard:
+vi.mock('@/lib/services/guards/OAuthGuard', () => {
+  const passthroughGuard =
     (
       _scopes: unknown[],
       handle: (
@@ -32,7 +32,11 @@ vi.mock('@/lib/services/guards/OAuthGuard', () => ({
         database: mockDatabase,
         params: context.params
       })
-}))
+  return {
+    OAuthGuard: passthroughGuard,
+    OAuthGuardAnyScope: passthroughGuard
+  }
+})
 
 const params = { params: Promise.resolve({}) }
 
