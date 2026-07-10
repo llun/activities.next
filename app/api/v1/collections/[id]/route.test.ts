@@ -42,6 +42,7 @@ vi.mock('@/lib/config', () => ({
 describe('/api/v1/collections/[id]', () => {
   const database = getTestSQLDatabase()
   let publicCollectionId: string
+  let unlistedCollectionId: string
   let privateCollectionId: string
 
   beforeAll(async () => {
@@ -55,6 +56,15 @@ describe('/api/v1/collections/[id]', () => {
       visibility: 'public'
     })
     publicCollectionId = publicCollection.id
+    // Unlisted collections are link-shareable but not discoverable; a non-owner
+    // who knows the id must still be able to read them in the public projection.
+    const unlistedCollection = await database.createCollection({
+      actorId: ACTOR1_ID,
+      title: 'Link shared',
+      topic: 'accounts',
+      visibility: 'unlisted'
+    })
+    unlistedCollectionId = unlistedCollection.id
     const privateCollection = await database.createCollection({
       actorId: ACTOR1_ID,
       title: 'Hidden',
@@ -84,6 +94,20 @@ describe('/api/v1/collections/[id]', () => {
     })
     await database.setCollectionMemberState({
       id: publicCollectionId,
+      actorId: ACTOR1_ID,
+      targetActorId: ACTOR2_ID,
+      state: 'approved'
+    })
+
+    // Same membership shape on the unlisted collection so the public projection
+    // (approved-only) can be asserted for a non-owner link-share read.
+    await database.addCollectionMembers({
+      id: unlistedCollectionId,
+      actorId: ACTOR1_ID,
+      targetActorIds: [ACTOR2_ID, pending.id]
+    })
+    await database.setCollectionMemberState({
+      id: unlistedCollectionId,
       actorId: ACTOR1_ID,
       targetActorId: ACTOR2_ID,
       state: 'approved'
@@ -134,6 +158,42 @@ describe('/api/v1/collections/[id]', () => {
     expect(data.collection.item_count).toBe(1)
     expect(data.accounts).toHaveLength(1)
     expect(data.accounts[0].id).toBe(urlToId(ACTOR2_ID))
+  })
+
+  it('serves an unlisted collection to an anonymous viewer in the approved-only projection', async () => {
+    // Unlisted collections are link-shareable: a non-owner who knows the id
+    // reads them (200), unlike private collections which 404 (existence-hiding).
+    const response = await GET(
+      getRequest(unlistedCollectionId),
+      context(unlistedCollectionId)
+    )
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data.collection.id).toBe(unlistedCollectionId)
+    // Unlisted is not discoverable, but still readable by link.
+    expect(data.collection.discoverable).toBe(false)
+    // Public projection: only the approved member; pending consent never leaks.
+    expect(data.collection.items).toHaveLength(1)
+    expect(data.collection.items[0]).toMatchObject({
+      account_id: urlToId(ACTOR2_ID),
+      state: 'accepted'
+    })
+    expect(data.collection.item_count).toBe(1)
+  })
+
+  it('serves an unlisted collection to a signed-in stranger', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor2.email }
+    })
+    const response = await GET(
+      getRequest(unlistedCollectionId),
+      context(unlistedCollectionId)
+    )
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    // Non-owner still gets the public projection, not the owner one.
+    expect(data.collection.items).toHaveLength(1)
+    expect(data.collection.item_count).toBe(1)
   })
 
   it('returns 404 for a private collection read by a stranger', async () => {

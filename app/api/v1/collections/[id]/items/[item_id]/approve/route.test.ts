@@ -95,13 +95,26 @@ describe('POST /api/v1/collections/[id]/items/[item_id]/approve', () => {
     ).toMatchObject({ featureState: 'approved' })
   })
 
-  it('returns 403 when the item belongs to someone else', async () => {
-    // The collection owner is NOT the member; acting on the member's item id
-    // must be rejected.
+  it('returns 404 (not 403) when the item belongs to someone else, hiding membership', async () => {
+    // The collection owner is NOT the member; acting on someone else's item is
+    // rejected. It must answer 404 — indistinguishable from an unknown item —
+    // so a non-owner cannot use a 403/404 split to probe another account's
+    // membership/consent state.
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
     const response = await POST(approveRequest(itemId), approveContext(itemId))
-    expect(response.status).toBe(403)
+    expect(response.status).toBe(404)
+  })
+
+  it('returns 404 for an unknown item, matching the someone-else response', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+    const response = await POST(
+      approveRequest('missing'),
+      approveContext('missing')
+    )
+    expect(response.status).toBe(404)
   })
 })

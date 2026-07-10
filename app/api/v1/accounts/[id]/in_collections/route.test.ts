@@ -124,4 +124,24 @@ describe('/api/v1/accounts/[id]/in_collections', () => {
     const response = await GET(request(), context)
     expect(response.status).toBe(401)
   })
+
+  it('emits offset Link headers matching /accounts/:id/collections', async () => {
+    // Shares the offset-paging contract with the sibling /collections route via
+    // buildOffsetPaginationLinkHeader; the owner sees both collections here.
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v1/accounts/${targetAccountId}/in_collections?limit=1&offset=1`
+      ),
+      context
+    )
+    expect(response.status).toBe(200)
+    const link = response.headers.get('Link') ?? ''
+    expect(link).toContain(
+      `/api/v1/accounts/${targetAccountId}/in_collections?limit=1&offset=2>; rel="next"`
+    )
+    expect(link).toContain('limit=1&offset=0>; rel="prev"')
+  })
 })
