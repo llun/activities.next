@@ -1,0 +1,141 @@
+app/api/v1/domain_blocks/route.test.ts
+  s_ab97d21f52c341::t_8e23cf09c3f925 1-504
+app/api/v1/domain_blocks/route.ts
+  s_ab97d21f52c341::t_b1b3e8b9f3ec8a 1-146
+app/api/v1/featured_tags/route.ts
+  s_ab97d21f52c341::t_dec9dae3881ffc 8-11,89-90,94,108-112
+app/api/v1/filters/[id]/route.test.ts
+  s_ab97d21f52c341::t_a03311ac6f4170 1-637
+app/api/v1/filters/[id]/route.ts
+  s_ab97d21f52c341::t_7ed004458ee577 1-259
+app/api/v1/filters/route.test.ts
+  s_ab97d21f52c341::t_e908a192ae2ee1 1-275
+app/api/v1/filters/route.ts
+  s_ab97d21f52c341::t_7133bf227c6271 1-112
+app/api/v1/profile/route.test.ts
+  s_ab97d21f52c341::t_c1ff36f7ff846d 66,70-73,82,84-108,151-152,157,160-161,168-249
+app/api/v1/profile/route.ts
+  s_ab97d21f52c341::t_ee89a4965e15eb 1,15-16,18-19,21-23,28
+app/api/v1/tags/[tag]/feature/route.test.ts
+  s_ab97d21f52c341::t_f485b2dceb382c 1-139
+app/api/v1/tags/[tag]/feature/route.ts
+  s_ab97d21f52c341::t_585ecf649f063a 1-97
+app/api/v1/tags/[tag]/route.test.ts
+  s_ab97d21f52c341::t_c997258da28196 9,13-14,56-59,66,76,81-84
+app/api/v1/tags/[tag]/route.ts
+  s_ab97d21f52c341::t_e5bfb8c3e35ab0 72,79-83,89
+app/api/v1/tags/[tag]/unfeature/route.test.ts
+  s_ab97d21f52c341::t_3d1e3bbe97a9d7 1-113
+app/api/v1/tags/[tag]/unfeature/route.ts
+  s_ab97d21f52c341::t_c207acaba89a4c 1-78
+app/api/v1/timelines/[timeline]/route.test.ts
+  s_ab97d21f52c341::t_03a189c5d4be87 506-535
+app/api/v1/timelines/tag/[hashtag]/route.test.ts
+  s_ab97d21f52c341::t_bc41cea8f89c28 14-15
+docs/architecture.md
+  s_ab97d21f52c341::t_4305e0d309c21d 189-190
+docs/features.md
+  s_ab97d21f52c341::t_3546950bcd0e27 19,72,78-79
+lib/actions/applyDomainBlock.test.ts
+  s_ab97d21f52c341::t_cbc2fd2473ba65 1-158
+lib/actions/applyDomainBlock.ts
+  s_ab97d21f52c341::t_5b9633722ae835 1-115
+lib/database/sql/actor.test.ts
+  s_ab97d21f52c341::t_ffbb71bf0e0c9b 999-1021
+lib/database/sql/actor.ts
+  s_ab97d21f52c341::t_654d56d7aec175 822-826,874-878
+lib/database/sql/actorDomainBlock.test.ts
+  s_ab97d21f52c341::t_f81ce924b832c5 1-131
+lib/database/sql/actorDomainBlock.ts
+  s_ab97d21f52c341::t_d9a72257352cf8 1-135
+lib/database/sql/follow.test.ts
+  s_ab97d21f52c341::t_0c8e00a78c85c0 720-790
+lib/database/sql/follow.ts
+  s_ab97d21f52c341::t_492edf15b3ad6d 18,310-339
+lib/database/sql/index.ts
+  s_ab97d21f52c341::t_413b51f6422cfa 6,53,136
+lib/database/types.ts
+  s_ab97d21f52c341::t_091795bfd8431e 10,52
+lib/services/accounts/credentialsHandler.ts
+  s_ab97d21f52c341::t_6b2b50b7a0b7ea 13-16
+lib/services/accounts/profile.test.ts
+  s_ab97d21f52c341::t_e97219fa061631 1-110
+lib/services/accounts/profile.ts
+  s_ab97d21f52c341::t_7ebc8b5bd41bb1 1-41
+lib/services/accounts/profileHandler.ts
+  s_ab97d21f52c341::t_5de33fcc016ffe 1-40
+lib/services/accounts/relationship.test.ts
+  s_ab97d21f52c341::t_eb24d49d290150 13,32,372-395
+lib/services/accounts/relationship.ts
+  s_ab97d21f52c341::t_fe34623719717f 15-24,30-31,41-42,81-87,114
+lib/services/accounts/updateCredentialsHandler.ts
+  s_ab97d21f52c341::t_1bde6274249a75 5,41-50,151-155,158-163,224-229,261-263,305-318,334-343
+lib/services/federation/domainRules.test.ts
+  s_ab97d21f52c341::t_f2fc102a010b31 8,101-144
+lib/services/federation/domainRules.ts
+  s_ab97d21f52c341::t_3b21e796831beb 79-110
+lib/services/filters/parseFilterInput.test.ts
+  s_ab97d21f52c341::t_3451bace1f6f4c 1-144
+lib/services/filters/parseFilterInput.ts
+  s_ab97d21f52c341::t_6cbeb9d32dbc2c 69-71,76,130-142,171-181,191-193,201-202,380-479
+lib/services/mastodon/featureTag.test.ts
+  s_ab97d21f52c341::t_c5bc993def3f5b 1-87
+lib/services/mastodon/featureTag.ts
+  s_ab97d21f52c341::t_34be88c5e4ef7a 1-51
+lib/services/mastodon/getMastodonFilter.test.ts
+  s_ab97d21f52c341::t_85e43abb50e08e 7-8,12,92-144
+lib/services/mastodon/getMastodonFilter.ts
+  s_ab97d21f52c341::t_1d5c3262a908c1 126-147
+lib/services/mastodon/getMastodonTag.test.ts
+  s_ab97d21f52c341::t_5751040f12229e 1-24
+lib/services/mastodon/getMastodonTag.ts
+  s_ab97d21f52c341::t_6350aaf9534509 12-13,17-18,24-25
+lib/services/timelines/domainBlockFilter.test.ts
+  s_ab97d21f52c341::t_adcc95f19f31e1 1-86
+lib/services/timelines/domainBlockFilter.ts
+  s_ab97d21f52c341::t_f3828764e53907 1-32
+lib/services/timelines/getFilteredTimelinePage.test.ts
+  s_ab97d21f52c341::t_601b57989f00e4 13,38-39,80-81,120-121,158-159,232-233,277-278,296-342
+lib/services/timelines/getFilteredTimelinePage.ts
+  s_ab97d21f52c341::t_330707af63cc59 13,64-74,86-89,93
+lib/types/database/operations.ts
+  s_ab97d21f52c341::t_a0c7558c753bfa 7,146-153,1092-1096,1126-1128,1199-1237
+lib/types/database/rows.ts
+  s_ab97d21f52c341::t_93f8a19d2c5a69 77-84
+lib/types/domain/actorDomainBlock.ts
+  s_ab97d21f52c341::t_b218953748d959 1-15
+lib/types/mastodon/account/profile.ts
+  s_ab97d21f52c341::t_14764af3840f85 1-59
+lib/types/mastodon/filter/v1.ts
+  s_ab97d21f52c341::t_2984711221cc03 1-30
+lib/types/mastodon/index.ts
+  s_ab97d21f52c341::t_d4ecd695df6a2c 6,27
+lib/types/mastodon/tag.ts
+  s_ab97d21f52c341::t_ac8fdc1e8dc977 14-15
+lib/utils/getRequestBody.test.ts
+  s_ab97d21f52c341::t_206e1e02af4568 68-87
+lib/utils/getRequestBody.ts
+  s_ab97d21f52c341::t_6cc5d7a2ddfa5e 21-28
+migrations/20260710000000_add_actor_domain_blocks.js
+  s_ab97d21f52c341::t_5f77aea52e5fd8 1-27
+migrations/schema.sql
+  s_ab97d21f52c341::t_d329fdea768e7a 63-70,1095-1100,1432-1433
+migrations/schema.sqlite.sql
+  s_ab97d21f52c341::t_805bfbe9ee48a9 239-241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.11",
+  "base_commit_sha": "18420c8b7a0f4b66ad6c5892b4cf1afd65858902",
+  "prompts": {},
+  "sessions": {
+    "s_ab97d21f52c341": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "62bf221b-714f-4225-95d2-e37f0d6fd6a3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
