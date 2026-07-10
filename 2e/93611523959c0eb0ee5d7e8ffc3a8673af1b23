@@ -1,0 +1,24 @@
+lib/config/index.test.ts
+  s_ab97d21f52c341::t_4b429efe3a7cea 150-179
+lib/config/index.ts
+  s_ab97d21f52c341::t_b93710581c2d84 126-127
+  s_ab97d21f52c341::t_0e0ae02ab1c296 36-39
+docs/environment-variables.md
+  s_ab97d21f52c341::t_6b00e76fe9f9f3 19-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2e93611523959c0eb0ee5d7e8ffc3a8673af1b23",
+  "prompts": {},
+  "sessions": {
+    "s_ab97d21f52c341": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "62bf221b-714f-4225-95d2-e37f0d6fd6a3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
