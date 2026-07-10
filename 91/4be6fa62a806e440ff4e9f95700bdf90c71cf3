@@ -1,0 +1,32 @@
+lib/services/timelines/domainBlockFilter.test.ts
+  s_ab97d21f52c341::t_f9389f72f88f21 1-83
+  s_ab97d21f52c341::t_de2e37d9834e40 84-86
+lib/services/timelines/domainBlockFilter.ts
+  s_ab97d21f52c341::t_e2652fccdf426f 1-32
+lib/services/timelines/getFilteredTimelinePage.ts
+  s_ab97d21f52c341::t_251981cb3ecd14 13
+  s_ab97d21f52c341::t_30e173c82d5fe9 86-89,93
+  s_ab97d21f52c341::t_dc03545082e667 64-74
+app/api/v1/timelines/[timeline]/route.test.ts
+  s_ab97d21f52c341::t_28a1f66649b050 506-535
+lib/services/timelines/getFilteredTimelinePage.test.ts
+  s_ab97d21f52c341::t_6dc9a75df9bf19 296-342
+  s_ab97d21f52c341::t_9999cb0f29a58e 13
+  s_ab97d21f52c341::t_dea3c388a24969 38-39,80-81,120-121,158-159,232-233,277-278
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "914be6fa62a806e440ff4e9f95700bdf90c71cf3",
+  "prompts": {},
+  "sessions": {
+    "s_ab97d21f52c341": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "62bf221b-714f-4225-95d2-e37f0d6fd6a3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
