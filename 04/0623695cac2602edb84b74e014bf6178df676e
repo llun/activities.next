@@ -1,0 +1,22 @@
+lib/services/collections/serializers.test.ts
+  s_ab97d21f52c341::t_1d9c7e9ed1367d 1,6
+  s_ab97d21f52c341::t_c6a648c33f9599 155-197
+lib/services/collections/serializers.ts
+  s_ab97d21f52c341::t_f1f08578b04543 115-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "040623695cac2602edb84b74e014bf6178df676e",
+  "prompts": {},
+  "sessions": {
+    "s_ab97d21f52c341": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "62bf221b-714f-4225-95d2-e37f0d6fd6a3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
