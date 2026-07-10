@@ -132,6 +132,54 @@ describe('/api/v1/notifications/policy', () => {
     })
   })
 
+  // Mastodon coerces the legacy filter_* booleans with
+  // ActiveModel::Type::Boolean: only a fixed set of false tokens map to false,
+  // everything else is true. Cover each token so a regression that shrinks the
+  // FALSE_TOKENS set (e.g. to just 'false') is caught instead of silently
+  // flipping a user's policy from accept to filter.
+  it.each([
+    // Form-encoded string tokens (how HTML forms and pre-4.3 clients post).
+    { label: "form 'false'", kind: 'form', raw: 'false', expected: 'accept' },
+    { label: "form 'f'", kind: 'form', raw: 'f', expected: 'accept' },
+    { label: "form '0'", kind: 'form', raw: '0', expected: 'accept' },
+    { label: "form 'off'", kind: 'form', raw: 'off', expected: 'accept' },
+    { label: 'form empty string', kind: 'form', raw: '', expected: 'accept' },
+    { label: "form 'FALSE'", kind: 'form', raw: 'FALSE', expected: 'accept' },
+    { label: "form 'true'", kind: 'form', raw: 'true', expected: 'filter' },
+    { label: "form '1'", kind: 'form', raw: '1', expected: 'filter' },
+    { label: "form 'on'", kind: 'form', raw: 'on', expected: 'filter' },
+    { label: "form 'yes'", kind: 'form', raw: 'yes', expected: 'filter' },
+    // JSON numeric coercion: 0 is false, any non-zero is true.
+    { label: 'json number 0', kind: 'json', raw: 0, expected: 'accept' },
+    { label: 'json number 1', kind: 'json', raw: 1, expected: 'filter' },
+    { label: 'json number 2', kind: 'json', raw: 2, expected: 'filter' }
+  ])(
+    'coerces $label to for_not_following=$expected',
+    async ({ kind, raw, expected }) => {
+      const request =
+        kind === 'form'
+          ? new NextRequest('https://llun.test/api/v1/notifications/policy', {
+              method: 'PUT',
+              headers: {
+                'content-type': 'application/x-www-form-urlencoded'
+              },
+              body: `filter_not_following=${encodeURIComponent(String(raw))}`
+            })
+          : new NextRequest('https://llun.test/api/v1/notifications/policy', {
+              method: 'PUT',
+              body: JSON.stringify({ filter_not_following: raw })
+            })
+
+      const response = await PUT(request, params)
+
+      expect(response.status).toBe(200)
+      expect(mockDatabase.updateNotificationPolicy).toHaveBeenCalledWith({
+        actorId: mockCurrentActor.id,
+        for_not_following: expected
+      })
+    }
+  )
+
   it('returns 422 for a non-scalar value', async () => {
     const request = new NextRequest(
       'https://llun.test/api/v1/notifications/policy',
