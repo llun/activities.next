@@ -218,7 +218,8 @@ CREATE TABLE public.collections (
     visibility character varying(16) DEFAULT 'public'::character varying NOT NULL,
     "publicFeed" boolean DEFAULT true NOT NULL,
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    sensitive boolean DEFAULT false NOT NULL
 );
 
 CREATE SEQUENCE public.collections_seq_seq
