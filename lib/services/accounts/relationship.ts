@@ -12,11 +12,23 @@ interface GetRelationshipParams {
   targetActorId: string
 }
 
+// Actor ids are URLs; a malformed id yields null so the relationship lookup
+// degrades to domain_blocking=false instead of throwing.
+const getActorDomain = (actorId: string): string | null => {
+  try {
+    return new URL(actorId).host
+  } catch {
+    return null
+  }
+}
+
 export const getRelationship = async ({
   database,
   currentActor,
   targetActorId
 }: GetRelationshipParams): Promise<Mastodon.Relationship> => {
+  const targetDomain = getActorDomain(targetActorId)
+
   const [
     isFollowing,
     isFollowedBy,
@@ -26,7 +38,8 @@ export const getRelationship = async ({
     isBlockedBy,
     muteRecord,
     note,
-    endorsement
+    endorsement,
+    isDomainBlocking
   ] = await Promise.all([
     database.isCurrentActorFollowing({
       currentActorId: currentActor.id,
@@ -65,7 +78,13 @@ export const getRelationship = async ({
     database.getEndorsement({
       actorId: currentActor.id,
       targetActorId
-    })
+    }),
+    targetDomain
+      ? database.isDomainBlockedByActor({
+          actorId: currentActor.id,
+          domain: targetDomain
+        })
+      : false
   ])
 
   const isRequested = Boolean(
@@ -92,9 +111,7 @@ export const getRelationship = async ({
     muting_expires_at: muteRecord ? getMuteExpiresAt(muteRecord) : null,
     requested: isRequested,
     requested_by: isRequestedBy,
-    // User-level domain blocks are not implemented yet — they land in
-    // Phase 3.1. Until then this is honestly false for every relationship.
-    domain_blocking: false,
+    domain_blocking: isDomainBlocking,
     endorsed: endorsement !== null,
     // Report the stored language filter honestly: the saved list when set,
     // or null (no filter) when absent/cleared — never a misleading default.

@@ -11,7 +11,8 @@ const mockDatabase = {
   getMuteRelations: vi.fn(),
   getStatusesByHashtag: vi.fn(),
   getActiveFiltersForActor: vi.fn(),
-  getActiveServerFilters: vi.fn()
+  getActiveServerFilters: vi.fn(),
+  getActorDomainBlocks: vi.fn(async () => [])
 }
 const mockCurrentActor = {
   id: 'https://local.test/users/me'

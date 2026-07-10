@@ -4,6 +4,7 @@ import { Timeline } from '@/lib/services/timelines/types'
 import { ActorSettings, PostLineLimit } from '@/lib/types/database/rows'
 import { Account } from '@/lib/types/domain/account'
 import { Actor, ActorType } from '@/lib/types/domain/actor'
+import { ActorDomainBlock } from '@/lib/types/domain/actorDomainBlock'
 import { Attachment, PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { Block } from '@/lib/types/domain/block'
 import { Bookmark } from '@/lib/types/domain/bookmark'
@@ -142,6 +143,14 @@ export type UpdateActorParams = {
   // Atomically appends IDs to notificationAcceptedSenders inside updateActor's
   // transaction, avoiding the read-modify-write race of separate read + write.
   appendNotificationAcceptedSenders?: string[]
+  // Mastodon 4.6 Profile-entity appearance settings (PATCH /api/v1/profile):
+  // avatar/header alt texts, the profile Media/Featured tab visibility flags,
+  // and the domains allowed to credit this account in link previews.
+  avatarDescription?: string
+  headerDescription?: string
+  showMedia?: boolean
+  showMediaReplies?: boolean
+  showFeatured?: boolean
 
   publicKey?: string
 
@@ -1080,6 +1089,11 @@ export type GetFollowersParams = {
   minId?: string | null
   sinceId?: string | null
 }
+export type GetAcceptedOrRequestedFollowsWithDomainParams = {
+  actorId: string
+  domain: string
+  limit: number
+}
 export type GetFollowRequestsParams = {
   targetActorId: string
   limit: number
@@ -1109,6 +1123,9 @@ export interface FollowDatabase {
   getAcceptedOrRequestedFollow(
     params: GetAcceptedOrRequestedFollowParams
   ): Promise<Follow | null>
+  getAcceptedOrRequestedFollowsWithDomain(
+    params: GetAcceptedOrRequestedFollowsWithDomainParams
+  ): Promise<Follow[]>
   getAcceptedFollowTargetActorIds(
     params: GetAcceptedFollowTargetActorIdsParams
   ): Promise<string[]>
@@ -1177,6 +1194,45 @@ export interface BlockDatabase {
   isEitherBlocking(params: IsEitherBlockingParams): Promise<boolean>
   getBlocks(params: GetBlocksParams): Promise<Block[]>
   getBlockRelations(params: GetBlockRelationsParams): Promise<BlockRelation[]>
+}
+
+// ============================================================================
+// Actor Domain Block Database (user-level Mastodon domain blocks)
+// ============================================================================
+
+export type CreateActorDomainBlockParams = {
+  actorId: string
+  domain: string
+}
+export type DeleteActorDomainBlockParams = {
+  actorId: string
+  domain: string
+}
+export type IsDomainBlockedByActorParams = {
+  actorId: string
+  domain: string
+}
+export type GetActorDomainBlocksParams = {
+  actorId: string
+  // No limit = return every row (the timeline filter loads the viewer's full
+  // set once per page request). Routes always pass an explicit limit.
+  limit?: number
+  maxId?: string | null
+  minId?: string | null
+  sinceId?: string | null
+}
+
+export interface ActorDomainBlockDatabase {
+  createActorDomainBlock(
+    params: CreateActorDomainBlockParams
+  ): Promise<ActorDomainBlock>
+  deleteActorDomainBlock(
+    params: DeleteActorDomainBlockParams
+  ): Promise<ActorDomainBlock | null>
+  isDomainBlockedByActor(params: IsDomainBlockedByActorParams): Promise<boolean>
+  getActorDomainBlocks(
+    params: GetActorDomainBlocksParams
+  ): Promise<ActorDomainBlock[]>
 }
 
 // ============================================================================

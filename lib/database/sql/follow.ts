@@ -15,6 +15,7 @@ import {
   FollowDatabase,
   GetAcceptedFollowTargetActorIdsParams,
   GetAcceptedOrRequestedFollowParams,
+  GetAcceptedOrRequestedFollowsWithDomainParams,
   GetFollowFromIdParams,
   GetFollowRequestsCountParams,
   GetFollowRequestsParams,
@@ -304,6 +305,36 @@ export const FollowerSQLDatabaseMixin = (
       .first()
     if (!follow) return null
     return fixFollowDataDate(follow)
+  },
+
+  async getAcceptedOrRequestedFollowsWithDomain({
+    actorId,
+    domain,
+    limit
+  }: GetAcceptedOrRequestedFollowsWithDomainParams) {
+    // Both directions on the indexed host columns: the actor's own follows
+    // of accounts on the domain, and followers from the domain.
+    const follows = await database<Follow>('follows')
+      .where((builder) => {
+        builder
+          .where((following) => {
+            following
+              .where('actorId', actorId)
+              .andWhere('targetActorHost', domain)
+          })
+          .orWhere((follower) => {
+            follower
+              .where('targetActorId', actorId)
+              .andWhere('actorHost', domain)
+          })
+      })
+      .whereIn('status', [
+        FollowStatus.enum.Accepted,
+        FollowStatus.enum.Requested
+      ])
+      .orderBy('createdAt', 'asc')
+      .limit(limit)
+    return follows.map(fixFollowDataDate)
   },
 
   async getAcceptedFollowTargetActorIds({

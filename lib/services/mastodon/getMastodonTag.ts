@@ -9,15 +9,18 @@ const getTagUrl = (name: string): string => {
 
 // Builds a Mastodon Tag entity. https://docs.joinmastodon.org/entities/Tag/
 // `history` defaults to empty for callers that do not compute the seven-day
-// usage window (see lib/services/trends/tagHistory.ts getTagHistory).
+// usage window (see lib/services/trends/tagHistory.ts getTagHistory). `featuring`
+// (4.4.0) is optional: callers that do not look the state up simply omit it.
 export const getMastodonTag = (
   name: string,
   following: boolean,
-  history: TagHistory[] = []
+  history: TagHistory[] = [],
+  featuring?: boolean
 ): Tag =>
   Tag.parse({
     name: name.replace(/^#+/, ''),
     url: getTagUrl(name.replace(/^#+/, '')),
     history,
-    following
+    following,
+    ...(featuring !== undefined ? { featuring } : null)
   })

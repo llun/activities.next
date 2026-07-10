@@ -236,3 +236,6 @@ CREATE INDEX `medias_accountId_originalMimeType_idx` on `medias` (`accountId`, `
 CREATE INDEX `medias_actorId_originalMimeType_idx` on `medias` (`actorId`, `originalMimeType`);
 CREATE INDEX `medias_actorId_createdAt_idx` on `medias` (`actorId`, `createdAt`);
 CREATE INDEX `actors_domain_last_status_at_idx` on `actors` (`domain`, `lastStatusAt`);
+CREATE TABLE `actor_domain_blocks` (`id` varchar(255), `actorId` varchar(255) not null, `domain` varchar(255) not null, `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, primary key (`id`));
+CREATE UNIQUE INDEX `actor_domain_blocks_actor_domain_unique` on `actor_domain_blocks` (`actorId`, `domain`);
+CREATE INDEX `actor_domain_blocks_actor_created` on `actor_domain_blocks` (`actorId`, `createdAt`);
