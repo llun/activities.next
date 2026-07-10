@@ -121,6 +121,17 @@ export interface FitnessRouteHeatmapDatabase {
     actorId: string
     id: string
   }): Promise<boolean>
+  /**
+   * Cancels an in-flight (`pending`/`generating`) route-heatmap run owned by
+   * `actorId`, moving it to a terminal `cancelled` state and resetting the run
+   * fields so a later Generate/Retry starts clean. No-op (returns false) on a
+   * terminal or deleted row. Resetting `cursorOffset` to 0 also invalidates any
+   * outstanding continuation (its requested cursor no longer matches).
+   */
+  cancelFitnessRouteHeatmapGeneration(params: {
+    actorId: string
+    id: string
+  }): Promise<boolean>
   getDistinctActivityTypesForActor(
     params: GetDistinctActivityTypesParams
   ): Promise<string[]>
@@ -619,6 +630,33 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
       .whereNull('deletedAt')
       .update({
         deletedAt: new Date(),
+        updatedAt: new Date()
+      })
+
+    return updated > 0
+  },
+
+  async cancelFitnessRouteHeatmapGeneration({
+    actorId,
+    id
+  }: {
+    actorId: string
+    id: string
+  }) {
+    const updated = await database('fitness_route_heatmaps')
+      .where('id', id)
+      .where('actorId', actorId)
+      .whereNull('deletedAt')
+      .whereIn('status', ['pending', 'generating'])
+      .update({
+        status: 'cancelled',
+        error: null,
+        bounds: null,
+        segments: null,
+        activityCount: 0,
+        pointCount: 0,
+        cursorOffset: 0,
+        isPartial: false,
         updatedAt: new Date()
       })
 

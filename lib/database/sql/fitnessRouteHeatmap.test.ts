@@ -475,6 +475,81 @@ describe('FitnessRouteHeatmapDatabase', () => {
       })
     })
 
+    describe('cancelFitnessRouteHeatmapGeneration', () => {
+      it('cancels an in-flight run and resets it, scoped to its owner', async () => {
+        const created = await database.createFitnessRouteHeatmap({
+          actorId: actors.primary.id,
+          activityType: 'running',
+          periodType: 'monthly',
+          periodKey: '2026-07',
+          region: 'cancel-test'
+        })
+        await database.updateFitnessRouteHeatmapStatus({
+          id: created.id,
+          status: 'generating',
+          segments: [
+            {
+              points: [
+                { lat: 52.1, lng: 4.1 },
+                { lat: 52.2, lng: 4.2 }
+              ]
+            }
+          ],
+          activityCount: 1,
+          pointCount: 2,
+          cursorOffset: 5,
+          isPartial: false,
+          error: null
+        })
+
+        // A different actor cannot cancel it.
+        await expect(
+          database.cancelFitnessRouteHeatmapGeneration({
+            actorId: actors.replyAuthor.id,
+            id: created.id
+          })
+        ).resolves.toBe(false)
+
+        // The owner can; the run is reset to a clean cancelled state.
+        await expect(
+          database.cancelFitnessRouteHeatmapGeneration({
+            actorId: actors.primary.id,
+            id: created.id
+          })
+        ).resolves.toBe(true)
+        const cancelled = await database.getFitnessRouteHeatmap({
+          id: created.id
+        })
+        expect(cancelled?.status).toBe('cancelled')
+        expect(cancelled?.cursorOffset).toBe(0)
+        expect(cancelled?.segments).toEqual([])
+        expect(cancelled?.activityCount).toBe(0)
+        expect(cancelled?.pointCount).toBe(0)
+      })
+
+      it('is a no-op for a terminal (completed) run', async () => {
+        const created = await database.createFitnessRouteHeatmap({
+          actorId: actors.primary.id,
+          activityType: 'running',
+          periodType: 'monthly',
+          periodKey: '2026-08',
+          region: 'cancel-terminal-test'
+        })
+        await database.updateFitnessRouteHeatmapStatus({
+          id: created.id,
+          status: 'completed'
+        })
+        await expect(
+          database.cancelFitnessRouteHeatmapGeneration({
+            actorId: actors.primary.id,
+            id: created.id
+          })
+        ).resolves.toBe(false)
+        const still = await database.getFitnessRouteHeatmap({ id: created.id })
+        expect(still?.status).toBe('completed')
+      })
+    })
+
     describe('share token', () => {
       it('sets, resolves, and clears a public share token', async () => {
         const created = await database.createFitnessRouteHeatmap({
