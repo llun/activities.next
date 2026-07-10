@@ -239,4 +239,37 @@ describe('/api/v1/filters', () => {
 
     expect(response.status).toBe(422)
   })
+
+  // Distinct from the field-validation 422s above (well-formed body,
+  // parseV1FilterCreateInput returns null): a malformed application/json body
+  // makes parseFilterBody's JSON.parse throw. The route must catch that and
+  // return 422 rather than letting the SyntaxError surface as a 500. A raw
+  // string body is required because the jsonRequest helper only stringifies
+  // valid objects.
+  it('returns 422 for a malformed JSON body without persisting a row', async () => {
+    const before = await v2ListFilters(jsonRequest(), {
+      params: Promise.resolve({})
+    })
+    const beforeCount = (await before.json()).length
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/filters', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test',
+          Referer: 'https://llun.test/'
+        },
+        body: '{ not json'
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(422)
+
+    const after = await v2ListFilters(jsonRequest(), {
+      params: Promise.resolve({})
+    })
+    expect((await after.json()).length).toBe(beforeCount)
+  })
 })

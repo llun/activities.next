@@ -447,6 +447,41 @@ describe('/api/v1/filters/[id]', () => {
     expect(response.status).toBe(422)
   })
 
+  // Distinct from the field-validation 422s above (well-formed body,
+  // parseV1FilterUpdateInput returns null): a malformed application/json body
+  // makes parseFilterBody's JSON.parse throw after the ownership 404 check. The
+  // route must catch that and return 422 rather than letting the SyntaxError
+  // surface as a 500, and the keyword it addresses must be left unchanged. A raw
+  // string body is required because the requestFor helper only stringifies valid
+  // objects.
+  it('returns 422 for a malformed JSON body without writing the keyword', async () => {
+    const { keywords } = await createFilterFixture({
+      title: 'malformed-update',
+      keywords: [{ keyword: 'malformed-update', wholeWord: false }]
+    })
+    const id = keywordId(keywords, 'malformed-update')
+
+    const response = await PUT(
+      new NextRequest(`https://llun.test/api/v1/filters/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test',
+          Referer: 'https://llun.test/'
+        },
+        body: '{ not json'
+      }),
+      { params: Promise.resolve({ id }) }
+    )
+
+    expect(response.status).toBe(422)
+    const storedKeyword = await database.getFilterKeyword({
+      actorId: ACTOR1_ID,
+      id
+    })
+    expect(storedKeyword).toMatchObject({ keyword: 'malformed-update' })
+  })
+
   it('deletes only the keyword when siblings remain', async () => {
     const { filter, keywords } = await createFilterFixture({
       title: 'del-partial',
