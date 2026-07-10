@@ -60,6 +60,14 @@ CREATE TABLE public.accounts (
     "twoFactorEnabled" boolean DEFAULT false NOT NULL
 );
 
+CREATE TABLE public.actor_domain_blocks (
+    id character varying(255) NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    domain character varying(255) NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE public.actors (
     id character varying(255),
     username character varying(255),
@@ -1085,6 +1093,12 @@ ALTER TABLE ONLY public.accounts
 ALTER TABLE ONLY public.accounts
     ADD CONSTRAINT accounts_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.actor_domain_blocks
+    ADD CONSTRAINT actor_domain_blocks_actor_domain_unique UNIQUE ("actorId", domain);
+
+ALTER TABLE ONLY public.actor_domain_blocks
+    ADD CONSTRAINT actor_domain_blocks_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.actors
     ADD CONSTRAINT actors_id_unique UNIQUE (id);
 
@@ -1415,6 +1429,8 @@ ALTER TABLE ONLY public.verification
 CREATE INDEX "account_providers_accountId_provider_providerId_idx" ON public.account_providers USING btree ("accountId", provider, "providerId");
 
 CREATE INDEX "accountsIndex" ON public.accounts USING btree (email, "createdAt", "updatedAt");
+
+CREATE INDEX actor_domain_blocks_actor_created ON public.actor_domain_blocks USING btree ("actorId", "createdAt");
 
 CREATE INDEX "actorsIndex" ON public.actors USING btree (username, "createdAt", "updatedAt");
 

@@ -123,3 +123,25 @@ export const getMastodonServerFilter = async (
   const keywords = await database.getServerFilterKeywords({ id: filter.id })
   return buildMastodonServerFilter(filter, keywords ?? [])
 }
+
+// ----------------------------------------------------------------------------
+// Deprecated v1 filter view.
+//
+// The v1 API predates multi-keyword filters: each row a v1 client sees is one
+// KEYWORD of a v2 filter, addressed by the keyword id. `phrase`/`whole_word`
+// come from the keyword; `context`/`expires_at` from the parent filter; and
+// `irreversible` maps to the parent's `filter_action === 'hide'`.
+// ----------------------------------------------------------------------------
+
+export const getV1Filter = (
+  filter: Pick<DomainFilter, 'context' | 'expiresAt' | 'filterAction'>,
+  keyword: DomainFilterKeyword
+): Mastodon.V1Filter => ({
+  id: keyword.id,
+  phrase: keyword.keyword,
+  context: filter.context,
+  expires_at:
+    filter.expiresAt !== null ? getISOTimeUTC(filter.expiresAt) : null,
+  irreversible: filter.filterAction === 'hide',
+  whole_word: keyword.wholeWord
+})

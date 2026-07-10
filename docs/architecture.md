@@ -91,7 +91,9 @@ The frontend and API layer, organized using Next.js route groups:
 | `app/api/v2/`         | Mastodon-compatible API v2 (instance info, media, search)                                                                                                                |
 | `app/api/users/`      | ActivityPub actor endpoints (inbox, outbox, followers, following)                                                                                                        |
 | `app/api/oauth/`      | OAuth 2.0 provider endpoints (authorize, userinfo, revoke) — the token endpoint lives at `app/(nosidebar)/oauth/token/`, serving `/oauth/token`                          |
+| `app/api/oembed/`     | Public oEmbed provider (`GET /api/oembed`) returning rich embed metadata for this instance's public/unlisted status pages                                                |
 | `app/api/well-known/` | Federation discovery (WebFinger, host-meta, OAuth/OIDC metadata) — NodeInfo is served from `app/api/nodeinfo/` via a `next.config.ts` rewrite of `/.well-known/nodeinfo` |
+| `app/health/`         | Unauthenticated `GET /health` liveness probe returning `{"status":"UP"}`                                                                                                 |
 
 ### `lib/` — Core Business Logic
 
@@ -184,7 +186,8 @@ Other tables: sessions, notifications, medias, fitness_files,
               fitness_settings, strava_archive_imports,
               fitness_route_heatmaps, fitness_route_heatmap_region_names,
               collections, collection_members, collection_timeline,
-              blocks, mutes, filters, reports, markers, endorsements,
+              blocks, mutes, actor_domain_blocks, filters, reports,
+              markers, endorsements,
               lists, featured_tags, customEmojis, translation_cache,
               domain federation rules, recipients, counters, poll_choices,
               clients, tokens, auth_codes (Mastodon API OAuth),

@@ -76,6 +76,38 @@ export const normalizeDomain = (value: string): string | null => {
   }
 }
 
+// User-level domain blocks are matched against `new URL(actorId).host` at every
+// read site: the timeline filter (`getRelevantStatusDomains`), the relationship
+// lookup (`getActorDomain`), and the `follows.actorHost` / `targetActorHost`
+// columns the severing query filters on are all populated with `URL.host`, which
+// keeps a non-default port. `normalizeDomain` derives the domain from
+// `URL.hostname` and drops the port, so a block stored that way could never match
+// a port-bearing actor. This variant reconstructs the same `host` form (hostname
+// plus a non-default port) so the stored block lines up with those comparison
+// values. Default ports (`:443` for https) are dropped by `URL`, matching how
+// `.host` renders them. User blocks never carry wildcards (the route rejects
+// them), so no wildcard handling is needed here.
+export const normalizeActorHost = (value: string): string | null => {
+  const trimmed = value.trim().toLowerCase()
+  if (!trimmed) return null
+
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`
+
+  try {
+    const url = new URL(withScheme)
+    const hostname = url.hostname.replace(/\.$/, '')
+    if (!hostname) return null
+    const host = url.port ? `${hostname}:${url.port}` : hostname
+    if (host.length > 255) return null
+
+    return host
+  } catch {
+    return null
+  }
+}
+
 export const domainDigest = (domain: string): string =>
   crypto.createHash('sha256').update(domain).digest('hex')
 

@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
 import { getRemoteStatus } from '@/lib/activities/getRemoteStatus'
-import { getConfig } from '@/lib/config'
+import { getBaseURL, getConfig } from '@/lib/config'
 import { getPublicMapProvider } from '@/lib/config/mapProvider'
 import { getDatabase } from '@/lib/database'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
@@ -39,9 +39,22 @@ interface Props {
 export const generateMetadata = async ({
   params
 }: Props): Promise<Metadata> => {
-  const { actor } = await params
+  const { actor, status } = await params
+  const decodedActor = decodePathParam(actor)
+  // Deterministically re-encoded page URL: the status segment can itself be a
+  // full remote status URL, so each segment is percent-encoded to survive the
+  // round-trip through the oEmbed endpoint's URL parser.
+  const pageUrl = `${getBaseURL()}/${encodeURIComponent(decodedActor)}/${encodeURIComponent(decodePathParam(status))}`
   return {
-    title: `Activities.next: ${decodePathParam(actor)} status`
+    title: `Activities.next: ${decodedActor} status`,
+    alternates: {
+      types: {
+        // oEmbed discovery link (https://oembed.com/#section4): consumers read
+        // <link rel="alternate" type="application/json+oembed"> from the
+        // public status page to find GET /api/oembed.
+        'application/json+oembed': `${getBaseURL()}/api/oembed?url=${encodeURIComponent(pageUrl)}`
+      }
+    }
   }
 }
 

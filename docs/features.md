@@ -16,6 +16,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Multiple actors per account** — Create and switch between multiple handles under one account (e.g., `@user@domain.tld` and `@ride@domain.tld`)
 - ✅ **Multi-domain support** — Different domains for different actors
 - ✅ **Account blocks** — Block or unblock remote accounts and list blocked accounts
+- ✅ **Domain blocks** — Block or unblock an entire remote domain and list your blocked domains via `/api/v1/domain_blocks`; blocking hides that domain's posts (and boosts) from your timelines, is reflected in `domain_blocking` on relationships, and severs follows in both directions
 - ✅ **Follow requests** — Review, authorize, and reject follow requests
 - ✅ **Custom emoji** — Instance-defined custom emoji with a sticker/emoji picker in the post box
 - ✅ **Featured hashtags** — Feature hashtags on your profile and manage them from settings
@@ -68,13 +69,14 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Search** — Search accounts, hashtags, and statuses via `/api/v2/search` (status search backed by a full-text index)
 - ✅ **Lists** — Create and manage timeline lists, their members, replies policy, and exclusive flag
 - ✅ **Collections** — curated account collections aligned with the **final Mastodon 4.6 spec**: dual request vocabulary (`name`/`tag_name`/`discoverable`/`sensitive`/`account_ids` plus the pre-final `title`/`topic`/`visibility` extensions), spec response entities (`WrappedCollection`, `CollectionWithAccounts`, `WrappedCollectionItem` with stable item ids), anonymous reads of discoverable collections, `GET /api/v1/accounts/:id/collections`, cross-owner `in_collections`, and item-id-addressed remove/revoke (account-id addressing kept as an extension). Plus an activities.next shareable **public feed** of each collection (owner-private and public projections, the public one limited to approved members and public-visibility posts) with a per-collection capped materialized feed. Collections federate outbound as **FEP-7aa9 `FeaturedCollection`** objects, auto-follow and backfill remote members' existing posts when they are added, and emit added-to-collection / collection-update notifications
-- ✅ **Filters** — Keyword/status filters via `/api/v2/filters` with notification filtering
+- ✅ **Filters** — Keyword/status filters via `/api/v2/filters` with notification filtering, plus the deprecated Mastodon v1 `/api/v1/filters` (and `/api/v1/filters/:id`) compatibility shim served as a view over the same v2 filter storage
 - ✅ **Reports** — Submit reports against accounts and statuses via `/api/v1/reports`
 - ✅ **Markers** — Save and restore per-timeline read positions
 - ✅ **Announcements** — Read active instance announcements via `GET /api/v1/announcements`, dismiss them with `POST /api/v1/announcements/:id/dismiss`, and react with `PUT`/`DELETE /api/v1/announcements/:id/reactions/:name`; unread active announcements surface as a dismissible banner at the top of the home timeline for signed-in users, and admins manage them in the admin area (`/admin/announcements`) backed by `/api/v2/admin/announcements`
 - ✅ **Endorsements** — Feature accounts on your profile
 - ✅ **Account notes & preferences** — Private per-account notes and client preferences
-- ✅ **Featured tags API** — `/api/v1/featured_tags` endpoints backing the profile featured-hashtags feature
+- ✅ **Profile entity** — `GET`/`PATCH /api/v1/profile` return the Mastodon 4.6 `Profile` entity (raw `display_name`/`note`/`fields`, nullable `avatar`/`header`, and the appearance preferences `avatar_description`/`header_description`/`hide_collections`/`indexable`/`show_media`/`show_media_replies`/`show_featured`/`attribution_domains`); PATCH accepts and persists those appearance params on the actor's settings, while `PATCH /api/v1/accounts/update_credentials` still returns `CredentialAccount`
+- ✅ **Featured tags API** — `/api/v1/featured_tags` endpoints plus the Mastodon 4.4 `POST /api/v1/tags/:tag/feature` and `POST /api/v1/tags/:tag/unfeature` aliases (both returning the `Tag` entity with the `featuring` flag), backing the profile featured-hashtags feature
 - ✅ **Follow suggestions** — friends-of-friends suggestions via `GET /api/v2/suggestions` (plus deprecated `GET /api/v1/suggestions`), with per-account dismissal via `DELETE /api/v1/suggestions/:account_id`
 - ✅ **Trends** — local trending hashtags via `GET /api/v1/trends/tags` (plus deprecated `GET /api/v1/trends`) and trending statuses via `GET /api/v1/trends/statuses`, both computed live from the last seven days of public local activity; `GET /api/v1/trends/links` intentionally stays an empty list (no preview-card storage)
 - ✅ **Followed hashtags** — Follow and unfollow hashtags and view a followed-tags timeline
@@ -82,6 +84,10 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **WebFinger** — Actor discovery via `/.well-known/webfinger`
 - ✅ **NodeInfo** — Instance metadata at `/.well-known/nodeinfo`
 - ✅ **OAuth Authorization Server metadata** — At `/.well-known/oauth-authorization-server`
+- ✅ **Instance legal documents** — Admin-configured plain-text pages via `GET /api/v1/instance/privacy_policy` and `GET /api/v1/instance/terms_of_service` (plus `GET /api/v1/instance/terms_of_service/:date`), backed by the optional `ACTIVITIES_PRIVACY_POLICY` / `ACTIVITIES_TERMS_OF_SERVICE` config keys; each returns 404 when its document is unset
+- ✅ **Health check** — Unauthenticated `GET /health` liveness probe returning `{"status":"UP"}`
+- ✅ **oEmbed provider** — `GET /api/oembed` returns rich embed metadata for this instance's public/unlisted status pages, discoverable via the `application/json+oembed` `<link>` emitted on every status page
+- ✅ **Notification policy** — Filtered-notification policy via `GET|PUT|PATCH /api/v2/notifications/policy`, plus the deprecated `GET|PUT|PATCH /api/v1/notifications/policy` alias serving the legacy `filter_*` boolean entity
 - 📖 **[Mastodon API compatibility reference](./mastodon-api-compatibility.md)** — Intentional divergences (e.g. 7-day OAuth tokens), unplanned endpoints, and activities.next-only extensions
 
 ### Infrastructure

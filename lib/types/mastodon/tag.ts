@@ -11,6 +11,7 @@ export const Tag = z.object({
   name: z.string(),
   url: z.string(),
   history: TagHistory.array(),
-  following: z.boolean().optional()
+  following: z.boolean().optional(),
+  featuring: z.boolean().optional()
 })
 export type Tag = z.infer<typeof Tag>

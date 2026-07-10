@@ -717,5 +717,76 @@ describe('FollowDatabase', () => {
         ).toEqual(beforeUndoActorFollowingCount + 1)
       })
     })
+
+    describe('getAcceptedOrRequestedFollowsWithDomain', () => {
+      it('returns accepted and requested follows touching the domain in both directions', async () => {
+        const actorId = await createLocalActor()
+        const domain = `sever-${crypto.randomUUID().slice(0, 8)}.test`
+
+        const outbound = await database.createFollow({
+          actorId,
+          targetActorId: `https://${domain}/users/followed`,
+          inbox: `https://${domain}/users/followed/inbox`,
+          sharedInbox: `https://${domain}/inbox`,
+          status: FollowStatus.enum.Accepted
+        })
+        const inbound = await database.createFollow({
+          actorId: `https://${domain}/users/follower`,
+          targetActorId: actorId,
+          inbox: `https://${domain}/users/follower/inbox`,
+          sharedInbox: `https://${domain}/inbox`,
+          status: FollowStatus.enum.Requested
+        })
+        // Same domain but already undone — must not be returned.
+        await database.createFollow({
+          actorId,
+          targetActorId: `https://${domain}/users/undone`,
+          inbox: `https://${domain}/users/undone/inbox`,
+          sharedInbox: `https://${domain}/inbox`,
+          status: FollowStatus.enum.Undo
+        })
+        // Different domain — must not be returned.
+        await database.createFollow({
+          actorId,
+          targetActorId: 'https://elsewhere.test/users/kept',
+          inbox: 'https://elsewhere.test/users/kept/inbox',
+          sharedInbox: 'https://elsewhere.test/inbox',
+          status: FollowStatus.enum.Accepted
+        })
+
+        const follows = await database.getAcceptedOrRequestedFollowsWithDomain({
+          actorId,
+          domain,
+          limit: 10
+        })
+
+        expect(follows.map((follow) => follow.id).sort()).toEqual(
+          [outbound.id, inbound.id].sort()
+        )
+      })
+
+      it('caps the result at the given limit', async () => {
+        const actorId = await createLocalActor()
+        const domain = `sever-cap-${crypto.randomUUID().slice(0, 8)}.test`
+
+        for (let index = 0; index < 3; index++) {
+          await database.createFollow({
+            actorId,
+            targetActorId: `https://${domain}/users/target-${index}`,
+            inbox: `https://${domain}/users/target-${index}/inbox`,
+            sharedInbox: `https://${domain}/inbox`,
+            status: FollowStatus.enum.Accepted
+          })
+        }
+
+        await expect(
+          database.getAcceptedOrRequestedFollowsWithDomain({
+            actorId,
+            domain,
+            limit: 2
+          })
+        ).resolves.toHaveLength(2)
+      })
+    })
   })
 })

@@ -10,6 +10,7 @@ describe('getRelationship', () => {
     isCurrentActorFollowing: vi.fn(),
     getAcceptedOrRequestedFollow: vi.fn(),
     isBlocking: vi.fn(),
+    isDomainBlockedByActor: vi.fn(),
     getMute: vi.fn(),
     getAccountNote: vi.fn(),
     getEndorsement: vi.fn()
@@ -28,6 +29,7 @@ describe('getRelationship', () => {
       summary: 'Target user bio'
     })
     mockDatabase.isBlocking.mockResolvedValue(false)
+    mockDatabase.isDomainBlockedByActor.mockResolvedValue(false)
     mockDatabase.getMute.mockResolvedValue(null)
     mockDatabase.getAccountNote.mockResolvedValue('')
     mockDatabase.getEndorsement.mockResolvedValue(null)
@@ -366,5 +368,29 @@ describe('getRelationship', () => {
 
     expect(relationship.muting).toBe(true)
     expect(relationship.muting_expires_at).toEqual(expected)
+  })
+
+  it.each([
+    { blocked: true, description: 'true when the target domain is blocked' },
+    {
+      blocked: false,
+      description: 'false when the target domain is not blocked'
+    }
+  ])('returns domain_blocking=$description', async ({ blocked }) => {
+    mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
+    mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
+    mockDatabase.isDomainBlockedByActor.mockResolvedValue(blocked)
+
+    const relationship = await getRelationship({
+      database: mockDatabase as unknown as Database,
+      currentActor: mockCurrentActor as unknown as Actor,
+      targetActorId: 'https://example.com/users/target'
+    })
+
+    expect(mockDatabase.isDomainBlockedByActor).toHaveBeenCalledWith({
+      actorId: mockCurrentActor.id,
+      domain: 'example.com'
+    })
+    expect(relationship.domain_blocking).toBe(blocked)
   })
 })

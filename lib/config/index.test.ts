@@ -147,4 +147,34 @@ describe('Config', () => {
       expect(config.registrationOpen).toBe(open)
     })
   })
+
+  describe('instance legal documents', () => {
+    const loadConfig = async () => {
+      process.env.ACTIVITIES_HOST = 'example.com'
+      process.env.ACTIVITIES_SECRET_PHASE = 'env-secret'
+      process.env.ACTIVITIES_ALLOW_EMAILS = '[]'
+      process.env.ACTIVITIES_DATABASE_CLIENT = 'better-sqlite3'
+      process.env.ACTIVITIES_DATABASE_SQLITE_FILENAME = ':memory:'
+      const { getConfig } = await import('./index')
+      return getConfig()
+    }
+
+    it('loads privacy policy and terms of service text from the environment', async () => {
+      process.env.ACTIVITIES_PRIVACY_POLICY = 'We keep no logs.'
+      process.env.ACTIVITIES_TERMS_OF_SERVICE = 'Be excellent to each other.'
+
+      const config = await loadConfig()
+      expect(config.privacyPolicy).toBe('We keep no logs.')
+      expect(config.termsOfService).toBe('Be excellent to each other.')
+    })
+
+    it('leaves both unset when the variables are absent', async () => {
+      delete process.env.ACTIVITIES_PRIVACY_POLICY
+      delete process.env.ACTIVITIES_TERMS_OF_SERVICE
+
+      const config = await loadConfig()
+      expect(config.privacyPolicy).toBeUndefined()
+      expect(config.termsOfService).toBeUndefined()
+    })
+  })
 })

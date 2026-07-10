@@ -503,6 +503,36 @@ describe('GET /api/v1/timelines/[timeline]', () => {
       expect(data.statuses).toEqual([])
       expect(data.nextMaxStatusId).toBe(blockedStatusIds[1])
     })
+
+    test('hides statuses from a domain the viewer blocked', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const actorId = await createIsolatedActor()
+      mockCookieValue.value = actorId
+
+      const visibleStatus = await createTimelineNote({
+        actorId,
+        timelineActorId: actorId,
+        name: 'domain-visible'
+      })
+      await createTimelineNote({
+        actorId: EXTERNAL_ACTOR1,
+        timelineActorId: actorId,
+        name: 'domain-blocked'
+      })
+      await database.createActorDomainBlock({ actorId, domain: 'llun.dev' })
+
+      const response = await GET(createRequest(), {
+        params: Promise.resolve({ timeline: 'main' })
+      })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.statuses.map((status: { id: string }) => status.id)).toEqual([
+        visibleStatus.id
+      ])
+    })
   })
 
   describe('unsupported and invalid timelines', () => {
