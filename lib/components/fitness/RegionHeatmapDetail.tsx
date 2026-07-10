@@ -469,13 +469,26 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
             {isCancelling ? 'Canceling…' : 'Cancel'}
           </Button>
         ) : (
-          <Button type="button" size="sm" onClick={onGenerate}>
-            {pollingStalled ? (
+          <Button
+            type="button"
+            size="sm"
+            disabled={isRetrying}
+            onClick={onGenerate}
+          >
+            {isRetrying ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : pollingStalled ? (
               <RefreshCw className="size-4" />
             ) : (
               <Flame className="size-4" />
             )}
-            {pollingStalled ? 'Retry' : hasVersion ? 'Regenerate' : 'Generate'}
+            {isRetrying
+              ? 'Enqueuing…'
+              : pollingStalled
+                ? 'Retry'
+                : hasVersion
+                  ? 'Regenerate'
+                  : 'Generate'}
           </Button>
         )}
       </div>
@@ -579,9 +592,18 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
             </div>
           </div>
           {!busy && (
-            <Button type="button" size="sm" onClick={onGenerate}>
-              <Flame className="size-4" />
-              Generate heatmap
+            <Button
+              type="button"
+              size="sm"
+              disabled={isRetrying}
+              onClick={onGenerate}
+            >
+              {isRetrying ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Flame className="size-4" />
+              )}
+              {isRetrying ? 'Enqueuing…' : 'Generate heatmap'}
             </Button>
           )}
         </div>

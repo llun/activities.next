@@ -242,10 +242,14 @@ export const FitnessHeatmapView: FC<Props> = ({
 
   // Reset the focused state whenever the focused selection changes (including
   // closing the detail), so a stale map/status never carries across regions.
+  // isCancelling is component-wide, so clearing it here keeps a cancel that was
+  // still in flight when the user switched regions from wedging the next
+  // region's Cancel button disabled.
   useEffect(() => {
     setHeatmapData(null)
     setGenerationPending(false)
     setPollingStalled(false)
+    setIsCancelling(false)
     pollingProgressRef.current = null
   }, [focusKey])
 
@@ -514,10 +518,11 @@ export const FitnessHeatmapView: FC<Props> = ({
         )
       }
     } finally {
-      // Always clear the flag — it is component-wide, not per-region, so gating
-      // the reset on the focus key would wedge every Cancel button disabled if
-      // the user switched regions before the request settled.
-      setIsCancelling(false)
+      // Only clear it for the still-focused region. Switching regions mid-cancel
+      // is handled by the focusKey reset effect (which clears it there), so a
+      // late-settling cancel for a region the user already left can't flip the
+      // flag off underneath a cancel that's now in flight for the new region.
+      if (focusKeyRef.current === key) setIsCancelling(false)
     }
   }, [actorId, openRegionId, openRegionKey, fetchFocused])
 

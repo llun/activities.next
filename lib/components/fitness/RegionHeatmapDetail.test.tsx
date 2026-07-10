@@ -239,6 +239,19 @@ describe('RegionHeatmapDetail', () => {
     expect(onCancel).toHaveBeenCalledTimes(1)
   })
 
+  it('disables the regenerate control while a trigger is enqueuing', () => {
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        heatmap={completedHeatmap}
+        isRetrying
+      />
+    )
+    // Guards against double-clicks firing duplicate generation jobs.
+    const button = screen.getByRole('button', { name: /Enqueuing/i })
+    expect(button).toBeDisabled()
+  })
+
   it('renders a neutral Canceled state with a retry', () => {
     const onRetry = vi.fn()
     render(
