@@ -1,0 +1,25 @@
+lib/services/accounts/profile.test.ts
+  s_ab97d21f52c341::t_a708b0a4ea281d 1-106
+lib/types/mastodon/account/profile.ts
+  s_ab97d21f52c341::t_08cf8f0d5139da 1-59
+lib/types/mastodon/index.ts
+  s_ab97d21f52c341::t_5135306cf34b17 6
+lib/services/accounts/profile.ts
+  s_ab97d21f52c341::t_d7b89f340069fb 1-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "525a434f9c5b23b0316f2b4fbbbce43721826114",
+  "prompts": {},
+  "sessions": {
+    "s_ab97d21f52c341": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "62bf221b-714f-4225-95d2-e37f0d6fd6a3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
