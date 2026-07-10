@@ -1472,10 +1472,6 @@ export type CollectionMembersPage = {
   nextMaxId: string | null
   prevMinId: string | null
 }
-export type GetCollectionsWithAccountParams = {
-  actorId: string
-  targetActorId: string
-}
 export type GetCollectionMemberCountsParams = {
   actorId: string
   collectionIds: string[]
@@ -1595,9 +1591,6 @@ export interface CollectionDatabase {
   getCollectionMembers(
     params: GetCollectionMembersParams
   ): Promise<CollectionMembersPage>
-  getCollectionsWithAccount(
-    params: GetCollectionsWithAccountParams
-  ): Promise<Collection[]>
   // Approved members (id + actor type), oldest-first, owner-scoped. Used to
   // build the FEP-7aa9 FeaturedCollection ActivityPub representation, where each
   // FeaturedItem carries the member's actual `featuredObjectType`.

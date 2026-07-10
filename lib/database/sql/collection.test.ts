@@ -373,37 +373,6 @@ describe('CollectionDatabase', () => {
         ).toEqual([])
       })
     })
-
-    it('lists collections that contain a given account', async () => {
-      await withFreshDatabase(async (database) => {
-        for (const name of ['owner', 'alice']) {
-          await createLocalAccount(database, name)
-        }
-        const owner = await actor(database, 'owner')
-        const alice = await actor(database, 'alice')
-
-        const a = await database.createCollection({
-          actorId: owner.id,
-          title: 'A'
-        })
-        const b = await database.createCollection({
-          actorId: owner.id,
-          title: 'B'
-        })
-        await database.addCollectionMembers({
-          id: a.id,
-          actorId: owner.id,
-          targetActorIds: [alice.id]
-        })
-
-        const withAlice = await database.getCollectionsWithAccount({
-          actorId: owner.id,
-          targetActorId: alice.id
-        })
-        expect(withAlice.map((c) => c.id)).toEqual([a.id])
-        expect(withAlice.map((c) => c.id)).not.toContain(b.id)
-      })
-    })
   })
 
   describe('sensitive flag', () => {

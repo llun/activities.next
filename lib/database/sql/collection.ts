@@ -39,7 +39,6 @@ import {
   GetCollectionTimelineParams,
   GetCollectionsFeaturingAccountParams,
   GetCollectionsParams,
-  GetCollectionsWithAccountParams,
   GetPublicCollectionTimelineParams,
   RemoveCollectionItemByIdParams,
   RemoveCollectionMembersParams,
@@ -655,23 +654,6 @@ export const CollectionSQLDatabaseMixin = (
       nextMaxId: rows.length > 0 ? (rows[rows.length - 1].id as string) : null,
       prevMinId: rows.length > 0 ? (rows[0].id as string) : null
     }
-  },
-
-  async getCollectionsWithAccount({
-    actorId,
-    targetActorId
-  }: GetCollectionsWithAccountParams) {
-    const rows = await database<SQLCollection>('collections')
-      .join(
-        'collection_members',
-        'collection_members.collectionSeq',
-        'collections.seq'
-      )
-      .where('collections.ownerActorId', actorId)
-      .andWhere('collection_members.targetActorId', targetActorId)
-      .orderBy('collections.createdAt', 'asc')
-      .select('collections.*')
-    return rows.map(fixCollectionRow)
   },
 
   async getApprovedCollectionMembers({
