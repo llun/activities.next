@@ -1410,6 +1410,7 @@ export type CreateCollectionParams = {
   topic?: string | null
   language?: string | null
   visibility?: CollectionVisibility
+  sensitive?: boolean
   publicFeed?: boolean
 }
 export type UpdateCollectionParams = {
@@ -1420,6 +1421,7 @@ export type UpdateCollectionParams = {
   topic?: string | null
   language?: string | null
   visibility?: CollectionVisibility
+  sensitive?: boolean
   publicFeed?: boolean
 }
 export type GetCollectionParams = { id: string; actorId: string }
@@ -1512,6 +1514,58 @@ export type ApprovedCollectionMember = {
   id: string
   type: string
 }
+// A raw collection membership row (an "item" in the Mastodon 4.6 vocabulary):
+// the stable item id plus the member, consent state, and add time. Exposed as
+// stored — mapping featureState to the spec `state` vocabulary happens in the
+// serializer (lib/services/collections/serializers.ts).
+export type CollectionItemRow = {
+  id: string
+  targetActorId: string
+  featureState: CollectionFeatureState
+  createdAt: number
+}
+export type GetCollectionItemsParams = {
+  // Collection ids (public UUIDs), not seqs. Non-owner-scoped: callers gate
+  // visibility BEFORE asking for items.
+  collectionIds: string[]
+  // Only approved (publicly consented) items when true — the public projection.
+  approvedOnly?: boolean
+}
+export type GetCollectionItemParams = { collectionId: string; itemId: string }
+export type GetCollectionItemByAccountParams = {
+  collectionId: string
+  targetActorId: string
+}
+// Owner-scoped removal addressed by the CollectionItem id (Mastodon 4.6
+// `DELETE /collections/:id/items/:item_id`).
+export type RemoveCollectionItemByIdParams = {
+  id: string
+  actorId: string
+  itemId: string
+}
+export type GetAccountCollectionsParams = {
+  ownerActorId: string
+  // Only discoverable (visibility 'public') collections when true — what
+  // strangers and anonymous viewers may list.
+  publicOnly?: boolean
+  limit?: number
+  offset?: number
+}
+export type GetCollectionsFeaturingAccountParams = {
+  targetActorId: string
+  // The authenticated caller: sees their own collections featuring the target
+  // regardless of state/visibility, and other owners' collections only when
+  // public with an approved (consented) membership.
+  viewerActorId: string
+  limit?: number
+  offset?: number
+}
+// Item counts keyed by collection id, non-owner-scoped (callers gate
+// visibility). Collections with no matching items are present with 0.
+export type CountCollectionItemsParams = {
+  collectionIds: string[]
+  approvedOnly?: boolean
+}
 
 export interface CollectionDatabase {
   createCollection(params: CreateCollectionParams): Promise<Collection>
@@ -1550,6 +1604,35 @@ export interface CollectionDatabase {
   getApprovedCollectionMembers(
     params: GetApprovedCollectionMembersParams
   ): Promise<ApprovedCollectionMember[]>
+  // Membership rows ("items") grouped by collection id, oldest-first.
+  getCollectionItems(
+    params: GetCollectionItemsParams
+  ): Promise<Record<string, CollectionItemRow[]>>
+  getCollectionItem(
+    params: GetCollectionItemParams
+  ): Promise<CollectionItemRow | null>
+  getCollectionItemByAccount(
+    params: GetCollectionItemByAccountParams
+  ): Promise<CollectionItemRow | null>
+  countCollectionItems(
+    params: CountCollectionItemsParams
+  ): Promise<Record<string, number>>
+  // An account's collections for a viewer projection (publicOnly for
+  // strangers), createdAt-ascending with limit/offset paging.
+  getAccountCollections(
+    params: GetAccountCollectionsParams
+  ): Promise<Collection[]>
+  // ALL collections featuring an account that the viewer may see: the
+  // viewer's own plus other owners' public collections with an approved
+  // membership.
+  getCollectionsFeaturingAccount(
+    params: GetCollectionsFeaturingAccountParams
+  ): Promise<Collection[]>
+  // Returns false when the collection is not owned by the actor or the item
+  // does not exist.
+  removeCollectionItemById(
+    params: RemoveCollectionItemByIdParams
+  ): Promise<boolean>
   getCollectionTimeline(params: GetCollectionTimelineParams): Promise<Status[]>
   // Read a collection's PUBLIC feed by id without owner scoping. Returns null
   // when the collection does not exist, is private, or has the feed disabled

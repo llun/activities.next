@@ -22,6 +22,8 @@ export const Collection = z.object({
   topic: z.string().nullable(),
   language: z.string().nullable(),
   visibility: CollectionVisibility,
+  // Mastodon 4.6 sensitive-content marker for the whole collection.
+  sensitive: z.boolean(),
   publicFeed: z.boolean(),
   createdAt: z.number(),
   updatedAt: z.number()

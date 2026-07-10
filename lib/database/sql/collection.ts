@@ -22,24 +22,36 @@ import {
   AddCollectionMembersParams,
   AddStatusToCollectionTimelinesParams,
   CollectionDatabase,
+  CollectionItemRow,
   CollectionMembersPage,
+  CountCollectionItemsParams,
   CreateCollectionParams,
   DeleteCollectionParams,
+  GetAccountCollectionsParams,
   GetApprovedCollectionMembersParams,
   GetCollectionByIdParams,
+  GetCollectionItemByAccountParams,
+  GetCollectionItemParams,
+  GetCollectionItemsParams,
   GetCollectionMemberCountsParams,
   GetCollectionMembersParams,
   GetCollectionParams,
   GetCollectionTimelineParams,
+  GetCollectionsFeaturingAccountParams,
   GetCollectionsParams,
   GetCollectionsWithAccountParams,
   GetPublicCollectionTimelineParams,
+  RemoveCollectionItemByIdParams,
   RemoveCollectionMembersParams,
   SetCollectionMemberStateParams,
   SetOwnCollectionMembershipStateParams,
   UpdateCollectionParams
 } from '@/lib/types/database/operations'
-import { Collection, CollectionVisibility } from '@/lib/types/domain/collection'
+import {
+  Collection,
+  CollectionFeatureState,
+  CollectionVisibility
+} from '@/lib/types/domain/collection'
 import { Status } from '@/lib/types/domain/status'
 
 type SQLCollection = {
@@ -50,6 +62,7 @@ type SQLCollection = {
   topic: string | null
   language: string | null
   visibility: string
+  sensitive: boolean | number
   publicFeed: boolean | number
   createdAt: number | Date
   updatedAt: number | Date
@@ -63,9 +76,24 @@ const fixCollectionRow = (row: SQLCollection): Collection => ({
   topic: row.topic ?? null,
   language: row.language ?? null,
   visibility: (row.visibility ?? 'public') as CollectionVisibility,
+  sensitive: Boolean(row.sensitive),
   publicFeed: Boolean(row.publicFeed),
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt)
+})
+
+type SQLCollectionItem = {
+  id: string
+  targetActorId: string
+  featureState: string
+  createdAt: number | Date
+}
+
+const fixCollectionItemRow = (row: SQLCollectionItem): CollectionItemRow => ({
+  id: row.id,
+  targetActorId: row.targetActorId,
+  featureState: row.featureState as CollectionFeatureState,
+  createdAt: getCompatibleTime(row.createdAt)
 })
 
 // Resolve the owner-scoped collection to its internal bigint `seq` (the key the
@@ -300,6 +328,7 @@ export const CollectionSQLDatabaseMixin = (
     topic = null,
     language = null,
     visibility = 'public',
+    sensitive = false,
     publicFeed = true
   }: CreateCollectionParams) {
     const currentTime = new Date()
@@ -311,6 +340,7 @@ export const CollectionSQLDatabaseMixin = (
       topic,
       language,
       visibility,
+      sensitive,
       publicFeed,
       createdAt: currentTime,
       updatedAt: currentTime
@@ -327,6 +357,7 @@ export const CollectionSQLDatabaseMixin = (
     topic,
     language,
     visibility,
+    sensitive,
     publicFeed
   }: UpdateCollectionParams) {
     const existing = await database<SQLCollection>('collections')
@@ -340,6 +371,7 @@ export const CollectionSQLDatabaseMixin = (
     if (topic !== undefined) updates.topic = topic
     if (language !== undefined) updates.language = language
     if (visibility !== undefined) updates.visibility = visibility
+    if (sensitive !== undefined) updates.sensitive = sensitive
     if (publicFeed !== undefined) updates.publicFeed = publicFeed
 
     await database('collections')
@@ -664,6 +696,187 @@ export const CollectionSQLDatabaseMixin = (
       id: row.id as string,
       type: (row.type as string | null) ?? 'Person'
     }))
+  },
+
+  async getCollectionItems({
+    collectionIds,
+    approvedOnly = false
+  }: GetCollectionItemsParams) {
+    const itemsByCollection: Record<string, CollectionItemRow[]> = {}
+    for (const collectionId of collectionIds)
+      itemsByCollection[collectionId] = []
+    if (collectionIds.length === 0) return itemsByCollection
+
+    for (const chunk of chunkArray(
+      collectionIds,
+      getWhereInBatchSize(database, 1)
+    )) {
+      const query = database('collection_members')
+        .innerJoin(
+          'collections',
+          'collections.seq',
+          'collection_members.collectionSeq'
+        )
+        .whereIn('collections.id', chunk)
+        .orderBy('collection_members.createdAt', 'asc')
+        .orderBy('collection_members.id', 'asc')
+        .select(
+          'collections.id as collectionId',
+          'collection_members.id as id',
+          'collection_members.targetActorId as targetActorId',
+          'collection_members.featureState as featureState',
+          'collection_members.createdAt as createdAt'
+        )
+      if (approvedOnly) {
+        query.andWhere('collection_members.featureState', 'approved')
+      }
+      const rows = await query
+      for (const row of rows) {
+        itemsByCollection[row.collectionId as string]?.push(
+          fixCollectionItemRow(row as unknown as SQLCollectionItem)
+        )
+      }
+    }
+    return itemsByCollection
+  },
+
+  async getCollectionItem({ collectionId, itemId }: GetCollectionItemParams) {
+    const row = await database('collection_members')
+      .innerJoin(
+        'collections',
+        'collections.seq',
+        'collection_members.collectionSeq'
+      )
+      .where('collections.id', collectionId)
+      .andWhere('collection_members.id', itemId)
+      .first<SQLCollectionItem>(
+        'collection_members.id as id',
+        'collection_members.targetActorId as targetActorId',
+        'collection_members.featureState as featureState',
+        'collection_members.createdAt as createdAt'
+      )
+    return row ? fixCollectionItemRow(row) : null
+  },
+
+  async getCollectionItemByAccount({
+    collectionId,
+    targetActorId
+  }: GetCollectionItemByAccountParams) {
+    const row = await database('collection_members')
+      .innerJoin(
+        'collections',
+        'collections.seq',
+        'collection_members.collectionSeq'
+      )
+      .where('collections.id', collectionId)
+      .andWhere('collection_members.targetActorId', targetActorId)
+      .first<SQLCollectionItem>(
+        'collection_members.id as id',
+        'collection_members.targetActorId as targetActorId',
+        'collection_members.featureState as featureState',
+        'collection_members.createdAt as createdAt'
+      )
+    return row ? fixCollectionItemRow(row) : null
+  },
+
+  async countCollectionItems({
+    collectionIds,
+    approvedOnly = false
+  }: CountCollectionItemsParams) {
+    const counts: Record<string, number> = {}
+    for (const collectionId of collectionIds) counts[collectionId] = 0
+    if (collectionIds.length === 0) return counts
+
+    for (const chunk of chunkArray(
+      collectionIds,
+      getWhereInBatchSize(database, 1)
+    )) {
+      const query = database('collection_members')
+        .innerJoin(
+          'collections',
+          'collections.seq',
+          'collection_members.collectionSeq'
+        )
+        .whereIn('collections.id', chunk)
+        .groupBy('collections.id')
+        .select('collections.id as id')
+        .count<{ id: string; count: string | number }[]>('* as count')
+      if (approvedOnly) {
+        query.andWhere('collection_members.featureState', 'approved')
+      }
+      const rows = await query
+      for (const row of rows) {
+        counts[row.id as string] = Number(row.count)
+      }
+    }
+    return counts
+  },
+
+  async getAccountCollections({
+    ownerActorId,
+    publicOnly = false,
+    limit = PER_PAGE_LIMIT,
+    offset = 0
+  }: GetAccountCollectionsParams) {
+    const query = database<SQLCollection>('collections')
+      .where('ownerActorId', ownerActorId)
+      .orderBy('createdAt', 'asc')
+      .orderBy('seq', 'asc')
+      .limit(limit)
+      .offset(offset)
+    if (publicOnly) query.andWhere('visibility', 'public')
+    const rows = await query
+    return rows.map(fixCollectionRow)
+  },
+
+  async getCollectionsFeaturingAccount({
+    targetActorId,
+    viewerActorId,
+    limit = PER_PAGE_LIMIT,
+    offset = 0
+  }: GetCollectionsFeaturingAccountParams) {
+    // (collectionSeq, targetActorId) is unique, so the join yields at most one
+    // row per collection — no DISTINCT needed.
+    const rows = await database<SQLCollection>('collections')
+      .join(
+        'collection_members',
+        'collection_members.collectionSeq',
+        'collections.seq'
+      )
+      .where('collection_members.targetActorId', targetActorId)
+      .andWhere((builder) => {
+        builder
+          .where('collections.ownerActorId', viewerActorId)
+          .orWhere((publicBuilder) => {
+            publicBuilder
+              .where('collections.visibility', 'public')
+              .andWhere('collection_members.featureState', 'approved')
+          })
+      })
+      .orderBy('collections.createdAt', 'asc')
+      .orderBy('collections.seq', 'asc')
+      .limit(limit)
+      .offset(offset)
+      .select('collections.*')
+    return rows.map(fixCollectionRow)
+  },
+
+  async removeCollectionItemById({
+    id,
+    actorId,
+    itemId
+  }: RemoveCollectionItemByIdParams) {
+    const seq = await getOwnedCollectionSeq(database, id, actorId)
+    if (seq === null) return false
+    const member = await database('collection_members')
+      .where({ collectionSeq: seq, id: itemId })
+      .first<{ seq: string | number }>('seq')
+    if (!member) return false
+    await database.transaction(async (trx) => {
+      await trx('collection_timeline').where('memberSeq', member.seq).delete()
+      await trx('collection_members').where('seq', member.seq).delete()
+    })
+    return true
   },
 
   async getCollectionTimeline({

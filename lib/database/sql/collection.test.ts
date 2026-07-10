@@ -406,6 +406,287 @@ describe('CollectionDatabase', () => {
     })
   })
 
+  describe('sensitive flag', () => {
+    it('defaults to false, stores true on create, and round-trips updates', async () => {
+      await withFreshDatabase(async (database) => {
+        await createLocalAccount(database, 'owner')
+        const owner = await actor(database, 'owner')
+
+        const plain = await database.createCollection({
+          actorId: owner.id,
+          title: 'Plain'
+        })
+        expect(plain.sensitive).toBe(false)
+
+        const spicy = await database.createCollection({
+          actorId: owner.id,
+          title: 'Spicy',
+          sensitive: true
+        })
+        expect(spicy.sensitive).toBe(true)
+
+        const updated = await database.updateCollection({
+          id: spicy.id,
+          actorId: owner.id,
+          sensitive: false
+        })
+        expect(updated?.sensitive).toBe(false)
+      })
+    })
+  })
+
+  describe('items', () => {
+    it('exposes membership rows with stable ids, filtered by consent state', async () => {
+      await withFreshDatabase(async (database) => {
+        for (const name of ['owner', 'alice', 'bob']) {
+          await createLocalAccount(database, name)
+        }
+        const owner = await actor(database, 'owner')
+        const alice = await actor(database, 'alice')
+        const bob = await actor(database, 'bob')
+
+        const collection = await database.createCollection({
+          actorId: owner.id,
+          title: 'People'
+        })
+        await database.addCollectionMembers({
+          id: collection.id,
+          actorId: owner.id,
+          targetActorIds: [alice.id, bob.id]
+        })
+        await database.setCollectionMemberState({
+          id: collection.id,
+          actorId: owner.id,
+          targetActorId: bob.id,
+          state: 'approved'
+        })
+
+        const allItems = await database.getCollectionItems({
+          collectionIds: [collection.id]
+        })
+        expect(allItems[collection.id]).toHaveLength(2)
+        const bobItem = allItems[collection.id].find(
+          (item) => item.targetActorId === bob.id
+        )
+        expect(bobItem?.featureState).toBe('approved')
+        expect(typeof bobItem?.id).toBe('string')
+        expect(typeof bobItem?.createdAt).toBe('number')
+
+        const approvedItems = await database.getCollectionItems({
+          collectionIds: [collection.id],
+          approvedOnly: true
+        })
+        expect(
+          approvedItems[collection.id].map((item) => item.targetActorId)
+        ).toEqual([bob.id])
+
+        expect(
+          await database.getCollectionItem({
+            collectionId: collection.id,
+            itemId: bobItem!.id
+          })
+        ).toEqual(bobItem)
+        expect(
+          await database.getCollectionItem({
+            collectionId: collection.id,
+            itemId: 'nope'
+          })
+        ).toBeNull()
+        expect(
+          await database.getCollectionItemByAccount({
+            collectionId: collection.id,
+            targetActorId: alice.id
+          })
+        ).toMatchObject({ targetActorId: alice.id, featureState: 'pending' })
+
+        const totals = await database.countCollectionItems({
+          collectionIds: [collection.id]
+        })
+        expect(totals[collection.id]).toBe(2)
+        const approvedCounts = await database.countCollectionItems({
+          collectionIds: [collection.id],
+          approvedOnly: true
+        })
+        expect(approvedCounts[collection.id]).toBe(1)
+      })
+    })
+
+    it('removes a membership (and its feed rows) by item id, owner-scoped', async () => {
+      await withFreshDatabase(async (database) => {
+        for (const name of ['owner', 'alice', 'stranger']) {
+          await createLocalAccount(database, name)
+        }
+        const owner = await actor(database, 'owner')
+        const alice = await actor(database, 'alice')
+        const stranger = await actor(database, 'stranger')
+
+        const collection = await database.createCollection({
+          actorId: owner.id,
+          title: 'Removable'
+        })
+        await database.addCollectionMembers({
+          id: collection.id,
+          actorId: owner.id,
+          targetActorIds: [alice.id]
+        })
+        await publicNote(database, alice.id, 'in-feed')
+        const items = await database.getCollectionItems({
+          collectionIds: [collection.id]
+        })
+        const itemId = items[collection.id][0].id
+
+        expect(
+          await database.removeCollectionItemById({
+            id: collection.id,
+            actorId: stranger.id,
+            itemId
+          })
+        ).toBe(false)
+        expect(
+          await database.removeCollectionItemById({
+            id: collection.id,
+            actorId: owner.id,
+            itemId
+          })
+        ).toBe(true)
+        expect(
+          await database.getCollectionItem({
+            collectionId: collection.id,
+            itemId
+          })
+        ).toBeNull()
+        expect(
+          await database.getCollectionTimeline({
+            id: collection.id,
+            actorId: owner.id
+          })
+        ).toEqual([])
+        expect(
+          await database.removeCollectionItemById({
+            id: collection.id,
+            actorId: owner.id,
+            itemId
+          })
+        ).toBe(false)
+      })
+    })
+  })
+
+  describe('viewer-aware listings', () => {
+    it.each([
+      { viewer: 'stranger', expected: ['Public one'] },
+      {
+        viewer: 'owner',
+        expected: ['Public one', 'Unlisted one', 'Private one']
+      }
+    ])(
+      'getAccountCollections returns $expected for the $viewer projection',
+      async ({ viewer, expected }) => {
+        await withFreshDatabase(async (database) => {
+          await createLocalAccount(database, 'owner')
+          const owner = await actor(database, 'owner')
+          for (const [title, visibility] of [
+            ['Public one', 'public'],
+            ['Unlisted one', 'unlisted'],
+            ['Private one', 'private']
+          ] as const) {
+            await database.createCollection({
+              actorId: owner.id,
+              title,
+              visibility
+            })
+          }
+          const rows = await database.getAccountCollections({
+            ownerActorId: owner.id,
+            publicOnly: viewer === 'stranger'
+          })
+          expect(rows.map((row) => row.title)).toEqual(expected)
+        })
+      }
+    )
+
+    it('getAccountCollections honors limit and offset', async () => {
+      await withFreshDatabase(async (database) => {
+        await createLocalAccount(database, 'owner')
+        const owner = await actor(database, 'owner')
+        for (const title of ['A', 'B', 'C']) {
+          await database.createCollection({ actorId: owner.id, title })
+        }
+        const page = await database.getAccountCollections({
+          ownerActorId: owner.id,
+          limit: 1,
+          offset: 1
+        })
+        expect(page.map((row) => row.title)).toEqual(['B'])
+      })
+    })
+
+    it('getCollectionsFeaturingAccount spans owners with consent gating', async () => {
+      await withFreshDatabase(async (database) => {
+        for (const name of ['curator', 'viewer', 'featured']) {
+          await createLocalAccount(database, name)
+        }
+        const curator = await actor(database, 'curator')
+        const viewer = await actor(database, 'viewer')
+        const featured = await actor(database, 'featured')
+
+        // Another owner's PUBLIC collection with an APPROVED membership →
+        // visible to any authenticated viewer.
+        const publicApproved = await database.createCollection({
+          actorId: curator.id,
+          title: 'Public approved',
+          visibility: 'public'
+        })
+        await database.addCollectionMembers({
+          id: publicApproved.id,
+          actorId: curator.id,
+          targetActorIds: [featured.id]
+        })
+        await database.setCollectionMemberState({
+          id: publicApproved.id,
+          actorId: curator.id,
+          targetActorId: featured.id,
+          state: 'approved'
+        })
+
+        // Another owner's public collection with a PENDING membership → hidden
+        // (consent not given, must not leak).
+        const publicPending = await database.createCollection({
+          actorId: curator.id,
+          title: 'Public pending',
+          visibility: 'public'
+        })
+        await database.addCollectionMembers({
+          id: publicPending.id,
+          actorId: curator.id,
+          targetActorIds: [featured.id]
+        })
+
+        // The viewer's OWN private collection featuring the account → always
+        // visible to the viewer regardless of state/visibility.
+        const viewerOwned = await database.createCollection({
+          actorId: viewer.id,
+          title: 'Viewer owned',
+          visibility: 'private'
+        })
+        await database.addCollectionMembers({
+          id: viewerOwned.id,
+          actorId: viewer.id,
+          targetActorIds: [featured.id]
+        })
+
+        const rows = await database.getCollectionsFeaturingAccount({
+          targetActorId: featured.id,
+          viewerActorId: viewer.id
+        })
+        expect(rows.map((row) => row.title).sort()).toEqual([
+          'Public approved',
+          'Viewer owned'
+        ])
+      })
+    })
+  })
+
   describe('timeline', () => {
     it('fans new posts into the feed and backfills history on add', async () => {
       await withFreshDatabase(async (database) => {
