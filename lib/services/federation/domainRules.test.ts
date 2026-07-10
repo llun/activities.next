@@ -5,6 +5,7 @@ import {
   domainMatchesRule,
   findMatchingDomainRule,
   isDomainBlockStricter,
+  normalizeActorHost,
   normalizeDomain,
   toPublicDomainBlock
 } from './domainRules'
@@ -95,6 +96,50 @@ describe('domainRules', () => {
     expect(
       normalizeDomain(Array.from({ length: 5 }, () => 'a'.repeat(63)).join('.'))
     ).toBeNull()
+  })
+
+  // User-level domain blocks are compared against `new URL(actorId).host`, which
+  // keeps a non-default port; normalizeActorHost must reproduce that exact form
+  // (unlike normalizeDomain, which drops the port via URL.hostname) so a block on
+  // a port-bearing instance actually applies.
+  it.each([
+    {
+      description: 'lowercases a bare domain',
+      input: 'Example.Social',
+      expected: 'example.social'
+    },
+    {
+      description: 'extracts the host from a full URL',
+      input: 'https://Sub.Example.Social/path',
+      expected: 'sub.example.social'
+    },
+    {
+      description: 'retains a non-default port to match new URL(id).host',
+      input: 'dev.example:8443',
+      expected: 'dev.example:8443'
+    },
+    {
+      description: 'drops the default https port, matching .host',
+      input: 'dev.example:443',
+      expected: 'dev.example'
+    },
+    {
+      description: 'strips a trailing dot while keeping the port',
+      input: 'DEV.Example.:8443',
+      expected: 'dev.example:8443'
+    },
+    {
+      description: 'returns null for an empty value',
+      input: '',
+      expected: null
+    },
+    {
+      description: 'returns null for an unparseable value',
+      input: 'not a domain !!',
+      expected: null
+    }
+  ])('normalizeActorHost $description', ({ input, expected }) => {
+    expect(normalizeActorHost(input)).toBe(expected)
   })
 
   it('matches exact domains and wildcard subdomains', () => {

@@ -65,6 +65,26 @@ describe('getRequestBody', () => {
     expect(result).toEqual({})
   })
 
+  it.each([
+    ['null', 'null'],
+    ['a number', '42'],
+    ['a string', '"example.com"'],
+    ['a boolean', 'true']
+  ])(
+    'normalizes a well-formed non-object JSON body (%s) to {}',
+    async (_label, rawBody) => {
+      const mockRequest = createMockRequest(
+        'https://example.com/api',
+        'application/json'
+      )
+      ;(mockRequest.text as jest.Mock).mockResolvedValue(rawBody)
+      const result = await getRequestBody(mockRequest)
+      // A non-object body can't carry named params; callers read body.<field>,
+      // so returning the raw null/primitive would throw. Normalize to {}.
+      expect(result).toEqual({})
+    }
+  )
+
   it('should throw on a malformed non-empty JSON body', async () => {
     const mockRequest = createMockRequest(
       'https://example.com/api',

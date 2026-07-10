@@ -18,7 +18,14 @@ export async function getRequestBody(
     // a non-empty malformed body still throws so the caller can return a 4xx.
     const text = await req.text()
     if (text.trim() === '') return {}
-    return JSON.parse(text) as Record<string, unknown>
+    const parsed = JSON.parse(text)
+    // Well-formed but non-object JSON (notably `null`, but also numbers,
+    // strings, and booleans) can't carry named params, and a `null` return
+    // would make callers throw on property access (`body.field` on `null`).
+    // Normalize such values to {} so callers always get a Record; arrays (also
+    // objects) pass through unchanged.
+    if (parsed === null || typeof parsed !== 'object') return {}
+    return parsed as Record<string, unknown>
   }
 
   // Parse urlencoded bodies with URLSearchParams rather than formData(): it is
