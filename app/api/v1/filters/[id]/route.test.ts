@@ -234,6 +234,66 @@ describe('/api/v1/filters/[id]', () => {
     expect(storedFilter).toMatchObject({ filterAction: 'warn' })
   })
 
+  // Exercises the context and expires_in disjuncts of the multi-keyword guard
+  // in isolation (the test above only trips the filter_action disjunct). Each
+  // body leaves the keyword's own phrase changed so a route that dropped the
+  // relevant guard term would return 200 and rename the keyword — proving the
+  // 422 here comes from that specific disjunct, not from the phrase change.
+  it.each([
+    {
+      description:
+        'returns 422 when changing only the context of a multi-keyword filter and writes nothing',
+      title: 'guard-context',
+      keyword: 'guard-context-a',
+      sibling: 'guard-context-b',
+      body: { phrase: 'guard-context-renamed', context: ['home', 'public'] },
+      storedFilterMatch: { context: ['home'] }
+    },
+    {
+      description:
+        'returns 422 when changing only expires_in of a multi-keyword filter and writes nothing',
+      title: 'guard-expiry',
+      keyword: 'guard-expiry-a',
+      sibling: 'guard-expiry-b',
+      body: {
+        phrase: 'guard-expiry-renamed',
+        context: ['home'],
+        expires_in: 3600
+      },
+      storedFilterMatch: { expiresAt: null }
+    }
+  ])(
+    '$description',
+    async ({ title, keyword, sibling, body, storedFilterMatch }) => {
+      const { filter, keywords } = await createFilterFixture({
+        title,
+        keywords: [
+          { keyword, wholeWord: false },
+          { keyword: sibling, wholeWord: false }
+        ]
+      })
+      const id = keywordId(keywords, keyword)
+
+      const response = await PUT(requestFor(id, { method: 'PUT', body }), {
+        params: Promise.resolve({ id })
+      })
+
+      expect(response.status).toBe(422)
+      // The rejected request renames nothing...
+      const storedKeyword = await database.getFilterKeyword({
+        actorId: ACTOR1_ID,
+        id
+      })
+      expect(storedKeyword).toMatchObject({ keyword })
+      // ...and leaves the shared parent attribute it tried to change intact.
+      const storedFilter = await database.getFilter({
+        actorId: ACTOR1_ID,
+        id: filter.id
+      })
+      expect(storedFilter).toMatchObject(storedFilterMatch)
+    }
+  )
+
   it('allows a whole_word-only toggle on a multi-keyword filter', async () => {
     const { keywords } = await createFilterFixture({
       title: 'toggle-first',
