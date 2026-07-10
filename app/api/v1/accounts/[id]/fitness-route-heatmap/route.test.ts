@@ -24,7 +24,9 @@ vi.mock('@/lib/services/queue', () => ({
 
 type MockDatabase = Pick<
   Database,
-  'getFitnessRouteHeatmapByKey' | 'deleteFitnessRouteHeatmap'
+  | 'getFitnessRouteHeatmapByKey'
+  | 'deleteFitnessRouteHeatmap'
+  | 'cancelFitnessRouteHeatmapGeneration'
 >
 
 let mockDatabase: MockDatabase | null = null
@@ -35,7 +37,8 @@ vi.mock('@/lib/database', () => ({
 describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
     getFitnessRouteHeatmapByKey: vi.fn(),
-    deleteFitnessRouteHeatmap: vi.fn()
+    deleteFitnessRouteHeatmap: vi.fn(),
+    cancelFitnessRouteHeatmapGeneration: vi.fn()
   }
 
   const encodedId = ACTOR1_ID.replace('https://', '').replaceAll('/', ':')
@@ -65,6 +68,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
     mockPublish.mockResolvedValue(undefined)
     mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue(null)
     mockDb.deleteFitnessRouteHeatmap.mockResolvedValue(true)
+    mockDb.cancelFitnessRouteHeatmapGeneration.mockResolvedValue(true)
   })
 
   it('returns route payload for an owner request', async () => {
@@ -567,6 +571,130 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
         })
       })
     )
+  })
+
+  it('cancels an in-flight generation when cancel is set', async () => {
+    const updatedTime = Date.now()
+    mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue({
+      id: 'route-heatmap-generating',
+      actorId: ACTOR1_ID,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-04',
+      region: REGION,
+      status: 'generating',
+      segments: [],
+      activityCount: 0,
+      pointCount: 0,
+      totalCount: 20,
+      cursorOffset: 5,
+      isPartial: false,
+      createdAt: updatedTime - 1000,
+      updatedAt: updatedTime
+    })
+
+    const request = new NextRequest(baseUrl, {
+      method: 'POST',
+      headers: { Origin: 'https://test.llun.dev' },
+      body: JSON.stringify({
+        activity_type: 'running',
+        period_type: 'monthly',
+        period_key: '2026-04',
+        region: REGION,
+        cancel: true
+      })
+    })
+    const response = await POST(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+
+    expect(response.status).toBe(200)
+    const json = await response.json()
+    expect(json.cancelled).toBe(true)
+    expect(mockDb.cancelFitnessRouteHeatmapGeneration).toHaveBeenCalledWith({
+      actorId: ACTOR1_ID,
+      id: 'route-heatmap-generating'
+    })
+    expect(mockPublish).not.toHaveBeenCalled()
+  })
+
+  it('reports cancelled=false when there is no in-flight run to cancel', async () => {
+    mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue(null)
+
+    const request = new NextRequest(baseUrl, {
+      method: 'POST',
+      headers: { Origin: 'https://test.llun.dev' },
+      body: JSON.stringify({
+        activity_type: 'running',
+        period_type: 'monthly',
+        period_key: '2026-04',
+        region: REGION,
+        cancel: true
+      })
+    })
+    const response = await POST(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+
+    expect(response.status).toBe(200)
+    const json = await response.json()
+    expect(json.cancelled).toBe(false)
+    expect(mockDb.cancelFitnessRouteHeatmapGeneration).not.toHaveBeenCalled()
+    expect(mockPublish).not.toHaveBeenCalled()
+  })
+
+  it('uses a unique retry job id for a cancelled cache', async () => {
+    const retryNonce = '00000000-0000-4000-8000-000000000000'
+    const randomUUIDSpy = vi
+      .spyOn(crypto, 'randomUUID')
+      .mockReturnValue(retryNonce)
+    const updatedTime = Date.now()
+    mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue({
+      id: 'route-heatmap-cancelled',
+      actorId: ACTOR1_ID,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2026-04',
+      region: REGION,
+      status: 'cancelled',
+      segments: [],
+      activityCount: 0,
+      pointCount: 0,
+      totalCount: 0,
+      cursorOffset: 0,
+      isPartial: false,
+      error: null,
+      createdAt: updatedTime - 1000,
+      updatedAt: updatedTime
+    })
+
+    try {
+      const request = new NextRequest(baseUrl, {
+        method: 'POST',
+        headers: { Origin: 'https://test.llun.dev' },
+        body: JSON.stringify({
+          activity_type: 'running',
+          period_type: 'monthly',
+          period_key: '2026-04',
+          region: REGION,
+          retry: true
+        })
+      })
+      const response = await POST(request, {
+        params: Promise.resolve({ id: encodedId })
+      })
+
+      expect(response.status).toBe(202)
+      expect(mockPublish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: getHashFromString(
+            `${ACTOR1_ID}:route-heatmap:running:monthly:2026-04:${REGION}:retry:route-heatmap-cancelled:${retryNonce}`
+          )
+        })
+      )
+    } finally {
+      randomUUIDSpy.mockRestore()
+    }
   })
 
   describe('DELETE', () => {

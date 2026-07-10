@@ -59,7 +59,9 @@ const FitnessRouteHeatmapTriggerBody = z.object({
   // See FitnessRouteHeatmapQueryParams.region: looser raw cap; normalizeRegion
   // rounds + caps the stored value under the 255-char column.
   region: z.string().max(1024).optional(),
-  retry: z.boolean().optional()
+  retry: z.boolean().optional(),
+  // Stop an in-flight (pending/generating) run instead of enqueuing one.
+  cancel: z.boolean().optional()
 })
 
 const serializeRouteHeatmap = (heatmap: FitnessRouteHeatmap) => ({
@@ -280,7 +282,8 @@ export const POST = traceApiRoute(
       period_type: periodType,
       period_key: periodKey,
       region: rawRegion,
-      retry
+      retry,
+      cancel
     } = parsed.data
     const region = normalizeRegion(rawRegion)
     const existing = await database.getFitnessRouteHeatmapByKey({
@@ -291,6 +294,24 @@ export const POST = traceApiRoute(
       region,
       includeDeleted: true
     })
+
+    // Cancel stops an in-flight run rather than enqueuing one. The DB method is
+    // scoped to the actor and only acts on a non-deleted pending/generating row.
+    if (cancel === true) {
+      const cancelled =
+        existing !== null && !existing.deletedAt
+          ? await database.cancelFitnessRouteHeatmapGeneration({
+              actorId: id,
+              id: existing.id
+            })
+          : false
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { cancelled }
+      })
+    }
+
     const shouldResume =
       existing !== null &&
       !existing.deletedAt &&
@@ -302,7 +323,9 @@ export const POST = traceApiRoute(
       existing !== null &&
       !existing.deletedAt &&
       !shouldResume &&
-      (existing.status === 'failed' || existing.status === 'generating')
+      (existing.status === 'failed' ||
+        existing.status === 'generating' ||
+        existing.status === 'cancelled')
     const baseJobId =
       id +
       ':route-heatmap:' +
