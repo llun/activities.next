@@ -6,6 +6,7 @@ import {
   FitnessRouteHeatmapData,
   FitnessRouteHeatmapRegionNameData,
   FitnessRouteHeatmapSummaryData,
+  cancelFitnessRouteHeatmap,
   deleteFitnessRouteHeatmap,
   getFitnessRouteHeatmap,
   getFitnessRouteHeatmapRegionNames,
@@ -102,6 +103,7 @@ const summaryToStatus = (
   }
   if (summary.status === 'pending') return { state: 'pending' }
   if (summary.status === 'failed') return { state: 'failed' }
+  if (summary.status === 'cancelled') return { state: 'cancelled' }
   if (summary.status === 'completed') {
     return {
       state: summary.isPartial ? 'partial' : 'completed',
@@ -176,6 +178,7 @@ export const FitnessHeatmapView: FC<Props> = ({
   const [error, setError] = useState<string | null>(null)
   const [generationPending, setGenerationPending] = useState(false)
   const [isRetrying, setIsRetrying] = useState(false)
+  const [isCancelling, setIsCancelling] = useState(false)
   const [isSharing, setIsSharing] = useState(false)
   const [pollingStalled, setPollingStalled] = useState(false)
   const [currentTime, setCurrentTime] = useState<number>(() => Date.now())
@@ -460,11 +463,13 @@ export const FitnessHeatmapView: FC<Props> = ({
     setIsRetrying(true)
     setError(null)
     try {
-      // A failed/in-flight/partial run resumes the existing row; a fresh or
-      // fully-completed region starts a brand-new run.
+      // A failed/in-flight/partial/cancelled run reuses the existing row; a fresh
+      // or fully-completed region starts a brand-new run. Retrying a cancelled
+      // run gets a fresh job id so the queue can't dedupe it away.
       const retry =
         heatmapData?.status === 'failed' ||
         heatmapData?.status === 'generating' ||
+        heatmapData?.status === 'cancelled' ||
         Boolean(heatmapData?.status === 'completed' && heatmapData?.isPartial)
       await enqueueGeneration(retry)
     } catch (err) {
@@ -477,6 +482,38 @@ export const FitnessHeatmapView: FC<Props> = ({
       setIsRetrying(false)
     }
   }, [heatmapData, enqueueGeneration])
+
+  const handleCancel = useCallback(async () => {
+    if (!openRegionId || openRegionKey === null) return
+    // Capture the focused selection so a slow request that resolves after the
+    // user switched/closed regions does not apply its result elsewhere.
+    const key = focusKeyRef.current
+    setIsCancelling(true)
+    setError(null)
+    try {
+      await cancelFitnessRouteHeatmap({
+        actorId,
+        activityType: SELECTED_ACTIVITY_TYPE,
+        periodType: PERIOD_TYPE,
+        periodKey: EFFECTIVE_PERIOD_KEY,
+        region: openRegionKey || undefined
+      })
+      if (focusKeyRef.current !== key) return
+      setGenerationPending(false)
+      setPollingStalled(false)
+      pollingProgressRef.current = null
+      // Refetch so the focused row + list flip to the cancelled state and the
+      // in-flight spinner stops.
+      await fetchFocused()
+    } catch (err) {
+      if (focusKeyRef.current !== key) return
+      setError(
+        err instanceof Error ? err.message : 'Failed to cancel generation.'
+      )
+    } finally {
+      if (focusKeyRef.current === key) setIsCancelling(false)
+    }
+  }, [actorId, openRegionId, openRegionKey, fetchFocused])
 
   const handleShare = useCallback(async () => {
     if (!openRegionId || openRegionKey === null) return
@@ -642,11 +679,13 @@ export const FitnessHeatmapView: FC<Props> = ({
         pollingStalled={pollingStalled}
         progressPercent={focusedProgressPercent}
         isRetrying={isRetrying}
+        isCancelling={isCancelling}
         generationQueued={generationPending}
         error={error}
         onBack={() => setOpenRegionId(null)}
         onGenerate={runGeneration}
         onRetry={runGeneration}
+        onCancel={handleCancel}
         onRename={handleRegionRenamed}
       />
     )

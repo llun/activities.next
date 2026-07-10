@@ -65,11 +65,13 @@ const defaultProps = {
   pollingStalled: false,
   progressPercent: null as number | null,
   isRetrying: false,
+  isCancelling: false,
   generationQueued: false,
   error: null as string | null,
   onBack: vi.fn(),
   onGenerate: vi.fn(),
-  onRetry: vi.fn()
+  onRetry: vi.fn(),
+  onCancel: vi.fn()
 }
 
 beforeEach(() => {
@@ -208,6 +210,53 @@ describe('RegionHeatmapDetail', () => {
     expect(screen.getByText('Failed')).toBeInTheDocument()
     expect(screen.getByText('Tile render timed out')).toBeInTheDocument()
     // No completed map for a failed run.
+    expect(screen.queryByTestId('route-map')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Retry/i }))
+    expect(onRetry).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers Cancel in the header and the task row while generating', () => {
+    const onCancel = vi.fn()
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        heatmap={{
+          ...completedHeatmap,
+          status: 'generating',
+          segments: [],
+          bounds: null,
+          pointCount: 0
+        }}
+        busy
+        onCancel={onCancel}
+      />
+    )
+
+    const cancelButtons = screen.getAllByRole('button', { name: /Cancel/i })
+    expect(cancelButtons).toHaveLength(2)
+    fireEvent.click(cancelButtons[0])
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders a neutral Canceled state with a retry', () => {
+    const onRetry = vi.fn()
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        heatmap={{
+          ...completedHeatmap,
+          status: 'cancelled',
+          segments: [],
+          bounds: null,
+          pointCount: 0
+        }}
+        onRetry={onRetry}
+      />
+    )
+
+    expect(screen.getByText('Canceled')).toBeInTheDocument()
+    // No completed map for a cancelled run.
     expect(screen.queryByTestId('route-map')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Retry/i }))

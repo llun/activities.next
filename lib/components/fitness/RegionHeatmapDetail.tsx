@@ -4,6 +4,7 @@ import {
   Activity,
   AlertTriangle,
   ArrowLeft,
+  Ban,
   Calendar,
   Check,
   Clock,
@@ -44,14 +45,16 @@ const formatDuration = (startMs: number, endMs: number): string | null => {
 }
 
 /** Display-only generation state for the detail page (mirrors the picker atom). */
-type TaskState = 'pending' | 'generating' | 'completed' | 'partial' | 'failed'
+type TaskState =
+  'pending' | 'generating' | 'completed' | 'partial' | 'failed' | 'cancelled'
 
 const KNOWN_TASK_STATES: readonly TaskState[] = [
   'pending',
   'generating',
   'completed',
   'partial',
-  'failed'
+  'failed',
+  'cancelled'
 ]
 
 const resolveTaskState = (heatmap: FitnessRouteHeatmapData): TaskState => {
@@ -96,6 +99,11 @@ const TASK_META: Record<TaskState, TaskMeta> = {
     icon: <AlertTriangle className="size-3.5" />,
     label: 'Failed',
     className: 'text-destructive'
+  },
+  cancelled: {
+    icon: <Ban className="size-3.5" />,
+    label: 'Canceled',
+    className: 'text-muted-foreground'
   }
 }
 
@@ -104,7 +112,9 @@ interface GenerationTaskRowProps {
   progressPercent: number | null
   currentTime: number
   isRetrying: boolean
+  isCancelling: boolean
   onRetry: () => void
+  onCancel: () => void
 }
 
 // The backend keeps a single heatmap row per region key (one kept version), so
@@ -115,11 +125,15 @@ const GenerationTaskRow: FC<GenerationTaskRowProps> = ({
   progressPercent,
   currentTime,
   isRetrying,
-  onRetry
+  isCancelling,
+  onRetry,
+  onCancel
 }) => {
   const state = resolveTaskState(heatmap)
   const meta = TASK_META[state]
-  const canRetry = state === 'failed' || state === 'partial'
+  const canRetry =
+    state === 'failed' || state === 'partial' || state === 'cancelled'
+  const canCancel = state === 'generating' || state === 'pending'
   const isTerminal =
     state === 'completed' || state === 'partial' || state === 'failed'
   const startedLabel = formatRelativeTime(currentTime - heatmap.createdAt)
@@ -175,6 +189,19 @@ const GenerationTaskRow: FC<GenerationTaskRowProps> = ({
           {duration ? ` · took ${duration}` : ''}
         </div>
       </div>
+      {canCancel && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7 shrink-0 px-2.5 text-xs"
+          disabled={isCancelling}
+          onClick={onCancel}
+        >
+          <Ban className={cn('size-3', isCancelling && 'animate-pulse')} />
+          Cancel
+        </Button>
+      )}
       {canRetry && (
         <Button
           type="button"
@@ -324,12 +351,15 @@ export interface RegionHeatmapDetailProps {
   /** Generation/retry progress, 0–100, or null when the total is unknown. */
   progressPercent: number | null
   isRetrying: boolean
+  /** A cancel request is in flight for this region. */
+  isCancelling: boolean
   /** Generation has been queued but no heatmap row has appeared yet. */
   generationQueued: boolean
   error: string | null
   onBack: () => void
   onGenerate: () => void
   onRetry: () => void
+  onCancel: () => void
   /**
    * Renames the (drawn) region from its own page. When omitted — or for the
    * whole-world region — the title is rendered read-only.
@@ -352,11 +382,13 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
   pollingStalled,
   progressPercent,
   isRetrying,
+  isCancelling,
   generationQueued,
   error,
   onBack,
   onGenerate,
   onRetry,
+  onCancel,
   onRename
 }) => {
   const isWorld = region.type === 'world'
@@ -425,22 +457,27 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
             </div>
           </div>
         </div>
-        <Button type="button" size="sm" disabled={busy} onClick={onGenerate}>
-          {busy ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : pollingStalled ? (
-            <RefreshCw className="size-4" />
-          ) : (
-            <Flame className="size-4" />
-          )}
-          {busy
-            ? 'Generating…'
-            : pollingStalled
-              ? 'Retry'
-              : hasVersion
-                ? 'Regenerate'
-                : 'Generate'}
-        </Button>
+        {busy ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={isCancelling}
+            onClick={onCancel}
+          >
+            <Ban className={cn('size-4', isCancelling && 'animate-pulse')} />
+            {isCancelling ? 'Canceling…' : 'Cancel'}
+          </Button>
+        ) : (
+          <Button type="button" size="sm" onClick={onGenerate}>
+            {pollingStalled ? (
+              <RefreshCw className="size-4" />
+            ) : (
+              <Flame className="size-4" />
+            )}
+            {pollingStalled ? 'Retry' : hasVersion ? 'Regenerate' : 'Generate'}
+          </Button>
+        )}
       </div>
 
       {error && (
@@ -565,7 +602,9 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
             progressPercent={progressPercent}
             currentTime={currentTime}
             isRetrying={isRetrying}
+            isCancelling={isCancelling}
             onRetry={onRetry}
+            onCancel={onCancel}
           />
         ) : generationQueued ? (
           <div className="flex items-center gap-1.5 py-3 text-xs text-muted-foreground">

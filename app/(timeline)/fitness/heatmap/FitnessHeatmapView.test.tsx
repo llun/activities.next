@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import {
+  cancelFitnessRouteHeatmap,
   deleteFitnessRouteHeatmap,
   getFitnessRouteHeatmap,
   getFitnessRouteHeatmapRegionNames,
@@ -46,6 +47,7 @@ vi.mock('@/lib/components/fitness/RegionMap', () => ({
 }))
 
 vi.mock('@/lib/client', () => ({
+  cancelFitnessRouteHeatmap: vi.fn(),
   deleteFitnessRouteHeatmap: vi.fn(),
   getFitnessRouteHeatmap: vi.fn(),
   getFitnessRouteHeatmapRegionNames: vi.fn(),
@@ -81,6 +83,10 @@ const mockSetFitnessRouteHeatmapRegionName =
 const mockTriggerFitnessRouteHeatmap =
   triggerFitnessRouteHeatmap as jest.MockedFunction<
     typeof triggerFitnessRouteHeatmap
+  >
+const mockCancelFitnessRouteHeatmap =
+  cancelFitnessRouteHeatmap as jest.MockedFunction<
+    typeof cancelFitnessRouteHeatmap
   >
 
 const createDeferred = <T,>() => {
@@ -263,6 +269,7 @@ describe('FitnessHeatmapView', () => {
     mockSetFitnessRouteHeatmapRegionName.mockResolvedValue(true)
     mockDeleteFitnessRouteHeatmap.mockResolvedValue(true)
     mockTriggerFitnessRouteHeatmap.mockResolvedValue(true)
+    mockCancelFitnessRouteHeatmap.mockResolvedValue(true)
     // No Mapbox token in these tests, so the view uses the keyless MapLibre map.
     mockLoadMaplibreModule.mockResolvedValue({ Map: createGlMapConstructor() })
   })
@@ -734,6 +741,54 @@ describe('FitnessHeatmapView', () => {
     await waitFor(() => {
       expect(mockTriggerFitnessRouteHeatmap).toHaveBeenCalledWith(
         expect.objectContaining({ actorId: ACTOR, retry: true })
+      )
+    })
+  })
+
+  it('cancels a generating region from the detail view', async () => {
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([
+      worldSummary({
+        status: 'generating',
+        totalCount: 20,
+        cursorOffset: 10,
+        updatedAt: TEST_NOW
+      })
+    ])
+    mockGetFitnessRouteHeatmap.mockResolvedValue(
+      worldHeatmap({
+        status: 'generating',
+        totalCount: 20,
+        cursorOffset: 10,
+        segments: [],
+        bounds: null,
+        pointCount: 0
+      })
+    )
+
+    render(
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
+    )
+
+    await openWorldRegion()
+
+    // Both the header and the generation-task row expose Cancel while running.
+    const cancelButtons = await screen.findAllByRole('button', {
+      name: /Cancel/i
+    })
+    expect(cancelButtons.length).toBeGreaterThanOrEqual(1)
+    fireEvent.click(cancelButtons[0])
+
+    await waitFor(() => {
+      expect(mockCancelFitnessRouteHeatmap).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: ACTOR,
+          periodType: 'all_time',
+          periodKey: 'all'
+        })
       )
     })
   })
