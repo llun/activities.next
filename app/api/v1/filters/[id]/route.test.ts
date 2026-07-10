@@ -264,6 +264,78 @@ describe('/api/v1/filters/[id]', () => {
     })
   })
 
+  it('updates a secondary keyword of a multi-keyword filter without touching the shared parent', async () => {
+    // The parent title differs from the secondary keyword's phrase, exactly as
+    // it does for a v2-created multi-keyword filter. A v1 client must resend the
+    // keyword's own current phrase, so input.phrase !== filter.title here.
+    const { filter, keywords } = await createFilterFixture({
+      title: 'Fruits',
+      keywords: [
+        { keyword: 'apple', wholeWord: false },
+        { keyword: 'banana', wholeWord: false }
+      ]
+    })
+    const id = keywordId(keywords, 'banana')
+
+    const response = await PUT(
+      requestFor(id, {
+        method: 'PUT',
+        body: { phrase: 'banana', context: ['home'], whole_word: true }
+      }),
+      { params: Promise.resolve({ id }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      id,
+      phrase: 'banana',
+      whole_word: true
+    })
+
+    const storedKeyword = await database.getFilterKeyword({
+      actorId: ACTOR1_ID,
+      id
+    })
+    expect(storedKeyword).toMatchObject({ keyword: 'banana', wholeWord: true })
+    // The shared parent title must NOT be overwritten by the keyword's phrase.
+    const storedFilter = await database.getFilter({
+      actorId: ACTOR1_ID,
+      id: filter.id
+    })
+    expect(storedFilter).toMatchObject({ title: 'Fruits' })
+  })
+
+  it('renames a secondary keyword of a multi-keyword filter without changing the parent', async () => {
+    const { filter, keywords } = await createFilterFixture({
+      title: 'Fruits',
+      keywords: [
+        { keyword: 'apple', wholeWord: false },
+        { keyword: 'banana', wholeWord: false }
+      ]
+    })
+    const id = keywordId(keywords, 'banana')
+
+    const response = await PUT(
+      requestFor(id, {
+        method: 'PUT',
+        body: { phrase: 'berry', context: ['home'] }
+      }),
+      { params: Promise.resolve({ id }) }
+    )
+
+    expect(response.status).toBe(200)
+    const storedKeyword = await database.getFilterKeyword({
+      actorId: ACTOR1_ID,
+      id
+    })
+    expect(storedKeyword).toMatchObject({ keyword: 'berry' })
+    const storedFilter = await database.getFilter({
+      actorId: ACTOR1_ID,
+      id: filter.id
+    })
+    expect(storedFilter).toMatchObject({ title: 'Fruits' })
+  })
+
   it('returns 422 when renaming a keyword to a sibling keyword', async () => {
     const { keywords } = await createFilterFixture({
       // Title matches the target phrase so the multi-keyword guard passes

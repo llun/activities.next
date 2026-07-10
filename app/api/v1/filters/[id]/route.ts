@@ -125,21 +125,26 @@ export const PUT = traceApiRoute(
             ? 'hide'
             : 'warn'
 
-      // Mirror Mastodon's v1 guard: parent-filter attributes (title/phrase,
-      // context, irreversible, expires_in) may only change while the filter
-      // has a single keyword — otherwise a v1 client would silently rewrite
-      // a v2 filter shared by its sibling keywords. The check runs before
-      // any write so a rejected request changes nothing.
-      const parentWouldChange =
-        input.phrase !== filter.title ||
-        contextsDiffer(input.context, filter.context) ||
-        (filterAction !== undefined && filterAction !== filter.filterAction) ||
-        (input.expiresAt !== undefined && input.expiresAt !== filter.expiresAt)
       const siblings = await database.getFilterKeywords({
         actorId: currentActor.id,
         filterId: filter.id
       })
-      if (parentWouldChange && (siblings?.length ?? 0) > 1)
+      const isMultiKeyword = (siblings?.length ?? 0) > 1
+
+      // Mirror Mastodon's documented v1 guard: only the SHARED parent-filter
+      // attributes (context, irreversible, expires_in) may not change while the
+      // filter has multiple keywords — otherwise a v1 client would silently
+      // rewrite a v2 filter shared by its sibling keywords
+      // (https://docs.joinmastodon.org/methods/filters/#v1 lists exactly those
+      // three). The keyword's own `phrase`/`whole_word` are not shared, so they
+      // are deliberately excluded here and may always change — including a
+      // secondary keyword whose phrase differs from the parent title. The check
+      // runs before any write so a rejected request changes nothing.
+      const parentAttributesWouldChange =
+        contextsDiffer(input.context, filter.context) ||
+        (filterAction !== undefined && filterAction !== filter.filterAction) ||
+        (input.expiresAt !== undefined && input.expiresAt !== filter.expiresAt)
+      if (parentAttributesWouldChange && isMultiKeyword)
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
@@ -168,25 +173,33 @@ export const PUT = traceApiRoute(
           responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
         })
 
-      // Sequential second write: the DB layer has no cross-entity
-      // transaction API, so the keyword rename above and this parent update
-      // are not atomic. Acceptable for the deprecated shim — a crash in
-      // between leaves a renamed keyword with unchanged parent settings.
-      const updatedFilter = await database.updateFilter({
-        actorId: currentActor.id,
-        id: filter.id,
-        title: input.phrase,
-        context: input.context,
-        filterAction,
-        expiresAt: input.expiresAt
-      })
-      if (!updatedFilter)
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: HTTP_STATUS.NOT_FOUND
+      // Only a single-keyword filter's parent is rewritten from the v1 body:
+      // such a filter is v1-created (title === phrase), so mapping phrase→title
+      // keeps them coherent after a rename. A multi-keyword filter's parent is
+      // shared by its sibling keywords and its title belongs to the v2 client,
+      // so it is left untouched — the guard above already rejected any real
+      // change to its shared attributes. This is one sequential write after the
+      // keyword update; the DB layer has no cross-entity transaction API, so
+      // the two are not atomic, which is acceptable for this deprecated shim.
+      let updatedFilter = filter
+      if (!isMultiKeyword) {
+        const parentUpdate = await database.updateFilter({
+          actorId: currentActor.id,
+          id: filter.id,
+          title: input.phrase,
+          context: input.context,
+          filterAction,
+          expiresAt: input.expiresAt
         })
+        if (!parentUpdate)
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_404,
+            responseStatusCode: HTTP_STATUS.NOT_FOUND
+          })
+        updatedFilter = parentUpdate
+      }
 
       return apiResponse({
         req,
