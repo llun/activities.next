@@ -940,6 +940,50 @@ describe('generateFitnessRouteHeatmapJob', () => {
     await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
   })
 
+  it('skips a resume continuation once the run has been cancelled', async () => {
+    const created = await database.createFitnessRouteHeatmap({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2099-12'
+    })
+    // Cancelled, but with a cursor that still matches the continuation — proves
+    // the non-resumable status (not just a cursor mismatch) stops it.
+    await database.updateFitnessRouteHeatmapStatus({
+      id: created.id,
+      status: 'cancelled',
+      cursorOffset: 1,
+      activityCount: 0,
+      pointCount: 0
+    })
+
+    await generateFitnessRouteHeatmapJob(database, {
+      id: 'job-route-heatmap-cancelled-continuation',
+      name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        activityType: 'running',
+        periodType: 'monthly',
+        periodKey: '2099-12',
+        resume: true,
+        cursorOffset: 1
+      }
+    })
+
+    const heatmap = await database.getFitnessRouteHeatmapByKey({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2099-12'
+    })
+
+    expect(heatmap?.status).toBe('cancelled')
+    expect(mockGetFitnessFile).not.toHaveBeenCalled()
+    expect(mockPublish).not.toHaveBeenCalled()
+
+    await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+  })
+
   it('resumes failed rows that still have checkpointed progress', async () => {
     const created = await database.createFitnessRouteHeatmap({
       actorId: actor.id,
