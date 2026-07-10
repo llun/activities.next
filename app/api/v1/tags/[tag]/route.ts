@@ -69,19 +69,24 @@ export const GET = traceApiRoute(
       // including whether the current actor follows it.
       // https://docs.joinmastodon.org/methods/tags/#get
       if (format !== TimelineFormat.enum.activities_next) {
-        const [following, history] = await Promise.all([
+        const [following, featuring, history] = await Promise.all([
           currentActor
             ? database.isFollowingTag({
                 actorId: currentActor.id,
                 name: tag
               })
             : Promise.resolve(false),
+          currentActor
+            ? database
+                .getFeaturedTagByName({ actorId: currentActor.id, name: tag })
+                .then((featured) => featured !== null)
+            : Promise.resolve(false),
           getTagHistory(database, tag)
         ])
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: getMastodonTag(tag, following, history)
+          data: getMastodonTag(tag, following, history, featuring)
         })
       }
 
