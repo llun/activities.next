@@ -90,9 +90,16 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
 - **Presigned / direct-to-storage media** — `/api/v1/medias/presigned` (and the
   Strava archive presigned upload) provide an asynchronous upload path that
   offloads bytes directly to object storage.
-- **Curated collections** — `/api/v1/collections/*`, `/api/v1/accounts/:id/in_collections`,
-  and `/api/v1/timelines/collection/:id` back the shareable public-feed feature,
-  which federates as FEP-7aa9 `FeaturedCollection` objects.
+- **Curated collections** — `/api/v1/collections/*`, `/api/v1/accounts/:id/collections`,
+  `/api/v1/accounts/:id/in_collections`, and `/api/v1/timelines/collection/:id`
+  back the shareable public-feed feature, which federates as FEP-7aa9
+  `FeaturedCollection` objects. The API follows the final Mastodon 4.6 collections
+  spec (`name`/`tag_name`/`discoverable`/`sensitive` params, `WrappedCollection` /
+  `CollectionWithAccounts` / `WrappedCollectionItem` responses with stable item
+  ids, anonymous reads of discoverable collections, and item-id-addressed
+  remove/revoke) while keeping the pre-final `title`/`topic`/`visibility`
+  vocabulary, bulk `account_ids` mutations, the per-member approve consent
+  endpoint, and account-id addressing as documented extensions.
 - **Remote statuses** — `/api/v1/accounts/:id/remote-statuses` exposes cached
   remote posts for an actor.
 - **Admin CRUD extras** — custom emoji, domain allow/deny lists (with import),
