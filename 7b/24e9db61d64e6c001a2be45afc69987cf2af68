@@ -1,0 +1,30 @@
+app/api/v1/domain_blocks/route.ts
+  s_ab97d21f52c341::t_5c66c89bfd8035 5
+  s_ab97d21f52c341::t_5ce0f0282f4e10 37,44-47,58
+lib/types/domain/actorDomainBlock.ts
+  s_ab97d21f52c341::t_bb36dae32f42ba 6-8
+lib/services/federation/domainRules.ts
+  s_ab97d21f52c341::t_61fe118db9e4bd 79-110
+app/api/v1/domain_blocks/route.test.ts
+  s_ab97d21f52c341::t_ff0345beb9b38b 357-407
+  s_ab97d21f52c341::t_a503fa6d678019 408
+lib/services/federation/domainRules.test.ts
+  s_ab97d21f52c341::t_b3729c51ebfab2 8
+  s_ab97d21f52c341::t_35e3c69a4468e4 101-144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7b24e9db61d64e6c001a2be45afc69987cf2af68",
+  "prompts": {},
+  "sessions": {
+    "s_ab97d21f52c341": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "62bf221b-714f-4225-95d2-e37f0d6fd6a3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
