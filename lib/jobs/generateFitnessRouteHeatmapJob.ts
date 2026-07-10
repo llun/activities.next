@@ -268,6 +268,31 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
         }
       }
 
+      // A cancel that landed while this job was queued must win at the start too:
+      // the initial claim write is unguarded (a fresh retry must be able to
+      // reclaim a cancelled row), so a stale job whose requestedAt predates the
+      // cancellation would otherwise resurrect it (e.g. an at-least-once
+      // redelivery of the original job). Mirror the soft-delete staleness guard:
+      // only a non-resume run requested at/after the cancel may reclaim it.
+      if (existing && !existing.deletedAt && existing.status === 'cancelled') {
+        const canReclaimCancelled =
+          !isResume &&
+          requestedAt !== undefined &&
+          requestedAt >= existing.updatedAt
+        if (!canReclaimCancelled) {
+          logger.info({
+            message:
+              'Skipping stale route heatmap generation after cancellation',
+            actorId,
+            periodType,
+            periodKey,
+            requestedAt,
+            cancelledAt: existing.updatedAt
+          })
+          return
+        }
+      }
+
       const canResumeExisting =
         existing &&
         (['generating', 'failed'].includes(existing.status) ||

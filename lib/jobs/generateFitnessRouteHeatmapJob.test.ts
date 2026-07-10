@@ -1050,6 +1050,72 @@ describe('generateFitnessRouteHeatmapJob', () => {
     await database.deleteFitnessFile({ id: fileId })
   })
 
+  it('skips a generation queued before a cancellation but runs a later regenerate', async () => {
+    const created = await database.createFitnessRouteHeatmap({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2099-07'
+    })
+    await database.cancelFitnessRouteHeatmapGeneration({
+      actorId: actor.id,
+      id: created.id
+    })
+    const cancelled = await database.getFitnessRouteHeatmapByKey({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2099-07'
+    })
+    const cancelledAt = cancelled?.updatedAt ?? 0
+
+    // A job requested BEFORE the cancellation is stale (e.g. an at-least-once
+    // redelivery of the original job) and must not resurrect it.
+    await generateFitnessRouteHeatmapJob(database, {
+      id: 'job-route-heatmap-stale-precancel',
+      name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        activityType: 'running',
+        periodType: 'monthly',
+        periodKey: '2099-07',
+        requestedAt: cancelledAt - 1_000
+      }
+    })
+    await expect(
+      database.getFitnessRouteHeatmapByKey({
+        actorId: actor.id,
+        activityType: 'running',
+        periodType: 'monthly',
+        periodKey: '2099-07'
+      })
+    ).resolves.toMatchObject({ status: 'cancelled' })
+    expect(mockGetFitnessFile).not.toHaveBeenCalled()
+
+    // An explicit regenerate requested AFTER the cancellation reclaims and runs.
+    await generateFitnessRouteHeatmapJob(database, {
+      id: 'job-route-heatmap-regen-postcancel',
+      name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        activityType: 'running',
+        periodType: 'monthly',
+        periodKey: '2099-07',
+        requestedAt: cancelledAt + 1_000
+      }
+    })
+    await expect(
+      database.getFitnessRouteHeatmapByKey({
+        actorId: actor.id,
+        activityType: 'running',
+        periodType: 'monthly',
+        periodKey: '2099-07'
+      })
+    ).resolves.toMatchObject({ status: 'completed' })
+
+    await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+  })
+
   it('resumes failed rows that still have checkpointed progress', async () => {
     const created = await database.createFitnessRouteHeatmap({
       actorId: actor.id,
