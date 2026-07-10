@@ -1,0 +1,22 @@
+app/api/v1/tags/[tag]/unfeature/route.test.ts
+  s_ab97d21f52c341::t_80a492ce2f1603 1-110
+  s_ab97d21f52c341::t_accbbca2dedeb0 111-113
+app/api/v1/tags/[tag]/unfeature/route.ts
+  s_ab97d21f52c341::t_a924e411abd249 1-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f7bd5368228319f9a5112ab3426841c0202c359e",
+  "prompts": {},
+  "sessions": {
+    "s_ab97d21f52c341": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "62bf221b-714f-4225-95d2-e37f0d6fd6a3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
