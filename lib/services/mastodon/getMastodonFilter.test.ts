@@ -4,10 +4,12 @@ import { getSQLDatabase } from '@/lib/database/sql'
 import { Database } from '@/lib/database/types'
 import {
   getMastodonFilter,
-  getMastodonFilters
+  getMastodonFilters,
+  getV1Filter
 } from '@/lib/services/mastodon/getMastodonFilter'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+import { V1Filter } from '@/lib/types/mastodon'
 
 describe('getMastodonFilter', () => {
   let knexDatabase: Knex
@@ -85,5 +87,58 @@ describe('getMastodonFilter', () => {
     expect(result.map((entry) => entry.title)).toEqual(['A', 'B'])
     expect(result[0].expires_at).toBeNull()
     expect(result[0].filter_action).toBe('hide')
+  })
+})
+
+describe('getV1Filter', () => {
+  const baseKeyword = {
+    id: 'keyword-1',
+    filterId: 'filter-1',
+    keyword: 'apple',
+    wholeWord: true,
+    createdAt: 1_700_000_000_000,
+    updatedAt: 1_700_000_000_000
+  }
+
+  it('builds the v1 row from the keyword and its parent filter', () => {
+    const result = getV1Filter(
+      {
+        context: ['home', 'public'],
+        expiresAt: Date.UTC(2026, 0, 2, 3, 4, 5, 6),
+        filterAction: 'warn'
+      },
+      baseKeyword
+    )
+
+    expect(result).toEqual({
+      id: 'keyword-1',
+      phrase: 'apple',
+      context: ['home', 'public'],
+      expires_at: '2026-01-02T03:04:05.006Z',
+      irreversible: false,
+      whole_word: true
+    })
+    expect(V1Filter.safeParse(result).success).toBe(true)
+  })
+
+  it.each([
+    {
+      description: 'maps filter_action warn to irreversible=false',
+      filterAction: 'warn' as const,
+      expected: false
+    },
+    {
+      description: 'maps filter_action hide to irreversible=true',
+      filterAction: 'hide' as const,
+      expected: true
+    }
+  ])('$description', ({ filterAction, expected }) => {
+    const result = getV1Filter(
+      { context: ['home'], expiresAt: null, filterAction },
+      baseKeyword
+    )
+
+    expect(result.irreversible).toBe(expected)
+    expect(result.expires_at).toBeNull()
   })
 })
