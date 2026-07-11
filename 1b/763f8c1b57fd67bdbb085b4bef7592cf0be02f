@@ -1,0 +1,30 @@
+scripts/fitness/importStoredFitnessFile.ts
+  s_49f1e724b425e6::t_68ca9849246a2b 11-16
+  s_49f1e724b425e6::t_e97ac6e82ffd57 150-158,161,163,165,167,169,171-191,193-199,202-205,207-213,215-217,220
+  s_49f1e724b425e6::t_abdd9ad21d2c1d 1-10,17-149,159-160,162,164,166,168,170,192,200-201,206,214,218-219,221-230
+  s_49f1e724b425e6::t_686d9dc733a54b 231-234
+docs/maintenance.md
+  s_49f1e724b425e6::t_ae95a5a231b966 152-190
+scripts/fitness/diagnoseFitnessImport.ts
+  s_49f1e724b425e6::t_3b3e46cb7bf4cb 26
+  s_49f1e724b425e6::t_979753ac8f407c 225,235,237-244,248,252-301
+  s_49f1e724b425e6::t_816b9423c67265 1-25,27,29-224,226-234,236,245-247,249-251,302-325
+  s_49f1e724b425e6::t_79151ca501e128 28
+  s_49f1e724b425e6::t_9e6e23bd2c85f7 326-381
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "1b763f8c1b57fd67bdbb085b4bef7592cf0be02f",
+  "prompts": {},
+  "sessions": {
+    "s_49f1e724b425e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e78f183e-5cba-4c45-98e0-037bb04abcd0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
