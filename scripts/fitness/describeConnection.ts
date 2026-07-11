@@ -49,8 +49,18 @@ export const describeConnection = (): ConnectionInfo => {
   }
 
   if (typeof conn === 'string') {
-    // A connection URI may embed the password — never print it.
-    return { client, target: '(connection string — hidden)', isLocal: false }
+    // A connection URI may embed the password — never print it. Best-effort
+    // local detection: a bare local host, a unix socket path, or a URL whose
+    // host is local. `new URL` throws on a plain hostname, so guard it.
+    let isLocal = LOCAL_HOSTS.has(conn) || conn.startsWith('/')
+    if (!isLocal) {
+      try {
+        isLocal = LOCAL_HOSTS.has(new URL(conn).hostname)
+      } catch {
+        isLocal = [...LOCAL_HOSTS].some((host) => conn.includes(host))
+      }
+    }
+    return { client, target: '(connection string — hidden)', isLocal }
   }
 
   if (conn && typeof conn === 'object') {
