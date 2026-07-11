@@ -7,17 +7,21 @@
  * and overwrites the stored GPX/TCX files with enriched data (heartrate, power,
  * speed, cadence, temperature).
  *
- * Activities that have been deleted from Strava (404) are cleaned up: their S3
- * file, database record, and associated status post are all removed.
+ * Activities that have been deleted from Strava (404) are, by default, only
+ * reported. Pass --delete-missing to hard-delete their S3 file, database record,
+ * and associated status post. That deletion is IRREVERSIBLE.
  *
  * Usage:
  *   NODE_ENV=production scripts/fitness/repairStravaActivityFiles.ts \
  *     [--actor-id https://<host>/users/<username>] \
+ *     [--delete-missing] \
  *     [--dry-run]
  *
  * Options:
- *   --actor-id  Limit repairs to a specific actor (optional, repairs all actors)
- *   --dry-run   Print what would be done without modifying anything
+ *   --actor-id        Limit repairs to a specific actor (optional, repairs all actors)
+ *   --delete-missing  Hard-delete activities returning 404 from Strava (S3 file, DB
+ *                     record, and status). Default off = report only. IRREVERSIBLE.
+ *   --dry-run         Print what would be done without modifying anything
  *
  * Only S3/Object storage backends are supported.
  */
@@ -42,21 +46,30 @@ import {
   getStravaActivityStreams,
   getValidStravaAccessToken
 } from '@/lib/services/strava/activity'
+import { getStravaActivityIdFromBatchId } from '@/lib/services/strava/activityBatch'
+
+import { printDatabaseBanner } from './describeConnection'
 
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
 
 const CliArgs = z.object({
   actorId: z.string().optional(),
+  deleteMissing: z.boolean(),
   dryRun: z.boolean()
 })
 
 const USAGE = `Usage: NODE_ENV=production scripts/fitness/repairStravaActivityFiles.ts \\
   [--actor-id https://<host>/users/<username>] \\
-  [--dry-run]`
+  [--delete-missing] \\
+  [--dry-run]
+
+  --delete-missing hard-deletes activities that Strava returns 404 for (S3 file,
+  DB record, and status). Default off = report only. This deletion is IRREVERSIBLE.`
 
 const parseArgs = (args: string[]) => {
   let actorId: string | undefined
+  let deleteMissing = false
   let dryRun = false
 
   for (let index = 0; index < args.length; index += 1) {
@@ -69,6 +82,8 @@ const parseArgs = (args: string[]) => {
 
     if (rawKey === 'dry-run') {
       dryRun = true
+    } else if (rawKey === 'delete-missing') {
+      deleteMissing = true
     } else if (rawKey === 'actor-id') {
       const nextValue = inlineValue ?? args[index + 1]
       if (!nextValue || nextValue.startsWith('--')) {
@@ -83,7 +98,7 @@ const parseArgs = (args: string[]) => {
     }
   }
 
-  return CliArgs.parse({ actorId, dryRun })
+  return CliArgs.parse({ actorId, deleteMissing, dryRun })
 }
 
 type StravaFitnessFileRow = {
@@ -110,6 +125,8 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
     console.error(USAGE)
     return 1
   }
+
+  printDatabaseBanner()
 
   const config = getConfig()
   const database = getDatabase()
@@ -174,11 +191,20 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
 
   let updatedCount = 0
   let deletedCount = 0
+  let missingCount = 0
   let skipCount = 0
   let failureCount = 0
 
   for (const file of files) {
-    const stravaActivityId = file.importBatchId.replace('strava-activity:', '')
+    const stravaActivityId = getStravaActivityIdFromBatchId(file.importBatchId)
+    if (!stravaActivityId) {
+      console.log(
+        `  [${file.fileType.toUpperCase()}] ${file.path} (import batch ${file.importBatchId})`
+      )
+      console.log(`    ✗ Could not parse Strava activity id from import batch`)
+      failureCount += 1
+      continue
+    }
     console.log(
       `  [${file.fileType.toUpperCase()}] ${file.path} (Strava #${stravaActivityId})`
     )
@@ -302,6 +328,15 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
       const s3Key = prefix ? `${prefix}${file.path}` : file.path
       const statusLabel = file.statusId ? ` + status ${file.statusId}` : ''
 
+      // Deleting is irreversible, so only do it when explicitly opted in.
+      if (!input.deleteMissing) {
+        console.log(
+          `    ⚠ Activity removed from Strava — S3 file, fitness file record${statusLabel} would be deleted (re-run with --delete-missing to remove)`
+        )
+        missingCount += 1
+        continue
+      }
+
       if (input.dryRun) {
         console.log(
           `    ✓ Would delete S3 file, fitness file record${statusLabel} (activity removed from Strava)`
@@ -334,7 +369,7 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
 
   const dryRunLabel = input.dryRun ? ' (dry-run)' : ''
   console.log(
-    `\nDone${dryRunLabel}: ${updatedCount} updated, ${deletedCount} deleted, ${skipCount} skipped, ${failureCount} failed out of ${files.length} total`
+    `\nDone${dryRunLabel}: ${updatedCount} updated, ${deletedCount} deleted, ${missingCount} missing (report only), ${skipCount} skipped, ${failureCount} failed out of ${files.length} total`
   )
   return failureCount > 0 ? 1 : 0
 }

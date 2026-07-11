@@ -464,6 +464,15 @@ export const FitnessFileSQLDatabaseMixin = (
               .where('processingStatus', 'processing')
               .where('updatedAt', '<=', stuckBefore)
           })
+          // A SIGABRT/OOM crashes the importer before its catch can write
+          // 'failed', stranding the file at importStatus='pending' with no
+          // statusId (see isFitnessImportStuck). Those orphans are retriable too.
+          .orWhere((stuckImport) => {
+            stuckImport
+              .where('importStatus', 'pending')
+              .whereNull('statusId')
+              .where('updatedAt', '<=', stuckBefore)
+          })
       })
       .distinct('importBatchId')
 

@@ -16,6 +16,8 @@ import { getDatabase } from '@/lib/database'
 import { importStravaActivityJob } from '@/lib/jobs/importStravaActivityJob'
 import { IMPORT_STRAVA_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
 
+import { printDatabaseBanner } from './describeConnection'
+
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
 
@@ -75,6 +77,8 @@ async function runImportStravaActivity(args = process.argv.slice(2)) {
     console.error(USAGE)
     return 1
   }
+
+  printDatabaseBanner()
 
   const database = getDatabase()
   if (!database) {

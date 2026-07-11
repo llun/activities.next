@@ -23,7 +23,10 @@ import { z } from 'zod'
 import { getDatabase } from '@/lib/database'
 import { importStravaActivityJob } from '@/lib/jobs/importStravaActivityJob'
 import { IMPORT_STRAVA_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
+import { getStravaActivityBatchId } from '@/lib/services/strava/activityBatch'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+
+import { printDatabaseBanner } from './describeConnection'
 
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
@@ -86,6 +89,8 @@ async function retrigerStravaActivities(args = process.argv.slice(2)) {
     return 1
   }
 
+  printDatabaseBanner()
+
   const database = getDatabase()
   if (!database) {
     console.error('Error: Database is not available')
@@ -102,8 +107,9 @@ async function retrigerStravaActivities(args = process.argv.slice(2)) {
     'After confirming the new fitness statuses look correct, delete the old ones from the UI.\n'
   )
 
-  let successCount = 0
-  let failureCount = 0
+  let createdCount = 0
+  let skippedCount = 0
+  let errorCount = 0
 
   for (const activityId of input.activityIds) {
     const jobId = getHashFromString(
@@ -120,19 +126,38 @@ async function retrigerStravaActivities(args = process.argv.slice(2)) {
           stravaActivityId: activityId
         }
       })
-      console.log(`  ✓ Activity ${activityId} imported successfully`)
-      successCount += 1
+
+      // importStravaActivityJob silently return()s (no throw) when the actor,
+      // settings or token is missing/expired, or when it finishes without
+      // assigning a status. Re-query the batch to tell a real import apart from
+      // a no-op instead of trusting the absence of an exception.
+      const batchFiles = await database.getFitnessFilesByBatchId({
+        batchId: getStravaActivityBatchId(activityId)
+      })
+      const createdStatus = batchFiles.some(
+        (file) => file.actorId === input.actorId && Boolean(file.statusId)
+      )
+
+      if (createdStatus) {
+        console.log(`  ✓ Activity ${activityId} created a fitness status`)
+        createdCount += 1
+      } else {
+        console.log(
+          `  ! Activity ${activityId} skipped — no status created (missing actor/settings/token, or nothing to import)`
+        )
+        skippedCount += 1
+      }
     } catch (error) {
       const nodeError = error as Error
-      console.error(`  ✗ Activity ${activityId} failed: ${nodeError.message}`)
-      failureCount += 1
+      console.error(`  ✗ Activity ${activityId} error: ${nodeError.message}`)
+      errorCount += 1
     }
   }
 
   console.log(
-    `\nDone: ${successCount} succeeded, ${failureCount} failed out of ${input.activityIds.length} total`
+    `\nDone: ${createdCount} created, ${skippedCount} skipped, ${errorCount} error out of ${input.activityIds.length} total`
   )
-  return failureCount > 0 ? 1 : 0
+  return skippedCount > 0 || errorCount > 0 ? 1 : 0
 }
 
 if (require.main === module) {

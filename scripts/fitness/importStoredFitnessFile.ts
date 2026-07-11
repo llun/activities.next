@@ -28,13 +28,18 @@
 import { loadEnvConfig } from '@next/env'
 import { z } from 'zod'
 
-import { getDatabaseConfig } from '@/lib/config/database'
 import { getDatabase } from '@/lib/database'
+import {
+  FitnessOverlapActivity,
+  groupFitnessActivitiesByOverlap
+} from '@/lib/jobs/fitnessImportOverlap'
 import { importFitnessFilesJob } from '@/lib/jobs/importFitnessFilesJob'
 import { IMPORT_FITNESS_FILES_JOB_NAME } from '@/lib/jobs/names'
 import { getStravaActivityBatchId } from '@/lib/services/strava/activityBatch'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+
+import { printDatabaseBanner } from './describeConnection'
 
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
@@ -94,10 +99,7 @@ async function main() {
     return 1
   }
 
-  const dbConfig = getDatabaseConfig()
-  console.log(
-    `Database client: ${String(dbConfig?.database.client ?? '(unset)')}`
-  )
+  printDatabaseBanner()
 
   const database = getDatabase()
   if (!database) {
@@ -167,9 +169,46 @@ async function main() {
   console.log(`  files: ${targets.map((f) => f.fileName).join(', ')}\n`)
 
   if (input.dryRun) {
+    // Predict the post grouping WITHOUT touching the database: files that overlap
+    // >=80% on start+duration merge into one post, while files missing a start
+    // time or a positive duration can't be grouped and each become their own post.
+    const fileNameById = new Map(targets.map((f) => [f.id, f.fileName]))
+    const groupable: FitnessOverlapActivity[] = []
+    const ungroupable: FitnessFile[] = []
+    for (const file of targets) {
+      if (
+        typeof file.activityStartTime === 'number' &&
+        typeof file.totalDurationSeconds === 'number' &&
+        file.totalDurationSeconds > 0
+      ) {
+        groupable.push({
+          id: file.id,
+          startTimeMs: file.activityStartTime,
+          durationSeconds: file.totalDurationSeconds
+        })
+      } else {
+        ungroupable.push(file)
+      }
+    }
+
+    const groups = groupFitnessActivitiesByOverlap(groupable, 0.8)
+    const postCount = groups.length + ungroupable.length
     console.log(
-      '  would call importFitnessFilesJob once (no Strava); >=80% overlap => one post'
+      `  would create ${postCount} post(s) (dry run — no Strava, no database writes):`
     )
+    groups.forEach((group, index) => {
+      const names = group.map((a) => fileNameById.get(a.id) ?? a.id)
+      console.log(
+        `    post ${index + 1}: ${names.join(' + ')}` +
+          (names.length > 1 ? ' (merged — same-ride >=80% overlap)' : '')
+      )
+    })
+    ungroupable.forEach((file, index) => {
+      console.log(
+        `    post ${groups.length + index + 1}: ${file.fileName}` +
+          ' (own post — no start time / positive duration, cannot group)'
+      )
+    })
     return 0
   }
 

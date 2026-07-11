@@ -19,7 +19,7 @@
  */
 import { loadEnvConfig } from '@next/env'
 
-import { getDatabaseConfig } from '@/lib/config/database'
+import { MINIMUM_PRODUCTION_SECRET_LENGTH, getConfig } from '@/lib/config'
 import { getFitnessStorageConfig } from '@/lib/config/fitnessStorage'
 import { getMediaStorageConfig } from '@/lib/config/mediaStorage'
 import { getDatabase } from '@/lib/database'
@@ -28,17 +28,10 @@ import { getValidStravaAccessToken } from '@/lib/services/strava/activity'
 import { getStravaActivityBatchId } from '@/lib/services/strava/activityBatch'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 
+import { describeConnection } from './describeConnection'
+
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
-
-const LOCAL_HOSTS = new Set([
-  'localhost',
-  '127.0.0.1',
-  '::1',
-  'activities.local',
-  'host.docker.internal',
-  'postgres'
-])
 
 const ok = (label: string, detail = '') =>
   console.log(`  ✓ ${label}${detail ? ` — ${detail}` : ''}`)
@@ -74,50 +67,6 @@ const parseArgs = (args: string[]) => {
   return { actorId, activityIds, batchIds, skipToken }
 }
 
-const describeConnection = () => {
-  const dbConfig = getDatabaseConfig()
-  if (!dbConfig)
-    return { client: '(unset)', target: '(no database config)', isLocal: true }
-
-  const client = String(dbConfig.database.client ?? '(unknown)')
-  const conn = dbConfig.database.connection as
-    | {
-        host?: string
-        port?: number
-        database?: string
-        user?: string
-        filename?: string
-      }
-    | string
-    | undefined
-
-  if (client.includes('sqlite')) {
-    const filename =
-      typeof conn === 'object' && conn
-        ? (conn.filename ?? '(memory)')
-        : '(memory)'
-    return { client, target: `file ${filename}`, isLocal: true }
-  }
-
-  if (typeof conn === 'string') {
-    // A connection URI may embed the password — never print it.
-    return { client, target: '(connection string — hidden)', isLocal: false }
-  }
-
-  if (conn && typeof conn === 'object') {
-    const host = conn.host ?? '(unset)'
-    const db = conn.database ?? '(unset)'
-    const isLocal = LOCAL_HOSTS.has(host)
-    return {
-      client,
-      target: `host ${host}${conn.port ? `:${conn.port}` : ''} / db ${db} / user ${conn.user ?? '(unset)'}`,
-      isLocal
-    }
-  }
-
-  return { client, target: '(unknown connection)', isLocal: true }
-}
-
 async function main() {
   let input: ReturnType<typeof parseArgs>
   try {
@@ -127,7 +76,12 @@ async function main() {
     return 1
   }
 
+  // Hard blockers stop ALL recovery (wrong DB / missing actor). Strava
+  // prerequisites (secret / settings / token) only gate the retrigerStrava path;
+  // importStoredFitnessFile rebuilds from the stored file with no Strava, so a
+  // Strava miss is a warning, not a blocker.
   let blockers = 0
+  let stravaReady = true
 
   // 1. Which database ------------------------------------------------------
   console.log('\n[1] Database connection (what the recovery would use)')
@@ -145,15 +99,31 @@ async function main() {
 
   // 2. Secret phase & storage (needed to decrypt Strava creds + read/write media)
   console.log('\n[2] Runtime config')
-  const secret = process.env.ACTIVITIES_SECRET_PHASE ?? ''
-  if (secret.length >= 32)
-    ok('ACTIVITIES_SECRET_PHASE set', `${secret.length} chars`)
-  else {
-    bad(
-      'ACTIVITIES_SECRET_PHASE missing/too short',
-      'Strava token in the DB is encrypted with it; wrong phrase -> settings decrypt to empty'
+  // Source the secret through the real config (getConfig validates the trimmed
+  // length against MINIMUM_PRODUCTION_SECRET_LENGTH) rather than reading
+  // process.env directly, so this reflects exactly what the app uses to decrypt
+  // Strava tokens. getConfig() throws if the env config is incomplete.
+  let secretLength: number | null = null
+  let configError: string | null = null
+  try {
+    secretLength = getConfig().secretPhase.trim().length
+  } catch (error) {
+    configError = (error as Error).message
+  }
+  if (configError) {
+    warn(
+      'Runtime config could not be loaded',
+      `${configError} — a too-short ACTIVITIES_SECRET_PHASE or another missing var; Strava decryption may fail (stored-file recovery still works)`
     )
-    blockers += 1
+    stravaReady = false
+  } else if ((secretLength ?? 0) >= MINIMUM_PRODUCTION_SECRET_LENGTH) {
+    ok('ACTIVITIES_SECRET_PHASE set', `${secretLength} chars`)
+  } else {
+    warn(
+      'ACTIVITIES_SECRET_PHASE too short',
+      `${secretLength} < ${MINIMUM_PRODUCTION_SECRET_LENGTH}; Strava token decrypts to empty (stored-file recovery still works)`
+    )
+    stravaReady = false
   }
   try {
     const fs = getFitnessStorageConfig()
@@ -211,9 +181,9 @@ async function main() {
     bad('No Strava settings row for this actor')
     warn(
       'Means',
-      'either the actor never connected Strava in THIS db, or the row is not decryptable'
+      'either the actor never connected Strava in THIS db, or the row is not decryptable — retrigerStrava is out, use importStoredFitnessFile'
     )
-    if (actor) blockers += 1
+    if (actor) stravaReady = false
   } else {
     ok('Strava settings row present')
     console.log(
@@ -226,11 +196,11 @@ async function main() {
       `      refreshToken: ${settings.refreshToken ? 'present (decrypted)' : 'MISSING/undecryptable'}`
     )
     if (!settings.accessToken && !settings.refreshToken) {
-      bad(
+      warn(
         'No usable tokens',
-        'row exists but tokens are empty — usually a wrong ACTIVITIES_SECRET_PHASE'
+        'row exists but tokens are empty — usually a wrong ACTIVITIES_SECRET_PHASE; use importStoredFitnessFile'
       )
-      blockers += 1
+      stravaReady = false
     }
   }
 
@@ -247,15 +217,15 @@ async function main() {
       if (token)
         ok('Valid access token obtained', '(refresh works if it was expired)')
       else {
-        bad(
+        warn(
           'Could not obtain a valid access token',
-          'reconnect Strava for this actor'
+          'reconnect Strava for retrigerStrava, or use importStoredFitnessFile (no token needed)'
         )
-        blockers += 1
+        stravaReady = false
       }
     } catch (error) {
-      bad('Token check errored', (error as Error).message)
-      blockers += 1
+      warn('Token check errored', (error as Error).message)
+      stravaReady = false
     }
   } else {
     warn('Skipped', 'no settings to check')
@@ -359,16 +329,31 @@ async function main() {
 
   // Verdict ----------------------------------------------------------------
   console.log('\n=== VERDICT ===')
-  if (blockers === 0) {
+  const orphanCount = found.filter((f) => !f.statusId).length
+  if (blockers > 0) {
     console.log(
-      'READY — retrigerStravaActivities can create the missing posts against this database.'
+      `BLOCKED — ${blockers} hard prerequisite(s) failed (see [1]/[3]). Fix the database/actor targeting first.`
     )
+  } else if (batchIds.length > 0 && found.length === 0) {
+    console.log(
+      'NO FILES — none of the given activity/batch ids resolve to a stored file for this actor in this database (wrong DB or wrong ids).'
+    )
+  } else if (found.length > 0 && orphanCount === 0) {
+    console.log('NOTHING TO DO — every file found already has a post.')
   } else {
     console.log(
-      `BLOCKED — ${blockers} prerequisite(s) failed above. Re-running the import now would skip or fail.`
+      'RECOVERABLE against this database. To recreate the missing post(s):'
+    )
+    console.log(
+      stravaReady
+        ? '  • retrigerStravaActivities  — re-fetches the Strava activity (restores caption/photos); use if it still exists on Strava.'
+        : '  • retrigerStravaActivities  — NOT available (Strava creds/token missing above).'
+    )
+    console.log(
+      '  • importStoredFitnessFile   — rebuilds from the already-stored file, no Strava; use if the activity was deleted from Strava or Strava is unavailable.'
     )
   }
-  return blockers === 0 ? 0 : 1
+  return blockers > 0 ? 1 : 0
 }
 
 if (require.main === module) {

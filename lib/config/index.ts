@@ -26,7 +26,7 @@ import { TranslationConfig, getTranslationConfig } from './translation'
 import { getEnvironmentList } from './utils'
 
 const FederationMode = z.enum(['open', 'allowlist'])
-const MINIMUM_PRODUCTION_SECRET_LENGTH = 32
+export const MINIMUM_PRODUCTION_SECRET_LENGTH = 32
 const IGNORED_CONFIG_FILE_NAME = 'config.json'
 
 const Config = z.object({

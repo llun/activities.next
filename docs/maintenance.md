@@ -148,6 +148,8 @@ NODE_ENV=production ./scripts/fitness/listStravaWebhooks.ts @username@your-domai
 ```
 
 > **Note:** `fixStuckFitnessProcessing.ts` has no dry-run/preview mode — it updates stuck files immediately (it also supports a `--status-hash <64-char-hex>` mode instead of `--actor-id`).
+>
+> **Note:** `repairStravaActivityFiles.ts` only **reports** activities that Strava 404s by default; pass `--delete-missing` to hard-delete their stored file, DB record, and post (irreversible). Every recovery script prints the resolved database target on start — verify it is production (`.env.local` shadows `.env.production` even under `NODE_ENV=production`).
 
 #### Recovering an import that stored the file but never created the post
 

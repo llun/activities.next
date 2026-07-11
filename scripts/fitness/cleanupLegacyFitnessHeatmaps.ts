@@ -10,10 +10,14 @@ import { loadEnvConfig } from '@next/env'
 import { getDatabase } from '@/lib/database'
 import { deleteMediaFile } from '@/lib/services/medias'
 
+import { printDatabaseBanner } from './describeConnection'
+
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
 
 async function cleanupLegacyFitnessHeatmaps() {
+  printDatabaseBanner()
+
   const database = getDatabase()
   if (!database) {
     console.error('Database is not available')
@@ -41,16 +45,24 @@ async function cleanupLegacyFitnessHeatmaps() {
           actorId,
           path: imagePath
         })
-        if (!databaseDeleted) {
-          throw new Error('Media database row was not deleted')
-        }
+        // A false `databaseDeleted` means the `medias` row was ALREADY gone
+        // (lib/database/sql/media.ts returns false when the row isn't found).
+        // On a re-run that is an idempotent success, NOT a failure, so we fall
+        // through and mark the queue row done — letting it drain instead of
+        // being permanently stranded as 'failed'. Genuine problems still
+        // surface: the storage delete above keeps a false as an error, and any
+        // thrown exception is handled as a failure below.
 
         await database.markLegacyFitnessHeatmapMediaCleanupPath({
           actorId,
           imagePath
         })
         deleted += 1
-        console.log(`Deleted ${imagePath}`)
+        console.log(
+          databaseDeleted
+            ? `Deleted ${imagePath}`
+            : `Already deleted ${imagePath} (media row was gone)`
+        )
       } catch (error) {
         const nodeError = error as Error
         failed += 1
