@@ -149,6 +149,45 @@ NODE_ENV=production ./scripts/fitness/listStravaWebhooks.ts @username@your-domai
 
 > **Note:** `fixStuckFitnessProcessing.ts` has no dry-run/preview mode — it updates stuck files immediately (it also supports a `--status-hash <64-char-hex>` mode instead of `--actor-id`).
 
+#### Recovering an import that stored the file but never created the post
+
+When an import failed after saving the file to storage but before creating the
+status (an orphaned file — visible under "Your Fitness Files" with no matching
+post), first run the read-only preflight. It reports **which database** you are
+actually connected to and whether the actor, Strava settings/token, stored file,
+and same-ride overlap are present:
+
+```bash
+NODE_ENV=production ./scripts/fitness/diagnoseFitnessImport.ts \
+  --actor-id https://your-domain.tld/users/username \
+  --activity-id 123456789 [--activity-id ...] [--skip-token]
+```
+
+Then recover. If the Strava activity still exists, `retrigerStravaActivities.ts`
+re-fetches it (restoring caption/photos). If it was **deleted from Strava** (the
+re-trigger 404s), rebuild the post straight from the already-stored file — no
+Strava call — with:
+
+```bash
+NODE_ENV=production ./scripts/fitness/importStoredFitnessFile.ts \
+  --actor-id https://your-domain.tld/users/username \
+  --activity-id 123456789 [--activity-id ...] [--visibility public] [--dry-run]
+```
+
+Passing several `--activity-id`s at once groups them by same-ride overlap (≥80%
+on start+duration), so one ride recorded as two Strava activities merges into a
+single post instead of duplicates. To consolidate existing duplicate posts,
+delete them first (deleting a status detaches its files back to orphans), then
+re-run with all the activity ids.
+
+> **Important — run these against the right database.** `@next/env` loads
+> `.env.local` at higher precedence than `.env.production` **even under**
+> `NODE_ENV=production`, so a stray `.env.local` silently points every recovery
+> script at your **local** database — which then reports "nothing to do". Move it
+> aside for the run (`mv .env.local .env.local.off`, restore it after), and
+> confirm the `[1] Database connection` line from `diagnoseFitnessImport.ts`
+> shows your production host.
+
 For local archive or one-off activity imports, see the `--help` output from:
 
 ```bash
