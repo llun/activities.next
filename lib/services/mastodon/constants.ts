@@ -1,4 +1,15 @@
-export const MAX_STATUS_MEDIA_ATTACHMENTS = 4
+// The number of media attachments Mastodon (and the wider fediverse) render on
+// a status. We may store more than this locally, but the outbound ActivityPub
+// note only carries the first MAX_FEDERATION_MEDIA_ATTACHMENTS so remote servers
+// receive a Mastodon-compatible payload.
+export const MAX_FEDERATION_MEDIA_ATTACHMENTS = 4
+
+// Upper bound on how many media a single status may store / accept through the
+// create and edit APIs. Purely a safety ceiling so one status can't fan out an
+// unbounded number of media lookups; the fediverse still only ever sees the
+// first MAX_FEDERATION_MEDIA_ATTACHMENTS of them.
+export const MAX_STORED_MEDIA_ATTACHMENTS = 20
+
 export const MAX_PINNED_STATUSES = 5
 
 // Poll limits, matching Mastodon's defaults

@@ -16,7 +16,7 @@ import {
   MAX_POLL_EXPIRATION_SECONDS,
   MAX_POLL_OPTIONS,
   MAX_POLL_OPTION_CHARS,
-  MAX_STATUS_MEDIA_ATTACHMENTS,
+  MAX_STORED_MEDIA_ATTACHMENTS,
   MIN_POLL_EXPIRATION_SECONDS,
   MIN_POLL_OPTIONS
 } from '@/lib/services/mastodon/constants'
@@ -199,7 +199,21 @@ export const PUT = traceApiRoute(
             : [...new Set(changes.media_ids)]
         if (
           mediaIds !== undefined &&
-          mediaIds.length > MAX_STATUS_MEDIA_ATTACHMENTS
+          mediaIds.length > MAX_STORED_MEDIA_ATTACHMENTS
+        ) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_422,
+            responseStatusCode: 422
+          })
+        }
+        // Bound media_attributes the same way as media_ids: each entry drives a
+        // database.updateMedia write below, so an unbounded array would fan out
+        // an unbounded number of writes.
+        if (
+          mediaAttributes !== undefined &&
+          mediaAttributes.length > MAX_STORED_MEDIA_ATTACHMENTS
         ) {
           return apiResponse({
             req,

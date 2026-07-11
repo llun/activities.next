@@ -4,7 +4,11 @@ import { NextRequest } from 'next/server'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { encodeFavouritedByCursor } from '@/lib/database/sql/utils/favouritedByCursor'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { MAX_PINNED_STATUSES } from '@/lib/services/mastodon/constants'
+import {
+  MAX_FEDERATION_MEDIA_ATTACHMENTS,
+  MAX_PINNED_STATUSES,
+  MAX_STORED_MEDIA_ATTACHMENTS
+} from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { deleteMediaFile } from '@/lib/services/medias'
 import { getQueue } from '@/lib/services/queue'
@@ -1605,6 +1609,259 @@ describe('GET /api/v1/statuses/[id]', () => {
         })
       ])
       expect(getQueue().publish).toHaveBeenCalledTimes(1)
+    })
+
+    it('stores more media than the federation cap and federates only the first few', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-many-media`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Fitness ride with a full photo set',
+        summary: null,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${ACTOR1_ID}/followers`]
+      })
+
+      const storedCount = MAX_FEDERATION_MEDIA_ATTACHMENTS + 1
+      const mediaIds: string[] = []
+      for (let index = 0; index < storedCount; index += 1) {
+        const media = await database.createMedia({
+          actorId: ACTOR1_ID,
+          original: {
+            path: `medias/api-edit-many-${index}.webp`,
+            bytes: 1024,
+            mimeType: 'image/jpeg',
+            metaData: { width: 320, height: 240 },
+            fileName: `api-edit-many-${index}.jpg`
+          },
+          description: `Ride photo ${index}`
+        })
+        expect(media).not.toBeNull()
+        mediaIds.push(media!.id)
+      }
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({ media_ids: mediaIds }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+
+      // The local Mastodon API returns every stored attachment...
+      const data = await response.json()
+      expect(data.media_attachments).toHaveLength(storedCount)
+
+      const attachments = await database.getAttachmentsWithMedia({ statusId })
+      expect(attachments).toHaveLength(storedCount)
+
+      // ...while the outbound ActivityPub note is trimmed to the federation cap.
+      const updatedStatus = (await database.getStatus({
+        statusId,
+        withReplies: false
+      })) as Status
+      const activityPubNote = getNoteFromStatus(updatedStatus)
+      const federatedAttachments = Array.isArray(activityPubNote?.attachment)
+        ? activityPubNote.attachment
+        : []
+      expect(federatedAttachments).toHaveLength(
+        MAX_FEDERATION_MEDIA_ATTACHMENTS
+      )
+    })
+
+    it('attaches a full photo set to a fitness ride and keeps the route map', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-fitness-photos`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Morning ride',
+        summary: null,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${ACTOR1_ID}/followers`]
+      })
+      // The route map is a media-manager image upload, mirroring the fitness
+      // import job (processFitnessFileJob stores it via saveMedia).
+      const mapMedia = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/ride-route-map.webp',
+          bytes: 2048,
+          mimeType: 'image/png',
+          metaData: { width: 640, height: 480 },
+          fileName: 'ride-route-map.png'
+        },
+        description: 'Activity route map'
+      })
+      expect(mapMedia).not.toBeNull()
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: 'image/png',
+        url: 'https://llun.test/api/v1/files/medias/ride-route-map.webp',
+        width: 640,
+        height: 480,
+        name: 'Activity route map',
+        mediaId: mapMedia!.id
+      })
+
+      const photoCount = MAX_FEDERATION_MEDIA_ATTACHMENTS
+      const photoMediaIds: string[] = []
+      for (let index = 0; index < photoCount; index += 1) {
+        const media = await database.createMedia({
+          actorId: ACTOR1_ID,
+          original: {
+            path: `medias/ride-photo-${index}.webp`,
+            bytes: 1024,
+            mimeType: 'image/jpeg',
+            metaData: { width: 320, height: 240 },
+            fileName: `ride-photo-${index}.jpg`
+          },
+          description: `Ride photo ${index}`
+        })
+        expect(media).not.toBeNull()
+        photoMediaIds.push(media!.id)
+      }
+
+      // A correct client re-sends the existing map alongside the new photos, so
+      // the edited set (map + photos) is larger than the federation cap.
+      const mediaIds = [mapMedia!.id, ...photoMediaIds]
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({ media_ids: mediaIds }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+
+      // Every photo plus the route map remain on the status.
+      const updatedStatus = (await database.getStatus({
+        statusId,
+        withReplies: false
+      })) as Status
+      expect(updatedStatus.attachments).toHaveLength(mediaIds.length)
+      expect(
+        updatedStatus.attachments.some(
+          (attachment) => attachment.name === 'Activity route map'
+        )
+      ).toBe(true)
+
+      // The federated note is still trimmed to the Mastodon cap.
+      const activityPubNote = getNoteFromStatus(updatedStatus)
+      const federatedAttachments = Array.isArray(activityPubNote?.attachment)
+        ? activityPubNote.attachment
+        : []
+      expect(federatedAttachments).toHaveLength(
+        MAX_FEDERATION_MEDIA_ATTACHMENTS
+      )
+    })
+
+    it('rejects more media_ids than the stored ceiling with 422', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-over-ceiling`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Over the stored ceiling',
+        summary: null,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${ACTOR1_ID}/followers`]
+      })
+
+      const mediaIds = Array.from(
+        { length: MAX_STORED_MEDIA_ATTACHMENTS + 1 },
+        (_, index) => `over-ceiling-media-${index}`
+      )
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({ media_ids: mediaIds }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(422)
+    })
+
+    it('rejects more media_attributes than the stored ceiling with 422', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-attributes-over-ceiling`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Over the stored ceiling with attributes',
+        summary: null,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${ACTOR1_ID}/followers`]
+      })
+
+      // Every attribute references an owned, resolvable media, so without the
+      // ceiling each one would trigger a database.updateMedia write — the
+      // unbounded fan-out this guards against.
+      const mediaAttributes = []
+      for (
+        let index = 0;
+        index < MAX_STORED_MEDIA_ATTACHMENTS + 1;
+        index += 1
+      ) {
+        const media = await database.createMedia({
+          actorId: ACTOR1_ID,
+          original: {
+            path: `medias/attr-ceiling-${index}.webp`,
+            bytes: 1024,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 },
+            fileName: `attr-ceiling-${index}.jpg`
+          }
+        })
+        expect(media).not.toBeNull()
+        mediaAttributes.push({ id: media!.id, description: `Photo ${index}` })
+      }
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({ media_attributes: mediaAttributes }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(422)
     })
 
     it('clears media attachments with an empty media id list', async () => {
