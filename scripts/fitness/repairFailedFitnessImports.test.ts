@@ -288,6 +288,35 @@ describe('repairFailedFitnessImports', () => {
     expect(database?.getFitnessFilesByBatchId).not.toHaveBeenCalled()
   })
 
+  it('repairs a SIGABRT-orphaned import stuck at pending with no status', async () => {
+    // importStatus='pending' (NOT 'failed') with no statusId: an uncatchable
+    // OOM/SIGABRT killed the importer before it could mark 'failed'. The old
+    // 'failed'-only filter skipped these; isFitnessImportStuck now catches them.
+    const orphan = {
+      id: 'orphan-1',
+      actorId,
+      importBatchId: 'strava-activity:orphan',
+      importStatus: 'pending',
+      processingStatus: 'pending',
+      statusId: null,
+      updatedAt: Date.now() - 30 * 60 * 1000,
+      fileName: 'orphan.tcx'
+    }
+    const database = {
+      getFitnessFilesByActor: vi.fn().mockResolvedValue([orphan]),
+      getFitnessFilesByBatchId: vi.fn().mockResolvedValue([orphan]),
+      updateFitnessFilesImportStatus: vi.fn(),
+      updateFitnessFilesProcessingStatus: vi.fn()
+    } as unknown as ReturnType<typeof getDatabase>
+
+    mockGetDatabase.mockReturnValue(database)
+
+    const exitCode = await repairFailedFitnessImports(['--actor-id', actorId])
+
+    expect(exitCode).toBe(0)
+    expect(mockImportStravaActivityJob).toHaveBeenCalledTimes(1)
+  })
+
   it('skips a batch that has no failed files', async () => {
     const database = {
       getFitnessFilesByBatchId: vi.fn().mockResolvedValue([

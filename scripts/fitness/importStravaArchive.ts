@@ -28,6 +28,8 @@ import {
 } from '@/lib/services/strava/archiveReader'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
+import { printDatabaseBanner } from './describeConnection'
+
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
 
@@ -113,6 +115,8 @@ async function importStravaArchive(args = process.argv.slice(2)) {
     console.error(USAGE)
     return 1
   }
+
+  printDatabaseBanner()
 
   const database = getDatabase()
   if (!database) {

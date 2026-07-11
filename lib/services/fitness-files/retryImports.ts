@@ -3,7 +3,10 @@ import {
   IMPORT_FITNESS_FILES_JOB_NAME,
   IMPORT_STRAVA_ACTIVITY_JOB_NAME
 } from '@/lib/jobs/names'
-import { isFitnessProcessingStuck } from '@/lib/services/fitness-files/processingState'
+import {
+  isFitnessImportStuck,
+  isFitnessProcessingStuck
+} from '@/lib/services/fitness-files/processingState'
 import { getQueue } from '@/lib/services/queue'
 import { getStravaActivityIdFromBatchId } from '@/lib/services/strava/activityBatch'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
@@ -15,18 +18,38 @@ export type RetryFitnessVisibility =
 
 /**
  * A fitness file is worth retrying when its import failed, its map processing
- * failed, or it has been stranded in `processing` long enough that its worker
- * must have died mid-job (see {@link isFitnessProcessingStuck}). A genuinely
- * in-flight (recent `processing`) file is left alone.
+ * failed, it was stranded in `processing` long enough that its worker must have
+ * died mid-job (see {@link isFitnessProcessingStuck}), or its import itself was
+ * killed before it could mark `failed` — an uncatchable SIGABRT/OOM leaves the
+ * file `pending` with no status (see {@link isFitnessImportStuck}). Without the
+ * last case the "retry failed" endpoint would find the crash-orphan's batch (via
+ * getRetriableFitnessImportBatchIds) but then skip the file itself. A genuinely
+ * in-flight (recent `processing`/`pending`) file is left alone.
  */
 export const isRetriableFitnessFile = (
-  file: Pick<FitnessFile, 'importStatus' | 'processingStatus' | 'updatedAt'>,
+  file: Pick<
+    FitnessFile,
+    | 'importStatus'
+    | 'processingStatus'
+    | 'statusId'
+    | 'importBatchId'
+    | 'updatedAt'
+  >,
   now: number = Date.now()
 ): boolean =>
   file.importStatus === 'failed' ||
   file.processingStatus === 'failed' ||
   isFitnessProcessingStuck(
     { processingStatus: file.processingStatus, updatedAt: file.updatedAt },
+    now
+  ) ||
+  isFitnessImportStuck(
+    {
+      importStatus: file.importStatus,
+      statusId: file.statusId,
+      importBatchId: file.importBatchId,
+      updatedAt: file.updatedAt
+    },
     now
   )
 

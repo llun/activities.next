@@ -1076,6 +1076,33 @@ describe('FitnessFileDatabase', () => {
         expect(retriable).toContain('strava-activity:empty-failed')
         // The fresh `processing` batch is still not stuck for a past threshold.
         expect(retriable).not.toContain('strava-activity:empty-proc')
+
+        // A SIGABRT-orphaned import stranded 'pending'/'pending' with no status:
+        // the importer died before it could mark 'failed'. It is retriable once
+        // older than the threshold (mirrors the stuck-processing case).
+        await database.createFitnessFile({
+          actorId,
+          path: 'fitness/empty-pending-orphan.fit',
+          fileName: 'pending-orphan.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1024,
+          importBatchId: 'strava-activity:empty-pending-orphan'
+        })
+        // Freshly created => still in-flight for a past threshold...
+        expect(
+          await database.getRetriableFitnessImportBatchIds({
+            actorId,
+            stuckBefore: past
+          })
+        ).not.toContain('strava-activity:empty-pending-orphan')
+        // ...but retriable once older than the threshold.
+        expect(
+          await database.getRetriableFitnessImportBatchIds({
+            actorId,
+            stuckBefore: future
+          })
+        ).toContain('strava-activity:empty-pending-orphan')
       })
     })
   })
