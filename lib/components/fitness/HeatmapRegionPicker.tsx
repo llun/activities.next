@@ -2,6 +2,7 @@
 
 import {
   AlertTriangle,
+  Ban,
   Check,
   ChevronRight,
   Clock,
@@ -41,7 +42,13 @@ export type PickerRegion = HeatmapRegion & { id: string }
  * its own heatmap (one kept version), so the row surfaces that region's status.
  */
 export type RegionDisplayState =
-  'idle' | 'pending' | 'generating' | 'completed' | 'partial' | 'failed'
+  | 'idle'
+  | 'pending'
+  | 'generating'
+  | 'completed'
+  | 'partial'
+  | 'failed'
+  | 'cancelled'
 
 export interface RegionDisplayStatus {
   state: RegionDisplayState
@@ -373,6 +380,13 @@ const RegionStatus: FC<{ status: RegionDisplayStatus }> = ({ status }) => {
           {status.generatedLabel
             ? `Generated ${status.generatedLabel}`
             : 'Generated'}
+        </span>
+      )
+    case 'cancelled':
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+          <Ban className="size-3" />
+          Canceled
         </span>
       )
     default:

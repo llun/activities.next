@@ -227,6 +227,42 @@ describe('FitnessRouteHeatmapDatabase', () => {
           database.getFitnessRouteHeatmap({ id: created.id })
         ).resolves.toBeNull()
       })
+
+      it('refuses to revive a cancelled row when abortIfCancelled is set', async () => {
+        const created = await database.createFitnessRouteHeatmap({
+          actorId: actors.replyAuthor.id,
+          activityType: 'running',
+          periodType: 'monthly',
+          periodKey: '2099-05',
+          region: 'abort-if-cancelled-test'
+        })
+        await database.updateFitnessRouteHeatmapStatus({
+          id: created.id,
+          status: 'cancelled'
+        })
+
+        // A guarded worker write (checkpoint/complete/fail) must not resurrect it.
+        await expect(
+          database.updateFitnessRouteHeatmapStatus({
+            id: created.id,
+            status: 'generating',
+            cursorOffset: 5,
+            abortIfCancelled: true
+          })
+        ).resolves.toBe(false)
+        await expect(
+          database.getFitnessRouteHeatmap({ id: created.id })
+        ).resolves.toMatchObject({ status: 'cancelled' })
+
+        // Without the flag the same write goes through — proving the guard, not
+        // some other filter, is what blocked it.
+        await expect(
+          database.updateFitnessRouteHeatmapStatus({
+            id: created.id,
+            status: 'generating'
+          })
+        ).resolves.toBe(true)
+      })
     })
 
     describe('getFitnessRouteHeatmapsForActor', () => {
@@ -472,6 +508,105 @@ describe('FitnessRouteHeatmapDatabase', () => {
             id: 'missing-single-delete'
           })
         ).resolves.toBe(false)
+      })
+    })
+
+    describe('cancelFitnessRouteHeatmapGeneration', () => {
+      it('cancels an in-flight run and resets it, scoped to its owner', async () => {
+        const created = await database.createFitnessRouteHeatmap({
+          actorId: actors.primary.id,
+          activityType: 'running',
+          periodType: 'monthly',
+          periodKey: '2026-07',
+          region: 'cancel-test'
+        })
+        await database.updateFitnessRouteHeatmapStatus({
+          id: created.id,
+          status: 'generating',
+          segments: [
+            {
+              points: [
+                { lat: 52.1, lng: 4.1 },
+                { lat: 52.2, lng: 4.2 }
+              ]
+            }
+          ],
+          activityCount: 1,
+          pointCount: 2,
+          cursorOffset: 5,
+          isPartial: false,
+          error: null
+        })
+
+        // A different actor cannot cancel it.
+        await expect(
+          database.cancelFitnessRouteHeatmapGeneration({
+            actorId: actors.replyAuthor.id,
+            id: created.id
+          })
+        ).resolves.toBe(false)
+
+        // The owner can; the run is reset to a clean cancelled state.
+        await expect(
+          database.cancelFitnessRouteHeatmapGeneration({
+            actorId: actors.primary.id,
+            id: created.id
+          })
+        ).resolves.toBe(true)
+        const cancelled = await database.getFitnessRouteHeatmap({
+          id: created.id
+        })
+        expect(cancelled?.status).toBe('cancelled')
+        expect(cancelled?.cursorOffset).toBe(0)
+        expect(cancelled?.segments).toEqual([])
+        expect(cancelled?.activityCount).toBe(0)
+        expect(cancelled?.pointCount).toBe(0)
+      })
+
+      it('is a no-op for a terminal (completed) run', async () => {
+        const created = await database.createFitnessRouteHeatmap({
+          actorId: actors.primary.id,
+          activityType: 'running',
+          periodType: 'monthly',
+          periodKey: '2026-08',
+          region: 'cancel-terminal-test'
+        })
+        await database.updateFitnessRouteHeatmapStatus({
+          id: created.id,
+          status: 'completed'
+        })
+        await expect(
+          database.cancelFitnessRouteHeatmapGeneration({
+            actorId: actors.primary.id,
+            id: created.id
+          })
+        ).resolves.toBe(false)
+        const still = await database.getFitnessRouteHeatmap({ id: created.id })
+        expect(still?.status).toBe('completed')
+      })
+
+      it('cancels a queued (pending) run before it has started', async () => {
+        // Fresh rows are 'pending' — a queued-but-not-started run is a common
+        // "stuck" shape and must be cancellable.
+        const created = await database.createFitnessRouteHeatmap({
+          actorId: actors.primary.id,
+          activityType: 'running',
+          periodType: 'monthly',
+          periodKey: '2026-09',
+          region: 'cancel-pending-test'
+        })
+        expect(created.status).toBe('pending')
+
+        await expect(
+          database.cancelFitnessRouteHeatmapGeneration({
+            actorId: actors.primary.id,
+            id: created.id
+          })
+        ).resolves.toBe(true)
+        const cancelled = await database.getFitnessRouteHeatmap({
+          id: created.id
+        })
+        expect(cancelled?.status).toBe('cancelled')
       })
     })
 

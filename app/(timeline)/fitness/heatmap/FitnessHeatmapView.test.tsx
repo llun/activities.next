@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import {
+  cancelFitnessRouteHeatmap,
   deleteFitnessRouteHeatmap,
   getFitnessRouteHeatmap,
   getFitnessRouteHeatmapRegionNames,
@@ -46,6 +47,7 @@ vi.mock('@/lib/components/fitness/RegionMap', () => ({
 }))
 
 vi.mock('@/lib/client', () => ({
+  cancelFitnessRouteHeatmap: vi.fn(),
   deleteFitnessRouteHeatmap: vi.fn(),
   getFitnessRouteHeatmap: vi.fn(),
   getFitnessRouteHeatmapRegionNames: vi.fn(),
@@ -81,6 +83,10 @@ const mockSetFitnessRouteHeatmapRegionName =
 const mockTriggerFitnessRouteHeatmap =
   triggerFitnessRouteHeatmap as jest.MockedFunction<
     typeof triggerFitnessRouteHeatmap
+  >
+const mockCancelFitnessRouteHeatmap =
+  cancelFitnessRouteHeatmap as jest.MockedFunction<
+    typeof cancelFitnessRouteHeatmap
   >
 
 const createDeferred = <T,>() => {
@@ -263,6 +269,7 @@ describe('FitnessHeatmapView', () => {
     mockSetFitnessRouteHeatmapRegionName.mockResolvedValue(true)
     mockDeleteFitnessRouteHeatmap.mockResolvedValue(true)
     mockTriggerFitnessRouteHeatmap.mockResolvedValue(true)
+    mockCancelFitnessRouteHeatmap.mockResolvedValue(true)
     // No Mapbox token in these tests, so the view uses the keyless MapLibre map.
     mockLoadMaplibreModule.mockResolvedValue({ Map: createGlMapConstructor() })
   })
@@ -715,6 +722,196 @@ describe('FitnessHeatmapView', () => {
         segments: [],
         bounds: null,
         pointCount: 0
+      })
+    )
+
+    render(
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
+    )
+
+    await openWorldRegion()
+
+    const retryButton = await screen.findByRole('button', { name: /Retry/i })
+    fireEvent.click(retryButton)
+
+    await waitFor(() => {
+      expect(mockTriggerFitnessRouteHeatmap).toHaveBeenCalledWith(
+        expect.objectContaining({ actorId: ACTOR, retry: true })
+      )
+    })
+  })
+
+  it('cancels a generating region from the detail view', async () => {
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([
+      worldSummary({
+        status: 'generating',
+        totalCount: 20,
+        cursorOffset: 10,
+        updatedAt: TEST_NOW
+      })
+    ])
+    mockGetFitnessRouteHeatmap.mockResolvedValue(
+      worldHeatmap({
+        status: 'generating',
+        totalCount: 20,
+        cursorOffset: 10,
+        segments: [],
+        bounds: null,
+        pointCount: 0
+      })
+    )
+
+    render(
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
+    )
+
+    await openWorldRegion()
+
+    // Both the header and the generation-task row expose Cancel while running.
+    const cancelButtons = await screen.findAllByRole('button', {
+      name: /Cancel/i
+    })
+    expect(cancelButtons.length).toBeGreaterThanOrEqual(1)
+    fireEvent.click(cancelButtons[0])
+
+    await waitFor(() => {
+      expect(mockCancelFitnessRouteHeatmap).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: ACTOR,
+          periodType: 'all_time',
+          periodKey: 'all'
+        })
+      )
+    })
+  })
+
+  it('re-enables Cancel after leaving the region mid-cancel', async () => {
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([
+      worldSummary({
+        status: 'generating',
+        totalCount: 20,
+        cursorOffset: 10,
+        updatedAt: TEST_NOW
+      })
+    ])
+    mockGetFitnessRouteHeatmap.mockResolvedValue(
+      worldHeatmap({
+        status: 'generating',
+        totalCount: 20,
+        cursorOffset: 10,
+        segments: [],
+        bounds: null,
+        pointCount: 0
+      })
+    )
+    // Hold the cancel request open so we can switch away before it settles.
+    const deferred = createDeferred<boolean>()
+    mockCancelFitnessRouteHeatmap.mockReturnValue(deferred.promise)
+
+    render(
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
+    )
+
+    await openWorldRegion()
+
+    // Start a cancel (isCancelling → true)…
+    const cancelButtons = await screen.findAllByRole('button', {
+      name: /Cancel/i
+    })
+    fireEvent.click(cancelButtons[0])
+
+    // …then leave the region before it resolves, and let the stale request land.
+    fireEvent.click(screen.getByRole('button', { name: /All regions/i }))
+    await act(async () => {
+      deferred.resolve(true)
+      await deferred.promise
+    })
+
+    // Re-open: the Cancel control must be usable again, not wedged disabled by a
+    // leftover isCancelling=true.
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Open Whole world heatmap/i })
+    )
+    const reopenedCancel = await screen.findAllByRole('button', {
+      name: /Cancel/i
+    })
+    expect(reopenedCancel.length).toBeGreaterThanOrEqual(1)
+    expect(
+      reopenedCancel.every((button) => !button.hasAttribute('disabled'))
+    ).toBe(true)
+  })
+
+  it('re-enables Generate after leaving the region mid-enqueue', async () => {
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([
+      worldSummary({ status: 'cancelled', updatedAt: TEST_NOW })
+    ])
+    mockGetFitnessRouteHeatmap.mockResolvedValue(
+      worldHeatmap({
+        status: 'cancelled',
+        segments: [],
+        bounds: null,
+        pointCount: 0,
+        cursorOffset: 0
+      })
+    )
+    // Hold the trigger open so we can switch away before it settles.
+    const deferred = createDeferred<boolean>()
+    mockTriggerFitnessRouteHeatmap.mockReturnValue(deferred.promise)
+
+    render(
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
+    )
+
+    await openWorldRegion()
+
+    // Start an enqueue (isRetrying → true) via the cancelled-state Retry…
+    const retryButton = await screen.findByRole('button', { name: /Retry/i })
+    fireEvent.click(retryButton)
+
+    // …then leave the region before it resolves, and let the stale request land.
+    fireEvent.click(screen.getByRole('button', { name: /All regions/i }))
+    await act(async () => {
+      deferred.resolve(true)
+      await deferred.promise
+    })
+
+    // Re-open: the Generate control must be usable again, not stuck "Enqueuing…".
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Open Whole world heatmap/i })
+    )
+    const generate = await screen.findByRole('button', {
+      name: /Generate heatmap/i
+    })
+    expect(generate).not.toBeDisabled()
+  })
+
+  it('retries a cancelled region with a fresh (non-resume) run', async () => {
+    mockGetFitnessRouteHeatmaps.mockResolvedValue([
+      worldSummary({ status: 'cancelled', updatedAt: TEST_NOW })
+    ])
+    mockGetFitnessRouteHeatmap.mockResolvedValue(
+      worldHeatmap({
+        status: 'cancelled',
+        segments: [],
+        bounds: null,
+        pointCount: 0,
+        cursorOffset: 0
       })
     )
 
