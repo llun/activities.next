@@ -74,6 +74,8 @@ Route heatmap caches are stored in `fitness_route_heatmaps`. They are keyed by a
 - `GET` and `DELETE /api/v1/accounts/:id/fitness-route-heatmaps`
 - `GET`, `POST`, and `DELETE /api/v1/accounts/:id/fitness-route-heatmap`
 
+The `POST /api/v1/accounts/:id/fitness-route-heatmap` body takes an optional `retry` flag to restart a run and a `cancel` flag to stop an in-flight (`pending`/`generating`) generation. Cancelling moves the run to a terminal `cancelled` state (resetting its progress so a later Generate/Retry starts clean) and returns `{ cancelled }`; the region detail view surfaces Cancel while generating and Retry once cancelled.
+
 The older `/fitness-heatmap` and `/fitness-heatmaps` endpoints are compatibility adapters for route heatmaps. They call the route-heatmap handlers, then return legacy flat payloads with `imagePath: null`; route heatmaps now store serialized route segments, not generated PNG heatmap images.
 
 ### Settings and Imports

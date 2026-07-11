@@ -57,6 +57,13 @@ export interface UpdateFitnessRouteHeatmapStatusParams {
   isPartial?: boolean
   clearDeleted?: boolean
   clearDeletedBefore?: number
+  /**
+   * When true, skip the write if the row has since been cancelled. A worker uses
+   * this for its mid-run checkpoint/complete/fail writes so a user cancel that
+   * lands while a pass is executing is not silently overwritten (the row stays
+   * `cancelled` and the update reports `false`).
+   */
+  abortIfCancelled?: boolean
 }
 
 export interface GetDistinctActivityTypesParams {
@@ -118,6 +125,26 @@ export interface FitnessRouteHeatmapDatabase {
    * caller can only remove their own heatmaps.
    */
   deleteFitnessRouteHeatmap(params: {
+    actorId: string
+    id: string
+  }): Promise<boolean>
+  /**
+   * Cancels an in-flight (`pending`/`generating`) route-heatmap run owned by
+   * `actorId`, moving it to a terminal `cancelled` state and resetting the run
+   * fields so a later Generate/Retry starts clean. No-op (returns false) on a
+   * terminal or deleted row. Resetting `cursorOffset` to 0 invalidates a
+   * continuation that was already queued before the cancel (its requested cursor
+   * no longer matches), and while the row stays `cancelled` an orphaned worker
+   * pass can't revive it either, because that worker's checkpoint/complete/fail
+   * writes pass `abortIfCancelled` and skip a cancelled row.
+   *
+   * Note: if the user immediately re-generates, a fresh run reclaims the row
+   * (back to `generating`) — at which point an orphaned pass from the cancelled
+   * run races the new one exactly as a retry-against-a-`generating`-row already
+   * would. Fully fencing two concurrent runs on one row would need a per-run
+   * token and is out of scope here.
+   */
+  cancelFitnessRouteHeatmapGeneration(params: {
     actorId: string
     id: string
   }): Promise<boolean>
@@ -469,7 +496,8 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     cursorOffset,
     isPartial,
     clearDeleted,
-    clearDeletedBefore
+    clearDeletedBefore,
+    abortIfCancelled
   }: UpdateFitnessRouteHeatmapStatusParams) {
     const updateData: Record<string, unknown> = {
       status,
@@ -514,6 +542,10 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
           .whereNull('deletedAt')
           .orWhere('deletedAt', '<=', new Date(clearDeletedCutoff))
       })
+    }
+    // A cancel that landed mid-run must win: never resurrect a cancelled row.
+    if (abortIfCancelled) {
+      query.whereNot('status', 'cancelled')
     }
     const result = await query.update(updateData)
 
@@ -619,6 +651,33 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
       .whereNull('deletedAt')
       .update({
         deletedAt: new Date(),
+        updatedAt: new Date()
+      })
+
+    return updated > 0
+  },
+
+  async cancelFitnessRouteHeatmapGeneration({
+    actorId,
+    id
+  }: {
+    actorId: string
+    id: string
+  }) {
+    const updated = await database('fitness_route_heatmaps')
+      .where('id', id)
+      .where('actorId', actorId)
+      .whereNull('deletedAt')
+      .whereIn('status', ['pending', 'generating'])
+      .update({
+        status: 'cancelled',
+        error: null,
+        bounds: null,
+        segments: null,
+        activityCount: 0,
+        pointCount: 0,
+        cursorOffset: 0,
+        isPartial: false,
         updatedAt: new Date()
       })
 
