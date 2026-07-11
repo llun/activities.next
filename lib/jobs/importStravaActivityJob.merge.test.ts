@@ -36,12 +36,6 @@ vi.mock('@/lib/services/queue', () => ({
   })
 }))
 
-// Heatmap regeneration is out of scope for this test; keep it a no-op so the
-// inline queue doesn't fan out into heatmap generation.
-vi.mock('@/lib/jobs/enqueueFitnessRouteHeatmapJobs', () => ({
-  enqueueFitnessRouteHeatmapJobs: vi.fn().mockResolvedValue(undefined)
-}))
-
 vi.mock('@/lib/services/fitness-files', async () => {
   const actual = await vi.importActual('@/lib/services/fitness-files')
   return { ...actual, saveFitnessFile: vi.fn(), getFitnessFile: vi.fn() }

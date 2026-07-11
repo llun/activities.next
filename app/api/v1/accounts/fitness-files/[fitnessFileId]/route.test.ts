@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
 
 import { Database } from '@/lib/database/types'
-import { GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME } from '@/lib/jobs/names'
 import { deleteFitnessFile as deleteFitnessFileFromStorage } from '@/lib/services/fitness-files'
 
 import { DELETE } from './route'
@@ -25,13 +24,7 @@ vi.mock('@/lib/services/fitness-files', () => ({
   deleteFitnessFile: vi.fn()
 }))
 
-type MockDatabase = Pick<
-  Database,
-  | 'getFitnessFile'
-  | 'getActorFromId'
-  | 'getDistinctRouteHeatmapRegionsForActor'
-  | 'getFitnessRouteHeatmapByKey'
->
+type MockDatabase = Pick<Database, 'getFitnessFile' | 'getActorFromId'>
 
 let mockDatabase: MockDatabase | null = null
 vi.mock('@/lib/database', () => ({
@@ -46,9 +39,7 @@ const mockDeleteFitnessFileFromStorage =
 describe('DELETE /api/v1/accounts/fitness-files/[fitnessFileId]', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
     getFitnessFile: vi.fn(),
-    getActorFromId: vi.fn(),
-    getDistinctRouteHeatmapRegionsForActor: vi.fn(),
-    getFitnessRouteHeatmapByKey: vi.fn()
+    getActorFromId: vi.fn()
   }
 
   beforeAll(() => {
@@ -82,13 +73,11 @@ describe('DELETE /api/v1/accounts/fitness-files/[fitnessFileId]', () => {
       id: 'actor-1',
       account: { id: 'account-1' }
     } as Awaited<ReturnType<Database['getActorFromId']>>)
-    mockDb.getDistinctRouteHeatmapRegionsForActor.mockResolvedValue([])
-    mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue(null)
     mockDeleteFitnessFileFromStorage.mockResolvedValue(true)
     mockPublish.mockResolvedValue(undefined)
   })
 
-  it('enqueues route heatmap refresh jobs after deleting a fitness file', async () => {
+  it('deletes a fitness file without regenerating route heatmaps', async () => {
     const response = await DELETE(
       new NextRequest(
         'http://llun.test/api/v1/accounts/fitness-files/fitness-file-1',
@@ -100,18 +89,8 @@ describe('DELETE /api/v1/accounts/fitness-files/[fitnessFileId]', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mockPublish).toHaveBeenCalledTimes(6)
-    expect(mockPublish).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
-        data: expect.objectContaining({
-          actorId: 'actor-1',
-          activityType: 'running',
-          periodType: 'monthly',
-          periodKey: '2026-04',
-          requestedAt: expect.any(Number)
-        })
-      })
-    )
+    expect(mockDeleteFitnessFileFromStorage).toHaveBeenCalledTimes(1)
+    // Heatmap regeneration is decoupled from delete, so nothing is enqueued.
+    expect(mockPublish).not.toHaveBeenCalled()
   })
 })
