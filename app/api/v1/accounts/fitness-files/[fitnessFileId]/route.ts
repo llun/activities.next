@@ -1,4 +1,3 @@
-import { enqueueFitnessRouteHeatmapJobs } from '@/lib/jobs/enqueueFitnessRouteHeatmapJobs'
 import { deleteFitnessFile as deleteFitnessFileFromStorage } from '@/lib/services/fitness-files'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -102,13 +101,10 @@ export const DELETE = traceApiRoute(
         })
       }
 
-      await enqueueFitnessRouteHeatmapJobs({
-        database,
-        actorId: fitnessFile.actorId,
-        activityType: fitnessFile.activityType ?? null,
-        activityStartTime: fitnessFile.activityStartTime ?? null
-      })
-
+      // Heatmaps are not regenerated on delete: like import, route-heatmap
+      // aggregation runs only on explicit request so it stays off this path.
+      // The deleted activity remains in cached heatmaps until the owner
+      // regenerates them.
       logger.info({
         message: 'Fitness file deleted successfully',
         fitnessFileId,

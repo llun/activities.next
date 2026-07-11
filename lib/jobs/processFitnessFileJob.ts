@@ -1,7 +1,6 @@
 import { z } from 'zod'
 
 import { Database } from '@/lib/database/types'
-import { enqueueFitnessRouteHeatmapJobs } from '@/lib/jobs/enqueueFitnessRouteHeatmapJobs'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { getFitnessFile } from '@/lib/services/fitness-files'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
@@ -288,12 +287,11 @@ export const processFitnessFileJob = createJobHandle(
         })
       }
 
-      await enqueueFitnessRouteHeatmapJobs({
-        database,
-        actorId,
-        activityType: activityData.activityType ?? null,
-        activityStartTime: activityData.startTime ?? new Date()
-      })
+      // Route heatmaps are intentionally NOT regenerated here. Importing an
+      // activity only creates its status and route map; the memory-heavy
+      // per-actor heatmap aggregation runs solely on explicit request (the
+      // fitness-route-heatmap route), so it can never pile onto the import /
+      // Strava-webhook path and exhaust the worker's heap.
     } catch (error) {
       const nodeError = error as Error
       logger.error({

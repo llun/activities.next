@@ -224,59 +224,10 @@ describe('processFitnessFileJob', () => {
       ([msg]: [{ name: string }]) =>
         msg.name === GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME
     )
-    expect(heatmapCalls).toHaveLength(6)
-
-    const heatmapPayloads = heatmapCalls.map(
-      ([msg]: [{ data: object }]) => msg.data
-    )
-    expect(heatmapPayloads).toContainEqual(
-      expect.objectContaining({
-        actorId: actor.id,
-        activityType: 'running',
-        periodType: 'all_time',
-        periodKey: 'all'
-      })
-    )
-    expect(heatmapPayloads).toContainEqual(
-      expect.objectContaining({
-        actorId: actor.id,
-        activityType: 'running',
-        periodType: 'yearly',
-        periodKey: '2026'
-      })
-    )
-    expect(heatmapPayloads).toContainEqual(
-      expect.objectContaining({
-        actorId: actor.id,
-        activityType: 'running',
-        periodType: 'monthly',
-        periodKey: '2026-01'
-      })
-    )
-    expect(heatmapPayloads).toContainEqual(
-      expect.objectContaining({
-        actorId: actor.id,
-        activityType: null,
-        periodType: 'all_time',
-        periodKey: 'all'
-      })
-    )
-    expect(heatmapPayloads).toContainEqual(
-      expect.objectContaining({
-        actorId: actor.id,
-        activityType: null,
-        periodType: 'yearly',
-        periodKey: '2026'
-      })
-    )
-    expect(heatmapPayloads).toContainEqual(
-      expect.objectContaining({
-        actorId: actor.id,
-        activityType: null,
-        periodType: 'monthly',
-        periodKey: '2026-01'
-      })
-    )
+    // Import must not trigger heatmap regeneration — that is decoupled to the
+    // explicit generate route so the memory-heavy aggregation never runs on the
+    // import / Strava-webhook path.
+    expect(heatmapCalls).toHaveLength(0)
   })
 
   it('completes without map generation when there are no GPS coordinates', async () => {
@@ -310,7 +261,7 @@ describe('processFitnessFileJob', () => {
 
     expect(mockGenerateMapImage).not.toHaveBeenCalled()
     expect(mockSaveMedia).not.toHaveBeenCalled()
-    expect(getQueue().publish).toHaveBeenCalledTimes(7)
+    expect(getQueue().publish).toHaveBeenCalledTimes(1)
   })
 
   it('continues federation when map generation fails', async () => {
@@ -336,7 +287,7 @@ describe('processFitnessFileJob', () => {
     expect(updatedFitnessFile?.mapImagePath).toBeUndefined()
 
     expect(mockSaveMedia).not.toHaveBeenCalled()
-    expect(getQueue().publish).toHaveBeenCalledTimes(7)
+    expect(getQueue().publish).toHaveBeenCalledTimes(1)
     expect(getQueue().publish).toHaveBeenCalledWith({
       id: getHashFromString(`${statusId}:send-note`),
       name: SEND_NOTE_JOB_NAME,
@@ -446,86 +397,6 @@ describe('processFitnessFileJob', () => {
     )
     expect(sendNoteCalls).toHaveLength(0)
 
-    const heatmapCalls = publishCalls.filter(
-      ([msg]: [{ name: string }]) =>
-        msg.name === GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME
-    )
-    expect(heatmapCalls).toHaveLength(6)
-  })
-
-  it('queues heatmap jobs with null activityType when activity has no type', async () => {
-    const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
-      text: 'No type workout'
-    })
-
-    mockParseFitnessFile.mockResolvedValue({
-      coordinates: [],
-      trackPoints: [],
-      totalDistanceMeters: 1_000,
-      totalDurationSeconds: 600,
-      startTime: new Date('2025-03-15T10:00:00.000Z')
-    })
-
-    await processFitnessFileJob(database, {
-      id: 'job-id-no-type',
-      name: PROCESS_FITNESS_FILE_JOB_NAME,
-      data: { actorId: actor.id, statusId, fitnessFileId }
-    })
-
-    const publishCalls = (getQueue().publish as jest.Mock).mock.calls
-    const heatmapCalls = publishCalls.filter(
-      ([msg]: [{ name: string }]) =>
-        msg.name === GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME
-    )
-    expect(heatmapCalls).toHaveLength(3)
-
-    const heatmapPayloads = heatmapCalls.map(
-      ([msg]: [{ data: object }]) => msg.data
-    )
-    for (const payload of heatmapPayloads) {
-      expect(payload).toMatchObject({
-        actorId: actor.id,
-        activityType: null
-      })
-    }
-
-    expect(heatmapPayloads).toContainEqual(
-      expect.objectContaining({
-        actorId: actor.id,
-        activityType: null,
-        periodType: 'yearly',
-        periodKey: '2025'
-      })
-    )
-    expect(heatmapPayloads).toContainEqual(
-      expect.objectContaining({
-        actorId: actor.id,
-        activityType: null,
-        periodType: 'monthly',
-        periodKey: '2025-03'
-      })
-    )
-  })
-
-  it('does not queue heatmap jobs when processing fails', async () => {
-    const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
-      text: 'Will fail for heatmap test'
-    })
-
-    mockParseFitnessFile.mockRejectedValue(new Error('parse failure'))
-
-    await processFitnessFileJob(database, {
-      id: 'job-id-fail-heatmap',
-      name: PROCESS_FITNESS_FILE_JOB_NAME,
-      data: { actorId: actor.id, statusId, fitnessFileId }
-    })
-
-    const updatedFitnessFile = await database.getFitnessFile({
-      id: fitnessFileId
-    })
-    expect(updatedFitnessFile?.processingStatus).toBe('failed')
-
-    const publishCalls = (getQueue().publish as jest.Mock).mock.calls
     const heatmapCalls = publishCalls.filter(
       ([msg]: [{ name: string }]) =>
         msg.name === GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME
