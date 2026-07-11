@@ -1811,6 +1811,59 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(response.status).toBe(422)
     })
 
+    it('rejects more media_attributes than the stored ceiling with 422', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-attributes-over-ceiling`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Over the stored ceiling with attributes',
+        summary: null,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${ACTOR1_ID}/followers`]
+      })
+
+      // Every attribute references an owned, resolvable media, so without the
+      // ceiling each one would trigger a database.updateMedia write — the
+      // unbounded fan-out this guards against.
+      const mediaAttributes = []
+      for (
+        let index = 0;
+        index < MAX_STORED_MEDIA_ATTACHMENTS + 1;
+        index += 1
+      ) {
+        const media = await database.createMedia({
+          actorId: ACTOR1_ID,
+          original: {
+            path: `medias/attr-ceiling-${index}.webp`,
+            bytes: 1024,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 },
+            fileName: `attr-ceiling-${index}.jpg`
+          }
+        })
+        expect(media).not.toBeNull()
+        mediaAttributes.push({ id: media!.id, description: `Photo ${index}` })
+      }
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({ media_attributes: mediaAttributes }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(422)
+    })
+
     it('clears media attachments with an empty media id list', async () => {
       const statusId = `${ACTOR1_ID}/statuses/api-edit-clear-media`
       await database.createNote({

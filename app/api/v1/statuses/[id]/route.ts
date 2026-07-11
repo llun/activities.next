@@ -208,6 +208,20 @@ export const PUT = traceApiRoute(
             responseStatusCode: 422
           })
         }
+        // Bound media_attributes the same way as media_ids: each entry drives a
+        // database.updateMedia write below, so an unbounded array would fan out
+        // an unbounded number of writes.
+        if (
+          mediaAttributes !== undefined &&
+          mediaAttributes.length > MAX_STORED_MEDIA_ATTACHMENTS
+        ) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_422,
+            responseStatusCode: 422
+          })
+        }
 
         let updatedNote
 
