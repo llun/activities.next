@@ -45,9 +45,12 @@ import {
   IMPORT_FITNESS_FILES_JOB_NAME,
   IMPORT_STRAVA_ACTIVITY_JOB_NAME
 } from '@/lib/jobs/names'
+import { isFitnessImportStuck } from '@/lib/services/fitness-files/processingState'
 import { getStravaActivityIdFromBatchId } from '@/lib/services/strava/activityBatch'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+
+import { printDatabaseBanner } from './describeConnection'
 
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
@@ -119,14 +122,19 @@ const parseArgs = (args: string[]) => {
   return CliArgs.parse({ actorId, batchIds, visibility, dryRun })
 }
 
-// A true import failure: the file failed to create its status, so it has no
-// statusId. Files that imported successfully but later failed map processing
-// (statusId set, processingStatus 'failed') are NOT re-importable here — a
-// re-import short-circuits past the importer, so retry would leave importStatus
-// stuck. Those are handled by the processing-retry path (resumeStravaProcessing
+// A file needs re-importing when it failed to create its status (importStatus
+// 'failed', no statusId) OR when the importer was killed before it could mark
+// 'failed' at all — a SIGABRT/OOM strands the file at importStatus='pending'
+// with no statusId, which isFitnessImportStuck detects (see processingState.ts).
+// Without that second case a crash-orphaned import is silently skipped and the
+// script reports "No failed fitness imports to repair". Files that imported
+// successfully but later failed map PROCESSING (statusId set, processingStatus
+// 'failed') are NOT re-importable here — a re-import short-circuits past the
+// importer — those go through the processing-retry path (resumeStravaProcessing
 // / retryFitnessProcessing) instead.
-const isFailedImport = (file: FitnessFile): boolean =>
-  file.importStatus === 'failed' && !file.statusId
+const isRepairableImport = (file: FitnessFile): boolean =>
+  (file.importStatus === 'failed' && !file.statusId) ||
+  isFitnessImportStuck(file)
 
 const collectActorFailedBatchIds = async (
   database: NonNullable<ReturnType<typeof getDatabase>>,
@@ -144,7 +152,7 @@ const collectActorFailedBatchIds = async (
     })
 
     for (const file of page) {
-      if (!isFailedImport(file)) continue
+      if (!isRepairableImport(file)) continue
       if (file.importBatchId) {
         batchIds.add(file.importBatchId)
       } else {
@@ -174,7 +182,7 @@ const repairBatch = async ({
 }): Promise<'repaired' | 'skipped' | 'error'> => {
   const files = await database.getFitnessFilesByBatchId({ batchId })
   const actorFiles = files.filter((file) => file.actorId === actorId)
-  const failedFiles = actorFiles.filter(isFailedImport)
+  const failedFiles = actorFiles.filter(isRepairableImport)
 
   if (failedFiles.length === 0) {
     console.log(`  [${batchId}] no failed files, skipping`)
@@ -216,7 +224,10 @@ const repairBatch = async ({
     } else {
       const overlapFitnessFileIds = actorFiles
         .filter(
-          (file) => file.importStatus === 'completed' && Boolean(file.statusId)
+          (file) =>
+            file.importStatus === 'completed' &&
+            file.processingStatus === 'completed' &&
+            Boolean(file.statusId)
         )
         .map((file) => file.id)
 
@@ -281,6 +292,8 @@ export async function repairFailedFitnessImports(args = process.argv.slice(2)) {
     console.error(USAGE)
     return 1
   }
+
+  printDatabaseBanner()
 
   const database = getDatabase()
   if (!database) {

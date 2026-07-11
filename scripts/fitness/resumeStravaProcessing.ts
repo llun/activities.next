@@ -16,6 +16,8 @@ import { PROCESS_FITNESS_FILE_JOB_NAME } from '@/lib/jobs/names'
 import { processFitnessFileJob } from '@/lib/jobs/processFitnessFileJob'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
+import { printDatabaseBanner } from './describeConnection'
+
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
 
@@ -72,6 +74,8 @@ async function resumeStravaProcessing(args = process.argv.slice(2)) {
     return 1
   }
 
+  printDatabaseBanner()
+
   const database = getDatabase()
   if (!database) {
     console.error('Error: Database is not available')
@@ -100,6 +104,19 @@ async function resumeStravaProcessing(args = process.argv.slice(2)) {
   console.log(
     `Found ${pendingFiles.length} fitness files to process (out of ${allFiles.length} in batch)`
   )
+
+  const missingStatusCount = allFiles.filter(
+    (f) =>
+      f.actorId === actor.id &&
+      f.isPrimary &&
+      !f.statusId &&
+      (f.processingStatus === 'pending' || f.processingStatus === 'processing')
+  ).length
+  if (missingStatusCount > 0) {
+    console.log(
+      `Note: ${missingStatusCount} file(s) here lack a statusId and were skipped — those belong to the import-side recovery (repairFailedFitnessImports.ts / importStoredFitnessFile.ts), so a "0 to process" count here is not necessarily wrong.`
+    )
+  }
 
   let processedCount = 0
   let failedCount = 0

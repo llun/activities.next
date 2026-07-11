@@ -26,6 +26,8 @@ import { REGENERATE_FITNESS_MAPS_JOB_NAME } from '@/lib/jobs/names'
 import { regenerateFitnessMapsJob } from '@/lib/jobs/regenerateFitnessMapsJob'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 
+import { printDatabaseBanner } from './describeConnection'
+
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
 
@@ -74,8 +76,19 @@ const parseArgs = (args: string[]) => {
   throw new Error('Provide either --status-hash or --actor-id')
 }
 
+// A file counts as already-parsed when ANY parse signal is present, not just a
+// distance. Distance-less-but-valid activities (indoor rides, treadmill runs,
+// some TCX) still parse duration/type/start-time, so keying only on distance
+// mislabels them 'unparsed' and resets them to 'pending' where they re-stick.
+const hasParseSignal = (file: FitnessFile): boolean =>
+  typeof file.totalDistanceMeters === 'number' ||
+  (typeof file.totalDurationSeconds === 'number' &&
+    file.totalDurationSeconds > 0) ||
+  (typeof file.activityType === 'string' && file.activityType.length > 0) ||
+  file.activityStartTime != null
+
 const resolveTargetStatus = (file: FitnessFile): 'completed' | 'pending' =>
-  typeof file.totalDistanceMeters === 'number' ? 'completed' : 'pending'
+  hasParseSignal(file) ? 'completed' : 'pending'
 
 const regenerateRouteMap = async (
   database: NonNullable<ReturnType<typeof getDatabase>>,
@@ -156,6 +169,8 @@ export async function fixStuckFitnessProcessing(args = process.argv.slice(2)) {
     console.error(USAGE)
     return 1
   }
+
+  printDatabaseBanner()
 
   const database = getDatabase()
   if (!database) {

@@ -123,13 +123,17 @@ Fitness maintenance scripts live in `scripts/`:
 - `scripts/fitness/resumeStravaProcessing.ts`
 - `scripts/fitness/recreateFitnessRouteHeatmaps.ts`
 - `scripts/fitness/fixStuckFitnessProcessing.ts`
-- `scripts/fitness/repairFailedFitnessImports.ts`
-- `scripts/fitness/cleanupLegacyFitnessHeatmaps.ts`
-- `scripts/fitness/cleanupLegacyHeatmapRegions.ts`
-- `scripts/fitness/repairStravaActivityFiles.ts`
+- `scripts/fitness/diagnoseFitnessImport.ts` — read-only preflight: which database, actor, Strava settings/token, stored files, and same-ride overlap
+- `scripts/fitness/repairFailedFitnessImports.ts` — re-runs failed **and** crash-orphaned imports (stuck at `pending` with no status after an uncatchable OOM/SIGABRT)
+- `scripts/fitness/importStoredFitnessFile.ts` — rebuilds a post from the already-stored file with no Strava call (deleted-from-Strava case); merges same-ride files into one post
+- `scripts/fitness/repairStravaActivityFiles.ts` — pass `--delete-missing` to hard-delete activities Strava 404s (default: report only; deletion is irreversible)
 - `scripts/fitness/retrigerStravaActivities.ts`
 - `scripts/fitness/runImportStravaActivity.ts`
 - `scripts/fitness/listStravaWebhooks.ts`
+
+Every recovery script prints the resolved database target on start — check it is
+your production host, since `.env.local` shadows `.env.production` even under
+`NODE_ENV=production`.
 
 See [Maintenance Scripts](maintenance.md) for general script guidance.
 

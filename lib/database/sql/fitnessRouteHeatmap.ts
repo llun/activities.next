@@ -70,11 +70,6 @@ export interface GetDistinctActivityTypesParams {
   actorId: string
 }
 
-export interface LegacyFitnessHeatmapMediaCleanupPath {
-  actorId: string
-  imagePath: string
-}
-
 export interface FitnessRouteHeatmapDatabase {
   createFitnessRouteHeatmap(
     params: CreateFitnessRouteHeatmapParams
@@ -176,25 +171,6 @@ export interface FitnessRouteHeatmapDatabase {
   deleteFitnessRouteHeatmapsForActor(params: {
     actorId: string
   }): Promise<number>
-  /**
-   * Counts non-deleted route-heatmap rows whose `region` is in the legacy
-   * named-region format (neither the world-wide sentinel `''` nor a `rect:`
-   * token), for the region-model migration cleanup.
-   */
-  countLegacyRegionRouteHeatmaps(): Promise<number>
-  /**
-   * Soft-deletes the legacy named-region route-heatmap rows counted by
-   * countLegacyRegionRouteHeatmaps. Returns the number of rows updated.
-   */
-  softDeleteLegacyRegionRouteHeatmaps(): Promise<number>
-  getLegacyFitnessHeatmapMediaCleanupPaths(): Promise<
-    LegacyFitnessHeatmapMediaCleanupPath[]
-  >
-  markLegacyFitnessHeatmapMediaCleanupPath(params: {
-    actorId: string
-    imagePath: string
-    error?: string | null
-  }): Promise<boolean>
 }
 
 const parseJsonValue = <T>(
@@ -682,56 +658,5 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
       })
 
     return updated > 0
-  },
-
-  async countLegacyRegionRouteHeatmaps() {
-    const [row] = await database('fitness_route_heatmaps')
-      .whereNull('deletedAt')
-      .whereNot('region', '')
-      .whereNot('region', 'like', 'rect:%')
-      .count({ count: '*' })
-
-    return Number(row?.count ?? 0)
-  },
-
-  async softDeleteLegacyRegionRouteHeatmaps() {
-    return database('fitness_route_heatmaps')
-      .whereNull('deletedAt')
-      .whereNot('region', '')
-      .whereNot('region', 'like', 'rect:%')
-      .update({
-        deletedAt: new Date(),
-        updatedAt: new Date()
-      })
-  },
-
-  async getLegacyFitnessHeatmapMediaCleanupPaths() {
-    const rows = await database('legacy_fitness_heatmap_media_cleanup')
-      .whereNull('deletedAt')
-      .select('actorId', 'imagePath')
-      .orderBy('createdAt', 'asc')
-
-    return rows.map((row: { actorId: string; imagePath: string }) => ({
-      actorId: row.actorId,
-      imagePath: row.imagePath
-    }))
-  },
-
-  async markLegacyFitnessHeatmapMediaCleanupPath({
-    actorId,
-    imagePath,
-    error
-  }) {
-    const updateData =
-      error === undefined || error === null
-        ? { deletedAt: new Date(), error: null }
-        : { error, deletedAt: null }
-
-    const result = await database('legacy_fitness_heatmap_media_cleanup')
-      .where('actorId', actorId)
-      .where('imagePath', imagePath)
-      .update(updateData)
-
-    return result > 0
   }
 })

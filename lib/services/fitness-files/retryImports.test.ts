@@ -81,6 +81,35 @@ describe('isRetriableFitnessFile', () => {
       description: 'fully completed',
       file: { importStatus: 'completed', processingStatus: 'completed' },
       expected: false
+    },
+    {
+      description: 'stuck import (crash-orphan: old pending, no status)',
+      file: {
+        importStatus: 'pending',
+        processingStatus: 'pending',
+        statusId: undefined,
+        updatedAt: NOW - STUCK_PROCESSING_THRESHOLD_MS - 1
+      },
+      expected: true
+    },
+    {
+      description: 'fresh pending import (still in-flight)',
+      file: {
+        importStatus: 'pending',
+        processingStatus: 'pending',
+        updatedAt: NOW
+      },
+      expected: false
+    },
+    {
+      description: 'old pending import that already has a status',
+      file: {
+        importStatus: 'pending',
+        processingStatus: 'pending',
+        statusId: 'status-1',
+        updatedAt: NOW - STUCK_PROCESSING_THRESHOLD_MS - 1
+      },
+      expected: false
     }
   ])('returns $expected for $description', ({ file: overrides, expected }) => {
     expect(isRetriableFitnessFile(file(overrides), NOW)).toBe(expected)
