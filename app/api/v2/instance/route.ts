@@ -6,7 +6,7 @@ import { headerHost } from '@/lib/services/guards/headerHost'
 import {
   MASTODON_INSTANCE_API_VERSION,
   MAX_PINNED_STATUSES,
-  MAX_STATUS_MEDIA_ATTACHMENTS
+  MAX_STORED_MEDIA_ATTACHMENTS
 } from '@/lib/services/mastodon/constants'
 import {
   getInstanceContactAccount,
@@ -103,7 +103,7 @@ export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
         },
         statuses: {
           max_characters: 500,
-          max_media_attachments: MAX_STATUS_MEDIA_ATTACHMENTS,
+          max_media_attachments: MAX_STORED_MEDIA_ATTACHMENTS,
           characters_reserved_per_url: 23
         },
         media_attachments: {

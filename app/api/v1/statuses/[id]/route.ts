@@ -16,7 +16,7 @@ import {
   MAX_POLL_EXPIRATION_SECONDS,
   MAX_POLL_OPTIONS,
   MAX_POLL_OPTION_CHARS,
-  MAX_STATUS_MEDIA_ATTACHMENTS,
+  MAX_STORED_MEDIA_ATTACHMENTS,
   MIN_POLL_EXPIRATION_SECONDS,
   MIN_POLL_OPTIONS
 } from '@/lib/services/mastodon/constants'
@@ -199,7 +199,7 @@ export const PUT = traceApiRoute(
             : [...new Set(changes.media_ids)]
         if (
           mediaIds !== undefined &&
-          mediaIds.length > MAX_STATUS_MEDIA_ATTACHMENTS
+          mediaIds.length > MAX_STORED_MEDIA_ATTACHMENTS
         ) {
           return apiResponse({
             req,

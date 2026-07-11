@@ -8,6 +8,7 @@ import {
   getReply,
   getSummary
 } from '@/lib/activities/note'
+import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import type { Announce as ActivityPubAnnounce } from '@/lib/types/activitypub/activities'
 import { Document } from '@/lib/types/activitypub/objects'
 import {
@@ -392,8 +393,12 @@ export const toActivityPubObject = (status: Status): Note | Question => {
     cc: originalStatus.cc,
     inReplyTo: originalStatus.reply || null,
     content: originalStatus.text,
+    // Only the first MAX_FEDERATION_MEDIA_ATTACHMENTS federate (outbox and the
+    // AP note/replies endpoints); a status may store more, but remote servers
+    // receive a Mastodon-compatible payload. Mirrors getNoteFromStatus.
     attachment: originalStatus.attachments
       .filter((attachment) => !isFitnessAttachment(attachment))
+      .slice(0, MAX_FEDERATION_MEDIA_ATTACHMENTS)
       .map((attachment) => getDocumentFromAttachment(attachment)),
     tag: originalStatus.tags
       .map((tag) => getMentionFromTag(tag) ?? getEmojiFromTag(tag))

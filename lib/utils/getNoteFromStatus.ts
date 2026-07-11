@@ -1,4 +1,5 @@
 import { getConfig } from '@/lib/config'
+import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { Note } from '@/lib/types/activitypub'
 import {
   getDocumentFromAttachment,
@@ -37,8 +38,12 @@ export const getNoteFromStatus = (
     cc: actualStatus.cc,
     inReplyTo: actualStatus.reply || null,
     content: convertMarkdownText(getConfig().host)(actualStatus.text),
+    // A status may store more media than Mastodon renders; only the first
+    // MAX_FEDERATION_MEDIA_ATTACHMENTS federate so remote servers receive a
+    // Mastodon-compatible payload. The extras stay visible on local surfaces.
     attachment: actualStatus.attachments
       .filter((attachment) => !isFitnessAttachment(attachment))
+      .slice(0, MAX_FEDERATION_MEDIA_ATTACHMENTS)
       .map((attachment) => getDocumentFromAttachment(attachment)),
     tag: actualStatus.tags
       .map((tag) => getMentionFromTag(tag) ?? getEmojiFromTag(tag))

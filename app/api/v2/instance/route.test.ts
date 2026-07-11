@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import type { Config } from '@/lib/config'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 
 import { GET } from './route'
 
@@ -160,6 +161,17 @@ describe('GET /api/v2/instance', () => {
     expect(body.configuration.vapid).toEqual({
       public_key: 'test-vapid-public-key'
     })
+  })
+
+  it('advertises the stored media ceiling as max_media_attachments', async () => {
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v2/instance'),
+      params
+    )
+    const body = await response.json()
+    expect(body.configuration.statuses.max_media_attachments).toBe(
+      MAX_STORED_MEDIA_ATTACHMENTS
+    )
   })
 
   it('serves the contact email with a null account when no admin exists', async () => {

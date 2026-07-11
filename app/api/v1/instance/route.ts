@@ -5,7 +5,7 @@ import { getDatabase } from '@/lib/database'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import {
   MAX_PINNED_STATUSES,
-  MAX_STATUS_MEDIA_ATTACHMENTS
+  MAX_STORED_MEDIA_ATTACHMENTS
 } from '@/lib/services/mastodon/constants'
 import {
   getInstanceContactAccount,
@@ -81,7 +81,7 @@ export const GET = traceApiRoute('getInstance', async (req: NextRequest) => {
     configuration: {
       statuses: {
         max_characters: 500,
-        max_media_attachments: MAX_STATUS_MEDIA_ATTACHMENTS,
+        max_media_attachments: MAX_STORED_MEDIA_ATTACHMENTS,
         characters_reserved_per_url: 23
       },
       accounts: {
