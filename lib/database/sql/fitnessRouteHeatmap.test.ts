@@ -744,59 +744,6 @@ describe('FitnessRouteHeatmapDatabase', () => {
       })
     })
 
-    // Kept last: softDeleteLegacyRegionRouteHeatmaps operates table-wide, so this
-    // block clears every remaining legacy-region row and must run after the
-    // others to avoid disturbing their fixtures.
-    describe('legacy region cleanup', () => {
-      it('counts and soft-deletes only legacy named-region rows', async () => {
-        const before = await database.countLegacyRegionRouteHeatmaps()
-
-        await database.createFitnessRouteHeatmap({
-          actorId: actors.primary.id,
-          activityType: null,
-          periodType: 'yearly',
-          periodKey: '2099',
-          region: 'cleanup-legacy-a'
-        })
-        await database.createFitnessRouteHeatmap({
-          actorId: actors.primary.id,
-          activityType: null,
-          periodType: 'yearly',
-          periodKey: '2099',
-          region: 'cleanup-legacy-b'
-        })
-        const worldRow = await database.createFitnessRouteHeatmap({
-          actorId: actors.primary.id,
-          activityType: null,
-          periodType: 'yearly',
-          periodKey: '2099',
-          region: ''
-        })
-        const rectRow = await database.createFitnessRouteHeatmap({
-          actorId: actors.primary.id,
-          activityType: null,
-          periodType: 'yearly',
-          periodKey: '2099',
-          region: 'rect:52.00,5.00,51.00,6.00'
-        })
-
-        // Only the two named-region rows count; world ('') and rect: are excluded.
-        expect(await database.countLegacyRegionRouteHeatmaps()).toBe(before + 2)
-
-        const deleted = await database.softDeleteLegacyRegionRouteHeatmaps()
-        expect(deleted).toBe(before + 2)
-        expect(await database.countLegacyRegionRouteHeatmaps()).toBe(0)
-
-        // The world and rect caches are left intact.
-        await expect(
-          database.getFitnessRouteHeatmap({ id: worldRow.id })
-        ).resolves.not.toBeNull()
-        await expect(
-          database.getFitnessRouteHeatmap({ id: rectRow.id })
-        ).resolves.not.toBeNull()
-      })
-    })
-
     describe('getFitnessRouteHeatmapRegionNames / setFitnessRouteHeatmapRegionName', () => {
       const REGION = 'rect:50.00,4.00,49.00,5.00'
 

@@ -126,8 +126,6 @@ Fitness maintenance scripts live in `scripts/`:
 - `scripts/fitness/diagnoseFitnessImport.ts` — read-only preflight: which database, actor, Strava settings/token, stored files, and same-ride overlap
 - `scripts/fitness/repairFailedFitnessImports.ts` — re-runs failed **and** crash-orphaned imports (stuck at `pending` with no status after an uncatchable OOM/SIGABRT)
 - `scripts/fitness/importStoredFitnessFile.ts` — rebuilds a post from the already-stored file with no Strava call (deleted-from-Strava case); merges same-ride files into one post
-- `scripts/fitness/cleanupLegacyFitnessHeatmaps.ts`
-- `scripts/fitness/cleanupLegacyHeatmapRegions.ts`
 - `scripts/fitness/repairStravaActivityFiles.ts` — pass `--delete-missing` to hard-delete activities Strava 404s (default: report only; deletion is irreversible)
 - `scripts/fitness/retrigerStravaActivities.ts`
 - `scripts/fitness/runImportStravaActivity.ts`
