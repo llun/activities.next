@@ -3,6 +3,7 @@ import FitParser from 'fit-file-parser'
 import type { FitData } from 'fit-file-parser'
 import { z } from 'zod'
 
+import { downsamplePoints } from '@/lib/services/fitness-files/privacy'
 import { getBrandFromManufacturer } from '@/lib/utils/fitnessDeviceBrands'
 
 export interface FitnessCoordinate {
@@ -56,6 +57,17 @@ const XML_OPTIONS = {
 }
 
 const EARTH_RADIUS_METERS = 6_371_000
+
+// The 50 MB upload cap bounds file BYTES, not decoded point count: a dense FIT
+// or verbose GPX/TCX can decode to millions of trackpoints, and the processing
+// job then holds ~10 full-resolution copies of them (coordinates, track points,
+// four metric series, privacy segments, map projection). On a memory-limited
+// Cloud Run instance that exhausts the V8 heap and aborts the process (SIGABRT),
+// killing the fitness worker mid-job. Capping the decoded trackpoints before any
+// per-point structure is built keeps peak memory bounded. Endpoints are always
+// preserved, so cumulative distance/duration are unaffected; only activities far
+// larger than any real workout (well over a full day at 1 Hz) lose resolution.
+const MAX_FITNESS_TRACK_POINTS = 100_000
 
 const NumberLikeSchema = z.union([z.number(), z.string()])
 const DateLikeSchema = z.union([z.number(), z.string(), z.date()])
@@ -411,7 +423,13 @@ const parseFit = async (buffer: Buffer): Promise<FitnessActivityData> => {
   })
 
   const sessions = asArray(parsed.sessions)
-  const records = asArray(parsed.records)
+  // Bound the decoded record count before building any per-point structure.
+  // Cumulative distance is monotonic and the last sample is always kept, so the
+  // record-distance fallback below is unaffected.
+  const records = downsamplePoints(
+    asArray(parsed.records),
+    MAX_FITNESS_TRACK_POINTS
+  )
   const primarySession = sessions[0]
 
   // Extract device info from device_infos (device_index 0 = primary recording device).
@@ -467,14 +485,18 @@ const parseFit = async (buffer: Buffer): Promise<FitnessActivityData> => {
     })
     .filter((point): point is NonNullable<typeof point> => point !== null)
 
-  const recordDistanceSamples = records
-    .map((record) => toNumber(record.distance))
-    .filter((distance): distance is number => typeof distance === 'number')
-
-  const distanceFromRecords =
-    recordDistanceSamples.length > 0
-      ? Math.max(...recordDistanceSamples)
-      : undefined
+  // Reduce instead of `Math.max(...samples)`: a long ride can hold >100k records
+  // and spreading that many arguments overflows the call stack (RangeError past
+  // ~130k elements). Cumulative distance is monotonic, so the max is the final
+  // sample either way.
+  const distanceFromRecords = records.reduce<number | undefined>(
+    (max, record) => {
+      const distance = toNumber(record.distance)
+      if (typeof distance !== 'number') return max
+      return max === undefined || distance > max ? distance : max
+    },
+    undefined
+  )
 
   const base = toActivityData({
     points,
@@ -511,9 +533,14 @@ const parseGpx = (buffer: Buffer): FitnessActivityData => {
   }
 
   const tracks = asArray(parsedResult.data.gpx?.trk)
-  const points = tracks
-    .flatMap((track) => asArray(track.trkseg))
-    .flatMap((segment) => asArray(segment.trkpt))
+  // Bound the decoded trackpoint count before building any per-point structure.
+  const rawTrackpoints = downsamplePoints(
+    tracks
+      .flatMap((track) => asArray(track.trkseg))
+      .flatMap((segment) => asArray(segment.trkpt)),
+    MAX_FITNESS_TRACK_POINTS
+  )
+  const points = rawTrackpoints
     .map((point) => {
       const lat = normalizeLatitude(point.lat)
       const lng = normalizeLongitude(point.lon)
@@ -559,9 +586,13 @@ const parseTcx = (buffer: Buffer): FitnessActivityData => {
   const activity = activities[0]
   const laps = asArray(activity?.Lap)
 
-  const rawTrackpoints = laps
-    .flatMap((lap) => asArray(lap.Track))
-    .flatMap((track) => asArray(track.Trackpoint))
+  // Bound the decoded trackpoint count before building any per-point structure.
+  const rawTrackpoints = downsamplePoints(
+    laps
+      .flatMap((lap) => asArray(lap.Track))
+      .flatMap((track) => asArray(track.Trackpoint)),
+    MAX_FITNESS_TRACK_POINTS
+  )
 
   // GPS-only points for coordinates and map track (FitnessTrackPoint requires lat/lng)
   const gpsPoints = rawTrackpoints

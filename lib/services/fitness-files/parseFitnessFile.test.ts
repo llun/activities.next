@@ -149,6 +149,67 @@ describe('parseFitnessFile', () => {
     expect(parsed.startTime?.toISOString()).toBe('2026-01-03T06:00:00.000Z')
   })
 
+  it('derives FIT distance from a very long record list without overflowing the call stack', async () => {
+    const recordCount = 200_000
+    FitParserMock.mockImplementation(function () {
+      return {
+        parse: (
+          _buffer: Buffer,
+          callback: (error: Error | null, data?: unknown) => void
+        ) =>
+          // No session totals, so the record-distance fallback runs. A
+          // `Math.max(...samples)` spread over this many records would throw a
+          // RangeError; the reduce must handle it.
+          callback(null, {
+            sessions: [],
+            records: Array.from({ length: recordCount }, (_value, index) => ({
+              position_lat: 37.78 + index * 0.00001,
+              position_long: -122.42 + index * 0.00001,
+              distance: index
+            }))
+          })
+      }
+    })
+
+    const parsed = await parseFitnessFile({
+      fileType: 'fit',
+      buffer: Buffer.from('binary-fit-content')
+    })
+
+    expect(parsed.totalDistanceMeters).toBe(recordCount - 1)
+  })
+
+  it('caps the decoded trackpoints for an oversized activity', async () => {
+    const recordCount = 400_000
+    FitParserMock.mockImplementation(function () {
+      return {
+        parse: (
+          _buffer: Buffer,
+          callback: (error: Error | null, data?: unknown) => void
+        ) =>
+          callback(null, {
+            sessions: [{ total_distance: 1000 }],
+            records: Array.from({ length: recordCount }, (_value, index) => ({
+              position_lat: 37.78 + index * 0.00001,
+              position_long: -122.42 + index * 0.00001
+            }))
+          })
+      }
+    })
+
+    const parsed = await parseFitnessFile({
+      fileType: 'fit',
+      buffer: Buffer.from('binary-fit-content')
+    })
+
+    // Every record carries GPS, so without the cap coordinates would equal the
+    // full record count. The cap keeps peak memory bounded so the worker cannot
+    // OOM-abort mid-job on a very large activity.
+    expect(parsed.coordinates.length).toBeGreaterThan(0)
+    expect(parsed.coordinates.length).toBeLessThan(recordCount)
+    expect(parsed.coordinates.length).toBeLessThanOrEqual(100_000)
+  })
+
   it('throws when FIT parser reports an error', async () => {
     FitParserMock.mockImplementation(function () {
       return {

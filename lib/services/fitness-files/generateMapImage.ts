@@ -133,27 +133,50 @@ const buildMapboxUrl = ({
 }
 
 const renderOsmMap = async ({
-  coordinates,
   routeSegments,
   width,
   height
 }: {
-  coordinates: FitnessCoordinate[]
   routeSegments: FitnessCoordinate[][]
   width: number
   height: number
 }): Promise<Buffer> => {
+  // A long activity (a multi-hour ride can carry >100k GPS points) would
+  // otherwise be projected at full resolution, which overflows two ways: the
+  // Math.min(...)/Math.max(...) spreads below throw a RangeError past ~130k
+  // elements, and the per-point SVG polyline handed to sharp/libvips grows large
+  // enough to abort the native process (SIGABRT). An 800x600 map only needs a
+  // few hundred points, so downsample the geometry first — exactly what the
+  // Mapbox path already does — before projecting anything. The metric series
+  // (distance/duration/elevation/HR/power) are derived elsewhere from the
+  // full-resolution trackpoints and are unaffected by this render-only cap.
+  const sampledSegments = downsampleRouteSegments(routeSegments)
+  if (sampledSegments.length === 0) {
+    throw new Error('No route segments remain after downsampling')
+  }
+  const sampledCoordinates = sampledSegments.flat()
+
   const padding = 56
-  const zoom = getZoomLevel({ coordinates, width, height, padding })
-  const projected = coordinates.map((coordinate) => project(coordinate, zoom))
+  const zoom = getZoomLevel({
+    coordinates: sampledCoordinates,
+    width,
+    height,
+    padding
+  })
 
-  const xValues = projected.map((point) => point.x)
-  const yValues = projected.map((point) => point.y)
-
-  const minX = Math.min(...xValues)
-  const maxX = Math.max(...xValues)
-  const minY = Math.min(...yValues)
-  const maxY = Math.max(...yValues)
+  // Single-pass min/max over the projected points (mirrors the reduce loop in
+  // calculateCoordinateBounds) — never spread the array into Math.min/Math.max.
+  let minX = Number.POSITIVE_INFINITY
+  let maxX = Number.NEGATIVE_INFINITY
+  let minY = Number.POSITIVE_INFINITY
+  let maxY = Number.NEGATIVE_INFINITY
+  for (const coordinate of sampledCoordinates) {
+    const point = project(coordinate, zoom)
+    if (point.x < minX) minX = point.x
+    if (point.x > maxX) maxX = point.x
+    if (point.y < minY) minY = point.y
+    if (point.y > maxY) maxY = point.y
+  }
 
   const centerX = (minX + maxX) / 2
   const centerY = (minY + maxY) / 2
@@ -184,7 +207,7 @@ const renderOsmMap = async ({
     )
   )
 
-  const projectedSegments = routeSegments.map((segment) =>
+  const projectedSegments = sampledSegments.map((segment) =>
     segment.map((coordinate) => {
       const point = project(coordinate, zoom)
       return {
@@ -320,7 +343,6 @@ export const generateMapImage = async ({
   }
 
   return renderOsmMap({
-    coordinates: routeCoordinates,
     routeSegments: normalizedRouteSegments,
     width,
     height

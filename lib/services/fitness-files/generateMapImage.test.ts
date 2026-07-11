@@ -238,4 +238,34 @@ describe('generateMapImage', () => {
       ).toBe(true)
     }
   })
+
+  it('renders a very long OSM route without overflowing the call stack', async () => {
+    mockGetMapProviderConfig.mockReturnValue({ type: 'osm' })
+
+    const tileBuffer = await pngTile()
+    global.fetch = vi.fn().mockImplementation(async () => {
+      return new Response(Buffer.from(tileBuffer), {
+        status: 200,
+        headers: { 'Content-Type': 'image/png' }
+      })
+    }) as unknown as typeof fetch
+
+    // Well past the ~130k point ceiling where Math.min(...)/Math.max(...) spreads
+    // throw a RangeError; the full-resolution SVG polyline would also abort
+    // sharp/libvips. The render path must downsample the geometry first.
+    const longRide = Array.from({ length: 200_000 }, (_value, index) => ({
+      lat: 37.78 + index * 0.00001,
+      lng: -122.42 + index * 0.00001
+    }))
+
+    const result = await generateMapImage({
+      coordinates: longRide,
+      routeSegments: [longRide]
+    })
+
+    expect(result?.length).toBeGreaterThan(0)
+    // Downsampled to a bounded tile window, so only a handful of tiles are
+    // fetched — never one request per raw GPS point.
+    expect((global.fetch as jest.Mock).mock.calls.length).toBeLessThan(100)
+  })
 })
