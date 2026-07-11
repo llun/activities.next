@@ -5,7 +5,11 @@ import { getSQLDatabase } from '@/lib/database/sql'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { hashToken } from '@/lib/services/guards/OAuthGuard'
-import { SCHEDULED_AT_TOO_SOON_ERROR } from '@/lib/services/mastodon/constants'
+import {
+  MAX_FEDERATION_MEDIA_ATTACHMENTS,
+  MAX_STORED_MEDIA_ATTACHMENTS,
+  SCHEDULED_AT_TOO_SOON_ERROR
+} from '@/lib/services/mastodon/constants'
 import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -321,22 +325,11 @@ describe('POST /api/v1/statuses', () => {
     expect(response.status).toBe(422)
   })
 
-  it('rejects more media_ids than the instance advertises', async () => {
-    const mediaIds: string[] = []
-    for (let index = 0; index < 5; index += 1) {
-      const media = await database.createMedia({
-        actorId: ACTOR1_ID,
-        original: {
-          path: `medias/too-many-attachments-${index}.webp`,
-          bytes: 1024,
-          mimeType: 'image/jpeg',
-          metaData: { width: 100, height: 100 },
-          fileName: `too-many-attachments-${index}.jpg`
-        }
-      })
-      expect(media).not.toBeNull()
-      mediaIds.push(media!.id)
-    }
+  it('rejects more media_ids than the stored ceiling advertises', async () => {
+    const mediaIds = Array.from(
+      { length: MAX_STORED_MEDIA_ATTACHMENTS + 1 },
+      (_, index) => `too-many-attachments-${index}`
+    )
 
     const response = await POST(
       new NextRequest('https://llun.test/api/v1/statuses', {
@@ -355,6 +348,44 @@ describe('POST /api/v1/statuses', () => {
 
     expect(response.status).toBe(422)
     expect(getQueue().publish).not.toHaveBeenCalled()
+  })
+
+  it('accepts more media_ids than the federation cap and stores them all', async () => {
+    const storedCount = MAX_FEDERATION_MEDIA_ATTACHMENTS + 1
+    const mediaIds: string[] = []
+    for (let index = 0; index < storedCount; index += 1) {
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: `medias/many-attachments-${index}.webp`,
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 100, height: 100 },
+          fileName: `many-attachments-${index}.jpg`
+        }
+      })
+      expect(media).not.toBeNull()
+      mediaIds.push(media!.id)
+    }
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'A ride with more photos than Mastodon renders',
+          media_ids: mediaIds
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data.media_attachments).toHaveLength(storedCount)
   })
 
   it('honors sensitive and language on a JSON create', async () => {

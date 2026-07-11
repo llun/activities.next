@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import type { Config } from '@/lib/config'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 
 import { GET } from './route'
 
@@ -130,6 +131,17 @@ describe('GET /api/v1/instance', () => {
     expect(body.registrations).toBe(true)
     expect(body.rules).toEqual([{ id: rule.id, text: 'No spam', hint: '' }])
     expect(body.contact_account).toBeNull()
+  })
+
+  it('advertises the stored media ceiling as max_media_attachments', async () => {
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v1/instance'),
+      params
+    )
+    const body = await response.json()
+    expect(body.configuration.statuses.max_media_attachments).toBe(
+      MAX_STORED_MEDIA_ATTACHMENTS
+    )
   })
 
   it('keeps serving the static payload when the database is unavailable', async () => {

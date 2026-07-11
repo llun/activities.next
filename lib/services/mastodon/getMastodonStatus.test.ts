@@ -784,6 +784,37 @@ describe('getMastodonStatus', () => {
     })
   })
 
+  it('returns every attachment without applying the federation cap', async () => {
+    const statusId = `${ACTOR1_ID}/statuses/many-media-attachments`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: ACTOR1_ID,
+      text: 'Ride with a large photo set',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+    const attachmentCount = 5
+    for (let index = 0; index < attachmentCount; index += 1) {
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: 'image/png',
+        url: `https://${TEST_DOMAIN}/api/v1/files/medias/many-media-${index}.png`,
+        width: 150,
+        height: 150,
+        name: `many-media-${index}.png`
+      })
+    }
+
+    const status = (await database.getStatus({
+      statusId,
+      withReplies: false
+    })) as Status
+    const mastodonStatus = await getMastodonStatus(database, status)
+    expect(mastodonStatus?.media_attachments).toHaveLength(attachmentCount)
+  })
+
   it('returns mastodon announce status', async () => {
     const status = (await database.getStatus({
       statusId: `${ACTOR2_ID}/statuses/post-3`

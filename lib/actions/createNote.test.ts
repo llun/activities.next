@@ -3,6 +3,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
 import * as timelinesService from '@/lib/services/timelines'
@@ -639,6 +640,39 @@ How are you?
         mediaType: 'image/png',
         url: 'https://example.com/media/image.png'
       })
+    })
+
+    it('federates only the first MAX_FEDERATION_MEDIA_ATTACHMENTS media even when the status stores more', async () => {
+      const storedCount = MAX_FEDERATION_MEDIA_ATTACHMENTS + 1
+      const status = (await createNoteFromUserInput({
+        text: 'Post with more photos than Mastodon renders',
+        currentActor: actor1,
+        attachments: Array.from({ length: storedCount }, (_, index) => ({
+          type: 'upload' as const,
+          id: `overflow-image-${index}`,
+          mediaType: 'image/png',
+          url: `https://example.com/media/overflow-${index}.png`,
+          width: 640,
+          height: 480,
+          name: `overflow-${index}.png`
+        })),
+        database
+      })) as StatusNote
+
+      // The status keeps every attachment locally...
+      expect(status.attachments).toHaveLength(storedCount)
+
+      // ...but the outbound ActivityPub note only carries the federation cap,
+      // keeping the first N of the stored attachments in their stored order.
+      const note = getNoteFromStatus(status) as Note
+      const attachments = Array.isArray(note.attachment) ? note.attachment : []
+      expect(attachments).toHaveLength(MAX_FEDERATION_MEDIA_ATTACHMENTS)
+      const expectedUrls = status.attachments
+        .slice(0, MAX_FEDERATION_MEDIA_ATTACHMENTS)
+        .map((attachment) => attachment.url)
+      expect(attachments.map((attachment) => attachment.url)).toEqual(
+        expectedUrls
+      )
     })
 
     describe('visibility support', () => {

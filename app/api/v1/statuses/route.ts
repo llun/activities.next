@@ -13,7 +13,7 @@ import {
   MAX_POLL_EXPIRATION_SECONDS,
   MAX_POLL_OPTIONS,
   MAX_POLL_OPTION_CHARS,
-  MAX_STATUS_MEDIA_ATTACHMENTS,
+  MAX_STORED_MEDIA_ATTACHMENTS,
   MIN_POLL_EXPIRATION_SECONDS,
   MIN_POLL_OPTIONS,
   MIN_SCHEDULED_STATUS_AHEAD_MS,
@@ -94,17 +94,19 @@ const NoteSchema = z
       (note.poll?.options.length ?? 0) > 0
   )
 
-// Dedupe, enforce the attachment cap, and resolve media ids to attachments.
-// Returns null when the set exceeds the cap or any id can't be resolved for the
-// actor — both the scheduled and immediate POST paths treat that as a 422.
-// Shared so the two paths can't drift apart.
+// Dedupe, enforce the stored-media ceiling, and resolve media ids to
+// attachments. Returns null when the set exceeds the ceiling or any id can't be
+// resolved for the actor — both the scheduled and immediate POST paths treat
+// that as a 422. Shared so the two paths can't drift apart. The ceiling only
+// bounds how much a single status stores; the federation cap that trims the
+// outbound note lives in getNoteFromStatus.
 const resolveStatusMedia = async (
   database: Database,
   currentActor: Actor,
   mediaIds: string[]
 ): Promise<PostBoxAttachment[] | null> => {
   const uniqueIds = [...new Set(mediaIds)]
-  if (uniqueIds.length > MAX_STATUS_MEDIA_ATTACHMENTS) return null
+  if (uniqueIds.length > MAX_STORED_MEDIA_ATTACHMENTS) return null
   return getAttachmentsFromMediaIds(database, currentActor, uniqueIds)
 }
 
