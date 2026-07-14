@@ -42,7 +42,6 @@ import {
 } from '@/lib/services/strava/activity'
 import { getStravaActivityBatchId } from '@/lib/services/strava/activityBatch'
 import { addStatusToTimelines } from '@/lib/services/timelines'
-import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { Actor, getMention } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { Visibility } from '@/lib/types/mastodon/visibility'

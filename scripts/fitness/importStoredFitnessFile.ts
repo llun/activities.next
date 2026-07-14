@@ -12,8 +12,14 @@
  * files are given at once they are grouped by same-ride overlap (>=80% on
  * start+duration), so one ride recorded as two Strava activities merges into ONE
  * post (one primary carries the map, the rest are attached) instead of creating
- * duplicates. Files that already have a status are skipped, so delete the old
- * duplicate posts first (deleting a status detaches its files back to orphans).
+ * duplicates.
+ *
+ * An orphan whose same-ride sibling ALREADY has a post is merged INTO that post
+ * rather than getting one of its own: the sibling stays primary and keeps its
+ * route map, and the orphan is attached to it (processingStatus='completed', no
+ * second map). So recovering a half-failed same-ride pair — one Strava activity
+ * imported, its twin failed — no longer means deleting the good post first.
+ * Run with --dry-run to see MERGE vs NEW per post before anything is written.
  *
  * Run it with the PRODUCTION env (see diagnoseFitnessImport.ts — move `.env.local`
  * aside so `.env.production` wins, or this hits your local SQLite).
@@ -29,10 +35,7 @@ import { loadEnvConfig } from '@next/env'
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
-import {
-  FitnessOverlapActivity,
-  groupFitnessActivitiesByOverlap
-} from '@/lib/jobs/fitnessImportOverlap'
+import { OVERLAP_CONTEXT_SCAN_LIMIT } from '@/lib/jobs/fitnessImportOverlap'
 import { importFitnessFilesJob } from '@/lib/jobs/importFitnessFilesJob'
 import { IMPORT_FITNESS_FILES_JOB_NAME } from '@/lib/jobs/names'
 import { getStravaActivityBatchId } from '@/lib/services/strava/activityBatch'
@@ -40,6 +43,7 @@ import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { printDatabaseBanner } from './describeConnection'
+import { buildStoredImportPlan } from './storedImportPlan'
 
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
@@ -161,6 +165,18 @@ async function main() {
   const targetIds = targets.map((f) => f.id)
   const batchId = targets[0].importBatchId ?? `manual-recover:${targets[0].id}`
 
+  // Same-ride siblings that ALREADY have a post. Handing these to the job as
+  // overlap context makes it reuse the sibling's status for an overlapping
+  // target instead of creating a second post for the same ride.
+  const contextFiles = await database.getFitnessFilesByActor({
+    actorId: input.actorId,
+    limit: OVERLAP_CONTEXT_SCAN_LIMIT
+  })
+  const { overlapFitnessFileIds, groups } = buildStoredImportPlan({
+    targets,
+    contextFiles
+  })
+
   console.log(
     `Recreating posts for ${targets.length} orphaned file(s) in one overlap-aware import` +
       (input.dryRun ? ' (dry run)' : '') +
@@ -169,44 +185,15 @@ async function main() {
   console.log(`  files: ${targets.map((f) => f.fileName).join(', ')}\n`)
 
   if (input.dryRun) {
-    // Predict the post grouping WITHOUT touching the database: files that overlap
-    // >=80% on start+duration merge into one post, while files missing a start
-    // time or a positive duration can't be grouped and each become their own post.
-    const fileNameById = new Map(targets.map((f) => [f.id, f.fileName]))
-    const groupable: FitnessOverlapActivity[] = []
-    const ungroupable: FitnessFile[] = []
-    for (const file of targets) {
-      if (
-        typeof file.activityStartTime === 'number' &&
-        typeof file.totalDurationSeconds === 'number' &&
-        file.totalDurationSeconds > 0
-      ) {
-        groupable.push({
-          id: file.id,
-          startTimeMs: file.activityStartTime,
-          durationSeconds: file.totalDurationSeconds
-        })
-      } else {
-        ungroupable.push(file)
-      }
-    }
-
-    const groups = groupFitnessActivitiesByOverlap(groupable, 0.8)
-    const postCount = groups.length + ungroupable.length
     console.log(
-      `  would create ${postCount} post(s) (dry run — no Strava, no database writes):`
+      `  would write ${groups.length} post(s) (dry run — no Strava, no database writes):`
     )
     groups.forEach((group, index) => {
-      const names = group.map((a) => fileNameById.get(a.id) ?? a.id)
+      const names = group.targetFileNames.join(' + ')
       console.log(
-        `    post ${index + 1}: ${names.join(' + ')}` +
-          (names.length > 1 ? ' (merged — same-ride >=80% overlap)' : '')
-      )
-    })
-    ungroupable.forEach((file, index) => {
-      console.log(
-        `    post ${groups.length + index + 1}: ${file.fileName}` +
-          ' (own post — no start time / positive duration, cannot group)'
+        group.mergeStatusId
+          ? `    post ${index + 1}: ${names} → MERGE into existing post ${group.mergeStatusId}`
+          : `    post ${index + 1}: ${names} → NEW post`
       )
     })
     return 0
@@ -222,7 +209,7 @@ async function main() {
         actorId: input.actorId,
         batchId,
         fitnessFileIds: targetIds,
-        overlapFitnessFileIds: [],
+        overlapFitnessFileIds,
         visibility: input.visibility
       }
     })
