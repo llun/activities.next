@@ -100,6 +100,34 @@ export const getFitnessFile = async (
   }
 }
 
+/**
+ * Reads a stored fitness file's bytes, following the storage redirect when the
+ * backend serves one (S3). Throws when the file is missing from storage.
+ */
+export const getFitnessFileBuffer = async (
+  database: Database,
+  fileId: string,
+  fileMetadata?: FitnessFile
+): Promise<Buffer> => {
+  const data = await getFitnessFile(database, fileId, fileMetadata)
+  if (!data) {
+    throw new Error('Fitness file not found in storage')
+  }
+
+  if (data.type === 'buffer') {
+    return data.buffer
+  }
+
+  const response = await fetch(data.redirectUrl)
+  if (!response.ok) {
+    throw new Error(
+      `Failed to download fitness file from redirect URL (${response.status})`
+    )
+  }
+
+  return Buffer.from(await response.arrayBuffer())
+}
+
 export const deleteFitnessFile = async (
   database: Database,
   fileId: string,

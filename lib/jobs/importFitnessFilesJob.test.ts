@@ -4,7 +4,7 @@ import {
   IMPORT_FITNESS_FILES_JOB_NAME,
   PROCESS_FITNESS_FILE_JOB_NAME
 } from '@/lib/jobs/names'
-import { getFitnessFile } from '@/lib/services/fitness-files'
+import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
 import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
 import { getQueue } from '@/lib/services/queue'
@@ -23,7 +23,7 @@ vi.mock('@/lib/services/fitness-files', async () => {
   const actual = await vi.importActual('@/lib/services/fitness-files')
   return {
     ...actual,
-    getFitnessFile: vi.fn()
+    getFitnessFileBuffer: vi.fn()
   }
 })
 
@@ -32,8 +32,8 @@ vi.mock('@/lib/services/fitness-files/parseFitnessFile', async () => ({
   isParseableFitnessFileType: vi.fn().mockReturnValue(true)
 }))
 
-const mockGetFitnessFile = getFitnessFile as jest.MockedFunction<
-  typeof getFitnessFile
+const mockGetFitnessFileBuffer = getFitnessFileBuffer as jest.MockedFunction<
+  typeof getFitnessFileBuffer
 >
 const mockParseFitnessFile = parseFitnessFile as jest.MockedFunction<
   typeof parseFitnessFile
@@ -59,11 +59,9 @@ describe('importFitnessFilesJob', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mockGetFitnessFile.mockResolvedValue({
-      type: 'buffer',
-      buffer: Buffer.from('fitness-file-bytes'),
-      contentType: 'application/vnd.ant.fit'
-    })
+    mockGetFitnessFileBuffer.mockResolvedValue(
+      Buffer.from('fitness-file-bytes')
+    )
   })
 
   it('creates local-only merged status, marks primary, and queues processing', async () => {

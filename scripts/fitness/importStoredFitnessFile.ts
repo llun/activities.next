@@ -38,12 +38,17 @@ import { getDatabase } from '@/lib/database'
 import { OVERLAP_CONTEXT_SCAN_LIMIT } from '@/lib/jobs/fitnessImportOverlap'
 import { importFitnessFilesJob } from '@/lib/jobs/importFitnessFilesJob'
 import { IMPORT_FITNESS_FILES_JOB_NAME } from '@/lib/jobs/names'
+import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
+import {
+  isParseableFitnessFileType,
+  parseFitnessFile
+} from '@/lib/services/fitness-files/parseFitnessFile'
 import { getStravaActivityBatchId } from '@/lib/services/strava/activityBatch'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { printDatabaseBanner } from './describeConnection'
-import { buildStoredImportPlan } from './storedImportPlan'
+import { StoredImportTarget, buildStoredImportPlan } from './storedImportPlan'
 
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
@@ -165,6 +170,33 @@ async function main() {
   const targetIds = targets.map((f) => f.id)
   const batchId = targets[0].importBatchId ?? `manual-recover:${targets[0].id}`
 
+  // Parse each target the way importFitnessFilesJob will. A file that failed to
+  // import has no stored activity data, so planning from the row would wrongly
+  // call it ungroupable and predict a NEW post where the job actually merges.
+  const plannedTargets: StoredImportTarget[] = await Promise.all(
+    targets.map(async (file) => {
+      try {
+        if (!isParseableFitnessFileType(file.fileType)) {
+          throw new Error(`Unsupported fitness file type: ${file.fileType}`)
+        }
+        const buffer = await getFitnessFileBuffer(database, file.id, file)
+        const activityData = await parseFitnessFile({
+          fileType: file.fileType,
+          buffer
+        })
+        return {
+          file,
+          durationSeconds: activityData.totalDurationSeconds,
+          ...(activityData.startTime
+            ? { startTimeMs: activityData.startTime.getTime() }
+            : null)
+        }
+      } catch (error) {
+        return { file, parseError: (error as Error).message }
+      }
+    })
+  )
+
   // Same-ride siblings that ALREADY have a post. Handing these to the job as
   // overlap context makes it reuse the sibling's status for an overlapping
   // target instead of creating a second post for the same ride.
@@ -172,8 +204,8 @@ async function main() {
     actorId: input.actorId,
     limit: OVERLAP_CONTEXT_SCAN_LIMIT
   })
-  const { overlapFitnessFileIds, groups } = buildStoredImportPlan({
-    targets,
+  const { overlapFitnessFileIds, groups, unparseable } = buildStoredImportPlan({
+    targets: plannedTargets,
     contextFiles
   })
 
@@ -195,6 +227,9 @@ async function main() {
           ? `    post ${index + 1}: ${names} → MERGE into existing post ${group.mergeStatusId}`
           : `    post ${index + 1}: ${names} → NEW post`
       )
+    })
+    unparseable.forEach((file) => {
+      console.log(`    ✗ ${file.fileName} → would FAIL to parse: ${file.error}`)
     })
     return 0
   }

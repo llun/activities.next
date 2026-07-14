@@ -5,7 +5,7 @@ import {
   SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { processFitnessFileJob } from '@/lib/jobs/processFitnessFileJob'
-import { getFitnessFile } from '@/lib/services/fitness-files'
+import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
 import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
@@ -28,7 +28,7 @@ vi.mock('@/lib/services/fitness-files', async () => {
   const actual = await vi.importActual('@/lib/services/fitness-files')
   return {
     ...actual,
-    getFitnessFile: vi.fn()
+    getFitnessFileBuffer: vi.fn()
   }
 })
 
@@ -45,8 +45,8 @@ vi.mock('@/lib/services/medias', async () => ({
   saveMedia: vi.fn()
 }))
 
-const mockGetFitnessFile = getFitnessFile as jest.MockedFunction<
-  typeof getFitnessFile
+const mockGetFitnessFileBuffer = getFitnessFileBuffer as jest.MockedFunction<
+  typeof getFitnessFileBuffer
 >
 const mockParseFitnessFile = parseFitnessFile as jest.MockedFunction<
   typeof parseFitnessFile
@@ -133,11 +133,9 @@ describe('processFitnessFileJob', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mockGetFitnessFile.mockResolvedValue({
-      type: 'buffer',
-      buffer: Buffer.from('fitness-file-bytes'),
-      contentType: 'application/vnd.ant.fit'
-    })
+    mockGetFitnessFileBuffer.mockResolvedValue(
+      Buffer.from('fitness-file-bytes')
+    )
 
     mockParseFitnessFile.mockResolvedValue(defaultActivityData)
     mockGenerateMapImage.mockResolvedValue(Buffer.from('png-map-image'))

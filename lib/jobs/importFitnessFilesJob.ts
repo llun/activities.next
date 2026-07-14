@@ -8,7 +8,7 @@ import {
 import { Database } from '@/lib/database/types'
 import { groupFitnessActivitiesByOverlap } from '@/lib/jobs/fitnessImportOverlap'
 import { PROCESS_FITNESS_FILE_JOB_NAME } from '@/lib/jobs/names'
-import { getFitnessFile } from '@/lib/services/fitness-files'
+import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import {
   isParseableFitnessFileType,
   parseFitnessFile
@@ -46,29 +46,6 @@ interface ParsedImportFile {
   startTimeMs?: number
   source: ParsedImportFileSource
   hasCoordinates?: boolean
-}
-
-const getFitnessFileBuffer = async (
-  database: Database,
-  fitnessFile: FitnessFile
-): Promise<Buffer> => {
-  const data = await getFitnessFile(database, fitnessFile.id, fitnessFile)
-  if (!data) {
-    throw new Error('Fitness file not found in storage')
-  }
-
-  if (data.type === 'buffer') {
-    return data.buffer
-  }
-
-  const response = await fetch(data.redirectUrl)
-  if (!response.ok) {
-    throw new Error(
-      `Failed to download fitness file from redirect URL (${response.status})`
-    )
-  }
-
-  return Buffer.from(await response.arrayBuffer())
 }
 
 const sortFilesByActivityStart = (files: ParsedImportFile[]) => {
@@ -323,7 +300,11 @@ export const importFitnessFilesJob = createJobHandle(
       }
 
       try {
-        const buffer = await getFitnessFileBuffer(database, fitnessFile)
+        const buffer = await getFitnessFileBuffer(
+          database,
+          fitnessFile.id,
+          fitnessFile
+        )
         if (!isParseableFitnessFileType(fitnessFile.fileType)) {
           throw new Error(
             `Unsupported fitness file type for activity parsing: ${fitnessFile.fileType}`
