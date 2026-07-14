@@ -340,6 +340,37 @@ describe('/oauth/authorize unregistered client', () => {
     const target = new URL(redirectMock.mock.calls[0][0])
     expect(target.pathname).toBe('/api/auth/oauth2/authorize')
   })
+
+  // Regression pin: this gate runs BEFORE the Better Auth delegation, so it must
+  // never be stricter than Better Auth's own redirect_uri check. Better Auth
+  // matches a loopback redirect_uri while ignoring the port (RFC 8252 §7.3), so
+  // a native client that registered http://127.0.0.1:8080/callback and now
+  // listens on an ephemeral port must still get through. A plain
+  // `redirectUris.includes(...)` here 404s it before Better Auth ever sees it.
+  it('delegates a loopback redirect_uri that differs only by port', async () => {
+    getClientFromIdMock.mockResolvedValue({
+      ...REGISTERED_CLIENT,
+      redirectUris: ['http://127.0.0.1:8080/callback']
+    })
+    vi.mocked(getActorFromSession).mockResolvedValue({
+      id: 'actor-id',
+      account: { id: 'account-id' }
+    } as Awaited<ReturnType<typeof getActorFromSession>>)
+
+    await Page({
+      searchParams: Promise.resolve({
+        ...searchParams,
+        redirect_uri: 'http://127.0.0.1:51234/callback'
+      })
+    })
+
+    expect(notFoundMock).not.toHaveBeenCalled()
+    const target = new URL(redirectMock.mock.calls[0][0])
+    expect(target.pathname).toBe('/api/auth/oauth2/authorize')
+    expect(target.searchParams.get('redirect_uri')).toBe(
+      'http://127.0.0.1:51234/callback'
+    )
+  })
 })
 
 describe('/oauth/authorize account summary', () => {

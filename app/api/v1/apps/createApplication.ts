@@ -64,6 +64,11 @@ type CreateApplicationOptions = {
 const APP_REGISTRATION_REFERENCE_PREFIX = 'app-registration:'
 const APP_REGISTRATION_LIMIT = 5
 const APP_REGISTRATION_WINDOW_MS = 10 * 60 * 1000
+// Stamped on every /api/v1/apps registration to record that it came in through
+// the unauthenticated endpoint. Nothing in this repo reads it back any more (its
+// only reader was the registration collector, removed because it broke clients
+// that cache their credentials) — it is kept deliberately as provenance for
+// operators auditing the table, and better-auth surfaces it as client.metadata.
 const REGISTERED_UNAUTHENTICATED_METADATA = JSON.stringify({
   registeredUnauthenticated: true
 })
@@ -122,7 +127,10 @@ export const createApplication = async (
         }
 
         // The registration throttle is a best-effort guard: count + insert is
-        // intentionally not a cross-database atomic hard cap.
+        // intentionally not a cross-database atomic hard cap, and it only
+        // engages when a source key is available — `getAppRegistrationKey`
+        // returns undefined unless ACTIVITIES_TRUST_PROXY_IP_HEADERS is set, so
+        // a default deployment has no per-source limit at all.
         //
         // Registrations are deliberately NOT garbage-collected. Mastodon-API
         // clients (Phanpy, Elk, Tusky, …) persist the client_id/client_secret
@@ -130,8 +138,15 @@ export const createApplication = async (
         // stored copy is missing, so deleting a registration permanently wedges
         // any client still holding it: it keeps presenting a client_id this
         // server no longer knows and has no way to discover it must register
-        // again. Mastodon never expires application records either. Abuse is
-        // bounded by the rate limit above, not by deleting live clients.
+        // again. Mastodon hit precisely this and removed its own application
+        // "vacuuming" in 4.3 for the same reason.
+        //
+        // That does mean abandoned registrations accumulate, and on a default
+        // deployment nothing bounds them. That is the accepted trade: the old
+        // collector was never a flood defence either (rows only became eligible
+        // 24h after they were written), so it bought no protection while
+        // silently breaking real clients. If a bound is wanted, add one that
+        // rejects writes — never one that deletes registrations.
 
         // Always create a new client — per the Mastodon API spec, each POST
         // creates a new application with fresh credentials. Silent secret

@@ -6,6 +6,7 @@ import { getBaseURL } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { matchesRegisteredRedirectUri } from '@/lib/services/oauth/matchRedirectUri'
 import { Actor } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { isRealAvatar } from '@/lib/utils/isRealAvatar'
@@ -61,11 +62,13 @@ const Page: FC<Props> = async ({ searchParams }) => {
     return notFound()
   }
 
-  // Validate redirect_uri against registered URIs to prevent open redirect
-  if (
-    params.redirect_uri &&
-    !client.redirectUris.includes(params.redirect_uri)
-  ) {
+  // Validate redirect_uri against the registered URIs to prevent open redirect.
+  // matchesRegisteredRedirectUri applies exactly the rule Better Auth's
+  // authorize endpoint applies (including RFC 8252 §7.3 port-insensitive
+  // loopback matching), so this gate can never be stricter than the delegate it
+  // fronts — a plain `includes()` here would 404 the ephemeral-port loopback
+  // redirect that native clients rely on.
+  if (!matchesRegisteredRedirectUri(client.redirectUris, params.redirect_uri)) {
     return notFound()
   }
 

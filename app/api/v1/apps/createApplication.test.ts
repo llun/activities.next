@@ -618,24 +618,32 @@ describe('createApplication', () => {
   // `invalid_client`. These rows used to be garbage collected 24h after
   // registration, which broke sign-in for any client whose login was started
   // but never completed.
+  //
+  // Each case carries its OWN `now`, >1h apart. The collector this pins against
+  // was throttled by module state (once an hour per process), so a shared `now`
+  // let the first case consume the throttle and the second case would then pass
+  // against the buggy code for the wrong reason — the collector never ran.
   test.each([
     {
       description: 'registered from a rate-limited source',
       clientId: 'durable-referenced-client',
       referenceId: 'app-registration:durable-source',
-      metadata: null
+      metadata: null,
+      now: new Date('2026-05-12T12:00:00.000Z')
     },
     {
+      // The shape every Mastodon client produces: /api/v1/apps is
+      // unauthenticated, so with no trusted source IP there is no reference id.
       description: 'registered anonymously',
       clientId: 'durable-anonymous-client',
       referenceId: '',
-      metadata: JSON.stringify({ registeredUnauthenticated: true })
+      metadata: JSON.stringify({ registeredUnauthenticated: true }),
+      now: new Date('2026-05-12T14:00:00.000Z')
     }
   ])(
     'it keeps an old unused app registration $description when another app registers',
-    async ({ clientId, referenceId, metadata }) => {
+    async ({ clientId, referenceId, metadata, now }) => {
       const staleCreatedAt = new Date('2026-05-10T00:00:00.000Z')
-      const now = new Date('2026-05-12T12:00:00.000Z')
 
       await knexDatabase('oauthClient').insert({
         id: `${clientId}-id`,
