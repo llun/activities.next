@@ -1,0 +1,30 @@
+lib/jobs/importFitnessFilesJob.test.ts
+  s_ed05b2e981b84c::t_30b84235444175 67-106
+lib/database/sql/fitnessFile.ts
+  s_ed05b2e981b84c::t_b8f0b2d8b7fc00 263
+  s_ed05b2e981b84c::t_ada6c446c177ac 231-238
+  s_ed05b2e981b84c::t_b1d7f92ac723b6 708,733
+  s_ed05b2e981b84c::t_d0a1edbaebec28 230
+lib/database/sql/fitnessFile.test.ts
+  s_ed05b2e981b84c::t_7f7f32fe810ae1 395-419
+lib/jobs/importFitnessFilesJob.ts
+  s_ed05b2e981b84c::t_2e9d8b43e8842f 160-169
+  s_ed05b2e981b84c::t_b9ac2d6302c827 456-461,467,472
+  s_ed05b2e981b84c::t_514edd12aa1f59 360
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "3f6e3b4c71f576c55d7a62ee54f05de0f718415e",
+  "prompts": {},
+  "sessions": {
+    "s_ed05b2e981b84c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a61299ca-2ba8-497b-9eb6-b7afacc32f65",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
