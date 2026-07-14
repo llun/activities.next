@@ -60,6 +60,22 @@ describe('processFitnessFileJob', () => {
   const database = getTestSQLDatabase()
   let actor: Actor
 
+  const defaultActivityData: FitnessActivityData = {
+    coordinates: [
+      { lat: 37.78, lng: -122.42 },
+      { lat: 37.79, lng: -122.41 }
+    ],
+    trackPoints: [
+      { lat: 37.78, lng: -122.42 },
+      { lat: 37.79, lng: -122.41 }
+    ],
+    totalDistanceMeters: 5_200,
+    totalDurationSeconds: 1_695,
+    elevationGainMeters: 130,
+    activityType: 'running',
+    startTime: new Date('2026-01-05T06:00:00.000Z')
+  }
+
   const createStatusWithFitnessFile = async ({
     text,
     fileType = 'fit'
@@ -122,22 +138,6 @@ describe('processFitnessFileJob', () => {
       buffer: Buffer.from('fitness-file-bytes'),
       contentType: 'application/vnd.ant.fit'
     })
-
-    const defaultActivityData: FitnessActivityData = {
-      coordinates: [
-        { lat: 37.78, lng: -122.42 },
-        { lat: 37.79, lng: -122.41 }
-      ],
-      trackPoints: [
-        { lat: 37.78, lng: -122.42 },
-        { lat: 37.79, lng: -122.41 }
-      ],
-      totalDistanceMeters: 5_200,
-      totalDurationSeconds: 1_695,
-      elevationGainMeters: 130,
-      activityType: 'running',
-      startTime: new Date('2026-01-05T06:00:00.000Z')
-    }
 
     mockParseFitnessFile.mockResolvedValue(defaultActivityData)
     mockGenerateMapImage.mockResolvedValue(Buffer.from('png-map-image'))
@@ -368,6 +368,56 @@ describe('processFitnessFileJob', () => {
     })
     expect(updatedFitnessFile?.processingStatus).toBe('failed')
     expect(getQueue().publish).not.toHaveBeenCalled()
+  })
+
+  it('records the failure reason on the fitness file when processing fails', async () => {
+    const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+      text: 'Will fail'
+    })
+
+    mockParseFitnessFile.mockRejectedValue(
+      new Error('Invalid TCX file structure')
+    )
+
+    await processFitnessFileJob(database, {
+      id: 'job-id-failure-reason',
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: { actorId: actor.id, statusId, fitnessFileId }
+    })
+
+    const failedFitnessFile = await database.getFitnessFile({
+      id: fitnessFileId
+    })
+    expect(failedFitnessFile?.importError).toBe('Invalid TCX file structure')
+  })
+
+  it('clears a previous failure reason when processing succeeds on retry', async () => {
+    const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+      text: 'Will fail then succeed'
+    })
+
+    mockParseFitnessFile.mockRejectedValue(new Error('transient storage error'))
+    await processFitnessFileJob(database, {
+      id: 'job-id-retry-failure',
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: { actorId: actor.id, statusId, fitnessFileId }
+    })
+    expect(
+      (await database.getFitnessFile({ id: fitnessFileId }))?.importError
+    ).toBe('transient storage error')
+
+    mockParseFitnessFile.mockResolvedValue(defaultActivityData)
+    await processFitnessFileJob(database, {
+      id: 'job-id-retry-success',
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: { actorId: actor.id, statusId, fitnessFileId }
+    })
+
+    const retriedFitnessFile = await database.getFitnessFile({
+      id: fitnessFileId
+    })
+    expect(retriedFitnessFile?.processingStatus).toBe('completed')
+    expect(retriedFitnessFile?.importError).toBeUndefined()
   })
 
   it('skips federation publish when publishSendNote is false', async () => {

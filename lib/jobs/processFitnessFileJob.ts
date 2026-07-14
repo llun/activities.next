@@ -302,7 +302,11 @@ export const processFitnessFileJob = createJobHandle(
         error: nodeError.message
       })
 
-      await database.updateFitnessFileProcessingStatus(fitnessFileId, 'failed')
+      await database.updateFitnessFileProcessingStatus(
+        fitnessFileId,
+        'failed',
+        nodeError.message
+      )
     }
   }
 )

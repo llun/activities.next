@@ -1,3 +1,4 @@
+import { MAX_FITNESS_IMPORT_ERROR_LENGTH } from '@/lib/database/sql/fitnessFile'
 import {
   databaseBeforeAll,
   getTestDatabaseTable
@@ -341,6 +342,55 @@ describe('FitnessFileDatabase', () => {
           mapImagePath: 'medias/route-map.png'
         })
         expect(fetched?.activityStartTime).toBeDefined()
+      })
+
+      it('records the failure reason and clears it once the file processes again', async () => {
+        const created = await database.createFitnessFile({
+          actorId: actors.primary.id,
+          path: 'fitness/broken.tcx',
+          fileName: 'broken.tcx',
+          fileType: 'tcx',
+          mimeType: 'application/vnd.garmin.tcx+xml',
+          bytes: 2048
+        })
+
+        await database.updateFitnessFileProcessingStatus(
+          created!.id,
+          'failed',
+          'Invalid TCX file structure'
+        )
+        const failed = await database.getFitnessFile({ id: created!.id })
+        expect(failed).toMatchObject({
+          processingStatus: 'failed',
+          importError: 'Invalid TCX file structure'
+        })
+
+        await database.updateFitnessFileProcessingStatus(created!.id, 'pending')
+        const retried = await database.getFitnessFile({ id: created!.id })
+        expect(retried?.processingStatus).toBe('pending')
+        expect(retried?.importError).toBeUndefined()
+      })
+
+      it('truncates an oversized failure reason', async () => {
+        const created = await database.createFitnessFile({
+          actorId: actors.primary.id,
+          path: 'fitness/verbose.tcx',
+          fileName: 'verbose.tcx',
+          fileType: 'tcx',
+          mimeType: 'application/vnd.garmin.tcx+xml',
+          bytes: 2048
+        })
+
+        await database.updateFitnessFileProcessingStatus(
+          created!.id,
+          'failed',
+          'e'.repeat(5_000)
+        )
+
+        const fetched = await database.getFitnessFile({ id: created!.id })
+        expect(fetched?.importError).toHaveLength(
+          MAX_FITNESS_IMPORT_ERROR_LENGTH
+        )
       })
     })
 

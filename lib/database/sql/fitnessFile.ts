@@ -175,9 +175,15 @@ export interface FitnessFileDatabase {
     fitnessFileId: string,
     statusId: string
   ): Promise<boolean>
+  /**
+   * Sets the processing state, and on `failed` records why in `importError` so
+   * the reason survives the job (the settings UI renders it). `completed` and
+   * `pending` clear it, so a stale message cannot outlive a successful retry.
+   */
   updateFitnessFileProcessingStatus(
     fitnessFileId: string,
-    processingStatus: FitnessProcessingStatus
+    processingStatus: FitnessProcessingStatus,
+    processingError?: string
   ): Promise<boolean>
   updateFitnessFilesProcessingStatus(params: {
     fitnessFileIds: string[]
@@ -214,6 +220,11 @@ export interface FitnessFileDatabase {
     params: GetFitnessActivityCalendarDataParams
   ): Promise<FitnessCalendarDay[]>
 }
+
+// `importError` is a text column shared by the import and processing stages. Cap
+// what a job may write to it so a stack trace or a remote error body cannot
+// bloat the row.
+export const MAX_FITNESS_IMPORT_ERROR_LENGTH = 1000
 
 // Helper function to normalize bytes from database which can be number, string, or bigint
 const normalizeBytes = (bytes: number | string | bigint): number => {
@@ -610,14 +621,31 @@ export const FitnessFileSQLDatabaseMixin = (
 
   async updateFitnessFileProcessingStatus(
     fitnessFileId: string,
-    processingStatus: FitnessProcessingStatus
+    processingStatus: FitnessProcessingStatus,
+    processingError?: string
   ) {
+    const updateData: Record<string, unknown> = {
+      processingStatus,
+      updatedAt: new Date()
+    }
+
+    if (processingStatus === 'failed') {
+      if (processingError) {
+        updateData.importError = processingError.slice(
+          0,
+          MAX_FITNESS_IMPORT_ERROR_LENGTH
+        )
+      }
+    } else if (
+      processingStatus === 'completed' ||
+      processingStatus === 'pending'
+    ) {
+      updateData.importError = null
+    }
+
     const result = await database('fitness_files')
       .where('id', fitnessFileId)
-      .update({
-        processingStatus,
-        updatedAt: new Date()
-      })
+      .update(updateData)
 
     return result > 0
   },
