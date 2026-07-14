@@ -157,6 +157,16 @@ const groupFilesByOverlap = (
   })
 }
 
+/**
+ * Anything can be thrown, not just an Error. `(error as Error).message` is
+ * `undefined` for a thrown string or SDK object, and an undefined reason is
+ * written to `importError` as NULL — so the file ends up `failed` with no
+ * explanation, which is exactly what recording the reason is meant to prevent.
+ */
+export const toImportErrorMessage = (error: unknown) =>
+  (error instanceof Error ? error.message : String(error)) ||
+  'Unknown fitness import error'
+
 const markImportFileFailed = async (
   database: Database,
   fitnessFileId: string,
@@ -347,9 +357,7 @@ export const importFitnessFilesJob = createJobHandle(
             : null)
         })
       } catch (error) {
-        const errorMessage =
-          (error instanceof Error ? error.message : String(error)) ||
-          'Unknown fitness import error'
+        const errorMessage = toImportErrorMessage(error)
 
         logger.warn({
           message: 'Failed to parse fitness file during import',
@@ -445,22 +453,23 @@ export const importFitnessFilesJob = createJobHandle(
           })
         }
       } catch (error) {
-        const nodeError = error as Error
+        // Must not be `(error as Error).message`: this block covers the queue
+        // publish, and a non-Error rejection would make the reason `undefined`,
+        // which updateFitnessFileImportStatus writes as NULL — wiping any prior
+        // reason and leaving the file `failed` with no explanation.
+        const errorMessage = toImportErrorMessage(error)
+
         logger.error({
           message: 'Failed to create local status for imported fitness files',
           actorId,
           batchId,
           fitnessFileIds: targetFitnessFileIds,
-          error: nodeError.message
+          error: errorMessage
         })
 
         await Promise.all(
           orderedTargetGroup.map((item) =>
-            markImportFileFailed(
-              database,
-              item.fitnessFile.id,
-              nodeError.message
-            )
+            markImportFileFailed(database, item.fitnessFile.id, errorMessage)
           )
         )
 

@@ -392,6 +392,31 @@ describe('FitnessFileDatabase', () => {
           MAX_FITNESS_IMPORT_ERROR_LENGTH
         )
       })
+
+      it('truncates an oversized reason written through the import status too', async () => {
+        const created = await database.createFitnessFile({
+          actorId: actors.primary.id,
+          path: 'fitness/verbose-import.tcx',
+          fileName: 'verbose-import.tcx',
+          fileType: 'tcx',
+          mimeType: 'application/vnd.garmin.tcx+xml',
+          bytes: 2048
+        })
+
+        // Both stages write importError on the same row. If only one capped, a
+        // long reason would be stored in full or truncated depending on which
+        // write landed last.
+        await database.updateFitnessFileImportStatus(
+          created!.id,
+          'failed',
+          'e'.repeat(5_000)
+        )
+
+        const fetched = await database.getFitnessFile({ id: created!.id })
+        expect(fetched?.importError).toHaveLength(
+          MAX_FITNESS_IMPORT_ERROR_LENGTH
+        )
+      })
     })
 
     describe('import fields', () => {

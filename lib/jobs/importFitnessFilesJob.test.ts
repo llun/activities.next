@@ -64,6 +64,46 @@ describe('importFitnessFilesJob', () => {
     )
   })
 
+  it('records a reason when status creation rejects with a non-Error', async () => {
+    const file = await database.createFitnessFile({
+      actorId: actor.id,
+      path: 'fitness/non-error-throw.fit',
+      fileName: 'non-error-throw.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024,
+      importBatchId: 'batch-non-error-throw'
+    })
+
+    mockParseFitnessFile.mockResolvedValueOnce({
+      coordinates: [],
+      trackPoints: [],
+      totalDistanceMeters: 1_000,
+      totalDurationSeconds: 600,
+      startTime: new Date('2026-01-09T00:00:00.000Z')
+    })
+
+    // The queue SDK can reject with a non-Error. `(error as Error).message` is
+    // undefined for it, which writes importError as NULL and leaves the file
+    // failed with no explanation.
+    ;(getQueue().publish as jest.Mock).mockRejectedValueOnce('queue exploded')
+
+    await importFitnessFilesJob(database, {
+      id: 'import-job-non-error-throw',
+      name: IMPORT_FITNESS_FILES_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        batchId: 'batch-non-error-throw',
+        fitnessFileIds: [file!.id],
+        visibility: 'public'
+      }
+    })
+
+    const updated = await database.getFitnessFile({ id: file!.id })
+    expect(updated?.importStatus).toBe('failed')
+    expect(updated?.importError).toBe('queue exploded')
+  })
+
   it('creates local-only merged status, marks primary, and queues processing', async () => {
     const firstFile = await database.createFitnessFile({
       actorId: actor.id,

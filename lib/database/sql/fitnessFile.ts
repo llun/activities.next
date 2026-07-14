@@ -228,6 +228,15 @@ export interface FitnessFileDatabase {
 export const MAX_FITNESS_IMPORT_ERROR_LENGTH = 1000
 
 /**
+ * Every write to `importError` goes through this, so the cap cannot be bypassed
+ * by whichever setter happens to land last: the import and processing stages
+ * both write the column, and a reason longer than the cap would otherwise be
+ * stored truncated by one and in full by the other.
+ */
+const truncateImportError = (importError: string) =>
+  importError.slice(0, MAX_FITNESS_IMPORT_ERROR_LENGTH)
+
+/**
  * Builds the row update for a processing-status write, keeping `importError` in
  * step so the two can never disagree:
  *
@@ -251,10 +260,7 @@ const buildProcessingStatusUpdate = (
 
   if (processingStatus === 'failed') {
     if (processingError) {
-      updateData.importError = processingError.slice(
-        0,
-        MAX_FITNESS_IMPORT_ERROR_LENGTH
-      )
+      updateData.importError = truncateImportError(processingError)
     }
     return updateData
   }
@@ -699,7 +705,7 @@ export const FitnessFileSQLDatabaseMixin = (
       .where('id', fitnessFileId)
       .update({
         importStatus,
-        importError: importError ?? null,
+        importError: importError ? truncateImportError(importError) : null,
         updatedAt: new Date()
       })
 
@@ -724,7 +730,7 @@ export const FitnessFileSQLDatabaseMixin = (
       .whereNull('deletedAt')
       .update({
         importStatus,
-        importError: importError ?? null,
+        importError: importError ? truncateImportError(importError) : null,
         updatedAt: new Date()
       })
   },
