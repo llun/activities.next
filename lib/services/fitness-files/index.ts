@@ -109,6 +109,14 @@ export const getFitnessFileBuffer = async (
   fileId: string,
   fileMetadata?: FitnessFile
 ): Promise<Buffer> => {
+  // getFitnessFile returns null both when the object is absent AND when no
+  // fitness storage is configured. Separate them: running a recovery script
+  // against the wrong env otherwise reports every file as missing from storage,
+  // which reads as "the data is gone" when nothing is actually wrong with it.
+  if (!getEffectiveFitnessStorageConfig()) {
+    throw new Error('Fitness storage is not configured')
+  }
+
   const data = await getFitnessFile(database, fileId, fileMetadata)
   if (!data) {
     throw new Error('Fitness file not found in storage')

@@ -1145,19 +1145,21 @@ export const importStravaArchiveJob = createJobHandle(
           : null)
       })
 
-      await Promise.all([
-        database.updateFitnessFileImportStatus(
-          archiveFitnessFile.id,
-          hasFailures ? 'failed' : 'completed',
-          hasFailures
-            ? `${summary}${importFailureMessage ? `: ${importFailureMessage}` : ''}`
-            : summary
-        ),
-        database.updateFitnessFileProcessingStatus(
-          archiveFitnessFile.id,
-          hasFailures ? 'failed' : 'completed'
-        )
-      ])
+      // Sequential, not Promise.all: both writes touch `importError` on the same
+      // row. A `completed` processing status clears it, so racing them can null
+      // the summary the import status is writing. Set the processing status
+      // first and let the summary land last.
+      await database.updateFitnessFileProcessingStatus(
+        archiveFitnessFile.id,
+        hasFailures ? 'failed' : 'completed'
+      )
+      await database.updateFitnessFileImportStatus(
+        archiveFitnessFile.id,
+        hasFailures ? 'failed' : 'completed',
+        hasFailures
+          ? `${summary}${importFailureMessage ? `: ${importFailureMessage}` : ''}`
+          : summary
+      )
 
       if (shouldKeepImportFailed) {
         // Keep fully failed imports active so users can retry/cancel.

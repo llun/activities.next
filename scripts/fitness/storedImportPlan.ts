@@ -127,10 +127,23 @@ export const buildStoredImportPlan = ({
     // run does not touch.
     if (groupTargets.length === 0) continue
 
+    // The job picks the status from `orderedGroup`, which sortFilesByActivityStart
+    // orders by start time then createdAt then id. Mirror that ordering, or a
+    // group holding two siblings with DIFFERENT statuses (the duplicate-post case
+    // this script repairs) would predict one post and merge into the other.
     const mergeStatusId =
       group
         .map((activity) => siblingById.get(activity.id))
-        .find((file) => file?.statusId)?.statusId ?? null
+        .filter((file): file is FitnessFile => Boolean(file?.statusId))
+        .sort((first, second) => {
+          const firstStart = first.activityStartTime ?? Number.MAX_SAFE_INTEGER
+          const secondStart =
+            second.activityStartTime ?? Number.MAX_SAFE_INTEGER
+          if (firstStart !== secondStart) return firstStart - secondStart
+          if (first.createdAt !== second.createdAt)
+            return first.createdAt - second.createdAt
+          return first.id.localeCompare(second.id)
+        })[0]?.statusId ?? null
 
     groups.push({
       targetFileNames: groupTargets.map((file) => file.fileName),

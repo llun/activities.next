@@ -188,6 +188,7 @@ export interface FitnessFileDatabase {
   updateFitnessFilesProcessingStatus(params: {
     fitnessFileIds: string[]
     processingStatus: FitnessProcessingStatus
+    processingError?: string
   }): Promise<number>
   updateFitnessFileImportStatus(
     fitnessFileId: string,
@@ -225,6 +226,45 @@ export interface FitnessFileDatabase {
 // what a job may write to it so a stack trace or a remote error body cannot
 // bloat the row.
 export const MAX_FITNESS_IMPORT_ERROR_LENGTH = 1000
+
+/**
+ * Builds the row update for a processing-status write, keeping `importError` in
+ * step so the two can never disagree:
+ *
+ * - `failed` WITH a reason records it (truncated).
+ * - `failed` WITHOUT one leaves the column alone. `markImportFileFailed` writes
+ *   the reason through `updateFitnessFileImportStatus` concurrently with this
+ *   call, so clearing here would race it and wipe the reason.
+ * - `completed`/`pending` clear it, so a stale message cannot outlive a retry.
+ *
+ * Callers that set `failed` should always pass a reason; `pending` callers that
+ * may need to roll back must capture `importError` first and pass it back.
+ */
+const buildProcessingStatusUpdate = (
+  processingStatus: FitnessProcessingStatus,
+  processingError?: string
+): Record<string, unknown> => {
+  const updateData: Record<string, unknown> = {
+    processingStatus,
+    updatedAt: new Date()
+  }
+
+  if (processingStatus === 'failed') {
+    if (processingError) {
+      updateData.importError = processingError.slice(
+        0,
+        MAX_FITNESS_IMPORT_ERROR_LENGTH
+      )
+    }
+    return updateData
+  }
+
+  if (processingStatus === 'completed' || processingStatus === 'pending') {
+    updateData.importError = null
+  }
+
+  return updateData
+}
 
 // Helper function to normalize bytes from database which can be number, string, or bigint
 const normalizeBytes = (bytes: number | string | bigint): number => {
@@ -624,38 +664,21 @@ export const FitnessFileSQLDatabaseMixin = (
     processingStatus: FitnessProcessingStatus,
     processingError?: string
   ) {
-    const updateData: Record<string, unknown> = {
-      processingStatus,
-      updatedAt: new Date()
-    }
-
-    if (processingStatus === 'failed') {
-      if (processingError) {
-        updateData.importError = processingError.slice(
-          0,
-          MAX_FITNESS_IMPORT_ERROR_LENGTH
-        )
-      }
-    } else if (
-      processingStatus === 'completed' ||
-      processingStatus === 'pending'
-    ) {
-      updateData.importError = null
-    }
-
     const result = await database('fitness_files')
       .where('id', fitnessFileId)
-      .update(updateData)
+      .update(buildProcessingStatusUpdate(processingStatus, processingError))
 
     return result > 0
   },
 
   async updateFitnessFilesProcessingStatus({
     fitnessFileIds,
-    processingStatus
+    processingStatus,
+    processingError
   }: {
     fitnessFileIds: string[]
     processingStatus: FitnessProcessingStatus
+    processingError?: string
   }) {
     if (fitnessFileIds.length === 0) {
       return 0
@@ -664,10 +687,7 @@ export const FitnessFileSQLDatabaseMixin = (
     return database('fitness_files')
       .whereIn('id', fitnessFileIds)
       .whereNull('deletedAt')
-      .update({
-        processingStatus,
-        updatedAt: new Date()
-      })
+      .update(buildProcessingStatusUpdate(processingStatus, processingError))
   },
 
   async updateFitnessFileImportStatus(

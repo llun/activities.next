@@ -162,13 +162,19 @@ const markImportFileFailed = async (
   fitnessFileId: string,
   importError: string
 ) => {
+  // Both writes target `importError` on the same row, so they must agree on the
+  // value — otherwise whichever lands last decides the reason.
   await Promise.all([
     database.updateFitnessFileImportStatus(
       fitnessFileId,
       'failed',
       importError
     ),
-    database.updateFitnessFileProcessingStatus(fitnessFileId, 'failed')
+    database.updateFitnessFileProcessingStatus(
+      fitnessFileId,
+      'failed',
+      importError
+    )
   ])
 }
 
@@ -341,16 +347,19 @@ export const importFitnessFilesJob = createJobHandle(
             : null)
         })
       } catch (error) {
-        const nodeError = error as Error
+        const errorMessage =
+          (error instanceof Error ? error.message : String(error)) ||
+          'Unknown fitness import error'
+
         logger.warn({
           message: 'Failed to parse fitness file during import',
           fitnessFileId,
           actorId,
           batchId,
-          error: nodeError.message
+          error: errorMessage
         })
 
-        await markImportFileFailed(database, fitnessFile.id, nodeError.message)
+        await markImportFileFailed(database, fitnessFile.id, errorMessage)
       }
     }
 

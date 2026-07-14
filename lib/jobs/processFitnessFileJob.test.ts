@@ -389,6 +389,29 @@ describe('processFitnessFileJob', () => {
     expect(failedFitnessFile?.importError).toBe('Invalid TCX file structure')
   })
 
+  it('records a reason even when the thrown value is not an Error', async () => {
+    const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+      text: 'Will reject with a non-Error'
+    })
+
+    // A thrown string/SDK object has no `.message`; without a guard the reason
+    // is written as undefined, leaving the row `failed` with no explanation (or
+    // a stale one from an earlier failure).
+    mockParseFitnessFile.mockRejectedValue('socket hang up')
+
+    await processFitnessFileJob(database, {
+      id: 'job-id-non-error',
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: { actorId: actor.id, statusId, fitnessFileId }
+    })
+
+    const failedFitnessFile = await database.getFitnessFile({
+      id: fitnessFileId
+    })
+    expect(failedFitnessFile?.processingStatus).toBe('failed')
+    expect(failedFitnessFile?.importError).toBe('socket hang up')
+  })
+
   it('clears a previous failure reason when processing succeeds on retry', async () => {
     const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
       text: 'Will fail then succeed'

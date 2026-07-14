@@ -269,19 +269,25 @@ export const processFitnessFileJob = createJobHandle(
       // fitness-route-heatmap route), so it can never pile onto the import /
       // Strava-webhook path and exhaust the worker's heap.
     } catch (error) {
-      const nodeError = error as Error
+      // Anything can be thrown, not just an Error. `(error as Error).message`
+      // would be undefined for a thrown string or SDK object, which records no
+      // reason at all and leaves a stale one from an earlier failure in place.
+      const errorMessage =
+        (error instanceof Error ? error.message : String(error)) ||
+        'Unknown fitness processing error'
+
       logger.error({
         message: 'Failed to process fitness file',
         actorId,
         statusId,
         fitnessFileId,
-        error: nodeError.message
+        error: errorMessage
       })
 
       await database.updateFitnessFileProcessingStatus(
         fitnessFileId,
         'failed',
-        nodeError.message
+        errorMessage
       )
     }
   }

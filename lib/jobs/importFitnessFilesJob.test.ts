@@ -463,7 +463,13 @@ describe('importFitnessFilesJob', () => {
       'failed',
       'Fitness file missing during import'
     )
-    expect(processingStatusSpy).toHaveBeenCalledWith(missingFileId, 'failed')
+    // Both writes touch importError on the same row, so they must carry the same
+    // reason — otherwise whichever lands last decides what the file says.
+    expect(processingStatusSpy).toHaveBeenCalledWith(
+      missingFileId,
+      'failed',
+      'Fitness file missing during import'
+    )
 
     const updated = await database.getFitnessFile({ id: file!.id })
     expect(updated?.importStatus).toBe('completed')

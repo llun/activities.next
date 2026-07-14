@@ -35,11 +35,13 @@ import { loadEnvConfig } from '@next/env'
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
+import { Database } from '@/lib/database/types'
 import { OVERLAP_CONTEXT_SCAN_LIMIT } from '@/lib/jobs/fitnessImportOverlap'
 import { importFitnessFilesJob } from '@/lib/jobs/importFitnessFilesJob'
 import { IMPORT_FITNESS_FILES_JOB_NAME } from '@/lib/jobs/names'
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import {
+  ParseableFitnessFileType,
   isParseableFitnessFileType,
   parseFitnessFile
 } from '@/lib/services/fitness-files/parseFitnessFile'
@@ -97,6 +99,59 @@ const parseArgs = (args: string[]) => {
     visibility: Visibility.parse(visibility),
     dryRun
   }
+}
+
+const toErrorMessage = (error: unknown) =>
+  (error instanceof Error ? error.message : String(error)) || 'Unknown error'
+
+/**
+ * Loads the candidate same-ride siblings for the targets: files whose ACTIVITY
+ * time sits in the window around each target's ride, plus (as a backstop for
+ * targets that could not be parsed, which therefore have no window) the actor's
+ * most recent files.
+ */
+const getSiblingContextFiles = async (
+  database: Database,
+  actorId: string,
+  targets: StoredImportTarget[]
+): Promise<FitnessFile[]> => {
+  const byId = new Map<string, FitnessFile>()
+
+  for (const target of targets) {
+    if (
+      typeof target.startTimeMs !== 'number' ||
+      typeof target.durationSeconds !== 'number' ||
+      target.durationSeconds <= 0
+    ) {
+      continue
+    }
+
+    // Same window getOverlapContextFitnessFileIds applies when it narrows.
+    const windowMs = Math.max(target.durationSeconds * 1000 * 2, 60 * 60 * 1000)
+    const files = await database.getFitnessFilesByActor({
+      actorId,
+      limit: OVERLAP_CONTEXT_SCAN_LIMIT,
+      startDate: new Date(target.startTimeMs - windowMs),
+      endDate: new Date(target.startTimeMs + windowMs)
+    })
+    files.forEach((file) => byId.set(file.id, file))
+  }
+
+  const hasUnwindowedTarget = targets.some(
+    (target) =>
+      typeof target.startTimeMs !== 'number' ||
+      typeof target.durationSeconds !== 'number' ||
+      target.durationSeconds <= 0
+  )
+  if (hasUnwindowedTarget) {
+    const recent = await database.getFitnessFilesByActor({
+      actorId,
+      limit: OVERLAP_CONTEXT_SCAN_LIMIT
+    })
+    recent.forEach((file) => byId.set(file.id, file))
+  }
+
+  return [...byId.values()]
 }
 
 async function main() {
@@ -175,13 +230,24 @@ async function main() {
   // call it ungroupable and predict a NEW post where the job actually merges.
   const plannedTargets: StoredImportTarget[] = await Promise.all(
     targets.map(async (file) => {
+      let buffer: Buffer
       try {
         if (!isParseableFitnessFileType(file.fileType)) {
           throw new Error(`Unsupported fitness file type: ${file.fileType}`)
         }
-        const buffer = await getFitnessFileBuffer(database, file.id, file)
+        buffer = await getFitnessFileBuffer(database, file.id, file)
+      } catch (error) {
+        // Separate from a parse failure: a storage error is usually transient or
+        // an env mistake ("run it again"), a parse failure is the file itself.
+        return {
+          file,
+          parseError: `could not read from storage: ${toErrorMessage(error)}`
+        }
+      }
+
+      try {
         const activityData = await parseFitnessFile({
-          fileType: file.fileType,
+          fileType: file.fileType as ParseableFitnessFileType,
           buffer
         })
         return {
@@ -192,18 +258,24 @@ async function main() {
             : null)
         }
       } catch (error) {
-        return { file, parseError: (error as Error).message }
+        return { file, parseError: toErrorMessage(error) }
       }
     })
   )
 
-  // Same-ride siblings that ALREADY have a post. Handing these to the job as
-  // overlap context makes it reuse the sibling's status for an overlapping
-  // target instead of creating a second post for the same ride.
-  const contextFiles = await database.getFitnessFilesByActor({
-    actorId: input.actorId,
-    limit: OVERLAP_CONTEXT_SCAN_LIMIT
-  })
+  // Same-ride siblings that ALREADY have a post, so the job reuses their status
+  // instead of creating a second post for the ride.
+  //
+  // Scope this by the ride's ACTIVITY time, not by recency. The Strava importer
+  // can scan "the actor's N most recent files" because it runs seconds after the
+  // sibling was uploaded — but this script exists to recover OLD orphans, and by
+  // now the actor may have uploaded hundreds of files since. A recency window
+  // would drop the sibling and silently create the duplicate post.
+  const contextFiles = await getSiblingContextFiles(
+    database,
+    input.actorId,
+    plannedTargets
+  )
   const { overlapFitnessFileIds, groups, unparseable } = buildStoredImportPlan({
     targets: plannedTargets,
     contextFiles
@@ -216,22 +288,39 @@ async function main() {
   )
   console.log(`  files: ${targets.map((f) => f.fileName).join(', ')}\n`)
 
-  if (input.dryRun) {
+  console.log(
+    `  ${input.dryRun ? 'would write' : 'writing'} ${groups.length} post(s)${
+      input.dryRun ? ' (dry run — no Strava, no database writes)' : ''
+    }:`
+  )
+  groups.forEach((group, index) => {
+    const names = group.targetFileNames.join(' + ')
     console.log(
-      `  would write ${groups.length} post(s) (dry run — no Strava, no database writes):`
+      group.mergeStatusId
+        ? `    post ${index + 1}: ${names} → MERGE into existing post ${group.mergeStatusId}`
+        : `    post ${index + 1}: ${names} → NEW post`
     )
-    groups.forEach((group, index) => {
-      const names = group.targetFileNames.join(' + ')
-      console.log(
-        group.mergeStatusId
-          ? `    post ${index + 1}: ${names} → MERGE into existing post ${group.mergeStatusId}`
-          : `    post ${index + 1}: ${names} → NEW post`
-      )
-    })
-    unparseable.forEach((file) => {
-      console.log(`    ✗ ${file.fileName} → would FAIL to parse: ${file.error}`)
-    })
-    return 0
+  })
+  // Print on the real run too: these files were already parsed, so the script
+  // knows they will fail. Staying quiet until the summary hides it.
+  unparseable.forEach((file) => {
+    console.log(`    ✗ ${file.fileName} → will FAIL, no post: ${file.error}`)
+  })
+  console.log('')
+
+  if (input.dryRun) return 0
+
+  // One bad file among several should not block recovering the rest — the job
+  // marks it failed (with the reason) and imports the others. But when EVERY
+  // target fails, the files are almost certainly fine and the environment is
+  // not (wrong env => no storage config, see the banner above), so importing
+  // would only mark them all failed for a problem that is not theirs.
+  if (unparseable.length === targets.length) {
+    console.error(
+      `Refusing to import: all ${targets.length} file(s) failed to read/parse (see above).\n` +
+        '  This usually means the wrong environment or storage config, not bad files.'
+    )
+    return 1
   }
 
   try {
@@ -249,19 +338,22 @@ async function main() {
       }
     })
   } catch (error) {
-    console.error(
-      `  ✗ importFitnessFilesJob failed: ${(error as Error).message}`
-    )
+    console.error(`  ✗ importFitnessFilesJob failed: ${toErrorMessage(error)}`)
     return 1
   }
 
   // Report the result grouped by the status each file now points to.
   const byStatus = new Map<string, { file: string; primary: boolean }[]>()
-  let unlinked = 0
+  const unlinked: { fileName: string; reason: string }[] = []
   for (const file of targets) {
     const refreshed = await database.getFitnessFile({ id: file.id })
     if (!refreshed?.statusId) {
-      unlinked += 1
+      // The job records why it gave up in importError — surface it instead of
+      // just counting the file, which leaves the operator with nowhere to go.
+      unlinked.push({
+        fileName: file.fileName,
+        reason: refreshed?.importError ?? 'no reason recorded'
+      })
       continue
     }
     const group = byStatus.get(refreshed.statusId) ?? []
@@ -269,7 +361,9 @@ async function main() {
     byStatus.set(refreshed.statusId, group)
   }
 
-  console.log(`Created ${byStatus.size} post(s):`)
+  console.log(
+    `Linked ${targets.length - unlinked.length} file(s) across ${byStatus.size} post(s):`
+  )
   for (const [statusId, files] of byStatus) {
     console.log(`  ✓ ${statusId}`)
     for (const f of files) {
@@ -278,11 +372,11 @@ async function main() {
       )
     }
   }
-  if (unlinked > 0) {
-    console.log(`  ✗ ${unlinked} file(s) did not get linked to a status`)
+  for (const file of unlinked) {
+    console.log(`  ✗ ${file.fileName} — not linked to a status: ${file.reason}`)
   }
 
-  return unlinked > 0 ? 1 : 0
+  return unlinked.length > 0 ? 1 : 0
 }
 
 if (require.main === module) {

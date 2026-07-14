@@ -177,11 +177,7 @@ describe('importStravaActivityJob same-ride merge', () => {
       } as never
     })
 
-    mockGetFitnessFileBuffer.mockResolvedValue({
-      type: 'buffer',
-      buffer: Buffer.from('gpx-bytes'),
-      contentType: 'application/gpx+xml'
-    } as never)
+    mockGetFitnessFileBuffer.mockResolvedValue(Buffer.from('gpx-bytes'))
 
     // Same ride => identical parsed start time + duration => overlap merge.
     mockParseFitnessFile.mockResolvedValue({
