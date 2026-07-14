@@ -242,6 +242,11 @@ section-navigation patterns; pick by section type.
 - When adding a new plugin (e.g. `sso()`, `dash()`), first create the necessary migration with `yarn migrate:make <name>`, then register the plugin.
 - Plugins that expose admin or dashboard endpoints must be configured with explicit access control (e.g. `adminCredentials` or `adminRole`). Never register `dash()` without authentication gating.
 
+## OAuth Client Registrations
+
+- **Never delete or expire rows in `oauthClient`.** Registrations created through `POST /api/v1/apps` are durable, exactly as they are in Mastodon. Mastodon-API clients (Phanpy, Elk, Tusky, …) persist the `client_id`/`client_secret` they get from that endpoint indefinitely and only re-register when their stored copy is **missing** — so deleting a registration permanently wedges every client still holding it. The client keeps presenting a `client_id` this server no longer knows and has no way to learn it must register again. A time-based cleanup does not help: any finite TTL eventually deletes a live cached client. Bound abuse with the per-source rate limit in `createApplication` instead. (A 24h "stale registration" collector used to live here and broke Phanpy sign-in for exactly this reason.)
+- **An unknown `client_id` must fail at `/oauth/authorize`, not be forwarded to Better Auth.** Better Auth's authorize endpoint answers an unregistered client with `invalid_client` / **`client_id is required`** — the same message it uses for a genuinely absent `client_id`, which makes the failure very hard to read — and then redirects to `/api/auth/error` and on to the home page, so a failed login looks like it silently did nothing. `app/(nosidebar)/oauth/authorize/page.tsx` validates the client (and its `redirect_uri`) up front and returns `notFound()`; keep that check ahead of the Better Auth delegation. Per RFC 6749 §4.1.2.1 an invalid `client_id`/`redirect_uri` must be reported to the user rather than redirected to the requested `redirect_uri`.
+
 ## Testing Guidelines
 
 - Vitest is configured via `vitest.config.ts`. The project is ESM-only

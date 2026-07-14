@@ -13,7 +13,6 @@ import type { Knex } from 'knex'
 
 import { getKnex } from '@/lib/database'
 import { Scope } from '@/lib/types/database/operations'
-import { logger } from '@/lib/utils/logger'
 import { getTracer } from '@/lib/utils/trace'
 
 import type {
@@ -65,65 +64,13 @@ type CreateApplicationOptions = {
 const APP_REGISTRATION_REFERENCE_PREFIX = 'app-registration:'
 const APP_REGISTRATION_LIMIT = 5
 const APP_REGISTRATION_WINDOW_MS = 10 * 60 * 1000
-const APP_REGISTRATION_GC_AFTER_MS = 24 * 60 * 60 * 1000
-const APP_REGISTRATION_GC_INTERVAL_MS = 60 * 60 * 1000
-const APP_REGISTRATION_GC_BATCH_SIZE = 1000
 const REGISTERED_UNAUTHENTICATED_METADATA = JSON.stringify({
   registeredUnauthenticated: true
 })
 
-let lastAppRegistrationGcAt: number | null = null
-
-export const resetAppRegistrationGcStateForTests = () => {
-  lastAppRegistrationGcAt = null
-}
-
 const getRegistrationReference = (registrationKey?: string): string | null => {
   if (!registrationKey) return null
   return `${APP_REGISTRATION_REFERENCE_PREFIX}${registrationKey}`
-}
-
-const whereUnauthenticatedAppRegistration = (
-  query: Knex.QueryBuilder
-): void => {
-  query.where(
-    'oauthClient.referenceId',
-    'like',
-    `${APP_REGISTRATION_REFERENCE_PREFIX}%`
-  )
-  query.orWhere((anonymousQuery) => {
-    anonymousQuery
-      .where('oauthClient.referenceId', '')
-      .where('oauthClient.metadata', REGISTERED_UNAUTHENTICATED_METADATA)
-  })
-}
-
-const garbageCollectStaleAppRegistrations = async (db: Knex, now: Date) => {
-  const staleBefore = new Date(now.getTime() - APP_REGISTRATION_GC_AFTER_MS)
-  const staleClientIds = await db('oauthClient')
-    .leftJoin(
-      'oauthAccessToken',
-      'oauthAccessToken.clientId',
-      'oauthClient.clientId'
-    )
-    .leftJoin(
-      'oauthRefreshToken',
-      'oauthRefreshToken.clientId',
-      'oauthClient.clientId'
-    )
-    .leftJoin('oauthConsent', 'oauthConsent.clientId', 'oauthClient.clientId')
-    .where(whereUnauthenticatedAppRegistration)
-    .where('oauthClient.createdAt', '<', staleBefore)
-    .whereNull('oauthAccessToken.id')
-    .whereNull('oauthRefreshToken.id')
-    .whereNull('oauthConsent.id')
-    .orderBy('oauthClient.createdAt', 'asc')
-    .limit(APP_REGISTRATION_GC_BATCH_SIZE)
-    .pluck('oauthClient.clientId')
-
-  if (staleClientIds.length > 0) {
-    await db('oauthClient').whereIn('clientId', staleClientIds).delete()
-  }
 }
 
 const isAppRegistrationRateLimited = async ({
@@ -145,36 +92,6 @@ const isAppRegistrationRateLimited = async ({
     .first()
 
   return Number(countResult?.count ?? 0) >= APP_REGISTRATION_LIMIT
-}
-
-const shouldRunAppRegistrationGc = (now: Date): boolean => {
-  const nowMs = now.getTime()
-  if (
-    lastAppRegistrationGcAt !== null &&
-    nowMs >= lastAppRegistrationGcAt &&
-    nowMs - lastAppRegistrationGcAt < APP_REGISTRATION_GC_INTERVAL_MS
-  ) {
-    return false
-  }
-
-  lastAppRegistrationGcAt = nowMs
-  return true
-}
-
-const maybeGarbageCollectStaleAppRegistrations = async (
-  db: Knex,
-  now: Date
-) => {
-  if (!shouldRunAppRegistrationGc(now)) return
-
-  try {
-    await garbageCollectStaleAppRegistrations(db, now)
-  } catch (error) {
-    logger.warn({
-      message: 'Stale app registration cleanup failed',
-      error
-    })
-  }
 }
 
 export const createApplication = async (
@@ -205,9 +122,16 @@ export const createApplication = async (
         }
 
         // The registration throttle is a best-effort guard: count + insert is
-        // intentionally not a cross-database atomic hard cap. Cleanup is also
-        // best effort and throttled so rejected floods do not trigger joins.
-        await maybeGarbageCollectStaleAppRegistrations(db, now)
+        // intentionally not a cross-database atomic hard cap.
+        //
+        // Registrations are deliberately NOT garbage-collected. Mastodon-API
+        // clients (Phanpy, Elk, Tusky, …) persist the client_id/client_secret
+        // they get from here indefinitely and only re-register when their
+        // stored copy is missing, so deleting a registration permanently wedges
+        // any client still holding it: it keeps presenting a client_id this
+        // server no longer knows and has no way to discover it must register
+        // again. Mastodon never expires application records either. Abuse is
+        // bounded by the rate limit above, not by deleting live clients.
 
         // Always create a new client — per the Mastodon API spec, each POST
         // creates a new application with fresh credentials. Silent secret

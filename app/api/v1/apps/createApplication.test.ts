@@ -3,10 +3,7 @@ import knex from 'knex'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { seedDatabase } from '@/lib/stub/database'
 
-import {
-  createApplication,
-  resetAppRegistrationGcStateForTests
-} from './createApplication'
+import { createApplication } from './createApplication'
 import { PostResponse, SuccessResponse } from './types'
 
 // Create a knex instance we can use for both the database and for getKnex mock
@@ -36,10 +33,6 @@ describe('createApplication', () => {
       },
       { registrationKey: 'setup-source' }
     )
-  })
-
-  beforeEach(() => {
-    resetAppRegistrationGcStateForTests()
   })
 
   afterAll(async () => {
@@ -616,220 +609,67 @@ describe('createApplication', () => {
     expect(rows).toHaveLength(6)
   })
 
-  test('it checks the rate limit before garbage collecting stale app registrations', async () => {
-    const registrationKey = 'rate-limited-gc-source'
-    const now = new Date('2026-05-12T13:00:00.000Z')
-    const staleCreatedAt = new Date('2026-05-10T00:00:00.000Z')
-
-    for (let i = 0; i < 5; i++) {
-      await createApplication(
-        {
-          redirect_uris: `https://rate-limited-${i}.llun.dev/callback`,
-          client_name: `rateLimitedClient${i}`,
-          scopes: 'read',
-          website: `https://rate-limited-${i}.llun.dev`
-        },
-        { registrationKey, now }
-      )
+  // Regression pin: app registrations must be durable. Mastodon-API clients
+  // (Phanpy, Elk, Tusky, ...) cache the client_id/client_secret returned by
+  // /api/v1/apps indefinitely and only re-register when their stored copy is
+  // missing. Deleting an old, not-yet-used registration therefore permanently
+  // wedges any client still holding it: the client keeps presenting a client_id
+  // this server no longer knows, and /oauth/authorize can only answer
+  // `invalid_client`. These rows used to be garbage collected 24h after
+  // registration, which broke sign-in for any client whose login was started
+  // but never completed.
+  test.each([
+    {
+      description: 'registered from a rate-limited source',
+      clientId: 'durable-referenced-client',
+      referenceId: 'app-registration:durable-source',
+      metadata: null
+    },
+    {
+      description: 'registered anonymously',
+      clientId: 'durable-anonymous-client',
+      referenceId: '',
+      metadata: JSON.stringify({ registeredUnauthenticated: true })
     }
-    await knexDatabase('oauthClient').insert({
-      id: 'rate-limited-stale-unused-client-id',
-      clientId: 'rate-limited-stale-unused-client',
-      clientSecret: 'hashed-secret',
-      name: 'rate-limited-stale-unused',
-      scopes: JSON.stringify(['read']),
-      redirectUris: JSON.stringify([
-        'https://rate-limited-stale-unused.llun.dev/callback'
-      ]),
-      requirePKCE: true,
-      disabled: false,
-      grantTypes: JSON.stringify(['authorization_code']),
-      responseTypes: JSON.stringify(['code']),
-      tokenEndpointAuthMethod: 'client_secret_post',
-      referenceId: 'app-registration:rate-limited-stale-unused',
-      createdAt: staleCreatedAt,
-      updatedAt: staleCreatedAt
-    })
+  ])(
+    'it keeps an old unused app registration $description when another app registers',
+    async ({ clientId, referenceId, metadata }) => {
+      const staleCreatedAt = new Date('2026-05-10T00:00:00.000Z')
+      const now = new Date('2026-05-12T12:00:00.000Z')
 
-    const response = await createApplication(
-      {
-        redirect_uris: 'https://blocked.llun.dev/callback',
-        client_name: 'blockedClient',
-        scopes: 'read',
-        website: 'https://blocked.llun.dev'
-      },
-      { registrationKey, now }
-    )
-
-    expect(response).toEqual({
-      type: 'error',
-      error: 'Too many application registrations'
-    })
-    await expect(
-      knexDatabase('oauthClient')
-        .where('clientId', 'rate-limited-stale-unused-client')
-        .first()
-    ).resolves.toEqual(
-      expect.objectContaining({
-        clientId: 'rate-limited-stale-unused-client'
+      await knexDatabase('oauthClient').insert({
+        id: `${clientId}-id`,
+        clientId,
+        clientSecret: 'hashed-secret',
+        name: clientId,
+        scopes: JSON.stringify(['read']),
+        redirectUris: JSON.stringify([`https://${clientId}.llun.dev/callback`]),
+        requirePKCE: false,
+        disabled: false,
+        grantTypes: JSON.stringify(['authorization_code']),
+        responseTypes: JSON.stringify(['code']),
+        tokenEndpointAuthMethod: 'client_secret_post',
+        referenceId,
+        metadata,
+        createdAt: staleCreatedAt,
+        updatedAt: staleCreatedAt
       })
-    )
-  })
 
-  test('it garbage-collects stale unused app registrations without deleting token-backed clients', async () => {
-    const staleCreatedAt = new Date('2026-05-10T00:00:00.000Z')
-    const recentCreatedAt = new Date('2026-05-12T11:30:00.000Z')
-    const now = new Date('2026-05-12T12:00:00.000Z')
-
-    await knexDatabase('oauthClient').insert([
-      {
-        id: 'stale-unused-client-id',
-        clientId: 'stale-unused-client',
-        clientSecret: 'hashed-secret',
-        name: 'stale-unused',
-        scopes: JSON.stringify(['read']),
-        redirectUris: JSON.stringify([
-          'https://stale-unused.llun.dev/callback'
-        ]),
-        requirePKCE: true,
-        disabled: false,
-        grantTypes: JSON.stringify(['authorization_code']),
-        responseTypes: JSON.stringify(['code']),
-        tokenEndpointAuthMethod: 'client_secret_post',
-        referenceId: 'app-registration:stale-unused',
-        createdAt: staleCreatedAt,
-        updatedAt: staleCreatedAt
-      },
-      {
-        id: 'stale-active-client-id',
-        clientId: 'stale-active-client',
-        clientSecret: 'hashed-secret',
-        name: 'stale-active',
-        scopes: JSON.stringify(['read']),
-        redirectUris: JSON.stringify([
-          'https://stale-active.llun.dev/callback'
-        ]),
-        requirePKCE: true,
-        disabled: false,
-        grantTypes: JSON.stringify(['authorization_code']),
-        responseTypes: JSON.stringify(['code']),
-        tokenEndpointAuthMethod: 'client_secret_post',
-        referenceId: 'app-registration:stale-active',
-        createdAt: staleCreatedAt,
-        updatedAt: staleCreatedAt
-      },
-      {
-        id: 'stale-anonymous-client-id',
-        clientId: 'stale-anonymous-client',
-        clientSecret: 'hashed-secret',
-        name: 'stale-anonymous',
-        scopes: JSON.stringify(['read']),
-        redirectUris: JSON.stringify([
-          'https://stale-anonymous.llun.dev/callback'
-        ]),
-        requirePKCE: true,
-        disabled: false,
-        grantTypes: JSON.stringify(['authorization_code']),
-        responseTypes: JSON.stringify(['code']),
-        tokenEndpointAuthMethod: 'client_secret_post',
-        referenceId: '',
-        metadata: JSON.stringify({ registeredUnauthenticated: true }),
-        createdAt: staleCreatedAt,
-        updatedAt: staleCreatedAt
-      },
-      {
-        id: 'recent-anonymous-client-id',
-        clientId: 'recent-anonymous-client',
-        clientSecret: 'hashed-secret',
-        name: 'recent-anonymous',
-        scopes: JSON.stringify(['read']),
-        redirectUris: JSON.stringify([
-          'https://recent-anonymous.llun.dev/callback'
-        ]),
-        requirePKCE: true,
-        disabled: false,
-        grantTypes: JSON.stringify(['authorization_code']),
-        responseTypes: JSON.stringify(['code']),
-        tokenEndpointAuthMethod: 'client_secret_post',
-        referenceId: '',
-        metadata: JSON.stringify({ registeredUnauthenticated: true }),
-        createdAt: recentCreatedAt,
-        updatedAt: recentCreatedAt
-      }
-    ])
-    await knexDatabase('oauthAccessToken').insert({
-      id: 'stale-active-token-id',
-      token: 'stale-active-token',
-      clientId: 'stale-active-client',
-      referenceId: null,
-      expiresAt: new Date('2026-05-13T00:00:00.000Z'),
-      scopes: JSON.stringify(['read'])
-    })
-
-    await createApplication(
-      {
-        redirect_uris: 'https://gc.llun.dev/callback',
-        client_name: 'gcClient',
-        scopes: 'read',
-        website: 'https://gc.llun.dev'
-      },
-      { registrationKey: 'gc-source', now }
-    )
-
-    await expect(
-      knexDatabase('oauthClient')
-        .where('clientId', 'stale-unused-client')
-        .first()
-    ).resolves.toBeUndefined()
-    await expect(
-      knexDatabase('oauthClient')
-        .where('clientId', 'stale-active-client')
-        .first()
-    ).resolves.toEqual(
-      expect.objectContaining({ clientId: 'stale-active-client' })
-    )
-    await expect(
-      knexDatabase('oauthClient')
-        .where('clientId', 'stale-anonymous-client')
-        .first()
-    ).resolves.toBeUndefined()
-    await expect(
-      knexDatabase('oauthClient')
-        .where('clientId', 'recent-anonymous-client')
-        .first()
-    ).resolves.toEqual(
-      expect.objectContaining({ clientId: 'recent-anonymous-client' })
-    )
-  })
-
-  test('it orders stale app registration garbage collection before limiting', async () => {
-    const queries: string[] = []
-    const onQuery = (query: { sql: string }) => queries.push(query.sql)
-    knexDatabase.on('query', onQuery)
-
-    try {
+      // Registering another app is what used to trigger the collector.
       await createApplication(
         {
-          redirect_uris: 'https://ordered-gc.llun.dev/callback',
-          client_name: 'orderedGcClient',
+          redirect_uris: 'https://later-app.llun.dev/callback',
+          client_name: 'laterApp',
           scopes: 'read',
-          website: 'https://ordered-gc.llun.dev'
+          website: 'https://later-app.llun.dev'
         },
-        {
-          registrationKey: 'ordered-gc-source',
-          now: new Date('2026-05-12T14:00:00.000Z')
-        }
+        { registrationKey: 'later-source', now }
       )
-    } finally {
-      knexDatabase.off('query', onQuery)
-    }
 
-    const staleClientQuery = queries.find(
-      (sql) =>
-        sql.includes('from `oauthClient`') &&
-        sql.includes('left join `oauthAccessToken`') &&
-        sql.includes('limit ?')
-    )
-    expect(staleClientQuery).toContain('order by `oauthClient`.`createdAt` asc')
-  })
+      const row = await knexDatabase('oauthClient')
+        .where('clientId', clientId)
+        .first()
+      expect(row).toBeDefined()
+    }
+  )
 })

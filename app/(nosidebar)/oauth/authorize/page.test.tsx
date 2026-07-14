@@ -3,6 +3,7 @@ import type { ReactElement } from 'react'
 import { getBaseURL, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { TEST_DOMAIN } from '@/lib/stub/const'
+import type { Client } from '@/lib/types/oauth2/client'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import Page from './page'
@@ -10,7 +11,7 @@ import Page from './page'
 vi.mock('@/lib/config')
 
 vi.mock('@/lib/database', () => ({
-  getDatabase: vi.fn(() => ({}))
+  getDatabase: vi.fn()
 }))
 
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -22,10 +23,14 @@ vi.mock('@/lib/utils/getActorFromSession', () => ({
 }))
 
 const redirectMock = vi.fn((path: string) => path)
+// Mirrors the real notFound(), which throws to unwind the render. Tests that do
+// not expect a 404 still fail loudly if the page reaches it.
+const NOT_FOUND = 'NEXT_NOT_FOUND'
+const notFoundMock = vi.fn(() => {
+  throw new Error(NOT_FOUND)
+})
 vi.mock('next/navigation', () => ({
-  notFound: vi.fn(() => {
-    throw new Error('Unexpected notFound')
-  }),
+  notFound: () => notFoundMock(),
   redirect: (path: string) => redirectMock(path)
 }))
 
@@ -42,6 +47,33 @@ const searchParams = {
   redirect_uri: 'https://app.example/callback',
   response_type: 'code' as const
 }
+
+const REGISTERED_CLIENT = {
+  id: 'db-client-id',
+  clientId: 'client-id',
+  clientSecret: null,
+  name: 'Test App',
+  redirectUris: ['https://app.example/callback'],
+  scopes: ['read'],
+  website: null,
+  requirePKCE: false,
+  disabled: false,
+  createdAt: 0,
+  updatedAt: 0
+} as unknown as Client
+
+const getClientFromIdMock = vi.fn()
+const getActorsForAccountMock = vi.fn()
+
+beforeEach(() => {
+  notFoundMock.mockClear()
+  getClientFromIdMock.mockResolvedValue(REGISTERED_CLIENT)
+  getActorsForAccountMock.mockResolvedValue([])
+  vi.mocked(getDatabase).mockReturnValue({
+    getClientFromId: getClientFromIdMock,
+    getActorsForAccount: getActorsForAccountMock
+  } as unknown as ReturnType<typeof getDatabase>)
+})
 
 describe('/oauth/authorize redirect host', () => {
   beforeEach(() => {
@@ -228,6 +260,85 @@ describe('/oauth/authorize Mastodon authorize params', () => {
     const target = new URL(redirectMock.mock.calls[0][0])
     expect(target.pathname).toBe('/api/auth/oauth2/authorize')
     expect(target.searchParams.has('force_login')).toBe(false)
+  })
+})
+
+describe('/oauth/authorize unregistered client', () => {
+  beforeEach(() => {
+    redirectMock.mockClear()
+    vi.mocked(getConfig).mockReturnValue({
+      host: TEST_DOMAIN,
+      trustedHosts: []
+    } as ReturnType<typeof getConfig>)
+    vi.mocked(getBaseURL).mockReturnValue(`https://${TEST_DOMAIN}`)
+    headersMock.mockReturnValue(
+      new Headers({ 'x-forwarded-host': TEST_DOMAIN })
+    )
+  })
+
+  // Regression pin: a client_id this server does not know — e.g. one a Mastodon
+  // client cached and re-used after the registration went away — must fail
+  // here. Forwarding it to Better Auth instead makes its authorize endpoint
+  // answer `invalid_client / client_id is required` (its message for BOTH a
+  // missing and an unknown client) and bounce through /api/auth/error to the
+  // home timeline, which reads in the client's popup as a login that silently
+  // did nothing.
+  it.each([
+    {
+      description: 'with an authenticated session',
+      actor: {
+        id: 'actor-id',
+        account: { id: 'account-id' }
+      } as Awaited<ReturnType<typeof getActorFromSession>>
+    },
+    {
+      description: 'without a session',
+      actor: null
+    }
+  ])(
+    'returns not found for an unregistered client_id $description',
+    async ({ actor }) => {
+      getClientFromIdMock.mockResolvedValue(null)
+      vi.mocked(getActorFromSession).mockResolvedValue(actor)
+
+      await expect(
+        Page({ searchParams: Promise.resolve(searchParams) })
+      ).rejects.toThrow(NOT_FOUND)
+
+      expect(notFoundMock).toHaveBeenCalledTimes(1)
+      expect(redirectMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it('returns not found when redirect_uri is not registered for the client', async () => {
+    vi.mocked(getActorFromSession).mockResolvedValue({
+      id: 'actor-id',
+      account: { id: 'account-id' }
+    } as Awaited<ReturnType<typeof getActorFromSession>>)
+
+    await expect(
+      Page({
+        searchParams: Promise.resolve({
+          ...searchParams,
+          redirect_uri: 'https://attacker.example/callback'
+        })
+      })
+    ).rejects.toThrow(NOT_FOUND)
+
+    expect(redirectMock).not.toHaveBeenCalled()
+  })
+
+  it('still delegates to better-auth when the client is registered', async () => {
+    vi.mocked(getActorFromSession).mockResolvedValue({
+      id: 'actor-id',
+      account: { id: 'account-id' }
+    } as Awaited<ReturnType<typeof getActorFromSession>>)
+
+    await Page({ searchParams: Promise.resolve(searchParams) })
+
+    expect(notFoundMock).not.toHaveBeenCalled()
+    const target = new URL(redirectMock.mock.calls[0][0])
+    expect(target.pathname).toBe('/api/auth/oauth2/authorize')
   })
 })
 
