@@ -1,0 +1,26 @@
+scripts/fitness/storedImportPlan.test.ts
+  s_ed05b2e981b84c::t_f734a426c00e17 1-95
+scripts/fitness/importStoredFitnessFile.ts
+  s_ed05b2e981b84c::t_9fbfa330d905eb 168-179,189,192,194-196
+  s_ed05b2e981b84c::t_a658ccf2e201a8 15-22
+  s_ed05b2e981b84c::t_6fb4e2003a2afa 212
+  s_ed05b2e981b84c::t_c95b9ef466b567 38,46
+scripts/fitness/storedImportPlan.ts
+  s_ed05b2e981b84c::t_f991dd72186d7b 1-110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "c403ceffee3f47eb471f24f7353307538312b5d4",
+  "prompts": {},
+  "sessions": {
+    "s_ed05b2e981b84c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a61299ca-2ba8-497b-9eb6-b7afacc32f65",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
