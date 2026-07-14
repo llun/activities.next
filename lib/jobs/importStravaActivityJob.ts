@@ -8,6 +8,10 @@ import {
 } from '@/lib/actions/createNote'
 import { UpdateFitnessFileActivityData } from '@/lib/database/sql/fitnessFile'
 import { Database } from '@/lib/database/types'
+import {
+  OVERLAP_CONTEXT_SCAN_LIMIT,
+  getOverlapContextFitnessFileIds
+} from '@/lib/jobs/fitnessImportOverlap'
 import { importFitnessFilesJob } from '@/lib/jobs/importFitnessFilesJob'
 import {
   IMPORT_FITNESS_FILES_JOB_NAME,
@@ -67,7 +71,6 @@ const JobData = z.object({
   visibility: Visibility.optional()
 })
 
-const OVERLAP_CONTEXT_SCAN_LIMIT = 200
 const MAX_STRAVA_PHOTOS_TO_ATTACH = 4
 const STRAVA_PHOTO_ADDRESS_BLOCK_LIST = new BlockList()
 
@@ -110,75 +113,6 @@ const getStravaFallbackPostId = ({
   stravaActivityId: string
 }) => {
   return getHashFromString(`${actorId}:strava-note:${stravaActivityId}`)
-}
-
-const getOverlapContextFitnessFileIds = ({
-  actorId,
-  fitnessFileId,
-  activityStartTime,
-  activityDurationSeconds,
-  files
-}: {
-  actorId: string
-  fitnessFileId: string
-  activityStartTime?: number
-  activityDurationSeconds: number
-  files: Array<
-    Pick<
-      FitnessFile,
-      | 'id'
-      | 'actorId'
-      | 'statusId'
-      | 'activityStartTime'
-      | 'totalDurationSeconds'
-    >
-  >
-}) => {
-  const sameActorFiles = files.filter(
-    (
-      file
-    ): file is Pick<
-      FitnessFile,
-      | 'id'
-      | 'actorId'
-      | 'statusId'
-      | 'activityStartTime'
-      | 'totalDurationSeconds'
-    > & {
-      statusId: string
-      activityStartTime: number
-      totalDurationSeconds: number
-    } =>
-      file.actorId === actorId &&
-      file.id !== fitnessFileId &&
-      typeof file.statusId === 'string' &&
-      typeof file.activityStartTime === 'number' &&
-      typeof file.totalDurationSeconds === 'number' &&
-      file.totalDurationSeconds > 0
-  )
-
-  if (
-    typeof activityStartTime !== 'number' ||
-    !Number.isFinite(activityStartTime) ||
-    activityDurationSeconds <= 0
-  ) {
-    return sameActorFiles.map((file) => file.id)
-  }
-
-  // Keep overlap candidates close to the new activity's start time.
-  const shortPeriodWindowMs = Math.max(
-    activityDurationSeconds * 1000 * 2,
-    60 * 60 * 1000
-  )
-
-  return sameActorFiles
-    .filter((file) => {
-      const existingStartTime = file.activityStartTime
-      return (
-        Math.abs(existingStartTime - activityStartTime) <= shortPeriodWindowMs
-      )
-    })
-    .map((file) => file.id)
 }
 
 const getAttachmentName = (photoId: string | undefined, index: number) => {
