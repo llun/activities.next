@@ -154,6 +154,27 @@ describe('POST /api/v1/statuses/[id]/retry-fitness', () => {
     expect(refreshed?.processingStatus).toBe('processing')
   })
 
+  it('keeps the failure reason when the retry cannot be queued', async () => {
+    const { status, file } = await seedFitnessStatus(database, 'rollback')
+    await database.updateFitnessFileProcessingStatus(
+      file.id,
+      'failed',
+      'Invalid TCX file structure'
+    )
+    ;(getQueue().publish as jest.Mock).mockRejectedValueOnce(
+      new Error('queue unavailable')
+    )
+
+    const response = await callRetry(status.id)
+    expect(response.status).toBe(500)
+
+    // Resetting to `pending` clears importError; the rollback must put it back,
+    // or the reason is destroyed exactly when the retry could not even be sent.
+    const refreshed = await database.getFitnessFile({ id: file.id })
+    expect(refreshed?.processingStatus).toBe('failed')
+    expect(refreshed?.importError).toBe('Invalid TCX file structure')
+  })
+
   it('still retries a failed file', async () => {
     const { status, file } = await seedFitnessStatus(database, 'failed')
     await database.updateFitnessFileProcessingStatus(file.id, 'failed')

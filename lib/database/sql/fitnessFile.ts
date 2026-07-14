@@ -175,13 +175,20 @@ export interface FitnessFileDatabase {
     fitnessFileId: string,
     statusId: string
   ): Promise<boolean>
+  /**
+   * Sets the processing state, and on `failed` records why in `importError` so
+   * the reason survives the job (the settings UI renders it). `completed` and
+   * `pending` clear it, so a stale message cannot outlive a successful retry.
+   */
   updateFitnessFileProcessingStatus(
     fitnessFileId: string,
-    processingStatus: FitnessProcessingStatus
+    processingStatus: FitnessProcessingStatus,
+    processingError?: string
   ): Promise<boolean>
   updateFitnessFilesProcessingStatus(params: {
     fitnessFileIds: string[]
     processingStatus: FitnessProcessingStatus
+    processingError?: string
   }): Promise<number>
   updateFitnessFileImportStatus(
     fitnessFileId: string,
@@ -213,6 +220,56 @@ export interface FitnessFileDatabase {
   getFitnessActivityCalendarData(
     params: GetFitnessActivityCalendarDataParams
   ): Promise<FitnessCalendarDay[]>
+}
+
+// `importError` is a text column shared by the import and processing stages. Cap
+// what a job may write to it so a stack trace or a remote error body cannot
+// bloat the row.
+export const MAX_FITNESS_IMPORT_ERROR_LENGTH = 1000
+
+/**
+ * Every write to `importError` goes through this, so the cap cannot be bypassed
+ * by whichever setter happens to land last: the import and processing stages
+ * both write the column, and a reason longer than the cap would otherwise be
+ * stored truncated by one and in full by the other.
+ */
+const truncateImportError = (importError: string) =>
+  importError.slice(0, MAX_FITNESS_IMPORT_ERROR_LENGTH)
+
+/**
+ * Builds the row update for a processing-status write, keeping `importError` in
+ * step so the two can never disagree:
+ *
+ * - `failed` WITH a reason records it (truncated).
+ * - `failed` WITHOUT one leaves the column alone. `markImportFileFailed` writes
+ *   the reason through `updateFitnessFileImportStatus` concurrently with this
+ *   call, so clearing here would race it and wipe the reason.
+ * - `completed`/`pending` clear it, so a stale message cannot outlive a retry.
+ *
+ * Callers that set `failed` should always pass a reason; `pending` callers that
+ * may need to roll back must capture `importError` first and pass it back.
+ */
+const buildProcessingStatusUpdate = (
+  processingStatus: FitnessProcessingStatus,
+  processingError?: string
+): Record<string, unknown> => {
+  const updateData: Record<string, unknown> = {
+    processingStatus,
+    updatedAt: new Date()
+  }
+
+  if (processingStatus === 'failed') {
+    if (processingError) {
+      updateData.importError = truncateImportError(processingError)
+    }
+    return updateData
+  }
+
+  if (processingStatus === 'completed' || processingStatus === 'pending') {
+    updateData.importError = null
+  }
+
+  return updateData
 }
 
 // Helper function to normalize bytes from database which can be number, string, or bigint
@@ -610,24 +667,24 @@ export const FitnessFileSQLDatabaseMixin = (
 
   async updateFitnessFileProcessingStatus(
     fitnessFileId: string,
-    processingStatus: FitnessProcessingStatus
+    processingStatus: FitnessProcessingStatus,
+    processingError?: string
   ) {
     const result = await database('fitness_files')
       .where('id', fitnessFileId)
-      .update({
-        processingStatus,
-        updatedAt: new Date()
-      })
+      .update(buildProcessingStatusUpdate(processingStatus, processingError))
 
     return result > 0
   },
 
   async updateFitnessFilesProcessingStatus({
     fitnessFileIds,
-    processingStatus
+    processingStatus,
+    processingError
   }: {
     fitnessFileIds: string[]
     processingStatus: FitnessProcessingStatus
+    processingError?: string
   }) {
     if (fitnessFileIds.length === 0) {
       return 0
@@ -636,10 +693,7 @@ export const FitnessFileSQLDatabaseMixin = (
     return database('fitness_files')
       .whereIn('id', fitnessFileIds)
       .whereNull('deletedAt')
-      .update({
-        processingStatus,
-        updatedAt: new Date()
-      })
+      .update(buildProcessingStatusUpdate(processingStatus, processingError))
   },
 
   async updateFitnessFileImportStatus(
@@ -651,7 +705,7 @@ export const FitnessFileSQLDatabaseMixin = (
       .where('id', fitnessFileId)
       .update({
         importStatus,
-        importError: importError ?? null,
+        importError: importError ? truncateImportError(importError) : null,
         updatedAt: new Date()
       })
 
@@ -676,7 +730,7 @@ export const FitnessFileSQLDatabaseMixin = (
       .whereNull('deletedAt')
       .update({
         importStatus,
-        importError: importError ?? null,
+        importError: importError ? truncateImportError(importError) : null,
         updatedAt: new Date()
       })
   },

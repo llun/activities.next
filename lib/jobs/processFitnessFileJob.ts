@@ -1,9 +1,9 @@
 import { z } from 'zod'
 
-import { Database } from '@/lib/database/types'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
-import { getFitnessFile } from '@/lib/services/fitness-files'
+import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
+import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
 import {
   isParseableFitnessFileType,
@@ -104,29 +104,6 @@ const buildActivitySummary = (data: FitnessActivityData): string => {
   }
 
   return base
-}
-
-const getFitnessFileBuffer = async (
-  database: Database,
-  fitnessFileId: string
-): Promise<Buffer> => {
-  const data = await getFitnessFile(database, fitnessFileId)
-  if (!data) {
-    throw new Error('Fitness file not found in storage')
-  }
-
-  if (data.type === 'buffer') {
-    return data.buffer
-  }
-
-  const response = await fetch(data.redirectUrl)
-  if (!response.ok) {
-    throw new Error(
-      `Failed to download fitness file from redirect URL (${response.status})`
-    )
-  }
-
-  return Buffer.from(await response.arrayBuffer())
 }
 
 export const processFitnessFileJob = createJobHandle(
@@ -293,16 +270,24 @@ export const processFitnessFileJob = createJobHandle(
       // fitness-route-heatmap route), so it can never pile onto the import /
       // Strava-webhook path and exhaust the worker's heap.
     } catch (error) {
-      const nodeError = error as Error
+      const errorMessage = toImportErrorMessage(
+        error,
+        'Unknown fitness processing error'
+      )
+
       logger.error({
         message: 'Failed to process fitness file',
         actorId,
         statusId,
         fitnessFileId,
-        error: nodeError.message
+        error: errorMessage
       })
 
-      await database.updateFitnessFileProcessingStatus(fitnessFileId, 'failed')
+      await database.updateFitnessFileProcessingStatus(
+        fitnessFileId,
+        'failed',
+        errorMessage
+      )
     }
   }
 )
