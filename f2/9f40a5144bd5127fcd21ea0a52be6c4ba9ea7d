@@ -1,0 +1,40 @@
+lib/jobs/importFitnessFilesJob.test.ts
+  s_ed05b2e981b84c::t_59d6fa6640ec93 62-64
+  s_ed05b2e981b84c::t_b18b6f54d48375 7,26,35-36
+lib/jobs/importStravaActivityJob.merge.test.ts
+  s_ed05b2e981b84c::t_b18b6f54d48375 4-7,44-48,83-84,180
+scripts/fitness/importStoredFitnessFile.ts
+  s_ed05b2e981b84c::t_cea6fc2a9d835b 231-233
+  s_ed05b2e981b84c::t_72d6944990c878 41-45
+  s_ed05b2e981b84c::t_5e8964c4c80a75 51
+  s_ed05b2e981b84c::t_73791cbdc0ce5b 173-199,207-208
+lib/jobs/processFitnessFileJob.test.ts
+  s_ed05b2e981b84c::t_b18b6f54d48375 8,31,48-49,136-138
+lib/jobs/processFitnessFileJob.ts
+  s_ed05b2e981b84c::t_821a959170e6b3 4
+scripts/fitness/storedImportPlan.ts
+  s_ed05b2e981b84c::t_f9108fe84ee659 8-23,33,37,40-42,48-50,55-56,67,70-71,74,76-78,80-81,88-90,97-108,111-119,126-127,141-143,145-148,151-160
+lib/jobs/importFitnessFilesJob.ts
+  s_ed05b2e981b84c::t_77997c14a47c51 303-307
+  s_ed05b2e981b84c::t_821a959170e6b3 11
+scripts/fitness/storedImportPlan.test.ts
+  s_ed05b2e981b84c::t_6128c8c0e45f0e 7,18-27,30,32,44,48-61,76,80,82,91-96,99-111,120
+lib/services/fitness-files/index.ts
+  s_ed05b2e981b84c::t_03dbdf2f359ab8 103-130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "f29f40a5144bd5127fcd21ea0a52be6c4ba9ea7d",
+  "prompts": {},
+  "sessions": {
+    "s_ed05b2e981b84c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a61299ca-2ba8-497b-9eb6-b7afacc32f65",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
