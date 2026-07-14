@@ -2706,11 +2706,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@radix-ui/react-progress@npm:^1.1.11":
-  version: 1.1.11
-  resolution: "@radix-ui/react-progress@npm:1.1.11"
+"@radix-ui/react-progress@npm:^1.1.12":
+  version: 1.1.12
+  resolution: "@radix-ui/react-progress@npm:1.1.12"
   dependencies:
-    "@radix-ui/react-context": "npm:1.1.4"
+    "@radix-ui/react-context": "npm:1.2.0"
     "@radix-ui/react-primitive": "npm:2.1.7"
   peerDependencies:
     "@types/react": "*"
@@ -2722,7 +2722,7 @@ __metadata:
       optional: true
     "@types/react-dom":
       optional: true
-  checksum: 10c0/752919b7911f034bf26c38572dec67eb0ffbdcd90cac5aaa9f2e0029eab687bb017440d88b0d66df0f1127de6221d38299e30f6828a6e5009daa2fbb87c08e8a
+  checksum: 10c0/f9118936c1e3f11af1b96e90b51ef6f680962b1f241709f9d682f7c6f979cd46d63053593726ba9ff361919b9e8d83be51628cb598deaf83a99d13e4bbd2709f
   languageName: node
   linkType: hard
 
@@ -4823,7 +4823,7 @@ __metadata:
     "@radix-ui/react-dialog": "npm:^1.1.18"
     "@radix-ui/react-dropdown-menu": "npm:^2.1.19"
     "@radix-ui/react-label": "npm:^2.1.11"
-    "@radix-ui/react-progress": "npm:^1.1.11"
+    "@radix-ui/react-progress": "npm:^1.1.12"
     "@radix-ui/react-radio-group": "npm:^1.4.2"
     "@radix-ui/react-scroll-area": "npm:^1.2.13"
     "@radix-ui/react-separator": "npm:^1.1.11"
