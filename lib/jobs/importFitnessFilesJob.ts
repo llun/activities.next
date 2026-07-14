@@ -8,7 +8,8 @@ import {
 import { Database } from '@/lib/database/types'
 import { groupFitnessActivitiesByOverlap } from '@/lib/jobs/fitnessImportOverlap'
 import { PROCESS_FITNESS_FILE_JOB_NAME } from '@/lib/jobs/names'
-import { getFitnessFile } from '@/lib/services/fitness-files'
+import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
+import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import {
   isParseableFitnessFileType,
   parseFitnessFile
@@ -46,29 +47,6 @@ interface ParsedImportFile {
   startTimeMs?: number
   source: ParsedImportFileSource
   hasCoordinates?: boolean
-}
-
-const getFitnessFileBuffer = async (
-  database: Database,
-  fitnessFile: FitnessFile
-): Promise<Buffer> => {
-  const data = await getFitnessFile(database, fitnessFile.id, fitnessFile)
-  if (!data) {
-    throw new Error('Fitness file not found in storage')
-  }
-
-  if (data.type === 'buffer') {
-    return data.buffer
-  }
-
-  const response = await fetch(data.redirectUrl)
-  if (!response.ok) {
-    throw new Error(
-      `Failed to download fitness file from redirect URL (${response.status})`
-    )
-  }
-
-  return Buffer.from(await response.arrayBuffer())
 }
 
 const sortFilesByActivityStart = (files: ParsedImportFile[]) => {
@@ -185,13 +163,19 @@ const markImportFileFailed = async (
   fitnessFileId: string,
   importError: string
 ) => {
+  // Both writes target `importError` on the same row, so they must agree on the
+  // value — otherwise whichever lands last decides the reason.
   await Promise.all([
     database.updateFitnessFileImportStatus(
       fitnessFileId,
       'failed',
       importError
     ),
-    database.updateFitnessFileProcessingStatus(fitnessFileId, 'failed')
+    database.updateFitnessFileProcessingStatus(
+      fitnessFileId,
+      'failed',
+      importError
+    )
   ])
 }
 
@@ -323,7 +307,11 @@ export const importFitnessFilesJob = createJobHandle(
       }
 
       try {
-        const buffer = await getFitnessFileBuffer(database, fitnessFile)
+        const buffer = await getFitnessFileBuffer(
+          database,
+          fitnessFile.id,
+          fitnessFile
+        )
         if (!isParseableFitnessFileType(fitnessFile.fileType)) {
           throw new Error(
             `Unsupported fitness file type for activity parsing: ${fitnessFile.fileType}`
@@ -360,16 +348,17 @@ export const importFitnessFilesJob = createJobHandle(
             : null)
         })
       } catch (error) {
-        const nodeError = error as Error
+        const errorMessage = toImportErrorMessage(error)
+
         logger.warn({
           message: 'Failed to parse fitness file during import',
           fitnessFileId,
           actorId,
           batchId,
-          error: nodeError.message
+          error: errorMessage
         })
 
-        await markImportFileFailed(database, fitnessFile.id, nodeError.message)
+        await markImportFileFailed(database, fitnessFile.id, errorMessage)
       }
     }
 
@@ -455,22 +444,23 @@ export const importFitnessFilesJob = createJobHandle(
           })
         }
       } catch (error) {
-        const nodeError = error as Error
+        // Must not be `(error as Error).message`: this block covers the queue
+        // publish, and a non-Error rejection would make the reason `undefined`,
+        // which updateFitnessFileImportStatus writes as NULL — wiping any prior
+        // reason and leaving the file `failed` with no explanation.
+        const errorMessage = toImportErrorMessage(error)
+
         logger.error({
           message: 'Failed to create local status for imported fitness files',
           actorId,
           batchId,
           fitnessFileIds: targetFitnessFileIds,
-          error: nodeError.message
+          error: errorMessage
         })
 
         await Promise.all(
           orderedTargetGroup.map((item) =>
-            markImportFileFailed(
-              database,
-              item.fitnessFile.id,
-              nodeError.message
-            )
+            markImportFileFailed(database, item.fitnessFile.id, errorMessage)
           )
         )
 

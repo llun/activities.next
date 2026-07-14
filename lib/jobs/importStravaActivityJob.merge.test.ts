@@ -1,7 +1,10 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { importStravaActivityJob } from '@/lib/jobs/importStravaActivityJob'
 import { IMPORT_STRAVA_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
-import { getFitnessFile, saveFitnessFile } from '@/lib/services/fitness-files'
+import {
+  getFitnessFileBuffer,
+  saveFitnessFile
+} from '@/lib/services/fitness-files'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
 import { saveMedia } from '@/lib/services/medias'
@@ -38,7 +41,11 @@ vi.mock('@/lib/services/queue', () => ({
 
 vi.mock('@/lib/services/fitness-files', async () => {
   const actual = await vi.importActual('@/lib/services/fitness-files')
-  return { ...actual, saveFitnessFile: vi.fn(), getFitnessFile: vi.fn() }
+  return {
+    ...actual,
+    saveFitnessFile: vi.fn(),
+    getFitnessFileBuffer: vi.fn()
+  }
 })
 
 vi.mock('@/lib/services/fitness-files/parseFitnessFile', async () => {
@@ -73,8 +80,8 @@ vi.mock('@/lib/services/strava/activity', async () => {
 const mockSaveFitnessFile = saveFitnessFile as jest.MockedFunction<
   typeof saveFitnessFile
 >
-const mockGetFitnessFile = getFitnessFile as jest.MockedFunction<
-  typeof getFitnessFile
+const mockGetFitnessFileBuffer = getFitnessFileBuffer as jest.MockedFunction<
+  typeof getFitnessFileBuffer
 >
 const mockParseFitnessFile = parseFitnessFile as jest.MockedFunction<
   typeof parseFitnessFile
@@ -170,11 +177,7 @@ describe('importStravaActivityJob same-ride merge', () => {
       } as never
     })
 
-    mockGetFitnessFile.mockResolvedValue({
-      type: 'buffer',
-      buffer: Buffer.from('gpx-bytes'),
-      contentType: 'application/gpx+xml'
-    } as never)
+    mockGetFitnessFileBuffer.mockResolvedValue(Buffer.from('gpx-bytes'))
 
     // Same ride => identical parsed start time + duration => overlap merge.
     mockParseFitnessFile.mockResolvedValue({

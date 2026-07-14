@@ -94,7 +94,14 @@ export const POST = traceApiRoute(
 
       for (const file of unpublishedFiles) {
         try {
-          await database.updateFitnessFileProcessingStatus(file.id, 'failed')
+          // Restore the reason the reset to `pending` cleared. Without it the
+          // file rolls back to `failed` with no explanation — losing the
+          // diagnostic exactly when the retry could not even be queued.
+          await database.updateFitnessFileProcessingStatus(
+            file.id,
+            'failed',
+            file.importError ?? undefined
+          )
         } catch (rollbackError) {
           logger.error({
             message: 'Failed to roll back fitness file status',

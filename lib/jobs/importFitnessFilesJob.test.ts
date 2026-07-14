@@ -4,7 +4,7 @@ import {
   IMPORT_FITNESS_FILES_JOB_NAME,
   PROCESS_FITNESS_FILE_JOB_NAME
 } from '@/lib/jobs/names'
-import { getFitnessFile } from '@/lib/services/fitness-files'
+import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
 import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
 import { getQueue } from '@/lib/services/queue'
@@ -23,7 +23,7 @@ vi.mock('@/lib/services/fitness-files', async () => {
   const actual = await vi.importActual('@/lib/services/fitness-files')
   return {
     ...actual,
-    getFitnessFile: vi.fn()
+    getFitnessFileBuffer: vi.fn()
   }
 })
 
@@ -32,8 +32,8 @@ vi.mock('@/lib/services/fitness-files/parseFitnessFile', async () => ({
   isParseableFitnessFileType: vi.fn().mockReturnValue(true)
 }))
 
-const mockGetFitnessFile = getFitnessFile as jest.MockedFunction<
-  typeof getFitnessFile
+const mockGetFitnessFileBuffer = getFitnessFileBuffer as jest.MockedFunction<
+  typeof getFitnessFileBuffer
 >
 const mockParseFitnessFile = parseFitnessFile as jest.MockedFunction<
   typeof parseFitnessFile
@@ -59,11 +59,49 @@ describe('importFitnessFilesJob', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mockGetFitnessFile.mockResolvedValue({
-      type: 'buffer',
-      buffer: Buffer.from('fitness-file-bytes'),
-      contentType: 'application/vnd.ant.fit'
+    mockGetFitnessFileBuffer.mockResolvedValue(
+      Buffer.from('fitness-file-bytes')
+    )
+  })
+
+  it('records a reason when status creation rejects with a non-Error', async () => {
+    const file = await database.createFitnessFile({
+      actorId: actor.id,
+      path: 'fitness/non-error-throw.fit',
+      fileName: 'non-error-throw.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024,
+      importBatchId: 'batch-non-error-throw'
     })
+
+    mockParseFitnessFile.mockResolvedValueOnce({
+      coordinates: [],
+      trackPoints: [],
+      totalDistanceMeters: 1_000,
+      totalDurationSeconds: 600,
+      startTime: new Date('2026-01-09T00:00:00.000Z')
+    })
+
+    // The queue SDK can reject with a non-Error. `(error as Error).message` is
+    // undefined for it, which writes importError as NULL and leaves the file
+    // failed with no explanation.
+    ;(getQueue().publish as jest.Mock).mockRejectedValueOnce('queue exploded')
+
+    await importFitnessFilesJob(database, {
+      id: 'import-job-non-error-throw',
+      name: IMPORT_FITNESS_FILES_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        batchId: 'batch-non-error-throw',
+        fitnessFileIds: [file!.id],
+        visibility: 'public'
+      }
+    })
+
+    const updated = await database.getFitnessFile({ id: file!.id })
+    expect(updated?.importStatus).toBe('failed')
+    expect(updated?.importError).toBe('queue exploded')
   })
 
   it('creates local-only merged status, marks primary, and queues processing', async () => {
@@ -465,7 +503,13 @@ describe('importFitnessFilesJob', () => {
       'failed',
       'Fitness file missing during import'
     )
-    expect(processingStatusSpy).toHaveBeenCalledWith(missingFileId, 'failed')
+    // Both writes touch importError on the same row, so they must carry the same
+    // reason — otherwise whichever lands last decides what the file says.
+    expect(processingStatusSpy).toHaveBeenCalledWith(
+      missingFileId,
+      'failed',
+      'Fitness file missing during import'
+    )
 
     const updated = await database.getFitnessFile({ id: file!.id })
     expect(updated?.importStatus).toBe('completed')

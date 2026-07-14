@@ -45,6 +45,7 @@ import {
   IMPORT_FITNESS_FILES_JOB_NAME,
   IMPORT_STRAVA_ACTIVITY_JOB_NAME
 } from '@/lib/jobs/names'
+import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import { isFitnessImportStuck } from '@/lib/services/fitness-files/processingState'
 import { getStravaActivityIdFromBatchId } from '@/lib/services/strava/activityBatch'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
@@ -252,8 +253,10 @@ const repairBatch = async ({
     )
     return 'repaired'
   } catch (error) {
-    const nodeError = error as Error
-    console.error(`  [${batchId}] failed: ${nodeError.message}`)
+    // Non-Error throws (queue SDK rejections) would make the reason undefined,
+    // which updateFitnessFileImportStatus writes as NULL — wiping the reason.
+    const errorMessage = toImportErrorMessage(error)
+    console.error(`  [${batchId}] failed: ${errorMessage}`)
 
     // The job threw after we reset the files to 'pending'. Restore them to
     // 'failed' (with the error) so they are not left stuck mid-retry and remain
@@ -263,7 +266,7 @@ const repairBatch = async ({
         await database.updateFitnessFileImportStatus(
           fileId,
           'failed',
-          nodeError.message
+          errorMessage
         )
         await database.updateFitnessFileProcessingStatus(fileId, 'failed')
       }

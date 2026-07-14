@@ -5,7 +5,7 @@ import {
   SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { processFitnessFileJob } from '@/lib/jobs/processFitnessFileJob'
-import { getFitnessFile } from '@/lib/services/fitness-files'
+import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
 import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
@@ -28,7 +28,7 @@ vi.mock('@/lib/services/fitness-files', async () => {
   const actual = await vi.importActual('@/lib/services/fitness-files')
   return {
     ...actual,
-    getFitnessFile: vi.fn()
+    getFitnessFileBuffer: vi.fn()
   }
 })
 
@@ -45,8 +45,8 @@ vi.mock('@/lib/services/medias', async () => ({
   saveMedia: vi.fn()
 }))
 
-const mockGetFitnessFile = getFitnessFile as jest.MockedFunction<
-  typeof getFitnessFile
+const mockGetFitnessFileBuffer = getFitnessFileBuffer as jest.MockedFunction<
+  typeof getFitnessFileBuffer
 >
 const mockParseFitnessFile = parseFitnessFile as jest.MockedFunction<
   typeof parseFitnessFile
@@ -59,6 +59,22 @@ const mockSaveMedia = saveMedia as jest.MockedFunction<typeof saveMedia>
 describe('processFitnessFileJob', () => {
   const database = getTestSQLDatabase()
   let actor: Actor
+
+  const defaultActivityData: FitnessActivityData = {
+    coordinates: [
+      { lat: 37.78, lng: -122.42 },
+      { lat: 37.79, lng: -122.41 }
+    ],
+    trackPoints: [
+      { lat: 37.78, lng: -122.42 },
+      { lat: 37.79, lng: -122.41 }
+    ],
+    totalDistanceMeters: 5_200,
+    totalDurationSeconds: 1_695,
+    elevationGainMeters: 130,
+    activityType: 'running',
+    startTime: new Date('2026-01-05T06:00:00.000Z')
+  }
 
   const createStatusWithFitnessFile = async ({
     text,
@@ -117,27 +133,9 @@ describe('processFitnessFileJob', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mockGetFitnessFile.mockResolvedValue({
-      type: 'buffer',
-      buffer: Buffer.from('fitness-file-bytes'),
-      contentType: 'application/vnd.ant.fit'
-    })
-
-    const defaultActivityData: FitnessActivityData = {
-      coordinates: [
-        { lat: 37.78, lng: -122.42 },
-        { lat: 37.79, lng: -122.41 }
-      ],
-      trackPoints: [
-        { lat: 37.78, lng: -122.42 },
-        { lat: 37.79, lng: -122.41 }
-      ],
-      totalDistanceMeters: 5_200,
-      totalDurationSeconds: 1_695,
-      elevationGainMeters: 130,
-      activityType: 'running',
-      startTime: new Date('2026-01-05T06:00:00.000Z')
-    }
+    mockGetFitnessFileBuffer.mockResolvedValue(
+      Buffer.from('fitness-file-bytes')
+    )
 
     mockParseFitnessFile.mockResolvedValue(defaultActivityData)
     mockGenerateMapImage.mockResolvedValue(Buffer.from('png-map-image'))
@@ -368,6 +366,79 @@ describe('processFitnessFileJob', () => {
     })
     expect(updatedFitnessFile?.processingStatus).toBe('failed')
     expect(getQueue().publish).not.toHaveBeenCalled()
+  })
+
+  it('records the failure reason on the fitness file when processing fails', async () => {
+    const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+      text: 'Will fail'
+    })
+
+    mockParseFitnessFile.mockRejectedValue(
+      new Error('Invalid TCX file structure')
+    )
+
+    await processFitnessFileJob(database, {
+      id: 'job-id-failure-reason',
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: { actorId: actor.id, statusId, fitnessFileId }
+    })
+
+    const failedFitnessFile = await database.getFitnessFile({
+      id: fitnessFileId
+    })
+    expect(failedFitnessFile?.importError).toBe('Invalid TCX file structure')
+  })
+
+  it('records a reason even when the thrown value is not an Error', async () => {
+    const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+      text: 'Will reject with a non-Error'
+    })
+
+    // A thrown string/SDK object has no `.message`; without a guard the reason
+    // is written as undefined, leaving the row `failed` with no explanation (or
+    // a stale one from an earlier failure).
+    mockParseFitnessFile.mockRejectedValue('socket hang up')
+
+    await processFitnessFileJob(database, {
+      id: 'job-id-non-error',
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: { actorId: actor.id, statusId, fitnessFileId }
+    })
+
+    const failedFitnessFile = await database.getFitnessFile({
+      id: fitnessFileId
+    })
+    expect(failedFitnessFile?.processingStatus).toBe('failed')
+    expect(failedFitnessFile?.importError).toBe('socket hang up')
+  })
+
+  it('clears a previous failure reason when processing succeeds on retry', async () => {
+    const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+      text: 'Will fail then succeed'
+    })
+
+    mockParseFitnessFile.mockRejectedValue(new Error('transient storage error'))
+    await processFitnessFileJob(database, {
+      id: 'job-id-retry-failure',
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: { actorId: actor.id, statusId, fitnessFileId }
+    })
+    expect(
+      (await database.getFitnessFile({ id: fitnessFileId }))?.importError
+    ).toBe('transient storage error')
+
+    mockParseFitnessFile.mockResolvedValue(defaultActivityData)
+    await processFitnessFileJob(database, {
+      id: 'job-id-retry-success',
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: { actorId: actor.id, statusId, fitnessFileId }
+    })
+
+    const retriedFitnessFile = await database.getFitnessFile({
+      id: fitnessFileId
+    })
+    expect(retriedFitnessFile?.processingStatus).toBe('completed')
+    expect(retriedFitnessFile?.importError).toBeUndefined()
   })
 
   it('skips federation publish when publishSendNote is false', async () => {

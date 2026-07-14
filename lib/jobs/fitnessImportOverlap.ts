@@ -1,7 +1,81 @@
+import { FitnessFile } from '@/lib/types/database/fitnessFile'
+
 export interface FitnessOverlapActivity {
   id: string
   startTimeMs: number
   durationSeconds: number
+}
+
+/**
+ * Recent-file window scanned for a same-ride sibling. One ride recorded on two
+ * devices arrives as two activities moments apart, so the sibling is always
+ * among the actor's most recent files.
+ */
+export const OVERLAP_CONTEXT_SCAN_LIMIT = 200
+
+type OverlapContextFile = Pick<
+  FitnessFile,
+  'id' | 'actorId' | 'statusId' | 'activityStartTime' | 'totalDurationSeconds'
+>
+
+/**
+ * Picks the actor's other fitness files that ALREADY own a status and sit near
+ * this activity in time — the same-ride candidates. This only narrows the field;
+ * the >=80% overlap decision belongs to `groupFitnessActivitiesByOverlap` via
+ * importFitnessFilesJob, which uses these as `overlapFitnessFileIds` to merge a
+ * file into an existing post instead of creating a duplicate one.
+ */
+export const getOverlapContextFitnessFileIds = ({
+  actorId,
+  fitnessFileId,
+  activityStartTime,
+  activityDurationSeconds,
+  files
+}: {
+  actorId: string
+  fitnessFileId: string
+  activityStartTime?: number
+  activityDurationSeconds: number
+  files: OverlapContextFile[]
+}) => {
+  const sameActorFiles = files.filter(
+    (
+      file
+    ): file is OverlapContextFile & {
+      statusId: string
+      activityStartTime: number
+      totalDurationSeconds: number
+    } =>
+      file.actorId === actorId &&
+      file.id !== fitnessFileId &&
+      typeof file.statusId === 'string' &&
+      typeof file.activityStartTime === 'number' &&
+      typeof file.totalDurationSeconds === 'number' &&
+      file.totalDurationSeconds > 0
+  )
+
+  if (
+    typeof activityStartTime !== 'number' ||
+    !Number.isFinite(activityStartTime) ||
+    activityDurationSeconds <= 0
+  ) {
+    return sameActorFiles.map((file) => file.id)
+  }
+
+  // Keep overlap candidates close to the new activity's start time.
+  const shortPeriodWindowMs = Math.max(
+    activityDurationSeconds * 1000 * 2,
+    60 * 60 * 1000
+  )
+
+  return sameActorFiles
+    .filter((file) => {
+      const existingStartTime = file.activityStartTime
+      return (
+        Math.abs(existingStartTime - activityStartTime) <= shortPeriodWindowMs
+      )
+    })
+    .map((file) => file.id)
 }
 
 const getOverlapRatio = (

@@ -7,6 +7,7 @@ import {
 } from '@/lib/jobs/names'
 import { getFitnessFile } from '@/lib/services/fitness-files'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
+import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import {
   isParseableFitnessFileType,
   parseFitnessFile
@@ -295,17 +296,21 @@ export const regenerateFitnessMapsJob = createJobHandle(
           statusesNeedingUpdate.add(statusId)
         }
       } catch (error) {
-        const nodeError = error as Error
+        const errorMessage = toImportErrorMessage(
+          error,
+          'Unknown fitness map regeneration error'
+        )
         logger.error({
           message: 'Failed to regenerate fitness map for old status',
           actorId,
           fitnessFileId,
-          error: nodeError.message
+          error: errorMessage
         })
 
         await database.updateFitnessFileProcessingStatus(
           fitnessFileId,
-          'failed'
+          'failed',
+          errorMessage
         )
       }
     }
