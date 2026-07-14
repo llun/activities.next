@@ -16,6 +16,7 @@ import {
   getEffectiveFitnessStorageConfig,
   saveFitnessFile
 } from '@/lib/services/fitness-files'
+import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import { assertFitnessStoragePath } from '@/lib/services/fitness-files/path'
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
@@ -1171,14 +1172,18 @@ export const importStravaArchiveJob = createJobHandle(
         finalImportLastError = null
       }
     } catch (error) {
-      const nodeError = error as Error
+      // This block covers the queue publish, which can reject with a non-Error.
+      // `(error as Error).message` would be undefined, and both writes below put
+      // it in a column (importError / lastError) as NULL — losing the reason.
+      const archiveErrorMessage = toImportErrorMessage(error)
+
       logger.error({
         message: 'Failed to process Strava archive import job',
         importId,
         actorId,
         archiveId,
         archiveFitnessFileId,
-        error: nodeError.message
+        error: archiveErrorMessage
       })
 
       shouldDeleteArchiveSource = false
@@ -1208,7 +1213,7 @@ export const importStravaArchiveJob = createJobHandle(
           importId,
           checkpoint,
           status: 'failed',
-          lastError: nodeError.message,
+          lastError: archiveErrorMessage,
           resolvedAt: null
         })
 
@@ -1216,7 +1221,7 @@ export const importStravaArchiveJob = createJobHandle(
           database.updateFitnessFileImportStatus(
             archiveFitnessFile.id,
             'failed',
-            nodeError.message
+            archiveErrorMessage
           ),
           database.updateFitnessFileProcessingStatus(
             archiveFitnessFile.id,

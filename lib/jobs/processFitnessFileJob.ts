@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
+import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
 import {
   isParseableFitnessFileType,
@@ -269,12 +270,10 @@ export const processFitnessFileJob = createJobHandle(
       // fitness-route-heatmap route), so it can never pile onto the import /
       // Strava-webhook path and exhaust the worker's heap.
     } catch (error) {
-      // Anything can be thrown, not just an Error. `(error as Error).message`
-      // would be undefined for a thrown string or SDK object, which records no
-      // reason at all and leaves a stale one from an earlier failure in place.
-      const errorMessage =
-        (error instanceof Error ? error.message : String(error)) ||
+      const errorMessage = toImportErrorMessage(
+        error,
         'Unknown fitness processing error'
+      )
 
       logger.error({
         message: 'Failed to process fitness file',

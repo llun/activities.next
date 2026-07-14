@@ -9,6 +9,7 @@ import { Database } from '@/lib/database/types'
 import { groupFitnessActivitiesByOverlap } from '@/lib/jobs/fitnessImportOverlap'
 import { PROCESS_FITNESS_FILE_JOB_NAME } from '@/lib/jobs/names'
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
+import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import {
   isParseableFitnessFileType,
   parseFitnessFile
@@ -156,16 +157,6 @@ const groupFilesByOverlap = (
     return firstStart - secondStart
   })
 }
-
-/**
- * Anything can be thrown, not just an Error. `(error as Error).message` is
- * `undefined` for a thrown string or SDK object, and an undefined reason is
- * written to `importError` as NULL — so the file ends up `failed` with no
- * explanation, which is exactly what recording the reason is meant to prevent.
- */
-export const toImportErrorMessage = (error: unknown) =>
-  (error instanceof Error ? error.message : String(error)) ||
-  'Unknown fitness import error'
 
 const markImportFileFailed = async (
   database: Database,
