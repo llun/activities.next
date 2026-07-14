@@ -4913,7 +4913,7 @@ __metadata:
     rehype-sanitize: "npm:^6.0.0"
     remark-breaks: "npm:^4.0.0"
     remark-gfm: "npm:^4.0.1"
-    resend: "npm:^6.17.1"
+    resend: "npm:^6.17.2"
     sanitize-html: "npm:^2.17.5"
     sharp: "npm:^0.35.3"
     tailwind-merge: "npm:^3.6.0"
@@ -11053,9 +11053,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"resend@npm:^6.17.1":
-  version: 6.17.1
-  resolution: "resend@npm:6.17.1"
+"resend@npm:^6.17.2":
+  version: 6.17.2
+  resolution: "resend@npm:6.17.2"
   dependencies:
     postal-mime: "npm:2.7.4"
     standardwebhooks: "npm:1.0.0"
@@ -11064,7 +11064,7 @@ __metadata:
   peerDependenciesMeta:
     "@react-email/render":
       optional: true
-  checksum: 10c0/c4da85aca82dce63c251f4bebf345a3709aac37b51a3f4e47699b0243c9d36eb2fb12534b506a80737cfb1d286b222d5500348deb1813ea4d16fa85011c17f58
+  checksum: 10c0/589159fb124e8c154d99154efc12521ad3b31823baf60f31722a55ccc9397b7d3ee385480519846433124b7b5f3b0cbad826be3c2a9d7e2fd91275da13473db5
   languageName: node
   linkType: hard
 
