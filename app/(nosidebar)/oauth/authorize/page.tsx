@@ -6,6 +6,7 @@ import { getBaseURL } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { matchesRegisteredRedirectUri } from '@/lib/services/oauth/matchRedirectUri'
 import { Actor } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { isRealAvatar } from '@/lib/utils/isRealAvatar'
@@ -44,6 +45,33 @@ const Page: FC<Props> = async ({ searchParams }) => {
   // better-auth or into sign-in redirectBack URLs.
   const { force_login: forceLogin, lang: _lang, ...params } = parsedResult.data
 
+  // Validate the client request before involving the resource owner or handing
+  // it to Better Auth. RFC 6749 §4.1.2.1: an unknown client_id or an
+  // unregistered redirect_uri must be reported to the user and must NOT be
+  // redirected to the requested redirect_uri.
+  //
+  // This has to happen ahead of the delegation below. Better Auth's authorize
+  // endpoint answers an unknown client with
+  // `invalid_client / client_id is required` — the same message it uses for a
+  // genuinely missing client_id — and then bounces through /api/auth/error to
+  // the home page, so a Mastodon client re-using a client_id this server no
+  // longer knows just lands on the timeline and its login silently does
+  // nothing.
+  const client = await database.getClientFromId({ clientId: params.client_id })
+  if (!client) {
+    return notFound()
+  }
+
+  // Validate redirect_uri against the registered URIs to prevent open redirect.
+  // matchesRegisteredRedirectUri applies exactly the rule Better Auth's
+  // authorize endpoint applies (including RFC 8252 §7.3 port-insensitive
+  // loopback matching), so this gate can never be stricter than the delegate it
+  // fronts — a plain `includes()` here would 404 the ephemeral-port loopback
+  // redirect that native clients rely on.
+  if (!matchesRegisteredRedirectUri(client.redirectUris, params.redirect_uri)) {
+    return notFound()
+  }
+
   const actor = await getActorFromSession(database, session)
 
   // Keep sign-in/consent redirects on the host the request actually arrived on
@@ -70,19 +98,6 @@ const Page: FC<Props> = async ({ searchParams }) => {
 
   if (shouldDelegateToBetterAuth(params)) {
     return redirect(buildBetterAuthAuthorizeUrl(params, requestBaseURL))
-  }
-
-  const client = await database.getClientFromId({ clientId: params.client_id })
-  if (!client) {
-    return notFound()
-  }
-
-  // Validate redirect_uri against registered URIs to prevent open redirect
-  if (
-    params.redirect_uri &&
-    !client.redirectUris.includes(params.redirect_uri)
-  ) {
-    return notFound()
   }
 
   // Fetch all actors for this account

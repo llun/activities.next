@@ -13,7 +13,6 @@ import type { Knex } from 'knex'
 
 import { getKnex } from '@/lib/database'
 import { Scope } from '@/lib/types/database/operations'
-import { logger } from '@/lib/utils/logger'
 import { getTracer } from '@/lib/utils/trace'
 
 import type {
@@ -65,65 +64,18 @@ type CreateApplicationOptions = {
 const APP_REGISTRATION_REFERENCE_PREFIX = 'app-registration:'
 const APP_REGISTRATION_LIMIT = 5
 const APP_REGISTRATION_WINDOW_MS = 10 * 60 * 1000
-const APP_REGISTRATION_GC_AFTER_MS = 24 * 60 * 60 * 1000
-const APP_REGISTRATION_GC_INTERVAL_MS = 60 * 60 * 1000
-const APP_REGISTRATION_GC_BATCH_SIZE = 1000
+// Stamped on every /api/v1/apps registration to record that it came in through
+// the unauthenticated endpoint. Nothing in this repo reads it back any more (its
+// only reader was the registration collector, removed because it broke clients
+// that cache their credentials) — it is kept deliberately as provenance for
+// operators auditing the table, and better-auth surfaces it as client.metadata.
 const REGISTERED_UNAUTHENTICATED_METADATA = JSON.stringify({
   registeredUnauthenticated: true
 })
 
-let lastAppRegistrationGcAt: number | null = null
-
-export const resetAppRegistrationGcStateForTests = () => {
-  lastAppRegistrationGcAt = null
-}
-
 const getRegistrationReference = (registrationKey?: string): string | null => {
   if (!registrationKey) return null
   return `${APP_REGISTRATION_REFERENCE_PREFIX}${registrationKey}`
-}
-
-const whereUnauthenticatedAppRegistration = (
-  query: Knex.QueryBuilder
-): void => {
-  query.where(
-    'oauthClient.referenceId',
-    'like',
-    `${APP_REGISTRATION_REFERENCE_PREFIX}%`
-  )
-  query.orWhere((anonymousQuery) => {
-    anonymousQuery
-      .where('oauthClient.referenceId', '')
-      .where('oauthClient.metadata', REGISTERED_UNAUTHENTICATED_METADATA)
-  })
-}
-
-const garbageCollectStaleAppRegistrations = async (db: Knex, now: Date) => {
-  const staleBefore = new Date(now.getTime() - APP_REGISTRATION_GC_AFTER_MS)
-  const staleClientIds = await db('oauthClient')
-    .leftJoin(
-      'oauthAccessToken',
-      'oauthAccessToken.clientId',
-      'oauthClient.clientId'
-    )
-    .leftJoin(
-      'oauthRefreshToken',
-      'oauthRefreshToken.clientId',
-      'oauthClient.clientId'
-    )
-    .leftJoin('oauthConsent', 'oauthConsent.clientId', 'oauthClient.clientId')
-    .where(whereUnauthenticatedAppRegistration)
-    .where('oauthClient.createdAt', '<', staleBefore)
-    .whereNull('oauthAccessToken.id')
-    .whereNull('oauthRefreshToken.id')
-    .whereNull('oauthConsent.id')
-    .orderBy('oauthClient.createdAt', 'asc')
-    .limit(APP_REGISTRATION_GC_BATCH_SIZE)
-    .pluck('oauthClient.clientId')
-
-  if (staleClientIds.length > 0) {
-    await db('oauthClient').whereIn('clientId', staleClientIds).delete()
-  }
 }
 
 const isAppRegistrationRateLimited = async ({
@@ -145,36 +97,6 @@ const isAppRegistrationRateLimited = async ({
     .first()
 
   return Number(countResult?.count ?? 0) >= APP_REGISTRATION_LIMIT
-}
-
-const shouldRunAppRegistrationGc = (now: Date): boolean => {
-  const nowMs = now.getTime()
-  if (
-    lastAppRegistrationGcAt !== null &&
-    nowMs >= lastAppRegistrationGcAt &&
-    nowMs - lastAppRegistrationGcAt < APP_REGISTRATION_GC_INTERVAL_MS
-  ) {
-    return false
-  }
-
-  lastAppRegistrationGcAt = nowMs
-  return true
-}
-
-const maybeGarbageCollectStaleAppRegistrations = async (
-  db: Knex,
-  now: Date
-) => {
-  if (!shouldRunAppRegistrationGc(now)) return
-
-  try {
-    await garbageCollectStaleAppRegistrations(db, now)
-  } catch (error) {
-    logger.warn({
-      message: 'Stale app registration cleanup failed',
-      error
-    })
-  }
 }
 
 export const createApplication = async (
@@ -205,9 +127,26 @@ export const createApplication = async (
         }
 
         // The registration throttle is a best-effort guard: count + insert is
-        // intentionally not a cross-database atomic hard cap. Cleanup is also
-        // best effort and throttled so rejected floods do not trigger joins.
-        await maybeGarbageCollectStaleAppRegistrations(db, now)
+        // intentionally not a cross-database atomic hard cap, and it only
+        // engages when a source key is available — `getAppRegistrationKey`
+        // returns undefined unless ACTIVITIES_TRUST_PROXY_IP_HEADERS is set, so
+        // a default deployment has no per-source limit at all.
+        //
+        // Registrations are deliberately NOT garbage-collected. Mastodon-API
+        // clients (Phanpy, Elk, Tusky, …) persist the client_id/client_secret
+        // they get from here indefinitely and only re-register when their
+        // stored copy is missing, so deleting a registration permanently wedges
+        // any client still holding it: it keeps presenting a client_id this
+        // server no longer knows and has no way to discover it must register
+        // again. Mastodon hit precisely this and removed its own application
+        // "vacuuming" in 4.3 for the same reason.
+        //
+        // That does mean abandoned registrations accumulate, and on a default
+        // deployment nothing bounds them. That is the accepted trade: the old
+        // collector was never a flood defence either (rows only became eligible
+        // 24h after they were written), so it bought no protection while
+        // silently breaking real clients. If a bound is wanted, add one that
+        // rejects writes — never one that deletes registrations.
 
         // Always create a new client — per the Mastodon API spec, each POST
         // creates a new application with fresh credentials. Silent secret
