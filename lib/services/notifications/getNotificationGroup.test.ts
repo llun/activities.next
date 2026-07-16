@@ -30,11 +30,18 @@ describe('getNotificationGroup', () => {
       group_key: 'like:https://other.test/statuses/1',
       notifications_count: 2,
       type: 'favourite',
-      most_recent_notification_id: 'n1',
+      // A JSON *number* derived from the most-recent member's createdAt (1000ms
+      // epoch) — Mastodon clients decode most_recent_notification_id as an Int
+      // and crash on a string. page_max_id keeps the real UUID cursor.
+      most_recent_notification_id: 1000,
+      page_max_id: 'n1',
       // ISO-8601 of the group's most-recent notification createdAt (1000ms epoch).
       latest_page_notification_at: '1970-01-01T00:00:01.000Z',
       status_id: urlToId('https://other.test/statuses/1')
     })
+    // Guard the wire type: a regression back to the UUID string re-crashes the
+    // Mastodon iOS app (typeMismatch, expected Int).
+    expect(typeof group.most_recent_notification_id).toBe('number')
     expect(group.sample_account_ids).toEqual([
       urlToId('https://other.test/users/alice'),
       urlToId('https://other.test/users/bob')

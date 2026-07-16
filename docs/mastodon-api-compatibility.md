@@ -109,6 +109,19 @@ product or security decision, not a gap to be closed.
   `Link` pagination headers (remote ids cannot cursor the local store), and
   the fetched statuses are display-only — they are not persisted.
 
+- **Grouped notifications' `most_recent_notification_id` is a synthesized
+  integer, not a resolvable id.** In the `GET /api/v2/notifications` response
+  (and the single-group `/:group_key` variant), Mastodon serializes
+  `most_recent_notification_id` as the numeric notification id, and clients
+  decode it as an integer (the official Mastodon iOS app types it `Int` and
+  crashes on a string). Activity.next uses UUID notification ids, which can't be
+  numbers, so it emits a deterministic integer derived from the group's
+  most-recent notification `createdAt` (epoch ms). This value is display-only —
+  clients never send it back as a cursor. Pagination uses the `Link` header and
+  the string `page_min_id` / `page_max_id`, which stay real UUID cursors the
+  server can resolve. Do **not** "fix" `most_recent_notification_id` back to the
+  UUID string: that re-crashes the Mastodon iOS decoder.
+
 ## Not planned
 
 These endpoints are not implemented and are not currently on the roadmap. They

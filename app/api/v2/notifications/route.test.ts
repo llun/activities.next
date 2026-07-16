@@ -203,15 +203,27 @@ describe('GET /api/v2/notifications', () => {
       { method: 'GET' }
     )
     const response = await GET(request, { params: Promise.resolve({}) })
+    const data = await response.json()
 
     expect(response.status).toBe(200)
     const link = response.headers.get('Link') ?? ''
-    // next/max_id anchors on the LAST returned group (the follow group).
+    // next/max_id anchors on the LAST returned group (the follow group). The
+    // cursor is the notification UUID (page_max_id), NOT the numeric
+    // most_recent_notification_id — the server can only resolve UUID cursors.
     expect(link).toContain('max_id=follow-old')
     expect(link).toContain('rel="next"')
     // prev/min_id anchors on the FIRST returned group (the like group).
     expect(link).toContain('min_id=like-new')
     expect(link).toContain('rel="prev"')
+    // The numeric surrogate must NOT leak into the cursor.
+    expect(link).not.toContain('max_id=1000')
+    expect(link).not.toContain('min_id=3000')
+    // most_recent_notification_id is a JSON number (the createdAt epoch ms), so
+    // the Mastodon iOS Int decoder does not crash.
+    const [likeGroup, followGroup] = data.notification_groups
+    expect(likeGroup.most_recent_notification_id).toBe(3000)
+    expect(followGroup.most_recent_notification_id).toBe(1000)
+    expect(typeof likeGroup.most_recent_notification_id).toBe('number')
   })
 
   it('splits accounts into full and partial with expand_accounts=partial_avatars', async () => {
