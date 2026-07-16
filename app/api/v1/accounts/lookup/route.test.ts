@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
 
+import { resetRefreshRemoteActorStateForTesting } from '@/lib/services/actors/refreshRemoteActor'
+
 import { GET } from './route'
 
 const mockGetActorFromUsername = vi.fn()
@@ -62,6 +64,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 describe('GET /api/v1/accounts/lookup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetRefreshRemoteActorStateForTesting()
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue(null)
   })
@@ -171,6 +174,174 @@ describe('GET /api/v1/accounts/lookup', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual(account)
+  })
+
+  it('refreshes a known remote actor for session viewers before serialization', async () => {
+    const storedActor = {
+      id: 'https://remote.test/users/person',
+      account: null,
+      privateKey: ''
+    }
+    const refreshedActor = { ...storedActor, name: 'Fresh Person' }
+    const account = {
+      id: 'person',
+      username: 'person',
+      acct: 'person@remote.test'
+    }
+    mockGetActorFromUsername.mockResolvedValue(storedActor)
+    mockGetServerSession.mockResolvedValue({
+      user: { email: 'user@llun.test' }
+    })
+    mockRecordActorIfNeeded.mockResolvedValue(refreshedActor)
+    mockGetMastodonActorFromId.mockResolvedValue(account)
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/lookup?acct=person@remote.test'
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockRecordActorIfNeeded).toHaveBeenCalledWith({
+      actorId: storedActor.id,
+      database: expect.anything(),
+      signingActor: undefined
+    })
+    // No webfinger needed for a known actor.
+    expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+  })
+
+  it('refreshes a known remote actor for bearer viewers with read scope', async () => {
+    const storedActor = {
+      id: 'https://remote.test/users/person',
+      account: null,
+      privateKey: ''
+    }
+    const account = {
+      id: 'person',
+      username: 'person',
+      acct: 'person@remote.test'
+    }
+    mockGetActorFromUsername.mockResolvedValue(storedActor)
+    mockStoredToken.mockResolvedValue({
+      expiresAt: new Date(Date.now() + 60_000),
+      referenceId: 'https://llun.test/users/oauth-user',
+      scopes: 'read'
+    })
+    mockGetActorFromId.mockResolvedValue(oauthActor)
+    mockRecordActorIfNeeded.mockResolvedValue(storedActor)
+    mockGetMastodonActorFromId.mockResolvedValue(account)
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/lookup?acct=person@remote.test',
+        { headers: { Authorization: 'Bearer read-token' } }
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockRecordActorIfNeeded).toHaveBeenCalledWith({
+      actorId: storedActor.id,
+      database: expect.anything(),
+      signingActor: undefined
+    })
+  })
+
+  it('serves a known remote actor to anonymous viewers without refreshing', async () => {
+    const storedActor = {
+      id: 'https://remote.test/users/person',
+      account: null,
+      privateKey: ''
+    }
+    const account = {
+      id: 'person',
+      username: 'person',
+      acct: 'person@remote.test'
+    }
+    mockGetActorFromUsername.mockResolvedValue(storedActor)
+    mockGetMastodonActorFromId.mockResolvedValue(account)
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/lookup?acct=person@remote.test'
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
+  })
+
+  it('does not refresh account-backed local actors', async () => {
+    const localActor = {
+      id: 'https://llun.test/users/test1',
+      account: { id: 'account-id' },
+      privateKey: 'private-key'
+    }
+    const account = { id: 'test1', username: 'test1', acct: 'test1' }
+    mockGetActorFromUsername.mockResolvedValue(localActor)
+    mockGetServerSession.mockResolvedValue({
+      user: { email: 'user@llun.test' }
+    })
+    mockGetMastodonActorFromId.mockResolvedValue(account)
+
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v1/accounts/lookup?acct=test1')
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
+    // Internal actors skip the auth check entirely.
+    expect(mockGetServerSession).not.toHaveBeenCalled()
+  })
+
+  it('serves the stored actor when the refresh fails', async () => {
+    const storedActor = {
+      id: 'https://remote.test/users/person',
+      account: null,
+      privateKey: ''
+    }
+    const account = {
+      id: 'person',
+      username: 'person',
+      acct: 'person@remote.test'
+    }
+    mockGetActorFromUsername.mockResolvedValue(storedActor)
+    mockGetServerSession.mockResolvedValue({
+      user: { email: 'user@llun.test' }
+    })
+    mockRecordActorIfNeeded.mockRejectedValue(new Error('remote down'))
+    mockGetMastodonActorFromId.mockResolvedValue(account)
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/lookup?acct=person@remote.test'
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual(account)
+  })
+
+  it('rejects an invalid bearer token even when the actor is stored locally', async () => {
+    const storedActor = {
+      id: 'https://remote.test/users/person',
+      account: null,
+      privateKey: ''
+    }
+    mockGetActorFromUsername.mockResolvedValue(storedActor)
+    // Default mockStoredToken (null) makes any presented bearer invalid.
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/lookup?acct=person@remote.test',
+        { headers: { Authorization: 'Bearer expired-token' } }
+      )
+    )
+
+    expect(response.status).toBe(401)
+    // The presented token is validated before any lookup work happens.
+    expect(mockGetActorFromUsername).not.toHaveBeenCalled()
+    expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
   })
 
   it('rejects bearer tokens without read account lookup scope before remote resolution', async () => {

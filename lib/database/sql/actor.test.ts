@@ -850,8 +850,10 @@ describe('ActorDatabase', () => {
           note: '',
           avatar: '',
           avatar_static: '',
+          avatar_description: '',
           header: '',
           header_static: '',
+          header_description: '',
 
           locked: true,
           fields: [],
@@ -963,6 +965,41 @@ describe('ActorDatabase', () => {
           statuses_count: 0,
           followers_count: 0,
           following_count: 0
+        })
+      })
+
+      it('surfaces avatar/header alt text as the Mastodon 4.6 description fields', async () => {
+        await database.updateActor({
+          actorId: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
+          avatarDescription: 'A close-up of a coffee cup',
+          headerDescription: 'Mountains at dawn'
+        })
+
+        const actor = await database.getMastodonActorFromUsername({
+          username: TEST_USERNAME3,
+          domain: TEST_DOMAIN
+        })
+
+        // Both are required members of the Account entity as of Mastodon 4.6.
+        expect(actor).toMatchObject({
+          avatar_description: 'A close-up of a coffee cup',
+          header_description: 'Mountains at dawn'
+        })
+      })
+
+      it('defaults the 4.6 description fields to empty strings when unset', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `no-alt-${suffix}`
+        await createSigningAccount(database, username)
+
+        const actor = await database.getMastodonActorFromUsername({
+          username,
+          domain: TEST_DOMAIN
+        })
+
+        expect(actor).toMatchObject({
+          avatar_description: '',
+          header_description: ''
         })
       })
 
