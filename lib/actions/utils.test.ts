@@ -202,6 +202,14 @@ describe('recordActorIfNeeded', () => {
     const actor = await recordActorIfNeeded({ actorId, database })
 
     expect(actor?.id).toBe(actorId)
+
+    // The failed sync stamps the marker, so the next call must not re-attempt
+    // the remote fetch until the actor goes stale.
+    mockGetActorPerson.mockClear()
+    await expect(
+      recordActorIfNeeded({ actorId, database })
+    ).resolves.toMatchObject({ id: actorId })
+    expect(mockGetActorPerson).not.toHaveBeenCalled()
   })
 
   it('refreshes the persisted actor type for stale remote actors', async () => {

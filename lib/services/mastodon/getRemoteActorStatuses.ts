@@ -3,7 +3,7 @@ import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import { Status, StatusAnnounce, StatusType } from '@/lib/types/domain/status'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
 
@@ -67,9 +67,9 @@ export const getRemoteActorStatuses = async ({
             ...new Set(
               statuses
                 .filter(
-                  (status) =>
+                  (status): status is StatusAnnounce =>
                     status.type === StatusType.enum.Announce &&
-                    status.originalStatus?.actorId
+                    Boolean(status.originalStatus?.actorId)
                 )
                 .map((status) => status.originalStatus.actorId)
             )
