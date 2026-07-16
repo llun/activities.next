@@ -224,6 +224,11 @@ export const GET = traceApiRoute(
       // were hidden by envelope suppression. When suppression empties the page but
       // the source isn't exhausted, fall back to the oldest collected row so the
       // client keeps paging toward the visible groups further down the timeline.
+      //
+      // The cursor MUST be a resolvable notification id (a UUID this server can
+      // look up), so anchor on page_max_id — the group's most-recent notification
+      // UUID — NOT most_recent_notification_id, which is a numeric surrogate for
+      // clients' Int decoders and is not a resolvable cursor.
       const host = headerHost(req.headers)
       const pathBase = '/api/v2/notifications'
       const buildLink = (cursorParam: string, cursorValue: string) => {
@@ -239,10 +244,14 @@ export const GET = traceApiRoute(
       if (survivingGroups.length > 0) {
         const lastGroup = survivingGroups[survivingGroups.length - 1]
         const firstGroup = survivingGroups[0]
+        const nextCursor = lastGroup.page_max_id
+        const prevCursor = firstGroup.page_max_id
         links = [
-          buildLink('max_id', lastGroup.most_recent_notification_id),
-          buildLink('min_id', firstGroup.most_recent_notification_id)
-        ].join(', ')
+          nextCursor && buildLink('max_id', nextCursor),
+          prevCursor && buildLink('min_id', prevCursor)
+        ]
+          .filter((link): link is string => Boolean(link))
+          .join(', ')
       } else if (!exhausted && lastScannedId) {
         // No visible groups on this page but the source isn't exhausted (e.g. the
         // iteration cap was hit, or account_id filtered out the whole window): emit
