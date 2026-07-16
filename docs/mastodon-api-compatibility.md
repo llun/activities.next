@@ -88,14 +88,17 @@ product or security decision, not a gap to be closed.
   only.** Mastodon renders a remote account from whatever has already federated
   to the instance, so a small instance shows an empty profile with zeroed
   counts. Activity.next stores the remote-advertised follower/following/status
-  collection totals when it records or refreshes a remote actor (opening a
-  profile via `GET /api/v1/accounts/:id` refreshes a stale one for
-  authenticated viewers), and `GET /api/v1/accounts/:id/statuses` falls back to
-  fetching the actor's recent public posts live from their outbox when the
-  local store cannot fill the first page for an authenticated viewer. A
-  live-served page carries no `Link` pagination headers (remote ids cannot
-  cursor the local store), and the fetched statuses are display-only — they are
-  not persisted.
+  collection totals when it records or refreshes a remote actor. A known remote
+  actor is refreshed (stale profile + counter sync) before serialization on
+  every account-serving path an authenticated client uses to open a profile:
+  `GET /api/v1/accounts/:id`, `GET /api/v1/accounts/lookup`,
+  `GET /api/v1/accounts/search` (exact `resolve=true` handle matches), and the
+  resolved exact match of `GET /api/v2/search`. The statuses endpoint
+  (`GET /api/v1/accounts/:id/statuses`) falls back to fetching the actor's
+  recent public posts live from their outbox when the local store cannot fill
+  the first page for an authenticated viewer. A live-served page carries no
+  `Link` pagination headers (remote ids cannot cursor the local store), and
+  the fetched statuses are display-only — they are not persisted.
 
 ## Not planned
 

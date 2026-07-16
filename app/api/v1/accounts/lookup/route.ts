@@ -5,6 +5,7 @@ import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { localizeAccount } from '@/lib/services/accounts/localizeAccount'
+import { refreshKnownRemoteActor } from '@/lib/services/actors/refreshRemoteActor'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import {
   OptionalOAuthGuard,
@@ -91,19 +92,49 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
 
   const { username, domain } = handle
   let actor = await database.getActorFromUsername({ username, domain })
-  if (!actor && resolve && domain !== config.host) {
-    const hasBearerAuthorization = isBearerAuthorizationHeader(
-      req.headers.get('Authorization')
-    )
-    const session = hasBearerAuthorization ? null : await getServerAuthSession()
-    let canResolveRemote = Boolean(session?.user?.email)
-    if (!canResolveRemote && hasBearerAuthorization) {
-      const bearerAuth = await authorizeBearerRemoteLookup(req)
-      if (!bearerAuth.authorized) return bearerAuth.response
-      canResolveRemote = true
-    }
 
-    if (!canResolveRemote) {
+  // Remote fetches (resolving an unknown handle, or refreshing a known remote
+  // actor) require an authenticated viewer: the web session, or a bearer token
+  // carrying a read scope. Resolved lazily (and once) so anonymous lookups of
+  // stored actors stay free of auth work. An invalid bearer keeps its guard
+  // response so the resolve branch can surface it exactly as before.
+  const hasBearerAuthorization = isBearerAuthorizationHeader(
+    req.headers.get('Authorization')
+  )
+  type RemoteFetchAuth =
+    { authorized: true } | { authorized: false; bearerResponse?: Response }
+  let cachedRemoteFetchAuth: RemoteFetchAuth | null = null
+  const getRemoteFetchAuth = async (): Promise<RemoteFetchAuth> => {
+    if (cachedRemoteFetchAuth) return cachedRemoteFetchAuth
+    let auth: RemoteFetchAuth
+    if (!hasBearerAuthorization) {
+      const session = await getServerAuthSession()
+      auth = { authorized: Boolean(session?.user?.email) }
+    } else {
+      const bearerAuth = await authorizeBearerRemoteLookup(req)
+      auth = bearerAuth.authorized
+        ? { authorized: true }
+        : { authorized: false, bearerResponse: bearerAuth.response }
+    }
+    cachedRemoteFetchAuth = auth
+    return auth
+  }
+
+  if (actor) {
+    // Profile headers are commonly built from this endpoint's response, so a
+    // known remote actor is refreshed (stale profile + counter sync) before
+    // serialization — otherwise clients keep seeing zeroed counts until some
+    // other endpoint happens to refresh the actor. No-op for recently-synced
+    // actors; failures fall back to the stored actor. Internal actors skip
+    // even the auth check — nothing to refresh.
+    const isInternal = Boolean(actor.account || actor.privateKey)
+    if (!isInternal && (await getRemoteFetchAuth()).authorized) {
+      actor = await refreshKnownRemoteActor({ database, actor })
+    }
+  } else if (resolve && domain !== config.host) {
+    const auth = await getRemoteFetchAuth()
+    if (!auth.authorized) {
+      if (auth.bearerResponse) return auth.bearerResponse
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,

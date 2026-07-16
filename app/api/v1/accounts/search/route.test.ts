@@ -110,16 +110,14 @@ describe('GET /api/v1/accounts/search', () => {
     })
   })
 
-  it('resolves a remote handle only after indexed search misses', async () => {
+  it('resolves an unknown remote handle via webfinger before the indexed search', async () => {
     const resolvedActor = { id: 'https://remote.test/users/charlie' }
     mockGetWebfingerSelf.mockResolvedValue(resolvedActor.id)
     mockRecordActorIfNeeded.mockResolvedValue(resolvedActor)
-    mockSearchAccountIds
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        resolvedActor.id,
-        'https://remote.test/users/alice'
-      ])
+    mockSearchAccountIds.mockResolvedValue([
+      resolvedActor.id,
+      'https://remote.test/users/alice'
+    ])
 
     const response = await GET(
       new NextRequest(
@@ -130,18 +128,15 @@ describe('GET /api/v1/accounts/search', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mockGetActorFromUsername).not.toHaveBeenCalled()
-    expect(mockSearchAccountIds).toHaveBeenNthCalledWith(1, {
-      q: '@Charlie@Remote.test',
-      limit: 40,
-      offset: 0,
-      localDomain: 'llun.test',
-      exactActorIds: []
+    expect(mockGetActorFromUsername).toHaveBeenCalledWith({
+      username: 'Charlie',
+      domain: 'remote.test'
     })
     expect(mockGetWebfingerSelf).toHaveBeenCalledWith({
       account: 'Charlie@remote.test'
     })
-    expect(mockSearchAccountIds).toHaveBeenNthCalledWith(2, {
+    expect(mockSearchAccountIds).toHaveBeenCalledTimes(1)
+    expect(mockSearchAccountIds).toHaveBeenCalledWith({
       q: '@Charlie@Remote.test',
       limit: 40,
       offset: 0,
@@ -150,6 +145,42 @@ describe('GET /api/v1/accounts/search', () => {
     })
     expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
       ids: [resolvedActor.id, 'https://remote.test/users/alice']
+    })
+  })
+
+  it('refreshes a known remote handle instead of webfingering it', async () => {
+    const storedActor = {
+      id: 'https://remote.test/users/charlie',
+      account: null,
+      privateKey: ''
+    }
+    mockGetActorFromUsername.mockResolvedValue(storedActor)
+    mockRecordActorIfNeeded.mockResolvedValue(storedActor)
+    mockSearchAccountIds.mockResolvedValue([storedActor.id])
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/search?q=charlie@remote.test&resolve=true',
+        { headers: { Authorization: 'Bearer read-accounts-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+    // The stored remote actor is refreshed before serialization so the
+    // response carries current remote profile data and counts.
+    expect(mockRecordActorIfNeeded).toHaveBeenCalledWith({
+      actorId: storedActor.id,
+      database: expect.anything(),
+      signingActor: undefined
+    })
+    expect(mockSearchAccountIds).toHaveBeenCalledWith({
+      q: 'charlie@remote.test',
+      limit: 40,
+      offset: 0,
+      localDomain: 'llun.test',
+      exactActorIds: [storedActor.id]
     })
   })
 
@@ -225,13 +256,18 @@ describe('GET /api/v1/accounts/search', () => {
     })
   })
 
-  it('does not webfinger when indexed search finds a mixed-case handle locally', async () => {
-    mockSearchAccountIds.mockResolvedValue([
-      'https://remote.test/users/Charlie'
-    ])
+  it('does not webfinger a mixed-case handle whose actor is already stored', async () => {
+    const storedActor = {
+      id: 'https://remote.test/users/Charlie',
+      account: null,
+      privateKey: ''
+    }
+    mockGetActorFromUsername.mockResolvedValue(storedActor)
+    mockRecordActorIfNeeded.mockResolvedValue(storedActor)
+    mockSearchAccountIds.mockResolvedValue([storedActor.id])
     mockGetMastodonActorsFromIds.mockResolvedValue([
       {
-        id: 'https://remote.test/users/Charlie',
+        id: storedActor.id,
         username: 'Charlie',
         acct: 'Charlie@remote.test'
       }
@@ -246,51 +282,50 @@ describe('GET /api/v1/accounts/search', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mockGetActorFromUsername).not.toHaveBeenCalled()
+    // Domain is normalized to lowercase by parseAccountHandle before lookup.
+    expect(mockGetActorFromUsername).toHaveBeenCalledWith({
+      username: 'Charlie',
+      domain: 'remote.test'
+    })
     expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
-    expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
+    // Stored remote actors are refreshed before serialization.
+    expect(mockRecordActorIfNeeded).toHaveBeenCalledWith({
+      actorId: storedActor.id,
+      database: expect.anything(),
+      signingActor: undefined
+    })
     expect(mockSearchAccountIds).toHaveBeenCalledWith({
       q: '@Charlie@Remote.test',
       limit: 40,
       offset: 0,
       localDomain: 'llun.test',
-      exactActorIds: []
+      exactActorIds: [storedActor.id]
     })
     expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
-      ids: ['https://remote.test/users/Charlie']
+      ids: [storedActor.id]
     })
   })
 
-  it('webfingers remote handles when indexed search only finds unrelated accounts', async () => {
+  it('webfingers unknown remote handles and includes them as exact matches', async () => {
     const resolvedActor = { id: 'https://remote.test/users/charlie' }
     mockGetWebfingerSelf.mockResolvedValue(resolvedActor.id)
     mockRecordActorIfNeeded.mockResolvedValue(resolvedActor)
-    mockSearchAccountIds
-      .mockResolvedValueOnce(['https://llun.test/users/charlie-brown'])
-      .mockResolvedValueOnce([
-        resolvedActor.id,
-        'https://llun.test/users/charlie-brown'
-      ])
-    mockGetMastodonActorsFromIds
-      .mockResolvedValueOnce([
-        {
-          id: 'https://llun.test/users/charlie-brown',
-          username: 'charlie-brown',
-          acct: 'charlie-brown@llun.test'
-        }
-      ])
-      .mockResolvedValueOnce([
-        {
-          id: resolvedActor.id,
-          username: 'charlie',
-          acct: 'charlie@remote.test'
-        },
-        {
-          id: 'https://llun.test/users/charlie-brown',
-          username: 'charlie-brown',
-          acct: 'charlie-brown@llun.test'
-        }
-      ])
+    mockSearchAccountIds.mockResolvedValue([
+      resolvedActor.id,
+      'https://llun.test/users/charlie-brown'
+    ])
+    mockGetMastodonActorsFromIds.mockResolvedValue([
+      {
+        id: resolvedActor.id,
+        username: 'charlie',
+        acct: 'charlie@remote.test'
+      },
+      {
+        id: 'https://llun.test/users/charlie-brown',
+        username: 'charlie-brown',
+        acct: 'charlie-brown@llun.test'
+      }
+    ])
 
     const response = await GET(
       new NextRequest(
@@ -304,7 +339,8 @@ describe('GET /api/v1/accounts/search', () => {
     expect(mockGetWebfingerSelf).toHaveBeenCalledWith({
       account: 'charlie@remote.test'
     })
-    expect(mockSearchAccountIds).toHaveBeenNthCalledWith(2, {
+    expect(mockSearchAccountIds).toHaveBeenCalledTimes(1)
+    expect(mockSearchAccountIds).toHaveBeenCalledWith({
       q: '@charlie@remote.test',
       limit: 40,
       offset: 0,

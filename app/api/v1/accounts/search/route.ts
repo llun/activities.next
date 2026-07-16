@@ -4,6 +4,7 @@ import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { getConfig } from '@/lib/config'
 import { localizeAccounts } from '@/lib/services/accounts/localizeAccount'
+import { refreshKnownRemoteActor } from '@/lib/services/actors/refreshRemoteActor'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
@@ -80,35 +81,40 @@ export const GET = traceApiRoute(
         }
       }
 
-      let indexedIds = await database.searchAccountIds(getSearchParams())
-      let results = await database.getMastodonActorsFromIds({
-        ids: indexedIds
-      })
-
+      // Resolve the exact handle (when requested) before running the index
+      // search: a known remote actor is refreshed (stale profile + counter
+      // sync) so the serialized result carries current remote data, and an
+      // unknown handle is webfinger-resolved and recorded as before. This
+      // route is always authenticated (OAuthGuardAnyScope).
       const handle = resolve && offset === 0 ? parseAccountHandle(query) : null
-      const exactAcct = handle
-        ? `${handle.username}@${handle.domain}`.toLowerCase()
-        : null
-      const hasExactHandle = exactAcct
-        ? results.some((actor) => actor.acct.toLowerCase() === exactAcct)
-        : false
-
-      if (handle && !hasExactHandle) {
-        const actorId = await getWebfingerSelf({
-          account: `${handle.username}@${handle.domain}`
-        })
-        const actor = actorId
-          ? ((await recordActorIfNeeded({ actorId, database })) ?? null)
-          : null
-        if (actor) {
-          indexedIds = await database.searchAccountIds(
-            getSearchParams([actor.id])
-          )
-          results = await database.getMastodonActorsFromIds({
-            ids: indexedIds
+      let exactActor = handle
+        ? await database.getActorFromUsername({
+            username: handle.username,
+            domain: handle.domain
           })
+        : null
+      if (handle) {
+        if (exactActor) {
+          exactActor = await refreshKnownRemoteActor({
+            database,
+            actor: exactActor
+          })
+        } else {
+          const actorId = await getWebfingerSelf({
+            account: `${handle.username}@${handle.domain}`
+          })
+          exactActor = actorId
+            ? ((await recordActorIfNeeded({ actorId, database })) ?? null)
+            : null
         }
       }
+
+      const indexedIds = await database.searchAccountIds(
+        getSearchParams(exactActor ? [exactActor.id] : [])
+      )
+      const results = await database.getMastodonActorsFromIds({
+        ids: indexedIds
+      })
 
       return apiResponse({
         req,

@@ -8,6 +8,7 @@ import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { localizeAccounts } from '@/lib/services/accounts/localizeAccount'
+import { refreshKnownRemoteActor } from '@/lib/services/actors/refreshRemoteActor'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import {
   OptionalOAuthGuard,
@@ -274,16 +275,26 @@ const resolveAccountId = async ({
           query,
           signingActor
         })
-    const actor =
+    const persistedActor =
       existingActor ??
       (canonicalActorId === query
         ? null
-        : await database.getActorFromId({ id: canonicalActorId })) ??
-      (await recordResolvedActorIfNeeded({
-        actorId: canonicalActorId,
-        database,
-        signingActor
-      }))
+        : await database.getActorFromId({ id: canonicalActorId }))
+    // A resolved exact match feeds the profile header in most clients, so a
+    // known remote actor is refreshed (stale profile + counter sync) before
+    // serialization; unknown actors are recorded as before. resolve=true
+    // already requires an authenticated viewer at the route boundary.
+    const actor = persistedActor
+      ? await refreshKnownRemoteActor({
+          database,
+          actor: persistedActor,
+          signingActor
+        })
+      : await recordResolvedActorIfNeeded({
+          actorId: canonicalActorId,
+          database,
+          signingActor
+        })
     if (
       actor &&
       (await canIncludeAccount({
@@ -304,7 +315,11 @@ const resolveAccountId = async ({
   if (!handle) return null
 
   let actor = await database.getActorFromUsername(handle)
-  if (!actor && query.includes('@')) {
+  if (actor) {
+    // Same refresh as the URL branch: handle searches with resolve=true are
+    // how apps open remote profiles, and the header is built from this result.
+    actor = await refreshKnownRemoteActor({ database, actor, signingActor })
+  } else if (query.includes('@')) {
     const actorId = await getWebfingerSelf({
       account: `${handle.username}@${handle.domain}`
     })
