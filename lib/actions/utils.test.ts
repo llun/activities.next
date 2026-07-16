@@ -34,7 +34,7 @@ const mockPerson = (
     publicKeyPem: 'public-key'
   },
   endpoints: {
-    sharedInbox: `https://${new URL(actorId).hostname}/inbox`
+    sharedInbox: `${new URL(actorId).origin}/inbox`
   },
   ...overrides
 })

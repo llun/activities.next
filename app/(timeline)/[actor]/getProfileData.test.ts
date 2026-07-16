@@ -1,22 +1,19 @@
-import { getActorFollowers } from '@/lib/activities/getActorFollowers'
-import { getActorFollowing } from '@/lib/activities/getActorFollowing'
+import { getActorCollectionCounts } from '@/lib/activities/getActorCollectionCounts'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { Database } from '@/lib/database/types'
-import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
+import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status } from '@/lib/types/domain/status'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
-import { logger } from '@/lib/utils/logger'
 
 import { getProfileData } from './getProfileData'
 
 // Mock dependencies via Jest module name mapper aliases
-vi.mock('@/lib/activities/getActorFollowers')
-vi.mock('@/lib/activities/getActorFollowing')
+vi.mock('@/lib/activities/getActorCollectionCounts')
 vi.mock('@/lib/activities/getActorPerson')
 vi.mock('@/lib/activities/getActorPosts')
 vi.mock('@/lib/activities/getWebfingerSelf')
@@ -195,13 +192,12 @@ describe('getProfileData', () => {
         statuses: mockStatuses,
         statusesCount: 0
       })
-      ;(getActorFollowing as jest.Mock).mockResolvedValue({
-        followingCount: 10
+      ;(getActorCollectionCounts as jest.Mock).mockResolvedValue({
+        followersCount: 20,
+        followingCount: 10,
+        statusesCount: 0
       })
-      ;(getActorFollowers as jest.Mock).mockResolvedValue({
-        followerCount: 20
-      })
-      ;(getFederationSigningActor as jest.Mock).mockResolvedValue(
+      ;(getFederationSigningActorSafe as jest.Mock).mockResolvedValue(
         mockFederationSigningActor
       )
     })
@@ -237,7 +233,10 @@ describe('getProfileData', () => {
       // 404ing. See getFederationSigningActor.
       await getProfileData(mockDatabase, '@remoteuser@remote.com', true)
 
-      expect(getFederationSigningActor).toHaveBeenCalledWith(mockDatabase)
+      expect(getFederationSigningActorSafe).toHaveBeenCalledWith(
+        mockDatabase,
+        expect.any(String)
+      )
       expect(getActorPerson).toHaveBeenCalledWith({
         actorId: 'https://remote.com/users/remoteuser',
         signingActor: mockFederationSigningActor
@@ -248,13 +247,45 @@ describe('getProfileData', () => {
         pageUrl: undefined,
         signingActor: mockFederationSigningActor
       })
-      expect(getActorFollowing).toHaveBeenCalledWith({
+      expect(getActorCollectionCounts).toHaveBeenCalledWith({
         person: mockPerson,
         signingActor: mockFederationSigningActor
       })
-      expect(getActorFollowers).toHaveBeenCalledWith({
-        person: mockPerson,
-        signingActor: mockFederationSigningActor
+    })
+
+    it('persists the fetched profile snapshot and collection counts for known actors', async () => {
+      ;(getActorCollectionCounts as jest.Mock).mockResolvedValue({
+        followersCount: 5370,
+        followingCount: 519,
+        statusesCount: null
+      })
+
+      const result = await getProfileData(
+        mockDatabase,
+        '@remoteuser@remote.com',
+        true
+      )
+
+      expect(result).toMatchObject({
+        followersCount: 5370,
+        followingCount: 519
+      })
+      // Same field set recordActorIfNeeded persists (getPersistableProfile),
+      // so both refresh paths write consistent snapshots.
+      expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: mockPerson.id,
+          name: 'Remote User',
+          summary: 'A remote user',
+          manuallyApprovesFollowers: false,
+          fields: []
+        })
+      )
+      expect(mockDatabase.setActorCounters).toHaveBeenCalledWith({
+        actorId: mockPerson.id,
+        followersCount: 5370,
+        followingCount: 519,
+        statusCount: null
       })
     })
 
@@ -299,41 +330,18 @@ describe('getProfileData', () => {
       // Should NOT call expensive remote APIs — including the signer, so an
       // anonymous page view never resolves or provisions the instance actor.
       expect(getWebfingerSelf).not.toHaveBeenCalled()
-      expect(getFederationSigningActor).not.toHaveBeenCalled()
+      expect(getFederationSigningActorSafe).not.toHaveBeenCalled()
       expect(getActorPerson).not.toHaveBeenCalled()
       expect(getActorPosts).not.toHaveBeenCalled()
-      expect(getActorFollowing).not.toHaveBeenCalled()
-      expect(getActorFollowers).not.toHaveBeenCalled()
-    })
-
-    it('falls back to an unsigned fetch when the signer resolution fails', async () => {
-      // A transient instance-actor failure (DB/keypair error) must not crash
-      // the render: getProfileData resolves the signer best-effort, so a
-      // rejection degrades to an unsigned fetch instead of a 500.
-      ;(getFederationSigningActor as jest.Mock).mockRejectedValue(
-        new Error('signer unavailable')
-      )
-
-      const result = await getProfileData(
-        mockDatabase,
-        '@remoteuser@remote.com',
-        true
-      )
-
-      expect(result).not.toBeNull()
-      const personCall = (getActorPerson as jest.Mock).mock.calls[0][0]
-      expect('signingActor' in personCall).toBe(false)
-      // The failure is surfaced (not silently swallowed) so a persistently
-      // broken signer stays diagnosable.
-      expect(logger.warn).toHaveBeenCalled()
+      expect(getActorCollectionCounts).not.toHaveBeenCalled()
     })
 
     it('omits the signing actor entirely when no instance actor is available', async () => {
-      // getFederationSigningActor returns undefined when the instance actor
-      // could not be resolved/provisioned. The fetch must then fall back to an
-      // unsigned request (no `signingActor` key at all) rather than passing
-      // `signingActor: undefined` downstream. This locks in the `: {}` branch.
-      ;(getFederationSigningActor as jest.Mock).mockResolvedValue(undefined)
+      // getFederationSigningActorSafe owns the warn-and-degrade handling and
+      // returns undefined when the instance actor could not be resolved. The
+      // fetch must then fall back to an unsigned request (no `signingActor`
+      // key at all) rather than passing `signingActor: undefined` downstream.
+      ;(getFederationSigningActorSafe as jest.Mock).mockResolvedValue(undefined)
 
       const result = await getProfileData(
         mockDatabase,
@@ -397,13 +405,12 @@ describe('getProfileData', () => {
         statuses: mockStatuses,
         statusesCount: 0
       })
-      ;(getActorFollowing as jest.Mock).mockResolvedValue({
-        followingCount: 10
+      ;(getActorCollectionCounts as jest.Mock).mockResolvedValue({
+        followersCount: 20,
+        followingCount: 10,
+        statusesCount: 0
       })
-      ;(getActorFollowers as jest.Mock).mockResolvedValue({
-        followerCount: 20
-      })
-      ;(getFederationSigningActor as jest.Mock).mockResolvedValue(
+      ;(getFederationSigningActorSafe as jest.Mock).mockResolvedValue(
         mockFederationSigningActor
       )
 

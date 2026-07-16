@@ -8,6 +8,7 @@ import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { getRemoteActorStatuses } from '@/lib/services/mastodon/getRemoteActorStatuses'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
+import { decodeCursor } from '@/lib/services/timelines/request'
 import { Scope } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { type Status, StatusType } from '@/lib/types/domain/status'
@@ -20,7 +21,7 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl, safeIdToUrl } from '@/lib/utils/urlToId'
+import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 const MAX_STATUS_SCAN_BATCHES = 10
@@ -92,10 +93,11 @@ export const GET = traceApiRoute(
       // status URLs), so decode the cursors before querying — the database
       // stores raw status URLs and silently ignores an unknown cursor, which
       // would serve the same first page over and over. An undecodable cursor
-      // is a deliberate 400, matching the timeline endpoints.
-      const maxId = encodedMaxId ? safeIdToUrl(encodedMaxId) : undefined
-      const minId = encodedMinId ? safeIdToUrl(encodedMinId) : undefined
-      const sinceId = encodedSinceId ? safeIdToUrl(encodedSinceId) : undefined
+      // is a deliberate 400, using the same decodeCursor rule as the timeline
+      // endpoints.
+      const maxId = decodeCursor(encodedMaxId)
+      const minId = decodeCursor(encodedMinId)
+      const sinceId = decodeCursor(encodedSinceId)
       if (maxId === null || minId === null || sinceId === null) {
         return apiResponse({
           req,
@@ -216,10 +218,10 @@ export const GET = traceApiRoute(
       if (
         currentActor &&
         isFirstPage &&
-        !actor.privateKey &&
         readableStatuses.length < limit &&
         parsedParams.pinned !== true &&
-        !parsedParams.tagged
+        !parsedParams.tagged &&
+        !(await database.isInternalActor({ actorId: id }))
       ) {
         liveRemoteStatuses = await getRemoteActorStatuses({
           database,
@@ -232,8 +234,23 @@ export const GET = traceApiRoute(
       }
       const servedLiveStatuses = liveRemoteStatuses.length > 0
 
+      // Merge live statuses with the locally-stored ones instead of replacing
+      // them — the outbox only exposes public/unlisted posts, so a follower's
+      // locally-federated followers-only statuses must survive. On id
+      // collisions keep the local copy: it carries viewer interaction state
+      // (favourited/bookmarked/own reblog).
+      const localStatusIds = new Set(
+        readableStatuses.map((status) => status.id)
+      )
       const visibleStatuses = servedLiveStatuses
-        ? liveRemoteStatuses
+        ? [
+            ...readableStatuses,
+            ...liveRemoteStatuses.filter(
+              (status) => !localStatusIds.has(status.id)
+            )
+          ]
+            .sort((a, b) => b.createdAt - a.createdAt)
+            .slice(0, limit)
         : readableStatuses.slice(0, limit)
       const visibleStatusIds = visibleStatuses.map((status) => status.id)
       const pinnedStatusIds =
@@ -276,19 +293,17 @@ export const GET = traceApiRoute(
       // Live-fetched statuses carry remote ids the local store can't use as
       // cursors (getActorStatuses ignores unknown max_id/min_id, which would
       // make clients loop over the same page), so a live page is served
-      // without pagination links.
-      const nextLink =
+      // without pagination links. The local scan was exhausted before the
+      // live fetch ran, so no stored statuses hide behind the missing links.
+      const includePaginationLinks =
         !servedLiveStatuses && mastodonStatuses.length > 0
-          ? buildLink(
-              'max_id',
-              mastodonStatuses[mastodonStatuses.length - 1].id
-            )
-          : null
+      const nextLink = includePaginationLinks
+        ? buildLink('max_id', mastodonStatuses[mastodonStatuses.length - 1].id)
+        : null
 
-      const prevLink =
-        !servedLiveStatuses && mastodonStatuses.length > 0
-          ? buildLink('min_id', mastodonStatuses[0].id)
-          : null
+      const prevLink = includePaginationLinks
+        ? buildLink('min_id', mastodonStatuses[0].id)
+        : null
 
       const links = [nextLink, prevLink].filter(Boolean).join(', ')
 

@@ -786,6 +786,71 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
       })
     })
 
+    it('merges live statuses with locally-stored ones, preferring the local copy on id collisions', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const now = Date.now() + 100_000
+      const localOnlyStatusId = `${EXTERNAL_ACTOR1}/statuses/merge-local-only`
+      const sharedStatusId = `${EXTERNAL_ACTOR1}/statuses/merge-shared`
+      const liveOnlyStatusId = `${EXTERNAL_ACTOR1}/statuses/merge-live-only`
+
+      // A followers-only post that only exists locally must survive the live
+      // page (the remote outbox never exposes it). seedDatabase already made
+      // actor1 an accepted follower of EXTERNAL_ACTOR1, so it is readable.
+      await database.createNote({
+        id: localOnlyStatusId,
+        url: localOnlyStatusId,
+        actorId: EXTERNAL_ACTOR1,
+        text: 'Followers-only local post',
+        to: [`${EXTERNAL_ACTOR1}/followers`],
+        cc: [],
+        createdAt: now
+      })
+      await database.createNote({
+        id: sharedStatusId,
+        url: sharedStatusId,
+        actorId: EXTERNAL_ACTOR1,
+        text: 'Shared post (local copy)',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        createdAt: now + 1
+      })
+
+      mockGetRemoteActorStatuses.mockResolvedValue([
+        {
+          ...buildRemoteStatus(sharedStatusId),
+          text: 'Shared post (live copy)',
+          createdAt: now + 1,
+          updatedAt: now + 1
+        },
+        {
+          ...buildRemoteStatus(liveOnlyStatusId),
+          createdAt: now + 2,
+          updatedAt: now + 2
+        }
+      ] as Status[])
+
+      const response = await GET(createRemoteRequest(), {
+        params: Promise.resolve({ id: urlToId(EXTERNAL_ACTOR1) })
+      })
+
+      expect(response.status).toBe(200)
+      const data = (await response.json()) as Array<{
+        uri: string
+        text: string | null
+      }>
+      const uris = data.map((status) => status.uri)
+      expect(uris).toContain(liveOnlyStatusId)
+      expect(uris).toContain(sharedStatusId)
+      expect(uris).toContain(localOnlyStatusId)
+      // No duplicate for the shared id, and the local copy wins.
+      expect(uris.filter((uri) => uri === sharedStatusId)).toHaveLength(1)
+      expect(
+        data.find((status) => status.uri === sharedStatusId)?.text
+      ).toContain('local copy')
+    })
+
     it('falls back to locally-stored statuses when the live fetch returns nothing', async () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor1.email }

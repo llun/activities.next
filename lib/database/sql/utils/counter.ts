@@ -32,6 +32,12 @@ export const CounterKey = {
   totalStatus: (actorId: string) => `total-status:${actorId}`,
   totalFollowers: (actorId: string) => `total-followers:${actorId}`,
   totalFollowing: (actorId: string) => `total-following:${actorId}`,
+  // Marker row (value = epoch seconds) recording that the actor's
+  // remote-advertised collection totals were synced at least once. Row
+  // existence is the signal; the follower/following/status rows above can't
+  // carry it because local accumulation (follows, federated statuses) also
+  // creates them.
+  remoteCountsSyncedAt: (actorId: string) => `remote-counts-synced:${actorId}`,
   totalBlocking: (actorId: string) => `total-blocking:${actorId}`,
   totalBlockedBy: (actorId: string) => `total-blocked-by:${actorId}`,
   totalLike: (statusId: string) => `total-like:${statusId}`,
@@ -56,7 +62,7 @@ export const CounterKey = {
 
 type SQLDatabase = Knex | Knex.Transaction
 
-export const ensureCounterRow = async (
+const ensureCounterRow = async (
   database: SQLDatabase,
   id: string,
   currentTime: Date

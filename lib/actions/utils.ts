@@ -62,10 +62,11 @@ const syncActorCollectionCounts = async (
   }
 }
 
-// The remote profile data persisted on both the create and refresh paths, so
+// The remote profile data persisted whenever a remote actor is recorded or
+// refreshed (recordActorIfNeeded here, plus the web profile page), so
 // Mastodon clients see the actor's real display name, bio, images, metadata
 // fields and follow-approval (locked) state instead of local defaults.
-const getPersistableProfile = (person: ActivityPubActor) => {
+export const getPersistableProfile = (person: ActivityPubActor) => {
   const iconUrl = getActorImageUrl(person.icon)
   const headerImageUrl = getActorImageUrl(person.image)
   return {
@@ -123,7 +124,9 @@ export const recordActorIfNeeded = async ({
     const actor = await database.createActor({
       actorId,
       username: person.preferredUsername,
-      domain: new URL(person.id).hostname,
+      // host (not hostname) so instances on non-standard ports keep the port
+      // in the stored domain, matching getActorDomain and handle lookups.
+      domain: new URL(person.id).host,
       ...getPersistableProfile(person),
       createdAt: new Date(person.published ?? Date.now()).getTime()
     })
@@ -132,15 +135,13 @@ export const recordActorIfNeeded = async ({
   }
 
   const currentTime = Date.now()
-  // Update actor if it's older than 3 day
+  // Update actor if it's older than 3 day. Also refresh a fresh actor whose
+  // collection counters were never synced — remote actors recorded before
+  // counter syncing existed would otherwise keep showing zero
+  // followers/following until the next stale refresh.
   const isStale =
     currentTime - existingActor.updatedAt > REMOTE_ACTOR_REFRESH_INTERVAL_MS
-  // Also refresh when the actor's collection counters were never synced —
-  // remote actors recorded before counter syncing existed would otherwise
-  // keep showing zero followers/following until the next stale refresh.
-  const needsCounterSync =
-    !isStale && !(await database.hasActorCounters({ actorId }))
-  if (!isStale && !needsCounterSync) {
+  if (!isStale && (await database.hasActorCounters({ actorId }))) {
     return existingActor
   }
 
@@ -149,9 +150,16 @@ export const recordActorIfNeeded = async ({
     actorId,
     signingActor: resolvedSigningActor
   })
-  // A counter-only sync must not degrade the previous behavior of returning
-  // the stored actor when the remote fetch fails.
-  if (!person) return isStale ? undefined : existingActor
+  if (!person) {
+    if (isStale) return undefined
+    // A counter-only sync must not degrade the previous behavior of returning
+    // the stored actor when the remote fetch fails. Mark the counters synced
+    // (rows created, values preserved) so an unreachable actor doesn't
+    // re-trigger a blocking remote fetch on every subsequent call — the
+    // 3-day stale refresh remains the retry path.
+    await database.setActorCounters({ actorId })
+    return existingActor
+  }
   const actor = await database.updateActor({
     actorId,
     ...getPersistableProfile(person)

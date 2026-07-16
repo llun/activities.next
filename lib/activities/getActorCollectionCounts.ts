@@ -1,9 +1,7 @@
-import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
-import { OrderedCollection } from '@/lib/activities/orderedCollection'
+import { fetchCollectionRoot } from '@/lib/activities/getActorCollections'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
-import { request } from '@/lib/utils/request'
 
 type CollectionField = 'followers' | 'following' | 'outbox'
 
@@ -31,14 +29,8 @@ const getCollectionTotalItems = async (
   if (!url) return null
 
   try {
-    const response = await request({
-      url,
-      headers: activityPubRequestHeaders({ url, signingActor })
-    })
-    if (response.statusCode !== 200) return null
-
-    const collection = JSON.parse(response.body) as OrderedCollection
-    const totalItems = collection.totalItems
+    const { collection } = await fetchCollectionRoot({ url, signingActor })
+    const totalItems = collection?.totalItems
     if (
       typeof totalItems !== 'number' ||
       !Number.isFinite(totalItems) ||

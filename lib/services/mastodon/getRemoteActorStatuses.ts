@@ -2,7 +2,7 @@ import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
-import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
+import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
@@ -33,21 +33,15 @@ export const getRemoteActorStatuses = async ({
   onlyMedia = false
 }: GetRemoteActorStatusesParams): Promise<Status[]> => {
   try {
-    if (!(await canFederateWithDomain(database, actorId))) return []
-
     // Server-to-server fetches are signed by the headless instance actor so
     // authorized-fetch ("secure mode") remotes accept them; a missing signer
-    // degrades to an unsigned fetch.
-    const signingActor = await getFederationSigningActor(database).catch(
-      (error) => {
-        logger.warn({
-          message:
-            'Failed to resolve federation signing actor for remote statuses; falling back to an unsigned request',
-          error: error instanceof Error ? error.message : String(error)
-        })
-        return undefined
-      }
-    )
+    // degrades to an unsigned fetch. Independent of the federation policy
+    // check, so resolve both concurrently.
+    const [canFederate, signingActor] = await Promise.all([
+      canFederateWithDomain(database, actorId),
+      getFederationSigningActorSafe(database, 'for remote statuses')
+    ])
+    if (!canFederate) return []
     const signingParams = signingActor ? { signingActor } : {}
 
     const person = await getActorPerson({ actorId, ...signingParams })
@@ -62,13 +56,24 @@ export const getRemoteActorStatuses = async ({
     // The Mastodon serializer resolves a reblog's author from the database, so
     // an Announce whose original author is unknown locally can't be rendered.
     // Keep only announces with locally-known original authors.
-    const announceAuthorIds = [
-      ...new Set(
-        statuses
-          .filter((status) => status.type === StatusType.enum.Announce)
-          .map((status) => status.originalStatus.actorId)
-      )
-    ]
+    // Remote data can be malformed: tolerate an Announce with a missing
+    // original (or author) instead of letting one bad status abort the whole
+    // fetch via the outer catch. Skipped entirely when the filter below drops
+    // every Announce anyway (reblogs excluded, or media-only pages).
+    const announceAuthorIds =
+      excludeReblogs || onlyMedia
+        ? []
+        : [
+            ...new Set(
+              statuses
+                .filter(
+                  (status) =>
+                    status.type === StatusType.enum.Announce &&
+                    status.originalStatus?.actorId
+                )
+                .map((status) => status.originalStatus.actorId)
+            )
+          ]
     const knownAuthorIds = new Set(
       announceAuthorIds.length > 0
         ? (await database.getActorsFromIds({ ids: announceAuthorIds })).map(
@@ -86,8 +91,13 @@ export const getRemoteActorStatuses = async ({
         if (visibility !== 'public' && visibility !== 'unlisted') return false
 
         if (status.type === StatusType.enum.Announce) {
-          if (excludeReblogs) return false
-          return knownAuthorIds.has(status.originalStatus.actorId)
+          // The media tab shows the actor's own media posts, never boosts —
+          // matching getActorStatuses' only_media handling on the local path.
+          if (excludeReblogs || onlyMedia) return false
+          return Boolean(
+            status.originalStatus?.actorId &&
+            knownAuthorIds.has(status.originalStatus.actorId)
+          )
         }
         if (excludeReplies && status.reply) return false
         if (onlyMedia && status.attachments.length === 0) return false

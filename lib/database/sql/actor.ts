@@ -13,7 +13,6 @@ import {
   decreaseCounterValue,
   deleteCounterValue,
   deleteCounterValues,
-  ensureCounterRow,
   getCounterValue,
   getCounterValues,
   increaseCounterValue,
@@ -1006,9 +1005,10 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
   // Overwrite the actor's counter rows with the collection sizes a remote
   // server advertises (followers/following/outbox totalItems). A null or
-  // undefined value keeps the locally-accumulated counter but still creates
-  // the row, so hasActorCounters reports the actor as synced even when the
-  // remote hides a collection's total.
+  // undefined value keeps the locally-accumulated counter. Every call also
+  // stamps the remote-counts-synced marker row, so hasActorCounters reports
+  // the sync as done even when the remote hides (or fails to serve) a
+  // collection's total.
   async setActorCounters({
     actorId,
     followersCount,
@@ -1021,26 +1021,32 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       [CounterKey.totalFollowing(actorId), followingCount],
       [CounterKey.totalStatus(actorId), statusCount]
     ]
-    for (const [key, value] of counters) {
-      if (typeof value === 'number') {
-        await setCounterValue(database, key, value, currentTime)
-      } else {
-        await ensureCounterRow(database, key, currentTime)
-      }
-    }
+    await Promise.all([
+      ...counters
+        .filter(
+          (counter): counter is [string, number] =>
+            typeof counter[1] === 'number'
+        )
+        .map(([key, value]) =>
+          setCounterValue(database, key, value, currentTime)
+        ),
+      setCounterValue(
+        database,
+        CounterKey.remoteCountsSyncedAt(actorId),
+        Math.floor(currentTime.getTime() / 1000),
+        currentTime
+      )
+    ])
   },
 
-  // Whether the actor's follower/following/status counter rows all exist.
-  // Missing rows mean the actor's remote collection counts were never synced
-  // (rows are created on sync even when a value is unavailable).
+  // Whether the actor's remote collection counts were ever synced (the
+  // remote-counts-synced marker row exists). The follower/following/status
+  // rows themselves can't carry this signal: local accumulation (follows,
+  // federated statuses) creates them too.
   async hasActorCounters({ actorId }: HasActorCountersParams) {
-    const keys = [
-      CounterKey.totalFollowers(actorId),
-      CounterKey.totalFollowing(actorId),
-      CounterKey.totalStatus(actorId)
-    ]
-    const counters = await getCounterValues(database, keys)
-    return keys.every((key) => key in counters)
+    const key = CounterKey.remoteCountsSyncedAt(actorId)
+    const counters = await getCounterValues(database, [key])
+    return key in counters
   },
 
   async increaseActorStatusCount(actorId: string, amount: number = 1) {
@@ -1748,6 +1754,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       await deleteCounterValue(trx, CounterKey.totalFollowing(actorId))
       await deleteCounterValue(trx, CounterKey.totalBlocking(actorId))
       await deleteCounterValue(trx, CounterKey.totalBlockedBy(actorId))
+      await deleteCounterValue(trx, CounterKey.remoteCountsSyncedAt(actorId))
 
       if (persistedActor?.accountId) {
         await decreaseCounterValue(

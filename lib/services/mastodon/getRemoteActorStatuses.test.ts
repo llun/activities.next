@@ -2,7 +2,7 @@ import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
-import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
+import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
@@ -72,7 +72,7 @@ describe('getRemoteActorStatuses', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     ;(canFederateWithDomain as jest.Mock).mockResolvedValue(true)
-    ;(getFederationSigningActor as jest.Mock).mockResolvedValue(
+    ;(getFederationSigningActorSafe as jest.Mock).mockResolvedValue(
       mockInstanceActor
     )
     ;(getActorPerson as jest.Mock).mockResolvedValue({
@@ -144,6 +144,22 @@ describe('getRemoteActorStatuses', () => {
         `${actorId}/statuses/unknown-announce`,
         unknownAuthorId
       ),
+      options: {}
+    },
+    {
+      description: 'drops reblogs on media-only pages',
+      status: buildAnnounce(
+        `${actorId}/statuses/media-announce`,
+        knownAuthorId
+      ),
+      options: { onlyMedia: true }
+    },
+    {
+      description: 'drops malformed reblogs with a missing original status',
+      status: {
+        ...buildAnnounce(`${actorId}/statuses/broken-announce`, knownAuthorId),
+        originalStatus: null
+      } as unknown as Status,
       options: {}
     }
   ])('$description', async ({ status, options }) => {

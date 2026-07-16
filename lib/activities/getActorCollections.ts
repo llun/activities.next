@@ -35,6 +35,31 @@ export const isCollectionPageUrl = (pageUrl: string, collectionUrl: string) => {
   }
 }
 
+// Fetch an ActivityPub collection root document (no page follow). Shared by
+// the full collection fetch below and the counts-only helper
+// (getActorCollectionCounts) so the fetch semantics stay in one place. A
+// non-200 response yields a null collection; network errors propagate for the
+// caller to handle.
+export const fetchCollectionRoot = async ({
+  url,
+  signingActor
+}: {
+  url: string
+  signingActor?: DomainActor
+}): Promise<{ statusCode: number; collection: OrderedCollection | null }> => {
+  const response = await request({
+    url,
+    headers: activityPubRequestHeaders({ url, signingActor })
+  })
+  if (response.statusCode !== 200) {
+    return { statusCode: response.statusCode, collection: null }
+  }
+  return {
+    statusCode: response.statusCode,
+    collection: JSON.parse(response.body) as OrderedCollection
+  }
+}
+
 export const getActorCollections = async ({
   person,
   field,
@@ -53,14 +78,11 @@ export const getActorCollections = async ({
         return null
       }
 
-      const fieldResponse = await request({
+      const fieldResponse = await fetchCollectionRoot({
         url: person[field],
-        headers: activityPubRequestHeaders({
-          url: person[field],
-          signingActor
-        })
+        signingActor
       })
-      if (fieldResponse.statusCode !== 200) {
+      if (!fieldResponse.collection) {
         span.setAttributes({
           url: person[field],
           status: fieldResponse.statusCode
@@ -72,7 +94,7 @@ export const getActorCollections = async ({
         return null
       }
 
-      const collection = JSON.parse(fieldResponse.body) as OrderedCollection
+      const collection = fieldResponse.collection
       const firstPageUrl = getOrderCollectionFirstPage(collection)
       const collectionPageUrl =
         pageUrl && isCollectionPageUrl(pageUrl, person[field])

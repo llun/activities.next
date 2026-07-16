@@ -44,8 +44,11 @@ export const GET = traceApiRoute(
       // an already-known actor so anonymous requests never trigger remote
       // fetches for arbitrary ids.
       if (currentActor) {
-        const persistedActor = await database.getActorFromId({ id })
-        if (persistedActor && !persistedActor.privateKey) {
+        const [persistedActor, isInternalActor] = await Promise.all([
+          database.getActorFromId({ id }),
+          database.isInternalActor({ actorId: id })
+        ])
+        if (persistedActor && !isInternalActor) {
           await recordActorIfNeeded({ actorId: id, database }).catch(
             (error) => {
               logger.warn({
