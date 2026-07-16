@@ -1,9 +1,14 @@
+import { getActorCollectionCounts } from '@/lib/activities/getActorCollectionCounts'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
+import { Actor as ActivityPubActor } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
-import { getActorImageUrl } from '@/lib/utils/activitypubActor'
+import {
+  getActorImageUrl,
+  getActorProfileFields
+} from '@/lib/utils/activitypubActor'
 import { logger } from '@/lib/utils/logger'
 
 interface RecordActorIfNeededParams {
@@ -11,6 +16,8 @@ interface RecordActorIfNeededParams {
   database: Database
   signingActor?: Actor
 }
+
+const REMOTE_ACTOR_REFRESH_INTERVAL_MS = 3 * 86_400_000
 
 export class BlockedFederationDomainError extends Error {
   constructor(actorId: string) {
@@ -25,6 +32,55 @@ export const assertActorCanFederate = async ({
 }: RecordActorIfNeededParams): Promise<void> => {
   if (!(await canFederateWithDomain(database, actorId))) {
     throw new BlockedFederationDomainError(actorId)
+  }
+}
+
+// Sync the collection sizes the remote server advertises (followers/following/
+// outbox totalItems) into the actor's local counter rows — the values the
+// Mastodon account serializer reads. Without this, remote actors show zero
+// followers/following and a local-only status count in Mastodon clients.
+// Best-effort: a failed sync leaves the existing counters untouched.
+const syncActorCollectionCounts = async (
+  database: Database,
+  person: ActivityPubActor,
+  signingActor?: Actor
+): Promise<void> => {
+  try {
+    const counts = await getActorCollectionCounts({ person, signingActor })
+    await database.setActorCounters({
+      actorId: person.id,
+      followersCount: counts.followersCount,
+      followingCount: counts.followingCount,
+      statusCount: counts.statusesCount
+    })
+  } catch (error) {
+    logger.warn({
+      message: 'Failed to sync remote actor collection counts',
+      actorId: person.id,
+      error: error instanceof Error ? error.message : String(error)
+    })
+  }
+}
+
+// The remote profile data persisted on both the create and refresh paths, so
+// Mastodon clients see the actor's real display name, bio, images, metadata
+// fields and follow-approval (locked) state instead of local defaults.
+const getPersistableProfile = (person: ActivityPubActor) => {
+  const iconUrl = getActorImageUrl(person.icon)
+  const headerImageUrl = getActorImageUrl(person.image)
+  return {
+    type: person.type,
+    ...(person.name ? { name: person.name } : {}),
+    ...(person.summary ? { summary: person.summary } : {}),
+    ...(iconUrl ? { iconUrl } : {}),
+    ...(headerImageUrl ? { headerImageUrl } : {}),
+    // ActivityStreams treats an absent flag as "does not require approval".
+    manuallyApprovesFollowers: person.manuallyApprovesFollowers ?? false,
+    fields: getActorProfileFields(person),
+    followersUrl: person.followers ?? '',
+    inboxUrl: person.inbox,
+    sharedInboxUrl: person.endpoints?.sharedInbox ?? person.inbox,
+    publicKey: person.publicKey.publicKeyPem || ''
   }
 }
 
@@ -58,46 +114,48 @@ export const recordActorIfNeeded = async ({
   }
 
   if (!existingActor) {
+    const resolvedSigningActor = await getResolvedSigningActor()
     const person = await getActorPerson({
       actorId,
-      signingActor: await getResolvedSigningActor()
+      signingActor: resolvedSigningActor
     })
     if (!person) return
-    const iconUrl = getActorImageUrl(person.icon)
     const actor = await database.createActor({
       actorId,
-      type: person.type,
       username: person.preferredUsername,
       domain: new URL(person.id).hostname,
-      followersUrl: person.followers ?? '',
-      inboxUrl: person.inbox,
-      sharedInboxUrl: person.endpoints?.sharedInbox ?? person.inbox,
-      ...(iconUrl ? { iconUrl } : {}),
-      publicKey: person.publicKey.publicKeyPem || '',
+      ...getPersistableProfile(person),
       createdAt: new Date(person.published ?? Date.now()).getTime()
     })
+    await syncActorCollectionCounts(database, person, resolvedSigningActor)
     return actor ?? undefined
   }
 
   const currentTime = Date.now()
   // Update actor if it's older than 3 day
-  if (currentTime - existingActor.updatedAt > 3 * 86_400_000) {
-    const person = await getActorPerson({
-      actorId,
-      signingActor: await getResolvedSigningActor()
-    })
-    if (!person) return undefined
-    const iconUrl = getActorImageUrl(person.icon)
-    const actor = await database.updateActor({
-      actorId,
-      type: person.type,
-      followersUrl: person.followers ?? '',
-      inboxUrl: person.inbox,
-      sharedInboxUrl: person.endpoints?.sharedInbox ?? person.inbox,
-      ...(iconUrl ? { iconUrl } : {}),
-      publicKey: person.publicKey.publicKeyPem || ''
-    })
-    return actor ?? undefined
+  const isStale =
+    currentTime - existingActor.updatedAt > REMOTE_ACTOR_REFRESH_INTERVAL_MS
+  // Also refresh when the actor's collection counters were never synced —
+  // remote actors recorded before counter syncing existed would otherwise
+  // keep showing zero followers/following until the next stale refresh.
+  const needsCounterSync =
+    !isStale && !(await database.hasActorCounters({ actorId }))
+  if (!isStale && !needsCounterSync) {
+    return existingActor
   }
-  return existingActor
+
+  const resolvedSigningActor = await getResolvedSigningActor()
+  const person = await getActorPerson({
+    actorId,
+    signingActor: resolvedSigningActor
+  })
+  // A counter-only sync must not degrade the previous behavior of returning
+  // the stored actor when the remote fetch fails.
+  if (!person) return isStale ? undefined : existingActor
+  const actor = await database.updateActor({
+    actorId,
+    ...getPersistableProfile(person)
+  })
+  await syncActorCollectionCounts(database, person, resolvedSigningActor)
+  return actor ?? undefined
 }

@@ -39,6 +39,7 @@ describe('getProfileData', () => {
     getActorFollowingCount: vi.fn(),
     getActorFollowersCount: vi.fn(),
     getActorHasFitnessData: vi.fn(),
+    setActorCounters: vi.fn(),
     updateActor: vi.fn()
   } as unknown as Database
 
@@ -105,6 +106,7 @@ describe('getProfileData', () => {
     ;(mockDatabase.getActorFollowingCount as jest.Mock).mockResolvedValue(10)
     ;(mockDatabase.getActorFollowersCount as jest.Mock).mockResolvedValue(20)
     ;(mockDatabase.getActorHasFitnessData as jest.Mock).mockResolvedValue(false)
+    ;(mockDatabase.setActorCounters as jest.Mock).mockResolvedValue(undefined)
     ;(getPersonFromActor as jest.Mock).mockReturnValue(mockPerson)
   })
 

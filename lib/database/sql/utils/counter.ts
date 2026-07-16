@@ -56,7 +56,7 @@ export const CounterKey = {
 
 type SQLDatabase = Knex | Knex.Transaction
 
-const ensureCounterRow = async (
+export const ensureCounterRow = async (
   database: SQLDatabase,
   id: string,
   currentTime: Date

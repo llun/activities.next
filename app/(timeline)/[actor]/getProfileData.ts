@@ -147,6 +147,29 @@ export const getProfileData = async (
     getActorFollowers({ person, ...signingParams })
   ])
 
+  // Persist the freshly-fetched collection sizes for known actors so the
+  // Mastodon API (which reads the counter rows) serves the same counts this
+  // page displays. The collection helpers report 0 for both "empty" and
+  // "fetch failed", so only positive values are trusted here — null preserves
+  // the stored counter. Best-effort — the page renders from the live values
+  // either way.
+  if (persistedActor) {
+    await database
+      .setActorCounters({
+        actorId: person.id,
+        followersCount: actorFollowersResponse.followerCount || null,
+        followingCount: actorFollowingResponse.followingCount || null,
+        statusCount: actorPostsResponse.statusesCount || null
+      })
+      .catch((error) => {
+        logger.warn({
+          message: 'Failed to persist remote actor collection counts',
+          actorId: person.id,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      })
+  }
+
   return {
     ...actorPostsResponse,
     person,

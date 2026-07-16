@@ -6,6 +6,7 @@ import {
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
+import { getRemoteActorStatuses } from '@/lib/services/mastodon/getRemoteActorStatuses'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
@@ -19,7 +20,7 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
+import { idToUrl, safeIdToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 const MAX_STATUS_SCAN_BATCHES = 10
@@ -82,10 +83,27 @@ export const GET = traceApiRoute(
 
       const {
         limit,
-        max_id: maxId,
-        min_id: minId,
-        since_id: sinceId
+        max_id: encodedMaxId,
+        min_id: encodedMinId,
+        since_id: encodedSinceId
       } = parsedParams
+
+      // Clients echo back the opaque ids this endpoint emits (urlToId-encoded
+      // status URLs), so decode the cursors before querying — the database
+      // stores raw status URLs and silently ignores an unknown cursor, which
+      // would serve the same first page over and over. An undecodable cursor
+      // is a deliberate 400, matching the timeline endpoints.
+      const maxId = encodedMaxId ? safeIdToUrl(encodedMaxId) : undefined
+      const minId = encodedMinId ? safeIdToUrl(encodedMinId) : undefined
+      const sinceId = encodedSinceId ? safeIdToUrl(encodedSinceId) : undefined
+      if (maxId === null || minId === null || sinceId === null) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+      }
 
       const follow =
         currentActor && currentActor.id !== id
@@ -187,7 +205,36 @@ export const GET = traceApiRoute(
         nextMaxId = statuses[statuses.length - 1].id
       }
 
-      const visibleStatuses = readableStatuses.slice(0, limit)
+      // A remote actor's posts only exist locally once they federate here, so
+      // the local store usually can't fill a profile's first page. Fetch the
+      // actor's recent public posts live from their outbox instead — display
+      // only, nothing is persisted. Gated on an authenticated viewer (like
+      // remote lookups) and a first-page request; failures fall back to the
+      // locally-stored statuses.
+      let liveRemoteStatuses: Status[] = []
+      const isFirstPage = !maxId && !minId && !sinceId
+      if (
+        currentActor &&
+        isFirstPage &&
+        !actor.privateKey &&
+        readableStatuses.length < limit &&
+        parsedParams.pinned !== true &&
+        !parsedParams.tagged
+      ) {
+        liveRemoteStatuses = await getRemoteActorStatuses({
+          database,
+          actorId: id,
+          limit,
+          excludeReplies: parsedParams.exclude_replies === true,
+          excludeReblogs: parsedParams.exclude_reblogs === true,
+          onlyMedia: parsedParams.only_media === true
+        })
+      }
+      const servedLiveStatuses = liveRemoteStatuses.length > 0
+
+      const visibleStatuses = servedLiveStatuses
+        ? liveRemoteStatuses
+        : readableStatuses.slice(0, limit)
       const visibleStatusIds = visibleStatuses.map((status) => status.id)
       const pinnedStatusIds =
         currentActor?.id === id && parsedParams.pinned === true
@@ -226,8 +273,12 @@ export const GET = traceApiRoute(
         return `<https://${host}${pathBase}?${linkParams.toString()}>; rel="${cursorName === 'max_id' ? 'next' : 'prev'}"`
       }
 
+      // Live-fetched statuses carry remote ids the local store can't use as
+      // cursors (getActorStatuses ignores unknown max_id/min_id, which would
+      // make clients loop over the same page), so a live page is served
+      // without pagination links.
       const nextLink =
-        mastodonStatuses.length > 0
+        !servedLiveStatuses && mastodonStatuses.length > 0
           ? buildLink(
               'max_id',
               mastodonStatuses[mastodonStatuses.length - 1].id
@@ -235,7 +286,7 @@ export const GET = traceApiRoute(
           : null
 
       const prevLink =
-        mastodonStatuses.length > 0
+        !servedLiveStatuses && mastodonStatuses.length > 0
           ? buildLink('min_id', mastodonStatuses[0].id)
           : null
 

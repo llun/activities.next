@@ -13,6 +13,7 @@ import {
   decreaseCounterValue,
   deleteCounterValue,
   deleteCounterValues,
+  ensureCounterRow,
   getCounterValue,
   getCounterValues,
   increaseCounterValue,
@@ -54,10 +55,12 @@ import {
   GetActorsFromIdsParams,
   GetActorsScheduledForDeletionParams,
   GetLocalActorsParams,
+  HasActorCountersParams,
   IsCurrentActorFollowingParams,
   IsInternalActorParams,
   NotificationPolicy,
   ScheduleActorDeletionParams,
+  SetActorCountersParams,
   StartActorDeletionParams,
   UpdateActorParams,
   UpdateNotificationPolicyParams
@@ -116,6 +119,8 @@ const insertActorWithSearchIndex = async (
     summary,
     iconUrl,
     headerImageUrl,
+    manuallyApprovesFollowers,
+    fields,
     followersUrl,
     inboxUrl,
     sharedInboxUrl,
@@ -130,7 +135,11 @@ const insertActorWithSearchIndex = async (
     headerImageUrl,
     followersUrl,
     inboxUrl,
-    sharedInboxUrl
+    sharedInboxUrl,
+    ...(manuallyApprovesFollowers !== undefined
+      ? { manuallyApprovesFollowers }
+      : null),
+    ...(fields !== undefined ? { fields } : null)
   }
   const actor = {
     id: actorId,
@@ -993,6 +1002,45 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       CounterKey.totalFollowing(actorId),
       parseInt(result?.count ?? '0', 10)
     )
+  },
+
+  // Overwrite the actor's counter rows with the collection sizes a remote
+  // server advertises (followers/following/outbox totalItems). A null or
+  // undefined value keeps the locally-accumulated counter but still creates
+  // the row, so hasActorCounters reports the actor as synced even when the
+  // remote hides a collection's total.
+  async setActorCounters({
+    actorId,
+    followersCount,
+    followingCount,
+    statusCount
+  }: SetActorCountersParams) {
+    const currentTime = new Date()
+    const counters: [string, number | null | undefined][] = [
+      [CounterKey.totalFollowers(actorId), followersCount],
+      [CounterKey.totalFollowing(actorId), followingCount],
+      [CounterKey.totalStatus(actorId), statusCount]
+    ]
+    for (const [key, value] of counters) {
+      if (typeof value === 'number') {
+        await setCounterValue(database, key, value, currentTime)
+      } else {
+        await ensureCounterRow(database, key, currentTime)
+      }
+    }
+  },
+
+  // Whether the actor's follower/following/status counter rows all exist.
+  // Missing rows mean the actor's remote collection counts were never synced
+  // (rows are created on sync even when a value is unavailable).
+  async hasActorCounters({ actorId }: HasActorCountersParams) {
+    const keys = [
+      CounterKey.totalFollowers(actorId),
+      CounterKey.totalFollowing(actorId),
+      CounterKey.totalStatus(actorId)
+    ]
+    const counters = await getCounterValues(database, keys)
+    return keys.every((key) => key in counters)
   },
 
   async increaseActorStatusCount(actorId: string, amount: number = 1) {
