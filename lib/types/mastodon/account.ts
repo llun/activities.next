@@ -46,6 +46,22 @@ const BaseAccount = z.object({
     .describe(
       'A static version of the `header`. Equal to `header` if its value is a static image; different if `header` is an animated GIF'
     ),
+  // Default to '' (rather than .optional()) so a parsed Account always carries a
+  // string here — the field is then never `undefined`, so it can never be
+  // dropped from the serialized JSON, which is exactly what makes 4.6 clients
+  // fail to decode. Matches Mastodon's "empty string when unset" behavior.
+  avatar_description: z
+    .string()
+    .describe(
+      'A textual description of the avatar image, for the visually impaired or when avatars fail to load. Empty string when unset. Added in Mastodon 4.6'
+    )
+    .default(''),
+  header_description: z
+    .string()
+    .describe(
+      'A textual description of the header image, for the visually impaired or when the header fails to load. Empty string when unset. Added in Mastodon 4.6'
+    )
+    .default(''),
   locked: z
     .boolean()
     .describe('Whether the actor manually approves follow requests'),

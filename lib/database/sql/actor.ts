@@ -288,6 +288,10 @@ const getMastodonAccountFromSQLActor = ({
     avatar_static: settings.iconUrl ?? '',
     header: settings.headerImageUrl ?? '',
     header_static: settings.headerImageUrl ?? '',
+    // Mastodon 4.6 avatar/header alt text. Empty string when unset, matching
+    // Mastodon's serialization (and the Profile entity in lib/services/accounts).
+    avatar_description: settings.avatarDescription ?? '',
+    header_description: settings.headerDescription ?? '',
 
     fields: profileFields,
     emojis: [],
