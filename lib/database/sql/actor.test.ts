@@ -127,6 +127,87 @@ describe('ActorDatabase', () => {
       })
     })
 
+    describe('setActorCounters and hasActorCounters', () => {
+      it('reports unsynced counters for a freshly-created actor', async () => {
+        const actorId = `https://${TEST_DOMAIN}/users/counters-unsynced`
+        await database.createActor({
+          actorId,
+          username: 'counters-unsynced',
+          domain: TEST_DOMAIN,
+          followersUrl: `${actorId}/followers`,
+          inboxUrl: `${actorId}/inbox`,
+          sharedInboxUrl: `${actorId}/inbox`,
+          publicKey: 'publicKey',
+          createdAt: Date.now()
+        })
+
+        await expect(
+          database.hasActorCounters({ actorId })
+        ).resolves.toBeFalse()
+      })
+
+      it('stores provided counts and serves them on the Mastodon account', async () => {
+        const actorId = `https://${TEST_DOMAIN}/users/counters-set`
+        await database.createActor({
+          actorId,
+          username: 'counters-set',
+          domain: 'counters.example',
+          followersUrl: `${actorId}/followers`,
+          inboxUrl: `${actorId}/inbox`,
+          sharedInboxUrl: `${actorId}/inbox`,
+          publicKey: 'publicKey',
+          createdAt: Date.now()
+        })
+
+        await database.setActorCounters({
+          actorId,
+          followersCount: 5370,
+          followingCount: 519,
+          statusCount: 641
+        })
+
+        await expect(database.hasActorCounters({ actorId })).resolves.toBeTrue()
+        await expect(
+          database.getMastodonActorFromId({ id: actorId })
+        ).resolves.toMatchObject({
+          followers_count: 5370,
+          following_count: 519,
+          statuses_count: 641
+        })
+      })
+
+      it('preserves existing counter values for null counts while marking them synced', async () => {
+        const actorId = `https://${TEST_DOMAIN}/users/counters-partial`
+        await database.createActor({
+          actorId,
+          username: 'counters-partial',
+          domain: 'counters.example',
+          followersUrl: `${actorId}/followers`,
+          inboxUrl: `${actorId}/inbox`,
+          sharedInboxUrl: `${actorId}/inbox`,
+          publicKey: 'publicKey',
+          createdAt: Date.now()
+        })
+        await database.increaseActorStatusCount(actorId, 3)
+
+        await database.setActorCounters({
+          actorId,
+          followersCount: 12,
+          followingCount: null,
+          statusCount: null
+        })
+
+        await expect(database.hasActorCounters({ actorId })).resolves.toBeTrue()
+        await expect(
+          database.getMastodonActorFromId({ id: actorId })
+        ).resolves.toMatchObject({
+          followers_count: 12,
+          following_count: 0,
+          statuses_count: 3
+        })
+      })
+    })
+
     describe('deprecated actor', () => {
       it('returns actor from id', async () => {
         const id = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`

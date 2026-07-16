@@ -45,14 +45,15 @@ export const POST = traceApiRoute(
       })
 
       if (follow && follow.status === FollowStatus.enum.Accepted) {
+        // updateFollowStatus decrements both actors' follow counters inside
+        // its transaction. Do NOT recount them from the local follows table
+        // here: for a remote target that recount would overwrite the
+        // remote-advertised totalFollowing synced from their server with a
+        // local-only value.
         await database.updateFollowStatus({
           followId: follow.id,
           status: FollowStatus.enum.Undo
         })
-        await Promise.all([
-          database.updateActorFollowersCount(currentActor.id),
-          database.updateActorFollowingCount(targetActorId)
-        ])
 
         // Federate the removal to remote followers so they learn they were
         // removed (Mastodon sends a Reject for the original Follow).

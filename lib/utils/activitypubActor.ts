@@ -1,4 +1,7 @@
-import { Actor as ActivityPubActor } from '@/lib/types/activitypub'
+import {
+  Actor as ActivityPubActor,
+  PropertyValue
+} from '@/lib/types/activitypub'
 import { ActorProfile } from '@/lib/types/domain/actor'
 
 const UUID_USERNAME_PATTERN =
@@ -29,6 +32,25 @@ export const getActorImageUrl = (image: ActivityPubActor['icon']) => {
   if (!image) return undefined
   if (Array.isArray(image)) return image.find((item) => item.url)?.url
   return image.url
+}
+
+// Mastodon profile metadata fields arrive as PropertyValue attachments on the
+// actor document. Unknown attachment shapes are tolerated by the schema (the
+// loose-object fallback), so narrow back to valid PropertyValues here.
+export const getActorProfileFields = (
+  person: ActivityPubActor
+): { name: string; value: string }[] => {
+  const attachments = Array.isArray(person.attachment)
+    ? person.attachment
+    : person.attachment
+      ? [person.attachment]
+      : []
+  return attachments.flatMap((item) => {
+    const parsed = PropertyValue.safeParse(item)
+    return parsed.success
+      ? [{ name: parsed.data.name, value: parsed.data.value }]
+      : []
+  })
 }
 
 const getActorCreatedAt = (published: string | null | undefined) => {

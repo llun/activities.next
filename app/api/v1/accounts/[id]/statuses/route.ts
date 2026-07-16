@@ -6,7 +6,9 @@ import {
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
+import { getRemoteActorStatuses } from '@/lib/services/mastodon/getRemoteActorStatuses'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
+import { decodeCursor } from '@/lib/services/timelines/request'
 import { Scope } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { type Status, StatusType } from '@/lib/types/domain/status'
@@ -82,10 +84,28 @@ export const GET = traceApiRoute(
 
       const {
         limit,
-        max_id: maxId,
-        min_id: minId,
-        since_id: sinceId
+        max_id: encodedMaxId,
+        min_id: encodedMinId,
+        since_id: encodedSinceId
       } = parsedParams
+
+      // Clients echo back the opaque ids this endpoint emits (urlToId-encoded
+      // status URLs), so decode the cursors before querying — the database
+      // stores raw status URLs and silently ignores an unknown cursor, which
+      // would serve the same first page over and over. An undecodable cursor
+      // is a deliberate 400, using the same decodeCursor rule as the timeline
+      // endpoints; an empty cursor param means "no cursor" there too.
+      const maxId = decodeCursor(encodedMaxId || undefined)
+      const minId = decodeCursor(encodedMinId || undefined)
+      const sinceId = decodeCursor(encodedSinceId || undefined)
+      if (maxId === null || minId === null || sinceId === null) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+      }
 
       const follow =
         currentActor && currentActor.id !== id
@@ -187,7 +207,58 @@ export const GET = traceApiRoute(
         nextMaxId = statuses[statuses.length - 1].id
       }
 
-      const visibleStatuses = readableStatuses.slice(0, limit)
+      // A remote actor's posts only exist locally once they federate here, so
+      // the local store usually can't fill a profile's first page. Fetch the
+      // actor's recent public posts live from their outbox instead — display
+      // only, nothing is persisted. Gated on an authenticated viewer (like
+      // remote lookups) and a first-page request; failures fall back to the
+      // locally-stored statuses.
+      let liveRemoteStatuses: Status[] = []
+      const isFirstPage = !maxId && !minId && !sinceId
+      // Internal actors (account-backed users and the headless signer, which
+      // always carries a private key) never live-fetch their own outbox; the
+      // actor row loaded above already answers this without an
+      // isInternalActor query.
+      if (
+        currentActor &&
+        isFirstPage &&
+        readableStatuses.length < limit &&
+        parsedParams.pinned !== true &&
+        !parsedParams.tagged &&
+        !actor.account &&
+        !actor.privateKey
+      ) {
+        liveRemoteStatuses = await getRemoteActorStatuses({
+          database,
+          actorId: id,
+          limit,
+          excludeReplies: parsedParams.exclude_replies === true,
+          excludeReblogs: parsedParams.exclude_reblogs === true,
+          onlyMedia: parsedParams.only_media === true
+        })
+      }
+      const servedLiveStatuses = liveRemoteStatuses.length > 0
+
+      // Merge live statuses with the locally-stored ones instead of replacing
+      // them — the outbox only exposes public/unlisted posts, so a follower's
+      // locally-federated followers-only statuses must survive. On id
+      // collisions keep the local copy: it carries viewer interaction state
+      // (favourited/bookmarked/own reblog). Every readable local status is
+      // kept (the live-fetch gate guarantees there are fewer than `limit` of
+      // them) and the newest live statuses top up the remaining slots — a
+      // live page carries no pagination links, so a follower-only local post
+      // pushed off the page would otherwise become unreachable.
+      const localStatusIds = new Set(
+        readableStatuses.map((status) => status.id)
+      )
+      const visibleStatuses = servedLiveStatuses
+        ? [
+            ...readableStatuses,
+            ...liveRemoteStatuses
+              .filter((status) => !localStatusIds.has(status.id))
+              .slice(0, Math.max(0, limit - readableStatuses.length))
+          ].sort((a, b) => b.createdAt - a.createdAt)
+        : readableStatuses.slice(0, limit)
       const visibleStatusIds = visibleStatuses.map((status) => status.id)
       const pinnedStatusIds =
         currentActor?.id === id && parsedParams.pinned === true
@@ -226,18 +297,20 @@ export const GET = traceApiRoute(
         return `<https://${host}${pathBase}?${linkParams.toString()}>; rel="${cursorName === 'max_id' ? 'next' : 'prev'}"`
       }
 
-      const nextLink =
-        mastodonStatuses.length > 0
-          ? buildLink(
-              'max_id',
-              mastodonStatuses[mastodonStatuses.length - 1].id
-            )
-          : null
+      // Live-fetched statuses carry remote ids the local store can't use as
+      // cursors (getActorStatuses ignores unknown max_id/min_id, which would
+      // make clients loop over the same page), so a live page is served
+      // without pagination links. The local scan was exhausted before the
+      // live fetch ran, so no stored statuses hide behind the missing links.
+      const includePaginationLinks =
+        !servedLiveStatuses && mastodonStatuses.length > 0
+      const nextLink = includePaginationLinks
+        ? buildLink('max_id', mastodonStatuses[mastodonStatuses.length - 1].id)
+        : null
 
-      const prevLink =
-        mastodonStatuses.length > 0
-          ? buildLink('min_id', mastodonStatuses[0].id)
-          : null
+      const prevLink = includePaginationLinks
+        ? buildLink('min_id', mastodonStatuses[0].id)
+        : null
 
       const links = [nextLink, prevLink].filter(Boolean).join(', ')
 

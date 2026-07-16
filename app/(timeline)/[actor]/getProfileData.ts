@@ -1,14 +1,13 @@
-import { getActorFollowers } from '@/lib/activities/getActorFollowers'
-import { getActorFollowing } from '@/lib/activities/getActorFollowing'
+import { getPersistableProfile } from '@/lib/actions/utils'
+import { getActorCollectionCounts } from '@/lib/activities/getActorCollectionCounts'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { Database } from '@/lib/database/types'
-import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
+import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { Actor } from '@/lib/types/activitypub'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status } from '@/lib/types/domain/status'
-import { getActorImageUrl } from '@/lib/utils/activitypubActor'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 import { logger } from '@/lib/utils/logger'
 
@@ -88,27 +87,14 @@ export const getProfileData = async (
   // resolvable). The instance actor always exists, always has a private key,
   // and is served at a publicly resolvable URL so the remote can fetch its key
   // and verify the signature. This is the same headless signer used by the
-  // federation jobs and relay/follow flows (getFederationSigningActor); without
-  // it, secure-mode remote profiles 404.
+  // federation jobs and relay/follow flows; without it, secure-mode remote
+  // profiles 404. Resolution is best-effort and degrades to an unsigned fetch.
   //
   // WebFinger discovery and signer resolution are independent, so resolve them
   // concurrently to avoid stacking their latencies on the profile render.
-  // Signer resolution is best-effort: a missing/failed instance actor must not
-  // turn a clean 404 (unknown actor) into a 500, so a failure degrades to an
-  // unsigned fetch via the `signingActor`-less branch below.
   const [actorId, signingActor] = await Promise.all([
     getWebfingerSelf({ account: actorHandle.slice(1) }),
-    getFederationSigningActor(database).catch((error) => {
-      // Degrade to an unsigned fetch, but surface the failure so a persistently
-      // broken signer (which would silently 404 every secure-mode profile)
-      // remains diagnosable rather than vanishing.
-      logger.warn({
-        message:
-          'Failed to resolve federation signing actor for remote profile fetch; falling back to an unsigned request',
-        error: error instanceof Error ? error.message : String(error)
-      })
-      return undefined
-    })
+    getFederationSigningActorSafe(database, 'for remote profile fetch')
   ])
   if (!actorId) return null
 
@@ -117,35 +103,50 @@ export const getProfileData = async (
   if (!person) return null
 
   if (persistedActor) {
+    // Same field set recordActorIfNeeded persists, so the web profile page
+    // and the Mastodon API refresh paths write consistent snapshots (including
+    // metadata fields and the locked state).
     await database.updateActor({
       actorId: person.id,
-      name: person.name,
-      summary: person.summary || '',
-      iconUrl: getActorImageUrl(person.icon),
-      headerImageUrl: getActorImageUrl(person.image),
-      publicKey: person.publicKey.publicKeyPem,
-      followersUrl: person.followers,
-      inboxUrl: person.inbox,
-      sharedInboxUrl: person.endpoints?.sharedInbox || ''
+      ...getPersistableProfile(person)
     })
   }
 
-  const [
-    actorPostsResponse,
-    attachments,
-    actorFollowingResponse,
-    actorFollowersResponse
-  ] = await Promise.all([
-    getActorPosts({
-      database,
-      person,
-      pageUrl: options.statusPageUrl,
-      ...signingParams
-    }),
-    database.getAttachmentsForActor({ actorId: person.id }),
-    getActorFollowing({ person, ...signingParams }),
-    getActorFollowers({ person, ...signingParams })
-  ])
+  const [actorPostsResponse, attachments, collectionCounts] = await Promise.all(
+    [
+      getActorPosts({
+        database,
+        person,
+        pageUrl: options.statusPageUrl,
+        ...signingParams
+      }),
+      database.getAttachmentsForActor({ actorId: person.id }),
+      getActorCollectionCounts({ person, ...signingParams })
+    ]
+  )
+
+  // Persist the freshly-fetched collection sizes for known actors so the
+  // Mastodon API (which reads the counter rows) serves the same counts this
+  // page displays. getActorCollectionCounts distinguishes a fetch failure
+  // (null, preserves the stored counter) from a real zero. getActorPosts
+  // reports 0 for both, so only positive status counts are trusted here.
+  // Best-effort — the page renders from the live values either way.
+  if (persistedActor) {
+    await database
+      .setActorCounters({
+        actorId: person.id,
+        followersCount: collectionCounts.followersCount,
+        followingCount: collectionCounts.followingCount,
+        statusCount: actorPostsResponse.statusesCount || null
+      })
+      .catch((error) => {
+        logger.warn({
+          message: 'Failed to persist remote actor collection counts',
+          actorId: person.id,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      })
+  }
 
   return {
     ...actorPostsResponse,
@@ -155,8 +156,8 @@ export const getProfileData = async (
       prevPageUrl: actorPostsResponse.prevPageUrl ?? null
     },
     attachments,
-    followingCount: actorFollowingResponse.followingCount,
-    followersCount: actorFollowersResponse.followerCount,
+    followingCount: collectionCounts.followingCount ?? 0,
+    followersCount: collectionCounts.followersCount ?? 0,
     isInternalAccount: false,
     hasFitnessData: false
   }

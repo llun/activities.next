@@ -54,10 +54,12 @@ import {
   GetActorsFromIdsParams,
   GetActorsScheduledForDeletionParams,
   GetLocalActorsParams,
+  HasActorCountersParams,
   IsCurrentActorFollowingParams,
   IsInternalActorParams,
   NotificationPolicy,
   ScheduleActorDeletionParams,
+  SetActorCountersParams,
   StartActorDeletionParams,
   UpdateActorParams,
   UpdateNotificationPolicyParams
@@ -116,6 +118,8 @@ const insertActorWithSearchIndex = async (
     summary,
     iconUrl,
     headerImageUrl,
+    manuallyApprovesFollowers,
+    fields,
     followersUrl,
     inboxUrl,
     sharedInboxUrl,
@@ -130,7 +134,11 @@ const insertActorWithSearchIndex = async (
     headerImageUrl,
     followersUrl,
     inboxUrl,
-    sharedInboxUrl
+    sharedInboxUrl,
+    ...(manuallyApprovesFollowers !== undefined
+      ? { manuallyApprovesFollowers }
+      : null),
+    ...(fields !== undefined ? { fields } : null)
   }
   const actor = {
     id: actorId,
@@ -969,30 +977,50 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     })
   },
 
-  async updateActorFollowersCount(actorId: string) {
-    const result = await database('follows')
-      .where('targetActorId', actorId)
-      .andWhere('status', 'Accepted')
-      .count<{ count: string }>('* as count')
-      .first()
-    await setCounterValue(
-      database,
-      CounterKey.totalFollowers(actorId),
-      parseInt(result?.count ?? '0', 10)
-    )
+  // Overwrite the actor's counter rows with the collection sizes a remote
+  // server advertises (followers/following/outbox totalItems). A null or
+  // undefined value keeps the locally-accumulated counter. Every call also
+  // stamps the remote-counts-synced marker row, so hasActorCounters reports
+  // the sync as done even when the remote hides (or fails to serve) a
+  // collection's total.
+  async setActorCounters({
+    actorId,
+    followersCount,
+    followingCount,
+    statusCount
+  }: SetActorCountersParams) {
+    const currentTime = new Date()
+    const counters: [string, number | null | undefined][] = [
+      [CounterKey.totalFollowers(actorId), followersCount],
+      [CounterKey.totalFollowing(actorId), followingCount],
+      [CounterKey.totalStatus(actorId), statusCount]
+    ]
+    await Promise.all([
+      ...counters
+        .filter(
+          (counter): counter is [string, number] =>
+            typeof counter[1] === 'number'
+        )
+        .map(([key, value]) =>
+          setCounterValue(database, key, value, currentTime)
+        ),
+      setCounterValue(
+        database,
+        CounterKey.remoteCountsSyncedAt(actorId),
+        Math.floor(currentTime.getTime() / 1000),
+        currentTime
+      )
+    ])
   },
 
-  async updateActorFollowingCount(actorId: string) {
-    const result = await database('follows')
-      .where('actorId', actorId)
-      .andWhere('status', 'Accepted')
-      .count<{ count: string }>('* as count')
-      .first()
-    await setCounterValue(
-      database,
-      CounterKey.totalFollowing(actorId),
-      parseInt(result?.count ?? '0', 10)
-    )
+  // Whether the actor's remote collection counts were ever synced (the
+  // remote-counts-synced marker row exists). The follower/following/status
+  // rows themselves can't carry this signal: local accumulation (follows,
+  // federated statuses) creates them too.
+  async hasActorCounters({ actorId }: HasActorCountersParams) {
+    const key = CounterKey.remoteCountsSyncedAt(actorId)
+    const counters = await getCounterValues(database, [key])
+    return key in counters
   },
 
   async increaseActorStatusCount(actorId: string, amount: number = 1) {
@@ -1700,6 +1728,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       await deleteCounterValue(trx, CounterKey.totalFollowing(actorId))
       await deleteCounterValue(trx, CounterKey.totalBlocking(actorId))
       await deleteCounterValue(trx, CounterKey.totalBlockedBy(actorId))
+      await deleteCounterValue(trx, CounterKey.remoteCountsSyncedAt(actorId))
 
       if (persistedActor?.accountId) {
         await decreaseCounterValue(

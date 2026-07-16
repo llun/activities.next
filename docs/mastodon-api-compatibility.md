@@ -84,6 +84,19 @@ product or security decision, not a gap to be closed.
   `featuring` flag (Mastodon 4.4.0) also appears on the `POST /api/v1/tags/:name/feature`
   and `POST /api/v1/tags/:name/unfeature` responses.
 
+- **Remote profiles are fetched live instead of served from local history
+  only.** Mastodon renders a remote account from whatever has already federated
+  to the instance, so a small instance shows an empty profile with zeroed
+  counts. Activity.next stores the remote-advertised follower/following/status
+  collection totals when it records or refreshes a remote actor (opening a
+  profile via `GET /api/v1/accounts/:id` refreshes a stale one for
+  authenticated viewers), and `GET /api/v1/accounts/:id/statuses` falls back to
+  fetching the actor's recent public posts live from their outbox when the
+  local store cannot fill the first page for an authenticated viewer. A
+  live-served page carries no `Link` pagination headers (remote ids cannot
+  cursor the local store), and the fetched statuses are display-only — they are
+  not persisted.
+
 ## Not planned
 
 These endpoints are not implemented and are not currently on the roadmap. They
