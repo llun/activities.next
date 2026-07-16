@@ -153,11 +153,19 @@ export const recordActorIfNeeded = async ({
   if (!person) {
     if (isStale) return undefined
     // A counter-only sync must not degrade the previous behavior of returning
-    // the stored actor when the remote fetch fails. Mark the counters synced
-    // (rows created, values preserved) so an unreachable actor doesn't
+    // the stored actor when the remote fetch fails (so the marker write is
+    // best-effort too). Stamp the sync marker so an unreachable actor doesn't
     // re-trigger a blocking remote fetch on every subsequent call — the
     // 3-day stale refresh remains the retry path.
-    await database.setActorCounters({ actorId })
+    try {
+      await database.setActorCounters({ actorId })
+    } catch (error) {
+      logger.warn({
+        message: 'Failed to mark remote actor counter sync as attempted',
+        actorId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
     return existingActor
   }
   const actor = await database.updateActor({

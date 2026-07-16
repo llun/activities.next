@@ -94,10 +94,10 @@ export const GET = traceApiRoute(
       // stores raw status URLs and silently ignores an unknown cursor, which
       // would serve the same first page over and over. An undecodable cursor
       // is a deliberate 400, using the same decodeCursor rule as the timeline
-      // endpoints.
-      const maxId = decodeCursor(encodedMaxId)
-      const minId = decodeCursor(encodedMinId)
-      const sinceId = decodeCursor(encodedSinceId)
+      // endpoints; an empty cursor param means "no cursor" there too.
+      const maxId = decodeCursor(encodedMaxId || undefined)
+      const minId = decodeCursor(encodedMinId || undefined)
+      const sinceId = decodeCursor(encodedSinceId || undefined)
       if (maxId === null || minId === null || sinceId === null) {
         return apiResponse({
           req,
@@ -238,19 +238,21 @@ export const GET = traceApiRoute(
       // them — the outbox only exposes public/unlisted posts, so a follower's
       // locally-federated followers-only statuses must survive. On id
       // collisions keep the local copy: it carries viewer interaction state
-      // (favourited/bookmarked/own reblog).
+      // (favourited/bookmarked/own reblog). Every readable local status is
+      // kept (the live-fetch gate guarantees there are fewer than `limit` of
+      // them) and the newest live statuses top up the remaining slots — a
+      // live page carries no pagination links, so a follower-only local post
+      // pushed off the page would otherwise become unreachable.
       const localStatusIds = new Set(
         readableStatuses.map((status) => status.id)
       )
       const visibleStatuses = servedLiveStatuses
         ? [
             ...readableStatuses,
-            ...liveRemoteStatuses.filter(
-              (status) => !localStatusIds.has(status.id)
-            )
-          ]
-            .sort((a, b) => b.createdAt - a.createdAt)
-            .slice(0, limit)
+            ...liveRemoteStatuses
+              .filter((status) => !localStatusIds.has(status.id))
+              .slice(0, Math.max(0, limit - readableStatuses.length))
+          ].sort((a, b) => b.createdAt - a.createdAt)
         : readableStatuses.slice(0, limit)
       const visibleStatusIds = visibleStatuses.map((status) => status.id)
       const pinnedStatusIds =

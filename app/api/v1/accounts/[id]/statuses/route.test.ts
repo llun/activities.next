@@ -851,6 +851,76 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
       ).toContain('local copy')
     })
 
+    it('keeps every local status on a live page instead of slicing it away', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const remoteActorId = 'https://llun.dev/users/topup'
+      await database.createActor({
+        actorId: remoteActorId,
+        username: 'topup',
+        domain: 'llun.dev',
+        followersUrl: `${remoteActorId}/followers`,
+        inboxUrl: `${remoteActorId}/inbox`,
+        sharedInboxUrl: `${remoteActorId}/inbox`,
+        publicKey: 'publicKey',
+        createdAt: Date.now()
+      })
+      const now = Date.now() + 110_000
+      const oldLocalStatusId = `${remoteActorId}/statuses/topup-local-old`
+      await database.createNote({
+        id: oldLocalStatusId,
+        url: oldLocalStatusId,
+        actorId: remoteActorId,
+        text: 'Old local post',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        createdAt: now - 10_000
+      })
+      // Two live posts newer than the local one: with limit=2 a plain
+      // sort+slice would push the local post off the (link-less) page.
+      mockGetRemoteActorStatuses.mockResolvedValue([
+        {
+          ...buildRemoteStatus(`${remoteActorId}/statuses/live-new-1`),
+          actorId: remoteActorId,
+          createdAt: now + 2,
+          updatedAt: now + 2
+        },
+        {
+          ...buildRemoteStatus(`${remoteActorId}/statuses/live-new-2`),
+          actorId: remoteActorId,
+          createdAt: now + 1,
+          updatedAt: now + 1
+        }
+      ] as Status[])
+
+      const response = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/accounts/${urlToId(remoteActorId)}/statuses?limit=2`
+        ),
+        { params: Promise.resolve({ id: urlToId(remoteActorId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = (await response.json()) as Array<{ uri: string }>
+      const uris = data.map((status) => status.uri)
+      expect(uris).toHaveLength(2)
+      expect(uris).toContain(oldLocalStatusId)
+      expect(uris).toContain(`${remoteActorId}/statuses/live-new-1`)
+    })
+
+    it('treats an empty cursor param as no cursor instead of rejecting it', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const response = await GET(createRemoteRequest('?max_id=&limit=1'), {
+        params: Promise.resolve({ id: urlToId(EXTERNAL_ACTOR1) })
+      })
+
+      expect(response.status).toBe(200)
+    })
+
     it('falls back to locally-stored statuses when the live fetch returns nothing', async () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor1.email }

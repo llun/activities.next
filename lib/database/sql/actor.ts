@@ -977,32 +977,6 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     })
   },
 
-  async updateActorFollowersCount(actorId: string) {
-    const result = await database('follows')
-      .where('targetActorId', actorId)
-      .andWhere('status', 'Accepted')
-      .count<{ count: string }>('* as count')
-      .first()
-    await setCounterValue(
-      database,
-      CounterKey.totalFollowers(actorId),
-      parseInt(result?.count ?? '0', 10)
-    )
-  },
-
-  async updateActorFollowingCount(actorId: string) {
-    const result = await database('follows')
-      .where('actorId', actorId)
-      .andWhere('status', 'Accepted')
-      .count<{ count: string }>('* as count')
-      .first()
-    await setCounterValue(
-      database,
-      CounterKey.totalFollowing(actorId),
-      parseInt(result?.count ?? '0', 10)
-    )
-  },
-
   // Overwrite the actor's counter rows with the collection sizes a remote
   // server advertises (followers/following/outbox totalItems). A null or
   // undefined value keeps the locally-accumulated counter. Every call also
