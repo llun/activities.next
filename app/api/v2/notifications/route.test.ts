@@ -287,9 +287,11 @@ describe('GET /api/v2/notifications', () => {
     ])
   })
 
-  it('defaults partial account avatar_description to an empty string when unset', async () => {
-    // A source actor without a stored avatar alt text must still ship
-    // avatar_description as an empty string, never omit the key.
+  it('keeps the avatar_description key on partial accounts with empty alt text', async () => {
+    // A source actor without stored avatar alt text is serialized with
+    // avatar_description: '' (Account schema defaults it). The partial shape must
+    // carry that empty string through, never omit the key — a missing key is what
+    // makes 4.6 clients fail to decode the whole grouped response.
     mockDatabase.getMastodonActorsFromIds.mockImplementation(
       ({ ids }: { ids: string[] }) =>
         Promise.resolve(
@@ -299,6 +301,7 @@ describe('GET /api/v2/notifications', () => {
             url: id,
             avatar: 'https://other.test/avatar.png',
             avatar_static: 'https://other.test/avatar.png',
+            avatar_description: '',
             locked: false,
             bot: false
           }))

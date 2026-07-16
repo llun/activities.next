@@ -50,7 +50,7 @@ export const toPartialAccountWithAvatar = (
   url: account.url,
   avatar: account.avatar,
   avatar_static: account.avatar_static,
-  avatar_description: account.avatar_description ?? '',
+  avatar_description: account.avatar_description,
   locked: account.locked,
   bot: account.bot
 })
