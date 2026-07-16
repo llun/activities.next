@@ -9,7 +9,7 @@ import {
 import { Scope } from '@/lib/types/database/operations'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { ERROR_404, apiResponse, defaultOptions } from '@/lib/utils/response'
+import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 import {
@@ -32,6 +32,16 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const guardOptions = { errorResponse: corsErrorResponse(CORS_HEADERS) }
 
+// Mastodon answers a missing push subscription with `{ error: 'Record not
+// found' }` (HTTP 404), not the generic `{ status: 'Not Found' }`. Mastodon-API
+// clients rely on that: Phanpy treats "no subscription yet" as the expected
+// state only when the error *message* matches `/(not found|unknown)/i`. masto.js
+// derives that message from the body's `error` field, so a `{ status: … }` body
+// leaves the message empty, the check misses, and opening Settings surfaces a
+// `{"statusCode":404,"additionalProperties":{"status":"Not Found"}}` toast. Emit
+// the Mastodon shape so the message carries "Record not found".
+const RECORD_NOT_FOUND = { error: 'Record not found' }
+
 // Web Push requires VAPID keys; without `config.push` configured the server has
 // no `server_key` to hand out and `pushNotification` skips delivery entirely,
 // so a stored subscription would silently never receive notifications. Return
@@ -42,7 +52,7 @@ const requirePushConfig = (req: NextRequest): Response | null => {
   return apiResponse({
     req,
     allowedMethods: CORS_HEADERS,
-    data: ERROR_404,
+    data: RECORD_NOT_FOUND,
     responseStatusCode: 404
   })
 }
@@ -128,7 +138,7 @@ export const GET = traceApiRoute(
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
+          data: RECORD_NOT_FOUND,
           responseStatusCode: 404
         })
       }
@@ -179,7 +189,7 @@ export const PUT = traceApiRoute(
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
+          data: RECORD_NOT_FOUND,
           responseStatusCode: 404
         })
       }
