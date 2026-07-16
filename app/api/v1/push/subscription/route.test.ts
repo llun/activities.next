@@ -403,7 +403,9 @@ describe('push subscription when push is not configured', () => {
         Origin: 'http://localhost'
       }
     })
-    expect((await POST(post, { params: Promise.resolve({}) })).status).toBe(404)
+    const postRes = await POST(post, { params: Promise.resolve({}) })
+    expect(postRes.status).toBe(404)
+    expect(await postRes.json()).toEqual({ error: 'Record not found' })
     expect(mockDatabase!.createPushSubscription).not.toHaveBeenCalled()
 
     const get = new NextRequest('http://localhost/api/v1/push/subscription')

@@ -45,7 +45,9 @@ const RECORD_NOT_FOUND = { error: 'Record not found' }
 // Web Push requires VAPID keys; without `config.push` configured the server has
 // no `server_key` to hand out and `pushNotification` skips delivery entirely,
 // so a stored subscription would silently never receive notifications. Return
-// 404 instead, matching `app/api/v1/push/vapid-key/route.ts`.
+// 404 — like `app/api/v1/push/vapid-key/route.ts` does for a missing key —
+// but with the Mastodon `{ error }` body above so clients read it as "no
+// subscription" rather than an error (see the RECORD_NOT_FOUND note).
 const requirePushConfig = (req: NextRequest): Response | null => {
   const config = getConfig()
   if (config.push) return null
