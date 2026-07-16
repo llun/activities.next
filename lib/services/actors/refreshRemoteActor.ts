@@ -16,27 +16,37 @@ const FAILURE_COOLDOWN_MS = 5 * 60 * 1000
 const REFRESH_WAIT_BUDGET_MS = 5_000
 
 // Opportunistic sweep threshold for the failure map so it cannot grow
-// unbounded across many dead remotes.
+// unbounded across many dead remotes. The sweep itself is throttled: when the
+// map is over the threshold but every entry is still inside the cooldown, an
+// unthrottled sweep would run a full O(n) no-op scan on every failure.
 const FAILURE_SWEEP_SIZE = 1_000
+const FAILURE_SWEEP_INTERVAL_MS = 60 * 1000
 
 const inflightRefreshes = new Map<string, Promise<Actor | null>>()
 const failedRefreshesAt = new Map<string, number>()
+let lastFailureSweepAt = 0
 
 // Test-only: module-level cooldown/in-flight state leaks between tests that
 // reuse actor ids, so suites exercising the refresh reset it in beforeEach.
 export const resetRefreshRemoteActorStateForTesting = () => {
   inflightRefreshes.clear()
   failedRefreshesAt.clear()
+  lastFailureSweepAt = 0
 }
 
 const recordRefreshFailure = (actorId: string) => {
-  if (failedRefreshesAt.size >= FAILURE_SWEEP_SIZE) {
-    const cutoff = Date.now() - FAILURE_COOLDOWN_MS
+  const now = Date.now()
+  if (
+    failedRefreshesAt.size >= FAILURE_SWEEP_SIZE &&
+    now - lastFailureSweepAt >= FAILURE_SWEEP_INTERVAL_MS
+  ) {
+    lastFailureSweepAt = now
+    const cutoff = now - FAILURE_COOLDOWN_MS
     for (const [id, failedAt] of failedRefreshesAt) {
       if (failedAt < cutoff) failedRefreshesAt.delete(id)
     }
   }
-  failedRefreshesAt.set(actorId, Date.now())
+  failedRefreshesAt.set(actorId, now)
 }
 
 const startRefresh = ({
