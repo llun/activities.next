@@ -136,7 +136,7 @@ describe('refreshKnownRemoteActor', () => {
     expect(recordActorIfNeeded).toHaveBeenCalledTimes(2)
   })
 
-  it('clears the failure backoff after a successful refresh', async () => {
+  it('starts a new refresh for the next request once a completed one settles', async () => {
     vi.useFakeTimers()
     const refreshedActor = { ...remoteActor, name: 'Refreshed' }
     ;(recordActorIfNeeded as jest.Mock)
@@ -157,6 +157,9 @@ describe('refreshKnownRemoteActor', () => {
       actor: remoteActor
     })
 
+    // Three invocations require the settled second refresh to have been
+    // removed from the in-flight map — a lingering settled promise would be
+    // reused and the third call would never reach recordActorIfNeeded.
     expect(recordActorIfNeeded).toHaveBeenCalledTimes(3)
   })
 

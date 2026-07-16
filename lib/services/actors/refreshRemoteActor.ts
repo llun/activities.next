@@ -66,6 +66,9 @@ const startRefresh = ({
         recordRefreshFailure(actorId)
         return null
       }
+      // Hygiene, not behavior: a refresh can only run once the entry has
+      // already expired (the cooldown gate precedes it), so dropping the
+      // entry just keeps recovered actors from accumulating in the map.
       failedRefreshesAt.delete(actorId)
       return refreshed
     })
