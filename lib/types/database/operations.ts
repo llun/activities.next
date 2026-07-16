@@ -57,6 +57,9 @@ export type CreateActorParams = {
   summary?: string
   iconUrl?: string
   headerImageUrl?: string
+  manuallyApprovesFollowers?: boolean
+  // Mastodon profile metadata fields (name/value pairs).
+  fields?: { name: string; value: string }[]
 
   inboxUrl: string
   sharedInboxUrl: string
@@ -81,6 +84,19 @@ export type GetLocalActorsParams = {
   // database layer to preserve the method's historical behavior.
   local?: boolean
 }
+export type SetActorCountersParams = {
+  actorId: string
+  // null/undefined preserves the locally-accumulated value for that counter
+  // (e.g. remotes that hide a collection's totalItems). Every call stamps the
+  // remote-counts-synced marker row regardless, which is what
+  // hasActorCounters reports — counter-row existence can't carry the sync
+  // signal because local accumulation (follows, federated statuses) also
+  // creates those rows.
+  followersCount?: number | null
+  followingCount?: number | null
+  statusCount?: number | null
+}
+export type HasActorCountersParams = { actorId: string }
 export type IsCurrentActorFollowingParams = {
   currentActorId: string
   followingActorId: string
@@ -207,8 +223,8 @@ export interface ActorDatabase {
   ): Promise<Mastodon.Account[]>
   updateActor(params: UpdateActorParams): Promise<Actor | null>
   deleteActor(params: DeleteActorParams): Promise<void>
-  updateActorFollowersCount(actorId: string): Promise<void>
-  updateActorFollowingCount(actorId: string): Promise<void>
+  setActorCounters(params: SetActorCountersParams): Promise<void>
+  hasActorCounters(params: HasActorCountersParams): Promise<boolean>
   increaseActorStatusCount(actorId: string, amount?: number): Promise<void>
   decreaseActorStatusCount(actorId: string, amount?: number): Promise<void>
   updateActorLastStatusAt(actorId: string, time: number): Promise<void>
