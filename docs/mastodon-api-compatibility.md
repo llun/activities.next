@@ -120,7 +120,11 @@ product or security decision, not a gap to be closed.
   clients never send it back as a cursor. Pagination uses the `Link` header and
   the string `page_min_id` / `page_max_id`, which stay real UUID cursors the
   server can resolve. Do **not** "fix" `most_recent_notification_id` back to the
-  UUID string: that re-crashes the Mastodon iOS decoder.
+  UUID string: that re-crashes the Mastodon iOS decoder. Unlike Mastodon's
+  globally-unique integer notification ids, this timestamp-derived value is not
+  guaranteed unique — two groups whose most-recent members were created in the
+  same millisecond share it — which is harmless because clients key the list on
+  the (unique) `group_key`, not on this field.
 
 ## Not planned
 

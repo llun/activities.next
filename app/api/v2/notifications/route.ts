@@ -247,9 +247,11 @@ export const GET = traceApiRoute(
         const nextCursor = lastGroup.page_max_id
         const prevCursor = firstGroup.page_max_id
         links = [
-          ...(nextCursor ? [buildLink('max_id', nextCursor)] : []),
-          ...(prevCursor ? [buildLink('min_id', prevCursor)] : [])
-        ].join(', ')
+          nextCursor && buildLink('max_id', nextCursor),
+          prevCursor && buildLink('min_id', prevCursor)
+        ]
+          .filter((link): link is string => Boolean(link))
+          .join(', ')
       } else if (!exhausted && lastScannedId) {
         // No visible groups on this page but the source isn't exhausted (e.g. the
         // iteration cap was hit, or account_id filtered out the whole window): emit

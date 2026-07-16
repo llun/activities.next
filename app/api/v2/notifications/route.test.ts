@@ -226,6 +226,55 @@ describe('GET /api/v2/notifications', () => {
     expect(typeof likeGroup.most_recent_notification_id).toBe('number')
   })
 
+  it('keeps groups distinct by group_key when their most_recent_notification_id collides', async () => {
+    // The numeric id is derived from createdAt (epoch ms), so two groups whose
+    // most-recent members share a millisecond collide on the number. That is
+    // benign: clients key the list on the unique group_key, not the number.
+    mockDatabase.getNotifications.mockResolvedValueOnce([
+      {
+        id: 'like-1',
+        type: 'like',
+        sourceActorId: 'https://other.test/users/alice',
+        statusId: 'https://other.test/statuses/1',
+        groupKey: 'like:https://other.test/statuses/1',
+        isRead: false,
+        filtered: false,
+        createdAt: 2000,
+        updatedAt: 2000
+      },
+      {
+        id: 'follow-1',
+        type: 'follow',
+        sourceActorId: 'https://other.test/users/bob',
+        groupKey: 'follow:1',
+        isRead: false,
+        filtered: false,
+        createdAt: 2000,
+        updatedAt: 2000
+      }
+    ])
+
+    const request = new NextRequest('https://llun.test/api/v2/notifications', {
+      method: 'GET'
+    })
+    const response = await GET(request, { params: Promise.resolve({}) })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.notification_groups).toHaveLength(2)
+    const ids = data.notification_groups.map(
+      (g: { most_recent_notification_id: number }) =>
+        g.most_recent_notification_id
+    )
+    // Same millisecond -> same numeric id...
+    expect(ids).toEqual([2000, 2000])
+    // ...but the group_keys stay unique.
+    const keys = data.notification_groups.map(
+      (g: { group_key: string }) => g.group_key
+    )
+    expect(new Set(keys).size).toBe(2)
+  })
+
   it('splits accounts into full and partial with expand_accounts=partial_avatars', async () => {
     mockDatabase.getMastodonActorsFromIds.mockImplementation(
       ({ ids }: { ids: string[] }) =>
