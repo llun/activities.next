@@ -1,14 +1,16 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
-import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getRemoteStatus } from '@/lib/activities/getRemoteStatus'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { localizeAccounts } from '@/lib/services/accounts/localizeAccount'
-import { refreshKnownRemoteActor } from '@/lib/services/actors/refreshRemoteActor'
+import {
+  recordRemoteActorBestEffort,
+  refreshKnownRemoteActor
+} from '@/lib/services/actors/refreshRemoteActor'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import {
   OptionalOAuthGuard,
@@ -155,33 +157,6 @@ const getCanonicalAccountActorId = async ({
   )
 }
 
-const recordResolvedActorIfNeeded = async ({
-  actorId,
-  database,
-  signingActor
-}: {
-  actorId: string
-  database: Database
-  signingActor?: Actor
-}) => {
-  try {
-    return (
-      (await recordActorIfNeeded({
-        actorId,
-        database,
-        signingActor
-      })) ?? null
-    )
-  } catch (err) {
-    logger.warn({
-      message: 'Failed to record resolved search actor',
-      actorId,
-      err
-    })
-    return null
-  }
-}
-
 const orderAccountsByIds = ({
   accounts,
   ids
@@ -290,7 +265,7 @@ const resolveAccountId = async ({
           actor: persistedActor,
           signingActor
         })
-      : await recordResolvedActorIfNeeded({
+      : await recordRemoteActorBestEffort({
           actorId: canonicalActorId,
           database,
           signingActor
@@ -324,7 +299,7 @@ const resolveAccountId = async ({
       account: `${handle.username}@${handle.domain}`
     })
     actor = actorId
-      ? await recordResolvedActorIfNeeded({
+      ? await recordRemoteActorBestEffort({
           actorId,
           database,
           signingActor
@@ -381,7 +356,7 @@ const getResolvedStatus = async ({
   if (!status) return null
 
   if (!localStatus) {
-    const actor = await recordResolvedActorIfNeeded({
+    const actor = await recordRemoteActorBestEffort({
       actorId: status.actorId,
       database,
       signingActor

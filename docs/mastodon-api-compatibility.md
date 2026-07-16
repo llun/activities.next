@@ -93,7 +93,16 @@ product or security decision, not a gap to be closed.
   every account-serving path an authenticated client uses to open a profile:
   `GET /api/v1/accounts/:id`, `GET /api/v1/accounts/lookup`,
   `GET /api/v1/accounts/search` (exact `resolve=true` handle matches), and the
-  resolved exact match of `GET /api/v2/search`. The statuses endpoint
+  resolved exact match of `GET /api/v2/search`. The refresh is guarded so hot
+  account paths cannot degrade: concurrent requests share one in-flight
+  refresh, a failed refresh backs off for a few minutes instead of retrying
+  per request, and a slow remote only delays the response briefly — the
+  refresh finishes in the background and the stored profile is served in the
+  meantime. Relatedly, `GET /api/v1/accounts/lookup` validates a presented
+  bearer token up front and rejects an invalid one with `401` (matching the
+  rest of the guarded API surface, where stock Mastodon treats lookup as
+  fully public); credential-less lookups still serve stored data without any
+  remote fetch. The statuses endpoint
   (`GET /api/v1/accounts/:id/statuses`) falls back to fetching the actor's
   recent public posts live from their outbox when the local store cannot fill
   the first page for an authenticated viewer. A live-served page carries no

@@ -1,11 +1,13 @@
 import { NextRequest } from 'next/server'
 
-import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { localizeAccount } from '@/lib/services/accounts/localizeAccount'
-import { refreshKnownRemoteActor } from '@/lib/services/actors/refreshRemoteActor'
+import {
+  recordRemoteActorBestEffort,
+  refreshKnownRemoteActor
+} from '@/lib/services/actors/refreshRemoteActor'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import {
   OptionalOAuthGuard,
@@ -91,13 +93,11 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
     })
 
   const { username, domain } = handle
-  let actor = await database.getActorFromUsername({ username, domain })
 
   // Remote fetches (resolving an unknown handle, or refreshing a known remote
   // actor) require an authenticated viewer: the web session, or a bearer token
-  // carrying a read scope. Resolved lazily (and once) so anonymous lookups of
-  // stored actors stay free of auth work. An invalid bearer keeps its guard
-  // response so the resolve branch can surface it exactly as before.
+  // carrying a read scope. Resolved lazily (and once) so lookups that never
+  // need a remote fetch skip the auth work.
   const hasBearerAuthorization = isBearerAuthorizationHeader(
     req.headers.get('Authorization')
   )
@@ -120,6 +120,17 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
     return auth
   }
 
+  // A presented bearer is validated up front, matching the guarded routes
+  // (OptionalOAuthGuard rejects an invalid token instead of downgrading it to
+  // anonymous): an expired-token client gets a 401 re-auth signal here rather
+  // than a silently-stale profile with the refresh skipped.
+  if (hasBearerAuthorization) {
+    const auth = await getRemoteFetchAuth()
+    if (!auth.authorized && auth.bearerResponse) return auth.bearerResponse
+  }
+
+  let actor = await database.getActorFromUsername({ username, domain })
+
   if (actor) {
     // Profile headers are commonly built from this endpoint's response, so a
     // known remote actor is refreshed (stale profile + counter sync) before
@@ -132,9 +143,10 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
       actor = await refreshKnownRemoteActor({ database, actor })
     }
   } else if (resolve && domain !== config.host) {
-    const auth = await getRemoteFetchAuth()
-    if (!auth.authorized) {
-      if (auth.bearerResponse) return auth.bearerResponse
+    // An invalid bearer already returned above, so an unauthorized viewer
+    // here is credential-less and gets the same 404 an unresolvable handle
+    // would.
+    if (!(await getRemoteFetchAuth()).authorized) {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
@@ -145,7 +157,7 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
 
     const actorId = await getWebfingerSelf({ account: `${username}@${domain}` })
     actor = actorId
-      ? ((await recordActorIfNeeded({ actorId, database })) ?? null)
+      ? await recordRemoteActorBestEffort({ actorId, database })
       : null
   }
 

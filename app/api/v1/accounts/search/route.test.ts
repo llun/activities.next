@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
 
+import { resetRefreshRemoteActorStateForTesting } from '@/lib/services/actors/refreshRemoteActor'
+
 import { GET } from './route'
 
 const mockSearchAccountIds = vi.fn()
@@ -69,6 +71,7 @@ const context = { params: Promise.resolve({}) }
 describe('GET /api/v1/accounts/search', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetRefreshRemoteActorStateForTesting()
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue({
       expiresAt: new Date(Date.now() + 60_000),
@@ -303,6 +306,83 @@ describe('GET /api/v1/accounts/search', () => {
     })
     expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
       ids: [storedActor.id]
+    })
+  })
+
+  it('skips exact-handle resolution for bare non-handle queries', async () => {
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/search?q=runner&resolve=true',
+        { headers: { Authorization: 'Bearer read-accounts-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetActorFromUsername).not.toHaveBeenCalled()
+    expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+    expect(mockSearchAccountIds).toHaveBeenCalledWith({
+      q: 'runner',
+      limit: 40,
+      offset: 0,
+      localDomain: 'llun.test',
+      exactActorIds: []
+    })
+  })
+
+  it('does not refresh a stored local actor but still pins it as the exact match', async () => {
+    const localActor = {
+      id: 'https://llun.test/users/charlie',
+      account: { id: 'account-id' },
+      privateKey: 'private-key'
+    }
+    mockGetActorFromUsername.mockResolvedValue(localActor)
+    mockSearchAccountIds.mockResolvedValue([localActor.id])
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/search?q=charlie@llun.test&resolve=true',
+        { headers: { Authorization: 'Bearer read-accounts-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+    expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
+    expect(mockSearchAccountIds).toHaveBeenCalledWith({
+      q: 'charlie@llun.test',
+      limit: 40,
+      offset: 0,
+      localDomain: 'llun.test',
+      exactActorIds: [localActor.id]
+    })
+  })
+
+  it('falls back to the indexed results when recording a webfinger-resolved actor fails', async () => {
+    mockGetWebfingerSelf.mockResolvedValue('https://blocked.test/users/actor')
+    mockRecordActorIfNeeded.mockRejectedValue(
+      new Error('domain is blocked for federation')
+    )
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/search?q=@actor@blocked.test&resolve=true',
+        { headers: { Authorization: 'Bearer read-accounts-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSearchAccountIds).toHaveBeenCalledWith({
+      q: '@actor@blocked.test',
+      limit: 40,
+      offset: 0,
+      localDomain: 'llun.test',
+      exactActorIds: []
+    })
+    expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
+      ids: ['https://remote.test/users/alice', 'https://remote.test/users/bob']
     })
   })
 

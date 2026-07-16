@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
 
+import { resetRefreshRemoteActorStateForTesting } from '@/lib/services/actors/refreshRemoteActor'
+
 import { GET } from './route'
 
 const mockGetActorFromUsername = vi.fn()
@@ -62,6 +64,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 describe('GET /api/v1/accounts/lookup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetRefreshRemoteActorStateForTesting()
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue(null)
   })
@@ -317,6 +320,28 @@ describe('GET /api/v1/accounts/lookup', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual(account)
+  })
+
+  it('rejects an invalid bearer token even when the actor is stored locally', async () => {
+    const storedActor = {
+      id: 'https://remote.test/users/person',
+      account: null,
+      privateKey: ''
+    }
+    mockGetActorFromUsername.mockResolvedValue(storedActor)
+    // Default mockStoredToken (null) makes any presented bearer invalid.
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/lookup?acct=person@remote.test',
+        { headers: { Authorization: 'Bearer expired-token' } }
+      )
+    )
+
+    expect(response.status).toBe(401)
+    // The presented token is validated before any lookup work happens.
+    expect(mockGetActorFromUsername).not.toHaveBeenCalled()
+    expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
   })
 
   it('rejects bearer tokens without read account lookup scope before remote resolution', async () => {
