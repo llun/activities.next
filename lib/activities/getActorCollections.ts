@@ -54,9 +54,15 @@ export const fetchCollectionRoot = async ({
   if (response.statusCode !== 200) {
     return { statusCode: response.statusCode, collection: null }
   }
-  return {
-    statusCode: response.statusCode,
-    collection: JSON.parse(response.body) as OrderedCollection
+  try {
+    return {
+      statusCode: response.statusCode,
+      collection: JSON.parse(response.body) as OrderedCollection
+    }
+  } catch {
+    // A 200 with an empty or non-JSON body is an unavailable collection, not
+    // a crash for the caller.
+    return { statusCode: response.statusCode, collection: null }
   }
 }
 

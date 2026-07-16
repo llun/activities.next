@@ -44,11 +44,15 @@ export const GET = traceApiRoute(
       // an already-known actor so anonymous requests never trigger remote
       // fetches for arbitrary ids.
       if (currentActor) {
-        const [persistedActor, isInternalActor] = await Promise.all([
-          database.getActorFromId({ id }),
-          database.isInternalActor({ actorId: id })
-        ])
-        if (persistedActor && !isInternalActor) {
+        const persistedActor = await database.getActorFromId({ id })
+        // Internal actors (account-backed users and the headless signer, which
+        // always carries a private key) are never refreshed from the network.
+        // The loaded row already answers this, so no isInternalActor query.
+        if (
+          persistedActor &&
+          !persistedActor.account &&
+          !persistedActor.privateKey
+        ) {
           await recordActorIfNeeded({ actorId: id, database }).catch(
             (error) => {
               logger.warn({

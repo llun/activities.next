@@ -215,13 +215,18 @@ export const GET = traceApiRoute(
       // locally-stored statuses.
       let liveRemoteStatuses: Status[] = []
       const isFirstPage = !maxId && !minId && !sinceId
+      // Internal actors (account-backed users and the headless signer, which
+      // always carries a private key) never live-fetch their own outbox; the
+      // actor row loaded above already answers this without an
+      // isInternalActor query.
       if (
         currentActor &&
         isFirstPage &&
         readableStatuses.length < limit &&
         parsedParams.pinned !== true &&
         !parsedParams.tagged &&
-        !(await database.isInternalActor({ actorId: id }))
+        !actor.account &&
+        !actor.privateKey
       ) {
         liveRemoteStatuses = await getRemoteActorStatuses({
           database,
