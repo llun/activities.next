@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
 
+import { resetRefreshRemoteActorStateForTesting } from '@/lib/services/actors/refreshRemoteActor'
+
 import { GET } from './route'
 
 const mockSearchAccountIds = vi.fn()
@@ -119,6 +121,7 @@ const context = { params: Promise.resolve({}) }
 describe('GET /api/v2/search', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetRefreshRemoteActorStateForTesting()
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue({
       expiresAt: new Date(Date.now() + 60_000),
@@ -604,7 +607,7 @@ describe('GET /api/v2/search', () => {
     expect(data.statuses).toEqual([])
     expect(mockLoggerWarn).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: 'Failed to record resolved search actor',
+        message: 'Failed to record remote actor',
         actorId: remoteStatus.actorId
       })
     )
@@ -873,7 +876,7 @@ describe('GET /api/v2/search', () => {
     ])
   })
 
-  it('uses existing canonical actors for Mastodon account profile URLs', async () => {
+  it('refreshes existing canonical actors for Mastodon account profile URLs instead of re-recording them', async () => {
     const accountUrl = 'https://remote.test/@remote-resolved'
     const canonicalActorId = 'https://remote.test/users/remote-resolved'
     mockSearchAccountIds.mockResolvedValue([])
@@ -883,10 +886,15 @@ describe('GET /api/v2/search', () => {
         id === oauthActor.id
           ? oauthActor
           : id === canonicalActorId
-            ? { id: canonicalActorId }
+            ? { id: canonicalActorId, account: null, privateKey: '' }
             : null
       )
     )
+    mockRecordActorIfNeeded.mockResolvedValue({
+      id: canonicalActorId,
+      account: null,
+      privateKey: ''
+    })
     mockGetMastodonActorsFromIds.mockResolvedValue([
       {
         id: canonicalActorId,
@@ -904,7 +912,13 @@ describe('GET /api/v2/search', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
+    // The stored remote actor is refreshed (stale profile + counter sync)
+    // before serialization, signed by the instance actor.
+    expect(mockRecordActorIfNeeded).toHaveBeenCalledWith({
+      actorId: canonicalActorId,
+      database: expect.any(Object),
+      signingActor: mockInstanceActor
+    })
     expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
       ids: [canonicalActorId]
     })
@@ -931,7 +945,7 @@ describe('GET /api/v2/search', () => {
     expect(data.accounts).toEqual([])
     expect(mockLoggerWarn).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: 'Failed to record resolved search actor',
+        message: 'Failed to record remote actor',
         actorId: canonicalActorId
       })
     )
@@ -999,6 +1013,99 @@ describe('GET /api/v2/search', () => {
     })
     expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
       ids: ['https://remote.test/users/charlie']
+    })
+  })
+
+  it('refreshes known remote account handles instead of webfingering them', async () => {
+    const storedActor = {
+      id: 'https://remote.test/users/charlie',
+      account: null,
+      privateKey: ''
+    }
+    mockSearchAccountIds.mockResolvedValue([])
+    mockGetActorFromUsername.mockResolvedValue(storedActor)
+    mockRecordActorIfNeeded.mockResolvedValue(storedActor)
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v2/search?q=charlie%40remote.test&type=accounts&resolve=true',
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+    // The stored remote actor is refreshed (stale profile + counter sync)
+    // before serialization, signed by the instance actor.
+    expect(mockRecordActorIfNeeded).toHaveBeenCalledWith({
+      actorId: storedActor.id,
+      database: expect.any(Object),
+      signingActor: mockInstanceActor
+    })
+    expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
+      ids: [storedActor.id]
+    })
+  })
+
+  it('still returns a stored account when its refresh fails during URL resolution', async () => {
+    const actorId = 'https://remote.test/users/stored-behind-dead-remote'
+    mockSearchAccountIds.mockResolvedValue([])
+    mockGetActorFromId.mockImplementation(({ id }) =>
+      Promise.resolve(
+        id === oauthActor.id
+          ? oauthActor
+          : id === actorId
+            ? { id: actorId, account: null, privateKey: '' }
+            : null
+      )
+    )
+    mockRecordActorIfNeeded.mockRejectedValue(new Error('remote down'))
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(actorId)}&type=accounts&resolve=true`,
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    // The refresh runs for a directly-stored actor id, signed by the
+    // instance actor — and its failure falls back to the stored actor
+    // instead of dropping the account from the results.
+    expect(mockRecordActorIfNeeded).toHaveBeenCalledWith({
+      actorId,
+      database: expect.any(Object),
+      signingActor: mockInstanceActor
+    })
+    expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
+      ids: [actorId]
+    })
+  })
+
+  it('does not refresh stored local actors resolved by handle', async () => {
+    const localActor = {
+      id: 'https://llun.test/users/charlie',
+      account: { id: 'account-id' },
+      privateKey: 'private-key'
+    }
+    mockSearchAccountIds.mockResolvedValue([])
+    mockGetActorFromUsername.mockResolvedValue(localActor)
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v2/search?q=charlie%40llun.test&type=accounts&resolve=true',
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
+    expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+    expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
+      ids: [localActor.id]
     })
   })
 

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { resetRefreshRemoteActorStateForTesting } from '@/lib/services/actors/refreshRemoteActor'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
@@ -63,6 +64,7 @@ describe('GET /api/v1/accounts/:id', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    resetRefreshRemoteActorStateForTesting()
     // Public endpoint: no session.
     mockGetServerSession.mockResolvedValue(null)
     mockRecordActorIfNeeded.mockResolvedValue(undefined)
