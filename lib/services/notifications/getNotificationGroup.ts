@@ -15,7 +15,16 @@ export interface MastodonNotificationGroup {
   group_key: string
   notifications_count: number
   type: MastodonNotificationType
-  most_recent_notification_id: string
+  // Mastodon serializes most_recent_notification_id as a JSON *number* (the
+  // numeric notification id), and clients decode it as an integer — the official
+  // Mastodon iOS app types it `Int` and crashes on a string. This service uses
+  // UUID notification ids, which can't be numbers, so we emit a deterministic
+  // integer derived from the group's most-recent notification timestamp. Clients
+  // only use this value for display/deep-links (never as a pagination cursor:
+  // that's the Link header + the string page_min_id/page_max_id below), so the
+  // synthesized number is safe. Keep page_min_id/page_max_id as the real UUID
+  // cursors the server can resolve.
+  most_recent_notification_id: number
   page_min_id?: string
   page_max_id?: string
   // ISO-8601 timestamp of the group's most recent notification, so clients can
@@ -59,8 +68,11 @@ export const getNotificationGroup = (
       group_key: notificationGroupKey(notification),
       notifications_count: notification.groupedCount ?? 1,
       type: internalTypeToMastodon(notification.type),
-      // groupNotifications keeps the most recent notification as the base.
-      most_recent_notification_id: notification.id,
+      // groupNotifications keeps the most recent notification as the base. Its
+      // UUID id can't be a JSON number, so derive a stable integer from the
+      // most-recent member's createdAt (epoch ms, well within a signed 64-bit
+      // int). page_max_id/page_min_id below still carry the real UUID cursors.
+      most_recent_notification_id: Math.trunc(notification.createdAt),
       page_max_id: notification.id,
       // groupedIds[last] is the oldest notification in the group (DB returns most-recent-first).
       page_min_id: notification.groupedIds

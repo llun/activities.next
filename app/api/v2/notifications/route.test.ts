@@ -203,15 +203,76 @@ describe('GET /api/v2/notifications', () => {
       { method: 'GET' }
     )
     const response = await GET(request, { params: Promise.resolve({}) })
+    const data = await response.json()
 
     expect(response.status).toBe(200)
     const link = response.headers.get('Link') ?? ''
-    // next/max_id anchors on the LAST returned group (the follow group).
+    // next/max_id anchors on the LAST returned group (the follow group). The
+    // cursor is the notification UUID (page_max_id), NOT the numeric
+    // most_recent_notification_id — the server can only resolve UUID cursors.
     expect(link).toContain('max_id=follow-old')
     expect(link).toContain('rel="next"')
     // prev/min_id anchors on the FIRST returned group (the like group).
     expect(link).toContain('min_id=like-new')
     expect(link).toContain('rel="prev"')
+    // The numeric surrogate must NOT leak into the cursor.
+    expect(link).not.toContain('max_id=1000')
+    expect(link).not.toContain('min_id=3000')
+    // most_recent_notification_id is a JSON number (the createdAt epoch ms), so
+    // the Mastodon iOS Int decoder does not crash.
+    const [likeGroup, followGroup] = data.notification_groups
+    expect(likeGroup.most_recent_notification_id).toBe(3000)
+    expect(followGroup.most_recent_notification_id).toBe(1000)
+    expect(typeof likeGroup.most_recent_notification_id).toBe('number')
+  })
+
+  it('keeps groups distinct by group_key when their most_recent_notification_id collides', async () => {
+    // The numeric id is derived from createdAt (epoch ms), so two groups whose
+    // most-recent members share a millisecond collide on the number. That is
+    // benign: clients key the list on the unique group_key, not the number.
+    mockDatabase.getNotifications.mockResolvedValueOnce([
+      {
+        id: 'like-1',
+        type: 'like',
+        sourceActorId: 'https://other.test/users/alice',
+        statusId: 'https://other.test/statuses/1',
+        groupKey: 'like:https://other.test/statuses/1',
+        isRead: false,
+        filtered: false,
+        createdAt: 2000,
+        updatedAt: 2000
+      },
+      {
+        id: 'follow-1',
+        type: 'follow',
+        sourceActorId: 'https://other.test/users/bob',
+        groupKey: 'follow:1',
+        isRead: false,
+        filtered: false,
+        createdAt: 2000,
+        updatedAt: 2000
+      }
+    ])
+
+    const request = new NextRequest('https://llun.test/api/v2/notifications', {
+      method: 'GET'
+    })
+    const response = await GET(request, { params: Promise.resolve({}) })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.notification_groups).toHaveLength(2)
+    const ids = data.notification_groups.map(
+      (g: { most_recent_notification_id: number }) =>
+        g.most_recent_notification_id
+    )
+    // Same millisecond -> same numeric id...
+    expect(ids).toEqual([2000, 2000])
+    // ...but the group_keys stay unique.
+    const keys = data.notification_groups.map(
+      (g: { group_key: string }) => g.group_key
+    )
+    expect(new Set(keys).size).toBe(2)
   })
 
   it('splits accounts into full and partial with expand_accounts=partial_avatars', async () => {
