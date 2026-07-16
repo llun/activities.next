@@ -271,7 +271,7 @@ describe('apps route', () => {
     const response = await POST(req)
 
     await expect(response.json()).resolves.toEqual({
-      status: 'Too Many Requests'
+      error: 'Too Many Requests'
     })
     expect(response.status).toBe(429)
   })

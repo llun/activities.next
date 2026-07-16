@@ -58,7 +58,7 @@ describe('POST /api/v1/accounts/password/reset', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data).toEqual({ status: 'Bad Request' })
+    expect(data).toEqual({ error: 'Bad Request' })
     expect(response.headers.get('access-control-allow-origin')).toBe(
       'https://client.llun.test'
     )

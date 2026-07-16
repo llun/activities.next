@@ -86,7 +86,7 @@ export const POST = traceApiRoute(
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: { status: 'Forbidden' },
+          data: { error: 'Forbidden' },
           responseStatusCode: HTTP_STATUS.FORBIDDEN
         })
       }

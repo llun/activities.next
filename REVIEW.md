@@ -31,6 +31,11 @@ change doesn't touch.
   `@/lib/utils/response` — never `Response.json()`. On CORS-enabled routes (those
   exporting `OPTIONS`), use `apiResponse` even for errors so CORS headers are sent;
   reserve `apiErrorResponse` for non-CORS routes or middleware.
+- Error bodies use Mastodon's `{ error: 'message' }` shape, never `{ status: … }`.
+  The shared `apiErrorResponse` / `apiCorsError` / `codeMap` helpers already emit
+  `{ error }`; an inline error body must too (`data: { error: '…' }`). Mastodon
+  clients read the message from `error`, so a `{ status: … }` body breaks them.
+  Only success acks (`DEFAULT_200`/`DEFAULT_202`) keep `{ status: … }`.
 - Request bodies are validated with Zod **`safeParse`**, never `.parse()` (which
   throws and surfaces as a 500). Invalid input returns a 4xx, not a 500.
 - String fields backed by a sized column (e.g. `varchar(255)`) carry a matching

@@ -101,7 +101,7 @@ describe('POST /api/v1/accounts/:id/block', () => {
       params: Promise.resolve({ id: urlToId(targetActorId) })
     })
 
-    await expect(response.json()).resolves.toEqual({ status: 'Forbidden' })
+    await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
     expect(response.status).toBe(403)
     expect(recordActorIfNeededMock).toHaveBeenCalledWith({
       actorId: targetActorId,

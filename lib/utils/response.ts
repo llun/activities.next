@@ -5,19 +5,28 @@ import { SERVICE_NAME } from '@/lib/constants'
 
 import { HttpMethod, getCORSHeaders } from './http-headers'
 
-export const ERROR_500 = { status: 'Internal Server Error' }
+// Mastodon serializes every error as `{ "error": "message" }`
+// (https://docs.joinmastodon.org/entities/Error/). Emit that shape for all
+// error responses so Mastodon-API clients (Phanpy, Elk, Tusky, the iOS app, …)
+// can read the message: masto.js, for instance, derives an error's `message`
+// from this `error` field and drops any other key into `additionalProperties`,
+// so the old generic `{ status: … }` body left the message empty. The HTTP
+// reason phrase used for the response `statusText` lives separately in
+// `REASON_PHRASE`, so it stays correct regardless of the body shape.
+export const ERROR_500 = { error: 'Internal Server Error' }
 
-export const ERROR_400 = { status: 'Bad Request' }
-export const ERROR_401 = { status: 'Unauthorized' }
-export const ERROR_403 = { status: 'Forbidden' }
-export const ERROR_404 = { status: 'Not Found' }
-export const ERROR_409 = { status: 'Conflict' }
-export const ERROR_422 = { status: 'Unprocessable entity' }
-export const ERROR_429 = { status: 'Too Many Requests' }
-export const ERROR_413 = { status: 'Payload Too Large' }
-export const ERROR_501 = { status: 'Not Implemented' }
-export const ERROR_503 = { status: 'Service Unavailable' }
+export const ERROR_400 = { error: 'Bad Request' }
+export const ERROR_401 = { error: 'Unauthorized' }
+export const ERROR_403 = { error: 'Forbidden' }
+export const ERROR_404 = { error: 'Not Found' }
+export const ERROR_409 = { error: 'Conflict' }
+export const ERROR_422 = { error: 'Unprocessable entity' }
+export const ERROR_429 = { error: 'Too Many Requests' }
+export const ERROR_413 = { error: 'Payload Too Large' }
+export const ERROR_501 = { error: 'Not Implemented' }
+export const ERROR_503 = { error: 'Service Unavailable' }
 
+// Success acknowledgements are not errors, so they keep the `{ status }` shape.
 export const DEFAULT_200 = { status: 'OK' }
 export const DEFAULT_202 = { status: 'Accepted' }
 
@@ -57,6 +66,25 @@ export const codeMap = {
 
 export type StatusCode = keyof typeof codeMap
 
+// HTTP reason phrases for the response `statusText`, kept independent of the
+// JSON body: error bodies now carry the human-readable message under `error`
+// (not `status`), so `statusText` reads from here instead of the body object.
+export const REASON_PHRASE: Record<StatusCode, string> = {
+  [HTTP_STATUS.OK]: 'OK',
+  [HTTP_STATUS.ACCEPTED]: 'Accepted',
+  [HTTP_STATUS.BAD_REQUEST]: 'Bad Request',
+  [HTTP_STATUS.UNAUTHORIZED]: 'Unauthorized',
+  [HTTP_STATUS.FORBIDDEN]: 'Forbidden',
+  [HTTP_STATUS.NOT_FOUND]: 'Not Found',
+  [HTTP_STATUS.CONFLICT]: 'Conflict',
+  [HTTP_STATUS.PAYLOAD_TOO_LARGE]: 'Payload Too Large',
+  [HTTP_STATUS.UNPROCESSABLE_ENTITY]: 'Unprocessable entity',
+  [HTTP_STATUS.TOO_MANY_REQUESTS]: 'Too Many Requests',
+  [HTTP_STATUS.INTERNAL_SERVER_ERROR]: 'Internal Server Error',
+  [HTTP_STATUS.NOT_IMPLEMENTED]: 'Not Implemented',
+  [HTTP_STATUS.SERVICE_UNAVAILABLE]: 'Service Unavailable'
+}
+
 export const UNFOLLOW_NETWORK_ERROR_CODES = [
   'ENOTFOUND',
   'DEPTH_ZERO_SELF_SIGNED_CERT'
@@ -68,7 +96,9 @@ export const apiErrorResponse = (code: StatusCode) => {
     if (code >= 400) {
       span.setStatus({
         code: SpanStatusCode.ERROR,
-        message: codeMap[code]?.status || ERROR_500.status
+        message:
+          REASON_PHRASE[code] ||
+          REASON_PHRASE[HTTP_STATUS.INTERNAL_SERVER_ERROR]
       })
     } else {
       span.setStatus({
@@ -80,17 +110,17 @@ export const apiErrorResponse = (code: StatusCode) => {
   if (!codeMap[code]) {
     return Response.json(ERROR_500, {
       status: code,
-      statusText: ERROR_500.status
+      statusText: REASON_PHRASE[HTTP_STATUS.INTERNAL_SERVER_ERROR]
     })
   }
 
   return Response.json(codeMap[code], {
     status: code,
-    statusText: codeMap[code].status
+    statusText: REASON_PHRASE[code]
   })
 }
 
-export const statusText = (code: StatusCode) => codeMap[code].status
+export const statusText = (code: StatusCode) => REASON_PHRASE[code]
 export const defaultStatusOption = (code: StatusCode) => ({
   status: code,
   statusText: statusText(code)

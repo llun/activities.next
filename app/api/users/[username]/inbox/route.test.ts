@@ -52,7 +52,7 @@ vi.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
       context: { params: Promise<{ username: string }> }
     ) => {
       if (!(await mockVerifyAllows(req, context))) {
-        return Response.json({ status: 'Bad Request' }, { status: 400 })
+        return Response.json({ error: 'Bad Request' }, { status: 400 })
       }
 
       const activityBody =

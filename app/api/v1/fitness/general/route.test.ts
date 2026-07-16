@@ -538,7 +538,7 @@ describe('Fitness General Settings API', () => {
       const data = await response.json()
 
       expect(response.status).toBe(422)
-      expect(data.status).toBe('Unprocessable entity')
+      expect(data.error).toBe('Unprocessable entity')
       expect(mockDb.createFitnessSettings).not.toHaveBeenCalled()
       expect(mockDb.updateFitnessSettings).not.toHaveBeenCalled()
     })
@@ -559,7 +559,7 @@ describe('Fitness General Settings API', () => {
       const response = await POST(request, { params: Promise.resolve({}) })
 
       expect(response.status).toBe(400)
-      await expect(response.json()).resolves.toEqual({ status: 'Bad Request' })
+      await expect(response.json()).resolves.toEqual({ error: 'Bad Request' })
       expect(mockDb.createFitnessSettings).not.toHaveBeenCalled()
       expect(mockDb.updateFitnessSettings).not.toHaveBeenCalled()
     })
@@ -586,7 +586,7 @@ describe('Fitness General Settings API', () => {
 
       expect(response.status).toBe(500)
       await expect(response.json()).resolves.toEqual({
-        status: 'Internal Server Error'
+        error: 'Internal Server Error'
       })
       expect(mockDb.createFitnessSettings).toHaveBeenCalled()
     })
