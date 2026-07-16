@@ -27,14 +27,17 @@ export interface NotificationGroupsEnvelope {
   statuses: Mastodon.Status[]
 }
 
-// Mastodon PartialAccountWithAvatar entity (4.3): the truncated account shape
-// used by expand_accounts=partial_avatars.
+// Mastodon PartialAccountWithAvatar entity: the truncated account shape used by
+// expand_accounts=partial_avatars. `avatar_description` is a required member of
+// this entity as of Mastodon 4.6 — omitting it makes 4.6-aware clients fail to
+// decode the whole grouped-notifications response, so it must always be present.
 export interface PartialAccountWithAvatar {
   id: string
   acct: string
   url: string
   avatar: string
   avatar_static: string
+  avatar_description: string
   locked: boolean
   bot: boolean
 }
@@ -47,6 +50,7 @@ export const toPartialAccountWithAvatar = (
   url: account.url,
   avatar: account.avatar,
   avatar_static: account.avatar_static,
+  avatar_description: account.avatar_description ?? '',
   locked: account.locked,
   bot: account.bot
 })

@@ -224,6 +224,7 @@ describe('GET /api/v2/notifications', () => {
             url: id,
             avatar: 'https://other.test/avatar.png',
             avatar_static: 'https://other.test/avatar.png',
+            avatar_description: 'A friendly avatar',
             locked: false,
             bot: false,
             display_name: 'Only in the full shape'
@@ -269,7 +270,9 @@ describe('GET /api/v2/notifications', () => {
     expect(data.accounts).toHaveLength(1)
     expect(data.accounts[0].id).toBe('other.test:users:alice')
     expect(data.accounts[0].display_name).toBe('Only in the full shape')
-    // The rest ship as truncated PartialAccountWithAvatar entries.
+    // The rest ship as truncated PartialAccountWithAvatar entries. These MUST
+    // carry avatar_description (required by the Mastodon 4.6 entity); a missing
+    // key here makes 4.6 clients fail to decode the whole grouped response.
     expect(data.partial_accounts).toEqual([
       {
         id: 'other.test:users:bob',
@@ -277,10 +280,65 @@ describe('GET /api/v2/notifications', () => {
         url: 'https://other.test/users/bob',
         avatar: 'https://other.test/avatar.png',
         avatar_static: 'https://other.test/avatar.png',
+        avatar_description: 'A friendly avatar',
         locked: false,
         bot: false
       }
     ])
+  })
+
+  it('defaults partial account avatar_description to an empty string when unset', async () => {
+    // A source actor without a stored avatar alt text must still ship
+    // avatar_description as an empty string, never omit the key.
+    mockDatabase.getMastodonActorsFromIds.mockImplementation(
+      ({ ids }: { ids: string[] }) =>
+        Promise.resolve(
+          ids.map((id) => ({
+            id: id.replace(/https?:\/\//, '').replaceAll('/', ':'),
+            acct: 'user@other.test',
+            url: id,
+            avatar: 'https://other.test/avatar.png',
+            avatar_static: 'https://other.test/avatar.png',
+            locked: false,
+            bot: false
+          }))
+        )
+    )
+    mockDatabase.getNotifications.mockResolvedValueOnce([
+      {
+        id: 'n1',
+        type: 'like',
+        sourceActorId: 'https://other.test/users/alice',
+        statusId: 'https://other.test/statuses/1',
+        groupKey: 'like:https://other.test/statuses/1',
+        isRead: false,
+        filtered: false,
+        createdAt: 2000,
+        updatedAt: 2000
+      },
+      {
+        id: 'n2',
+        type: 'like',
+        sourceActorId: 'https://other.test/users/bob',
+        statusId: 'https://other.test/statuses/1',
+        groupKey: 'like:https://other.test/statuses/1',
+        isRead: false,
+        filtered: false,
+        createdAt: 1000,
+        updatedAt: 1000
+      }
+    ])
+
+    const request = new NextRequest(
+      'https://llun.test/api/v2/notifications?expand_accounts=partial_avatars',
+      { method: 'GET' }
+    )
+    const response = await GET(request, { params: Promise.resolve({}) })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.partial_accounts).toHaveLength(1)
+    expect(data.partial_accounts[0]).toHaveProperty('avatar_description', '')
   })
 
   it('omits partial_accounts with the default expand_accounts=full', async () => {

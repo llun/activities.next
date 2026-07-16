@@ -46,6 +46,18 @@ const BaseAccount = z.object({
     .describe(
       'A static version of the `header`. Equal to `header` if its value is a static image; different if `header` is an animated GIF'
     ),
+  avatar_description: z
+    .string()
+    .describe(
+      'A textual description of the avatar image, for the visually impaired or when avatars fail to load. Empty string when unset. Added in Mastodon 4.6'
+    )
+    .optional(),
+  header_description: z
+    .string()
+    .describe(
+      'A textual description of the header image, for the visually impaired or when the header fails to load. Empty string when unset. Added in Mastodon 4.6'
+    )
+    .optional(),
   locked: z
     .boolean()
     .describe('Whether the actor manually approves follow requests'),
