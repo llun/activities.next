@@ -1,0 +1,40 @@
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_3da1f273d8917f::t_08ee36ebd2cc72 1563-1620
+  s_3da1f273d8917f::t_52e800f8b43cc9 1657-1684,1693-1696
+  s_5cb8e76b1f7ab2::t_c957e6f2872187 1697-1699
+lib/services/quotes/verifyRemoteQuote.ts
+  s_3da1f273d8917f::t_7025d4248ae278 25-37
+  s_3da1f273d8917f::t_cfa7f380ee4b84 74-80
+  s_3da1f273d8917f::t_c104a416a19501 110-116
+lib/services/quotes/verifyRemoteQuote.test.ts
+  s_3da1f273d8917f::t_ce49f8c2e44131 155-220
+lib/database/sql/statusQuote.test.ts
+  s_3da1f273d8917f::t_1cfab9453d8b5d 234-279
+  s_3da1f273d8917f::t_3c3b95b20e756b 109-112,114,121-124,126-129,131,133-138
+lib/services/mastodon/getMastodonStatus.ts
+  s_3da1f273d8917f::t_5a566aeb53cb32 548-550,553-554
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "47a11d9b1ab5ca8c259c7b2198b016f6c7addc15",
+  "prompts": {},
+  "sessions": {
+    "s_3da1f273d8917f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f49630eb-9e7a-4457-a813-665e76f1781c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_5cb8e76b1f7ab2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d2771900-09a8-4624-b08d-9de9a67bd110",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
