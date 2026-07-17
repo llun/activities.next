@@ -7,6 +7,7 @@ import {
 import { getQueue } from '@/lib/services/queue'
 import { canQuoteStatus } from '@/lib/services/quotes/canQuoteStatus'
 import { buildQuoteAuthorizationUri } from '@/lib/services/quotes/quoteAuthorization'
+import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Actor } from '@/lib/types/domain/actor'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
@@ -76,6 +77,17 @@ export const handleQuoteRequest = async ({
   })
   if (!quotedStatus || !quotedStatus.isLocalActor) return false
   if (quotedStatus.actorId !== inboxActor.id) return false
+
+  // The requester must be able to read the quoted status (symmetric with the
+  // local create route's canActorReadStatus gate): you cannot quote what you
+  // cannot see. A non-audience actor for a followers-only/direct post is denied.
+  const quotingActor = await database.getActorFromId({ id: request.actor })
+  const canRead = await canActorReadStatus({
+    database,
+    status: quotedStatus,
+    currentActor: quotingActor ?? null
+  })
+  if (!canRead) return false
 
   const verdict = await canQuoteStatus({
     database,

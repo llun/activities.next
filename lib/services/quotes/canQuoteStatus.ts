@@ -1,10 +1,7 @@
 import { Database } from '@/lib/database/types'
+import { getEffectiveQuoteApprovalPolicy } from '@/lib/services/quotes/quotePolicy'
 import { FollowStatus } from '@/lib/types/domain/follow'
-import {
-  QuoteApprovalPolicy,
-  Status,
-  getOriginalStatus
-} from '@/lib/types/domain/status'
+import { Status, getOriginalStatus } from '@/lib/types/domain/status'
 
 // The policy verdict for a quote attempt. `automatic` means the quote is
 // approved without a manual step; `denied` means it must not be approved.
@@ -49,7 +46,7 @@ export const canQuoteStatus = async ({
     return 'denied'
   }
 
-  const policy: QuoteApprovalPolicy = quoted.quoteApprovalPolicy ?? 'public'
+  const policy = getEffectiveQuoteApprovalPolicy(quoted)
   switch (policy) {
     case 'public':
       return 'automatic'

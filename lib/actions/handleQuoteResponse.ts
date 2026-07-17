@@ -1,6 +1,8 @@
 import { Database } from '@/lib/database/types'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
+import { getOriginalStatus } from '@/lib/types/domain/status'
+import { normalizeActorId } from '@/lib/utils/activitypub'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
@@ -21,6 +23,15 @@ const refId = (value: unknown): string | null => {
     return (value as { id: string }).id
   }
   return null
+}
+
+// Two ids share authority when served from the same host.
+const sameHost = (a: string, b: string): boolean => {
+  try {
+    return new URL(a).host === new URL(b).host
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -45,13 +56,34 @@ export const handleQuoteResponse = async ({
   const edge = await database.getStatusQuoteByQuoteRequestId({ quoteRequestId })
   if (!edge) return false
 
+  // Authorization: only the quoted status's own author may settle our quote —
+  // otherwise any validly-signed third party could forge an Accept/Reject of our
+  // pending outbound quote (and inject an attacker-controlled stamp). Match the
+  // responder against the quoted status's author when we have it locally (we
+  // always do at request time), falling back to same-host authority.
+  const responder = refId(record.actor)
+  if (!responder) return false
+  const quotedStatus = await database.getStatus({
+    statusId: edge.quotedStatusId,
+    withReplies: false
+  })
+  const quotedAuthorId = quotedStatus
+    ? getOriginalStatus(quotedStatus).actorId
+    : null
+  const authorized = quotedAuthorId
+    ? normalizeActorId(responder) === normalizeActorId(quotedAuthorId)
+    : sameHost(responder, edge.quotedStatusId)
+  if (!authorized) return false
+
   if (type === 'Accept') {
     const stampUri = refId(record.result)
+    // Only store a stamp hosted under the quoted author's own authority.
+    const authorizationUri =
+      stampUri && sameHost(stampUri, edge.quotedStatusId) ? stampUri : undefined
     await database.updateStatusQuoteState({
       statusId: edge.statusId,
       state: 'accepted',
-      // Only overwrite the stamp uri when the Accept carries a `result`.
-      authorizationUri: stampUri ?? undefined
+      authorizationUri
     })
     // Re-federate the quoting note so it now advertises the stamp.
     const status = await database.getStatus({

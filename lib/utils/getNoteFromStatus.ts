@@ -1,5 +1,6 @@
 import { getConfig } from '@/lib/config'
 import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
+import { getEffectiveQuoteApprovalPolicy } from '@/lib/services/quotes/quotePolicy'
 import { Note } from '@/lib/types/activitypub'
 import {
   getDocumentFromAttachment,
@@ -84,7 +85,7 @@ export const getNoteFromStatus = (
     ...(quoteAuthorization ? { quoteAuthorization } : null),
     interactionPolicy: {
       canQuote: buildCanQuote(
-        actualStatus.quoteApprovalPolicy ?? 'public',
+        getEffectiveQuoteApprovalPolicy(actualStatus),
         actualStatus.actorId
       )
     },

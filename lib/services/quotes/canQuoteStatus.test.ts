@@ -2,17 +2,24 @@ import type { Database } from '@/lib/database/types'
 import { canQuoteStatus } from '@/lib/services/quotes/canQuoteStatus'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import type { Status } from '@/lib/types/domain/status'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 const AUTHOR = 'https://llun.test/users/author'
 const QUOTER = 'https://remote.example/users/quoter'
 
 const makeQuoted = (
   policy?: 'public' | 'followers' | 'nobody',
-  actorId = AUTHOR
+  actorId = AUTHOR,
+  visibility: 'public' | 'followers' = 'public'
 ): Status =>
   ({
     type: 'Note',
     actorId,
+    to:
+      visibility === 'public'
+        ? [ACTIVITY_STREAM_PUBLIC]
+        : [`${actorId}/followers`],
+    cc: [],
     ...(policy ? { quoteApprovalPolicy: policy } : {})
   }) as unknown as Status
 
@@ -70,6 +77,24 @@ describe('canQuoteStatus', () => {
       quotingActorId: QUOTER
     })
     expect(verdict).toBe(expected)
+  })
+
+  it('denies a non-public status with no explicit policy (default nobody)', async () => {
+    const verdict = await canQuoteStatus({
+      database: makeDatabase(),
+      quotedStatus: makeQuoted(undefined, AUTHOR, 'followers'),
+      quotingActorId: QUOTER
+    })
+    expect(verdict).toBe('denied')
+  })
+
+  it('allows a self-quote of a non-public status with no explicit policy', async () => {
+    const verdict = await canQuoteStatus({
+      database: makeDatabase(),
+      quotedStatus: makeQuoted(undefined, QUOTER, 'followers'),
+      quotingActorId: QUOTER
+    })
+    expect(verdict).toBe('automatic')
   })
 
   it('allows a follower under the followers policy', async () => {

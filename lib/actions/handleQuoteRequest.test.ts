@@ -6,6 +6,7 @@ import {
 } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 import type { Actor } from '@/lib/types/domain/actor'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 vi.mock('@/lib/services/queue', () => ({
   getQueue: vi.fn().mockReturnValue({
@@ -44,11 +45,14 @@ const makeDatabase = (
             type: 'Note',
             actorId: INBOX_ACTOR_ID,
             isLocalActor: true,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
             quoteApprovalPolicy: 'public'
           }
         : overrides.quotedStatus
     ),
     createStatusQuote: overrides.createSpy ?? vi.fn().mockResolvedValue({}),
+    getActorFromId: vi.fn().mockResolvedValue({ id: QUOTER }),
     isEitherBlocking: vi
       .fn()
       .mockResolvedValue(overrides.eitherBlocking ?? false),
@@ -94,6 +98,8 @@ describe('handleQuoteRequest', () => {
         type: 'Note',
         actorId: INBOX_ACTOR_ID,
         isLocalActor: true,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
         quoteApprovalPolicy: 'nobody'
       }
     })
