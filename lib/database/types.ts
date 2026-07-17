@@ -8,6 +8,7 @@ import {
   AccountNoteDatabase,
   ActorDatabase,
   ActorDomainBlockDatabase,
+  AdminAccountDatabase,
   AdminDatabase,
   AnnouncementDatabase,
   BaseDatabase,
@@ -83,6 +84,7 @@ export type Database = AccountDatabase &
   RelayDatabase &
   ReportDatabase &
   ModerationDatabase &
+  AdminAccountDatabase &
   ScheduledStatusDatabase &
   SearchDatabase &
   StatusDatabase &
