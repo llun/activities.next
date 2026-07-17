@@ -36,6 +36,29 @@ let listRouteV2: typeof import('@/app/api/v2/admin/accounts/route')
 let idRoute: typeof import('./[id]/route')
 let actionRoute: typeof import('./[id]/action/route')
 let unsuspendRoute: typeof import('./[id]/unsuspend/route')
+let approveRoute: typeof import('./[id]/approve/route')
+let rejectRoute: typeof import('./[id]/reject/route')
+let enableRoute: typeof import('./[id]/enable/route')
+let unsilenceRoute: typeof import('./[id]/unsilence/route')
+
+let uniqueCounter = 0
+const makeLocalAccount = async () => {
+  uniqueCounter += 1
+  const username = `local${uniqueCounter}`
+  const accountId = await database.createAccount({
+    email: `${username}@${TEST_DOMAIN}`,
+    username,
+    passwordHash: 'hash',
+    domain: TEST_DOMAIN,
+    privateKey: 'private',
+    publicKey: 'public'
+  })
+  return {
+    accountId,
+    actorId: `https://${TEST_DOMAIN}/users/${username}`,
+    id: urlToId(`https://${TEST_DOMAIN}/users/${username}`)
+  }
+}
 
 const adminRequest = (
   path: string,
@@ -79,6 +102,10 @@ describe('admin accounts API', () => {
     idRoute = await import('./[id]/route')
     actionRoute = await import('./[id]/action/route')
     unsuspendRoute = await import('./[id]/unsuspend/route')
+    approveRoute = await import('./[id]/approve/route')
+    rejectRoute = await import('./[id]/reject/route')
+    enableRoute = await import('./[id]/enable/route')
+    unsilenceRoute = await import('./[id]/unsilence/route')
   })
 
   afterAll(async () => {
@@ -192,6 +219,104 @@ describe('admin accounts API', () => {
     )
     expect(byRole.status).toBe(200)
     expect(await byRole.json()).toEqual([])
+  })
+
+  it.each([
+    { description: 'approve on a remote account 422s', route: 'approve' },
+    { description: 'reject on a remote account 422s', route: 'reject' },
+    { description: 'enable on a remote account 422s', route: 'enable' }
+  ])('$description', async ({ route }) => {
+    const remoteId = urlToId(EXTERNAL_ACTOR1)
+    const req = adminRequest(`/api/v1/admin/accounts/${remoteId}/${route}`, {
+      method: 'POST'
+    })
+    const params = { params: Promise.resolve({ id: remoteId }) }
+    const handler =
+      route === 'approve'
+        ? approveRoute.POST
+        : route === 'reject'
+          ? rejectRoute.POST
+          : enableRoute.POST
+    const response = await handler(req, params)
+    expect(response.status).toBe(422)
+  })
+
+  it('rejects a pending account (deletes it) but 422s an already-approved one', async () => {
+    const active = await makeLocalAccount()
+    const activeReject = await rejectRoute.POST(
+      adminRequest(`/api/v1/admin/accounts/${active.id}/reject`, {
+        method: 'POST'
+      }),
+      { params: Promise.resolve({ id: active.id }) }
+    )
+    expect(activeReject.status).toBe(422)
+
+    const pending = await makeLocalAccount()
+    await instance('accounts')
+      .where('id', pending.accountId)
+      .update({ approvedAt: null })
+    const pendingReject = await rejectRoute.POST(
+      adminRequest(`/api/v1/admin/accounts/${pending.id}/reject`, {
+        method: 'POST'
+      }),
+      { params: Promise.resolve({ id: pending.id }) }
+    )
+    expect(pendingReject.status).toBe(200)
+    // The account and its actor are gone.
+    expect(
+      await database.getAdminAccount({ actorId: pending.actorId })
+    ).toBeNull()
+  })
+
+  it('enables a disabled account and unsilences a silenced one', async () => {
+    const disabled = await makeLocalAccount()
+    await database.setAccountDisabled({
+      accountId: disabled.accountId,
+      disabled: true
+    })
+    const enabled = await enableRoute.POST(
+      adminRequest(`/api/v1/admin/accounts/${disabled.id}/enable`, {
+        method: 'POST'
+      }),
+      { params: Promise.resolve({ id: disabled.id }) }
+    )
+    expect(enabled.status).toBe(200)
+    expect((await enabled.json()).disabled).toBe(false)
+
+    const silenced = await makeLocalAccount()
+    await database.setActorSilenced({
+      actorId: silenced.actorId,
+      silenced: true
+    })
+    const unsilenced = await unsilenceRoute.POST(
+      adminRequest(`/api/v1/admin/accounts/${silenced.id}/unsilence`, {
+        method: 'POST'
+      }),
+      { params: Promise.resolve({ id: silenced.id }) }
+    )
+    expect(unsilenced.status).toBe(200)
+    expect((await unsilenced.json()).silenced).toBe(false)
+  })
+
+  it('resolves a linked report when an action carries report_id', async () => {
+    const target = await makeLocalAccount()
+    const report = await database.createReport({
+      actorId: ADMIN_ACTOR_ID,
+      targetActorId: target.actorId
+    })
+
+    const response = await actionRoute.POST(
+      adminRequest(`/api/v1/admin/accounts/${target.id}/action`, {
+        method: 'POST',
+        body: { type: 'silence', report_id: report.id }
+      }),
+      { params: Promise.resolve({ id: target.id }) }
+    )
+    expect(response.status).toBe(200)
+
+    const resolved = await instance('reports').where('id', report.id).first()
+    expect(Boolean(resolved.actionTaken)).toBe(true)
+    expect(resolved.actionTakenByActorId).toBe(ADMIN_ACTOR_ID)
   })
 
   it('requires suspension before DELETE and then schedules the purge job', async () => {

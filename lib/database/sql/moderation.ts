@@ -239,7 +239,12 @@ export const ModerationSQLDatabaseMixin = (
         .whereNull('accounts.disabledAt')
         .whereNotNull('accounts.approvedAt')
     }
-    if (pending) query.whereNull('accounts.approvedAt')
+    // Pending is a local registration state. Without the accountId guard the
+    // leftJoin would make `accounts.approvedAt IS NULL` true for every remote
+    // actor (they have no account row), wrongly listing them all as pending.
+    if (pending) {
+      query.whereNotNull('actors.accountId').whereNull('accounts.approvedAt')
+    }
     if (disabled) query.whereNotNull('accounts.disabledAt')
     if (silenced) query.whereNotNull('actors.silencedAt')
     if (suspended) query.whereNotNull('actors.suspendedAt')

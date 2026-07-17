@@ -397,24 +397,204 @@ describe('ModerationDatabase', () => {
       })
     })
 
-    it('paginates newest-first and honours max_id', async () => {
+    it.each([
+      {
+        description: 'max_id excludes the cursor and returns older records',
+        cursor: 'max_id'
+      },
+      {
+        description: 'min_id excludes the cursor and returns newer records',
+        cursor: 'min_id'
+      },
+      {
+        description: 'since_id excludes the cursor and returns newer records',
+        cursor: 'since_id'
+      }
+    ])('$description', async ({ cursor }) => {
       await withFreshDatabase(async (database) => {
-        const { localActorId, suspendedActorId } = await seedFixture(database)
+        await seedFixture(database)
+        // Full listing, newest-first by (createdAt desc, id).
+        const all = await database.getAdminAccounts({ limit: 100 })
+        expect(all.length).toBe(3)
+        const ids = all.map((record) => record.actor.id)
 
-        const firstPage = await database.getAdminAccounts({ limit: 1 })
-        expect(firstPage).toHaveLength(1)
+        if (cursor === 'max_id') {
+          // Page after the newest (first) record — the two older ones.
+          const page = await database.getAdminAccounts({
+            limit: 100,
+            maxId: ids[0]
+          })
+          const pageIds = page.map((record) => record.actor.id)
+          expect(pageIds).not.toContain(ids[0])
+          expect(pageIds).toContain(ids[1])
+          expect(pageIds).toContain(ids[2])
+        } else {
+          // min_id/since_id page above the oldest (last) record.
+          const page = await database.getAdminAccounts({
+            limit: 100,
+            [cursor === 'min_id' ? 'minId' : 'sinceId']: ids[2]
+          })
+          const pageIds = page.map((record) => record.actor.id)
+          expect(pageIds).not.toContain(ids[2])
+          expect(pageIds).toContain(ids[0])
+          expect(pageIds).toContain(ids[1])
+        }
+      })
+    })
+  })
 
-        const secondPage = await database.getAdminAccounts({
-          limit: 1,
-          maxId: firstPage[0].actor.id
+  describe('getAdminAccounts filters', () => {
+    // A rich fixture: one local account per moderation state, a staff account,
+    // and a remote actor — so every v1/v2 filter can be exercised.
+    const seedRichFixture = async (
+      database: Database,
+      instance: ReturnType<typeof getTestSQLDatabaseWithInstance>['instance']
+    ) => {
+      const make = async (username: string) => {
+        const accountId = await database.createAccount({
+          email: `${username}@test.llun.dev`,
+          username,
+          passwordHash: 'hash',
+          domain: 'test.llun.dev',
+          privateKey: 'private',
+          publicKey: 'public'
         })
-        expect(secondPage).toHaveLength(1)
-        // The two pages are distinct records.
-        expect(secondPage[0].actor.id).not.toBe(firstPage[0].actor.id)
-        // Both returned records are among the seeded set.
-        const seeded = [localActorId, suspendedActorId, EXTERNAL_ACTOR1]
-        expect(seeded).toContain(firstPage[0].actor.id)
-        expect(seeded).toContain(secondPage[0].actor.id)
+        return {
+          accountId,
+          actorId: `https://test.llun.dev/users/${username}`
+        }
+      }
+      const active = await make('activeuser')
+      const suspended = await make('suspendeduser')
+      const silenced = await make('silenceduser')
+      const sensitized = await make('sensitizeduser')
+      const disabled = await make('disableduser')
+      const pending = await make('pendinguser')
+      const staff = await make('staffuser')
+      await database.setActorSuspended({
+        actorId: suspended.actorId,
+        suspended: true
+      })
+      await database.setActorSilenced({
+        actorId: silenced.actorId,
+        silenced: true
+      })
+      await database.setActorSensitized({
+        actorId: sensitized.actorId,
+        sensitized: true
+      })
+      await database.setAccountDisabled({
+        accountId: disabled.accountId,
+        disabled: true
+      })
+      await instance('accounts')
+        .where('id', pending.accountId)
+        .update({ approvedAt: null })
+      await instance('accounts')
+        .where('id', staff.accountId)
+        .update({ role: 'admin' })
+      await database.createActor(seedExternal1)
+      return {
+        active: active.actorId,
+        suspended: suspended.actorId,
+        silenced: silenced.actorId,
+        sensitized: sensitized.actorId,
+        disabled: disabled.actorId,
+        pending: pending.actorId,
+        staff: staff.actorId,
+        remote: EXTERNAL_ACTOR1
+      }
+    }
+
+    it.each([
+      {
+        description: 'active',
+        filter: { active: true },
+        present: 'active',
+        absent: 'suspended'
+      },
+      {
+        description: 'pending',
+        filter: { pending: true },
+        present: 'pending',
+        absent: 'remote'
+      },
+      {
+        description: 'disabled',
+        filter: { disabled: true },
+        present: 'disabled',
+        absent: 'active'
+      },
+      {
+        description: 'silenced',
+        filter: { silenced: true },
+        present: 'silenced',
+        absent: 'active'
+      },
+      {
+        description: 'sensitized',
+        filter: { sensitized: true },
+        present: 'sensitized',
+        absent: 'active'
+      },
+      {
+        description: 'suspended',
+        filter: { suspended: true },
+        present: 'suspended',
+        absent: 'active'
+      },
+      {
+        description: 'staff',
+        filter: { staff: true },
+        present: 'staff',
+        absent: 'active'
+      },
+      {
+        description: 'username substring',
+        filter: { username: 'activeuser' },
+        present: 'active',
+        absent: 'suspended'
+      },
+      {
+        description: 'by_domain',
+        filter: { byDomain: 'llun.dev' },
+        present: 'remote',
+        absent: 'active'
+      },
+      {
+        description: 'email substring',
+        filter: { email: 'activeuser@' },
+        present: 'active',
+        absent: 'suspended'
+      }
+    ])('filters by $description', async ({ filter, present, absent }) => {
+      const { database, instance } = getTestSQLDatabaseWithInstance()
+      await database.migrate()
+      try {
+        const ids = await seedRichFixture(database, instance)
+        const records = await database.getAdminAccounts({
+          limit: 100,
+          ...filter
+        })
+        const resultIds = records.map((record) => record.actor.id)
+        expect(resultIds).toContain(ids[present as keyof typeof ids])
+        expect(resultIds).not.toContain(ids[absent as keyof typeof ids])
+      } finally {
+        await database.destroy()
+      }
+    })
+
+    it('returns an empty pending page today and never lists remote actors as pending', async () => {
+      await withFreshDatabase(async (database) => {
+        await seedLocalActor(database, seedActor1)
+        await seedLocalActor(database, seedActor2)
+        // A remote actor has no account row; it must NOT be treated as pending.
+        await database.createActor(seedExternal1)
+        const pending = await database.getAdminAccounts({
+          limit: 100,
+          pending: true
+        })
+        expect(pending).toEqual([])
       })
     })
   })
