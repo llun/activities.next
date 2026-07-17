@@ -7,6 +7,9 @@ import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getMention } from '@/lib/types/domain/actor'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
+import { urlToId } from '@/lib/utils/urlToId'
+
+import { ActorModerationPanel } from './ActorModerationPanel'
 
 export const dynamic = 'force-dynamic'
 
@@ -89,7 +92,7 @@ const Page = async ({ params }: Props) => {
             {actors.map((actor) => (
               <div
                 key={actor.id}
-                className="flex items-center justify-between rounded-xl border p-4"
+                className="flex flex-wrap items-center justify-between rounded-xl border p-4"
               >
                 <div className="min-w-0 flex-1">
                   <p className="font-medium truncate">
@@ -107,6 +110,12 @@ const Page = async ({ params }: Props) => {
                   ) : (
                     new Date(actor.createdAt).toLocaleDateString()
                   )}
+                </div>
+                <div className="mt-4 basis-full border-t pt-4">
+                  <ActorModerationPanel
+                    actorId={urlToId(actor.id)}
+                    username={actor.username}
+                  />
                 </div>
               </div>
             ))}
