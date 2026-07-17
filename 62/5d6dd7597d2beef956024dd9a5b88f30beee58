@@ -1,0 +1,60 @@
+lib/database/sql/list.ts
+  s_e5122562dda141::t_6fd15c08f3cf79 188,191-195,200-201
+  s_e5122562dda141::t_d8fc874bc990f0 230-232,234,237-239
+lib/types/database/operations.ts
+  s_e5122562dda141::t_d2d7c6a4a885a3 1416
+app/api/v2/notifications/route.ts
+  s_e5122562dda141::t_b4d23db6081a31 181-188
+  s_e5122562dda141::t_b388e15d1aa534 264-270
+  s_e5122562dda141::t_a0f70419a7cc0d 142-147
+lib/services/notifications/collectNotificationGroups.test.ts
+  s_e5122562dda141::t_0f4abb7bc0dadc 187-250
+lib/database/sql/list.test.ts
+  s_e5122562dda141::t_f00e126116c83e 1219-1295
+app/api/v1/timelines/[timeline]/route.test.ts
+  s_e5122562dda141::t_3a3a12d28be993 635-637
+  s_e5122562dda141::t_5c3b8fb46397ec 597,613-615,617,621-634
+  s_e5122562dda141::t_b2d2678ac56aa9 638-639
+app/api/v1/lists/[id]/accounts/route.ts
+  s_e5122562dda141::t_db6107e5016a32 70-75
+lib/database/sql/timeline.ts
+  s_e5122562dda141::t_4e1fcafded9013 247-253,257-258,261-262
+  s_e5122562dda141::t_ac61ceb9b8d412 198-202
+lib/services/timelines/getFilteredTimelinePage.test.ts
+  s_e5122562dda141::t_310e40b2b103e0 340-343
+  s_e5122562dda141::t_e5a6d7da2562a4 253-339,344-345
+lib/services/notifications/collectNotificationGroups.ts
+  s_e5122562dda141::t_310e40b2b103e0 125
+  s_e5122562dda141::t_4c301894cc48b4 70-74,76,84-86,98,100-103,119-124,126-128,130-131
+lib/database/sql/timeline.test.ts
+  s_e5122562dda141::t_a560a0f4eee004 154-211
+app/api/v1/timelines/[timeline]/route.ts
+  s_e5122562dda141::t_1495fac05202c3 93-95,98-99,107
+app/api/v1/lists/[id]/accounts/route.test.ts
+  s_e5122562dda141::t_dcd8307ef87abe 69-89
+app/api/v2/notifications/route.test.ts
+  s_e5122562dda141::t_310e40b2b103e0 231-233
+  s_e5122562dda141::t_40bb6eda285c56 149-158,160-161,165,171-179,183-230,234-241
+  s_e5122562dda141::t_2b0c30e503402b 242
+lib/services/timelines/getFilteredTimelinePage.ts
+  s_e5122562dda141::t_f0aa54d63dd594 128-145
+  s_e5122562dda141::t_923e4fbcc19241 33-35,43-46,56,62-65,68
+  s_e5122562dda141::t_350f6cbf53d124 90-91
+  s_e5122562dda141::t_e04234a726cf7a 177,188,197,200-220,223-224,227
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "625d6dd7597d2beef956024dd9a5b88f30beee58",
+  "prompts": {},
+  "sessions": {
+    "s_e5122562dda141": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ace79c08-89c5-4571-aa1c-3106e8ad8e9c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
