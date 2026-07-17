@@ -1,7 +1,12 @@
 import { z } from 'zod'
 
 import { Timeline } from '@/lib/services/timelines/types'
-import { ActorSettings, PostLineLimit } from '@/lib/types/database/rows'
+import {
+  ActorSettings,
+  PostLineLimit,
+  SQLAccount,
+  SQLActor
+} from '@/lib/types/database/rows'
 import { Account } from '@/lib/types/domain/account'
 import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { ActorDomainBlock } from '@/lib/types/domain/actorDomainBlock'
@@ -2293,6 +2298,13 @@ export type CreateModerationActionParams = {
   text?: string
 }
 export type DeleteAllAccountSessionsParams = { accountId: string }
+export type SetReportResolutionParams = {
+  reportId: string
+  // true → mark action_taken with the timestamp and moderator; false → reopen
+  // (clear all three).
+  resolved: boolean
+  actionTakenByActorId?: string | null
+}
 
 export interface ModerationDatabase {
   // Stamp/clear the actor state columns. Idempotent: setting a state that is
@@ -2321,6 +2333,67 @@ export interface ModerationDatabase {
   deleteAllAccountSessions(
     params: DeleteAllAccountSessionsParams
   ): Promise<void>
+  // Resolve/reopen a report's action-taken workflow columns. Returns true when
+  // a matching report row was updated. Shared by the account action endpoint
+  // (resolve on moderation) and the admin reports API.
+  setReportResolution(params: SetReportResolutionParams): Promise<boolean>
+}
+
+// ============================================================================
+// Admin Accounts (Admin::Account listing/lookup)
+// ============================================================================
+
+// One actor row plus its owning account row (null for remote actors). The
+// Admin::Account serializer hydrates both plus session IPs and the public
+// Account entity.
+export type AdminAccountRecord = {
+  actor: SQLActor
+  account: SQLAccount | null
+}
+
+export type AdminAccountIp = { ip: string; usedAt: number }
+
+export type GetAdminAccountsParams = {
+  limit?: number
+  // Locality: local = account-backed on this instance; remote = foreign actor.
+  local?: boolean
+  remote?: boolean
+  // Status filters (v1 booleans; v2 `status`/`origin` map onto these).
+  active?: boolean
+  pending?: boolean
+  disabled?: boolean
+  silenced?: boolean
+  suspended?: boolean
+  sensitized?: boolean
+  // Text filters.
+  username?: string
+  displayName?: string
+  byDomain?: string
+  email?: string
+  ip?: string
+  staff?: boolean
+  // Keyset cursors on (createdAt desc, id) — actor-URL ids.
+  maxId?: string | null
+  minId?: string | null
+  sinceId?: string | null
+}
+
+export type GetAdminAccountParams = { actorId: string }
+export type GetSessionIpsForAccountsParams = { accountIds: string[] }
+
+export interface AdminAccountDatabase {
+  // Actor-driven, filter/keyset-paginated listing for the admin accounts API.
+  getAdminAccounts(
+    params: GetAdminAccountsParams
+  ): Promise<AdminAccountRecord[]>
+  // Single Admin::Account record by actor id (URL form), or null.
+  getAdminAccount(
+    params: GetAdminAccountParams
+  ): Promise<AdminAccountRecord | null>
+  // Latest-first session IPs per account (local accounts only carry sessions).
+  getSessionIpsForAccounts(
+    params: GetSessionIpsForAccountsParams
+  ): Promise<Map<string, AdminAccountIp[]>>
 }
 
 // ============================================================================
