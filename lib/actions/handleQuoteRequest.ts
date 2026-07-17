@@ -75,16 +75,16 @@ export const handleQuoteRequest = async ({
   const instrumentId = getInstrumentId(request.instrument)
   if (!instrumentId) return false
 
-  // The quoting note must belong to the (HTTP-sig-verified) requester: when the
-  // note is embedded, its attributedTo must equal the requester; a bare id must
-  // at least be hosted under the requester's own authority. Otherwise a
-  // requester could claim someone else's note as the quoting instrument.
+  // The quoting note must belong to the (HTTP-sig-verified) requester. A note is
+  // served from its author's host, so the instrument id must be hosted under the
+  // requester's authority in every case; when the note is embedded, its declared
+  // attributedTo must additionally match the requester. `attributedTo` is itself
+  // an attacker-controlled field of the embedded object, so it can never stand in
+  // for the host binding — otherwise a requester could name a third party's note
+  // (on any other host) as the instrument and forge/clobber that note's edge.
+  if (!sameHost(instrumentId, request.actor)) return false
   const instrumentAuthor = getInstrumentAttributedTo(request.instrument)
-  if (instrumentAuthor) {
-    if (instrumentAuthor !== request.actor) return false
-  } else if (!sameHost(instrumentId, request.actor)) {
-    return false
-  }
+  if (instrumentAuthor && instrumentAuthor !== request.actor) return false
 
   // An inbound QuoteRequest's instrument is always a remote note (local quotes
   // go through the create path). Reject an instrument on our own host — that

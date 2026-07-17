@@ -124,8 +124,14 @@ export const StatusQuoteSQLDatabaseMixin = (
     async getStatusQuoteByAuthorizationUri({
       authorizationUri
     }: GetStatusQuoteByAuthorizationUriParams): Promise<StatusQuoteRecord | null> {
+      // The authorizationUri index is non-unique, so a stray (e.g. forged
+      // pending) edge could share a legitimate stamp uri. A stamp is only ever
+      // meaningful for the `accepted` edge it belongs to, so prefer that one and
+      // order deterministically to make the lookup unambiguous.
       const row = await database<StatusQuoteRow>('status_quotes')
         .where('authorizationUri', authorizationUri)
+        .orderByRaw("case when state = 'accepted' then 0 else 1 end")
+        .orderBy('statusId')
         .first(...STATUS_QUOTE_CURSOR_COLUMNS)
       return row ? fixStatusQuoteRow(row) : null
     },

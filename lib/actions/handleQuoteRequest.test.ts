@@ -194,4 +194,24 @@ describe('handleQuoteRequest', () => {
     expect(handled).toBe(false)
     expect(createSpy).not.toHaveBeenCalled()
   })
+
+  it('returns false when an embedded instrument id is on a foreign host even if attributedTo matches the requester', async () => {
+    // `attributedTo` is an attacker-controlled field of the embedded object, so
+    // it cannot stand in for binding the instrument id to the requester's host.
+    // A note pointing at a third party's status on another host is a forgery.
+    const createSpy = vi.fn()
+    const database = makeDatabase({ createSpy })
+    const handled = await handleQuoteRequest({
+      database,
+      activity: activity({
+        instrument: {
+          id: 'https://victim.example/users/v/statuses/999',
+          attributedTo: QUOTER
+        }
+      }),
+      inboxActor
+    })
+    expect(handled).toBe(false)
+    expect(createSpy).not.toHaveBeenCalled()
+  })
 })

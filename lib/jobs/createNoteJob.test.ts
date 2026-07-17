@@ -748,6 +748,35 @@ describe('createNoteJob', () => {
       }
     )
 
+    it('does not persist an attacker-supplied quoteAuthorization on a pending edge', async () => {
+      // A remote note can claim any `quoteAuthorization` uri. Until the quote
+      // verifies as accepted, the stamp is meaningless and must not be stored —
+      // otherwise a forged note could shadow a legitimate stamp on the
+      // (non-unique) authorizationUri lookup.
+      const authorId = actor1?.id as string
+      const quotedId = await createLocalQuoted('forged-stamp', authorId)
+      const note = {
+        ...MockMastodonActivityPubNote({
+          id: `${ACTOR2_ID}/statuses/quoting-forged-stamp`,
+          from: ACTOR2_ID,
+          content: 'quote with forged stamp'
+        }),
+        quote: quotedId,
+        quoteAuthorization: `${authorId}/quote_authorizations/forged`
+      }
+
+      await createNoteJob(database, {
+        id: 'quote-forged-stamp',
+        name: CREATE_NOTE_JOB_NAME,
+        data: note,
+        verifiedSenderActorId: ACTOR2_ID
+      })
+
+      const edge = await database.getStatusQuote({ statusId: note.id })
+      expect(edge).toMatchObject({ quotedStatusId: quotedId, state: 'pending' })
+      expect(edge?.authorizationUri).toBeNull()
+    })
+
     it('leaves no quote edge for a note that quotes nothing', async () => {
       const note = MockMastodonActivityPubNote({
         id: `${actor1?.id}/statuses/no-quote`,

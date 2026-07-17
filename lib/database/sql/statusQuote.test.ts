@@ -215,6 +215,33 @@ describe('StatusQuoteDatabase', () => {
       ).resolves.toBeNull()
     })
 
+    it('prefers an accepted edge when a non-accepted edge shares the authorization uri', async () => {
+      // The authorizationUri index is non-unique, so a forged pending edge that
+      // copies a real stamp uri must never shadow the accepted edge the stamp
+      // actually belongs to.
+      const authorizationUri = `https://llun.test/stamp/${randomUUID()}`
+      const pendingId = uniqueId('collide-pending')
+      const acceptedId = uniqueId('collide-accepted')
+      await database.createStatusQuote({
+        statusId: pendingId,
+        quotedStatusId: uniqueId('collide-target-a'),
+        state: 'pending',
+        authorizationUri
+      })
+      await database.createStatusQuote({
+        statusId: acceptedId,
+        quotedStatusId: uniqueId('collide-target-b'),
+        state: 'accepted',
+        authorizationUri
+      })
+
+      const found = await database.getStatusQuoteByAuthorizationUri({
+        authorizationUri
+      })
+      expect(found?.statusId).toBe(acceptedId)
+      expect(found?.state).toBe('accepted')
+    })
+
     it('marks pending/accepted edges deleted when the quoted status is removed, leaving terminal edges', async () => {
       const quotedStatusId = uniqueId('deleted-target')
       const pending = uniqueId('deleted-pending')
