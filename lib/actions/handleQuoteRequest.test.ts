@@ -164,4 +164,34 @@ describe('handleQuoteRequest', () => {
     })
     expect(handled).toBe(false)
   })
+
+  it('returns false when a bare-id instrument is hosted on a foreign authority', async () => {
+    const createSpy = vi.fn()
+    const database = makeDatabase({ createSpy })
+    const handled = await handleQuoteRequest({
+      database,
+      activity: activity({
+        instrument: 'https://evil.example/users/mallory/statuses/1'
+      }),
+      inboxActor
+    })
+    expect(handled).toBe(false)
+    expect(createSpy).not.toHaveBeenCalled()
+  })
+
+  it('returns false when the instrument is on our own host (never inbound)', async () => {
+    // getConfig().host is 'test.llun.dev' under the test config mock.
+    const createSpy = vi.fn()
+    const database = makeDatabase({ createSpy })
+    const handled = await handleQuoteRequest({
+      database,
+      activity: activity({
+        actor: 'https://test.llun.dev/users/mallory',
+        instrument: 'https://test.llun.dev/users/carol/statuses/1'
+      }),
+      inboxActor
+    })
+    expect(handled).toBe(false)
+    expect(createSpy).not.toHaveBeenCalled()
+  })
 })

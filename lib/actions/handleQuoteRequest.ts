@@ -1,4 +1,5 @@
 import { QuoteRequest } from '@/lib/activities/quoteRequest'
+import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import {
   SEND_QUOTE_ACCEPT_JOB_NAME,
@@ -34,6 +35,15 @@ const getInstrumentId = (instrument: unknown): string | null => {
   return null
 }
 
+// Two ids share authority when served from the same host.
+const sameHost = (a: string, b: string): boolean => {
+  try {
+    return new URL(a).host === new URL(b).host
+  } catch {
+    return false
+  }
+}
+
 // Resolve the quoting note's author from the `instrument`, when embedded.
 const getInstrumentAttributedTo = (instrument: unknown): string | null => {
   if (
@@ -65,10 +75,25 @@ export const handleQuoteRequest = async ({
   const instrumentId = getInstrumentId(request.instrument)
   if (!instrumentId) return false
 
-  // The quoting note must be authored by the requester (when the note is
-  // embedded we can check; a bare id is trusted to the HTTP-sig-verified actor).
+  // The quoting note must belong to the (HTTP-sig-verified) requester: when the
+  // note is embedded, its attributedTo must equal the requester; a bare id must
+  // at least be hosted under the requester's own authority. Otherwise a
+  // requester could claim someone else's note as the quoting instrument.
   const instrumentAuthor = getInstrumentAttributedTo(request.instrument)
-  if (instrumentAuthor && instrumentAuthor !== request.actor) return false
+  if (instrumentAuthor) {
+    if (instrumentAuthor !== request.actor) return false
+  } else if (!sameHost(instrumentId, request.actor)) {
+    return false
+  }
+
+  // An inbound QuoteRequest's instrument is always a remote note (local quotes
+  // go through the create path). Reject an instrument on our own host — that
+  // would be a forged claim over a local user's status id.
+  try {
+    if (new URL(instrumentId).host === getConfig().host) return false
+  } catch {
+    return false
+  }
 
   // The quoted status (`object`) must be a local status owned by the inbox actor.
   const quotedStatus = await database.getStatus({
