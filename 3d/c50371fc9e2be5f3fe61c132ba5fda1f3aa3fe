@@ -1,0 +1,71 @@
+lib/services/reports/serializeReportEntity.ts
+  s_6dd763a0b22888::t_2f06d53055674b 1-31
+app/api/v1/admin/reports/route.ts
+  s_6dd763a0b22888::t_80fcf36abfc9f5 16,55-57,82
+  s_6dd763a0b22888::t_dfe39ac27aceab 1-15,17-54,58-81,83-89
+lib/database/sql/report.test.ts
+  s_6dd763a0b22888::t_80fcf36abfc9f5 115-117,129-132,165-167
+  s_6dd763a0b22888::t_797987559e7ada 84-114,118-128,133-164,168-190
+lib/types/mastodon/admin/report.ts
+  s_6dd763a0b22888::t_55a0907ad4fd2b 1-27
+app/api/v1/admin/reports/[id]/route.ts
+  s_6dd763a0b22888::t_c62c34d5b93330 1-135
+lib/types/database/operations.ts
+  s_6dd763a0b22888::t_8bff68d15e89b7 2223-2226,2241-2264,2267-2270,2274-2275
+  s_6dd763a0b22888::t_80fcf36abfc9f5 2271-2273
+  s_6dd763a0b22888::t_7b431a0c9c769d 2419,2431-2435
+lib/database/sql/moderation.ts
+  s_6dd763a0b22888::t_59f03958ed78bb 13
+  s_6dd763a0b22888::t_778924d5bc432e 389-405,409-416
+  s_6dd763a0b22888::t_80fcf36abfc9f5 406-408
+app/api/v1/admin/reports/[id]/assign_to_self/route.ts
+  s_6dd763a0b22888::t_0e8e2847199be6 1-32
+lib/services/admin/handleAdminReportAction.ts
+  s_6dd763a0b22888::t_80fcf36abfc9f5 10
+  s_6dd763a0b22888::t_6ed14a3f812ccb 1-9,11-89
+lib/services/guards/AdminApiGuard.ts
+  s_6dd763a0b22888::t_56e79c84e2163e 55-58
+app/api/v1/admin/reports/adminReports.test.ts
+  s_6dd763a0b22888::t_80fcf36abfc9f5 135-137
+  s_6dd763a0b22888::t_5fdd17196135e9 1-134,138-219
+app/api/v1/admin/reports/[id]/unassign/route.ts
+  s_6dd763a0b22888::t_797cbd5250653f 1-32
+app/api/v1/admin/adminResourceWiring.test.ts
+  s_6dd763a0b22888::t_06f6d9df7b1c31 64-77
+app/api/v1/reports/route.ts
+  s_6dd763a0b22888::t_d57754b9828aa5 6
+  s_6dd763a0b22888::t_0a1241ffcd9f0f 169
+  s_6dd763a0b22888::t_f79f0b6ba4a56b 18
+app/api/v1/admin/reports/[id]/resolve/route.ts
+  s_6dd763a0b22888::t_bb7416883afb89 1-32
+lib/services/reports/serializeReportEntity.test.ts
+  s_6dd763a0b22888::t_b8e763e4efc32a 1-57
+lib/services/admin/serializeAdminReports.ts
+  s_6dd763a0b22888::t_19d6e770c4f88e 66,69-72,74-75
+  s_6dd763a0b22888::t_0b5ac91d228397 101-102
+  s_6dd763a0b22888::t_80fcf36abfc9f5 49,76-100
+  s_6dd763a0b22888::t_91e5ad90bc4f59 1-48,50-65,67-68,73,103-104
+lib/types/mastodon/index.ts
+  s_6dd763a0b22888::t_551b8adc4a6341 11
+app/api/v1/admin/reports/[id]/reopen/route.ts
+  s_6dd763a0b22888::t_8b4a01b2b0d083 1-32
+lib/database/sql/report.ts
+  s_6dd763a0b22888::t_80fcf36abfc9f5 131-133,157-159
+  s_6dd763a0b22888::t_6ccc734307d151 7,9-10,13-14,28-30,46-49,77-79,85-130,134-156,160-195
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "3dc50371fc9e2be5f3fe61c132ba5fda1f3aa3fe",
+  "prompts": {},
+  "sessions": {
+    "s_6dd763a0b22888": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f2f2973-35a6-4476-8b76-95f49efde47d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
