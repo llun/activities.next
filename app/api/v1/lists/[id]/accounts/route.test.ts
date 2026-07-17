@@ -66,6 +66,27 @@ describe('GET /api/v1/lists/:id/accounts', () => {
     )
   })
 
+  it.each([
+    { field: 'min_id' as const, slot: 'minId', other: 'sinceId' },
+    { field: 'since_id' as const, slot: 'sinceId', other: 'minId' }
+  ])(
+    'routes $field alone to $slot without collapsing into $other',
+    async ({ field, slot, other }) => {
+      const request = new NextRequest(`${URL_BASE}?${field}=cursor-x`)
+      const response = await GET(request, params())
+      expect(response.status).toBe(200)
+      const call = mockDatabase.getListAccounts.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >
+      expect(call[slot]).toBe('cursor-x')
+      // The absent cursor is passed as null (query default), never collapsed
+      // into the other slot — so min_id gets adjacent-page and since_id gets
+      // newest-slice semantics.
+      expect(call[other]).toBeNull()
+    }
+  )
+
   it('returns all members without pagination when limit=0', async () => {
     mockDatabase.getListAccounts.mockResolvedValue({
       accounts: [{ id: 'a1' }, { id: 'a2' }],

@@ -1216,6 +1216,125 @@ describe('ListDatabase', () => {
     })
   })
 
+  it('getListAccounts distinguishes min_id (adjacent page) from since_id (newest slice)', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      if (!owner) throw new Error('owner not created')
+
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Members list'
+      })
+
+      // Five members, oldest → newest by membership createdAt. addListAccounts
+      // stamps one createdAt per call, so add them one per call with a small gap
+      // to give each row a distinct, ordered createdAt (the id tie-break is a
+      // random UUID and can't order them chronologically on its own).
+      const usernames = ['m1', 'm2', 'm3', 'm4', 'm5']
+      for (const username of usernames) {
+        await createLocalAccount(database, username)
+        const member = await database.getActorFromUsername({
+          username,
+          domain: TEST_DOMAIN
+        })
+        if (!member) throw new Error(`${username} not created`)
+        await database.addListAccounts({
+          listId: list.id,
+          actorId: owner.id,
+          targetActorIds: [member.id]
+        })
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+
+      // Full page is newest-first; nextMaxId is the oldest member's (m1)
+      // membership-row id — the cursor both pagination kinds page above.
+      const full = await database.getListAccounts({
+        listId: list.id,
+        actorId: owner.id
+      })
+      expect(full.accounts.map((account) => account.username)).toEqual([
+        'm5',
+        'm4',
+        'm3',
+        'm2',
+        'm1'
+      ])
+      const cursor = full.nextMaxId
+      if (!cursor) throw new Error('expected a cursor for m1')
+
+      // since_id: the two NEWEST members above the cursor.
+      const sincePage = await database.getListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        sinceId: cursor,
+        limit: 2
+      })
+      expect(sincePage.accounts.map((account) => account.username)).toEqual([
+        'm5',
+        'm4'
+      ])
+
+      // min_id: the two OLDEST members above the cursor (the adjacent page),
+      // returned newest-first — a different slice than since_id.
+      const minPage = await database.getListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        minId: cursor,
+        limit: 2
+      })
+      expect(minPage.accounts.map((account) => account.username)).toEqual([
+        'm3',
+        'm2'
+      ])
+    })
+  })
+
+  it('getListAccounts returns an empty page for an unresolvable min_id cursor', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      if (!owner) throw new Error('owner not created')
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Members list'
+      })
+      for (const username of ['m1', 'm2', 'm3']) {
+        await createLocalAccount(database, username)
+        const member = await database.getActorFromUsername({
+          username,
+          domain: TEST_DOMAIN
+        })
+        if (!member) throw new Error(`${username} not created`)
+        await database.addListAccounts({
+          listId: list.id,
+          actorId: owner.id,
+          targetActorIds: [member.id]
+        })
+      }
+
+      // A min_id whose membership row was removed (or a foreign id) must
+      // terminate pagination with an empty page — matching getListTimeline —
+      // rather than dropping the filter and returning the OLDEST members (the
+      // wrong end of the list under the ascending min_id order).
+      const page = await database.getListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        minId: 'does-not-exist',
+        limit: 2
+      })
+      expect(page.accounts).toEqual([])
+      expect(page.nextMaxId).toBeNull()
+      expect(page.prevMinId).toBeNull()
+    })
+  })
+
   it('paginates from a cursor that exists but is not in the list partition', async () => {
     await withFreshDatabase(async (database) => {
       await createLocalAccount(database, 'owner')
