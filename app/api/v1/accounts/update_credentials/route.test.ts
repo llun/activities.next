@@ -112,6 +112,27 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     updateActor.mockRestore()
   })
 
+  it('persists source[quote_policy] as the default quote policy and echoes it in source', async () => {
+    const updateActor = vi.spyOn(database, 'updateActor')
+    const form = new FormData()
+    form.set('source[quote_policy]', 'followers')
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: ACTOR1_ID,
+        defaultQuotePolicy: 'followers'
+      })
+    )
+    const data = await response.json()
+    expect(data.source.quote_policy).toBe('followers')
+    updateActor.mockRestore()
+  })
+
   it('accepts a request with no recognized fields without error', async () => {
     const response = await PATCH(createRequest(new FormData()), {
       params: Promise.resolve({})

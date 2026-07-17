@@ -140,6 +140,26 @@ product or security decision, not a gap to be closed.
   same millisecond share it — which is harmless because clients key the list on
   the (unique) `group_key`, not on this field.
 
+- **Quote approval is consent-gated (FEP-044f) and has no manual-approval
+  queue.** Quote posts (Mastodon 4.5) are supported end to end — `quoted_status_id`
+  and `quote_approval_policy` on `POST /api/v1/statuses`, the `quote` sub-entity
+  and `quote_approval` on the Status entity, `GET /api/v1/statuses/:id/quotes`,
+  `POST /api/v1/statuses/:id/quotes/:quoting_status_id/revoke`, and
+  `PUT /api/v1/statuses/:id/interaction_policy` — with a few deliberate limits.
+  Approval is driven by the FEP-044f handshake (`QuoteRequest` → `Accept` + a
+  hosted `QuoteAuthorization` stamp; revocation is a `Delete` of that stamp), so
+  the policy vocabulary is `public` / `followers` / `nobody` and `quote_approval.manual`
+  is always empty (there is no held-for-review queue). For a `followers`-policy
+  status, `quote_approval.current_user` reports `unknown` to a non-author viewer —
+  the follower-relationship refinement is deferred. Legacy Fedibird (`quoteUri`)
+  and Misskey (`_misskey_quote`) quotes carry no stamp, so they are stored and
+  rendered as unapproved (`pending`) rather than as embedded quotes, matching
+  Mastodon 4.5's treatment of stamp-less quotes. Revocation v1 delivers the stamp
+  `Delete` to the quoting author's server only, not to every prior recipient.
+  Changing a status's quote policy via `PUT …/interaction_policy` is not treated
+  as an edit (it never sets `edited_at`). Configured under `lib/services/quotes/`,
+  `lib/actions/*Quote*`, and `app/api/v1/statuses/[id]/quotes|interaction_policy`.
+
 ## Not planned
 
 These endpoints are not implemented and are not currently on the roadmap. They
@@ -181,6 +201,9 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   remove/revoke) while keeping the pre-final `title`/`topic`/`visibility`
   vocabulary, bulk `account_ids` mutations, the per-member approve consent
   endpoint, and account-id addressing as documented extensions.
+- **Hosted quote-authorization stamps** — `GET /users/:username/quote_authorizations/:id`
+  serves the FEP-044f `QuoteAuthorization` object for an approved quote; it 404s
+  once the quote is revoked (the edge is no longer `accepted`).
 - **Remote statuses** — `/api/v1/accounts/:id/remote-statuses` exposes cached
   remote posts for an actor.
 - **Admin CRUD extras** — custom emoji, domain allow/deny lists (with import),
