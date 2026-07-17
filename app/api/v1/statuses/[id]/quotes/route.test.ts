@@ -109,6 +109,49 @@ describe('GET /api/v1/statuses/[id]/quotes', () => {
     ])
   })
 
+  it('excludes quoting statuses the viewer cannot read (no visibility leak)', async () => {
+    const quotedId = `${ACTOR1_ID}/statuses/quotes-visibility-target`
+    await database.createNote({
+      id: quotedId,
+      url: quotedId,
+      actorId: ACTOR1_ID,
+      text: 'public post',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+    // A public accepted quote — always visible.
+    const publicQuoteId = `${ACTOR2_ID}/statuses/quotes-visible-public`
+    await createQuotingStatus(publicQuoteId, ACTOR2_ID, quotedId, 'accepted')
+    // A followers-only accepted quote — must NOT leak to an anonymous viewer.
+    const privateQuoteId = `${ACTOR3_ID}/statuses/quotes-followers-only`
+    await database.createNote({
+      id: privateQuoteId,
+      url: privateQuoteId,
+      actorId: ACTOR3_ID,
+      text: 'secret quote',
+      to: [`${ACTOR3_ID}/followers`],
+      cc: []
+    })
+    await database.createStatusQuote({
+      statusId: privateQuoteId,
+      quotedStatusId: quotedId,
+      state: 'accepted'
+    })
+
+    const req = new NextRequest(
+      `https://llun.test/api/v1/statuses/${urlToId(quotedId)}/quotes`
+    )
+    const response = await GET(req, {
+      params: Promise.resolve({ id: urlToId(quotedId) })
+    })
+
+    expect(response.status).toBe(200)
+    const statuses = (await response.json()) as { id: string }[]
+    const ids = statuses.map((status) => status.id)
+    expect(ids).toContain(urlToId(publicQuoteId))
+    expect(ids).not.toContain(urlToId(privateQuoteId))
+  })
+
   it('404s when the quoted status does not exist', async () => {
     const req = new NextRequest(
       'https://llun.test/api/v1/statuses/does-not-exist/quotes'

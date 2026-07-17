@@ -3,13 +3,16 @@ import { z } from 'zod'
 import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { buildAccountCursorLinkHeader } from '@/lib/services/mastodon/accountCursorLinkHeader'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
-import { getReadableStatus } from '@/lib/services/statusRouteAccess'
+import {
+  filterReadableStatuses,
+  getReadableStatus
+} from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { clampedLimit } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiCorsError, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
+import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -75,20 +78,30 @@ export const GET = traceApiRoute(
         statusIds: pageIds,
         currentActorId: currentActor?.id
       })
-      const mastodonStatuses = await getMastodonStatuses(
+      // getStatusesByIds does not enforce read visibility on its own — a quoting
+      // status can be followers-only or direct, so drop the ones this viewer
+      // cannot read before serializing (batched follower-state check, no N+1).
+      const readableStatuses = await filterReadableStatuses({
         database,
         statuses,
+        currentActor: currentActor ?? null
+      })
+      const mastodonStatuses = await getMastodonStatuses(
+        database,
+        readableStatuses,
         currentActor?.id
       )
 
+      // Pagination cursors advance over the raw DB page (pre-filter) so a
+      // filtered-out quoting status never causes the next page to skip or repeat;
+      // a page may simply render fewer than `limit` items.
       const paginationLink = buildAccountCursorLinkHeader({
         req,
         limit,
-        items: mastodonStatuses,
+        items: statuses,
         hasNext: hasOverflow,
         hasPrev: Boolean(maxId || sinceId),
-        // Mastodon status ids are already the urlToId-encoded form.
-        toCursor: (status) => status.id
+        toCursor: (status) => urlToId(status.id)
       })
 
       return apiResponse({
