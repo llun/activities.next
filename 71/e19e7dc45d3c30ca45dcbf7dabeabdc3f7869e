@@ -1,0 +1,37 @@
+app/(timeline)/admin/accounts/[id]/ActorModerationPanel.test.tsx
+  s_6dd763a0b22888::t_f12e122a13626d 51-57,158,163
+  s_6dd763a0b22888::t_e245eb5f3f3cef 38-42
+  s_6dd763a0b22888::t_e2ecca85fc6984 73-76,84,92-102
+  s_6dd763a0b22888::t_ee27a50994237c 103,116-157,159-162,164-165
+  s_6dd763a0b22888::t_a53dce2ae67098 44-45
+  s_6dd763a0b22888::t_da98da54cc6adf 9-10,12-13
+  s_6dd763a0b22888::t_2abbdbcca462d8 104
+app/(timeline)/admin/accounts/[id]/ActorModerationPanel.tsx
+  s_6dd763a0b22888::t_d482f4b4ccd6e7 90-111,125-131
+  s_6dd763a0b22888::t_27040a7f7915e7 233
+  s_6dd763a0b22888::t_e730f99ed3326e 59
+app/(timeline)/admin/reports/[id]/AdminReportDetail.tsx
+  s_6dd763a0b22888::t_3f8ec924ca4b07 7
+docs/mastodon-api-compatibility.md
+  s_6dd763a0b22888::t_caeda1404f0100 53-54
+app/(timeline)/admin/reports/[id]/AdminReportDetail.test.tsx
+  s_6dd763a0b22888::t_bbc399f9845c4c 10-13
+  s_6dd763a0b22888::t_1ce6d9c7c24e9c 33-35
+  s_6dd763a0b22888::t_7c3b82bc6757d5 75-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "71e19e7dc45d3c30ca45dcbf7dabeabdc3f7869e",
+  "prompts": {},
+  "sessions": {
+    "s_6dd763a0b22888": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f2f2973-35a6-4476-8b76-95f49efde47d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
