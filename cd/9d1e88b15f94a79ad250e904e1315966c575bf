@@ -1,0 +1,51 @@
+app/(timeline)/admin/reports/[id]/AdminReportDetail.test.tsx
+  s_6dd763a0b22888::t_807a24b4c86205 1-69
+app/(timeline)/admin/reports/[id]/page.tsx
+  s_6dd763a0b22888::t_44796c1b31db34 1-45
+app/(timeline)/admin/reports/[id]/AdminReportDetail.tsx
+  s_6dd763a0b22888::t_a817d431344283 1-200
+app/(timeline)/admin/reports/AdminReportsList.test.tsx
+  s_6dd763a0b22888::t_68fb7e73f23bbb 1-43,47-50,52-61
+  s_6dd763a0b22888::t_4092a3af3e93d2 44-46,51
+app/(timeline)/admin/reports/page.tsx
+  s_6dd763a0b22888::t_6ef337a5631479 1-31
+app/(timeline)/admin/reports/AdminReportsList.tsx
+  s_6dd763a0b22888::t_38f026e562d5e9 1-102
+docs/mastodon-api-compatibility.md
+  s_6dd763a0b22888::t_6ff045aba577f9 53-66
+  s_6dd763a0b22888::t_5e966424155f25 189-198
+app/(timeline)/admin/accounts/[id]/ActorModerationPanel.tsx
+  s_6dd763a0b22888::t_8b0a739f3d1e2e 1-233
+lib/client.ts
+  s_6dd763a0b22888::t_94e2a2d30e9152 3995,4005,4055,4071-4072
+  s_6dd763a0b22888::t_727605ac6cd7c7 18-19
+  s_6dd763a0b22888::t_83db82b6905a44 3965-3994,3996-4004,4006-4054,4056-4070,4073-4133
+app/(timeline)/admin/accounts/[id]/page.tsx
+  s_6dd763a0b22888::t_afec3fc79010a7 114-119
+  s_6dd763a0b22888::t_11fe115cc6a8c7 10-12
+  s_6dd763a0b22888::t_4cecf2eb871f92 95
+app/(timeline)/admin/layout.tsx
+  s_6dd763a0b22888::t_87bdccb8a8a090 34
+  s_6dd763a0b22888::t_94e2a2d30e9152 6
+app/(timeline)/admin/accounts/[id]/ActorModerationPanel.test.tsx
+  s_6dd763a0b22888::t_a7db63983272ef 1-69,71-85
+  s_6dd763a0b22888::t_4092a3af3e93d2 70
+docs/features.md
+  s_6dd763a0b22888::t_4e2d976ab0b92d 74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "cd9d1e88b15f94a79ad250e904e1315966c575bf",
+  "prompts": {},
+  "sessions": {
+    "s_6dd763a0b22888": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f2f2973-35a6-4476-8b76-95f49efde47d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
