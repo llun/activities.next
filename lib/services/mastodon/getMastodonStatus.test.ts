@@ -1682,6 +1682,67 @@ describe('getMastodonStatus', () => {
       expect(innerQuote.quoted_status_id).toBeNull()
     })
 
+    it('downgrades a depth-1 accepted quote to unauthorized when the viewer cannot read the innermost status', async () => {
+      // A (public) -> B (public), accepted; B -> C accepted, but C is
+      // followers-only. An anonymous viewer sees A, embeds B, and the shallow
+      // B->C quote must downgrade to unauthorized with no leaked id.
+      const c = await makeStatus(ACTOR1_ID, {
+        to: [`${ACTOR1_ID}/followers`],
+        cc: []
+      })
+      const b = await makeStatus(ACTOR1_ID)
+      await database.createStatusQuote({
+        statusId: b.id,
+        quotedStatusId: c.id,
+        state: 'accepted'
+      })
+      const a = await makeStatus(ACTOR1_ID)
+      await database.createStatusQuote({
+        statusId: a.id,
+        quotedStatusId: b.id,
+        state: 'accepted'
+      })
+
+      const hydrated = (await database.getStatus({ statusId: a.id })) as Status
+      const result = await getMastodonStatus(database, hydrated)
+      const innerQuote = (
+        result?.quote as {
+          quoted_status: {
+            quote?: { state: string; quoted_status_id: unknown }
+          }
+        }
+      ).quoted_status.quote as { state: string; quoted_status_id: unknown }
+      expect(innerQuote.state).toBe('unauthorized')
+      expect(innerQuote.quoted_status_id).toBeNull()
+    })
+
+    it('downgrades a depth-1 accepted quote to deleted when the innermost status is gone', async () => {
+      const b = await makeStatus(ACTOR1_ID)
+      await database.createStatusQuote({
+        statusId: b.id,
+        quotedStatusId: `${ACTOR1_ID}/statuses/mq-shallow-missing`,
+        state: 'accepted'
+      })
+      const a = await makeStatus(ACTOR1_ID)
+      await database.createStatusQuote({
+        statusId: a.id,
+        quotedStatusId: b.id,
+        state: 'accepted'
+      })
+
+      const hydrated = (await database.getStatus({ statusId: a.id })) as Status
+      const result = await getMastodonStatus(database, hydrated)
+      const innerQuote = (
+        result?.quote as {
+          quoted_status: {
+            quote?: { state: string; quoted_status_id: unknown }
+          }
+        }
+      ).quoted_status.quote as { state: string; quoted_status_id: unknown }
+      expect(innerQuote.state).toBe('deleted')
+      expect(innerQuote.quoted_status_id).toBeNull()
+    })
+
     it.each([
       {
         description: 'public policy, author viewer',

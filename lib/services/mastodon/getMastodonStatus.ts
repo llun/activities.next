@@ -544,28 +544,22 @@ export const getMastodonStatus = async (
     | undefined
   const edge = status.quote
   if (edge) {
-    if (quoteDepth >= 1) {
-      // Depth >= 1: reference by id only and stop recursing (ShallowQuote). Only
-      // an accepted edge exposes the quoted id, matching the depth-0 contract
-      // where non-accepted states withhold the quoted status.
-      quote = {
-        state: edge.state,
-        quoted_status_id:
-          edge.state === 'accepted' ? urlToId(edge.quotedStatusId) : null
-      }
-    } else if (edge.state !== 'accepted') {
-      // Only `accepted` embeds the quoted status; other states show a
-      // placeholder with no quoted status.
-      quote = { state: edge.state, quoted_status: null }
-    } else {
+    // Resolve the viewer-relative state and the readable quoted status once, then
+    // apply it identically at depth 0 (full Quote) and depth >= 1 (ShallowQuote):
+    // only an `accepted` edge whose target exists and is readable resolves a
+    // quoted status; a missing target downgrades to `deleted`, an unreadable one
+    // to `unauthorized`, and both withhold the target (no embed, no id). This
+    // stops a nested quote from leaking a deleted/unreadable status id.
+    let effectiveState: string = edge.state
+    let readableQuoted: Status | null = null
+    if (edge.state === 'accepted') {
       const quotedStatus = await getQuotedStatus(
         database,
         edge.quotedStatusId,
         options
       )
       if (!quotedStatus) {
-        // The quoted status is gone: downgrade to `deleted`.
-        quote = { state: 'deleted', quoted_status: null }
+        effectiveState = 'deleted'
       } else {
         const viewer = await getViewerActor(database, currentActorId, options)
         const canRead = await canActorReadStatus({
@@ -573,22 +567,32 @@ export const getMastodonStatus = async (
           status: quotedStatus,
           currentActor: viewer
         })
-        if (!canRead) {
-          // The viewer cannot read the quoted status: downgrade to
-          // `unauthorized` and withhold the quoted status.
-          quote = { state: 'unauthorized', quoted_status: null }
-        } else {
-          const quotedEntity = await getMastodonStatus(
-            database,
-            quotedStatus,
-            currentActorId,
-            { ...options, quoteDepth: 1 }
-          )
-          quote = quotedEntity
-            ? { state: 'accepted', quoted_status: quotedEntity }
-            : { state: 'deleted', quoted_status: null }
-        }
+        if (!canRead) effectiveState = 'unauthorized'
+        else readableQuoted = quotedStatus
       }
+    }
+
+    if (quoteDepth >= 1) {
+      // ShallowQuote: reference by id only, and only when the downgraded state is
+      // still accepted (target exists and is readable). Stops recursion.
+      quote = {
+        state: effectiveState,
+        quoted_status_id: readableQuoted ? urlToId(readableQuoted.id) : null
+      }
+    } else if (!readableQuoted) {
+      // Placeholder: no embedded quoted status for non-accepted / deleted /
+      // unauthorized states.
+      quote = { state: effectiveState, quoted_status: null }
+    } else {
+      const quotedEntity = await getMastodonStatus(
+        database,
+        readableQuoted,
+        currentActorId,
+        { ...options, quoteDepth: 1 }
+      )
+      quote = quotedEntity
+        ? { state: 'accepted', quoted_status: quotedEntity }
+        : { state: 'deleted', quoted_status: null }
     }
   }
 

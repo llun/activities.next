@@ -14,8 +14,12 @@ import { Mention } from './mention'
 import { Tag } from './tag'
 
 // Quote lifecycle state (Mastodon 4.5 Quote entity). Nine values: the five
-// persisted states plus four viewer-relative ones the serializer computes.
-// Unknown values are treated as `unauthorized` by clients.
+// persisted states plus four viewer-relative ones. The serializer currently
+// computes `deleted` (target gone) and `unauthorized` (viewer cannot read the
+// target); the block/mute-relative states (`blocked_account`, `blocked_domain`,
+// `muted_account`) are part of the vocabulary — clients may receive them from
+// other servers — but are not yet emitted locally. Unknown values are treated
+// as `unauthorized` by clients.
 export const MastodonQuoteState = z.enum([
   'pending',
   'accepted',

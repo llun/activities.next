@@ -66,7 +66,8 @@ export type Edited = z.infer<typeof Edited>
 // The five *persisted* quote-edge states. The viewer-relative states
 // (unauthorized | blocked_account | blocked_domain | muted_account) are never
 // stored — they are computed at serialization time from the viewer's
-// relationship to the quoted status.
+// relationship to the quoted status (the Mastodon serializer currently emits
+// `deleted`/`unauthorized`; the block/mute-relative ones are not yet computed).
 export const QuoteState = z.enum([
   'pending',
   'accepted',
