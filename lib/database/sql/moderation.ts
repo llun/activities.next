@@ -10,6 +10,7 @@ import {
   AdminAccountRecord,
   CreateModerationActionParams,
   GetAdminAccountParams,
+  GetAdminAccountRecordsParams,
   GetAdminAccountsParams,
   GetModerationStatesForActorsParams,
   GetSessionIpsForAccountsParams,
@@ -383,6 +384,34 @@ export const ModerationSQLDatabaseMixin = (
           .first()) ?? null)
       : null
     return { actor, account }
+  },
+
+  async getAdminAccountRecords({
+    actorIds
+  }: GetAdminAccountRecordsParams): Promise<AdminAccountRecord[]> {
+    const uniqueIds = [...new Set(actorIds)]
+    if (uniqueIds.length === 0) return []
+
+    const actors = await database<SQLActor>('actors').whereIn('id', uniqueIds)
+    const accountIds = [
+      ...new Set(
+        actors
+          .map((actor) => actor.accountId)
+          .filter((id): id is string => Boolean(id))
+      )
+    ]
+    const accounts = accountIds.length
+      ? await database<SQLAccount>('accounts').whereIn('id', accountIds)
+      : []
+    const accountById = new Map(
+      accounts.map((account) => [account.id, account])
+    )
+    return actors.map((actor) => ({
+      actor,
+      account: actor.accountId
+        ? (accountById.get(actor.accountId) ?? null)
+        : null
+    }))
   },
 
   async getSessionIpsForAccounts({

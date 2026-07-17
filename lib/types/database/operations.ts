@@ -2220,6 +2220,10 @@ export type Report = {
   ruleIds: string[]
   collectionIds: string[]
   actionTaken: boolean
+  // Workflow columns (Admin moderation API). Actor ids in URL form.
+  assignedActorId: string | null
+  actionTakenAt: number | null
+  actionTakenByActorId: string | null
   createdAt: number
   updatedAt: number
 }
@@ -2234,8 +2238,41 @@ export type CreateReportParams = {
   collectionIds?: string[]
 }
 
+export type GetAdminReportsParams = {
+  // `resolved` maps to the action_taken flag.
+  resolved?: boolean
+  // Reporter / target actor ids in URL form.
+  accountId?: string
+  targetActorId?: string
+  byTargetDomain?: string
+  limit?: number
+  maxId?: string | null
+  minId?: string | null
+  sinceId?: string | null
+}
+export type GetReportByIdParams = { reportId: string }
+export type UpdateReportCategoryParams = {
+  reportId: string
+  category?: ReportCategory
+  ruleIds?: string[]
+}
+export type AssignReportParams = {
+  reportId: string
+  // null unassigns.
+  assignedActorId: string | null
+}
+
 export interface ReportDatabase {
   createReport(params: CreateReportParams): Promise<Report>
+  // Filter/keyset-paginated admin report listing (newest first).
+  getAdminReports(params: GetAdminReportsParams): Promise<Report[]>
+  getReportById(params: GetReportByIdParams): Promise<Report | null>
+  // Update the report category and/or rule ids; returns the updated report.
+  updateReportCategory(
+    params: UpdateReportCategoryParams
+  ): Promise<Report | null>
+  // Assign (or, with null, unassign) the report to a moderator actor.
+  assignReport(params: AssignReportParams): Promise<Report | null>
 }
 
 // ============================================================================
@@ -2379,6 +2416,7 @@ export type GetAdminAccountsParams = {
 }
 
 export type GetAdminAccountParams = { actorId: string }
+export type GetAdminAccountRecordsParams = { actorIds: string[] }
 export type GetSessionIpsForAccountsParams = { accountIds: string[] }
 
 export interface AdminAccountDatabase {
@@ -2390,6 +2428,11 @@ export interface AdminAccountDatabase {
   getAdminAccount(
     params: GetAdminAccountParams
   ): Promise<AdminAccountRecord | null>
+  // Batch Admin::Account records by actor ids (URL form); order not guaranteed.
+  // Used to hydrate the four embedded accounts on Admin::Report.
+  getAdminAccountRecords(
+    params: GetAdminAccountRecordsParams
+  ): Promise<AdminAccountRecord[]>
   // Latest-first session IPs per account (local accounts only carry sessions).
   getSessionIpsForAccounts(
     params: GetSessionIpsForAccountsParams
