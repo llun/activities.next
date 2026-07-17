@@ -1,0 +1,139 @@
+app/api/inbox/getJobMessage.ts
+  s_3da1f273d8917f::t_880303c3fd9f43 234-248
+  s_3da1f273d8917f::t_b7965179821e53 10
+lib/activities/quoteContext.ts
+  s_3da1f273d8917f::t_c27a479a4e2944 1-40
+lib/services/statuses/parseStatusRequestBody.ts
+  s_3da1f273d8917f::t_c74f8e290ed605 9-10
+lib/actions/createNote.test.ts
+  s_3da1f273d8917f::t_74fa5d39b3bc35 107-154
+lib/actions/handleQuoteRequest.test.ts
+  s_3da1f273d8917f::t_aac23ab91a4506 52-54,152-155
+  s_3da1f273d8917f::t_856111cffaef49 1-51,55-151,156-161
+lib/services/quotes/canQuoteStatus.test.ts
+  s_3da1f273d8917f::t_aac23ab91a4506 51-65,86-89
+  s_3da1f273d8917f::t_4d74dd1c705daf 1-50,66-85,90-98
+lib/actions/handleQuoteResponse.ts
+  s_3da1f273d8917f::t_f57a1de9abf01c 1-84
+app/api/v1/statuses/route.ts
+  s_3da1f273d8917f::t_84a7064d9156c7 368-408,414-415
+  s_3da1f273d8917f::t_bf0ad816548271 84-85
+  s_3da1f273d8917f::t_aac23ab91a4506 24,37
+app/(timeline)/notifications/notificationConfig.ts
+  s_3da1f273d8917f::t_0dfe1ec3d8d5fe 86-92
+  s_3da1f273d8917f::t_5e53a3987b05b3 7
+lib/database/sql/statusQuote.test.ts
+  s_3da1f273d8917f::t_c7f575e814749c 179-242,246-254
+  s_3da1f273d8917f::t_aac23ab91a4506 243-245
+lib/utils/getNoteFromStatus.ts
+  s_3da1f273d8917f::t_aac23ab91a4506 16,37-38,41-43
+  s_3da1f273d8917f::t_c98efa02cd7270 74-90,96-107
+  s_3da1f273d8917f::t_328488e24d9308 9
+  s_3da1f273d8917f::t_39560f95dd18c0 32-36,39-40,44
+  s_3da1f273d8917f::t_a4bdf76ad777c8 108
+app/api/v1/statuses/route.test.ts
+  s_3da1f273d8917f::t_60d44d07c6b6ab 165-243
+lib/jobs/sendQuoteAcceptJob.ts
+  s_3da1f273d8917f::t_96326282526406 1-2,5-75
+  s_3da1f273d8917f::t_4b56fc0e728212 3-4
+lib/types/database/rows.ts
+  s_3da1f273d8917f::t_ec81ede694b76b 48,60
+lib/database/sql/status.ts
+  s_3da1f273d8917f::t_aac23ab91a4506 2200-2203
+  s_3da1f273d8917f::t_de59e8dc074617 2190-2199,2204-2208
+lib/jobs/index.ts
+  s_3da1f273d8917f::t_582a481bb6ed92 90-92
+  s_3da1f273d8917f::t_1b8e103a523cda 40-42
+  s_3da1f273d8917f::t_81a56345ab730f 12
+  s_3da1f273d8917f::t_aac23ab91a4506 27
+  s_3da1f273d8917f::t_13fe64a50a9b8b 57-59
+  s_3da1f273d8917f::t_c45c8f5c568ef3 93
+app/api/users/[username]/inbox/route.ts
+  s_3da1f273d8917f::t_5a18594628dfa7 421-433
+  s_3da1f273d8917f::t_3d13e62f81cf64 51-60
+  s_3da1f273d8917f::t_98a3df62964110 87
+  s_3da1f273d8917f::t_db31da4860424d 190-204
+  s_3da1f273d8917f::t_7bb78f1cc32d3e 221-233
+  s_3da1f273d8917f::t_b7bf1e193adbf2 11-12
+lib/jobs/createNoteJob.test.ts
+  s_3da1f273d8917f::t_2420795bb6f3c6 768-801
+lib/services/notifications/notificationTypeMapping.ts
+  s_3da1f273d8917f::t_8ca0acd64d9a31 39-40
+  s_3da1f273d8917f::t_03f94aff38aebb 83-84
+  s_3da1f273d8917f::t_c88da33f2b5e52 58
+lib/jobs/createNoteJob.ts
+  s_3da1f273d8917f::t_07eef79348bd88 136-153
+lib/activities/index.ts
+  s_3da1f273d8917f::t_6d43479ad709a8 312
+  s_3da1f273d8917f::t_aac23ab91a4506 15
+  s_3da1f273d8917f::t_27c1628810b8a6 227-311,313-342
+lib/jobs/sendQuoteRejectJob.ts
+  s_3da1f273d8917f::t_9223f330b197bf 1-2,5-71
+  s_3da1f273d8917f::t_89d54065c20c8b 3-4
+lib/services/notifications/getMastodonNotification.ts
+  s_3da1f273d8917f::t_8f3384a513b195 19
+  s_3da1f273d8917f::t_394afd56cc7166 60-61
+lib/jobs/deleteObjectJob.ts
+  s_3da1f273d8917f::t_500327eaeeb9de 16-38
+  s_3da1f273d8917f::t_09ae5bbb7a4a7f 44-73
+lib/jobs/sendQuoteRequestJob.ts
+  s_3da1f273d8917f::t_aac23ab91a4506 56-57
+  s_3da1f273d8917f::t_3f877e29ec5532 1-2,5-55,58-80
+  s_3da1f273d8917f::t_3b0526bc307664 3-4
+lib/database/sql/statusQuote.ts
+  s_3da1f273d8917f::t_ca955fe988b771 7-8,10
+  s_3da1f273d8917f::t_619fed3a3ba445 115-144
+lib/jobs/handleQuoteRequestJob.ts
+  s_3da1f273d8917f::t_2dcbafb00df5b4 1-33
+lib/jobs/names.ts
+  s_3da1f273d8917f::t_4c41e4ea4dda93 26-28
+  s_3da1f273d8917f::t_44499cdece03d7 29
+lib/actions/handleQuoteRequest.ts
+  s_3da1f273d8917f::t_aac23ab91a4506 7
+  s_3da1f273d8917f::t_8cb5e6972dec66 1-6,8-138
+lib/services/quotes/canQuoteStatus.ts
+  s_3da1f273d8917f::t_7e85fc6d31e5c2 1-2,8-68
+  s_3da1f273d8917f::t_aac23ab91a4506 3-7
+app/api/users/[username]/quote_authorizations/[id]/route.ts
+  s_3da1f273d8917f::t_cdb6a954e49f94 1-54
+lib/types/database/operations.ts
+  s_3da1f273d8917f::t_e5f528950b1aac 2609-2615
+  s_3da1f273d8917f::t_33bdba31b23a9f 2851-2852
+  s_3da1f273d8917f::t_96459863276ec6 2635-2642,2648-2652
+lib/services/notifications/pushNotification.ts
+  s_3da1f273d8917f::t_d6b0b89b5239df 113-117
+  s_3da1f273d8917f::t_0b056e69a6e6a4 30
+lib/actions/createNote.ts
+  s_3da1f273d8917f::t_eec91fe9460dde 32-37
+  s_3da1f273d8917f::t_63f6195ff01d90 448,453-483,486-497,499-518
+  s_3da1f273d8917f::t_21091c6fd7ace9 6-7
+  s_3da1f273d8917f::t_cafb5620f2a399 484-485,498
+  s_3da1f273d8917f::t_0070a8573b7f86 326-331,347-348
+  s_3da1f273d8917f::t_11c2922cfe6ba3 519
+lib/actions/handleQuoteResponse.test.ts
+  s_3da1f273d8917f::t_aac23ab91a4506 12-13,25-33,36-39
+  s_3da1f273d8917f::t_4359f494658305 1-11,14-24,34-35,40-105
+lib/utils/getNoteFromStatus.test.ts
+  s_3da1f273d8917f::t_e93ec219db843a 1-88
+lib/jobs/deleteObjectJob.test.ts
+  s_3da1f273d8917f::t_9eb4155f8300a5 37-59,61-79
+  s_3da1f273d8917f::t_aac23ab91a4506 60
+lib/services/quotes/quoteAuthorization.ts
+  s_3da1f273d8917f::t_a43d2008032dda 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "29f31dde4cd777ac0f32d4c0de35490713f42338",
+  "prompts": {},
+  "sessions": {
+    "s_3da1f273d8917f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f49630eb-9e7a-4457-a813-665e76f1781c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
