@@ -119,6 +119,37 @@ describe('ReportDatabase', () => {
       })
     })
 
+    it('filters by the target actor domain', async () => {
+      await withFreshDatabase(async (database) => {
+        // by_target_domain matches reports whose target actor lives on the
+        // given domain (the target must exist as an actor row).
+        await database.createActor({
+          actorId: 'https://evil.example/users/troll',
+          username: 'troll',
+          domain: 'evil.example',
+          inboxUrl: 'https://evil.example/users/troll/inbox',
+          sharedInboxUrl: 'https://evil.example/inbox',
+          followersUrl: 'https://evil.example/users/troll/followers',
+          publicKey: 'key',
+          createdAt: Date.now()
+        })
+        const onDomain = await database.createReport({
+          actorId: REPORTER,
+          targetActorId: 'https://evil.example/users/troll'
+        })
+        const offDomain = await database.createReport({
+          actorId: REPORTER,
+          targetActorId: TARGET
+        })
+
+        const result = await database.getAdminReports({
+          byTargetDomain: 'evil.example'
+        })
+        expect(result.map((r) => r.id)).toContain(onDomain.id)
+        expect(result.map((r) => r.id)).not.toContain(offDomain.id)
+      })
+    })
+
     it.each([
       { description: 'max_id excludes the cursor', cursor: 'maxId' },
       { description: 'min_id excludes the cursor', cursor: 'minId' },

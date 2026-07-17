@@ -4,7 +4,7 @@ import { Database } from '@/lib/database/types'
 import { serializeAdminReports } from '@/lib/services/admin/serializeAdminReports'
 import { AdminModerator } from '@/lib/services/guards/AdminApiGuard'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { ERROR_404, apiResponse } from '@/lib/utils/response'
+import { ERROR_404, HTTP_STATUS, apiResponse } from '@/lib/utils/response'
 
 export type AdminReportAction =
   'assign_to_self' | 'unassign' | 'resolve' | 'reopen'
@@ -33,7 +33,7 @@ export const handleAdminReportAction = async ({
       req,
       allowedMethods,
       data: ERROR_404,
-      responseStatusCode: 404
+      responseStatusCode: HTTP_STATUS.NOT_FOUND
     })
   }
 
@@ -43,7 +43,7 @@ export const handleAdminReportAction = async ({
       req,
       allowedMethods,
       data: { error: 'Admin account has no actor' },
-      responseStatusCode: 422
+      responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
     })
   }
 
