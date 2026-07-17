@@ -241,6 +241,36 @@ describe('POST /api/v1/statuses', () => {
     expect(response.status).toBe(404)
   })
 
+  it('defaults an omitted quote_approval_policy to the actor setting', async () => {
+    await database.updateActor({
+      actorId: ACTOR1_ID,
+      defaultQuotePolicy: 'followers'
+    })
+    try {
+      const response = await POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body: JSON.stringify({ status: 'inherits my default quote policy' }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      const mastodonStatus = await response.json()
+      expect(mastodonStatus.quote_approval.automatic).toEqual(['followers'])
+    } finally {
+      // Restore the public default so later tests keep their expectations.
+      await database.updateActor({
+        actorId: ACTOR1_ID,
+        defaultQuotePolicy: 'public'
+      })
+    }
+  })
+
   it('attaches form media_ids[] to the created status', async () => {
     const media = await database.createMedia({
       actorId: ACTOR1_ID,

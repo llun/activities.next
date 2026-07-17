@@ -131,6 +131,7 @@ export type UpdateActorParams = {
   defaultPrivacy?: 'public' | 'unlisted' | 'private' | 'direct'
   defaultSensitive?: boolean
   defaultLanguage?: string
+  defaultQuotePolicy?: 'public' | 'followers' | 'nobody'
   postLineLimit?: PostLineLimit
   // Mastodon `reading:*` preferences surfaced by /api/v1/preferences.
   readingExpandMedia?: 'default' | 'show_all' | 'hide_all'
@@ -503,6 +504,10 @@ export type UpdateNoteParams = Pick<CreateNoteParams, 'text' | 'summary'> &
     language?: string | null
   }
 
+export type UpdateStatusQuoteApprovalPolicyParams = BaseStatusParams & {
+  quoteApprovalPolicy: QuoteApprovalPolicy
+}
+
 export type UpdateNoteVisibilityParams = BaseStatusParams & {
   to: string[]
   cc: string[]
@@ -773,6 +778,11 @@ export interface StatusDatabase {
   createAnnounce(params: CreateAnnounceParams): Promise<Status>
   createPoll(params: CreatePollParams): Promise<Status>
   updateNote(params: UpdateNoteParams): Promise<Status | null>
+  // Rewrites the status's quote-approval policy in the content blob without
+  // recording an edit (no status_history append, no edited_at bump).
+  updateStatusQuoteApprovalPolicy(
+    params: UpdateStatusQuoteApprovalPolicyParams
+  ): Promise<Status | null>
   updateNoteVisibility(
     params: UpdateNoteVisibilityParams
   ): Promise<Status | null>

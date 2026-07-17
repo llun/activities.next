@@ -324,6 +324,7 @@ const getMastodonAccountFromSQLActor = ({
       privacy: settings.defaultPrivacy ?? 'public',
       sensitive: settings.defaultSensitive ?? false,
       language: settings.defaultLanguage ?? 'en',
+      quote_policy: settings.defaultQuotePolicy ?? 'public',
       attribution_domains: settings.attributionDomains ?? [],
       follow_requests_count: 0
     },
@@ -848,6 +849,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     defaultPrivacy,
     defaultSensitive,
     defaultLanguage,
+    defaultQuotePolicy,
     postLineLimit,
     readingExpandMedia,
     readingExpandSpoilers,
@@ -895,6 +897,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       ...(defaultPrivacy !== undefined ? { defaultPrivacy } : null),
       ...(defaultSensitive !== undefined ? { defaultSensitive } : null),
       ...(defaultLanguage !== undefined ? { defaultLanguage } : null),
+      ...(defaultQuotePolicy !== undefined ? { defaultQuotePolicy } : null),
       ...(postLineLimit !== undefined ? { postLineLimit } : null),
       ...(readingExpandMedia !== undefined ? { readingExpandMedia } : null),
       ...(readingExpandSpoilers !== undefined

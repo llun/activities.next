@@ -406,13 +406,22 @@ export const POST = traceApiRoute(
             quotedStatusId = quotedUrl
           }
 
+          // Default an omitted quote_approval_policy to the actor's configured
+          // default (Mastodon 4.5 posting:default:quote_policy). A concrete
+          // request value always wins; omitted falls back to the actor setting,
+          // then to the per-status visibility default at consumption.
+          const quoteApprovalPolicy =
+            note.quote_approval_policy ??
+            (await database.getActorSettings({ actorId: currentActor.id }))
+              ?.defaultQuotePolicy
+
           status = await createNoteFromUserInput({
             currentActor,
             text: note.status,
             summary: note.spoiler_text,
             replyNoteId: note.in_reply_to_id,
             quotedStatusId,
-            quoteApprovalPolicy: note.quote_approval_policy,
+            quoteApprovalPolicy,
             visibility: note.visibility,
             attachments,
             sensitive: note.sensitive,

@@ -28,6 +28,9 @@ export const GET = traceApiRoute(
           // language. The Account serializer defaults source.language to 'en',
           // so read the raw setting instead of the serialized account.
           'posting:default:language': settings?.defaultLanguage ?? null,
+          // Mastodon 4.5 default quote-approval policy for new statuses.
+          'posting:default:quote_policy':
+            settings?.defaultQuotePolicy ?? 'public',
           'reading:expand:media': currentActor.readingExpandMedia ?? 'default',
           'reading:expand:spoilers':
             currentActor.readingExpandSpoilers ?? false,
