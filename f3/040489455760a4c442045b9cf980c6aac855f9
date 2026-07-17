@@ -1,0 +1,51 @@
+lib/services/quotes/quotePolicy.ts
+  s_3da1f273d8917f::t_6ecfb9c30c632c 1-26
+lib/utils/getNoteFromStatus.ts
+  s_3da1f273d8917f::t_07d4e3568774e9 88
+  s_3da1f273d8917f::t_7039baaef91f75 3
+lib/actions/handleQuoteRequest.test.ts
+  s_3da1f273d8917f::t_8d0458a08c784b 9
+  s_3da1f273d8917f::t_374fdfee420395 48-49,55
+  s_3da1f273d8917f::t_c00a6aa8da527e 101-102
+lib/actions/handleQuoteRequest.ts
+  s_3da1f273d8917f::t_6c9370f7f8ce66 10
+  s_3da1f273d8917f::t_a56d9540462618 81-91
+app/api/inbox/getJobMessage.test.ts
+  s_3da1f273d8917f::t_fda76d2d1b8c74 258-287
+  s_3da1f273d8917f::t_7242c20156ae3a 1-4
+lib/services/quotes/canQuoteStatus.ts
+  s_3da1f273d8917f::t_13bc86b50424ec 2,4
+  s_3da1f273d8917f::t_839a221637b64e 49
+lib/actions/handleQuoteResponse.ts
+  s_3da1f273d8917f::t_bab031a8ff5943 28-36
+  s_3da1f273d8917f::t_03d4be66495dff 80-82,86
+  s_3da1f273d8917f::t_1a3055d0532641 4-5
+  s_3da1f273d8917f::t_d78d9be42adefc 59-63,65-76
+  s_3da1f273d8917f::t_64fecad4bf4dc1 64,77
+lib/services/quotes/canQuoteStatus.test.ts
+  s_3da1f273d8917f::t_cb0fc6c3d8b70c 5,12-13,18-22
+  s_3da1f273d8917f::t_309f62b4da90b6 82-99
+lib/actions/handleQuoteResponse.test.ts
+  s_3da1f273d8917f::t_2766a8f6391c29 15-17,21,30,50,57,74,79-83,94-130,136-141,153-157
+  s_3da1f273d8917f::t_ff8c1a3d93b5b6 35-42,44
+  s_3da1f273d8917f::t_e0cc2a7ae634e5 43
+lib/services/mastodon/getMastodonStatus.ts
+  s_3da1f273d8917f::t_e5b81d2af14902 4
+  s_3da1f273d8917f::t_9bed8cf217635e 303
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "f3040489455760a4c442045b9cf980c6aac855f9",
+  "prompts": {},
+  "sessions": {
+    "s_3da1f273d8917f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f49630eb-9e7a-4457-a813-665e76f1781c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
