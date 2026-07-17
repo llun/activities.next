@@ -52,6 +52,10 @@ const RESOURCE_ADMIN_SCOPES = {
   accounts: {
     read: Scope.enum['admin:read:accounts'],
     write: Scope.enum['admin:write:accounts']
+  },
+  reports: {
+    read: Scope.enum['admin:read:reports'],
+    write: Scope.enum['admin:write:reports']
   }
 } as const
 

@@ -61,4 +61,18 @@ describe('admin domain route resource wiring', () => {
       adminGuardCalls.map(() => 'accounts')
     )
   })
+
+  it('every admin reports route wires resource "reports"', async () => {
+    await import('@/app/api/v1/admin/reports/route')
+    await import('@/app/api/v1/admin/reports/[id]/route')
+    await import('@/app/api/v1/admin/reports/[id]/assign_to_self/route')
+    await import('@/app/api/v1/admin/reports/[id]/unassign/route')
+    await import('@/app/api/v1/admin/reports/[id]/resolve/route')
+    await import('@/app/api/v1/admin/reports/[id]/reopen/route')
+
+    expect(adminGuardCalls.length).toBeGreaterThan(0)
+    expect(adminGuardCalls.map((call) => call.resource)).toEqual(
+      adminGuardCalls.map(() => 'reports')
+    )
+  })
 })
