@@ -103,6 +103,13 @@ export interface SQLActor {
   deletionStatus?: ActorDeletionStatus
   deletionScheduledAt?: number | Date | null
 
+  // Moderation state (Admin moderation API). Nullable timestamps: NULL means
+  // untouched. These live on `actors` (not `accounts`) because suspend/silence/
+  // sensitize apply to remote actors too, which have no account row.
+  suspendedAt?: number | Date | null
+  silencedAt?: number | Date | null
+  sensitizedAt?: number | Date | null
+
   // Greatest `createdAt` across all of the actor's `statuses` rows (including
   // Announce reblogs), or null when the actor has never posted. Maintained
   // inside the status create/delete transactions; backs the directory
@@ -128,6 +135,12 @@ export interface SQLAccount {
   emailVerifiedAt?: number | Date | null
   twoFactorEnabled?: boolean | number | null
   role?: string | null
+
+  // Moderation/registration state (Admin moderation API). `disabledAt` freezes
+  // login-wide; `approvedAt` gates sign-in (backfilled to createdAt for every
+  // existing account, set at creation while no approval-required mode exists).
+  disabledAt?: number | Date | null
+  approvedAt?: number | Date | null
 
   createdAt: number | Date
   updatedAt: number | Date

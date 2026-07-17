@@ -121,6 +121,36 @@ describe('GET /api/v1/timelines/public', () => {
     expect(ids).toContain(urlToId(publicStatus.id))
   })
 
+  it('omits statuses from suspended actors', async () => {
+    await database.setActorSuspended({ actorId: ACTOR1_ID, suspended: true })
+    try {
+      vi.spyOn(database, 'getTimeline').mockResolvedValue([publicStatus])
+
+      const response = await GET(request(), { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      const ids = (await response.json()).map((s: { id: string }) => s.id)
+      expect(ids).not.toContain(urlToId(publicStatus.id))
+    } finally {
+      await database.setActorSuspended({ actorId: ACTOR1_ID, suspended: false })
+    }
+  })
+
+  it('omits statuses from silenced actors on the public timeline', async () => {
+    await database.setActorSilenced({ actorId: ACTOR1_ID, silenced: true })
+    try {
+      vi.spyOn(database, 'getTimeline').mockResolvedValue([publicStatus])
+
+      const response = await GET(request(), { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      const ids = (await response.json()).map((s: { id: string }) => s.id)
+      expect(ids).not.toContain(urlToId(publicStatus.id))
+    } finally {
+      await database.setActorSilenced({ actorId: ACTOR1_ID, silenced: false })
+    }
+  })
+
   it.each([
     { description: 'junk opaque id', value: 'apurl_@@@@' },
     { description: 'percent signs', value: '%%%' },

@@ -173,6 +173,21 @@ export const POST = traceApiRoute(
               })
             }
 
+            // Swallow activities from a suspended remote actor: acknowledge
+            // with 202 but apply no local side effects. A 403 would leak the
+            // moderation decision back to the sender.
+            const senderStates = await database.getModerationStatesForActors({
+              actorIds: [context.verifiedSenderActorId]
+            })
+            if (senderStates.get(context.verifiedSenderActorId)?.suspendedAt) {
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: DEFAULT_202,
+                responseStatusCode: 202
+              })
+            }
+
             switch (activity.type) {
               case 'Accept': {
                 const follow = await acceptFollowRequest({ activity, database })

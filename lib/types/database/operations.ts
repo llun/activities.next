@@ -2234,6 +2234,96 @@ export interface ReportDatabase {
 }
 
 // ============================================================================
+// Moderation Database
+// ============================================================================
+
+// The moderator actions recorded in the append-only `moderation_actions` audit
+// log. `none` is an audit-only action (e.g. resolving a report with no state
+// change). The rest mirror the admin account action matrix.
+export const ModerationActionType = z.enum([
+  'none',
+  'disable',
+  'enable',
+  'sensitive',
+  'unsensitive',
+  'silence',
+  'unsilence',
+  'suspend',
+  'unsuspend',
+  'approve',
+  'reject',
+  'destroy'
+])
+export type ModerationActionType = z.infer<typeof ModerationActionType>
+
+// Per-actor moderation state, read as epoch-millisecond timestamps (null when
+// the state is not set). Only actors carrying at least one non-null state are
+// returned by getModerationStatesForActors, so an absent map entry means the
+// actor is not moderated.
+export type ModerationStates = {
+  suspendedAt: number | null
+  silencedAt: number | null
+  sensitizedAt: number | null
+}
+
+export type ModerationAction = {
+  id: string
+  targetActorId: string
+  moderatorAccountId: string
+  moderatorActorId: string | null
+  action: ModerationActionType
+  reportId: string | null
+  text: string
+  createdAt: number
+}
+
+export type SetActorSuspendedParams = { actorId: string; suspended: boolean }
+export type SetActorSilencedParams = { actorId: string; silenced: boolean }
+export type SetActorSensitizedParams = { actorId: string; sensitized: boolean }
+export type SetAccountDisabledParams = { accountId: string; disabled: boolean }
+export type ApproveAccountParams = { accountId: string }
+export type RejectPendingAccountParams = { accountId: string }
+export type GetModerationStatesForActorsParams = { actorIds: string[] }
+export type CreateModerationActionParams = {
+  targetActorId: string
+  moderatorAccountId: string
+  moderatorActorId?: string | null
+  action: ModerationActionType
+  reportId?: string | null
+  text?: string
+}
+export type DeleteAllAccountSessionsParams = { accountId: string }
+
+export interface ModerationDatabase {
+  // Stamp/clear the actor state columns. Idempotent: setting a state that is
+  // already set refreshes the timestamp; clearing an unset state is a no-op.
+  setActorSuspended(params: SetActorSuspendedParams): Promise<void>
+  setActorSilenced(params: SetActorSilencedParams): Promise<void>
+  setActorSensitized(params: SetActorSensitizedParams): Promise<void>
+  // Login-level state, on the account row (no remote analogue).
+  setAccountDisabled(params: SetAccountDisabledParams): Promise<void>
+  // Idempotently mark an account approved (sets approvedAt only when null).
+  approveAccount(params: ApproveAccountParams): Promise<void>
+  // Delete a registration-pending account (approvedAt null) and all its actors
+  // in one transaction. Returns false (and changes nothing) for an already
+  // approved account.
+  rejectPendingAccount(params: RejectPendingAccountParams): Promise<boolean>
+  // Batch-load the moderation state for a set of actor ids in one query. Only
+  // moderated actors (≥1 non-null state) appear in the returned map.
+  getModerationStatesForActors(
+    params: GetModerationStatesForActorsParams
+  ): Promise<Map<string, ModerationStates>>
+  // Append an immutable audit-log row and return it.
+  createModerationAction(
+    params: CreateModerationActionParams
+  ): Promise<ModerationAction>
+  // Revoke every better-auth session for the account (used by disable/suspend).
+  deleteAllAccountSessions(
+    params: DeleteAllAccountSessionsParams
+  ): Promise<void>
+}
+
+// ============================================================================
 // Account Note Database
 // ============================================================================
 
