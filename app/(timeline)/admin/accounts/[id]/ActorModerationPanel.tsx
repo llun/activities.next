@@ -56,6 +56,7 @@ export const ActorModerationPanel = ({ actorId, username }: Props) => {
   const [account, setAccount] = useState<AdminAccount | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [removed, setRemoved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -86,6 +87,28 @@ export const ActorModerationPanel = ({ actorId, username }: Props) => {
     }
   }
 
+  // Reject (and any future removing action) deletes the account synchronously,
+  // so re-fetching it would 404. Mark it removed instead of reloading.
+  const runRemoving = async (fn: () => Promise<unknown>) => {
+    setBusy(true)
+    setError(null)
+    try {
+      await fn()
+      setRemoved(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Action failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (removed) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Account rejected and removed.
+      </p>
+    )
+  }
   if (loading) {
     return (
       <p className="text-sm text-muted-foreground">Loading moderation state…</p>
@@ -99,10 +122,13 @@ export const ActorModerationPanel = ({ actorId, username }: Props) => {
     )
   }
 
-  // domain === null means the actor is on this instance's configured host, so
-  // login-scoped actions (disable/enable, approve/reject) are available; remote
-  // actors only support suspend/silence/sensitize.
-  const isLocal = account.domain === null
+  // A non-null role means the actor is account-backed on this instance (the
+  // serializer emits null role only for account-less remote actors) — mirroring
+  // the API's `Boolean(account)` local gate. This is correct even for a local
+  // actor served on a secondary domain, whose `domain` is non-null. Login-scoped
+  // actions (disable/enable, approve/reject) apply only to these local actors;
+  // remote actors support suspend/silence/sensitize.
+  const isLocal = account.role !== null
 
   return (
     <div className="space-y-3">
@@ -204,7 +230,7 @@ export const ActorModerationPanel = ({ actorId, username }: Props) => {
               label="Reject"
               disabled={busy}
               destructive
-              onClick={() => run(() => adminRejectAccount(actorId))}
+              onClick={() => runRemoving(() => adminRejectAccount(actorId))}
             />
           </>
         ) : null}

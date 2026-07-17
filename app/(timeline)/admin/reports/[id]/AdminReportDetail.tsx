@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 
 import {
+  type ReportCategory,
   assignAdminReportToSelf,
   getAdminReport,
   reopenAdminReport,
@@ -11,7 +12,6 @@ import {
   unassignAdminReport,
   updateAdminReport
 } from '@/lib/client'
-import { ReportCategory } from '@/lib/client'
 import { AdminReport } from '@/lib/types/mastodon/admin/report'
 
 const CATEGORIES: ReportCategory[] = ['spam', 'legal', 'violation', 'other']

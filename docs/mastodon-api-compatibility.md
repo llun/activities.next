@@ -50,6 +50,8 @@ product or security decision, not a gap to be closed.
 
 - **`GET /api/v1/timelines/direct` is retained.** Mastodon removed this endpoint
   in 3.0 in favor of conversations, but Activity.next keeps it for legacy clients.
+  The first-party UI uses `/api/v1/conversations` for threaded direct messages;
+  the `direct` timeline is served by the shared `timelines/[timeline]` handler.
 
 - **Admin account ids are the actor id space, not numeric snowflakes.**
   `Admin::Account.id` (and the `account`/`target_account`/`assigned_account`/
@@ -64,8 +66,6 @@ product or security decision, not a gap to be closed.
   "suspend freezes login" needs both `suspend` and `disable`. Registration
   approval is wired but empty today (`pending` lists return `[]` until an
   approval-required mode exists).
-  The first-party UI uses `/api/v1/conversations` for threaded direct messages;
-  the `direct` timeline is served by the shared `timelines/[timeline]` handler.
 
 - **The legacy `follow` scope is not honored for granular follow actions.**
   Mastodon deprecated the aggregate `follow` scope in 3.5 in favor of
