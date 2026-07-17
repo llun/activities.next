@@ -1,0 +1,28 @@
+lib/jobs/deleteObjectJob.test.ts
+  s_3da1f273d8917f::t_c676366dfe6db8 37-65,69,78,86-89,93,109-129
+  s_3da1f273d8917f::t_a1d8643bef70f8 130-132
+  s_3da1f273d8917f::t_3b236f5387fa60 133-134
+lib/actions/handleQuoteResponse.ts
+  s_3da1f273d8917f::t_b020528cef5ced 60-64,74-77
+lib/jobs/deleteObjectJob.ts
+  s_3da1f273d8917f::t_4b1da20716564e 2
+  s_3da1f273d8917f::t_d7e9609cce15e8 39-44,52-60,63-65
+lib/actions/handleQuoteResponse.test.ts
+  s_3da1f273d8917f::t_3c73ea398e142e 131-156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "f457485cd9b5d4747ff1e75d3629288f187783ac",
+  "prompts": {},
+  "sessions": {
+    "s_3da1f273d8917f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f49630eb-9e7a-4457-a813-665e76f1781c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
