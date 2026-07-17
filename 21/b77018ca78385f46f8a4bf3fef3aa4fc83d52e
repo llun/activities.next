@@ -1,0 +1,22 @@
+lib/services/admin/handleAdminReportAction.ts
+  s_6dd763a0b22888::t_d80031041916da 7
+  s_6dd763a0b22888::t_a4f9e2107f005b 36,46
+lib/database/sql/report.test.ts
+  s_6dd763a0b22888::t_90e4917158dbf7 122-152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "21b77018ca78385f46f8a4bf3fef3aa4fc83d52e",
+  "prompts": {},
+  "sessions": {
+    "s_6dd763a0b22888": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f2f2973-35a6-4476-8b76-95f49efde47d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
