@@ -12,7 +12,7 @@ import {
 } from '@/lib/types/domain/attachment'
 import type { AdminCustomEmoji } from '@/lib/types/domain/customEmoji'
 import type { FilterAction, FilterContext } from '@/lib/types/domain/filter'
-import { Status } from '@/lib/types/domain/status'
+import { QuoteApprovalPolicy, Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 import type { AdminAccount } from '@/lib/types/mastodon/admin/account'
@@ -39,6 +39,8 @@ export interface CreateNoteParams {
   message: string
   contentWarning?: string
   replyStatus?: Status
+  quotedStatus?: Status
+  quoteApprovalPolicy?: QuoteApprovalPolicy
   attachments?: PostBoxAttachment[]
   fitnessFileId?: string
   visibility?: MastodonVisibility
@@ -47,6 +49,8 @@ export const createNote = async ({
   message,
   contentWarning,
   replyStatus,
+  quotedStatus,
+  quoteApprovalPolicy,
   attachments = [],
   fitnessFileId,
   visibility
@@ -71,6 +75,8 @@ export const createNote = async ({
       contentWarning,
       attachments,
       fitnessFileId,
+      quotedStatusId: quotedStatus?.id,
+      quoteApprovalPolicy,
       visibility
     })
   })
@@ -825,6 +831,116 @@ export const getBlocks = async ({
     accounts: (await response.json()) as MastodonAccount[],
     nextMaxId: getCursorFromLinkHeader(linkHeader, 'next'),
     prevMinId: getCursorFromLinkHeader(linkHeader, 'prev')
+  }
+}
+
+// Reads a specific cursor query param from a rel in the Link header. The quotes
+// endpoint paginates with max_id (next) / since_id (prev) rather than min_id.
+const getLinkCursor = (
+  linkHeader: string | null,
+  rel: string,
+  param: string
+) => {
+  if (!linkHeader) return null
+  const link = linkHeader
+    .split(',')
+    .map((item) => item.trim())
+    .find((item) => item.endsWith(`rel="${rel}"`))
+  const url = link?.match(/<([^>]+)>/)?.[1]
+  if (!url) return null
+  return new URL(url).searchParams.get(param)
+}
+
+export interface GetStatusQuotesParams {
+  statusId: string
+  limit?: number
+  maxId?: string
+  sinceId?: string
+}
+export interface GetStatusQuotesResult {
+  statuses: MastodonStatus[]
+  nextMaxId: string | null
+  prevSinceId: string | null
+}
+export const getStatusQuotes = async ({
+  statusId,
+  limit,
+  maxId,
+  sinceId
+}: GetStatusQuotesParams): Promise<GetStatusQuotesResult> => {
+  const url = new URL(
+    `${window.origin}/api/v1/statuses/${urlToId(statusId)}/quotes`
+  )
+  if (limit) url.searchParams.set('limit', `${limit}`)
+  if (maxId) url.searchParams.set('max_id', maxId)
+  if (sinceId) url.searchParams.set('since_id', sinceId)
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  })
+  if (response.status !== 200) {
+    return { statuses: [], nextMaxId: null, prevSinceId: null }
+  }
+
+  const linkHeader = response.headers.get('Link')
+  return {
+    statuses: (await response.json()) as MastodonStatus[],
+    nextMaxId: getLinkCursor(linkHeader, 'next', 'max_id'),
+    prevSinceId: getLinkCursor(linkHeader, 'prev', 'since_id')
+  }
+}
+
+export const revokeStatusQuote = async ({
+  quotedStatusId,
+  quotingStatusId
+}: {
+  quotedStatusId: string
+  quotingStatusId: string
+}): Promise<MastodonStatus | null> => {
+  const response = await fetch(
+    `/api/v1/statuses/${urlToId(quotedStatusId)}/quotes/${urlToId(quotingStatusId)}/revoke`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' } }
+  )
+  if (response.status !== 200) return null
+  return (await response.json()) as MastodonStatus
+}
+
+export const updateStatusInteractionPolicy = async ({
+  statusId,
+  quoteApprovalPolicy
+}: {
+  statusId: string
+  quoteApprovalPolicy: QuoteApprovalPolicy
+}): Promise<MastodonStatus | null> => {
+  const response = await fetch(
+    `/api/v1/statuses/${urlToId(statusId)}/interaction_policy`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quote_approval_policy: quoteApprovalPolicy })
+    }
+  )
+  if (response.status !== 200) return null
+  return (await response.json()) as MastodonStatus
+}
+
+// The default quote-approval policy for new statuses (Mastodon 4.5
+// posting:default:quote_policy). Falls back to 'public' on any failure.
+export const getDefaultQuotePolicy = async (): Promise<QuoteApprovalPolicy> => {
+  try {
+    const response = await fetch('/api/v1/preferences', {
+      method: 'GET',
+      headers: { Accept: 'application/json' }
+    })
+    if (response.status !== 200) return 'public'
+    const preferences = (await response.json()) as Record<string, unknown>
+    const policy = preferences['posting:default:quote_policy']
+    return QuoteApprovalPolicy.safeParse(policy).success
+      ? (policy as QuoteApprovalPolicy)
+      : 'public'
+  } catch {
+    return 'public'
   }
 }
 
