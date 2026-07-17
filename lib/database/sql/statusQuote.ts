@@ -4,7 +4,10 @@ import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   CreateStatusQuoteParams,
   GetQuotingStatusIdsParams,
+  GetStatusQuoteByAuthorizationUriParams,
+  GetStatusQuoteByQuoteRequestIdParams,
   GetStatusQuoteParams,
+  MarkQuotesDeletedByQuotedStatusIdParams,
   StatusQuoteDatabase,
   StatusQuoteRecord,
   UpdateStatusQuoteStateParams
@@ -107,6 +110,36 @@ export const StatusQuoteSQLDatabaseMixin = (
     }: GetStatusQuoteParams): Promise<StatusQuoteRecord | null> {
       const row = await getStatusQuoteRow(database, statusId)
       return row ? fixStatusQuoteRow(row) : null
+    },
+
+    async getStatusQuoteByQuoteRequestId({
+      quoteRequestId
+    }: GetStatusQuoteByQuoteRequestIdParams): Promise<StatusQuoteRecord | null> {
+      const row = await database<StatusQuoteRow>('status_quotes')
+        .where('quoteRequestId', quoteRequestId)
+        .first(...STATUS_QUOTE_CURSOR_COLUMNS)
+      return row ? fixStatusQuoteRow(row) : null
+    },
+
+    async getStatusQuoteByAuthorizationUri({
+      authorizationUri
+    }: GetStatusQuoteByAuthorizationUriParams): Promise<StatusQuoteRecord | null> {
+      const row = await database<StatusQuoteRow>('status_quotes')
+        .where('authorizationUri', authorizationUri)
+        .first(...STATUS_QUOTE_CURSOR_COLUMNS)
+      return row ? fixStatusQuoteRow(row) : null
+    },
+
+    async markQuotesDeletedByQuotedStatusId({
+      quotedStatusId
+    }: MarkQuotesDeletedByQuotedStatusIdParams): Promise<number> {
+      // Only edges that could still render the quoted status (pending/accepted)
+      // move to `deleted`; already-terminal edges (rejected/revoked/deleted)
+      // stay put, matching the one-way state machine.
+      return database('status_quotes')
+        .where('quotedStatusId', quotedStatusId)
+        .whereIn('state', ['pending', 'accepted'])
+        .update({ state: 'deleted', updatedAt: new Date() })
     },
 
     async updateStatusQuoteState({

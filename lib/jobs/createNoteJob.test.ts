@@ -765,6 +765,40 @@ describe('createNoteJob', () => {
       ).resolves.toBeNull()
     })
 
+    it('does not downgrade an already-accepted edge when a stampless Create arrives', async () => {
+      // Models the "remote quoting local" race: we accepted the QuoteRequest
+      // (edge accepted) before the Create Note (no stamp -> verify yields
+      // pending) arrives. The one-way machine must keep it accepted.
+      const authorId = actor1?.id as string
+      const quotedId = await createLocalQuoted('race', authorId)
+      const quotingId = `${ACTOR2_ID}/statuses/quoting-race`
+      await database.createStatusQuote({
+        statusId: quotingId,
+        quotedStatusId: quotedId,
+        state: 'accepted',
+        authorizationUri: 'https://llun.test/sentinel-stamp'
+      })
+      const note = {
+        ...MockMastodonActivityPubNote({
+          id: quotingId,
+          from: ACTOR2_ID,
+          content: 'race quote'
+        }),
+        quote: quotedId
+      }
+
+      await createNoteJob(database, {
+        id: 'quote-race',
+        name: CREATE_NOTE_JOB_NAME,
+        data: note,
+        verifiedSenderActorId: ACTOR2_ID
+      })
+
+      const edge = await database.getStatusQuote({ statusId: quotingId })
+      expect(edge?.state).toBe('accepted')
+      expect(edge?.authorizationUri).toBe('https://llun.test/sentinel-stamp')
+    })
+
     it('does not rewrite the edge for a duplicate Create', async () => {
       const authorId = actor1?.id as string
       const quotedId = await createLocalQuoted('dup', authorId)

@@ -2187,6 +2187,25 @@ export const StatusSQLDatabaseMixin = (
       'statusId',
       statusIdsToDelete
     )
+    // The deleted status's own outgoing quote edge is removed with it.
+    await deleteRowsByColumnChunks(
+      trx,
+      'status_quotes',
+      'statusId',
+      statusIdsToDelete
+    )
+    // Statuses that quote a now-deleted status keep their edge but move to
+    // `deleted` (the quoting posts survive and render a tombstone). Terminal
+    // edges (rejected/revoked/deleted) are left untouched.
+    for (const chunk of chunkArray(
+      statusIdsToDelete,
+      getWhereInBatchSize(trx)
+    )) {
+      await trx('status_quotes')
+        .whereIn('quotedStatusId', chunk)
+        .whereIn('state', ['pending', 'accepted'])
+        .update({ state: 'deleted', updatedAt: currentTime })
+    }
     await deleteRowsByColumnChunks(
       trx,
       'status_history',

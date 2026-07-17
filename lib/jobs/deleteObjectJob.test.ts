@@ -34,6 +34,49 @@ describe('deleteObjectJob', () => {
     mockRequests(fetchMock)
   })
 
+  it('revokes a quote when its stamp is deleted by the issuing authority', async () => {
+    const stampUri =
+      'https://remote.example/users/alice/quote_authorizations/xyz'
+    const quotingId = `https://local.test/users/me/statuses/revoke-${Date.now()}`
+    await database.createStatusQuote({
+      statusId: quotingId,
+      quotedStatusId: 'https://remote.example/users/alice/statuses/1',
+      state: 'accepted',
+      authorizationUri: stampUri
+    })
+
+    await deleteObjectJob(database, {
+      id: 'revoke-job',
+      name: DELETE_OBJECT_JOB_NAME,
+      data: stampUri,
+      verifiedSenderActorId: 'https://remote.example/users/alice'
+    })
+
+    const edge = await database.getStatusQuote({ statusId: quotingId })
+    expect(edge?.state).toBe('revoked')
+  })
+
+  it('does not revoke a quote when the stamp Delete comes from a foreign authority', async () => {
+    const stampUri = 'https://remote.example/users/bob/quote_authorizations/abc'
+    const quotingId = `https://local.test/users/me/statuses/no-revoke-${Date.now()}`
+    await database.createStatusQuote({
+      statusId: quotingId,
+      quotedStatusId: 'https://remote.example/users/bob/statuses/1',
+      state: 'accepted',
+      authorizationUri: stampUri
+    })
+
+    await deleteObjectJob(database, {
+      id: 'no-revoke-job',
+      name: DELETE_OBJECT_JOB_NAME,
+      data: stampUri,
+      verifiedSenderActorId: 'https://evil.example/users/impostor'
+    })
+
+    const edge = await database.getStatusQuote({ statusId: quotingId })
+    expect(edge?.state).toBe('accepted')
+  })
+
   it('deletes actor when data is a string (actor id)', async () => {
     // Create a new actor to delete
     const actorId = `https://external.test/users/to-delete-${Date.now()}`

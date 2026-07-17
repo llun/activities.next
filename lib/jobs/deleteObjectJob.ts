@@ -13,11 +13,64 @@ import { actorMatchesVerifiedSender } from './verifiedSender'
 const getVerifiedSenderActorId = (actorId?: string) =>
   normalizeActorId(actorId) ?? undefined
 
+// Two ids share authority when served from the same host.
+const sameHost = (a: string, b: string): boolean => {
+  try {
+    return new URL(a).host === new URL(b).host
+  } catch {
+    return false
+  }
+}
+
+// Extract a possible stamp uri from the Delete object (a bare id string or an
+// object with an id, e.g. a Tombstone/QuoteAuthorization).
+const getStampUri = (data: unknown): string | null => {
+  if (typeof data === 'string') return data
+  if (
+    data &&
+    typeof data === 'object' &&
+    typeof (data as { id?: unknown }).id === 'string'
+  ) {
+    return (data as { id: string }).id
+  }
+  return null
+}
+
 export const deleteObjectJob = createJobHandle(
   DELETE_OBJECT_JOB_NAME,
   async (database, message) => {
     await getTracer().startActiveSpan('deleteObject', async (span) => {
       const data = message.data
+
+      // FEP-044f revocation: a Delete of a QuoteAuthorization stamp revokes the
+      // quote. Match the deleted object against a stored stamp uri and require
+      // the revoker to share authority with the stamp (its host), so a third
+      // party cannot revoke someone else's quote. Runs before the actor/status
+      // delete paths — a status/actor id never matches a stored stamp uri.
+      const stampUri = getStampUri(data)
+      if (stampUri) {
+        const edge = await database.getStatusQuoteByAuthorizationUri({
+          authorizationUri: stampUri
+        })
+        if (edge) {
+          const verifiedSenderActorId = message.verifiedSenderActorId
+          if (
+            verifiedSenderActorId &&
+            sameHost(stampUri, verifiedSenderActorId)
+          ) {
+            await database.updateStatusQuoteState({
+              statusId: edge.statusId,
+              state: 'revoked'
+            })
+            span.setAttribute('revokedQuoteStatusId', edge.statusId)
+          } else {
+            span.setAttribute('quoteRevocationSenderMismatch', true)
+          }
+          span.end()
+          return
+        }
+      }
+
       if (typeof data === 'string') {
         if (!actorMatchesVerifiedSender(data, message)) {
           span.setAttribute('senderMismatch', true)

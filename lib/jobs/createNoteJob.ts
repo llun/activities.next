@@ -133,12 +133,24 @@ export const createNoteJob = createJobHandle(
         actorId,
         quotedStatus
       })
-      await database.createStatusQuote({
-        statusId: note.id,
-        quotedStatusId,
-        state,
-        authorizationUri: note.quoteAuthorization ?? null
-      })
+      const existingEdge = await database.getStatusQuote({ statusId: note.id })
+      if (existingEdge) {
+        // The edge already exists (e.g. we accepted this actor's QuoteRequest
+        // before the Create Note arrived). Advance it via the one-way state
+        // machine so a re-derived `pending` never downgrades an accepted edge.
+        await database.updateStatusQuoteState({
+          statusId: note.id,
+          state,
+          authorizationUri: note.quoteAuthorization ?? undefined
+        })
+      } else {
+        await database.createStatusQuote({
+          statusId: note.id,
+          quotedStatusId,
+          state,
+          authorizationUri: note.quoteAuthorization ?? null
+        })
+      }
     }
 
     const tags = getTags(note)

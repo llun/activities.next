@@ -176,6 +176,82 @@ describe('StatusQuoteDatabase', () => {
       })
     })
 
+    it('looks up an edge by quoteRequestId', async () => {
+      const statusId = uniqueId('by-request')
+      const quoteRequestId = `${statusId}#quote-request`
+      await database.createStatusQuote({
+        statusId,
+        quotedStatusId: uniqueId('by-request-target'),
+        quoteRequestId
+      })
+
+      const found = await database.getStatusQuoteByQuoteRequestId({
+        quoteRequestId
+      })
+      expect(found?.statusId).toBe(statusId)
+      await expect(
+        database.getStatusQuoteByQuoteRequestId({ quoteRequestId: 'nope' })
+      ).resolves.toBeNull()
+    })
+
+    it('looks up an edge by authorizationUri', async () => {
+      const statusId = uniqueId('by-auth')
+      const authorizationUri = `https://llun.test/stamp/${randomUUID()}`
+      await database.createStatusQuote({
+        statusId,
+        quotedStatusId: uniqueId('by-auth-target'),
+        state: 'accepted',
+        authorizationUri
+      })
+
+      const found = await database.getStatusQuoteByAuthorizationUri({
+        authorizationUri
+      })
+      expect(found?.statusId).toBe(statusId)
+      await expect(
+        database.getStatusQuoteByAuthorizationUri({
+          authorizationUri: 'https://llun.test/stamp/absent'
+        })
+      ).resolves.toBeNull()
+    })
+
+    it('marks pending/accepted edges deleted when the quoted status is removed, leaving terminal edges', async () => {
+      const quotedStatusId = uniqueId('deleted-target')
+      const pending = uniqueId('deleted-pending')
+      const accepted = uniqueId('deleted-accepted')
+      const rejected = uniqueId('deleted-rejected')
+      await database.createStatusQuote({
+        statusId: pending,
+        quotedStatusId,
+        state: 'pending'
+      })
+      await database.createStatusQuote({
+        statusId: accepted,
+        quotedStatusId,
+        state: 'accepted'
+      })
+      await database.createStatusQuote({
+        statusId: rejected,
+        quotedStatusId,
+        state: 'rejected'
+      })
+
+      const count = await database.markQuotesDeletedByQuotedStatusId({
+        quotedStatusId
+      })
+      expect(count).toBe(2)
+      expect(
+        (await database.getStatusQuote({ statusId: pending }))?.state
+      ).toBe('deleted')
+      expect(
+        (await database.getStatusQuote({ statusId: accepted }))?.state
+      ).toBe('deleted')
+      // A terminal (rejected) edge is untouched.
+      expect(
+        (await database.getStatusQuote({ statusId: rejected }))?.state
+      ).toBe('rejected')
+    })
+
     it('lists quoting status ids newest first, filtered by state', async () => {
       const quotedStatusId = uniqueId('listing-target')
       const accepted: string[] = []

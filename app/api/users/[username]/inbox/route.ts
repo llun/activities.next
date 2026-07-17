@@ -8,6 +8,8 @@ import {
 import { applyRemoteBlock } from '@/lib/actions/applyRemoteBlock'
 import { applyRemoteUnblock } from '@/lib/actions/applyRemoteUnblock'
 import { createFollower } from '@/lib/actions/createFollower'
+import { handleQuoteRequest } from '@/lib/actions/handleQuoteRequest'
+import { handleQuoteResponse } from '@/lib/actions/handleQuoteResponse'
 import { likeRequest } from '@/lib/actions/like'
 import { rejectFollowRequest } from '@/lib/actions/rejectFollowRequest'
 import { undoFollowRequest } from '@/lib/actions/undoFollowRequest'
@@ -46,7 +48,16 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 const GracefullyAcceptedActivity = z
   .object({
     id: z.string(),
-    type: z.enum(['Flag', 'Move', 'Add', 'Remove', 'QuoteRequest']),
+    type: z.enum(['Flag', 'Move', 'Add', 'Remove']),
+    actor: z.string()
+  })
+  .passthrough()
+// FEP-044f: a remote actor asks to quote one of our statuses. Parsed leniently
+// here (the handler re-validates); the passthrough keeps `object`/`instrument`.
+const InboundQuoteRequest = z
+  .object({
+    id: z.string(),
+    type: z.literal('QuoteRequest'),
     actor: z.string()
   })
   .passthrough()
@@ -73,6 +84,7 @@ const Activity = z.union([
   Like,
   Undo,
   ReferenceUndo,
+  InboundQuoteRequest,
   GracefullyAcceptedActivity
 ])
 
@@ -190,6 +202,21 @@ export const POST = traceApiRoute(
 
             switch (activity.type) {
               case 'Accept': {
+                // A remote author accepting our QuoteRequest is matched first;
+                // it falls through to the follow handshake on no match.
+                if (
+                  await handleQuoteResponse({
+                    database,
+                    activity: compactedActivity
+                  })
+                ) {
+                  return apiResponse({
+                    req,
+                    allowedMethods: CORS_HEADERS,
+                    data: DEFAULT_202,
+                    responseStatusCode: 202
+                  })
+                }
                 const follow = await acceptFollowRequest({ activity, database })
                 if (!follow)
                   return apiResponse({
@@ -206,6 +233,19 @@ export const POST = traceApiRoute(
                 })
               }
               case 'Reject': {
+                if (
+                  await handleQuoteResponse({
+                    database,
+                    activity: compactedActivity
+                  })
+                ) {
+                  return apiResponse({
+                    req,
+                    allowedMethods: CORS_HEADERS,
+                    data: DEFAULT_202,
+                    responseStatusCode: 202
+                  })
+                }
                 const follow = await rejectFollowRequest({ activity, database })
                 if (!follow)
                   return apiResponse({
@@ -385,6 +425,19 @@ export const POST = traceApiRoute(
                 logAcceptedWithoutSideEffects({
                   activity,
                   reason: `unsupported Undo object type ${undoObject.type}`
+                })
+                return apiResponse({
+                  req,
+                  allowedMethods: CORS_HEADERS,
+                  data: DEFAULT_202,
+                  responseStatusCode: 202
+                })
+              }
+              case 'QuoteRequest': {
+                await handleQuoteRequest({
+                  database,
+                  activity: compactedActivity,
+                  inboxActor: actor
                 })
                 return apiResponse({
                   req,

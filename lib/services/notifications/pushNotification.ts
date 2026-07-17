@@ -27,6 +27,7 @@ const NOTIFICATION_TYPE_TO_ALERT: Partial<
   mention: 'mention',
   reply: 'mention',
   reblog: 'reblog',
+  quote: 'quote',
   activity_import: 'status'
 }
 
@@ -108,6 +109,11 @@ const getNotificationContent = (
       return {
         title: 'Reblogged',
         body: `${displayName} reblogged your post`
+      }
+    case 'quote':
+      return {
+        title: 'Quoted',
+        body: `${displayName} quoted your post`
       }
     default:
       return {

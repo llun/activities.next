@@ -45,6 +45,7 @@ export interface ActorSettings {
     mention?: boolean
     reply?: boolean
     reblog?: boolean
+    quote?: boolean
     activity_import?: boolean
     added_to_collection?: boolean
     collection_update?: boolean
@@ -56,6 +57,7 @@ export interface ActorSettings {
     mention?: boolean
     reply?: boolean
     reblog?: boolean
+    quote?: boolean
     activity_import?: boolean
     added_to_collection?: boolean
     collection_update?: boolean
