@@ -140,7 +140,11 @@ export const databaseBeforeAll = async (table: TestDatabaseTable) => {
   )
 }
 
-export const getTestSQLDatabase = () => {
+// Build a fresh in-memory SQLite database and also hand back the raw Knex
+// instance, for the rare test that needs to seed a state the public Database
+// interface cannot construct (e.g. a registration-pending account row with a
+// null approvedAt). Prefer getTestSQLDatabase for everything else.
+export const getTestSQLDatabaseWithInstance = () => {
   const instance = knex({
     client: 'better-sqlite3',
     useNullAsDefault: true,
@@ -148,9 +152,13 @@ export const getTestSQLDatabase = () => {
       filename: ':memory:'
     }
   })
-  return withSchemaDumpMigrate(
+  const database = withSchemaDumpMigrate(
     getSQLDatabase(instance),
     instance,
     applySqliteSchema
   )
+  return { database, instance }
 }
+
+export const getTestSQLDatabase = () =>
+  getTestSQLDatabaseWithInstance().database

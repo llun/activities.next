@@ -58,6 +58,8 @@ const Page = async () => {
         const { statuses } = await getFilteredStatusPage({
           database,
           limit: LANDING_FEED_LIMIT,
+          // Public landing feed: hide silenced authors (and suspended, always).
+          surface: 'public',
           fetchBatch: ({ maxStatusId, limit }) =>
             database.getTimeline({
               timeline: Timeline.LOCAL_PUBLIC,

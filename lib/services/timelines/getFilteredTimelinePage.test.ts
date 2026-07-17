@@ -40,7 +40,8 @@ describe('getFilteredStatusPage', () => {
     const database = {
       getBlockRelations,
       getMuteRelations,
-      getActorDomainBlocks: vi.fn(async () => [])
+      getActorDomainBlocks: vi.fn(async () => []),
+      getModerationStatesForActors: vi.fn(async () => new Map())
     } as unknown as Database
     const fetchBatch = vi.fn(({ maxStatusId }) =>
       Promise.resolve(batches.get(maxStatusId) ?? [])
@@ -82,7 +83,8 @@ describe('getFilteredStatusPage', () => {
     const database = {
       getBlockRelations,
       getMuteRelations,
-      getActorDomainBlocks: vi.fn(async () => [])
+      getActorDomainBlocks: vi.fn(async () => []),
+      getModerationStatesForActors: vi.fn(async () => new Map())
     } as unknown as Database
 
     const page = await getFilteredStatusPage({
@@ -122,7 +124,8 @@ describe('getFilteredStatusPage', () => {
     const database = {
       getBlockRelations,
       getMuteRelations,
-      getActorDomainBlocks: vi.fn(async () => [])
+      getActorDomainBlocks: vi.fn(async () => []),
+      getModerationStatesForActors: vi.fn(async () => new Map())
     } as unknown as Database
 
     const page = await getFilteredStatusPage({
@@ -160,7 +163,8 @@ describe('getFilteredStatusPage', () => {
     const database = {
       getBlockRelations,
       getMuteRelations,
-      getActorDomainBlocks: vi.fn(async () => [])
+      getActorDomainBlocks: vi.fn(async () => []),
+      getModerationStatesForActors: vi.fn(async () => new Map())
     } as unknown as Database
 
     const page = await getFilteredStatusPage({
@@ -234,7 +238,8 @@ describe('getFilteredStatusPage', () => {
     const database = {
       getBlockRelations,
       getMuteRelations,
-      getActorDomainBlocks: vi.fn(async () => [])
+      getActorDomainBlocks: vi.fn(async () => []),
+      getModerationStatesForActors: vi.fn(async () => new Map())
     } as unknown as Database
 
     const page = await getFilteredStatusPage({
@@ -270,7 +275,8 @@ describe('getFilteredStatusPage', () => {
     const database = {
       getBlockRelations: vi.fn(async () => []),
       getMuteRelations: vi.fn(async () => []),
-      getActorDomainBlocks: vi.fn(async () => [])
+      getActorDomainBlocks: vi.fn(async () => []),
+      getModerationStatesForActors: vi.fn(async () => new Map())
     } as unknown as Database
     const fetchBatch = vi.fn(({ minStatusId }) =>
       Promise.resolve(batches.get(minStatusId) ?? [])
@@ -322,7 +328,8 @@ describe('getFilteredStatusPage', () => {
     const database = {
       getBlockRelations,
       getMuteRelations: vi.fn(async () => []),
-      getActorDomainBlocks: vi.fn(async () => [])
+      getActorDomainBlocks: vi.fn(async () => []),
+      getModerationStatesForActors: vi.fn(async () => new Map())
     } as unknown as Database
     const fetchBatch = vi.fn(({ minStatusId }) =>
       Promise.resolve(batches.get(minStatusId) ?? [])
@@ -372,7 +379,8 @@ describe('getFilteredStatusPage', () => {
     const database = {
       getBlockRelations,
       getMuteRelations: vi.fn(async () => []),
-      getActorDomainBlocks: vi.fn(async () => [])
+      getActorDomainBlocks: vi.fn(async () => []),
+      getModerationStatesForActors: vi.fn(async () => new Map())
     } as unknown as Database
     const fetchBatch = vi.fn(({ minStatusId }) =>
       Promise.resolve(blockedBatches.get(minStatusId) ?? [])
@@ -419,7 +427,8 @@ describe('getFilteredStatusPage', () => {
     const database = {
       getBlockRelations,
       getMuteRelations,
-      getActorDomainBlocks: vi.fn(async () => [])
+      getActorDomainBlocks: vi.fn(async () => []),
+      getModerationStatesForActors: vi.fn(async () => new Map())
     } as unknown as Database
 
     const page = await getFilteredStatusPage({
@@ -461,7 +470,8 @@ describe('getFilteredStatusPage', () => {
     const database = {
       getBlockRelations,
       getMuteRelations,
-      getActorDomainBlocks
+      getActorDomainBlocks,
+      getModerationStatesForActors: vi.fn(async () => new Map())
     } as unknown as Database
 
     const page = await getFilteredStatusPage({
@@ -500,7 +510,8 @@ describe('getFilteredTimelinePage', () => {
       getTimeline,
       getBlockRelations: vi.fn(async () => []),
       getMuteRelations: vi.fn(async () => []),
-      getActorDomainBlocks: vi.fn(async () => [])
+      getActorDomainBlocks: vi.fn(async () => []),
+      getModerationStatesForActors: vi.fn(async () => new Map())
     } as unknown as Database
 
     const page = await getFilteredTimelinePage({

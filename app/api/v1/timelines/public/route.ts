@@ -117,6 +117,8 @@ export const GET = traceApiRoute(
           // filters when actorId is undefined), per REVIEW.md's cross-view
           // filtering invariant — matching the anon status detail/context views.
           filterContext: 'public',
+          // Public surface: hide silenced authors (and suspended, always).
+          surface: 'public',
           fetchBatch
         })
       const mastodonStatuses = await getMastodonStatuses(

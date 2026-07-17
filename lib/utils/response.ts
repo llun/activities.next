@@ -20,6 +20,7 @@ export const ERROR_401 = { error: 'Unauthorized' }
 export const ERROR_403 = { error: 'Forbidden' }
 export const ERROR_404 = { error: 'Not Found' }
 export const ERROR_409 = { error: 'Conflict' }
+export const ERROR_410 = { error: 'Gone' }
 export const ERROR_422 = { error: 'Unprocessable entity' }
 export const ERROR_429 = { error: 'Too Many Requests' }
 export const ERROR_413 = { error: 'Payload Too Large' }
@@ -38,6 +39,7 @@ export const HTTP_STATUS = {
   FORBIDDEN: 403,
   NOT_FOUND: 404,
   CONFLICT: 409,
+  GONE: 410,
   PAYLOAD_TOO_LARGE: 413,
   UNPROCESSABLE_ENTITY: 422,
   TOO_MANY_REQUESTS: 429,
@@ -55,6 +57,7 @@ export const codeMap = {
   [HTTP_STATUS.FORBIDDEN]: ERROR_403,
   [HTTP_STATUS.NOT_FOUND]: ERROR_404,
   [HTTP_STATUS.CONFLICT]: ERROR_409,
+  [HTTP_STATUS.GONE]: ERROR_410,
   [HTTP_STATUS.PAYLOAD_TOO_LARGE]: ERROR_413,
   [HTTP_STATUS.UNPROCESSABLE_ENTITY]: ERROR_422,
   [HTTP_STATUS.TOO_MANY_REQUESTS]: ERROR_429,
@@ -77,6 +80,7 @@ export const REASON_PHRASE: Record<StatusCode, string> = {
   [HTTP_STATUS.FORBIDDEN]: 'Forbidden',
   [HTTP_STATUS.NOT_FOUND]: 'Not Found',
   [HTTP_STATUS.CONFLICT]: 'Conflict',
+  [HTTP_STATUS.GONE]: 'Gone',
   [HTTP_STATUS.PAYLOAD_TOO_LARGE]: 'Payload Too Large',
   [HTTP_STATUS.UNPROCESSABLE_ENTITY]: 'Unprocessable entity',
   [HTTP_STATUS.TOO_MANY_REQUESTS]: 'Too Many Requests',

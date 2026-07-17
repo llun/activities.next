@@ -67,6 +67,21 @@ export const POST = traceApiRoute(
         })
       }
 
+      // Swallow activities from a suspended remote actor: acknowledge with 202
+      // but never queue them. A 403 would leak the moderation decision back to
+      // the sender.
+      const senderStates = await database.getModerationStatesForActors({
+        actorIds: [verifiedSenderActorId]
+      })
+      if (senderStates.get(verifiedSenderActorId)?.suspendedAt) {
+        return apiResponse({
+          req: request,
+          allowedMethods: CORS_HEADERS,
+          data: DEFAULT_202,
+          responseStatusCode: 202
+        })
+      }
+
       // A relay forwards third-party posts as an Announce signed by the relay
       // itself (so the signer === actor check already passed). When the verified
       // sender is an accepted relay, route its Announce to the relay-ingest job

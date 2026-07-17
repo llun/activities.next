@@ -69,6 +69,20 @@ describe('Create poll action', () => {
       expect(poll?.cc).toContain(`${actor1.id}/followers`)
     })
 
+    it('forces sensitive to true when the creating actor is sensitized', async () => {
+      const sensitizedActor = { ...actor1, sensitizedAt: Date.now() }
+      const createdPoll = await createPollFromUserInput({
+        text: 'A sensitized poll',
+        sensitive: false,
+        currentActor: sensitizedActor,
+        choices: ['Yes', 'No'],
+        database,
+        endAt: Date.now() + 24 * 60 * 60 * 1000
+      })
+
+      expect(createdPoll?.sensitive).toBe(true)
+    })
+
     it('stores a content-detected language that overrides a mislabeled declared language', async () => {
       const createdPoll = await createPollFromUserInput({
         text: 'สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร',

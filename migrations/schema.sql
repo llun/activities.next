@@ -57,7 +57,9 @@ CREATE TABLE public.accounts (
     "emailVerified" boolean DEFAULT false,
     "iconUrl" character varying(255),
     role text,
-    "twoFactorEnabled" boolean DEFAULT false NOT NULL
+    "twoFactorEnabled" boolean DEFAULT false NOT NULL,
+    "disabledAt" timestamp with time zone,
+    "approvedAt" timestamp with time zone
 );
 
 CREATE TABLE public.actor_domain_blocks (
@@ -83,7 +85,10 @@ CREATE TABLE public.actors (
     "deletionStatus" character varying(255),
     "deletionScheduledAt" timestamp with time zone,
     type character varying(255) DEFAULT 'Person'::character varying NOT NULL,
-    "lastStatusAt" timestamp with time zone
+    "lastStatusAt" timestamp with time zone,
+    "suspendedAt" timestamp with time zone,
+    "silencedAt" timestamp with time zone,
+    "sensitizedAt" timestamp with time zone
 );
 
 CREATE TABLE public.announcement_reactions (
@@ -622,6 +627,17 @@ CREATE SEQUENCE public.medias_id_seq
 
 ALTER SEQUENCE public.medias_id_seq OWNED BY public.medias.id;
 
+CREATE TABLE public.moderation_actions (
+    id character varying(255) NOT NULL,
+    "targetActorId" character varying(255) NOT NULL,
+    "moderatorAccountId" character varying(255) NOT NULL,
+    "moderatorActorId" character varying(255),
+    action character varying(32) NOT NULL,
+    "reportId" character varying(255),
+    text text DEFAULT ''::text NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE public.mutes (
     id character varying(255) NOT NULL,
     "actorId" character varying(255) NOT NULL,
@@ -836,7 +852,10 @@ CREATE TABLE public.reports (
     "actionTaken" boolean DEFAULT false NOT NULL,
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    "collectionIds" text DEFAULT '[]'::text NOT NULL
+    "collectionIds" text DEFAULT '[]'::text NOT NULL,
+    "assignedActorId" character varying(255),
+    "actionTakenAt" timestamp with time zone,
+    "actionTakenByActorId" character varying(255)
 );
 
 CREATE TABLE public.scheduled_statuses (
@@ -1304,6 +1323,9 @@ ALTER TABLE ONLY public.markers
 ALTER TABLE ONLY public.medias
     ADD CONSTRAINT medias_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.moderation_actions
+    ADD CONSTRAINT moderation_actions_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.mutes
     ADD CONSTRAINT mutes_actor_target_unique UNIQUE ("actorId", "targetActorId");
 
@@ -1544,6 +1566,10 @@ CREATE INDEX "medias_accountId_originalMimeType_idx" ON public.medias USING btre
 CREATE INDEX "medias_actorId_createdAt_idx" ON public.medias USING btree ("actorId", "createdAt");
 
 CREATE INDEX "medias_actorId_originalMimeType_idx" ON public.medias USING btree ("actorId", "originalMimeType");
+
+CREATE INDEX moderation_actions_report_idx ON public.moderation_actions USING btree ("reportId");
+
+CREATE INDEX moderation_actions_target_idx ON public.moderation_actions USING btree ("targetActorId", "createdAt");
 
 CREATE INDEX mutes_actor_created ON public.mutes USING btree ("actorId", "createdAt");
 

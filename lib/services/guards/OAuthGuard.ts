@@ -86,6 +86,14 @@ export const isBearerAuthorizationHeader = (
 ): boolean =>
   authorizationHeader?.trim().split(/\s+/, 1)[0]?.toLowerCase() === 'bearer'
 
+// A suspended actor, or an actor whose owning account is disabled, is blocked
+// from every authenticated API surface (bearer and cookie). Silence is NOT
+// checked here — silenced actors keep full API access; their statuses are only
+// hidden from public timelines. Reads columns already present on the loaded
+// domain Actor, so this adds no query to the hot auth path.
+export const isActorModerationBlocked = (actor: Actor): boolean =>
+  Boolean(actor.suspendedAt) || Boolean(actor.account?.disabledAt)
+
 type ScopeMatchMode = 'all' | 'any'
 
 type GuardDatabase = NonNullable<ReturnType<typeof getDatabase>>
@@ -266,11 +274,15 @@ const resolveAuthenticatedContext = async <P>({
       if (!actor) {
         return { authenticated: false, response: apiErrorResponse(401) }
       }
+      const parsedActor = Actor.parse(actor)
+      if (isActorModerationBlocked(parsedActor)) {
+        return { authenticated: false, response: apiErrorResponse(403) }
+      }
 
       return {
         authenticated: true,
         context: {
-          currentActor: Actor.parse(actor),
+          currentActor: parsedActor,
           database,
           params: context.params,
           grantedScopes,
@@ -295,6 +307,9 @@ const resolveAuthenticatedContext = async <P>({
   const currentActor = await getActorFromSession(database, session)
   if (!currentActor) {
     return { authenticated: false, response: apiErrorResponse(401) }
+  }
+  if (isActorModerationBlocked(currentActor)) {
+    return { authenticated: false, response: apiErrorResponse(403) }
   }
 
   return {
@@ -395,6 +410,9 @@ export const OAuthAppGuard =
           return fail(apiErrorResponse(401))
         }
         currentActor = Actor.parse(actor)
+        if (isActorModerationBlocked(currentActor)) {
+          return fail(apiErrorResponse(403))
+        }
       }
 
       // Resolve the owning client by id (an indexed primary-key lookup) rather

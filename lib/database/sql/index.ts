@@ -27,6 +27,7 @@ import { LikeSQLDatabaseMixin } from '@/lib/database/sql/like'
 import { ListSQLDatabaseMixin } from '@/lib/database/sql/list'
 import { MarkerSQLDatabaseMixin } from '@/lib/database/sql/marker'
 import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
+import { ModerationSQLDatabaseMixin } from '@/lib/database/sql/moderation'
 import { MuteSQLDatabaseMixin } from '@/lib/database/sql/mute'
 import { NotificationSQLDatabaseMixin } from '@/lib/database/sql/notification'
 import { OAuthSQLDatabaseMixin } from '@/lib/database/sql/oauth'
@@ -80,6 +81,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const instanceRuleDatabase = InstanceRuleSQLDatabaseMixin(database)
   const likeDatabase = LikeSQLDatabaseMixin(database)
   const mediaDatabase = MediaSQLDatabaseMixin(database)
+  const moderationDatabase = ModerationSQLDatabaseMixin(database)
   const notificationDatabase = NotificationSQLDatabaseMixin(database)
   const pushSubscriptionDatabase = PushSubscriptionSQLDatabaseMixin(database)
   const relayDatabase = RelaySQLDatabaseMixin(database)
@@ -164,6 +166,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...followedTagDatabase,
     ...likeDatabase,
     ...mediaDatabase,
+    ...moderationDatabase,
     ...notificationDatabase,
     ...pushSubscriptionDatabase,
     ...relayDatabase,

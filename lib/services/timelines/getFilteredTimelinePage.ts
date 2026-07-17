@@ -11,7 +11,14 @@ import { Status } from '@/lib/types/domain/status'
 
 import { filterBlockedStatuses } from './blockFilter'
 import { filterDomainBlockedStatuses } from './domainBlockFilter'
+import { filterModeratedStatuses } from './moderationFilter'
 import { filterMutedStatuses } from './muteFilter'
+
+// Which timeline surface is being built. `public` surfaces (public/tag/
+// federated) hide silenced authors as well as suspended ones; `following`
+// surfaces (home/list/direct) keep silenced authors for their followers.
+// Suspended authors are always dropped regardless of surface.
+export type TimelineSurface = 'public' | 'following'
 
 export const MAX_TIMELINE_LIMIT = 80
 export const MAX_BACKFILL_ITERATIONS = 5
@@ -46,6 +53,9 @@ interface GetFilteredStatusPageParams {
   minStatusId?: string | null
   limit?: number
   filterContext?: FilterContext
+  // Defaults to 'following' — silenced authors stay visible. Public surfaces
+  // pass 'public' to additionally hide silenced authors.
+  surface?: TimelineSurface
   fetchBatch: (params: FetchFilteredStatusBatchParams) => Promise<Status[]>
 }
 
@@ -56,9 +66,11 @@ export const getFilteredStatusPage = async ({
   minStatusId = null,
   limit = PER_PAGE_LIMIT,
   filterContext,
+  surface = 'following',
   fetchBatch
 }: GetFilteredStatusPageParams): Promise<FilteredTimelinePage> => {
   const pageLimit = normalizeTimelineLimit(limit)
+  const includeSilenced = surface !== 'public'
   // min_id ascends from its cursor (oldest-first) then reverses to newest-first,
   // returning the page adjacent to the cursor; every other cursor kind backfills
   // DESC (newest-first) from max_id. min_id wins when both are present.
@@ -110,10 +122,15 @@ export const getFilteredStatusPage = async ({
       actorId,
       blockFilteredBatch
     )
+    const moderationFilteredBatch = await filterModeratedStatuses(
+      database,
+      muteFilteredBatch,
+      includeSilenced
+    )
     const filteredBatch =
       filterRecords.length > 0
-        ? dropHideMatchesFromStatuses(muteFilteredBatch, filterRecords)
-        : muteFilteredBatch
+        ? dropHideMatchesFromStatuses(moderationFilteredBatch, filterRecords)
+        : moderationFilteredBatch
     statuses.push(...filteredBatch)
     cursor = batch[batch.length - 1].id
     lastScannedStatusId = cursor
@@ -186,6 +203,9 @@ interface GetFilteredTimelinePageParams {
   maxStatusId?: string | null
   limit?: number
   filterContext?: FilterContext
+  // Defaults to 'following'. The federated-public feed served through this
+  // wrapper passes 'public' so silenced authors are hidden there too.
+  surface?: TimelineSurface
 }
 
 export const getFilteredTimelinePage = async ({
@@ -196,7 +216,8 @@ export const getFilteredTimelinePage = async ({
   sinceStatusId = null,
   maxStatusId = null,
   limit = PER_PAGE_LIMIT,
-  filterContext
+  filterContext,
+  surface = 'following'
 }: GetFilteredTimelinePageParams): Promise<FilteredTimelinePage> =>
   getFilteredStatusPage({
     database,
@@ -205,6 +226,7 @@ export const getFilteredTimelinePage = async ({
     minStatusId,
     limit,
     filterContext,
+    surface,
     fetchBatch: async ({
       maxStatusId: descCursor,
       minStatusId: ascCursor,

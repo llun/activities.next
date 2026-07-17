@@ -45,6 +45,8 @@ const Page = async ({ params }: PageProps) => {
   const { statuses, nextMaxStatusId } = await getFilteredStatusPage({
     database,
     actorId: actor?.id,
+    // Public surface: hide silenced authors (and suspended, always).
+    surface: 'public',
     fetchBatch: ({ maxStatusId, limit }) =>
       database.getStatusesByHashtag({
         hashtag: tag,

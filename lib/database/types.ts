@@ -28,6 +28,7 @@ import {
   ListDatabase,
   MarkerDatabase,
   MediaDatabase,
+  ModerationDatabase,
   MuteDatabase,
   NotificationDatabase,
   OAuthDatabase,
@@ -81,6 +82,7 @@ export type Database = AccountDatabase &
   PushSubscriptionDatabase &
   RelayDatabase &
   ReportDatabase &
+  ModerationDatabase &
   ScheduledStatusDatabase &
   SearchDatabase &
   StatusDatabase &
