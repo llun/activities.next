@@ -251,16 +251,22 @@ const addStatusQuoteIds = (status: Status, statusIds: Set<string>) => {
 const getQuotedStatus = async (
   database: Database,
   statusId: string,
+  currentActorId?: string,
   options?: GetMastodonStatusOptions
 ) => {
   const quotedStatusCache = options?.quotedStatusCache
-  if (!quotedStatusCache) return database.getStatus({ statusId })
+  // The batch cache is populated by getStatusesByIds with the viewer, so cached
+  // quoted statuses already carry the viewer's action state. The uncached
+  // (single-status) path must pass currentActorId itself, otherwise the embedded
+  // quoted_status would report favourited/bookmarked/reblogged as false.
+  if (!quotedStatusCache)
+    return database.getStatus({ statusId, currentActorId })
 
   if (quotedStatusCache.has(statusId)) {
     return quotedStatusCache.get(statusId) ?? null
   }
 
-  const quotedStatus = await database.getStatus({ statusId })
+  const quotedStatus = await database.getStatus({ statusId, currentActorId })
   quotedStatusCache.set(statusId, quotedStatus)
   return quotedStatus
 }
@@ -556,6 +562,7 @@ export const getMastodonStatus = async (
       const quotedStatus = await getQuotedStatus(
         database,
         edge.quotedStatusId,
+        currentActorId,
         options
       )
       if (!quotedStatus) {

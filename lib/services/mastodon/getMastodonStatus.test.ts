@@ -1560,6 +1560,28 @@ describe('getMastodonStatus', () => {
       expect(quote.quoted_status).toBeNull()
     })
 
+    it('hydrates the embedded quote viewer action state on the single-status path', async () => {
+      // No batch cache: getQuotedStatus must pass currentActorId so the embedded
+      // quoted_status reflects the viewer's bookmark, not a default false.
+      const quoted = await makeStatus(ACTOR1_ID)
+      await database.createBookmark({ actorId: ACTOR2_ID, statusId: quoted.id })
+      const quoting = await makeStatus(ACTOR1_ID)
+      await database.createStatusQuote({
+        statusId: quoting.id,
+        quotedStatusId: quoted.id,
+        state: 'accepted'
+      })
+      const hydrated = (await database.getStatus({
+        statusId: quoting.id
+      })) as Status
+
+      const result = await getMastodonStatus(database, hydrated, ACTOR2_ID)
+      const quote = result?.quote as {
+        quoted_status: { bookmarked?: boolean } | null
+      }
+      expect(quote.quoted_status?.bookmarked).toBe(true)
+    })
+
     it('embeds an accepted quote for an authenticated non-author viewer of a public status', async () => {
       const quoted = await makeStatus(ACTOR1_ID)
       const result = await serializeQuoting(quoted.id, 'accepted', ACTOR2_ID)

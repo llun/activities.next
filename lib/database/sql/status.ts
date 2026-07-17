@@ -1233,16 +1233,22 @@ export const StatusSQLDatabaseMixin = (
     }
 
     const statuses = await query
-    // Batch detected-language hydration so this doesn't N+1 one query per
-    // reply (mirroring getStatusesByIds).
+    // Batch detected-language and quote-edge hydration so this doesn't N+1 one
+    // query per reply (mirroring getStatusesByIds).
     const hydrationStatusIds = await collectHydrationStatusIds(statuses)
+    const [detectedLanguages, quoteEdges] = await Promise.all([
+      hydrationStatusIds.size > 0
+        ? statusDetectedLanguageDatabase.getDetectedLanguages({
+            statusIds: [...hydrationStatusIds]
+          })
+        : Promise.resolve({}),
+      hydrationStatusIds.size > 0
+        ? getStatusQuoteEdges([...hydrationStatusIds])
+        : Promise.resolve(new Map<string, StatusQuote>())
+    ])
     const hydrationContext: StatusHydrationContext = {
-      detectedLanguages:
-        hydrationStatusIds.size > 0
-          ? await statusDetectedLanguageDatabase.getDetectedLanguages({
-              statusIds: [...hydrationStatusIds]
-            })
-          : {}
+      detectedLanguages,
+      quoteEdges
     }
     const statusesWithAttachments = (
       await Promise.all(
@@ -1465,17 +1471,23 @@ export const StatusSQLDatabaseMixin = (
     }
 
     const statuses = await query
-    // Batch detected-language hydration so this doesn't N+1 one query per
-    // status (mirroring getStatusesByIds) — actor status lists back profile
-    // pages and the Mastodon accounts/:id/statuses endpoint.
+    // Batch detected-language and quote-edge hydration so this doesn't N+1 one
+    // query per status (mirroring getStatusesByIds) — actor status lists back
+    // profile pages and the Mastodon accounts/:id/statuses endpoint.
     const hydrationStatusIds = await collectHydrationStatusIds(statuses)
+    const [detectedLanguages, quoteEdges] = await Promise.all([
+      hydrationStatusIds.size > 0
+        ? statusDetectedLanguageDatabase.getDetectedLanguages({
+            statusIds: [...hydrationStatusIds]
+          })
+        : Promise.resolve({}),
+      hydrationStatusIds.size > 0
+        ? getStatusQuoteEdges([...hydrationStatusIds])
+        : Promise.resolve(new Map<string, StatusQuote>())
+    ])
     const hydrationContext: StatusHydrationContext = {
-      detectedLanguages:
-        hydrationStatusIds.size > 0
-          ? await statusDetectedLanguageDatabase.getDetectedLanguages({
-              statusIds: [...hydrationStatusIds]
-            })
-          : {}
+      detectedLanguages,
+      quoteEdges
     }
     const statusesWithAttachments = (
       await Promise.all(

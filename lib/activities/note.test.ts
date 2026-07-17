@@ -115,6 +115,16 @@ describe('note entity utilities', () => {
 
       expect(getQuoteTargetId(note)).toBeNull()
     })
+
+    it('returns null for an embedded quote object without an id', () => {
+      const note = {
+        type: 'Note',
+        id: 'https://example.com/note/1',
+        quote: { type: 'Link', href: 'https://example.com/note/quoted' }
+      } as unknown as BaseNote
+
+      expect(getQuoteTargetId(note)).toBeNull()
+    })
   })
 
   describe('getAttachments', () => {

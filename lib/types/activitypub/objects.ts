@@ -132,8 +132,10 @@ export const BaseContent = z.object({
   // Quote-post fields (FEP-044f / Mastodon 4.5). Kept liberal: the target may be
   // a bare id string or an embedded object (`quote`), and legacy servers carry
   // it under compat aliases. `quoteAuthorization` is the hosted stamp id; the
-  // `interactionPolicy` object is tolerated but not validated here.
-  quote: z.union([z.string(), z.looseObject({ id: z.string() })]).nullish(),
+  // `interactionPolicy` object is tolerated but not validated here. The object
+  // form is a loose object (no required `id`) so an unusual/blank-node quote
+  // value never rejects the whole note — getQuoteTargetId reads `.id` defensively.
+  quote: z.union([z.string(), z.looseObject({})]).nullish(),
   quoteUrl: z.string().nullish(),
   quoteUri: z.string().nullish(),
   _misskey_quote: z.string().nullish(),
