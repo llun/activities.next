@@ -11,6 +11,7 @@ import { headerHost } from '@/lib/services/guards/headerHost'
 import { saveMedia } from '@/lib/services/medias'
 import { MediaSchema } from '@/lib/services/medias/types'
 import { Scope } from '@/lib/types/database/operations'
+import { QuoteApprovalPolicy } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import { apiResponse } from '@/lib/utils/response'
@@ -52,7 +53,8 @@ const UpdateCredentialsRequest = z.object({
     .object({
       privacy: z.enum(['public', 'unlisted', 'private', 'direct']).optional(),
       sensitive: z.union([z.boolean(), z.string()]).optional(),
-      language: z.string().max(20).optional()
+      language: z.string().max(20).optional(),
+      quote_policy: QuoteApprovalPolicy.optional()
     })
     .optional()
 })
@@ -300,6 +302,9 @@ export const updateCredentialsHandler = (
           : null),
         ...(source?.language !== undefined
           ? { defaultLanguage: source.language }
+          : null),
+        ...(source?.quote_policy !== undefined
+          ? { defaultQuotePolicy: source.quote_policy }
           : null),
         ...(iconUrl !== undefined ? { iconUrl } : null),
         ...(headerImageUrl !== undefined ? { headerImageUrl } : null),

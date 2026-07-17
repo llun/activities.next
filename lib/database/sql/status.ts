@@ -74,7 +74,8 @@ import {
   StatusEditRevision,
   UpdateNoteParams,
   UpdateNoteVisibilityParams,
-  UpdatePollParams
+  UpdatePollParams,
+  UpdateStatusQuoteApprovalPolicyParams
 } from '@/lib/types/database/operations'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { Attachment, isFitnessAttachment } from '@/lib/types/domain/attachment'
@@ -3390,9 +3391,32 @@ export const StatusSQLDatabaseMixin = (
     }
   }
 
+  async function updateStatusQuoteApprovalPolicy({
+    statusId,
+    quoteApprovalPolicy
+  }: UpdateStatusQuoteApprovalPolicyParams): Promise<Status | null> {
+    const existingStatus = await database('statuses')
+      .where('id', statusId)
+      .first()
+    if (!existingStatus) return null
+
+    // Rewrite only the quote-approval policy inside the content blob, preserving
+    // every other key. Deliberately NOT a status edit: no status_history row and
+    // no updatedAt bump, so `edited_at` never flips (Mastodon treats an
+    // interaction-policy change as a non-edit).
+    const data = getCompatibleJSON(existingStatus.content)
+    const content = { ...data, quoteApprovalPolicy }
+    await database('statuses')
+      .where('id', statusId)
+      .update({ content: JSON.stringify(content) })
+
+    return getStatus({ statusId })
+  }
+
   return {
     createNote,
     updateNote,
+    updateStatusQuoteApprovalPolicy,
     updateNoteVisibility,
     createAnnounce,
     createPoll,

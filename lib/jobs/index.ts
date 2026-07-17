@@ -40,6 +40,7 @@ import {
   SEND_QUOTE_ACCEPT_JOB_NAME,
   SEND_QUOTE_REJECT_JOB_NAME,
   SEND_QUOTE_REQUEST_JOB_NAME,
+  SEND_QUOTE_REVOKE_JOB_NAME,
   SEND_UNBLOCK_JOB_NAME,
   SEND_UNDO_ANNOUNCE_JOB_NAME,
   SEND_UNDO_FOLLOW_JOB_NAME,
@@ -57,6 +58,7 @@ import { sendNoteJob } from './sendNoteJob'
 import { sendQuoteAcceptJob } from './sendQuoteAcceptJob'
 import { sendQuoteRejectJob } from './sendQuoteRejectJob'
 import { sendQuoteRequestJob } from './sendQuoteRequestJob'
+import { sendQuoteRevokeJob } from './sendQuoteRevokeJob'
 import { sendUnblockJob } from './sendUnblockJob'
 import { sendUndoAnnounceJob } from './sendUndoAnnounceJob'
 import { sendUndoFollowJob } from './sendUndoFollowJob'
@@ -90,6 +92,7 @@ export const JOBS: Record<string, JobHandle> = {
   [SEND_QUOTE_REQUEST_JOB_NAME]: sendQuoteRequestJob,
   [SEND_QUOTE_ACCEPT_JOB_NAME]: sendQuoteAcceptJob,
   [SEND_QUOTE_REJECT_JOB_NAME]: sendQuoteRejectJob,
+  [SEND_QUOTE_REVOKE_JOB_NAME]: sendQuoteRevokeJob,
   [HANDLE_QUOTE_REQUEST_JOB_NAME]: handleQuoteRequestJob,
   [SEND_UPDATE_NOTE_JOB_NAME]: sendUpdateNoteJob,
   [SEND_UNDO_ANNOUNCE_JOB_NAME]: sendUndoAnnounceJob,

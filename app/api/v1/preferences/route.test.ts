@@ -111,6 +111,7 @@ describe('/api/v1/preferences', () => {
       'posting:default:visibility': 'public',
       'posting:default:sensitive': false,
       'posting:default:language': null,
+      'posting:default:quote_policy': 'public',
       'reading:expand:media': 'default',
       'reading:expand:spoilers': false,
       'reading:autoplay:gifs': false
@@ -123,6 +124,7 @@ describe('/api/v1/preferences', () => {
       defaultPrivacy: 'private',
       defaultSensitive: true,
       defaultLanguage: 'th',
+      defaultQuotePolicy: 'followers',
       readingExpandMedia: 'show_all',
       readingExpandSpoilers: true,
       readingAutoplayGifs: true
@@ -136,6 +138,7 @@ describe('/api/v1/preferences', () => {
       'posting:default:visibility': 'private',
       'posting:default:sensitive': true,
       'posting:default:language': 'th',
+      'posting:default:quote_policy': 'followers',
       'reading:expand:media': 'show_all',
       'reading:expand:spoilers': true,
       'reading:autoplay:gifs': true

@@ -33,6 +33,9 @@ export interface ActorSettings {
   defaultPrivacy?: 'public' | 'unlisted' | 'private' | 'direct'
   defaultSensitive?: boolean
   defaultLanguage?: string
+  // Default `quote_approval_policy` for new statuses (Mastodon 4.5
+  // `posting:default:quote_policy` / `source[quote_policy]`).
+  defaultQuotePolicy?: 'public' | 'followers' | 'nobody'
   postLineLimit?: PostLineLimit
   // Mastodon `reading:*` preferences surfaced by /api/v1/preferences.
   readingExpandMedia?: 'default' | 'show_all' | 'hide_all'

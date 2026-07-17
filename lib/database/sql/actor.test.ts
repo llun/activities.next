@@ -936,6 +936,7 @@ describe('ActorDatabase', () => {
             note: '',
             privacy: 'public',
             sensitive: false,
+            quote_policy: 'public',
             attribution_domains: []
           },
 

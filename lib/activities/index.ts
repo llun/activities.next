@@ -340,6 +340,44 @@ export const sendQuoteReject = async ({
     }
   )
 
+interface SendQuoteRevokeParams {
+  currentActor: Actor
+  inbox: string
+  // The hosted QuoteAuthorization stamp id being revoked.
+  stampId: string
+}
+export const sendQuoteRevoke = async ({
+  currentActor,
+  inbox,
+  stampId
+}: SendQuoteRevokeParams) =>
+  getTracer().startActiveSpan(
+    'activities.sendQuoteRevoke',
+    { attributes: { actorId: currentActor.id, inbox } },
+    async (span) => {
+      // FEP-044f revocation is a Delete of the QuoteAuthorization stamp. The
+      // receiver matches it by stamp id and requires the sender to be the
+      // stamp's issuer (the quoted author), so we sign as currentActor.
+      const activity = {
+        '@context': QUOTE_ACTIVITY_CONTEXT,
+        id: `${stampId}#delete`,
+        type: 'Delete',
+        actor: currentActor.id,
+        object: { id: stampId, type: 'QuoteAuthorization' }
+      }
+      const statusCode = await postActivityToInbox({
+        span,
+        inbox,
+        currentActor,
+        activity,
+        logPrefix: 'sendQuoteRevoke',
+        silenceTimeout: true
+      })
+      span.end()
+      return statusCode
+    }
+  )
+
 interface SendAnnounceParams {
   currentActor: Actor
   inbox: string

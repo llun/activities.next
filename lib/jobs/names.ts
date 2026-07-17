@@ -26,6 +26,7 @@ export const GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME =
 export const SEND_QUOTE_REQUEST_JOB_NAME = 'SendQuoteRequestJob'
 export const SEND_QUOTE_ACCEPT_JOB_NAME = 'SendQuoteAcceptJob'
 export const SEND_QUOTE_REJECT_JOB_NAME = 'SendQuoteRejectJob'
+export const SEND_QUOTE_REVOKE_JOB_NAME = 'SendQuoteRevokeJob'
 export const HANDLE_QUOTE_REQUEST_JOB_NAME = 'HandleQuoteRequestJob'
 export const FETCH_REMOTE_STATUS_JOB_NAME = 'FetchRemoteStatusJob'
 export const PUBLISH_SCHEDULED_STATUS_JOB_NAME = 'PublishScheduledStatusJob'
