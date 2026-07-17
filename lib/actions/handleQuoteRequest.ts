@@ -8,6 +8,7 @@ import {
 import { getQueue } from '@/lib/services/queue'
 import { canQuoteStatus } from '@/lib/services/quotes/canQuoteStatus'
 import { buildQuoteAuthorizationUri } from '@/lib/services/quotes/quoteAuthorization'
+import { verifyQuoteInstrument } from '@/lib/services/quotes/verifyQuoteInstrument'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Actor } from '@/lib/types/domain/actor'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -44,18 +45,6 @@ const sameHost = (a: string, b: string): boolean => {
   }
 }
 
-// Resolve the quoting note's author from the `instrument`, when embedded.
-const getInstrumentAttributedTo = (instrument: unknown): string | null => {
-  if (
-    instrument &&
-    typeof instrument === 'object' &&
-    typeof (instrument as { attributedTo?: unknown }).attributedTo === 'string'
-  ) {
-    return (instrument as { attributedTo: string }).attributedTo
-  }
-  return null
-}
-
 /**
  * Author side of the FEP-044f handshake: a remote actor asks to quote one of the
  * inbox owner's statuses. Records the (pending) edge keyed on the quoting note,
@@ -75,20 +64,13 @@ export const handleQuoteRequest = async ({
   const instrumentId = getInstrumentId(request.instrument)
   if (!instrumentId) return false
 
-  // The quoting note must belong to the (HTTP-sig-verified) requester. A note is
-  // served from its author's host, so the instrument id must be hosted under the
-  // requester's authority in every case; when the note is embedded, its declared
-  // attributedTo must additionally match the requester. `attributedTo` is itself
-  // an attacker-controlled field of the embedded object, so it can never stand in
-  // for the host binding — otherwise a requester could name a third party's note
-  // (on any other host) as the instrument and forge/clobber that note's edge.
+  // Cheap pre-filter: the quoting note is served from its author's host, so the
+  // instrument id must be on the requester's host, and never on our own host
+  // (local quotes go through the create path). This is only a fast reject for
+  // obvious forgeries — authorship is proven authoritatively below, since host
+  // equality alone is not enough on a multi-user instance where the requester
+  // could name a co-resident's note.
   if (!sameHost(instrumentId, request.actor)) return false
-  const instrumentAuthor = getInstrumentAttributedTo(request.instrument)
-  if (instrumentAuthor && instrumentAuthor !== request.actor) return false
-
-  // An inbound QuoteRequest's instrument is always a remote note (local quotes
-  // go through the create path). Reject an instrument on our own host — that
-  // would be a forged claim over a local user's status id.
   try {
     if (new URL(instrumentId).host === getConfig().host) return false
   } catch {
@@ -113,6 +95,18 @@ export const handleQuoteRequest = async ({
     currentActor: quotingActor ?? null
   })
   if (!canRead) return false
+
+  // Authoritative authorship + intent check: dereference the canonical instrument
+  // note and confirm the requester actually authored it and that it quotes our
+  // status. This closes the multi-user forgery (a verified actor naming a
+  // co-resident's note) that the cheap host pre-filter cannot.
+  const instrumentVerified = await verifyQuoteInstrument({
+    database,
+    instrumentId,
+    requesterId: request.actor,
+    quotedStatusId: request.object
+  })
+  if (!instrumentVerified) return false
 
   const verdict = await canQuoteStatus({
     database,

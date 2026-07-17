@@ -8,7 +8,6 @@ import {
 import { applyRemoteBlock } from '@/lib/actions/applyRemoteBlock'
 import { applyRemoteUnblock } from '@/lib/actions/applyRemoteUnblock'
 import { createFollower } from '@/lib/actions/createFollower'
-import { handleQuoteRequest } from '@/lib/actions/handleQuoteRequest'
 import { handleQuoteResponse } from '@/lib/actions/handleQuoteResponse'
 import { likeRequest } from '@/lib/actions/like'
 import { rejectFollowRequest } from '@/lib/actions/rejectFollowRequest'
@@ -16,6 +15,7 @@ import { undoFollowRequest } from '@/lib/actions/undoFollowRequest'
 import { FollowRequest } from '@/lib/activities/followAction'
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { UndoFollow } from '@/lib/activities/undoFollow'
+import { HANDLE_QUOTE_REQUEST_JOB_NAME } from '@/lib/jobs/names'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { isFederationSigningActor } from '@/lib/services/federation/instanceActor'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
@@ -23,6 +23,7 @@ import {
   OnlyLocalUserGuard,
   OnlyLocalUserGuardParams
 } from '@/lib/services/guards/OnlyLocalUserGuard'
+import { getQueue } from '@/lib/services/queue'
 import {
   Accept,
   Block,
@@ -32,6 +33,7 @@ import {
   Undo
 } from '@/lib/types/activitypub'
 import { normalizeActorId } from '@/lib/utils/activitypub'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -434,10 +436,14 @@ export const POST = traceApiRoute(
                 })
               }
               case 'QuoteRequest': {
-                await handleQuoteRequest({
-                  database,
-                  activity: compactedActivity,
-                  inboxActor: actor
+                // Defer to the shared quote-request handler via the queue so the
+                // authorship-verifying fetch runs in the worker rather than
+                // inline in the inbox response (mirrors the shared-inbox path).
+                await getQueue().publish({
+                  id: getHashFromString(activity.id),
+                  name: HANDLE_QUOTE_REQUEST_JOB_NAME,
+                  data: compactedActivity,
+                  verifiedSenderActorId: context.verifiedSenderActorId
                 })
                 return apiResponse({
                   req,

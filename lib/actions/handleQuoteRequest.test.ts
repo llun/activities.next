@@ -5,6 +5,7 @@ import {
   SEND_QUOTE_REJECT_JOB_NAME
 } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
+import { verifyQuoteInstrument } from '@/lib/services/quotes/verifyQuoteInstrument'
 import type { Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
@@ -13,6 +14,14 @@ vi.mock('@/lib/services/queue', () => ({
     publish: vi.fn().mockResolvedValue(undefined)
   })
 }))
+
+// The instrument authorship check dereferences the remote note; stub it so unit
+// tests stay offline and can drive the verified/unverified branches directly.
+vi.mock('@/lib/services/quotes/verifyQuoteInstrument', () => ({
+  verifyQuoteInstrument: vi.fn().mockResolvedValue(true)
+}))
+
+const mockVerifyQuoteInstrument = vi.mocked(verifyQuoteInstrument)
 
 const INBOX_ACTOR_ID = 'https://llun.test/users/target'
 const QUOTER = 'https://remote.example/users/quoter'
@@ -62,7 +71,10 @@ const makeDatabase = (
   }) as unknown as Database
 
 describe('handleQuoteRequest', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockVerifyQuoteInstrument.mockResolvedValue(true)
+  })
 
   it('accepts an authorized request, records the accepted edge, and enqueues Accept', async () => {
     const createSpy = vi.fn().mockResolvedValue({})
@@ -150,19 +162,32 @@ describe('handleQuoteRequest', () => {
     ).resolves.toBe(false)
   })
 
-  it('returns false when the instrument author disagrees with the requester', async () => {
-    const database = makeDatabase()
+  it('returns false when the instrument note cannot be authenticated as the requester’s own', async () => {
+    // The co-resident forgery: the instrument is on the requester's host (passes
+    // the cheap pre-filter) but dereferences to a note the requester did not
+    // author, so verifyQuoteInstrument rejects it.
+    mockVerifyQuoteInstrument.mockResolvedValue(false)
+    const createSpy = vi.fn()
+    const database = makeDatabase({ createSpy })
     const handled = await handleQuoteRequest({
       database,
-      activity: activity({
-        instrument: {
-          id: INSTRUMENT_ID,
-          attributedTo: 'https://evil.example/x'
-        }
-      }),
+      activity: activity(),
       inboxActor
     })
     expect(handled).toBe(false)
+    expect(createSpy).not.toHaveBeenCalled()
+  })
+
+  it('verifies instrument authorship with the requester and target before accepting', async () => {
+    const database = makeDatabase()
+    await handleQuoteRequest({ database, activity: activity(), inboxActor })
+    expect(mockVerifyQuoteInstrument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        instrumentId: INSTRUMENT_ID,
+        requesterId: QUOTER,
+        quotedStatusId: QUOTED_STATUS_ID
+      })
+    )
   })
 
   it('returns false when a bare-id instrument is hosted on a foreign authority', async () => {
