@@ -1293,6 +1293,48 @@ describe('ListDatabase', () => {
     })
   })
 
+  it('getListAccounts returns an empty page for an unresolvable min_id cursor', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      if (!owner) throw new Error('owner not created')
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Members list'
+      })
+      for (const username of ['m1', 'm2', 'm3']) {
+        await createLocalAccount(database, username)
+        const member = await database.getActorFromUsername({
+          username,
+          domain: TEST_DOMAIN
+        })
+        if (!member) throw new Error(`${username} not created`)
+        await database.addListAccounts({
+          listId: list.id,
+          actorId: owner.id,
+          targetActorIds: [member.id]
+        })
+      }
+
+      // A min_id whose membership row was removed (or a foreign id) must
+      // terminate pagination with an empty page — matching getListTimeline —
+      // rather than dropping the filter and returning the OLDEST members (the
+      // wrong end of the list under the ascending min_id order).
+      const page = await database.getListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        minId: 'does-not-exist',
+        limit: 2
+      })
+      expect(page.accounts).toEqual([])
+      expect(page.nextMaxId).toBeNull()
+      expect(page.prevMinId).toBeNull()
+    })
+  })
+
   it('paginates from a cursor that exists but is not in the list partition', async () => {
     await withFreshDatabase(async (database) => {
       await createLocalAccount(database, 'owner')

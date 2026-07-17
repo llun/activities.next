@@ -240,6 +240,45 @@ describe('GET /api/v2/notifications', () => {
     expect(link).toContain('rel="prev"')
   })
 
+  it('emits a min_id continuation link when a min_id page has no visible groups but the source is not exhausted', async () => {
+    // Every scanned window is one bursty group whose accounts do not resolve, so
+    // the envelope suppresses it: the collector hits its iteration cap without
+    // exhausting (full batches, <limit groups) and no group survives. On a min_id
+    // (ascending) page this must page UPWARD via a min_id link from the last
+    // scanned row, not a max_id link.
+    mockDatabase.getMastodonActorsFromIds.mockResolvedValue([])
+    // batchSize = limit(2) * GROUP_OVERSCAN(5) = 10 full rows, one group.
+    mockDatabase.getNotifications.mockResolvedValue(
+      Array.from({ length: 10 }, (_, i) => ({
+        id: `burst-${i}`,
+        type: 'like',
+        sourceActorId: 'https://other.test/users/alice',
+        statusId: 'https://other.test/statuses/1',
+        groupKey: 'like:https://other.test/statuses/1',
+        isRead: false,
+        filtered: false,
+        createdAt: 3000 - i,
+        updatedAt: 3000 - i
+      }))
+    )
+
+    const request = new NextRequest(
+      'https://llun.test/api/v2/notifications?limit=2&min_id=floor',
+      { method: 'GET' }
+    )
+    const response = await GET(request, { params: Promise.resolve({}) })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.notification_groups).toHaveLength(0)
+    const link = response.headers.get('Link') ?? ''
+    // Ascending: continue upward with a min_id (prev) link from the newest
+    // scanned row — never a max_id (next) link that would page back down.
+    expect(link).toContain('min_id=burst-0')
+    expect(link).toContain('rel="prev"')
+    expect(link).not.toContain('max_id=')
+  })
+
   it('anchors the next (max_id) Link on the last returned group most-recent id', async () => {
     mockDatabase.getNotifications.mockResolvedValueOnce([
       {

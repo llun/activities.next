@@ -131,14 +131,22 @@ export const getFilteredStatusPage = async ({
     // `pageLimit` visible statuses, returned newest-first. rel=prev (newer)
     // continues above the newest returned; rel=next (older) below the oldest.
     visibleStatuses.reverse()
+    const hasVisible = visibleStatuses.length > 0
     return {
       statuses: visibleStatuses,
-      nextMaxStatusId:
-        visibleStatuses.length > 0
-          ? visibleStatuses[visibleStatuses.length - 1].id
-          : null,
-      prevMinStatusId:
-        visibleStatuses.length > 0 ? visibleStatuses[0].id : null,
+      nextMaxStatusId: hasVisible
+        ? visibleStatuses[visibleStatuses.length - 1].id
+        : null,
+      // When a filtered window empties the page but the source isn't exhausted
+      // (the backfill cap was hit), keep the client paging UP past the block via
+      // the last scanned id — mirroring the DESC branch's lastScannedStatusId
+      // fallback, so an all-filtered stretch above the cursor can't dead-stop
+      // min_id pagination and silently withhold newer posts.
+      prevMinStatusId: hasVisible
+        ? visibleStatuses[0].id
+        : exhausted
+          ? null
+          : lastScannedStatusId,
       filterRecords
     }
   }

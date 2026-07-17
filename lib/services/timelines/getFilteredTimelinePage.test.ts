@@ -1,11 +1,15 @@
 import { Database } from '@/lib/database/types'
+import { Timeline } from '@/lib/services/timelines/types'
 import {
   GetBlockRelationsParams,
   GetMuteRelationsParams
 } from '@/lib/types/database/operations'
 import { Status, StatusType } from '@/lib/types/domain/status'
 
-import { getFilteredStatusPage } from './getFilteredTimelinePage'
+import {
+  getFilteredStatusPage,
+  getFilteredTimelinePage
+} from './getFilteredTimelinePage'
 
 const readerActorId = 'https://llun.test/users/reader'
 const blockedActorId = 'https://blocked.test/users/blocked'
@@ -343,6 +347,53 @@ describe('getFilteredStatusPage', () => {
     ])
   })
 
+  it('keeps a min_id continuation cursor when a filtered window empties the capped ascending page', async () => {
+    // Every row above the cursor is blocked and each ascending window is full,
+    // so exhausted never trips and the backfill cap (5) is hit with nothing
+    // visible. The page must still hand back a min_id continuation cursor (the
+    // newest scanned id) so the client can page UP past the block, mirroring the
+    // DESC branch's lastScannedStatusId fallback.
+    const blockedBatches = new Map<string | null, Status[]>()
+    let lastScanned = ''
+    let key: string | null = 'floor'
+    for (let window = 0; window < 5; window++) {
+      const lo = createStatus(`cap-${window}-a`, blockedActorId)
+      const hi = createStatus(`cap-${window}-b`, blockedActorId)
+      blockedBatches.set(key, [lo, hi]) // oldest-first window of 2 blocked rows
+      key = hi.id // ascending loop advances to the newest raw row
+      lastScanned = hi.id
+    }
+    const getBlockRelations = vi.fn(
+      async ({ targetActorIds }: GetBlockRelationsParams) =>
+        targetActorIds.some((targetActorId) => targetActorId === blockedActorId)
+          ? [{ actorId: readerActorId, targetActorId: blockedActorId }]
+          : []
+    )
+    const database = {
+      getBlockRelations,
+      getMuteRelations: vi.fn(async () => []),
+      getActorDomainBlocks: vi.fn(async () => [])
+    } as unknown as Database
+    const fetchBatch = vi.fn(({ minStatusId }) =>
+      Promise.resolve(blockedBatches.get(minStatusId) ?? [])
+    )
+
+    const page = await getFilteredStatusPage({
+      database,
+      actorId: readerActorId,
+      limit: 2,
+      minStatusId: 'floor',
+      fetchBatch
+    })
+
+    expect(page.statuses).toEqual([])
+    // Continuation: prev (min_id, newer) advances past the block; there is no
+    // older page to fetch, so next (max_id) stays null.
+    expect(page.prevMinStatusId).toBe(lastScanned)
+    expect(page.nextMaxStatusId).toBeNull()
+    expect(fetchBatch).toHaveBeenCalledTimes(5)
+  })
+
   it('omits statuses whose author the reader has muted', async () => {
     const muted = createStatus('muted', mutedActorId)
     const visible1 = createStatus('visible-1')
@@ -432,5 +483,47 @@ describe('getFilteredStatusPage', () => {
     expect(getActorDomainBlocks).toHaveBeenCalledWith({
       actorId: readerActorId
     })
+  })
+})
+
+describe('getFilteredTimelinePage', () => {
+  it('bridges getTimeline newest-first output through the ascending loop back to newest-first for min_id', async () => {
+    const s1 = createStatus('bridge-1')
+    const s2 = createStatus('bridge-2')
+    const s3 = createStatus('bridge-3')
+    // getTimeline returns min_id windows newest-first (DB reverses internally).
+    const getTimeline = vi.fn(
+      async ({ minStatusId }: { minStatusId?: string | null }) =>
+        minStatusId === 'floor' ? [s3, s2, s1] : []
+    )
+    const database = {
+      getTimeline,
+      getBlockRelations: vi.fn(async () => []),
+      getMuteRelations: vi.fn(async () => []),
+      getActorDomainBlocks: vi.fn(async () => [])
+    } as unknown as Database
+
+    const page = await getFilteredTimelinePage({
+      database,
+      timeline: Timeline.MAIN,
+      actorId: readerActorId,
+      minStatusId: 'floor',
+      limit: 3
+    })
+
+    // The wrapper reverses getTimeline's newest-first batch to oldest-first for
+    // the ascending loop, which reverses the assembled page back to newest-first:
+    // the two flips compose without scrambling the order.
+    expect(page.statuses.map((status) => status.id)).toEqual([
+      s3.id,
+      s2.id,
+      s1.id
+    ])
+    // Ascending mode drives getTimeline via minStatusId with no max ceiling, and
+    // never as sinceStatusId.
+    expect(getTimeline).toHaveBeenCalledWith(
+      expect.objectContaining({ minStatusId: 'floor', maxStatusId: null })
+    )
+    expect(getTimeline.mock.calls[0][0].sinceStatusId).toBeUndefined()
   })
 })
