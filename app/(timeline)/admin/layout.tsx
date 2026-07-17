@@ -3,6 +3,7 @@
 import {
   BarChart3,
   Filter,
+  Flag,
   Globe,
   Hash,
   Megaphone,
@@ -30,6 +31,7 @@ interface Props {
 const tabs: SectionNavTab[] = [
   { name: 'Overview', url: '/admin', icon: BarChart3 },
   { name: 'Accounts', url: '/admin/accounts', icon: Users },
+  { name: 'Reports', url: '/admin/reports', icon: Flag },
   { name: 'Hashtags', url: '/admin/tags', icon: Hash },
   { name: 'Filters', url: '/admin/filters', icon: Filter },
   { name: 'Rules', url: '/admin/rules', icon: Scale },
