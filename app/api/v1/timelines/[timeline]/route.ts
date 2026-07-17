@@ -110,6 +110,9 @@ export const GET = traceApiRoute(
           filterContext: getFilterContextForTimeline(timeline),
           // The federated feed is a public surface: hide silenced authors too.
           // Home/direct/list feeds keep them (a follower still sees them).
+          // LOCAL_PUBLIC — the other public surface — never reaches here (it is
+          // 404'd via UNSUPPORTED_TIMELINE above); the dedicated
+          // /timelines/public route serves it with surface: 'public'.
           surface:
             timeline === Timeline.FEDERATED_PUBLIC ? 'public' : 'following'
         })
