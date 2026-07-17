@@ -748,6 +748,35 @@ describe('createNoteJob', () => {
       }
     )
 
+    it('does not persist an attacker-supplied quoteAuthorization on a pending edge', async () => {
+      // A remote note can claim any `quoteAuthorization` uri. Until the quote
+      // verifies as accepted, the stamp is meaningless and must not be stored —
+      // otherwise a forged note could shadow a legitimate stamp on the
+      // (non-unique) authorizationUri lookup.
+      const authorId = actor1?.id as string
+      const quotedId = await createLocalQuoted('forged-stamp', authorId)
+      const note = {
+        ...MockMastodonActivityPubNote({
+          id: `${ACTOR2_ID}/statuses/quoting-forged-stamp`,
+          from: ACTOR2_ID,
+          content: 'quote with forged stamp'
+        }),
+        quote: quotedId,
+        quoteAuthorization: `${authorId}/quote_authorizations/forged`
+      }
+
+      await createNoteJob(database, {
+        id: 'quote-forged-stamp',
+        name: CREATE_NOTE_JOB_NAME,
+        data: note,
+        verifiedSenderActorId: ACTOR2_ID
+      })
+
+      const edge = await database.getStatusQuote({ statusId: note.id })
+      expect(edge).toMatchObject({ quotedStatusId: quotedId, state: 'pending' })
+      expect(edge?.authorizationUri).toBeNull()
+    })
+
     it('leaves no quote edge for a note that quotes nothing', async () => {
       const note = MockMastodonActivityPubNote({
         id: `${actor1?.id}/statuses/no-quote`,
@@ -763,6 +792,40 @@ describe('createNoteJob', () => {
       await expect(
         database.getStatusQuote({ statusId: note.id })
       ).resolves.toBeNull()
+    })
+
+    it('does not downgrade an already-accepted edge when a stampless Create arrives', async () => {
+      // Models the "remote quoting local" race: we accepted the QuoteRequest
+      // (edge accepted) before the Create Note (no stamp -> verify yields
+      // pending) arrives. The one-way machine must keep it accepted.
+      const authorId = actor1?.id as string
+      const quotedId = await createLocalQuoted('race', authorId)
+      const quotingId = `${ACTOR2_ID}/statuses/quoting-race`
+      await database.createStatusQuote({
+        statusId: quotingId,
+        quotedStatusId: quotedId,
+        state: 'accepted',
+        authorizationUri: 'https://llun.test/sentinel-stamp'
+      })
+      const note = {
+        ...MockMastodonActivityPubNote({
+          id: quotingId,
+          from: ACTOR2_ID,
+          content: 'race quote'
+        }),
+        quote: quotedId
+      }
+
+      await createNoteJob(database, {
+        id: 'quote-race',
+        name: CREATE_NOTE_JOB_NAME,
+        data: note,
+        verifiedSenderActorId: ACTOR2_ID
+      })
+
+      const edge = await database.getStatusQuote({ statusId: quotingId })
+      expect(edge?.state).toBe('accepted')
+      expect(edge?.authorizationUri).toBe('https://llun.test/sentinel-stamp')
     })
 
     it('does not rewrite the edge for a duplicate Create', async () => {

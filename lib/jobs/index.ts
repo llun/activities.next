@@ -9,6 +9,7 @@ import { deleteActorJob } from './deleteActorJob'
 import { deleteObjectJob } from './deleteObjectJob'
 import { fetchRemoteStatusJob } from './fetchRemoteStatusJob'
 import { generateFitnessRouteHeatmapJob } from './generateFitnessRouteHeatmapJob'
+import { handleQuoteRequestJob } from './handleQuoteRequestJob'
 import { importFitnessFilesJob } from './importFitnessFilesJob'
 import { importStravaActivityJob } from './importStravaActivityJob'
 import { importStravaArchiveJob } from './importStravaArchiveJob'
@@ -23,6 +24,7 @@ import {
   FETCH_REMOTE_STATUS_JOB_NAME,
   GENERATE_FITNESS_HEATMAP_JOB_NAME,
   GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+  HANDLE_QUOTE_REQUEST_JOB_NAME,
   IMPORT_FITNESS_FILES_JOB_NAME,
   IMPORT_STRAVA_ACTIVITY_JOB_NAME,
   IMPORT_STRAVA_ARCHIVE_JOB_NAME,
@@ -35,6 +37,9 @@ import {
   SEND_BLOCK_JOB_NAME,
   SEND_FLAG_JOB_NAME,
   SEND_NOTE_JOB_NAME,
+  SEND_QUOTE_ACCEPT_JOB_NAME,
+  SEND_QUOTE_REJECT_JOB_NAME,
+  SEND_QUOTE_REQUEST_JOB_NAME,
   SEND_UNBLOCK_JOB_NAME,
   SEND_UNDO_ANNOUNCE_JOB_NAME,
   SEND_UNDO_FOLLOW_JOB_NAME,
@@ -49,6 +54,9 @@ import { sendAnnounceJob } from './sendAnnounceJob'
 import { sendBlockJob } from './sendBlockJob'
 import { sendFlagJob } from './sendFlagJob'
 import { sendNoteJob } from './sendNoteJob'
+import { sendQuoteAcceptJob } from './sendQuoteAcceptJob'
+import { sendQuoteRejectJob } from './sendQuoteRejectJob'
+import { sendQuoteRequestJob } from './sendQuoteRequestJob'
 import { sendUnblockJob } from './sendUnblockJob'
 import { sendUndoAnnounceJob } from './sendUndoAnnounceJob'
 import { sendUndoFollowJob } from './sendUndoFollowJob'
@@ -79,6 +87,10 @@ export const JOBS: Record<string, JobHandle> = {
   [IMPORT_STRAVA_ACTIVITY_JOB_NAME]: importStravaActivityJob,
   [IMPORT_STRAVA_ARCHIVE_JOB_NAME]: importStravaArchiveJob,
   [SEND_NOTE_JOB_NAME]: sendNoteJob,
+  [SEND_QUOTE_REQUEST_JOB_NAME]: sendQuoteRequestJob,
+  [SEND_QUOTE_ACCEPT_JOB_NAME]: sendQuoteAcceptJob,
+  [SEND_QUOTE_REJECT_JOB_NAME]: sendQuoteRejectJob,
+  [HANDLE_QUOTE_REQUEST_JOB_NAME]: handleQuoteRequestJob,
   [SEND_UPDATE_NOTE_JOB_NAME]: sendUpdateNoteJob,
   [SEND_UNDO_ANNOUNCE_JOB_NAME]: sendUndoAnnounceJob,
   [SEND_UNDO_FOLLOW_JOB_NAME]: sendUndoFollowJob,

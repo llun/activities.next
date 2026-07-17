@@ -35,6 +35,15 @@ import { createJobHandle } from './createJobHandle'
 import { CREATE_NOTE_JOB_NAME } from './names'
 import { actorMatchesVerifiedSender } from './verifiedSender'
 
+// Two ids share authority when served from the same host.
+const sameHost = (a: string, b: string): boolean => {
+  try {
+    return new URL(a).host === new URL(b).host
+  } catch {
+    return false
+  }
+}
+
 export const createNoteJob = createJobHandle(
   CREATE_NOTE_JOB_NAME,
   async (database, message) => {
@@ -133,12 +142,35 @@ export const createNoteJob = createJobHandle(
         actorId,
         quotedStatus
       })
-      await database.createStatusQuote({
-        statusId: note.id,
-        quotedStatusId,
-        state,
-        authorizationUri: note.quoteAuthorization ?? null
-      })
+      // Only trust an inbound stamp uri when the quote actually verified as
+      // accepted AND the stamp is served from the quoted status's own authority.
+      // A remote note can claim any `quoteAuthorization`; persisting it on a
+      // pending/rejected or cross-authority edge would let a forged note shadow a
+      // legitimate stamp (the authorizationUri index is non-unique).
+      const authorizationUri =
+        state === 'accepted' &&
+        note.quoteAuthorization &&
+        sameHost(note.quoteAuthorization, quotedStatusId)
+          ? note.quoteAuthorization
+          : undefined
+      const existingEdge = await database.getStatusQuote({ statusId: note.id })
+      if (existingEdge) {
+        // The edge already exists (e.g. we accepted this actor's QuoteRequest
+        // before the Create Note arrived). Advance it via the one-way state
+        // machine so a re-derived `pending` never downgrades an accepted edge.
+        await database.updateStatusQuoteState({
+          statusId: note.id,
+          state,
+          authorizationUri
+        })
+      } else {
+        await database.createStatusQuote({
+          statusId: note.id,
+          quotedStatusId,
+          state,
+          authorizationUri: authorizationUri ?? null
+        })
+      }
     }
 
     const tags = getTags(note)

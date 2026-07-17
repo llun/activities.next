@@ -1,4 +1,7 @@
-import { CREATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import {
+  CREATE_NOTE_JOB_NAME,
+  HANDLE_QUOTE_REQUEST_JOB_NAME
+} from '@/lib/jobs/names'
 
 import { getJobMessage } from './getJobMessage'
 
@@ -246,6 +249,36 @@ describe('getJobMessage', () => {
           actor: verifiedSenderActorId,
           object: 'https://remote.test/users/alice/statuses/1'
         }
+      } as never,
+      verifiedSenderActorId
+    )
+
+    expect(result).toBeNull()
+  })
+
+  it('routes a QuoteRequest to the handle-quote-request job', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/qr-1',
+        type: 'QuoteRequest',
+        actor: verifiedSenderActorId,
+        object: 'https://llun.test/users/target/statuses/1',
+        instrument: 'https://remote.test/users/alice/statuses/9'
+      } as never,
+      verifiedSenderActorId
+    )
+
+    expect(result?.name).toBe(HANDLE_QUOTE_REQUEST_JOB_NAME)
+  })
+
+  it('rejects a QuoteRequest whose actor differs from the verified sender', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/qr-2',
+        type: 'QuoteRequest',
+        actor: 'https://evil.example/users/mallory',
+        object: 'https://llun.test/users/target/statuses/1',
+        instrument: 'https://remote.test/users/alice/statuses/9'
       } as never,
       verifiedSenderActorId
     )

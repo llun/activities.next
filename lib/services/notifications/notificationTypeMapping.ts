@@ -36,6 +36,8 @@ export const mastodonTypeToInternal = (type: string): NotificationType[] => {
       return [NotificationType.enum.activity_import]
     case 'mention':
       return [NotificationType.enum.mention, NotificationType.enum.reply]
+    case 'quote':
+      return [NotificationType.enum.quote]
     default:
       return [type as NotificationType]
   }
@@ -53,6 +55,7 @@ export type MastodonNotificationType =
   | 'mention'
   | 'status'
   | 'reblog'
+  | 'quote'
   | 'follow'
   | 'follow_request'
   | 'favourite'
@@ -77,6 +80,8 @@ export const internalTypeToMastodon = (
       return 'mention'
     case 'reblog':
       return 'reblog'
+    case 'quote':
+      return 'quote'
     case 'follow':
       return 'follow'
     case 'follow_request':

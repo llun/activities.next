@@ -6,6 +6,8 @@ const MULTIPART_FORM_DATA_CONTENT_TYPE = 'multipart/form-data'
 const STATUS_STRING_FIELDS = [
   'status',
   'in_reply_to_id',
+  'quoted_status_id',
+  'quote_approval_policy',
   'spoiler_text',
   'visibility',
   'language',

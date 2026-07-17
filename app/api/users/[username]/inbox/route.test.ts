@@ -1,7 +1,10 @@
 import { NextRequest } from 'next/server'
 
+import { HANDLE_QUOTE_REQUEST_JOB_NAME } from '@/lib/jobs/names'
+
 import { POST } from './route'
 
+const mockPublish = vi.fn()
 const mockCanFederateWithDomain = vi.fn()
 const mockAcceptRelayRequest = vi.fn()
 const mockRejectRelayRequest = vi.fn()
@@ -31,6 +34,12 @@ let mockActor: MockActor = {
   username: 'llun',
   type: 'Person'
 }
+
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: vi.fn().mockReturnValue({
+    publish: (...params: unknown[]) => mockPublish(...params)
+  })
+}))
 
 vi.mock('@/lib/services/federation/domainPolicy', () => ({
   canFederateWithDomain: (...params: unknown[]) =>
@@ -405,7 +414,7 @@ describe('POST /api/users/[username]/inbox', () => {
     })
   })
 
-  it.each(['Flag', 'Move', 'Add', 'Remove', 'QuoteRequest'])(
+  it.each(['Flag', 'Move', 'Add', 'Remove'])(
     'accepts verified %s activities without treating them as malformed',
     async (activityType) => {
       const response = await POST(
@@ -423,6 +432,23 @@ describe('POST /api/users/[username]/inbox', () => {
       expect(mockCreateFollower).not.toHaveBeenCalled()
     }
   )
+
+  it('dispatches verified QuoteRequest activities to the quote-request job', async () => {
+    // The instrument-authorship check dereferences the remote note, so the
+    // per-user inbox defers to the worker (like the shared inbox) instead of
+    // running the handler inline in the response.
+    const response = await POST(
+      createActorInboxActivityRequest('QuoteRequest'),
+      {
+        params: Promise.resolve({ username: 'llun' })
+      }
+    )
+
+    expect(response.status).toBe(202)
+    expect(mockPublish).toHaveBeenCalledWith(
+      expect.objectContaining({ name: HANDLE_QUOTE_REQUEST_JOB_NAME })
+    )
+  })
 
   it('accepts reference-only Undo activities without treating them as malformed', async () => {
     const response = await POST(createActorInboxActivityRequest('Undo'), {
