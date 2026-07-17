@@ -499,7 +499,7 @@ describe('FitnessFileManagement', () => {
     it('parses API JSON errors into readable delete messages', async () => {
       vi.spyOn(global, 'fetch').mockResolvedValue({
         ok: false,
-        text: async () => JSON.stringify({ status: 'Not Found' }),
+        text: async () => JSON.stringify({ error: 'Not Found' }),
         statusText: 'Not Found'
       } as Response)
 

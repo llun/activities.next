@@ -82,7 +82,7 @@ describe('POST /api/v1/accounts/outbox', () => {
 
     expect(res.status).toBe(422)
     await expect(res.json()).resolves.toEqual({
-      status: 'Unprocessable entity'
+      error: 'Unprocessable entity'
     })
   })
 
@@ -107,7 +107,7 @@ describe('POST /api/v1/accounts/outbox', () => {
 
     expect(res.status).toBe(422)
     await expect(res.json()).resolves.toEqual({
-      status: 'Unprocessable entity'
+      error: 'Unprocessable entity'
     })
   })
 })

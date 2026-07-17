@@ -223,11 +223,15 @@ describe('GET /api/v1/push/subscription', () => {
     expect(body.server_key).toBe('test-vapid-public-key')
   })
 
-  it('returns 404 when there is no subscription', async () => {
+  it('returns 404 with the Mastodon "Record not found" body when there is no subscription', async () => {
     mockDatabase!.getPushSubscriptionForActor = vi.fn().mockResolvedValue(null)
     const req = new NextRequest('http://localhost/api/v1/push/subscription')
     const res = await GET(req, { params: Promise.resolve({}) })
     expect(res.status).toBe(404)
+    // Mastodon-API clients (e.g. Phanpy) detect the "no subscription yet" case
+    // by matching the error message; masto.js reads that message from `error`,
+    // so the body must be `{ error: 'Record not found' }`, not `{ status: … }`.
+    expect(await res.json()).toEqual({ error: 'Record not found' })
   })
 
   it('scopes the lookup to the requesting bearer token', async () => {
@@ -312,7 +316,7 @@ describe('PUT /api/v1/push/subscription', () => {
     )
   })
 
-  it('returns 404 when there is no subscription to update', async () => {
+  it('returns 404 with the Mastodon "Record not found" body when there is no subscription to update', async () => {
     mockDatabase!.updatePushSubscription = vi.fn().mockResolvedValue(null)
     const req = new NextRequest('http://localhost/api/v1/push/subscription', {
       method: 'PUT',
@@ -324,6 +328,7 @@ describe('PUT /api/v1/push/subscription', () => {
     })
     const res = await PUT(req, { params: Promise.resolve({}) })
     expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ error: 'Record not found' })
   })
 })
 
@@ -398,11 +403,17 @@ describe('push subscription when push is not configured', () => {
         Origin: 'http://localhost'
       }
     })
-    expect((await POST(post, { params: Promise.resolve({}) })).status).toBe(404)
+    const postRes = await POST(post, { params: Promise.resolve({}) })
+    expect(postRes.status).toBe(404)
+    expect(await postRes.json()).toEqual({ error: 'Record not found' })
     expect(mockDatabase!.createPushSubscription).not.toHaveBeenCalled()
 
     const get = new NextRequest('http://localhost/api/v1/push/subscription')
-    expect((await GET(get, { params: Promise.resolve({}) })).status).toBe(404)
+    const getRes = await GET(get, { params: Promise.resolve({}) })
+    expect(getRes.status).toBe(404)
+    // Same Mastodon "Record not found" shape as the no-subscription case, so
+    // clients treat a push-disabled server as simply "no subscription".
+    expect(await getRes.json()).toEqual({ error: 'Record not found' })
 
     const put = new NextRequest('http://localhost/api/v1/push/subscription', {
       method: 'PUT',

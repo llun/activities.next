@@ -209,6 +209,6 @@ describe('timelineErrorBoundary', () => {
     const response = await wrapped(request(), {})
     expect(response.status).toBe(500)
     expect(response.headers.get('Access-Control-Allow-Origin')).toBeTruthy()
-    expect(await response.json()).toEqual({ status: 'Internal Server Error' })
+    expect(await response.json()).toEqual({ error: 'Internal Server Error' })
   })
 })
