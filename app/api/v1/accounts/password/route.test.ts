@@ -106,7 +106,7 @@ describe('POST /api/v1/accounts/password', () => {
     const response = await POST(request, { params: Promise.resolve({}) })
 
     expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toEqual({ status: 'Bad Request' })
+    await expect(response.json()).resolves.toEqual({ error: 'Bad Request' })
   })
 
   it('returns 422 for body failing schema validation', async () => {
@@ -153,7 +153,7 @@ describe('POST /api/v1/accounts/password', () => {
 
     expect(response.status).toBe(500)
     await expect(response.json()).resolves.toEqual({
-      status: 'Internal Server Error'
+      error: 'Internal Server Error'
     })
     expect(mockDb.changePassword).toHaveBeenCalledWith({
       accountId: account.id,

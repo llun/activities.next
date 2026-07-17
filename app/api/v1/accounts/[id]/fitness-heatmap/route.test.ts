@@ -61,7 +61,7 @@ describe('/api/v1/accounts/[id]/fitness-heatmap legacy adapter', () => {
     })
 
     expect(response.status).toBe(404)
-    await expect(response.json()).resolves.toEqual({ status: 'Not Found' })
+    await expect(response.json()).resolves.toEqual({ error: 'Not Found' })
   })
 
   it('adapts route cache data to the legacy flat heatmap payload', async () => {

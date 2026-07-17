@@ -56,7 +56,7 @@ describe('POST /api/v1/accounts/like', () => {
     const data = await response.json()
 
     expect(response.status).toBe(422)
-    expect(data.status).toBe('Unprocessable entity')
+    expect(data.error).toBe('Unprocessable entity')
     expect(mockDatabase.getStatus).not.toHaveBeenCalled()
     expect(mockSendLike).not.toHaveBeenCalled()
   })
@@ -72,7 +72,7 @@ describe('POST /api/v1/accounts/like', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data.status).toBe('Bad Request')
+    expect(data.error).toBe('Bad Request')
     expect(mockDatabase.getStatus).not.toHaveBeenCalled()
     expect(mockSendLike).not.toHaveBeenCalled()
   })
@@ -94,7 +94,7 @@ describe('DELETE /api/v1/accounts/like', () => {
     const data = await response.json()
 
     expect(response.status).toBe(422)
-    expect(data.status).toBe('Unprocessable entity')
+    expect(data.error).toBe('Unprocessable entity')
     expect(mockDatabase.getStatus).not.toHaveBeenCalled()
     expect(mockSendUndoLike).not.toHaveBeenCalled()
   })
@@ -110,7 +110,7 @@ describe('DELETE /api/v1/accounts/like', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data.status).toBe('Bad Request')
+    expect(data.error).toBe('Bad Request')
     expect(mockDatabase.getStatus).not.toHaveBeenCalled()
     expect(mockSendUndoLike).not.toHaveBeenCalled()
   })

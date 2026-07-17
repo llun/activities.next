@@ -58,7 +58,7 @@ describe('POST /api/v1/accounts/repost', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data.status).toBe('Bad Request')
+    expect(data.error).toBe('Bad Request')
     expect(mockUserAnnounce).not.toHaveBeenCalled()
   })
 })
@@ -82,7 +82,7 @@ describe('DELETE /api/v1/accounts/repost', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data.status).toBe('Bad Request')
+    expect(data.error).toBe('Bad Request')
     expect(mockUserUndoAnnounce).not.toHaveBeenCalled()
   })
 })

@@ -306,7 +306,7 @@ describe('GET /api/v2/search', () => {
     const data = await response.json()
 
     expect(response.status).toBe(401)
-    expect(data).toEqual({ status: 'Unauthorized' })
+    expect(data).toEqual({ error: 'Unauthorized' })
     expect(mockSearchAccountIds).not.toHaveBeenCalled()
     expect(mockSearchHashtags).not.toHaveBeenCalled()
     expect(mockSearchStatusIds).not.toHaveBeenCalled()
@@ -322,7 +322,7 @@ describe('GET /api/v2/search', () => {
     const data = await response.json()
 
     expect(response.status).toBe(401)
-    expect(data).toEqual({ status: 'Unauthorized' })
+    expect(data).toEqual({ error: 'Unauthorized' })
     expect(mockSearchAccountIds).not.toHaveBeenCalled()
     expect(mockSearchHashtags).not.toHaveBeenCalled()
     expect(mockSearchStatusIds).not.toHaveBeenCalled()
@@ -338,7 +338,7 @@ describe('GET /api/v2/search', () => {
     const data = await response.json()
 
     expect(response.status).toBe(401)
-    expect(data).toEqual({ status: 'Unauthorized' })
+    expect(data).toEqual({ error: 'Unauthorized' })
     expect(mockSearchAccountIds).not.toHaveBeenCalled()
   })
 
@@ -433,7 +433,7 @@ describe('GET /api/v2/search', () => {
     const data = await response.json()
 
     expect(response.status).toBe(401)
-    expect(data).toEqual({ status: 'Unauthorized' })
+    expect(data).toEqual({ error: 'Unauthorized' })
     expect(mockSearchStatusIds).not.toHaveBeenCalled()
   })
 

@@ -247,7 +247,7 @@ describe('client createPoll', () => {
   })
 
   it('throws when poll creation is rejected by the server', async () => {
-    fetchMock.mockResponse(JSON.stringify({ status: 'Unprocessable entity' }), {
+    fetchMock.mockResponse(JSON.stringify({ error: 'Unprocessable entity' }), {
       status: 422
     })
 

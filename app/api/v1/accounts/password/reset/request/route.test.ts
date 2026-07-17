@@ -130,7 +130,7 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
     const data = await response.json()
 
     expect(response.status).toBe(500)
-    expect(data).toEqual({ status: 'Internal Server Error' })
+    expect(data).toEqual({ error: 'Internal Server Error' })
     expect(mockDb.requestPasswordReset).toHaveBeenCalledTimes(2)
   })
 
@@ -147,7 +147,7 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
     const data = await response.json()
 
     expect(response.status).toBe(500)
-    expect(data).toEqual({ status: 'Internal Server Error' })
+    expect(data).toEqual({ error: 'Internal Server Error' })
     expect(mockDb.requestPasswordReset).toHaveBeenCalledTimes(2)
   })
 
@@ -158,7 +158,7 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data).toEqual({ status: 'Bad Request' })
+    expect(data).toEqual({ error: 'Bad Request' })
     expect(response.headers.get('access-control-allow-origin')).toBe(
       'https://client.llun.test'
     )
@@ -174,7 +174,7 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data).toEqual({ status: 'Bad Request' })
+    expect(data).toEqual({ error: 'Bad Request' })
     expect(response.headers.get('access-control-allow-origin')).toBe(
       'https://client.llun.test'
     )
@@ -192,7 +192,7 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
     const data = await response.json()
 
     expect(response.status).toBe(500)
-    expect(data).toEqual({ status: 'Internal Server Error' })
+    expect(data).toEqual({ error: 'Internal Server Error' })
     expect(response.headers.get('access-control-allow-origin')).toBe(
       'https://client.llun.test'
     )

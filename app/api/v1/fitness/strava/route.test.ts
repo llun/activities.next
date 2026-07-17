@@ -259,7 +259,7 @@ describe('Strava Settings API', () => {
       const data = await response.json()
 
       expect(response.status).toBe(422)
-      expect(data.status).toBe('Unprocessable entity')
+      expect(data.error).toBe('Unprocessable entity')
     })
 
     it('rejects empty client secret when creating a connection', async () => {
@@ -279,7 +279,7 @@ describe('Strava Settings API', () => {
       const data = await response.json()
 
       expect(response.status).toBe(422)
-      expect(data.status).toBe('Unprocessable entity')
+      expect(data.error).toBe('Unprocessable entity')
     })
 
     it('rejects invalid visibility values', async () => {
@@ -300,7 +300,7 @@ describe('Strava Settings API', () => {
       const data = await response.json()
 
       expect(response.status).toBe(422)
-      expect(data.status).toBe('Unprocessable entity')
+      expect(data.error).toBe('Unprocessable entity')
     })
 
     it('returns a bad request response for malformed JSON bodies', async () => {
@@ -320,7 +320,7 @@ describe('Strava Settings API', () => {
       const data = await response.json()
 
       expect(response.status).toBe(400)
-      expect(data.status).toBe('Bad Request')
+      expect(data.error).toBe('Bad Request')
       expect(mockDb.getFitnessSettings).not.toHaveBeenCalled()
       expect(mockDb.createFitnessSettings).not.toHaveBeenCalled()
       expect(mockDb.updateFitnessSettings).not.toHaveBeenCalled()
