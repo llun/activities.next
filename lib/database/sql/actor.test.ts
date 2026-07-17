@@ -461,6 +461,68 @@ describe('ActorDatabase', () => {
         expect(actor?.source.attribution_domains).toEqual(['blog.example.com'])
       })
 
+      it('serializes suspended actors with suspended: true and silenced actors with limited: true', async () => {
+        await withFreshDatabase(async (database) => {
+          const suffix = crypto.randomUUID().slice(0, 8)
+          const suspendedUsername = `suspended-${suffix}`
+          const silencedUsername = `silenced-${suffix}`
+          await createSigningAccount(database, suspendedUsername)
+          await createSigningAccount(database, silencedUsername)
+          const suspendedId = `https://${TEST_DOMAIN}/users/${suspendedUsername}`
+          const silencedId = `https://${TEST_DOMAIN}/users/${silencedUsername}`
+          await database.setActorSuspended({
+            actorId: suspendedId,
+            suspended: true
+          })
+          await database.setActorSilenced({
+            actorId: silencedId,
+            silenced: true
+          })
+
+          const suspended = await database.getMastodonActorFromId({
+            id: suspendedId
+          })
+          const silenced = await database.getMastodonActorFromId({
+            id: silencedId
+          })
+
+          expect(suspended?.suspended).toBe(true)
+          expect(suspended?.limited).toBeUndefined()
+          expect(silenced?.limited).toBe(true)
+          expect(silenced?.suspended).toBeUndefined()
+        })
+      })
+
+      it('excludes suspended and silenced actors from getLocalMastodonActors', async () => {
+        await withFreshDatabase(async (database) => {
+          const suffix = crypto.randomUUID().slice(0, 8)
+          const activeUsername = `active-${suffix}`
+          const suspendedUsername = `dir-suspended-${suffix}`
+          const silencedUsername = `dir-silenced-${suffix}`
+          await createSigningAccount(database, activeUsername)
+          await createSigningAccount(database, suspendedUsername)
+          await createSigningAccount(database, silencedUsername)
+          await database.setActorSuspended({
+            actorId: `https://${TEST_DOMAIN}/users/${suspendedUsername}`,
+            suspended: true
+          })
+          await database.setActorSilenced({
+            actorId: `https://${TEST_DOMAIN}/users/${silencedUsername}`,
+            silenced: true
+          })
+
+          const actors = await database.getLocalMastodonActors({
+            localDomain: TEST_DOMAIN,
+            limit: 40,
+            offset: 0
+          })
+          const usernames = actors.map((actor) => actor.username)
+          expect(usernames).toContain(activeUsername)
+          expect(usernames).not.toContain(suspendedUsername)
+          expect(usernames).not.toContain(silencedUsername)
+        })
+      })
+
       it('returns mastodon actors from ids in request order', async () => {
         await withFreshDatabase(async (database) => {
           const suffix = crypto.randomUUID().slice(0, 8)

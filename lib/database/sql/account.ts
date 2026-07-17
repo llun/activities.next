@@ -122,6 +122,10 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         ...(verificationCode
           ? { verificationCode }
           : { verifiedAt: currentTime, emailVerified: true }),
+        // No approval-required registration mode exists yet (Admin moderation
+        // API, Decision 4): every account is approved at creation, so the
+        // sign-in hook's approvedAt gate stays a no-op until such a mode lands.
+        approvedAt: currentTime,
         createdAt: currentTime,
         updatedAt: currentTime
       })

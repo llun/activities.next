@@ -296,6 +296,11 @@ const getMastodonAccountFromSQLActor = ({
     fields: profileFields,
     emojis: [],
 
+    // Moderation flags: emitted only when set, matching Mastodon's Account
+    // entity (extra "only when suspended/silenced" attributes).
+    ...(sqlActor.suspendedAt ? { suspended: true } : null),
+    ...(sqlActor.silencedAt ? { limited: true } : null),
+
     locked: settings.manuallyApprovesFollowers ?? true,
     bot: isMastodonBotActorType(sqlActor.type) || settings.bot === true,
     group: sqlActor.type === 'Group',
@@ -661,6 +666,16 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
             passwordResetCodeExpiresAt: sqlAccount.passwordResetCodeExpiresAt
               ? getCompatibleTime(sqlAccount.passwordResetCodeExpiresAt)
               : null,
+            ...{
+              disabledAt: sqlAccount.disabledAt
+                ? getCompatibleTime(sqlAccount.disabledAt)
+                : null
+            },
+            ...{
+              approvedAt: sqlAccount.approvedAt
+                ? getCompatibleTime(sqlAccount.approvedAt)
+                : null
+            },
             twoFactorEnabled:
               sqlAccount.twoFactorEnabled != null
                 ? Boolean(sqlAccount.twoFactorEnabled)
@@ -709,6 +724,15 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       deletionStatus: sqlActor.deletionStatus ?? null,
       deletionScheduledAt: sqlActor.deletionScheduledAt
         ? getCompatibleTime(sqlActor.deletionScheduledAt)
+        : null,
+      suspendedAt: sqlActor.suspendedAt
+        ? getCompatibleTime(sqlActor.suspendedAt)
+        : null,
+      silencedAt: sqlActor.silencedAt
+        ? getCompatibleTime(sqlActor.silencedAt)
+        : null,
+      sensitizedAt: sqlActor.sensitizedAt
+        ? getCompatibleTime(sqlActor.sensitizedAt)
         : null
     })
   },
@@ -735,6 +759,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
     // local=false lists every known profile (Mastodon's default directory);
     // local=true keeps only this server's account-backed actors.
+    // The directory never lists suspended or silenced actors on any surface.
+    query.whereNull('actors.suspendedAt').whereNull('actors.silencedAt')
+
     if (local) {
       query
         .where('actors.domain', normalizedDomain)

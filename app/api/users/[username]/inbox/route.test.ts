@@ -11,8 +11,11 @@ const mockApplyRemoteBlock = vi.fn()
 const mockApplyRemoteUnblock = vi.fn()
 const mockUndoFollowRequest = vi.fn()
 const mockVerifyAllows = vi.fn()
+const mockGetModerationStatesForActors = vi.fn()
 const mockDatabase = {
-  deleteLike: (...params: unknown[]) => mockDeleteLike(...params)
+  deleteLike: (...params: unknown[]) => mockDeleteLike(...params),
+  getModerationStatesForActors: (...params: unknown[]) =>
+    mockGetModerationStatesForActors(...params)
 }
 const mockDefaultActivityBody = Symbol('defaultActivityBody')
 let mockActivityBody: unknown = mockDefaultActivityBody
@@ -182,8 +185,31 @@ describe('POST /api/users/[username]/inbox', () => {
       targetActorId: 'https://activities.local/users/llun'
     })
     mockUndoFollowRequest.mockResolvedValue(true)
+    mockGetModerationStatesForActors.mockResolvedValue(new Map())
     mockActivityBody = mockDefaultActivityBody
     mockConsumeRequestBody = false
+  })
+
+  it('returns 202 without side effects when the verified sender actor is suspended', async () => {
+    mockGetModerationStatesForActors.mockResolvedValue(
+      new Map([
+        [
+          'https://remote.test/users/alice',
+          {
+            suspendedAt: 1_700_000_000_000,
+            silencedAt: null,
+            sensitizedAt: null
+          }
+        ]
+      ])
+    )
+
+    const response = await POST(createFollowRequest(), {
+      params: Promise.resolve({ username: 'llun' })
+    })
+
+    expect(response.status).toBe(202)
+    expect(mockCreateFollower).not.toHaveBeenCalled()
   })
 
   it('accepts verified deliveries to the headless signer inbox without creating state', async () => {

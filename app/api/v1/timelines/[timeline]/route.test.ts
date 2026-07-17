@@ -205,6 +205,31 @@ describe('GET /api/v1/timelines/[timeline]', () => {
     return status
   }
 
+  describe('moderation state on the home timeline', () => {
+    test('keeps posts from a silenced author on the home timeline', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      await database.setActorSilenced({ actorId: ACTOR1_ID, silenced: true })
+
+      try {
+        const response = await GET(createRequest(), {
+          params: Promise.resolve({ timeline: 'main' })
+        })
+
+        expect(response.status).toBe(200)
+        const statusIds = (await response.json()).statuses.map(
+          (s: { id: string }) => s.id
+        )
+        // Silence only hides an author from public surfaces; a follower's home
+        // timeline still shows them.
+        expect(statusIds).toContain(actor1TimelinePost1Id)
+      } finally {
+        await database.setActorSilenced({ actorId: ACTOR1_ID, silenced: false })
+      }
+    })
+  })
+
   describe('actor selection via cookie', () => {
     test('returns primary actor timeline when no cookie is set', async () => {
       mockGetServerSession.mockResolvedValue({

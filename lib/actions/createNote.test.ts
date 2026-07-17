@@ -104,6 +104,18 @@ describe('Create note action', () => {
       )
     })
 
+    it('forces sensitive to true when the creating actor is sensitized', async () => {
+      const sensitizedActor = { ...actor1, sensitizedAt: Date.now() }
+      const status = (await createNoteFromUserInput({
+        text: 'Hello',
+        sensitive: false,
+        currentActor: sensitizedActor,
+        database
+      })) as StatusNote
+
+      expect(status.sensitive).toBe(true)
+    })
+
     it('stores a content-detected language that overrides a mislabeled declared language', async () => {
       const status = (await createNoteFromUserInput({
         text: 'สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร',

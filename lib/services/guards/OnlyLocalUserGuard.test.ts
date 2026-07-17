@@ -116,6 +116,53 @@ describe('OnlyLocalUserGuard', () => {
     })
   })
 
+  describe('with a moderated local actor', () => {
+    it('returns 410 Gone for suspended local actors', async () => {
+      const actor = await database.getActorFromUsername({
+        username: seedActor1.username,
+        domain: 'llun.test'
+      })
+      await database.setActorSuspended({ actorId: actor!.id, suspended: true })
+
+      try {
+        const guard = OnlyLocalUserGuard(mockHandler)
+        const req = createRequest()
+        const response = await guard(req, {
+          params: Promise.resolve({ username: seedActor1.username })
+        })
+
+        expect(response.status).toBe(410)
+        expect(mockHandler).not.toHaveBeenCalled()
+      } finally {
+        await database.setActorSuspended({
+          actorId: actor!.id,
+          suspended: false
+        })
+      }
+    })
+
+    it('still resolves silenced actors', async () => {
+      const actor = await database.getActorFromUsername({
+        username: seedActor1.username,
+        domain: 'llun.test'
+      })
+      await database.setActorSilenced({ actorId: actor!.id, silenced: true })
+
+      try {
+        const guard = OnlyLocalUserGuard(mockHandler)
+        const req = createRequest()
+        const response = await guard(req, {
+          params: Promise.resolve({ username: seedActor1.username })
+        })
+
+        expect(response.status).toBe(200)
+        expect(mockHandler).toHaveBeenCalled()
+      } finally {
+        await database.setActorSilenced({ actorId: actor!.id, silenced: false })
+      }
+    })
+  })
+
   describe('without database', () => {
     it('returns 500 when database unavailable', async () => {
       const originalDb = mockDatabase

@@ -4,8 +4,11 @@ import { POST } from './route'
 
 const mockCanFederateWithDomain = vi.fn()
 const mockGetRelayByActorId = vi.fn()
+const mockGetModerationStatesForActors = vi.fn()
 const mockDatabase = {
-  getRelayByActorId: (...params: unknown[]) => mockGetRelayByActorId(...params)
+  getRelayByActorId: (...params: unknown[]) => mockGetRelayByActorId(...params),
+  getModerationStatesForActors: (...params: unknown[]) =>
+    mockGetModerationStatesForActors(...params)
 }
 const mockPublish = vi.fn()
 const mockDefaultActivityBody = Symbol('defaultActivityBody')
@@ -95,6 +98,36 @@ describe('POST /api/inbox', () => {
     mockConsumeRequestBody = false
     mockVerifiedSenderActorId = 'https://allowed.test/users/a'
     mockGetRelayByActorId.mockResolvedValue(null)
+    mockGetModerationStatesForActors.mockResolvedValue(new Map())
+  })
+
+  describe('suspended remote sender', () => {
+    it('returns 202 without queueing when the verified sender actor is suspended', async () => {
+      mockCanFederateWithDomain.mockResolvedValue(true)
+      mockVerifiedSenderActorId = 'https://allowed.test/users/a'
+      mockGetModerationStatesForActors.mockResolvedValue(
+        new Map([
+          [
+            'https://allowed.test/users/a',
+            {
+              suspendedAt: 1_700_000_000_000,
+              silencedAt: null,
+              sensitizedAt: null
+            }
+          ]
+        ])
+      )
+
+      const response = await POST(
+        createRequest('https://allowed.test/users/a'),
+        {
+          params: Promise.resolve({})
+        }
+      )
+
+      expect(response.status).toBe(202)
+      expect(mockPublish).not.toHaveBeenCalled()
+    })
   })
 
   describe('relay Announce routing', () => {

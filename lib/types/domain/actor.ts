@@ -51,7 +51,12 @@ export const Actor = ActorProfile.extend({
   readingAutoplayGifs: z.boolean().optional(),
   updatedAt: z.number(),
   deletionStatus: z.enum(['scheduled', 'deleting']).nullable().optional(),
-  deletionScheduledAt: z.number().nullable().optional()
+  deletionScheduledAt: z.number().nullable().optional(),
+  // Moderation state (Admin moderation API). Optional so the many existing
+  // Actor.parse call sites stay valid; nullable timestamps in epoch ms.
+  suspendedAt: z.number().nullable().optional(),
+  silencedAt: z.number().nullable().optional(),
+  sensitizedAt: z.number().nullable().optional()
 })
 export type Actor = z.infer<typeof Actor>
 

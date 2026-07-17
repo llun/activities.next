@@ -900,6 +900,101 @@ describe('OAuthGuard', () => {
     })
   })
 
+  describe('moderation state gating', () => {
+    test('returns 403 for bearer tokens whose actor is suspended', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      mockStoredTokens.set(hashToken('suspended-actor-token'), {
+        token: hashToken('suspended-actor-token'),
+        referenceId: primaryActor?.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+      await database.setActorSuspended({
+        actorId: primaryActor!.id,
+        suspended: true
+      })
+
+      try {
+        const guard = OAuthGuard([Scope.enum.read], mockHandler)
+        const req = createRequest({
+          Authorization: 'Bearer suspended-actor-token'
+        })
+        const response = await guard(req, { params: Promise.resolve({}) })
+
+        expect(response.status).toBe(403)
+        expect(mockHandler).not.toHaveBeenCalled()
+      } finally {
+        await database.setActorSuspended({
+          actorId: primaryActor!.id,
+          suspended: false
+        })
+      }
+    })
+
+    test('returns 403 for cookie sessions whose account is disabled', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      await database.setAccountDisabled({
+        accountId: primaryActor!.account!.id,
+        disabled: true
+      })
+
+      try {
+        const guard = OAuthGuard([Scope.enum.read], mockHandler)
+        const req = createRequest()
+        const response = await guard(req, { params: Promise.resolve({}) })
+
+        expect(response.status).toBe(403)
+        expect(mockHandler).not.toHaveBeenCalled()
+      } finally {
+        await database.setAccountDisabled({
+          accountId: primaryActor!.account!.id,
+          disabled: false
+        })
+      }
+    })
+
+    test('keeps accepting tokens for silenced actors', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      mockStoredTokens.set(hashToken('silenced-actor-token'), {
+        token: hashToken('silenced-actor-token'),
+        referenceId: primaryActor?.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+      await database.setActorSilenced({
+        actorId: primaryActor!.id,
+        silenced: true
+      })
+
+      try {
+        const guard = OAuthGuard([Scope.enum.read], mockHandler)
+        const req = createRequest({
+          Authorization: 'Bearer silenced-actor-token'
+        })
+        const response = await guard(req, { params: Promise.resolve({}) })
+
+        expect(response.status).toBe(200)
+        expect(mockHandler).toHaveBeenCalled()
+      } finally {
+        await database.setActorSilenced({
+          actorId: primaryActor!.id,
+          silenced: false
+        })
+      }
+    })
+  })
+
   describe('database unavailable', () => {
     test('returns 500 when database is not available', async () => {
       const originalDb = mockDatabase

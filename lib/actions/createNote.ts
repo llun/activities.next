@@ -429,7 +429,9 @@ export const createNoteFromUserInput = async ({
     cc,
 
     reply: replyStatus?.id || '',
-    sensitive,
+    // A sensitized actor's new statuses are forced sensitive at creation, so
+    // the flag is persisted and federated copies inherit it (Admin moderation).
+    sensitive: sensitive || Boolean(currentActor.sensitizedAt),
     language,
     applicationName: application?.name ?? null,
     applicationWebsite: application?.website ?? null

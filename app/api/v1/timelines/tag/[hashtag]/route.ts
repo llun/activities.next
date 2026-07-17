@@ -136,6 +136,8 @@ export const GET = traceApiRoute(
           // (getActiveFilters returns only server filters when actorId is
           // undefined), per REVIEW.md's cross-view filtering invariant.
           filterContext: 'public',
+          // Public surface: hide silenced authors (and suspended, always).
+          surface: 'public',
           fetchBatch: ({ maxStatusId: cursor, limit }) =>
             database.getStatusesByHashtag({
               hashtag,
