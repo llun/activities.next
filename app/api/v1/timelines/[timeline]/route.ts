@@ -90,14 +90,13 @@ export const GET = traceApiRoute(
       // Keep /api/v1/timelines/direct for Mastodon client compatibility.
       // The messages UI uses /api/v1/conversations for threaded direct messages.
 
-      // `since_id` and `min_id` both express a lower-bound cursor here; the DB
-      // timeline query takes a single min cursor, so collapse them preserving
-      // this route's existing `since_id`-wins precedence. (min/since ordering
-      // semantics are unchanged by this PR — see PR notes.)
+      // Pass min_id and since_id through separately: min_id returns the page
+      // immediately adjacent to the cursor (ascending seek then reversed),
+      // since_id the newest slice above it. min_id wins when both are present.
       const pageLimit = parsedQuery.query.limit
       const maxStatusId = parsedQuery.query.maxStatusId
-      const minStatusId =
-        parsedQuery.query.sinceStatusId ?? parsedQuery.query.minStatusId
+      const minStatusId = parsedQuery.query.minStatusId
+      const sinceStatusId = parsedQuery.query.sinceStatusId
 
       const { statuses, nextMaxStatusId, prevMinStatusId, filterRecords } =
         await getFilteredTimelinePage({
@@ -105,6 +104,7 @@ export const GET = traceApiRoute(
           timeline,
           actorId: currentActor.id,
           minStatusId,
+          sinceStatusId,
           maxStatusId,
           limit: pageLimit,
           filterContext: getFilterContextForTimeline(timeline)

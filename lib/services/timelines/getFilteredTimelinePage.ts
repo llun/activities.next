@@ -30,6 +30,9 @@ export const normalizeTimelineLimit = (limit?: number | null) =>
 
 interface FetchFilteredStatusBatchParams {
   maxStatusId: string | null
+  // Set (with maxStatusId null) only in ascending min_id mode; the batch must
+  // then come back oldest-first so the loop can walk up toward newer rows.
+  minStatusId: string | null
   limit: number
 }
 
@@ -37,6 +40,10 @@ interface GetFilteredStatusPageParams {
   database: Database
   actorId?: string
   maxStatusId?: string | null
+  // When set, the page is built ascending from this lower-bound cursor (the
+  // oldest rows just newer than it) and returned newest-first — Mastodon's
+  // adjacent-page min_id. fetchBatch must return oldest-first batches for it.
+  minStatusId?: string | null
   limit?: number
   filterContext?: FilterContext
   fetchBatch: (params: FetchFilteredStatusBatchParams) => Promise<Status[]>
@@ -46,14 +53,19 @@ export const getFilteredStatusPage = async ({
   database,
   actorId,
   maxStatusId = null,
+  minStatusId = null,
   limit = PER_PAGE_LIMIT,
   filterContext,
   fetchBatch
 }: GetFilteredStatusPageParams): Promise<FilteredTimelinePage> => {
   const pageLimit = normalizeTimelineLimit(limit)
+  // min_id ascends from its cursor (oldest-first) then reverses to newest-first,
+  // returning the page adjacent to the cursor; every other cursor kind backfills
+  // DESC (newest-first) from max_id. min_id wins when both are present.
+  const ascending = Boolean(minStatusId)
   const statuses: Status[] = []
   let iterations = 0
-  let cursor = maxStatusId
+  let cursor = ascending ? minStatusId : maxStatusId
   let lastScannedStatusId: string | null = null
   let exhausted = false
 
@@ -75,7 +87,8 @@ export const getFilteredStatusPage = async ({
   while (statuses.length < pageLimit && iterations < MAX_BACKFILL_ITERATIONS) {
     iterations++
     const batch = await fetchBatch({
-      maxStatusId: cursor,
+      maxStatusId: ascending ? null : cursor,
+      minStatusId: ascending ? cursor : null,
       limit: pageLimit
     })
     if (batch.length === 0) {
@@ -112,6 +125,24 @@ export const getFilteredStatusPage = async ({
   }
 
   const visibleStatuses = statuses.slice(0, pageLimit)
+
+  if (ascending) {
+    // Ascending accumulation is oldest-first; the adjacent page is the oldest
+    // `pageLimit` visible statuses, returned newest-first. rel=prev (newer)
+    // continues above the newest returned; rel=next (older) below the oldest.
+    visibleStatuses.reverse()
+    return {
+      statuses: visibleStatuses,
+      nextMaxStatusId:
+        visibleStatuses.length > 0
+          ? visibleStatuses[visibleStatuses.length - 1].id
+          : null,
+      prevMinStatusId:
+        visibleStatuses.length > 0 ? visibleStatuses[0].id : null,
+      filterRecords
+    }
+  }
+
   const lastVisibleStatusId =
     visibleStatuses.length > 0
       ? visibleStatuses[visibleStatuses.length - 1].id
@@ -143,6 +174,7 @@ interface GetFilteredTimelinePageParams {
   timeline: Timeline
   actorId: string
   minStatusId?: string | null
+  sinceStatusId?: string | null
   maxStatusId?: string | null
   limit?: number
   filterContext?: FilterContext
@@ -153,6 +185,7 @@ export const getFilteredTimelinePage = async ({
   timeline,
   actorId,
   minStatusId = null,
+  sinceStatusId = null,
   maxStatusId = null,
   limit = PER_PAGE_LIMIT,
   filterContext
@@ -161,18 +194,35 @@ export const getFilteredTimelinePage = async ({
     database,
     actorId,
     maxStatusId,
+    minStatusId,
     limit,
     filterContext,
-    fetchBatch: ({ maxStatusId: cursor, limit: batchLimit }) =>
-      database.getTimeline({
+    fetchBatch: async ({
+      maxStatusId: descCursor,
+      minStatusId: ascCursor,
+      limit: batchLimit
+    }) => {
+      if (ascCursor !== null) {
+        // min_id (adjacent-page) mode: getTimeline returns the oldest window
+        // above the cursor newest-first; reverse it to oldest-first so the
+        // ascending backfill loop can walk up toward newer rows.
+        const rows = await database.getTimeline({
+          timeline,
+          actorId,
+          minStatusId: ascCursor,
+          maxStatusId: null,
+          limit: batchLimit
+        })
+        return rows.reverse()
+      }
+      // since_id / max_id / no cursor: backfill DESC (newest-first) with
+      // since_id as the lower bound.
+      return database.getTimeline({
         timeline,
         actorId,
-        // getFilteredStatusPage backfills by paging max_id DESC, so the lower
-        // bound must keep newest-first (since) ordering here — driving it as
-        // min_id would flip getTimeline to ascending and break the backfill.
-        // Adjacent-page min_id for filtered timelines is a separate change.
-        sinceStatusId: minStatusId,
-        maxStatusId: cursor,
+        sinceStatusId,
+        maxStatusId: descCursor,
         limit: batchLimit
       })
+    }
   })

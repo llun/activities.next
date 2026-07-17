@@ -250,6 +250,99 @@ describe('getFilteredStatusPage', () => {
     )
   })
 
+  it('ascends from the cursor and returns the adjacent page newest-first for min_id', async () => {
+    const a1 = createStatus('asc-1')
+    const a2 = createStatus('asc-2')
+    const a3 = createStatus('asc-3')
+    const a4 = createStatus('asc-4')
+    const a5 = createStatus('asc-5')
+    // Ascending batches are oldest-first: the wrapper reverses getTimeline's
+    // newest-first output for the backfill loop, and getTimeline(min_id='floor')
+    // returns the oldest window just above the cursor.
+    const batches = new Map<string | null, Status[]>([
+      ['floor', [a1, a2, a3]],
+      [a3.id, [a4, a5]]
+    ])
+    const database = {
+      getBlockRelations: vi.fn(async () => []),
+      getMuteRelations: vi.fn(async () => []),
+      getActorDomainBlocks: vi.fn(async () => [])
+    } as unknown as Database
+    const fetchBatch = vi.fn(({ minStatusId }) =>
+      Promise.resolve(batches.get(minStatusId) ?? [])
+    )
+
+    const page = await getFilteredStatusPage({
+      database,
+      actorId: readerActorId,
+      limit: 3,
+      minStatusId: 'floor',
+      fetchBatch
+    })
+
+    // The three oldest statuses above the cursor, returned newest-first.
+    expect(page.statuses.map((status) => status.id)).toEqual([
+      a3.id,
+      a2.id,
+      a1.id
+    ])
+    // prev (newer) continues above the newest returned; next (older) below the
+    // oldest returned.
+    expect(page.prevMinStatusId).toBe(a3.id)
+    expect(page.nextMaxStatusId).toBe(a1.id)
+    // Only the first ascending window was needed for a full page.
+    expect(fetchBatch).toHaveBeenCalledTimes(1)
+    expect(fetchBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ minStatusId: 'floor', maxStatusId: null })
+    )
+  })
+
+  it('walks up past filtered rows to fill a min_id page', async () => {
+    const a1 = createStatus('asc-a1')
+    const a2 = createStatus('asc-a2')
+    const a3 = createStatus('asc-a3')
+    const blocked = createStatus('asc-blocked', blockedActorId)
+    // floor → [blocked, a1, a2] then a2 → [a3]. The first window under-fills
+    // after the block is dropped, so the loop ascends to a2 (the newest raw row
+    // of the first window) for more.
+    const batches = new Map<string | null, Status[]>([
+      ['floor', [blocked, a1, a2]],
+      [a2.id, [a3]]
+    ])
+    const getBlockRelations = vi.fn(
+      async ({ targetActorIds }: GetBlockRelationsParams) =>
+        targetActorIds.some((targetActorId) => targetActorId === blockedActorId)
+          ? [{ actorId: readerActorId, targetActorId: blockedActorId }]
+          : []
+    )
+    const database = {
+      getBlockRelations,
+      getMuteRelations: vi.fn(async () => []),
+      getActorDomainBlocks: vi.fn(async () => [])
+    } as unknown as Database
+    const fetchBatch = vi.fn(({ minStatusId }) =>
+      Promise.resolve(batches.get(minStatusId) ?? [])
+    )
+
+    const page = await getFilteredStatusPage({
+      database,
+      actorId: readerActorId,
+      limit: 3,
+      minStatusId: 'floor',
+      fetchBatch
+    })
+
+    expect(page.statuses.map((status) => status.id)).toEqual([
+      a3.id,
+      a2.id,
+      a1.id
+    ])
+    expect(fetchBatch.mock.calls.map((call) => call[0].minStatusId)).toEqual([
+      'floor',
+      a2.id
+    ])
+  })
+
   it('omits statuses whose author the reader has muted', async () => {
     const muted = createStatus('muted', mutedActorId)
     const visible1 = createStatus('visible-1')

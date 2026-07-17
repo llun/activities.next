@@ -594,7 +594,7 @@ describe('GET /api/v1/timelines/[timeline]', () => {
       }
     )
 
-    test('since_id takes precedence over min_id for the lower-bound cursor', async () => {
+    test('min_id takes precedence over since_id and drives the adjacent-page (ascending) scan', async () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor1.email }
       })
@@ -610,12 +610,31 @@ describe('GET /api/v1/timelines/[timeline]', () => {
         { params: Promise.resolve({ timeline: 'main' }) }
       )
 
-      // The home/direct feed backfills DESC, so its lower bound reaches
-      // getTimeline as sinceStatusId (newest-first). since_id still wins the
-      // collapse over min_id.
+      // min_id is the adjacent-page cursor, so it wins and reaches getTimeline
+      // as minStatusId (ascending seek then reversed) — never collapsed into the
+      // DESC since path.
       expect(spy).toHaveBeenCalledWith(
-        expect.objectContaining({ sinceStatusId: sinceUrl })
+        expect.objectContaining({ minStatusId: minUrl })
       )
+      spy.mockRestore()
+    })
+
+    test('since_id alone reaches getTimeline as the DESC sinceStatusId lower bound', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const sinceUrl = 'https://llun.test/users/test1/statuses/since-only'
+      const spy = vi.spyOn(database, 'getTimeline').mockResolvedValue([])
+
+      await GET(createRequest({ since_id: urlToId(sinceUrl) }), {
+        params: Promise.resolve({ timeline: 'main' })
+      })
+
+      const call = spy.mock.calls[0][0] as Record<string, unknown>
+      expect(call.sinceStatusId).toBe(sinceUrl)
+      // since_id keeps newest-first ordering, so the DESC backfill never drives
+      // it as min_id.
+      expect(call.minStatusId).toBeUndefined()
       spy.mockRestore()
     })
   })

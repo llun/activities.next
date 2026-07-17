@@ -146,32 +146,99 @@ describe('GET /api/v2/notifications', () => {
   )
 
   it.each([
-    ['min_id', 'min_id'],
-    ['since_id', 'since_id']
+    {
+      field: 'min_id' as const,
+      slot: 'minNotificationId',
+      other: 'sinceNotificationId'
+    },
+    {
+      field: 'since_id' as const,
+      slot: 'sinceNotificationId',
+      other: 'minNotificationId'
+    }
   ])(
-    'collapses %s to since-semantics for the grouped (DESC) scan',
-    async (_label, param) => {
+    'routes $field to its own cursor param for the grouped scan',
+    async ({ field, slot, other }) => {
       mockDatabase.getNotifications.mockResolvedValueOnce([])
 
       const request = new NextRequest(
-        `https://llun.test/api/v2/notifications?${param}=cursor-1`,
+        `https://llun.test/api/v2/notifications?${field}=cursor-1`,
         { method: 'GET' }
       )
       const response = await GET(request, { params: Promise.resolve({}) })
 
       expect(response.status).toBe(200)
-      // The grouped v2 path always scans DESC (collectNotificationGroups advances
-      // max_id by the oldest row), so both min_id and since_id must reach
-      // getNotifications as the since-semantics lower bound — never as
-      // minNotificationId, which would flip getNotifications to ascending and
-      // break the batching.
-      expect(mockDatabase.getNotifications).toHaveBeenCalledWith(
-        expect.objectContaining({ sinceNotificationId: 'cursor-1' })
-      )
-      const callArg = mockDatabase.getNotifications.mock.calls[0][0]
-      expect(callArg.minNotificationId).toBeUndefined()
+      // min_id drives collectNotificationGroups' ascending (adjacent-page) scan
+      // via minNotificationId; since_id keeps the DESC scan via
+      // sinceNotificationId. They must never collapse into one slot.
+      const callArg = mockDatabase.getNotifications.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >
+      expect(callArg[slot]).toBe('cursor-1')
+      expect(callArg[other]).toBeUndefined()
     }
   )
+
+  it('returns the adjacent (oldest) groups above the cursor for min_id, newest-first', async () => {
+    // Three distinct groups above the cursor, newest-first (the ascending seek
+    // in getNotifications returns min_id windows newest-first). With limit=2 the
+    // adjacent page is the two OLDEST of them (reblog, follow) — not the newest
+    // two — returned newest-first.
+    mockDatabase.getNotifications.mockResolvedValueOnce([
+      {
+        id: 'g-new',
+        type: 'like',
+        sourceActorId: 'https://other.test/users/alice',
+        statusId: 'https://other.test/statuses/1',
+        groupKey: 'like:https://other.test/statuses/1',
+        isRead: false,
+        filtered: false,
+        createdAt: 3000,
+        updatedAt: 3000
+      },
+      {
+        id: 'g-mid',
+        type: 'reblog',
+        sourceActorId: 'https://other.test/users/bob',
+        statusId: 'https://other.test/statuses/2',
+        groupKey: 'reblog:https://other.test/statuses/2',
+        isRead: false,
+        filtered: false,
+        createdAt: 2000,
+        updatedAt: 2000
+      },
+      {
+        id: 'g-old',
+        type: 'follow',
+        sourceActorId: 'https://other.test/users/carol',
+        groupKey: 'follow:1',
+        isRead: false,
+        filtered: false,
+        createdAt: 1000,
+        updatedAt: 1000
+      }
+    ])
+
+    const request = new NextRequest(
+      'https://llun.test/api/v2/notifications?limit=2&min_id=floor',
+      { method: 'GET' }
+    )
+    const response = await GET(request, { params: Promise.resolve({}) })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(
+      data.notification_groups.map((g: { group_key: string }) => g.group_key)
+    ).toEqual(['reblog:https://other.test/statuses/2', 'follow:1'])
+    const link = response.headers.get('Link') ?? ''
+    // next/max_id anchors on the oldest surviving group; prev/min_id on the
+    // newest surviving group.
+    expect(link).toContain('max_id=g-old')
+    expect(link).toContain('rel="next"')
+    expect(link).toContain('min_id=g-mid')
+    expect(link).toContain('rel="prev"')
+  })
 
   it('anchors the next (max_id) Link on the last returned group most-recent id', async () => {
     mockDatabase.getNotifications.mockResolvedValueOnce([

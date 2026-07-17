@@ -185,14 +185,20 @@ export const ListSQLDatabaseMixin = (
     actorId,
     limit = PER_PAGE_LIMIT,
     maxId,
+    minId,
     sinceId
   }: GetListAccountsParams) {
+    // min_id ascends from the cursor (the oldest members just newer than it) then
+    // reverses to newest-first, returning the page adjacent to the cursor.
+    // since_id / max_id / no cursor keep DESC (the newest slice above the cursor).
+    const ascending = Boolean(minId)
+
     // Scope to the owner defensively so this never leaks another actor's list
     // members even if a caller forgets the route-level ownership check.
     const query = database('list_accounts')
       .where({ listId, actorId })
-      .orderBy('createdAt', 'desc')
-      .orderBy('id', 'desc')
+      .orderBy('createdAt', ascending ? 'asc' : 'desc')
+      .orderBy('id', ascending ? 'asc' : 'desc')
 
     // Mastodon: limit=0 returns ALL members without pagination.
     if (limit > 0) query.limit(limit)
@@ -221,10 +227,16 @@ export const ListSQLDatabaseMixin = (
       })
     }
 
+    // min_id and since_id are both lower-bound cursors (rows newer than it); they
+    // differ only in ordering, handled by `ascending` above.
+    const lowerBoundId = minId || sinceId
     if (maxId) await applyCursor(maxId, 'older')
-    if (sinceId) await applyCursor(sinceId, 'newer')
+    if (lowerBoundId) await applyCursor(lowerBoundId, 'newer')
 
     const rows = await query.select('id', 'targetActorId')
+    // Ascending (min_id) rows come back oldest-first; flip to the newest-first
+    // response shape used by every other cursor kind.
+    if (ascending) rows.reverse()
     const targetActorIds = rows.map((row) => row.targetActorId as string)
     const accounts = await getMastodonActors(targetActorIds)
     return {

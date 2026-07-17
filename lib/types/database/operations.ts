@@ -1413,6 +1413,7 @@ export type GetListAccountsParams = {
   actorId: string
   limit?: number
   maxId?: string | null
+  minId?: string | null
   sinceId?: string | null
 }
 export type ListAccountsPage = {
