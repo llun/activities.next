@@ -13,6 +13,44 @@ import { Application } from './application'
 import { Mention } from './mention'
 import { Tag } from './tag'
 
+// Quote lifecycle state (Mastodon 4.5 Quote entity). Nine values: the five
+// persisted states plus four viewer-relative ones. The serializer currently
+// computes `deleted` (target gone) and `unauthorized` (viewer cannot read the
+// target); the block/mute-relative states (`blocked_account`, `blocked_domain`,
+// `muted_account`) are part of the vocabulary — clients may receive them from
+// other servers — but are not yet emitted locally. Unknown values are treated
+// as `unauthorized` by clients.
+export const MastodonQuoteState = z.enum([
+  'pending',
+  'accepted',
+  'rejected',
+  'revoked',
+  'deleted',
+  'unauthorized',
+  'blocked_account',
+  'blocked_domain',
+  'muted_account'
+])
+export type MastodonQuoteState = z.infer<typeof MastodonQuoteState>
+
+// Who may quote a status and where the current viewer stands. `automatic`/
+// `manual` carry the approved policy audiences; `current_user` is one of
+// automatic | manual | denied | unknown.
+export const QuoteApproval = z.object({
+  automatic: z.string().array(),
+  manual: z.string().array(),
+  current_user: z.string()
+})
+export type QuoteApproval = z.infer<typeof QuoteApproval>
+
+// Nested quote reference used at depth >= 1 to stop recursion: the quoted status
+// is referenced by id only.
+export const ShallowQuote = z.object({
+  state: MastodonQuoteState,
+  quoted_status_id: z.string().nullable()
+})
+export type ShallowQuote = z.infer<typeof ShallowQuote>
+
 export const BaseStatus = z.object({
   id: z
     .string()
@@ -133,6 +171,26 @@ export const BaseStatus = z.object({
     .optional()
     .describe(
       'If the current token has an authorized user: The filters and keywords that matched this status'
-    )
+    ),
+
+  // Quote post (FEP-044f / Mastodon 4.5). At depth 0 this is a full Quote whose
+  // `quoted_status` embeds the quoted status (serialized at depth 1); at depth
+  // >= 1 it is a ShallowQuote referencing the quoted status by id only. The
+  // `quoted_status` reference is a lazy self-reference broken with an explicit
+  // return type so the recursive schema still infers.
+  quote: z
+    .union([
+      z.object({
+        state: MastodonQuoteState,
+        quoted_status: z.lazy((): z.ZodType => BaseStatus).nullable()
+      }),
+      ShallowQuote
+    ])
+    .nullable()
+    .optional()
+    .describe('The status this status quotes'),
+  quote_approval: QuoteApproval.optional().describe(
+    'Who may quote this status and where the current viewer stands'
+  )
 })
 export type BaseStatus = z.infer<typeof BaseStatus>

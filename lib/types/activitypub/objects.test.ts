@@ -1,4 +1,34 @@
-import { Question } from '@/lib/types/activitypub/objects'
+import { Note, Question } from '@/lib/types/activitypub/objects'
+
+describe('Note quote fields', () => {
+  const base = {
+    id: 'https://remote.example/notes/1',
+    type: 'Note' as const,
+    attributedTo: 'https://remote.example/users/alice',
+    to: ['https://www.w3.org/ns/activitystreams#Public'],
+    cc: [],
+    content: 'quoting',
+    published: '2026-01-01T00:00:00Z'
+  }
+
+  it('accepts a string quote target', () => {
+    const result = Note.safeParse({
+      ...base,
+      quote: 'https://llun.test/users/me/statuses/1'
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts an embedded quote object without an id instead of rejecting the whole note', () => {
+    // Liberal-inbound mandate: an unusual/blank-node quote value must never drop
+    // the entire note.
+    const result = Note.safeParse({
+      ...base,
+      quote: { type: 'Link', href: 'https://llun.test/users/me/statuses/1' }
+    })
+    expect(result.success).toBe(true)
+  })
+})
 
 describe('Question', () => {
   const option = (name: string) => ({

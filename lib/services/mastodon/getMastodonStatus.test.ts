@@ -1471,4 +1471,386 @@ describe('getMastodonStatus', () => {
       expect(mastodonStatus?.emojis[0].shortcode).toBe('emoji_no_colons')
     })
   })
+
+  describe('quote serialization', () => {
+    let counter = 0
+    const makeStatus = async (
+      actorId: string,
+      { to = [ACTIVITY_STREAM_PUBLIC], cc = [] as string[] } = {}
+    ): Promise<Status> => {
+      counter += 1
+      const id = `${actorId}/statuses/mq-${counter}`
+      await database.createNote({
+        id,
+        url: id,
+        actorId,
+        text: `quote test ${counter}`,
+        to,
+        cc
+      })
+      return (await database.getStatus({ statusId: id })) as Status
+    }
+
+    const serializeQuoting = async (
+      quotedStatusId: string,
+      state: 'pending' | 'accepted' | 'rejected' | 'revoked' | 'deleted',
+      currentActorId?: string
+    ) => {
+      const quoting = await makeStatus(ACTOR1_ID)
+      await database.createStatusQuote({
+        statusId: quoting.id,
+        quotedStatusId,
+        state
+      })
+      const hydrated = (await database.getStatus({
+        statusId: quoting.id
+      })) as Status
+      return getMastodonStatus(database, hydrated, currentActorId)
+    }
+
+    it('embeds the quoted status for an accepted quote', async () => {
+      const quoted = await makeStatus(ACTOR1_ID)
+      const result = await serializeQuoting(quoted.id, 'accepted')
+      const quote = result?.quote as {
+        state: string
+        quoted_status: { id: string } | null
+      }
+      expect(quote.state).toBe('accepted')
+      expect(quote.quoted_status?.id).toBe(urlToId(quoted.id))
+    })
+
+    it.each([
+      { state: 'pending' as const },
+      { state: 'rejected' as const },
+      { state: 'revoked' as const },
+      { state: 'deleted' as const }
+    ])(
+      'serializes a $state quote as a placeholder with no quoted status',
+      async ({ state }) => {
+        const quoted = await makeStatus(ACTOR1_ID)
+        const result = await serializeQuoting(quoted.id, state)
+        const quote = result?.quote as {
+          state: string
+          quoted_status: unknown
+        }
+        expect(quote.state).toBe(state)
+        expect(quote.quoted_status).toBeNull()
+      }
+    )
+
+    it('downgrades an accepted quote to deleted when the quoted status is gone', async () => {
+      const result = await serializeQuoting(
+        `${ACTOR1_ID}/statuses/mq-nonexistent`,
+        'accepted'
+      )
+      const quote = result?.quote as { state: string; quoted_status: unknown }
+      expect(quote.state).toBe('deleted')
+      expect(quote.quoted_status).toBeNull()
+    })
+
+    it('downgrades an accepted quote to unauthorized when the viewer cannot read the quoted status', async () => {
+      // Followers-only quoted status; an anonymous viewer cannot read it.
+      const quoted = await makeStatus(ACTOR1_ID, {
+        to: [`${ACTOR1_ID}/followers`],
+        cc: []
+      })
+      const result = await serializeQuoting(quoted.id, 'accepted')
+      const quote = result?.quote as { state: string; quoted_status: unknown }
+      expect(quote.state).toBe('unauthorized')
+      expect(quote.quoted_status).toBeNull()
+    })
+
+    it('hydrates the embedded quote viewer action state on the single-status path', async () => {
+      // No batch cache: getQuotedStatus must pass currentActorId so the embedded
+      // quoted_status reflects the viewer's bookmark, not a default false.
+      const quoted = await makeStatus(ACTOR1_ID)
+      await database.createBookmark({ actorId: ACTOR2_ID, statusId: quoted.id })
+      const quoting = await makeStatus(ACTOR1_ID)
+      await database.createStatusQuote({
+        statusId: quoting.id,
+        quotedStatusId: quoted.id,
+        state: 'accepted'
+      })
+      const hydrated = (await database.getStatus({
+        statusId: quoting.id
+      })) as Status
+
+      const result = await getMastodonStatus(database, hydrated, ACTOR2_ID)
+      const quote = result?.quote as {
+        quoted_status: { bookmarked?: boolean } | null
+      }
+      expect(quote.quoted_status?.bookmarked).toBe(true)
+    })
+
+    it('embeds an accepted quote for an authenticated non-author viewer of a public status', async () => {
+      const quoted = await makeStatus(ACTOR1_ID)
+      const result = await serializeQuoting(quoted.id, 'accepted', ACTOR2_ID)
+      const quote = result?.quote as {
+        state: string
+        quoted_status: { id: string } | null
+      }
+      expect(quote.state).toBe('accepted')
+      expect(quote.quoted_status?.id).toBe(urlToId(quoted.id))
+    })
+
+    it('embeds an accepted quote when the authenticated viewer authored the followers-only quoted status', async () => {
+      // Exercises the authenticated getViewerActor + canActorReadStatus self-read
+      // path: a followers-only quoted status is readable by its own author.
+      const quoted = await makeStatus(ACTOR1_ID, {
+        to: [`${ACTOR1_ID}/followers`],
+        cc: []
+      })
+      const result = await serializeQuoting(quoted.id, 'accepted', ACTOR1_ID)
+      const quote = result?.quote as {
+        state: string
+        quoted_status: { id: string } | null
+      }
+      expect(quote.state).toBe('accepted')
+      expect(quote.quoted_status?.id).toBe(urlToId(quoted.id))
+    })
+
+    it('resolves the viewer once per batch and embeds readable accepted quotes', async () => {
+      // Followers-only quoted status + author viewer, hydrated through the batch
+      // path so the viewer Actor comes from options.viewerActor (not a per-status
+      // fetch).
+      const quoted = await makeStatus(ACTOR1_ID, {
+        to: [`${ACTOR1_ID}/followers`],
+        cc: []
+      })
+      const quoting = await makeStatus(ACTOR1_ID)
+      await database.createStatusQuote({
+        statusId: quoting.id,
+        quotedStatusId: quoted.id,
+        state: 'accepted'
+      })
+      const hydrated = (await database.getStatus({
+        statusId: quoting.id
+      })) as Status
+
+      const [result] = await getMastodonStatuses(
+        database,
+        [hydrated],
+        ACTOR1_ID
+      )
+      const quote = result.quote as {
+        state: string
+        quoted_status: { id: string } | null
+      }
+      expect(quote.state).toBe('accepted')
+      expect(quote.quoted_status?.id).toBe(urlToId(quoted.id))
+    })
+
+    it('emits a shallow quote at depth 1 and stops recursing', async () => {
+      const c = await makeStatus(ACTOR1_ID)
+      const b = await makeStatus(ACTOR1_ID)
+      await database.createStatusQuote({
+        statusId: b.id,
+        quotedStatusId: c.id,
+        state: 'accepted'
+      })
+      const a = await makeStatus(ACTOR1_ID)
+      await database.createStatusQuote({
+        statusId: a.id,
+        quotedStatusId: b.id,
+        state: 'accepted'
+      })
+
+      const hydrated = (await database.getStatus({ statusId: a.id })) as Status
+      const result = await getMastodonStatus(database, hydrated)
+
+      const outerQuote = result?.quote as {
+        state: string
+        quoted_status: {
+          id: string
+          quote?: { state: string; quoted_status_id?: string }
+        }
+      }
+      expect(outerQuote.quoted_status.id).toBe(urlToId(b.id))
+      // The inner quote (B -> C) is shallow: id only, no embedded status.
+      const innerQuote = outerQuote.quoted_status.quote as {
+        state: string
+        quoted_status_id?: string
+        quoted_status?: unknown
+      }
+      expect(innerQuote.quoted_status_id).toBe(urlToId(c.id))
+      expect(innerQuote.quoted_status).toBeUndefined()
+    })
+
+    it('withholds the quoted id in a shallow quote when the inner edge is not accepted', async () => {
+      const c = await makeStatus(ACTOR1_ID)
+      const b = await makeStatus(ACTOR1_ID)
+      await database.createStatusQuote({
+        statusId: b.id,
+        quotedStatusId: c.id,
+        state: 'pending'
+      })
+      const a = await makeStatus(ACTOR1_ID)
+      await database.createStatusQuote({
+        statusId: a.id,
+        quotedStatusId: b.id,
+        state: 'accepted'
+      })
+
+      const hydrated = (await database.getStatus({ statusId: a.id })) as Status
+      const result = await getMastodonStatus(database, hydrated)
+      const outerQuote = result?.quote as {
+        quoted_status: { quote?: { state: string; quoted_status_id: unknown } }
+      }
+      const innerQuote = outerQuote.quoted_status.quote as {
+        state: string
+        quoted_status_id: unknown
+      }
+      expect(innerQuote.state).toBe('pending')
+      expect(innerQuote.quoted_status_id).toBeNull()
+    })
+
+    it('downgrades a depth-1 accepted quote to unauthorized when the viewer cannot read the innermost status', async () => {
+      // A (public) -> B (public), accepted; B -> C accepted, but C is
+      // followers-only. An anonymous viewer sees A, embeds B, and the shallow
+      // B->C quote must downgrade to unauthorized with no leaked id.
+      const c = await makeStatus(ACTOR1_ID, {
+        to: [`${ACTOR1_ID}/followers`],
+        cc: []
+      })
+      const b = await makeStatus(ACTOR1_ID)
+      await database.createStatusQuote({
+        statusId: b.id,
+        quotedStatusId: c.id,
+        state: 'accepted'
+      })
+      const a = await makeStatus(ACTOR1_ID)
+      await database.createStatusQuote({
+        statusId: a.id,
+        quotedStatusId: b.id,
+        state: 'accepted'
+      })
+
+      const hydrated = (await database.getStatus({ statusId: a.id })) as Status
+      const result = await getMastodonStatus(database, hydrated)
+      const innerQuote = (
+        result?.quote as {
+          quoted_status: {
+            quote?: { state: string; quoted_status_id: unknown }
+          }
+        }
+      ).quoted_status.quote as { state: string; quoted_status_id: unknown }
+      expect(innerQuote.state).toBe('unauthorized')
+      expect(innerQuote.quoted_status_id).toBeNull()
+    })
+
+    it('downgrades a depth-1 accepted quote to deleted when the innermost status is gone', async () => {
+      const b = await makeStatus(ACTOR1_ID)
+      await database.createStatusQuote({
+        statusId: b.id,
+        quotedStatusId: `${ACTOR1_ID}/statuses/mq-shallow-missing`,
+        state: 'accepted'
+      })
+      const a = await makeStatus(ACTOR1_ID)
+      await database.createStatusQuote({
+        statusId: a.id,
+        quotedStatusId: b.id,
+        state: 'accepted'
+      })
+
+      const hydrated = (await database.getStatus({ statusId: a.id })) as Status
+      const result = await getMastodonStatus(database, hydrated)
+      const innerQuote = (
+        result?.quote as {
+          quoted_status: {
+            quote?: { state: string; quoted_status_id: unknown }
+          }
+        }
+      ).quoted_status.quote as { state: string; quoted_status_id: unknown }
+      expect(innerQuote.state).toBe('deleted')
+      expect(innerQuote.quoted_status_id).toBeNull()
+    })
+
+    it.each([
+      {
+        description: 'public policy, author viewer',
+        policy: undefined,
+        viewer: ACTOR1_ID,
+        expectedAutomatic: ['public'],
+        expectedCurrentUser: 'automatic'
+      },
+      {
+        description: 'public policy, authenticated non-author viewer',
+        policy: 'public' as const,
+        viewer: ACTOR2_ID,
+        expectedAutomatic: ['public'],
+        expectedCurrentUser: 'automatic'
+      },
+      {
+        description: 'public policy, anonymous viewer',
+        policy: 'public' as const,
+        viewer: undefined,
+        expectedAutomatic: ['public'],
+        expectedCurrentUser: 'unknown'
+      },
+      {
+        description: 'nobody policy, non-author viewer',
+        policy: 'nobody' as const,
+        viewer: ACTOR2_ID,
+        expectedAutomatic: [] as string[],
+        expectedCurrentUser: 'denied'
+      },
+      {
+        description: 'followers policy, non-author viewer',
+        policy: 'followers' as const,
+        viewer: ACTOR2_ID,
+        expectedAutomatic: ['followers'],
+        expectedCurrentUser: 'unknown'
+      }
+    ])(
+      'emits quote_approval for $description',
+      async ({ policy, viewer, expectedAutomatic, expectedCurrentUser }) => {
+        counter += 1
+        const id = `${ACTOR1_ID}/statuses/mq-approval-${counter}`
+        await database.createNote({
+          id,
+          url: id,
+          actorId: ACTOR1_ID,
+          text: 'approval',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          ...(policy ? { quoteApprovalPolicy: policy } : {})
+        })
+        const status = (await database.getStatus({ statusId: id })) as Status
+        const result = await getMastodonStatus(database, status, viewer)
+        expect(result?.quote_approval).toEqual({
+          automatic: expectedAutomatic,
+          manual: [],
+          current_user: expectedCurrentUser
+        })
+      }
+    )
+
+    it('batch-prefetches quoted statuses with a single getStatusesByIds call', async () => {
+      const quotingStatuses: Status[] = []
+      for (let i = 0; i < 5; i += 1) {
+        const quoted = await makeStatus(ACTOR1_ID)
+        const quoting = await makeStatus(ACTOR1_ID)
+        await database.createStatusQuote({
+          statusId: quoting.id,
+          quotedStatusId: quoted.id,
+          state: 'accepted'
+        })
+        quotingStatuses.push(
+          (await database.getStatus({
+            statusId: quoting.id
+          })) as Status
+        )
+      }
+
+      const spy = vi.spyOn(database, 'getStatusesByIds')
+      const results = await getMastodonStatuses(database, quotingStatuses)
+
+      expect(results).toHaveLength(5)
+      // One call for the quoted-status prefetch (no replies in these fixtures).
+      expect(spy).toHaveBeenCalledTimes(1)
+      for (const result of results) {
+        expect((result.quote as { state: string }).state).toBe('accepted')
+      }
+    })
+  })
 })

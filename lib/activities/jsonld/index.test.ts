@@ -196,6 +196,106 @@ describe('compactActivityPub', () => {
     expect(tags[0].name).toBe('#fediverse')
   })
 
+  it('keeps quote extension terms when the sender defines them with full IRIs', async () => {
+    // Mastodon 4.5 / Fedibird / Misskey each carry the quote target under their
+    // own vocabulary and *define* those terms in the outbound @context. Without
+    // matching aliases in CANONICAL_CONTEXT they compact to CURIEs/full IRIs and
+    // vanish from the parsed note.
+    const result = asRecord(
+      await compactActivityPub({
+        '@context': [
+          ACTIVITY_STREAMS_CONTEXT_URL,
+          {
+            quote: { '@id': 'https://w3id.org/fep/044f#quote', '@type': '@id' },
+            quoteUri: 'http://fedibird.com/ns#quoteUri',
+            _misskey_quote: 'https://misskey-hub.net/ns#_misskey_quote',
+            quoteAuthorization: {
+              '@id': 'https://w3id.org/fep/044f#quoteAuthorization',
+              '@type': '@id'
+            }
+          }
+        ],
+        id: 'https://remote.example/notes/2',
+        type: 'Note',
+        attributedTo: 'https://remote.example/users/alice',
+        published: '2026-01-01T00:00:00Z',
+        quote: 'https://llun.test/users/me/statuses/1',
+        quoteUri: 'https://llun.test/users/me/statuses/1',
+        _misskey_quote: 'https://llun.test/users/me/statuses/1',
+        quoteAuthorization: 'https://llun.test/users/me/quote_authorizations/9'
+      })
+    )
+
+    expect(result.quote).toBe('https://llun.test/users/me/statuses/1')
+    expect(result.quoteUri).toBe('https://llun.test/users/me/statuses/1')
+    expect(result._misskey_quote).toBe('https://llun.test/users/me/statuses/1')
+    expect(result.quoteAuthorization).toBe(
+      'https://llun.test/users/me/quote_authorizations/9'
+    )
+  })
+
+  // The blank-node accident (`_:QuoteRequest`) only recovers a bare term when
+  // the sender does NOT define the type. Mastodon DOES define these terms, so
+  // assert the sender-defined-IRI path survives via a real alias.
+  it.each([
+    { type: 'QuoteRequest', iri: 'https://w3id.org/fep/044f#QuoteRequest' },
+    {
+      type: 'QuoteAuthorization',
+      iri: 'https://w3id.org/fep/044f#QuoteAuthorization'
+    }
+  ])(
+    'keeps a $type type as a bare term when the sender defines it with a full IRI',
+    async ({ type, iri }) => {
+      const result = asRecord(
+        await compactActivityPub({
+          '@context': [ACTIVITY_STREAMS_CONTEXT_URL, { [type]: iri }],
+          id: 'https://remote.example/activities/1',
+          type,
+          actor: 'https://remote.example/users/alice'
+        })
+      )
+
+      expect(result.type).toBe(type)
+    }
+  )
+
+  it('keeps interactionPolicy.canQuote.automaticApproval an array for a single approver', async () => {
+    // #1119-class regression: a single-element approval set must not collapse to
+    // a scalar. `@container: @set` in CANONICAL_CONTEXT keeps it an array.
+    const result = asRecord(
+      await compactActivityPub({
+        '@context': [
+          ACTIVITY_STREAMS_CONTEXT_URL,
+          {
+            gts: 'https://gotosocial.org/ns#',
+            interactionPolicy: 'gts:interactionPolicy',
+            canQuote: 'gts:canQuote',
+            automaticApproval: {
+              '@id': 'gts:automaticApproval',
+              '@type': '@id',
+              '@container': '@set'
+            }
+          }
+        ],
+        id: 'https://remote.example/notes/1',
+        type: 'Note',
+        attributedTo: 'https://remote.example/users/alice',
+        published: '2026-01-01T00:00:00Z',
+        interactionPolicy: {
+          canQuote: {
+            automaticApproval: ['https://remote.example/users/alice/followers']
+          }
+        }
+      })
+    )
+
+    const policy = asRecord(result.interactionPolicy)
+    const canQuote = asRecord(policy.canQuote)
+    expect(canQuote.automaticApproval).toEqual([
+      'https://remote.example/users/alice/followers'
+    ])
+  })
+
   it('injects a default context for documents that omit @context', async () => {
     const result = asRecord(
       await compactActivityPub({

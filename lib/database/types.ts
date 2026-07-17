@@ -40,6 +40,7 @@ import {
   StatusDatabase,
   StatusDetectedLanguageDatabase,
   StatusMuteDatabase,
+  StatusQuoteDatabase,
   SuggestionDatabase,
   TimelineDatabase,
   TranslationCacheDatabase,
@@ -85,6 +86,7 @@ export type Database = AccountDatabase &
   StatusDatabase &
   StatusDetectedLanguageDatabase &
   StatusMuteDatabase &
+  StatusQuoteDatabase &
   SuggestionDatabase &
   TrendsDatabase &
   IdempotencyDatabase &
