@@ -39,6 +39,7 @@ import { ServerFilterSQLDatabaseMixin } from '@/lib/database/sql/serverFilter'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { StatusDetectedLanguageSQLDatabaseMixin } from '@/lib/database/sql/statusDetectedLanguage'
 import { StatusMuteSQLDatabaseMixin } from '@/lib/database/sql/statusMute'
+import { StatusQuoteSQLDatabaseMixin } from '@/lib/database/sql/statusQuote'
 import { StravaArchiveImportSQLDatabaseMixin } from '@/lib/database/sql/stravaArchiveImport'
 import { SuggestionSQLDatabaseMixin } from '@/lib/database/sql/suggestion'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
@@ -66,6 +67,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const endorsementDatabase = EndorsementSQLDatabaseMixin(database)
   const featuredTagDatabase = FeaturedTagSQLDatabaseMixin(database)
   const statusMuteDatabase = StatusMuteSQLDatabaseMixin(database)
+  const statusQuoteDatabase = StatusQuoteSQLDatabaseMixin(database)
   const idempotencyDatabase = IdempotencySQLDatabaseMixin(database)
   const translationCacheDatabase = TranslationCacheSQLDatabaseMixin(database)
   const statusDetectedLanguageDatabase =
@@ -150,6 +152,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...endorsementDatabase,
     ...featuredTagDatabase,
     ...statusMuteDatabase,
+    ...statusQuoteDatabase,
     ...idempotencyDatabase,
     ...translationCacheDatabase,
     ...statusDetectedLanguageDatabase,

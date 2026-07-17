@@ -3,6 +3,7 @@ import {
   getAttachments,
   getContent,
   getLanguage,
+  getQuoteTargetId,
   getReply,
   getSummary,
   getTags,
@@ -62,6 +63,67 @@ describe('note entity utilities', () => {
 
     it('returns undefined for null', () => {
       expect(getReply(null)).toBeUndefined()
+    })
+  })
+
+  describe('getQuoteTargetId', () => {
+    const target = 'https://example.com/note/quoted'
+
+    it.each([
+      { field: 'quote' },
+      { field: 'quoteUrl' },
+      { field: 'quoteUri' },
+      { field: '_misskey_quote' }
+    ])('reads the quote target from $field', ({ field }) => {
+      const note = {
+        type: 'Note',
+        id: 'https://example.com/note/1',
+        [field]: target
+      } as unknown as BaseNote
+
+      expect(getQuoteTargetId(note)).toEqual(target)
+    })
+
+    it('reads the quote target from an embedded quote object', () => {
+      const note = {
+        type: 'Note',
+        id: 'https://example.com/note/1',
+        quote: { id: target, type: 'Note' }
+      } as unknown as BaseNote
+
+      expect(getQuoteTargetId(note)).toEqual(target)
+    })
+
+    it('prefers quote over the compat aliases', () => {
+      const note = {
+        type: 'Note',
+        id: 'https://example.com/note/1',
+        quote: target,
+        quoteUri: 'https://example.com/note/other',
+        _misskey_quote: 'https://example.com/note/other'
+      } as unknown as BaseNote
+
+      expect(getQuoteTargetId(note)).toEqual(target)
+    })
+
+    it('returns null when the note quotes nothing', () => {
+      const note = {
+        type: 'Note',
+        id: 'https://example.com/note/1',
+        content: 'Test'
+      } as unknown as BaseNote
+
+      expect(getQuoteTargetId(note)).toBeNull()
+    })
+
+    it('returns null for an embedded quote object without an id', () => {
+      const note = {
+        type: 'Note',
+        id: 'https://example.com/note/1',
+        quote: { type: 'Link', href: 'https://example.com/note/quoted' }
+      } as unknown as BaseNote
+
+      expect(getQuoteTargetId(note)).toBeNull()
     })
   })
 

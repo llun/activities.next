@@ -8,8 +8,10 @@ import { seedDatabase } from '@/lib/stub/database'
 import { MockImageDocument } from '@/lib/stub/imageDocument'
 import { MockLitepubNote, MockMastodonActivityPubNote } from '@/lib/stub/note'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 enableFetchMocks()
 
@@ -671,5 +673,135 @@ describe('createNoteJob', () => {
     expect(hashtagTags).toHaveLength(1)
     expect(mentionTags[0].name).toEqual('@someone')
     expect(hashtagTags[0].name).toEqual('#topic')
+  })
+
+  describe('quote ingest', () => {
+    const createLocalQuoted = async (suffix: string, actorId: string) => {
+      const id = `${actorId}/statuses/quoted-${suffix}`
+      await database.createNote({
+        id,
+        url: id,
+        actorId,
+        text: 'quoted status',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      return id
+    }
+
+    it('stores an accepted edge for a self-quote', async () => {
+      const authorId = actor1?.id as string
+      const quotedId = await createLocalQuoted('self', authorId)
+      const note = {
+        ...MockMastodonActivityPubNote({
+          id: `${authorId}/statuses/quoting-self`,
+          from: authorId,
+          content: 'self quote'
+        }),
+        quote: quotedId
+      }
+
+      await createNoteJob(database, {
+        id: 'quote-self',
+        name: CREATE_NOTE_JOB_NAME,
+        data: note,
+        verifiedSenderActorId: authorId
+      })
+
+      const edge = await database.getStatusQuote({ statusId: note.id })
+      expect(edge).toMatchObject({
+        quotedStatusId: quotedId,
+        state: 'accepted'
+      })
+    })
+
+    it.each([
+      { label: 'FEP quote', field: 'quote' },
+      { label: 'Fedibird quoteUri', field: 'quoteUri' },
+      { label: 'Misskey _misskey_quote', field: '_misskey_quote' }
+    ])(
+      'stores a pending edge for a $label with no stamp from a different author',
+      async ({ field }) => {
+        const authorId = actor1?.id as string
+        const quotedId = await createLocalQuoted(`pending-${field}`, authorId)
+        const note = {
+          ...MockMastodonActivityPubNote({
+            id: `${ACTOR2_ID}/statuses/quoting-${field}`,
+            from: ACTOR2_ID,
+            content: 'cross-author quote'
+          }),
+          [field]: quotedId
+        }
+
+        await createNoteJob(database, {
+          id: `quote-pending-${field}`,
+          name: CREATE_NOTE_JOB_NAME,
+          data: note,
+          verifiedSenderActorId: ACTOR2_ID
+        })
+
+        const edge = await database.getStatusQuote({ statusId: note.id })
+        expect(edge).toMatchObject({
+          quotedStatusId: quotedId,
+          state: 'pending'
+        })
+      }
+    )
+
+    it('leaves no quote edge for a note that quotes nothing', async () => {
+      const note = MockMastodonActivityPubNote({
+        id: `${actor1?.id}/statuses/no-quote`,
+        from: actor1?.id,
+        content: 'plain note'
+      })
+      await createNoteJob(database, {
+        id: 'quote-none',
+        name: CREATE_NOTE_JOB_NAME,
+        data: note,
+        verifiedSenderActorId: actor1?.id
+      })
+      await expect(
+        database.getStatusQuote({ statusId: note.id })
+      ).resolves.toBeNull()
+    })
+
+    it('does not rewrite the edge for a duplicate Create', async () => {
+      const authorId = actor1?.id as string
+      const quotedId = await createLocalQuoted('dup', authorId)
+      const note = {
+        ...MockMastodonActivityPubNote({
+          id: `${authorId}/statuses/quoting-dup`,
+          from: authorId,
+          content: 'dup quote'
+        }),
+        quote: quotedId
+      }
+
+      await createNoteJob(database, {
+        id: 'quote-dup',
+        name: CREATE_NOTE_JOB_NAME,
+        data: note,
+        verifiedSenderActorId: authorId
+      })
+      // Sentinel that a second ingest would clobber (the note carries no stamp).
+      await database.createStatusQuote({
+        statusId: note.id,
+        quotedStatusId: quotedId,
+        state: 'accepted',
+        authorizationUri: 'https://llun.test/sentinel'
+      })
+
+      await createNoteJob(database, {
+        id: 'quote-dup',
+        name: CREATE_NOTE_JOB_NAME,
+        data: note,
+        verifiedSenderActorId: authorId
+      })
+
+      const edge = await database.getStatusQuote({ statusId: note.id })
+      // The duplicate returned early (existing status), so createStatusQuote was
+      // not called again and the sentinel survives.
+      expect(edge?.authorizationUri).toBe('https://llun.test/sentinel')
+    })
   })
 })
