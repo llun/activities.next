@@ -3,9 +3,9 @@ import { z } from 'zod'
 import { SEND_FLAG_JOB_NAME } from '@/lib/jobs/names'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getQueue } from '@/lib/services/queue'
+import { serializeReportEntity } from '@/lib/services/reports/serializeReportEntity'
 import { ReportCategory, Scope } from '@/lib/types/database/operations'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
-import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -15,7 +15,7 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl, urlToId } from '@/lib/utils/urlToId'
+import { idToUrl } from '@/lib/utils/urlToId'
 import { Booleanish } from '@/lib/utils/zodBooleanish'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
@@ -166,21 +166,7 @@ export const POST = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: {
-          id: report.id,
-          action_taken: report.actionTaken,
-          action_taken_at: null,
-          category: report.category,
-          comment: report.comment,
-          forwarded: report.forward,
-          created_at: getISOTimeUTC(report.createdAt),
-          // Echo ids back in the Mastodon short form clients sent, not the
-          // internal URL form we persist.
-          status_ids: report.statusIds.map((id) => urlToId(id)),
-          rule_ids: report.ruleIds,
-          collection_ids: report.collectionIds,
-          target_account: targetAccount
-        }
+        data: serializeReportEntity({ report, targetAccount })
       })
     }
   )
