@@ -107,7 +107,11 @@ export const GET = traceApiRoute(
           sinceStatusId,
           maxStatusId,
           limit: pageLimit,
-          filterContext: getFilterContextForTimeline(timeline)
+          filterContext: getFilterContextForTimeline(timeline),
+          // The federated feed is a public surface: hide silenced authors too.
+          // Home/direct/list feeds keep them (a follower still sees them).
+          surface:
+            timeline === Timeline.FEDERATED_PUBLIC ? 'public' : 'following'
         })
       if (format === TimelineFormat.enum.activities_next) {
         return apiResponse({

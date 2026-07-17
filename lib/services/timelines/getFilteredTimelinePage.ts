@@ -203,6 +203,9 @@ interface GetFilteredTimelinePageParams {
   maxStatusId?: string | null
   limit?: number
   filterContext?: FilterContext
+  // Defaults to 'following'. The federated-public feed served through this
+  // wrapper passes 'public' so silenced authors are hidden there too.
+  surface?: TimelineSurface
 }
 
 export const getFilteredTimelinePage = async ({
@@ -213,7 +216,8 @@ export const getFilteredTimelinePage = async ({
   sinceStatusId = null,
   maxStatusId = null,
   limit = PER_PAGE_LIMIT,
-  filterContext
+  filterContext,
+  surface = 'following'
 }: GetFilteredTimelinePageParams): Promise<FilteredTimelinePage> =>
   getFilteredStatusPage({
     database,
@@ -222,6 +226,7 @@ export const getFilteredTimelinePage = async ({
     minStatusId,
     limit,
     filterContext,
+    surface,
     fetchBatch: async ({
       maxStatusId: descCursor,
       minStatusId: ascCursor,

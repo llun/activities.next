@@ -205,7 +205,7 @@ describe('GET /api/v1/timelines/[timeline]', () => {
     return status
   }
 
-  describe('moderation state on the home timeline', () => {
+  describe('moderation state on timelines', () => {
     test('keeps posts from a silenced author on the home timeline', async () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor1.email }
@@ -226,6 +226,44 @@ describe('GET /api/v1/timelines/[timeline]', () => {
         expect(statusIds).toContain(actor1TimelinePost1Id)
       } finally {
         await database.setActorSilenced({ actorId: ACTOR1_ID, silenced: false })
+      }
+    })
+
+    test('omits statuses from silenced authors on the federated timeline', async () => {
+      const silencedActorId = await createIsolatedActor()
+      const status = await database.createNote({
+        id: `${silencedActorId}/statuses/fed-silenced`,
+        url: `${silencedActorId}/statuses/fed-silenced`,
+        actorId: silencedActorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'federated silenced post'
+      })
+      await database.setActorSilenced({
+        actorId: silencedActorId,
+        silenced: true
+      })
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const getTimelineSpy = vi
+        .spyOn(database, 'getTimeline')
+        .mockResolvedValue([status])
+
+      try {
+        const response = await GET(createRequest(), {
+          params: Promise.resolve({ timeline: 'federated-public' })
+        })
+
+        expect(response.status).toBe(200)
+        const statusIds = (await response.json()).statuses.map(
+          (s: { id: string }) => s.id
+        )
+        // The federated feed is a public surface, so a silenced author is
+        // dropped here even though the home feed keeps them.
+        expect(statusIds).not.toContain(status.id)
+      } finally {
+        getTimelineSpy.mockRestore()
       }
     })
   })

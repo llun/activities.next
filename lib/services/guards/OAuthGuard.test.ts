@@ -934,6 +934,33 @@ describe('OAuthGuard', () => {
       }
     })
 
+    test('returns 403 for cookie sessions whose actor is suspended', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      await database.setActorSuspended({
+        actorId: primaryActor!.id,
+        suspended: true
+      })
+
+      try {
+        const guard = OAuthGuard([Scope.enum.read], mockHandler)
+        const req = createRequest()
+        const response = await guard(req, { params: Promise.resolve({}) })
+
+        expect(response.status).toBe(403)
+        expect(mockHandler).not.toHaveBeenCalled()
+      } finally {
+        await database.setActorSuspended({
+          actorId: primaryActor!.id,
+          suspended: false
+        })
+      }
+    })
+
     test('returns 403 for cookie sessions whose account is disabled', async () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor1.email }
@@ -1107,6 +1134,43 @@ describe('OAuthGuard', () => {
 
       expect(response.status).toBe(200)
       expect(getCaptured()?.currentActor?.id).toBe(primaryActor?.id)
+    })
+
+    test('returns 403 for a user token whose actor is suspended', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      mockStoredTokens.set(hashToken('app-suspended-token'), {
+        token: hashToken('app-suspended-token'),
+        referenceId: primaryActor?.id,
+        clientId: 'client-app-1',
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+      await database.setActorSuspended({
+        actorId: primaryActor!.id,
+        suspended: true
+      })
+
+      try {
+        const { handler } = captureHandler()
+        const guard = OAuthAppGuard([Scope.enum.read], handler, {
+          matchMode: 'any'
+        })
+        const req = createRequest({
+          Authorization: 'Bearer app-suspended-token'
+        })
+        const response = await guard(req, { params: Promise.resolve({}) })
+
+        expect(response.status).toBe(403)
+        expect(handler).not.toHaveBeenCalled()
+      } finally {
+        await database.setActorSuspended({
+          actorId: primaryActor!.id,
+          suspended: false
+        })
+      }
     })
 
     test('returns 401 for an expired app token', async () => {

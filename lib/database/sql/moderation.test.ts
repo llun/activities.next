@@ -205,6 +205,16 @@ describe('ModerationDatabase', () => {
         expect(rejected).toBe(true)
         expect(await database.getAccountFromId({ id: accountId })).toBeNull()
         expect(await database.getActorFromId({ id: actorId })).toBeNull()
+        // The credential provider row created alongside the account is gone too,
+        // so nothing dangles referencing the deleted account.
+        expect(
+          await instance('account_providers')
+            .where('accountId', accountId)
+            .first()
+        ).toBeUndefined()
+        expect(
+          await instance('sessions').where('accountId', accountId).first()
+        ).toBeUndefined()
       } finally {
         await database.destroy()
       }
@@ -219,6 +229,15 @@ describe('ModerationDatabase', () => {
         expect(
           await database.getAccountFromId({ id: accountId })
         ).not.toBeNull()
+      })
+    })
+
+    it('returns false for an account that does not exist', async () => {
+      await withFreshDatabase(async (database) => {
+        const rejected = await database.rejectPendingAccount({
+          accountId: 'does-not-exist'
+        })
+        expect(rejected).toBe(false)
       })
     })
   })

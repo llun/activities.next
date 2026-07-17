@@ -509,6 +509,18 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         deletionStatus: sqlActor.deletionStatus ?? null,
         deletionScheduledAt: sqlActor.deletionScheduledAt
           ? getCompatibleTime(sqlActor.deletionScheduledAt)
+          : null,
+        // Moderation state must reach the cookie/session actor path too, so the
+        // OAuthGuard suspend check and the sensitized-forces-sensitive rule fire
+        // for browser sessions, not only bearer tokens (which use getActor).
+        suspendedAt: sqlActor.suspendedAt
+          ? getCompatibleTime(sqlActor.suspendedAt)
+          : null,
+        silencedAt: sqlActor.silencedAt
+          ? getCompatibleTime(sqlActor.silencedAt)
+          : null,
+        sensitizedAt: sqlActor.sensitizedAt
+          ? getCompatibleTime(sqlActor.sensitizedAt)
           : null
       })
 
