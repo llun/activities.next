@@ -1,4 +1,5 @@
 import { Announce, Tombstone } from '@/lib/types/activitypub'
+import { getOriginalStatus } from '@/lib/types/domain/status'
 import {
   normalizeActivityPubAnnounce,
   normalizeActorId
@@ -12,15 +13,6 @@ import { actorMatchesVerifiedSender } from './verifiedSender'
 // Undefined intentionally preserves unscoped deletes for legacy queued messages.
 const getVerifiedSenderActorId = (actorId?: string) =>
   normalizeActorId(actorId) ?? undefined
-
-// Two ids share authority when served from the same host.
-const sameHost = (a: string, b: string): boolean => {
-  try {
-    return new URL(a).host === new URL(b).host
-  } catch {
-    return false
-  }
-}
 
 // Extract a possible stamp uri from the Delete object (a bare id string or an
 // object with an id, e.g. a Tombstone/QuoteAuthorization).
@@ -44,9 +36,12 @@ export const deleteObjectJob = createJobHandle(
 
       // FEP-044f revocation: a Delete of a QuoteAuthorization stamp revokes the
       // quote. Match the deleted object against a stored stamp uri and require
-      // the revoker to share authority with the stamp (its host), so a third
-      // party cannot revoke someone else's quote. Runs before the actor/status
-      // delete paths — a status/actor id never matches a stored stamp uri.
+      // the revoker to be the quoted status's own author (the party that issued
+      // the stamp). Host equality is not enough on a multi-user instance — a
+      // co-resident of the quoted author would otherwise be able to revoke
+      // someone else's authorized quote — so resolve the exact author and fail
+      // closed if it cannot be resolved. Runs before the actor/status delete
+      // paths; a status/actor id never matches a stored stamp uri.
       const stampUri = getStampUri(data)
       if (stampUri) {
         const edge = await database.getStatusQuoteByAuthorizationUri({
@@ -54,9 +49,20 @@ export const deleteObjectJob = createJobHandle(
         })
         if (edge) {
           const verifiedSenderActorId = message.verifiedSenderActorId
+          const quotedStatus = verifiedSenderActorId
+            ? await database.getStatus({
+                statusId: edge.quotedStatusId,
+                withReplies: false
+              })
+            : null
+          const quotedAuthorId = quotedStatus
+            ? getOriginalStatus(quotedStatus).actorId
+            : null
           if (
             verifiedSenderActorId &&
-            sameHost(stampUri, verifiedSenderActorId)
+            quotedAuthorId &&
+            normalizeActorId(verifiedSenderActorId) ===
+              normalizeActorId(quotedAuthorId)
           ) {
             await database.updateStatusQuoteState({
               statusId: edge.statusId,

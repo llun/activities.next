@@ -128,6 +128,32 @@ describe('handleQuoteResponse', () => {
     })
   })
 
+  it('rejects when the quoted status author cannot be resolved (fail closed, no host fallback)', async () => {
+    // A co-resident of the quoted author must not settle our quote just because
+    // they share a host; if we cannot confirm the exact author, deny.
+    const updateSpy = vi.fn()
+    const database = {
+      getStatusQuoteByQuoteRequestId: vi.fn().mockResolvedValue({
+        statusId: QUOTING_STATUS_ID,
+        quotedStatusId: QUOTED_STATUS_ID
+      }),
+      updateStatusQuoteState: updateSpy,
+      getStatus: vi.fn().mockResolvedValue(null)
+    } as unknown as Database
+    const handled = await handleQuoteResponse({
+      database,
+      activity: {
+        type: 'Accept',
+        actor: 'https://target.example/users/mallory',
+        object: QUOTE_REQUEST_ID,
+        result: STAMP_URI
+      }
+    })
+
+    expect(handled).toBe(false)
+    expect(updateSpy).not.toHaveBeenCalled()
+  })
+
   it('returns false when no outbound quote matches (falls through to follow handling)', async () => {
     const updateSpy = vi.fn()
     const database = makeDatabase({ edge: null, updateSpy })

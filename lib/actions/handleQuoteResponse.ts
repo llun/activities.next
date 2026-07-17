@@ -57,10 +57,11 @@ export const handleQuoteResponse = async ({
   if (!edge) return false
 
   // Authorization: only the quoted status's own author may settle our quote —
-  // otherwise any validly-signed third party could forge an Accept/Reject of our
-  // pending outbound quote (and inject an attacker-controlled stamp). Match the
-  // responder against the quoted status's author when we have it locally (we
-  // always do at request time), falling back to same-host authority.
+  // otherwise any validly-signed third party (including a co-resident of the
+  // quoted author) could forge an Accept/Reject of our pending outbound quote
+  // (and inject an attacker-controlled stamp). Require an exact author match; if
+  // we cannot resolve the author locally, fail closed rather than trust same-host
+  // authority (host equality is not authorship on a multi-user instance).
   const responder = refId(record.actor)
   if (!responder) return false
   const quotedStatus = await database.getStatus({
@@ -70,10 +71,10 @@ export const handleQuoteResponse = async ({
   const quotedAuthorId = quotedStatus
     ? getOriginalStatus(quotedStatus).actorId
     : null
-  const authorized = quotedAuthorId
-    ? normalizeActorId(responder) === normalizeActorId(quotedAuthorId)
-    : sameHost(responder, edge.quotedStatusId)
-  if (!authorized) return false
+  if (!quotedAuthorId) return false
+  if (normalizeActorId(responder) !== normalizeActorId(quotedAuthorId)) {
+    return false
+  }
 
   if (type === 'Accept') {
     const stampUri = refId(record.result)

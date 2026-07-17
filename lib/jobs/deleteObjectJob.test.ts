@@ -34,13 +34,39 @@ describe('deleteObjectJob', () => {
     mockRequests(fetchMock)
   })
 
-  it('revokes a quote when its stamp is deleted by the issuing authority', async () => {
-    const stampUri =
-      'https://remote.example/users/alice/quote_authorizations/xyz'
+  // Seed the quoted status (as stored when we created the outbound quote) so its
+  // author can be resolved for the revocation authorization check.
+  const seedQuotedStatus = async (author: string, statusId: string) => {
+    await database.createActor({
+      actorId: author,
+      username: author.split('/').pop() as string,
+      domain: new URL(author).host,
+      followersUrl: `${author}/followers`,
+      inboxUrl: `${author}/inbox`,
+      sharedInboxUrl: `https://${new URL(author).host}/inbox`,
+      publicKey: 'public-key',
+      createdAt: Date.now()
+    })
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: author,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      text: 'quoted status',
+      createdAt: Date.now()
+    })
+  }
+
+  it('revokes a quote when its stamp is deleted by the quoted author', async () => {
+    const author = `https://remote.example/users/alice-${Date.now()}`
+    const quotedStatusId = `${author}/statuses/1`
+    await seedQuotedStatus(author, quotedStatusId)
+    const stampUri = `${author}/quote_authorizations/xyz`
     const quotingId = `https://local.test/users/me/statuses/revoke-${Date.now()}`
     await database.createStatusQuote({
       statusId: quotingId,
-      quotedStatusId: 'https://remote.example/users/alice/statuses/1',
+      quotedStatusId,
       state: 'accepted',
       authorizationUri: stampUri
     })
@@ -49,7 +75,7 @@ describe('deleteObjectJob', () => {
       id: 'revoke-job',
       name: DELETE_OBJECT_JOB_NAME,
       data: stampUri,
-      verifiedSenderActorId: 'https://remote.example/users/alice'
+      verifiedSenderActorId: author
     })
 
     const edge = await database.getStatusQuote({ statusId: quotingId })
@@ -57,11 +83,14 @@ describe('deleteObjectJob', () => {
   })
 
   it('does not revoke a quote when the stamp Delete comes from a foreign authority', async () => {
-    const stampUri = 'https://remote.example/users/bob/quote_authorizations/abc'
+    const author = `https://remote.example/users/bob-${Date.now()}`
+    const quotedStatusId = `${author}/statuses/1`
+    await seedQuotedStatus(author, quotedStatusId)
+    const stampUri = `${author}/quote_authorizations/abc`
     const quotingId = `https://local.test/users/me/statuses/no-revoke-${Date.now()}`
     await database.createStatusQuote({
       statusId: quotingId,
-      quotedStatusId: 'https://remote.example/users/bob/statuses/1',
+      quotedStatusId,
       state: 'accepted',
       authorizationUri: stampUri
     })
@@ -71,6 +100,32 @@ describe('deleteObjectJob', () => {
       name: DELETE_OBJECT_JOB_NAME,
       data: stampUri,
       verifiedSenderActorId: 'https://evil.example/users/impostor'
+    })
+
+    const edge = await database.getStatusQuote({ statusId: quotingId })
+    expect(edge?.state).toBe('accepted')
+  })
+
+  it('does not revoke a quote when a co-resident of the quoted author (not the author) sends the Delete', async () => {
+    // Multi-user forgery: mallory shares bob's host, so host equality passes, but
+    // she is not the quoted author and must not be able to revoke bob's quote.
+    const author = `https://remote.example/users/bob-coresident-${Date.now()}`
+    const quotedStatusId = `${author}/statuses/1`
+    await seedQuotedStatus(author, quotedStatusId)
+    const stampUri = `${author}/quote_authorizations/def`
+    const quotingId = `https://local.test/users/me/statuses/coresident-${Date.now()}`
+    await database.createStatusQuote({
+      statusId: quotingId,
+      quotedStatusId,
+      state: 'accepted',
+      authorizationUri: stampUri
+    })
+
+    await deleteObjectJob(database, {
+      id: 'coresident-job',
+      name: DELETE_OBJECT_JOB_NAME,
+      data: stampUri,
+      verifiedSenderActorId: 'https://remote.example/users/mallory'
     })
 
     const edge = await database.getStatusQuote({ statusId: quotingId })
