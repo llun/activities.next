@@ -934,6 +934,16 @@ CREATE TABLE public.status_pins (
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE public.status_quotes (
+    "statusId" character varying(255) NOT NULL,
+    "quotedStatusId" character varying(255) NOT NULL,
+    state character varying(255) DEFAULT 'pending'::character varying NOT NULL,
+    "quoteRequestId" text,
+    "authorizationUri" text,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE public.statuses (
     id character varying(255) NOT NULL,
     "actorId" character varying(255),
@@ -1390,6 +1400,9 @@ ALTER TABLE ONLY public.status_mutes
 ALTER TABLE ONLY public.status_pins
     ADD CONSTRAINT status_pins_pkey PRIMARY KEY ("actorId", "statusId");
 
+ALTER TABLE ONLY public.status_quotes
+    ADD CONSTRAINT status_quotes_pkey PRIMARY KEY ("statusId");
+
 ALTER TABLE ONLY public.statuses
     ADD CONSTRAINT statuses_pkey PRIMARY KEY (id);
 
@@ -1609,6 +1622,10 @@ CREATE INDEX status_mutes_status ON public.status_mutes USING btree ("statusId")
 CREATE INDEX status_pins_actor_created_status ON public.status_pins USING btree ("actorId", "createdAt", "statusId");
 
 CREATE INDEX status_pins_status ON public.status_pins USING btree ("statusId");
+
+CREATE INDEX status_quotes_authorization_idx ON public.status_quotes USING btree ("authorizationUri");
+
+CREATE INDEX status_quotes_quoted_state_idx ON public.status_quotes USING btree ("quotedStatusId", state, "createdAt");
 
 CREATE INDEX "statusesReplyHashIndex" ON public.statuses USING btree ("replyHash");
 

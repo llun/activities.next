@@ -63,6 +63,33 @@ export const Edited = z.object({
 
 export type Edited = z.infer<typeof Edited>
 
+// The five *persisted* quote-edge states. The viewer-relative states
+// (unauthorized | blocked_account | blocked_domain | muted_account) are never
+// stored — they are computed at serialization time from the viewer's
+// relationship to the quoted status.
+export const QuoteState = z.enum([
+  'pending',
+  'accepted',
+  'rejected',
+  'revoked',
+  'deleted'
+])
+export type QuoteState = z.infer<typeof QuoteState>
+
+// Who may quote a status (FEP-044f `interactionPolicy.canQuote`). Mastodon's
+// vocabulary is exactly these three; there is no `following` value.
+export const QuoteApprovalPolicy = z.enum(['public', 'followers', 'nobody'])
+export type QuoteApprovalPolicy = z.infer<typeof QuoteApprovalPolicy>
+
+// The quote *edge* on a quoting status — the bare quoted-status id plus the
+// edge state, mirroring how `reply` is a bare id string (no embedded status).
+export const StatusQuote = z.object({
+  quotedStatusId: z.string(),
+  state: QuoteState,
+  authorizationUri: z.string().nullable().optional()
+})
+export type StatusQuote = z.infer<typeof StatusQuote>
+
 const StatusBase = z.object({
   id: z.string(),
   actorId: z.string(),
@@ -115,7 +142,15 @@ export const StatusNote = StatusBase.extend({
 
   attachments: Attachment.array(),
   tags: Tag.array(),
-  fitness: StatusFitnessFile.optional()
+  fitness: StatusFitnessFile.optional(),
+
+  // The quote edge (this status quotes another). Liberal/optional so existing
+  // status literals and non-quoting statuses remain valid; StatusPoll inherits
+  // it, StatusAnnounce (extends StatusBase) correctly does not.
+  quote: StatusQuote.nullable().optional(),
+  // Who may quote THIS status. Stored in the content JSON blob, not a column;
+  // defaults to `public` at consumption when absent.
+  quoteApprovalPolicy: QuoteApprovalPolicy.optional()
 })
 export type StatusNote = z.infer<typeof StatusNote>
 

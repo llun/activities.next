@@ -80,10 +80,12 @@ import { getActorProfile } from '@/lib/types/domain/actor'
 import { Attachment, isFitnessAttachment } from '@/lib/types/domain/attachment'
 import { PollChoice } from '@/lib/types/domain/pollChoice'
 import {
+  QuoteState,
   Status,
   StatusAnnounce,
   StatusNote,
   StatusPoll,
+  StatusQuote,
   StatusType
 } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
@@ -138,6 +140,9 @@ type StatusHydrationContext = {
   // independent (unlike the like/bookmark sets above), so callers populate it
   // for any timeline page regardless of whether a viewer is signed in.
   detectedLanguages?: Record<string, string>
+  // Pre-batched quote edges, keyed by the quoting statusId. Viewer-independent;
+  // the viewer-relative downgrades happen later in the Mastodon serializer.
+  quoteEdges?: Map<string, StatusQuote>
 }
 
 export const buildPubliclyReadableStatusIdsQuery = ({
@@ -434,6 +439,7 @@ export const StatusSQLDatabaseMixin = (
     reply = '',
     sensitive = false,
     language = null,
+    quoteApprovalPolicy,
     applicationName = null,
     applicationWebsite = null,
     createdAt
@@ -446,7 +452,10 @@ export const StatusSQLDatabaseMixin = (
       text,
       summary,
       sensitive,
-      language
+      language,
+      // Persisted in the blob (no column). JSON.stringify drops it when
+      // undefined, so non-quotable-policy statuses store nothing extra.
+      ...(quoteApprovalPolicy ? { quoteApprovalPolicy } : {})
     }
     const statusContent = JSON.stringify(content)
     const searchStatus: SQLStatusSearchRow = {
@@ -524,6 +533,7 @@ export const StatusSQLDatabaseMixin = (
       summary,
       sensitive,
       language,
+      ...(quoteApprovalPolicy ? { quoteApprovalPolicy } : {}),
       // Content detection runs after this insert (in the actions/jobs layer
       // that called createNote), so the row this function just wrote has no
       // detected language yet — matches what a hydrated re-fetch would show
@@ -1589,26 +1599,34 @@ export const StatusSQLDatabaseMixin = (
     // per-status query in getStatusWithAttachmentsFromData. Run it in the
     // same Promise.all as the bookmark/like queries below rather than
     // sequentially, so all three independent batched lookups overlap.
-    const [detectedLanguages, bookmarkRows, likeRows] = await Promise.all([
-      hasHydrationStatusIds
-        ? statusDetectedLanguageDatabase.getDetectedLanguages({
-            statusIds: [...hydrationStatusIds]
-          })
-        : Promise.resolve({}),
-      currentActorId && hasHydrationStatusIds
-        ? database('bookmarks')
-            .where('actorId', currentActorId)
-            .whereIn('statusId', [...hydrationStatusIds])
-            .select<{ statusId: string }[]>('statusId')
-        : Promise.resolve([]),
-      currentActorId && hasHydrationStatusIds
-        ? database('likes')
-            .where('actorId', currentActorId)
-            .whereIn('statusId', [...hydrationStatusIds])
-            .select<{ statusId: string }[]>('statusId')
-        : Promise.resolve([])
-    ])
+    const [detectedLanguages, quoteEdges, bookmarkRows, likeRows] =
+      await Promise.all([
+        hasHydrationStatusIds
+          ? statusDetectedLanguageDatabase.getDetectedLanguages({
+              statusIds: [...hydrationStatusIds]
+            })
+          : Promise.resolve({}),
+        // Quote edges are viewer-independent, so batch them for every fetch (as
+        // with detected languages) rather than falling back to a per-status
+        // query in getStatusWithAttachmentsFromData.
+        hasHydrationStatusIds
+          ? getStatusQuoteEdges([...hydrationStatusIds])
+          : Promise.resolve(new Map<string, StatusQuote>()),
+        currentActorId && hasHydrationStatusIds
+          ? database('bookmarks')
+              .where('actorId', currentActorId)
+              .whereIn('statusId', [...hydrationStatusIds])
+              .select<{ statusId: string }[]>('statusId')
+          : Promise.resolve([]),
+        currentActorId && hasHydrationStatusIds
+          ? database('likes')
+              .where('actorId', currentActorId)
+              .whereIn('statusId', [...hydrationStatusIds])
+              .select<{ statusId: string }[]>('statusId')
+          : Promise.resolve([])
+      ])
     hydrationContext.detectedLanguages = detectedLanguages
+    hydrationContext.quoteEdges = quoteEdges
     if (currentActorId) {
       hydrationContext.bookmarkedStatusIds = new Set(
         bookmarkRows.map((row) => row.statusId)
@@ -1677,6 +1695,43 @@ export const StatusSQLDatabaseMixin = (
     }
 
     return statusIds
+  }
+
+  type StatusQuoteEdgeRow = {
+    statusId: string
+    quotedStatusId: string
+    state: string
+    authorizationUri: string | null
+  }
+
+  const toStatusQuoteEdge = (row: StatusQuoteEdgeRow): StatusQuote => ({
+    quotedStatusId: row.quotedStatusId,
+    state: QuoteState.parse(row.state),
+    authorizationUri: row.authorizationUri ?? null
+  })
+
+  // Per-status quote-edge read used when a caller did not pre-batch them into the
+  // hydration context (mirrors the detected-language fallback).
+  const getStatusQuoteEdgeForData = async (
+    statusId: string
+  ): Promise<StatusQuote | null> => {
+    const row = await database<StatusQuoteEdgeRow>('status_quotes')
+      .where('statusId', statusId)
+      .first('statusId', 'quotedStatusId', 'state', 'authorizationUri')
+    return row ? toStatusQuoteEdge(row) : null
+  }
+
+  // Batch quote-edge read for a timeline page (avoids one query per status).
+  const getStatusQuoteEdges = async (
+    statusIds: string[]
+  ): Promise<Map<string, StatusQuote>> => {
+    const edges = new Map<string, StatusQuote>()
+    if (statusIds.length === 0) return edges
+    const rows = await database<StatusQuoteEdgeRow>('status_quotes')
+      .whereIn('statusId', statusIds)
+      .select('statusId', 'quotedStatusId', 'state', 'authorizationUri')
+    for (const row of rows) edges.set(row.statusId, toStatusQuoteEdge(row))
+    return edges
   }
 
   const addCounterAdjustment = (
@@ -2745,7 +2800,8 @@ export const StatusSQLDatabaseMixin = (
       actorAnnounceStatus,
       edits,
       fitnessFile,
-      detectedLanguage
+      detectedLanguage,
+      quoteEdge
     ] = await Promise.all([
       mediaDatabase.getAttachments({ statusId: data.id }),
       getTags({ statusId: data.id }),
@@ -2796,7 +2852,12 @@ export const StatusSQLDatabaseMixin = (
         ? (hydrationContext.detectedLanguages[data.id] ?? null)
         : statusDetectedLanguageDatabase.getDetectedLanguage({
             statusId: data.id
-          })
+          }),
+      // Quote edge: use the pre-batched map when present, otherwise read this
+      // status's edge directly (mirrors the detected-language fallback).
+      hydrationContext?.quoteEdges
+        ? (hydrationContext.quoteEdges.get(data.id) ?? null)
+        : getStatusQuoteEdgeForData(data.id)
     ])
 
     const repliesNote = (
@@ -2834,6 +2895,13 @@ export const StatusSQLDatabaseMixin = (
       applicationWebsite: data.applicationWebsite ?? null,
       reply: data.reply,
       replies: repliesNote,
+      // The quote edge (this status quotes another), when present. Announce rows
+      // return earlier and never carry it.
+      ...(quoteEdge ? { quote: quoteEdge } : {}),
+      // Who may quote THIS status, read back from the content blob.
+      ...(content.quoteApprovalPolicy
+        ? { quoteApprovalPolicy: content.quoteApprovalPolicy }
+        : {}),
       totalLikes,
       totalShares,
       isActorLiked: isActorLikedStatusResult,

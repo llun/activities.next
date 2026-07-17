@@ -9,11 +9,13 @@ import {
   getAttachments,
   getContent,
   getLanguage,
+  getQuoteTargetId,
   getReply,
   getSummary,
   getTags
 } from '@/lib/activities/note'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
+import { verifyRemoteQuote } from '@/lib/services/quotes/verifyRemoteQuote'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import {
   ArticleContent,
@@ -115,6 +117,29 @@ export const createNoteJob = createJobHandle(
       text,
       html: true
     })
+
+    // Record the quote edge (FEP-044f) if this note quotes another status. The
+    // state is derived from the receiver rules; a fetch/verification failure
+    // degrades to `pending` and never drops the note.
+    const quotedStatusId = getQuoteTargetId(note)
+    if (quotedStatusId) {
+      const quotedStatus = await database.getStatus({
+        statusId: quotedStatusId,
+        withReplies: false
+      })
+      const state = await verifyRemoteQuote({
+        database,
+        note,
+        actorId,
+        quotedStatus
+      })
+      await database.createStatusQuote({
+        statusId: note.id,
+        quotedStatusId,
+        state,
+        authorizationUri: note.quoteAuthorization ?? null
+      })
+    }
 
     const tags = getTags(note)
 

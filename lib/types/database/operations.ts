@@ -29,7 +29,12 @@ import { List, ListRepliesPolicy } from '@/lib/types/domain/list'
 import { Mute } from '@/lib/types/domain/mute'
 import { Relay, RelayState } from '@/lib/types/domain/relay'
 import { Session } from '@/lib/types/domain/session'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import {
+  QuoteApprovalPolicy,
+  QuoteState,
+  Status,
+  StatusType
+} from '@/lib/types/domain/status'
 import { Tag, TagType } from '@/lib/types/domain/tag'
 import * as Mastodon from '@/lib/types/mastodon'
 import { Client } from '@/lib/types/oauth2/client'
@@ -465,6 +470,11 @@ interface BaseCreateStatusParams {
   // Mastodon-compatible content flags persisted in the status content blob.
   sensitive?: boolean
   language?: string | null
+
+  // Who may quote this status (FEP-044f / Mastodon 4.5). Persisted in the status
+  // content blob, not a column. Omit to leave it unset (defaults to `public` at
+  // consumption).
+  quoteApprovalPolicy?: QuoteApprovalPolicy
 
   // The registered OAuth client (Mastodon "application") that authored the
   // status. Null when created through the web session.
@@ -2568,6 +2578,60 @@ export interface BookmarkDatabase {
     params: IsActorBookmarkedStatusParams
   ): Promise<boolean>
   getBookmarks(params: GetBookmarksParams): Promise<Bookmark[]>
+}
+
+// ============================================================================
+// Status Quote Database (FEP-044f / Mastodon 4.5 quote edges)
+// ============================================================================
+
+// One quote edge: the quoting status (`statusId`, PK) → the quoted status. Only
+// the five persistent states are stored; viewer-relative states are computed at
+// serialization time. There is intentionally no FK to statuses (the edge can be
+// created before the quoting status row exists, matching likes/recipients).
+export type StatusQuoteRecord = {
+  statusId: string
+  quotedStatusId: string
+  state: QuoteState
+  quoteRequestId: string | null
+  authorizationUri: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+export type CreateStatusQuoteParams = {
+  statusId: string
+  quotedStatusId: string
+  state?: QuoteState
+  quoteRequestId?: string | null
+  authorizationUri?: string | null
+}
+export type GetStatusQuoteParams = { statusId: string }
+export type UpdateStatusQuoteStateParams = {
+  statusId: string
+  state: QuoteState
+  authorizationUri?: string | null
+}
+export type GetQuotingStatusIdsParams = {
+  quotedStatusId: string
+  state?: QuoteState
+  limit?: number
+  maxId?: string | null
+  sinceId?: string | null
+}
+
+export interface StatusQuoteDatabase {
+  // Upsert on `statusId` (the edge may pre-exist from an inbound QuoteRequest).
+  createStatusQuote(params: CreateStatusQuoteParams): Promise<StatusQuoteRecord>
+  getStatusQuote(
+    params: GetStatusQuoteParams
+  ): Promise<StatusQuoteRecord | null>
+  // Enforces the one-way state machine; an illegal transition is a no-op that
+  // returns the row unchanged. Returns null when no edge exists.
+  updateStatusQuoteState(
+    params: UpdateStatusQuoteStateParams
+  ): Promise<StatusQuoteRecord | null>
+  // Ids of statuses quoting `quotedStatusId`, newest first, for GET /:id/quotes.
+  getQuotingStatusIds(params: GetQuotingStatusIdsParams): Promise<string[]>
 }
 
 // ============================================================================

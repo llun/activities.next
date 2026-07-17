@@ -239,3 +239,6 @@ CREATE INDEX `actors_domain_last_status_at_idx` on `actors` (`domain`, `lastStat
 CREATE TABLE `actor_domain_blocks` (`id` varchar(255), `actorId` varchar(255) not null, `domain` varchar(255) not null, `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, primary key (`id`));
 CREATE UNIQUE INDEX `actor_domain_blocks_actor_domain_unique` on `actor_domain_blocks` (`actorId`, `domain`);
 CREATE INDEX `actor_domain_blocks_actor_created` on `actor_domain_blocks` (`actorId`, `createdAt`);
+CREATE TABLE `status_quotes` (`statusId` varchar(255), `quotedStatusId` varchar(255) not null, `state` varchar(255) not null default 'pending', `quoteRequestId` text null, `authorizationUri` text null, `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, primary key (`statusId`));
+CREATE INDEX `status_quotes_quoted_state_idx` on `status_quotes` (`quotedStatusId`, `state`, `createdAt`);
+CREATE INDEX `status_quotes_authorization_idx` on `status_quotes` (`authorizationUri`);
