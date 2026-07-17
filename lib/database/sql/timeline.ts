@@ -195,7 +195,11 @@ export const TimelineSQLDatabaseMixin = (
         }
 
         // min_id and since_id are both lower-bound cursors (rows newer than it);
-        // they differ only in ordering, handled below.
+        // they differ only in ordering, handled below. min_id ascends from the
+        // cursor (the oldest rows just newer than it) then reverses to
+        // newest-first, returning the page adjacent to the cursor; since_id /
+        // max_id / no cursor keep DESC (the newest slice above the cursor).
+        const ascending = Boolean(minStatusId)
         const lowerBoundStatusId = minStatusId || sinceStatusId
         const [maxRow, minRow] = await Promise.all([
           maxStatusId ? lookupTimelineCursor(maxStatusId) : null,
@@ -240,19 +244,22 @@ export const TimelineSQLDatabaseMixin = (
           })
         }
 
-        // The home/direct feed is consumed through getFilteredStatusPage, which
-        // backfills by paging max_id DESC, so this query stays newest-first for
-        // both lower-bound cursors. min_id therefore behaves like since_id here
-        // (adjacent-page min_id for the filtered feed is a separate change);
-        // the notification and list-timeline layers, consumed directly, do
-        // implement true min_id.
+        // min_id scans ascending (oldest rows just newer than the cursor) so the
+        // keyset seek + limit lands on the page adjacent to the cursor; the id
+        // list is reversed below to the newest-first response shape. Every other
+        // cursor kind (since_id / max_id / none) stays newest-first DESC. The
+        // filtered home/direct feed (getFilteredStatusPage) mirrors this: it
+        // backfills DESC for since/max and ascends for min_id.
+        const order: 'asc' | 'desc' = ascending ? 'asc' : 'desc'
         const statusesId = await query
           .select('statusId')
           .orderBy([
-            { column: 'createdAt', order: 'desc' },
-            { column: 'id', order: 'desc' }
+            { column: 'createdAt', order },
+            { column: 'id', order }
           ])
           .limit(limit)
+        // Ascending (min_id) rows come back oldest-first; flip to newest-first.
+        if (ascending) statusesId.reverse()
 
         const statuses: Array<Status | null> = []
         for (const { statusId } of statusesId) {

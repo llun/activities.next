@@ -151,6 +151,64 @@ describe('TimelineDatabase', () => {
           expect(secondPageIds).not.toContain(statusBId)
           expect(secondPageIds).not.toContain(statusAId)
         }, 15000)
+
+        it('distinguishes min_id (adjacent page) from since_id (newest slice)', async () => {
+          const TEST_ID_CURSOR = `https://${TEST_DOMAIN}/users/timeline-cursor`
+          await database.createAccount({
+            email: `timeline-cursor@${TEST_DOMAIN}`,
+            username: 'timeline-cursor',
+            passwordHash: TEST_PASSWORD_HASH,
+            domain: TEST_DOMAIN,
+            privateKey: 'privateKey-timeline-cursor',
+            publicKey: 'publicKey-timeline-cursor'
+          })
+
+          const sender = 'https://llun.dev/users/timeline-cursor-sender'
+          await database.createFollow({
+            actorId: TEST_ID_CURSOR,
+            targetActorId: sender,
+            status: FollowStatus.enum.Accepted,
+            inbox: `${sender}/inbox`,
+            sharedInbox: `${sender}/inbox`
+          })
+
+          // Five posts, oldest → newest by createdAt.
+          const ids: string[] = []
+          for (let i = 1; i <= 5; i++) {
+            const id = `${sender}/statuses/cursor-${i}`
+            const status = await database.createNote({
+              id,
+              url: id,
+              actorId: sender,
+              text: `cursor post ${i}`,
+              to: [ACTIVITY_STREAM_PUBLIC],
+              cc: [TEST_ID_CURSOR],
+              createdAt: 1000 * i
+            })
+            await addStatusToTimelines(database, status)
+            ids.push(id)
+          }
+          const [oldest, second, middle, fourth, newest] = ids
+
+          // since_id: the two NEWEST statuses above the cursor.
+          const sincePage = await database.getTimeline({
+            timeline: Timeline.MAIN,
+            actorId: TEST_ID_CURSOR,
+            sinceStatusId: oldest,
+            limit: 2
+          })
+          expect(sincePage.map((status) => status.id)).toEqual([newest, fourth])
+
+          // min_id: the two OLDEST statuses above the cursor (the adjacent page),
+          // returned newest-first — a different slice than since_id.
+          const minPage = await database.getTimeline({
+            timeline: Timeline.MAIN,
+            actorId: TEST_ID_CURSOR,
+            minStatusId: oldest,
+            limit: 2
+          })
+          expect(minPage.map((status) => status.id)).toEqual([middle, second])
+        }, 15000)
       })
 
       describe('Timeline.MAIN filters', () => {
