@@ -1,6 +1,7 @@
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { isConversationMutedForActor } from '@/lib/services/mastodon/conversationMute'
+import { getEffectiveQuoteApprovalPolicy } from '@/lib/services/quotes/quotePolicy'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Mastodon } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
@@ -299,7 +300,7 @@ const getQuoteApproval = (
   status: StatusNote | StatusPoll,
   currentActorId?: string
 ) => {
-  const policy: QuoteApprovalPolicy = status.quoteApprovalPolicy ?? 'public'
+  const policy = getEffectiveQuoteApprovalPolicy(status)
   const automatic = QUOTE_POLICY_AUTOMATIC_AUDIENCE[policy]
   let currentUser: string
   if (!currentActorId) currentUser = 'unknown'

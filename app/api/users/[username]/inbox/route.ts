@@ -8,12 +8,14 @@ import {
 import { applyRemoteBlock } from '@/lib/actions/applyRemoteBlock'
 import { applyRemoteUnblock } from '@/lib/actions/applyRemoteUnblock'
 import { createFollower } from '@/lib/actions/createFollower'
+import { handleQuoteResponse } from '@/lib/actions/handleQuoteResponse'
 import { likeRequest } from '@/lib/actions/like'
 import { rejectFollowRequest } from '@/lib/actions/rejectFollowRequest'
 import { undoFollowRequest } from '@/lib/actions/undoFollowRequest'
 import { FollowRequest } from '@/lib/activities/followAction'
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { UndoFollow } from '@/lib/activities/undoFollow'
+import { HANDLE_QUOTE_REQUEST_JOB_NAME } from '@/lib/jobs/names'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { isFederationSigningActor } from '@/lib/services/federation/instanceActor'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
@@ -21,6 +23,7 @@ import {
   OnlyLocalUserGuard,
   OnlyLocalUserGuardParams
 } from '@/lib/services/guards/OnlyLocalUserGuard'
+import { getQueue } from '@/lib/services/queue'
 import {
   Accept,
   Block,
@@ -30,6 +33,7 @@ import {
   Undo
 } from '@/lib/types/activitypub'
 import { normalizeActorId } from '@/lib/utils/activitypub'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -46,7 +50,16 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 const GracefullyAcceptedActivity = z
   .object({
     id: z.string(),
-    type: z.enum(['Flag', 'Move', 'Add', 'Remove', 'QuoteRequest']),
+    type: z.enum(['Flag', 'Move', 'Add', 'Remove']),
+    actor: z.string()
+  })
+  .passthrough()
+// FEP-044f: a remote actor asks to quote one of our statuses. Parsed leniently
+// here (the handler re-validates); the passthrough keeps `object`/`instrument`.
+const InboundQuoteRequest = z
+  .object({
+    id: z.string(),
+    type: z.literal('QuoteRequest'),
     actor: z.string()
   })
   .passthrough()
@@ -73,6 +86,7 @@ const Activity = z.union([
   Like,
   Undo,
   ReferenceUndo,
+  InboundQuoteRequest,
   GracefullyAcceptedActivity
 ])
 
@@ -190,6 +204,21 @@ export const POST = traceApiRoute(
 
             switch (activity.type) {
               case 'Accept': {
+                // A remote author accepting our QuoteRequest is matched first;
+                // it falls through to the follow handshake on no match.
+                if (
+                  await handleQuoteResponse({
+                    database,
+                    activity: compactedActivity
+                  })
+                ) {
+                  return apiResponse({
+                    req,
+                    allowedMethods: CORS_HEADERS,
+                    data: DEFAULT_202,
+                    responseStatusCode: 202
+                  })
+                }
                 const follow = await acceptFollowRequest({ activity, database })
                 if (!follow)
                   return apiResponse({
@@ -206,6 +235,19 @@ export const POST = traceApiRoute(
                 })
               }
               case 'Reject': {
+                if (
+                  await handleQuoteResponse({
+                    database,
+                    activity: compactedActivity
+                  })
+                ) {
+                  return apiResponse({
+                    req,
+                    allowedMethods: CORS_HEADERS,
+                    data: DEFAULT_202,
+                    responseStatusCode: 202
+                  })
+                }
                 const follow = await rejectFollowRequest({ activity, database })
                 if (!follow)
                   return apiResponse({
@@ -385,6 +427,23 @@ export const POST = traceApiRoute(
                 logAcceptedWithoutSideEffects({
                   activity,
                   reason: `unsupported Undo object type ${undoObject.type}`
+                })
+                return apiResponse({
+                  req,
+                  allowedMethods: CORS_HEADERS,
+                  data: DEFAULT_202,
+                  responseStatusCode: 202
+                })
+              }
+              case 'QuoteRequest': {
+                // Defer to the shared quote-request handler via the queue so the
+                // authorship-verifying fetch runs in the worker rather than
+                // inline in the inbox response (mirrors the shared-inbox path).
+                await getQueue().publish({
+                  id: getHashFromString(activity.id),
+                  name: HANDLE_QUOTE_REQUEST_JOB_NAME,
+                  data: compactedActivity,
+                  verifiedSenderActorId: context.verifiedSenderActorId
                 })
                 return apiResponse({
                   req,

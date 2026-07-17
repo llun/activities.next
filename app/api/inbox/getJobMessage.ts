@@ -7,6 +7,7 @@ import {
   CREATE_POLL_JOB_NAME,
   CREATE_POLL_VOTE_JOB_NAME,
   DELETE_OBJECT_JOB_NAME,
+  HANDLE_QUOTE_REQUEST_JOB_NAME,
   UPDATE_NOTE_JOB_NAME,
   UPDATE_POLL_JOB_NAME
 } from '@/lib/jobs/names'
@@ -226,6 +227,21 @@ export const getJobMessage = (
       id: deduplicationId,
       name: DELETE_OBJECT_JOB_NAME,
       data: activity.object,
+      verifiedSenderActorId
+    })
+  }
+
+  // FEP-044f QuoteRequest delivered to the shared inbox (some servers deliver
+  // everything here). The job resolves the quoted status's local author.
+  if (isMatch(activity, { type: 'QuoteRequest' })) {
+    if (activityActorMismatch(activity, verifiedSenderActorId)) {
+      return null
+    }
+
+    return createJobMessage({
+      id: deduplicationId,
+      name: HANDLE_QUOTE_REQUEST_JOB_NAME,
+      data: activity,
       verifiedSenderActorId
     })
   }

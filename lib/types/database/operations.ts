@@ -2812,6 +2812,13 @@ export type CreateStatusQuoteParams = {
   authorizationUri?: string | null
 }
 export type GetStatusQuoteParams = { statusId: string }
+export type GetStatusQuoteByQuoteRequestIdParams = { quoteRequestId: string }
+export type GetStatusQuoteByAuthorizationUriParams = {
+  authorizationUri: string
+}
+export type MarkQuotesDeletedByQuotedStatusIdParams = {
+  quotedStatusId: string
+}
 export type UpdateStatusQuoteStateParams = {
   statusId: string
   state: QuoteState
@@ -2831,11 +2838,24 @@ export interface StatusQuoteDatabase {
   getStatusQuote(
     params: GetStatusQuoteParams
   ): Promise<StatusQuoteRecord | null>
+  // Match an inbound Accept/Reject against our outbound QuoteRequest.
+  getStatusQuoteByQuoteRequestId(
+    params: GetStatusQuoteByQuoteRequestIdParams
+  ): Promise<StatusQuoteRecord | null>
+  // Look up an edge by the hosted stamp uri (stamp GET route + revocation).
+  getStatusQuoteByAuthorizationUri(
+    params: GetStatusQuoteByAuthorizationUriParams
+  ): Promise<StatusQuoteRecord | null>
   // Enforces the one-way state machine; an illegal transition is a no-op that
   // returns the row unchanged. Returns null when no edge exists.
   updateStatusQuoteState(
     params: UpdateStatusQuoteStateParams
   ): Promise<StatusQuoteRecord | null>
+  // Mark every accepted/pending edge quoting `quotedStatusId` as `deleted`
+  // (the quoted status was removed). Returns the number of edges updated.
+  markQuotesDeletedByQuotedStatusId(
+    params: MarkQuotesDeletedByQuotedStatusIdParams
+  ): Promise<number>
   // Ids of statuses quoting `quotedStatusId`, newest first, for GET /:id/quotes.
   getQuotingStatusIds(params: GetQuotingStatusIdsParams): Promise<string[]>
 }
@@ -3034,6 +3054,8 @@ export const NotificationType = z.enum([
   'mention',
   'reply',
   'reblog',
+  // Mastodon 4.5 quote posts: someone quoted the recipient's status.
+  'quote',
   'activity_import',
   // Mastodon 4.6 Collections: a member was added to a collection
   // (`added_to_collection`) or a collection they're in had its metadata changed
