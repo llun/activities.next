@@ -53,6 +53,20 @@ product or security decision, not a gap to be closed.
   The first-party UI uses `/api/v1/conversations` for threaded direct messages;
   the `direct` timeline is served by the shared `timelines/[timeline]` handler.
 
+- **Admin account ids are the actor id space, not numeric snowflakes.**
+  `Admin::Account.id` (and the `account`/`target_account`/`assigned_account`/
+  `action_taken_by_account` ids embedded in `Admin::Report`) is
+  `urlToId(actor.id)` — the same base64url/colon-encoded actor id every other
+  account-shaped endpoint uses — never the internal login-account UUID. Admin
+  report ids are the raw report UUIDs. Admin tooling that assumes numeric ids
+  must treat these as opaque strings. Because one login account can own several
+  actors across domains, `suspend`/`silence`/`sensitize` act per actor and apply
+  to remote actors too, while `disable`/`enable`/`approve`/`reject` are
+  local-account-only (a remote target returns `422`); a full Mastodon-style
+  "suspend freezes login" needs both `suspend` and `disable`. Registration
+  approval is wired but empty today (`pending` lists return `[]` until an
+  approval-required mode exists).
+
 - **The legacy `follow` scope is not honored for granular follow actions.**
   Mastodon deprecated the aggregate `follow` scope in 3.5 in favor of
   `read:follows` / `write:follows` / `write:blocks` / `write:mutes`. Activity.next
@@ -172,3 +186,13 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
 - **Admin CRUD extras** — custom emoji, domain allow/deny lists (with import),
   announcements, filters, and rules management under `/api/v1/admin/*` and
   `/api/v2/admin/*`.
+
+The standard Mastodon **admin moderation** cluster is implemented:
+`GET /api/v1/admin/accounts`, `GET /api/v2/admin/accounts`,
+`GET /api/v1/admin/accounts/:id`, `POST /api/v1/admin/accounts/:id/action`, the
+`approve`/`reject`/`enable`/`unsilence`/`unsuspend`/`unsensitive` state actions,
+`DELETE /api/v1/admin/accounts/:id` (suspended-first), and the reports API
+(`GET`/`PUT /api/v1/admin/reports[/:id]`, `assign_to_self`/`unassign`/`resolve`/
+`reopen`). See the admin id-space divergence above. `warning_preset_id` and
+`send_email_notification` on the account action endpoint are accepted and
+ignored (no moderation-mail/presets subsystems).

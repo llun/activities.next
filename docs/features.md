@@ -71,6 +71,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Collections** — curated account collections aligned with the **final Mastodon 4.6 spec**: dual request vocabulary (`name`/`tag_name`/`discoverable`/`sensitive`/`account_ids` plus the pre-final `title`/`topic`/`visibility` extensions), spec response entities (`WrappedCollection`, `CollectionWithAccounts`, `WrappedCollectionItem` with stable item ids), anonymous reads of discoverable collections, `GET /api/v1/accounts/:id/collections`, cross-owner `in_collections`, and item-id-addressed remove/revoke (account-id addressing kept as an extension). Plus an activities.next shareable **public feed** of each collection (owner-private and public projections, the public one limited to approved members and public-visibility posts) with a per-collection capped materialized feed. Collections federate outbound as **FEP-7aa9 `FeaturedCollection`** objects, auto-follow and backfill remote members' existing posts when they are added, and emit added-to-collection / collection-update notifications
 - ✅ **Filters** — Keyword/status filters via `/api/v2/filters` with notification filtering, plus the deprecated Mastodon v1 `/api/v1/filters` (and `/api/v1/filters/:id`) compatibility shim served as a view over the same v2 filter storage
 - ✅ **Reports** — Submit reports against accounts and statuses via `/api/v1/reports`
+- ✅ **Admin moderation** — Moderate accounts and reports via the Mastodon admin API (`/api/v1/admin/accounts`, `/api/v2/admin/accounts`, `POST /api/v1/admin/accounts/:id/action`, the approve/reject/enable/unsilence/unsuspend/unsensitive state actions, suspended-first `DELETE`, and the reports workflow `GET`/`PUT /api/v1/admin/reports[/:id]` + `assign_to_self`/`unassign`/`resolve`/`reopen`), enforced instance-wide (sign-in, token acceptance, ActivityPub 410, inbound-inbox drops, timeline filtering, forced-sensitive creation), with per-actor moderation controls and a reports queue in the admin area (`/admin/accounts/:id`, `/admin/reports`)
 - ✅ **Markers** — Save and restore per-timeline read positions
 - ✅ **Announcements** — Read active instance announcements via `GET /api/v1/announcements`, dismiss them with `POST /api/v1/announcements/:id/dismiss`, and react with `PUT`/`DELETE /api/v1/announcements/:id/reactions/:name`; unread active announcements surface as a dismissible banner at the top of the home timeline for signed-in users, and admins manage them in the admin area (`/admin/announcements`) backed by `/api/v2/admin/announcements`
 - ✅ **Endorsements** — Feature accounts on your profile
@@ -105,7 +106,6 @@ This document tracks the implemented and planned features for Activity.next.
 ## Planned Features
 
 - [ ] Streaming API for real-time updates
-- [ ] Moderation review dashboard for submitted reports
 - [ ] Bookmark collections
 - [ ] Media attachment `blurhash` computation and animated-GIF `gifv` detection (Mastodon `MediaAttachment` parity — currently always `blurhash: null`, and GIFs are served as `type: "image"`)
 
