@@ -1560,6 +1560,64 @@ describe('getMastodonStatus', () => {
       expect(quote.quoted_status).toBeNull()
     })
 
+    it('embeds an accepted quote for an authenticated non-author viewer of a public status', async () => {
+      const quoted = await makeStatus(ACTOR1_ID)
+      const result = await serializeQuoting(quoted.id, 'accepted', ACTOR2_ID)
+      const quote = result?.quote as {
+        state: string
+        quoted_status: { id: string } | null
+      }
+      expect(quote.state).toBe('accepted')
+      expect(quote.quoted_status?.id).toBe(urlToId(quoted.id))
+    })
+
+    it('embeds an accepted quote when the authenticated viewer authored the followers-only quoted status', async () => {
+      // Exercises the authenticated getViewerActor + canActorReadStatus self-read
+      // path: a followers-only quoted status is readable by its own author.
+      const quoted = await makeStatus(ACTOR1_ID, {
+        to: [`${ACTOR1_ID}/followers`],
+        cc: []
+      })
+      const result = await serializeQuoting(quoted.id, 'accepted', ACTOR1_ID)
+      const quote = result?.quote as {
+        state: string
+        quoted_status: { id: string } | null
+      }
+      expect(quote.state).toBe('accepted')
+      expect(quote.quoted_status?.id).toBe(urlToId(quoted.id))
+    })
+
+    it('resolves the viewer once per batch and embeds readable accepted quotes', async () => {
+      // Followers-only quoted status + author viewer, hydrated through the batch
+      // path so the viewer Actor comes from options.viewerActor (not a per-status
+      // fetch).
+      const quoted = await makeStatus(ACTOR1_ID, {
+        to: [`${ACTOR1_ID}/followers`],
+        cc: []
+      })
+      const quoting = await makeStatus(ACTOR1_ID)
+      await database.createStatusQuote({
+        statusId: quoting.id,
+        quotedStatusId: quoted.id,
+        state: 'accepted'
+      })
+      const hydrated = (await database.getStatus({
+        statusId: quoting.id
+      })) as Status
+
+      const [result] = await getMastodonStatuses(
+        database,
+        [hydrated],
+        ACTOR1_ID
+      )
+      const quote = result.quote as {
+        state: string
+        quoted_status: { id: string } | null
+      }
+      expect(quote.state).toBe('accepted')
+      expect(quote.quoted_status?.id).toBe(urlToId(quoted.id))
+    })
+
     it('emits a shallow quote at depth 1 and stops recursing', async () => {
       const c = await makeStatus(ACTOR1_ID)
       const b = await makeStatus(ACTOR1_ID)
@@ -1596,11 +1654,46 @@ describe('getMastodonStatus', () => {
       expect(innerQuote.quoted_status).toBeUndefined()
     })
 
+    it('withholds the quoted id in a shallow quote when the inner edge is not accepted', async () => {
+      const c = await makeStatus(ACTOR1_ID)
+      const b = await makeStatus(ACTOR1_ID)
+      await database.createStatusQuote({
+        statusId: b.id,
+        quotedStatusId: c.id,
+        state: 'pending'
+      })
+      const a = await makeStatus(ACTOR1_ID)
+      await database.createStatusQuote({
+        statusId: a.id,
+        quotedStatusId: b.id,
+        state: 'accepted'
+      })
+
+      const hydrated = (await database.getStatus({ statusId: a.id })) as Status
+      const result = await getMastodonStatus(database, hydrated)
+      const outerQuote = result?.quote as {
+        quoted_status: { quote?: { state: string; quoted_status_id: unknown } }
+      }
+      const innerQuote = outerQuote.quoted_status.quote as {
+        state: string
+        quoted_status_id: unknown
+      }
+      expect(innerQuote.state).toBe('pending')
+      expect(innerQuote.quoted_status_id).toBeNull()
+    })
+
     it.each([
       {
         description: 'public policy, author viewer',
         policy: undefined,
         viewer: ACTOR1_ID,
+        expectedAutomatic: ['public'],
+        expectedCurrentUser: 'automatic'
+      },
+      {
+        description: 'public policy, authenticated non-author viewer',
+        policy: 'public' as const,
+        viewer: ACTOR2_ID,
         expectedAutomatic: ['public'],
         expectedCurrentUser: 'automatic'
       },

@@ -545,10 +545,13 @@ export const getMastodonStatus = async (
   const edge = status.quote
   if (edge) {
     if (quoteDepth >= 1) {
-      // Depth >= 1: reference by id only and stop recursing (ShallowQuote).
+      // Depth >= 1: reference by id only and stop recursing (ShallowQuote). Only
+      // an accepted edge exposes the quoted id, matching the depth-0 contract
+      // where non-accepted states withhold the quoted status.
       quote = {
         state: edge.state,
-        quoted_status_id: urlToId(edge.quotedStatusId)
+        quoted_status_id:
+          edge.state === 'accepted' ? urlToId(edge.quotedStatusId) : null
       }
     } else if (edge.state !== 'accepted') {
       // Only `accepted` embeds the quoted status; other states show a

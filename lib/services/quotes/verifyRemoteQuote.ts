@@ -22,6 +22,19 @@ type VerifyRemoteQuoteParams = {
   quotedStatus: Status | null
 }
 
+// Two ActivityPub ids share authority when they are served from the same host.
+// The stamp is authoritative only if the quoted author's own server hosts it, so
+// a stamp fetched from (or claiming an id on) any other host is not trusted —
+// this is what stops a quoter from serving a forged authorization that merely
+// *names* the quoted author in `attributedTo`.
+const sameAuthority = (a: string, b: string): boolean => {
+  try {
+    return new URL(a).host === new URL(b).host
+  } catch {
+    return false
+  }
+}
+
 /**
  * Fetch and validate the FEP-044f QuoteAuthorization stamp. Signed with the
  * headless instance actor (every s2s fetch uses the instance signer), compacted,
@@ -58,11 +71,13 @@ const fetchQuoteAuthorization = async (
  * Decide the stored state of an inbound remote quote, applying the FEP-044f
  * receiver rules:
  * - quoter == quoted author (self-quote) → `accepted` (same-authority shortcut);
- * - a `quoteAuthorization` stamp that dereferences to a valid QuoteAuthorization
- *   whose three fields (attributedTo, interactingObject, interactionTarget) all
- *   match → `accepted`;
- * - anything else (no stamp, unknown quoted author, fetch/parse failure, field
- *   mismatch) → `pending` (rendered as an unapproved placeholder, never dropped).
+ * - a `quoteAuthorization` stamp that is hosted under the quoted author's own
+ *   authority (both the fetched URL and the stamp's declared id) AND dereferences
+ *   to a valid QuoteAuthorization whose three fields (attributedTo,
+ *   interactingObject, interactionTarget) all match → `accepted`;
+ * - anything else (no stamp, unknown quoted author, foreign-authority stamp,
+ *   fetch/parse failure, field mismatch) → `pending` (rendered as an unapproved
+ *   placeholder, never dropped).
  */
 export const verifyRemoteQuote = async ({
   database,
@@ -92,6 +107,13 @@ export const verifyRemoteQuote = async ({
   if (!stamp) return 'pending'
 
   const valid =
+    // The stamp must actually be hosted under the quoted author's authority —
+    // both the URL we fetched and the id the document claims — otherwise a
+    // quoter could serve a forged stamp naming the author in `attributedTo`.
+    sameAuthority(stampUri, quotedAuthorId) &&
+    sameAuthority(stamp.id, quotedAuthorId) &&
+    // FEP-044f three-field match: issued by the quoted author, for this exact
+    // quoting note, targeting this exact quoted status.
     stamp.attributedTo === quotedAuthorId &&
     stamp.interactingObject === note.id &&
     stamp.interactionTarget === quotedStatusId

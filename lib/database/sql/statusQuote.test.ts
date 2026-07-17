@@ -106,23 +106,36 @@ describe('StatusQuoteDatabase', () => {
       ).resolves.toBeNull()
     })
 
-    // Full one-way transition matrix. `expected` is the state AFTER the attempt:
-    // legal transitions apply, everything else is a no-op that keeps `from`.
+    // Full one-way transition matrix — all 25 (from, to) pairs. `expected` is the
+    // state AFTER the attempt: legal transitions apply, everything else is a
+    // no-op that keeps `from` (terminal states rejected/revoked/deleted have no
+    // legal outgoing transition).
     it.each([
+      { from: 'pending', to: 'pending', expected: 'pending' },
       { from: 'pending', to: 'accepted', expected: 'accepted' },
       { from: 'pending', to: 'rejected', expected: 'rejected' },
       { from: 'pending', to: 'revoked', expected: 'pending' },
       { from: 'pending', to: 'deleted', expected: 'pending' },
-      { from: 'pending', to: 'pending', expected: 'pending' },
+      { from: 'accepted', to: 'pending', expected: 'accepted' },
+      { from: 'accepted', to: 'accepted', expected: 'accepted' },
+      { from: 'accepted', to: 'rejected', expected: 'accepted' },
       { from: 'accepted', to: 'revoked', expected: 'revoked' },
       { from: 'accepted', to: 'deleted', expected: 'deleted' },
-      { from: 'accepted', to: 'pending', expected: 'accepted' },
-      { from: 'accepted', to: 'rejected', expected: 'accepted' },
-      { from: 'accepted', to: 'accepted', expected: 'accepted' },
+      { from: 'rejected', to: 'pending', expected: 'rejected' },
       { from: 'rejected', to: 'accepted', expected: 'rejected' },
+      { from: 'rejected', to: 'rejected', expected: 'rejected' },
+      { from: 'rejected', to: 'revoked', expected: 'rejected' },
+      { from: 'rejected', to: 'deleted', expected: 'rejected' },
+      { from: 'revoked', to: 'pending', expected: 'revoked' },
       { from: 'revoked', to: 'accepted', expected: 'revoked' },
+      { from: 'revoked', to: 'rejected', expected: 'revoked' },
       { from: 'revoked', to: 'revoked', expected: 'revoked' },
-      { from: 'deleted', to: 'accepted', expected: 'deleted' }
+      { from: 'revoked', to: 'deleted', expected: 'revoked' },
+      { from: 'deleted', to: 'pending', expected: 'deleted' },
+      { from: 'deleted', to: 'accepted', expected: 'deleted' },
+      { from: 'deleted', to: 'rejected', expected: 'deleted' },
+      { from: 'deleted', to: 'revoked', expected: 'deleted' },
+      { from: 'deleted', to: 'deleted', expected: 'deleted' }
     ] as { from: QuoteState; to: QuoteState; expected: QuoteState }[])(
       'transitions $from -> $to result in $expected',
       async ({ from, to, expected }) => {
@@ -218,6 +231,52 @@ describe('StatusQuoteDatabase', () => {
       })
       expect(afterFirst).toEqual(all.slice(1))
       expect(afterFirst).not.toContain(all[0])
+
+      // sinceId mirrors maxId in the opposite direction: everything strictly
+      // newer than the last returned id.
+      const beforeLast = await database.getQuotingStatusIds({
+        quotedStatusId,
+        state: 'accepted',
+        sinceId: all[all.length - 1]
+      })
+      expect(beforeLast).toEqual(all.slice(0, all.length - 1))
+      expect(beforeLast).not.toContain(all[all.length - 1])
+    })
+
+    it('returns an empty page when the cursor id does not exist', async () => {
+      const quotedStatusId = uniqueId('cursor-missing-target')
+      await database.createStatusQuote({
+        statusId: uniqueId('cursor-missing-quoting'),
+        quotedStatusId,
+        state: 'accepted'
+      })
+
+      await expect(
+        database.getQuotingStatusIds({
+          quotedStatusId,
+          state: 'accepted',
+          maxId: uniqueId('cursor-nonexistent')
+        })
+      ).resolves.toEqual([])
+    })
+
+    it('lists all edges regardless of state when no state filter is given', async () => {
+      const quotedStatusId = uniqueId('unfiltered-target')
+      const accepted = uniqueId('unfiltered-accepted')
+      const pending = uniqueId('unfiltered-pending')
+      await database.createStatusQuote({
+        statusId: accepted,
+        quotedStatusId,
+        state: 'accepted'
+      })
+      await database.createStatusQuote({
+        statusId: pending,
+        quotedStatusId,
+        state: 'pending'
+      })
+
+      const ids = await database.getQuotingStatusIds({ quotedStatusId })
+      expect([...ids].sort()).toEqual([accepted, pending].sort())
     })
 
     it('hydrates the quote edge onto the quoting status', async () => {

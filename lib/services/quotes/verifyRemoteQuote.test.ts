@@ -152,4 +152,70 @@ describe('verifyRemoteQuote', () => {
     })
     expect(state).toBe('pending')
   })
+
+  it('is pending when the stamp is hosted on a foreign authority (forgery)', async () => {
+    // The attacker serves a stamp that names the victim in attributedTo and
+    // matches both ids, but hosts it on their own domain. The authority check
+    // must reject it.
+    const { request } = await vi.importMock<
+      typeof import('@/lib/utils/request')
+    >('@/lib/utils/request')
+    const foreignStampUri = 'https://evil.example/quote_authorizations/1'
+    ;(request as ReturnType<typeof vi.fn>).mockResolvedValue({
+      statusCode: 200,
+      body: JSON.stringify({
+        id: foreignStampUri,
+        type: 'QuoteAuthorization',
+        attributedTo: QUOTED_AUTHOR_ID,
+        interactingObject: QUOTING_NOTE_ID,
+        interactionTarget: QUOTED_STATUS_ID
+      })
+    })
+
+    const state = await verifyRemoteQuote({
+      database,
+      note: makeNote({ quoteAuthorization: foreignStampUri }),
+      actorId: QUOTING_ACTOR_ID,
+      quotedStatus: makeQuotedStatus()
+    })
+    expect(state).toBe('pending')
+  })
+
+  it('is pending when the stamp id is on a foreign authority', async () => {
+    const { request } = await vi.importMock<
+      typeof import('@/lib/utils/request')
+    >('@/lib/utils/request')
+    ;(request as ReturnType<typeof vi.fn>).mockResolvedValue({
+      statusCode: 200,
+      body: validStampBody({
+        id: 'https://evil.example/quote_authorizations/9'
+      })
+    })
+
+    const state = await verifyRemoteQuote({
+      database,
+      note: makeNote({ quoteAuthorization: STAMP_URI }),
+      actorId: QUOTING_ACTOR_ID,
+      quotedStatus: makeQuotedStatus()
+    })
+    expect(state).toBe('pending')
+  })
+
+  it('is pending when the stamp body is not a valid QuoteAuthorization', async () => {
+    const { request } = await vi.importMock<
+      typeof import('@/lib/utils/request')
+    >('@/lib/utils/request')
+    ;(request as ReturnType<typeof vi.fn>).mockResolvedValue({
+      statusCode: 200,
+      body: JSON.stringify({ id: STAMP_URI, type: 'Note' })
+    })
+
+    const state = await verifyRemoteQuote({
+      database,
+      note: makeNote({ quoteAuthorization: STAMP_URI }),
+      actorId: QUOTING_ACTOR_ID,
+      quotedStatus: makeQuotedStatus()
+    })
+    expect(state).toBe('pending')
+  })
 })
