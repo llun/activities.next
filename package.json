@@ -1,6 +1,6 @@
 {
   "name": "activities.next",
-  "version": "1.101.8",
+  "version": "1.102.0",
   "license": "MIT",
   "type": "module",
   "scripts": {
