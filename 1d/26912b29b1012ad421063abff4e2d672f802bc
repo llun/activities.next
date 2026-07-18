@@ -1,0 +1,28 @@
+lib/jobs/updateNoteJob.ts
+  s_ac45ba2a95e17f::t_27be7a544a0e63 92-101
+  s_ac45ba2a95e17f::t_564718aaaea5d5 64-73
+lib/services/notifications/notifyQuotedStatusUpdate.ts
+  s_ac45ba2a95e17f::t_d3834f6a41fbb6 43,49
+  s_ac45ba2a95e17f::t_36ad05b10d0d36 96
+  s_ac45ba2a95e17f::t_36652f9d3ff739 8-11
+lib/types/database/operations.ts
+  s_ac45ba2a95e17f::t_bf7f421e6911da 2843-2846
+lib/database/sql/statusQuote.ts
+  s_ac45ba2a95e17f::t_7c48773fb420fb 185-186,192
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "1d26912b29b1012ad421063abff4e2d672f802bc",
+  "prompts": {},
+  "sessions": {
+    "s_ac45ba2a95e17f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01793c88-f5d8-4470-8567-56fbbd1b5753",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
