@@ -145,6 +145,7 @@ describe('POST /api/v1/statuses/[id]/quotes/[quoting_status_id]/revoke', () => {
         data: expect.objectContaining({
           actorId: ACTOR1_ID,
           quotingActorId: REMOTE_QUOTER_ID,
+          quotingStatusId: quotingId,
           stampId: stampUri
         })
       })

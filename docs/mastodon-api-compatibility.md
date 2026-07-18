@@ -157,9 +157,12 @@ product or security decision, not a gap to be closed.
   Legacy Fedibird (`quoteUri`)
   and Misskey (`_misskey_quote`) quotes carry no stamp, so they are stored and
   rendered as unapproved (`pending`) rather than as embedded quotes, matching
-  Mastodon 4.5's treatment of stamp-less quotes. Revocation v1 delivers the stamp
-  `Delete` to the quoting author's server only, not to every prior recipient.
-  Changing a status's quote policy via `PUT …/interaction_policy` is not treated
+  Mastodon 4.5's treatment of stamp-less quotes. Revoking approval fans the stamp
+  `Delete` out to the quoting author's inbox **and** every named (`to`/`cc`)
+  recipient of the quoting note, so third-party servers that saw the quote honor
+  the revocation (FEP-044f); every copy stays signed by the quoted author, which
+  is what the receiving side requires. Changing a status's quote policy via
+  `PUT …/interaction_policy` is not treated
   as an edit (it never sets `edited_at`). Configured under `lib/services/quotes/`,
   `lib/actions/*Quote*`, and `app/api/v1/statuses/[id]/quotes|interaction_policy`.
 
