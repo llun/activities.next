@@ -150,8 +150,11 @@ product or security decision, not a gap to be closed.
   hosted `QuoteAuthorization` stamp; revocation is a `Delete` of that stamp), so
   the policy vocabulary is `public` / `followers` / `nobody` and `quote_approval.manual`
   is always empty (there is no held-for-review queue). For a `followers`-policy
-  status, `quote_approval.current_user` reports `unknown` to a non-author viewer —
-  the follower-relationship refinement is deferred. Legacy Fedibird (`quoteUri`)
+  status, `quote_approval.current_user` reflects the follower relationship — a
+  non-author viewer sees `automatic` when they are an accepted follower of the
+  author and `denied` otherwise (an anonymous viewer still sees `unknown`); the
+  verdict is resolved in one batched follow query per page, so it adds no N+1.
+  Legacy Fedibird (`quoteUri`)
   and Misskey (`_misskey_quote`) quotes carry no stamp, so they are stored and
   rendered as unapproved (`pending`) rather than as embedded quotes, matching
   Mastodon 4.5's treatment of stamp-less quotes. Revocation v1 delivers the stamp
