@@ -54,11 +54,19 @@ export const QuoteCard: FC<Props> = ({ quote, currentTime, className }) => {
     if (quote.state !== 'accepted') return
     let active = true
     setLoaded(false)
-    getStatusById(quote.quotedStatusId).then((status) => {
-      if (!active) return
-      setQuotedStatus(status)
-      setLoaded(true)
-    })
+    getStatusById(quote.quotedStatusId)
+      .then((status) => {
+        if (!active) return
+        setQuotedStatus(status)
+        setLoaded(true)
+      })
+      .catch(() => {
+        // A rejected fetch (offline, aborted, bad body) falls back to the
+        // unavailable tombstone instead of sticking on the loading state.
+        if (!active) return
+        setQuotedStatus(null)
+        setLoaded(true)
+      })
     return () => {
       active = false
     }

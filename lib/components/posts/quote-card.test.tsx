@@ -64,6 +64,15 @@ describe('QuoteCard', () => {
     ).toBeInTheDocument()
   })
 
+  it('falls back to the unavailable tombstone when the fetch rejects', async () => {
+    mockGetStatusById.mockRejectedValue(new Error('network down'))
+    render(<QuoteCard quote={quote()} currentTime={CURRENT_TIME} />)
+
+    expect(
+      await screen.findByText('This quoted post is unavailable')
+    ).toBeInTheDocument()
+  })
+
   it.each([
     { state: 'pending', text: 'Quote pending approval' },
     { state: 'rejected', text: 'This quote was declined' },

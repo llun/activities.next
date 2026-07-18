@@ -351,6 +351,16 @@ export const PostBox: FC<Props> = ({
     }
   }, [])
 
+  // Quote and poll are mutually exclusive (a quote post cannot carry a poll).
+  // If a poll is open when a quote is started, close it so the poll create
+  // branch can never run with a quote (which would drop the quote and leak the
+  // quoted status onto the next post).
+  useEffect(() => {
+    if (quotedStatus && postExtensionRef.current.poll.showing) {
+      dispatch(setPollVisibility(false))
+    }
+  }, [quotedStatus])
+
   useEffect(() => {
     textRef.current = text
   }, [text])
@@ -1108,8 +1118,16 @@ export const PostBox: FC<Props> = ({
                 postExtension.poll.showing ? 'Remove poll' : 'Add poll'
               }
               aria-pressed={postExtension.poll.showing}
-              disabled={isPosting}
-              title={postExtension.poll.showing ? 'Remove poll' : 'Add poll'}
+              // A quote post cannot carry a poll (they are mutually exclusive,
+              // like media); disable the toggle while quoting.
+              disabled={isPosting || Boolean(quotedStatus)}
+              title={
+                quotedStatus
+                  ? 'A quote post cannot include a poll'
+                  : postExtension.poll.showing
+                    ? 'Remove poll'
+                    : 'Add poll'
+              }
               className={cn(
                 postExtension.poll.showing
                   ? 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'

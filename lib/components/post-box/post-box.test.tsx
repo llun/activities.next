@@ -291,6 +291,39 @@ describe('PostBox edit media', () => {
     })
   })
 
+  it('disables the poll toggle while composing a quote (mutually exclusive)', async () => {
+    const quotedStatus = {
+      id: 'https://activities.local/users/bob/statuses/1',
+      actorId: 'https://activities.local/users/bob',
+      actor: {
+        id: 'https://activities.local/users/bob',
+        username: 'bob',
+        domain: 'activities.local',
+        name: 'Bob'
+      },
+      type: StatusType.enum.Note,
+      text: 'quote me please',
+      tags: [],
+      to: [],
+      cc: []
+    } as unknown as Status
+
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        quotedStatus={quotedStatus}
+        onDiscardReply={vi.fn()}
+        onDiscardQuote={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Add poll' })).toBeDisabled()
+  })
+
   it('keeps a new post with media enabled when text is cleared', async () => {
     render(
       <PostBox
