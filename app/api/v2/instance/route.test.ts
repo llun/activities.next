@@ -148,7 +148,19 @@ describe('GET /api/v2/instance', () => {
       { src: 'https://llun.test/icon-192.png', size: '192x192' },
       { src: 'https://llun.test/icon-512.png', size: '512x512' }
     ])
-    expect(body.api_versions).toEqual({ mastodon: 2 })
+    expect(body.api_versions).toEqual({ mastodon: 7 })
+  })
+
+  it('advertises Mastodon 4.5 quote support via api_versions without a streaming capability', async () => {
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v2/instance'),
+      params
+    )
+    const body = await response.json()
+    // Mastodon clients gate quote authoring on api_versions.mastodon >= 7 (4.5).
+    expect(body.api_versions.mastodon).toBeGreaterThanOrEqual(7)
+    // Streaming stays un-advertised so clients fall back to REST polling.
+    expect(body.configuration.urls.streaming).toBe('')
   })
 
   it('serves streaming and vapid configuration', async () => {

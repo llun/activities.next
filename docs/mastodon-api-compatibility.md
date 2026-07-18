@@ -162,9 +162,16 @@ product or security decision, not a gap to be closed.
   recipient of the quoting note, so third-party servers that saw the quote honor
   the revocation (FEP-044f); every copy stays signed by the quoted author, which
   is what the receiving side requires. Changing a status's quote policy via
-  `PUT …/interaction_policy` is not treated
-  as an edit (it never sets `edited_at`). Configured under `lib/services/quotes/`,
-  `lib/actions/*Quote*`, and `app/api/v1/statuses/[id]/quotes|interaction_policy`.
+  `PUT …/interaction_policy` is not treated as an edit (it never sets
+  `edited_at`). The v2 instance entity advertises `api_versions.mastodon: 7` so
+  Mastodon 4.5 clients enable their quote UI (streaming stays unadvertised —
+  `configuration.urls.streaming` is empty, so no streaming capability is
+  claimed). Quote cards render only for **stored** statuses: a live
+  remote-profile view (`getActorPosts` / `fromNote`, which builds unstored
+  ephemeral statuses that carry no quote edge) omits quote rendering — those
+  posts show their quote once actually ingested and stored. Configured under
+  `lib/services/quotes/`, `lib/actions/*Quote*`, and
+  `app/api/v1/statuses/[id]/quotes|interaction_policy`.
 
 ## Not planned
 
