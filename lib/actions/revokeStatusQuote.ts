@@ -24,8 +24,8 @@ export type RevokeStatusQuoteResult =
  * `POST /statuses/:id/quotes/:quoting_status_id/revoke`). Author-only. Flips the
  * edge to `revoked` (idempotent; the stamp route stops serving once non-accepted)
  * and, when a hosted stamp exists, delivers a FEP-044f Delete of it to the
- * quoting author's inbox. Returns the quoting status with `quote.state:
- * 'revoked'`.
+ * quoting author's inbox and every named recipient of the quoting note. Returns
+ * the quoting status with `quote.state: 'revoked'`.
  */
 export const revokeStatusQuoteFromUserInput = async ({
   currentActor,
@@ -75,9 +75,10 @@ export const revokeStatusQuoteFromUserInput = async ({
     return { ok: false, reason: 'not_found' }
   }
 
-  // Federate the stamp revocation to the quoting author (best-effort; v1
-  // notifies the quoting server only, not every prior recipient). Only when a
-  // hosted stamp was actually issued and the quoter is a different actor.
+  // Federate the stamp revocation (best-effort). The job fans the Delete out to
+  // the quoting author's inbox and every named recipient of the quoting note, so
+  // every server that saw the quote honors the revocation (FEP-044f). Only when
+  // a hosted stamp was actually issued and the quoter is a different actor.
   const quotingActorId = getOriginalStatus(quotingStatus).actorId
   if (edge.authorizationUri && quotingActorId !== currentActor.id) {
     await getQueue().publish({
@@ -86,6 +87,7 @@ export const revokeStatusQuoteFromUserInput = async ({
       data: {
         actorId: currentActor.id,
         quotingActorId,
+        quotingStatusId,
         stampId: edge.authorizationUri
       }
     })
