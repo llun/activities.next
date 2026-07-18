@@ -27,6 +27,7 @@ export const Actions: FC<Props> = ({
   showActions = false,
   onReply,
   onEdit,
+  onQuote,
   onShowEdits,
   onPostDeleted,
   onBookmarkChanged,
@@ -94,6 +95,7 @@ export const Actions: FC<Props> = ({
         canEdit={canEdit}
         onReply={onReply}
         onEdit={onEdit}
+        onQuote={onQuote}
         onPostDeleted={onPostDeleted}
       />
     </div>

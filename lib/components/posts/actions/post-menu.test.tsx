@@ -169,6 +169,31 @@ describe('PostMenu', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('offers a Quote action when onQuote is provided and fires it', async () => {
+    const onQuote = vi.fn()
+    render(
+      <PostMenu
+        status={otherStatus}
+        isOwner={false}
+        canEdit={false}
+        onQuote={onQuote}
+      />
+    )
+
+    const menu = await openMenu()
+    const quoteItem = within(menu).getByRole('menuitem', { name: 'Quote post' })
+    fireEvent.click(quoteItem)
+    expect(onQuote).toHaveBeenCalledWith(otherStatus)
+  })
+
+  it('omits the Quote action when onQuote is not provided', async () => {
+    render(<PostMenu status={otherStatus} isOwner={false} canEdit={false} />)
+    const menu = await openMenu()
+    expect(
+      within(menu).queryByRole('menuitem', { name: 'Quote post' })
+    ).not.toBeInTheDocument()
+  })
+
   it('shows relationship actions for another actor’s post', async () => {
     render(<PostMenu status={otherStatus} isOwner={false} canEdit={false} />)
 

@@ -96,6 +96,7 @@ interface Props {
   canEdit: boolean
   onReply?: (status: Status) => void
   onEdit?: (status: EditableStatus) => void
+  onQuote?: (status: Status) => void
   onPostDeleted?: (status: Status) => void
 }
 
@@ -112,6 +113,7 @@ export const PostMenu: FC<Props> = ({
   canEdit,
   onReply,
   onEdit,
+  onQuote,
   onPostDeleted
 }) => {
   const router = useRouter()
@@ -280,6 +282,15 @@ export const PostMenu: FC<Props> = ({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-60">
+          {onQuote ? (
+            <>
+              <DropdownMenuItem onSelect={() => onQuote(status)}>
+                <MessageSquareQuote className="size-4" />
+                Quote post
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          ) : null}
           {isOwner ? (
             <>
               {canEdit ? (

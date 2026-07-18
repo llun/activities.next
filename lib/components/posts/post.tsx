@@ -35,6 +35,7 @@ import { CollapsibleContent } from './collapsible-content'
 import { ContentWarning } from './content-warning'
 import { FitnessProcessingProgress } from './fitness-processing-progress'
 import { Poll } from './poll'
+import { QuoteCard } from './quote-card'
 import { ReadOnlyStats } from './read-only-stats'
 import { RetryFitnessButton } from './retry-fitness-button'
 import { TranslateContent } from './translate-content'
@@ -55,6 +56,7 @@ export interface PostProps {
   showReadOnlyStats?: boolean
   onReply?: (status: Status) => void
   onEdit?: (status: EditableStatus) => void
+  onQuote?: (status: Status) => void
   onPostDeleted?: (status: Status) => void
   onBookmarkChanged?: (
     status: StatusNote | StatusPoll,
@@ -290,6 +292,9 @@ export const Post: FC<PostProps> = (props) => {
         currentActorId={props.currentActor?.id}
       />
       <Attachments status={actualStatus} onMediaSelected={onShowAttachment} />
+      {actualStatus.quote ? (
+        <QuoteCard quote={actualStatus.quote} currentTime={props.currentTime} />
+      ) : null}
     </TranslationProvider>
   )
 
