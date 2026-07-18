@@ -58,6 +58,7 @@ import { processStatusTextContent } from '@/lib/utils/text/processStatusText'
 import { EmojiPickerButton } from './emoji-picker-button'
 import { Duration, PollChoices } from './poll-choices'
 import { QuoteApprovalPolicySelector } from './quote-approval-policy-selector'
+import { QuotedPreview } from './quoted-preview'
 import {
   DEFAULT_STATE,
   addAttachment,
@@ -89,8 +90,10 @@ interface Props {
   profile: ActorProfile
   replyStatus?: Status
   editStatus?: EditableStatus
+  quotedStatus?: Status
   isMediaUploadEnabled?: boolean
   onDiscardReply: () => void
+  onDiscardQuote?: () => void
   onPostCreated: (status: Status, attachments: Attachment[]) => void
   onPostUpdated: (status: Status) => void
   onDiscardEdit: () => void
@@ -300,10 +303,12 @@ export const PostBox: FC<Props> = ({
   profile,
   replyStatus,
   editStatus,
+  quotedStatus,
   isMediaUploadEnabled,
   onPostCreated,
   onPostUpdated,
   onDiscardReply,
+  onDiscardQuote,
   onDiscardEdit
 }) => {
   const [allowPost, setAllowPost] = useState<boolean>(false)
@@ -663,6 +668,7 @@ export const PostBox: FC<Props> = ({
         message,
         contentWarning,
         replyStatus,
+        quotedStatus,
         attachments,
         fitnessFileId,
         visibility: postExtension.visibility,
@@ -697,6 +703,10 @@ export const PostBox: FC<Props> = ({
   const onCloseReply = () => {
     onDiscardReply()
     setText('')
+  }
+
+  const onCloseQuote = () => {
+    onDiscardQuote?.()
   }
 
   const onRemoveAttachment = (attachmentIndex: number) => {
@@ -956,6 +966,11 @@ export const PostBox: FC<Props> = ({
               host={host}
               status={replyStatus}
               onClose={onCloseReply}
+            />
+            <QuotedPreview
+              host={host}
+              status={quotedStatus}
+              onClose={onCloseQuote}
             />
             {postExtension.contentWarningVisible ? (
               <input

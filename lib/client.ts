@@ -891,6 +891,20 @@ export const getStatusQuotes = async ({
   }
 }
 
+// Fetch a single status by id (Mastodon shape). Returns null when the status is
+// not found OR not readable by the caller (the route 404s in both cases), so a
+// quote card never renders content the viewer isn't allowed to see.
+export const getStatusById = async (
+  statusId: string
+): Promise<MastodonStatus | null> => {
+  const response = await fetch(`/api/v1/statuses/${urlToId(statusId)}`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  })
+  if (response.status !== 200) return null
+  return (await response.json()) as MastodonStatus
+}
+
 export const revokeStatusQuote = async ({
   quotedStatusId,
   quotingStatusId
