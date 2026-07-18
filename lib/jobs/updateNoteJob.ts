@@ -7,6 +7,7 @@ import {
   getSummary
 } from '@/lib/activities/note'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
+import { notifyQuotedStatusUpdate } from '@/lib/services/notifications/notifyQuotedStatusUpdate'
 import {
   ArticleContent,
   ImageContent,
@@ -60,6 +61,16 @@ export const updateNoteJob = createJobHandle(
     // value when the update carries no locale (updateNote treats `undefined`
     // as "keep").
     const language = getLanguage(note) ?? undefined
+
+    // Only a change to the readable content (text/summary) notifies quoters. A
+    // metadata-only Update — interaction/quote policy, visibility, or a
+    // re-federated quote-approval stamp — carries unchanged content, and
+    // updateNote records a history revision unconditionally, so compare before
+    // updating to avoid false "edited a post you quoted" notifications.
+    const contentChanged =
+      text !== existingStatus.text ||
+      (summary || '') !== (existingStatus.summary || '')
+
     await database.updateNote({
       statusId: note.id,
       summary,
@@ -76,5 +87,17 @@ export const updateNoteJob = createJobHandle(
       text,
       html: true
     })
+
+    // A remote status our users may have quoted was edited elsewhere; notify the
+    // local authors of accepted quotes of it, but only for a real content edit
+    // (a metadata-only Update must not spam quoters). The edit's author is the
+    // source.
+    if (contentChanged) {
+      await notifyQuotedStatusUpdate({
+        database,
+        quotedStatusId: note.id,
+        sourceActorId: existingStatus.actorId
+      })
+    }
   }
 )
