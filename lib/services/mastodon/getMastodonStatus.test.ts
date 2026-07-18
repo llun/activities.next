@@ -1795,21 +1795,39 @@ describe('getMastodonStatus', () => {
         expectedCurrentUser: 'denied'
       },
       {
-        description: 'followers policy, non-author viewer',
+        // ACTOR2 does not have an accepted follow of ACTOR1 (seed), so a
+        // followers-policy status by ACTOR1 denies quoting to ACTOR2.
+        description: 'followers policy, non-follower viewer',
         policy: 'followers' as const,
         viewer: ACTOR2_ID,
         expectedAutomatic: ['followers'],
-        expectedCurrentUser: 'unknown'
+        expectedCurrentUser: 'denied'
+      },
+      {
+        // ACTOR3 has an accepted follow of ACTOR2 (seed), so a followers-policy
+        // status by ACTOR2 automatically approves quoting for ACTOR3.
+        description: 'followers policy, accepted-follower viewer',
+        author: ACTOR2_ID,
+        policy: 'followers' as const,
+        viewer: ACTOR3_ID,
+        expectedAutomatic: ['followers'],
+        expectedCurrentUser: 'automatic'
       }
     ])(
       'emits quote_approval for $description',
-      async ({ policy, viewer, expectedAutomatic, expectedCurrentUser }) => {
+      async ({
+        author = ACTOR1_ID,
+        policy,
+        viewer,
+        expectedAutomatic,
+        expectedCurrentUser
+      }) => {
         counter += 1
-        const id = `${ACTOR1_ID}/statuses/mq-approval-${counter}`
+        const id = `${author}/statuses/mq-approval-${counter}`
         await database.createNote({
           id,
           url: id,
-          actorId: ACTOR1_ID,
+          actorId: author,
           text: 'approval',
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: [],
@@ -1824,6 +1842,39 @@ describe('getMastodonStatus', () => {
         })
       }
     )
+
+    it('resolves followers-policy current_user with a single batched follow query', async () => {
+      // Three followers-policy statuses by ACTOR2; ACTOR3 is an accepted
+      // follower of ACTOR2 (seed), so all three report current_user
+      // 'automatic'. The follow relationship must be resolved in ONE batched
+      // getAcceptedFollowTargetActorIds call across the whole page (no N+1).
+      const statuses: Status[] = []
+      for (let i = 0; i < 3; i += 1) {
+        counter += 1
+        const id = `${ACTOR2_ID}/statuses/mq-approval-batch-${counter}`
+        await database.createNote({
+          id,
+          url: id,
+          actorId: ACTOR2_ID,
+          text: 'approval batch',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          quoteApprovalPolicy: 'followers'
+        })
+        statuses.push((await database.getStatus({ statusId: id })) as Status)
+      }
+
+      const spy = vi.spyOn(database, 'getAcceptedFollowTargetActorIds')
+      const results = await getMastodonStatuses(database, statuses, ACTOR3_ID)
+
+      expect(results).toHaveLength(3)
+      for (const result of results) {
+        expect(
+          (result.quote_approval as { current_user: string }).current_user
+        ).toBe('automatic')
+      }
+      expect(spy).toHaveBeenCalledTimes(1)
+    })
 
     it('batch-prefetches quoted statuses with a single getStatusesByIds call', async () => {
       const quotingStatuses: Status[] = []
