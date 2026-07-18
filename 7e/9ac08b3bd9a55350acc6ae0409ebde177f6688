@@ -1,0 +1,36 @@
+app/api/v1/statuses/[id]/quotes/[quoting_status_id]/revoke/route.test.ts
+  s_ac45ba2a95e17f::t_c84545ed12381a 148
+docs/mastodon-api-compatibility.md
+  s_ac45ba2a95e17f::t_84d4fa26d7299d 160-165
+lib/services/federation/statusDelivery.test.ts
+  s_ac45ba2a95e17f::t_57141931ffcfed 220-275
+  s_ac45ba2a95e17f::t_76e8fbe16f7002 7-10
+  s_ac45ba2a95e17f::t_5db28295fe15ab 276
+lib/jobs/sendQuoteRevokeJob.ts
+  s_ac45ba2a95e17f::t_5e222f36664ef8 9,11,17,19-22,28-34,39-40,47,49-50,55,62-63,68,70-88,90-93
+  s_ac45ba2a95e17f::t_175d888629e680 51-54,89
+lib/jobs/sendQuoteRevokeJob.test.ts
+  s_ac45ba2a95e17f::t_672049a42db94b 1-95,98-136
+  s_ac45ba2a95e17f::t_175d888629e680 96-97
+lib/actions/revokeStatusQuote.ts
+  s_ac45ba2a95e17f::t_259ab94f33babd 27-28
+  s_ac45ba2a95e17f::t_2760812a2a80c7 78-81,90
+lib/services/federation/statusDelivery.ts
+  s_ac45ba2a95e17f::t_bb2a0622321636 98-126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "7e9ac08b3bd9a55350acc6ae0409ebde177f6688",
+  "prompts": {},
+  "sessions": {
+    "s_ac45ba2a95e17f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01793c88-f5d8-4470-8567-56fbbd1b5753",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
