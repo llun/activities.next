@@ -8,6 +8,7 @@ import * as timelinesService from '@/lib/services/timelines'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { seedActor2 } from '@/lib/stub/seed/actor2'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -23,6 +24,10 @@ vi.mock('@/lib/services/queue', () => ({
 
 vi.mock('@/lib/services/timelines', () => ({
   addStatusToTimelines: vi.fn().mockResolvedValue(undefined)
+}))
+
+vi.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
+  sendNotificationAlerts: vi.fn()
 }))
 
 describe('Update note action', () => {
@@ -188,6 +193,101 @@ describe('Update note action', () => {
         status
       )
       expect(getQueue().publish).not.toHaveBeenCalled()
+    })
+
+    it('notifies local authors of accepted quotes when the status is edited', async () => {
+      if (!actor1) fail('Actor1 is required')
+      const actor2 = (await database.getActorFromUsername({
+        username: seedActor2.username,
+        domain: seedActor2.domain
+      })) as Actor
+      const quotedId = `${actor1.id}/statuses/quoted-update-edit`
+      await database.createNote({
+        id: quotedId,
+        url: quotedId,
+        actorId: actor1.id,
+        text: 'quoted',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const quotingId = `${actor2.id}/statuses/quoted-update-quoting`
+      await database.createNote({
+        id: quotingId,
+        url: quotingId,
+        actorId: actor2.id,
+        text: 'quoting',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createStatusQuote({
+        statusId: quotingId,
+        quotedStatusId: quotedId,
+        state: 'accepted'
+      })
+
+      await updateNoteFromUserInput({
+        statusId: quotedId,
+        currentActor: actor1,
+        database,
+        text: 'quoted (edited)'
+      })
+
+      const notifications = await database.getNotifications({
+        actorId: actor2.id,
+        limit: 100,
+        types: ['quoted_update']
+      })
+      expect(
+        notifications.filter((n) => n.statusId === quotingId)
+      ).toHaveLength(1)
+    })
+
+    it('does not notify quoters when publish is false', async () => {
+      if (!actor1) fail('Actor1 is required')
+      const actor2 = (await database.getActorFromUsername({
+        username: seedActor2.username,
+        domain: seedActor2.domain
+      })) as Actor
+      const quotedId = `${actor1.id}/statuses/quoted-update-draft`
+      await database.createNote({
+        id: quotedId,
+        url: quotedId,
+        actorId: actor1.id,
+        text: 'quoted',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const quotingId = `${actor2.id}/statuses/quoted-update-draft-quoting`
+      await database.createNote({
+        id: quotingId,
+        url: quotingId,
+        actorId: actor2.id,
+        text: 'quoting',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createStatusQuote({
+        statusId: quotingId,
+        quotedStatusId: quotedId,
+        state: 'accepted'
+      })
+
+      await updateNoteFromUserInput({
+        statusId: quotedId,
+        currentActor: actor1,
+        database,
+        summary: 'Draft warning',
+        publish: false
+      })
+
+      const notifications = await database.getNotifications({
+        actorId: actor2.id,
+        limit: 100,
+        types: ['quoted_update']
+      })
+      expect(
+        notifications.filter((n) => n.statusId === quotingId)
+      ).toHaveLength(0)
     })
   })
 })

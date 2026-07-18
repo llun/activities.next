@@ -2840,6 +2840,10 @@ export type GetQuotingStatusIdsParams = {
   limit?: number
   maxId?: string | null
   sinceId?: string | null
+  // Row offset for sequential enumeration (e.g. notifying every quoter). Unlike
+  // the maxId keyset cursor, an offset does not reference a deletable row, so a
+  // full sweep is not truncated if a quoting post is deleted mid-enumeration.
+  offset?: number
 }
 
 export interface StatusQuoteDatabase {
@@ -3066,6 +3070,9 @@ export const NotificationType = z.enum([
   'reblog',
   // Mastodon 4.5 quote posts: someone quoted the recipient's status.
   'quote',
+  // A status the recipient quoted (an accepted quote edge) was edited by its
+  // author. Mirrors the Mastodon push alert key of the same name.
+  'quoted_update',
   'activity_import',
   // Mastodon 4.6 Collections: a member was added to a collection
   // (`added_to_collection`) or a collection they're in had its metadata changed

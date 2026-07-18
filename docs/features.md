@@ -40,7 +40,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Main timeline** — Home feed with posts from followed accounts
 - ✅ **Favorites page** — Browse posts you've favorited
 - ✅ **List timelines** — Per-list timelines honoring replies policy, exclusive lists, and block/mute/keyword filtering
-- ✅ **Notifications** — Like, follow, mention, reblog, follow request, and collection (added-to-collection / collection-update) notifications
+- ✅ **Notifications** — Like, follow, mention, reblog, follow request, quote (someone quoted your post), quote-update (a post you quoted was edited), and collection (added-to-collection / collection-update) notifications
 - ✅ **Notification grouping** — Group similar notifications together
 - ✅ **Email notifications** — Configurable email alerts for each notification type
 - ✅ **Push notifications** — Web Push subscriptions with VAPID configuration
