@@ -346,6 +346,47 @@ describe('StatusQuoteDatabase', () => {
       expect(beforeLast).not.toContain(all[all.length - 1])
     })
 
+    it('paginates quoting status ids with offset', async () => {
+      const quotedStatusId = uniqueId('offset-target')
+      for (let i = 0; i < 5; i += 1) {
+        await database.createStatusQuote({
+          statusId: `${ACTOR1_ID}/statuses/offset-${i}-${randomUUID()}`,
+          quotedStatusId,
+          state: 'accepted'
+        })
+      }
+
+      const all = await database.getQuotingStatusIds({
+        quotedStatusId,
+        state: 'accepted',
+        limit: 5
+      })
+      expect(all).toHaveLength(5)
+
+      const page1 = await database.getQuotingStatusIds({
+        quotedStatusId,
+        state: 'accepted',
+        limit: 2,
+        offset: 0
+      })
+      const page2 = await database.getQuotingStatusIds({
+        quotedStatusId,
+        state: 'accepted',
+        limit: 2,
+        offset: 2
+      })
+      const page3 = await database.getQuotingStatusIds({
+        quotedStatusId,
+        state: 'accepted',
+        limit: 2,
+        offset: 4
+      })
+
+      // Offset pages tile the full ordered list with no gaps or repeats.
+      expect([...page1, ...page2, ...page3]).toEqual(all)
+      expect(page3).toHaveLength(1)
+    })
+
     it('returns an empty page when the cursor id does not exist', async () => {
       const quotedStatusId = uniqueId('cursor-missing-target')
       await database.createStatusQuote({

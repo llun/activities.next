@@ -5,9 +5,10 @@ import { NotificationType } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { getOriginalStatus } from '@/lib/types/domain/status'
 
-// How many accepted quote edges to enumerate per page. getQuotingStatusIds
-// keyset-pages over (createdAt, statusId), so a status quoted more than this
-// many times is covered by looping with the maxId cursor.
+// How many accepted quote edges to enumerate per page. The producer sweeps by
+// offset (not the maxId keyset cursor) so a full sweep is not truncated if a
+// quoting post is deleted mid-enumeration — an offset references no deletable
+// row, whereas a keyset cursor row could vanish and end the loop early.
 export const QUOTING_STATUS_PAGE_SIZE = 40
 
 interface NotifyQuotedStatusUpdateParams {
@@ -39,13 +40,13 @@ export const notifyQuotedStatusUpdate = async ({
   sourceActorId,
   sourceActor
 }: NotifyQuotedStatusUpdateParams): Promise<void> => {
-  let maxId: string | undefined
+  let offset = 0
   for (;;) {
     const quotingStatusIds = await database.getQuotingStatusIds({
       quotedStatusId,
       state: 'accepted',
       limit: QUOTING_STATUS_PAGE_SIZE,
-      ...(maxId ? { maxId } : {})
+      offset
     })
     if (quotingStatusIds.length === 0) break
 
@@ -92,6 +93,6 @@ export const notifyQuotedStatusUpdate = async ({
     }
 
     if (quotingStatusIds.length < QUOTING_STATUS_PAGE_SIZE) break
-    maxId = quotingStatusIds[quotingStatusIds.length - 1]
+    offset += QUOTING_STATUS_PAGE_SIZE
   }
 }

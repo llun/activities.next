@@ -2840,6 +2840,10 @@ export type GetQuotingStatusIdsParams = {
   limit?: number
   maxId?: string | null
   sinceId?: string | null
+  // Row offset for sequential enumeration (e.g. notifying every quoter). Unlike
+  // the maxId keyset cursor, an offset does not reference a deletable row, so a
+  // full sweep is not truncated if a quoting post is deleted mid-enumeration.
+  offset?: number
 }
 
 export interface StatusQuoteDatabase {

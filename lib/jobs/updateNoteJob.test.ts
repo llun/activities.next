@@ -286,4 +286,57 @@ describe('updateNoteJob', () => {
       1
     )
   })
+
+  it('does not notify quoters for a metadata-only inbound Update (unchanged content)', async () => {
+    // A metadata-only federated Update (e.g. an interaction/quote-policy or
+    // visibility change) carries unchanged content and must not spam quoters
+    // with a false "edited a post you quoted" notification.
+    const quotedRemoteId = `${EXTERNAL_ACTOR1}/statuses/inbound-metadata-only`
+    const note = MockMastodonActivityPubNote({
+      id: quotedRemoteId,
+      from: EXTERNAL_ACTOR1,
+      content: '<p>unchanged</p>'
+    })
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note
+    })
+
+    const actor1 = (await database.getActorFromUsername({
+      username: seedActor1.username,
+      domain: seedActor1.domain
+    })) as Actor
+    const quotingId = `${actor1.id}/statuses/inbound-metadata-only-quoting`
+    await database.createNote({
+      id: quotingId,
+      url: quotingId,
+      actorId: actor1.id,
+      text: 'quoting',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+    await database.createStatusQuote({
+      statusId: quotingId,
+      quotedStatusId: quotedRemoteId,
+      state: 'accepted'
+    })
+
+    // Same content as the original — only metadata would differ in a real
+    // policy/visibility Update.
+    await updateNoteJob(database, {
+      id: 'id',
+      name: UPDATE_NOTE_JOB_NAME,
+      data: { ...note }
+    })
+
+    const notifications = await database.getNotifications({
+      actorId: actor1.id,
+      limit: 100,
+      types: ['quoted_update']
+    })
+    expect(notifications.filter((n) => n.statusId === quotingId)).toHaveLength(
+      0
+    )
+  })
 })

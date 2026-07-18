@@ -182,12 +182,14 @@ export const StatusQuoteSQLDatabaseMixin = (
       state,
       limit = 20,
       maxId,
-      sinceId
+      sinceId,
+      offset
     }: GetQuotingStatusIdsParams): Promise<string[]> {
       const query = database<StatusQuoteRow>('status_quotes')
         .where('quotedStatusId', quotedStatusId)
         .limit(limit)
       if (state) query.where('state', state)
+      if (offset) query.offset(offset)
 
       // Keyset pagination over (createdAt, statusId), newest first. The cursor
       // ids reference the quoting status id (the PK of this table).
