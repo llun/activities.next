@@ -9,11 +9,13 @@ import {
   Link as LinkIcon,
   Lock,
   Mail,
+  MessageSquareQuote,
   MoreHorizontal,
   Pencil,
   Trash2,
   TriangleAlert,
   Unlock,
+  Users,
   VolumeX
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -23,6 +25,7 @@ import {
   getRelationship,
   unblock,
   unmute,
+  updateStatusInteractionPolicy,
   updateStatusVisibility
 } from '@/lib/client'
 import { getActorIdMention } from '@/lib/components/posts/actor'
@@ -36,8 +39,10 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger
 } from '@/lib/components/ui/dropdown-menu'
+import { getEffectiveQuoteApprovalPolicy } from '@/lib/services/quotes/quotePolicy'
 import {
   EditableStatus,
+  QuoteApprovalPolicy,
   Status,
   StatusNote,
   StatusPoll
@@ -65,6 +70,20 @@ const VISIBILITY_OPTIONS: {
     icon: <Lock className="size-4" />
   },
   { value: 'direct', label: 'Direct', icon: <Mail className="size-4" /> }
+]
+
+const QUOTE_POLICY_OPTIONS: {
+  value: QuoteApprovalPolicy
+  label: string
+  icon: ReactNode
+}[] = [
+  { value: 'public', label: 'Anyone', icon: <Globe className="size-4" /> },
+  {
+    value: 'followers',
+    label: 'Followers',
+    icon: <Users className="size-4" />
+  },
+  { value: 'nobody', label: 'No one', icon: <Ban className="size-4" /> }
 ]
 
 type ActiveDialog = 'mute' | 'block' | 'report' | 'delete' | null
@@ -121,6 +140,10 @@ export const PostMenu: FC<Props> = ({
     getVisibility(status.to, status.cc)
   )
   const [visibilitySaving, setVisibilitySaving] = useState(false)
+  const [quotePolicy, setQuotePolicy] = useState<QuoteApprovalPolicy>(
+    getEffectiveQuoteApprovalPolicy(status)
+  )
+  const [quotePolicySaving, setQuotePolicySaving] = useState(false)
 
   useEffect(() => {
     if (!copied) return
@@ -178,6 +201,25 @@ export const PostMenu: FC<Props> = ({
     if (!success) {
       setVisibility(previous)
       setActionError("Couldn't change post visibility. Please try again.")
+    }
+  }
+
+  const handleQuotePolicyChange = async (next: QuoteApprovalPolicy) => {
+    if (next === quotePolicy || quotePolicySaving) return
+    const previous = quotePolicy
+    setQuotePolicy(next)
+    setQuotePolicySaving(true)
+    setActionError(null)
+    const updated = await updateStatusInteractionPolicy({
+      statusId: status.id,
+      quoteApprovalPolicy: next
+    })
+    setQuotePolicySaving(false)
+    if (!updated) {
+      setQuotePolicy(previous)
+      setActionError(
+        "Couldn't change who can quote this post. Please try again."
+      )
     }
   }
 
@@ -267,6 +309,29 @@ export const PostMenu: FC<Props> = ({
                       {option.icon}
                       <span className="flex-1">{option.label}</span>
                       {option.value === visibility ? (
+                        <Check className="size-4 text-primary" />
+                      ) : null}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <MessageSquareQuote className="size-4" />
+                  Change who can quote
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-52">
+                  {QUOTE_POLICY_OPTIONS.map((option) => (
+                    <DropdownMenuItem
+                      key={option.value}
+                      disabled={quotePolicySaving}
+                      onSelect={() => {
+                        void handleQuotePolicyChange(option.value)
+                      }}
+                    >
+                      {option.icon}
+                      <span className="flex-1">{option.label}</span>
+                      {option.value === quotePolicy ? (
                         <Check className="size-4 text-primary" />
                       ) : null}
                     </DropdownMenuItem>

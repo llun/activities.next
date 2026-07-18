@@ -22,6 +22,7 @@ import {
   createPoll,
   deleteFitnessFile,
   getCustomEmojis,
+  getDefaultQuotePolicy,
   updateNote,
   uploadAttachment,
   uploadFitnessFile
@@ -40,6 +41,7 @@ import {
 } from '@/lib/types/domain/attachment'
 import {
   EditableStatus,
+  QuoteApprovalPolicy,
   Status,
   StatusNote,
   StatusType
@@ -55,6 +57,7 @@ import { processStatusTextContent } from '@/lib/utils/text/processStatusText'
 
 import { EmojiPickerButton } from './emoji-picker-button'
 import { Duration, PollChoices } from './poll-choices'
+import { QuoteApprovalPolicySelector } from './quote-approval-policy-selector'
 import {
   DEFAULT_STATE,
   addAttachment,
@@ -71,6 +74,7 @@ import {
   setPollDurationInSeconds,
   setPollType,
   setPollVisibility,
+  setQuoteApprovalPolicy,
   setVisibility,
   statusExtensionReducer,
   updateAttachment
@@ -321,10 +325,26 @@ export const PostBox: FC<Props> = ({
     DEFAULT_STATE
   )
   const postExtensionRef = useRef(postExtension)
+  // The actor's default quote policy (Mastodon posting:default:quote_policy),
+  // fetched once and re-applied after each post so it stays sticky across the
+  // resetExtension() that follows a successful create.
+  const defaultQuotePolicyRef = useRef<QuoteApprovalPolicy>('public')
 
   useEffect(() => {
     postExtensionRef.current = postExtension
   }, [postExtension])
+
+  useEffect(() => {
+    let active = true
+    getDefaultQuotePolicy().then((policy) => {
+      if (!active) return
+      defaultQuotePolicyRef.current = policy
+      dispatch(setQuoteApprovalPolicy(policy))
+    })
+    return () => {
+      active = false
+    }
+  }, [])
 
   useEffect(() => {
     textRef.current = text
@@ -645,12 +665,16 @@ export const PostBox: FC<Props> = ({
         replyStatus,
         attachments,
         fitnessFileId,
-        visibility: postExtension.visibility
+        visibility: postExtension.visibility,
+        quoteApprovalPolicy: postExtension.quoteApprovalPolicy
       })
 
       const { status, attachments: storedAttachments } = response
       onPostCreated(status, storedAttachments)
       dispatch(resetExtension())
+      // resetExtension() drops the policy back to the DEFAULT_STATE 'public';
+      // re-apply the actor's configured default so it stays sticky.
+      dispatch(setQuoteApprovalPolicy(defaultQuotePolicyRef.current))
 
       setText('')
       setIsPosting(false)
@@ -1112,6 +1136,11 @@ export const PostBox: FC<Props> = ({
               onVisibilityChange={(visibility) =>
                 dispatch(setVisibility(visibility))
               }
+              disabled={isPosting}
+            />
+            <QuoteApprovalPolicySelector
+              value={postExtension.quoteApprovalPolicy}
+              onChange={(policy) => dispatch(setQuoteApprovalPolicy(policy))}
               disabled={isPosting}
             />
             <Button
