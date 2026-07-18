@@ -7,6 +7,7 @@ import {
   getSummary
 } from '@/lib/activities/note'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
+import { notifyQuotedStatusUpdate } from '@/lib/services/notifications/notifyQuotedStatusUpdate'
 import {
   ArticleContent,
   ImageContent,
@@ -75,6 +76,14 @@ export const updateNoteJob = createJobHandle(
       statusId: note.id,
       text,
       html: true
+    })
+
+    // A remote status our users may have quoted was edited elsewhere; notify the
+    // local authors of accepted quotes of it. The edit's author is the source.
+    await notifyQuotedStatusUpdate({
+      database,
+      quotedStatusId: note.id,
+      sourceActorId: existingStatus.actorId
     })
   }
 )

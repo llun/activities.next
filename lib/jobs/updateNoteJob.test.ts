@@ -7,7 +7,11 @@ import { updateNoteJob } from '@/lib/jobs/updateNoteJob'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { MockMastodonActivityPubNote } from '@/lib/stub/note'
+import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
+import { Actor } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 enableFetchMocks()
 
@@ -231,5 +235,55 @@ describe('updateNoteJob', () => {
     expect(status.id).toEqual(image.id)
     expect(status.text).toEqual('<p>Beautiful sunset with filters</p>')
     expect(status.type).toEqual(StatusType.enum.Note)
+  })
+
+  it('notifies local authors of accepted quotes when an inbound edit updates the quoted status', async () => {
+    // A remote status our user quoted is edited elsewhere and arrives as an
+    // inbound Update; the local quoting author should get a quoted_update.
+    const quotedRemoteId = `${EXTERNAL_ACTOR1}/statuses/inbound-quoted-update`
+    const note = MockMastodonActivityPubNote({
+      id: quotedRemoteId,
+      from: EXTERNAL_ACTOR1,
+      content: '<p>original</p>'
+    })
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note
+    })
+
+    const actor1 = (await database.getActorFromUsername({
+      username: seedActor1.username,
+      domain: seedActor1.domain
+    })) as Actor
+    const quotingId = `${actor1.id}/statuses/inbound-quoted-update-quoting`
+    await database.createNote({
+      id: quotingId,
+      url: quotingId,
+      actorId: actor1.id,
+      text: 'quoting',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+    await database.createStatusQuote({
+      statusId: quotingId,
+      quotedStatusId: quotedRemoteId,
+      state: 'accepted'
+    })
+
+    await updateNoteJob(database, {
+      id: 'id',
+      name: UPDATE_NOTE_JOB_NAME,
+      data: { ...note, content: '<p>edited</p>' }
+    })
+
+    const notifications = await database.getNotifications({
+      actorId: actor1.id,
+      limit: 100,
+      types: ['quoted_update']
+    })
+    expect(notifications.filter((n) => n.statusId === quotingId)).toHaveLength(
+      1
+    )
   })
 })

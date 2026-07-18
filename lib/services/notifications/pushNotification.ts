@@ -28,6 +28,7 @@ const NOTIFICATION_TYPE_TO_ALERT: Partial<
   reply: 'mention',
   reblog: 'reblog',
   quote: 'quote',
+  quoted_update: 'quoted_update',
   activity_import: 'status'
 }
 
@@ -114,6 +115,11 @@ const getNotificationContent = (
       return {
         title: 'Quoted',
         body: `${displayName} quoted your post`
+      }
+    case 'quoted_update':
+      return {
+        title: 'Quote updated',
+        body: `${displayName} edited a post you quoted`
       }
     default:
       return {
