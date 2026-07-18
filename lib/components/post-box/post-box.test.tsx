@@ -21,6 +21,7 @@ vi.mock('@/lib/client', () => ({
   createPoll: vi.fn(),
   deleteFitnessFile: vi.fn(),
   getCustomEmojis: vi.fn().mockResolvedValue([]),
+  getDefaultQuotePolicy: vi.fn().mockResolvedValue('public'),
   updateNote: vi.fn(),
   uploadAttachment: vi.fn(),
   uploadFitnessFile: vi.fn()
@@ -233,6 +234,7 @@ describe('PostBox edit media', () => {
       expect(createNoteMock).toHaveBeenCalledWith(
         expect.objectContaining({
           message: '',
+          quoteApprovalPolicy: 'public',
           attachments: [
             expect.objectContaining({
               id: 'uploaded-media',
