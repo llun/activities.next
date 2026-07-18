@@ -95,6 +95,35 @@ const getRemoteActorInboxes = async ({
   return [...cachedInboxes, ...fetchedInboxes]
 }
 
+// The remote inboxes of a status's explicitly-named (to/cc) recipients only —
+// no follower or relay expansion. Used to fan a stamp revocation out to the
+// quoting note's named third-party recipients (FEP-044f), where the follower/
+// relay branches of getFederatedStatusDeliveryInboxes would incorrectly key off
+// the signer (the quoted author) rather than the quoting note's audience. Local
+// recipients and the signer itself are excluded, and the result is domain-policy
+// filtered.
+export const getExplicitRecipientInboxes = async ({
+  database,
+  currentActor,
+  status
+}: {
+  database: Database
+  currentActor: Actor
+  status: Status
+}) => {
+  const explicitRecipientActorIds = getExplicitRecipientActorIds(status).filter(
+    (actorId) => actorId !== currentActor.id
+  )
+  const recipientInboxes = await getRemoteActorInboxes({
+    database,
+    actorIds: explicitRecipientActorIds,
+    currentActor
+  })
+  return filterFederatedUrls(database, [
+    ...new Set(recipientInboxes.filter((inbox): inbox is string => !!inbox))
+  ])
+}
+
 export const getFederatedStatusDeliveryInboxes = async ({
   database,
   currentActor,

@@ -4,7 +4,10 @@ import { Actor } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
-import { getFederatedStatusDeliveryInboxes } from './statusDelivery'
+import {
+  getExplicitRecipientInboxes,
+  getFederatedStatusDeliveryInboxes
+} from './statusDelivery'
 
 vi.mock('@/lib/activities/getActorPerson', () => ({
   getActorPerson: vi.fn()
@@ -212,5 +215,62 @@ describe('getFederatedStatusDeliveryInboxes', () => {
     })
 
     expect(maxActiveLookups).toBeLessThanOrEqual(8)
+  })
+})
+
+describe('getExplicitRecipientInboxes', () => {
+  beforeEach(() => {
+    vi.mocked(getActorPerson).mockResolvedValue(null)
+  })
+
+  it('returns only named remote recipients, never followers or relays', async () => {
+    const currentActor = makeActor('https://local.test/users/alice', {
+      privateKey: 'private-key'
+    })
+    const remoteActor = makeActor('https://remote.test/users/bob')
+    const localRecipient = makeActor('https://local.test/users/carol', {
+      privateKey: 'private-key'
+    })
+    const getFollowersInbox = vi
+      .fn()
+      .mockResolvedValue(['https://follower.example/inbox'])
+    const getAcceptedRelays = vi
+      .fn()
+      .mockResolvedValue([
+        { id: 'r1', inboxUrl: 'https://relay.example/inbox', state: 'accepted' }
+      ])
+    const database = makeDatabase({
+      getFollowersInbox,
+      getAcceptedRelays,
+      getActorsFromIds: vi.fn(async ({ ids }) =>
+        ids
+          .map((id) => {
+            if (id === remoteActor.id) return remoteActor
+            if (id === localRecipient.id) return localRecipient
+            return null
+          })
+          .filter((actor): actor is Actor => actor !== null)
+      )
+    })
+
+    // A public + followers audience would expand followers/relays in
+    // getFederatedStatusDeliveryInboxes; getExplicitRecipientInboxes must not.
+    const inboxes = await getExplicitRecipientInboxes({
+      database,
+      currentActor,
+      status: makeStatus({
+        to: [
+          ACTIVITY_STREAM_PUBLIC,
+          `${currentActor.id}/followers`,
+          currentActor.id,
+          remoteActor.id,
+          localRecipient.id
+        ]
+      })
+    })
+
+    expect(inboxes).toEqual([remoteActor.sharedInboxUrl])
+    expect(getFollowersInbox).not.toHaveBeenCalled()
+    expect(getAcceptedRelays).not.toHaveBeenCalled()
   })
 })
