@@ -66,7 +66,7 @@ This document tracks the implemented and planned features for Activity.next.
 
 - ✅ **Mastodon API v1/v2** — Compatible with Mastodon client applications (including iOS clients); statuses, accounts, and media endpoints are fully Mastodon-compatible
 - ✅ **Mastodon-compatible status actions** — Favourite, reblog, bookmark, pin, context, history, translate, and relationship endpoints
-- ✅ **Quote posts API (Mastodon 4.5)** — `quoted_status_id` + `quote_approval_policy` on `POST /api/v1/statuses`, the `quote` sub-entity and `quote_approval` on the Status entity, `GET /api/v1/statuses/:id/quotes`, `POST /api/v1/statuses/:id/quotes/:quoting_status_id/revoke`, `PUT /api/v1/statuses/:id/interaction_policy`, and the `posting:default:quote_policy` preference / `source[quote_policy]` on `update_credentials`
+- ✅ **Quote posts API (Mastodon 4.5)** — `quoted_status_id` + `quote_approval_policy` on `POST /api/v1/statuses`, the `quote` sub-entity and `quote_approval` on the Status entity, `GET /api/v1/statuses/:id/quotes`, `POST /api/v1/statuses/:id/quotes/:quoting_status_id/revoke`, `PUT /api/v1/statuses/:id/interaction_policy`, and the `posting:default:quote_policy` preference / `source[quote_policy]` on `update_credentials`; quote support is advertised to clients via `api_versions.mastodon: 7` on `GET /api/v2/instance`
 - ✅ **Granular OAuth scopes** — Fine-grained scope enforcement and client-credentials app tokens
 - ✅ **Search** — Search accounts, hashtags, and statuses via `/api/v2/search` (status search backed by a full-text index)
 - ✅ **Lists** — Create and manage timeline lists, their members, replies policy, and exclusive flag
