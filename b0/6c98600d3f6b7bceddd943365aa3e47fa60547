@@ -1,0 +1,55 @@
+lib/components/post-box/post-box.test.tsx
+  s_3da1f273d8917f::t_e33b1c61a2cf66 24
+  s_3da1f273d8917f::t_53db4acef0b363 237
+lib/components/posts/actions/post-menu.tsx
+  s_3da1f273d8917f::t_eb3959d97dcb5f 45
+  s_3da1f273d8917f::t_02916602037046 12,18,28
+  s_3da1f273d8917f::t_c7a4c130c8ac3d 75-80,86-88
+  s_3da1f273d8917f::t_cff3c226aa6021 143-146
+  s_3da1f273d8917f::t_773b7042a68fab 42,81-85,220-222
+  s_3da1f273d8917f::t_d6826d3ed1af3c 207-219,223-225
+  s_3da1f273d8917f::t_17b80a7f664ec3 318-340
+lib/components/post-box/quote-approval-policy-selector.tsx
+  s_3da1f273d8917f::t_773b7042a68fab 1-8
+  s_3da1f273d8917f::t_86851bd2de0292 9-123
+lib/components/post-box/reducers.ts
+  s_3da1f273d8917f::t_3ce5bde0aff942 5,21-22
+  s_3da1f273d8917f::t_98cb8aacfb90dc 112-119
+  s_3da1f273d8917f::t_ebadb56c0284a8 180-181
+  s_3da1f273d8917f::t_f3ef2d59bcf47a 332-337
+  s_3da1f273d8917f::t_cc091a5103a765 157
+lib/components/post-box/post-box.tsx
+  s_3da1f273d8917f::t_773b7042a68fab 60,1143
+  s_3da1f273d8917f::t_04ff6258bc27ca 1141-1142,1144-1145
+  s_3da1f273d8917f::t_470fc08613af31 328-331,337-347
+  s_3da1f273d8917f::t_53a944d61953ae 77
+  s_3da1f273d8917f::t_d3d69235e270ec 675-677
+  s_3da1f273d8917f::t_5e4ec766b543ae 25
+  s_3da1f273d8917f::t_69e27fe2338445 668-669
+  s_3da1f273d8917f::t_3fd637b47d5006 44
+  s_3da1f273d8917f::t_5af175c6743bc4 348
+lib/components/posts/actions/post-menu.test.tsx
+  s_3da1f273d8917f::t_0c757c3c4a40bb 159-160
+  s_3da1f273d8917f::t_2c51d839e0d63e 40-41
+  s_3da1f273d8917f::t_2323d104913219 158
+lib/components/post-box/quote-approval-policy-selector.test.tsx
+  s_3da1f273d8917f::t_272534ff373235 21-26
+  s_3da1f273d8917f::t_b89135770cf6ac 1-10,12-20,27-34
+  s_3da1f273d8917f::t_773b7042a68fab 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "b06c98600d3f6b7bceddd943365aa3e47fa60547",
+  "prompts": {},
+  "sessions": {
+    "s_3da1f273d8917f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f49630eb-9e7a-4457-a813-665e76f1781c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
