@@ -16,7 +16,12 @@ import { ActorProfile } from '@/lib/types/domain/actor'
 import { EditableStatus, Status } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 
-import { clearAction, editAction, statusActionReducer } from './reducer'
+import {
+  clearAction,
+  editAction,
+  quoteAction,
+  statusActionReducer
+} from './reducer'
 
 interface MainPageTimelineProps {
   host: string
@@ -57,6 +62,11 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
   const onEdit = (status: EditableStatus) => {
     dispatchStatusAction(editAction(status))
+    window.scrollTo({ top: 0 })
+  }
+
+  const onQuote = (status: Status) => {
+    dispatchStatusAction(quoteAction(status))
     window.scrollTo({ top: 0 })
   }
 
@@ -196,8 +206,10 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           profile={profile}
           replyStatus={statusActionState.replyStatus}
           editStatus={statusActionState.editStatus}
+          quotedStatus={statusActionState.quoteStatus}
           isMediaUploadEnabled={isMediaUploadEnabled}
           onDiscardReply={() => dispatchStatusAction(clearAction())}
+          onDiscardQuote={() => dispatchStatusAction(clearAction())}
           onDiscardEdit={() => dispatchStatusAction(clearAction())}
           onPostCreated={(status: Status) => {
             setCurrentStatuses((previousValue) => [status, ...previousValue])
@@ -226,6 +238,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
             postLineLimit={postLineLimit}
             onReplyCreated={onReplyCreated}
             onEdit={onEdit}
+            onQuote={onQuote}
             onPostDeleted={onPostDeleted}
           />
         ) : isLoadingMoreStatuses || isRefreshing ? (

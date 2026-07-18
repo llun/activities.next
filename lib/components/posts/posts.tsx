@@ -43,6 +43,7 @@ interface Props {
   onReply?: (status: Status) => void
   onReplyCreated?: (status: Status, attachments: Attachment[]) => void
   onEdit?: (status: EditableStatus) => void
+  onQuote?: (status: Status) => void
   onPostDeleted?: (status: Status) => void
   onBookmarkChanged?: (
     status: StatusNote | StatusPoll,
@@ -65,6 +66,7 @@ export const Posts: FC<Props> = ({
   onReply,
   onReplyCreated,
   onEdit,
+  onQuote,
   onPostDeleted,
   onBookmarkChanged,
   onLikeChanged
@@ -140,6 +142,7 @@ export const Posts: FC<Props> = ({
               postLineLimit={postLineLimit}
               onReply={handleReply}
               onEdit={onEdit}
+              onQuote={onQuote}
               onPostDeleted={onPostDeleted}
               onBookmarkChanged={onBookmarkChanged}
               onLikeChanged={onLikeChanged}
