@@ -37,7 +37,8 @@ vi.mock('@/lib/client', () => ({
   unblock: vi.fn(),
   createReport: vi.fn(),
   deleteStatus: vi.fn(),
-  updateStatusVisibility: vi.fn()
+  updateStatusVisibility: vi.fn(),
+  updateStatusInteractionPolicy: vi.fn()
 }))
 
 const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
@@ -153,6 +154,9 @@ describe('PostMenu', () => {
     ).toBeInTheDocument()
     expect(
       within(menu).getByRole('menuitem', { name: 'Change visibility' })
+    ).toBeInTheDocument()
+    expect(
+      within(menu).getByRole('menuitem', { name: 'Change who can quote' })
     ).toBeInTheDocument()
     expect(
       within(menu).getByRole('menuitem', { name: 'Copy link to post' })
