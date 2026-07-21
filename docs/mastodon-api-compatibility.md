@@ -154,7 +154,12 @@ product or security decision, not a gap to be closed.
   non-author viewer sees `automatic` when they are an accepted follower of the
   author and `denied` otherwise (an anonymous viewer still sees `unknown`); the
   verdict is resolved in one batched follow query per page, so it adds no N+1.
-  Legacy Fedibird (`quoteUri`)
+  An inbound quote that arrives with a valid `quoteAuthorization` stamp is
+  accepted even when the quoted post is not already stored locally: the quoted
+  note is fetched (instance-signed, like the boost path) so the stamp can be
+  verified against its author and the quote card can embed the content. Fetching
+  only makes the author knowable — the stamp's three-field match against that
+  author is still what grants approval. Legacy Fedibird (`quoteUri`)
   and Misskey (`_misskey_quote`) quotes carry no stamp, so they are stored and
   rendered as unapproved (`pending`) rather than as embedded quotes, matching
   Mastodon 4.5's treatment of stamp-less quotes. Revoking approval fans the stamp
