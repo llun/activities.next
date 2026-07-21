@@ -57,7 +57,6 @@ import { processStatusTextContent } from '@/lib/utils/text/processStatusText'
 
 import { EmojiPickerButton } from './emoji-picker-button'
 import { Duration, PollChoices } from './poll-choices'
-import { QuoteApprovalPolicySelector } from './quote-approval-policy-selector'
 import { QuotedPreview } from './quoted-preview'
 import {
   DEFAULT_STATE,
@@ -1169,11 +1168,10 @@ export const PostBox: FC<Props> = ({
               onVisibilityChange={(visibility) =>
                 dispatch(setVisibility(visibility))
               }
-              disabled={isPosting}
-            />
-            <QuoteApprovalPolicySelector
-              value={postExtension.quoteApprovalPolicy}
-              onChange={(policy) => dispatch(setQuoteApprovalPolicy(policy))}
+              quotePolicy={postExtension.quoteApprovalPolicy}
+              onQuotePolicyChange={(policy) =>
+                dispatch(setQuoteApprovalPolicy(policy))
+              }
               disabled={isPosting}
             />
             <Button
