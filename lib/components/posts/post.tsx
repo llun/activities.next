@@ -200,6 +200,9 @@ export const Post: FC<PostProps> = (props) => {
         <div className="mt-2 max-w-full rounded-lg border bg-background p-3 text-xs">
           <div className="flex max-w-full items-center gap-2">
             <Activity className="size-4 shrink-0 text-primary" />
+            {/* The visible "Fitness" label was dropped in the redesign; keep the
+                activity semantic for screen readers. */}
+            <span className="sr-only">Fitness activity</span>
             <a
               href={fitnessFile.url}
               target="_blank"

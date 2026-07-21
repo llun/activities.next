@@ -1035,13 +1035,97 @@ describe('Post', () => {
     // not the old "Distance: <value>" inline text).
     expect(screen.getByText('Distance')).toBeInTheDocument()
     expect(screen.getByText('11.4 km')).toBeInTheDocument()
+    expect(screen.getByText('Duration')).toBeInTheDocument()
+    expect(screen.getByText('2:38:00')).toBeInTheDocument()
+    // A run activity surfaces Pace (not Avg speed) via getFitnessPaceOrSpeed.
+    expect(screen.getByText('Pace')).toBeInTheDocument()
     expect(screen.getByText('Elevation')).toBeInTheDocument()
     expect(screen.getByText('964 m')).toBeInTheDocument()
     // Recording device footer links to the brand.
     expect(screen.getByRole('link', { name: 'Fenix 7' })).toBeInTheDocument()
-    // The old inline treatment is gone.
-    expect(screen.queryByText('Fitness')).not.toBeInTheDocument()
+    // Screen-reader label replaces the dropped visible "Fitness" text.
+    expect(screen.getByText('Fitness activity')).toBeInTheDocument()
+    // The old inline "Distance: <value>" treatment is gone.
     expect(screen.queryByText(/Distance:/)).not.toBeInTheDocument()
+  })
+
+  it('surfaces Avg speed (not Pace) for a cycling activity', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentTime={currentTime}
+        status={{
+          ...status,
+          summary: null,
+          fitness: {
+            ...fitnessBase,
+            totalDistanceMeters: 26200,
+            totalDurationSeconds: 3822,
+            activityType: 'ride'
+          }
+        }}
+        onShowAttachment={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Avg speed')).toBeInTheDocument()
+    expect(screen.getByText('24.7 km/h')).toBeInTheDocument()
+    expect(screen.queryByText('Pace')).not.toBeInTheDocument()
+  })
+
+  it('drops stat cells whose metric the file does not provide', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentTime={currentTime}
+        status={{
+          ...status,
+          summary: null,
+          fitness: {
+            ...fitnessBase,
+            // Only distance is present: no duration/elevation, and pace/speed
+            // needs both distance and duration, so those cells are dropped.
+            totalDistanceMeters: 5000
+          }
+        }}
+        onShowAttachment={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Distance')).toBeInTheDocument()
+    expect(screen.getByText('5.00 km')).toBeInTheDocument()
+    expect(screen.queryByText('Duration')).not.toBeInTheDocument()
+    expect(screen.queryByText('Elevation')).not.toBeInTheDocument()
+    expect(screen.queryByText('Pace')).not.toBeInTheDocument()
+    expect(screen.queryByText('Avg speed')).not.toBeInTheDocument()
+  })
+
+  it('omits the stat grid entirely when no metrics are available but still shows the device', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentTime={currentTime}
+        status={{
+          ...status,
+          summary: null,
+          fitness: {
+            ...fitnessBase,
+            // Completed, but nothing measurable parsed out of the file.
+            deviceManufacturer: 'garmin',
+            deviceName: 'Fenix 7'
+          }
+        }}
+        onShowAttachment={vi.fn()}
+      />
+    )
+
+    // No stat grid at all.
+    expect(screen.queryByText('Distance')).not.toBeInTheDocument()
+    expect(screen.queryByText('Duration')).not.toBeInTheDocument()
+    expect(screen.queryByText('Elevation')).not.toBeInTheDocument()
+    // The file row and the decoupled device footer still render.
+    expect(screen.getByText('strava-123.tcx')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Fenix 7' })).toBeInTheDocument()
   })
 
   describe('Translate gating', () => {
