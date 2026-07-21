@@ -59,7 +59,7 @@
     "content-type": "^2.0.0",
     "csv-parse": "^7.0.0",
     "date-fns": "^4.4.0",
-    "fast-xml-parser": "^5.9.3",
+    "fast-xml-parser": "^5.10.1",
     "fit-file-parser": "^3.0.2",
     "framer-motion": "^12.42.2",
     "got": "^15.1.0",
