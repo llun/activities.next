@@ -3,10 +3,15 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createNoteJob } from '@/lib/jobs/createNoteJob'
 import { CREATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import {
+  buildQuoteAuthorizationObject,
+  buildQuoteAuthorizationUri
+} from '@/lib/services/quotes/quoteAuthorization'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { MockImageDocument } from '@/lib/stub/imageDocument'
 import { MockLitepubNote, MockMastodonActivityPubNote } from '@/lib/stub/note'
+import { MockActivityPubPerson } from '@/lib/stub/person'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { Actor } from '@/lib/types/domain/actor'
@@ -865,6 +870,214 @@ describe('createNoteJob', () => {
       // The duplicate returned early (existing status), so createStatusQuote was
       // not called again and the sentinel survives.
       expect(edge?.authorizationUri).toBe('https://llun.test/sentinel')
+    })
+
+    it('fetches the quoted note and accepts a stamped quote whose target is not stored locally', async () => {
+      // Mastodon 4.5 quotes reference a post we usually do not already store. A
+      // valid FEP-044f stamp still proves approval, so createNoteJob must fetch
+      // the quoted note (instance-signed, like the boost path) so the stamp
+      // verifies against the quoted author and the quote card can load the
+      // content — instead of leaving every remote quote stuck as `pending`.
+      const quotedAuthorId = 'https://somewhere.test/users/quotedauthor'
+      const quotedStatusId = `${quotedAuthorId}/statuses/quoted-remote-accepted`
+      const quotingNoteId = `${ACTOR2_ID}/statuses/quoting-remote-accepted`
+      const stampUri = buildQuoteAuthorizationUri(quotedAuthorId, quotingNoteId)
+      const stampBody = JSON.stringify(
+        buildQuoteAuthorizationObject({
+          stampUri,
+          attributedTo: quotedAuthorId,
+          interactingObject: quotingNoteId,
+          interactionTarget: quotedStatusId
+        })
+      )
+
+      fetchMock.mockResponse(async (req) => {
+        const { pathname } = new URL(req.url)
+        if (pathname.includes('/quote_authorizations/')) {
+          return { status: 200, body: stampBody }
+        }
+        if (pathname.includes('/statuses/')) {
+          const from = req.url.slice(0, req.url.indexOf('/statuses'))
+          return {
+            status: 200,
+            body: JSON.stringify(
+              MockMastodonActivityPubNote({
+                id: req.url,
+                from,
+                content: 'quoted remote status',
+                withContext: true
+              })
+            )
+          }
+        }
+        return {
+          status: 200,
+          body: JSON.stringify(
+            MockActivityPubPerson({ id: req.url, url: req.url })
+          )
+        }
+      })
+
+      const note = {
+        ...MockMastodonActivityPubNote({
+          id: quotingNoteId,
+          from: ACTOR2_ID,
+          content: 'cross-author remote quote'
+        }),
+        quote: quotedStatusId,
+        quoteAuthorization: stampUri
+      }
+
+      await createNoteJob(database, {
+        id: 'quote-remote-accepted',
+        name: CREATE_NOTE_JOB_NAME,
+        data: note,
+        verifiedSenderActorId: ACTOR2_ID
+      })
+
+      // The quoted post is fetched and stored locally so the card can load it.
+      await expect(
+        database.getStatus({ statusId: quotedStatusId })
+      ).resolves.not.toBeNull()
+
+      // With the quoted author now known, the valid stamp verifies to accepted.
+      const edge = await database.getStatusQuote({ statusId: quotingNoteId })
+      expect(edge).toMatchObject({
+        quotedStatusId,
+        state: 'accepted'
+      })
+      expect(edge?.authorizationUri).toBe(stampUri)
+    })
+
+    it('leaves a stamped remote quote pending when the quoted note cannot be fetched', async () => {
+      // The quoted server is unreachable, so we never learn the author and the
+      // stamp cannot be validated. The quote must degrade to pending (never crash
+      // or trust the stamp blindly).
+      const quotedAuthorId = 'https://somewhere.test/users/unreachable'
+      const quotedStatusId = `${quotedAuthorId}/statuses/quoted-unreachable`
+      const quotingNoteId = `${ACTOR2_ID}/statuses/quoting-unreachable`
+      const stampUri = buildQuoteAuthorizationUri(quotedAuthorId, quotingNoteId)
+
+      fetchMock.mockResponse(async (req) => {
+        const { pathname } = new URL(req.url)
+        if (pathname.includes('/statuses/quoted-unreachable')) {
+          return { status: 404, body: '' }
+        }
+        if (pathname.includes('/quote_authorizations/')) {
+          return {
+            status: 200,
+            body: JSON.stringify(
+              buildQuoteAuthorizationObject({
+                stampUri,
+                attributedTo: quotedAuthorId,
+                interactingObject: quotingNoteId,
+                interactionTarget: quotedStatusId
+              })
+            )
+          }
+        }
+        return {
+          status: 200,
+          body: JSON.stringify(
+            MockActivityPubPerson({ id: req.url, url: req.url })
+          )
+        }
+      })
+
+      const note = {
+        ...MockMastodonActivityPubNote({
+          id: quotingNoteId,
+          from: ACTOR2_ID,
+          content: 'quote of an unreachable post'
+        }),
+        quote: quotedStatusId,
+        quoteAuthorization: stampUri
+      }
+
+      await createNoteJob(database, {
+        id: 'quote-unreachable',
+        name: CREATE_NOTE_JOB_NAME,
+        data: note,
+        verifiedSenderActorId: ACTOR2_ID
+      })
+
+      await expect(
+        database.getStatus({ statusId: quotedStatusId })
+      ).resolves.toBeNull()
+      const edge = await database.getStatusQuote({ statusId: quotingNoteId })
+      expect(edge).toMatchObject({ quotedStatusId, state: 'pending' })
+    })
+
+    it('still rejects a forged stamp after fetching the quoted note (fetching grants no trust)', async () => {
+      // The stamp is hosted under the quoted author's authority but names a
+      // different issuer. Fetching the quoted note only makes the author
+      // knowable; the exact-actor check must still reject the forgery.
+      const quotedAuthorId = 'https://somewhere.test/users/victim'
+      const quotedStatusId = `${quotedAuthorId}/statuses/quoted-forged-remote`
+      const quotingNoteId = `${ACTOR2_ID}/statuses/quoting-forged-remote`
+      const stampUri = buildQuoteAuthorizationUri(quotedAuthorId, quotingNoteId)
+      const forgedStampBody = JSON.stringify(
+        buildQuoteAuthorizationObject({
+          stampUri,
+          attributedTo: 'https://somewhere.test/users/impostor',
+          interactingObject: quotingNoteId,
+          interactionTarget: quotedStatusId
+        })
+      )
+
+      fetchMock.mockResponse(async (req) => {
+        const { pathname } = new URL(req.url)
+        if (pathname.includes('/quote_authorizations/')) {
+          return { status: 200, body: forgedStampBody }
+        }
+        if (pathname.includes('/statuses/')) {
+          const from = req.url.slice(0, req.url.indexOf('/statuses'))
+          return {
+            status: 200,
+            body: JSON.stringify(
+              MockMastodonActivityPubNote({
+                id: req.url,
+                from,
+                content: 'victim status',
+                withContext: true
+              })
+            )
+          }
+        }
+        return {
+          status: 200,
+          body: JSON.stringify(
+            MockActivityPubPerson({ id: req.url, url: req.url })
+          )
+        }
+      })
+
+      const note = {
+        ...MockMastodonActivityPubNote({
+          id: quotingNoteId,
+          from: ACTOR2_ID,
+          content: 'quote with forged remote stamp'
+        }),
+        quote: quotedStatusId,
+        quoteAuthorization: stampUri
+      }
+
+      await createNoteJob(database, {
+        id: 'quote-forged-remote',
+        name: CREATE_NOTE_JOB_NAME,
+        data: note,
+        verifiedSenderActorId: ACTOR2_ID
+      })
+
+      // The quoted note was fetched and stored so the card could load it...
+      await expect(
+        database.getStatus({ statusId: quotedStatusId })
+      ).resolves.not.toBeNull()
+      // ...but the forged stamp does not verify, so the edge stays pending and
+      // the attacker-supplied stamp uri is not persisted.
+      const edge = await database.getStatusQuote({ statusId: quotingNoteId })
+      expect(edge).toMatchObject({ quotedStatusId, state: 'pending' })
+      expect(edge?.authorizationUri).toBeNull()
     })
   })
 })

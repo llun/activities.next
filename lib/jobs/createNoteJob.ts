@@ -4,6 +4,7 @@ import {
   assertActorCanFederate,
   recordActorIfNeeded
 } from '@/lib/actions/utils'
+import { getNote } from '@/lib/activities'
 import {
   BaseNote,
   getAttachments,
@@ -14,6 +15,7 @@ import {
   getSummary,
   getTags
 } from '@/lib/activities/note'
+import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { verifyRemoteQuote } from '@/lib/services/quotes/verifyRemoteQuote'
 import { addStatusToTimelines } from '@/lib/services/timelines'
@@ -132,10 +134,36 @@ export const createNoteJob = createJobHandle(
     // degrades to `pending` and never drops the note.
     const quotedStatusId = getQuoteTargetId(note)
     if (quotedStatusId) {
-      const quotedStatus = await database.getStatus({
+      let quotedStatus = await database.getStatus({
         statusId: quotedStatusId,
         withReplies: false
       })
+      // A Mastodon 4.5 quote references a post we usually do not already store.
+      // When the note carries a FEP-044f authorization stamp, fetch the quoted
+      // note (instance-signed, mirroring the boost path in createAnnounceJob) and
+      // store it so verifyRemoteQuote can confirm the quoted author and the quote
+      // card can load the content. Without this, every remote quote is stuck as a
+      // `pending` tombstone even when it was legitimately approved. Fetching only
+      // makes the author knowable — the stamp is still validated below, so a
+      // fetch never grants trust on its own.
+      if (!quotedStatus && note.quoteAuthorization) {
+        const signingActor = await getFederationSigningActor(database)
+        const fetchedQuotedNote = await getNote({
+          statusId: quotedStatusId,
+          signingActor
+        })
+        if (fetchedQuotedNote) {
+          await createNoteJob(database, {
+            id: fetchedQuotedNote.id,
+            name: CREATE_NOTE_JOB_NAME,
+            data: fetchedQuotedNote
+          })
+          quotedStatus = await database.getStatus({
+            statusId: quotedStatusId,
+            withReplies: false
+          })
+        }
+      }
       const state = await verifyRemoteQuote({
         database,
         note,
