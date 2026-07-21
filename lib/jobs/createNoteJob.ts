@@ -32,6 +32,7 @@ import {
   normalizeActorId,
   toRecipientArray
 } from '@/lib/utils/activitypub'
+import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
 import { CREATE_NOTE_JOB_NAME } from './names'
@@ -146,21 +147,43 @@ export const createNoteJob = createJobHandle(
       // `pending` tombstone even when it was legitimately approved. Fetching only
       // makes the author knowable — the stamp is still validated below, so a
       // fetch never grants trust on its own.
-      if (!quotedStatus && note.quoteAuthorization) {
-        const signingActor = await getFederationSigningActor(database)
-        const fetchedQuotedNote = await getNote({
-          statusId: quotedStatusId,
-          signingActor
-        })
-        if (fetchedQuotedNote) {
-          await createNoteJob(database, {
-            id: fetchedQuotedNote.id,
-            name: CREATE_NOTE_JOB_NAME,
-            data: fetchedQuotedNote
-          })
-          quotedStatus = await database.getStatus({
+      //
+      // `skipQuoteResolution` bounds this to a single hop: the quoted note is
+      // stored WITHOUT chasing its own quote target, so an attacker-controlled
+      // chain of quoting notes (A quotes B quotes C …) cannot drive unbounded
+      // recursive fetches. Wrapped in try/catch so any failure (e.g. the quoted
+      // author's domain is federation-blocked, or a store error) leaves
+      // `quotedStatus` null and degrades the edge to `pending` rather than
+      // throwing and orphaning this note (the "never drops the note" invariant).
+      if (
+        !quotedStatus &&
+        note.quoteAuthorization &&
+        !message.skipQuoteResolution
+      ) {
+        try {
+          const signingActor = await getFederationSigningActor(database)
+          const fetchedQuotedNote = await getNote({
             statusId: quotedStatusId,
-            withReplies: false
+            signingActor
+          })
+          if (fetchedQuotedNote) {
+            await createNoteJob(database, {
+              id: fetchedQuotedNote.id,
+              name: CREATE_NOTE_JOB_NAME,
+              data: fetchedQuotedNote,
+              skipQuoteResolution: true
+            })
+            quotedStatus = await database.getStatus({
+              statusId: quotedStatusId,
+              withReplies: false
+            })
+          }
+        } catch (error) {
+          logger.warn({
+            message:
+              'Failed to fetch quoted note for inbound quote; leaving the edge pending',
+            quotedStatusId,
+            error: error instanceof Error ? error.message : String(error)
           })
         }
       }

@@ -1,5 +1,6 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createNoteJob } from '@/lib/jobs/createNoteJob'
 import { CREATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
@@ -1078,6 +1079,238 @@ describe('createNoteJob', () => {
       const edge = await database.getStatusQuote({ statusId: quotingNoteId })
       expect(edge).toMatchObject({ quotedStatusId, state: 'pending' })
       expect(edge?.authorizationUri).toBeNull()
+    })
+
+    it('does not fetch a not-locally-stored quote target when there is no stamp', async () => {
+      // Only stamped quotes are worth resolving; a stamp-less quote whose target
+      // is not stored must stay pending WITHOUT fetching, so we never fan out a
+      // fetch on every inbound quote.
+      const quotedStatusId =
+        'https://somewhere.test/users/stampless/statuses/quoted-stampless'
+      const quotingNoteId = `${ACTOR2_ID}/statuses/quoting-stampless-remote`
+
+      fetchMock.mockResponse(async () => {
+        throw new Error(
+          'no remote fetch expected for a stamp-less remote quote'
+        )
+      })
+
+      const note = {
+        ...MockMastodonActivityPubNote({
+          id: quotingNoteId,
+          from: ACTOR2_ID,
+          content: 'stamp-less remote quote'
+        }),
+        quote: quotedStatusId
+      }
+
+      await createNoteJob(database, {
+        id: 'quote-stampless-remote',
+        name: CREATE_NOTE_JOB_NAME,
+        data: note,
+        verifiedSenderActorId: ACTOR2_ID
+      })
+
+      await expect(
+        database.getStatus({ statusId: quotedStatusId })
+      ).resolves.toBeNull()
+      const edge = await database.getStatusQuote({ statusId: quotingNoteId })
+      expect(edge).toMatchObject({ quotedStatusId, state: 'pending' })
+    })
+
+    it('bounds quote resolution to a single hop (a fetched quoted note does not chase its own quote)', async () => {
+      // A quotes B (stamped); the fetched B is itself a stamped quote of C. The
+      // recursive store must NOT fetch C, so an attacker-controlled chain cannot
+      // drive unbounded recursive fetches.
+      const authorB = 'https://somewhere.test/users/chain-b'
+      const bId = `${authorB}/statuses/chain-b`
+      const authorC = 'https://somewhere.test/users/chain-c'
+      const cId = `${authorC}/statuses/chain-c`
+      const quotingA = `${ACTOR2_ID}/statuses/quoting-a-chain`
+      const stampAB = buildQuoteAuthorizationUri(authorB, quotingA)
+      const stampBC = buildQuoteAuthorizationUri(authorC, bId)
+
+      fetchMock.mockResponse(async (req) => {
+        const { pathname } = new URL(req.url)
+        if (req.url === stampAB) {
+          return {
+            status: 200,
+            body: JSON.stringify(
+              buildQuoteAuthorizationObject({
+                stampUri: stampAB,
+                attributedTo: authorB,
+                interactingObject: quotingA,
+                interactionTarget: bId
+              })
+            )
+          }
+        }
+        // B is itself a stamped quote of C (quote terms carried on a real quote
+        // context so they survive compaction on fetch).
+        if (req.url === bId) {
+          return {
+            status: 200,
+            body: JSON.stringify({
+              '@context': QUOTE_ACTIVITY_CONTEXT,
+              ...MockMastodonActivityPubNote({
+                id: bId,
+                from: authorB,
+                content: 'note b quotes c'
+              }),
+              quote: cId,
+              quoteAuthorization: stampBC
+            })
+          }
+        }
+        // C's note and the B->C stamp are BOTH served successfully: without the
+        // single-hop bound, resolving B would fetch + store C (and accept B->C),
+        // which the assertions below detect as a regression.
+        if (req.url === stampBC) {
+          return {
+            status: 200,
+            body: JSON.stringify(
+              buildQuoteAuthorizationObject({
+                stampUri: stampBC,
+                attributedTo: authorC,
+                interactingObject: bId,
+                interactionTarget: cId
+              })
+            )
+          }
+        }
+        if (pathname.includes('/statuses/')) {
+          const from = req.url.slice(0, req.url.indexOf('/statuses'))
+          return {
+            status: 200,
+            body: JSON.stringify(
+              MockMastodonActivityPubNote({
+                id: req.url,
+                from,
+                content: 'note c',
+                withContext: true
+              })
+            )
+          }
+        }
+        return {
+          status: 200,
+          body: JSON.stringify(
+            MockActivityPubPerson({ id: req.url, url: req.url })
+          )
+        }
+      })
+
+      const note = {
+        ...MockMastodonActivityPubNote({
+          id: quotingA,
+          from: ACTOR2_ID,
+          content: 'a quotes b'
+        }),
+        quote: bId,
+        quoteAuthorization: stampAB
+      }
+
+      await createNoteJob(database, {
+        id: 'quote-a-chain',
+        name: CREATE_NOTE_JOB_NAME,
+        data: note,
+        verifiedSenderActorId: ACTOR2_ID
+      })
+
+      // A -> B resolved and accepted (B fetched + stored, valid stamp).
+      const edgeA = await database.getStatusQuote({ statusId: quotingA })
+      expect(edgeA).toMatchObject({ quotedStatusId: bId, state: 'accepted' })
+      await expect(
+        database.getStatus({ statusId: bId })
+      ).resolves.not.toBeNull()
+      // B's own quote target C was never fetched (single-hop), so B -> C stays
+      // pending and C is not stored.
+      await expect(database.getStatus({ statusId: cId })).resolves.toBeNull()
+      const edgeB = await database.getStatusQuote({ statusId: bId })
+      expect(edgeB).toMatchObject({ quotedStatusId: cId, state: 'pending' })
+    })
+
+    it('does not orphan the quoting note when the quoted author domain is blocked', async () => {
+      // Fetching the quoted note runs assertActorCanFederate for the quoted
+      // author, which throws for a blocked domain. That must not abort ingestion
+      // of the quoting note (which is already stored) — the edge degrades to
+      // pending and the note is fully processed.
+      const authorId = 'https://blocked-quote.test/users/blockedauthor'
+      const quotedStatusId = `${authorId}/statuses/quoted-blocked`
+      const quotingNoteId = `${ACTOR2_ID}/statuses/quoting-blocked-target`
+      const stampUri = buildQuoteAuthorizationUri(authorId, quotingNoteId)
+      await database.createDomainBlock({
+        domain: 'blocked-quote.test',
+        severity: 'suspend'
+      })
+
+      fetchMock.mockResponse(async (req) => {
+        const { pathname } = new URL(req.url)
+        if (pathname.includes('/quote_authorizations/')) {
+          return {
+            status: 200,
+            body: JSON.stringify(
+              buildQuoteAuthorizationObject({
+                stampUri,
+                attributedTo: authorId,
+                interactingObject: quotingNoteId,
+                interactionTarget: quotedStatusId
+              })
+            )
+          }
+        }
+        if (pathname.includes('/statuses/')) {
+          const from = req.url.slice(0, req.url.indexOf('/statuses'))
+          return {
+            status: 200,
+            body: JSON.stringify(
+              MockMastodonActivityPubNote({
+                id: req.url,
+                from,
+                content: 'blocked-domain quoted status',
+                withContext: true
+              })
+            )
+          }
+        }
+        return {
+          status: 200,
+          body: JSON.stringify(
+            MockActivityPubPerson({ id: req.url, url: req.url })
+          )
+        }
+      })
+
+      const note = {
+        ...MockMastodonActivityPubNote({
+          id: quotingNoteId,
+          from: ACTOR2_ID,
+          content: 'quote of a blocked-domain post'
+        }),
+        quote: quotedStatusId,
+        quoteAuthorization: stampUri
+      }
+
+      // The blocked-domain fetch must be swallowed, not thrown.
+      await expect(
+        createNoteJob(database, {
+          id: 'quote-blocked-target',
+          name: CREATE_NOTE_JOB_NAME,
+          data: note,
+          verifiedSenderActorId: ACTOR2_ID
+        })
+      ).resolves.not.toThrow()
+
+      // The quoting note is not orphaned: it keeps a pending quote edge and the
+      // quoted post is not stored.
+      await expect(
+        database.getStatus({ statusId: quotingNoteId })
+      ).resolves.not.toBeNull()
+      await expect(
+        database.getStatus({ statusId: quotedStatusId })
+      ).resolves.toBeNull()
+      const edge = await database.getStatusQuote({ statusId: quotingNoteId })
+      expect(edge).toMatchObject({ quotedStatusId, state: 'pending' })
     })
   })
 })
