@@ -9,12 +9,13 @@ import {
   Unlock,
   Users
 } from 'lucide-react'
-import { FC } from 'react'
+import { FC, useId } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -86,6 +87,8 @@ export const VisibilitySelector: FC<Props> = ({
   quotePolicy,
   onQuotePolicyChange
 }) => {
+  const quoteLabelId = useId()
+
   const currentOption =
     VISIBILITY_OPTIONS.find((opt) => opt.value === visibility) ||
     VISIBILITY_OPTIONS[0]
@@ -130,85 +133,98 @@ export const VisibilitySelector: FC<Props> = ({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
-        {VISIBILITY_OPTIONS.map((option) => {
-          const active = option.value === visibility
-          const { Icon } = option
-          return (
-            <DropdownMenuItem
-              key={option.value}
-              role="menuitemradio"
-              aria-checked={active}
-              onSelect={() => onVisibilityChange(option.value)}
-              className={cn(
-                'flex cursor-pointer items-start gap-2.5',
-                active &&
-                  'bg-primary/10 text-primary focus:bg-primary/15 focus:text-primary'
-              )}
-            >
-              <Icon
+        {/* Distinct radio sets: the visibility group and the quote-policy group
+            each track their own single selection, so they must be separate,
+            named groups rather than one flat run of menuitemradios. */}
+        <DropdownMenuGroup aria-label="Visibility">
+          {VISIBILITY_OPTIONS.map((option) => {
+            const active = option.value === visibility
+            const { Icon } = option
+            return (
+              <DropdownMenuItem
+                key={option.value}
+                role="menuitemradio"
+                aria-checked={active}
+                onSelect={() => onVisibilityChange(option.value)}
                 className={cn(
-                  'mt-0.5 size-4',
-                  active ? 'text-primary' : 'text-muted-foreground'
+                  'flex cursor-pointer items-start gap-2.5',
+                  active &&
+                    'bg-primary/10 text-primary focus:bg-primary/15 focus:text-primary'
                 )}
-              />
-              <span className="min-w-0 flex-1">
-                <span
-                  className={cn('block font-medium', active && 'text-primary')}
-                >
-                  {option.label}
-                </span>
-                <span className="block text-xs text-muted-foreground">
-                  {option.description}
-                </span>
-              </span>
-              {active ? (
-                <Check className="mt-0.5 ml-auto size-4 text-primary" />
-              ) : null}
-            </DropdownMenuItem>
-          )
-        })}
-
-        {showQuotePolicy ? (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="px-2 py-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-              Who can quote
-            </DropdownMenuLabel>
-            {QUOTE_POLICY_OPTIONS.map((option) => {
-              const active = option.value === quotePolicy
-              const { Icon } = option
-              return (
-                <DropdownMenuItem
-                  key={option.value}
-                  role="menuitemradio"
-                  aria-checked={active}
-                  onSelect={() => onQuotePolicyChange?.(option.value)}
+              >
+                <Icon
                   className={cn(
-                    'flex cursor-pointer items-center gap-2.5',
-                    active &&
-                      'bg-primary/10 text-primary focus:bg-primary/15 focus:text-primary'
+                    'mt-0.5 size-4',
+                    active ? 'text-primary' : 'text-muted-foreground'
                   )}
-                >
-                  <Icon
-                    className={cn(
-                      'size-4',
-                      active ? 'text-primary' : 'text-muted-foreground'
-                    )}
-                  />
+                />
+                <span className="min-w-0 flex-1">
                   <span
                     className={cn(
-                      'min-w-0 flex-1 font-medium',
+                      'block font-medium',
                       active && 'text-primary'
                     )}
                   >
                     {option.label}
                   </span>
-                  {active ? (
-                    <Check className="ml-auto size-4 text-primary" />
-                  ) : null}
-                </DropdownMenuItem>
-              )
-            })}
+                  <span className="block text-xs text-muted-foreground">
+                    {option.description}
+                  </span>
+                </span>
+                {active ? (
+                  <Check className="mt-0.5 ml-auto size-4 text-primary" />
+                ) : null}
+              </DropdownMenuItem>
+            )
+          })}
+        </DropdownMenuGroup>
+
+        {showQuotePolicy ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup aria-labelledby={quoteLabelId}>
+              <DropdownMenuLabel
+                id={quoteLabelId}
+                className="px-2 py-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase"
+              >
+                Who can quote
+              </DropdownMenuLabel>
+              {QUOTE_POLICY_OPTIONS.map((option) => {
+                const active = option.value === quotePolicy
+                const { Icon } = option
+                return (
+                  <DropdownMenuItem
+                    key={option.value}
+                    role="menuitemradio"
+                    aria-checked={active}
+                    onSelect={() => onQuotePolicyChange?.(option.value)}
+                    className={cn(
+                      'flex cursor-pointer items-center gap-2.5',
+                      active &&
+                        'bg-primary/10 text-primary focus:bg-primary/15 focus:text-primary'
+                    )}
+                  >
+                    <Icon
+                      className={cn(
+                        'size-4',
+                        active ? 'text-primary' : 'text-muted-foreground'
+                      )}
+                    />
+                    <span
+                      className={cn(
+                        'min-w-0 flex-1 font-medium',
+                        active && 'text-primary'
+                      )}
+                    >
+                      {option.label}
+                    </span>
+                    {active ? (
+                      <Check className="ml-auto size-4 text-primary" />
+                    ) : null}
+                  </DropdownMenuItem>
+                )
+              })}
+            </DropdownMenuGroup>
           </>
         ) : null}
       </DropdownMenuContent>
