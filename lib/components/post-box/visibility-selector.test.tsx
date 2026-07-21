@@ -107,11 +107,11 @@ describe('VisibilitySelector', () => {
     }
   )
 
-  it('adds a quote-policy icon to the trigger only when the policy is not public', () => {
-    const triggerSvgCount = () =>
-      screen
-        .getByRole('button', { name: /set visibility and who can quote/i })
-        .querySelectorAll('svg').length
+  it('shows the quote-policy icon on the trigger only when the policy is not public', () => {
+    const trigger = () =>
+      screen.getByRole('button', {
+        name: /set visibility and who can quote/i
+      })
 
     const { rerender } = render(
       <VisibilitySelector
@@ -121,8 +121,8 @@ describe('VisibilitySelector', () => {
         onQuotePolicyChange={vi.fn()}
       />
     )
-    // Default "Anyone" (public): visibility icon + chevron only.
-    const publicCount = triggerSvgCount()
+    // Default "Anyone" (public): no quote-policy icon on the trigger.
+    expect(trigger().querySelector('.lucide-ban')).toBeNull()
 
     rerender(
       <VisibilitySelector
@@ -132,7 +132,7 @@ describe('VisibilitySelector', () => {
         onQuotePolicyChange={vi.fn()}
       />
     )
-    // A non-public policy adds the quote-policy icon to the trigger.
-    expect(triggerSvgCount()).toBe(publicCount + 1)
+    // "No one" (nobody): the Ban glyph is added to the trigger.
+    expect(trigger().querySelector('.lucide-ban')).not.toBeNull()
   })
 })
