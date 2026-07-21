@@ -1004,6 +1004,46 @@ describe('Post', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('renders the labeled stat grid, type pill, and device for a completed fitness file', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentTime={currentTime}
+        status={{
+          ...status,
+          summary: null,
+          fitness: {
+            ...fitnessBase,
+            fileType: 'fit',
+            fileName: '2025-05-27-skitour.fit',
+            totalDistanceMeters: 11400,
+            totalDurationSeconds: 9480,
+            elevationGainMeters: 964,
+            activityType: 'run',
+            deviceManufacturer: 'garmin',
+            deviceName: 'Fenix 7'
+          }
+        }}
+        onShowAttachment={vi.fn()}
+      />
+    )
+
+    // File name and lowercase type pill.
+    expect(screen.getByText('2025-05-27-skitour.fit')).toBeInTheDocument()
+    expect(screen.getByText('fit')).toBeInTheDocument()
+    // Stats render as labeled cells (label and value are separate elements,
+    // not the old "Distance: <value>" inline text).
+    expect(screen.getByText('Distance')).toBeInTheDocument()
+    expect(screen.getByText('11.4 km')).toBeInTheDocument()
+    expect(screen.getByText('Elevation')).toBeInTheDocument()
+    expect(screen.getByText('964 m')).toBeInTheDocument()
+    // Recording device footer links to the brand.
+    expect(screen.getByRole('link', { name: 'Fenix 7' })).toBeInTheDocument()
+    // The old inline treatment is gone.
+    expect(screen.queryByText('Fitness')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Distance:/)).not.toBeInTheDocument()
+  })
+
   describe('Translate gating', () => {
     beforeEach(() => {
       ;(getTranslationCapability as jest.Mock).mockResolvedValue({
