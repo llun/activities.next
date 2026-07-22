@@ -1,0 +1,51 @@
+app/api/v1/trends/statuses/route.ts
+  s_cd013b5a7f3487::t_0c9063663b275a 29-50
+  s_cd013b5a7f3487::t_03354b77f25796 5
+lib/services/trends/trendingStatuses.test.ts
+  s_cd013b5a7f3487::t_8c30aa30be9349 267-322
+app/(timeline)/explore/ExplorePageClient.test.tsx
+  s_cd013b5a7f3487::t_ad1924527fb34c 121-127
+  s_cd013b5a7f3487::t_18d7ecd7d2a814 172-173
+  s_cd013b5a7f3487::t_1c345d086ae82b 13-14,24-27,39-64,74-98,104-111,119-120,128-132,154,162-164,166-171,174-176
+app/(timeline)/explore/ExplorePageClient.tsx
+  s_cd013b5a7f3487::t_0d0758af401e4c 99-105
+  s_cd013b5a7f3487::t_18d7ecd7d2a814 111
+  s_cd013b5a7f3487::t_ba7f731bd7d0a6 27-28,30-31
+  s_cd013b5a7f3487::t_a5d2739403aedb 223-236
+  s_cd013b5a7f3487::t_8fbd86faa8727e 13,18-20
+app/(timeline)/explore/page.tsx
+  s_cd013b5a7f3487::t_072b0168a3eca8 4,7,18,30-31,35-43
+lib/client.test.ts
+  s_cd013b5a7f3487::t_024abc23478eb5 922-923,925-936
+lib/client.ts
+  s_cd013b5a7f3487::t_fade22e0035559 1418-1422,1424-1426,1431,1433-1438
+  s_cd013b5a7f3487::t_18d7ecd7d2a814 1427-1430,1432
+app/api/v1/trends/statuses/route.test.ts
+  s_cd013b5a7f3487::t_49e2faccef4e8a 172-195
+lib/services/trends/request.ts
+  s_cd013b5a7f3487::t_4b115bf7b78322 38-47
+docs/mastodon-api-compatibility.md
+  s_cd013b5a7f3487::t_35c3be57f1f899 207-210
+lib/services/trends/trendingStatuses.ts
+  s_cd013b5a7f3487::t_048275ed95221b 15-22
+  s_cd013b5a7f3487::t_086a6b014ee418 44-45,53-54
+lib/services/trends/request.test.ts
+  s_cd013b5a7f3487::t_dce76a6d3e8d32 138-164
+  s_cd013b5a7f3487::t_539efaaa34573a 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "c0fb4c00a3020d0a48e88b6db00d44036ae5d5d7",
+  "prompts": {},
+  "sessions": {
+    "s_cd013b5a7f3487": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "17973dfb-c587-46bf-bc3e-03f06129ea11",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
