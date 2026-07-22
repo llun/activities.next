@@ -88,6 +88,12 @@ jobs:
         run: yarn test
         env:
           TEST_DATABASE_TYPE: sqlite
+          # Raise the V8 heap ceiling for the Vitest workers. The full suite
+          # peaks just above Node's default ~4 GB old-space limit and
+          # intermittently crashed a worker fork with "JavaScript heap out of
+          # memory" (all tests still passed). ubuntu-latest has 16 GB RAM, so
+          # 8 GB per process is safe. Workers inherit NODE_OPTIONS from this env.
+          NODE_OPTIONS: --max-old-space-size=8192
 
   # Drift gate for the committed SQLite reference schema dump. The Vitest
   # suite builds every test database from migrations/schema.sqlite.sql (via
