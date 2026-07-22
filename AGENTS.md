@@ -514,9 +514,9 @@ For every open review comment (from your sub-agents or from a bot):
 
 After clearing a batch, **run the sub-agent review again** — fixes can introduce new problems. **Repeat until a full round surfaces no new issues that need addressing, or you reach a maximum of 20 rounds**, whichever comes first. Note the round number as you go so the cap stays visible, and stop early the moment a clean round produces nothing actionable.
 
-### Loop in the other review bots (e.g. Kilo)
+### Loop in the other review bots
 
-- If the repo runs **other review bots** — for example **Kilo Code (Kilo bot)**, GitHub Copilot review, or CodeRabbit — then after you have addressed, replied to, and resolved a round of comments, **ask that bot to review again** (re-request its review or invoke its trigger). Treat whatever it posts exactly like your own findings: address → reply → resolve. A bot round counts toward the same 20-round cap.
+- If the repo runs **other automated review bots**, then after you have addressed, replied to, and resolved a round of comments, **ask that bot to review again** (re-request its review or invoke its trigger). Treat whatever it posts exactly like your own findings: address → reply → resolve. A bot round counts toward the same 20-round cap.
 - **While a bot is actively reviewing, let it finish: wait up to 20 minutes and do not interrupt it — do not push new commits or re-trigger it — before it posts its review or that 20-minute window elapses.** Prefer `subscribe_pr_activity` so the bot's review wakes this session as a webhook event instead of polling with `sleep`; only continue the loop once the bot has responded or the 20 minutes are up.
 
 ### Done when
