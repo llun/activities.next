@@ -1,0 +1,99 @@
+lib/components/posts/inline-status-composer.test.tsx
+  s_8a67dc2bda9453::t_4e1958f60b6c64 1-151
+app/(timeline)/MainPageTimeline.tsx
+  s_8a67dc2bda9453::t_22bffc1f529137 52-55,58-63
+  s_8a67dc2bda9453::t_7d2feb233f74b0 193-195,200-204
+  s_8a67dc2bda9453::t_e7725e89cee223 4,16
+  s_8a67dc2bda9453::t_aa640cae4a7465 218-219
+app/(timeline)/lists/[id]/page.tsx
+  s_8a67dc2bda9453::t_2fad1abac1a26b 36
+  s_8a67dc2bda9453::t_4faf90f73310d3 73
+app/(timeline)/tags/[tag]/page.tsx
+  s_8a67dc2bda9453::t_5e18ebf68a269c 73
+  s_8a67dc2bda9453::t_41696b6888734a 36
+AGENTS.md
+  s_8a67dc2bda9453::t_dcf598a4e729bc 454-455
+  s_8a67dc2bda9453::t_61de3382341111 240-270,272-277
+  s_8a67dc2bda9453::t_d507579821d351 456-457
+  s_8a67dc2bda9453::t_de99b8ec55a6d4 271
+app/(timeline)/[actor]/ActorTimelines.tsx
+  s_8a67dc2bda9453::t_4b62ccbad61261 325-326
+  s_8a67dc2bda9453::t_ab7680dc93cfbd 168,170-173,181-187
+  s_8a67dc2bda9453::t_2760d98be468b3 188
+app/(timeline)/favorites/page.tsx
+  s_8a67dc2bda9453::t_39794f8b41e1cc 20
+  s_8a67dc2bda9453::t_dc264a52c21f77 47
+app/(timeline)/search/page.tsx
+  s_8a67dc2bda9453::t_29bf0e521c9719 45
+  s_8a67dc2bda9453::t_8764f787dd14d3 19
+CLAUDE.md
+  s_8a67dc2bda9453::t_048a396d44df6b 44
+app/(timeline)/[actor]/[status]/StatusBox.tsx
+  s_8a67dc2bda9453::t_65732e2e347846 7,9
+  s_8a67dc2bda9453::t_ad0a53efa074b7 53-55
+  s_8a67dc2bda9453::t_88689415d2e9ef 109,111-113,125-128,130-131,133-135,137
+  s_8a67dc2bda9453::t_01b692b1d8bf03 96-99
+app/(timeline)/tags/[tag]/HashtagTimeline.tsx
+  s_8a67dc2bda9453::t_7a344066e0e585 23
+  s_8a67dc2bda9453::t_6f0e62408635ae 120
+  s_8a67dc2bda9453::t_7cc4981f3136bc 35
+lib/components/posts/inline-status-composer.tsx
+  s_8a67dc2bda9453::t_5113b8a1f95d4e 1-89
+app/(timeline)/[actor]/ActorTimelines.test.tsx
+  s_8a67dc2bda9453::t_121854098a7f9d 24,33
+  s_8a67dc2bda9453::t_52368e907345d2 44,48-49
+lib/components/posts/posts.tsx
+  s_8a67dc2bda9453::t_388f79ccbd5c43 10,13,15,17,40-47,67-68,78-80,91-95,108-143,145-160
+REVIEW.md
+  s_8a67dc2bda9453::t_5c54f7416e665e 111-118
+app/(timeline)/lists/[id]/ListTimeline.tsx
+  s_8a67dc2bda9453::t_deb509174ea118 41
+  s_8a67dc2bda9453::t_422231cdad9986 131
+  s_8a67dc2bda9453::t_c569a8d87b3212 25
+app/(timeline)/bookmarks/BookmarksTimeline.tsx
+  s_8a67dc2bda9453::t_a03406494c5225 141
+  s_8a67dc2bda9453::t_c0d9d821dabc8a 29
+  s_8a67dc2bda9453::t_a200aa514d394c 39
+app/(timeline)/search/SearchPageClient.tsx
+  s_8a67dc2bda9453::t_7cb082b1bfea05 262
+  s_8a67dc2bda9453::t_4a72919df749fc 458
+  s_8a67dc2bda9453::t_a9430d23b71be4 38
+app/(timeline)/collections/[id]/page.tsx
+  s_8a67dc2bda9453::t_af9015ac28d67a 167
+  s_8a67dc2bda9453::t_0c951a006c18ff 59
+lib/components/posts/useInlineComposer.test.ts
+  s_8a67dc2bda9453::t_6494638bf5a1f3 1-54
+lib/components/posts/useInlineComposer.ts
+  s_8a67dc2bda9453::t_f3bb92316664a2 1-54
+app/(timeline)/favorites/FavoritesTimeline.tsx
+  s_8a67dc2bda9453::t_6f1857892b812b 132
+  s_8a67dc2bda9453::t_c8c8c5b65a5a49 39
+  s_8a67dc2bda9453::t_f0f4ed67c9d24a 29
+app/(timeline)/bookmarks/page.tsx
+  s_8a67dc2bda9453::t_40a931104ac7e2 47
+  s_8a67dc2bda9453::t_f327440f3f0f71 20
+lib/components/posts/posts.test.tsx
+  s_8a67dc2bda9453::t_1363e3181d5114 50-54
+  s_8a67dc2bda9453::t_a5dad96d829397 91-112
+  s_8a67dc2bda9453::t_9440a491217e85 39-49,55-57
+app/(timeline)/collections/[id]/CollectionDetail.tsx
+  s_8a67dc2bda9453::t_71dad2b348b36a 114
+  s_8a67dc2bda9453::t_1214fd1a712c50 132
+  s_8a67dc2bda9453::t_20bcce2c42fc00 342
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "1d7b9f7e48ee06d178a5af4b9fe9a19e7ea3c985",
+  "prompts": {},
+  "sessions": {
+    "s_8a67dc2bda9453": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f81f9d62-9669-458c-bae0-82874d67cb44",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
