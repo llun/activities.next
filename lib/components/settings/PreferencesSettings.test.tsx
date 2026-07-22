@@ -56,6 +56,18 @@ describe('PreferencesSettings', () => {
     )
   })
 
+  it('reflects the initial quote policy in the select', () => {
+    render(
+      <PreferencesSettings
+        initialPreferences={{ ...initialPreferences, quotePolicy: 'nobody' }}
+      />
+    )
+
+    expect(
+      (screen.getByLabelText('Who can quote') as HTMLSelectElement).value
+    ).toBe('nobody')
+  })
+
   it('disables Save until a preference changes', () => {
     render(<PreferencesSettings initialPreferences={initialPreferences} />)
 
