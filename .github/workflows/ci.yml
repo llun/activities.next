@@ -69,9 +69,23 @@ jobs:
       - name: Build
         run: yarn build
 
-  test:
-    name: All Tests
+  # The full Vitest suite accumulates V8 heap across its ~690 test files, so a
+  # single-process run intermittently crashed a worker fork with "JavaScript
+  # heap out of memory" (all tests still passed). Raising the heap ceiling only
+  # delayed it (GC grew lazier and the live set climbed to ~8 GB before
+  # thrashing), and two sequential shards were still borderline (~345 files each
+  # occasionally OOM'd). Split the suite into four shards that each run on their
+  # own runner: every shard imports and runs only ~1/4 of the files, so peak
+  # memory per fork stays well under the ceiling, and the shards run in parallel
+  # for fast wall-clock. NODE_OPTIONS gives the fork workers extra headroom.
+  test-shards:
+    name: Test Shard ${{ matrix.shard }} of 4
     runs-on: ubuntu-latest
+    strategy:
+      # Run every shard even if one fails, so all failures surface in one run.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -84,25 +98,33 @@ jobs:
           cache: yarn
       - name: Install dependencies
         run: yarn install --immutable
-      - name: Run all tests
-        # Run the suite in two sequential shards. Each `vitest run` process
-        # handles ~half of the ~690 test files and releases ALL memory when it
-        # exits, so peak memory per process is roughly halved. The single-process
-        # run accumulated memory across files and crashed a worker fork with
-        # "JavaScript heap out of memory" (all tests still passed); raising the
-        # heap ceiling alone only delayed it — V8's GC grew lazier and the live
-        # set climbed to ~8 GB before thrashing. Sharding keeps the working set
-        # well under the ceiling. Both shards run in this one job, so the
-        # required "All Tests" status check is unchanged.
-        run: |
-          yarn test --shard=1/2
-          yarn test --shard=2/2
+      - name: Run test shard
+        run: yarn test --shard=${{ matrix.shard }}/4
         env:
           TEST_DATABASE_TYPE: sqlite
-          # Headroom ceiling for the Vitest fork workers (inherited via
-          # NODE_OPTIONS). ubuntu-latest has 16 GB RAM; with sharding each
-          # process stays well below this.
           NODE_OPTIONS: --max-old-space-size=8192
+
+  # Aggregate gate that keeps the required "All Tests" status check name stable
+  # while the work fans out across the shard matrix above. `if: always()` plus
+  # the explicit result check is required: without it a failed/skipped shard
+  # would leave this job skipped, and GitHub counts a skipped required check as
+  # passing.
+  test:
+    name: All Tests
+    runs-on: ubuntu-latest
+    needs: [test-shards]
+    if: ${{ always() }}
+    steps:
+      - name: Verify all test shards succeeded
+        env:
+          RESULT: ${{ needs.test-shards.result }}
+        run: |
+          echo "Test shards result: $RESULT"
+          if [ "$RESULT" != "success" ]; then
+            echo "::error::One or more test shards did not succeed (got: $RESULT)"
+            exit 1
+          fi
+          echo "All test shards succeeded."
 
   # Drift gate for the committed SQLite reference schema dump. The Vitest
   # suite builds every test database from migrations/schema.sqlite.sql (via
