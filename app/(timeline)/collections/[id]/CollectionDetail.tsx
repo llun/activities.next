@@ -344,6 +344,7 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
           statuses={currentStatuses}
           currentActor={currentActor}
           showActions={Boolean(currentActor)}
+          showReadOnlyStats={!currentActor}
           isMediaUploadEnabled={isMediaUploadEnabled}
           postLineLimit={postLineLimit}
           onPostDeleted={removeStatus}
