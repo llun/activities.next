@@ -111,6 +111,7 @@ interface CollectionDetailProps {
   shareUrl: string | null
   currentTime: number
   currentActor?: ActorProfile
+  isMediaUploadEnabled?: boolean
   postLineLimit?: PostLineLimit
 }
 
@@ -128,6 +129,7 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
   shareUrl,
   currentTime,
   currentActor,
+  isMediaUploadEnabled,
   postLineLimit
 }) => {
   const initialProjection: Projection = isOwner ? 'owner' : 'public'
@@ -337,6 +339,7 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
           statuses={currentStatuses}
           currentActor={currentActor}
           showActions={Boolean(currentActor)}
+          isMediaUploadEnabled={isMediaUploadEnabled}
           postLineLimit={postLineLimit}
           onPostDeleted={removeStatus}
         />

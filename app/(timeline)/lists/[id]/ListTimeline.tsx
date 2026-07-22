@@ -22,6 +22,7 @@ interface ListTimelineProps {
   statuses: Status[]
   currentTime: number
   currentActor: ActorProfile
+  isMediaUploadEnabled?: boolean
   postLineLimit?: PostLineLimit
 }
 
@@ -37,6 +38,7 @@ export const ListTimeline: FC<ListTimelineProps> = ({
   statuses,
   currentTime,
   currentActor,
+  isMediaUploadEnabled,
   postLineLimit
 }) => {
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
@@ -126,6 +128,7 @@ export const ListTimeline: FC<ListTimelineProps> = ({
           statuses={currentStatuses}
           currentActor={currentActor}
           showActions
+          isMediaUploadEnabled={isMediaUploadEnabled}
           postLineLimit={postLineLimit}
           onPostDeleted={removeStatus}
         />

@@ -56,7 +56,7 @@ export const generateMetadata = async ({
 }
 
 const Page = async ({ params }: PageProps) => {
-  const { host } = getConfig()
+  const { host, mediaStorage } = getConfig()
   const database = getDatabase()
   if (!database) {
     throw new Error('Failed to load database')
@@ -164,6 +164,7 @@ const Page = async ({ params }: PageProps) => {
       shareUrl={shareUrl}
       currentTime={Date.now()}
       currentActor={viewer ? getActorProfile(viewer) : undefined}
+      isMediaUploadEnabled={Boolean(mediaStorage)}
       postLineLimit={settings?.postLineLimit}
     />
   )

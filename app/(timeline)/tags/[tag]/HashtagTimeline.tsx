@@ -20,6 +20,7 @@ interface HashtagTimelineProps {
   postCount: number
   currentTime: number
   currentActor?: ActorProfile
+  isMediaUploadEnabled?: boolean
   postLineLimit?: PostLineLimit
 }
 
@@ -31,6 +32,7 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
   postCount,
   currentTime,
   currentActor,
+  isMediaUploadEnabled,
   postLineLimit
 }) => {
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
@@ -115,6 +117,7 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
           statuses={currentStatuses}
           currentActor={currentActor}
           showActions={Boolean(currentActor)}
+          isMediaUploadEnabled={isMediaUploadEnabled}
           postLineLimit={postLineLimit}
           onPostDeleted={onPostDeleted}
         />

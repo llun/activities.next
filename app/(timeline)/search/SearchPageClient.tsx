@@ -35,6 +35,7 @@ interface SearchPageClientProps {
   host: string
   currentActor: ActorProfile
   currentTime: number
+  isMediaUploadEnabled?: boolean
   postLineLimit?: PostLineLimit
 }
 
@@ -258,6 +259,7 @@ export const SearchPageClient = ({
   host,
   currentActor,
   currentTime,
+  isMediaUploadEnabled,
   postLineLimit
 }: SearchPageClientProps) => {
   const router = useRouter()
@@ -453,6 +455,7 @@ export const SearchPageClient = ({
       statuses={statuses}
       currentActor={currentActor}
       showActions
+      isMediaUploadEnabled={isMediaUploadEnabled}
       postLineLimit={postLineLimit}
     />
   )

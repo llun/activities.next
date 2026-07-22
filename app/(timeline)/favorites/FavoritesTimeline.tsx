@@ -26,6 +26,7 @@ interface FavoritesTimelineProps {
   initialNextMaxFavouriteId?: string | null
   currentTime: number
   currentActor: ActorProfile
+  isMediaUploadEnabled?: boolean
   postLineLimit?: PostLineLimit
 }
 
@@ -35,6 +36,7 @@ export const FavoritesTimeline: FC<FavoritesTimelineProps> = ({
   initialNextMaxFavouriteId = null,
   currentTime,
   currentActor,
+  isMediaUploadEnabled,
   postLineLimit
 }) => {
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
@@ -127,6 +129,7 @@ export const FavoritesTimeline: FC<FavoritesTimelineProps> = ({
           statuses={currentStatuses}
           currentActor={currentActor}
           showActions
+          isMediaUploadEnabled={isMediaUploadEnabled}
           postLineLimit={postLineLimit}
           onPostDeleted={removeStatus}
           onLikeChanged={onLikeChanged}

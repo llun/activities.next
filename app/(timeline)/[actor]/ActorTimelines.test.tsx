@@ -21,7 +21,7 @@ vi.mock('@/lib/components/posts/posts', () => ({
     currentTime,
     showActions,
     showReadOnlyStats,
-    onReplyCreated,
+    onStatusCreated,
     onPostDeleted,
     onLikeChanged,
     onBookmarkChanged
@@ -30,7 +30,7 @@ vi.mock('@/lib/components/posts/posts', () => ({
     currentTime: number
     showActions?: boolean
     showReadOnlyStats?: boolean
-    onReplyCreated?: (status: Status, attachments: never[]) => void
+    onStatusCreated?: (status: Status) => void
     onPostDeleted?: (status: Status) => void
     onLikeChanged?: (status: Status, isLiked: boolean) => void
     onBookmarkChanged?: (status: Status, isBookmarked: boolean) => void
@@ -41,13 +41,12 @@ vi.mock('@/lib/components/posts/posts', () => ({
       <div data-testid="posts-read-only-stats">
         {String(Boolean(showReadOnlyStats))}
       </div>
-      {onReplyCreated && (
+      {onStatusCreated && (
         <button
           data-testid="trigger-reply-created"
           onClick={() =>
-            onReplyCreated(
-              createReplyStatus('https://local.example/statuses/new-reply'),
-              []
+            onStatusCreated(
+              createReplyStatus('https://local.example/statuses/new-reply')
             )
           }
         >

@@ -7,17 +7,14 @@ import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
-import {
-  EditableStatus,
-  Status,
-  StatusNote,
-  StatusPoll
-} from '@/lib/types/domain/status'
+import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
+import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
+import { InlineStatusComposer } from './inline-status-composer'
 import { Post } from './post'
-import { StatusReplyBox } from './status-reply-box'
+import { useInlineComposer } from './useInlineComposer'
 
 interface Props {
   host: string
@@ -40,10 +37,14 @@ interface Props {
   statuses: Status[]
   isMediaUploadEnabled?: boolean
   postLineLimit?: PostLineLimit
-  onReply?: (status: Status) => void
-  onReplyCreated?: (status: Status, attachments: Attachment[]) => void
-  onEdit?: (status: EditableStatus) => void
-  onQuote?: (status: Status) => void
+  /**
+   * A reply or quote composed inline produced a new status. Surfaces that own
+   * this feed can prepend it (e.g. the home timeline); others may ignore it.
+   * The shared composer closes itself either way, so this is data-sync only.
+   */
+  onStatusCreated?: (status: Status) => void
+  /** An inline edit updated a status already present in this feed. */
+  onPostUpdated?: (status: Status) => void
   onPostDeleted?: (status: Status) => void
   onBookmarkChanged?: (
     status: StatusNote | StatusPoll,
@@ -63,10 +64,8 @@ export const Posts: FC<Props> = ({
   statuses,
   isMediaUploadEnabled,
   postLineLimit,
-  onReply,
-  onReplyCreated,
-  onEdit,
-  onQuote,
+  onStatusCreated,
+  onPostUpdated,
   onPostDeleted,
   onBookmarkChanged,
   onLikeChanged
@@ -76,30 +75,11 @@ export const Posts: FC<Props> = ({
     medias: Attachment[]
     initialSelection: number
   } | null>(null)
-  const [replyingToStatusId, setReplyingToStatusId] = useState<string | null>(
-    null
-  )
+  // Reply/quote/edit share one inline composer owned here, so every surface
+  // that renders <Posts> offers the identical action set without re-wiring it.
+  const composer = useInlineComposer()
 
   if (statuses.length === 0) return null
-
-  const handleReply = (status: Status) => {
-    if (currentActor && onReplyCreated) {
-      // Use inline reply box
-      setReplyingToStatusId(status.id)
-    } else if (onReply) {
-      // Fall back to old behavior
-      onReply(status)
-    }
-  }
-
-  const handleReplyCreated = (status: Status, attachments: Attachment[]) => {
-    setReplyingToStatusId(null)
-    onReplyCreated?.(status, attachments)
-  }
-
-  const handleCancelReply = () => {
-    setReplyingToStatusId(null)
-  }
 
   const openStatus = (status: Status) => {
     void (async () => {
@@ -107,6 +87,11 @@ export const Posts: FC<Props> = ({
       if (detailPath) router.push(detailPath)
     })()
   }
+
+  // Authoring actions require a signed-in actor and an interactive feed. When
+  // either is missing (logged-out landing feed, admin read-only view) the
+  // action row is hidden anyway, so leaving the handlers off keeps it inert.
+  const canCompose = Boolean(currentActor) && showActions
 
   return (
     <>
@@ -120,48 +105,59 @@ export const Posts: FC<Props> = ({
           className
         )}
       >
-        {statuses.map((status) => (
-          <article
-            key={status.id}
-            className={cn(
-              'min-w-0 px-4 py-3',
-              // Match the framed box's corners so any child background can't
-              // bleed past the rounded edges now that overflow-hidden is gone.
-              framed && 'first:rounded-t-xl last:rounded-b-xl'
-            )}
-          >
-            <Post
-              host={host}
-              currentTime={currentTime}
-              currentActor={currentActor}
-              status={status}
-              showActions={showActions}
-              showReadOnlyStats={showReadOnlyStats}
-              editable={currentActor?.id === status.actorId}
-              collapsible
-              postLineLimit={postLineLimit}
-              onReply={handleReply}
-              onEdit={onEdit}
-              onQuote={onQuote}
-              onPostDeleted={onPostDeleted}
-              onBookmarkChanged={onBookmarkChanged}
-              onLikeChanged={onLikeChanged}
-              onOpenStatus={openStatus}
-              onShowAttachment={(allMedias, index) => {
-                setModalMedias({ medias: allMedias, initialSelection: index })
-              }}
-            />
-            {replyingToStatusId === status.id && currentActor && (
-              <StatusReplyBox
-                profile={currentActor}
-                replyStatus={status}
-                isMediaUploadEnabled={isMediaUploadEnabled}
-                onCancel={handleCancelReply}
-                onPostCreated={handleReplyCreated}
+        {statuses.map((status) => {
+          const actualStatus = getActualStatus(status)
+          const activeComposer =
+            currentActor && composer.active?.status.id === actualStatus.id
+              ? composer.active
+              : null
+          return (
+            <article
+              key={status.id}
+              className={cn(
+                'min-w-0 px-4 py-3',
+                // Match the framed box's corners so any child background can't
+                // bleed past the rounded edges now that overflow-hidden is gone.
+                framed && 'first:rounded-t-xl last:rounded-b-xl'
+              )}
+            >
+              <Post
+                host={host}
+                currentTime={currentTime}
+                currentActor={currentActor}
+                status={status}
+                showActions={showActions}
+                showReadOnlyStats={showReadOnlyStats}
+                editable={currentActor?.id === actualStatus.actorId}
+                collapsible
+                postLineLimit={postLineLimit}
+                onReply={canCompose ? composer.openReply : undefined}
+                onEdit={canCompose ? composer.openEdit : undefined}
+                onQuote={canCompose ? composer.openQuote : undefined}
+                onPostDeleted={onPostDeleted}
+                onBookmarkChanged={onBookmarkChanged}
+                onLikeChanged={onLikeChanged}
+                onOpenStatus={openStatus}
+                onShowAttachment={(allMedias, index) => {
+                  setModalMedias({ medias: allMedias, initialSelection: index })
+                }}
               />
-            )}
-          </article>
-        ))}
+              {activeComposer && currentActor ? (
+                <InlineStatusComposer
+                  key={`${activeComposer.mode}-${activeComposer.status.id}`}
+                  host={host}
+                  profile={currentActor}
+                  mode={activeComposer.mode}
+                  status={activeComposer.status}
+                  isMediaUploadEnabled={isMediaUploadEnabled}
+                  onCancel={composer.close}
+                  onCreated={onStatusCreated}
+                  onUpdated={onPostUpdated}
+                />
+              ) : null}
+            </article>
+          )
+        })}
       </section>
       <MediasModal
         medias={modalMedias?.medias ?? null}

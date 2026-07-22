@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 }
 
 const Page = async () => {
-  const { host } = getConfig()
+  const { host, mediaStorage } = getConfig()
   const database = getDatabase()
   if (!database) {
     throw new Error('Failed to load database')
@@ -44,6 +44,7 @@ const Page = async () => {
       initialNextMaxBookmarkId={nextMaxBookmarkId}
       currentTime={Date.now()}
       currentActor={getActorProfile(actor)}
+      isMediaUploadEnabled={Boolean(mediaStorage)}
       postLineLimit={settings?.postLineLimit}
     />
   )
