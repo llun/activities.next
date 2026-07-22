@@ -85,14 +85,23 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
       - name: Run all tests
-        run: yarn test
+        # Run the suite in two sequential shards. Each `vitest run` process
+        # handles ~half of the ~690 test files and releases ALL memory when it
+        # exits, so peak memory per process is roughly halved. The single-process
+        # run accumulated memory across files and crashed a worker fork with
+        # "JavaScript heap out of memory" (all tests still passed); raising the
+        # heap ceiling alone only delayed it — V8's GC grew lazier and the live
+        # set climbed to ~8 GB before thrashing. Sharding keeps the working set
+        # well under the ceiling. Both shards run in this one job, so the
+        # required "All Tests" status check is unchanged.
+        run: |
+          yarn test --shard=1/2
+          yarn test --shard=2/2
         env:
           TEST_DATABASE_TYPE: sqlite
-          # Raise the V8 heap ceiling for the Vitest workers. The full suite
-          # peaks just above Node's default ~4 GB old-space limit and
-          # intermittently crashed a worker fork with "JavaScript heap out of
-          # memory" (all tests still passed). ubuntu-latest has 16 GB RAM, so
-          # 8 GB per process is safe. Workers inherit NODE_OPTIONS from this env.
+          # Headroom ceiling for the Vitest fork workers (inherited via
+          # NODE_OPTIONS). ubuntu-latest has 16 GB RAM; with sharding each
+          # process stays well below this.
           NODE_OPTIONS: --max-old-space-size=8192
 
   # Drift gate for the committed SQLite reference schema dump. The Vitest
