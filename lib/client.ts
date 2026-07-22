@@ -2540,6 +2540,8 @@ export const updatePushNotifications = async (
 export interface PreferencesInput {
   // Posting defaults — saved through the standard Mastodon credential endpoint.
   visibility: 'public' | 'unlisted' | 'private' | 'direct'
+  // Default quote-approval policy for new public/unlisted posts (Mastodon 4.5).
+  quotePolicy: QuoteApprovalPolicy
   sensitive: boolean
   language: string
   // Reading preferences — saved through the web-internal endpoint.
@@ -2568,6 +2570,7 @@ export const updatePreferences = async (
     body: JSON.stringify({
       source: {
         privacy: preferences.visibility,
+        quote_policy: preferences.quotePolicy,
         sensitive: preferences.sensitive,
         language: preferences.language
       }
