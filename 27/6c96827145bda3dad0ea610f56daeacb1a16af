@@ -1,0 +1,19 @@
+lib/components/settings/PreferencesSettings.test.tsx
+  s_bf2e232e97d8f4::t_34b67674bdc487 59-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "276c96827145bda3dad0ea610f56daeacb1a16af",
+  "prompts": {},
+  "sessions": {
+    "s_bf2e232e97d8f4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "24075d36-a388-4449-ab85-620eb1b3a370",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
