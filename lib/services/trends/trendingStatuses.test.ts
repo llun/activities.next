@@ -264,6 +264,62 @@ describe('getTrendingStatuses', () => {
     })
   })
 
+  it('hydrates the viewer like/bookmark/boost flags only when currentActorId is passed', async () => {
+    await withFreshDatabase(async (database) => {
+      await createActor(database, FIRST_ACTOR_ID, 'first')
+      await createActor(database, SECOND_ACTOR_ID, 'second')
+
+      const now = Date.now()
+      const statusId = `${FIRST_ACTOR_ID}/statuses/interacted`
+      await createPublicNote(database, {
+        actorId: FIRST_ACTOR_ID,
+        id: statusId,
+        createdAt: now - 1000
+      })
+
+      // The viewer (SECOND_ACTOR) has liked, bookmarked, and boosted the post.
+      const boostId = `${SECOND_ACTOR_ID}/statuses/boost-interacted`
+      await database.createLike({ actorId: SECOND_ACTOR_ID, statusId })
+      await database.createBookmark({ actorId: SECOND_ACTOR_ID, statusId })
+      await database.createAnnounce({
+        id: boostId,
+        actorId: SECOND_ACTOR_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: statusId
+      })
+
+      // Without a viewer the flags stay off (the Mastodon serialization path
+      // derives them separately).
+      const [anonymous] = await getTrendingStatuses({
+        database,
+        limit: 10,
+        offset: 0
+      })
+      expect(anonymous).toMatchObject({
+        id: statusId,
+        isActorLiked: false,
+        isActorBookmarked: false,
+        actorAnnounceStatusId: null
+      })
+
+      // With the viewer the domain status carries their interaction state so the
+      // web UI's action buttons render the correct initial state.
+      const [forViewer] = await getTrendingStatuses({
+        database,
+        limit: 10,
+        offset: 0,
+        currentActorId: SECOND_ACTOR_ID
+      })
+      expect(forViewer).toMatchObject({
+        id: statusId,
+        isActorLiked: true,
+        isActorBookmarked: true,
+        actorAnnounceStatusId: boostId
+      })
+    })
+  })
+
   it('excludes liked statuses created outside the seven-day window', async () => {
     await withFreshDatabase(async (database) => {
       await createActor(database, FIRST_ACTOR_ID, 'first')

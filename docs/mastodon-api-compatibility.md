@@ -204,8 +204,10 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
 - **Fitness tracking** — `/api/v1/fitness/*` (general settings, `.fit`/`.gpx`/`.tcx`
   imports, Strava sync) plus per-account fitness summaries, calendars, activity
   types, and route heatmaps under `/api/v1/accounts/:id/fitness-*`.
-- **`?format=activities_next`** — timeline endpoints accept this query flag to
-  return the raw internal status JSON instead of the Mastodon status shape.
+- **`?format=activities_next`** — timeline endpoints and
+  `GET /api/v1/trends/statuses` accept this query flag to return the raw internal
+  status JSON instead of the Mastodon status shape (the web `/explore` Posts tab
+  uses it to render the interactive timeline post component).
 - **Presigned / direct-to-storage media** — `/api/v1/medias/presigned` (and the
   Strava archive presigned upload) provide an asynchronous upload path that
   offloads bytes directly to object storage.
