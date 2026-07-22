@@ -179,9 +179,13 @@ export const ActorTimelines: FC<Props> = ({
   )
 
   const handlePostUpdated = useCallback((updatedStatus: Status) => {
+    // Announce-aware (like handlePostDeleted): also refreshes a boost row whose
+    // original was the edited post. An edited status is always a note/poll.
     setCurrentStatuses((previousStatuses) =>
-      previousStatuses.map((status) =>
-        status.id === updatedStatus.id ? updatedStatus : status
+      updateMatchingStatus(
+        previousStatuses,
+        updatedStatus.id,
+        () => updatedStatus as StatusNote | StatusPoll
       )
     )
   }, [])

@@ -271,9 +271,11 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   feed, otherwise ignore), `onPostUpdated` (an edit — replace the status in
   place), `onPostDeleted`, `onLikeChanged`, `onBookmarkChanged`. These mutate the
   page's own `statuses` copy; they never decide which actions are shown.
-- **Read-only or logged-out surfaces** pass `showActions={false}` (plus
-  `showReadOnlyStats` for the landing feed). That is the _only_ sanctioned way to
-  reduce the action set — never omit callbacks to selectively hide an action.
+- **Read-only or logged-out surfaces** pass `showActions={false}` (optionally
+  with `showReadOnlyStats` to show non-interactive engagement counts instead — as
+  the logged-out landing feed and logged-out profile do). That is the _only_
+  sanctioned way to reduce the action set — never omit callbacks to selectively
+  hide an action.
 - The bespoke fitness activity detail (`FitnessStatusDetail`) and the
   notification snippet (`StatusNotification`) are intentionally separate
   presentations and are outside this contract; everything else goes through

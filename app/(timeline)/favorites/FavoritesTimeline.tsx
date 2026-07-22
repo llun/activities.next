@@ -61,8 +61,17 @@ export const FavoritesTimeline: FC<FavoritesTimelineProps> = ({
   }
 
   const updateStatus = (status: Status) => {
+    // Announce-aware (like removeStatus): also refreshes a boost row whose
+    // original was the edited post. An edited status is always a note/poll.
     setCurrentStatuses((previousStatuses) =>
-      previousStatuses.map((item) => (item.id === status.id ? status : item))
+      previousStatuses.map((item) => {
+        if (item.type === StatusType.enum.Announce) {
+          return item.originalStatus.id === status.id
+            ? { ...item, originalStatus: status as StatusNote | StatusPoll }
+            : item
+        }
+        return item.id === status.id ? status : item
+      })
     )
   }
 
