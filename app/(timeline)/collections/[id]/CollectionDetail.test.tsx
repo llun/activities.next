@@ -37,10 +37,26 @@ vi.mock('@/lib/components/page-header', () => ({
 }))
 
 // Render the status ids so tests can assert WHICH feed (owner vs public, and
-// appended pages) is on screen, not just the count.
+// appended pages) is on screen, not just the count. The showActions /
+// showReadOnlyStats flags are surfaced as data attributes (not child nodes) so
+// the `posts()` textContent helper keeps returning just the status ids.
 vi.mock('@/lib/components/posts/posts', () => ({
-  Posts: ({ statuses }: { statuses: Status[] }) => (
-    <div data-testid="posts">{statuses.map((s) => s.id).join(',')}</div>
+  Posts: ({
+    statuses,
+    showActions,
+    showReadOnlyStats
+  }: {
+    statuses: Status[]
+    showActions?: boolean
+    showReadOnlyStats?: boolean
+  }) => (
+    <div
+      data-testid="posts"
+      data-show-actions={String(Boolean(showActions))}
+      data-read-only-stats={String(Boolean(showReadOnlyStats))}
+    >
+      {statuses.map((s) => s.id).join(',')}
+    </div>
   )
 }))
 
@@ -245,5 +261,33 @@ describe('CollectionDetail', () => {
     // Public viewers see only the approved roster.
     expect(screen.getByText('Ben')).toBeInTheDocument()
     expect(screen.queryByText('Ada')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    {
+      description: 'shows read-only engagement stats for logged-out viewers',
+      currentActor: undefined,
+      showActions: 'false',
+      readOnlyStats: 'true'
+    },
+    {
+      description:
+        'enables interactive actions and hides read-only stats when signed in',
+      currentActor: {} as ActorProfile,
+      showActions: 'true',
+      readOnlyStats: 'false'
+    }
+  ])('$description', ({ currentActor, showActions, readOnlyStats }) => {
+    render(
+      <CollectionDetail
+        {...baseProps}
+        isOwner={false}
+        currentActor={currentActor}
+      />
+    )
+
+    const feed = screen.getByTestId('posts')
+    expect(feed).toHaveAttribute('data-show-actions', showActions)
+    expect(feed).toHaveAttribute('data-read-only-stats', readOnlyStats)
   })
 })
