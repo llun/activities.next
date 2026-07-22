@@ -58,19 +58,25 @@ const baseProps = {
 }
 
 describe('HashtagTimeline', () => {
-  it('shows read-only engagement stats for logged-out viewers', () => {
-    render(<HashtagTimeline {...baseProps} />)
+  it.each([
+    {
+      description: 'shows read-only engagement stats for logged-out viewers',
+      currentActor: undefined,
+      showActions: 'false',
+      readOnlyStats: 'true'
+    },
+    {
+      description:
+        'enables interactive actions and hides read-only stats when signed in',
+      currentActor: {} as ActorProfile,
+      showActions: 'true',
+      readOnlyStats: 'false'
+    }
+  ])('$description', ({ currentActor, showActions, readOnlyStats }) => {
+    render(<HashtagTimeline {...baseProps} currentActor={currentActor} />)
 
     const feed = screen.getByTestId('posts')
-    expect(feed).toHaveAttribute('data-show-actions', 'false')
-    expect(feed).toHaveAttribute('data-read-only-stats', 'true')
-  })
-
-  it('enables interactive actions and hides read-only stats when signed in', () => {
-    render(<HashtagTimeline {...baseProps} currentActor={{} as ActorProfile} />)
-
-    const feed = screen.getByTestId('posts')
-    expect(feed).toHaveAttribute('data-show-actions', 'true')
-    expect(feed).toHaveAttribute('data-read-only-stats', 'false')
+    expect(feed).toHaveAttribute('data-show-actions', showActions)
+    expect(feed).toHaveAttribute('data-read-only-stats', readOnlyStats)
   })
 })
