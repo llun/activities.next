@@ -1,0 +1,65 @@
+lib/components/posts/posts.test.tsx
+  s_8a67dc2bda9453::t_ed6bd88d940f02 164
+  s_8a67dc2bda9453::t_d0aa967a57e9c1 13,18-33
+  s_8a67dc2bda9453::t_c0f5c1b588887c 131-163,165-168
+  s_8a67dc2bda9453::t_7f427f6555feae 34
+lib/components/posts/inline-status-composer.tsx
+  s_8a67dc2bda9453::t_7675682a0f1b78 69
+  s_8a67dc2bda9453::t_528d52d66fb041 7
+app/(timeline)/lists/[id]/ListTimeline.tsx
+  s_8a67dc2bda9453::t_a767866b10314c 61-66
+  s_8a67dc2bda9453::t_4e110883e5c9a1 140
+lib/components/posts/inline-status-composer.test.tsx
+  s_8a67dc2bda9453::t_5694a12a2b447b 133-150
+app/(timeline)/[actor]/[status]/StatusBox.test.tsx
+  s_8a67dc2bda9453::t_f15f4d47354077 115-154
+app/(timeline)/favorites/FavoritesTimeline.tsx
+  s_8a67dc2bda9453::t_7832d6f6b2659b 63-68
+  s_8a67dc2bda9453::t_ae31beb9cf15e4 141
+app/(timeline)/[actor]/[status]/StatusBox.tsx
+  s_8a67dc2bda9453::t_70d27b8672468f 137,139
+  s_8a67dc2bda9453::t_6fedb5e80a6d61 111,115-116,120-121,125
+  s_8a67dc2bda9453::t_ed6bd88d940f02 112-114,117-119,122-124
+app/(timeline)/search/SearchPageClient.tsx
+  s_8a67dc2bda9453::t_8403e383c67327 450-457,468
+AGENTS.md
+  s_8a67dc2bda9453::t_220e0e0b644a07 257-261
+lib/components/posts/posts.tsx
+  s_8a67dc2bda9453::t_ab97105fc67bda 137-151
+  s_8a67dc2bda9453::t_4fb8a7284970c6 162
+  s_8a67dc2bda9453::t_5c50771b1de860 110-112,114
+app/(timeline)/[actor]/ActorTimelines.test.tsx
+  s_8a67dc2bda9453::t_b8a4ddf170ed54 575-599
+  s_8a67dc2bda9453::t_e17cc872ab5232 25,35
+  s_8a67dc2bda9453::t_57bb10c3fa5e63 94-99
+lib/components/posts/useInlineComposer.test.ts
+  s_8a67dc2bda9453::t_b8f8e54613be18 28-30,33-48,54-55,59,65
+app/(timeline)/tags/[tag]/HashtagTimeline.tsx
+  s_8a67dc2bda9453::t_c72da75ccb820b 129
+  s_8a67dc2bda9453::t_c9a882394e6ecb 64-69
+lib/components/posts/useInlineComposer.ts
+  s_8a67dc2bda9453::t_2d8373c22ace0f 15-19,28-30,39-41,48,55,62-63
+  s_8a67dc2bda9453::t_ed6bd88d940f02 49-53,56-60
+app/(timeline)/bookmarks/BookmarksTimeline.tsx
+  s_8a67dc2bda9453::t_56f9fa8b4c71d4 150
+  s_8a67dc2bda9453::t_1b4615ff651fb8 57-62
+app/(timeline)/collections/[id]/CollectionDetail.tsx
+  s_8a67dc2bda9453::t_7c76181d44687e 350
+  s_8a67dc2bda9453::t_c67466f30f8810 197-201
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "b37bbbdfd40ba9d517f3c9f4b6976c1226a071e0",
+  "prompts": {},
+  "sessions": {
+    "s_8a67dc2bda9453": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f81f9d62-9669-458c-bae0-82874d67cb44",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
