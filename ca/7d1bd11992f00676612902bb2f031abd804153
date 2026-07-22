@@ -1,0 +1,80 @@
+lib/services/fitness-files/backfillMovingTime.test.ts
+  s_753af14a775aed::t_467d625657e666 1-106
+migrations/schema.sqlite.sql
+  s_753af14a775aed::t_3d633af8e14fdc 59
+lib/utils/fitness.test.ts
+  s_753af14a775aed::t_25eeb643a2d709 115-158
+lib/database/sql/fitnessFile.ts
+  s_753af14a775aed::t_15ac8955d0ff77 38
+  s_753af14a775aed::t_536502963f8bd5 364
+  s_753af14a775aed::t_9c286c7416878e 795-798,800-805
+  s_753af14a775aed::t_e519eb7b9963a8 318
+lib/services/fitness-files/parseFitnessFile.ts
+  s_753af14a775aed::t_a9ded625ff753b 347-351,451-453
+  s_753af14a775aed::t_14e58aecb6b5fe 286-346,352-360
+  s_753af14a775aed::t_76e0471ec27ac1 27
+  s_753af14a775aed::t_8890ffc27ee241 418-419
+  s_753af14a775aed::t_df3acdb264dc0d 445-450,454-455
+lib/jobs/processFitnessFileJob.ts
+  s_753af14a775aed::t_e16f61cde6d14f 154
+scripts/fitness/backfillFitnessMovingTime.ts
+  s_753af14a775aed::t_e44dc03d467e15 1-188
+docs/fitness-file-storage.md
+  s_753af14a775aed::t_8fda99a08bb22b 52
+  s_753af14a775aed::t_7214edc1cb836d 131
+docs/maintenance.md
+  s_753af14a775aed::t_5506a8e53ffe9a 153-154
+  s_753af14a775aed::t_a9b0b9a92b01b4 145
+lib/jobs/importFitnessFilesJob.ts
+  s_753af14a775aed::t_fa1061b3bc570f 328
+lib/types/database/fitnessFile.ts
+  s_753af14a775aed::t_4371e13ac0838c 33
+  s_753af14a775aed::t_552080bb31ea28 69
+lib/components/posts/post.tsx
+  s_753af14a775aed::t_b12f1456c154bb 139
+lib/utils/fitness.ts
+  s_753af14a775aed::t_2fa904908bb5d0 64,69,84-93,102,114
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_753af14a775aed::t_2b938a62aafe52 1411
+  s_753af14a775aed::t_e75238ac5f2e6f 1293
+  s_753af14a775aed::t_cbd81cbec311a4 1272
+lib/types/domain/status.ts
+  s_753af14a775aed::t_616f619ef3081b 49
+scripts/fitness/backfillFitnessMovingTime.test.ts
+  s_753af14a775aed::t_37580ce96941d7 1-22,28-35
+  s_753af14a775aed::t_a9ded625ff753b 23-27
+lib/database/sql/status.ts
+  s_753af14a775aed::t_aa230af38f306b 2972-2974
+lib/services/fitness-files/parseFitnessFile.test.ts
+  s_753af14a775aed::t_190473e45edb7d 104-154
+lib/database/sql/fitnessFile.test.ts
+  s_753af14a775aed::t_8532e8c547d26d 347-376
+lib/services/fitness-files/backfillMovingTime.ts
+  s_753af14a775aed::t_11f5dae1c3cd3b 1-91
+migrations/20260722000000_add_fitness_file_moving_time.js
+  s_753af14a775aed::t_1196fbaa9b4f6a 1-7,12-19
+  s_753af14a775aed::t_7e4fedc9f61b0f 8-11
+migrations/schema.sql
+  s_753af14a775aed::t_96ca6e98a4960d 413
+  s_753af14a775aed::t_724cf227c52073 414
+lib/client.ts
+  s_753af14a775aed::t_385d512c00ca27 2190
+app/api/v1/fitness-files/by-status/route.ts
+  s_753af14a775aed::t_209b0510567746 126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "ca7d1bd11992f00676612902bb2f031abd804153",
+  "prompts": {},
+  "sessions": {
+    "s_753af14a775aed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "15d67399-4bd4-45bb-85d1-d66e572811e1",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
