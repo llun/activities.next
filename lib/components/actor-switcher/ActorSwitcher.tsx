@@ -91,38 +91,68 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
     window.location.reload()
   }
 
+  const hasMultipleActors = actors.length > 1
+  const profileHref = `/@${currentActor.username}@${currentActor.domain}`
+  const displayName = currentActor.name || currentActor.username
+
+  const avatar = (
+    <Avatar className="h-10 w-10 shrink-0">
+      {currentActor.iconUrl && <AvatarImage src={currentActor.iconUrl} />}
+      <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+        {getAvatarInitial(currentActor.username)}
+      </AvatarFallback>
+    </Avatar>
+  )
+
+  const identity = (
+    <div className="flex-1 overflow-hidden">
+      <p className="text-sm font-medium truncate">{displayName}</p>
+      <p className="text-xs text-muted-foreground truncate">
+        {getHandle(currentActor)}
+      </p>
+    </div>
+  )
+
+  // With a single actor there is nothing to switch to, so the whole row is just
+  // a link to the profile: no dropdown and no chevron. (Adding another actor
+  // remains available under Settings → Actors.)
+  if (!hasMultipleActors) {
+    return (
+      <Link
+        href={profileHref}
+        className="flex items-center gap-3 rounded-lg p-2 cursor-pointer hover:bg-muted transition-colors w-full overflow-hidden"
+      >
+        {avatar}
+        {identity}
+      </Link>
+    )
+  }
+
+  // With multiple actors the icon links to the profile while the name, handle,
+  // and chevron open the actor list. The avatar link is a sibling of the
+  // dropdown trigger (not nested inside it) so clicking the icon navigates
+  // instead of opening the menu.
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <div className="flex items-center gap-3 rounded-lg p-2 cursor-pointer hover:bg-muted transition-colors w-full">
-            <Link
-              href={`/@${currentActor.username}@${currentActor.domain}`}
-              className="flex items-center gap-3 flex-1 overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
+        <div className="flex items-center gap-3 rounded-lg p-2 hover:bg-muted transition-colors w-full">
+          <Link
+            href={profileHref}
+            aria-label={`View ${displayName}'s profile`}
+            className="shrink-0 rounded-full cursor-pointer"
+          >
+            {avatar}
+          </Link>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex flex-1 items-center gap-3 overflow-hidden text-left cursor-pointer"
             >
-              <Avatar className="h-10 w-10">
-                {currentActor.iconUrl && (
-                  <AvatarImage src={currentActor.iconUrl} />
-                )}
-                <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                  {getAvatarInitial(currentActor.username)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 overflow-hidden">
-                <p className="text-sm font-medium truncate">
-                  {currentActor.name || currentActor.username}
-                </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {getHandle(currentActor)}
-                </p>
-              </div>
-            </Link>
-            {actors.length > 1 && (
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            )}
-          </div>
-        </DropdownMenuTrigger>
+              {identity}
+              <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+            </button>
+          </DropdownMenuTrigger>
+        </div>
         <DropdownMenuContent align="start" className="w-[280px]">
           {actors.map((actor) => {
             const isPendingDeletion = actor.deletionStatus === 'scheduled'
