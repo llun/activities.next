@@ -20,6 +20,7 @@ interface HashtagTimelineProps {
   postCount: number
   currentTime: number
   currentActor?: ActorProfile
+  isMediaUploadEnabled?: boolean
   postLineLimit?: PostLineLimit
 }
 
@@ -31,6 +32,7 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
   postCount,
   currentTime,
   currentActor,
+  isMediaUploadEnabled,
   postLineLimit
 }) => {
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
@@ -57,6 +59,12 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
     setCurrentStatuses(newStatuses)
     lastStatusIdRef.current =
       newStatuses.length > 0 ? newStatuses[newStatuses.length - 1].id : null
+  }
+
+  const updateStatus = (status: Status) => {
+    setCurrentStatuses((previousStatuses) =>
+      previousStatuses.map((item) => (item.id === status.id ? status : item))
+    )
   }
 
   const loadMoreStatuses = useCallback(async () => {
@@ -115,8 +123,10 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
           statuses={currentStatuses}
           currentActor={currentActor}
           showActions={Boolean(currentActor)}
+          isMediaUploadEnabled={isMediaUploadEnabled}
           postLineLimit={postLineLimit}
           onPostDeleted={onPostDeleted}
+          onPostUpdated={updateStatus}
         />
       ) : (
         <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">

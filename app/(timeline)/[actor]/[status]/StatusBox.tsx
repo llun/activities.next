@@ -4,8 +4,9 @@ import { useRouter } from 'next/navigation'
 import { FC, useState } from 'react'
 
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
+import { InlineStatusComposer } from '@/lib/components/posts/inline-status-composer'
 import { Post } from '@/lib/components/posts/post'
-import { StatusReplyBox } from '@/lib/components/posts/status-reply-box'
+import { useInlineComposer } from '@/lib/components/posts/useInlineComposer'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import {
@@ -49,7 +50,9 @@ export const StatusBox: FC<Props> = ({
     medias: Attachment[]
     initialSelection: number
   } | null>(null)
-  const [replyTarget, setReplyTarget] = useState<Status | null>(null)
+  // Reply/quote/edit share the same inline composer used by every feed so the
+  // status detail page offers the identical action set.
+  const composer = useInlineComposer()
   const actualStatus =
     status.type === StatusType.enum.Announce
       ? getOriginalStatus(status)
@@ -90,6 +93,10 @@ export const StatusBox: FC<Props> = ({
     })()
   }
 
+  // Authoring actions only apply to the primary (detail) post and a signed-in
+  // viewer; comment rows stay read-only.
+  const canCompose = variant === 'detail' && Boolean(currentActor)
+
   return (
     <>
       <article className="p-4 transition-colors">
@@ -99,10 +106,21 @@ export const StatusBox: FC<Props> = ({
           currentTime={currentTime}
           status={status}
           showActions={variant === 'detail'}
+          editable={canCompose && currentActor?.id === actualStatus.actorId}
           collapsible={variant === 'comment'}
           onReply={
-            variant === 'detail' && currentActor
-              ? (s) => setReplyTarget(s)
+            canCompose
+              ? (target) => composer.openReply(target, status.id)
+              : undefined
+          }
+          onEdit={
+            canCompose
+              ? (target) => composer.openEdit(target, status.id)
+              : undefined
+          }
+          onQuote={
+            canCompose
+              ? (target) => composer.openQuote(target, status.id)
               : undefined
           }
           onOpenStatus={variant === 'comment' ? openStatus : undefined}
@@ -116,18 +134,19 @@ export const StatusBox: FC<Props> = ({
             totalLikes={actualStatus.totalLikes}
           />
         )}
-        {replyTarget !== null && currentActor && (
-          <StatusReplyBox
+        {composer.active?.anchorId === status.id && currentActor ? (
+          <InlineStatusComposer
+            key={`${composer.active.mode}-${composer.active.anchorId}`}
+            host={host}
             profile={currentActor}
-            replyStatus={replyTarget}
+            mode={composer.active.mode}
+            status={composer.active.status}
             isMediaUploadEnabled={isMediaUploadEnabled}
-            onCancel={() => setReplyTarget(null)}
-            onPostCreated={() => {
-              setReplyTarget(null)
-              router.refresh()
-            }}
+            onCancel={composer.close}
+            onCreated={() => router.refresh()}
+            onUpdated={() => router.refresh()}
           />
-        )}
+        ) : null}
       </article>
       <MediasModal
         medias={modalMedias?.medias ?? null}

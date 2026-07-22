@@ -237,6 +237,50 @@ section-navigation patterns; pick by section type.
 - A dozen legacy components still call `fetch()` directly (the `Change*Form`s under `app/(timeline)/account/`, `StravaSettingsForm`, the OAuth/password-reset forms, and several `lib/components` settings/actor-switcher dialogs). They are frozen in an exception list in `eslint.config.mjs`; the lint rule blocks any new offender. Migrate them to `lib/client.ts` when touched and remove them from the list — never add to it.
 - The corresponding API route should return JSON via `apiResponse()`, not `Response.redirect()`.
 
+## Status Posts & Actions
+
+Every surface that renders a status post — the home timeline, profiles, lists,
+favourites, bookmarks, hashtags, collections, search, and the status **detail**
+page — MUST render it through the shared `Posts`/`Post` components in
+`lib/components/posts`. Do **not** build a bespoke post row or a page-specific
+action row: a post offers the **same action set everywhere**, and that
+consistency is enforced by keeping the wiring in one place rather than per page.
+
+- **The action set is owned by `Posts`, not by pages.** `Posts` renders the full
+  action row (reply, boost, like, bookmark) plus the `⋯` menu (quote, edit-own,
+  change visibility / who-can-quote, delete-own; mute / block / report for other
+  actors; copy link; open original) and wires reply/quote/edit itself. A page
+  must **not** pass per-status action callbacks (`onReply`, `onQuote`, `onEdit`)
+  and must **not** hide individual actions — that per-page drift is exactly what
+  this consolidation removed (profiles used to lack Quote/Edit; six feeds had a
+  dead Reply button). To turn actions on, a signed-in page passes `currentActor`
+  and `showActions`; that is the whole switch. (The lone exception is the status
+  **detail** surface, `StatusBox`, which renders a single `<Post>` directly
+  instead of through `Posts`; it drives the same shared `useInlineComposer` /
+  `InlineStatusComposer` internally — that is the shared layer doing the wiring,
+  not a page opting into per-status callbacks.)
+- **Reply, quote, and edit open one shared inline composer** rendered beneath the
+  post — `InlineStatusComposer`, driven by the `useInlineComposer` hook. Reply
+  uses the compact `StatusReplyBox`; quote and edit use `PostBox` in the matching
+  mode. Never re-implement a composer per page and never route quote/edit through
+  a separate top-of-page box. Pass `isMediaUploadEnabled` (from
+  `Boolean(mediaStorage)` in the server page's `getConfig()`) so the composer can
+  attach media on every surface, not just the home timeline.
+- **Pages supply only optional data-sync callbacks** for their own feed state:
+  `onStatusCreated` (a reply/quote was created — prepend it if it belongs in this
+  feed, otherwise ignore), `onPostUpdated` (an edit — replace the status in
+  place), `onPostDeleted`, `onLikeChanged`, `onBookmarkChanged`. These mutate the
+  page's own `statuses` copy; they never decide which actions are shown.
+- **Read-only or logged-out surfaces** pass `showActions={false}` (optionally
+  with `showReadOnlyStats` to show non-interactive engagement counts instead — as
+  the logged-out landing feed and logged-out profile do). That is the _only_
+  sanctioned way to reduce the action set — never omit callbacks to selectively
+  hide an action.
+- The bespoke fitness activity detail (`FitnessStatusDetail`) and the
+  notification snippet (`StatusNotification`) are intentionally separate
+  presentations and are outside this contract; everything else goes through
+  `Posts`/`Post`.
+
 ## Better-auth Plugin Guidelines
 
 - **Do not register a better-auth plugin unless its required database tables exist** in the Knex migrations. The custom `knexAdapter` does not auto-create tables; missing tables will cause runtime errors.
@@ -413,9 +457,10 @@ each ends with the Definition of Done gate.
 1. Create `app/(timeline)/<name>/page.tsx`; render `<PageHeader title="…" />` and inherit the unified `max-w-content` width — no per-page width classes (see **Page Header & Sub-Navigation**).
 2. Settings-style sections use the shared `SectionNavDropdown` on every breakpoint; never a vertical nav rail or in-header tabs.
 3. Pass timestamps as `Date.now()` numbers from Server Components; Client Components accept `currentTime: number` and never call `Date.now()`/`new Date()` during render (see **Date Serialization**).
-4. All client-side data calls go through named functions in `lib/client.ts` (lint-enforced).
-5. Add component tests (`/** @vitest-environment jsdom */` docblock) and verify the page in a real browser (see **Local Manual / Browser Testing**); include screenshots in the PR.
-6. Run the Definition of Done gate.
+4. If the page shows status posts, render them through the shared `Posts`/`Post` components and turn actions on with `currentActor` + `showActions` — never a bespoke post/action row or per-status action callbacks (see **Status Posts & Actions**).
+5. All client-side data calls go through named functions in `lib/client.ts` (lint-enforced).
+6. Add component tests (`/** @vitest-environment jsdom */` docblock) and verify the page in a real browser (see **Local Manual / Browser Testing**); include screenshots in the PR.
+7. Run the Definition of Done gate.
 
 ## Documentation Maintenance
 

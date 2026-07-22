@@ -1,7 +1,7 @@
 'use client'
 
 import { RefreshCw } from 'lucide-react'
-import { FC, useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 
 import { getTimeline } from '@/lib/client'
 import { AnnouncementBanner } from '@/lib/components/announcements/AnnouncementBanner'
@@ -13,15 +13,8 @@ import { Button } from '@/lib/components/ui/button'
 import { Timeline } from '@/lib/services/timelines/types'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
-import { EditableStatus, Status } from '@/lib/types/domain/status'
+import { Status } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
-
-import {
-  clearAction,
-  editAction,
-  quoteAction,
-  statusActionReducer
-} from './reducer'
 
 interface MainPageTimelineProps {
   host: string
@@ -42,10 +35,6 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   initialNextMaxStatusId = null,
   postLineLimit
 }) => {
-  const [statusActionState, dispatchStatusAction] = useReducer(
-    statusActionReducer,
-    {}
-  )
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
   const [hasMoreStatuses, setHasMoreStatuses] = useState<boolean>(
     statuses.length > 0 || Boolean(initialNextMaxStatusId)
@@ -60,18 +49,18 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       (statuses.length > 0 ? statuses[statuses.length - 1].id : null)
   )
 
-  const onEdit = (status: EditableStatus) => {
-    dispatchStatusAction(editAction(status))
-    window.scrollTo({ top: 0 })
-  }
-
-  const onQuote = (status: Status) => {
-    dispatchStatusAction(quoteAction(status))
-    window.scrollTo({ top: 0 })
-  }
-
-  const onReplyCreated = (status: Status) => {
+  // A new post composed in the top box, or a reply/quote created inline from a
+  // feed row, is prepended so it appears immediately.
+  const onStatusCreated = (status: Status) => {
     setCurrentStatuses((previousValue) => [status, ...previousValue])
+  }
+
+  const onPostUpdated = (updatedStatus: Status) => {
+    setCurrentStatuses((previousStatuses) =>
+      previousStatuses.map((status) =>
+        status.id === updatedStatus.id ? updatedStatus : status
+      )
+    )
   }
 
   const onPostDeleted = (status: Status) => {
@@ -201,28 +190,18 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       />
 
       <section className="rounded-xl border bg-card p-4 shadow-sm">
+        {/* The home timeline keeps a top composer for brand-new posts. Reply,
+            quote, and edit happen inline in the feed via the shared composer,
+            like every other surface. */}
         <PostBox
           host={host}
           profile={profile}
-          replyStatus={statusActionState.replyStatus}
-          editStatus={statusActionState.editStatus}
-          quotedStatus={statusActionState.quoteStatus}
           isMediaUploadEnabled={isMediaUploadEnabled}
-          onDiscardReply={() => dispatchStatusAction(clearAction())}
-          onDiscardQuote={() => dispatchStatusAction(clearAction())}
-          onDiscardEdit={() => dispatchStatusAction(clearAction())}
-          onPostCreated={(status: Status) => {
-            setCurrentStatuses((previousValue) => [status, ...previousValue])
-            dispatchStatusAction(clearAction())
-          }}
-          onPostUpdated={(updatedStatus: Status) => {
-            setCurrentStatuses((previousStatuses) =>
-              previousStatuses.map((status) =>
-                status.id === updatedStatus.id ? updatedStatus : status
-              )
-            )
-            dispatchStatusAction(clearAction())
-          }}
+          onDiscardReply={() => {}}
+          onDiscardQuote={() => {}}
+          onDiscardEdit={() => {}}
+          onPostCreated={onStatusCreated}
+          onPostUpdated={onPostUpdated}
         />
       </section>
 
@@ -236,9 +215,8 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
             showActions
             isMediaUploadEnabled={isMediaUploadEnabled}
             postLineLimit={postLineLimit}
-            onReplyCreated={onReplyCreated}
-            onEdit={onEdit}
-            onQuote={onQuote}
+            onStatusCreated={onStatusCreated}
+            onPostUpdated={onPostUpdated}
             onPostDeleted={onPostDeleted}
           />
         ) : isLoadingMoreStatuses || isRefreshing ? (
