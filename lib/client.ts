@@ -12,9 +12,11 @@ import {
 } from '@/lib/types/domain/attachment'
 import type { AdminCustomEmoji } from '@/lib/types/domain/customEmoji'
 import type { FilterAction, FilterContext } from '@/lib/types/domain/filter'
-import { Status } from '@/lib/types/domain/status'
+import { QuoteApprovalPolicy, Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
+import type { AdminAccount } from '@/lib/types/mastodon/admin/account'
+import type { AdminReport } from '@/lib/types/mastodon/admin/report'
 import type { Announcement } from '@/lib/types/mastodon/announcement'
 import type { CollectionEntity } from '@/lib/types/mastodon/collection'
 import type { CustomEmoji } from '@/lib/types/mastodon/customEmoji'
@@ -37,6 +39,8 @@ export interface CreateNoteParams {
   message: string
   contentWarning?: string
   replyStatus?: Status
+  quotedStatus?: Status
+  quoteApprovalPolicy?: QuoteApprovalPolicy
   attachments?: PostBoxAttachment[]
   fitnessFileId?: string
   visibility?: MastodonVisibility
@@ -45,6 +49,8 @@ export const createNote = async ({
   message,
   contentWarning,
   replyStatus,
+  quotedStatus,
+  quoteApprovalPolicy,
   attachments = [],
   fitnessFileId,
   visibility
@@ -69,6 +75,8 @@ export const createNote = async ({
       contentWarning,
       attachments,
       fitnessFileId,
+      quotedStatusId: quotedStatus?.id,
+      quoteApprovalPolicy,
       visibility
     })
   })
@@ -826,6 +834,130 @@ export const getBlocks = async ({
   }
 }
 
+// Reads a specific cursor query param from a rel in the Link header. The quotes
+// endpoint paginates with max_id (next) / since_id (prev) rather than min_id.
+const getLinkCursor = (
+  linkHeader: string | null,
+  rel: string,
+  param: string
+) => {
+  if (!linkHeader) return null
+  const link = linkHeader
+    .split(',')
+    .map((item) => item.trim())
+    .find((item) => item.endsWith(`rel="${rel}"`))
+  const url = link?.match(/<([^>]+)>/)?.[1]
+  if (!url) return null
+  return new URL(url).searchParams.get(param)
+}
+
+export interface GetStatusQuotesParams {
+  statusId: string
+  limit?: number
+  maxId?: string
+  sinceId?: string
+}
+export interface GetStatusQuotesResult {
+  statuses: MastodonStatus[]
+  nextMaxId: string | null
+  prevSinceId: string | null
+}
+export const getStatusQuotes = async ({
+  statusId,
+  limit,
+  maxId,
+  sinceId
+}: GetStatusQuotesParams): Promise<GetStatusQuotesResult> => {
+  const url = new URL(
+    `${window.origin}/api/v1/statuses/${urlToId(statusId)}/quotes`
+  )
+  if (limit) url.searchParams.set('limit', `${limit}`)
+  if (maxId) url.searchParams.set('max_id', maxId)
+  if (sinceId) url.searchParams.set('since_id', sinceId)
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  })
+  if (response.status !== 200) {
+    return { statuses: [], nextMaxId: null, prevSinceId: null }
+  }
+
+  const linkHeader = response.headers.get('Link')
+  return {
+    statuses: (await response.json()) as MastodonStatus[],
+    nextMaxId: getLinkCursor(linkHeader, 'next', 'max_id'),
+    prevSinceId: getLinkCursor(linkHeader, 'prev', 'since_id')
+  }
+}
+
+// Fetch a single status by id (Mastodon shape). Returns null when the status is
+// not found OR not readable by the caller (the route 404s in both cases), so a
+// quote card never renders content the viewer isn't allowed to see.
+export const getStatusById = async (
+  statusId: string
+): Promise<MastodonStatus | null> => {
+  const response = await fetch(`/api/v1/statuses/${urlToId(statusId)}`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  })
+  if (response.status !== 200) return null
+  return (await response.json()) as MastodonStatus
+}
+
+export const revokeStatusQuote = async ({
+  quotedStatusId,
+  quotingStatusId
+}: {
+  quotedStatusId: string
+  quotingStatusId: string
+}): Promise<MastodonStatus | null> => {
+  const response = await fetch(
+    `/api/v1/statuses/${urlToId(quotedStatusId)}/quotes/${urlToId(quotingStatusId)}/revoke`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' } }
+  )
+  if (response.status !== 200) return null
+  return (await response.json()) as MastodonStatus
+}
+
+export const updateStatusInteractionPolicy = async ({
+  statusId,
+  quoteApprovalPolicy
+}: {
+  statusId: string
+  quoteApprovalPolicy: QuoteApprovalPolicy
+}): Promise<MastodonStatus | null> => {
+  const response = await fetch(
+    `/api/v1/statuses/${urlToId(statusId)}/interaction_policy`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quote_approval_policy: quoteApprovalPolicy })
+    }
+  )
+  if (response.status !== 200) return null
+  return (await response.json()) as MastodonStatus
+}
+
+// The default quote-approval policy for new statuses (Mastodon 4.5
+// posting:default:quote_policy). Falls back to 'public' on any failure.
+export const getDefaultQuotePolicy = async (): Promise<QuoteApprovalPolicy> => {
+  try {
+    const response = await fetch('/api/v1/preferences', {
+      method: 'GET',
+      headers: { Accept: 'application/json' }
+    })
+    if (response.status !== 200) return 'public'
+    const preferences = (await response.json()) as Record<string, unknown>
+    const policy = preferences['posting:default:quote_policy']
+    return QuoteApprovalPolicy.safeParse(policy).success
+      ? (policy as QuoteApprovalPolicy)
+      : 'public'
+  } catch {
+    return 'public'
+  }
+}
+
 interface MuteParams {
   targetActorId: string
   notifications?: boolean
@@ -1283,9 +1415,27 @@ const getTrends = async <T>(
 export const getTrendingTags = (limit?: number): Promise<Tag[]> =>
   getTrends<Tag[]>('tags', limit)
 
-export const getTrendingStatuses = (
+// The /explore Posts tab renders trending statuses with the interactive timeline
+// post component, which consumes the app's domain Status shape — so this asks the
+// endpoint for `format=activities_next` (like the search client) rather than the
+// default Mastodon serialization.
+export const getTrendingStatuses = async (
   limit?: number
-): Promise<MastodonStatus[]> => getTrends<MastodonStatus[]>('statuses', limit)
+): Promise<Status[]> => {
+  const params = new URLSearchParams({ format: 'activities_next' })
+  if (typeof limit === 'number') params.set('limit', `${limit}`)
+  const response = await fetch(`/api/v1/trends/statuses?${params.toString()}`, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (!response.ok) {
+    throw new Error(`Failed to load trending statuses: ${response.status}`)
+  }
+  const data = await response.json()
+  return Array.isArray(data) ? (data as Status[]) : []
+}
 
 export const getTrendingLinks = (limit?: number): Promise<PreviewCard[]> =>
   getTrends<PreviewCard[]>('links', limit)
@@ -3960,3 +4110,172 @@ export const getPasskeys = async (): Promise<Passkey[]> => {
   const data = await response.json()
   return Array.isArray(data) ? data : []
 }
+
+// ============================================================================
+// Admin moderation — accounts (Admin::Account) and reports (Admin::Report).
+// All calls go through the same-origin cookie session (AdminApiGuard).
+// ============================================================================
+
+export interface AdminAccountFilters {
+  origin?: 'local' | 'remote'
+  status?: 'active' | 'pending' | 'disabled' | 'silenced' | 'suspended'
+  username?: string
+  byDomain?: string
+}
+
+export const getAdminAccounts = async (
+  filters: AdminAccountFilters = {}
+): Promise<AdminAccount[]> => {
+  const params = new URLSearchParams()
+  if (filters.origin) params.set('origin', filters.origin)
+  if (filters.status) params.set('status', filters.status)
+  if (filters.username) params.set('username', filters.username)
+  if (filters.byDomain) params.set('by_domain', filters.byDomain)
+  const query = params.toString()
+  const response = await fetch(
+    `/api/v2/admin/accounts${query ? `?${query}` : ''}`,
+    { headers: { Accept: 'application/json' }, credentials: 'include' }
+  )
+  if (!response.ok) throw new Error('Failed to load admin accounts')
+  return (await response.json()) as AdminAccount[]
+}
+
+export const getAdminAccount = async (id: string): Promise<AdminAccount> => {
+  const response = await fetch(`/api/v1/admin/accounts/${id}`, {
+    headers: { Accept: 'application/json' },
+    credentials: 'include'
+  })
+  if (!response.ok) throw new Error('Failed to load admin account')
+  return (await response.json()) as AdminAccount
+}
+
+export type AdminAccountActionType =
+  'none' | 'disable' | 'sensitive' | 'silence' | 'suspend'
+
+export const performAdminAccountAction = async ({
+  id,
+  type,
+  reportId,
+  text
+}: {
+  id: string
+  type: AdminAccountActionType
+  reportId?: string
+  text?: string
+}): Promise<void> => {
+  const response = await fetch(`/api/v1/admin/accounts/${id}/action`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      type,
+      ...(reportId ? { report_id: reportId } : {}),
+      ...(text ? { text } : {})
+    })
+  })
+  if (!response.ok) {
+    const error = await response.json().catch(() => null)
+    throw new Error(error?.error ?? 'Failed to perform account action')
+  }
+}
+
+const adminAccountStateChange =
+  (action: string) =>
+  async (id: string): Promise<AdminAccount> => {
+    const response = await fetch(`/api/v1/admin/accounts/${id}/${action}`, {
+      method: 'POST',
+      credentials: 'include'
+    })
+    if (!response.ok) {
+      const error = await response.json().catch(() => null)
+      throw new Error(error?.error ?? `Failed to ${action} account`)
+    }
+    return (await response.json()) as AdminAccount
+  }
+
+export const adminEnableAccount = adminAccountStateChange('enable')
+export const adminUnsilenceAccount = adminAccountStateChange('unsilence')
+export const adminUnsuspendAccount = adminAccountStateChange('unsuspend')
+export const adminUnsensitiveAccount = adminAccountStateChange('unsensitive')
+export const adminApproveAccount = adminAccountStateChange('approve')
+export const adminRejectAccount = adminAccountStateChange('reject')
+
+export const adminDeleteAccount = async (id: string): Promise<AdminAccount> => {
+  const response = await fetch(`/api/v1/admin/accounts/${id}`, {
+    method: 'DELETE',
+    credentials: 'include'
+  })
+  if (!response.ok) {
+    const error = await response.json().catch(() => null)
+    throw new Error(error?.error ?? 'Failed to delete account')
+  }
+  return (await response.json()) as AdminAccount
+}
+
+export const getAdminReports = async (
+  resolved?: boolean
+): Promise<AdminReport[]> => {
+  const params = new URLSearchParams()
+  if (resolved !== undefined)
+    params.set('resolved', resolved ? 'true' : 'false')
+  const query = params.toString()
+  const response = await fetch(
+    `/api/v1/admin/reports${query ? `?${query}` : ''}`,
+    { headers: { Accept: 'application/json' }, credentials: 'include' }
+  )
+  if (!response.ok) throw new Error('Failed to load admin reports')
+  return (await response.json()) as AdminReport[]
+}
+
+export const getAdminReport = async (id: string): Promise<AdminReport> => {
+  const response = await fetch(`/api/v1/admin/reports/${id}`, {
+    headers: { Accept: 'application/json' },
+    credentials: 'include'
+  })
+  if (!response.ok) throw new Error('Failed to load admin report')
+  return (await response.json()) as AdminReport
+}
+
+export const updateAdminReport = async ({
+  id,
+  category,
+  ruleIds
+}: {
+  id: string
+  category?: ReportCategory
+  ruleIds?: string[]
+}): Promise<AdminReport> => {
+  const response = await fetch(`/api/v1/admin/reports/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      ...(category ? { category } : {}),
+      ...(ruleIds ? { rule_ids: ruleIds } : {})
+    })
+  })
+  if (!response.ok) {
+    const error = await response.json().catch(() => null)
+    throw new Error(error?.error ?? 'Failed to update report')
+  }
+  return (await response.json()) as AdminReport
+}
+
+const adminReportAction =
+  (action: string) =>
+  async (id: string): Promise<AdminReport> => {
+    const response = await fetch(`/api/v1/admin/reports/${id}/${action}`, {
+      method: 'POST',
+      credentials: 'include'
+    })
+    if (!response.ok) {
+      const error = await response.json().catch(() => null)
+      throw new Error(error?.error ?? `Failed to ${action} report`)
+    }
+    return (await response.json()) as AdminReport
+  }
+
+export const assignAdminReportToSelf = adminReportAction('assign_to_self')
+export const unassignAdminReport = adminReportAction('unassign')
+export const resolveAdminReport = adminReportAction('resolve')
+export const reopenAdminReport = adminReportAction('reopen')

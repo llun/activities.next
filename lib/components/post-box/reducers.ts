@@ -2,6 +2,7 @@ import { Reducer } from 'react'
 
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
+import { QuoteApprovalPolicy } from '@/lib/types/domain/status'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 
 import { Choice, DEFAULT_DURATION, Duration } from './poll-choices'
@@ -17,6 +18,8 @@ interface StatusExtension {
     pollType: 'oneOf' | 'anyOf'
   }
   visibility: MastodonVisibility
+  // Who may quote the post being composed (Mastodon 4.5 quote_approval_policy).
+  quoteApprovalPolicy: QuoteApprovalPolicy
   fitnessFile?: {
     file: File
     uploading: boolean
@@ -106,6 +109,14 @@ export const setVisibility = (visibility: MastodonVisibility) => ({
 })
 type ActionSetVisibility = ReturnType<typeof setVisibility>
 
+export const setQuoteApprovalPolicy = (
+  quoteApprovalPolicy: QuoteApprovalPolicy
+) => ({
+  type: 'setQuoteApprovalPolicy' as const,
+  quoteApprovalPolicy
+})
+type ActionSetQuoteApprovalPolicy = ReturnType<typeof setQuoteApprovalPolicy>
+
 export const setFitnessFile = (file: File) => ({
   type: 'setFitnessFile' as const,
   file
@@ -143,6 +154,7 @@ type Actions =
   | ActionUpdateAttachment
   | ActionRemoveAttachment
   | ActionSetVisibility
+  | ActionSetQuoteApprovalPolicy
   | ActionSetFitnessFile
   | ActionSetFitnessFileUploading
   | ActionSetFitnessFileUploaded
@@ -165,7 +177,8 @@ export const DEFAULT_STATE: StatusExtension = {
     durationInSeconds: DEFAULT_DURATION,
     pollType: 'oneOf'
   },
-  visibility: 'public'
+  visibility: 'public',
+  quoteApprovalPolicy: 'public'
 }
 
 export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
@@ -314,6 +327,12 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
       return {
         ...state,
         visibility: action.visibility
+      }
+    }
+    case 'setQuoteApprovalPolicy': {
+      return {
+        ...state,
+        quoteApprovalPolicy: action.quoteApprovalPolicy
       }
     }
     case 'setFitnessFile': {

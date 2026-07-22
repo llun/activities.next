@@ -118,7 +118,7 @@ describe('POST /api/v1/accounts/email/verify', () => {
 
     expect(response.status).toBe(500)
     await expect(response.json()).resolves.toEqual({
-      status: 'Internal Server Error'
+      error: 'Internal Server Error'
     })
   })
 })

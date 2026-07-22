@@ -80,6 +80,7 @@ For the most common task shapes, follow the step-by-step **Task Recipes** sectio
 
 - Always use `apiResponse` and `apiErrorResponse` from `@/lib/utils/response` for API route responses.
 - **Do NOT** use `Response.json()` directly in API routes.
+- **Error responses use Mastodon's `{ error: "message" }` shape, never `{ status: ... }`.** `apiErrorResponse`, `apiCorsError`, and the shared `codeMap`/`ERROR_4xx` constants all emit `{ error }` (the HTTP reason phrase for the response `statusText` lives separately in `REASON_PHRASE`), matching the [Mastodon `Error` entity](https://docs.joinmastodon.org/entities/Error/). Mastodon-API clients read the human-readable message from the `error` field — masto.js, for one, leaves an error's `message` empty for any other shape and drops the body into `additionalProperties` — so a `{ status: ... }` error body breaks them (this is what surfaced Phanpy's Settings 404 toast). When you write an inline error body, use `data: { error: '…' }`. Only success acknowledgements (`DEFAULT_200`/`DEFAULT_202`) keep the `{ status: 'OK' }`/`{ status: 'Accepted' }` shape, because they are not errors.
 - On CORS-enabled endpoints (those that export `OPTIONS`), always use `apiResponse` — even for error responses — so CORS headers are included. Reserve `apiErrorResponse` for non-CORS routes or middleware.
 - Example usage:
 
@@ -241,6 +242,11 @@ section-navigation patterns; pick by section type.
 - **Do not register a better-auth plugin unless its required database tables exist** in the Knex migrations. The custom `knexAdapter` does not auto-create tables; missing tables will cause runtime errors.
 - When adding a new plugin (e.g. `sso()`, `dash()`), first create the necessary migration with `yarn migrate:make <name>`, then register the plugin.
 - Plugins that expose admin or dashboard endpoints must be configured with explicit access control (e.g. `adminCredentials` or `adminRole`). Never register `dash()` without authentication gating.
+
+## OAuth Client Registrations
+
+- **Never delete or expire rows in `oauthClient`.** Registrations created through `POST /api/v1/apps` are durable. Mastodon-API clients (Phanpy, Elk, Tusky, …) persist the `client_id`/`client_secret` they get from that endpoint indefinitely and only re-register when their stored copy is **missing** — so deleting a registration permanently wedges every client still holding it: it keeps presenting a `client_id` this server no longer knows and has no way to learn it must register again. A time-based cleanup does not help, because any finite TTL eventually deletes a live cached client. Mastodon hit exactly this and **removed its own application "vacuuming" in 4.3**. (A 24h "stale registration" collector used to live in `createApplication.ts` and broke Phanpy sign-in for this reason — the failure surfaced as `invalid_client` / `client_id is required`.) The trade-off is that abandoned registrations accumulate: `createApplication`'s per-source throttle only engages when `ACTIVITIES_TRUST_PROXY_IP_HEADERS` is set, so a default deployment does not bound them. Accept that, or add a guard that **rejects writes** — never one that deletes registrations.
+- **An unknown `client_id` must fail at `/oauth/authorize`, not be forwarded to Better Auth.** Better Auth's authorize endpoint answers an unregistered client with `invalid_client` / **`client_id is required`** — the same message it uses for a genuinely absent `client_id`, which makes the failure very hard to read — and then redirects to `/api/auth/error` and on to the home page, so a failed login looks like it silently did nothing. `app/(nosidebar)/oauth/authorize/page.tsx` validates the client (and its `redirect_uri`) up front and returns `notFound()`; keep that check ahead of the Better Auth delegation. Per RFC 6749 §4.1.2.1 an invalid `client_id`/`redirect_uri` must be reported to the user rather than redirected to the requested `redirect_uri`.
 
 ## Testing Guidelines
 
@@ -508,9 +514,9 @@ For every open review comment (from your sub-agents or from a bot):
 
 After clearing a batch, **run the sub-agent review again** — fixes can introduce new problems. **Repeat until a full round surfaces no new issues that need addressing, or you reach a maximum of 20 rounds**, whichever comes first. Note the round number as you go so the cap stays visible, and stop early the moment a clean round produces nothing actionable.
 
-### Loop in the other review bots (e.g. Kilo)
+### Loop in the other review bots
 
-- If the repo runs **other review bots** — for example **Kilo Code (Kilo bot)**, GitHub Copilot review, or CodeRabbit — then after you have addressed, replied to, and resolved a round of comments, **ask that bot to review again** (re-request its review or invoke its trigger). Treat whatever it posts exactly like your own findings: address → reply → resolve. A bot round counts toward the same 20-round cap.
+- If the repo runs **other automated review bots**, then after you have addressed, replied to, and resolved a round of comments, **ask that bot to review again** (re-request its review or invoke its trigger). Treat whatever it posts exactly like your own findings: address → reply → resolve. A bot round counts toward the same 20-round cap.
 - **While a bot is actively reviewing, let it finish: wait up to 20 minutes and do not interrupt it — do not push new commits or re-trigger it — before it posts its review or that 20-minute window elapses.** Prefer `subscribe_pr_activity` so the bot's review wakes this session as a webhook event instead of polling with `sleep`; only continue the loop once the bot has responded or the 20 minutes are up.
 
 ### Done when

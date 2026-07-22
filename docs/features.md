@@ -13,6 +13,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Boost / Repost** — Share other users' posts (with undo)
 - ✅ **Like / Favorite** — React to posts (with undo)
 - ✅ **Polls** — Create, vote on, and view poll results (single and multiple choice)
+- ✅ **Quote posts (Mastodon 4.5)** — Quote another post with the full FEP-044f consent handshake (`QuoteRequest` → `Accept` + a hosted `QuoteAuthorization` stamp; revocation is a `Delete` of the stamp), a per-post quote-approval policy (`public` / `followers` / `nobody`) with a per-account default, and inbound interop with Fedibird (`quoteUri`) and Misskey (`_misskey_quote`) quotes (rendered as unapproved until a stamp verifies)
 - ✅ **Multiple actors per account** — Create and switch between multiple handles under one account (e.g., `@user@domain.tld` and `@ride@domain.tld`)
 - ✅ **Multi-domain support** — Different domains for different actors
 - ✅ **Account blocks** — Block or unblock remote accounts and list blocked accounts
@@ -39,7 +40,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Main timeline** — Home feed with posts from followed accounts
 - ✅ **Favorites page** — Browse posts you've favorited
 - ✅ **List timelines** — Per-list timelines honoring replies policy, exclusive lists, and block/mute/keyword filtering
-- ✅ **Notifications** — Like, follow, mention, reblog, follow request, and collection (added-to-collection / collection-update) notifications
+- ✅ **Notifications** — Like, follow, mention, reblog, follow request, quote (someone quoted your post), quote-update (a post you quoted was edited), and collection (added-to-collection / collection-update) notifications
 - ✅ **Notification grouping** — Group similar notifications together
 - ✅ **Email notifications** — Configurable email alerts for each notification type
 - ✅ **Push notifications** — Web Push subscriptions with VAPID configuration
@@ -65,12 +66,14 @@ This document tracks the implemented and planned features for Activity.next.
 
 - ✅ **Mastodon API v1/v2** — Compatible with Mastodon client applications (including iOS clients); statuses, accounts, and media endpoints are fully Mastodon-compatible
 - ✅ **Mastodon-compatible status actions** — Favourite, reblog, bookmark, pin, context, history, translate, and relationship endpoints
+- ✅ **Quote posts API (Mastodon 4.5)** — `quoted_status_id` + `quote_approval_policy` on `POST /api/v1/statuses`, the `quote` sub-entity and `quote_approval` on the Status entity, `GET /api/v1/statuses/:id/quotes`, `POST /api/v1/statuses/:id/quotes/:quoting_status_id/revoke`, `PUT /api/v1/statuses/:id/interaction_policy`, and the `posting:default:quote_policy` preference / `source[quote_policy]` on `update_credentials`; quote support is advertised to clients via `api_versions.mastodon: 7` on `GET /api/v2/instance`
 - ✅ **Granular OAuth scopes** — Fine-grained scope enforcement and client-credentials app tokens
 - ✅ **Search** — Search accounts, hashtags, and statuses via `/api/v2/search` (status search backed by a full-text index)
 - ✅ **Lists** — Create and manage timeline lists, their members, replies policy, and exclusive flag
 - ✅ **Collections** — curated account collections aligned with the **final Mastodon 4.6 spec**: dual request vocabulary (`name`/`tag_name`/`discoverable`/`sensitive`/`account_ids` plus the pre-final `title`/`topic`/`visibility` extensions), spec response entities (`WrappedCollection`, `CollectionWithAccounts`, `WrappedCollectionItem` with stable item ids), anonymous reads of discoverable collections, `GET /api/v1/accounts/:id/collections`, cross-owner `in_collections`, and item-id-addressed remove/revoke (account-id addressing kept as an extension). Plus an activities.next shareable **public feed** of each collection (owner-private and public projections, the public one limited to approved members and public-visibility posts) with a per-collection capped materialized feed. Collections federate outbound as **FEP-7aa9 `FeaturedCollection`** objects, auto-follow and backfill remote members' existing posts when they are added, and emit added-to-collection / collection-update notifications
 - ✅ **Filters** — Keyword/status filters via `/api/v2/filters` with notification filtering, plus the deprecated Mastodon v1 `/api/v1/filters` (and `/api/v1/filters/:id`) compatibility shim served as a view over the same v2 filter storage
 - ✅ **Reports** — Submit reports against accounts and statuses via `/api/v1/reports`
+- ✅ **Admin moderation** — Moderate accounts and reports via the Mastodon admin API (`/api/v1/admin/accounts`, `/api/v2/admin/accounts`, `POST /api/v1/admin/accounts/:id/action`, the approve/reject/enable/unsilence/unsuspend/unsensitive state actions, suspended-first `DELETE`, and the reports workflow `GET`/`PUT /api/v1/admin/reports[/:id]` + `assign_to_self`/`unassign`/`resolve`/`reopen`), enforced instance-wide (sign-in, token acceptance, ActivityPub 410, inbound-inbox drops, timeline filtering, forced-sensitive creation), with per-actor moderation controls and a reports queue in the admin area (`/admin/accounts/:id`, `/admin/reports`)
 - ✅ **Markers** — Save and restore per-timeline read positions
 - ✅ **Announcements** — Read active instance announcements via `GET /api/v1/announcements`, dismiss them with `POST /api/v1/announcements/:id/dismiss`, and react with `PUT`/`DELETE /api/v1/announcements/:id/reactions/:name`; unread active announcements surface as a dismissible banner at the top of the home timeline for signed-in users, and admins manage them in the admin area (`/admin/announcements`) backed by `/api/v2/admin/announcements`
 - ✅ **Endorsements** — Feature accounts on your profile
@@ -105,7 +108,6 @@ This document tracks the implemented and planned features for Activity.next.
 ## Planned Features
 
 - [ ] Streaming API for real-time updates
-- [ ] Moderation review dashboard for submitted reports
 - [ ] Bookmark collections
 - [ ] Media attachment `blurhash` computation and animated-GIF `gifv` detection (Mastodon `MediaAttachment` parity — currently always `blurhash: null`, and GIFs are served as `type: "image"`)
 

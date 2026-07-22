@@ -482,6 +482,25 @@ describe('AccountDatabase', () => {
       })
     })
 
+    describe('getActorsForAccount', () => {
+      it('surfaces moderation state on the returned actors', async () => {
+        const { accountId, username } = await createTestAccount()
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await database.setActorSuspended({ actorId, suspended: true })
+        await database.setActorSilenced({ actorId, silenced: true })
+        await database.setActorSensitized({ actorId, sensitized: true })
+
+        const [actor] = await database.getActorsForAccount({ accountId })
+
+        // The cookie/session actor path must carry moderation state so the
+        // OAuthGuard suspend check and the sensitized-forces-sensitive rule fire
+        // for browser sessions, not only bearer tokens.
+        expect(actor.suspendedAt).toBeTruthy()
+        expect(actor.silencedAt).toBeTruthy()
+        expect(actor.sensitizedAt).toBeTruthy()
+      })
+    })
+
     describe('account providers', () => {
       it('links, resolves, and unlinks account providers', async () => {
         const { accountId } = await createTestAccount()

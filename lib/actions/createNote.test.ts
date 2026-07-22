@@ -104,6 +104,66 @@ describe('Create note action', () => {
       )
     })
 
+    it('forces sensitive to true when the creating actor is sensitized', async () => {
+      const sensitizedActor = { ...actor1, sensitizedAt: Date.now() }
+      const status = (await createNoteFromUserInput({
+        text: 'Hello',
+        sensitive: false,
+        currentActor: sensitizedActor,
+        database
+      })) as StatusNote
+
+      expect(status.sensitive).toBe(true)
+    })
+
+    it('records an accepted edge and notifies the quoted author for a local quote', async () => {
+      const quoted = (await createNoteFromUserInput({
+        text: 'quoted',
+        currentActor: actor1,
+        database
+      })) as StatusNote
+      mockSendNotificationAlerts.mockClear()
+
+      const quoting = (await createNoteFromUserInput({
+        text: 'quoting',
+        currentActor: actor2,
+        quotedStatusId: quoted.id,
+        database
+      })) as StatusNote
+
+      const edge = await database.getStatusQuote({ statusId: quoting.id })
+      expect(edge).toMatchObject({
+        quotedStatusId: quoted.id,
+        state: 'accepted'
+      })
+
+      const hydrated = (await database.getStatus({
+        statusId: quoting.id
+      })) as StatusNote
+      expect(hydrated.quote?.state).toBe('accepted')
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(mockSendNotificationAlerts).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: actor1.id,
+          events: expect.arrayContaining([
+            expect.objectContaining({ type: 'quote' })
+          ])
+        })
+      )
+    })
+
+    it('persists the quote_approval_policy on the status', async () => {
+      const status = (await createNoteFromUserInput({
+        text: 'restricted',
+        currentActor: actor1,
+        quoteApprovalPolicy: 'followers',
+        database
+      })) as StatusNote
+
+      expect(status.quoteApprovalPolicy).toBe('followers')
+    })
+
     it('stores a content-detected language that overrides a mislabeled declared language', async () => {
       const status = (await createNoteFromUserInput({
         text: 'สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร',

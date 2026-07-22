@@ -12,6 +12,14 @@ interface GetTrendingStatusesParams {
   database: Database
   limit: number
   offset: number
+  /**
+   * When set, the returned domain statuses are hydrated with this actor's
+   * like/bookmark/boost flags so the web UI's action buttons show the correct
+   * initial state. Ranking is viewer-independent, so passing it never changes
+   * which statuses (or their order) come back. Leave undefined for the Mastodon
+   * serialization path, which derives those flags separately.
+   */
+  currentActorId?: string
 }
 
 /**
@@ -33,7 +41,8 @@ interface GetTrendingStatusesParams {
 export const getTrendingStatuses = async ({
   database,
   limit,
-  offset
+  offset,
+  currentActorId
 }: GetTrendingStatusesParams): Promise<Status[]> => {
   const candidateIds = await database.getTrendingStatusCandidateIds({
     days: CANDIDATE_WINDOW_DAYS
@@ -41,7 +50,8 @@ export const getTrendingStatuses = async ({
   if (candidateIds.length === 0) return []
 
   const candidates = await database.getStatusesByIds({
-    statusIds: candidateIds
+    statusIds: candidateIds,
+    currentActorId
   })
   // The SQL filter already restricts candidates to Note/Poll; this narrows the
   // type for the counter lookups below (an Announce carries no own counters).

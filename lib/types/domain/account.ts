@@ -16,6 +16,10 @@ export const Account = z.object({
   emailVerifiedAt: z.number().nullish(),
   twoFactorEnabled: z.boolean().default(false),
   role: z.string().nullish(),
+  // Moderation/registration state (Admin moderation API). Nullable epoch-ms
+  // timestamps; optional so existing Account.parse call sites stay valid.
+  disabledAt: z.number().nullish(),
+  approvedAt: z.number().nullish(),
 
   createdAt: z.number(),
   updatedAt: z.number(),

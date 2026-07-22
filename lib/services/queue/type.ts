@@ -10,6 +10,12 @@ export interface JobMessage {
   // delaySeconds, so delayed jobs (e.g. scheduled statuses) only fire under a
   // real queue like QStash.
   delaySeconds?: number
+  // Internal, in-process only (never published to the queue): set when
+  // createNoteJob is invoked recursively to store a note it fetched as a quote
+  // target. It bounds inbound quote resolution to a single hop, so an
+  // attacker-controlled chain of quoting notes cannot drive unbounded recursive
+  // fetches. See createNoteJob's quote-resolution block.
+  skipQuoteResolution?: boolean
 }
 
 export interface Queue {

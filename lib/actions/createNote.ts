@@ -3,7 +3,8 @@ import crypto from 'crypto'
 import { Database } from '@/lib/database/types'
 import {
   PROCESS_FITNESS_FILE_JOB_NAME,
-  SEND_NOTE_JOB_NAME
+  SEND_NOTE_JOB_NAME,
+  SEND_QUOTE_REQUEST_JOB_NAME
 } from '@/lib/jobs/names'
 import {
   getHTMLContent as getMentionHTMLContent,
@@ -28,7 +29,12 @@ import {
   getMentionFromActorID
 } from '@/lib/types/domain/actor'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
-import { Status, StatusNote } from '@/lib/types/domain/status'
+import {
+  QuoteApprovalPolicy,
+  Status,
+  StatusNote,
+  getOriginalStatus
+} from '@/lib/types/domain/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
@@ -317,6 +323,12 @@ interface CreateNoteFromUserInputParams {
   text: string
   summary?: string | null
   replyNoteId?: string
+  // The status id (URL) this note quotes, already resolved and authorized by the
+  // caller (the route enforces visibility + canQuoteStatus). Omitted for
+  // non-quoting posts.
+  quotedStatusId?: string
+  // Who may quote THIS status (persisted in the content blob).
+  quoteApprovalPolicy?: QuoteApprovalPolicy
   currentActor: Actor
   attachments?: PostBoxAttachment[]
   fitnessFileId?: string
@@ -332,6 +344,8 @@ export const createNoteFromUserInput = async ({
   text,
   summary,
   replyNoteId,
+  quotedStatusId,
+  quoteApprovalPolicy,
   currentActor,
   attachments = [],
   fitnessFileId,
@@ -429,11 +443,81 @@ export const createNoteFromUserInput = async ({
     cc,
 
     reply: replyStatus?.id || '',
-    sensitive,
+    // A sensitized actor's new statuses are forced sensitive at creation, so
+    // the flag is persisted and federated copies inherit it (Admin moderation).
+    sensitive: sensitive || Boolean(currentActor.sensitizedAt),
     language,
+    quoteApprovalPolicy,
     applicationName: application?.name ?? null,
     applicationWebsite: application?.website ?? null
   })
+
+  // Quote handling (FEP-044f). The caller has already authorized the quote
+  // (visibility + canQuoteStatus), so record the edge and drive the handshake.
+  // Doing this before the final status re-fetch means the returned status (and
+  // the federated note) already carry the quote edge.
+  if (quotedStatusId) {
+    const quotedStatus = await database.getStatus({
+      statusId: quotedStatusId,
+      withReplies: false
+    })
+    if (quotedStatus) {
+      const quotedAuthorId = getOriginalStatus(quotedStatus).actorId
+      if (quotedStatus.isLocalActor) {
+        // We host the quoted author (FEP same-authority shortcut): approve
+        // immediately, no QuoteRequest handshake.
+        await database.createStatusQuote({
+          statusId,
+          quotedStatusId,
+          state: 'accepted'
+        })
+        if (quotedAuthorId !== currentActor.id) {
+          const quoteNotification = await createNotificationWithPolicy(
+            database,
+            {
+              actorId: quotedAuthorId,
+              type: NotificationType.enum.quote,
+              sourceActorId: currentActor.id,
+              statusId,
+              groupKey: `quote:${quotedStatusId}`
+            }
+          )
+          if (quoteNotification && !quoteNotification.filtered) {
+            // Fire-and-forget (sendNotificationAlerts handles its own errors):
+            // alert delivery must not fail the create action.
+            sendNotificationAlerts({
+              database,
+              actorId: quotedAuthorId,
+              sourceActorId: currentActor.id,
+              sourceActor: currentActor,
+              statusId,
+              events: [
+                {
+                  type: NotificationType.enum.quote,
+                  notificationId: quoteNotification.id
+                }
+              ]
+            })
+          }
+        }
+      } else {
+        // Remote quoted author: create a pending edge and start the
+        // QuoteRequest handshake; their Accept/Reject settles it.
+        const quoteRequestId = `${statusId}#quote-request`
+        await database.createStatusQuote({
+          statusId,
+          quotedStatusId,
+          state: 'pending',
+          quoteRequestId
+        })
+        await getQueue().publish({
+          id: getHashFromString(quoteRequestId),
+          name: SEND_QUOTE_REQUEST_JOB_NAME,
+          data: { actorId: currentActor.id, statusId, quotedStatusId }
+        })
+      }
+    }
+  }
 
   // Content-detected language, stored separately from the declared `language`
   // above so the Translate gate can fall back to it when the author's

@@ -27,6 +27,7 @@ import { LikeSQLDatabaseMixin } from '@/lib/database/sql/like'
 import { ListSQLDatabaseMixin } from '@/lib/database/sql/list'
 import { MarkerSQLDatabaseMixin } from '@/lib/database/sql/marker'
 import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
+import { ModerationSQLDatabaseMixin } from '@/lib/database/sql/moderation'
 import { MuteSQLDatabaseMixin } from '@/lib/database/sql/mute'
 import { NotificationSQLDatabaseMixin } from '@/lib/database/sql/notification'
 import { OAuthSQLDatabaseMixin } from '@/lib/database/sql/oauth'
@@ -39,6 +40,7 @@ import { ServerFilterSQLDatabaseMixin } from '@/lib/database/sql/serverFilter'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { StatusDetectedLanguageSQLDatabaseMixin } from '@/lib/database/sql/statusDetectedLanguage'
 import { StatusMuteSQLDatabaseMixin } from '@/lib/database/sql/statusMute'
+import { StatusQuoteSQLDatabaseMixin } from '@/lib/database/sql/statusQuote'
 import { StravaArchiveImportSQLDatabaseMixin } from '@/lib/database/sql/stravaArchiveImport'
 import { SuggestionSQLDatabaseMixin } from '@/lib/database/sql/suggestion'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
@@ -66,6 +68,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const endorsementDatabase = EndorsementSQLDatabaseMixin(database)
   const featuredTagDatabase = FeaturedTagSQLDatabaseMixin(database)
   const statusMuteDatabase = StatusMuteSQLDatabaseMixin(database)
+  const statusQuoteDatabase = StatusQuoteSQLDatabaseMixin(database)
   const idempotencyDatabase = IdempotencySQLDatabaseMixin(database)
   const translationCacheDatabase = TranslationCacheSQLDatabaseMixin(database)
   const statusDetectedLanguageDatabase =
@@ -78,6 +81,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const instanceRuleDatabase = InstanceRuleSQLDatabaseMixin(database)
   const likeDatabase = LikeSQLDatabaseMixin(database)
   const mediaDatabase = MediaSQLDatabaseMixin(database)
+  const moderationDatabase = ModerationSQLDatabaseMixin(database)
   const notificationDatabase = NotificationSQLDatabaseMixin(database)
   const pushSubscriptionDatabase = PushSubscriptionSQLDatabaseMixin(database)
   const relayDatabase = RelaySQLDatabaseMixin(database)
@@ -150,6 +154,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...endorsementDatabase,
     ...featuredTagDatabase,
     ...statusMuteDatabase,
+    ...statusQuoteDatabase,
     ...idempotencyDatabase,
     ...translationCacheDatabase,
     ...statusDetectedLanguageDatabase,
@@ -161,6 +166,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...followedTagDatabase,
     ...likeDatabase,
     ...mediaDatabase,
+    ...moderationDatabase,
     ...notificationDatabase,
     ...pushSubscriptionDatabase,
     ...relayDatabase,

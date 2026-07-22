@@ -1,4 +1,5 @@
 import {
+  internalTypeToMastodon,
   mastodonTypeToInternal,
   mastodonTypesToInternal
 } from './notificationTypeMapping'
@@ -20,10 +21,28 @@ describe('mastodonTypeToInternal', () => {
     expect(mastodonTypeToInternal('mention')).toEqual(['mention', 'reply'])
   })
 
+  it('maps quote to quote', () => {
+    expect(mastodonTypeToInternal('quote')).toEqual(['quote'])
+  })
+
+  it('maps quoted_update to quoted_update', () => {
+    expect(mastodonTypeToInternal('quoted_update')).toEqual(['quoted_update'])
+  })
+
   it('passes unknown types through unchanged', () => {
     expect(mastodonTypeToInternal('follow')).toEqual(['follow'])
     expect(mastodonTypeToInternal('follow_request')).toEqual(['follow_request'])
     expect(mastodonTypeToInternal('poll')).toEqual(['poll'])
+  })
+})
+
+describe('internalTypeToMastodon', () => {
+  it('maps quote to quote', () => {
+    expect(internalTypeToMastodon('quote')).toBe('quote')
+  })
+
+  it('maps quoted_update to quoted_update', () => {
+    expect(internalTypeToMastodon('quoted_update')).toBe('quoted_update')
   })
 })
 

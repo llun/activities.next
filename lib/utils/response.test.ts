@@ -16,16 +16,16 @@ import {
 
 describe('response utilities', () => {
   describe('error constants', () => {
-    it('has correct error status messages', () => {
-      expect(ERROR_400).toEqual({ status: 'Bad Request' })
-      expect(ERROR_401).toEqual({ status: 'Unauthorized' })
-      expect(ERROR_403).toEqual({ status: 'Forbidden' })
-      expect(ERROR_404).toEqual({ status: 'Not Found' })
-      expect(ERROR_422).toEqual({ status: 'Unprocessable entity' })
-      expect(ERROR_500).toEqual({ status: 'Internal Server Error' })
+    it('uses the Mastodon { error } shape', () => {
+      expect(ERROR_400).toEqual({ error: 'Bad Request' })
+      expect(ERROR_401).toEqual({ error: 'Unauthorized' })
+      expect(ERROR_403).toEqual({ error: 'Forbidden' })
+      expect(ERROR_404).toEqual({ error: 'Not Found' })
+      expect(ERROR_422).toEqual({ error: 'Unprocessable entity' })
+      expect(ERROR_500).toEqual({ error: 'Internal Server Error' })
     })
 
-    it('has correct success status messages', () => {
+    it('keeps the { status } shape for success acknowledgements', () => {
       expect(DEFAULT_200).toEqual({ status: 'OK' })
       expect(DEFAULT_202).toEqual({ status: 'Accepted' })
     })

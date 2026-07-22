@@ -11,7 +11,14 @@ import { Status } from '@/lib/types/domain/status'
 
 import { filterBlockedStatuses } from './blockFilter'
 import { filterDomainBlockedStatuses } from './domainBlockFilter'
+import { filterModeratedStatuses } from './moderationFilter'
 import { filterMutedStatuses } from './muteFilter'
+
+// Which timeline surface is being built. `public` surfaces (public/tag/
+// federated) hide silenced authors as well as suspended ones; `following`
+// surfaces (home/list/direct) keep silenced authors for their followers.
+// Suspended authors are always dropped regardless of surface.
+export type TimelineSurface = 'public' | 'following'
 
 export const MAX_TIMELINE_LIMIT = 80
 export const MAX_BACKFILL_ITERATIONS = 5
@@ -30,6 +37,9 @@ export const normalizeTimelineLimit = (limit?: number | null) =>
 
 interface FetchFilteredStatusBatchParams {
   maxStatusId: string | null
+  // Set (with maxStatusId null) only in ascending min_id mode; the batch must
+  // then come back oldest-first so the loop can walk up toward newer rows.
+  minStatusId: string | null
   limit: number
 }
 
@@ -37,8 +47,15 @@ interface GetFilteredStatusPageParams {
   database: Database
   actorId?: string
   maxStatusId?: string | null
+  // When set, the page is built ascending from this lower-bound cursor (the
+  // oldest rows just newer than it) and returned newest-first — Mastodon's
+  // adjacent-page min_id. fetchBatch must return oldest-first batches for it.
+  minStatusId?: string | null
   limit?: number
   filterContext?: FilterContext
+  // Defaults to 'following' — silenced authors stay visible. Public surfaces
+  // pass 'public' to additionally hide silenced authors.
+  surface?: TimelineSurface
   fetchBatch: (params: FetchFilteredStatusBatchParams) => Promise<Status[]>
 }
 
@@ -46,14 +63,21 @@ export const getFilteredStatusPage = async ({
   database,
   actorId,
   maxStatusId = null,
+  minStatusId = null,
   limit = PER_PAGE_LIMIT,
   filterContext,
+  surface = 'following',
   fetchBatch
 }: GetFilteredStatusPageParams): Promise<FilteredTimelinePage> => {
   const pageLimit = normalizeTimelineLimit(limit)
+  const includeSilenced = surface !== 'public'
+  // min_id ascends from its cursor (oldest-first) then reverses to newest-first,
+  // returning the page adjacent to the cursor; every other cursor kind backfills
+  // DESC (newest-first) from max_id. min_id wins when both are present.
+  const ascending = Boolean(minStatusId)
   const statuses: Status[] = []
   let iterations = 0
-  let cursor = maxStatusId
+  let cursor = ascending ? minStatusId : maxStatusId
   let lastScannedStatusId: string | null = null
   let exhausted = false
 
@@ -75,7 +99,8 @@ export const getFilteredStatusPage = async ({
   while (statuses.length < pageLimit && iterations < MAX_BACKFILL_ITERATIONS) {
     iterations++
     const batch = await fetchBatch({
-      maxStatusId: cursor,
+      maxStatusId: ascending ? null : cursor,
+      minStatusId: ascending ? cursor : null,
       limit: pageLimit
     })
     if (batch.length === 0) {
@@ -97,10 +122,15 @@ export const getFilteredStatusPage = async ({
       actorId,
       blockFilteredBatch
     )
+    const moderationFilteredBatch = await filterModeratedStatuses(
+      database,
+      muteFilteredBatch,
+      includeSilenced
+    )
     const filteredBatch =
       filterRecords.length > 0
-        ? dropHideMatchesFromStatuses(muteFilteredBatch, filterRecords)
-        : muteFilteredBatch
+        ? dropHideMatchesFromStatuses(moderationFilteredBatch, filterRecords)
+        : moderationFilteredBatch
     statuses.push(...filteredBatch)
     cursor = batch[batch.length - 1].id
     lastScannedStatusId = cursor
@@ -112,6 +142,32 @@ export const getFilteredStatusPage = async ({
   }
 
   const visibleStatuses = statuses.slice(0, pageLimit)
+
+  if (ascending) {
+    // Ascending accumulation is oldest-first; the adjacent page is the oldest
+    // `pageLimit` visible statuses, returned newest-first. rel=prev (newer)
+    // continues above the newest returned; rel=next (older) below the oldest.
+    visibleStatuses.reverse()
+    const hasVisible = visibleStatuses.length > 0
+    return {
+      statuses: visibleStatuses,
+      nextMaxStatusId: hasVisible
+        ? visibleStatuses[visibleStatuses.length - 1].id
+        : null,
+      // When a filtered window empties the page but the source isn't exhausted
+      // (the backfill cap was hit), keep the client paging UP past the block via
+      // the last scanned id — mirroring the DESC branch's lastScannedStatusId
+      // fallback, so an all-filtered stretch above the cursor can't dead-stop
+      // min_id pagination and silently withhold newer posts.
+      prevMinStatusId: hasVisible
+        ? visibleStatuses[0].id
+        : exhausted
+          ? null
+          : lastScannedStatusId,
+      filterRecords
+    }
+  }
+
   const lastVisibleStatusId =
     visibleStatuses.length > 0
       ? visibleStatuses[visibleStatuses.length - 1].id
@@ -143,9 +199,13 @@ interface GetFilteredTimelinePageParams {
   timeline: Timeline
   actorId: string
   minStatusId?: string | null
+  sinceStatusId?: string | null
   maxStatusId?: string | null
   limit?: number
   filterContext?: FilterContext
+  // Defaults to 'following'. The federated-public feed served through this
+  // wrapper passes 'public' so silenced authors are hidden there too.
+  surface?: TimelineSurface
 }
 
 export const getFilteredTimelinePage = async ({
@@ -153,26 +213,46 @@ export const getFilteredTimelinePage = async ({
   timeline,
   actorId,
   minStatusId = null,
+  sinceStatusId = null,
   maxStatusId = null,
   limit = PER_PAGE_LIMIT,
-  filterContext
+  filterContext,
+  surface = 'following'
 }: GetFilteredTimelinePageParams): Promise<FilteredTimelinePage> =>
   getFilteredStatusPage({
     database,
     actorId,
     maxStatusId,
+    minStatusId,
     limit,
     filterContext,
-    fetchBatch: ({ maxStatusId: cursor, limit: batchLimit }) =>
-      database.getTimeline({
+    surface,
+    fetchBatch: async ({
+      maxStatusId: descCursor,
+      minStatusId: ascCursor,
+      limit: batchLimit
+    }) => {
+      if (ascCursor !== null) {
+        // min_id (adjacent-page) mode: getTimeline returns the oldest window
+        // above the cursor newest-first; reverse it to oldest-first so the
+        // ascending backfill loop can walk up toward newer rows.
+        const rows = await database.getTimeline({
+          timeline,
+          actorId,
+          minStatusId: ascCursor,
+          maxStatusId: null,
+          limit: batchLimit
+        })
+        return rows.reverse()
+      }
+      // since_id / max_id / no cursor: backfill DESC (newest-first) with
+      // since_id as the lower bound.
+      return database.getTimeline({
         timeline,
         actorId,
-        // getFilteredStatusPage backfills by paging max_id DESC, so the lower
-        // bound must keep newest-first (since) ordering here — driving it as
-        // min_id would flip getTimeline to ascending and break the backfill.
-        // Adjacent-page min_id for filtered timelines is a separate change.
-        sinceStatusId: minStatusId,
-        maxStatusId: cursor,
+        sinceStatusId,
+        maxStatusId: descCursor,
         limit: batchLimit
       })
+    }
   })

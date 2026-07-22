@@ -12,6 +12,7 @@ import { FollowRequest } from '@/lib/activities/followAction'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { LikeStatus } from '@/lib/activities/likeAction'
+import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
 import { RejectFollow } from '@/lib/activities/rejectFollow'
 import { UndoBlock } from '@/lib/activities/undoBlock'
 import { UndoFollow } from '@/lib/activities/undoFollow'
@@ -220,6 +221,160 @@ export const sendUpdateNote = async ({
         silenceTimeout: true
       })
       span.end()
+    }
+  )
+
+interface SendQuoteRequestParams {
+  currentActor: Actor
+  inbox: string
+  // The QuoteRequest activity id (we mint `${quotingStatusId}#quote-request`).
+  quoteRequestId: string
+  // The quoted status id (the `object` of the request).
+  quotedStatusId: string
+  // The quoting note (the `instrument`).
+  instrument: Note
+}
+export const sendQuoteRequest = async ({
+  currentActor,
+  inbox,
+  quoteRequestId,
+  quotedStatusId,
+  instrument
+}: SendQuoteRequestParams) =>
+  getTracer().startActiveSpan(
+    'activities.sendQuoteRequest',
+    { attributes: { actorId: currentActor.id, inbox } },
+    async (span) => {
+      const activity = {
+        '@context': QUOTE_ACTIVITY_CONTEXT,
+        id: quoteRequestId,
+        type: 'QuoteRequest',
+        actor: currentActor.id,
+        object: quotedStatusId,
+        instrument
+      }
+      const statusCode = await postActivityToInbox({
+        span,
+        inbox,
+        currentActor,
+        activity,
+        logPrefix: 'sendQuoteRequest',
+        silenceTimeout: true
+      })
+      span.end()
+      return statusCode
+    }
+  )
+
+interface SendQuoteAcceptParams {
+  currentActor: Actor
+  inbox: string
+  // The QuoteRequest we received (echoed back as the Accept `object`).
+  quoteRequest: object
+  // The hosted QuoteAuthorization stamp id (the Accept `result`).
+  stampId: string
+}
+export const sendQuoteAccept = async ({
+  currentActor,
+  inbox,
+  quoteRequest,
+  stampId
+}: SendQuoteAcceptParams) =>
+  getTracer().startActiveSpan(
+    'activities.sendQuoteAccept',
+    { attributes: { actorId: currentActor.id, inbox } },
+    async (span) => {
+      const activity = {
+        '@context': QUOTE_ACTIVITY_CONTEXT,
+        id: `${stampId}#accept`,
+        type: 'Accept',
+        actor: currentActor.id,
+        object: quoteRequest,
+        result: stampId
+      }
+      const statusCode = await postActivityToInbox({
+        span,
+        inbox,
+        currentActor,
+        activity,
+        logPrefix: 'sendQuoteAccept',
+        silenceTimeout: true
+      })
+      span.end()
+      return statusCode
+    }
+  )
+
+interface SendQuoteRejectParams {
+  currentActor: Actor
+  inbox: string
+  // The QuoteRequest we received (echoed back as the Reject `object`).
+  quoteRequest: { id: string; [key: string]: unknown }
+}
+export const sendQuoteReject = async ({
+  currentActor,
+  inbox,
+  quoteRequest
+}: SendQuoteRejectParams) =>
+  getTracer().startActiveSpan(
+    'activities.sendQuoteReject',
+    { attributes: { actorId: currentActor.id, inbox } },
+    async (span) => {
+      const activity = {
+        '@context': QUOTE_ACTIVITY_CONTEXT,
+        id: `${quoteRequest.id}#reject`,
+        type: 'Reject',
+        actor: currentActor.id,
+        object: quoteRequest
+      }
+      const statusCode = await postActivityToInbox({
+        span,
+        inbox,
+        currentActor,
+        activity,
+        logPrefix: 'sendQuoteReject',
+        silenceTimeout: true
+      })
+      span.end()
+      return statusCode
+    }
+  )
+
+interface SendQuoteRevokeParams {
+  currentActor: Actor
+  inbox: string
+  // The hosted QuoteAuthorization stamp id being revoked.
+  stampId: string
+}
+export const sendQuoteRevoke = async ({
+  currentActor,
+  inbox,
+  stampId
+}: SendQuoteRevokeParams) =>
+  getTracer().startActiveSpan(
+    'activities.sendQuoteRevoke',
+    { attributes: { actorId: currentActor.id, inbox } },
+    async (span) => {
+      // FEP-044f revocation is a Delete of the QuoteAuthorization stamp. The
+      // receiver matches it by stamp id and requires the sender to be the
+      // stamp's issuer (the quoted author), so we sign as currentActor.
+      const activity = {
+        '@context': QUOTE_ACTIVITY_CONTEXT,
+        id: `${stampId}#delete`,
+        type: 'Delete',
+        actor: currentActor.id,
+        object: { id: stampId, type: 'QuoteAuthorization' }
+      }
+      const statusCode = await postActivityToInbox({
+        span,
+        inbox,
+        currentActor,
+        activity,
+        logPrefix: 'sendQuoteRevoke',
+        silenceTimeout: true
+      })
+      span.end()
+      return statusCode
     }
   )
 

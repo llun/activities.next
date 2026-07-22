@@ -7,6 +7,7 @@ import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
 import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { resolveQuoteForCreate } from '@/lib/services/quotes/resolveQuoteForCreate'
 import { toActivityPubObject } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -54,8 +55,28 @@ export const POST = traceApiRoute(
             replyStatus,
             attachments,
             fitnessFileId,
+            quotedStatusId: quotedStatusIdInput,
+            quoteApprovalPolicy: requestedQuotePolicy,
             visibility
           } = request
+          // Authorize the quote target (if any) and default the new status's
+          // quote policy, mirroring POST /api/v1/statuses.
+          const quoteResolution = await resolveQuoteForCreate({
+            database,
+            currentActor,
+            quotedStatusId: quotedStatusIdInput,
+            requestedPolicy: requestedQuotePolicy
+          })
+          if (!quoteResolution.ok) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data:
+                quoteResolution.reason === 'not_found' ? ERROR_404 : ERROR_422,
+              responseStatusCode:
+                quoteResolution.reason === 'not_found' ? 404 : 422
+            })
+          }
           const status = await createNoteFromUserInput({
             currentActor,
             text: message,
@@ -63,6 +84,8 @@ export const POST = traceApiRoute(
             replyNoteId: replyStatus?.id,
             attachments,
             fitnessFileId,
+            quotedStatusId: quoteResolution.quotedStatusId,
+            quoteApprovalPolicy: quoteResolution.quoteApprovalPolicy,
             visibility,
             database
           })

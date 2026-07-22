@@ -26,7 +26,11 @@ export const MIN_SCHEDULED_STATUS_AHEAD_MS = 5 * 60 * 1000
 export const SCHEDULED_AT_TOO_SOON_ERROR =
   'Validation failed: Scheduled at must be at least 5 minutes in the future'
 
-// Advertised in the v2 instance entity (api_versions.mastodon). Mastodon 4.3
-// introduced the field with value 2; this server implements the 4.3-era API
-// surface, so advertise 2 and bump only alongside newer API features.
-export const MASTODON_INSTANCE_API_VERSION = 2
+// Advertised in the v2 instance entity (api_versions.mastodon). Mastodon exposes
+// this as a single monotonic integer bumped per release (4.3 → 2, 4.4 → 6,
+// 4.5 → 7, 4.6 → 10). Mastodon 4.5 introduced quote posts and its client guide
+// gates quote authoring on api_versions.mastodon >= 7, so this server — which
+// implements the 4.5 quote-post surface — advertises 7. Streaming stays
+// unadvertised (configuration.urls.streaming is empty), so no streaming
+// capability is claimed.
+export const MASTODON_INSTANCE_API_VERSION = 7

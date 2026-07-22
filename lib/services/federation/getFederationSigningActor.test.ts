@@ -4,8 +4,18 @@ import {
   FEDERATION_SIGNING_ACTOR_USERNAME
 } from '@/lib/services/federation/instanceActor'
 import { Actor } from '@/lib/types/domain/actor'
+import { logger } from '@/lib/utils/logger'
 
-import { getFederationSigningActor } from './getFederationSigningActor'
+import {
+  getFederationSigningActor,
+  getFederationSigningActorSafe
+} from './getFederationSigningActor'
+
+vi.mock('@/lib/utils/logger', () => ({
+  logger: {
+    warn: vi.fn()
+  }
+}))
 
 const serviceActor = {
   id: 'https://example.com/users/__instance__',
@@ -44,5 +54,38 @@ describe('getFederationSigningActor', () => {
       serviceActor
     )
     expect(database.getFederationSigningActor).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('getFederationSigningActorSafe', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns the resolved signer without logging', async () => {
+    const database = {
+      getFederationSigningActor: vi.fn().mockResolvedValue(serviceActor)
+    } as unknown as Database
+
+    await expect(
+      getFederationSigningActorSafe(database, 'for a test fetch')
+    ).resolves.toBe(serviceActor)
+    expect(logger.warn).not.toHaveBeenCalled()
+  })
+
+  it('degrades to undefined and warns with the caller context on failure', async () => {
+    const database = {
+      getFederationSigningActor: vi.fn().mockRejectedValue(new Error('down'))
+    } as unknown as Database
+
+    await expect(
+      getFederationSigningActorSafe(database, 'for a test fetch')
+    ).resolves.toBeUndefined()
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining('for a test fetch'),
+        error: 'down'
+      })
+    )
   })
 })

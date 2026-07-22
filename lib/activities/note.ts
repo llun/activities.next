@@ -34,6 +34,21 @@ export const getReply = (reply: ReplyValue): string | undefined => {
   return reply?.id
 }
 
+/**
+ * Resolve the quoted status id from a note's quote fields, following FEP-044f
+ * precedence: `quote` (a bare id string or an embedded `{ id }` object) →
+ * `quoteUrl` (Mastodon) → `quoteUri` (Fedibird) → `_misskey_quote` (Misskey).
+ * Returns null when the note quotes nothing.
+ */
+export const getQuoteTargetId = (object: BaseNote): string | null => {
+  const { quote } = object
+  if (typeof quote === 'string' && quote) return quote
+  if (quote && typeof quote === 'object' && typeof quote.id === 'string') {
+    return quote.id
+  }
+  return object.quoteUrl || object.quoteUri || object._misskey_quote || null
+}
+
 const isDocument = (attachment: Attachment): attachment is Document =>
   Document.safeParse(attachment).success
 

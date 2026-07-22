@@ -30,6 +30,10 @@ export const SECURITY_V1_CONTEXT_URL = 'https://w3id.org/security/v1'
 
 const MASTODON_NAMESPACE = 'http://joinmastodon.org/ns#'
 const SCHEMA_NAMESPACE = 'http://schema.org#'
+const FEP_044F_NAMESPACE = 'https://w3id.org/fep/044f#'
+const GOTOSOCIAL_NAMESPACE = 'https://gotosocial.org/ns#'
+const FEDIBIRD_NAMESPACE = 'http://fedibird.com/ns#'
+const MISSKEY_NAMESPACE = 'https://misskey-hub.net/ns#'
 
 const BUNDLED_CONTEXTS: Record<string, unknown> = {
   [ACTIVITY_STREAMS_CONTEXT_URL]: activityStreamsContext,
@@ -92,6 +96,10 @@ const CANONICAL_CONTEXT = {
     {
       toot: MASTODON_NAMESPACE,
       schema: SCHEMA_NAMESPACE,
+      fep044f: FEP_044F_NAMESPACE,
+      gts: GOTOSOCIAL_NAMESPACE,
+      fedibird: FEDIBIRD_NAMESPACE,
+      misskey: MISSKEY_NAMESPACE,
 
       // Extension *types* we match on, aliased so they compact to bare terms.
       // These are not defined in the bundled ActivityStreams context, so without
@@ -99,6 +107,11 @@ const CANONICAL_CONTEXT = {
       // and be dropped by the strict `type` validators downstream.
       Emoji: 'toot:Emoji',
       Hashtag: 'as:Hashtag',
+      // Quote-post extension types (FEP-044f). Mastodon 4.5 defines these in its
+      // outbound context, so without aliases they compact to full IRIs and the
+      // strict `type` validators drop them.
+      QuoteRequest: 'fep044f:QuoteRequest',
+      QuoteAuthorization: 'fep044f:QuoteAuthorization',
 
       // Extension terms we read, mapped to their canonical IRIs so they survive
       // compaction as bare property names instead of being dropped.
@@ -124,6 +137,42 @@ const CANONICAL_CONTEXT = {
       devices: { '@id': 'toot:devices', '@type': '@id' },
       PropertyValue: 'schema:PropertyValue',
       value: 'schema:value',
+
+      // Quote target (FEP-044f `quote`) — a by-reference id. `@type: @id` keeps
+      // a bare id as a string while an embedded object still passes through
+      // (same pattern as `movedTo`).
+      quote: { '@id': 'fep044f:quote', '@type': '@id' },
+      // Legacy compat aliases (Mastodon `quoteUrl`, Fedibird `quoteUri`, Misskey
+      // `_misskey_quote`). These servers define the terms *without* `@type: @id`
+      // and emit the target as a plain URL string literal, so keep them plain
+      // here — an `@type: @id` mapping would fail to represent that literal and
+      // drop the value during compaction.
+      quoteUrl: 'as:quoteUrl',
+      quoteUri: 'fedibird:quoteUri',
+      _misskey_quote: 'misskey:_misskey_quote',
+      quoteAuthorization: {
+        '@id': 'fep044f:quoteAuthorization',
+        '@type': '@id'
+      },
+      // FEP-044f QuoteAuthorization stamp fields (GoToSocial ns).
+      interactingObject: { '@id': 'gts:interactingObject', '@type': '@id' },
+      interactionTarget: { '@id': 'gts:interactionTarget', '@type': '@id' },
+
+      // Interaction policy (GoToSocial ns, emitted by Mastodon 4.5). The
+      // approval arrays are `@container: @set` so a single approver does not
+      // collapse to a scalar (the #1119/#1120 array-collapse class).
+      interactionPolicy: 'gts:interactionPolicy',
+      canQuote: 'gts:canQuote',
+      automaticApproval: {
+        '@id': 'gts:automaticApproval',
+        '@type': '@id',
+        '@container': '@set'
+      },
+      manualApproval: {
+        '@id': 'gts:manualApproval',
+        '@type': '@id',
+        '@container': '@set'
+      },
 
       // Collection-like properties: always arrays.
       to: { '@id': 'as:to', '@type': '@id', '@container': '@set' },

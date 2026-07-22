@@ -47,6 +47,8 @@ export const getFallbackBlockedAccount = (block: Block): MastodonAccount => {
     avatar_static: '',
     header: '',
     header_static: '',
+    avatar_description: '',
+    header_description: '',
     locked: false,
     source: {
       note: '',

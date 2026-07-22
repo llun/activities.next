@@ -2,6 +2,7 @@ import { persistEmojiTagsForStatus } from '@/lib/actions/createNote'
 import { Database } from '@/lib/database/types'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
+import { notifyQuotedStatusUpdate } from '@/lib/services/notifications/notifyQuotedStatusUpdate'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Actor } from '@/lib/types/domain/actor'
@@ -86,6 +87,15 @@ export const updateNoteFromUserInput = async ({
         actorId: currentActor.id,
         statusId
       }
+    })
+
+    // Notify the authors of accepted quotes of this status that a post they
+    // quoted was edited. Only published (federated) edits notify quoters.
+    await notifyQuotedStatusUpdate({
+      database,
+      quotedStatusId: statusId,
+      sourceActorId: currentActor.id,
+      sourceActor: currentActor
     })
   }
 

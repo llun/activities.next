@@ -162,6 +162,115 @@ describe('POST /api/v1/statuses', () => {
     expect(getQueue().publish).toHaveBeenCalledTimes(1)
   })
 
+  it('creates a status quoting the authors own public status', async () => {
+    const quoted = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/route-quote-self`,
+      url: `${ACTOR1_ID}/statuses/route-quote-self`,
+      actorId: ACTOR1_ID,
+      text: 'quoted target',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: []
+    })
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'quoting my own post',
+          quoted_status_id: urlToId(quoted.id)
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const mastodonStatus = await response.json()
+    expect(mastodonStatus.quote?.state).toBe('accepted')
+    expect(mastodonStatus.quote?.quoted_status?.id).toBe(urlToId(quoted.id))
+  })
+
+  it('rejects a quote the policy denies with 422', async () => {
+    const quoted = await database.createNote({
+      id: `${ACTOR2_ID}/statuses/route-quote-nobody`,
+      url: `${ACTOR2_ID}/statuses/route-quote-nobody`,
+      actorId: ACTOR2_ID,
+      text: 'no quoting allowed',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      quoteApprovalPolicy: 'nobody'
+    })
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'quoting a nobody-policy post',
+          quoted_status_id: urlToId(quoted.id)
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(422)
+  })
+
+  it('404s when the quoted status does not exist', async () => {
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'quoting nothing',
+          quoted_status_id: 'this-status-does-not-exist'
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(404)
+  })
+
+  it('defaults an omitted quote_approval_policy to the actor setting', async () => {
+    await database.updateActor({
+      actorId: ACTOR1_ID,
+      defaultQuotePolicy: 'followers'
+    })
+    try {
+      const response = await POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body: JSON.stringify({ status: 'inherits my default quote policy' }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      const mastodonStatus = await response.json()
+      expect(mastodonStatus.quote_approval.automatic).toEqual(['followers'])
+    } finally {
+      // Restore the public default so later tests keep their expectations.
+      await database.updateActor({
+        actorId: ACTOR1_ID,
+        defaultQuotePolicy: 'public'
+      })
+    }
+  })
+
   it('attaches form media_ids[] to the created status', async () => {
     const media = await database.createMedia({
       actorId: ACTOR1_ID,

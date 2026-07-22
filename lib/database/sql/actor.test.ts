@@ -127,6 +127,87 @@ describe('ActorDatabase', () => {
       })
     })
 
+    describe('setActorCounters and hasActorCounters', () => {
+      it('reports unsynced counters for a freshly-created actor', async () => {
+        const actorId = `https://${TEST_DOMAIN}/users/counters-unsynced`
+        await database.createActor({
+          actorId,
+          username: 'counters-unsynced',
+          domain: TEST_DOMAIN,
+          followersUrl: `${actorId}/followers`,
+          inboxUrl: `${actorId}/inbox`,
+          sharedInboxUrl: `${actorId}/inbox`,
+          publicKey: 'publicKey',
+          createdAt: Date.now()
+        })
+
+        await expect(
+          database.hasActorCounters({ actorId })
+        ).resolves.toBeFalse()
+      })
+
+      it('stores provided counts and serves them on the Mastodon account', async () => {
+        const actorId = `https://${TEST_DOMAIN}/users/counters-set`
+        await database.createActor({
+          actorId,
+          username: 'counters-set',
+          domain: 'counters.example',
+          followersUrl: `${actorId}/followers`,
+          inboxUrl: `${actorId}/inbox`,
+          sharedInboxUrl: `${actorId}/inbox`,
+          publicKey: 'publicKey',
+          createdAt: Date.now()
+        })
+
+        await database.setActorCounters({
+          actorId,
+          followersCount: 5370,
+          followingCount: 519,
+          statusCount: 641
+        })
+
+        await expect(database.hasActorCounters({ actorId })).resolves.toBeTrue()
+        await expect(
+          database.getMastodonActorFromId({ id: actorId })
+        ).resolves.toMatchObject({
+          followers_count: 5370,
+          following_count: 519,
+          statuses_count: 641
+        })
+      })
+
+      it('preserves existing counter values for null counts while marking them synced', async () => {
+        const actorId = `https://${TEST_DOMAIN}/users/counters-partial`
+        await database.createActor({
+          actorId,
+          username: 'counters-partial',
+          domain: 'counters.example',
+          followersUrl: `${actorId}/followers`,
+          inboxUrl: `${actorId}/inbox`,
+          sharedInboxUrl: `${actorId}/inbox`,
+          publicKey: 'publicKey',
+          createdAt: Date.now()
+        })
+        await database.increaseActorStatusCount(actorId, 3)
+
+        await database.setActorCounters({
+          actorId,
+          followersCount: 12,
+          followingCount: null,
+          statusCount: null
+        })
+
+        await expect(database.hasActorCounters({ actorId })).resolves.toBeTrue()
+        await expect(
+          database.getMastodonActorFromId({ id: actorId })
+        ).resolves.toMatchObject({
+          followers_count: 12,
+          following_count: 0,
+          statuses_count: 3
+        })
+      })
+    })
+
     describe('deprecated actor', () => {
       it('returns actor from id', async () => {
         const id = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
@@ -378,6 +459,68 @@ describe('ActorDatabase', () => {
           hide_collections: true
         })
         expect(actor?.source.attribution_domains).toEqual(['blog.example.com'])
+      })
+
+      it('serializes suspended actors with suspended: true and silenced actors with limited: true', async () => {
+        await withFreshDatabase(async (database) => {
+          const suffix = crypto.randomUUID().slice(0, 8)
+          const suspendedUsername = `suspended-${suffix}`
+          const silencedUsername = `silenced-${suffix}`
+          await createSigningAccount(database, suspendedUsername)
+          await createSigningAccount(database, silencedUsername)
+          const suspendedId = `https://${TEST_DOMAIN}/users/${suspendedUsername}`
+          const silencedId = `https://${TEST_DOMAIN}/users/${silencedUsername}`
+          await database.setActorSuspended({
+            actorId: suspendedId,
+            suspended: true
+          })
+          await database.setActorSilenced({
+            actorId: silencedId,
+            silenced: true
+          })
+
+          const suspended = await database.getMastodonActorFromId({
+            id: suspendedId
+          })
+          const silenced = await database.getMastodonActorFromId({
+            id: silencedId
+          })
+
+          expect(suspended?.suspended).toBe(true)
+          expect(suspended?.limited).toBeUndefined()
+          expect(silenced?.limited).toBe(true)
+          expect(silenced?.suspended).toBeUndefined()
+        })
+      })
+
+      it('excludes suspended and silenced actors from getLocalMastodonActors', async () => {
+        await withFreshDatabase(async (database) => {
+          const suffix = crypto.randomUUID().slice(0, 8)
+          const activeUsername = `active-${suffix}`
+          const suspendedUsername = `dir-suspended-${suffix}`
+          const silencedUsername = `dir-silenced-${suffix}`
+          await createSigningAccount(database, activeUsername)
+          await createSigningAccount(database, suspendedUsername)
+          await createSigningAccount(database, silencedUsername)
+          await database.setActorSuspended({
+            actorId: `https://${TEST_DOMAIN}/users/${suspendedUsername}`,
+            suspended: true
+          })
+          await database.setActorSilenced({
+            actorId: `https://${TEST_DOMAIN}/users/${silencedUsername}`,
+            silenced: true
+          })
+
+          const actors = await database.getLocalMastodonActors({
+            localDomain: TEST_DOMAIN,
+            limit: 40,
+            offset: 0
+          })
+          const usernames = actors.map((actor) => actor.username)
+          expect(usernames).toContain(activeUsername)
+          expect(usernames).not.toContain(suspendedUsername)
+          expect(usernames).not.toContain(silencedUsername)
+        })
       })
 
       it('returns mastodon actors from ids in request order', async () => {
@@ -769,8 +912,10 @@ describe('ActorDatabase', () => {
           note: '',
           avatar: '',
           avatar_static: '',
+          avatar_description: '',
           header: '',
           header_static: '',
+          header_description: '',
 
           locked: true,
           fields: [],
@@ -791,6 +936,7 @@ describe('ActorDatabase', () => {
             note: '',
             privacy: 'public',
             sensitive: false,
+            quote_policy: 'public',
             attribution_domains: []
           },
 
@@ -882,6 +1028,41 @@ describe('ActorDatabase', () => {
           statuses_count: 0,
           followers_count: 0,
           following_count: 0
+        })
+      })
+
+      it('surfaces avatar/header alt text as the Mastodon 4.6 description fields', async () => {
+        await database.updateActor({
+          actorId: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
+          avatarDescription: 'A close-up of a coffee cup',
+          headerDescription: 'Mountains at dawn'
+        })
+
+        const actor = await database.getMastodonActorFromUsername({
+          username: TEST_USERNAME3,
+          domain: TEST_DOMAIN
+        })
+
+        // Both are required members of the Account entity as of Mastodon 4.6.
+        expect(actor).toMatchObject({
+          avatar_description: 'A close-up of a coffee cup',
+          header_description: 'Mountains at dawn'
+        })
+      })
+
+      it('defaults the 4.6 description fields to empty strings when unset', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `no-alt-${suffix}`
+        await createSigningAccount(database, username)
+
+        const actor = await database.getMastodonActorFromUsername({
+          username,
+          domain: TEST_DOMAIN
+        })
+
+        expect(actor).toMatchObject({
+          avatar_description: '',
+          header_description: ''
         })
       })
 

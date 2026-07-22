@@ -35,6 +35,7 @@ import { CollapsibleContent } from './collapsible-content'
 import { ContentWarning } from './content-warning'
 import { FitnessProcessingProgress } from './fitness-processing-progress'
 import { Poll } from './poll'
+import { QuoteCard } from './quote-card'
 import { ReadOnlyStats } from './read-only-stats'
 import { RetryFitnessButton } from './retry-fitness-button'
 import { TranslateContent } from './translate-content'
@@ -55,6 +56,7 @@ export interface PostProps {
   showReadOnlyStats?: boolean
   onReply?: (status: Status) => void
   onEdit?: (status: EditableStatus) => void
+  onQuote?: (status: Status) => void
   onPostDeleted?: (status: Status) => void
   onBookmarkChanged?: (
     status: StatusNote | StatusPoll,
@@ -137,6 +139,22 @@ export const Post: FC<PostProps> = (props) => {
     activityType: fitnessFile?.activityType
   })
   const fitnessSourceUrl = normalizeFitnessSourceUrl(fitnessFile?.sourceUrl)
+  const fitnessDeviceLabel = getDeviceDisplayLabel(
+    fitnessFile?.deviceName,
+    fitnessFile?.deviceManufacturer
+  )
+  // Labeled stat cells for the 4-up grid, in the design's order, dropping any
+  // metric the file doesn't provide.
+  const fitnessStats = [
+    { label: 'Distance', value: fitnessDistance },
+    { label: 'Duration', value: fitnessDuration },
+    fitnessPaceOrSpeed
+      ? { label: fitnessPaceOrSpeed.label, value: fitnessPaceOrSpeed.value }
+      : null,
+    { label: 'Elevation', value: fitnessElevation }
+  ].filter((stat): stat is { label: string; value: string } =>
+    Boolean(stat?.value)
+  )
   const isOwner =
     Boolean(actualStatus.isLocalActor) &&
     props.currentActor?.id === actualStatus.actorId
@@ -179,22 +197,22 @@ export const Post: FC<PostProps> = (props) => {
         )}
       </TranslateContent>
       {fitnessFile ? (
-        <div className="mt-2 max-w-full rounded-md border bg-muted/30 px-3 py-2 text-xs">
+        <div className="mt-2 max-w-full rounded-lg border bg-background p-3 text-xs">
           <div className="flex max-w-full items-center gap-2">
-            <Activity className="size-3.5 shrink-0 text-muted-foreground" />
-            <span className="shrink-0 font-medium text-muted-foreground">
-              Fitness
-            </span>
+            <Activity className="size-4 shrink-0 text-primary" />
+            {/* The visible "Fitness" label was dropped in the redesign; keep the
+                activity semantic for screen readers. */}
+            <span className="sr-only">Fitness activity</span>
             <a
               href={fitnessFile.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="truncate text-foreground underline-offset-2 hover:underline"
+              className="truncate font-mono text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
               title={fitnessFile.fileName}
             >
               {fitnessFile.fileName}
             </a>
-            <span className="shrink-0 text-muted-foreground uppercase">
+            <span className="ml-auto shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
               {fitnessFile.fileType}
             </span>
           </div>
@@ -223,48 +241,28 @@ export const Post: FC<PostProps> = (props) => {
             )
           ) : null}
 
-          {isFitnessCompleted ? (
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
-              {fitnessDistance ? (
-                <span>
-                  Distance:{' '}
-                  <strong className="text-foreground">{fitnessDistance}</strong>
-                </span>
-              ) : null}
-              {fitnessDuration ? (
-                <span>
-                  Duration:{' '}
-                  <strong className="text-foreground">{fitnessDuration}</strong>
-                </span>
-              ) : null}
-              {fitnessPaceOrSpeed ? (
-                <span>
-                  {fitnessPaceOrSpeed.label}:{' '}
-                  <strong className="text-foreground">
-                    {fitnessPaceOrSpeed.value}
-                  </strong>
-                </span>
-              ) : null}
-              {fitnessElevation ? (
-                <span>
-                  Elevation:{' '}
-                  <strong className="text-foreground">
-                    {fitnessElevation}
-                  </strong>
-                </span>
-              ) : null}
-              {getDeviceDisplayLabel(
-                fitnessFile.deviceName,
-                fitnessFile.deviceManufacturer
-              ) ? (
-                <span className="text-muted-foreground">
-                  Via:{' '}
-                  <BrandedDeviceLink
-                    deviceName={fitnessFile.deviceName}
-                    deviceManufacturer={fitnessFile.deviceManufacturer}
-                  />
-                </span>
-              ) : null}
+          {isFitnessCompleted && fitnessStats.length > 0 ? (
+            <div className="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {fitnessStats.map((stat) => (
+                <div key={stat.label} className="flex flex-col gap-0.5">
+                  <span className="text-[11px] text-muted-foreground">
+                    {stat.label}
+                  </span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {stat.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {isFitnessCompleted && fitnessDeviceLabel ? (
+            <div className="mt-2 text-[11px] text-muted-foreground">
+              Via:{' '}
+              <BrandedDeviceLink
+                deviceName={fitnessFile.deviceName}
+                deviceManufacturer={fitnessFile.deviceManufacturer}
+              />
             </div>
           ) : null}
 
@@ -274,7 +272,7 @@ export const Post: FC<PostProps> = (props) => {
                 href={fitnessSourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
               >
                 <ExternalLink className="size-3.5 shrink-0" />
                 {getFitnessSourceLabel(fitnessSourceUrl)}
@@ -290,6 +288,9 @@ export const Post: FC<PostProps> = (props) => {
         currentActorId={props.currentActor?.id}
       />
       <Attachments status={actualStatus} onMediaSelected={onShowAttachment} />
+      {actualStatus.quote ? (
+        <QuoteCard quote={actualStatus.quote} currentTime={props.currentTime} />
+      ) : null}
     </TranslationProvider>
   )
 

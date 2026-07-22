@@ -129,6 +129,18 @@ export const idToUrl = (id: string) => {
 export const safeIdToUrl = (value: string): string | null => {
   if (!value) return null
 
+  // A raw status URL is already the stored id — pass it through instead of
+  // letting idToUrl mangle the double slash after the scheme (encoded ids
+  // never start with a scheme, so there is no ambiguity).
+  if (/^https?:\/\//.test(value)) {
+    try {
+      const { protocol } = new URL(value)
+      return protocol === 'http:' || protocol === 'https:' ? value : null
+    } catch {
+      return null
+    }
+  }
+
   let decoded: string
   try {
     decoded = idToUrl(value)

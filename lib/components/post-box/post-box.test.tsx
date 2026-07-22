@@ -12,7 +12,7 @@ import {
 } from '@/lib/client'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
-import { EditableStatus, StatusType } from '@/lib/types/domain/status'
+import { EditableStatus, Status, StatusType } from '@/lib/types/domain/status'
 
 import { PostBox } from './post-box'
 
@@ -21,6 +21,7 @@ vi.mock('@/lib/client', () => ({
   createPoll: vi.fn(),
   deleteFitnessFile: vi.fn(),
   getCustomEmojis: vi.fn().mockResolvedValue([]),
+  getDefaultQuotePolicy: vi.fn().mockResolvedValue('public'),
   updateNote: vi.fn(),
   uploadAttachment: vi.fn(),
   uploadFitnessFile: vi.fn()
@@ -233,6 +234,7 @@ describe('PostBox edit media', () => {
       expect(createNoteMock).toHaveBeenCalledWith(
         expect.objectContaining({
           message: '',
+          quoteApprovalPolicy: 'public',
           attachments: [
             expect.objectContaining({
               id: 'uploaded-media',
@@ -242,6 +244,84 @@ describe('PostBox edit media', () => {
         })
       )
     })
+  })
+
+  it('shows the quoted preview and sends quotedStatus when composing a quote', async () => {
+    const quotedStatus = {
+      id: 'https://activities.local/users/bob/statuses/1',
+      actorId: 'https://activities.local/users/bob',
+      actor: {
+        id: 'https://activities.local/users/bob',
+        username: 'bob',
+        domain: 'activities.local',
+        name: 'Bob'
+      },
+      type: StatusType.enum.Note,
+      text: 'quote me please',
+      tags: [],
+      to: [],
+      cc: []
+    } as unknown as Status
+
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        quotedStatus={quotedStatus}
+        onDiscardReply={vi.fn()}
+        onDiscardQuote={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Quoting')).toBeInTheDocument()
+
+    const textbox = screen.getByPlaceholderText('What is on your mind?')
+    fireEvent.change(textbox, { target: { value: 'my commentary' } })
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    await waitFor(() => expect(postButton).toBeEnabled())
+    fireEvent.click(postButton)
+
+    await waitFor(() => {
+      expect(createNoteMock).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'my commentary', quotedStatus })
+      )
+    })
+  })
+
+  it('disables the poll toggle while composing a quote (mutually exclusive)', async () => {
+    const quotedStatus = {
+      id: 'https://activities.local/users/bob/statuses/1',
+      actorId: 'https://activities.local/users/bob',
+      actor: {
+        id: 'https://activities.local/users/bob',
+        username: 'bob',
+        domain: 'activities.local',
+        name: 'Bob'
+      },
+      type: StatusType.enum.Note,
+      text: 'quote me please',
+      tags: [],
+      to: [],
+      cc: []
+    } as unknown as Status
+
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        quotedStatus={quotedStatus}
+        onDiscardReply={vi.fn()}
+        onDiscardQuote={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Add poll' })).toBeDisabled()
   })
 
   it('keeps a new post with media enabled when text is cleared', async () => {

@@ -247,7 +247,7 @@ describe('client createPoll', () => {
   })
 
   it('throws when poll creation is rejected by the server', async () => {
-    fetchMock.mockResponse(JSON.stringify({ status: 'Unprocessable entity' }), {
+    fetchMock.mockResponse(JSON.stringify({ error: 'Unprocessable entity' }), {
       status: 422
     })
 
@@ -919,10 +919,29 @@ describe('client trends', () => {
     await expect(getTrendingStatuses(20)).rejects.toThrow(
       'Failed to load trending statuses: 503'
     )
+    // The /explore Posts tab renders the interactive timeline post component,
+    // so it opts into the app's domain status shape.
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/v1/trends/statuses?limit=20',
+      '/api/v1/trends/statuses?format=activities_next&limit=20',
       expect.objectContaining({ method: 'GET' })
     )
+  })
+
+  it('returns the domain trending statuses payload', async () => {
+    const statuses = [{ id: 'https://llun.test/users/a/statuses/1' }]
+    fetchMock.mockResponseOnce(JSON.stringify(statuses), { status: 200 })
+
+    await expect(getTrendingStatuses()).resolves.toEqual(statuses)
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/trends/statuses?format=activities_next',
+      expect.objectContaining({ method: 'GET' })
+    )
+  })
+
+  it('coerces a non-array trending statuses response to an empty list', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({}), { status: 200 })
+
+    await expect(getTrendingStatuses()).resolves.toEqual([])
   })
 
   it('returns trending links from the payload', async () => {

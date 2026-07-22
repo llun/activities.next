@@ -16,6 +16,8 @@ type MastodonNotificationType =
   | 'mention'
   | 'status'
   | 'reblog'
+  | 'quote'
+  | 'quoted_update'
   | 'follow'
   | 'follow_request'
   | 'favourite'
@@ -56,6 +58,10 @@ const mapNotificationType = (
       return 'mention'
     case 'reblog':
       return 'reblog'
+    case 'quote':
+      return 'quote'
+    case 'quoted_update':
+      return 'quoted_update'
     case 'follow':
       return 'follow'
     case 'follow_request':

@@ -7,6 +7,7 @@ import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { seedActor3 } from '@/lib/stub/seed/actor3'
+import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { type Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -18,6 +19,12 @@ const mockGetServerSession = vi.fn()
 const mockStoredToken = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
+}))
+
+const mockGetRemoteActorStatuses = vi.fn()
+vi.mock('@/lib/services/mastodon/getRemoteActorStatuses', () => ({
+  getRemoteActorStatuses: (...params: unknown[]) =>
+    mockGetRemoteActorStatuses(...params)
 }))
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
@@ -76,6 +83,7 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
     vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue(null)
+    mockGetRemoteActorStatuses.mockResolvedValue([])
   })
 
   it('allows anonymous reads but only returns public and unlisted statuses', async () => {
@@ -719,6 +727,264 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
     expect(returnedStatus).not.toHaveProperty('pinned')
   })
 
+  describe('remote actor live outbox fallback', () => {
+    const buildRemoteStatus = (statusId: string): Status =>
+      ({
+        id: statusId,
+        url: statusId,
+        actorId: EXTERNAL_ACTOR1,
+        actor: null,
+        type: StatusType.enum.Note,
+        text: 'Live remote status',
+        summary: null,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        edits: [],
+        reply: '',
+        replies: [],
+        actorAnnounceStatusId: null,
+        isActorLiked: false,
+        isLocalActor: false,
+        totalLikes: 0,
+        attachments: [],
+        tags: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }) as Status
+
+    const createRemoteRequest = (query = '') =>
+      new NextRequest(
+        `https://llun.test/api/v1/accounts/${urlToId(EXTERNAL_ACTOR1)}/statuses${query}`
+      )
+
+    it('serves live outbox statuses without pagination links when the local store is empty', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const liveStatusId = `${EXTERNAL_ACTOR1}/statuses/live-1`
+      mockGetRemoteActorStatuses.mockResolvedValue([
+        buildRemoteStatus(liveStatusId)
+      ])
+
+      const response = await GET(createRemoteRequest('?exclude_replies=true'), {
+        params: Promise.resolve({ id: urlToId(EXTERNAL_ACTOR1) })
+      })
+
+      expect(response.status).toBe(200)
+      const data = (await response.json()) as Array<{ uri: string }>
+      expect(data.map((status) => status.uri)).toEqual([liveStatusId])
+      // Remote ids can't page the local store, so a live page must not
+      // advertise cursors.
+      expect(response.headers.get('Link')).toBeNull()
+      expect(mockGetRemoteActorStatuses).toHaveBeenCalledWith({
+        database,
+        actorId: EXTERNAL_ACTOR1,
+        limit: 20,
+        excludeReplies: true,
+        excludeReblogs: false,
+        onlyMedia: false
+      })
+    })
+
+    it('merges live statuses with locally-stored ones, preferring the local copy on id collisions', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const now = Date.now() + 100_000
+      const localOnlyStatusId = `${EXTERNAL_ACTOR1}/statuses/merge-local-only`
+      const sharedStatusId = `${EXTERNAL_ACTOR1}/statuses/merge-shared`
+      const liveOnlyStatusId = `${EXTERNAL_ACTOR1}/statuses/merge-live-only`
+
+      // A followers-only post that only exists locally must survive the live
+      // page (the remote outbox never exposes it). seedDatabase already made
+      // actor1 an accepted follower of EXTERNAL_ACTOR1, so it is readable.
+      await database.createNote({
+        id: localOnlyStatusId,
+        url: localOnlyStatusId,
+        actorId: EXTERNAL_ACTOR1,
+        text: 'Followers-only local post',
+        to: [`${EXTERNAL_ACTOR1}/followers`],
+        cc: [],
+        createdAt: now
+      })
+      await database.createNote({
+        id: sharedStatusId,
+        url: sharedStatusId,
+        actorId: EXTERNAL_ACTOR1,
+        text: 'Shared post (local copy)',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        createdAt: now + 1
+      })
+
+      mockGetRemoteActorStatuses.mockResolvedValue([
+        {
+          ...buildRemoteStatus(sharedStatusId),
+          text: 'Shared post (live copy)',
+          createdAt: now + 1,
+          updatedAt: now + 1
+        },
+        {
+          ...buildRemoteStatus(liveOnlyStatusId),
+          createdAt: now + 2,
+          updatedAt: now + 2
+        }
+      ] as Status[])
+
+      const response = await GET(createRemoteRequest(), {
+        params: Promise.resolve({ id: urlToId(EXTERNAL_ACTOR1) })
+      })
+
+      expect(response.status).toBe(200)
+      const data = (await response.json()) as Array<{
+        uri: string
+        text: string | null
+      }>
+      const uris = data.map((status) => status.uri)
+      expect(uris).toContain(liveOnlyStatusId)
+      expect(uris).toContain(sharedStatusId)
+      expect(uris).toContain(localOnlyStatusId)
+      // No duplicate for the shared id, and the local copy wins.
+      expect(uris.filter((uri) => uri === sharedStatusId)).toHaveLength(1)
+      expect(
+        data.find((status) => status.uri === sharedStatusId)?.text
+      ).toContain('local copy')
+    })
+
+    it('keeps every local status on a live page instead of slicing it away', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const remoteActorId = 'https://llun.dev/users/topup'
+      await database.createActor({
+        actorId: remoteActorId,
+        username: 'topup',
+        domain: 'llun.dev',
+        followersUrl: `${remoteActorId}/followers`,
+        inboxUrl: `${remoteActorId}/inbox`,
+        sharedInboxUrl: `${remoteActorId}/inbox`,
+        publicKey: 'publicKey',
+        createdAt: Date.now()
+      })
+      const now = Date.now() + 110_000
+      const oldLocalStatusId = `${remoteActorId}/statuses/topup-local-old`
+      await database.createNote({
+        id: oldLocalStatusId,
+        url: oldLocalStatusId,
+        actorId: remoteActorId,
+        text: 'Old local post',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        createdAt: now - 10_000
+      })
+      // Two live posts newer than the local one: with limit=2 a plain
+      // sort+slice would push the local post off the (link-less) page.
+      mockGetRemoteActorStatuses.mockResolvedValue([
+        {
+          ...buildRemoteStatus(`${remoteActorId}/statuses/live-new-1`),
+          actorId: remoteActorId,
+          createdAt: now + 2,
+          updatedAt: now + 2
+        },
+        {
+          ...buildRemoteStatus(`${remoteActorId}/statuses/live-new-2`),
+          actorId: remoteActorId,
+          createdAt: now + 1,
+          updatedAt: now + 1
+        }
+      ] as Status[])
+
+      const response = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/accounts/${urlToId(remoteActorId)}/statuses?limit=2`
+        ),
+        { params: Promise.resolve({ id: urlToId(remoteActorId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = (await response.json()) as Array<{ uri: string }>
+      const uris = data.map((status) => status.uri)
+      expect(uris).toHaveLength(2)
+      expect(uris).toContain(oldLocalStatusId)
+      expect(uris).toContain(`${remoteActorId}/statuses/live-new-1`)
+    })
+
+    it('treats an empty cursor param as no cursor instead of rejecting it', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const response = await GET(createRemoteRequest('?max_id=&limit=1'), {
+        params: Promise.resolve({ id: urlToId(EXTERNAL_ACTOR1) })
+      })
+
+      expect(response.status).toBe(200)
+    })
+
+    it('falls back to locally-stored statuses when the live fetch returns nothing', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const localStatusId = `${EXTERNAL_ACTOR1}/statuses/local-fallback`
+      await database.createNote({
+        id: localStatusId,
+        url: localStatusId,
+        actorId: EXTERNAL_ACTOR1,
+        text: 'Local remote-actor status',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await GET(createRemoteRequest(), {
+        params: Promise.resolve({ id: urlToId(EXTERNAL_ACTOR1) })
+      })
+
+      expect(response.status).toBe(200)
+      const data = (await response.json()) as Array<{ uri: string }>
+      expect(data.map((status) => status.uri)).toContain(localStatusId)
+      expect(mockGetRemoteActorStatuses).toHaveBeenCalled()
+    })
+
+    it('does not fetch remote statuses for anonymous viewers', async () => {
+      const response = await GET(createRemoteRequest(), {
+        params: Promise.resolve({ id: urlToId(EXTERNAL_ACTOR1) })
+      })
+
+      expect(response.status).toBe(200)
+      expect(mockGetRemoteActorStatuses).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      { description: 'pagination requests', query: '?max_id=some-id' },
+      { description: 'pinned requests', query: '?pinned=true' },
+      { description: 'tagged requests', query: '?tagged=running' }
+    ])('does not fetch remote statuses for $description', async ({ query }) => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const response = await GET(createRemoteRequest(query), {
+        params: Promise.resolve({ id: urlToId(EXTERNAL_ACTOR1) })
+      })
+
+      expect(response.status).toBe(200)
+      expect(mockGetRemoteActorStatuses).not.toHaveBeenCalled()
+    })
+
+    it('does not fetch remote statuses for local actors', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const response = await GET(createRequest(), {
+        params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
+      })
+
+      expect(response.status).toBe(200)
+      expect(mockGetRemoteActorStatuses).not.toHaveBeenCalled()
+    })
+  })
+
   it('preserves compatible filter params in pagination links', async () => {
     const now = Date.now() + 80_000
     const olderStatusId = `${ACTOR1_ID}/statuses/account-link-older`
@@ -766,5 +1032,42 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
     expect(link).toContain('tagged=linktag')
     expect(link).toContain('max_id=')
     expect(link).toContain('min_id=')
+  })
+
+  it('pages past an encoded max_id cursor instead of repeating the first page', async () => {
+    const now = Date.now() + 90_000
+    const olderStatusId = `${ACTOR1_ID}/statuses/account-cursor-older`
+    const newerStatusId = `${ACTOR1_ID}/statuses/account-cursor-newer`
+
+    for (const [statusId, createdAt] of [
+      [olderStatusId, now],
+      [newerStatusId, now + 1]
+    ] as const) {
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Account cursor paging',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        createdAt
+      })
+    }
+
+    const firstPage = await GET(createRequest('?limit=1'), {
+      params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
+    })
+    expect(firstPage.status).toBe(200)
+    const firstData = (await firstPage.json()) as Array<{ uri: string }>
+    expect(firstData.map((status) => status.uri)).toEqual([newerStatusId])
+
+    // Clients echo the opaque encoded id from the response/Link header.
+    const secondPage = await GET(
+      createRequest(`?limit=1&max_id=${urlToId(newerStatusId)}`),
+      { params: Promise.resolve({ id: urlToId(ACTOR1_ID) }) }
+    )
+    expect(secondPage.status).toBe(200)
+    const secondData = (await secondPage.json()) as Array<{ uri: string }>
+    expect(secondData.map((status) => status.uri)).toEqual([olderStatusId])
   })
 })

@@ -1,8 +1,10 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { resetRefreshRemoteActorStateForTesting } from '@/lib/services/actors/refreshRemoteActor'
 import { seedDatabase } from '@/lib/stub/database'
-import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { GET } from './route'
@@ -10,6 +12,12 @@ import { GET } from './route'
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
+}))
+
+const mockRecordActorIfNeeded = vi.fn()
+vi.mock('@/lib/actions/utils', () => ({
+  recordActorIfNeeded: (...params: unknown[]) =>
+    mockRecordActorIfNeeded(...params)
 }))
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
@@ -56,8 +64,10 @@ describe('GET /api/v1/accounts/:id', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    resetRefreshRemoteActorStateForTesting()
     // Public endpoint: no session.
     mockGetServerSession.mockResolvedValue(null)
+    mockRecordActorIfNeeded.mockResolvedValue(undefined)
   })
 
   it('returns the public account without authentication', async () => {
@@ -90,5 +100,58 @@ describe('GET /api/v1/accounts/:id', () => {
       params: Promise.resolve({ id: urlToId(unknown) })
     })
     expect(response.status).toBe(404)
+  })
+
+  it('refreshes known remote actors for authenticated viewers', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+
+    const response = await GET(createRequest(EXTERNAL_ACTOR1), {
+      params: Promise.resolve({ id: urlToId(EXTERNAL_ACTOR1) })
+    })
+
+    expect(response.status).toBe(200)
+    expect(mockRecordActorIfNeeded).toHaveBeenCalledWith({
+      actorId: EXTERNAL_ACTOR1,
+      database
+    })
+  })
+
+  it('does not refresh local actors for authenticated viewers', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+
+    const response = await GET(createRequest(ACTOR1_ID), {
+      params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
+    })
+
+    expect(response.status).toBe(200)
+    expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
+  })
+
+  it('does not trigger remote fetches for anonymous viewers', async () => {
+    const response = await GET(createRequest(EXTERNAL_ACTOR1), {
+      params: Promise.resolve({ id: urlToId(EXTERNAL_ACTOR1) })
+    })
+
+    expect(response.status).toBe(200)
+    expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
+  })
+
+  it('serves the stored account when the remote refresh fails', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+    mockRecordActorIfNeeded.mockRejectedValue(new Error('remote down'))
+
+    const response = await GET(createRequest(EXTERNAL_ACTOR1), {
+      params: Promise.resolve({ id: urlToId(EXTERNAL_ACTOR1) })
+    })
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data.id).toBe(urlToId(EXTERNAL_ACTOR1))
   })
 })

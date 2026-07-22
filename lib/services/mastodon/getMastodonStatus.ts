@@ -1,10 +1,16 @@
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { isConversationMutedForActor } from '@/lib/services/mastodon/conversationMute'
+import { getEffectiveQuoteApprovalPolicy } from '@/lib/services/quotes/quotePolicy'
+import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Mastodon } from '@/lib/types/activitypub'
+import { Actor } from '@/lib/types/domain/actor'
 import { getMastodonAttachment } from '@/lib/types/domain/attachment'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import {
+  QuoteApprovalPolicy,
   Status,
+  StatusNote,
   StatusPoll,
   StatusType,
   hasStatusBeenEdited
@@ -38,6 +44,7 @@ interface MastodonTag {
 
 type MastodonAccountCache = Map<string, Promise<Mastodon.Account | null>>
 type ReplyStatusCache = Map<string, Status | null>
+type QuotedStatusCache = Map<string, Status | null>
 type StatusMetricsCache = {
   reblogs: Map<string, number>
   replies: Map<string, number>
@@ -51,8 +58,16 @@ type PollVoteCache = Map<string, PollVoteState>
 interface GetMastodonStatusOptions {
   accountCache?: MastodonAccountCache
   replyStatusCache?: ReplyStatusCache
+  quotedStatusCache?: QuotedStatusCache
   statusMetricsCache?: StatusMetricsCache
   pollVoteCache?: PollVoteCache
+  // Depth of quote nesting: 0 emits a full Quote (embedding the quoted status),
+  // >= 1 emits a ShallowQuote (id only) and does not recurse further.
+  quoteDepth?: number
+  // The signed-in viewer as a domain Actor (or null for anonymous), resolved
+  // once per batch so quote visibility checks don't re-fetch it per status.
+  // `undefined` means "not resolved yet"; a per-status call resolves it lazily.
+  viewerActor?: Actor | null
   pinnedStatusIds?: Set<string>
   // The set of thread-root status ids whose conversations the current actor has
   // muted. An empty set means "no mutes", letting per-status checks short-circuit.
@@ -60,6 +75,12 @@ interface GetMastodonStatusOptions {
   // Memoizes thread-root resolution (statusId → rootId) across a batch render so
   // a thread's shared ancestors are walked once rather than once per status.
   conversationRootCache?: Map<string, string>
+  // Batched accepted-follow state (quoted-author actorId → viewer follows them)
+  // for the followers-policy quote_approval.current_user verdict, resolved once
+  // per page in getMastodonStatuses so no per-status follow lookup is needed.
+  // Mirrors getFollowerStateByActorId in statusRouteAccess. A missing entry
+  // falls back to a single per-status follow lookup.
+  quoteFollowerStateByActorId?: ReadonlyMap<string, boolean>
 }
 
 const getMastodonAccount = (
@@ -221,6 +242,131 @@ const getReplyStatus = async (
   const replyStatus = await database.getStatus({ statusId })
   replyStatusCache.set(statusId, replyStatus)
   return replyStatus
+}
+
+// Collect the ids of quoted statuses that will be embedded (only `accepted`
+// edges at depth 0 render the full quoted status), mirroring addStatusReplyIds.
+const addStatusQuoteIds = (status: Status, statusIds: Set<string>) => {
+  if (status.type === StatusType.enum.Announce) {
+    addStatusQuoteIds(status.originalStatus, statusIds)
+    return
+  }
+  if (status.quote?.state === 'accepted' && status.quote.quotedStatusId) {
+    statusIds.add(status.quote.quotedStatusId)
+  }
+}
+
+// Collect the authors whose followers-policy statuses the viewer might quote, so
+// the batched quote_approval verdict can resolve accepted-follow state for the
+// whole page in one query. Only followers-policy statuses authored by someone
+// other than the viewer need a follow lookup (self / public / nobody are decided
+// without one).
+const addQuoteFollowerCandidateAuthorId = (
+  status: Status,
+  currentActorId: string,
+  authorIds: Set<string>
+) => {
+  const target =
+    status.type === StatusType.enum.Announce ? status.originalStatus : status
+  if (!target || target.type === StatusType.enum.Announce) return
+  if (target.actorId === currentActorId) return
+  if (getEffectiveQuoteApprovalPolicy(target) === 'followers') {
+    authorIds.add(target.actorId)
+  }
+}
+
+const getQuotedStatus = async (
+  database: Database,
+  statusId: string,
+  currentActorId?: string,
+  options?: GetMastodonStatusOptions
+) => {
+  const quotedStatusCache = options?.quotedStatusCache
+  // The batch cache is populated by getStatusesByIds with the viewer, so cached
+  // quoted statuses already carry the viewer's action state. The uncached
+  // (single-status) path must pass currentActorId itself, otherwise the embedded
+  // quoted_status would report favourited/bookmarked/reblogged as false.
+  if (!quotedStatusCache)
+    return database.getStatus({ statusId, currentActorId })
+
+  if (quotedStatusCache.has(statusId)) {
+    return quotedStatusCache.get(statusId) ?? null
+  }
+
+  const quotedStatus = await database.getStatus({ statusId, currentActorId })
+  quotedStatusCache.set(statusId, quotedStatus)
+  return quotedStatus
+}
+
+// Resolve the viewer as a domain Actor for quote visibility checks. Uses the
+// batch-resolved value when present; otherwise fetches once (single-status path).
+const getViewerActor = async (
+  database: Database,
+  currentActorId?: string,
+  options?: GetMastodonStatusOptions
+): Promise<Actor | null> => {
+  if (!currentActorId) return null
+  if (options && options.viewerActor !== undefined) return options.viewerActor
+  return (await database.getActorFromId({ id: currentActorId })) ?? null
+}
+
+// Approved audiences per policy. Manual approval queues are not modelled in v1,
+// so `manual` is always empty.
+const QUOTE_POLICY_AUTOMATIC_AUDIENCE: Record<QuoteApprovalPolicy, string[]> = {
+  public: ['public'],
+  followers: ['followers'],
+  nobody: []
+}
+
+// Whether `viewerActorId` has an accepted follow of `authorId`, sourced from the
+// batched map when present (getMastodonStatuses populates it for the whole page)
+// and otherwise from a single follow lookup — mirroring canActorReadSingleStatus
+// in statusAccess. A merely-requested follow does not count.
+const isAcceptedFollowerOf = async (
+  database: Database,
+  viewerActorId: string,
+  authorId: string,
+  options?: GetMastodonStatusOptions
+): Promise<boolean> => {
+  const prefetched = options?.quoteFollowerStateByActorId?.get(authorId)
+  if (prefetched !== undefined) return prefetched
+
+  const follow = await database.getAcceptedOrRequestedFollow({
+    actorId: viewerActorId,
+    targetActorId: authorId
+  })
+  return follow?.status === FollowStatus.enum.Accepted
+}
+
+// Build the `quote_approval` object for a non-Announce status. `current_user` is
+// the viewer's standing, matching canQuoteStatus: self / `public` → `automatic`,
+// `nobody` → `denied`, and for `followers` → `automatic` iff the viewer is an
+// accepted follower of the author, else `denied`. Block relationships (which
+// already gate the status's visibility, per canActorReadStatus's block-free hot
+// path) are not re-checked here. An anonymous viewer is always `unknown`.
+const getQuoteApproval = async (
+  database: Database,
+  status: StatusNote | StatusPoll,
+  currentActorId?: string,
+  options?: GetMastodonStatusOptions
+) => {
+  const policy = getEffectiveQuoteApprovalPolicy(status)
+  const automatic = QUOTE_POLICY_AUTOMATIC_AUDIENCE[policy]
+  let currentUser: string
+  if (!currentActorId) currentUser = 'unknown'
+  else if (currentActorId === status.actorId) currentUser = 'automatic'
+  else if (policy === 'public') currentUser = 'automatic'
+  else if (policy === 'nobody') currentUser = 'denied'
+  else {
+    const isFollower = await isAcceptedFollowerOf(
+      database,
+      currentActorId,
+      status.actorId,
+      options
+    )
+    currentUser = isFollower ? 'automatic' : 'denied'
+  }
+  return { automatic, manual: [] as string[], current_user: currentUser }
 }
 
 const getStatusReblogsCount = async (
@@ -454,9 +600,78 @@ export const getMastodonStatus = async (
     })
   }
 
+  const quoteDepth = options?.quoteDepth ?? 0
+  const quoteApproval = await getQuoteApproval(
+    database,
+    status,
+    currentActorId,
+    options
+  )
+
+  let quote:
+    | { state: string; quoted_status: Mastodon.Status | null }
+    | { state: string; quoted_status_id: string | null }
+    | undefined
+  const edge = status.quote
+  if (edge) {
+    // Resolve the viewer-relative state and the readable quoted status once, then
+    // apply it identically at depth 0 (full Quote) and depth >= 1 (ShallowQuote):
+    // only an `accepted` edge whose target exists and is readable resolves a
+    // quoted status; a missing target downgrades to `deleted`, an unreadable one
+    // to `unauthorized`, and both withhold the target (no embed, no id). This
+    // stops a nested quote from leaking a deleted/unreadable status id.
+    let effectiveState: string = edge.state
+    let readableQuoted: Status | null = null
+    if (edge.state === 'accepted') {
+      const quotedStatus = await getQuotedStatus(
+        database,
+        edge.quotedStatusId,
+        currentActorId,
+        options
+      )
+      if (!quotedStatus) {
+        effectiveState = 'deleted'
+      } else {
+        const viewer = await getViewerActor(database, currentActorId, options)
+        const canRead = await canActorReadStatus({
+          database,
+          status: quotedStatus,
+          currentActor: viewer
+        })
+        if (!canRead) effectiveState = 'unauthorized'
+        else readableQuoted = quotedStatus
+      }
+    }
+
+    if (quoteDepth >= 1) {
+      // ShallowQuote: reference by id only, and only when the downgraded state is
+      // still accepted (target exists and is readable). Stops recursion.
+      quote = {
+        state: effectiveState,
+        quoted_status_id: readableQuoted ? urlToId(readableQuoted.id) : null
+      }
+    } else if (!readableQuoted) {
+      // Placeholder: no embedded quoted status for non-accepted / deleted /
+      // unauthorized states.
+      quote = { state: effectiveState, quoted_status: null }
+    } else {
+      const quotedEntity = await getMastodonStatus(
+        database,
+        readableQuoted,
+        currentActorId,
+        { ...options, quoteDepth: 1 }
+      )
+      quote = quotedEntity
+        ? { state: 'accepted', quoted_status: quotedEntity }
+        : { state: 'deleted', quoted_status: null }
+    }
+  }
+
   return Mastodon.Status.parse({
     ...mastodonStatus,
-    poll: pollData
+    poll: pollData,
+    quote_approval: quoteApproval,
+    ...(quote ? { quote } : {})
   })
 }
 
@@ -473,6 +688,7 @@ export const getMastodonStatuses = async (
   const replyStatusIds = new Set<string>()
   const pollStatusIds = new Set<string>()
   const pinnedLookupStatusIds = new Set<string>()
+  const quoteStatusIds = new Set<string>()
 
   // Collect lookup ids per status, dropping any whose shape throws here (for
   // example a reblog whose original was deleted, leaving a null originalStatus).
@@ -486,6 +702,7 @@ export const getMastodonStatuses = async (
       addStatusReplyIds(status, replyStatusIds)
       addStatusPollIds(status, pollStatusIds)
       addStatusPinnedLookupIds(status, pinnedLookupStatusIds, currentActorId)
+      addStatusQuoteIds(status, quoteStatusIds)
       safeStatuses.push(status)
     } catch (error) {
       logger.warn({
@@ -503,6 +720,7 @@ export const getMastodonStatuses = async (
   const requestedActorIds = [...actorIds]
   const requestedMetricStatusIds = [...metricStatusIds]
   const requestedReplyStatusIds = [...replyStatusIds]
+  const requestedQuoteStatusIds = [...quoteStatusIds]
   const requestedPollStatusIds = currentActorId ? [...pollStatusIds] : []
   const requestedPinnedLookupStatusIds =
     currentActorId && !inputOptions.pinnedStatusIds
@@ -513,6 +731,8 @@ export const getMastodonStatuses = async (
     reblogCounts,
     replyCounts,
     replyStatuses,
+    quotedStatuses,
+    viewerActor,
     pollVotes,
     pinnedStatusIds,
     mutedConversationRootIds
@@ -532,6 +752,19 @@ export const getMastodonStatuses = async (
           currentActorId
         })
       : Promise.resolve([]),
+    // Prefetch quoted statuses regardless of visibility (no visibleToActorId):
+    // the per-status downgrade distinguishes "missing" (deleted) from
+    // "present but unreadable" (unauthorized).
+    requestedQuoteStatusIds.length > 0
+      ? database.getStatusesByIds({
+          statusIds: requestedQuoteStatusIds,
+          currentActorId
+        })
+      : Promise.resolve([]),
+    // The viewer as a domain Actor, resolved once for quote visibility checks.
+    currentActorId
+      ? database.getActorFromId({ id: currentActorId })
+      : Promise.resolve(null),
     requestedPollStatusIds.length > 0 && currentActorId
       ? database.getActorPollVotesForStatuses({
           statusIds: requestedPollStatusIds,
@@ -569,8 +802,47 @@ export const getMastodonStatuses = async (
     }
   }
 
+  // Resolve accepted-follow state once for every followers-policy author on the
+  // page (top-level statuses, their reblog originals, and embedded quoted
+  // statuses) so the quote_approval.current_user verdict needs no per-status
+  // follow lookup. Mirrors getFollowerStateByActorId in statusRouteAccess.
+  const quoteFollowerCandidateAuthorIds = new Set<string>()
+  if (currentActorId) {
+    for (const status of safeStatuses) {
+      addQuoteFollowerCandidateAuthorId(
+        status,
+        currentActorId,
+        quoteFollowerCandidateAuthorIds
+      )
+    }
+    for (const quotedStatus of quotedStatuses) {
+      addQuoteFollowerCandidateAuthorId(
+        quotedStatus,
+        currentActorId,
+        quoteFollowerCandidateAuthorIds
+      )
+    }
+  }
+  const quoteFollowerTargetActorIds = [...quoteFollowerCandidateAuthorIds]
+  const acceptedQuoteFollowTargetActorIds =
+    currentActorId && quoteFollowerTargetActorIds.length > 0
+      ? new Set(
+          await database.getAcceptedFollowTargetActorIds({
+            actorId: currentActorId,
+            targetActorIds: quoteFollowerTargetActorIds
+          })
+        )
+      : new Set<string>()
+  const quoteFollowerStateByActorId = new Map(
+    quoteFollowerTargetActorIds.map(
+      (actorId) =>
+        [actorId, acceptedQuoteFollowTargetActorIds.has(actorId)] as const
+    )
+  )
+
   const options: GetMastodonStatusOptions = {
     ...inputOptions,
+    quoteFollowerStateByActorId,
     pinnedStatusIds:
       inputOptions.pinnedStatusIds ?? new Set<string>(pinnedStatusIds),
     mutedConversationRootIds:
@@ -596,6 +868,10 @@ export const getMastodonStatuses = async (
     replyStatusCache: new Map(
       requestedReplyStatusIds.map((statusId) => [statusId, null])
     ),
+    quotedStatusCache: new Map(
+      requestedQuoteStatusIds.map((statusId) => [statusId, null])
+    ),
+    viewerActor: viewerActor ?? null,
     pollVoteCache: new Map(
       requestedPollStatusIds.map((statusId) => {
         const ownVotes = pollVotes[statusId] ?? []
@@ -611,6 +887,9 @@ export const getMastodonStatuses = async (
   }
   for (const replyStatus of replyStatuses) {
     options.replyStatusCache?.set(replyStatus.id, replyStatus)
+  }
+  for (const quotedStatus of quotedStatuses) {
+    options.quotedStatusCache?.set(quotedStatus.id, quotedStatus)
   }
 
   return (

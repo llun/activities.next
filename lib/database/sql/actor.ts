@@ -54,10 +54,12 @@ import {
   GetActorsFromIdsParams,
   GetActorsScheduledForDeletionParams,
   GetLocalActorsParams,
+  HasActorCountersParams,
   IsCurrentActorFollowingParams,
   IsInternalActorParams,
   NotificationPolicy,
   ScheduleActorDeletionParams,
+  SetActorCountersParams,
   StartActorDeletionParams,
   UpdateActorParams,
   UpdateNotificationPolicyParams
@@ -116,6 +118,8 @@ const insertActorWithSearchIndex = async (
     summary,
     iconUrl,
     headerImageUrl,
+    manuallyApprovesFollowers,
+    fields,
     followersUrl,
     inboxUrl,
     sharedInboxUrl,
@@ -130,7 +134,11 @@ const insertActorWithSearchIndex = async (
     headerImageUrl,
     followersUrl,
     inboxUrl,
-    sharedInboxUrl
+    sharedInboxUrl,
+    ...(manuallyApprovesFollowers !== undefined
+      ? { manuallyApprovesFollowers }
+      : null),
+    ...(fields !== undefined ? { fields } : null)
   }
   const actor = {
     id: actorId,
@@ -280,9 +288,18 @@ const getMastodonAccountFromSQLActor = ({
     avatar_static: settings.iconUrl ?? '',
     header: settings.headerImageUrl ?? '',
     header_static: settings.headerImageUrl ?? '',
+    // Mastodon 4.6 avatar/header alt text. Empty string when unset, matching
+    // Mastodon's serialization (and the Profile entity in lib/services/accounts).
+    avatar_description: settings.avatarDescription ?? '',
+    header_description: settings.headerDescription ?? '',
 
     fields: profileFields,
     emojis: [],
+
+    // Moderation flags: emitted only when set, matching Mastodon's Account
+    // entity (extra "only when suspended/silenced" attributes).
+    ...(sqlActor.suspendedAt ? { suspended: true } : null),
+    ...(sqlActor.silencedAt ? { limited: true } : null),
 
     locked: settings.manuallyApprovesFollowers ?? true,
     bot: isMastodonBotActorType(sqlActor.type) || settings.bot === true,
@@ -307,6 +324,7 @@ const getMastodonAccountFromSQLActor = ({
       privacy: settings.defaultPrivacy ?? 'public',
       sensitive: settings.defaultSensitive ?? false,
       language: settings.defaultLanguage ?? 'en',
+      quote_policy: settings.defaultQuotePolicy ?? 'public',
       attribution_domains: settings.attributionDomains ?? [],
       follow_requests_count: 0
     },
@@ -649,6 +667,16 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
             passwordResetCodeExpiresAt: sqlAccount.passwordResetCodeExpiresAt
               ? getCompatibleTime(sqlAccount.passwordResetCodeExpiresAt)
               : null,
+            ...{
+              disabledAt: sqlAccount.disabledAt
+                ? getCompatibleTime(sqlAccount.disabledAt)
+                : null
+            },
+            ...{
+              approvedAt: sqlAccount.approvedAt
+                ? getCompatibleTime(sqlAccount.approvedAt)
+                : null
+            },
             twoFactorEnabled:
               sqlAccount.twoFactorEnabled != null
                 ? Boolean(sqlAccount.twoFactorEnabled)
@@ -697,6 +725,15 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       deletionStatus: sqlActor.deletionStatus ?? null,
       deletionScheduledAt: sqlActor.deletionScheduledAt
         ? getCompatibleTime(sqlActor.deletionScheduledAt)
+        : null,
+      suspendedAt: sqlActor.suspendedAt
+        ? getCompatibleTime(sqlActor.suspendedAt)
+        : null,
+      silencedAt: sqlActor.silencedAt
+        ? getCompatibleTime(sqlActor.silencedAt)
+        : null,
+      sensitizedAt: sqlActor.sensitizedAt
+        ? getCompatibleTime(sqlActor.sensitizedAt)
         : null
     })
   },
@@ -723,6 +760,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
     // local=false lists every known profile (Mastodon's default directory);
     // local=true keeps only this server's account-backed actors.
+    // The directory never lists suspended or silenced actors on any surface.
+    query.whereNull('actors.suspendedAt').whereNull('actors.silencedAt')
+
     if (local) {
       query
         .where('actors.domain', normalizedDomain)
@@ -809,6 +849,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     defaultPrivacy,
     defaultSensitive,
     defaultLanguage,
+    defaultQuotePolicy,
     postLineLimit,
     readingExpandMedia,
     readingExpandSpoilers,
@@ -856,6 +897,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       ...(defaultPrivacy !== undefined ? { defaultPrivacy } : null),
       ...(defaultSensitive !== undefined ? { defaultSensitive } : null),
       ...(defaultLanguage !== undefined ? { defaultLanguage } : null),
+      ...(defaultQuotePolicy !== undefined ? { defaultQuotePolicy } : null),
       ...(postLineLimit !== undefined ? { postLineLimit } : null),
       ...(readingExpandMedia !== undefined ? { readingExpandMedia } : null),
       ...(readingExpandSpoilers !== undefined
@@ -969,30 +1011,50 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     })
   },
 
-  async updateActorFollowersCount(actorId: string) {
-    const result = await database('follows')
-      .where('targetActorId', actorId)
-      .andWhere('status', 'Accepted')
-      .count<{ count: string }>('* as count')
-      .first()
-    await setCounterValue(
-      database,
-      CounterKey.totalFollowers(actorId),
-      parseInt(result?.count ?? '0', 10)
-    )
+  // Overwrite the actor's counter rows with the collection sizes a remote
+  // server advertises (followers/following/outbox totalItems). A null or
+  // undefined value keeps the locally-accumulated counter. Every call also
+  // stamps the remote-counts-synced marker row, so hasActorCounters reports
+  // the sync as done even when the remote hides (or fails to serve) a
+  // collection's total.
+  async setActorCounters({
+    actorId,
+    followersCount,
+    followingCount,
+    statusCount
+  }: SetActorCountersParams) {
+    const currentTime = new Date()
+    const counters: [string, number | null | undefined][] = [
+      [CounterKey.totalFollowers(actorId), followersCount],
+      [CounterKey.totalFollowing(actorId), followingCount],
+      [CounterKey.totalStatus(actorId), statusCount]
+    ]
+    await Promise.all([
+      ...counters
+        .filter(
+          (counter): counter is [string, number] =>
+            typeof counter[1] === 'number'
+        )
+        .map(([key, value]) =>
+          setCounterValue(database, key, value, currentTime)
+        ),
+      setCounterValue(
+        database,
+        CounterKey.remoteCountsSyncedAt(actorId),
+        Math.floor(currentTime.getTime() / 1000),
+        currentTime
+      )
+    ])
   },
 
-  async updateActorFollowingCount(actorId: string) {
-    const result = await database('follows')
-      .where('actorId', actorId)
-      .andWhere('status', 'Accepted')
-      .count<{ count: string }>('* as count')
-      .first()
-    await setCounterValue(
-      database,
-      CounterKey.totalFollowing(actorId),
-      parseInt(result?.count ?? '0', 10)
-    )
+  // Whether the actor's remote collection counts were ever synced (the
+  // remote-counts-synced marker row exists). The follower/following/status
+  // rows themselves can't carry this signal: local accumulation (follows,
+  // federated statuses) creates them too.
+  async hasActorCounters({ actorId }: HasActorCountersParams) {
+    const key = CounterKey.remoteCountsSyncedAt(actorId)
+    const counters = await getCounterValues(database, [key])
+    return key in counters
   },
 
   async increaseActorStatusCount(actorId: string, amount: number = 1) {
@@ -1700,6 +1762,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       await deleteCounterValue(trx, CounterKey.totalFollowing(actorId))
       await deleteCounterValue(trx, CounterKey.totalBlocking(actorId))
       await deleteCounterValue(trx, CounterKey.totalBlockedBy(actorId))
+      await deleteCounterValue(trx, CounterKey.remoteCountsSyncedAt(actorId))
 
       if (persistedActor?.accountId) {
         await decreaseCounterValue(

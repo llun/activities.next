@@ -103,6 +103,8 @@ export const GET = traceApiRoute(
         actorId: currentActor?.id,
         maxStatusId: maxStatusIdParam ? idToUrl(maxStatusIdParam) : null,
         limit: effectiveLimit,
+        // Public surface: hide silenced authors (and suspended, always).
+        surface: 'public',
         fetchBatch: ({ maxStatusId, limit }) =>
           database.getStatusesByHashtag({
             hashtag: tag,

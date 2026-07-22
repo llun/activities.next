@@ -1,7 +1,12 @@
 import { z } from 'zod'
 
 import { Timeline } from '@/lib/services/timelines/types'
-import { ActorSettings, PostLineLimit } from '@/lib/types/database/rows'
+import {
+  ActorSettings,
+  PostLineLimit,
+  SQLAccount,
+  SQLActor
+} from '@/lib/types/database/rows'
 import { Account } from '@/lib/types/domain/account'
 import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { ActorDomainBlock } from '@/lib/types/domain/actorDomainBlock'
@@ -29,7 +34,12 @@ import { List, ListRepliesPolicy } from '@/lib/types/domain/list'
 import { Mute } from '@/lib/types/domain/mute'
 import { Relay, RelayState } from '@/lib/types/domain/relay'
 import { Session } from '@/lib/types/domain/session'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import {
+  QuoteApprovalPolicy,
+  QuoteState,
+  Status,
+  StatusType
+} from '@/lib/types/domain/status'
 import { Tag, TagType } from '@/lib/types/domain/tag'
 import * as Mastodon from '@/lib/types/mastodon'
 import { Client } from '@/lib/types/oauth2/client'
@@ -57,6 +67,9 @@ export type CreateActorParams = {
   summary?: string
   iconUrl?: string
   headerImageUrl?: string
+  manuallyApprovesFollowers?: boolean
+  // Mastodon profile metadata fields (name/value pairs).
+  fields?: { name: string; value: string }[]
 
   inboxUrl: string
   sharedInboxUrl: string
@@ -81,6 +94,19 @@ export type GetLocalActorsParams = {
   // database layer to preserve the method's historical behavior.
   local?: boolean
 }
+export type SetActorCountersParams = {
+  actorId: string
+  // null/undefined preserves the locally-accumulated value for that counter
+  // (e.g. remotes that hide a collection's totalItems). Every call stamps the
+  // remote-counts-synced marker row regardless, which is what
+  // hasActorCounters reports — counter-row existence can't carry the sync
+  // signal because local accumulation (follows, federated statuses) also
+  // creates those rows.
+  followersCount?: number | null
+  followingCount?: number | null
+  statusCount?: number | null
+}
+export type HasActorCountersParams = { actorId: string }
 export type IsCurrentActorFollowingParams = {
   currentActorId: string
   followingActorId: string
@@ -105,6 +131,7 @@ export type UpdateActorParams = {
   defaultPrivacy?: 'public' | 'unlisted' | 'private' | 'direct'
   defaultSensitive?: boolean
   defaultLanguage?: string
+  defaultQuotePolicy?: 'public' | 'followers' | 'nobody'
   postLineLimit?: PostLineLimit
   // Mastodon `reading:*` preferences surfaced by /api/v1/preferences.
   readingExpandMedia?: 'default' | 'show_all' | 'hide_all'
@@ -207,8 +234,8 @@ export interface ActorDatabase {
   ): Promise<Mastodon.Account[]>
   updateActor(params: UpdateActorParams): Promise<Actor | null>
   deleteActor(params: DeleteActorParams): Promise<void>
-  updateActorFollowersCount(actorId: string): Promise<void>
-  updateActorFollowingCount(actorId: string): Promise<void>
+  setActorCounters(params: SetActorCountersParams): Promise<void>
+  hasActorCounters(params: HasActorCountersParams): Promise<boolean>
   increaseActorStatusCount(actorId: string, amount?: number): Promise<void>
   decreaseActorStatusCount(actorId: string, amount?: number): Promise<void>
   updateActorLastStatusAt(actorId: string, time: number): Promise<void>
@@ -450,6 +477,11 @@ interface BaseCreateStatusParams {
   sensitive?: boolean
   language?: string | null
 
+  // Who may quote this status (FEP-044f / Mastodon 4.5). Persisted in the status
+  // content blob, not a column. Omit to leave it unset (defaults to `public` at
+  // consumption).
+  quoteApprovalPolicy?: QuoteApprovalPolicy
+
   // The registered OAuth client (Mastodon "application") that authored the
   // status. Null when created through the web session.
   applicationName?: string | null
@@ -471,6 +503,10 @@ export type UpdateNoteParams = Pick<CreateNoteParams, 'text' | 'summary'> &
     sensitive?: boolean
     language?: string | null
   }
+
+export type UpdateStatusQuoteApprovalPolicyParams = BaseStatusParams & {
+  quoteApprovalPolicy: QuoteApprovalPolicy
+}
 
 export type UpdateNoteVisibilityParams = BaseStatusParams & {
   to: string[]
@@ -742,6 +778,11 @@ export interface StatusDatabase {
   createAnnounce(params: CreateAnnounceParams): Promise<Status>
   createPoll(params: CreatePollParams): Promise<Status>
   updateNote(params: UpdateNoteParams): Promise<Status | null>
+  // Rewrites the status's quote-approval policy in the content blob without
+  // recording an edit (no status_history append, no edited_at bump).
+  updateStatusQuoteApprovalPolicy(
+    params: UpdateStatusQuoteApprovalPolicyParams
+  ): Promise<Status | null>
   updateNoteVisibility(
     params: UpdateNoteVisibilityParams
   ): Promise<Status | null>
@@ -1397,6 +1438,7 @@ export type GetListAccountsParams = {
   actorId: string
   limit?: number
   maxId?: string | null
+  minId?: string | null
   sinceId?: string | null
 }
 export type ListAccountsPage = {
@@ -2188,6 +2230,10 @@ export type Report = {
   ruleIds: string[]
   collectionIds: string[]
   actionTaken: boolean
+  // Workflow columns (Admin moderation API). Actor ids in URL form.
+  assignedActorId: string | null
+  actionTakenAt: number | null
+  actionTakenByActorId: string | null
   createdAt: number
   updatedAt: number
 }
@@ -2202,8 +2248,205 @@ export type CreateReportParams = {
   collectionIds?: string[]
 }
 
+export type GetAdminReportsParams = {
+  // `resolved` maps to the action_taken flag.
+  resolved?: boolean
+  // Reporter / target actor ids in URL form.
+  accountId?: string
+  targetActorId?: string
+  byTargetDomain?: string
+  limit?: number
+  maxId?: string | null
+  minId?: string | null
+  sinceId?: string | null
+}
+export type GetReportByIdParams = { reportId: string }
+export type UpdateReportCategoryParams = {
+  reportId: string
+  category?: ReportCategory
+  ruleIds?: string[]
+}
+export type AssignReportParams = {
+  reportId: string
+  // null unassigns.
+  assignedActorId: string | null
+}
+
 export interface ReportDatabase {
   createReport(params: CreateReportParams): Promise<Report>
+  // Filter/keyset-paginated admin report listing (newest first).
+  getAdminReports(params: GetAdminReportsParams): Promise<Report[]>
+  getReportById(params: GetReportByIdParams): Promise<Report | null>
+  // Update the report category and/or rule ids; returns the updated report.
+  updateReportCategory(
+    params: UpdateReportCategoryParams
+  ): Promise<Report | null>
+  // Assign (or, with null, unassign) the report to a moderator actor.
+  assignReport(params: AssignReportParams): Promise<Report | null>
+}
+
+// ============================================================================
+// Moderation Database
+// ============================================================================
+
+// The moderator actions recorded in the append-only `moderation_actions` audit
+// log. `none` is an audit-only action (e.g. resolving a report with no state
+// change). The rest mirror the admin account action matrix.
+export const ModerationActionType = z.enum([
+  'none',
+  'disable',
+  'enable',
+  'sensitive',
+  'unsensitive',
+  'silence',
+  'unsilence',
+  'suspend',
+  'unsuspend',
+  'approve',
+  'reject',
+  'destroy'
+])
+export type ModerationActionType = z.infer<typeof ModerationActionType>
+
+// Per-actor moderation state, read as epoch-millisecond timestamps (null when
+// the state is not set). Only actors carrying at least one non-null state are
+// returned by getModerationStatesForActors, so an absent map entry means the
+// actor is not moderated.
+export type ModerationStates = {
+  suspendedAt: number | null
+  silencedAt: number | null
+  sensitizedAt: number | null
+}
+
+export type ModerationAction = {
+  id: string
+  targetActorId: string
+  moderatorAccountId: string
+  moderatorActorId: string | null
+  action: ModerationActionType
+  reportId: string | null
+  text: string
+  createdAt: number
+}
+
+export type SetActorSuspendedParams = { actorId: string; suspended: boolean }
+export type SetActorSilencedParams = { actorId: string; silenced: boolean }
+export type SetActorSensitizedParams = { actorId: string; sensitized: boolean }
+export type SetAccountDisabledParams = { accountId: string; disabled: boolean }
+export type ApproveAccountParams = { accountId: string }
+export type RejectPendingAccountParams = { accountId: string }
+export type GetModerationStatesForActorsParams = { actorIds: string[] }
+export type CreateModerationActionParams = {
+  targetActorId: string
+  moderatorAccountId: string
+  moderatorActorId?: string | null
+  action: ModerationActionType
+  reportId?: string | null
+  text?: string
+}
+export type DeleteAllAccountSessionsParams = { accountId: string }
+export type SetReportResolutionParams = {
+  reportId: string
+  // true → mark action_taken with the timestamp and moderator; false → reopen
+  // (clear all three).
+  resolved: boolean
+  actionTakenByActorId?: string | null
+}
+
+export interface ModerationDatabase {
+  // Stamp/clear the actor state columns. Idempotent: setting a state that is
+  // already set refreshes the timestamp; clearing an unset state is a no-op.
+  setActorSuspended(params: SetActorSuspendedParams): Promise<void>
+  setActorSilenced(params: SetActorSilencedParams): Promise<void>
+  setActorSensitized(params: SetActorSensitizedParams): Promise<void>
+  // Login-level state, on the account row (no remote analogue).
+  setAccountDisabled(params: SetAccountDisabledParams): Promise<void>
+  // Idempotently mark an account approved (sets approvedAt only when null).
+  approveAccount(params: ApproveAccountParams): Promise<void>
+  // Delete a registration-pending account (approvedAt null) and all its actors
+  // in one transaction. Returns false (and changes nothing) for an already
+  // approved account.
+  rejectPendingAccount(params: RejectPendingAccountParams): Promise<boolean>
+  // Batch-load the moderation state for a set of actor ids in one query. Only
+  // moderated actors (≥1 non-null state) appear in the returned map.
+  getModerationStatesForActors(
+    params: GetModerationStatesForActorsParams
+  ): Promise<Map<string, ModerationStates>>
+  // Append an immutable audit-log row and return it.
+  createModerationAction(
+    params: CreateModerationActionParams
+  ): Promise<ModerationAction>
+  // Revoke every better-auth session for the account (used by disable/suspend).
+  deleteAllAccountSessions(
+    params: DeleteAllAccountSessionsParams
+  ): Promise<void>
+  // Resolve/reopen a report's action-taken workflow columns. Returns true when
+  // a matching report row was updated. Shared by the account action endpoint
+  // (resolve on moderation) and the admin reports API.
+  setReportResolution(params: SetReportResolutionParams): Promise<boolean>
+}
+
+// ============================================================================
+// Admin Accounts (Admin::Account listing/lookup)
+// ============================================================================
+
+// One actor row plus its owning account row (null for remote actors). The
+// Admin::Account serializer hydrates both plus session IPs and the public
+// Account entity.
+export type AdminAccountRecord = {
+  actor: SQLActor
+  account: SQLAccount | null
+}
+
+export type AdminAccountIp = { ip: string; usedAt: number }
+
+export type GetAdminAccountsParams = {
+  limit?: number
+  // Locality: local = account-backed on this instance; remote = foreign actor.
+  local?: boolean
+  remote?: boolean
+  // Status filters (v1 booleans; v2 `status`/`origin` map onto these).
+  active?: boolean
+  pending?: boolean
+  disabled?: boolean
+  silenced?: boolean
+  suspended?: boolean
+  sensitized?: boolean
+  // Text filters.
+  username?: string
+  displayName?: string
+  byDomain?: string
+  email?: string
+  ip?: string
+  staff?: boolean
+  // Keyset cursors on (createdAt desc, id) — actor-URL ids.
+  maxId?: string | null
+  minId?: string | null
+  sinceId?: string | null
+}
+
+export type GetAdminAccountParams = { actorId: string }
+export type GetAdminAccountRecordsParams = { actorIds: string[] }
+export type GetSessionIpsForAccountsParams = { accountIds: string[] }
+
+export interface AdminAccountDatabase {
+  // Actor-driven, filter/keyset-paginated listing for the admin accounts API.
+  getAdminAccounts(
+    params: GetAdminAccountsParams
+  ): Promise<AdminAccountRecord[]>
+  // Single Admin::Account record by actor id (URL form), or null.
+  getAdminAccount(
+    params: GetAdminAccountParams
+  ): Promise<AdminAccountRecord | null>
+  // Batch Admin::Account records by actor ids (URL form); order not guaranteed.
+  // Used to hydrate the four embedded accounts on Admin::Report.
+  getAdminAccountRecords(
+    params: GetAdminAccountRecordsParams
+  ): Promise<AdminAccountRecord[]>
+  // Latest-first session IPs per account (local accounts only carry sessions).
+  getSessionIpsForAccounts(
+    params: GetSessionIpsForAccountsParams
+  ): Promise<Map<string, AdminAccountIp[]>>
 }
 
 // ============================================================================
@@ -2554,6 +2797,84 @@ export interface BookmarkDatabase {
 }
 
 // ============================================================================
+// Status Quote Database (FEP-044f / Mastodon 4.5 quote edges)
+// ============================================================================
+
+// One quote edge: the quoting status (`statusId`, PK) → the quoted status. Only
+// the five persistent states are stored; viewer-relative states are computed at
+// serialization time. There is intentionally no FK to statuses (the edge can be
+// created before the quoting status row exists, matching likes/recipients).
+export type StatusQuoteRecord = {
+  statusId: string
+  quotedStatusId: string
+  state: QuoteState
+  quoteRequestId: string | null
+  authorizationUri: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+export type CreateStatusQuoteParams = {
+  statusId: string
+  quotedStatusId: string
+  state?: QuoteState
+  quoteRequestId?: string | null
+  authorizationUri?: string | null
+}
+export type GetStatusQuoteParams = { statusId: string }
+export type GetStatusQuoteByQuoteRequestIdParams = { quoteRequestId: string }
+export type GetStatusQuoteByAuthorizationUriParams = {
+  authorizationUri: string
+}
+export type MarkQuotesDeletedByQuotedStatusIdParams = {
+  quotedStatusId: string
+}
+export type UpdateStatusQuoteStateParams = {
+  statusId: string
+  state: QuoteState
+  authorizationUri?: string | null
+}
+export type GetQuotingStatusIdsParams = {
+  quotedStatusId: string
+  state?: QuoteState
+  limit?: number
+  maxId?: string | null
+  sinceId?: string | null
+  // Row offset for sequential enumeration (e.g. notifying every quoter). Unlike
+  // the maxId keyset cursor, an offset does not reference a deletable row, so a
+  // full sweep is not truncated if a quoting post is deleted mid-enumeration.
+  offset?: number
+}
+
+export interface StatusQuoteDatabase {
+  // Upsert on `statusId` (the edge may pre-exist from an inbound QuoteRequest).
+  createStatusQuote(params: CreateStatusQuoteParams): Promise<StatusQuoteRecord>
+  getStatusQuote(
+    params: GetStatusQuoteParams
+  ): Promise<StatusQuoteRecord | null>
+  // Match an inbound Accept/Reject against our outbound QuoteRequest.
+  getStatusQuoteByQuoteRequestId(
+    params: GetStatusQuoteByQuoteRequestIdParams
+  ): Promise<StatusQuoteRecord | null>
+  // Look up an edge by the hosted stamp uri (stamp GET route + revocation).
+  getStatusQuoteByAuthorizationUri(
+    params: GetStatusQuoteByAuthorizationUriParams
+  ): Promise<StatusQuoteRecord | null>
+  // Enforces the one-way state machine; an illegal transition is a no-op that
+  // returns the row unchanged. Returns null when no edge exists.
+  updateStatusQuoteState(
+    params: UpdateStatusQuoteStateParams
+  ): Promise<StatusQuoteRecord | null>
+  // Mark every accepted/pending edge quoting `quotedStatusId` as `deleted`
+  // (the quoted status was removed). Returns the number of edges updated.
+  markQuotesDeletedByQuotedStatusId(
+    params: MarkQuotesDeletedByQuotedStatusIdParams
+  ): Promise<number>
+  // Ids of statuses quoting `quotedStatusId`, newest first, for GET /:id/quotes.
+  getQuotingStatusIds(params: GetQuotingStatusIdsParams): Promise<string[]>
+}
+
+// ============================================================================
 // Media Database
 // ============================================================================
 
@@ -2747,6 +3068,11 @@ export const NotificationType = z.enum([
   'mention',
   'reply',
   'reblog',
+  // Mastodon 4.5 quote posts: someone quoted the recipient's status.
+  'quote',
+  // A status the recipient quoted (an accepted quote edge) was edited by its
+  // author. Mirrors the Mastodon push alert key of the same name.
+  'quoted_update',
   'activity_import',
   // Mastodon 4.6 Collections: a member was added to a collection
   // (`added_to_collection`) or a collection they're in had its metadata changed

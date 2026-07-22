@@ -50,7 +50,7 @@ describe('GET /api/v1/instance/activity', () => {
     )
 
     await expect(response.json()).resolves.toEqual({
-      status: 'Internal Server Error'
+      error: 'Internal Server Error'
     })
     expect(response.status).toBe(500)
   })
@@ -67,7 +67,7 @@ describe('GET /api/v1/instance/activity', () => {
     )
 
     await expect(response.json()).resolves.toEqual({
-      status: 'Internal Server Error'
+      error: 'Internal Server Error'
     })
     expect(response.status).toBe(500)
     expect(getInstanceActivity).toHaveBeenCalledTimes(1)

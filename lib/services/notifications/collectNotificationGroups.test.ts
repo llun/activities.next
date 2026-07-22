@@ -184,4 +184,68 @@ describe('collectNotificationGroups', () => {
     // lastScannedId is the id of the last raw row scanned, so the caller can page on.
     expect(result.lastScannedId).toBe('bob4')
   })
+
+  it('ascends from min_id, walking up past a bursty group until it has `limit` groups', async () => {
+    // getNotifications returns min_id batches newest-first (the v1 ascending
+    // seek then reverse). First window above the floor is one big like group;
+    // the next window up adds the remaining groups.
+    const batch1 = Array.from({ length: 5 }, (_, i) =>
+      notif({ id: `a${i}`, groupKey: 'like:s1', createdAt: 1000 - i })
+    )
+    const batch2 = [
+      notif({
+        id: 'b0',
+        type: NotificationType.enum.reblog,
+        groupKey: 'reblog:s2',
+        createdAt: 1100
+      }),
+      notif({
+        id: 'b1',
+        type: NotificationType.enum.follow,
+        groupKey: 'follow',
+        createdAt: 1099
+      })
+      // Short batch (< batchSize) → the newer end is exhausted.
+    ]
+    const getNotifications = vi
+      .fn()
+      .mockResolvedValueOnce(batch1)
+      .mockResolvedValueOnce(batch2)
+    const database = { getNotifications } as unknown as Database
+
+    const result = await collectNotificationGroups({
+      database,
+      baseQuery: {
+        actorId: 'https://llun.test/users/me',
+        minNotificationId: 'floor'
+      },
+      limit: 3,
+      batchSize: 5
+    })
+
+    expect(getNotifications).toHaveBeenCalledTimes(2)
+    // Ascending mode drives the lower-bound cursor, never max_id.
+    expect(getNotifications.mock.calls[0][0]).toMatchObject({
+      minNotificationId: 'floor'
+    })
+    expect(getNotifications.mock.calls[0][0].maxNotificationId).toBeUndefined()
+    // The cursor advances UP to the newest raw row of the first window.
+    expect(getNotifications.mock.calls[1][0]).toMatchObject({
+      minNotificationId: 'a0'
+    })
+    expect(result.groups).toHaveLength(3)
+    expect(result.exhausted).toBe(true)
+    expect(result.rawNotifications).toHaveLength(7)
+    // Rows are returned newest-first so grouping keeps most-recent-member
+    // samples and correct page_max_id cursors.
+    expect(result.rawNotifications.map((n) => n.id)).toEqual([
+      'b0',
+      'b1',
+      'a0',
+      'a1',
+      'a2',
+      'a3',
+      'a4'
+    ])
+  })
 })

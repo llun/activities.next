@@ -5,6 +5,11 @@ import { Visibility } from '@/lib/types/mastodon/visibility'
 
 import { Field } from './field'
 
+// Inlined to keep this leaf schema free of a domain-type import cycle
+// (lib/types/domain/status pulls in mastodon types). Kept in lockstep with
+// QuoteApprovalPolicy in lib/types/domain/status.ts.
+const QuotePolicy = z.enum(['public', 'followers', 'nobody'])
+
 export const Source = z.object({
   note: z.string().describe('Profile bio, in plain-text instead of in HTML'),
   fields: Field.array().describe('Metadata about the account'),
@@ -17,6 +22,10 @@ export const Source = z.object({
   language: z
     .string()
     .describe('The default posting language for new statuses'),
+  // Mastodon 4.5 default quote-approval policy for new statuses.
+  quote_policy: QuotePolicy.optional().describe(
+    'The default quote approval policy to be used for new statuses.'
+  ),
   attribution_domains: z
     .string()
     .array()

@@ -21,6 +21,7 @@ import {
 } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { getQueue } from '@/lib/services/queue'
+import { canQuoteStatus } from '@/lib/services/quotes/canQuoteStatus'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
@@ -33,6 +34,7 @@ import { Mastodon } from '@/lib/types/activitypub'
 import { Scope } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
+import { QuoteApprovalPolicy } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -79,6 +81,8 @@ const NoteSchema = z
   .object({
     status: z.string().optional().default(''),
     in_reply_to_id: z.string().optional(),
+    quoted_status_id: z.string().optional(),
+    quote_approval_policy: QuoteApprovalPolicy.optional(),
     spoiler_text: z.string().optional(),
     media_ids: z.array(z.coerce.string()).optional().default([]),
     visibility: VisibilitySchema.optional(),
@@ -361,11 +365,63 @@ export const POST = traceApiRoute(
               responseStatusCode: 422
             })
           }
+
+          // Resolve and authorize the quote target, if any. 404 when it is
+          // invisible to the caller; 422 when the quoted author's policy denies.
+          let quotedStatusId: string | undefined
+          if (note.quoted_status_id) {
+            const quotedUrl = idToUrl(note.quoted_status_id)
+            const quotedStatus = await database.getStatus({
+              statusId: quotedUrl,
+              withReplies: false
+            })
+            if (
+              !quotedStatus ||
+              !(await canActorReadStatus({
+                database,
+                status: quotedStatus,
+                currentActor
+              }))
+            ) {
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: { error: 'Record not found' },
+                responseStatusCode: 404
+              })
+            }
+            const verdict = await canQuoteStatus({
+              database,
+              quotedStatus,
+              quotingActorId: currentActor.id
+            })
+            if (verdict === 'denied') {
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: { error: 'Quoting is not allowed for this post' },
+                responseStatusCode: 422
+              })
+            }
+            quotedStatusId = quotedUrl
+          }
+
+          // Default an omitted quote_approval_policy to the actor's configured
+          // default (Mastodon 4.5 posting:default:quote_policy). A concrete
+          // request value always wins; omitted falls back to the actor setting,
+          // then to the per-status visibility default at consumption.
+          const quoteApprovalPolicy =
+            note.quote_approval_policy ??
+            (await database.getActorSettings({ actorId: currentActor.id }))
+              ?.defaultQuotePolicy
+
           status = await createNoteFromUserInput({
             currentActor,
             text: note.status,
             summary: note.spoiler_text,
             replyNoteId: note.in_reply_to_id,
+            quotedStatusId,
+            quoteApprovalPolicy,
             visibility: note.visibility,
             attachments,
             sensitive: note.sensitive,

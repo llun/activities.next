@@ -67,8 +67,13 @@ export const collectNotificationGroups = async ({
   startCursor,
   maxIterations = DEFAULT_MAX_ITERATIONS
 }: CollectParams): Promise<CollectResult> => {
+  // min_id drives an ascending (adjacent-page) scan: getNotifications returns
+  // the oldest rows just newer than the cursor (newest-first), and we walk UP
+  // toward newer rows across batches. Every other lower bound (since_id) keeps
+  // the DESC scan that pages max_id down toward older rows.
+  const ascending = Boolean(baseQuery.minNotificationId)
   const accumulated: Notification[] = []
-  let cursor = startCursor
+  let cursor = ascending ? baseQuery.minNotificationId : startCursor
   let lastScannedId: string | undefined
   let exhausted = false
 
@@ -76,7 +81,9 @@ export const collectNotificationGroups = async ({
     const batch = await database.getNotifications({
       ...baseQuery,
       limit: batchSize,
-      maxNotificationId: cursor
+      ...(ascending
+        ? { minNotificationId: cursor }
+        : { maxNotificationId: cursor })
     })
     if (batch.length === 0) {
       exhausted = true
@@ -88,10 +95,12 @@ export const collectNotificationGroups = async ({
       : batch
     accumulated.push(...filteredBatch)
 
-    // Advance the cursor by the raw batch tail regardless of account filtering so
+    // Advance the cursor by the raw batch edge regardless of account filtering so
     // account_id paging keeps scanning past bursts from other accounts. Track it
-    // even when every row was filtered out, so the caller can keep paging.
-    cursor = batch[batch.length - 1].id
+    // even when every row was filtered out, so the caller can keep paging. DESC
+    // batches are newest→oldest, so the tail (oldest) walks down; ascending
+    // batches are newest-first, so the head (newest) walks up.
+    cursor = ascending ? batch[0].id : batch[batch.length - 1].id
     lastScannedId = cursor
 
     // Fewer rows than requested means the DB has no more matching notifications.
@@ -107,9 +116,19 @@ export const collectNotificationGroups = async ({
     }
   }
 
+  // Ascending batches accumulate in oldest→newest window order; re-sort
+  // newest-first (createdAt desc, id desc) so grouping keeps most-recent-member
+  // samples and correct page_max_id cursors, matching the DESC path.
+  const rawNotifications = ascending
+    ? [...accumulated].sort(
+        (a, b) =>
+          b.createdAt - a.createdAt || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0)
+      )
+    : accumulated
+
   return {
-    rawNotifications: accumulated,
-    groups: prepareGroupedNotifications(accumulated, groupedTypes),
+    rawNotifications,
+    groups: prepareGroupedNotifications(rawNotifications, groupedTypes),
     exhausted,
     lastScannedId
   }

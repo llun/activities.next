@@ -146,32 +146,138 @@ describe('GET /api/v2/notifications', () => {
   )
 
   it.each([
-    ['min_id', 'min_id'],
-    ['since_id', 'since_id']
+    {
+      field: 'min_id' as const,
+      slot: 'minNotificationId',
+      other: 'sinceNotificationId'
+    },
+    {
+      field: 'since_id' as const,
+      slot: 'sinceNotificationId',
+      other: 'minNotificationId'
+    }
   ])(
-    'collapses %s to since-semantics for the grouped (DESC) scan',
-    async (_label, param) => {
+    'routes $field to its own cursor param for the grouped scan',
+    async ({ field, slot, other }) => {
       mockDatabase.getNotifications.mockResolvedValueOnce([])
 
       const request = new NextRequest(
-        `https://llun.test/api/v2/notifications?${param}=cursor-1`,
+        `https://llun.test/api/v2/notifications?${field}=cursor-1`,
         { method: 'GET' }
       )
       const response = await GET(request, { params: Promise.resolve({}) })
 
       expect(response.status).toBe(200)
-      // The grouped v2 path always scans DESC (collectNotificationGroups advances
-      // max_id by the oldest row), so both min_id and since_id must reach
-      // getNotifications as the since-semantics lower bound — never as
-      // minNotificationId, which would flip getNotifications to ascending and
-      // break the batching.
-      expect(mockDatabase.getNotifications).toHaveBeenCalledWith(
-        expect.objectContaining({ sinceNotificationId: 'cursor-1' })
-      )
-      const callArg = mockDatabase.getNotifications.mock.calls[0][0]
-      expect(callArg.minNotificationId).toBeUndefined()
+      // min_id drives collectNotificationGroups' ascending (adjacent-page) scan
+      // via minNotificationId; since_id keeps the DESC scan via
+      // sinceNotificationId. They must never collapse into one slot.
+      const callArg = mockDatabase.getNotifications.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >
+      expect(callArg[slot]).toBe('cursor-1')
+      expect(callArg[other]).toBeUndefined()
     }
   )
+
+  it('returns the adjacent (oldest) groups above the cursor for min_id, newest-first', async () => {
+    // Three distinct groups above the cursor, newest-first (the ascending seek
+    // in getNotifications returns min_id windows newest-first). With limit=2 the
+    // adjacent page is the two OLDEST of them (reblog, follow) — not the newest
+    // two — returned newest-first.
+    mockDatabase.getNotifications.mockResolvedValueOnce([
+      {
+        id: 'g-new',
+        type: 'like',
+        sourceActorId: 'https://other.test/users/alice',
+        statusId: 'https://other.test/statuses/1',
+        groupKey: 'like:https://other.test/statuses/1',
+        isRead: false,
+        filtered: false,
+        createdAt: 3000,
+        updatedAt: 3000
+      },
+      {
+        id: 'g-mid',
+        type: 'reblog',
+        sourceActorId: 'https://other.test/users/bob',
+        statusId: 'https://other.test/statuses/2',
+        groupKey: 'reblog:https://other.test/statuses/2',
+        isRead: false,
+        filtered: false,
+        createdAt: 2000,
+        updatedAt: 2000
+      },
+      {
+        id: 'g-old',
+        type: 'follow',
+        sourceActorId: 'https://other.test/users/carol',
+        groupKey: 'follow:1',
+        isRead: false,
+        filtered: false,
+        createdAt: 1000,
+        updatedAt: 1000
+      }
+    ])
+
+    const request = new NextRequest(
+      'https://llun.test/api/v2/notifications?limit=2&min_id=floor',
+      { method: 'GET' }
+    )
+    const response = await GET(request, { params: Promise.resolve({}) })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(
+      data.notification_groups.map((g: { group_key: string }) => g.group_key)
+    ).toEqual(['reblog:https://other.test/statuses/2', 'follow:1'])
+    const link = response.headers.get('Link') ?? ''
+    // next/max_id anchors on the oldest surviving group; prev/min_id on the
+    // newest surviving group.
+    expect(link).toContain('max_id=g-old')
+    expect(link).toContain('rel="next"')
+    expect(link).toContain('min_id=g-mid')
+    expect(link).toContain('rel="prev"')
+  })
+
+  it('emits a min_id continuation link when a min_id page has no visible groups but the source is not exhausted', async () => {
+    // Every scanned window is one bursty group whose accounts do not resolve, so
+    // the envelope suppresses it: the collector hits its iteration cap without
+    // exhausting (full batches, <limit groups) and no group survives. On a min_id
+    // (ascending) page this must page UPWARD via a min_id link from the last
+    // scanned row, not a max_id link.
+    mockDatabase.getMastodonActorsFromIds.mockResolvedValue([])
+    // batchSize = limit(2) * GROUP_OVERSCAN(5) = 10 full rows, one group.
+    mockDatabase.getNotifications.mockResolvedValue(
+      Array.from({ length: 10 }, (_, i) => ({
+        id: `burst-${i}`,
+        type: 'like',
+        sourceActorId: 'https://other.test/users/alice',
+        statusId: 'https://other.test/statuses/1',
+        groupKey: 'like:https://other.test/statuses/1',
+        isRead: false,
+        filtered: false,
+        createdAt: 3000 - i,
+        updatedAt: 3000 - i
+      }))
+    )
+
+    const request = new NextRequest(
+      'https://llun.test/api/v2/notifications?limit=2&min_id=floor',
+      { method: 'GET' }
+    )
+    const response = await GET(request, { params: Promise.resolve({}) })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.notification_groups).toHaveLength(0)
+    const link = response.headers.get('Link') ?? ''
+    // Ascending: continue upward with a min_id (prev) link from the newest
+    // scanned row — never a max_id (next) link that would page back down.
+    expect(link).toContain('min_id=burst-0')
+    expect(link).toContain('rel="prev"')
+    expect(link).not.toContain('max_id=')
+  })
 
   it('anchors the next (max_id) Link on the last returned group most-recent id', async () => {
     mockDatabase.getNotifications.mockResolvedValueOnce([
@@ -203,15 +309,76 @@ describe('GET /api/v2/notifications', () => {
       { method: 'GET' }
     )
     const response = await GET(request, { params: Promise.resolve({}) })
+    const data = await response.json()
 
     expect(response.status).toBe(200)
     const link = response.headers.get('Link') ?? ''
-    // next/max_id anchors on the LAST returned group (the follow group).
+    // next/max_id anchors on the LAST returned group (the follow group). The
+    // cursor is the notification UUID (page_max_id), NOT the numeric
+    // most_recent_notification_id — the server can only resolve UUID cursors.
     expect(link).toContain('max_id=follow-old')
     expect(link).toContain('rel="next"')
     // prev/min_id anchors on the FIRST returned group (the like group).
     expect(link).toContain('min_id=like-new')
     expect(link).toContain('rel="prev"')
+    // The numeric surrogate must NOT leak into the cursor.
+    expect(link).not.toContain('max_id=1000')
+    expect(link).not.toContain('min_id=3000')
+    // most_recent_notification_id is a JSON number (the createdAt epoch ms), so
+    // the Mastodon iOS Int decoder does not crash.
+    const [likeGroup, followGroup] = data.notification_groups
+    expect(likeGroup.most_recent_notification_id).toBe(3000)
+    expect(followGroup.most_recent_notification_id).toBe(1000)
+    expect(typeof likeGroup.most_recent_notification_id).toBe('number')
+  })
+
+  it('keeps groups distinct by group_key when their most_recent_notification_id collides', async () => {
+    // The numeric id is derived from createdAt (epoch ms), so two groups whose
+    // most-recent members share a millisecond collide on the number. That is
+    // benign: clients key the list on the unique group_key, not the number.
+    mockDatabase.getNotifications.mockResolvedValueOnce([
+      {
+        id: 'like-1',
+        type: 'like',
+        sourceActorId: 'https://other.test/users/alice',
+        statusId: 'https://other.test/statuses/1',
+        groupKey: 'like:https://other.test/statuses/1',
+        isRead: false,
+        filtered: false,
+        createdAt: 2000,
+        updatedAt: 2000
+      },
+      {
+        id: 'follow-1',
+        type: 'follow',
+        sourceActorId: 'https://other.test/users/bob',
+        groupKey: 'follow:1',
+        isRead: false,
+        filtered: false,
+        createdAt: 2000,
+        updatedAt: 2000
+      }
+    ])
+
+    const request = new NextRequest('https://llun.test/api/v2/notifications', {
+      method: 'GET'
+    })
+    const response = await GET(request, { params: Promise.resolve({}) })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.notification_groups).toHaveLength(2)
+    const ids = data.notification_groups.map(
+      (g: { most_recent_notification_id: number }) =>
+        g.most_recent_notification_id
+    )
+    // Same millisecond -> same numeric id...
+    expect(ids).toEqual([2000, 2000])
+    // ...but the group_keys stay unique.
+    const keys = data.notification_groups.map(
+      (g: { group_key: string }) => g.group_key
+    )
+    expect(new Set(keys).size).toBe(2)
   })
 
   it('splits accounts into full and partial with expand_accounts=partial_avatars', async () => {
@@ -224,6 +391,7 @@ describe('GET /api/v2/notifications', () => {
             url: id,
             avatar: 'https://other.test/avatar.png',
             avatar_static: 'https://other.test/avatar.png',
+            avatar_description: 'A friendly avatar',
             locked: false,
             bot: false,
             display_name: 'Only in the full shape'
@@ -269,7 +437,9 @@ describe('GET /api/v2/notifications', () => {
     expect(data.accounts).toHaveLength(1)
     expect(data.accounts[0].id).toBe('other.test:users:alice')
     expect(data.accounts[0].display_name).toBe('Only in the full shape')
-    // The rest ship as truncated PartialAccountWithAvatar entries.
+    // The rest ship as truncated PartialAccountWithAvatar entries. These MUST
+    // carry avatar_description (required by the Mastodon 4.6 entity); a missing
+    // key here makes 4.6 clients fail to decode the whole grouped response.
     expect(data.partial_accounts).toEqual([
       {
         id: 'other.test:users:bob',
@@ -277,10 +447,68 @@ describe('GET /api/v2/notifications', () => {
         url: 'https://other.test/users/bob',
         avatar: 'https://other.test/avatar.png',
         avatar_static: 'https://other.test/avatar.png',
+        avatar_description: 'A friendly avatar',
         locked: false,
         bot: false
       }
     ])
+  })
+
+  it('keeps the avatar_description key on partial accounts with empty alt text', async () => {
+    // A source actor without stored avatar alt text is serialized with
+    // avatar_description: '' (Account schema defaults it). The partial shape must
+    // carry that empty string through, never omit the key — a missing key is what
+    // makes 4.6 clients fail to decode the whole grouped response.
+    mockDatabase.getMastodonActorsFromIds.mockImplementation(
+      ({ ids }: { ids: string[] }) =>
+        Promise.resolve(
+          ids.map((id) => ({
+            id: id.replace(/https?:\/\//, '').replaceAll('/', ':'),
+            acct: 'user@other.test',
+            url: id,
+            avatar: 'https://other.test/avatar.png',
+            avatar_static: 'https://other.test/avatar.png',
+            avatar_description: '',
+            locked: false,
+            bot: false
+          }))
+        )
+    )
+    mockDatabase.getNotifications.mockResolvedValueOnce([
+      {
+        id: 'n1',
+        type: 'like',
+        sourceActorId: 'https://other.test/users/alice',
+        statusId: 'https://other.test/statuses/1',
+        groupKey: 'like:https://other.test/statuses/1',
+        isRead: false,
+        filtered: false,
+        createdAt: 2000,
+        updatedAt: 2000
+      },
+      {
+        id: 'n2',
+        type: 'like',
+        sourceActorId: 'https://other.test/users/bob',
+        statusId: 'https://other.test/statuses/1',
+        groupKey: 'like:https://other.test/statuses/1',
+        isRead: false,
+        filtered: false,
+        createdAt: 1000,
+        updatedAt: 1000
+      }
+    ])
+
+    const request = new NextRequest(
+      'https://llun.test/api/v2/notifications?expand_accounts=partial_avatars',
+      { method: 'GET' }
+    )
+    const response = await GET(request, { params: Promise.resolve({}) })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.partial_accounts).toHaveLength(1)
+    expect(data.partial_accounts[0]).toHaveProperty('avatar_description', '')
   })
 
   it('omits partial_accounts with the default expand_accounts=full', async () => {

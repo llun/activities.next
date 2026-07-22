@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server'
 
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
-import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
+import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { StatusType } from '@/lib/types/domain/status'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -30,6 +31,7 @@ vi.mock('@/lib/services/guards/OAuthGuard', () => ({
 
 vi.mock('@/lib/activities/getActorPerson')
 vi.mock('@/lib/activities/getActorPosts')
+vi.mock('@/lib/services/federation/domainPolicy')
 vi.mock('@/lib/services/federation/getFederationSigningActor')
 vi.mock('@/lib/utils/logger', () => ({
   logger: {
@@ -48,7 +50,8 @@ const createRequest = (query = '') =>
 describe('GET /api/v1/accounts/[id]/remote-statuses', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(getFederationSigningActor as jest.Mock).mockResolvedValue(
+    ;(canFederateWithDomain as jest.Mock).mockResolvedValue(true)
+    ;(getFederationSigningActorSafe as jest.Mock).mockResolvedValue(
       mockInstanceActor
     )
     ;(getActorPerson as jest.Mock).mockResolvedValue({
@@ -119,10 +122,10 @@ describe('GET /api/v1/accounts/[id]/remote-statuses', () => {
     })
   })
 
-  it('falls back to an unsigned fetch and warns when the signing actor cannot be resolved', async () => {
-    ;(getFederationSigningActor as jest.Mock).mockRejectedValue(
-      new Error('database down')
-    )
+  it('issues an unsigned fetch when no signing actor can be resolved', async () => {
+    // getFederationSigningActorSafe owns the warn-and-degrade behavior; the
+    // route only needs to tolerate the undefined signer it returns.
+    ;(getFederationSigningActorSafe as jest.Mock).mockResolvedValue(undefined)
 
     const response = await GET(createRequest(), {
       params: Promise.resolve({ id: urlToId(actorId) })
@@ -137,30 +140,18 @@ describe('GET /api/v1/accounts/[id]/remote-statuses', () => {
     expect((getActorPosts as jest.Mock).mock.calls[0][0].signingActor).toBe(
       undefined
     )
-    expect(mockLoggerWarn).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: expect.stringContaining(
-          'Failed to resolve federation signing actor'
-        )
-      })
-    )
   })
 
-  it('issues an unsigned fetch without warning when no signing actor exists', async () => {
-    ;(getFederationSigningActor as jest.Mock).mockResolvedValue(undefined)
+  it('returns 404 for actors on blocked federation domains without fetching', async () => {
+    ;(canFederateWithDomain as jest.Mock).mockResolvedValue(false)
 
     const response = await GET(createRequest(), {
       params: Promise.resolve({ id: urlToId(actorId) })
     })
 
-    expect(response.status).toBe(200)
-    expect((getActorPerson as jest.Mock).mock.calls[0][0].signingActor).toBe(
-      undefined
-    )
-    expect((getActorPosts as jest.Mock).mock.calls[0][0].signingActor).toBe(
-      undefined
-    )
-    expect(mockLoggerWarn).not.toHaveBeenCalled()
+    expect(response.status).toBe(404)
+    expect(getActorPerson).not.toHaveBeenCalled()
+    expect(getActorPosts).not.toHaveBeenCalled()
   })
 
   it('returns bad request for invalid page urls', async () => {

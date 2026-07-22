@@ -8,6 +8,7 @@ import {
   AccountNoteDatabase,
   ActorDatabase,
   ActorDomainBlockDatabase,
+  AdminAccountDatabase,
   AdminDatabase,
   AnnouncementDatabase,
   BaseDatabase,
@@ -28,6 +29,7 @@ import {
   ListDatabase,
   MarkerDatabase,
   MediaDatabase,
+  ModerationDatabase,
   MuteDatabase,
   NotificationDatabase,
   OAuthDatabase,
@@ -40,6 +42,7 @@ import {
   StatusDatabase,
   StatusDetectedLanguageDatabase,
   StatusMuteDatabase,
+  StatusQuoteDatabase,
   SuggestionDatabase,
   TimelineDatabase,
   TranslationCacheDatabase,
@@ -80,11 +83,14 @@ export type Database = AccountDatabase &
   PushSubscriptionDatabase &
   RelayDatabase &
   ReportDatabase &
+  ModerationDatabase &
+  AdminAccountDatabase &
   ScheduledStatusDatabase &
   SearchDatabase &
   StatusDatabase &
   StatusDetectedLanguageDatabase &
   StatusMuteDatabase &
+  StatusQuoteDatabase &
   SuggestionDatabase &
   TrendsDatabase &
   IdempotencyDatabase &

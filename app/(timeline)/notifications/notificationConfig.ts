@@ -4,6 +4,8 @@ import {
   Heart,
   Library,
   type LucideIcon,
+  PencilLine,
+  Quote,
   Repeat2,
   Reply,
   UserPlus,
@@ -80,6 +82,19 @@ export const NOTIFICATION_TYPE_CONFIG: Record<
     badgeClassName:
       'bg-[hsl(142_60%_36%/0.12)] text-[hsl(142_60%_36%)] dark:bg-[hsl(142_60%_45%/0.16)] dark:text-[hsl(142_55%_60%)]',
     verb: 'boosted your post',
+    kind: 'status'
+  },
+  quote: {
+    icon: Quote,
+    badgeClassName:
+      'bg-[hsl(142_60%_36%/0.12)] text-[hsl(142_60%_36%)] dark:bg-[hsl(142_60%_45%/0.16)] dark:text-[hsl(142_55%_60%)]',
+    verb: 'quoted your post',
+    kind: 'status'
+  },
+  quoted_update: {
+    icon: PencilLine,
+    badgeClassName: PRIMARY_BADGE,
+    verb: 'edited a post you quoted',
     kind: 'status'
   },
   activity_import: {

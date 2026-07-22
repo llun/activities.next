@@ -35,3 +35,13 @@ export const normalizeTrendsOffset = (rawOffset: string | null): number => {
   const offset = rawOffset !== null ? Number(rawOffset) : null
   return Number.isSafeInteger(offset) && offset && offset > 0 ? offset : 0
 }
+
+// The web UI opts into the app's domain status shape (so the /explore Posts tab
+// can reuse the interactive timeline post component) via `format=activities_next`,
+// mirroring the /api/v2/search flag. Any other value keeps the default Mastodon
+// serialization required by third-party API clients.
+export type TrendsStatusesFormat = 'activities_next' | undefined
+export const normalizeTrendsStatusesFormat = (
+  rawFormat: string | null
+): TrendsStatusesFormat =>
+  rawFormat === 'activities_next' ? 'activities_next' : undefined

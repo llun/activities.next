@@ -67,10 +67,12 @@ export const GET = traceApiRoute(
           actorId: currentActor.id,
           limit,
           maxId: url.searchParams.get('max_id'),
-          // The prev link we emit uses min_id, so accept it as well as the
-          // legacy since_id for newer-page pagination.
-          sinceId:
-            url.searchParams.get('since_id') || url.searchParams.get('min_id')
+          // Pass min_id and since_id through separately: min_id returns the page
+          // immediately adjacent to the cursor (ascending seek then reversed),
+          // since_id the newest slice above it. The prev link we emit uses
+          // min_id, so it round-trips into the adjacent-page path.
+          minId: url.searchParams.get('min_id'),
+          sinceId: url.searchParams.get('since_id')
         }
       )
 

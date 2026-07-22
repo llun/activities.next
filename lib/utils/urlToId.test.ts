@@ -173,6 +173,13 @@ describe('safeIdToUrl', () => {
     expect(safeIdToUrl(opaque)).toEqual('https://llun.test:8443/users/test1')
   })
 
+  it('passes a raw status URL through unchanged', () => {
+    // Raw URLs are already the stored id form; idToUrl would mangle the
+    // double slash after the scheme, silently breaking the cursor.
+    const url = 'https://mastodon.social/users/test1/statuses/123'
+    expect(safeIdToUrl(url)).toEqual(url)
+  })
+
   // A numeric Mastodon id (or other well-formed-but-unknown value) decodes to a
   // valid URL: it is accepted and the DB simply finds no matching row (empty
   // page), matching Mastodon — it must NOT 400.

@@ -11,7 +11,8 @@ const mockDatabase = {
   getStatusesByHashtag: vi.fn(),
   getTagDailyHistory: vi.fn(),
   isFollowingTag: vi.fn(),
-  getActorDomainBlocks: vi.fn(async () => [])
+  getActorDomainBlocks: vi.fn(async () => []),
+  getModerationStatesForActors: vi.fn(async () => new Map())
 }
 const mockCurrentActor = {
   id: 'https://local.test/users/me'

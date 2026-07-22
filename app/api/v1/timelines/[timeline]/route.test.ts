@@ -205,6 +205,69 @@ describe('GET /api/v1/timelines/[timeline]', () => {
     return status
   }
 
+  describe('moderation state on timelines', () => {
+    test('keeps posts from a silenced author on the home timeline', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      await database.setActorSilenced({ actorId: ACTOR1_ID, silenced: true })
+
+      try {
+        const response = await GET(createRequest(), {
+          params: Promise.resolve({ timeline: 'main' })
+        })
+
+        expect(response.status).toBe(200)
+        const statusIds = (await response.json()).statuses.map(
+          (s: { id: string }) => s.id
+        )
+        // Silence only hides an author from public surfaces; a follower's home
+        // timeline still shows them.
+        expect(statusIds).toContain(actor1TimelinePost1Id)
+      } finally {
+        await database.setActorSilenced({ actorId: ACTOR1_ID, silenced: false })
+      }
+    })
+
+    test('omits statuses from silenced authors on the federated timeline', async () => {
+      const silencedActorId = await createIsolatedActor()
+      const status = await database.createNote({
+        id: `${silencedActorId}/statuses/fed-silenced`,
+        url: `${silencedActorId}/statuses/fed-silenced`,
+        actorId: silencedActorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'federated silenced post'
+      })
+      await database.setActorSilenced({
+        actorId: silencedActorId,
+        silenced: true
+      })
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const getTimelineSpy = vi
+        .spyOn(database, 'getTimeline')
+        .mockResolvedValue([status])
+
+      try {
+        const response = await GET(createRequest(), {
+          params: Promise.resolve({ timeline: 'federated-public' })
+        })
+
+        expect(response.status).toBe(200)
+        const statusIds = (await response.json()).statuses.map(
+          (s: { id: string }) => s.id
+        )
+        // The federated feed is a public surface, so a silenced author is
+        // dropped here even though the home feed keeps them.
+        expect(statusIds).not.toContain(status.id)
+      } finally {
+        getTimelineSpy.mockRestore()
+      }
+    })
+  })
+
   describe('actor selection via cookie', () => {
     test('returns primary actor timeline when no cookie is set', async () => {
       mockGetServerSession.mockResolvedValue({
@@ -594,7 +657,7 @@ describe('GET /api/v1/timelines/[timeline]', () => {
       }
     )
 
-    test('since_id takes precedence over min_id for the lower-bound cursor', async () => {
+    test('min_id takes precedence over since_id and drives the adjacent-page (ascending) scan', async () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor1.email }
       })
@@ -610,12 +673,31 @@ describe('GET /api/v1/timelines/[timeline]', () => {
         { params: Promise.resolve({ timeline: 'main' }) }
       )
 
-      // The home/direct feed backfills DESC, so its lower bound reaches
-      // getTimeline as sinceStatusId (newest-first). since_id still wins the
-      // collapse over min_id.
+      // min_id is the adjacent-page cursor, so it wins and reaches getTimeline
+      // as minStatusId (ascending seek then reversed) — never collapsed into the
+      // DESC since path.
       expect(spy).toHaveBeenCalledWith(
-        expect.objectContaining({ sinceStatusId: sinceUrl })
+        expect.objectContaining({ minStatusId: minUrl })
       )
+      spy.mockRestore()
+    })
+
+    test('since_id alone reaches getTimeline as the DESC sinceStatusId lower bound', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const sinceUrl = 'https://llun.test/users/test1/statuses/since-only'
+      const spy = vi.spyOn(database, 'getTimeline').mockResolvedValue([])
+
+      await GET(createRequest({ since_id: urlToId(sinceUrl) }), {
+        params: Promise.resolve({ timeline: 'main' })
+      })
+
+      const call = spy.mock.calls[0][0] as Record<string, unknown>
+      expect(call.sinceStatusId).toBe(sinceUrl)
+      // since_id keeps newest-first ordering, so the DESC backfill never drives
+      // it as min_id.
+      expect(call.minStatusId).toBeUndefined()
       spy.mockRestore()
     })
   })

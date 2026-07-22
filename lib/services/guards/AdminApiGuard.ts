@@ -11,11 +11,22 @@ import { HTTP_STATUS, apiResponse } from '@/lib/utils/response'
 import { hasSameOriginProof } from './sameOriginProof'
 import { AppRouterParams } from './types'
 
+// The acting moderator's identity, threaded through to handlers so report
+// assignment and the moderation audit log can record provenance. Either id may
+// be null: a bearer app token has no actor, and a cookie-session admin whose
+// account has no default actor resolves actorId null (handlers that need an
+// actor — e.g. assign_to_self — 422 in that case).
+export type AdminModerator = {
+  accountId: string | null
+  actorId: string | null
+}
+
 type AdminApiHandle<P> = (
   request: NextRequest,
   context: {
     database: Database
     params: Promise<P>
+    moderator: AdminModerator
   }
 ) => Promise<Response> | Response
 
@@ -37,6 +48,14 @@ const RESOURCE_ADMIN_SCOPES = {
   domain_allows: {
     read: Scope.enum['admin:read:domain_allows'],
     write: Scope.enum['admin:write:domain_allows']
+  },
+  accounts: {
+    read: Scope.enum['admin:read:accounts'],
+    write: Scope.enum['admin:write:accounts']
+  },
+  reports: {
+    read: Scope.enum['admin:read:reports'],
+    write: Scope.enum['admin:write:reports']
   }
 } as const
 
@@ -98,7 +117,16 @@ export const AdminApiGuard =
           responseStatusCode: HTTP_STATUS.FORBIDDEN
         })
       }
-      return handle(req, { database, params: context.params })
+      return handle(req, {
+        database,
+        params: context.params,
+        // Cookie-session admin: the account has no actor of its own, so use its
+        // default actor id (null when unset — the actor-requiring handlers 422).
+        moderator: {
+          accountId: admin.id,
+          actorId: admin.defaultActorId ?? null
+        }
+      })
     }
 
     if (!req.headers.get('Authorization')) {
@@ -123,7 +151,14 @@ export const AdminApiGuard =
           })
         }
 
-        return handle(oauthReq, { database: oauthDatabase, params })
+        return handle(oauthReq, {
+          database: oauthDatabase,
+          params,
+          moderator: {
+            accountId: currentActor.account?.id ?? null,
+            actorId: currentActor.id
+          }
+        })
       }
     )(req, context)
   }

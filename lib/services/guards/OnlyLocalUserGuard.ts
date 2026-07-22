@@ -45,5 +45,12 @@ export const OnlyLocalUserGuard =
       return apiErrorResponse(404)
     }
 
+    // A suspended actor's ActivityPub surface (actor doc, outbox, followers,
+    // following, per-user inbox, statuses) responds 410 Gone. Silenced actors
+    // still resolve — silence only hides their statuses from public timelines.
+    if (actor.suspendedAt) {
+      return apiErrorResponse(410)
+    }
+
     return handle(database, actor, req, query)
   }

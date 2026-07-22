@@ -37,7 +37,8 @@ vi.mock('@/lib/client', () => ({
   unblock: vi.fn(),
   createReport: vi.fn(),
   deleteStatus: vi.fn(),
-  updateStatusVisibility: vi.fn()
+  updateStatusVisibility: vi.fn(),
+  updateStatusInteractionPolicy: vi.fn()
 }))
 
 const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
@@ -155,6 +156,9 @@ describe('PostMenu', () => {
       within(menu).getByRole('menuitem', { name: 'Change visibility' })
     ).toBeInTheDocument()
     expect(
+      within(menu).getByRole('menuitem', { name: 'Change who can quote' })
+    ).toBeInTheDocument()
+    expect(
       within(menu).getByRole('menuitem', { name: 'Copy link to post' })
     ).toBeInTheDocument()
     expect(
@@ -162,6 +166,31 @@ describe('PostMenu', () => {
     ).toBeInTheDocument()
     expect(
       within(menu).queryByRole('menuitem', { name: /Report post/ })
+    ).not.toBeInTheDocument()
+  })
+
+  it('offers a Quote action when onQuote is provided and fires it', async () => {
+    const onQuote = vi.fn()
+    render(
+      <PostMenu
+        status={otherStatus}
+        isOwner={false}
+        canEdit={false}
+        onQuote={onQuote}
+      />
+    )
+
+    const menu = await openMenu()
+    const quoteItem = within(menu).getByRole('menuitem', { name: 'Quote post' })
+    fireEvent.click(quoteItem)
+    expect(onQuote).toHaveBeenCalledWith(otherStatus)
+  })
+
+  it('omits the Quote action when onQuote is not provided', async () => {
+    render(<PostMenu status={otherStatus} isOwner={false} canEdit={false} />)
+    const menu = await openMenu()
+    expect(
+      within(menu).queryByRole('menuitem', { name: 'Quote post' })
     ).not.toBeInTheDocument()
   })
 

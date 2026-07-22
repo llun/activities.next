@@ -1324,7 +1324,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       )
 
       expect(response.status).toBe(404)
-      await expect(response.json()).resolves.toEqual({ status: 'Not Found' })
+      await expect(response.json()).resolves.toEqual({ error: 'Not Found' })
       await expect(
         database.isActorBookmarkedStatus({ actorId: ACTOR3_ID, statusId })
       ).resolves.toBe(false)

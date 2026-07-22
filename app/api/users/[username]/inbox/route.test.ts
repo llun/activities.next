@@ -1,7 +1,10 @@
 import { NextRequest } from 'next/server'
 
+import { HANDLE_QUOTE_REQUEST_JOB_NAME } from '@/lib/jobs/names'
+
 import { POST } from './route'
 
+const mockPublish = vi.fn()
 const mockCanFederateWithDomain = vi.fn()
 const mockAcceptRelayRequest = vi.fn()
 const mockRejectRelayRequest = vi.fn()
@@ -11,8 +14,11 @@ const mockApplyRemoteBlock = vi.fn()
 const mockApplyRemoteUnblock = vi.fn()
 const mockUndoFollowRequest = vi.fn()
 const mockVerifyAllows = vi.fn()
+const mockGetModerationStatesForActors = vi.fn()
 const mockDatabase = {
-  deleteLike: (...params: unknown[]) => mockDeleteLike(...params)
+  deleteLike: (...params: unknown[]) => mockDeleteLike(...params),
+  getModerationStatesForActors: (...params: unknown[]) =>
+    mockGetModerationStatesForActors(...params)
 }
 const mockDefaultActivityBody = Symbol('defaultActivityBody')
 let mockActivityBody: unknown = mockDefaultActivityBody
@@ -28,6 +34,12 @@ let mockActor: MockActor = {
   username: 'llun',
   type: 'Person'
 }
+
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: vi.fn().mockReturnValue({
+    publish: (...params: unknown[]) => mockPublish(...params)
+  })
+}))
 
 vi.mock('@/lib/services/federation/domainPolicy', () => ({
   canFederateWithDomain: (...params: unknown[]) =>
@@ -52,7 +64,7 @@ vi.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
       context: { params: Promise<{ username: string }> }
     ) => {
       if (!(await mockVerifyAllows(req, context))) {
-        return Response.json({ status: 'Bad Request' }, { status: 400 })
+        return Response.json({ error: 'Bad Request' }, { status: 400 })
       }
 
       const activityBody =
@@ -182,8 +194,31 @@ describe('POST /api/users/[username]/inbox', () => {
       targetActorId: 'https://activities.local/users/llun'
     })
     mockUndoFollowRequest.mockResolvedValue(true)
+    mockGetModerationStatesForActors.mockResolvedValue(new Map())
     mockActivityBody = mockDefaultActivityBody
     mockConsumeRequestBody = false
+  })
+
+  it('returns 202 without side effects when the verified sender actor is suspended', async () => {
+    mockGetModerationStatesForActors.mockResolvedValue(
+      new Map([
+        [
+          'https://remote.test/users/alice',
+          {
+            suspendedAt: 1_700_000_000_000,
+            silencedAt: null,
+            sensitizedAt: null
+          }
+        ]
+      ])
+    )
+
+    const response = await POST(createFollowRequest(), {
+      params: Promise.resolve({ username: 'llun' })
+    })
+
+    expect(response.status).toBe(202)
+    expect(mockCreateFollower).not.toHaveBeenCalled()
   })
 
   it('accepts verified deliveries to the headless signer inbox without creating state', async () => {
@@ -379,7 +414,7 @@ describe('POST /api/users/[username]/inbox', () => {
     })
   })
 
-  it.each(['Flag', 'Move', 'Add', 'Remove', 'QuoteRequest'])(
+  it.each(['Flag', 'Move', 'Add', 'Remove'])(
     'accepts verified %s activities without treating them as malformed',
     async (activityType) => {
       const response = await POST(
@@ -397,6 +432,23 @@ describe('POST /api/users/[username]/inbox', () => {
       expect(mockCreateFollower).not.toHaveBeenCalled()
     }
   )
+
+  it('dispatches verified QuoteRequest activities to the quote-request job', async () => {
+    // The instrument-authorship check dereferences the remote note, so the
+    // per-user inbox defers to the worker (like the shared inbox) instead of
+    // running the handler inline in the response.
+    const response = await POST(
+      createActorInboxActivityRequest('QuoteRequest'),
+      {
+        params: Promise.resolve({ username: 'llun' })
+      }
+    )
+
+    expect(response.status).toBe(202)
+    expect(mockPublish).toHaveBeenCalledWith(
+      expect.objectContaining({ name: HANDLE_QUOTE_REQUEST_JOB_NAME })
+    )
+  })
 
   it('accepts reference-only Undo activities without treating them as malformed', async () => {
     const response = await POST(createActorInboxActivityRequest('Undo'), {

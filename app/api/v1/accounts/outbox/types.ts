@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { SecondsToDurationText } from '@/lib/components/post-box/poll-choices'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
-import { Status } from '@/lib/types/domain/status'
+import { QuoteApprovalPolicy, Status } from '@/lib/types/domain/status'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 
 export const CreateNoteRequest = z.object({
@@ -12,6 +12,10 @@ export const CreateNoteRequest = z.object({
   replyStatus: Status.optional(),
   attachments: PostBoxAttachment.array().optional(),
   fitnessFileId: z.string().optional(),
+  // The canonical URL id of the status this note quotes (FEP-044f), if any.
+  quotedStatusId: z.string().optional(),
+  // Who may quote the new status; omitted defaults to the actor's setting.
+  quoteApprovalPolicy: QuoteApprovalPolicy.optional(),
   visibility: z
     .enum(['public', 'unlisted', 'private', 'direct'])
     .optional() as z.ZodOptional<z.ZodType<MastodonVisibility>>

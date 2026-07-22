@@ -3,12 +3,12 @@ import { z } from 'zod'
 import { isCollectionPageUrl } from '@/lib/activities/getActorCollections'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
-import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
+import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { logger } from '@/lib/utils/logger'
 import {
   ERROR_400,
   apiCorsError,
@@ -59,17 +59,14 @@ export const GET = traceApiRoute(
     // instance actor always exists, always has a private key, and is served at
     // a publicly resolvable URL so the remote can fetch its key and verify the
     // signature. Resolution is best-effort: a missing/failed signer degrades to
-    // an unsigned fetch (a clean 404) rather than turning into a 500.
-    const signingActor = await getFederationSigningActor(database).catch(
-      (error) => {
-        logger.warn({
-          message:
-            'Failed to resolve federation signing actor for remote account statuses; falling back to an unsigned request',
-          error: error instanceof Error ? error.message : String(error)
-        })
-        return undefined
-      }
-    )
+    // an unsigned fetch (a clean 404) rather than turning into a 500. Domain
+    // policy applies to every live-outbox surface: blocked domains are not
+    // fetchable here either.
+    const [canFederate, signingActor] = await Promise.all([
+      canFederateWithDomain(database, actorId),
+      getFederationSigningActorSafe(database, 'for remote account statuses')
+    ])
+    if (!canFederate) return apiCorsError(req, CORS_HEADERS, 404)
 
     const person = await getActorPerson({ actorId, signingActor })
     if (!person) return apiCorsError(req, CORS_HEADERS, 404)
