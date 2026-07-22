@@ -33,7 +33,7 @@ export const generateMetadata = async ({
 }
 
 const Page = async ({ params }: PageProps) => {
-  const { host } = getConfig()
+  const { host, mediaStorage } = getConfig()
   const database = getDatabase()
   if (!database) {
     throw new Error('Failed to load database')
@@ -70,6 +70,7 @@ const Page = async ({ params }: PageProps) => {
       statuses={statuses.map((status) => cleanJson(status))}
       currentTime={Date.now()}
       currentActor={getActorProfile(actor)}
+      isMediaUploadEnabled={Boolean(mediaStorage)}
       postLineLimit={settings?.postLineLimit}
     />
   )

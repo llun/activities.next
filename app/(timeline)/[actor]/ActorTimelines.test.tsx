@@ -21,7 +21,8 @@ vi.mock('@/lib/components/posts/posts', () => ({
     currentTime,
     showActions,
     showReadOnlyStats,
-    onReplyCreated,
+    onStatusCreated,
+    onPostUpdated,
     onPostDeleted,
     onLikeChanged,
     onBookmarkChanged
@@ -30,7 +31,8 @@ vi.mock('@/lib/components/posts/posts', () => ({
     currentTime: number
     showActions?: boolean
     showReadOnlyStats?: boolean
-    onReplyCreated?: (status: Status, attachments: never[]) => void
+    onStatusCreated?: (status: Status) => void
+    onPostUpdated?: (status: Status) => void
     onPostDeleted?: (status: Status) => void
     onLikeChanged?: (status: Status, isLiked: boolean) => void
     onBookmarkChanged?: (status: Status, isBookmarked: boolean) => void
@@ -41,13 +43,12 @@ vi.mock('@/lib/components/posts/posts', () => ({
       <div data-testid="posts-read-only-stats">
         {String(Boolean(showReadOnlyStats))}
       </div>
-      {onReplyCreated && (
+      {onStatusCreated && (
         <button
           data-testid="trigger-reply-created"
           onClick={() =>
-            onReplyCreated(
-              createReplyStatus('https://local.example/statuses/new-reply'),
-              []
+            onStatusCreated(
+              createReplyStatus('https://local.example/statuses/new-reply')
             )
           }
         >
@@ -89,6 +90,12 @@ vi.mock('@/lib/components/posts/posts', () => ({
               }
             >
               bookmark
+            </button>
+            <button
+              data-testid={`trigger-update-${target.id}`}
+              onClick={() => onPostUpdated?.({ ...target, totalLikes: 99 })}
+            >
+              update
             </button>
           </div>
         )
@@ -563,6 +570,31 @@ describe('ActorTimelines', () => {
     expect(
       screen.queryByText('https://local.example/statuses/new-reply')
     ).not.toBeInTheDocument()
+  })
+
+  it('replaces an edited post in place across the feed', () => {
+    const postId = 'https://remote.example/statuses/editable'
+    render(
+      <ActorTimelines
+        host="localhost:3000"
+        actorId="https://remote.example/users/actor"
+        statuses={[createStatus(postId)]}
+        attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={currentActorProfile}
+        statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
+      />
+    )
+
+    expect(screen.getByTestId(`like-flag-${postId}`)).toHaveTextContent(
+      'false:0'
+    )
+
+    fireEvent.click(screen.getByTestId(`trigger-update-${postId}`))
+
+    expect(screen.getByTestId(`like-flag-${postId}`)).toHaveTextContent(
+      'false:99'
+    )
   })
 
   it('keeps like state in sync across the feed when a post is liked', () => {

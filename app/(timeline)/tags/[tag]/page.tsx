@@ -33,7 +33,7 @@ const TAG_REGEX = /^[a-zA-Z0-9_]*[a-zA-Z_][a-zA-Z0-9_]*$/
 const Page = async ({ params }: PageProps) => {
   const { tag } = await params
   if (!TAG_REGEX.test(tag)) return notFound()
-  const { host } = getConfig()
+  const { host, mediaStorage } = getConfig()
   const database = getDatabase()
   if (!database) {
     throw new Error('Failed to load database')
@@ -70,6 +70,7 @@ const Page = async ({ params }: PageProps) => {
       postCount={postCount}
       currentTime={Date.now()}
       currentActor={actor ? getActorProfile(actor) : undefined}
+      isMediaUploadEnabled={Boolean(mediaStorage)}
       postLineLimit={settings?.postLineLimit}
     />
   )

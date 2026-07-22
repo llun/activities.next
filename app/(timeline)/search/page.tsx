@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 }
 
 const Page = async () => {
-  const { host } = getConfig()
+  const { host, mediaStorage } = getConfig()
   const database = getDatabase()
   if (!database) {
     throw new Error('Failed to load database')
@@ -42,6 +42,7 @@ const Page = async () => {
         host={host}
         currentActor={getActorProfile(actor)}
         currentTime={Date.now()}
+        isMediaUploadEnabled={Boolean(mediaStorage)}
         postLineLimit={settings?.postLineLimit}
       />
     </Suspense>

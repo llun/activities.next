@@ -35,6 +35,7 @@ interface SearchPageClientProps {
   host: string
   currentActor: ActorProfile
   currentTime: number
+  isMediaUploadEnabled?: boolean
   postLineLimit?: PostLineLimit
 }
 
@@ -258,6 +259,7 @@ export const SearchPageClient = ({
   host,
   currentActor,
   currentTime,
+  isMediaUploadEnabled,
   postLineLimit
 }: SearchPageClientProps) => {
   const router = useRouter()
@@ -445,6 +447,14 @@ export const SearchPageClient = ({
   const renderHashtags = (hashtags: Tag[]) =>
     hashtags.map((tag) => <HashtagRow key={tag.name} tag={tag} />)
 
+  const handlePostUpdated = (updated: Status) =>
+    setResults((previous) => ({
+      ...previous,
+      statuses: previous.statuses.map((item) =>
+        item.id === updated.id ? updated : item
+      )
+    }))
+
   const renderPosts = (statuses: Status[]) => (
     <Posts
       host={host}
@@ -453,7 +463,9 @@ export const SearchPageClient = ({
       statuses={statuses}
       currentActor={currentActor}
       showActions
+      isMediaUploadEnabled={isMediaUploadEnabled}
       postLineLimit={postLineLimit}
+      onPostUpdated={handlePostUpdated}
     />
   )
 

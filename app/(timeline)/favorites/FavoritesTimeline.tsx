@@ -26,6 +26,7 @@ interface FavoritesTimelineProps {
   initialNextMaxFavouriteId?: string | null
   currentTime: number
   currentActor: ActorProfile
+  isMediaUploadEnabled?: boolean
   postLineLimit?: PostLineLimit
 }
 
@@ -35,6 +36,7 @@ export const FavoritesTimeline: FC<FavoritesTimelineProps> = ({
   initialNextMaxFavouriteId = null,
   currentTime,
   currentActor,
+  isMediaUploadEnabled,
   postLineLimit
 }) => {
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
@@ -54,6 +56,21 @@ export const FavoritesTimeline: FC<FavoritesTimelineProps> = ({
             ? getOriginalStatus(item)
             : item
         return actualStatus.id !== status.id
+      })
+    )
+  }
+
+  const updateStatus = (status: Status) => {
+    // Announce-aware (like removeStatus): also refreshes a boost row whose
+    // original was the edited post. An edited status is always a note/poll.
+    setCurrentStatuses((previousStatuses) =>
+      previousStatuses.map((item) => {
+        if (item.type === StatusType.enum.Announce) {
+          return item.originalStatus.id === status.id
+            ? { ...item, originalStatus: status as StatusNote | StatusPoll }
+            : item
+        }
+        return item.id === status.id ? status : item
       })
     )
   }
@@ -127,8 +144,10 @@ export const FavoritesTimeline: FC<FavoritesTimelineProps> = ({
           statuses={currentStatuses}
           currentActor={currentActor}
           showActions
+          isMediaUploadEnabled={isMediaUploadEnabled}
           postLineLimit={postLineLimit}
           onPostDeleted={removeStatus}
+          onPostUpdated={updateStatus}
           onLikeChanged={onLikeChanged}
         />
       ) : (

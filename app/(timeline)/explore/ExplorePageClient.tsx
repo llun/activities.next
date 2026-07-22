@@ -229,10 +229,18 @@ export const ExplorePageClient = ({
           showActions
           isMediaUploadEnabled={isMediaUploadEnabled}
           postLineLimit={postLineLimit}
-          // Replying is fully functional (the inline composer posts to the
-          // server); /explore just doesn't fold the new reply into this trends
-          // list, so the callback only needs to let Posts close the box.
-          onReplyCreated={() => {}}
+          // A reply or quote composed here posts to the server and the shared
+          // composer closes itself; /explore just doesn't fold the new status
+          // into this trends list, so no onStatusCreated is needed. Edits do
+          // reflect in place.
+          onPostUpdated={(updated) =>
+            setPostsState((previous) => ({
+              ...previous,
+              items: previous.items.map((item) =>
+                item.id === updated.id ? updated : item
+              )
+            }))
+          }
         />
       )
     }

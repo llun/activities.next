@@ -22,6 +22,7 @@ interface ListTimelineProps {
   statuses: Status[]
   currentTime: number
   currentActor: ActorProfile
+  isMediaUploadEnabled?: boolean
   postLineLimit?: PostLineLimit
 }
 
@@ -37,6 +38,7 @@ export const ListTimeline: FC<ListTimelineProps> = ({
   statuses,
   currentTime,
   currentActor,
+  isMediaUploadEnabled,
   postLineLimit
 }) => {
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
@@ -53,6 +55,12 @@ export const ListTimeline: FC<ListTimelineProps> = ({
   const removeStatus = (status: Status) => {
     setCurrentStatuses((previousStatuses) =>
       previousStatuses.filter((item) => item.id !== status.id)
+    )
+  }
+
+  const updateStatus = (status: Status) => {
+    setCurrentStatuses((previousStatuses) =>
+      previousStatuses.map((item) => (item.id === status.id ? status : item))
     )
   }
 
@@ -126,8 +134,10 @@ export const ListTimeline: FC<ListTimelineProps> = ({
           statuses={currentStatuses}
           currentActor={currentActor}
           showActions
+          isMediaUploadEnabled={isMediaUploadEnabled}
           postLineLimit={postLineLimit}
           onPostDeleted={removeStatus}
+          onPostUpdated={updateStatus}
         />
       ) : (
         <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">
