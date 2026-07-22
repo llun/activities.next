@@ -30,6 +30,7 @@ const Page = async () => {
     <PreferencesSettings
       initialPreferences={{
         visibility: settings?.defaultPrivacy ?? 'public',
+        quotePolicy: settings?.defaultQuotePolicy ?? 'public',
         sensitive: settings?.defaultSensitive ?? false,
         language: settings?.defaultLanguage ?? 'en',
         expandMedia: settings?.readingExpandMedia ?? 'default',
