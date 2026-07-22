@@ -325,6 +325,7 @@ export const importFitnessFilesJob = createJobHandle(
         await database.updateFitnessFileActivityData(fitnessFile.id, {
           totalDistanceMeters: activityData.totalDistanceMeters,
           totalDurationSeconds: activityData.totalDurationSeconds,
+          movingTimeSeconds: activityData.movingTimeSeconds ?? null,
           elevationGainMeters: activityData.elevationGainMeters,
           activityType: activityData.activityType,
           activityStartTime: activityData.startTime ?? null,

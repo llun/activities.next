@@ -123,6 +123,7 @@ export const GET = traceApiRoute(
             ),
             totalDistanceMeters: file.totalDistanceMeters ?? null,
             totalDurationSeconds: file.totalDurationSeconds ?? null,
+            movingTimeSeconds: file.movingTimeSeconds ?? null,
             elevationGainMeters: file.elevationGainMeters ?? null,
             activityType: file.activityType ?? null,
             activityStartTime: file.activityStartTime ?? null,

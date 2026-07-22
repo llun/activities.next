@@ -1269,6 +1269,7 @@ export const FitnessStatusDetail: FC<Props> = ({
         processingStatus: status.fitness.processingStatus ?? 'pending',
         totalDistanceMeters: status.fitness.totalDistanceMeters ?? null,
         totalDurationSeconds: status.fitness.totalDurationSeconds ?? null,
+        movingTimeSeconds: status.fitness.movingTimeSeconds ?? null,
         elevationGainMeters: status.fitness.elevationGainMeters ?? null,
         activityType: status.fitness.activityType ?? null,
         activityStartTime: status.createdAt,
@@ -1289,6 +1290,7 @@ export const FitnessStatusDetail: FC<Props> = ({
     status.fitness?.processingStatus,
     status.fitness?.totalDistanceMeters,
     status.fitness?.totalDurationSeconds,
+    status.fitness?.movingTimeSeconds,
     status.fitness?.elevationGainMeters,
     status.fitness?.activityType,
     status.fitness?.hasMapData,
@@ -1406,6 +1408,7 @@ export const FitnessStatusDetail: FC<Props> = ({
   const paceOrSpeed = getFitnessPaceOrSpeed({
     distanceMeters: fitness?.totalDistanceMeters ?? undefined,
     durationSeconds: fitness?.totalDurationSeconds ?? undefined,
+    movingTimeSeconds: fitness?.movingTimeSeconds ?? undefined,
     activityType: fitness?.activityType ?? undefined
   })
   const fitnessSourceUrl = normalizeFitnessSourceUrl(fitness?.sourceUrl)

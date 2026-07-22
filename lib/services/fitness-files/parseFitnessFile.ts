@@ -24,6 +24,7 @@ export interface FitnessActivityData {
   trackPoints: FitnessTrackPoint[]
   totalDistanceMeters: number
   totalDurationSeconds: number
+  movingTimeSeconds?: number
   elevationGainMeters?: number
   activityType?: string
   startTime?: Date
@@ -282,6 +283,81 @@ const getElevationGain = (
   return gain
 }
 
+// Speeds at or below this are treated as "stopped" when accumulating moving
+// time. 0.5 m/s (1.8 km/h) sits below any real cycling/running/walking pace but
+// above the GPS jitter a stationary device reports, so it excludes genuine stops
+// without trimming slow-but-moving segments. This approximates Strava's
+// moving-time detection closely enough to reproduce its average speed.
+const STOPPED_SPEED_METERS_PER_SECOND = 0.5
+
+const getSegmentSpeedMetersPerSecond = (
+  previous: FitnessTrackPoint,
+  current: FitnessTrackPoint,
+  deltaSeconds: number
+): number | undefined => {
+  // FitnessTrackPoint.speed is normalized to km/h during parsing; convert the
+  // device-reported speeds to m/s. Averaging the two endpoints keeps the moving
+  // portion of a segment that decelerates into (or accelerates out of) a stop,
+  // matching how Strava treats those transitions.
+  const deviceSpeedsMetersPerSecond = [previous.speed, current.speed]
+    .filter((value): value is number => typeof value === 'number')
+    .map((kilometersPerHour) => kilometersPerHour / 3.6)
+  if (deviceSpeedsMetersPerSecond.length > 0) {
+    return (
+      deviceSpeedsMetersPerSecond.reduce((sum, value) => sum + value, 0) /
+      deviceSpeedsMetersPerSecond.length
+    )
+  }
+
+  // No device speed on either endpoint: fall back to how far the GPS moved over
+  // the interval.
+  if (deltaSeconds > 0) {
+    return haversineDistanceMeters(previous, current) / deltaSeconds
+  }
+
+  return undefined
+}
+
+// Sum the time spent actually moving, excluding stopped intervals — the basis
+// for Strava-style average pace/speed. A segment is only counted as stopped when
+// we can positively measure its speed at or below the stopped threshold;
+// unmeasurable segments are treated as moving so missing per-point data never
+// shrinks moving time below elapsed time. Returns undefined when there are not
+// enough timestamped points to measure anything (so callers fall back to the
+// full elapsed duration).
+const getMovingTimeSeconds = (
+  points: FitnessTrackPoint[]
+): number | undefined => {
+  let movingSeconds = 0
+  let measuredAny = false
+
+  for (let i = 1; i < points.length; i += 1) {
+    const previous = points[i - 1]
+    const current = points[i]
+    const previousMs = previous.timestamp?.getTime()
+    const currentMs = current.timestamp?.getTime()
+    if (typeof previousMs !== 'number' || typeof currentMs !== 'number') {
+      continue
+    }
+
+    const deltaSeconds = (currentMs - previousMs) / 1000
+    if (deltaSeconds <= 0) continue
+    measuredAny = true
+
+    const speed = getSegmentSpeedMetersPerSecond(
+      previous,
+      current,
+      deltaSeconds
+    )
+    if (speed === undefined || speed > STOPPED_SPEED_METERS_PER_SECOND) {
+      movingSeconds += deltaSeconds
+    }
+  }
+
+  if (!measuredAny || movingSeconds <= 0) return undefined
+  return movingSeconds
+}
+
 const getDurationSeconds = (
   startTime?: Date,
   endTime?: Date,
@@ -339,6 +415,8 @@ const toActivityData = ({
     totalDurationSeconds
   )
 
+  const movingTimeSeconds = getMovingTimeSeconds(points)
+
   const computedElevationGain = getElevationGain(
     points.map((point) => point.altitudeMeters)
   )
@@ -364,6 +442,17 @@ const toActivityData = ({
     trackPoints,
     totalDistanceMeters: distance,
     totalDurationSeconds: duration,
+    // Moving time can never exceed the elapsed span; clamp defensively so a
+    // slightly-larger measured value (e.g. from a lap fallback duration shorter
+    // than the trackpoint span) never yields a moving time above elapsed.
+    ...(typeof movingTimeSeconds === 'number' && movingTimeSeconds > 0
+      ? {
+          movingTimeSeconds:
+            duration > 0
+              ? Math.min(movingTimeSeconds, duration)
+              : movingTimeSeconds
+        }
+      : null),
     ...(typeof elevationGainMeters === 'number' && elevationGainMeters > 0
       ? { elevationGainMeters }
       : typeof computedElevationGain === 'number'

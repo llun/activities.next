@@ -101,6 +101,57 @@ describe('parseFitnessFile', () => {
     expect(parsed.startTime?.toISOString()).toBe('2026-01-02T07:00:00.000Z')
   })
 
+  it('computes moving time from trackpoints, excluding stopped segments', async () => {
+    // The activity spans 600s of elapsed time, but the rider is stopped
+    // (ns3:Speed 0) for the first 120s. Moving time should exclude that stop:
+    // 600 - 120 = 480s. This is what makes distance/moving-time (Strava's
+    // average speed) higher than distance/elapsed-time.
+    const speedExt = (metersPerSecond: number) =>
+      `<Extensions><ns3:TPX xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2"><ns3:Speed>${metersPerSecond}</ns3:Speed></ns3:TPX></Extensions>`
+    const tcx = `<?xml version="1.0" encoding="UTF-8"?>
+<TrainingCenterDatabase>
+  <Activities>
+    <Activity Sport="Biking">
+      <Id>2026-02-01T07:00:00Z</Id>
+      <Lap StartTime="2026-02-01T07:00:00Z">
+        <TotalTimeSeconds>600</TotalTimeSeconds>
+        <DistanceMeters>4000</DistanceMeters>
+        <Track>
+          <Trackpoint>
+            <Time>2026-02-01T07:00:00Z</Time>
+            <Position><LatitudeDegrees>37.7800</LatitudeDegrees><LongitudeDegrees>-122.4100</LongitudeDegrees></Position>
+            ${speedExt(0)}
+          </Trackpoint>
+          <Trackpoint>
+            <Time>2026-02-01T07:02:00Z</Time>
+            <Position><LatitudeDegrees>37.7800</LatitudeDegrees><LongitudeDegrees>-122.4100</LongitudeDegrees></Position>
+            ${speedExt(0)}
+          </Trackpoint>
+          <Trackpoint>
+            <Time>2026-02-01T07:05:00Z</Time>
+            <Position><LatitudeDegrees>37.7850</LatitudeDegrees><LongitudeDegrees>-122.4050</LongitudeDegrees></Position>
+            ${speedExt(8)}
+          </Trackpoint>
+          <Trackpoint>
+            <Time>2026-02-01T07:10:00Z</Time>
+            <Position><LatitudeDegrees>37.7900</LatitudeDegrees><LongitudeDegrees>-122.4000</LongitudeDegrees></Position>
+            ${speedExt(8)}
+          </Trackpoint>
+        </Track>
+      </Lap>
+    </Activity>
+  </Activities>
+</TrainingCenterDatabase>`
+
+    const parsed = await parseFitnessFile({
+      fileType: 'tcx',
+      buffer: Buffer.from(tcx)
+    })
+
+    expect(parsed.totalDurationSeconds).toBe(600)
+    expect(parsed.movingTimeSeconds).toBe(480)
+  })
+
   it('parses FIT data from fit-file-parser output', async () => {
     FitParserMock.mockImplementation(function () {
       return {

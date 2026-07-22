@@ -344,6 +344,36 @@ describe('FitnessFileDatabase', () => {
         expect(fetched?.activityStartTime).toBeDefined()
       })
 
+      it('persists moving time separately from elapsed duration', async () => {
+        const created = await database.createFitnessFile({
+          actorId: actors.primary.id,
+          path: 'fitness/moving-time.tcx',
+          fileName: 'moving-time.tcx',
+          fileType: 'tcx',
+          mimeType: 'application/vnd.garmin.tcx+xml',
+          bytes: 4096
+        })
+
+        expect(created?.movingTimeSeconds).toBeUndefined()
+
+        const updated = await database.updateFitnessFileActivityData(
+          created!.id,
+          {
+            totalDistanceMeters: 31_333.8,
+            totalDurationSeconds: 4_614,
+            movingTimeSeconds: 4_374,
+            activityType: 'Ride'
+          }
+        )
+        expect(updated).toBe(true)
+
+        const fetched = await database.getFitnessFile({ id: created!.id })
+        expect(fetched).toMatchObject({
+          totalDurationSeconds: 4_614,
+          movingTimeSeconds: 4_374
+        })
+      })
+
       it('records the failure reason and clears it once the file processes again', async () => {
         const created = await database.createFitnessFile({
           actorId: actors.primary.id,
