@@ -10,19 +10,25 @@ import {
   getTrendingTags
 } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
+import { Posts } from '@/lib/components/posts/posts'
 import { TrendLinkCard } from '@/lib/components/trends/trend-link-card'
-import { TrendPostRow } from '@/lib/components/trends/trend-post-row'
 import { TrendTagRow } from '@/lib/components/trends/trend-tag-row'
 import { Button } from '@/lib/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/lib/components/ui/tabs'
+import { PostLineLimit } from '@/lib/types/database/rows'
+import { ActorProfile } from '@/lib/types/domain/actor'
+import type { Status } from '@/lib/types/domain/status'
 import type { PreviewCard } from '@/lib/types/mastodon/previewCard'
-import type { Status as MastodonStatus } from '@/lib/types/mastodon/status'
 import type { Tag } from '@/lib/types/mastodon/tag'
 
 type ExploreTab = 'tags' | 'posts' | 'news'
 
 interface ExplorePageClientProps {
+  host: string
+  currentActor: ActorProfile
   currentTime: number
+  isMediaUploadEnabled: boolean
+  postLineLimit?: PostLineLimit
 }
 
 const EXPLORE_LIMIT = 20
@@ -90,14 +96,19 @@ const initialState = <T,>(): ListState<T> => ({ status: 'idle', items: [] })
 // The /explore page body — a segmented tab strip over three trend lists
 // (hashtags, posts, news). Each list is fetched lazily the first time its tab
 // is shown and cached for the rest of the session.
-export const ExplorePageClient = ({ currentTime }: ExplorePageClientProps) => {
+export const ExplorePageClient = ({
+  host,
+  currentActor,
+  currentTime,
+  isMediaUploadEnabled,
+  postLineLimit
+}: ExplorePageClientProps) => {
   const router = useRouter()
   const searchParams = useSearchParams()
   const tab = getExploreTab(searchParams.get('tab'))
 
   const [tagsState, setTagsState] = useState<ListState<Tag>>(initialState)
-  const [postsState, setPostsState] =
-    useState<ListState<MastodonStatus>>(initialState)
+  const [postsState, setPostsState] = useState<ListState<Status>>(initialState)
   const [linksState, setLinksState] =
     useState<ListState<PreviewCard>>(initialState)
 
@@ -209,15 +220,20 @@ export const ExplorePageClient = ({ currentTime }: ExplorePageClientProps) => {
         )
       }
       return (
-        <div className="divide-y divide-border">
-          {postsState.items.map((item) => (
-            <TrendPostRow
-              key={item.id}
-              status={item}
-              currentTime={currentTime}
-            />
-          ))}
-        </div>
+        <Posts
+          host={host}
+          framed={false}
+          currentTime={currentTime}
+          statuses={postsState.items}
+          currentActor={currentActor}
+          showActions
+          isMediaUploadEnabled={isMediaUploadEnabled}
+          postLineLimit={postLineLimit}
+          // Replying is fully functional (the inline composer posts to the
+          // server); /explore just doesn't fold the new reply into this trends
+          // list, so the callback only needs to let Posts close the box.
+          onReplyCreated={() => {}}
+        />
       )
     }
     if (linksState.items.length === 0) {
