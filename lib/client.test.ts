@@ -938,6 +938,12 @@ describe('client trends', () => {
     )
   })
 
+  it('coerces a non-array trending statuses response to an empty list', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({}), { status: 200 })
+
+    await expect(getTrendingStatuses()).resolves.toEqual([])
+  })
+
   it('returns trending links from the payload', async () => {
     fetchMock.mockResponseOnce(JSON.stringify([]), { status: 200 })
 

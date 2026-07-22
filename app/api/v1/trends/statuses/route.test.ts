@@ -11,6 +11,13 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
+// The OptionalOAuthGuard resolves the web-session actor through this helper;
+// mocking it lets an authenticated case exercise the viewer-flag hydration.
+const mockGetActorFromSession = vi.fn()
+vi.mock('@/lib/utils/getActorFromSession', () => ({
+  getActorFromSession: () => mockGetActorFromSession()
+}))
+
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
@@ -44,9 +51,12 @@ const THIRD_ACTOR_ID = 'https://llun.test/users/third'
 const FIRST_STATUS_ID = `${FIRST_ACTOR_ID}/statuses/a`
 const SECOND_STATUS_ID = `${SECOND_ACTOR_ID}/statuses/b`
 const QUIET_STATUS_ID = `${FIRST_ACTOR_ID}/statuses/quiet`
+// FIRST_ACTOR both likes and boosts the second (top-ranked) status below.
+const SECOND_STATUS_BOOST_ID = `${FIRST_ACTOR_ID}/statuses/boost-b`
 
 describe('GET /api/v1/trends/statuses', () => {
   const database = getTestSQLDatabase()
+  let firstActor: Awaited<ReturnType<typeof database.createActor>>
 
   const createActor = (id: string, username: string) =>
     database.createActor({
@@ -82,7 +92,7 @@ describe('GET /api/v1/trends/statuses', () => {
 
   beforeAll(async () => {
     await database.migrate()
-    await createActor(FIRST_ACTOR_ID, 'first')
+    firstActor = await createActor(FIRST_ACTOR_ID, 'first')
     await createActor(SECOND_ACTOR_ID, 'second')
     await createActor(THIRD_ACTOR_ID, 'third')
 
@@ -114,7 +124,7 @@ describe('GET /api/v1/trends/statuses', () => {
       statusId: SECOND_STATUS_ID
     })
     await database.createAnnounce({
-      id: `${FIRST_ACTOR_ID}/statuses/boost-b`,
+      id: SECOND_STATUS_BOOST_ID,
       actorId: FIRST_ACTOR_ID,
       to: [ACTIVITY_STREAM_PUBLIC],
       cc: [],
@@ -190,6 +200,47 @@ describe('GET /api/v1/trends/statuses', () => {
       isActorLiked: false,
       isActorBookmarked: false,
       actorAnnounceStatusId: null
+    })
+  })
+
+  it('hydrates the viewer flags for an authenticated format=activities_next request', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: 'first@llun.test' }
+    })
+    mockGetActorFromSession.mockResolvedValue(firstActor)
+
+    const response = await GET(request('?format=activities_next'), {
+      params: Promise.resolve({})
+    })
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    // FIRST_ACTOR liked and boosted the top status → those flags flow through
+    // the route's currentActorId plumbing; the second status they never
+    // interacted with stays unflagged, proving the flags are viewer-scoped.
+    expect(data[0]).toMatchObject({
+      id: SECOND_STATUS_ID,
+      isActorLiked: true,
+      isActorBookmarked: false,
+      actorAnnounceStatusId: SECOND_STATUS_BOOST_ID
+    })
+    expect(data[1]).toMatchObject({
+      id: FIRST_STATUS_ID,
+      isActorLiked: false
+    })
+  })
+
+  it('falls back to the Mastodon shape for an unknown format', async () => {
+    const response = await GET(request('?format=garbage'), {
+      params: Promise.resolve({})
+    })
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    // An unrecognized format is ignored, so the default Mastodon serialization
+    // (urlToId ids + snake_case counts) is returned.
+    expect(data[0]).toMatchObject({
+      id: urlToId(SECOND_STATUS_ID),
+      uri: SECOND_STATUS_ID,
+      favourites_count: 2
     })
   })
 
