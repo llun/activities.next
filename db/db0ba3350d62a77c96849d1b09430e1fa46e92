@@ -1,0 +1,19 @@
+app/(timeline)/explore/ExplorePageClient.tsx
+  s_8a67dc2bda9453::t_5a43202064b8e6 232-243
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "dbdb0ba3350d62a77c96849d1b09430e1fa46e92",
+  "prompts": {},
+  "sessions": {
+    "s_8a67dc2bda9453": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f81f9d62-9669-458c-bae0-82874d67cb44",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
