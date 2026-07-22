@@ -1415,9 +1415,27 @@ const getTrends = async <T>(
 export const getTrendingTags = (limit?: number): Promise<Tag[]> =>
   getTrends<Tag[]>('tags', limit)
 
-export const getTrendingStatuses = (
+// The /explore Posts tab renders trending statuses with the interactive timeline
+// post component, which consumes the app's domain Status shape — so this asks the
+// endpoint for `format=activities_next` (like the search client) rather than the
+// default Mastodon serialization.
+export const getTrendingStatuses = async (
   limit?: number
-): Promise<MastodonStatus[]> => getTrends<MastodonStatus[]>('statuses', limit)
+): Promise<Status[]> => {
+  const params = new URLSearchParams({ format: 'activities_next' })
+  if (typeof limit === 'number') params.set('limit', `${limit}`)
+  const response = await fetch(`/api/v1/trends/statuses?${params.toString()}`, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (!response.ok) {
+    throw new Error(`Failed to load trending statuses: ${response.status}`)
+  }
+  const data = await response.json()
+  return Array.isArray(data) ? (data as Status[]) : []
+}
 
 export const getTrendingLinks = (limit?: number): Promise<PreviewCard[]> =>
   getTrends<PreviewCard[]>('links', limit)

@@ -5,6 +5,7 @@ import {
   TRENDS_STATUSES_MAX_LIMIT,
   normalizeTrendsLimit,
   normalizeTrendsOffset,
+  normalizeTrendsStatusesFormat,
   normalizeTrendsStatusesLimit
 } from './request'
 
@@ -132,5 +133,32 @@ describe('normalizeTrendsStatusesLimit', () => {
     }
   ])('$description', ({ value, expected }) => {
     expect(normalizeTrendsStatusesLimit(value)).toBe(expected)
+  })
+})
+
+describe('normalizeTrendsStatusesFormat', () => {
+  it.each([
+    {
+      description: 'the activities_next opt-in passes through',
+      value: 'activities_next',
+      expected: 'activities_next'
+    },
+    {
+      description: 'an unknown format is ignored',
+      value: 'mastodon',
+      expected: undefined
+    },
+    {
+      description: 'an empty format is ignored',
+      value: '',
+      expected: undefined
+    },
+    {
+      description: 'an absent format is ignored',
+      value: null,
+      expected: undefined
+    }
+  ])('$description', ({ value, expected }) => {
+    expect(normalizeTrendsStatusesFormat(value)).toBe(expected)
   })
 })

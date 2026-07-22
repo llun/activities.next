@@ -10,7 +10,8 @@ import {
   getTrendingStatuses,
   getTrendingTags
 } from '@/lib/client'
-import type { Status as MastodonStatus } from '@/lib/types/mastodon/status'
+import { ActorProfile } from '@/lib/types/domain/actor'
+import { type StatusNote, StatusType } from '@/lib/types/domain/status'
 import type { Tag } from '@/lib/types/mastodon/tag'
 
 import { ExplorePageClient } from './ExplorePageClient'
@@ -20,7 +21,10 @@ vi.mock('next/navigation', () => ({
   useSearchParams: vi.fn()
 }))
 
-vi.mock('@/lib/client', () => ({
+// Keep the real client so the interactive post buttons resolve their (never
+// called at render) imports; only stub the three trends loaders.
+vi.mock('@/lib/client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/client')>()),
   getTrendingTags: vi.fn(),
   getTrendingStatuses: vi.fn(),
   getTrendingLinks: vi.fn()
@@ -32,6 +36,32 @@ const mockGetTrendingLinks = getTrendingLinks as jest.Mock
 const mockUseRouter = useRouter as jest.Mock
 const mockUseSearchParams = useSearchParams as jest.Mock
 
+const HOST = 'llun.test'
+
+const viewer: ActorProfile = {
+  id: 'https://llun.test/users/viewer',
+  username: 'viewer',
+  domain: 'llun.test',
+  name: 'Viewer',
+  followersUrl: 'https://llun.test/users/viewer/followers',
+  inboxUrl: 'https://llun.test/users/viewer/inbox',
+  sharedInboxUrl: 'https://llun.test/inbox',
+  followingCount: 0,
+  followersCount: 0,
+  statusCount: 0,
+  lastStatusAt: null,
+  createdAt: 0
+}
+
+const author: StatusNote['actor'] = {
+  ...viewer,
+  id: 'https://llun.test/users/alice',
+  username: 'alice',
+  name: 'Alice',
+  followersUrl: 'https://llun.test/users/alice/followers',
+  inboxUrl: 'https://llun.test/users/alice/inbox'
+}
+
 const tag = (name: string): Tag => ({
   name,
   url: `https://llun.test/tags/${name}`,
@@ -41,32 +71,44 @@ const tag = (name: string): Tag => ({
   ]
 })
 
-const status = (overrides: Partial<MastodonStatus> = {}): MastodonStatus =>
-  ({
-    id: 'p1',
-    uri: 'https://llun.test/users/alice/statuses/p1',
-    url: 'https://llun.test/@alice/p1',
-    account: {
-      id: 'alice',
-      username: 'alice',
-      acct: 'alice',
-      display_name: 'Alice',
-      avatar: '',
-      note: ''
-    },
-    content: '<p>Gravel season is here</p>',
-    created_at: new Date('2026-06-14T11:55:00.000Z').toISOString(),
-    replies_count: 3,
-    reblogs_count: 5,
-    favourites_count: 7,
-    ...overrides
-  }) as MastodonStatus
+const status = (overrides: Partial<StatusNote> = {}): StatusNote => ({
+  id: 'https://llun.test/users/alice/statuses/p1',
+  actorId: author.id,
+  actor: author,
+  to: [],
+  cc: [],
+  edits: [],
+  isLocalActor: true,
+  createdAt: new Date('2026-06-14T11:55:00.000Z').getTime(),
+  updatedAt: new Date('2026-06-14T11:55:00.000Z').getTime(),
+  type: StatusType.enum.Note,
+  url: 'https://llun.test/@alice/p1',
+  text: '<p>Gravel season is here</p>',
+  summary: null,
+  reply: '',
+  replies: [],
+  actorAnnounceStatusId: null,
+  isActorLiked: false,
+  isActorBookmarked: false,
+  totalLikes: 7,
+  totalShares: 5,
+  attachments: [],
+  tags: [],
+  ...overrides
+})
 
 const renderExplore = (tabParam: string | null, currentTime: number) => {
   const params = new URLSearchParams(tabParam ? { tab: tabParam } : {})
   mockUseSearchParams.mockReturnValue(params)
   mockUseRouter.mockReturnValue({ replace: vi.fn(), push: vi.fn() })
-  return render(<ExplorePageClient currentTime={currentTime} />)
+  return render(
+    <ExplorePageClient
+      host={HOST}
+      currentActor={viewer}
+      currentTime={currentTime}
+      isMediaUploadEnabled={false}
+    />
+  )
 }
 
 describe('ExplorePageClient', () => {
@@ -74,6 +116,20 @@ describe('ExplorePageClient', () => {
     mockGetTrendingTags.mockReset().mockResolvedValue([])
     mockGetTrendingStatuses.mockReset().mockResolvedValue([])
     mockGetTrendingLinks.mockReset().mockResolvedValue([])
+    Object.defineProperty(globalThis, 'ResizeObserver', {
+      configurable: true,
+      value: vi.fn().mockImplementation(function () {
+        return {
+          disconnect: vi.fn(),
+          observe: vi.fn(),
+          unobserve: vi.fn()
+        }
+      })
+    })
+  })
+
+  afterEach(() => {
+    Reflect.deleteProperty(globalThis, 'ResizeObserver')
   })
 
   it('loads and renders trending hashtags on the default tab', async () => {
@@ -95,7 +151,7 @@ describe('ExplorePageClient', () => {
     ).toBeInTheDocument()
   })
 
-  it('renders trending posts with a relative time derived from currentTime', async () => {
+  it('renders trending posts with the interactive timeline controls', async () => {
     mockGetTrendingStatuses.mockResolvedValue([status()])
 
     // currentTime is five minutes after the post's created_at.
@@ -103,8 +159,21 @@ describe('ExplorePageClient', () => {
     renderExplore('posts', currentTime)
 
     expect(await screen.findByText('Gravel season is here')).toBeInTheDocument()
-    expect(screen.getByText('5 minutes ago')).toBeInTheDocument()
+    // Relative time is derived from the server-provided currentTime, not
+    // Date.now(), so SSR and hydration agree.
+    expect(screen.getByText('5 minutes')).toBeInTheDocument()
     expect(mockGetTrendingStatuses).toHaveBeenCalledWith(20)
+
+    // The trending posts now carry the same action row as the timeline.
+    expect(
+      screen.getByRole('button', { name: /Reply to post/ })
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Like/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Repost' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Bookmark' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'More actions' })
+    ).toBeInTheDocument()
   })
 
   it('shows the error note when loading trends fails', async () => {
