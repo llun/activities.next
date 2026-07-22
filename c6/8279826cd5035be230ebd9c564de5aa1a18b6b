@@ -1,0 +1,24 @@
+lib/database/sql/status.test.ts
+  s_753af14a775aed::t_f1c84ad1030fe7 488-549
+  s_753af14a775aed::t_1c8cc490383773 487
+lib/services/fitness-files/parseFitnessFile.test.ts
+  s_753af14a775aed::t_b9948606ba11bc 151-153,155-310
+  s_753af14a775aed::t_a7b9e264e9f12e 150
+  s_753af14a775aed::t_7d3a35d668aafa 154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "c68279826cd5035be230ebd9c564de5aa1a18b6b",
+  "prompts": {},
+  "sessions": {
+    "s_753af14a775aed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "15d67399-4bd4-45bb-85d1-d66e572811e1",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
