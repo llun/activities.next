@@ -17,6 +17,7 @@ vi.mock('@/lib/client', () => ({
 
 const initialPreferences: PreferencesInput = {
   visibility: 'public',
+  quotePolicy: 'public',
   sensitive: false,
   language: 'en',
   expandMedia: 'default',
@@ -36,7 +37,23 @@ describe('PreferencesSettings', () => {
     expect(screen.getByText('Posting defaults')).toBeInTheDocument()
     expect(screen.getByText('Reading')).toBeInTheDocument()
     expect(screen.getByLabelText('Posting privacy')).toBeInTheDocument()
+    expect(screen.getByLabelText('Who can quote')).toBeInTheDocument()
     expect(screen.getByLabelText('Posting language')).toBeInTheDocument()
+  })
+
+  it('saves the changed quote policy', async () => {
+    render(<PreferencesSettings initialPreferences={initialPreferences} />)
+
+    fireEvent.change(screen.getByLabelText('Who can quote'), {
+      target: { value: 'followers' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() =>
+      expect(mockUpdatePreferences).toHaveBeenCalledWith(
+        expect.objectContaining({ quotePolicy: 'followers' })
+      )
+    )
   })
 
   it('disables Save until a preference changes', () => {

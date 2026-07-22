@@ -12,6 +12,7 @@ import { Switch } from '@/lib/components/ui/switch'
 import { cn } from '@/lib/utils'
 
 type PostingVisibility = PreferencesInput['visibility']
+type QuotePolicy = PreferencesInput['quotePolicy']
 type ExpandMedia = PreferencesInput['expandMedia']
 
 const VISIBILITIES: { value: PostingVisibility; label: string }[] = [
@@ -25,6 +26,12 @@ const VISIBILITIES: { value: PostingVisibility; label: string }[] = [
   // by a Mastodon client). Listing it keeps the select from silently rewriting a
   // stored `direct` default to a different value on save.
   { value: 'direct', label: 'Direct — only people mentioned' }
+]
+
+const QUOTE_POLICIES: { value: QuotePolicy; label: string }[] = [
+  { value: 'public', label: 'Anyone can quote' },
+  { value: 'followers', label: 'Followers can quote' },
+  { value: 'nobody', label: 'No one can quote' }
 ]
 
 const LANGUAGES: { value: string; label: string }[] = [
@@ -180,6 +187,27 @@ export const PreferencesSettings: FC<Props> = ({ initialPreferences }) => {
               </option>
             ))}
           </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="posting-quote-policy">Who can quote</Label>
+          <Select
+            id="posting-quote-policy"
+            value={preferences.quotePolicy}
+            onChange={(event) =>
+              update('quotePolicy', event.target.value as QuotePolicy)
+            }
+          >
+            {QUOTE_POLICIES.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+          <p className="text-[0.8rem] text-muted-foreground">
+            Applies to new public and unlisted posts; quotes of restricted posts
+            always need your approval.
+          </p>
         </div>
 
         <div className="space-y-2">
