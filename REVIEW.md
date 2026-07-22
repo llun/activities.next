@@ -108,6 +108,14 @@ change doesn't touch.
 - Client Components that render relative timestamps (or fan out to `Posts`/`Post`)
   never call `Date.now()` / `new Date()` during render — they receive and forward
   `currentTime` from the server to avoid hydration mismatches.
+- Status posts render through the shared `Posts`/`Post` components with the same
+  action set on every surface. A page turns actions on with `currentActor` +
+  `showActions`; it must not pass per-status action callbacks (`onReply`/`onQuote`/
+  `onEdit`), hide individual actions, or build a bespoke post/action row.
+  Reply/quote/edit use the shared `InlineStatusComposer`; pages pass only
+  data-sync callbacks (`onStatusCreated`/`onPostUpdated`/`onPostDeleted`/
+  `onLikeChanged`/`onBookmarkChanged`) and `isMediaUploadEnabled`. See
+  **Status Posts & Actions** in `AGENTS.md`.
 - Settings/account forms are client components that POST JSON and show inline
   success/error, not HTML `<form method="post">` with server redirects; the route
   returns JSON via `apiResponse()`.

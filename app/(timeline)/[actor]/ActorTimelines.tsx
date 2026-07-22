@@ -165,18 +165,30 @@ export const ActorTimelines: FC<Props> = ({
       activeTab === 'replies' ||
       activeTab === 'fitness')
 
-  const handleReplyCreated = useCallback(
+  const handleStatusCreated = useCallback(
     (status: Status) => {
-      // A reply to another actor's post is the viewer's own status and does not
-      // belong in that actor's feed. On the viewer's own profile, though, the
-      // new reply is theirs — surface it right away (it lands under the Replies
-      // tab) instead of waiting for a reload.
+      // A reply or quote of another actor's post is the viewer's own status and
+      // does not belong in that actor's feed. On the viewer's own profile,
+      // though, the new status is theirs — surface it right away instead of
+      // waiting for a reload.
       if (isCurrentUser) {
         setCurrentStatuses((previousStatuses) => [status, ...previousStatuses])
       }
     },
     [isCurrentUser]
   )
+
+  const handlePostUpdated = useCallback((updatedStatus: Status) => {
+    // Announce-aware (like handlePostDeleted): also refreshes a boost row whose
+    // original was the edited post. An edited status is always a note/poll.
+    setCurrentStatuses((previousStatuses) =>
+      updateMatchingStatus(
+        previousStatuses,
+        updatedStatus.id,
+        () => updatedStatus as StatusNote | StatusPoll
+      )
+    )
+  }, [])
 
   const handlePostDeleted = useCallback((status: Status) => {
     setCurrentStatuses((previousStatuses) =>
@@ -314,7 +326,8 @@ export const ActorTimelines: FC<Props> = ({
         showReadOnlyStats={!showActions}
         isMediaUploadEnabled={isMediaUploadEnabled}
         postLineLimit={postLineLimit}
-        onReplyCreated={handleReplyCreated}
+        onStatusCreated={handleStatusCreated}
+        onPostUpdated={handlePostUpdated}
         onPostDeleted={handlePostDeleted}
         onLikeChanged={handleLikeChanged}
         onBookmarkChanged={handleBookmarkChanged}

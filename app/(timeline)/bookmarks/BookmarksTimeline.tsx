@@ -26,6 +26,7 @@ interface BookmarksTimelineProps {
   initialNextMaxBookmarkId?: string | null
   currentTime: number
   currentActor: ActorProfile
+  isMediaUploadEnabled?: boolean
   postLineLimit?: PostLineLimit
 }
 
@@ -35,6 +36,7 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
   initialNextMaxBookmarkId = null,
   currentTime,
   currentActor,
+  isMediaUploadEnabled,
   postLineLimit
 }) => {
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
@@ -49,6 +51,12 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
   const removeStatus = (status: Status) => {
     setCurrentStatuses((previousStatuses) =>
       previousStatuses.filter((item) => item.id !== status.id)
+    )
+  }
+
+  const updateStatus = (status: Status) => {
+    setCurrentStatuses((previousStatuses) =>
+      previousStatuses.map((item) => (item.id === status.id ? status : item))
     )
   }
 
@@ -136,8 +144,10 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
           statuses={currentStatuses}
           currentActor={currentActor}
           showActions
+          isMediaUploadEnabled={isMediaUploadEnabled}
           postLineLimit={postLineLimit}
           onPostDeleted={removeStatus}
+          onPostUpdated={updateStatus}
           onBookmarkChanged={onBookmarkChanged}
         />
       ) : (

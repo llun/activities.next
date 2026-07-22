@@ -111,6 +111,7 @@ interface CollectionDetailProps {
   shareUrl: string | null
   currentTime: number
   currentActor?: ActorProfile
+  isMediaUploadEnabled?: boolean
   postLineLimit?: PostLineLimit
 }
 
@@ -128,6 +129,7 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
   shareUrl,
   currentTime,
   currentActor,
+  isMediaUploadEnabled,
   postLineLimit
 }) => {
   const initialProjection: Projection = isOwner ? 'owner' : 'public'
@@ -190,6 +192,11 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
   const removeStatus = (status: Status) =>
     setCurrentStatuses((previous) =>
       previous.filter((item) => item.id !== status.id)
+    )
+
+  const updateStatus = (status: Status) =>
+    setCurrentStatuses((previous) =>
+      previous.map((item) => (item.id === status.id ? status : item))
     )
 
   const loadMoreStatuses = useCallback(async () => {
@@ -337,8 +344,10 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
           statuses={currentStatuses}
           currentActor={currentActor}
           showActions={Boolean(currentActor)}
+          isMediaUploadEnabled={isMediaUploadEnabled}
           postLineLimit={postLineLimit}
           onPostDeleted={removeStatus}
+          onPostUpdated={updateStatus}
         />
       ) : (
         <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">
