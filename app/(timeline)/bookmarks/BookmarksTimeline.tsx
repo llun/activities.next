@@ -54,6 +54,12 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
     )
   }
 
+  const updateStatus = (status: Status) => {
+    setCurrentStatuses((previousStatuses) =>
+      previousStatuses.map((item) => (item.id === status.id ? status : item))
+    )
+  }
+
   const onBookmarkChanged = (
     status: StatusNote | StatusPoll,
     isBookmarked: boolean
@@ -141,6 +147,7 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
           isMediaUploadEnabled={isMediaUploadEnabled}
           postLineLimit={postLineLimit}
           onPostDeleted={removeStatus}
+          onPostUpdated={updateStatus}
           onBookmarkChanged={onBookmarkChanged}
         />
       ) : (

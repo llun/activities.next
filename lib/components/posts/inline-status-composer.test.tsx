@@ -130,6 +130,24 @@ describe('InlineStatusComposer', () => {
     expect(onCancel).toHaveBeenCalled()
   })
 
+  it('still closes when no created-callback is provided', () => {
+    // Feeds that do not prepend a new status (bookmarks, favourites, lists, …)
+    // pass no onCreated; creating a quote there must still close the composer.
+    const onCancel = vi.fn()
+    render(
+      <InlineStatusComposer
+        host="activities.local"
+        profile={profile}
+        mode="quote"
+        status={status}
+        onCancel={onCancel}
+      />
+    )
+
+    fireEvent.click(screen.getByText('pb-create'))
+    expect(onCancel).toHaveBeenCalled()
+  })
+
   it('bubbles an updated status then closes', () => {
     const onUpdated = vi.fn()
     const onCancel = vi.fn()

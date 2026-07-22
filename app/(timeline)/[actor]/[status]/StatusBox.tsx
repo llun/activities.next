@@ -108,9 +108,21 @@ export const StatusBox: FC<Props> = ({
           showActions={variant === 'detail'}
           editable={canCompose && currentActor?.id === actualStatus.actorId}
           collapsible={variant === 'comment'}
-          onReply={canCompose ? composer.openReply : undefined}
-          onEdit={canCompose ? composer.openEdit : undefined}
-          onQuote={canCompose ? composer.openQuote : undefined}
+          onReply={
+            canCompose
+              ? (target) => composer.openReply(target, status.id)
+              : undefined
+          }
+          onEdit={
+            canCompose
+              ? (target) => composer.openEdit(target, status.id)
+              : undefined
+          }
+          onQuote={
+            canCompose
+              ? (target) => composer.openQuote(target, status.id)
+              : undefined
+          }
           onOpenStatus={variant === 'comment' ? openStatus : undefined}
           onShowAttachment={(allMedias, index) => {
             setModalMedias({ medias: allMedias, initialSelection: index })
@@ -122,9 +134,9 @@ export const StatusBox: FC<Props> = ({
             totalLikes={actualStatus.totalLikes}
           />
         )}
-        {composer.active && currentActor ? (
+        {composer.active?.anchorId === status.id && currentActor ? (
           <InlineStatusComposer
-            key={`${composer.active.mode}-${composer.active.status.id}`}
+            key={`${composer.active.mode}-${composer.active.anchorId}`}
             host={host}
             profile={currentActor}
             mode={composer.active.mode}

@@ -25,28 +25,44 @@ describe('useInlineComposer', () => {
     const status = makeStatus('status-1')
 
     act(() => {
-      if (mode === 'reply') result.current.openReply(status)
-      else if (mode === 'quote') result.current.openQuote(status)
-      else result.current.openEdit(status)
+      if (mode === 'reply') result.current.openReply(status, 'row-1')
+      else if (mode === 'quote') result.current.openQuote(status, 'row-1')
+      else result.current.openEdit(status, 'row-1')
     })
 
-    expect(result.current.active).toEqual({ status, mode })
+    expect(result.current.active).toEqual({ anchorId: 'row-1', status, mode })
+  })
+
+  it('anchors on the given row id, independent of the status id', () => {
+    // A boost row: the reply target is the original status, but the composer
+    // must anchor to the boost row so it renders under that row only.
+    const { result } = renderHook(() => useInlineComposer())
+    const original = makeStatus('original-1')
+
+    act(() => result.current.openReply(original, 'announce-row-9'))
+
+    expect(result.current.active).toEqual({
+      anchorId: 'announce-row-9',
+      status: original,
+      mode: 'reply'
+    })
   })
 
   it('replaces the active composer when another opens', () => {
     const { result } = renderHook(() => useInlineComposer())
 
-    act(() => result.current.openReply(makeStatus('status-1')))
-    act(() => result.current.openQuote(makeStatus('status-2')))
+    act(() => result.current.openReply(makeStatus('status-1'), 'row-1'))
+    act(() => result.current.openQuote(makeStatus('status-2'), 'row-2'))
 
     expect(result.current.active?.mode).toBe('quote')
     expect(result.current.active?.status.id).toBe('status-2')
+    expect(result.current.active?.anchorId).toBe('row-2')
   })
 
   it('closes the active composer', () => {
     const { result } = renderHook(() => useInlineComposer())
 
-    act(() => result.current.openEdit(makeStatus('status-1')))
+    act(() => result.current.openEdit(makeStatus('status-1'), 'row-1'))
     act(() => result.current.close())
 
     expect(result.current.active).toBeNull()

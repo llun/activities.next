@@ -10,9 +10,27 @@ import {
   pollStatusCurrentTime,
   pollStatusFixture
 } from '@/lib/components/posts/__fixtures__/poll-status'
+import { Status, StatusType } from '@/lib/types/domain/status'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
 import { Posts } from './posts'
+
+// A boost (Announce) row wrapping the shared poll fixture as its original, with
+// a distinct wrapper id per row.
+const makeBoost = (announceId: string): Status =>
+  ({
+    id: announceId,
+    actorId: 'https://remote.example/users/booster',
+    actor: pollStatusFixture.actor,
+    to: [],
+    cc: [],
+    edits: [],
+    isLocalActor: false,
+    createdAt: pollStatusFixture.createdAt,
+    updatedAt: pollStatusFixture.updatedAt,
+    type: StatusType.enum.Announce,
+    originalStatus: pollStatusFixture
+  }) as unknown as Status
 
 const mockPush = vi.fn()
 
@@ -108,6 +126,44 @@ describe('Posts', () => {
     const composer = screen.getByTestId('inline-composer')
     expect(composer).toHaveAttribute('data-mode', 'reply')
     expect(composer).toHaveAttribute('data-status', pollStatusFixture.id)
+  })
+
+  it('offers no composer affordance when actions are off', () => {
+    render(
+      <Posts
+        host="activities.local"
+        currentActor={pollStatusFixture.actor ?? undefined}
+        currentTime={pollStatusCurrentTime}
+        statuses={[pollStatusFixture]}
+      />
+    )
+
+    expect(
+      screen.queryByRole('button', { name: /Reply to post/ })
+    ).not.toBeInTheDocument()
+    expect(screen.queryByTestId('inline-composer')).not.toBeInTheDocument()
+  })
+
+  it('renders only one composer when two rows share the same underlying status', () => {
+    // Two accounts you follow boosting the same post yields two Announce rows
+    // with one original. Anchoring the composer on the wrapper row id (not the
+    // unwrapped id) keeps a reply from opening under both rows.
+    render(
+      <Posts
+        host="activities.local"
+        currentActor={pollStatusFixture.actor ?? undefined}
+        currentTime={pollStatusCurrentTime}
+        statuses={[
+          makeBoost('https://remote.example/users/booster/boost-a/activity'),
+          makeBoost('https://remote.example/users/booster/boost-b/activity')
+        ]}
+        showActions
+      />
+    )
+
+    fireEvent.click(screen.getAllByRole('button', { name: /Reply to post/ })[0])
+
+    expect(screen.getAllByTestId('inline-composer')).toHaveLength(1)
   })
 
   it('opens the status detail page from the timestamp', async () => {

@@ -61,6 +61,12 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
       newStatuses.length > 0 ? newStatuses[newStatuses.length - 1].id : null
   }
 
+  const updateStatus = (status: Status) => {
+    setCurrentStatuses((previousStatuses) =>
+      previousStatuses.map((item) => (item.id === status.id ? status : item))
+    )
+  }
+
   const loadMoreStatuses = useCallback(async () => {
     const lastStatusId = lastStatusIdRef.current
     if (isLoadingRef.current || !lastStatusId) return
@@ -120,6 +126,7 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
           isMediaUploadEnabled={isMediaUploadEnabled}
           postLineLimit={postLineLimit}
           onPostDeleted={onPostDeleted}
+          onPostUpdated={updateStatus}
         />
       ) : (
         <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">

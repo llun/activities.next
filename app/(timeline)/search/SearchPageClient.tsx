@@ -447,6 +447,14 @@ export const SearchPageClient = ({
   const renderHashtags = (hashtags: Tag[]) =>
     hashtags.map((tag) => <HashtagRow key={tag.name} tag={tag} />)
 
+  const handlePostUpdated = (updated: Status) =>
+    setResults((previous) => ({
+      ...previous,
+      statuses: previous.statuses.map((item) =>
+        item.id === updated.id ? updated : item
+      )
+    }))
+
   const renderPosts = (statuses: Status[]) => (
     <Posts
       host={host}
@@ -457,6 +465,7 @@ export const SearchPageClient = ({
       showActions
       isMediaUploadEnabled={isMediaUploadEnabled}
       postLineLimit={postLineLimit}
+      onPostUpdated={handlePostUpdated}
     />
   )
 

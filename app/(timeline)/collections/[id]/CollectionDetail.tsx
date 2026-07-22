@@ -194,6 +194,11 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
       previous.filter((item) => item.id !== status.id)
     )
 
+  const updateStatus = (status: Status) =>
+    setCurrentStatuses((previous) =>
+      previous.map((item) => (item.id === status.id ? status : item))
+    )
+
   const loadMoreStatuses = useCallback(async () => {
     const maxStatusId = lastStatusIdRef.current
     if (isLoadingRef.current || !maxStatusId) return
@@ -342,6 +347,7 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
           isMediaUploadEnabled={isMediaUploadEnabled}
           postLineLimit={postLineLimit}
           onPostDeleted={removeStatus}
+          onPostUpdated={updateStatus}
         />
       ) : (
         <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">

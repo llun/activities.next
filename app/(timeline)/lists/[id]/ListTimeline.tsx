@@ -58,6 +58,12 @@ export const ListTimeline: FC<ListTimelineProps> = ({
     )
   }
 
+  const updateStatus = (status: Status) => {
+    setCurrentStatuses((previousStatuses) =>
+      previousStatuses.map((item) => (item.id === status.id ? status : item))
+    )
+  }
+
   const loadMoreStatuses = useCallback(async () => {
     const maxStatusId = lastStatusIdRef.current
     if (isLoadingRef.current || !maxStatusId) return
@@ -131,6 +137,7 @@ export const ListTimeline: FC<ListTimelineProps> = ({
           isMediaUploadEnabled={isMediaUploadEnabled}
           postLineLimit={postLineLimit}
           onPostDeleted={removeStatus}
+          onPostUpdated={updateStatus}
         />
       ) : (
         <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">

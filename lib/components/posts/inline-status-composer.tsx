@@ -4,12 +4,7 @@ import { FC } from 'react'
 
 import { PostBox } from '@/lib/components/post-box/post-box'
 import { ActorProfile } from '@/lib/types/domain/actor'
-import {
-  EditableStatus,
-  Status,
-  StatusNote,
-  StatusPoll
-} from '@/lib/types/domain/status'
+import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
 
 import { StatusReplyBox } from './status-reply-box'
 import { StatusComposerMode } from './useInlineComposer'
@@ -71,7 +66,7 @@ export const InlineStatusComposer: FC<Props> = ({
         profile={profile}
         isMediaUploadEnabled={isMediaUploadEnabled}
         quotedStatus={mode === 'quote' ? status : undefined}
-        editStatus={mode === 'edit' ? (status as EditableStatus) : undefined}
+        editStatus={mode === 'edit' ? status : undefined}
         onPostCreated={(created) => {
           onCreated?.(created)
           onCancel()

@@ -112,4 +112,44 @@ describe('StatusBox', () => {
 
     expect(screen.queryByTestId('status-likes')).not.toBeInTheDocument()
   })
+
+  it('offers the shared action row on the detail post for a signed-in actor', () => {
+    render(
+      <StatusBox
+        host="activities.local"
+        currentActor={pollStatusFixture.actor}
+        currentTime={pollStatusCurrentTime}
+        status={pollStatusFixture}
+        variant="detail"
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: /Reply to post/ })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /More actions/ })
+    ).toBeInTheDocument()
+  })
+
+  it('keeps comment rows read-only even for a signed-in actor', () => {
+    // Only the primary (detail) post is interactive; comment rows must not
+    // expose reply/quote/edit affordances.
+    render(
+      <StatusBox
+        host="activities.local"
+        currentActor={pollStatusFixture.actor}
+        currentTime={pollStatusCurrentTime}
+        status={pollStatusFixture}
+        variant="comment"
+      />
+    )
+
+    expect(
+      screen.queryByRole('button', { name: /Reply to post/ })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /More actions/ })
+    ).not.toBeInTheDocument()
+  })
 })

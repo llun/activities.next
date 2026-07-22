@@ -60,6 +60,12 @@ export const FavoritesTimeline: FC<FavoritesTimelineProps> = ({
     )
   }
 
+  const updateStatus = (status: Status) => {
+    setCurrentStatuses((previousStatuses) =>
+      previousStatuses.map((item) => (item.id === status.id ? status : item))
+    )
+  }
+
   const onLikeChanged = (status: StatusNote | StatusPoll, isLiked: boolean) => {
     if (!isLiked) removeStatus(status)
   }
@@ -132,6 +138,7 @@ export const FavoritesTimeline: FC<FavoritesTimelineProps> = ({
           isMediaUploadEnabled={isMediaUploadEnabled}
           postLineLimit={postLineLimit}
           onPostDeleted={removeStatus}
+          onPostUpdated={updateStatus}
           onLikeChanged={onLikeChanged}
         />
       ) : (

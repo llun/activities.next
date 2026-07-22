@@ -254,7 +254,11 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   and must **not** hide individual actions — that per-page drift is exactly what
   this consolidation removed (profiles used to lack Quote/Edit; six feeds had a
   dead Reply button). To turn actions on, a signed-in page passes `currentActor`
-  and `showActions`; that is the whole switch.
+  and `showActions`; that is the whole switch. (The lone exception is the status
+  **detail** surface, `StatusBox`, which renders a single `<Post>` directly
+  instead of through `Posts`; it drives the same shared `useInlineComposer` /
+  `InlineStatusComposer` internally — that is the shared layer doing the wiring,
+  not a page opting into per-status callbacks.)
 - **Reply, quote, and edit open one shared inline composer** rendered beneath the
   post — `InlineStatusComposer`, driven by the `useInlineComposer` hook. Reply
   uses the compact `StatusReplyBox`; quote and edit use `PostBox` in the matching

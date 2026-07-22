@@ -107,8 +107,11 @@ export const Posts: FC<Props> = ({
       >
         {statuses.map((status) => {
           const actualStatus = getActualStatus(status)
+          // Anchor on the wrapper row id (unique per row), not the unwrapped
+          // target id, so a boost and its original — or two boosts of the same
+          // post — don't both open a composer.
           const activeComposer =
-            currentActor && composer.active?.status.id === actualStatus.id
+            currentActor && composer.active?.anchorId === status.id
               ? composer.active
               : null
           return (
@@ -131,9 +134,21 @@ export const Posts: FC<Props> = ({
                 editable={currentActor?.id === actualStatus.actorId}
                 collapsible
                 postLineLimit={postLineLimit}
-                onReply={canCompose ? composer.openReply : undefined}
-                onEdit={canCompose ? composer.openEdit : undefined}
-                onQuote={canCompose ? composer.openQuote : undefined}
+                onReply={
+                  canCompose
+                    ? (target) => composer.openReply(target, status.id)
+                    : undefined
+                }
+                onEdit={
+                  canCompose
+                    ? (target) => composer.openEdit(target, status.id)
+                    : undefined
+                }
+                onQuote={
+                  canCompose
+                    ? (target) => composer.openQuote(target, status.id)
+                    : undefined
+                }
                 onPostDeleted={onPostDeleted}
                 onBookmarkChanged={onBookmarkChanged}
                 onLikeChanged={onLikeChanged}
@@ -144,7 +159,7 @@ export const Posts: FC<Props> = ({
               />
               {activeComposer && currentActor ? (
                 <InlineStatusComposer
-                  key={`${activeComposer.mode}-${activeComposer.status.id}`}
+                  key={`${activeComposer.mode}-${activeComposer.anchorId}`}
                   host={host}
                   profile={currentActor}
                   mode={activeComposer.mode}
