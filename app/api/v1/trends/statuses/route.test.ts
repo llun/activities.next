@@ -169,6 +169,30 @@ describe('GET /api/v1/trends/statuses', () => {
     })
   })
 
+  it('returns ranked domain status entities for format=activities_next', async () => {
+    const response = await GET(request('?format=activities_next'), {
+      params: Promise.resolve({})
+    })
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    // Domain statuses keep the full id/actorId (not the Mastodon urlToId form)
+    // and the app's field names, and preserve the ranked order.
+    expect(data.map((status: { id: string }) => status.id)).toEqual([
+      SECOND_STATUS_ID,
+      FIRST_STATUS_ID
+    ])
+    expect(data[0]).toMatchObject({
+      id: SECOND_STATUS_ID,
+      actorId: SECOND_ACTOR_ID,
+      type: 'Note',
+      totalLikes: 2,
+      // Anonymous request → no viewer flags set.
+      isActorLiked: false,
+      isActorBookmarked: false,
+      actorAnnounceStatusId: null
+    })
+  })
+
   it.each([
     {
       description: 'returns only the top status when limit is 1',

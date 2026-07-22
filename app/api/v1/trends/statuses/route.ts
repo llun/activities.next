@@ -2,6 +2,7 @@ import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import {
   normalizeTrendsOffset,
+  normalizeTrendsStatusesFormat,
   normalizeTrendsStatusesLimit
 } from '@/lib/services/trends/request'
 import { getTrendingStatuses } from '@/lib/services/trends/trendingStatuses'
@@ -25,8 +26,29 @@ export const GET = traceApiRoute(
       const searchParams = new URL(req.url).searchParams
       const limit = normalizeTrendsStatusesLimit(searchParams.get('limit'))
       const offset = normalizeTrendsOffset(searchParams.get('offset'))
+      const format = normalizeTrendsStatusesFormat(searchParams.get('format'))
 
-      const statuses = await getTrendingStatuses({ database, limit, offset })
+      const statuses = await getTrendingStatuses({
+        database,
+        limit,
+        offset,
+        // Only the domain path needs the viewer flags hydrated onto the status
+        // itself; the Mastodon path derives them in getMastodonStatuses below.
+        currentActorId:
+          format === 'activities_next' ? currentActor?.id : undefined
+      })
+
+      // The app's /explore page requests the domain shape so it can reuse the
+      // interactive timeline post component; third-party API clients get the
+      // default Mastodon serialization.
+      if (format === 'activities_next') {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: statuses
+        })
+      }
+
       // Same serialization path as the timeline routes: batch-prefetches the
       // viewer flags (favourited/reblogged/bookmarked) and preserves the
       // ranked order.
