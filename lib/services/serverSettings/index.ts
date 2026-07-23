@@ -132,8 +132,11 @@ export const getServerSettingsView = async (
         'serverSettings: failed to read stored settings; serving cached values or env/defaults',
       error: error instanceof Error ? error.message : String(error)
     })
-    if (entry) return entry.view
-    const view = buildView(new Map())
+    // Re-cache the served view briefly (whether the stale last-known-good entry
+    // or the env/defaults fallback) so a sustained outage does not re-read the
+    // failing database — and re-log — on every request; recovery stays bounded
+    // to FAILURE_CACHE_TTL_MS.
+    const view = entry ? entry.view : buildView(new Map())
     writeCache(database, view, now + FAILURE_CACHE_TTL_MS)
     return view
   }
