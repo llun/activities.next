@@ -1,5 +1,6 @@
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 
 import {
   FederationMode,
@@ -11,24 +12,49 @@ import {
 export const getDomainFromUrl = (value: string): string | null =>
   normalizeDomain(value)
 
-export const getFederationMode = (): FederationMode =>
-  getConfig().federationMode ?? 'open'
+// The federation mode and actor allow-list are database-backed settings
+// (env -> database -> default). Resolve them once per operation; the resolver
+// caches per database instance so hot paths (inbox verification, delivery
+// fan-out) do not pay a database read per call.
+const getFederationPolicy = async (
+  database: Database
+): Promise<{ mode: FederationMode; allowActorDomains: string[] }> => {
+  const { federation } = await getResolvedServerSettings(database)
+  return {
+    mode: federation.mode,
+    allowActorDomains: federation.allowActorDomains
+  }
+}
 
-export const isLocalFederationDomain = (value: string): boolean => {
+// Pure local-domain check against the configured host (env-only) plus the
+// resolved actor allow-list. Kept synchronous so it can run inside per-domain
+// loops without awaiting the resolver each time.
+const isLocalDomain = (value: string, allowActorDomains: string[]): boolean => {
   const domain = getDomainFromUrl(value)
   if (!domain) return false
 
-  const config = getConfig()
-  const host = normalizeDomain(config.host)
+  const host = normalizeDomain(getConfig().host)
   if (domain === host) return true
 
-  return (config.allowActorDomains ?? []).some((localDomain) => {
+  return allowActorDomains.some((localDomain) => {
     const normalized = normalizeDomain(localDomain)
     if (!normalized) return false
     if (normalized.startsWith('*.'))
       return domainMatchesRule(domain, normalized)
     return domain === normalized
   })
+}
+
+export const getFederationMode = async (
+  database: Database
+): Promise<FederationMode> => (await getFederationPolicy(database)).mode
+
+export const isLocalFederationDomain = async (
+  database: Database,
+  value: string
+): Promise<boolean> => {
+  const { allowActorDomains } = await getFederationPolicy(database)
+  return isLocalDomain(value, allowActorDomains)
 }
 
 export const isDomainBlocked = async (
@@ -48,7 +74,9 @@ export const isDomainAllowed = async (
 ): Promise<boolean> => {
   const domain = getDomainFromUrl(value)
   if (!domain) return false
-  if (isLocalFederationDomain(domain)) return true
+
+  const { allowActorDomains } = await getFederationPolicy(database)
+  if (isLocalDomain(domain, allowActorDomains)) return true
 
   return Boolean(await database.getDomainAllowForDomain(domain))
 }
@@ -59,12 +87,14 @@ export const canFederateWithDomain = async (
 ): Promise<boolean> => {
   const domain = getDomainFromUrl(value)
   if (!domain) return false
-  if (isLocalFederationDomain(domain)) return true
+
+  const { mode, allowActorDomains } = await getFederationPolicy(database)
+  if (isLocalDomain(domain, allowActorDomains)) return true
 
   if (await isDomainBlocked(database, domain)) return false
 
-  if (getFederationMode() === 'allowlist') {
-    return isDomainAllowed(database, domain)
+  if (mode === 'allowlist') {
+    return Boolean(await database.getDomainAllowForDomain(domain))
   }
 
   return true
@@ -74,12 +104,13 @@ const getFederationDecisionsForDomains = async (
   database: Database,
   domains: string[]
 ): Promise<Map<string, boolean>> => {
+  const { mode, allowActorDomains } = await getFederationPolicy(database)
   const uniqueDomains = [...new Set(domains)]
   const decisions = new Map<string, boolean>()
   const remoteDomains: string[] = []
 
   for (const domain of uniqueDomains) {
-    if (isLocalFederationDomain(domain)) {
+    if (isLocalDomain(domain, allowActorDomains)) {
       decisions.set(domain, true)
     } else {
       remoteDomains.push(domain)
@@ -96,7 +127,7 @@ const getFederationDecisionsForDomains = async (
     return !isBlocked
   })
 
-  if (getFederationMode() !== 'allowlist' || unblockedDomains.length === 0) {
+  if (mode !== 'allowlist' || unblockedDomains.length === 0) {
     return decisions
   }
 

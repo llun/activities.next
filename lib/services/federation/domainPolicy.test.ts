@@ -1,4 +1,6 @@
+import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
 import { Database } from '@/lib/database/types'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 
 import {
   canFederateWithDomain,
@@ -11,6 +13,24 @@ const mockGetConfig = vi.fn()
 vi.mock('@/lib/config', () => ({
   getConfig: () => mockGetConfig()
 }))
+
+vi.mock('@/lib/services/serverSettings', () => ({
+  getResolvedServerSettings: vi.fn()
+}))
+
+// The host stays env-configured; the federation mode + actor allow-list are
+// resolved from server settings.
+const mockFederation = ({
+  host = 'local.test',
+  mode = 'open' as 'open' | 'allowlist',
+  allowActorDomains = [] as string[]
+} = {}) => {
+  mockGetConfig.mockReturnValue({ host })
+  vi.mocked(getResolvedServerSettings).mockResolvedValue({
+    ...structuredClone(DEFAULT_SERVER_SETTINGS),
+    federation: { mode, allowActorDomains }
+  })
+}
 
 const createDatabase = (params: { blocks?: string[]; allows?: string[] }) => {
   const findBlock = (domain: string) =>
@@ -62,11 +82,7 @@ const createDatabase = (params: { blocks?: string[]; allows?: string[] }) => {
 
 describe('domainPolicy', () => {
   beforeEach(() => {
-    mockGetConfig.mockReturnValue({
-      host: 'local.test',
-      allowActorDomains: [],
-      federationMode: 'open'
-    })
+    mockFederation()
   })
 
   it('rejects suspended blocked domains in open federation mode', async () => {
@@ -81,11 +97,7 @@ describe('domainPolicy', () => {
   })
 
   it('requires allow entries in allowlist mode', async () => {
-    mockGetConfig.mockReturnValue({
-      host: 'local.test',
-      allowActorDomains: [],
-      federationMode: 'allowlist'
-    })
+    mockFederation({ mode: 'allowlist' })
     const database = createDatabase({ allows: ['trusted.test'] })
 
     await expect(
@@ -97,11 +109,7 @@ describe('domainPolicy', () => {
   })
 
   it('always allows local actor domains', async () => {
-    mockGetConfig.mockReturnValue({
-      host: 'local.test',
-      allowActorDomains: ['alias.test'],
-      federationMode: 'allowlist'
-    })
+    mockFederation({ mode: 'allowlist', allowActorDomains: ['alias.test'] })
     const database = createDatabase({})
 
     await expect(isDomainAllowed(database, 'alias.test')).resolves.toBe(true)
@@ -110,24 +118,25 @@ describe('domainPolicy', () => {
     ).resolves.toBe(true)
   })
 
-  it('treats only exact local domains and configured wildcards as local', () => {
-    mockGetConfig.mockReturnValue({
-      host: 'local.test',
-      allowActorDomains: ['alias.test', '*.trusted.test'],
-      federationMode: 'open'
-    })
+  it('treats only exact local domains and configured wildcards as local', async () => {
+    mockFederation({ allowActorDomains: ['alias.test', '*.trusted.test'] })
+    const database = createDatabase({})
 
-    expect(isLocalFederationDomain('https://local.test/users/a')).toBe(true)
-    expect(isLocalFederationDomain('https://evil.local.test/users/a')).toBe(
-      false
-    )
-    expect(isLocalFederationDomain('https://alias.test/users/a')).toBe(true)
-    expect(isLocalFederationDomain('https://sub.alias.test/users/a')).toBe(
-      false
-    )
-    expect(isLocalFederationDomain('https://sub.trusted.test/users/a')).toBe(
-      true
-    )
+    await expect(
+      isLocalFederationDomain(database, 'https://local.test/users/a')
+    ).resolves.toBe(true)
+    await expect(
+      isLocalFederationDomain(database, 'https://evil.local.test/users/a')
+    ).resolves.toBe(false)
+    await expect(
+      isLocalFederationDomain(database, 'https://alias.test/users/a')
+    ).resolves.toBe(true)
+    await expect(
+      isLocalFederationDomain(database, 'https://sub.alias.test/users/a')
+    ).resolves.toBe(false)
+    await expect(
+      isLocalFederationDomain(database, 'https://sub.trusted.test/users/a')
+    ).resolves.toBe(true)
   })
 
   it('filters URLs with a batched block lookup', async () => {
@@ -149,11 +158,7 @@ describe('domainPolicy', () => {
   })
 
   it('filters URLs with batched allow lookups in allowlist mode', async () => {
-    mockGetConfig.mockReturnValue({
-      host: 'local.test',
-      allowActorDomains: [],
-      federationMode: 'allowlist'
-    })
+    mockFederation({ mode: 'allowlist' })
     const database = createDatabase({ allows: ['trusted.test'] })
 
     await expect(

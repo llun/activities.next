@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { FEDERATION_SIGNING_ACTOR_USERNAME } from '@/lib/services/federation/instanceActor'
+import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 
@@ -73,20 +74,29 @@ describe('POST /api/v1/actors', () => {
     })
 
   it('uses the requested domain when it is allowed', async () => {
-    mockGetConfig.mockReturnValue({
-      host: 'llun.test',
-      allowEmails: [],
-      allowActorDomains: ['allowed.test', 'llun.test']
+    mockGetConfig.mockReturnValue({ host: 'llun.test', allowEmails: [] })
+    // allowActorDomains is a database-backed federation setting.
+    await database.setServerSetting({
+      key: 'federation.allowActorDomains',
+      value: ['allowed.test', 'llun.test']
     })
+    invalidateServerSettingsCache(database)
 
-    const response = await POST(
-      createRequest({ username: 'newactor-allowed', domain: 'allowed.test' }),
-      { params: Promise.resolve({}) }
-    )
+    try {
+      const response = await POST(
+        createRequest({ username: 'newactor-allowed', domain: 'allowed.test' }),
+        { params: Promise.resolve({}) }
+      )
 
-    const data = await response.json()
-    expect(response.status).toBe(200)
-    expect(data.domain).toBe('allowed.test')
+      const data = await response.json()
+      expect(response.status).toBe(200)
+      expect(data.domain).toBe('allowed.test')
+    } finally {
+      await database.deleteServerSetting({
+        key: 'federation.allowActorDomains'
+      })
+      invalidateServerSettingsCache(database)
+    }
   })
 
   it('falls back to the current actor domain when none is provided', async () => {
