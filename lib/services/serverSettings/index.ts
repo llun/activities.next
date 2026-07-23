@@ -8,14 +8,25 @@ import {
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
 import { ServerSettingValue } from '@/lib/types/database/operations'
+import { logger } from '@/lib/utils/logger'
 
 // Resolves database-backed server settings using env -> database -> default
 // precedence. An env var always wins and locks its field; otherwise a stored
 // database row wins; otherwise the registry default applies. Resolved values
 // are cached per database instance with a short TTL so hot paths (inbox
 // verification, outbound request fan-out) do not pay a database read per call.
+//
+// The TTL also bounds how long another instance/pod serves a stale value after
+// an admin saves: an admin's own write invalidates the local cache immediately,
+// but on a multi-instance deployment other instances converge within one TTL.
+// Keep it short so a security-tightening change (closing registration, enabling
+// an allowlist) propagates promptly.
 
-const CACHE_TTL_MS = 30_000
+const CACHE_TTL_MS = 15_000
+// A read failure caches env + defaults only briefly, so the resolver recovers
+// within seconds once the database is healthy again instead of serving the
+// fallback for a full TTL.
+const FAILURE_CACHE_TTL_MS = 2_000
 
 export interface ServerSettingLock {
   locked: boolean
@@ -48,23 +59,13 @@ type CacheEntry = { view: ServerSettingsView; expiresAt: number }
 const cacheByDatabase = new WeakMap<Database, CacheEntry>()
 let nullDatabaseCache: CacheEntry | null = null
 
-const resolve = async (
-  database: Database | null
-): Promise<ServerSettingsView> => {
+// Build the resolved view from the already-read stored rows (no I/O):
+// default -> database (valid rows only) -> env (wins and locks the field).
+const buildView = (
+  storedByKey: Map<string, ServerSettingValue>
+): ServerSettingsView => {
   const settings = structuredClone(DEFAULT_SERVER_SETTINGS)
   const locks: Record<string, ServerSettingLock> = {}
-
-  let storedByKey = new Map<string, ServerSettingValue>()
-  if (database) {
-    try {
-      const rows = await database.getAllServerSettings()
-      storedByKey = new Map(rows.map((row) => [row.key, row.value]))
-    } catch {
-      // A settings read failure must never take down a request path; fall back
-      // to env + defaults.
-      storedByKey = new Map()
-    }
-  }
 
   for (const settingField of SERVER_SETTING_FIELDS) {
     // Database value wins over the default, when present and still valid.
@@ -78,32 +79,24 @@ const resolve = async (
     const envValue = settingField.readEnv()
     if (envValue !== undefined) {
       settingField.set(settings, envValue)
-      locks[settingField.key] = {
-        locked: true,
-        envVar: settingField.envVar
-      }
+      locks[settingField.key] = { locked: true, envVar: settingField.envVar }
     } else {
-      locks[settingField.key] = {
-        locked: false,
-        envVar: settingField.envVar
-      }
+      locks[settingField.key] = { locked: false, envVar: settingField.envVar }
     }
   }
 
   return { settings, locks }
 }
 
-const readCache = (database: Database | null, now: number) => {
-  const entry = database ? cacheByDatabase.get(database) : nullDatabaseCache
-  return entry && entry.expiresAt > now ? entry.view : null
-}
+const readCacheEntry = (database: Database | null): CacheEntry | null =>
+  (database ? cacheByDatabase.get(database) : nullDatabaseCache) ?? null
 
 const writeCache = (
   database: Database | null,
   view: ServerSettingsView,
-  now: number
+  expiresAt: number
 ) => {
-  const entry: CacheEntry = { view, expiresAt: now + CACHE_TTL_MS }
+  const entry: CacheEntry = { view, expiresAt }
   if (database) cacheByDatabase.set(database, entry)
   else nullDatabaseCache = entry
 }
@@ -113,11 +106,40 @@ export const getServerSettingsView = async (
   database: Database | null = getDatabase()
 ): Promise<ServerSettingsView> => {
   const now = Date.now()
-  const cached = readCache(database, now)
-  if (cached) return cached
+  const entry = readCacheEntry(database)
+  if (entry && entry.expiresAt > now) return entry.view
 
-  const view = await resolve(database)
-  writeCache(database, view, now)
+  // No configured database: env + defaults only.
+  if (!database) {
+    const view = buildView(new Map())
+    writeCache(null, view, now + CACHE_TTL_MS)
+    return view
+  }
+
+  let storedByKey: Map<string, ServerSettingValue>
+  try {
+    const rows = await database.getAllServerSettings()
+    storedByKey = new Map(rows.map((row) => [row.key, row.value]))
+  } catch (error) {
+    // A settings read failure must never take down a request path, but it must
+    // also not silently revert an admin's stored policy (a closed registration,
+    // an allowlist) to the permissive default. Prefer the last-known-good cached
+    // view even if it has expired; only when there is none fall back to env +
+    // defaults, cached briefly so recovery is fast. Always log so the fallback
+    // window is observable.
+    logger.error({
+      message:
+        'serverSettings: failed to read stored settings; serving cached values or env/defaults',
+      error: error instanceof Error ? error.message : String(error)
+    })
+    if (entry) return entry.view
+    const view = buildView(new Map())
+    writeCache(database, view, now + FAILURE_CACHE_TTL_MS)
+    return view
+  }
+
+  const view = buildView(storedByKey)
+  writeCache(database, view, now + CACHE_TTL_MS)
   return view
 }
 
@@ -135,9 +157,11 @@ export const invalidateServerSettingsCache = (
   else nullDatabaseCache = null
 }
 
-// Applies a partial { key: value } patch atomically: every entry is validated
-// against its registry schema and rejected if the key is unknown, env-locked,
-// or fails validation. When anything is rejected, nothing is written.
+// Applies a partial { key: value } patch: every entry is validated against its
+// registry schema and rejected if the key is unknown, env-locked, or fails
+// validation. When anything is rejected, nothing is written. Accepted entries
+// are persisted in a single transaction, so a mid-batch database failure rolls
+// back and the patch is genuinely all-or-nothing.
 export const updateServerSettings = async (
   database: Database,
   patch: Record<string, unknown>
@@ -168,10 +192,13 @@ export const updateServerSettings = async (
     return { view, rejected, applied: false }
   }
 
-  for (const { key, value } of validated) {
-    await database.setServerSetting({ key, value })
+  try {
+    await database.setServerSettings(validated)
+  } finally {
+    // Invalidate even if the write threw so the cache never masks the persisted
+    // state (a rolled-back transaction leaves the stored values unchanged).
+    invalidateServerSettingsCache(database)
   }
-  invalidateServerSettingsCache(database)
   const updated = await getServerSettingsView(database)
   return { view: updated, rejected: [], applied: true }
 }

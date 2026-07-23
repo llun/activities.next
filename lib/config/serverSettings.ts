@@ -31,7 +31,10 @@ export const DEFAULT_MAX_STATUS_CHARACTERS = 500
 // advertised the Mastodon literal 2629746 while enforcing this constant).
 export const DEFAULT_MAX_POLL_EXPIRATION_SECONDS = MAX_POLL_EXPIRATION_SECONDS
 
-const DEFAULT_REQUEST_TIMEOUT_MS = 4000
+// Matches the outbound request wrapper's effective default when no
+// ACTIVITIES_REQUEST_* variable is set (lib/utils/request.ts previously fell
+// back to 10000 in that common case), so the unconfigured timeout is unchanged.
+const DEFAULT_REQUEST_TIMEOUT_MS = 10000
 const DEFAULT_REQUEST_RETRIES = 1
 const DEFAULT_MAX_RESPONSE_SIZE_BYTES = 2 * 1024 * 1024
 
@@ -124,9 +127,13 @@ const readEnvBooleanDefaultTrue = (name: string) => (): boolean | undefined =>
 
 const readEnvNumber = (name: string) => (): number | undefined => {
   const raw = process.env[name]
-  if (raw === undefined) return undefined
-  const parsed = Number(raw)
-  return Number.isFinite(parsed) ? parsed : undefined
+  // Mirror getConfig()'s parsing exactly (getOptionalInteger / mediaStorage use
+  // parseInt base 10): an empty value is "unset", and `parseInt` (not `Number`)
+  // is what determines the pinned value so `5000ms`/`5e3`/`500.9` resolve the
+  // same way here as in getConfig().
+  if (raw === undefined || raw === '') return undefined
+  const parsed = parseInt(raw, 10)
+  return Number.isNaN(parsed) ? undefined : parsed
 }
 
 const readEnvStringArray = (name: string) => (): string[] | undefined =>
@@ -143,7 +150,13 @@ const readEnvFederationMode =
   (name: string) => (): 'open' | 'allowlist' | undefined => {
     const raw = process.env[name]
     if (raw === undefined) return undefined
-    return raw === 'allowlist' ? 'allowlist' : 'open'
+    if (raw === 'allowlist') return 'allowlist'
+    // getConfig() treats an empty value as the 'open' default. Any other,
+    // non-empty value is rejected by getConfig()'s strict enum at startup, so it
+    // is unreachable here; fall through to database/default rather than silently
+    // coercing a typo to the more permissive 'open'.
+    if (raw === '' || raw === 'open') return 'open'
+    return undefined
   }
 
 /* -------------------------------- registry -------------------------------- */

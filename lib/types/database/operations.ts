@@ -1982,6 +1982,8 @@ export interface ServerSettingDatabase {
   getAllServerSettings(): Promise<ServerSettingData[]>
   // Upsert; overwrites value and bumps updatedAt, returning the stored row.
   setServerSetting(params: SetServerSettingParams): Promise<ServerSettingData>
+  // Upsert several settings in a single transaction (all-or-nothing).
+  setServerSettings(params: SetServerSettingParams[]): Promise<void>
   // True when a row was removed.
   deleteServerSetting(params: DeleteServerSettingParams): Promise<boolean>
 }

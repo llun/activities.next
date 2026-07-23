@@ -64,6 +64,27 @@ export const ServerSettingSQLDatabaseMixin = (
     return toServerSetting(row)
   },
 
+  async setServerSettings(entries: SetServerSettingParams[]) {
+    if (entries.length === 0) return
+    // Upsert the whole batch in one transaction so a mid-batch failure rolls
+    // back — the admin PATCH is genuinely all-or-nothing.
+    const currentTime = new Date()
+    await database.transaction(async (trx) => {
+      for (const { key, value } of entries) {
+        const serialized = JSON.stringify(value)
+        await trx('server_settings')
+          .insert({
+            key,
+            value: serialized,
+            createdAt: currentTime,
+            updatedAt: currentTime
+          })
+          .onConflict('key')
+          .merge({ value: serialized, updatedAt: currentTime })
+      }
+    })
+  },
+
   async deleteServerSetting({ key }: DeleteServerSettingParams) {
     const deleted = await database('server_settings').where({ key }).delete()
     return deleted > 0

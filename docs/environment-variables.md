@@ -30,9 +30,9 @@ The variables that pin an admin-editable setting are:
 variable and are database-or-default only. `ACTIVITIES_ALLOW_MEDIA_DOMAINS` and
 the `ACTIVITIES_MEDIA_STORAGE_*` backend stay environment-only (they feed the
 Edge-runtime CSP and storage infrastructure) and are shown read-only in the
-admin UI. When no `ACTIVITIES_REQUEST_*` variable is set, the outbound request
-timeout default is `4000` ms (the documented config default), unifying the
-previous 10000 ms request-wrapper fallback.
+admin UI. On a multi-instance deployment, an admin's save takes effect on other
+instances within a short cache window rather than instantly; an environment
+variable, when set, always wins regardless.
 
 ## Core Configuration
 
