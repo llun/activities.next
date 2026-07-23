@@ -1,0 +1,23 @@
+AGENTS.md
+  s_f5e8a09f0f5f29::t_22d1412dc6589b 549
+  s_f5e8a09f0f5f29::t_5e95a83ccffa7a 568,570-571,575
+  s_f5e8a09f0f5f29::t_f148d78a9132d2 547
+CLAUDE.md
+  s_f5e8a09f0f5f29::t_1b83df087c171e 32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "5705a2ca5ca7ba3de806b8640d7b11f2d860c8ca",
+  "prompts": {},
+  "sessions": {
+    "s_f5e8a09f0f5f29": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c94d1f59-70a1-43cc-859e-125bd9363b45",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
