@@ -39,6 +39,45 @@ if (process.setMaxListeners) {
   process.setMaxListeners(50)
 }
 
+// jsdom dispatches focus/blur/focusin/focusout synchronously from
+// HTMLElement.focus(). Radix UI's FocusScope (DropdownMenu, Dialog, …) reacts to
+// a focusout that lands outside its container by calling .focus() again to pull
+// focus back — which in jsdom synchronously fires another focusout that
+// re-enters the same handler. When a menu closes while a dialog opens (e.g. the
+// ⋯ post menu's Delete / Report / Mute / Block confirmations), two focus scopes
+// hand focus back and forth and the re-entry never settles, overflowing the
+// stack with "RangeError: Maximum call stack size exceeded". A real browser
+// dispatches these events asynchronously and has internal focus-fixup guards, so
+// this is purely a jsdom artifact — but it crashed the Vitest worker and, as the
+// thrown errors piled up, surfaced intermittently as a CI test "heap OOM".
+// Bound the synchronous re-entry depth so the loop unwinds instead of
+// overflowing; genuine focus flows never nest .focus() anywhere near this deep,
+// so top-level focus() and document.activeElement stay unaffected. jsdom gives
+// HTMLElement and SVGElement their own separate focus(), so guard both.
+const MAX_SYNCHRONOUS_FOCUS_DEPTH = 10
+let focusDepth = 0
+const installFocusDepthGuard = (
+  proto: { focus: (...args: never[]) => void } | undefined
+) => {
+  if (!proto?.focus) return
+  const nativeFocus = proto.focus
+  proto.focus = function focus(this: unknown, ...args: never[]) {
+    if (focusDepth >= MAX_SYNCHRONOUS_FOCUS_DEPTH) return
+    focusDepth += 1
+    try {
+      nativeFocus.apply(this, args)
+    } finally {
+      focusDepth -= 1
+    }
+  }
+}
+if (typeof HTMLElement !== 'undefined') {
+  installFocusDepthGuard(HTMLElement.prototype)
+}
+if (typeof SVGElement !== 'undefined') {
+  installFocusDepthGuard(SVGElement.prototype)
+}
+
 // Jest exposed a global `fail()`; Vitest does not. Provide a compatible shim.
 globalThis.fail = (message?: string): never => {
   throw new Error(message ?? 'fail() was called')
