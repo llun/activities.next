@@ -1,0 +1,19 @@
+lib/services/serverSettings/index.ts
+  s_a0fa6b24d2c1de::t_717bc2cfdbfb0d 135-139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "8e16d91951992fcca0c4d776d7751ef793e272d6",
+  "prompts": {},
+  "sessions": {
+    "s_a0fa6b24d2c1de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b172494-5d03-43f2-b126-6356763fd651",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
