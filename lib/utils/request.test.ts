@@ -1,8 +1,14 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getConfig } from '@/lib/config'
+import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 
 import { request } from './request'
+
+vi.mock('@/lib/services/serverSettings', () => ({
+  getResolvedServerSettings: vi.fn()
+}))
 
 vi.mock('got', async () => {
   type GotMockOptions = {
@@ -96,6 +102,9 @@ describe('request utility', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     mockGetConfig.mockReturnValue(defaultConfig)
+    vi.mocked(getResolvedServerSettings).mockResolvedValue(
+      structuredClone(DEFAULT_SERVER_SETTINGS)
+    )
   })
 
   describe('request', () => {
@@ -492,6 +501,34 @@ describe('request utility', () => {
         statusCode: 200
       })
       expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('retries using the database-backed retry count', async () => {
+      vi.useFakeTimers()
+      vi.mocked(getResolvedServerSettings).mockResolvedValue({
+        ...structuredClone(DEFAULT_SERVER_SETTINGS),
+        network: {
+          requestTimeoutMs: 4000,
+          requestRetries: 2,
+          maxResponseSizeBytes: 2 * 1024 * 1024
+        }
+      })
+      const error = Object.assign(new Error('connection reset'), {
+        code: 'ECONNRESET'
+      })
+      fetchMock.mockRejectOnce(error)
+      fetchMock.mockRejectOnce(error)
+      fetchMock.mockResponseOnce('ok', { status: 200 })
+
+      const responsePromise = request({ url: 'https://example.com/api/test' })
+      await vi.advanceTimersByTimeAsync(60_000)
+
+      await expect(responsePromise).resolves.toMatchObject({
+        body: 'ok',
+        statusCode: 200
+      })
+      // Initial attempt plus the two database-backed retries.
+      expect(fetchMock).toHaveBeenCalledTimes(3)
     })
 
     it('preserves configured null retry noise', async () => {
