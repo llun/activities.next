@@ -1,0 +1,26 @@
+lib/components/admin/settings/FederationPolicyForm.tsx
+  s_a0fa6b24d2c1de::t_d73cba37641e2b 1-106
+app/(timeline)/admin/federation/page.tsx
+  s_a0fa6b24d2c1de::t_ac06b8cc83dd8d 19,31
+  s_a0fa6b24d2c1de::t_521f74c20e1bd3 180-184
+  s_a0fa6b24d2c1de::t_8276821e40cda8 243-248
+lib/components/admin/settings/FederationPolicyForm.test.tsx
+  s_a0fa6b24d2c1de::t_80b92483a01397 1-117
+  s_a0fa6b24d2c1de::t_d6ad68ad79c15c 118-120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "b96136a63622b43a59a7776d847241a34c944d48",
+  "prompts": {},
+  "sessions": {
+    "s_a0fa6b24d2c1de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b172494-5d03-43f2-b126-6356763fd651",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
