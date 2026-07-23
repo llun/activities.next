@@ -1,0 +1,70 @@
+app/api/v1/emails/confirmations/route.test.ts
+  s_a0fa6b24d2c1de::t_621ecd5f80faca 118-120
+  s_a0fa6b24d2c1de::t_a89945b222a435 4,8,14-22
+  s_a0fa6b24d2c1de::t_ba63b66d34959e 459-461
+  s_a0fa6b24d2c1de::t_293b64cc477cb6 236-238
+  s_a0fa6b24d2c1de::t_f0b27f821d85fe 259-261
+  s_a0fa6b24d2c1de::t_d47ac563fe7223 23
+app/(timeline)/page.tsx
+  s_a0fa6b24d2c1de::t_25b2ca5ccbfe65 34,39-41
+  s_a0fa6b24d2c1de::t_bf5e2c25f12632 6
+app/api/v1/accounts/route.ts
+  s_a0fa6b24d2c1de::t_bf5e2c25f12632 15
+  s_a0fa6b24d2c1de::t_e540359aa0741f 132,288
+app/(nosidebar)/auth/signup/page.tsx
+  s_a0fa6b24d2c1de::t_a3a086397438ba 32
+  s_a0fa6b24d2c1de::t_bf5e2c25f12632 19
+app/(nosidebar)/auth/signin/page.tsx
+  s_a0fa6b24d2c1de::t_bf5e2c25f12632 18
+  s_a0fa6b24d2c1de::t_22a61395853639 78-81
+lib/services/accounts/registerAccount.ts
+  s_a0fa6b24d2c1de::t_21886f5099cb10 8
+  s_a0fa6b24d2c1de::t_0966d0ba76949f 41,43,52,54
+app/(timeline)/[actor]/[status]/page.tsx
+  s_a0fa6b24d2c1de::t_24135af60dc02d 13
+  s_a0fa6b24d2c1de::t_e13f25e9c3a34c 63,67-69
+lib/utils/getActorFromSession.test.ts
+  s_a0fa6b24d2c1de::t_179f31b2b5e635 1,3,6-7,19-23,32,43,66,78
+app/api/v1/accounts/route.test.ts
+  s_a0fa6b24d2c1de::t_9342f13a2c29f4 160-162,179-181
+  s_a0fa6b24d2c1de::t_ad7b38db28dbdd 495-497
+  s_a0fa6b24d2c1de::t_26ab0a31de7510 29-38
+  s_a0fa6b24d2c1de::t_68ad5755322757 71
+  s_a0fa6b24d2c1de::t_bf5e2c25f12632 10
+  s_a0fa6b24d2c1de::t_ce12b767500180 5
+app/(timeline)/PublicTopBar.tsx
+  s_a0fa6b24d2c1de::t_521c03b2cf2670 5-6,12-15
+app/u/heatmaps/[token]/page.tsx
+  s_a0fa6b24d2c1de::t_dea2a4ff3534ea 83-85,92
+  s_a0fa6b24d2c1de::t_0aa08e6967bfa1 9
+  s_a0fa6b24d2c1de::t_33e9944cf7d897 5
+lib/utils/getActorFromSession.ts
+  s_a0fa6b24d2c1de::t_ba33df338b2618 33
+  s_a0fa6b24d2c1de::t_bf5e2c25f12632 5,34
+app/api/v1/emails/confirmations/route.ts
+  s_a0fa6b24d2c1de::t_53826960a2cd6a 112-113
+  s_a0fa6b24d2c1de::t_8f528634c34323 17
+lib/services/accounts/registerAccount.test.ts
+  s_a0fa6b24d2c1de::t_099cf9d1fad93d 61-63
+  s_a0fa6b24d2c1de::t_204df00512025b 77-79
+  s_a0fa6b24d2c1de::t_ecc127b8f29ceb 49-51
+  s_a0fa6b24d2c1de::t_dd0bd5d088e852 382-384
+  s_a0fa6b24d2c1de::t_eb2ef387cec1b3 25-35
+  s_a0fa6b24d2c1de::t_c9132923967db8 2,4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "3337377f9ed60d594ab3656c12cf3766b4ff987f",
+  "prompts": {},
+  "sessions": {
+    "s_a0fa6b24d2c1de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b172494-5d03-43f2-b126-6356763fd651",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
