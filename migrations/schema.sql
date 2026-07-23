@@ -410,7 +410,8 @@ CREATE TABLE public.fitness_files (
     "importError" text,
     "deviceManufacturer" character varying(255),
     "deviceName" character varying(255),
-    "sourceUrl" text
+    "sourceUrl" text,
+    "movingTimeSeconds" real
 );
 
 CREATE TABLE public.fitness_import_locks (

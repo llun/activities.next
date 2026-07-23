@@ -46,6 +46,7 @@ export const StatusFitnessFile = z.object({
   processingStuck: z.boolean().optional(),
   totalDistanceMeters: z.number().optional(),
   totalDurationSeconds: z.number().optional(),
+  movingTimeSeconds: z.number().optional(),
   elevationGainMeters: z.number().optional(),
   activityType: z.string().optional(),
   hasMapData: z.boolean().optional(),

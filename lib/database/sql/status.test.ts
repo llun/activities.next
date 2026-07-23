@@ -485,6 +485,69 @@ describe('StatusDatabase', () => {
         })
       })
 
+      it('serializes movingTimeSeconds when present and omits it otherwise', async () => {
+        const withStatusId = `${emptyActorId}/statuses/fitness-moving`
+        await database.createNote({
+          id: withStatusId,
+          url: withStatusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'ride with moving time'
+        })
+        const withFile = await database.createFitnessFile({
+          actorId: emptyActorId,
+          statusId: withStatusId,
+          path: `fitness/${Date.now()}-moving.tcx`,
+          fileName: 'moving.tcx',
+          fileType: 'tcx',
+          mimeType: 'application/vnd.garmin.tcx+xml',
+          bytes: 2048
+        })
+        await database.updateFitnessFileActivityData(withFile!.id, {
+          totalDistanceMeters: 31_333.8,
+          totalDurationSeconds: 4_614,
+          movingTimeSeconds: 4_374,
+          activityType: 'Ride'
+        })
+
+        const withStatus = (await database.getStatus({
+          statusId: withStatusId
+        })) as StatusNote
+        expect(withStatus.fitness?.movingTimeSeconds).toBe(4_374)
+        expect(withStatus.fitness?.totalDurationSeconds).toBe(4_614)
+
+        // A file with no parsed activity data omits the field entirely (the
+        // serializer uses a conditional spread), so callers fall back to
+        // elapsed time.
+        const withoutStatusId = `${emptyActorId}/statuses/fitness-no-moving`
+        await database.createNote({
+          id: withoutStatusId,
+          url: withoutStatusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'ride without moving time'
+        })
+        await database.createFitnessFile({
+          actorId: emptyActorId,
+          statusId: withoutStatusId,
+          path: `fitness/${Date.now()}-nomoving.tcx`,
+          fileName: 'nomoving.tcx',
+          fileType: 'tcx',
+          mimeType: 'application/vnd.garmin.tcx+xml',
+          bytes: 2048
+        })
+
+        const withoutStatus = (await database.getStatus({
+          statusId: withoutStatusId
+        })) as StatusNote
+        expect(withoutStatus.fitness).toBeDefined()
+        expect(
+          withoutStatus.fitness && 'movingTimeSeconds' in withoutStatus.fitness
+        ).toBe(false)
+      })
+
       it('flags a fitness file stranded in processing as processingStuck', async () => {
         vi.useFakeTimers({ toFake: ['Date'] })
         try {

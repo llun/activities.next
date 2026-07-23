@@ -136,6 +136,7 @@ export const Post: FC<PostProps> = (props) => {
   const fitnessPaceOrSpeed = getFitnessPaceOrSpeed({
     distanceMeters: fitnessFile?.totalDistanceMeters,
     durationSeconds: fitnessFile?.totalDurationSeconds,
+    movingTimeSeconds: fitnessFile?.movingTimeSeconds,
     activityType: fitnessFile?.activityType
   })
   const fitnessSourceUrl = normalizeFitnessSourceUrl(fitnessFile?.sourceUrl)
