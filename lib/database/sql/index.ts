@@ -37,6 +37,7 @@ import { ReportSQLDatabaseMixin } from '@/lib/database/sql/report'
 import { ScheduledStatusSQLDatabaseMixin } from '@/lib/database/sql/scheduledStatus'
 import { SearchSQLDatabaseMixin } from '@/lib/database/sql/search'
 import { ServerFilterSQLDatabaseMixin } from '@/lib/database/sql/serverFilter'
+import { ServerSettingSQLDatabaseMixin } from '@/lib/database/sql/serverSetting'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { StatusDetectedLanguageSQLDatabaseMixin } from '@/lib/database/sql/statusDetectedLanguage'
 import { StatusMuteSQLDatabaseMixin } from '@/lib/database/sql/statusMute'
@@ -75,6 +76,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     StatusDetectedLanguageSQLDatabaseMixin(database)
   const filterDatabase = FilterSQLDatabaseMixin(database)
   const serverFilterDatabase = ServerFilterSQLDatabaseMixin(database)
+  const serverSettingDatabase = ServerSettingSQLDatabaseMixin(database)
   const followerDatabase = FollowerSQLDatabaseMixin(database, actorDatabase)
   const followedTagDatabase = FollowedTagSQLDatabaseMixin(database)
   const instanceActivityDatabase = InstanceActivitySQLDatabaseMixin(database)
@@ -162,6 +164,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...listDatabase,
     ...filterDatabase,
     ...serverFilterDatabase,
+    ...serverSettingDatabase,
     ...followerDatabase,
     ...followedTagDatabase,
     ...likeDatabase,
