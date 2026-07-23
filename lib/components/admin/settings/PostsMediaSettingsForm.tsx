@@ -39,8 +39,8 @@ const MIN_EXPIRATION_OPTIONS = [
 ]
 const MAX_EXPIRATION_OPTIONS = [
   { value: '604800', label: '7 days' },
-  { value: '2629746', label: '1 month' },
-  { value: '7889238', label: '3 months' }
+  { value: '2678400', label: '1 month' },
+  { value: '8035200', label: '3 months' }
 ]
 
 // Keep an out-of-preset stored value selectable so the select never silently

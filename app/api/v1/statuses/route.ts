@@ -10,19 +10,19 @@ import {
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
 import {
-  MAX_POLL_EXPIRATION_SECONDS,
-  MAX_POLL_OPTIONS,
-  MAX_POLL_OPTION_CHARS,
   MAX_STORED_MEDIA_ATTACHMENTS,
-  MIN_POLL_EXPIRATION_SECONDS,
   MIN_POLL_OPTIONS,
   MIN_SCHEDULED_STATUS_AHEAD_MS,
+  POLL_OPTIONS_CEILING,
+  POLL_OPTION_CHARS_CEILING,
   SCHEDULED_AT_TOO_SOON_ERROR
 } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { getQueue } from '@/lib/services/queue'
 import { canQuoteStatus } from '@/lib/services/quotes/canQuoteStatus'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
+import { validateStatusContentLimits } from '@/lib/services/statuses/contentLimits'
 import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
 import {
@@ -63,16 +63,15 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const VisibilitySchema = z.enum(['public', 'unlisted', 'private', 'direct'])
 
+// The precise option-count/length/expiry bounds are the admin-configured poll
+// settings, enforced at runtime after parsing (see validateStatusContentLimits).
+// The schema only applies the structural floor and absolute safety ceilings.
 const PollSchema = z.object({
   options: z
-    .array(z.string().trim().min(1).max(MAX_POLL_OPTION_CHARS))
+    .array(z.string().trim().min(1).max(POLL_OPTION_CHARS_CEILING))
     .min(MIN_POLL_OPTIONS)
-    .max(MAX_POLL_OPTIONS),
-  expires_in: z.coerce
-    .number()
-    .int()
-    .min(MIN_POLL_EXPIRATION_SECONDS)
-    .max(MAX_POLL_EXPIRATION_SECONDS),
+    .max(POLL_OPTIONS_CEILING),
+  expires_in: z.coerce.number().int().positive(),
   multiple: Booleanish.optional().default(false),
   hide_totals: Booleanish.optional().default(false)
 })
@@ -178,6 +177,18 @@ export const POST = traceApiRoute(
             req,
             allowedMethods: CORS_HEADERS,
             data: ERROR_422,
+            responseStatusCode: 422
+          })
+        }
+
+        // Enforce the admin-configured status/poll limits (server settings).
+        const serverSettings = await getResolvedServerSettings(database)
+        const limitError = validateStatusContentLimits(note, serverSettings)
+        if (limitError) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: limitError },
             responseStatusCode: 422
           })
         }

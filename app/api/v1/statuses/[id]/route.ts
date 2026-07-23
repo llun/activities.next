@@ -13,17 +13,17 @@ import {
   OptionalOAuthGuard
 } from '@/lib/services/guards/OAuthGuard'
 import {
-  MAX_POLL_EXPIRATION_SECONDS,
-  MAX_POLL_OPTIONS,
-  MAX_POLL_OPTION_CHARS,
   MAX_STORED_MEDIA_ATTACHMENTS,
-  MIN_POLL_EXPIRATION_SECONDS,
-  MIN_POLL_OPTIONS
+  MIN_POLL_OPTIONS,
+  POLL_OPTIONS_CEILING,
+  POLL_OPTION_CHARS_CEILING
 } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { deleteMediaFile } from '@/lib/services/medias'
 import { FocusSchema } from '@/lib/services/medias/types'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
+import { validateStatusContentLimits } from '@/lib/services/statuses/contentLimits'
 import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
 import { Scope } from '@/lib/types/database/operations'
@@ -133,15 +133,10 @@ const EditMediaAttributeSchema = z.object({
 // edit semantics).
 const EditPollSchema = z.object({
   options: z
-    .array(z.string().trim().min(1).max(MAX_POLL_OPTION_CHARS))
+    .array(z.string().trim().min(1).max(POLL_OPTION_CHARS_CEILING))
     .min(MIN_POLL_OPTIONS)
-    .max(MAX_POLL_OPTIONS),
-  expires_in: z.coerce
-    .number()
-    .int()
-    .min(MIN_POLL_EXPIRATION_SECONDS)
-    .max(MAX_POLL_EXPIRATION_SECONDS)
-    .optional(),
+    .max(POLL_OPTIONS_CEILING),
+  expires_in: z.coerce.number().int().positive().optional(),
   multiple: Booleanish.optional(),
   hide_totals: Booleanish.optional()
 })
@@ -192,6 +187,19 @@ export const PUT = traceApiRoute(
           })
         }
         const changes = parsed.data
+
+        // Enforce the admin-configured status/poll limits (server settings).
+        const serverSettings = await getResolvedServerSettings(database)
+        const limitError = validateStatusContentLimits(changes, serverSettings)
+        if (limitError) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: limitError },
+            responseStatusCode: 422
+          })
+        }
+
         const mediaAttributes = changes.media_attributes
         const mediaIds =
           changes.media_ids === undefined

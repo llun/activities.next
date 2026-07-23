@@ -31,7 +31,7 @@ const settingsWith = (
     maxOptions: 4,
     maxCharactersPerOption: 50,
     minExpirationSeconds: 300,
-    maxExpirationSeconds: 2629746
+    maxExpirationSeconds: 2678400
   },
   media: { maxFileSize: 209715200 },
   network: {

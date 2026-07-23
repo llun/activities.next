@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import {
+  MAX_POLL_EXPIRATION_SECONDS,
   MAX_POLL_OPTION_CHARS,
   MAX_STORED_MEDIA_ATTACHMENTS,
   MIN_POLL_EXPIRATION_SECONDS
@@ -25,9 +26,10 @@ export type ServerSettingTab = 'instance' | 'posts' | 'network' | 'federation'
 // can fall back to it before the resolved value is threaded in.
 export const DEFAULT_MAX_STATUS_CHARACTERS = 500
 
-// Mastodon's canonical maximum poll expiration (seconds ~= 1 month). Matches the
-// value the instance API has always advertised.
-export const DEFAULT_MAX_POLL_EXPIRATION_SECONDS = 2629746
+// Maximum poll expiration (~1 month). Uses the value the create/edit routes
+// actually enforce, so advertising and enforcement agree (the routes previously
+// advertised the Mastodon literal 2629746 while enforcing this constant).
+export const DEFAULT_MAX_POLL_EXPIRATION_SECONDS = MAX_POLL_EXPIRATION_SECONDS
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 4000
 const DEFAULT_REQUEST_RETRIES = 1
