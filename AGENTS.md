@@ -315,7 +315,13 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   "x is not a function"), `uuid` (deterministic `test-uuid-…` ids), `got`,
   `node:dns/promises`, and `fetch` via jest-fetch-mock's global `fetchMock`
   (passthrough by default — call `fetchMock.doMock()` / `mockResponse…` to
-  stub).
+  stub). It also installs a jsdom-only guard on `HTMLElement`/`SVGElement`
+  `focus()` that caps synchronous re-entry depth: jsdom fires focus events
+  synchronously, so Radix UI's `FocusScope` (DropdownMenu, Dialog, …) can
+  re-enter `focus()` without settling and overflow the stack with "Maximum call
+  stack size exceeded" when a menu closes as a dialog opens. Real focus flows
+  never nest that deep, so normal `focus()` / `document.activeElement` behavior
+  is unchanged.
 - CI (`.github/workflows/ci.yml`) runs lint + prettier-check, build, test, and
   Schema Dump Sync (regenerates the SQLite schema dump from the migrations and
   fails on drift) as four parallel jobs on every push and PR; the single

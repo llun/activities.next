@@ -52,15 +52,16 @@ if (process.setMaxListeners) {
 // thrown errors piled up, surfaced intermittently as a CI test "heap OOM".
 // Bound the synchronous re-entry depth so the loop unwinds instead of
 // overflowing; genuine focus flows never nest .focus() anywhere near this deep,
-// so top-level focus() and document.activeElement stay unaffected.
-if (typeof HTMLElement !== 'undefined') {
-  const MAX_SYNCHRONOUS_FOCUS_DEPTH = 10
-  const nativeFocus = HTMLElement.prototype.focus
-  let focusDepth = 0
-  HTMLElement.prototype.focus = function focus(
-    this: HTMLElement,
-    ...args: Parameters<HTMLElement['focus']>
-  ) {
+// so top-level focus() and document.activeElement stay unaffected. jsdom gives
+// HTMLElement and SVGElement their own separate focus(), so guard both.
+const MAX_SYNCHRONOUS_FOCUS_DEPTH = 10
+let focusDepth = 0
+const installFocusDepthGuard = (
+  proto: { focus: (...args: never[]) => void } | undefined
+) => {
+  if (!proto?.focus) return
+  const nativeFocus = proto.focus
+  proto.focus = function focus(this: unknown, ...args: never[]) {
     if (focusDepth >= MAX_SYNCHRONOUS_FOCUS_DEPTH) return
     focusDepth += 1
     try {
@@ -69,6 +70,12 @@ if (typeof HTMLElement !== 'undefined') {
       focusDepth -= 1
     }
   }
+}
+if (typeof HTMLElement !== 'undefined') {
+  installFocusDepthGuard(HTMLElement.prototype)
+}
+if (typeof SVGElement !== 'undefined') {
+  installFocusDepthGuard(SVGElement.prototype)
 }
 
 // Jest exposed a global `fail()`; Vitest does not. Provide a compatible shim.
