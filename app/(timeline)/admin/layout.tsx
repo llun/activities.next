@@ -6,6 +6,7 @@ import {
   Flag,
   Globe,
   Hash,
+  Image,
   Megaphone,
   Rss,
   Scale,
@@ -43,6 +44,12 @@ const tabs: SectionNavTab[] = [
   // Server settings — DB-backed instance policy, grouped under "Settings" below
   // the moderation tools and above System.
   { name: 'Instance', url: '/admin/instance', icon: Server, group: 'Settings' },
+  {
+    name: 'Posts & media',
+    url: '/admin/posts',
+    icon: Image,
+    group: 'Settings'
+  },
   { name: 'System', url: '/admin/system', icon: Settings }
 ]
 
