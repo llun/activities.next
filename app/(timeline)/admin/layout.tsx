@@ -8,6 +8,7 @@ import {
   Hash,
   Image,
   Megaphone,
+  Network,
   Rss,
   Scale,
   Server,
@@ -50,6 +51,7 @@ const tabs: SectionNavTab[] = [
     icon: Image,
     group: 'Settings'
   },
+  { name: 'Network', url: '/admin/network', icon: Network, group: 'Settings' },
   { name: 'System', url: '/admin/system', icon: Settings }
 ]
 
