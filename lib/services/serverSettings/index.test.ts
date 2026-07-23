@@ -132,6 +132,74 @@ describe('server settings resolver', () => {
     await database.destroy()
   })
 
+  it('re-reads the database after the cache TTL expires', async () => {
+    const database = await freshDatabase()
+    const spy = vi.spyOn(database, 'getAllServerSettings')
+
+    await getResolvedServerSettings(database)
+    await getResolvedServerSettings(database)
+    expect(spy).toHaveBeenCalledTimes(1)
+
+    vi.useFakeTimers()
+    try {
+      vi.advanceTimersByTime(60_000)
+      await getResolvedServerSettings(database)
+      expect(spy).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+    spy.mockRestore()
+    await database.destroy()
+  })
+
+  it('falls back to env + defaults when the settings read fails with no prior cache', async () => {
+    const database = await freshDatabase()
+    const spy = vi
+      .spyOn(database, 'getAllServerSettings')
+      .mockRejectedValue(new Error('database unavailable'))
+    process.env.ACTIVITIES_SERVICE_NAME = 'Env Name'
+    invalidateServerSettingsCache(database)
+
+    const settings = await getResolvedServerSettings(database)
+    // Env override still applies; everything else is the registry default.
+    expect(settings.instance.name).toBe('Env Name')
+    expect(settings.registrations.open).toBe(
+      DEFAULT_SERVER_SETTINGS.registrations.open
+    )
+
+    spy.mockRestore()
+    await database.destroy()
+  })
+
+  it('keeps serving the last-known-good stored value when a later read fails', async () => {
+    const database = await freshDatabase()
+    await database.setServerSetting({ key: 'registrations.open', value: false })
+    invalidateServerSettingsCache(database)
+    // Prime the cache with the stored (closed) value.
+    await expect(getResolvedServerSettings(database)).resolves.toMatchObject({
+      registrations: { open: false }
+    })
+
+    vi.useFakeTimers()
+    try {
+      // Expire the cache, then make the re-read fail.
+      vi.advanceTimersByTime(60_000)
+      const spy = vi
+        .spyOn(database, 'getAllServerSettings')
+        .mockRejectedValue(new Error('database unavailable'))
+
+      // Must serve the stale stored value (closed), not revert to the
+      // permissive default (open).
+      const settings = await getResolvedServerSettings(database)
+      expect(settings.registrations.open).toBe(false)
+      expect(spy).toHaveBeenCalled()
+      spy.mockRestore()
+    } finally {
+      vi.useRealTimers()
+    }
+    await database.destroy()
+  })
+
   describe('updateServerSettings', () => {
     it('writes valid values and reflects them immediately', async () => {
       const database = await freshDatabase()

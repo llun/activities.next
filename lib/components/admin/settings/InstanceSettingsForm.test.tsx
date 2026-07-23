@@ -90,4 +90,41 @@ describe('InstanceSettingsForm', () => {
     expect(screen.getByText('Set by environment')).toBeInTheDocument()
     expect(screen.getByText('ACTIVITIES_SERVICE_NAME')).toBeInTheDocument()
   })
+
+  it('surfaces the server error message when a save fails', async () => {
+    mockUpdate.mockRejectedValueOnce(
+      new Error('Some settings could not be saved')
+    )
+    renderForm()
+    fireEvent.change(screen.getByLabelText('Instance name'), {
+      target: { value: 'New Name' }
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Update' })[0])
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('Some settings could not be saved')
+      ).toBeInTheDocument()
+    )
+    // Still dirty (the value was not adopted), so Update stays enabled.
+    expect(screen.getAllByRole('button', { name: 'Update' })[0]).toBeEnabled()
+  })
+
+  it('adopts the server-resolved values and clears dirty after a save', async () => {
+    mockUpdate.mockResolvedValueOnce({
+      settings: {
+        ...baseSettings,
+        instance: { ...baseSettings.instance, name: 'New Name' }
+      },
+      locks: {}
+    })
+    renderForm()
+    fireEvent.change(screen.getByLabelText('Instance name'), {
+      target: { value: 'New Name' }
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Update' })[0])
+
+    await waitFor(() => expect(screen.getByText('Saved')).toBeInTheDocument())
+    expect(screen.getAllByRole('button', { name: 'Update' })[0]).toBeDisabled()
+  })
 })

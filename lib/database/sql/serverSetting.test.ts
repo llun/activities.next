@@ -97,6 +97,30 @@ describe('ServerSettingDatabase', () => {
       ).resolves.toBe(false)
     })
 
+    it('upserts a batch of settings in one call', async () => {
+      await database.setServerSettings([
+        { key: 'batch.one', value: 1 },
+        { key: 'batch.two', value: ['a', 'b'] }
+      ])
+
+      await expect(
+        database.getServerSetting({ key: 'batch.one' })
+      ).resolves.toMatchObject({ value: 1 })
+      await expect(
+        database.getServerSetting({ key: 'batch.two' })
+      ).resolves.toMatchObject({ value: ['a', 'b'] })
+
+      // A second batch overwrites existing keys.
+      await database.setServerSettings([{ key: 'batch.one', value: 2 }])
+      await expect(
+        database.getServerSetting({ key: 'batch.one' })
+      ).resolves.toMatchObject({ value: 2 })
+    })
+
+    it('accepts an empty batch as a no-op', async () => {
+      await expect(database.setServerSettings([])).resolves.toBeUndefined()
+    })
+
     it('stores a boolean value distinctly from its string form', async () => {
       await database.setServerSetting({
         key: 'registrations.open',
