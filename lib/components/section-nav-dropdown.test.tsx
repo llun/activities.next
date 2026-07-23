@@ -74,4 +74,33 @@ describe('SectionNavDropdown', () => {
       within(menu).getByRole('menuitem', { name: 'Overview' })
     ).not.toHaveAttribute('aria-current')
   })
+
+  it('renders a group heading before a run of grouped tabs', async () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/admin')
+    const groupedTabs: SectionNavTab[] = [
+      { name: 'Overview', url: '/admin', icon: Activity },
+      {
+        name: 'Instance',
+        url: '/admin/instance',
+        icon: Globe,
+        group: 'Settings'
+      },
+      { name: 'Network', url: '/admin/network', icon: Lock, group: 'Settings' }
+    ]
+    render(<SectionNavDropdown label="Admin" tabs={groupedTabs} />)
+
+    const nav = screen.getByRole('navigation', { name: 'Admin' })
+    fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
+
+    const menu = await screen.findByRole('menu')
+    // The group label renders once, and the grouped items remain menu items.
+    expect(within(menu).getByText('Settings')).toBeInTheDocument()
+    expect(
+      within(menu).getByRole('menuitem', { name: 'Instance' })
+    ).toHaveAttribute('href', '/admin/instance')
+    expect(
+      within(menu).getByRole('menuitem', { name: 'Network' })
+    ).toBeInTheDocument()
+    expect(within(menu).getByRole('separator')).toBeInTheDocument()
+  })
 })
