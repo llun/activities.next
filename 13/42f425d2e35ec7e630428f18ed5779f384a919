@@ -1,0 +1,25 @@
+lib/services/serverSettings/index.ts
+  s_a0fa6b24d2c1de::t_956df51b8dc2c7 1-8,10-189
+  s_a0fa6b24d2c1de::t_3a71c07440e914 9
+lib/services/serverSettings/index.test.ts
+  s_a0fa6b24d2c1de::t_fe59983a4ed6e3 1-205
+lib/config/serverSettings.ts
+  s_a0fa6b24d2c1de::t_b35a95172fc045 1-7,9-116,119,122,129,134,139-140,142-399
+  s_a0fa6b24d2c1de::t_3a71c07440e914 8,117-118,120-121,123-128,130-133,135-138,141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "1342f425d2e35ec7e630428f18ed5779f384a919",
+  "prompts": {},
+  "sessions": {
+    "s_a0fa6b24d2c1de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b172494-5d03-43f2-b126-6356763fd651",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
