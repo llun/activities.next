@@ -1,13 +1,25 @@
 import knex from 'knex'
 import { NextRequest } from 'next/server'
 
+import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { Database } from '@/lib/database/types'
 import { hashToken } from '@/lib/services/guards/OAuthGuard'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { Scope } from '@/lib/types/database/operations'
 
 import { POST } from './route'
+
+vi.mock('@/lib/services/serverSettings', () => ({
+  getResolvedServerSettings: vi.fn()
+}))
+
+// The email allow-list is resolved from server settings.
+const settingsWithAllowEmails = (allowEmails: string[]) => ({
+  ...structuredClone(DEFAULT_SERVER_SETTINGS),
+  registrations: { open: true, allowEmails }
+})
 
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -103,6 +115,9 @@ describe('POST /api/v1/emails/confirmations', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(getResolvedServerSettings).mockResolvedValue(
+      settingsWithAllowEmails([])
+    )
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
@@ -215,10 +230,12 @@ describe('POST /api/v1/emails/confirmations', () => {
   it('allows a new email whose case differs from the allow-list entry', async () => {
     mockGetConfig.mockReturnValue({
       host: 'llun.test',
-      allowEmails: [seedActor1.email, 'Allowed@LLUN.test'],
       allowActorDomains: [],
       email: { serviceFromAddress: 'noreply@llun.test' }
     })
+    vi.mocked(getResolvedServerSettings).mockResolvedValue(
+      settingsWithAllowEmails([seedActor1.email, 'Allowed@LLUN.test'])
+    )
 
     const response = await POST(makeRequest({ email: 'allowed@llun.test' }), {
       params: Promise.resolve({})
@@ -236,10 +253,12 @@ describe('POST /api/v1/emails/confirmations', () => {
     // actor); only the requested new address is absent from it.
     mockGetConfig.mockReturnValue({
       host: 'llun.test',
-      allowEmails: [seedActor1.email],
       allowActorDomains: [],
       email: { serviceFromAddress: 'noreply@llun.test' }
     })
+    vi.mocked(getResolvedServerSettings).mockResolvedValue(
+      settingsWithAllowEmails([seedActor1.email])
+    )
 
     const response = await POST(makeRequest({ email: 'blocked@llun.test' }), {
       params: Promise.resolve({})
@@ -437,6 +456,9 @@ describe('POST /api/v1/emails/confirmations with a Bearer token', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(getResolvedServerSettings).mockResolvedValue(
+      settingsWithAllowEmails([])
+    )
     mockDatabase = apiDatabase
     mockKnex = apiKnex
     mockGetConfig.mockReturnValue({

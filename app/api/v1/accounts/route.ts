@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
-import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { localizeAccounts } from '@/lib/services/accounts/localizeAccount'
 import { registerAccount } from '@/lib/services/accounts/registerAccount'
@@ -13,6 +12,7 @@ import {
 import { getRedirectUrl } from '@/lib/services/guards/getRedirectUrl'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { issueAccessToken } from '@/lib/services/oauth/issueAccessToken'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { Scope } from '@/lib/types/database/operations'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -129,7 +129,7 @@ const registerViaApi = OAuthAppGuard(
     // runs as a before_action) and the web-form path. registerAccount() also
     // re-checks registrationOpen, so the registration_closed result branch below
     // remains a defensive fallback.
-    if (!getConfig().registrationOpen) {
+    if (!(await getResolvedServerSettings(database)).registrations.open) {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
@@ -285,7 +285,7 @@ export const POST = traceApiRoute(
     // registerAccount() also checks registrationOpen so it is safe to call as a
     // standalone service; the registration_closed branch in the result handler
     // below is a defensive fallback for that standalone-caller scenario.
-    if (!getConfig().registrationOpen) {
+    if (!(await getResolvedServerSettings(database)).registrations.open) {
       return apiResponse({
         req: request,
         allowedMethods: CORS_HEADERS,
