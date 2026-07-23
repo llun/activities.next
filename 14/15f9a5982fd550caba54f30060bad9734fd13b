@@ -1,0 +1,31 @@
+lib/components/admin/settings/SettingsField.tsx
+  s_a0fa6b24d2c1de::t_1c9c1e514a7038 1-76
+lib/components/admin/settings/SettingsSection.tsx
+  s_a0fa6b24d2c1de::t_2003d53fda0ea1 1-33
+lib/components/admin/settings/EnvLockBadge.tsx
+  s_a0fa6b24d2c1de::t_aa70de6938db72 1-27
+lib/components/admin/settings/SaveBar.tsx
+  s_a0fa6b24d2c1de::t_bde4e05e034702 1-40
+lib/components/admin/settings/LanguagesPicker.tsx
+  s_a0fa6b24d2c1de::t_b2d7179c1670fa 1-158
+lib/components/admin/settings/index.ts
+  s_a0fa6b24d2c1de::t_f932bd033a16a2 1-5
+lib/components/admin/settings/settings.test.tsx
+  s_a0fa6b24d2c1de::t_755f36c4700505 1-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "1415f9a5982fd550caba54f30060bad9734fd13b",
+  "prompts": {},
+  "sessions": {
+    "s_a0fa6b24d2c1de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b172494-5d03-43f2-b126-6356763fd651",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
