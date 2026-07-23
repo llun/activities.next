@@ -1,0 +1,19 @@
+vitest.setup.ts
+  s_f5e8a09f0f5f29::t_c7406d53311062 42-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "378ecac11ade85d839b08cf794cc15077d344ceb",
+  "prompts": {},
+  "sessions": {
+    "s_f5e8a09f0f5f29": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c94d1f59-70a1-43cc-859e-125bd9363b45",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
