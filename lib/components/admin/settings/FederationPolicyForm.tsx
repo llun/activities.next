@@ -91,7 +91,7 @@ export const FederationPolicyForm: FC<FederationPolicyFormProps> = ({
         label="Trusted media domains"
         htmlFor="federation-media-domains"
         locked
-        envVar="ACTIVITIES_ALLOW_MEDIA_DOMAINS"
+        help="Configured in the environment; the ACTIVITIES_ALLOW_MEDIA_DOMAINS variable feeds the Content-Security-Policy and cannot be managed here."
       >
         <LinesTextarea
           id="federation-media-domains"

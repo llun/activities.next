@@ -86,7 +86,7 @@ describe('FederationPolicyForm', () => {
     expect(mediaField).toBeDisabled()
     expect(mediaField).toHaveValue('files.mastodon.social')
     expect(
-      screen.getByText('ACTIVITIES_ALLOW_MEDIA_DOMAINS')
+      screen.getByText(/ACTIVITIES_ALLOW_MEDIA_DOMAINS/)
     ).toBeInTheDocument()
   })
 

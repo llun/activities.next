@@ -249,7 +249,7 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
           label="Storage backend"
           htmlFor="media-storage-backend"
           locked
-          envVar="ACTIVITIES_MEDIA_STORAGE_*"
+          help="Infrastructure configured in the environment (the ACTIVITIES_MEDIA_STORAGE_* variables); it cannot be managed here."
         >
           <Input id="media-storage-backend" value={storageBackend} disabled />
         </SettingsField>
