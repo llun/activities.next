@@ -3,19 +3,14 @@ import { NextRequest } from 'next/server'
 import { buildBaseURL, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { headerHost } from '@/lib/services/guards/headerHost'
-import {
-  MAX_PINNED_STATUSES,
-  MAX_STORED_MEDIA_ATTACHMENTS
-} from '@/lib/services/mastodon/constants'
+import { MAX_PINNED_STATUSES } from '@/lib/services/mastodon/constants'
 import {
   getInstanceContactAccount,
   getInstanceContactEmail,
   getInstanceStats
 } from '@/lib/services/mastodon/instance'
-import {
-  ACCEPTED_FILE_TYPES,
-  MAX_FILE_SIZE
-} from '@/lib/services/medias/constants'
+import { ACCEPTED_FILE_TYPES } from '@/lib/services/medias/constants'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { InstanceRuleData } from '@/lib/types/database/operations'
 import { Rule } from '@/lib/types/mastodon/rule'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -49,19 +44,19 @@ export const GET = traceApiRoute('getInstance', async (req: NextRequest) => {
     }
   }
 
-  const [stats, contactAccount] = await Promise.all([
+  const [stats, contactAccount, serverSettings] = await Promise.all([
     getInstanceStats(database, config.host),
-    getInstanceContactAccount(database)
+    getInstanceContactAccount(database),
+    getResolvedServerSettings(database)
   ])
 
   const data = {
     uri: domain,
-    title: config.serviceName ?? 'Activities.next',
-    short_description:
-      config.serviceDescription ?? 'Personal activity pub server with Next.js',
-    description:
-      config.serviceDescription ?? 'Personal activity pub server with Next.js',
-    email: getInstanceContactEmail(config),
+    title: serverSettings.instance.name,
+    short_description: serverSettings.instance.description,
+    description: serverSettings.instance.description,
+    email:
+      serverSettings.instance.contactEmail || getInstanceContactEmail(config),
     version: VERSION,
     // No streaming API: the documented key is present but empty so clients
     // treat streaming as unavailable and fall back to polling.
@@ -74,14 +69,14 @@ export const GET = traceApiRoute('getInstance', async (req: NextRequest) => {
       domain_count: stats.domainCount
     },
     thumbnail: `${baseUrl}/logo.png`,
-    languages: config.languages,
-    registrations: config.registrationOpen,
+    languages: serverSettings.instance.languages,
+    registrations: serverSettings.registrations.open,
     approval_required: false,
     invites_enabled: false,
     configuration: {
       statuses: {
-        max_characters: 500,
-        max_media_attachments: MAX_STORED_MEDIA_ATTACHMENTS,
+        max_characters: serverSettings.posts.maxCharacters,
+        max_media_attachments: serverSettings.posts.maxMediaAttachments,
         characters_reserved_per_url: 23
       },
       accounts: {
@@ -89,17 +84,17 @@ export const GET = traceApiRoute('getInstance', async (req: NextRequest) => {
       },
       media_attachments: {
         supported_mime_types: ACCEPTED_FILE_TYPES,
-        image_size_limit: config.mediaStorage?.maxFileSize ?? MAX_FILE_SIZE,
+        image_size_limit: serverSettings.media.maxFileSize,
         image_matrix_limit: 16777216,
-        video_size_limit: config.mediaStorage?.maxFileSize ?? MAX_FILE_SIZE,
+        video_size_limit: serverSettings.media.maxFileSize,
         video_frame_rate_limit: 60,
         video_matrix_limit: 2304000
       },
       polls: {
-        max_options: 4,
-        max_characters_per_option: 50,
-        min_expiration: 300,
-        max_expiration: 2629746
+        max_options: serverSettings.polls.maxOptions,
+        max_characters_per_option: serverSettings.polls.maxCharactersPerOption,
+        min_expiration: serverSettings.polls.minExpirationSeconds,
+        max_expiration: serverSettings.polls.maxExpirationSeconds
       }
     },
     contact_account: contactAccount,
