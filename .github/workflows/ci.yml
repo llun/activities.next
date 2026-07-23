@@ -78,6 +78,10 @@ jobs:
   # own runner: every shard imports and runs only ~1/4 of the files, so peak
   # memory per fork stays well under the ceiling, and the shards run in parallel
   # for fast wall-clock. NODE_OPTIONS gives the fork workers extra headroom.
+  # NOTE: a large share of that "heap OOM" was really a Radix FocusScope <-> jsdom
+  # synchronous-focus recursion piling up thrown errors until the worker died
+  # (fixed by the focus-depth guard in vitest.setup.ts). The sharding + heap
+  # headroom are kept as defence in depth and for wall-clock parallelism.
   test-shards:
     name: Test Shard ${{ matrix.shard }} of 4
     runs-on: ubuntu-latest
