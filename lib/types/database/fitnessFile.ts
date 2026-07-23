@@ -30,6 +30,7 @@ export interface SQLFitnessFile {
   importError?: string | null
   totalDistanceMeters?: number | null
   totalDurationSeconds?: number | null
+  movingTimeSeconds?: number | null
   elevationGainMeters?: number | null
   activityType?: string | null
   activityStartTime?: number | Date | string | null
@@ -65,6 +66,7 @@ export interface FitnessFile {
   importError?: string
   totalDistanceMeters?: number
   totalDurationSeconds?: number
+  movingTimeSeconds?: number
   elevationGainMeters?: number
   activityType?: string
   activityStartTime?: number

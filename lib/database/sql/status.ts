@@ -2969,6 +2969,9 @@ export const StatusSQLDatabaseMixin = (
               ...(typeof fitnessFile.totalDurationSeconds === 'number'
                 ? { totalDurationSeconds: fitnessFile.totalDurationSeconds }
                 : null),
+              ...(typeof fitnessFile.movingTimeSeconds === 'number'
+                ? { movingTimeSeconds: fitnessFile.movingTimeSeconds }
+                : null),
               ...(typeof fitnessFile.elevationGainMeters === 'number'
                 ? { elevationGainMeters: fitnessFile.elevationGainMeters }
                 : null),

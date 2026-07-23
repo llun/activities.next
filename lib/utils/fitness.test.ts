@@ -112,6 +112,50 @@ describe('fitness utils', () => {
       })
     })
 
+    it('computes average speed from moving time when provided', () => {
+      // 20 km covered while moving for 48 minutes (2880s), even though the
+      // activity spanned 60 minutes of elapsed time (3600s). Strava reports the
+      // moving-time speed (25 km/h), not the elapsed-time speed (20 km/h).
+      expect(
+        getFitnessPaceOrSpeed({
+          distanceMeters: 20_000,
+          durationSeconds: 3_600,
+          movingTimeSeconds: 2_880,
+          activityType: 'cycling'
+        })
+      ).toEqual({
+        label: 'Avg speed',
+        value: '25.0 km/h',
+        speedKmh: 25
+      })
+    })
+
+    it('computes running pace from moving time when provided', () => {
+      expect(
+        getFitnessPaceOrSpeed({
+          distanceMeters: 5_000,
+          durationSeconds: 1_800,
+          movingTimeSeconds: 1_499,
+          activityType: 'running'
+        })
+      ).toEqual({ label: 'Pace', value: '5:00 / km' })
+    })
+
+    it('falls back to elapsed duration when moving time is absent or invalid', () => {
+      expect(
+        getFitnessPaceOrSpeed({
+          distanceMeters: 20_000,
+          durationSeconds: 3_600,
+          movingTimeSeconds: 0,
+          activityType: 'cycling'
+        })
+      ).toEqual({
+        label: 'Avg speed',
+        value: '20.0 km/h',
+        speedKmh: 20
+      })
+    })
+
     it('returns null when required values are missing', () => {
       expect(getFitnessPaceOrSpeed({ durationSeconds: 300 })).toBeNull()
     })

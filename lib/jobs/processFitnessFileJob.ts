@@ -151,6 +151,7 @@ export const processFitnessFileJob = createJobHandle(
       await database.updateFitnessFileActivityData(fitnessFileId, {
         totalDistanceMeters: activityData.totalDistanceMeters,
         totalDurationSeconds: activityData.totalDurationSeconds,
+        movingTimeSeconds: activityData.movingTimeSeconds ?? null,
         elevationGainMeters: activityData.elevationGainMeters,
         activityType: activityData.activityType,
         activityStartTime: activityData.startTime ?? null,

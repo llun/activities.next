@@ -2187,6 +2187,7 @@ export interface StatusFitnessFileItem {
   processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
   totalDistanceMeters: number | null
   totalDurationSeconds: number | null
+  movingTimeSeconds: number | null
   elevationGainMeters: number | null
   activityType: string | null
   activityStartTime: number | null

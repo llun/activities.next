@@ -61,10 +61,12 @@ export const formatFitnessElevation = (
 export const getFitnessPaceOrSpeed = ({
   distanceMeters,
   durationSeconds,
+  movingTimeSeconds,
   activityType
 }: {
   distanceMeters?: number
   durationSeconds?: number
+  movingTimeSeconds?: number
   activityType?: string
 }): PaceOrSpeed | null => {
   if (
@@ -79,6 +81,16 @@ export const getFitnessPaceOrSpeed = ({
   const distanceKm = distanceMeters / 1000
   if (distanceKm <= 0) return null
 
+  // Average pace/speed is measured over MOVING time, not elapsed time — this is
+  // what Strava reports. A ride that spans 1:16:54 (elapsed) but only moves for
+  // 1:13:09 has its stops excluded, so distance/moving > distance/elapsed. Fall
+  // back to the full elapsed duration when moving time is unavailable (older
+  // records not yet reprocessed, or files with no per-point data to derive it).
+  const effectiveDurationSeconds =
+    typeof movingTimeSeconds === 'number' && movingTimeSeconds > 0
+      ? movingTimeSeconds
+      : durationSeconds
+
   const normalizedType = activityType?.toLowerCase() ?? ''
   const usesPace =
     normalizedType.includes('run') ||
@@ -87,7 +99,7 @@ export const getFitnessPaceOrSpeed = ({
     normalizedType.includes('swim')
 
   if (usesPace) {
-    const paceSeconds = Math.round(durationSeconds / distanceKm)
+    const paceSeconds = Math.round(effectiveDurationSeconds / distanceKm)
     const paceMinutes = Math.floor(paceSeconds / 60)
     const paceRemainderSeconds = paceSeconds % 60
 
@@ -99,7 +111,7 @@ export const getFitnessPaceOrSpeed = ({
     }
   }
 
-  const speedKmh = distanceKm / (durationSeconds / 3600)
+  const speedKmh = distanceKm / (effectiveDurationSeconds / 3600)
 
   if (!Number.isFinite(speedKmh) || speedKmh <= 0) {
     return null

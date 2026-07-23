@@ -49,6 +49,7 @@ Important columns include:
 - `processingStatus`
 - `isPrimary`, `importBatchId`, `importStatus`, `importError`
 - `totalDistanceMeters`, `totalDurationSeconds`, `elevationGainMeters`
+- `movingTimeSeconds` — time (seconds) the athlete was actually moving, with stops excluded. Kept separate from `totalDurationSeconds` (elapsed time) so average pace/speed is computed over moving time, matching how Strava reports it. Nullable: records parsed before this column existed, or files with no per-point data to derive it, fall back to elapsed time (backfill with `scripts/fitness/backfillFitnessMovingTime.ts`).
 - `activityType`, `activityStartTime`
 - `hasMapData`, `mapImagePath`
 - `deviceManufacturer`, `deviceName`
@@ -127,6 +128,7 @@ Fitness maintenance scripts live in `scripts/`:
 - `scripts/fitness/repairFailedFitnessImports.ts` — re-runs failed **and** crash-orphaned imports (stuck at `pending` with no status after an uncatchable OOM/SIGABRT)
 - `scripts/fitness/importStoredFitnessFile.ts` — rebuilds a post from the already-stored file with no Strava call (deleted-from-Strava case); merges same-ride files into one post
 - `scripts/fitness/repairStravaActivityFiles.ts` — pass `--delete-missing` to hard-delete activities Strava 404s (default: report only; deletion is irreversible)
+- `scripts/fitness/backfillFitnessMovingTime.ts` — recomputes `movingTimeSeconds` for already-stored files so their average pace/speed switches from elapsed-time to moving-time (matching Strava); idempotent, supports `--dry-run` and `--force`
 - `scripts/fitness/retrigerStravaActivities.ts`
 - `scripts/fitness/runImportStravaActivity.ts`
 - `scripts/fitness/listStravaWebhooks.ts`

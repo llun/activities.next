@@ -35,6 +35,7 @@ export interface CreateFitnessFileParams {
 export interface UpdateFitnessFileActivityData {
   totalDistanceMeters?: number | null
   totalDurationSeconds?: number | null
+  movingTimeSeconds?: number | null
   elevationGainMeters?: number | null
   activityType?: string | null
   activityStartTime?: Date | null
@@ -314,6 +315,7 @@ const parseSQLFitnessFile = (row: SQLFitnessFile): FitnessFile => ({
   importError: row.importError ?? undefined,
   totalDistanceMeters: normalizeOptionalNumber(row.totalDistanceMeters),
   totalDurationSeconds: normalizeOptionalNumber(row.totalDurationSeconds),
+  movingTimeSeconds: normalizeOptionalNumber(row.movingTimeSeconds),
   elevationGainMeters: normalizeOptionalNumber(row.elevationGainMeters),
   activityType: row.activityType ?? undefined,
   deviceManufacturer: row.deviceManufacturer ?? undefined,
@@ -359,6 +361,7 @@ export const FitnessFileSQLDatabaseMixin = (
         processingStatus: 'pending',
         totalDistanceMeters: null,
         totalDurationSeconds: null,
+        movingTimeSeconds: null,
         elevationGainMeters: null,
         activityType: null,
         activityStartTime: null,
@@ -789,9 +792,17 @@ export const FitnessFileSQLDatabaseMixin = (
     const numberFields: Array<
       keyof Pick<
         UpdateFitnessFileActivityData,
-        'totalDistanceMeters' | 'totalDurationSeconds' | 'elevationGainMeters'
+        | 'totalDistanceMeters'
+        | 'totalDurationSeconds'
+        | 'movingTimeSeconds'
+        | 'elevationGainMeters'
       >
-    > = ['totalDistanceMeters', 'totalDurationSeconds', 'elevationGainMeters']
+    > = [
+      'totalDistanceMeters',
+      'totalDurationSeconds',
+      'movingTimeSeconds',
+      'elevationGainMeters'
+    ]
 
     for (const field of numberFields) {
       if (!(field in data)) continue
