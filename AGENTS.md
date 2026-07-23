@@ -544,9 +544,9 @@ chore: update dependencies                            ← patch
   4. `yarn test` to ensure no test errors—**must be green before commit**.
 - A husky pre-commit hook (`.husky/pre-commit`) runs on every commit: first `lint-staged` (configured in `package.json`), which runs `prettier --write` on the staged files and re-stages the formatted result, then `yarn lint`, which blocks the commit on lint errors. It does **not** run build or tests — run those yourself per the checklist above.
 - The `prettier` / `prettier:check` package scripts only cover `app migrations lib`; the trailing `.` in `yarn run prettier --write .` is what extends formatting to the whole tree. CI's format gate (`yarn prettier:check`) does not check `scripts/`, `docs/`, or `.github/`.
-- PRs are auto-reviewed by external bots. `REVIEW.md` at the repo root is the project's review checklist and documents recurring bot false-flags (e.g. claims that `vi.importMock` does not exist) — read it before acting on review feedback.
+- The **sub-agent code-review loop below is the project's review process.** The `gemini-code-assist` bot has been **removed** and no external review bot currently runs on PRs, so do **not** post `/gemini review` (or any other bot trigger) and do not wait on a bot. `REVIEW.md` at the repo root is the project's review checklist and documents recurring reviewer false-flags (e.g. claims that `vi.importMock` does not exist) — read it before acting on review feedback.
 
-## Code Review Loop (Sub-Agents & Review Bots)
+## Code Review Loop (Sub-Agents)
 
 **Once a PR is ready, drive a sub-agent code-review loop before treating the work as done, and re-run it every time an agent makes further changes to that PR.** "Ready" means the branch is pushed, the PR is open, and the local pre-commit gate (prettier → lint → build → test) is green. This is a required step for every PR an agent produces, not an optional polish pass.
 
@@ -565,14 +565,14 @@ For every open review comment (from your sub-agents or from a bot):
 
 After clearing a batch, **run the sub-agent review again** — fixes can introduce new problems. **Repeat until a full round surfaces no new issues that need addressing, or you reach a maximum of 20 rounds**, whichever comes first. Note the round number as you go so the cap stays visible, and stop early the moment a clean round produces nothing actionable.
 
-### Loop in the other review bots
+### Review bots
 
-- If the repo runs **other automated review bots**, then after you have addressed, replied to, and resolved a round of comments, **ask that bot to review again** (re-request its review or invoke its trigger). Treat whatever it posts exactly like your own findings: address → reply → resolve. A bot round counts toward the same 20-round cap.
-- **While a bot is actively reviewing, let it finish: wait up to 20 minutes and do not interrupt it — do not push new commits or re-trigger it — before it posts its review or that 20-minute window elapses.** Prefer `subscribe_pr_activity` so the bot's review wakes this session as a webhook event instead of polling with `sleep`; only continue the loop once the bot has responded or the 20 minutes are up.
+- **No external review bot currently runs on PRs.** The `gemini-code-assist` bot has been removed, so do **not** post `/gemini review` (or any other bot trigger) and do **not** wait for a bot review — the sub-agent rounds above are the whole review.
+- If an automated review bot is reintroduced later, loop it in the same way: after addressing a round, re-request its review, treat its comments exactly like your own findings (address → reply → resolve), and give it up to 20 minutes to respond before continuing — but until then, don't wait on a bot that isn't there.
 
 ### Done when
 
-A full round — your sub-agent review plus any external bots — yields no new actionable comments, or you have run 20 rounds. Every thread you touched should be replied-to and resolved before you stop.
+A full sub-agent review round yields no new actionable comments, or you have run 20 rounds. Every thread you touched should be replied-to and resolved before you stop.
 
 ## Security & Configuration Tips
 
