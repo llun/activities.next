@@ -1,0 +1,20 @@
+lib/components/section-nav-dropdown.test.tsx
+  s_d64282cd90258d::t_64aa09c3b17f6f 78-99,101,106,108-110
+  s_d64282cd90258d::t_f66e795a749ee9 100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "05e3094109fe3f843b537c852f9cc77ebc55a4d1",
+  "prompts": {},
+  "sessions": {
+    "s_d64282cd90258d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1faea951-ef32-48eb-adf5-9d2f315d8d61",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
