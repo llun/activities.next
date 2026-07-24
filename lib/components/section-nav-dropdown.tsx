@@ -56,35 +56,56 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
     <nav aria-label={label} className="mb-4">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="w-full justify-between sm:w-64">
+          {/* The design's trigger is taller and softer-cornered than the shared
+              Button default (h-10 / rounded-lg, not h-9 / rounded-md). */}
+          <Button
+            variant="outline"
+            className="h-10 w-full justify-between rounded-lg sm:w-64"
+          >
             <span className="flex items-center gap-2">
               <activeTab.icon className="h-4 w-4 text-primary" />
               {activeTab.name}
             </span>
-            <ChevronDown className="ml-2 h-4 w-4" />
+            {/* Muted, unlike the label — the chevron is chrome, not content. */}
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
           </Button>
         </DropdownMenuTrigger>
+        {/* Rounder and lifted higher off the page than the shared menu default
+            (rounded-xl / shadow-lg, not rounded-md / shadow-md). */}
         <DropdownMenuContent
           align="start"
-          className="w-[--radix-dropdown-menu-trigger-width]"
+          className="w-[--radix-dropdown-menu-trigger-width] rounded-xl shadow-lg"
         >
           {tabs.map((tab) => {
             const isActive = tab.url === activeTab.url
             return (
-              <DropdownMenuItem key={tab.url} asChild>
+              <DropdownMenuItem
+                key={tab.url}
+                asChild
+                // Roomier than the shared item default, which is sized for
+                // dense action menus: px-3 py-2 and gap-2.5, not px-2 py-1.5
+                // and gap-2. Every row is font-medium — the active one is
+                // distinguished by colour, not by weight.
+                className="gap-2.5 rounded-lg px-3 py-2 font-medium"
+              >
                 <Link
                   href={tab.url}
                   aria-current={isActive ? 'page' : undefined}
                   className={cn(
-                    'flex w-full items-center gap-2',
+                    'flex w-full items-center',
                     // The design system's signature active state: a 10% orange
                     // wash plus orange text. The wash is a non-color-dependent
                     // cue alongside aria-current, so the state doesn't rely on
-                    // the orange text alone.
-                    isActive && 'bg-primary/10 font-medium text-primary'
+                    // the orange text alone. Repeated on focus so hovering the
+                    // active row doesn't drop it back to the plain hover wash.
+                    isActive &&
+                      'bg-primary/10 text-primary focus:bg-primary/10 focus:text-primary'
                   )}
                 >
-                  <tab.icon className="h-4 w-4" />
+                  {/* text-current opts out of the shared item rule that greys
+                      every un-coloured icon: here the icon tracks its label,
+                      dark when inactive and orange when active. */}
+                  <tab.icon className="h-4 w-4 text-current" />
                   {tab.name}
                 </Link>
               </DropdownMenuItem>
