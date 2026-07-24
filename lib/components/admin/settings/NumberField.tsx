@@ -16,6 +16,9 @@ interface NumberFieldProps {
   suffix?: ReactNode
   min?: number
   max?: number
+  // For inputs the field label does not point at — e.g. the custom post size,
+  // where the label belongs to the preset select next to it.
+  ariaLabel?: string
 }
 
 export const NumberField: FC<NumberFieldProps> = ({
@@ -25,7 +28,8 @@ export const NumberField: FC<NumberFieldProps> = ({
   disabled,
   suffix,
   min,
-  max
+  max,
+  ariaLabel
 }) => {
   const [text, setText] = useState(() => String(value))
   const lastEmitted = useRef(value)
@@ -53,6 +57,7 @@ export const NumberField: FC<NumberFieldProps> = ({
         id={id}
         type="number"
         inputMode="numeric"
+        aria-label={ariaLabel}
         value={text}
         min={min}
         max={max}

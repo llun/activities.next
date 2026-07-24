@@ -44,10 +44,13 @@ const baseSettings: ResolvedServerSettings = {
   federation: { mode: 'open', allowActorDomains: [] }
 }
 
-const renderForm = (locks: ServerSettingLocks = {}) =>
+const renderForm = (
+  locks: ServerSettingLocks = {},
+  settings: ResolvedServerSettings = baseSettings
+) =>
   render(
     <PostsMediaSettingsForm
-      settings={baseSettings}
+      settings={settings}
       locks={locks}
       storageBackend="S3-compatible storage"
     />
@@ -61,14 +64,14 @@ describe('PostsMediaSettingsForm', () => {
 
   it('renders initial post and media values', () => {
     renderForm()
-    expect(screen.getByLabelText('Post size')).toHaveValue(500)
+    expect(screen.getByLabelText('Post size')).toHaveValue('500')
     expect(screen.getByLabelText('Upload size limit')).toHaveValue(200)
     expect(screen.getByLabelText('Storage backend')).toHaveValue(
       'S3-compatible storage'
     )
   })
 
-  it('saves the edited post limits', async () => {
+  it('saves the post size picked from the presets', async () => {
     renderForm()
     fireEvent.change(screen.getByLabelText('Post size'), {
       target: { value: '1000' }
@@ -80,6 +83,50 @@ describe('PostsMediaSettingsForm', () => {
         expect.objectContaining({ 'posts.maxCharacters': 1000 })
       )
     )
+  })
+
+  it('keeps the custom post size input hidden while a preset is selected', () => {
+    renderForm()
+    expect(screen.queryByLabelText('Custom post size')).not.toBeInTheDocument()
+  })
+
+  it('saves a custom post size entered after picking Custom', async () => {
+    renderForm()
+    fireEvent.change(screen.getByLabelText('Post size'), {
+      target: { value: 'custom' }
+    })
+    fireEvent.change(screen.getByLabelText('Custom post size'), {
+      target: { value: '750' }
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Update' })[0])
+
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ 'posts.maxCharacters': 750 })
+      )
+    )
+  })
+
+  it('starts on Custom when the stored post size is not a preset', () => {
+    renderForm(
+      {},
+      { ...baseSettings, posts: { ...baseSettings.posts, maxCharacters: 750 } }
+    )
+    expect(screen.getByLabelText('Post size')).toHaveValue('custom')
+    expect(screen.getByLabelText('Custom post size')).toHaveValue(750)
+  })
+
+  it('stays on Custom when a typed value happens to match a preset', () => {
+    renderForm()
+    fireEvent.change(screen.getByLabelText('Post size'), {
+      target: { value: 'custom' }
+    })
+    fireEvent.change(screen.getByLabelText('Custom post size'), {
+      target: { value: '1000' }
+    })
+
+    expect(screen.getByLabelText('Post size')).toHaveValue('custom')
+    expect(screen.getByLabelText('Custom post size')).toHaveValue(1000)
   })
 
   it('converts the upload limit from MB to bytes on save', async () => {

@@ -1,6 +1,6 @@
 'use client'
 
-import { FC } from 'react'
+import { FC, useState } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
 import { Input } from '@/lib/components/ui/input'
@@ -32,6 +32,15 @@ const POLL_KEYS = [
   'polls.maxExpirationSeconds'
 ]
 const MEDIA_KEYS = ['media.maxFileSize']
+
+// Post size is picked from a few well-known caps; anything else is entered
+// through "Custom…", which reveals a plain number input beside the select.
+const CUSTOM_POST_SIZE = 'custom'
+const POST_SIZE_OPTIONS = [
+  { value: '500', label: '500 characters — Mastodon default' },
+  { value: '1000', label: '1,000 characters' },
+  { value: '5000', label: '5,000 characters' }
+]
 
 const MIN_EXPIRATION_OPTIONS = [
   { value: '300', label: '5 minutes' },
@@ -70,6 +79,10 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
       'media.maxFileSize': settings.media.maxFileSize
     })
 
+  // Sticky only for "Custom…": a stored value that is not one of the presets
+  // already resolves to custom on its own.
+  const [customPostSizeSelected, setCustomPostSizeSelected] = useState(false)
+
   const lock = (key: string) => locks[key] ?? { locked: false }
   const postsStatus = statusFor('posts')
   const pollsStatus = statusFor('polls')
@@ -77,6 +90,23 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
 
   const maxCharacters = values['posts.maxCharacters'] as number
   const uploadBytes = values['media.maxFileSize'] as number
+
+  const isPresetPostSize = POST_SIZE_OPTIONS.some(
+    (option) => option.value === String(maxCharacters)
+  )
+  const postSizeMode =
+    customPostSizeSelected || !isPresetPostSize
+      ? CUSTOM_POST_SIZE
+      : String(maxCharacters)
+
+  const changePostSizeMode = (mode: string) => {
+    if (mode === CUSTOM_POST_SIZE) {
+      setCustomPostSizeSelected(true)
+      return
+    }
+    setCustomPostSizeSelected(false)
+    setValue('posts.maxCharacters', Number(mode))
+  }
 
   return (
     <div className="space-y-6">
@@ -103,13 +133,30 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
           htmlFor="posts-max-characters"
           help={`New posts and edits are capped at ${maxCharacters.toLocaleString()} characters. Links always count as 23.`}
         >
-          <NumberField
-            id="posts-max-characters"
-            value={maxCharacters}
-            min={1}
-            suffix="characters"
-            onChange={(next) => setValue('posts.maxCharacters', next)}
-          />
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+            <Select
+              id="posts-max-characters"
+              value={postSizeMode}
+              onChange={(event) => changePostSizeMode(event.target.value)}
+            >
+              {POST_SIZE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+              <option value={CUSTOM_POST_SIZE}>Custom…</option>
+            </Select>
+            {postSizeMode === CUSTOM_POST_SIZE && (
+              <NumberField
+                id="posts-max-characters-custom"
+                ariaLabel="Custom post size"
+                value={maxCharacters}
+                min={1}
+                suffix="characters"
+                onChange={(next) => setValue('posts.maxCharacters', next)}
+              />
+            )}
+          </div>
         </SettingsField>
 
         <SettingsField
