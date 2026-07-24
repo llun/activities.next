@@ -75,32 +75,20 @@ describe('SectionNavDropdown', () => {
     ).not.toHaveAttribute('aria-current')
   })
 
-  it('renders a group heading before a run of grouped tabs', async () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/admin')
-    const groupedTabs: SectionNavTab[] = [
-      { name: 'Overview', url: '/admin', icon: Activity },
-      {
-        name: 'Instance',
-        url: '/admin/instance',
-        icon: Globe,
-        group: 'Settings'
-      },
-      { name: 'Network', url: '/admin/network', icon: Lock, group: 'Settings' }
-    ]
-    render(<SectionNavDropdown label="Admin" tabs={groupedTabs} />)
+  // The design system's sub-nav is one flat run of links. A separator or group
+  // heading once split admin's server-settings tabs off from the rest, which
+  // read as though the other tabs weren't settings; keep the menu flat.
+  it('renders the menu as one flat run with no separators or headings', async () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/fitness')
+    renderDropdown()
 
-    const nav = screen.getByRole('navigation', { name: 'Admin' })
+    const nav = screen.getByRole('navigation', { name: 'Fitness' })
     fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
 
     const menu = await screen.findByRole('menu')
-    // The group label renders once, and the grouped items remain menu items.
-    expect(within(menu).getByText('Settings')).toBeInTheDocument()
-    expect(
-      within(menu).getByRole('menuitem', { name: 'Instance' })
-    ).toHaveAttribute('href', '/admin/instance')
-    expect(
-      within(menu).getByRole('menuitem', { name: 'Network' })
-    ).toBeInTheDocument()
-    expect(within(menu).getByRole('separator')).toBeInTheDocument()
+    expect(within(menu).queryByRole('separator')).not.toBeInTheDocument()
+    // Every child of the menu is a link item — nothing else is rendered.
+    expect(within(menu).getAllByRole('menuitem')).toHaveLength(tabs.length)
+    expect(menu.textContent).toBe(tabs.map((tab) => tab.name).join(''))
   })
 })

@@ -1,20 +1,20 @@
 'use client'
 
 import {
-  BarChart3,
+  AlertTriangle,
+  BarChart,
   Filter,
-  Flag,
   Globe,
   Hash,
   Image,
+  Link as LinkIcon,
   Megaphone,
-  Network,
   Rss,
   Scale,
   Server,
   Settings,
   Smile,
-  Users
+  User
 } from 'lucide-react'
 import { FC, ReactNode } from 'react'
 
@@ -31,28 +31,29 @@ interface Props {
   children: ReactNode
 }
 
+// One flat run, ordered as the design system's admin sub-nav: the moderation
+// and content tools first, then federation, then the server-settings pages. No
+// group headings or separators — every entry here is already an admin setting,
+// so splitting off a "Settings" group only implied the others weren't.
+//
+// Design order is kept verbatim for the tabs it covers. Its Trends and Invites
+// entries have no page here yet, and Hashtags/Relays/Custom emojis/System have
+// no design entry — those sit next to the tab they belong with.
 const tabs: SectionNavTab[] = [
-  { name: 'Overview', url: '/admin', icon: BarChart3 },
-  { name: 'Accounts', url: '/admin/accounts', icon: Users },
-  { name: 'Reports', url: '/admin/reports', icon: Flag },
+  { name: 'Overview', url: '/admin', icon: BarChart },
+  { name: 'Accounts', url: '/admin/accounts', icon: User },
+  { name: 'Reports', url: '/admin/reports', icon: AlertTriangle },
+  { name: 'Server rules', url: '/admin/rules', icon: Scale },
   { name: 'Hashtags', url: '/admin/tags', icon: Hash },
-  { name: 'Filters', url: '/admin/filters', icon: Filter },
-  { name: 'Rules', url: '/admin/rules', icon: Scale },
   { name: 'Announcements', url: '/admin/announcements', icon: Megaphone },
+  { name: 'Filters', url: '/admin/filters', icon: Filter },
+  { name: 'Custom emojis', url: '/admin/emojis', icon: Smile },
   { name: 'Federation', url: '/admin/federation', icon: Globe },
   { name: 'Relays', url: '/admin/relays', icon: Rss },
-  { name: 'Custom emojis', url: '/admin/emojis', icon: Smile },
-  // Server settings — DB-backed instance policy, grouped under "Settings" below
-  // the moderation tools and above System.
-  { name: 'Instance', url: '/admin/instance', icon: Server, group: 'Settings' },
-  {
-    name: 'Posts & media',
-    url: '/admin/posts',
-    icon: Image,
-    group: 'Settings'
-  },
-  { name: 'Network', url: '/admin/network', icon: Network, group: 'Settings' },
-  { name: 'System', url: '/admin/system', icon: Settings }
+  { name: 'Posts & media', url: '/admin/posts', icon: Image },
+  { name: 'Network', url: '/admin/network', icon: LinkIcon },
+  { name: 'Instance', url: '/admin/instance', icon: Settings },
+  { name: 'System', url: '/admin/system', icon: Server }
 ]
 
 const Layout: FC<Props> = ({ children }) => {
