@@ -89,25 +89,28 @@ const EnvBlockPreview: FC<{ lines: EnvBlockLine[] }> = ({ lines }) => {
   const block = lines.map(({ name, value }) => `${name}=${value}`).join('\n')
 
   return (
-    <div className="relative rounded-xl bg-neutral-900 p-4 ring-1 ring-white/10 dark:bg-neutral-950">
-      <button
-        type="button"
-        onClick={() => copy(block)}
-        className={`absolute top-3 right-3 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors ${
-          copied
-            ? 'border-green-400 text-green-300'
-            : 'border-white/20 text-white/75 hover:bg-white/10'
-        }`}
-      >
-        {copied ? 'Copied' : 'Copy .env block'}
-      </button>
-      {/* pr-28 reserves the overlaid button's width. Without it the button
-          covers the tail of the first line, and since the scroll extent is set
-          by the longest line, that tail is unreachable at narrow widths
-          whenever line 1 is the longest — which is every single-line block
-          (`osm`) and the filesystem one. The reserve is inside the scroll area,
-          so scrolling now clears the button; on desktop nothing is near it. */}
-      <pre className="overflow-x-auto pr-28 font-mono text-[12.5px] leading-6 text-neutral-200">
+    <div className="rounded-xl bg-neutral-900 p-4 ring-1 ring-white/10 dark:bg-neutral-950">
+      {/* The button sits in normal flow above the block, not overlaid on it.
+          The design mock overlays it at the top right, but that only works at
+          desktop width: a `pre`'s inline scroll extent is max(clientWidth,
+          longest line) — end-side padding is inside the client box and is never
+          appended after overflowing content — so an overlaid button covers the
+          tail of line 1 with no way to scroll it clear whenever line 1 is the
+          longest line, which is every single-line block. Keep it in flow. */}
+      <div className="mb-2 flex justify-end">
+        <button
+          type="button"
+          onClick={() => copy(block)}
+          className={`rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+            copied
+              ? 'border-green-400 text-green-300'
+              : 'border-white/20 text-white/75 hover:bg-white/10'
+          }`}
+        >
+          {copied ? 'Copied' : 'Copy .env block'}
+        </button>
+      </div>
+      <pre className="overflow-x-auto font-mono text-[12.5px] leading-6 text-neutral-200">
         {lines.map(({ name, value, masked }) => (
           <div key={name}>
             <span className="text-orange-400">{name}</span>

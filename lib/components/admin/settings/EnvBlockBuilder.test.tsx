@@ -98,6 +98,28 @@ describe('EnvBlockBuilder', () => {
     expect(area.getByText('https://minio.example')).toBeInTheDocument()
   })
 
+  // Layout regression jsdom cannot see: while the copy button was absolutely
+  // positioned over the block, it covered the tail of the first line and no
+  // amount of horizontal scrolling could reveal it (a `pre`'s scroll extent is
+  // max(clientWidth, longest line), so end-side padding buys nothing). Keeping
+  // the button in normal flow ahead of the block is what makes that impossible.
+  it('keeps the copy button in flow above the block, never overlaying it', () => {
+    render(<EnvBlockBuilder />)
+    const area = activeArea(STORAGE_AREA)
+    const button = area.getByRole('button', { name: 'Copy .env block' })
+    const block = area.getByText('ACTIVITIES_MEDIA_STORAGE_BUCKET', {
+      selector: 'pre span'
+    })
+    const pre = block.closest('pre') as HTMLElement
+
+    expect(pre.contains(button)).toBe(false)
+    expect(button.className).not.toContain('absolute')
+    expect(pre.className).not.toContain('pr-')
+    expect(
+      button.compareDocumentPosition(pre) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
   it('masks a secret in the preview', () => {
     render(<EnvBlockBuilder />)
     const area = activeArea(STORAGE_AREA)
