@@ -1,0 +1,22 @@
+app/api/v1/accounts/outbox/types.ts
+  s_4074db98cab964::t_438651354f5523 35-41
+  s_4074db98cab964::t_90da3cdf07b012 31-34
+app/api/v1/accounts/outbox/types.test.ts
+  s_4074db98cab964::t_c836aae33a0311 1-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "04b97a3d3ad7717abb9454af9be1c036ab871b9c",
+  "prompts": {},
+  "sessions": {
+    "s_4074db98cab964": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c33ae999-5e09-4367-b055-c4406d93725e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
