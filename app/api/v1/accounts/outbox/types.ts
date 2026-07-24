@@ -28,13 +28,17 @@ export const CreatePollRequest = z.object({
   contentWarning: z.string().optional(),
   choices: z.string().array(),
   pollType: z.enum(['oneOf', 'anyOf']).optional(),
-  durationInSeconds: z
-    .number()
-    .refine(
-      (value) =>
-        Object.keys(SecondsToDurationText).map(parseInt).includes(value),
-      `Supported duration are ${Object.keys(SecondsToDurationText).join(',')}`
-    ),
+  // `.map(parseInt)` would pass the array index as the radix — '1800' parsed
+  // base 1 is NaN, '21600' base 3 is 7, and so on — so every duration except
+  // the first silently failed validation and the composer could only create
+  // 5-minute polls. Parse each key explicitly.
+  durationInSeconds: z.number().refine(
+    (value) =>
+      Object.keys(SecondsToDurationText)
+        .map((seconds) => parseInt(seconds, 10))
+        .includes(value),
+    `Supported duration are ${Object.keys(SecondsToDurationText).join(',')}`
+  ),
   replyStatus: Status.optional(),
   visibility: z
     .enum(['public', 'unlisted', 'private', 'direct'])
