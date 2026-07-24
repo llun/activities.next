@@ -1,0 +1,65 @@
+CLAUDE.md
+  s_4074db98cab964::t_4515fde19c1d73 40-41
+REVIEW.md
+  s_4074db98cab964::t_4515fde19c1d73 126
+  s_4074db98cab964::t_21af41adbbe728 122-125,127-131
+app/api/v1/accounts/outbox/types.ts
+  s_4074db98cab964::t_449cc849117f28 3,32-35
+lib/components/post-box/poll-choices.tsx
+  s_4074db98cab964::t_c70595755dfcfa 71-74,77-83
+  s_4074db98cab964::t_25e2cd923e65b4 11-15
+lib/clientModuleBoundary.test.ts
+  s_4074db98cab964::t_74ac9c918d36f7 1-89
+lib/components/post-box/poll-choices.test.tsx
+  s_4074db98cab964::t_c864dd26276e3a 114-117,119,121-153,155
+lib/services/statuses/pollDurations.ts
+  s_4074db98cab964::t_a5362ff9d263af 1-28
+lib/components/posts/status-reply-box.tsx
+  s_4074db98cab964::t_25e2cd923e65b4 18
+  s_4074db98cab964::t_07a5943b9fdf39 66-67
+  s_4074db98cab964::t_c70595755dfcfa 391
+lib/components/post-box/upload-media-button.tsx
+  s_4074db98cab964::t_c70595755dfcfa 24-25,35,67,79-80,82,115-119
+  s_4074db98cab964::t_996876d4d20273 120
+lib/components/settings/ImageUploadField.tsx
+  s_4074db98cab964::t_c70595755dfcfa 76
+AGENTS.md
+  s_4074db98cab964::t_21af41adbbe728 35,146-147,149-157
+  s_4074db98cab964::t_4515fde19c1d73 148
+  s_4074db98cab964::t_959e3e3323437d 158
+lib/components/post-box/reducers.ts
+  s_4074db98cab964::t_25e2cd923e65b4 4-7
+  s_4074db98cab964::t_07a5943b9fdf39 217,308
+  s_4074db98cab964::t_cb50ae4d38ea8a 170-175,180,186,192,205-207
+lib/components/post-box/reducers.test.ts
+  s_4074db98cab964::t_94014eb976a437 15,17,71,90,92,126,170,172
+  s_4074db98cab964::t_ed0ab3465221c4 3-4
+  s_4074db98cab964::t_59b375f9050627 201-217
+  s_4074db98cab964::t_a62585a1637ca1 40,50
+app/api/v1/accounts/outbox/types.test.ts
+  s_4074db98cab964::t_a5362ff9d263af 1
+lib/components/post-box/post-box.tsx
+  s_4074db98cab964::t_07a5943b9fdf39 338-339,949,965,1105
+  s_4074db98cab964::t_c70595755dfcfa 1127
+  s_4074db98cab964::t_25e2cd923e65b4 33,66
+lib/client.ts
+  s_4074db98cab964::t_25e2cd923e65b4 5
+docs/environment-variables.md
+  s_4074db98cab964::t_8d2413aa1c2325 30-34,41-45,48-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "cdcc0f8a2b912ab21bf2c76810e51735b139a6f8",
+  "prompts": {},
+  "sessions": {
+    "s_4074db98cab964": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c33ae999-5e09-4367-b055-c4406d93725e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
