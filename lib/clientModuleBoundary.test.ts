@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import ts from 'typescript'
 
 // A `'use client'` module imported from server code resolves to a client
 // reference, not the module itself: components still render, but a plain
@@ -17,7 +18,10 @@ import path from 'path'
 // Type-only bindings are exempt (`import type …`, `export type …`, and a brace
 // list whose every binding is `type X`): TypeScript erases them, so they never
 // reach the runtime boundary. `export … from` re-exports are NOT exempt — they
-// resolve through the same client reference.
+// resolve through the same client reference. Statements are read from the
+// TypeScript AST rather than matched with a regex, because a regex clause has
+// to span newlines and can then merge a `from`-less `export type { … }` block
+// with the next statement — silently exempting a real violation.
 //
 // Known limitation: only direct imports are checked. A server module reaching a
 // client module through a non-client intermediary (a barrel that re-exports it)
@@ -65,22 +69,44 @@ const resolveImport = (specifier: string, fromFile: string): string | null => {
 const isClientModule = (filePath: string) =>
   /^['"]use client['"]/.test(fs.readFileSync(filePath, 'utf-8').trimStart())
 
-// `import`/`export … from '…'` statements. The clause excludes `;` and `=` so a
-// preceding `export const x = …` cannot swallow the following import.
-const MODULE_SPECIFIER_PATTERN =
-  /(?:^|\n)\s*(?:import|export)\s+([^;=]*?)\s*from\s*['"]([^'"]+)['"]/g
+// Every module specifier the file imports or re-exports a RUNTIME value from.
+// Side-effect imports (`import 'x'`) are excluded: they read no value.
+const collectValueImports = (source: string): string[] => {
+  const sourceFile = ts.createSourceFile(
+    'module.tsx',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX
+  )
 
-// True when nothing in the clause survives compilation: a leading `type`
-// keyword, or a brace list in which every binding is individually `type`-marked.
-const isTypeOnlyClause = (clause: string) => {
-  if (/^type\b/.test(clause.trim())) return true
-  const braced = clause.match(/^\{([\s\S]*)\}$/)
-  if (!braced) return false
-  const bindings = braced[1]
-    .split(',')
-    .map((binding) => binding.trim())
-    .filter(Boolean)
-  return bindings.length > 0 && bindings.every((b) => /^type\b/.test(b))
+  return sourceFile.statements.flatMap((statement) => {
+    if (ts.isImportDeclaration(statement)) {
+      const { importClause, moduleSpecifier } = statement
+      if (!importClause || importClause.isTypeOnly) return []
+      const { name, namedBindings } = importClause
+      const isEveryBindingTypeOnly =
+        !name &&
+        namedBindings !== undefined &&
+        ts.isNamedImports(namedBindings) &&
+        namedBindings.elements.every((element) => element.isTypeOnly)
+      if (isEveryBindingTypeOnly) return []
+      return ts.isStringLiteral(moduleSpecifier) ? [moduleSpecifier.text] : []
+    }
+
+    if (ts.isExportDeclaration(statement) && statement.moduleSpecifier) {
+      const { exportClause, moduleSpecifier } = statement
+      if (statement.isTypeOnly) return []
+      const isEveryBindingTypeOnly =
+        exportClause !== undefined &&
+        ts.isNamedExports(exportClause) &&
+        exportClause.elements.every((element) => element.isTypeOnly)
+      if (isEveryBindingTypeOnly) return []
+      return ts.isStringLiteral(moduleSpecifier) ? [moduleSpecifier.text] : []
+    }
+
+    return []
+  })
 }
 
 describe('server-only modules', () => {
@@ -88,9 +114,8 @@ describe('server-only modules', () => {
     const violations = SERVER_ROOTS.flatMap(collectServerFiles).flatMap(
       (serverFile) => {
         const source = fs.readFileSync(serverFile, 'utf-8')
-        return [...source.matchAll(MODULE_SPECIFIER_PATTERN)]
-          .filter(([, clause]) => !isTypeOnlyClause(clause))
-          .map(([, , specifier]) => ({
+        return collectValueImports(source)
+          .map((specifier) => ({
             specifier,
             resolved: resolveImport(specifier, serverFile)
           }))
