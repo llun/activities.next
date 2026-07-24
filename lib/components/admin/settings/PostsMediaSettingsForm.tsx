@@ -1,6 +1,6 @@
 'use client'
 
-import { FC, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
 import { Input } from '@/lib/components/ui/input'
@@ -106,6 +106,18 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
     selectedPostSizeMode === String(maxCharacters)
       ? selectedPostSizeMode
       : CUSTOM_POST_SIZE
+
+  // Commit that fallback, don't just render it. An orphaned preset left in
+  // state would match again the moment the value drifted back to it — flipping
+  // the select and unmounting the input while it was being typed into. Custom
+  // short-circuits, so this never fires during an edit.
+  useEffect(() => {
+    setSelectedPostSizeMode((mode) =>
+      mode === CUSTOM_POST_SIZE || mode === String(maxCharacters)
+        ? mode
+        : CUSTOM_POST_SIZE
+    )
+  }, [maxCharacters])
 
   const changePostSizeMode = (mode: string) => {
     setSelectedPostSizeMode(mode)

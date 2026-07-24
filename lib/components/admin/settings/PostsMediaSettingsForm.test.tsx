@@ -147,6 +147,37 @@ describe('PostsMediaSettingsForm', () => {
     expect(screen.getByLabelText('Custom post size')).toHaveValue(5000)
   })
 
+  // A save adopts whatever the server resolves to, which can differ from what
+  // was sent (a concurrent edit by another admin). The orphaned preset must not
+  // come back to life when the value is typed back to it.
+  it('does not reselect a stale preset after a save resolves elsewhere', async () => {
+    mockUpdate.mockResolvedValue({
+      settings: {
+        ...baseSettings,
+        posts: { ...baseSettings.posts, maxCharacters: 500 }
+      },
+      locks: {}
+    })
+    renderForm()
+
+    fireEvent.change(screen.getByLabelText('Post size'), {
+      target: { value: '1000' }
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Update' })[0])
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Post size')).toHaveValue('custom')
+    )
+    expect(screen.getByLabelText('Custom post size')).toHaveValue(500)
+
+    fireEvent.change(screen.getByLabelText('Custom post size'), {
+      target: { value: '1000' }
+    })
+
+    expect(screen.getByLabelText('Post size')).toHaveValue('custom')
+    expect(screen.getByLabelText('Custom post size')).toHaveValue(1000)
+  })
+
   it('switches back from Custom to a preset', () => {
     renderForm(
       {},
