@@ -7,14 +7,27 @@ import {
   getMaxMediaUploadSize
 } from './uploadSizeLimit'
 
+// An env-pinned value wins over (and locks) the stored setting, so neutralise
+// it for the duration — otherwise a developer with this exported in their shell
+// sees every stored-cap case fail. Mirrors lib/services/serverSettings/index.test.ts.
+const MAX_FILE_SIZE_ENV_KEY = 'ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE'
+
 describe('media upload size limit', () => {
   const database = getTestSQLDatabase()
+  let savedMaxFileSizeEnv: string | undefined
 
   beforeAll(async () => {
+    savedMaxFileSizeEnv = process.env[MAX_FILE_SIZE_ENV_KEY]
+    delete process.env[MAX_FILE_SIZE_ENV_KEY]
     await database.migrate()
   })
 
   afterAll(async () => {
+    if (savedMaxFileSizeEnv === undefined) {
+      delete process.env[MAX_FILE_SIZE_ENV_KEY]
+    } else {
+      process.env[MAX_FILE_SIZE_ENV_KEY] = savedMaxFileSizeEnv
+    }
     await database.destroy()
   })
 
@@ -38,11 +51,17 @@ describe('media upload size limit', () => {
       await expect(getMaxMediaUploadSize(database)).resolves.toBe(1_000)
     })
 
-    it('serves an admin-stored cap above the built-in default', async () => {
+    it('serves an admin-stored cap at the built-in ceiling', async () => {
+      await setStoredMaxFileSize(MAX_FILE_SIZE)
+      await expect(getMaxMediaUploadSize(database)).resolves.toBe(MAX_FILE_SIZE)
+    })
+
+    // The registry schema caps media.maxFileSize at MAX_FILE_SIZE so an
+    // accepted upload can never exceed what the storage driver will read back
+    // out; a stored row above the ceiling fails validation and is ignored.
+    it('ignores a stored cap above the built-in ceiling', async () => {
       await setStoredMaxFileSize(MAX_FILE_SIZE * 2)
-      await expect(getMaxMediaUploadSize(database)).resolves.toBe(
-        MAX_FILE_SIZE * 2
-      )
+      await expect(getMaxMediaUploadSize(database)).resolves.toBe(MAX_FILE_SIZE)
     })
   })
 
@@ -86,11 +105,11 @@ describe('media upload size limit', () => {
       )
     })
 
-    it('accepts a file the admin raised the cap for', async () => {
+    it('rejects a file above the built-in ceiling even with a higher stored cap', async () => {
       await setStoredMaxFileSize(MAX_FILE_SIZE * 2)
       await expect(
         exceedsMaxMediaUploadSize([MAX_FILE_SIZE + 1], database)
-      ).resolves.toBe(false)
+      ).resolves.toBe(true)
     })
   })
 })

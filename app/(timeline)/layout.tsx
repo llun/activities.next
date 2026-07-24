@@ -26,12 +26,13 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   const actor = await getActorFromSession(database, session)
 
   // The admin-configurable limits the browser needs. Published once here so the
-  // composer's character counter reflects `posts.maxCharacters` on every
-  // surface without threading a prop through each page (the composer renders
-  // inline under posts across the whole group). Both branches provide it so no
-  // descendant can end up outside the provider.
+  // composer's character counter and the media picker's size check reflect the
+  // resolved settings on every surface, without threading a prop through each
+  // page (the composer renders inline under posts across the whole group).
+  // Both branches provide it so no descendant can end up outside the provider.
   const {
-    posts: { maxCharacters }
+    posts: { maxCharacters },
+    media: { maxFileSize }
   } = await getResolvedServerSettings(database)
 
   // Logged-out visitors render without the nav sidebar. The home route renders
@@ -42,7 +43,10 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   // `tags/layout.tsx`).
   if (!actor) {
     return (
-      <InstanceLimitsProvider maxStatusCharacters={maxCharacters}>
+      <InstanceLimitsProvider
+        maxStatusCharacters={maxCharacters}
+        maxMediaFileSize={maxFileSize}
+      >
         {children}
       </InstanceLimitsProvider>
     )
@@ -85,7 +89,10 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   const lists = await database.getLists({ actorId: actor.id })
 
   return (
-    <InstanceLimitsProvider maxStatusCharacters={maxCharacters}>
+    <InstanceLimitsProvider
+      maxStatusCharacters={maxCharacters}
+      maxMediaFileSize={maxFileSize}
+    >
       <div className="min-h-dvh">
         <Sidebar
           user={user}

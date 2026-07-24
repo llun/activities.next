@@ -338,7 +338,13 @@ export const SERVER_SETTING_FIELDS: ServerSettingField[] = [
     key: 'media.maxFileSize',
     group: 'posts',
     envVar: 'ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE',
-    schema: z.number().int().min(1),
+    // Bounded above by MAX_FILE_SIZE, the same ceiling the object-storage
+    // driver uses when it buffers a stored object back out (S3StorageFile's
+    // `getFile`). Letting an admin accept an upload larger than the read path
+    // will serve would store a file that can never be read back. An env-pinned
+    // value bypasses this schema, as it does for every field — but there the
+    // two sides agree, because the storage driver reads the same env config.
+    schema: z.number().int().min(1).max(MAX_FILE_SIZE),
     readEnv: readEnvNumber('ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE'),
     get: (s) => s.media.maxFileSize,
     set: (s, v) => {

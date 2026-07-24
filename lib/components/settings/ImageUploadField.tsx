@@ -4,15 +4,16 @@ import { Loader2, Upload } from 'lucide-react'
 import { FC, SyntheticEvent, useRef, useState } from 'react'
 
 import { uploadAttachment } from '@/lib/client'
+import { useInstanceLimits } from '@/lib/components/instance-limits'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 import {
   ACCEPTED_IMAGE_TYPES,
-  MAX_FILE_SIZE,
   MAX_HEIGHT,
   MAX_WIDTH
 } from '@/lib/services/medias/constants'
+import { formatFileSize } from '@/lib/utils/formatFileSize'
 import { resizeImage } from '@/lib/utils/resizeImage'
 
 interface ImageUploadFieldProps {
@@ -30,6 +31,9 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
   placeholder,
   previewType
 }) => {
+  // The instance's configured upload cap (admin setting media.maxFileSize), so
+  // this pre-check agrees with what the upload endpoint will actually accept.
+  const { maxMediaFileSize } = useInstanceLimits()
   const [imageUrl, setImageUrl] = useState<string>(currentUrl || '')
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -60,8 +64,10 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
     }
 
     // Validate file size
-    if (file.size > MAX_FILE_SIZE) {
-      setUploadError('Image is too large. Maximum size is 200MB')
+    if (file.size > maxMediaFileSize) {
+      setUploadError(
+        `Image is too large. Maximum size is ${formatFileSize(maxMediaFileSize)}`
+      )
       // Reset file input to allow re-selection
       if (fileInputRef.current) {
         fileInputRef.current.value = ''

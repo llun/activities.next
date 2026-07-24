@@ -12,8 +12,8 @@ const FILE_TYPE_ERROR_MESSAGE = `Only ${ACCEPTED_FILE_TYPES.join(',')} are accep
 // upload checks it with `exceedsMaxMediaUploadSize` from ./uploadSizeLimit.
 export const FileSchema = z
   // Enforce a real File first — z.custom with no guard accepts anything, so a
-  // crafted JSON object like { size, type } would otherwise satisfy the refine
-  // below and crash later when File methods (arrayBuffer) are called.
+  // crafted JSON object like { type: 'image/png' } would otherwise satisfy the
+  // refine below and crash later when File methods (arrayBuffer) are called.
   .custom<File>((value) => value instanceof File, 'Expected a file upload')
   .refine(
     (file) => ACCEPTED_FILE_TYPES.includes(file.type),

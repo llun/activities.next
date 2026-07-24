@@ -236,27 +236,41 @@ export const updateCredentialsHandler = (
       // the resulting URLs as actor settings. An invalid file (wrong type/too
       // large) is a 422; a valid file with no storage configured leaves the
       // existing image unchanged (saveMedia returns null).
+      //
+      // Both files are validated before either is saved: validating and saving
+      // in one pass would persist the avatar and then 422 on an invalid header,
+      // leaving the avatar orphaned in storage (and against the quota) even
+      // though the request failed and the actor was never updated.
       let iconUrl: string | undefined
       let headerImageUrl: string | undefined
-      for (const [file, assign] of [
-        [avatarFile, (url: string) => (iconUrl = url)],
-        [headerFile, (url: string) => (headerImageUrl = url)]
-      ] as const) {
-        if (!file) continue
-        const media = MediaSchema.safeParse({ file })
-        // The size cap is the resolved `media.maxFileSize` server setting (a
-        // database read), so it is checked here rather than inside MediaSchema.
-        if (
-          !media.success ||
-          (await exceedsMaxMediaUploadSize([media.data.file.size], database))
-        ) {
-          return apiResponse({
-            req,
-            allowedMethods: corsHeaders,
-            data: { error: 'Invalid image file' },
-            responseStatusCode: 422
-          })
-        }
+      const imageUploads = (
+        [
+          [avatarFile, (url: string) => (iconUrl = url)],
+          [headerFile, (url: string) => (headerImageUrl = url)]
+        ] as const
+      ).flatMap(([file, assign]) =>
+        file ? [{ file, assign, media: MediaSchema.safeParse({ file }) }] : []
+      )
+
+      // The size cap is the resolved `media.maxFileSize` server setting (a
+      // database read), so it is checked here rather than inside MediaSchema.
+      const hasInvalidImage =
+        imageUploads.some(({ media }) => !media.success) ||
+        (await exceedsMaxMediaUploadSize(
+          imageUploads.map(({ file }) => file.size),
+          database
+        ))
+      if (hasInvalidImage) {
+        return apiResponse({
+          req,
+          allowedMethods: corsHeaders,
+          data: { error: 'Invalid image file' },
+          responseStatusCode: 422
+        })
+      }
+
+      for (const { assign, media } of imageUploads) {
+        if (!media.success) continue
         const saved = await saveMedia(database, currentActor, media.data)
         if (saved) assign(saved.url)
       }
