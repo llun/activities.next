@@ -10,6 +10,7 @@ import { deleteMediaFile, saveMediaThumbnail } from '@/lib/services/medias'
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { getMediaAttachment } from '@/lib/services/medias/getMediaAttachment'
 import { FileSchema, MediaSchema } from '@/lib/services/medias/types'
+import { exceedsMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -185,7 +186,12 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
 
   if (thumbnailFieldHasContent) {
     const thumbnailCheck = FileSchema.safeParse(rawThumbnail)
-    if (!thumbnailCheck.success) {
+    // The size cap is the resolved `media.maxFileSize` server setting (a
+    // database read), so it is checked here rather than inside FileSchema.
+    if (
+      !thumbnailCheck.success ||
+      (await exceedsMaxMediaUploadSize([thumbnailCheck.data.size], database))
+    ) {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,

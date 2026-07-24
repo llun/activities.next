@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 
@@ -95,11 +96,13 @@ describe('POST /api/v1/media', () => {
     await database.destroy()
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue(null)
     mockSaveMedia.mockResolvedValue(sampleAttachment)
+    await database.deleteServerSetting({ key: 'media.maxFileSize' })
+    invalidateServerSettingsCache(database)
   })
 
   it('rejects a token that lacks write:media (401)', async () => {
@@ -157,6 +160,43 @@ describe('POST /api/v1/media', () => {
     const media = mockSaveMedia.mock.calls[0][2]
     expect(media.description).toBe(longDescription)
   })
+
+  it.each([
+    {
+      description: 'rejects a file over the admin-configured media.maxFileSize',
+      maxFileSize: 2,
+      expectedStatus: 422,
+      expectedSaveCalls: 0
+    },
+    {
+      description:
+        'accepts a file within the admin-configured media.maxFileSize',
+      maxFileSize: 3,
+      expectedStatus: 200,
+      expectedSaveCalls: 1
+    }
+  ])(
+    '$description',
+    async ({ maxFileSize, expectedStatus, expectedSaveCalls }) => {
+      mockStoredToken.mockResolvedValue({
+        expiresAt: new Date(Date.now() + 60_000),
+        referenceId: ACTOR1_ID,
+        scopes: 'write:media'
+      })
+      // The sample upload is 3 bytes.
+      await database.setServerSettings([
+        { key: 'media.maxFileSize', value: maxFileSize }
+      ])
+      invalidateServerSettingsCache(database)
+
+      const response = await POST(postRequest('write-media-token'), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(expectedStatus)
+      expect(mockSaveMedia).toHaveBeenCalledTimes(expectedSaveCalls)
+    }
+  )
 
   it('returns 422 when the description exceeds 1500 characters', async () => {
     mockStoredToken.mockResolvedValue({

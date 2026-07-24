@@ -10,6 +10,7 @@ import {
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { saveMedia } from '@/lib/services/medias'
 import { MediaSchema } from '@/lib/services/medias/types'
+import { exceedsMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import { Scope } from '@/lib/types/database/operations'
 import { QuoteApprovalPolicy } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -243,7 +244,12 @@ export const updateCredentialsHandler = (
       ] as const) {
         if (!file) continue
         const media = MediaSchema.safeParse({ file })
-        if (!media.success) {
+        // The size cap is the resolved `media.maxFileSize` server setting (a
+        // database read), so it is checked here rather than inside MediaSchema.
+        if (
+          !media.success ||
+          (await exceedsMaxMediaUploadSize([media.data.file.size], database))
+        ) {
           return apiResponse({
             req,
             allowedMethods: corsHeaders,

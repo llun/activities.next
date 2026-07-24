@@ -17,8 +17,13 @@ precedence **environment variable → database → built-in default**: an
 environment variable always wins and locks the field in the admin UI with a
 "Set by environment" badge, so removing the variable is what hands control back
 to the admin form. Clients read the resolved values from `/api/v1/instance` and
-`/api/v2/instance`, and the create/edit status APIs enforce the resolved
-post/poll limits.
+`/api/v2/instance`; the create/edit status APIs enforce the resolved post/poll
+limits, and every upload endpoint (`POST /api/v1/media`, `POST /api/v2/media`,
+`PUT`/`PATCH /api/v1/media/:id` thumbnails, `POST /api/v1/medias/presigned`,
+`PATCH /api/v1/accounts/update_credentials` avatars/headers, and admin custom
+emoji) enforces the resolved `media.maxFileSize` and answers `422` above it. The
+web composer's character counter also counts down from the resolved post length
+rather than a fixed 500.
 
 The variables that pin an admin-editable setting are:
 `ACTIVITIES_SERVICE_NAME`, `ACTIVITIES_SERVICE_DESCRIPTION`,
