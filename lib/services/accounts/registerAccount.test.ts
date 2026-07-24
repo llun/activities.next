@@ -1,5 +1,7 @@
 import { getConfig } from '@/lib/config'
+import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
 import { Database } from '@/lib/database/types'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 
 import { registerAccount } from './registerAccount'
 
@@ -20,6 +22,17 @@ vi.mock('@/lib/services/email', async () => ({
   sendMail: vi.fn().mockResolvedValue(undefined)
 }))
 
+vi.mock('@/lib/services/serverSettings', () => ({
+  getResolvedServerSettings: vi.fn()
+}))
+
+// Registration open/allow-list are resolved from server settings; build a
+// resolved object varying only those fields.
+const settingsWith = (registrations: {
+  open: boolean
+  allowEmails: string[]
+}) => ({ ...structuredClone(DEFAULT_SERVER_SETTINGS), registrations })
+
 type MockDatabase = Pick<
   Database,
   'isAccountExists' | 'isUsernameExists' | 'createAccount'
@@ -33,6 +46,9 @@ beforeEach(() => {
   // getConfig(), so use a stable mockReturnValue (not mockReturnValueOnce) that
   // every call within a single registration resolves to.
   vi.mocked(getConfig).mockReturnValue(DEFAULT_CONFIG as never)
+  vi.mocked(getResolvedServerSettings).mockResolvedValue(
+    settingsWith({ open: true, allowEmails: [] })
+  )
   mockDatabase = {
     isAccountExists: vi.fn().mockResolvedValue(false),
     isUsernameExists: vi.fn().mockResolvedValue(false),
@@ -42,13 +58,9 @@ beforeEach(() => {
 
 describe('registerAccount', () => {
   it('returns registration_closed when registration is disabled', async () => {
-    vi.mocked(getConfig).mockReturnValue({
-      host: 'llun.test',
-      allowEmails: [],
-      registrationOpen: false,
-      secretPhase: 'test-secret',
-      email: null
-    } as never)
+    vi.mocked(getResolvedServerSettings).mockResolvedValue(
+      settingsWith({ open: false, allowEmails: [] })
+    )
 
     const result = await registerAccount({
       database: mockDatabase as unknown as Database,
@@ -62,13 +74,9 @@ describe('registerAccount', () => {
   })
 
   it('returns email_not_allowed when email is not on the allow-list', async () => {
-    vi.mocked(getConfig).mockReturnValue({
-      host: 'llun.test',
-      allowEmails: ['allowed@example.com'],
-      registrationOpen: true,
-      secretPhase: 'test-secret',
-      email: null
-    } as never)
+    vi.mocked(getResolvedServerSettings).mockResolvedValue(
+      settingsWith({ open: true, allowEmails: ['allowed@example.com'] })
+    )
 
     const result = await registerAccount({
       database: mockDatabase as unknown as Database,
@@ -371,13 +379,9 @@ describe('registerAccount', () => {
   })
 
   it('blocks an email not on the allow-list regardless of case', async () => {
-    vi.mocked(getConfig).mockReturnValue({
-      host: 'llun.test',
-      allowEmails: ['allowed@example.com'],
-      registrationOpen: true,
-      secretPhase: 'test-secret-phase-for-unit-tests-only',
-      email: null
-    } as never)
+    vi.mocked(getResolvedServerSettings).mockResolvedValue(
+      settingsWith({ open: true, allowEmails: ['allowed@example.com'] })
+    )
 
     const result = await registerAccount({
       database: mockDatabase as unknown as Database,

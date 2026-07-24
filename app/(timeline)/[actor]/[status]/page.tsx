@@ -10,6 +10,7 @@ import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { getQueue } from '@/lib/services/queue'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import {
   canActorReadStatus,
   isStatusPubliclyReadable
@@ -59,10 +60,13 @@ export const generateMetadata = async ({
 }
 
 const Page: FC<Props> = async ({ params }) => {
-  const { host, mediaStorage, registrationOpen } = getConfig()
+  const { host, mediaStorage } = getConfig()
   const mapProvider = getPublicMapProvider()
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
+  const {
+    registrations: { open: registrationOpen }
+  } = await getResolvedServerSettings(database)
 
   const session = await getServerAuthSession()
   const currentActor = await getActorFromSession(database, session)

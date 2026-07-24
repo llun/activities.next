@@ -16,6 +16,7 @@ import {
   deleteDomainBlockAction,
   importKnownDomainBlocklistAction
 } from '@/app/(timeline)/admin/federation/actions'
+import { FederationPolicyForm } from '@/lib/components/admin/settings/FederationPolicyForm'
 import { PageHeader } from '@/lib/components/page-header'
 import { Button } from '@/lib/components/ui/button'
 import { Checkbox } from '@/lib/components/ui/checkbox'
@@ -27,6 +28,7 @@ import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { KNOWN_DOMAIN_BLOCKLIST_SOURCES } from '@/lib/services/federation/blocklistSources'
+import { getServerSettingsView } from '@/lib/services/serverSettings'
 import { cn } from '@/lib/utils'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
@@ -175,7 +177,11 @@ const Page = async ({ searchParams }: Props) => {
   const isErrorStatus = status ? ERROR_STATUSES.has(status) : false
   const sourceCounts = new Map(Object.entries(stats.sourceCounts))
   const config = getConfig()
-  const federationMode = config.federationMode ?? 'open'
+  const { settings, locks } = await getServerSettingsView(database)
+  const federationMode = settings.federation.mode
+  // Trusted media domains stay env-configured (they feed the Edge-runtime CSP),
+  // so they are shown read-only in the policy form.
+  const mediaDomains = config.allowMediaDomains ?? []
   const hasPreviousBlocks = blockOffset > 0
   const hasNextBlocks =
     blocks.length > 0 &&
@@ -233,6 +239,12 @@ const Page = async ({ searchParams }: Props) => {
           <p className="text-2xl font-bold">{stats.sourceBlocks}</p>
         </div>
       </div>
+
+      <FederationPolicyForm
+        settings={settings}
+        locks={locks}
+        mediaDomains={mediaDomains}
+      />
 
       <section className="rounded-xl border bg-background/80 p-5 shadow-sm">
         <div className="mb-4 flex items-center justify-between gap-4">

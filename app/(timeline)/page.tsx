@@ -3,6 +3,7 @@ import { Metadata } from 'next'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import {
   getFilteredStatusPage,
   getFilteredTimelinePage
@@ -30,11 +31,14 @@ export const metadata: Metadata = {
 }
 
 const Page = async () => {
-  const { host, serviceName, mediaStorage, registrationOpen } = getConfig()
+  const { host, serviceName, mediaStorage } = getConfig()
   const database = getDatabase()
   if (!database) {
     throw new Error('Fail to load database')
   }
+  const {
+    registrations: { open: registrationOpen }
+  } = await getResolvedServerSettings(database)
 
   const session = await getServerAuthSession()
   const actor = await getActorFromSession(database, session)

@@ -1,7 +1,7 @@
 import { getConfig } from '@/lib/config'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { getHeaderValue } from '@/lib/utils/getHeaderValue'
 import {
-  DEFAULT_SAFE_REMOTE_FETCH_MAX_BODY_BYTES,
   SafeRemoteFetchHeaderBuilderRequest,
   SafeRemoteFetchHeaderSource,
   SafeRemoteFetchMethod,
@@ -11,8 +11,6 @@ import { waitFor } from '@/lib/utils/waitFor'
 import packageJson from '@/package.json'
 
 const USER_AGENT = `activities.next/${packageJson.version}`
-const DEFAULT_RESPONSE_TIMEOUT = 10000
-const MAX_RETRY_LIMIT = 1
 const DEFAULT_RETRY_NOISE = 100
 const RETRY_BACKOFF_LIMIT = 30_000
 const RETRYABLE_METHODS = new Set([
@@ -63,7 +61,7 @@ export interface RequestResult {
   body: string
 }
 
-const getRequestOptions = ({
+const getRequestOptions = async ({
   method = 'GET',
   headers,
   body,
@@ -73,21 +71,20 @@ const getRequestOptions = ({
   maxResponseSize
 }: Omit<RequestOptions, 'url'>) => {
   const config = getConfig()
-  const retryLimit = config.request?.numberOfRetry ?? MAX_RETRY_LIMIT
+  // Timeout, retries, and the response-size cap are database-backed settings
+  // (env -> database -> default). retryNoise stays an env-only knob.
+  const { network } = await getResolvedServerSettings()
+  const retryLimit = network.requestRetries
   const configRetryNoise = config.request?.retryNoise
   const configuredRetryNoise =
     typeof configRetryNoise === 'number' || configRetryNoise === null
       ? configRetryNoise
       : DEFAULT_RETRY_NOISE
-  const defaultResponseTimeout =
-    responseTimeout ||
-    config.request?.timeoutInMilliseconds ||
-    DEFAULT_RESPONSE_TIMEOUT
+  const defaultResponseTimeout = responseTimeout || network.requestTimeoutMs
   const maxBodyBytes =
     typeof maxResponseSize === 'number'
       ? maxResponseSize
-      : (config.request?.maxResponseSizeInBytes ??
-        DEFAULT_SAFE_REMOTE_FETCH_MAX_BODY_BYTES)
+      : network.maxResponseSizeBytes
 
   return {
     body,
@@ -190,7 +187,7 @@ export const request = async ({
   retryNoise,
   maxResponseSize
 }: RequestOptions): Promise<RequestResult> => {
-  const options = getRequestOptions({
+  const options = await getRequestOptions({
     method,
     headers,
     body,

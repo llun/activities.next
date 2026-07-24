@@ -2,11 +2,12 @@ import knex from 'knex'
 import { NextRequest } from 'next/server'
 
 import { GET as verifyCredentials } from '@/app/api/v1/accounts/verify_credentials/route'
-import { getConfig } from '@/lib/config'
+import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { Database } from '@/lib/database/types'
 import { registerAccount } from '@/lib/services/accounts/registerAccount'
 import { hashToken } from '@/lib/services/guards/OAuthGuard'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { Scope } from '@/lib/types/database/operations'
 
 import { GET, POST } from './route'
@@ -24,6 +25,16 @@ vi.mock('@/lib/config', () => ({
 vi.mock('@/lib/services/accounts/registerAccount', () => ({
   registerAccount: vi.fn()
 }))
+
+vi.mock('@/lib/services/serverSettings', () => ({
+  getResolvedServerSettings: vi.fn()
+}))
+
+// Registration open/closed is resolved from server settings.
+const settingsWith = (open: boolean) => ({
+  ...structuredClone(DEFAULT_SERVER_SETTINGS),
+  registrations: { open, allowEmails: [] }
+})
 
 vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: vi.fn().mockResolvedValue(null)
@@ -57,6 +68,7 @@ const mastodonAccount = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.mocked(getResolvedServerSettings).mockResolvedValue(settingsWith(true))
 })
 
 describe('GET /api/v1/accounts', () => {
@@ -145,11 +157,9 @@ describe('POST /api/v1/accounts (web form / non-bearer)', () => {
   })
 
   it('rejects web sign-up with 403 when registration is closed', async () => {
-    vi.mocked(getConfig).mockReturnValueOnce({
-      host: 'llun.test',
-      allowEmails: [],
-      registrationOpen: false
-    } as never)
+    vi.mocked(getResolvedServerSettings).mockResolvedValueOnce(
+      settingsWith(false)
+    )
     const createAccount = vi.fn()
     mockDatabase = { ...(mockDatabase as object), createAccount }
     const req = new NextRequest('http://localhost/api/v1/accounts', {
@@ -166,11 +176,9 @@ describe('POST /api/v1/accounts (web form / non-bearer)', () => {
   })
 
   it('returns 403 for closed registration even when the body is invalid', async () => {
-    vi.mocked(getConfig).mockReturnValueOnce({
-      host: 'llun.test',
-      allowEmails: [],
-      registrationOpen: false
-    } as never)
+    vi.mocked(getResolvedServerSettings).mockResolvedValueOnce(
+      settingsWith(false)
+    )
     const createAccount = vi.fn()
     mockDatabase = { ...(mockDatabase as object), createAccount }
     // Deliberately malformed/schema-invalid body — missing required fields.
@@ -484,12 +492,9 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
   })
 
   it('returns 403 for closed registration before parsing the body', async () => {
-    vi.mocked(getConfig).mockReturnValueOnce({
-      host: 'llun.test',
-      allowEmails: [],
-      registrationOpen: false,
-      secretPhase: 'test-secret'
-    } as never)
+    vi.mocked(getResolvedServerSettings).mockResolvedValueOnce(
+      settingsWith(false)
+    )
     // Malformed body (missing required fields): a closed server must still
     // answer 403 without reaching schema validation or registerAccount().
     const res = await postRegister(APP_TOKEN, 'garbage=1')

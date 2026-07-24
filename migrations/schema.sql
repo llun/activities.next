@@ -902,6 +902,13 @@ CREATE TABLE public.server_filters (
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE public.server_settings (
+    key character varying(255) NOT NULL,
+    value text NOT NULL,
+    "createdAt" timestamp with time zone NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL
+);
+
 CREATE TABLE public.sessions (
     id character varying(255) NOT NULL,
     "accountId" character varying(255),
@@ -1407,6 +1414,9 @@ ALTER TABLE ONLY public.server_filter_keywords
 
 ALTER TABLE ONLY public.server_filters
     ADD CONSTRAINT server_filters_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.server_settings
+    ADD CONSTRAINT server_settings_pkey PRIMARY KEY (key);
 
 ALTER TABLE ONLY public.sessions
     ADD CONSTRAINT sessions_pkey PRIMARY KEY (id);

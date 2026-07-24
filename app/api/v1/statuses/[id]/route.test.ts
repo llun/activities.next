@@ -12,6 +12,7 @@ import {
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { deleteMediaFile } from '@/lib/services/medias'
 import { getQueue } from '@/lib/services/queue'
+import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -1609,6 +1610,44 @@ describe('GET /api/v1/statuses/[id]', () => {
         })
       ])
       expect(getQueue().publish).toHaveBeenCalledTimes(1)
+    })
+
+    it('rejects an edit over the configured character limit with 422', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-length-limit`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Short',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.setServerSetting({ key: 'posts.maxCharacters', value: 10 })
+      invalidateServerSettingsCache(database)
+
+      try {
+        const response = await PUT(
+          new NextRequest(
+            `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+            {
+              method: 'PUT',
+              body: JSON.stringify({ status: 'x'.repeat(11) }),
+              headers: {
+                'Content-Type': 'application/json',
+                Origin: 'https://llun.test'
+              }
+            }
+          ),
+          { params: Promise.resolve({ id: urlToId(statusId) }) }
+        )
+        expect(response.status).toBe(422)
+      } finally {
+        await database.deleteServerSetting({ key: 'posts.maxCharacters' })
+        invalidateServerSettingsCache(database)
+      }
     })
 
     it('stores more media than the federation cap and federates only the first few', async () => {

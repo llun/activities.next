@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import type { Config } from '@/lib/config'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
+import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 
 import { GET } from './route'
 
@@ -205,24 +206,51 @@ describe('GET /api/v2/instance', () => {
       registrationOpen: false
     }
   ])('$description', async ({ registrationOpen }) => {
-    const config =
-      await vi.importMock<typeof import('@/lib/config')>('@/lib/config')
-    vi.mocked(config.getConfig).mockReturnValue({
-      ...baseConfig,
-      registrationOpen
-    } as unknown as Config)
-
-    const response = await GET(
-      new NextRequest('https://llun.test/api/v2/instance'),
-      params
-    )
-    const body = await response.json()
-    expect(body.registrations).toEqual({
-      enabled: registrationOpen,
-      approval_required: false,
-      message: null,
-      url: null
+    // Registration state is resolved from server settings (env -> db ->
+    // default), so drive it through a stored setting rather than getConfig.
+    await database.setServerSetting({
+      key: 'registrations.open',
+      value: registrationOpen
     })
+    invalidateServerSettingsCache(database)
+    try {
+      const response = await GET(
+        new NextRequest('https://llun.test/api/v2/instance'),
+        params
+      )
+      const body = await response.json()
+      expect(body.registrations).toEqual({
+        enabled: registrationOpen,
+        approval_required: false,
+        message: null,
+        url: null
+      })
+    } finally {
+      await database.deleteServerSetting({ key: 'registrations.open' })
+      invalidateServerSettingsCache(database)
+    }
+  })
+
+  it('echoes database-backed post and poll limits in configuration', async () => {
+    await database.setServerSetting({
+      key: 'posts.maxCharacters',
+      value: 1000
+    })
+    await database.setServerSetting({ key: 'polls.maxOptions', value: 6 })
+    invalidateServerSettingsCache(database)
+    try {
+      const response = await GET(
+        new NextRequest('https://llun.test/api/v2/instance'),
+        params
+      )
+      const body = await response.json()
+      expect(body.configuration.statuses.max_characters).toBe(1000)
+      expect(body.configuration.polls.max_options).toBe(6)
+    } finally {
+      await database.deleteServerSetting({ key: 'posts.maxCharacters' })
+      await database.deleteServerSetting({ key: 'polls.maxOptions' })
+      invalidateServerSettingsCache(database)
+    }
   })
 
   it('returns empty rules instead of failing when the database is unavailable', async () => {

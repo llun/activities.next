@@ -8,6 +8,32 @@ This document lists all environment variables supported by Activity.next.
 
 Application configuration is provided through environment variables. Root-level `config.json` files are ignored; migrate any previous file settings to the corresponding `ACTIVITIES_*` or `OTEL_EXPORTER_*` variables listed below. Application config is read at runtime, so Docker/standalone builds do not need real `ACTIVITIES_*` or `OTEL_EXPORTER_*` values at build time. Environment variables read outside app config, such as `NODE_ENV`, `BUILD_STANDALONE`, `NEXT_TELEMETRY_DISABLED`, and `LOG_LEVEL`, still apply.
 
+## Database-backed server settings (env → database → default)
+
+Some instance policy is also editable at runtime from the admin area
+(**Admin → Instance / Posts & media / Network**, and the **Federation** tab),
+stored in the `server_settings` table. Each such value is resolved with the
+precedence **environment variable → database → built-in default**: an
+environment variable always wins and locks the field in the admin UI with a
+"Set by environment" badge, so removing the variable is what hands control back
+to the admin form. Clients read the resolved values from `/api/v1/instance` and
+`/api/v2/instance`, and the create/edit status APIs enforce the resolved
+post/poll limits.
+
+The variables that pin an admin-editable setting are:
+`ACTIVITIES_SERVICE_NAME`, `ACTIVITIES_SERVICE_DESCRIPTION`,
+`ACTIVITIES_LANGUAGES`, `ACTIVITIES_REGISTRATION_OPEN`,
+`ACTIVITIES_ALLOW_EMAILS`, `ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE`,
+`ACTIVITIES_REQUEST_TIMEOUT`, `ACTIVITIES_REQUEST_RETRY`,
+`ACTIVITIES_REQUEST_MAX_RESPONSE_SIZE_BYTES`, `ACTIVITIES_FEDERATION_MODE`, and
+`ACTIVITIES_ALLOW_ACTOR_DOMAINS`. Post size and poll limits have no environment
+variable and are database-or-default only. `ACTIVITIES_ALLOW_MEDIA_DOMAINS` and
+the `ACTIVITIES_MEDIA_STORAGE_*` backend stay environment-only (they feed the
+Edge-runtime CSP and storage infrastructure) and are shown read-only in the
+admin UI. On a multi-instance deployment, an admin's save takes effect on other
+instances within a short cache window rather than instantly; an environment
+variable, when set, always wins regardless.
+
 ## Core Configuration
 
 | Variable                         | Required | Description                                                                                                                                                                                                                                            |
