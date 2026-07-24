@@ -71,10 +71,16 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
           </Button>
         </DropdownMenuTrigger>
         {/* Rounder and lifted higher off the page than the shared menu default
-            (rounded-xl / shadow-lg, not rounded-md / shadow-md). */}
+            (rounded-xl / shadow-lg, not rounded-md / shadow-md).
+
+            The width class MUST use Tailwind v4's parenthesis syntax for a bare
+            CSS variable. The v3 bracket form, `w-[--radix-…]`, compiles to
+            `width: --radix-…` rather than `width: var(--radix-…)` — an invalid
+            declaration the browser drops silently, leaving the menu to size to
+            its content instead of to the trigger. */}
         <DropdownMenuContent
           align="start"
-          className="w-[--radix-dropdown-menu-trigger-width] rounded-xl shadow-lg"
+          className="w-(--radix-dropdown-menu-trigger-width) rounded-xl shadow-lg"
         >
           {tabs.map((tab) => {
             const isActive = tab.url === activeTab.url

@@ -529,9 +529,12 @@ const SectionNav: FC<{
             <ChevronDown className="ml-2 size-4" />
           </Button>
         </DropdownMenuTrigger>
+        {/* Tailwind v4 parenthesis syntax — the v3 `w-[--radix-…]` form emits
+            `width: --radix-…` instead of `width: var(--radix-…)`, which the
+            browser drops, leaving the menu narrower than its trigger. */}
         <DropdownMenuContent
           align="start"
-          className="w-[--radix-dropdown-menu-trigger-width]"
+          className="w-(--radix-dropdown-menu-trigger-width)"
         >
           {tabs.map((tab) => {
             const Icon = tab.icon
