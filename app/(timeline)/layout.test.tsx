@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
+import { ReactNode } from 'react'
 
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -12,12 +13,14 @@ import Layout from './layout'
 const mockGetActorsForAccount = vi.fn()
 const mockGetNotificationsCount = vi.fn()
 const mockGetLists = vi.fn()
+const mockGetAllServerSettings = vi.fn()
 
 vi.mock('@/lib/database', () => ({
   getDatabase: vi.fn(() => ({
     getActorsForAccount: mockGetActorsForAccount,
     getNotificationsCount: mockGetNotificationsCount,
-    getLists: mockGetLists
+    getLists: mockGetLists,
+    getAllServerSettings: mockGetAllServerSettings
   }))
 }))
 
@@ -34,6 +37,22 @@ vi.mock('@/lib/types/domain/actor', () => ({
   getMention: () => '@testuser@localhost'
 }))
 
+// Stubbed so the assertions can read the limit the layout publishes without
+// rendering a composer.
+vi.mock('@/lib/components/instance-limits', () => ({
+  InstanceLimitsProvider: ({
+    maxStatusCharacters,
+    children
+  }: {
+    maxStatusCharacters?: number
+    children: ReactNode
+  }) => (
+    <div data-testid="instance-limits" data-max={maxStatusCharacters}>
+      {children}
+    </div>
+  )
+}))
+
 vi.mock('@/app/Modal', () => ({ Modal: () => <div data-testid="modal" /> }))
 vi.mock('@/lib/components/layout/sidebar', () => ({
   Sidebar: () => <div data-testid="sidebar" />
@@ -44,6 +63,15 @@ vi.mock('@/lib/components/layout/mobile-nav', () => ({
 
 const mockGetServerAuthSession = vi.mocked(getServerAuthSession)
 const mockGetActorFromSession = vi.mocked(getActorFromSession)
+
+const signedInActor = {
+  id: 'https://localhost/users/testuser',
+  username: 'testuser',
+  domain: 'localhost',
+  name: 'Test User',
+  iconUrl: null,
+  account: { id: 'account-1', role: 'user' }
+}
 
 const renderLayout = async () => {
   const element = await Layout({
@@ -59,6 +87,9 @@ describe('(timeline) Layout', () => {
     mockGetActorsForAccount.mockResolvedValue([])
     mockGetNotificationsCount.mockResolvedValue(0)
     mockGetLists.mockResolvedValue([])
+    mockGetAllServerSettings.mockResolvedValue([
+      { key: 'posts.maxCharacters', value: 1000 }
+    ])
   })
 
   it('renders children without nav chrome for logged-out visitors', async () => {
@@ -75,14 +106,7 @@ describe('(timeline) Layout', () => {
   })
 
   it('renders the nav chrome for signed-in users', async () => {
-    mockGetActorFromSession.mockResolvedValue({
-      id: 'https://localhost/users/testuser',
-      username: 'testuser',
-      domain: 'localhost',
-      name: 'Test User',
-      iconUrl: null,
-      account: { id: 'account-1', role: 'user' }
-    } as never)
+    mockGetActorFromSession.mockResolvedValue(signedInActor as never)
 
     await renderLayout()
 
@@ -90,4 +114,21 @@ describe('(timeline) Layout', () => {
     expect(screen.getByTestId('mobile-nav')).toBeInTheDocument()
     expect(screen.getByTestId('child')).toBeInTheDocument()
   })
+
+  it.each([
+    { description: 'signed-in visitors', actor: signedInActor },
+    { description: 'logged-out visitors', actor: null }
+  ])(
+    'publishes the resolved status character limit to $description',
+    async ({ actor }) => {
+      mockGetActorFromSession.mockResolvedValue(actor as never)
+
+      await renderLayout()
+
+      expect(screen.getByTestId('instance-limits')).toHaveAttribute(
+        'data-max',
+        '1000'
+      )
+    }
+  )
 })

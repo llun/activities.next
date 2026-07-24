@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import {
+  DEFAULT_MAX_STATUS_CHARACTERS,
   MAX_POLL_EXPIRATION_SECONDS,
   MAX_POLL_OPTION_CHARS,
   MAX_STORED_MEDIA_ATTACHMENTS,
@@ -21,10 +22,6 @@ import { getEnvironmentList } from './utils'
 // it is coarser than the dotted key prefix (registrations.* live on the
 // Instance tab; polls.*/media.* live on the Posts & media tab).
 export type ServerSettingTab = 'instance' | 'posts' | 'network' | 'federation'
-
-// The public default for the maximum status length. Kept here so the composer
-// can fall back to it before the resolved value is threaded in.
-export const DEFAULT_MAX_STATUS_CHARACTERS = 500
 
 // Maximum poll expiration (~1 month). Uses the value the create/edit routes
 // actually enforce, so advertising and enforcement agree (the routes previously

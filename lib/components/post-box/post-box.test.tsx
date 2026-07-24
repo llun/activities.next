@@ -10,6 +10,7 @@ import {
   updateNote,
   uploadAttachment
 } from '@/lib/client'
+import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { EditableStatus, Status, StatusType } from '@/lib/types/domain/status'
@@ -1090,5 +1091,86 @@ describe('PostBox markdown preview', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Toggle preview' }))
 
     expect(screen.getByText('Nothing to preview')).toBeInTheDocument()
+  })
+})
+
+describe('PostBox character counter', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    createNoteMock.mockResolvedValue({ status: editStatus, attachments: [] })
+  })
+
+  const renderPostBox = (maxStatusCharacters?: number) =>
+    render(
+      <InstanceLimitsProvider maxStatusCharacters={maxStatusCharacters}>
+        <PostBox
+          host="activities.local"
+          profile={profile}
+          onDiscardReply={vi.fn()}
+          onPostCreated={vi.fn()}
+          onPostUpdated={vi.fn()}
+          onDiscardEdit={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+
+  it.each([
+    {
+      description:
+        'counts down from the default limit when no limit is provided',
+      maxStatusCharacters: undefined,
+      text: 'hello',
+      expectedRemaining: '495'
+    },
+    {
+      description: 'counts down from the instance-configured limit',
+      maxStatusCharacters: 1000,
+      text: 'hello',
+      expectedRemaining: '995'
+    },
+    {
+      description: 'goes negative past a lowered instance limit',
+      maxStatusCharacters: 100,
+      text: 'a'.repeat(120),
+      expectedRemaining: '-20'
+    }
+  ])('$description', ({ maxStatusCharacters, text, expectedRemaining }) => {
+    renderPostBox(maxStatusCharacters)
+
+    fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
+      target: { value: text }
+    })
+
+    expect(screen.getByText(expectedRemaining)).toBeInTheDocument()
+  })
+
+  it('allows posting past 500 characters when the instance limit is higher', async () => {
+    renderPostBox(1000)
+
+    const message = 'a'.repeat(700)
+    fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
+      target: { value: message }
+    })
+
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    expect(postButton).toBeEnabled()
+
+    fireEvent.click(postButton)
+
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalled())
+    expect(createNoteMock).toHaveBeenCalledWith(
+      expect.objectContaining({ message })
+    )
+  })
+
+  it('blocks posting past a lowered instance limit', () => {
+    renderPostBox(100)
+
+    fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
+      target: { value: 'a'.repeat(120) }
+    })
+
+    expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled()
+    expect(createNoteMock).not.toHaveBeenCalled()
   })
 })

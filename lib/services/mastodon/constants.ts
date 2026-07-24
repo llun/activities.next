@@ -12,6 +12,13 @@ export const MAX_STORED_MEDIA_ATTACHMENTS = 20
 
 export const MAX_PINNED_STATUSES = 5
 
+// Mastodon's default status length, and the fallback for the admin-configurable
+// `posts.maxCharacters` server setting. It lives in this dependency-free module
+// so both the settings registry (lib/config/serverSettings) and the browser
+// composer can read it — importing the registry into a Client Component would
+// drag its env-reading closures into the client bundle.
+export const DEFAULT_MAX_STATUS_CHARACTERS = 500
+
 // Poll limits, matching Mastodon's defaults
 // (Poll::Options#options + Status::MIN/MAX expiry).
 export const MIN_POLL_OPTIONS = 2
