@@ -4432,6 +4432,9 @@ __metadata:
     web-push: "npm:^3.6.7"
     yauzl: "npm:^3.4.0"
     zod: "npm:^4.4.3"
+  dependenciesMeta:
+    better-sqlite3:
+      built: false
   languageName: unknown
   linkType: soft
 
