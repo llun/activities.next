@@ -43,12 +43,14 @@ clients are told, not what is accepted.
 Several settings carry an upper bound. `polls.maxOptions` (50) and
 `polls.maxCharactersPerOption` (1,000) match the ceilings the status create
 schema accepts; `posts.maxMediaAttachments` matches the stored-media ceiling;
-`posts.maxCharacters` (100,000) is a sanity bound only. `media.maxFileSize` is
-bounded at **200 MiB** (`209715200`) for a stronger reason: it is the size at
-which the object-storage driver will read a stored file back out, so accepting a
-larger upload would store media that could never be served. It can be lowered
-freely. An `ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE` above that still applies,
-because the storage driver reads the same variable.
+`posts.maxCharacters` (100,000) is a sanity bound only. `media.maxFileSize`
+defaults to **200 MiB** (`209715200`) and can be lowered freely or raised to a
+ceiling of **1 GiB** (`1073741824`). The ceiling is there because the
+object-storage driver buffers a stored file in memory when it reads it back out;
+that read bounds itself by the same resolved `media.maxFileSize`, so raising the
+cap never stores media the instance would then refuse to serve. An
+`ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE` above the ceiling still applies,
+because an environment variable pins its setting outright.
 
 The variables that pin an admin-editable setting are:
 `ACTIVITIES_SERVICE_NAME`, `ACTIVITIES_SERVICE_DESCRIPTION`,
@@ -59,10 +61,11 @@ The variables that pin an admin-editable setting are:
 `ACTIVITIES_ALLOW_ACTOR_DOMAINS`. Post size and poll limits have no environment
 variable and are database-or-default only. `ACTIVITIES_ALLOW_MEDIA_DOMAINS` and
 the `ACTIVITIES_MEDIA_STORAGE_*` backend stay environment-only (they feed the
-Edge-runtime CSP and storage infrastructure) and are shown read-only in the
-admin UI. On a multi-instance deployment, an admin's save takes effect on other
-instances within a short cache window rather than instantly; an environment
-variable, when set, always wins regardless.
+Edge-runtime CSP and storage infrastructure). `ACTIVITIES_ALLOW_MEDIA_DOMAINS`
+is shown read-only on the Federation tab; the storage backend is not surfaced in
+the admin UI at all. On a multi-instance deployment, an admin's save takes effect
+on other instances within a short cache window rather than instantly; an
+environment variable, when set, always wins regardless.
 
 ## Core Configuration
 
@@ -200,7 +203,7 @@ Required for media uploads (images and video in posts). If no media storage is c
 | `ACTIVITIES_MEDIA_STORAGE_REGION`            | S3 region (e.g., `us-east-1`).                                                                                                                                                                                                                                                       |
 | `ACTIVITIES_MEDIA_STORAGE_HOSTNAME`          | Public media hostname/CDN used to serve stored media files. If unset, media files are served through the app from the configured storage backend. This value is not used for S3 API operations.                                                                                      |
 | `ACTIVITIES_MEDIA_STORAGE_ENDPOINT`          | S3-compatible API endpoint used for storage operations and browser presigned uploads (for services like MinIO, DigitalOcean Spaces, Cloudflare R2). If unset, the AWS SDK uses the standard AWS S3 endpoint for the configured region; set this for non-AWS S3-compatible providers. |
-| `ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE`     | Maximum file size in bytes (default: 200 MiB / `209715200`). Also pins the admin-editable `media.maxFileSize` setting; when unset, an admin can lower the cap but not raise it above this default.                                                                                   |
+| `ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE`     | Maximum file size in bytes (default: 200 MiB / `209715200`). Also pins the admin-editable `media.maxFileSize` setting; when unset, an admin can set the cap anywhere from 1 byte up to 1 GiB (`1073741824`).                                                                         |
 | `ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT` | Per-account combined media + fitness storage quota in bytes. If unset, the config value stays empty and the quota service applies its 1 GiB (`1073741824`) default when enforcing quota.                                                                                             |
 
 > Upgrade note: If you previously set `ACTIVITIES_MEDIA_STORAGE_HOSTNAME` or `ACTIVITIES_FITNESS_STORAGE_HOSTNAME` to a MinIO, Cloudflare R2, DigitalOcean Spaces, or other S3-compatible API endpoint, move that value to the matching `*_STORAGE_ENDPOINT` variable. `*_STORAGE_HOSTNAME` is for a public hostname/CDN origin, not for S3 API operations or browser presigned uploads.

@@ -5,11 +5,15 @@ import {
   S3Client
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { Readable } from 'stream'
 
 import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
 import { S3FileStorage } from '@/lib/services/medias/S3StorageFile'
+import { MAX_FILE_SIZE } from '@/lib/services/medias/constants'
+import { getMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import { Actor } from '@/lib/types/domain/actor'
+import { StreamByteLimitError } from '@/lib/utils/streamLimit'
 
 vi.mock('@aws-sdk/client-s3', () => {
   const makeCommand = (name: string) =>
@@ -29,6 +33,10 @@ vi.mock('@aws-sdk/client-s3', () => {
 
 vi.mock('@aws-sdk/s3-request-presigner', () => ({
   getSignedUrl: vi.fn().mockResolvedValue('https://storage.example/upload')
+}))
+
+vi.mock('@/lib/services/medias/uploadSizeLimit', () => ({
+  getMaxMediaUploadSize: vi.fn()
 }))
 
 describe('S3FileStorage presigned upload completion', () => {
@@ -342,5 +350,56 @@ describe('S3FileStorage presigned upload completion', () => {
     ).rejects.toThrow('S3 timeout')
     expect(database.markMediaUploadVerified).not.toHaveBeenCalled()
     expect(database.deleteMedia).not.toHaveBeenCalled()
+  })
+})
+
+describe('S3FileStorage getFile', () => {
+  const send = vi.fn()
+  const database = {} as unknown as jest.Mocked<Database>
+  const storageConfig = {
+    type: MediaStorageType.ObjectStorage,
+    bucket: 'bucket',
+    region: 'us-east-1',
+    endpoint: 'https://s3.example.com',
+    // The env-only storage cap, left at the built-in default.
+    maxFileSize: MAX_FILE_SIZE
+  } as const
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    ;(S3Client as jest.MockedClass<typeof S3Client>).mockImplementation(
+      function () {
+        return { send } as unknown as S3Client
+      }
+    )
+    send.mockResolvedValue({
+      Body: Readable.from([Buffer.from('image-bytes')]),
+      // Larger than the built-in default, smaller than the raised admin cap.
+      ContentLength: 300 * 1024 * 1024,
+      ContentType: 'image/png'
+    })
+  })
+
+  // Regression: the read-back guard used to read the env-only storage config,
+  // so media accepted under an admin-raised media.maxFileSize could never be
+  // served back out.
+  it('bounds the buffer by the resolved cap rather than the storage config', async () => {
+    vi.mocked(getMaxMediaUploadSize).mockResolvedValue(500 * 1024 * 1024)
+    const storage = new S3FileStorage(storageConfig, 'llun.test', database)
+
+    await expect(storage.getFile('medias/upload.png')).resolves.toMatchObject({
+      type: 'buffer',
+      contentType: 'image/png'
+    })
+    expect(getMaxMediaUploadSize).toHaveBeenCalledWith(database)
+  })
+
+  it('refuses to buffer an object above the resolved cap', async () => {
+    vi.mocked(getMaxMediaUploadSize).mockResolvedValue(MAX_FILE_SIZE)
+    const storage = new S3FileStorage(storageConfig, 'llun.test', database)
+
+    await expect(storage.getFile('medias/upload.png')).rejects.toThrow(
+      StreamByteLimitError
+    )
   })
 })
