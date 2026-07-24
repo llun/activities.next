@@ -1,0 +1,26 @@
+app/(timeline)/admin/layout.tsx
+  s_d64282cd90258d::t_0a202912609509 34-41,43-46,49-50,53-56
+  s_d64282cd90258d::t_437ad21ebadae9 4-5,10,17
+lib/components/section-nav-dropdown.tsx
+  s_d64282cd90258d::t_93b030dd9a7bb3 34-37
+  s_d64282cd90258d::t_0ad0dfbacb7efe 6
+  s_d64282cd90258d::t_d60d84b6881738 71,74-90
+lib/components/section-nav-dropdown.test.tsx
+  s_d64282cd90258d::t_8d0741f83f9ea4 78-85,89-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "f87d5dd70d8dfdcc1948b9ef055937a20d2f0009",
+  "prompts": {},
+  "sessions": {
+    "s_d64282cd90258d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1faea951-ef32-48eb-adf5-9d2f315d8d61",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
