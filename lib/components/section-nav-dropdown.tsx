@@ -88,30 +88,49 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
               <DropdownMenuItem
                 key={tab.url}
                 asChild
-                // Roomier than the shared item default, which is sized for
-                // dense action menus: px-3 py-2 and gap-2.5, not px-2 py-1.5
-                // and gap-2. Every row is font-medium — the active one is
-                // distinguished by colour, not by weight.
-                className="gap-2.5 rounded-lg px-3 py-2 font-medium"
+                // Every style lives in this one className so tailwind-merge
+                // resolves it against the shared item defaults. Splitting the
+                // active-state classes onto the child Link would leave the two
+                // sets merely string-joined by Radix's Slot, and which `focus:`
+                // background won would come down to Tailwind's emit order
+                // rather than to the merge.
+                className={cn(
+                  // Roomier than the shared item default, which is sized for
+                  // dense action menus: px-3 py-2 and gap-2.5, not px-2 py-1.5
+                  // and gap-2. Every row is font-medium — the active one is
+                  // distinguished by colour, not by weight.
+                  'gap-2.5 rounded-lg px-3 py-2 font-medium',
+                  isActive && [
+                    // The design system's signature active state: a 10% orange
+                    // wash plus orange text, held on focus too so hovering the
+                    // current row doesn't drop it to the plain hover grey.
+                    'bg-primary/10 text-primary focus:bg-primary/10 focus:text-primary',
+                    // …but "held on focus" would otherwise make the focused
+                    // current row pixel-identical to its resting state, so a
+                    // keyboard user watching the highlight move down the list
+                    // would see it vanish on exactly one row. The ring is what
+                    // keeps focus visible there (WCAG 2.4.7); it fits inside
+                    // the menu's p-1 without clipping.
+                    'focus:ring-2 focus:ring-primary/50'
+                  ]
+                )}
               >
                 <Link
                   href={tab.url}
                   aria-current={isActive ? 'page' : undefined}
-                  className={cn(
-                    'flex w-full items-center',
-                    // The design system's signature active state: a 10% orange
-                    // wash plus orange text. The wash is a non-color-dependent
-                    // cue alongside aria-current, so the state doesn't rely on
-                    // the orange text alone. Repeated on focus so hovering the
-                    // active row doesn't drop it back to the plain hover wash.
-                    isActive &&
-                      'bg-primary/10 text-primary focus:bg-primary/10 focus:text-primary'
-                  )}
+                  className="flex w-full items-center"
                 >
-                  {/* text-current opts out of the shared item rule that greys
-                      every un-coloured icon: here the icon tracks its label,
-                      dark when inactive and orange when active. */}
-                  <tab.icon className="h-4 w-4 text-current" />
+                  {/* Naming the colour outright does two jobs: it states the
+                      intent, and the literal "text-" opts the icon out of the
+                      shared rule that greys every un-coloured icon in a menu
+                      item. A bare `text-current` would do the same but reads
+                      as a no-op and invites deletion. */}
+                  <tab.icon
+                    className={cn(
+                      'size-4',
+                      isActive ? 'text-primary' : 'text-popover-foreground'
+                    )}
+                  />
                   {tab.name}
                 </Link>
               </DropdownMenuItem>
