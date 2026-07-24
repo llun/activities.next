@@ -88,7 +88,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/client-s3@npm:3.1094.0, @aws-sdk/client-s3@npm:^3.1094.0":
+"@aws-sdk/client-s3@npm:^3.1094.0":
   version: 3.1094.0
   resolution: "@aws-sdk/client-s3@npm:3.1094.0"
   dependencies:
@@ -299,21 +299,6 @@ __metadata:
     "@smithy/types": "npm:^4.16.1"
     tslib: "npm:^2.6.2"
   checksum: 10c0/62afe19f667ba632759fdd7ea173d9d25dbb50d5595ab5669cb726ed83d722a89114927ed1f5df37626eb6a8b29cc5f35f9b5b132f717f1c55f7cf46562f82b8
-  languageName: node
-  linkType: hard
-
-"@aws-sdk/s3-presigned-post@npm:^3.1094.0":
-  version: 3.1094.0
-  resolution: "@aws-sdk/s3-presigned-post@npm:3.1094.0"
-  dependencies:
-    "@aws-sdk/client-s3": "npm:3.1094.0"
-    "@aws-sdk/core": "npm:^3.976.0"
-    "@aws-sdk/types": "npm:^3.974.2"
-    "@smithy/core": "npm:^3.29.4"
-    "@smithy/signature-v4": "npm:^5.6.5"
-    "@smithy/types": "npm:^4.16.1"
-    tslib: "npm:^2.6.2"
-  checksum: 10c0/951cfb60aaa885d20a9ae7f69d0ce1dc1c5369ed28e9388881afc0b1315fe8faf1c3819f66bfbc4ea2ace22d13bbd050868e91469eef201bbf97638a0b7a26dd
   languageName: node
   linkType: hard
 
@@ -2941,14 +2926,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@simplewebauthn/browser@npm:^13.2.2, @simplewebauthn/browser@npm:^13.3.0":
+"@simplewebauthn/browser@npm:^13.2.2":
   version: 13.3.0
   resolution: "@simplewebauthn/browser@npm:13.3.0"
   checksum: 10c0/23a9c14777c4ef6d15fd6c876a1035e6e597e92f96cd0ffe83b0b869f0e4db7789a591da9a39d1fe2c0529c42ecc291c4a30227fc705f0b7729c255f9ccc7c21
   languageName: node
   linkType: hard
 
-"@simplewebauthn/server@npm:^13.2.3, @simplewebauthn/server@npm:^13.3.2":
+"@simplewebauthn/server@npm:^13.2.3":
   version: 13.3.2
   resolution: "@simplewebauthn/server@npm:13.3.2"
   dependencies:
@@ -4247,7 +4232,6 @@ __metadata:
     "@aws-sdk/client-lambda": "npm:^3.1094.0"
     "@aws-sdk/client-s3": "npm:^3.1094.0"
     "@aws-sdk/client-ses": "npm:^3.1094.0"
-    "@aws-sdk/s3-presigned-post": "npm:^3.1094.0"
     "@aws-sdk/s3-request-presigner": "npm:^3.1094.0"
     "@aws-sdk/util-utf8-node": "npm:^3.259.0"
     "@better-auth/core": "npm:1.6.25"
@@ -4274,8 +4258,6 @@ __metadata:
     "@radix-ui/react-tabs": "npm:^1.1.19"
     "@radix-ui/react-toggle": "npm:^1.1.16"
     "@radix-ui/react-tooltip": "npm:^1.2.14"
-    "@simplewebauthn/browser": "npm:^13.3.0"
-    "@simplewebauthn/server": "npm:^13.3.2"
     "@swc-node/register": "npm:^1.12.1"
     "@swc/core": "npm:^1.15.46"
     "@tailwindcss/postcss": "npm:^4.3.3"
@@ -4307,7 +4289,6 @@ __metadata:
     better-sqlite3: "npm:^13.0.1"
     class-variance-authority: "npm:^0.7.1"
     clsx: "npm:^2.1.1"
-    content-type: "npm:^2.0.0"
     csv-parse: "npm:^7.0.1"
     date-fns: "npm:^4.4.0"
     dotenv-flow: "npm:^4.1.0"
@@ -4321,7 +4302,6 @@ __metadata:
     eslint-plugin-unused-imports: "npm:^4.4.1"
     fast-xml-parser: "npm:^5.10.1"
     fit-file-parser: "npm:^3.1.0"
-    framer-motion: "npm:^12.42.2"
     globals: "npm:^17.7.0"
     got: "npm:^15.1.0"
     html-react-parser: "npm:^6.1.5"
@@ -4332,7 +4312,6 @@ __metadata:
     jsdom: "npm:^29.1.1"
     jsonld: "npm:^9.0.0"
     knex: "npm:^3.3.0"
-    kysely: "npm:^0.29.4"
     lint-staged: "npm:^17.2.0"
     lodash: "npm:^4.18.1"
     lucide-react: "npm:^1.26.0"
@@ -5134,13 +5113,6 @@ __metadata:
   version: 0.0.1
   resolution: "concat-map@npm:0.0.1"
   checksum: 10c0/c996b1cfdf95b6c90fee4dae37e332c8b6eb7d106430c17d538034c0ad9a1630cb194d2ab37293b1bdd4d779494beee7786d586a50bd9376fd6f7bcc2bd4c98f
-  languageName: node
-  linkType: hard
-
-"content-type@npm:^2.0.0":
-  version: 2.0.0
-  resolution: "content-type@npm:2.0.0"
-  checksum: 10c0/491539fff707d7594b0ca4fabcc084bef2a31ffa754ff0a4f80c4377e3963cff0394317f9271c24087596c97fa675bc123d61fa34ffe65b4904e7d3d3098de72
   languageName: node
   linkType: hard
 
@@ -6395,28 +6367,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"framer-motion@npm:^12.42.2":
-  version: 12.42.2
-  resolution: "framer-motion@npm:12.42.2"
-  dependencies:
-    motion-dom: "npm:^12.42.2"
-    motion-utils: "npm:^12.39.0"
-    tslib: "npm:^2.4.0"
-  peerDependencies:
-    "@emotion/is-prop-valid": "*"
-    react: ^18.0.0 || ^19.0.0
-    react-dom: ^18.0.0 || ^19.0.0
-  peerDependenciesMeta:
-    "@emotion/is-prop-valid":
-      optional: true
-    react:
-      optional: true
-    react-dom:
-      optional: true
-  checksum: 10c0/2e514e0e303c0c01bc7d6a1028f7722ec17fc307922c6770a8dc5f7782521c60254f9c265329b887a29b32e2c730742328ecae468be626406afa5db1e6c0aa01
-  languageName: node
-  linkType: hard
-
 "fs-minipass@npm:^3.0.0":
   version: 3.0.3
   resolution: "fs-minipass@npm:3.0.3"
@@ -7617,7 +7567,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"kysely@npm:^0.28.17 || ^0.29.0, kysely@npm:^0.29.4":
+"kysely@npm:^0.28.17 || ^0.29.0":
   version: 0.29.4
   resolution: "kysely@npm:0.29.4"
   checksum: 10c0/13843cfaec03aa5c849c35da6d6e263e83c4ba194805d68f822a094609fd3e19053ecee942b9359be10383714bd1224475cc463f94a911666990b754ac13cc34
@@ -8128,22 +8078,6 @@ __metadata:
   dependencies:
     minipass: "npm:^7.1.2"
   checksum: 10c0/5aad75ab0090b8266069c9aabe582c021ae53eb33c6c691054a13a45db3b4f91a7fb1bd79151e6b4e9e9a86727b522527c0a06ec7d45206b745d54cd3097bcec
-  languageName: node
-  linkType: hard
-
-"motion-dom@npm:^12.42.2":
-  version: 12.42.2
-  resolution: "motion-dom@npm:12.42.2"
-  dependencies:
-    motion-utils: "npm:^12.39.0"
-  checksum: 10c0/1bcee88df706e3aaa4e5b8e7d2ba0efd8e2304c142e7541411bbd6f03b0fbe8d25883ec157905fdebf284f51db02008245f6d4653d20a97de9acf44bbb7be79f
-  languageName: node
-  linkType: hard
-
-"motion-utils@npm:^12.39.0":
-  version: 12.39.0
-  resolution: "motion-utils@npm:12.39.0"
-  checksum: 10c0/6d7a2a2cc0797b72410a666a9cc1c201c8e39bf9669670464e433fe1e72af5f0217154c869867b34fbadf3664cf222c0d022bbc4eed7927f201ae971918e7440
   languageName: node
   linkType: hard
 
