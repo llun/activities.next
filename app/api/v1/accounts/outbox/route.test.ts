@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
 
+import { Database } from '@/lib/database/types'
+import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 
 import { DELETE, POST } from './route'
@@ -25,8 +27,9 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
+const mockDatabase = { getAllServerSettings: vi.fn() }
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => ({})
+  getDatabase: () => mockDatabase
 }))
 
 vi.mock('@/lib/utils/getActorFromSession', () => ({
@@ -57,6 +60,11 @@ describe('POST /api/v1/accounts/outbox', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
+    mockDatabase.getAllServerSettings.mockReset()
+    mockDatabase.getAllServerSettings.mockResolvedValue([])
+    // The resolver caches per database instance, and this mock is shared across
+    // the file, so drop the cached view between cases.
+    invalidateServerSettingsCache(mockDatabase as unknown as Database)
   })
 
   it('returns 400 for invalid JSON', async () => {
@@ -200,6 +208,93 @@ describe('POST /api/v1/accounts/outbox', () => {
     await expect(res.json()).resolves.toEqual({
       error: 'Unprocessable entity'
     })
+  })
+
+  // This is the endpoint the web composer creates through, so the resolved
+  // posts.maxCharacters / polls.* limits have to be enforced here too — not
+  // only on POST /api/v1/statuses.
+  it.each([
+    {
+      description: 'rejects a note past the configured post length',
+      maxCharacters: 100,
+      messageLength: 120,
+      expectedCreateCalls: 0
+    },
+    {
+      description:
+        'lets a note past the old hardcoded 500 through when the limit is raised',
+      maxCharacters: 1000,
+      messageLength: 700,
+      expectedCreateCalls: 1
+    }
+  ])(
+    '$description',
+    async ({ maxCharacters, messageLength, expectedCreateCalls }) => {
+      mockDatabase.getAllServerSettings.mockResolvedValue([
+        { key: 'posts.maxCharacters', value: maxCharacters }
+      ])
+      const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
+        method: 'POST',
+        body: JSON.stringify({
+          type: 'note',
+          message: 'a'.repeat(messageLength)
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://test.llun.dev'
+        }
+      })
+
+      await POST(req, { params: Promise.resolve({}) })
+
+      expect(mockCreateNoteFromUserInput).toHaveBeenCalledTimes(
+        expectedCreateCalls
+      )
+    }
+  )
+
+  it('returns the limit message when a note exceeds the configured post length', async () => {
+    mockDatabase.getAllServerSettings.mockResolvedValue([
+      { key: 'posts.maxCharacters', value: 100 }
+    ])
+    const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
+      method: 'POST',
+      body: JSON.stringify({ type: 'note', message: 'a'.repeat(120) }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      }
+    })
+
+    const res = await POST(req, { params: Promise.resolve({}) })
+
+    await expect(res.json()).resolves.toEqual({
+      error: 'Text character limit of 100 exceeded'
+    })
+  })
+
+  it('rejects a poll with more choices than the configured limit', async () => {
+    mockDatabase.getAllServerSettings.mockResolvedValue([
+      { key: 'polls.maxOptions', value: 2 }
+    ])
+    const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
+      method: 'POST',
+      body: JSON.stringify({
+        type: 'poll',
+        message: 'pick one',
+        choices: ['a', 'b', 'c'],
+        durationInSeconds: 3_600
+      }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      }
+    })
+
+    const res = await POST(req, { params: Promise.resolve({}) })
+
+    expect(res.status).toBe(422)
+    expect(mockCreatePollFromUserInput).not.toHaveBeenCalled()
   })
 })
 

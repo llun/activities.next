@@ -452,6 +452,30 @@ export const PostBox: FC<Props> = ({
     )
   }
 
+  // `allowPost` is otherwise only recomputed by the handlers below, so a limit
+  // that changes under an open draft (the layout re-renders on
+  // router.refresh()) would leave a stale submit button — enabled for a draft
+  // the server will now reject, whose click then hits the guard in `onPost` and
+  // silently does nothing. Skipped while a submit is in flight so it can never
+  // re-enable the button mid-post.
+  useEffect(() => {
+    if (isPosting) return
+    if (editStatus) {
+      setAllowPost(isEditSubmittable())
+      return
+    }
+    setAllowPost(
+      hasNewPostContent(
+        textRef.current,
+        postExtensionRef.current,
+        maxStatusCharacters
+      )
+    )
+    // Deliberately keyed only on the limit and the in-flight flag (plus the
+    // edit target, to pick the right predicate): the draft itself is read from
+    // refs, and every draft edit already recomputes `allowPost` in its handler.
+  }, [maxStatusCharacters, isPosting, editStatus])
+
   useEffect(() => {
     return () => {
       postExtensionRef.current.attachments.forEach((attachment) => {

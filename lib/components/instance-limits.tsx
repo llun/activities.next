@@ -3,6 +3,7 @@
 import { FC, ReactNode, createContext, useContext, useMemo } from 'react'
 
 import { DEFAULT_MAX_STATUS_CHARACTERS } from '@/lib/services/mastodon/constants'
+import { MAX_FILE_SIZE } from '@/lib/services/medias/constants'
 
 /**
  * The client-visible slice of the resolved server settings (see
@@ -14,17 +15,22 @@ import { DEFAULT_MAX_STATUS_CHARACTERS } from '@/lib/services/mastodon/constants
  * prop. Keep this to values the browser genuinely needs; it is not a mirror of
  * `ResolvedServerSettings`.
  *
- * These values drive UX only. The limits stay enforced server-side on the
- * status create/edit routes (`validateStatusContentLimits`), so a missing or
- * stale provider can never let an over-long status through.
+ * These values drive UX only, never authorization: the same resolved limits are
+ * enforced server-side on every status create/edit route
+ * (`validateStatusContentLimits`) and on every upload endpoint
+ * (`exceedsMaxMediaUploadSize`), so a missing or stale provider can only make
+ * the client optimistic, never let something through.
  */
 export interface InstanceLimits {
   /** Resolved `posts.maxCharacters` — the composer's character budget. */
   maxStatusCharacters: number
+  /** Resolved `media.maxFileSize` in bytes — the upload picker's size budget. */
+  maxMediaFileSize: number
 }
 
 export const DEFAULT_INSTANCE_LIMITS: InstanceLimits = {
-  maxStatusCharacters: DEFAULT_MAX_STATUS_CHARACTERS
+  maxStatusCharacters: DEFAULT_MAX_STATUS_CHARACTERS,
+  maxMediaFileSize: MAX_FILE_SIZE
 }
 
 // Rendering without a provider yields the defaults, so a consumer is never left
@@ -44,11 +50,13 @@ const positiveIntegerOr = (value: number | undefined, fallback: number) =>
 
 interface ProviderProps {
   maxStatusCharacters?: number
+  maxMediaFileSize?: number
   children: ReactNode
 }
 
 export const InstanceLimitsProvider: FC<ProviderProps> = ({
   maxStatusCharacters,
+  maxMediaFileSize,
   children
 }) => {
   // Memoized so the context reference is stable across unrelated re-renders of
@@ -58,9 +66,13 @@ export const InstanceLimitsProvider: FC<ProviderProps> = ({
       maxStatusCharacters: positiveIntegerOr(
         maxStatusCharacters,
         DEFAULT_INSTANCE_LIMITS.maxStatusCharacters
+      ),
+      maxMediaFileSize: positiveIntegerOr(
+        maxMediaFileSize,
+        DEFAULT_INSTANCE_LIMITS.maxMediaFileSize
       )
     }),
-    [maxStatusCharacters]
+    [maxStatusCharacters, maxMediaFileSize]
   )
 
   return (

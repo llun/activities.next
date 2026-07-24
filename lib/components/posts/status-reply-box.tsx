@@ -12,6 +12,7 @@ import {
 } from 'react'
 
 import { createNote, uploadAttachment } from '@/lib/client'
+import { useInstanceLimits } from '@/lib/components/instance-limits'
 import {
   DEFAULT_STATE,
   addAttachment,
@@ -32,6 +33,7 @@ import {
 } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
+import { cn } from '@/lib/utils'
 
 interface Props {
   profile: ActorProfile
@@ -48,6 +50,10 @@ export const StatusReplyBox: FC<Props> = ({
   onCancel,
   onPostCreated
 }) => {
+  // The instance's configured status length (admin setting posts.maxCharacters).
+  // The reply endpoint enforces it too, so without this the reply box would let
+  // a draft grow past the limit and only fail on submit.
+  const { maxStatusCharacters } = useInstanceLimits()
   const [allowPost, setAllowPost] = useState<boolean>(false)
   const [isPosting, setIsPosting] = useState<boolean>(false)
   const [text, setText] = useState<string>('')
@@ -65,6 +71,15 @@ export const StatusReplyBox: FC<Props> = ({
   useEffect(() => {
     postExtensionRef.current = postExtension
   }, [postExtension])
+
+  // Single source of truth for the submit button, so a limit that changes under
+  // an open draft (the layout re-renders on router.refresh()) cannot leave a
+  // stale enabled/disabled button. Skipped while a submit is in flight so it
+  // never re-enables the button mid-post.
+  useEffect(() => {
+    if (isPosting) return
+    setAllowPost(text.trim().length > 0 && text.length <= maxStatusCharacters)
+  }, [text, maxStatusCharacters, isPosting])
 
   useEffect(() => {
     return () => {
@@ -120,7 +135,6 @@ export const StatusReplyBox: FC<Props> = ({
     if (defaultMessage) {
       const [value, start, end] = defaultMessage
       setText(value)
-      setAllowPost(true)
 
       setTimeout(() => {
         if (textareaRef.current) {
@@ -224,7 +238,6 @@ export const StatusReplyBox: FC<Props> = ({
       setIsPosting(false)
     } catch {
       setIsPosting(false)
-      setAllowPost(true)
       alert('Fail to create a reply')
     }
   }
@@ -262,11 +275,6 @@ export const StatusReplyBox: FC<Props> = ({
 
   const onTextChange = (value: string) => {
     setText(value)
-    if (value.trim().length === 0) {
-      setAllowPost(false)
-      return
-    }
-    setAllowPost(true)
   }
 
   const getPlaceholder = () => {
@@ -376,6 +384,16 @@ export const StatusReplyBox: FC<Props> = ({
                 onUploadStart={() => setWarningMsg(null)}
               />
               <div className="flex items-center gap-2 ml-auto">
+                <span
+                  className={cn(
+                    'text-xs tabular-nums',
+                    text.length > maxStatusCharacters
+                      ? 'text-destructive'
+                      : 'text-muted-foreground'
+                  )}
+                >
+                  {maxStatusCharacters - text.length}
+                </span>
                 <Button
                   type="button"
                   variant="ghost"
