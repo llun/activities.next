@@ -2,7 +2,13 @@
 
 import { FC, ReactNode, createContext, useContext, useMemo } from 'react'
 
-import { DEFAULT_MAX_STATUS_CHARACTERS } from '@/lib/services/mastodon/constants'
+import {
+  DEFAULT_MAX_STATUS_CHARACTERS,
+  MAX_POLL_EXPIRATION_SECONDS,
+  MAX_POLL_OPTIONS,
+  MAX_POLL_OPTION_CHARS,
+  MIN_POLL_EXPIRATION_SECONDS
+} from '@/lib/services/mastodon/constants'
 import { MAX_FILE_SIZE } from '@/lib/services/medias/constants'
 
 /**
@@ -26,11 +32,23 @@ export interface InstanceLimits {
   maxStatusCharacters: number
   /** Resolved `media.maxFileSize` in bytes — the upload picker's size budget. */
   maxMediaFileSize: number
+  /** Resolved `polls.maxOptions` — how many choices the poll editor offers. */
+  maxPollOptions: number
+  /** Resolved `polls.maxCharactersPerOption`. */
+  maxPollOptionCharacters: number
+  /** Resolved `polls.minExpirationSeconds` — bounds the duration picker. */
+  minPollExpirationSeconds: number
+  /** Resolved `polls.maxExpirationSeconds` — bounds the duration picker. */
+  maxPollExpirationSeconds: number
 }
 
 export const DEFAULT_INSTANCE_LIMITS: InstanceLimits = {
   maxStatusCharacters: DEFAULT_MAX_STATUS_CHARACTERS,
-  maxMediaFileSize: MAX_FILE_SIZE
+  maxMediaFileSize: MAX_FILE_SIZE,
+  maxPollOptions: MAX_POLL_OPTIONS,
+  maxPollOptionCharacters: MAX_POLL_OPTION_CHARS,
+  minPollExpirationSeconds: MIN_POLL_EXPIRATION_SECONDS,
+  maxPollExpirationSeconds: MAX_POLL_EXPIRATION_SECONDS
 }
 
 // Rendering without a provider yields the defaults, so a consumer is never left
@@ -51,12 +69,20 @@ const positiveIntegerOr = (value: number | undefined, fallback: number) =>
 interface ProviderProps {
   maxStatusCharacters?: number
   maxMediaFileSize?: number
+  maxPollOptions?: number
+  maxPollOptionCharacters?: number
+  minPollExpirationSeconds?: number
+  maxPollExpirationSeconds?: number
   children: ReactNode
 }
 
 export const InstanceLimitsProvider: FC<ProviderProps> = ({
   maxStatusCharacters,
   maxMediaFileSize,
+  maxPollOptions,
+  maxPollOptionCharacters,
+  minPollExpirationSeconds,
+  maxPollExpirationSeconds,
   children
 }) => {
   // Memoized so the context reference is stable across unrelated re-renders of
@@ -70,9 +96,32 @@ export const InstanceLimitsProvider: FC<ProviderProps> = ({
       maxMediaFileSize: positiveIntegerOr(
         maxMediaFileSize,
         DEFAULT_INSTANCE_LIMITS.maxMediaFileSize
+      ),
+      maxPollOptions: positiveIntegerOr(
+        maxPollOptions,
+        DEFAULT_INSTANCE_LIMITS.maxPollOptions
+      ),
+      maxPollOptionCharacters: positiveIntegerOr(
+        maxPollOptionCharacters,
+        DEFAULT_INSTANCE_LIMITS.maxPollOptionCharacters
+      ),
+      minPollExpirationSeconds: positiveIntegerOr(
+        minPollExpirationSeconds,
+        DEFAULT_INSTANCE_LIMITS.minPollExpirationSeconds
+      ),
+      maxPollExpirationSeconds: positiveIntegerOr(
+        maxPollExpirationSeconds,
+        DEFAULT_INSTANCE_LIMITS.maxPollExpirationSeconds
       )
     }),
-    [maxStatusCharacters, maxMediaFileSize]
+    [
+      maxStatusCharacters,
+      maxMediaFileSize,
+      maxPollOptions,
+      maxPollOptionCharacters,
+      minPollExpirationSeconds,
+      maxPollExpirationSeconds
+    ]
   )
 
   return (

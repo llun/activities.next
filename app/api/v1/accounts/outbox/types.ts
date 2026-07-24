@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { SecondsToDurationText } from '@/lib/components/post-box/poll-choices'
+import { SecondsToDurationText } from '@/lib/components/post-box/poll-durations'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { QuoteApprovalPolicy, Status } from '@/lib/types/domain/status'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'

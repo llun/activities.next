@@ -218,37 +218,43 @@ describe('POST /api/v1/accounts/outbox', () => {
       description: 'rejects a note past the configured post length',
       maxCharacters: 100,
       messageLength: 120,
-      expectedCreateCalls: 0
+      expectedRejected: true
     },
     {
       description:
         'lets a note past the old hardcoded 500 through when the limit is raised',
       maxCharacters: 1000,
       messageLength: 700,
-      expectedCreateCalls: 1
+      expectedRejected: false
     }
   ])(
     '$description',
-    async ({ maxCharacters, messageLength, expectedCreateCalls }) => {
+    async ({ maxCharacters, messageLength, expectedRejected }) => {
       mockDatabase.getAllServerSettings.mockResolvedValue([
         { key: 'posts.maxCharacters', value: maxCharacters }
       ])
+      const message = 'a'.repeat(messageLength)
       const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
         method: 'POST',
-        body: JSON.stringify({
-          type: 'note',
-          message: 'a'.repeat(messageLength)
-        }),
+        body: JSON.stringify({ type: 'note', message }),
         headers: {
           'Content-Type': 'application/json',
           Origin: 'https://test.llun.dev'
         }
       })
 
-      await POST(req, { params: Promise.resolve({}) })
+      const res = await POST(req, { params: Promise.resolve({}) })
 
-      expect(mockCreateNoteFromUserInput).toHaveBeenCalledTimes(
-        expectedCreateCalls
+      if (expectedRejected) {
+        expect(res.status).toBe(422)
+        expect(mockCreateNoteFromUserInput).not.toHaveBeenCalled()
+        return
+      }
+      // Assert on what the gate forwarded rather than the response status: the
+      // create action is stubbed, so the response shape says nothing about
+      // whether the limit check passed.
+      expect(mockCreateNoteFromUserInput).toHaveBeenCalledWith(
+        expect.objectContaining({ text: message })
       )
     }
   )

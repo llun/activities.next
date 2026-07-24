@@ -5,7 +5,8 @@ import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { QuoteApprovalPolicy } from '@/lib/types/domain/status'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 
-import { Choice, DEFAULT_DURATION, Duration } from './poll-choices'
+import { Choice } from './poll-choices'
+import { DEFAULT_DURATION, Duration } from './poll-durations'
 
 interface StatusExtension {
   attachments: PostBoxAttachment[]
@@ -56,10 +57,11 @@ type ActionSetContentWarningVisibility = ReturnType<
   typeof setContentWarningVisibility
 >
 
-export const addPollChoice = {
-  type: 'addPollChoice' as const
-}
-type ActionAddPollChoice = typeof addPollChoice
+export const addPollChoice = (maxOptions: number) => ({
+  type: 'addPollChoice' as const,
+  maxOptions
+})
+type ActionAddPollChoice = ReturnType<typeof addPollChoice>
 
 export const removePollChoice = (index: number) => ({
   type: 'removePollChoice' as const,
@@ -246,7 +248,9 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
       }
     }
     case 'addPollChoice': {
-      if (state.poll.choices.length > 4) return state
+      // Bounded by the instance's resolved polls.maxOptions, so the composer
+      // can never build a poll the create endpoint will reject.
+      if (state.poll.choices.length >= action.maxOptions) return state
       return {
         ...state,
         poll: {

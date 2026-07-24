@@ -246,10 +246,30 @@ describe('client createPoll', () => {
     fetchMock.resetMocks()
   })
 
-  it('throws when poll creation is rejected by the server', async () => {
-    fetchMock.mockResponse(JSON.stringify({ error: 'Unprocessable entity' }), {
-      status: 422
-    })
+  // The server's `{ error }` message carries the reason (e.g. an
+  // admin-configured limit), so it is surfaced rather than replaced with a
+  // generic failure; the fallback only applies when there is no message to show.
+  it.each([
+    {
+      description: "surfaces the server's rejection message",
+      body: JSON.stringify({ error: 'Poll cannot have more than 4 options' }),
+      status: 422,
+      expectedMessage: 'Poll cannot have more than 4 options'
+    },
+    {
+      description: 'falls back to a generic message for an empty body',
+      body: '',
+      status: 500,
+      expectedMessage: 'Fail to create a new poll'
+    },
+    {
+      description: 'falls back to a generic message when there is no error key',
+      body: JSON.stringify({ something: 'else' }),
+      status: 422,
+      expectedMessage: 'Fail to create a new poll'
+    }
+  ])('$description', async ({ body, status, expectedMessage }) => {
+    fetchMock.mockResponse(body, { status })
 
     await expect(
       createPoll({
@@ -258,7 +278,7 @@ describe('client createPoll', () => {
         durationInSeconds: 300,
         visibility: 'direct'
       })
-    ).rejects.toThrow('Fail to create a new poll')
+    ).rejects.toThrow(expectedMessage)
   })
 })
 

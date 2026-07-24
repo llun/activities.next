@@ -63,23 +63,25 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
       return
     }
 
-    // Validate file size
-    if (file.size > maxMediaFileSize) {
-      setUploadError(
-        `Image is too large. Maximum size is ${formatFileSize(maxMediaFileSize)}`
-      )
-      // Reset file input to allow re-selection
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
-      return
-    }
-
     try {
       setIsUploading(true)
 
       // Resize image
       const resizedFile = await resizeImage(file, MAX_WIDTH, MAX_HEIGHT)
+
+      // Validate the size of what is actually uploaded. Checking the original
+      // would reject a large photo that resizing brings comfortably under a
+      // lowered cap.
+      if (resizedFile.size > maxMediaFileSize) {
+        setUploadError(
+          `Image is too large. Maximum size is ${formatFileSize(maxMediaFileSize)}`
+        )
+        setIsUploading(false)
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
+        }
+        return
+      }
 
       // Upload file
       const result = await uploadAttachment(resizedFile)

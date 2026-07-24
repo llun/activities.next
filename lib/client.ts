@@ -1,4 +1,4 @@
-import { Duration } from '@/lib/components/post-box/poll-choices'
+import { Duration } from '@/lib/components/post-box/poll-durations'
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
 import type { AdminAnnouncement } from '@/lib/services/announcements/adminAnnouncement'
 import { PresignedUrlOutput } from '@/lib/services/medias/types'
@@ -35,6 +35,19 @@ import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { parseFetchResponseData } from '@/lib/utils/parseFetchResponseData'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 import { waitFor } from '@/lib/utils/waitFor'
+
+// API errors use Mastodon's `{ error: 'message' }` shape (AGENTS.md -> API
+// Response Guidelines). Surface that message so an admin-configured limit
+// ("Text character limit of 100 exceeded") reaches the user instead of a
+// generic failure — the client and the server can legitimately disagree while a
+// tab holds a limit resolved before an admin changed it.
+const throwApiError = async (response: Response, fallback: string) => {
+  const message = await response
+    .json()
+    .then((body) => (typeof body?.error === 'string' ? body.error : null))
+    .catch(() => null)
+  throw new Error(message || fallback)
+}
 
 export interface CreateNoteParams {
   message: string
@@ -82,7 +95,7 @@ export const createNote = async ({
     })
   })
   if (response.status !== 200) {
-    throw new Error('Fail to create a new note')
+    await throwApiError(response, 'Fail to create a new note')
   }
 
   const json = await response.json()
@@ -151,7 +164,7 @@ export const updateNote = async ({
     })
   })
   if (response.status !== 200) {
-    throw new Error('Fail to update the note')
+    await throwApiError(response, 'Fail to update the note')
   }
 
   const mastodonStatus = await response.json()
@@ -243,7 +256,7 @@ export const createPoll = async ({
     })
   })
   if (response.status !== 200) {
-    throw new Error('Fail to create a new poll')
+    await throwApiError(response, 'Fail to create a new poll')
   }
 }
 

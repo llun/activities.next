@@ -1,34 +1,24 @@
 'use client'
 
 import { BarChart3, Clock, Plus, X } from 'lucide-react'
-import { FC } from 'react'
+import { FC, useEffect, useMemo } from 'react'
 
+import { useInstanceLimits } from '@/lib/components/instance-limits'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Select } from '@/lib/components/ui/select'
 import { Switch } from '@/lib/components/ui/switch'
 
-export const DEFAULT_DURATION = 86_400
-
-export const SecondsToDurationText = {
-  300: '5 minutes',
-  1_800: '30 minutes',
-  3_600: '1 hour',
-  21_600: '6 hours',
-  43_200: '12 hours',
-  86_400: '1 day',
-  259_200: '3 days',
-  604_800: '7 days'
-}
-
-export type Duration = keyof typeof SecondsToDurationText
+import { DURATIONS, Duration, SecondsToDurationText } from './poll-durations'
 
 export interface Choice {
   key: number
   text: string
 }
 
-const MAX_CHOICES = 5
+// Mastodon requires at least two choices; the upper bound is the instance's
+// resolved polls.maxOptions.
+const MIN_CHOICES = 2
 
 interface Props {
   show: boolean
@@ -53,6 +43,36 @@ export const PollChoices: FC<Props> = ({
   onPollTypeChange,
   onRemove
 }) => {
+  // The instance's configured poll limits, so the editor can only build a poll
+  // the create endpoint will accept (it enforces the same resolved values).
+  const {
+    maxPollOptions,
+    maxPollOptionCharacters,
+    minPollExpirationSeconds,
+    maxPollExpirationSeconds
+  } = useInstanceLimits()
+
+  // Only offer durations inside the instance's configured expiry range. If the
+  // range excludes every duration we know how to label (an admin can configure
+  // that through the API), keep the full list rather than rendering a dead
+  // picker and let the create endpoint be the one to object.
+  const durations = useMemo(() => {
+    const inRange = DURATIONS.filter(
+      (seconds) =>
+        seconds >= minPollExpirationSeconds &&
+        seconds <= maxPollExpirationSeconds
+    )
+    return inRange.length > 0 ? inRange : DURATIONS
+  }, [minPollExpirationSeconds, maxPollExpirationSeconds])
+
+  // A duration selected before the range changed (or the built-in default)
+  // can fall outside it; move to the closest offered one so the draft always
+  // carries a value the endpoint accepts.
+  useEffect(() => {
+    if (durations.includes(durationInSeconds)) return
+    onChooseDuration(durations[0])
+  }, [durations, durationInSeconds, onChooseDuration])
+
   if (!show) return null
 
   return (
@@ -82,6 +102,7 @@ export const PollChoices: FC<Props> = ({
               type="text"
               name="poll[]"
               placeholder={`Choice ${index + 1}`}
+              maxLength={maxPollOptionCharacters}
               defaultValue={choice.text}
               onChange={(e) => {
                 choice.text = e.currentTarget.value
@@ -91,7 +112,7 @@ export const PollChoices: FC<Props> = ({
               type="button"
               variant="ghost"
               size="icon-sm"
-              disabled={choices.length <= 2}
+              disabled={choices.length <= MIN_CHOICES}
               aria-label={`Remove choice ${index + 1}`}
               className="text-muted-foreground hover:text-destructive"
               onClick={() => onRemoveChoice(index)}
@@ -102,7 +123,7 @@ export const PollChoices: FC<Props> = ({
         ))}
       </div>
 
-      {choices.length < MAX_CHOICES ? (
+      {choices.length < maxPollOptions ? (
         <Button
           type="button"
           variant="ghost"
@@ -129,9 +150,9 @@ export const PollChoices: FC<Props> = ({
             }
             className="h-8 w-auto px-2 text-xs font-medium text-foreground md:text-xs"
           >
-            {Object.keys(SecondsToDurationText).map((duration) => (
+            {durations.map((duration) => (
               <option key={duration} value={duration}>
-                {SecondsToDurationText[parseInt(duration, 10) as Duration]}
+                {SecondsToDurationText[duration]}
               </option>
             ))}
           </Select>

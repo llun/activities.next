@@ -25,15 +25,21 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   const session = await getServerAuthSession()
   const actor = await getActorFromSession(database, session)
 
-  // The admin-configurable limits the browser needs. Published once here so the
-  // composer's character counter and the media picker's size check reflect the
-  // resolved settings on every surface, without threading a prop through each
-  // page (the composer renders inline under posts across the whole group).
-  // Both branches provide it so no descendant can end up outside the provider.
-  const {
-    posts: { maxCharacters },
-    media: { maxFileSize }
-  } = await getResolvedServerSettings(database)
+  // The admin-configurable limits the browser needs, so the composer's
+  // character counter, the poll editor, and the image pickers size themselves
+  // to the same values the create/upload endpoints enforce — without threading
+  // a prop through each page (the composer renders inline under posts across
+  // the whole group). Both branches provide it so no descendant can end up
+  // outside the provider.
+  const { posts, media, polls } = await getResolvedServerSettings(database)
+  const instanceLimits = {
+    maxStatusCharacters: posts.maxCharacters,
+    maxMediaFileSize: media.maxFileSize,
+    maxPollOptions: polls.maxOptions,
+    maxPollOptionCharacters: polls.maxCharactersPerOption,
+    minPollExpirationSeconds: polls.minExpirationSeconds,
+    maxPollExpirationSeconds: polls.maxExpirationSeconds
+  }
 
   // Logged-out visitors render without the nav sidebar. The home route renders
   // a full-bleed landing (see app/(timeline)/page.tsx), so this branch stays
@@ -43,10 +49,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   // `tags/layout.tsx`).
   if (!actor) {
     return (
-      <InstanceLimitsProvider
-        maxStatusCharacters={maxCharacters}
-        maxMediaFileSize={maxFileSize}
-      >
+      <InstanceLimitsProvider {...instanceLimits}>
         {children}
       </InstanceLimitsProvider>
     )
@@ -89,10 +92,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   const lists = await database.getLists({ actorId: actor.id })
 
   return (
-    <InstanceLimitsProvider
-      maxStatusCharacters={maxCharacters}
-      maxMediaFileSize={maxFileSize}
-    >
+    <InstanceLimitsProvider {...instanceLimits}>
       <div className="min-h-dvh">
         <Sidebar
           user={user}

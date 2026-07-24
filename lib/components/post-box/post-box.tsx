@@ -57,7 +57,8 @@ import { getEmojiTags } from '@/lib/utils/text/getEmojiTags'
 import { processStatusTextContent } from '@/lib/utils/text/processStatusText'
 
 import { EmojiPickerButton } from './emoji-picker-button'
-import { Duration, PollChoices } from './poll-choices'
+import { PollChoices } from './poll-choices'
+import { Duration } from './poll-durations'
 import { QuotedPreview } from './quoted-preview'
 import {
   DEFAULT_STATE,
@@ -317,7 +318,7 @@ export const PostBox: FC<Props> = ({
   // The instance's configured status length (admin setting `posts.maxCharacters`,
   // published by the (timeline) layout). Client-side UX only — the create/edit
   // routes enforce the same resolved limit server-side.
-  const { maxStatusCharacters } = useInstanceLimits()
+  const { maxStatusCharacters, maxPollOptions } = useInstanceLimits()
   const [allowPost, setAllowPost] = useState<boolean>(false)
   const [isPosting, setIsPosting] = useState<boolean>(false)
   const [showPreview, setShowPreview] = useState<boolean>(false)
@@ -607,6 +608,11 @@ export const PostBox: FC<Props> = ({
         })
 
         dispatch(resetExtension())
+        // Clear the draft like the note branch does. Leaving the question text
+        // behind re-arms the (now poll-less) composer, so a second click posts
+        // it again as a plain note.
+        setText('')
+        textRef.current = ''
         setIsPosting(false)
         return
       }
@@ -1073,7 +1079,7 @@ export const PostBox: FC<Props> = ({
           choices={postExtension.poll.choices}
           durationInSeconds={postExtension.poll.durationInSeconds}
           pollType={postExtension.poll.pollType}
-          onAddChoice={() => dispatch(addPollChoice)}
+          onAddChoice={() => dispatch(addPollChoice(maxPollOptions))}
           onRemoveChoice={(index) => dispatch(removePollChoice(index))}
           onChooseDuration={(durationInSeconds: Duration) =>
             dispatch(setPollDurationInSeconds(durationInSeconds))
@@ -1117,6 +1123,7 @@ export const PostBox: FC<Props> = ({
               onDuplicateError={() =>
                 setWarningMsg('Some files are already selected')
               }
+              onFileRejected={(message) => setWarningMsg(message)}
               onUploadStart={() => setWarningMsg(null)}
               onBeforeAddAttachments={onRemoveFitnessFile}
             />

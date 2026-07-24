@@ -236,9 +236,15 @@ export const StatusReplyBox: FC<Props> = ({
       removedAttachmentIdsRef.current.clear()
       setText('')
       setIsPosting(false)
-    } catch {
+    } catch (error) {
       setIsPosting(false)
-      alert('Fail to create a reply')
+      // Surface the server's message (e.g. an admin-configured length limit)
+      // rather than a generic failure.
+      setWarningMsg(
+        error instanceof Error && error.message
+          ? error.message
+          : 'Fail to create a reply'
+      )
     }
   }
 
@@ -381,6 +387,7 @@ export const StatusReplyBox: FC<Props> = ({
                 onDuplicateError={() =>
                   setWarningMsg('Some files are already selected')
                 }
+                onFileRejected={(message) => setWarningMsg(message)}
                 onUploadStart={() => setWarningMsg(null)}
               />
               <div className="flex items-center gap-2 ml-auto">

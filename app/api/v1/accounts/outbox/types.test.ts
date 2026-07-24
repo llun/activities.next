@@ -1,4 +1,4 @@
-import { SecondsToDurationText } from '@/lib/components/post-box/poll-choices'
+import { SecondsToDurationText } from '@/lib/components/post-box/poll-durations'
 
 import { CreatePollRequest } from './types'
 

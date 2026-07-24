@@ -6,6 +6,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import {
   createNote,
+  createPoll,
   getCustomEmojis,
   updateNote,
   uploadAttachment
@@ -61,6 +62,7 @@ vi.mock('@/lib/utils/resizeImage', () => ({
 
 const updateNoteMock = updateNote as jest.MockedFunction<typeof updateNote>
 const createNoteMock = createNote as jest.MockedFunction<typeof createNote>
+const createPollMock = createPoll as jest.MockedFunction<typeof createPoll>
 const uploadAttachmentMock = uploadAttachment as jest.MockedFunction<
   typeof uploadAttachment
 >
@@ -1304,6 +1306,53 @@ describe('PostBox edit character limit', () => {
       ).toBeInTheDocument()
     )
     expect(screen.getByRole('button', { name: 'Update' })).toBeDisabled()
+  })
+})
+
+describe('PostBox poll creation', () => {
+  // The poll editor renders a Radix Switch, which measures itself; jsdom has no
+  // ResizeObserver.
+  const originalResizeObserver = global.ResizeObserver
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    global.crypto.randomUUID = vi.fn(() => 'temporary-media-id')
+    createPollMock.mockResolvedValue(undefined)
+    global.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver
+  })
+
+  afterEach(() => {
+    global.ResizeObserver = originalResizeObserver
+  })
+
+  it('clears the draft after creating a poll so it cannot be re-posted as a note', async () => {
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+
+    const textarea = screen.getByPlaceholderText('What is on your mind?')
+    fireEvent.change(textarea, { target: { value: 'Best framework?' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add poll' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+    await waitFor(() => expect(createPollMock).toHaveBeenCalled())
+
+    // The poll UI is gone; if the question text survived, the re-enabled Post
+    // button would create a duplicate plain note on the next click.
+    await waitFor(() => expect(textarea).toHaveValue(''))
+    expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled()
+    expect(createNoteMock).not.toHaveBeenCalled()
   })
 })
 
