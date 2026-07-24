@@ -1,0 +1,42 @@
+lib/services/medias/types.ts
+  s_4074db98cab964::t_d362ab0f534e1b 15-16
+lib/components/admin/settings/PostsMediaSettingsForm.tsx
+  s_4074db98cab964::t_d8e60d1169229f 241-244
+  s_4074db98cab964::t_43ba27a4949313 9
+app/(timeline)/layout.tsx
+  s_4074db98cab964::t_fc777513f92213 29-32,34-35,46-49,92-95
+lib/components/settings/ImageUploadField.tsx
+  s_4074db98cab964::t_5d9db92eef0892 7,16,34-36,67-70
+lib/services/accounts/updateCredentialsHandler.ts
+  s_4074db98cab964::t_6673b03ed2e810 246-254,257-258,260,263,272
+  s_4074db98cab964::t_1c835e424136e4 239-243,255-256,259,261-262,264-271,273
+lib/services/medias/types.test.ts
+  s_4074db98cab964::t_8bc9b23a79d1d5 4-23
+lib/config/serverSettings.ts
+  s_4074db98cab964::t_290d247e1d3639 341-347
+lib/components/instance-limits.test.tsx
+  s_4074db98cab964::t_99c5022303ead5 9,14-20,24,26-27,30-31,36-102
+docs/environment-variables.md
+  s_4074db98cab964::t_19b70410e754ec 188
+  s_4074db98cab964::t_82c2eb864d2ba2 20-25,28-36
+app/api/v2/media/route.test.ts
+  s_4074db98cab964::t_aa07216a20bffb 190-226
+lib/services/medias/uploadSizeLimit.test.ts
+  s_4074db98cab964::t_e25f1bb5d1e859 10-14,17,20-21,26-30,54-62,64,108,112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "68396b827bfe5cf55277edc2438dc48433c78369",
+  "prompts": {},
+  "sessions": {
+    "s_4074db98cab964": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c33ae999-5e09-4367-b055-c4406d93725e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
