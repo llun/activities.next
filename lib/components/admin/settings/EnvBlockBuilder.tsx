@@ -81,9 +81,10 @@ const EnvFields: FC<EnvFieldsProps> = ({ fields, values, onChange }) => (
 )
 
 // The generated block. Fixed dark surface in both themes: it is a terminal
-// excerpt, not page chrome. In dark mode it steps below the card and keeps a
-// hairline ring, which is how the surface ramp separates it there — plain
-// neutral-900 is the card colour and would read as no block at all.
+// excerpt, not page chrome. In dark mode it steps down to neutral-950 so it
+// never reads as a panel raised above its section, and the hairline ring is
+// what actually draws the edge — measured, the section around it is the same
+// #0a0a0a, so without the ring there would be no visible block.
 const EnvBlockPreview: FC<{ lines: EnvBlockLine[] }> = ({ lines }) => {
   const { copied, copy } = useCopyToClipboard(2000)
   const block = lines.map(({ name, value }) => `${name}=${value}`).join('\n')
