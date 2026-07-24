@@ -1,0 +1,70 @@
+app/(timeline)/layout.tsx
+  s_4074db98cab964::t_4e12c37d16129e 28-42,52,95
+lib/client.ts
+  s_4074db98cab964::t_29b4264c45bf1e 1
+  s_4074db98cab964::t_430d4250e4eedb 39-51,98,167,259
+lib/components/posts/status-reply-box.tsx
+  s_4074db98cab964::t_ee15de07c6cff2 239,241-247
+  s_4074db98cab964::t_53cb2c35b887bd 390
+lib/components/post-box/poll-durations.ts
+  s_4074db98cab964::t_bfc886f527d377 1-27
+app/api/v1/accounts/outbox/types.test.ts
+  s_4074db98cab964::t_29b4264c45bf1e 1
+app/api/clientModuleImports.test.ts
+  s_4074db98cab964::t_c2595d30c71c95 1-50,55-64
+  s_4074db98cab964::t_1c1b28cec8e8e0 51-54
+lib/components/settings/ImageUploadField.tsx
+  s_4074db98cab964::t_ee15de07c6cff2 72-84
+  s_4074db98cab964::t_c1e7cba5709b6a 85
+lib/components/instance-limits.tsx
+  s_4074db98cab964::t_73220fee19f55a 5-11,35-42,47-51,72-75,82-85,99-114,117-124
+docs/environment-variables.md
+  s_4074db98cab964::t_5b1e77c484e18e 22-48
+app/api/v1/accounts/outbox/route.test.ts
+  s_4074db98cab964::t_59c994499bb333 221,228
+  s_4074db98cab964::t_1eb4db0b6933f2 232,236,239,246,248-257
+lib/components/post-box/post-box.test.tsx
+  s_4074db98cab964::t_76fc201353c830 9,65
+  s_4074db98cab964::t_3113ebf6badaf0 1312,1317-1320,1330-1358
+  s_4074db98cab964::t_760e36c73efd79 1313-1316,1321-1329
+lib/components/post-box/upload-media-button.tsx
+  s_4074db98cab964::t_01aa35d6e4f32a 13,35,39
+  s_4074db98cab964::t_318abbe3693033 4,24-25,75-85
+lib/components/post-box/poll-choices.tsx
+  s_4074db98cab964::t_b1169d8d5f37cb 55-58,67-75
+  s_4074db98cab964::t_53e3201b1c6ee8 155
+  s_4074db98cab964::t_ee1b45ae63f636 6,19-21,46-54,105,115,126,153
+  s_4074db98cab964::t_25837f68be878e 4,59-66
+  s_4074db98cab964::t_29b4264c45bf1e 12
+lib/components/post-box/reducers.ts
+  s_4074db98cab964::t_043025960367cb 60-62,64,251-253
+  s_4074db98cab964::t_f46d1b76ad1703 63
+  s_4074db98cab964::t_29b4264c45bf1e 8-9
+lib/components/post-box/poll-choices.test.tsx
+  s_4074db98cab964::t_1eb4db0b6933f2 105-111
+  s_4074db98cab964::t_e0f719dfc71b16 1-104,112-136
+lib/client.test.ts
+  s_4074db98cab964::t_fee3295e6da68e 249-272,281
+lib/components/post-box/post-box.tsx
+  s_4074db98cab964::t_25837f68be878e 321,611-615,1082
+  s_4074db98cab964::t_53cb2c35b887bd 1126
+  s_4074db98cab964::t_29b4264c45bf1e 60-61
+app/api/v1/accounts/outbox/types.ts
+  s_4074db98cab964::t_29b4264c45bf1e 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "6fa91fc149d16ae4b109c1ce4486f359100b013a",
+  "prompts": {},
+  "sessions": {
+    "s_4074db98cab964": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c33ae999-5e09-4367-b055-c4406d93725e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
