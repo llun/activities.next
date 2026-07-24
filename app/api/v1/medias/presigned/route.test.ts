@@ -1,15 +1,21 @@
 import { NextRequest } from 'next/server'
 
-import { PresignedUploadValidationError } from '@/lib/services/medias'
+import { Database } from '@/lib/database/types'
+import {
+  PresignedUploadValidationError,
+  getPresignedUrl
+} from '@/lib/services/medias'
+import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 
-import { PATCH } from './route'
+import { PATCH, POST } from './route'
 
 const mockCompletePresignedMediaUpload = vi.fn()
+const mockGetAllServerSettings = vi.fn()
 const mockCurrentActor = {
   id: 'https://llun.test/users/llun',
   account: { id: 'account-1' }
 }
-const mockDatabase = {}
+const mockDatabase = { getAllServerSettings: mockGetAllServerSettings }
 
 vi.mock('@/lib/services/medias', () => ({
   completePresignedMediaUpload: (...params: unknown[]) =>
@@ -17,6 +23,8 @@ vi.mock('@/lib/services/medias', () => ({
   getPresignedUrl: vi.fn(),
   PresignedUploadValidationError: class PresignedUploadValidationError extends Error {}
 }))
+
+const mockGetPresignedUrl = vi.mocked(getPresignedUrl)
 
 vi.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
   AuthenticatedGuard:
@@ -98,4 +106,63 @@ describe('PATCH /api/v1/medias/presigned', () => {
       'media-1'
     )
   })
+})
+
+describe('POST /api/v1/medias/presigned', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetAllServerSettings.mockResolvedValue([])
+    // The resolver caches per database instance, and this mock is shared across
+    // the file, so drop the cached view between cases.
+    invalidateServerSettingsCache(mockDatabase as unknown as Database)
+    mockGetPresignedUrl.mockResolvedValue({
+      url: 'https://llun.test/upload',
+      saveFileOutput: {} as never
+    } as never)
+  })
+
+  const createRequest = (size: number) =>
+    new NextRequest('https://llun.test/api/v1/medias/presigned', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        fileName: 'photo.png',
+        checksum: 'a9993e364706816aba3e25717850c26c9cd0d89d',
+        width: 10,
+        height: 20,
+        contentType: 'image/png',
+        size
+      })
+    })
+
+  it.each([
+    {
+      description: 'rejects a size over the admin-configured media.maxFileSize',
+      maxFileSize: 1_000,
+      size: 1_001,
+      expectedStatus: 422,
+      expectedPresignCalls: 0
+    },
+    {
+      description: 'accepts a size at the admin-configured media.maxFileSize',
+      maxFileSize: 1_000,
+      size: 1_000,
+      expectedStatus: 200,
+      expectedPresignCalls: 1
+    }
+  ])(
+    '$description',
+    async ({ maxFileSize, size, expectedStatus, expectedPresignCalls }) => {
+      mockGetAllServerSettings.mockResolvedValue([
+        { key: 'media.maxFileSize', value: maxFileSize }
+      ])
+
+      const response = await POST(createRequest(size), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(expectedStatus)
+      expect(mockGetPresignedUrl).toHaveBeenCalledTimes(expectedPresignCalls)
+    }
+  )
 })

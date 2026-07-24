@@ -1,26 +1,20 @@
 import { z } from 'zod'
 
-import { getConfig } from '@/lib/config'
 import { Actor } from '@/lib/types/domain/actor'
 
-import {
-  ACCEPTED_FILE_TYPES,
-  MAX_FILE_SIZE,
-  MAX_MEDIA_DESCRIPTION_LENGTH
-} from './constants'
+import { ACCEPTED_FILE_TYPES, MAX_MEDIA_DESCRIPTION_LENGTH } from './constants'
 
 const FILE_TYPE_ERROR_MESSAGE = `Only ${ACCEPTED_FILE_TYPES.join(',')} are accepted`
-const FILE_SIZE_ERROR_MESSAGE = 'File is larger than the limit.'
 
+// Deliberately no size constraint: the upload cap is the `media.maxFileSize`
+// server setting, which resolves env -> database -> default and therefore needs
+// an async database read a Zod refine cannot do. Every handler that accepts an
+// upload checks it with `exceedsMaxMediaUploadSize` from ./uploadSizeLimit.
 export const FileSchema = z
   // Enforce a real File first — z.custom with no guard accepts anything, so a
-  // crafted JSON object like { size, type } would otherwise satisfy the refines
-  // below and crash later when File methods (arrayBuffer) are called.
+  // crafted JSON object like { type: 'image/png' } would otherwise satisfy the
+  // refine below and crash later when File methods (arrayBuffer) are called.
   .custom<File>((value) => value instanceof File, 'Expected a file upload')
-  .refine((file) => {
-    const config = getConfig()
-    return file.size <= (config.mediaStorage?.maxFileSize ?? MAX_FILE_SIZE)
-  }, FILE_SIZE_ERROR_MESSAGE)
   .refine(
     (file) => ACCEPTED_FILE_TYPES.includes(file.type),
     FILE_TYPE_ERROR_MESSAGE
@@ -138,10 +132,10 @@ export const PresigedMediaInput = z.object({
       (value) => ACCEPTED_FILE_TYPES.includes(value),
       FILE_TYPE_ERROR_MESSAGE
     ),
-  size: z.number().refine((value) => {
-    const config = getConfig()
-    return value <= (config.mediaStorage?.maxFileSize ?? MAX_FILE_SIZE)
-  }, FILE_SIZE_ERROR_MESSAGE)
+  // As with FileSchema above, the cap itself is checked against the resolved
+  // `media.maxFileSize` in the presigned route; the schema only requires a
+  // non-negative byte count.
+  size: z.number().nonnegative()
 })
 export type PresigedMediaInput = z.infer<typeof PresigedMediaInput>
 

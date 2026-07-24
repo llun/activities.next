@@ -27,8 +27,10 @@ import {
   uploadAttachment,
   uploadFitnessFile
 } from '@/lib/client'
+import { useInstanceLimits } from '@/lib/components/instance-limits'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
+import { Duration } from '@/lib/services/statuses/pollDurations'
 import {
   ActorProfile,
   getMention,
@@ -56,12 +58,12 @@ import { getEmojiTags } from '@/lib/utils/text/getEmojiTags'
 import { processStatusTextContent } from '@/lib/utils/text/processStatusText'
 
 import { EmojiPickerButton } from './emoji-picker-button'
-import { Duration, PollChoices } from './poll-choices'
+import { PollChoices } from './poll-choices'
 import { QuotedPreview } from './quoted-preview'
 import {
-  DEFAULT_STATE,
   addAttachment,
   addPollChoice,
+  createDefaultState,
   removeFitnessFile,
   removePollChoice,
   resetExtension,
@@ -97,8 +99,6 @@ interface Props {
   onPostUpdated: (status: Status) => void
   onDiscardEdit: () => void
 }
-
-const MAX_STATUS_LENGTH = 500
 
 const getEditableStatusText = (status: EditableStatus) => status.text
 
@@ -144,13 +144,17 @@ const areAttachmentIdsEqualInOrder = (
   return currentIds.every((id, index) => id === baselineIds[index])
 }
 
-const isWithinLengthLimit = (value: string) => value.length <= MAX_STATUS_LENGTH
+// `maxLength` is the instance's resolved `posts.maxCharacters` (see
+// `useInstanceLimits`), passed in so these stay pure module-level helpers.
+const isWithinLengthLimit = (value: string, maxLength: number) =>
+  value.length <= maxLength
 
 const hasNewPostContent = (
   value: string,
-  extension: { attachments: PostBoxAttachment[]; fitnessFile?: unknown }
+  extension: { attachments: PostBoxAttachment[]; fitnessFile?: unknown },
+  maxLength: number
 ) =>
-  isWithinLengthLimit(value) &&
+  isWithinLengthLimit(value, maxLength) &&
   (value.trim().length > 0 ||
     extension.attachments.length > 0 ||
     Boolean(extension.fitnessFile))
@@ -158,9 +162,10 @@ const hasNewPostContent = (
 const hasEditPostContent = (
   status: EditableStatus,
   value: string,
-  extension: { attachments: PostBoxAttachment[] }
+  extension: { attachments: PostBoxAttachment[] },
+  maxLength: number
 ) =>
-  isWithinLengthLimit(value) &&
+  isWithinLengthLimit(value, maxLength) &&
   (value.trim().length > 0 ||
     extension.attachments.length > 0 ||
     getPreservedStatusAttachments(status.attachments).length > 0)
@@ -310,6 +315,10 @@ export const PostBox: FC<Props> = ({
   onDiscardQuote,
   onDiscardEdit
 }) => {
+  // The instance's configured status length (admin setting `posts.maxCharacters`,
+  // published by the (timeline) layout). Client-side UX only — the create/edit
+  // routes enforce the same resolved limit server-side.
+  const { maxStatusCharacters, maxPollOptions } = useInstanceLimits()
   const [allowPost, setAllowPost] = useState<boolean>(false)
   const [isPosting, setIsPosting] = useState<boolean>(false)
   const [showPreview, setShowPreview] = useState<boolean>(false)
@@ -326,7 +335,8 @@ export const PostBox: FC<Props> = ({
 
   const [postExtension, dispatch] = useReducer(
     statusExtensionReducer,
-    DEFAULT_STATE
+    undefined,
+    createDefaultState
   )
   const postExtensionRef = useRef(postExtension)
   // The actor's default quote policy (Mastodon posting:default:quote_policy),
@@ -440,9 +450,33 @@ export const PostBox: FC<Props> = ({
 
     return (
       isEditDirty(value, extension) &&
-      hasEditPostContent(editStatus, value, extension)
+      hasEditPostContent(editStatus, value, extension, maxStatusCharacters)
     )
   }
+
+  // `allowPost` is otherwise only recomputed by the handlers below, so a limit
+  // that changes under an open draft (the layout re-renders on
+  // router.refresh()) would leave a stale submit button — enabled for a draft
+  // the server will now reject, whose click then hits the guard in `onPost` and
+  // silently does nothing. Skipped while a submit is in flight so it can never
+  // re-enable the button mid-post.
+  useEffect(() => {
+    if (isPosting) return
+    if (editStatus) {
+      setAllowPost(isEditSubmittable())
+      return
+    }
+    setAllowPost(
+      hasNewPostContent(
+        textRef.current,
+        postExtensionRef.current,
+        maxStatusCharacters
+      )
+    )
+    // Deliberately keyed only on the limit and the in-flight flag (plus the
+    // edit target, to pick the right predicate): the draft itself is read from
+    // refs, and every draft edit already recomputes `allowPost` in its handler.
+  }, [maxStatusCharacters, isPosting, editStatus])
 
   useEffect(() => {
     return () => {
@@ -541,7 +575,7 @@ export const PostBox: FC<Props> = ({
   const onPost = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
     if (!allowPost) return
-    if (!isWithinLengthLimit(textRef.current)) return
+    if (!isWithinLengthLimit(textRef.current, maxStatusCharacters)) return
     if (submitInFlightRef.current) return
     submitInFlightRef.current = true
 
@@ -575,6 +609,11 @@ export const PostBox: FC<Props> = ({
         })
 
         dispatch(resetExtension())
+        // Clear the draft like the note branch does. Leaving the question text
+        // behind re-arms the (now poll-less) composer, so a second click posts
+        // it again as a plain note.
+        setText('')
+        textRef.current = ''
         setIsPosting(false)
         return
       }
@@ -687,7 +726,7 @@ export const PostBox: FC<Props> = ({
       const { status, attachments: storedAttachments } = response
       onPostCreated(status, storedAttachments)
       dispatch(resetExtension())
-      // resetExtension() drops the policy back to the DEFAULT_STATE 'public';
+      // resetExtension() drops the policy back to the default 'public';
       // re-apply the actor's configured default so it stays sticky.
       dispatch(setQuoteApprovalPolicy(defaultQuotePolicyRef.current))
 
@@ -737,7 +776,9 @@ export const PostBox: FC<Props> = ({
       setAllowPost(isEditSubmittable(textRef.current, nextExtension))
       return
     }
-    setAllowPost(hasNewPostContent(textRef.current, nextExtension))
+    setAllowPost(
+      hasNewPostContent(textRef.current, nextExtension, maxStatusCharacters)
+    )
   }
 
   const onRemoveFitnessFile = useCallback(async () => {
@@ -753,7 +794,9 @@ export const PostBox: FC<Props> = ({
         fitnessFile: undefined
       }
       postExtensionRef.current = nextExtension
-      setAllowPost(hasNewPostContent(textRef.current, nextExtension))
+      setAllowPost(
+        hasNewPostContent(textRef.current, nextExtension, maxStatusCharacters)
+      )
     }
 
     if (!fitnessFile.uploadedId) {
@@ -794,7 +837,7 @@ export const PostBox: FC<Props> = ({
     }
 
     return cleanupPromise
-  }, [])
+  }, [maxStatusCharacters])
 
   const onQuickPost = async (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (!(event.metaKey || event.ctrlKey)) return
@@ -811,7 +854,9 @@ export const PostBox: FC<Props> = ({
       setAllowPost(isEditSubmittable(value))
       return
     }
-    setAllowPost(hasNewPostContent(value, postExtensionRef.current))
+    setAllowPost(
+      hasNewPostContent(value, postExtensionRef.current, maxStatusCharacters)
+    )
   }
 
   const onContentWarningChange = (value: string) => {
@@ -901,7 +946,7 @@ export const PostBox: FC<Props> = ({
       const editText = getEditableStatusText(editStatus)
       const attachments = getEditableStatusAttachments(editStatus)
       const nextExtension = {
-        ...DEFAULT_STATE,
+        ...createDefaultState(),
         attachments,
         contentWarning: editStatus.summary ?? '',
         contentWarningVisible: Boolean(editStatus.summary)
@@ -917,7 +962,7 @@ export const PostBox: FC<Props> = ({
     } else {
       setText('')
       textRef.current = ''
-      postExtensionRef.current = DEFAULT_STATE
+      postExtensionRef.current = createDefaultState()
       dispatch(resetExtension())
       setAllowPost(false)
     }
@@ -1035,7 +1080,7 @@ export const PostBox: FC<Props> = ({
           choices={postExtension.poll.choices}
           durationInSeconds={postExtension.poll.durationInSeconds}
           pollType={postExtension.poll.pollType}
-          onAddChoice={() => dispatch(addPollChoice)}
+          onAddChoice={() => dispatch(addPollChoice(maxPollOptions))}
           onRemoveChoice={(index) => dispatch(removePollChoice(index))}
           onChooseDuration={(durationInSeconds: Duration) =>
             dispatch(setPollDurationInSeconds(durationInSeconds))
@@ -1057,7 +1102,7 @@ export const PostBox: FC<Props> = ({
                   ],
                   fitnessFile: undefined,
                   poll: {
-                    ...DEFAULT_STATE.poll
+                    ...createDefaultState().poll
                   }
                 }
                 postExtensionRef.current = nextExtension
@@ -1068,11 +1113,18 @@ export const PostBox: FC<Props> = ({
                   )
                   return
                 }
-                setAllowPost(hasNewPostContent(textRef.current, nextExtension))
+                setAllowPost(
+                  hasNewPostContent(
+                    textRef.current,
+                    nextExtension,
+                    maxStatusCharacters
+                  )
+                )
               }}
               onDuplicateError={() =>
                 setWarningMsg('Some files are already selected')
               }
+              onFilesRejected={(message) => setWarningMsg(message)}
               onUploadStart={() => setWarningMsg(null)}
               onBeforeAddAttachments={onRemoveFitnessFile}
             />
@@ -1098,7 +1150,11 @@ export const PostBox: FC<Props> = ({
                   postExtensionRef.current = nextExtension
                   dispatch(setFitnessFile(file))
                   setAllowPost(
-                    hasNewPostContent(textRef.current, nextExtension)
+                    hasNewPostContent(
+                      textRef.current,
+                      nextExtension,
+                      maxStatusCharacters
+                    )
                   )
                 }}
                 onError={(message) => setWarningMsg(message)}
@@ -1195,12 +1251,12 @@ export const PostBox: FC<Props> = ({
             <span
               className={cn(
                 'text-xs tabular-nums',
-                text.length > MAX_STATUS_LENGTH
+                text.length > maxStatusCharacters
                   ? 'text-destructive'
                   : 'text-muted-foreground'
               )}
             >
-              {MAX_STATUS_LENGTH - text.length}
+              {maxStatusCharacters - text.length}
             </span>
             {editStatus ? (
               <Button

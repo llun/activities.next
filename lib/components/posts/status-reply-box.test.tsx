@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { createNote } from '@/lib/client'
+import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 
@@ -100,4 +101,70 @@ describe('StatusReplyBox', () => {
       )
     })
   })
+})
+
+// The reply endpoint enforces the resolved posts.maxCharacters, so the reply
+// box has to count down from the same limit as the full composer — otherwise a
+// reply drafted past a lowered limit only fails on submit.
+describe('StatusReplyBox character counter', () => {
+  beforeEach(() => {
+    createNoteMock.mockResolvedValue({
+      status: replyStatus,
+      attachments: []
+    })
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const renderReplyBox = (maxStatusCharacters?: number) =>
+    render(
+      <InstanceLimitsProvider maxStatusCharacters={maxStatusCharacters}>
+        <StatusReplyBox
+          profile={profile}
+          replyStatus={replyStatus}
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+
+  it.each([
+    {
+      description: 'counts down from the default limit without a provider',
+      maxStatusCharacters: undefined,
+      text: 'hello',
+      expectedRemaining: '495',
+      expectedEnabled: true
+    },
+    {
+      description: 'counts down from the instance-configured limit',
+      maxStatusCharacters: 1000,
+      text: 'a'.repeat(700),
+      expectedRemaining: '300',
+      expectedEnabled: true
+    },
+    {
+      description: 'blocks a reply past a lowered instance limit',
+      maxStatusCharacters: 100,
+      text: 'a'.repeat(120),
+      expectedRemaining: '-20',
+      expectedEnabled: false
+    }
+  ])(
+    '$description',
+    ({ maxStatusCharacters, text, expectedRemaining, expectedEnabled }) => {
+      renderReplyBox(maxStatusCharacters)
+
+      fireEvent.change(screen.getByPlaceholderText('Reply to Llun...'), {
+        target: { value: text }
+      })
+
+      expect(screen.getByText(expectedRemaining)).toBeInTheDocument()
+      const postButton = screen.getByRole('button', { name: 'Post' })
+      if (expectedEnabled) expect(postButton).toBeEnabled()
+      else expect(postButton).toBeDisabled()
+    }
+  )
 })

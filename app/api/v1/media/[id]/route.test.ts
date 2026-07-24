@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { MediaValidationError } from '@/lib/services/medias/errors'
+import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
@@ -64,12 +65,14 @@ describe('/api/v1/media/[id]', () => {
     await database.destroy()
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
     mockStoredToken.mockResolvedValue(null)
+    await database.deleteServerSetting({ key: 'media.maxFileSize' })
+    invalidateServerSettingsCache(database)
   })
 
   const createMediaFor = async (actorId: string, name: string) => {
@@ -413,6 +416,31 @@ describe('/api/v1/media/[id]', () => {
     const response = await PUT(request, { params: Promise.resolve({ id }) })
 
     expect(response.status).toBe(422)
+  })
+
+  it('PUT returns 422 for a thumbnail over the admin-configured media.maxFileSize', async () => {
+    const id = await createMediaFor(ACTOR1_ID, 'put-thumb-oversize')
+    // The thumbnail below is 3 bytes.
+    await database.setServerSettings([{ key: 'media.maxFileSize', value: 2 }])
+    invalidateServerSettingsCache(database)
+
+    const form = new FormData()
+    form.set(
+      'thumbnail',
+      new File([new Uint8Array([1, 2, 3])], 'thumb.png', { type: 'image/png' })
+    )
+    const request = new NextRequest(`https://llun.test/api/v1/media/${id}`, {
+      method: 'PUT',
+      headers: { origin: 'https://llun.test' }
+    })
+    Object.defineProperty(request, 'formData', {
+      value: vi.fn().mockResolvedValue(form)
+    })
+
+    const response = await PUT(request, { params: Promise.resolve({ id }) })
+
+    expect(response.status).toBe(422)
+    expect(mockSaveMediaThumbnail).not.toHaveBeenCalled()
   })
 
   it('PUT returns 422 for a non-image thumbnail instead of ignoring it', async () => {

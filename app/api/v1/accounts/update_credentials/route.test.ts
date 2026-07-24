@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { saveMedia } from '@/lib/services/medias'
+import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
@@ -53,11 +54,13 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     await database.destroy()
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
+    await database.deleteServerSetting({ key: 'media.maxFileSize' })
+    invalidateServerSettingsCache(database)
   })
 
   const createRequest = (form: FormData) => {
@@ -355,6 +358,30 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
       'avatar',
       new Blob(['not-an-image'], { type: 'text/plain' }),
       'a.txt'
+    )
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(422)
+    expect(saveMediaMock).not.toHaveBeenCalled()
+    expect(updateActor).not.toHaveBeenCalled()
+    updateActor.mockRestore()
+  })
+
+  it('rejects an avatar over the admin-configured media.maxFileSize with 422', async () => {
+    const saveMediaMock = saveMedia as jest.Mock
+    const updateActor = vi.spyOn(database, 'updateActor')
+    // The avatar blob below is 12 bytes.
+    await database.setServerSettings([{ key: 'media.maxFileSize', value: 4 }])
+    invalidateServerSettingsCache(database)
+
+    const form = new FormData()
+    form.set(
+      'avatar',
+      new Blob(['avatar-bytes'], { type: 'image/png' }),
+      'avatar.png'
     )
 
     const response = await PATCH(createRequest(form), {

@@ -6,6 +6,7 @@ import { PageHeader } from '@/lib/components/page-header'
 import { Input } from '@/lib/components/ui/input'
 import { Select } from '@/lib/components/ui/select'
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
+import { MAX_FILE_SIZE } from '@/lib/services/medias/constants'
 
 import type { ServerSettingLocks } from './InstanceSettingsForm'
 import { NumberField } from './NumberField'
@@ -237,6 +238,10 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
             id="media-max-file-size"
             value={Math.round(uploadBytes / BYTES_PER_MB)}
             min={1}
+            // The upload cap can be lowered but not raised past the ceiling the
+            // storage driver will read a stored object back out at; see the
+            // media.maxFileSize field in lib/config/serverSettings.
+            max={Math.floor(MAX_FILE_SIZE / BYTES_PER_MB)}
             suffix="MB per file"
             disabled={lock('media.maxFileSize').locked}
             onChange={(next) =>

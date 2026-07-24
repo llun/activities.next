@@ -6,10 +6,12 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import {
   createNote,
+  createPoll,
   getCustomEmojis,
   updateNote,
   uploadAttachment
 } from '@/lib/client'
+import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { EditableStatus, Status, StatusType } from '@/lib/types/domain/status'
@@ -60,6 +62,7 @@ vi.mock('@/lib/utils/resizeImage', () => ({
 
 const updateNoteMock = updateNote as jest.MockedFunction<typeof updateNote>
 const createNoteMock = createNote as jest.MockedFunction<typeof createNote>
+const createPollMock = createPoll as jest.MockedFunction<typeof createPoll>
 const uploadAttachmentMock = uploadAttachment as jest.MockedFunction<
   typeof uploadAttachment
 >
@@ -1090,5 +1093,314 @@ describe('PostBox markdown preview', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Toggle preview' }))
 
     expect(screen.getByText('Nothing to preview')).toBeInTheDocument()
+  })
+})
+
+describe('PostBox character counter', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    createNoteMock.mockResolvedValue({ status: editStatus, attachments: [] })
+  })
+
+  const renderPostBox = (maxStatusCharacters?: number) =>
+    render(
+      <InstanceLimitsProvider maxStatusCharacters={maxStatusCharacters}>
+        <PostBox
+          host="activities.local"
+          profile={profile}
+          onDiscardReply={vi.fn()}
+          onPostCreated={vi.fn()}
+          onPostUpdated={vi.fn()}
+          onDiscardEdit={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+
+  it.each([
+    {
+      description:
+        'counts down from the default limit when no limit is provided',
+      maxStatusCharacters: undefined,
+      text: 'hello',
+      expectedRemaining: '495',
+      expectedOverLimit: false
+    },
+    {
+      description: 'counts down from the instance-configured limit',
+      maxStatusCharacters: 1000,
+      text: 'hello',
+      expectedRemaining: '995',
+      expectedOverLimit: false
+    },
+    {
+      description:
+        'stays within budget past 500 characters when the limit is raised',
+      maxStatusCharacters: 1000,
+      text: 'a'.repeat(700),
+      expectedRemaining: '300',
+      expectedOverLimit: false
+    },
+    {
+      description: 'goes negative past a lowered instance limit',
+      maxStatusCharacters: 100,
+      text: 'a'.repeat(120),
+      expectedRemaining: '-20',
+      expectedOverLimit: true
+    }
+  ])(
+    '$description',
+    ({ maxStatusCharacters, text, expectedRemaining, expectedOverLimit }) => {
+      renderPostBox(maxStatusCharacters)
+
+      fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
+        target: { value: text }
+      })
+
+      const counter = screen.getByText(expectedRemaining)
+      expect(counter).toBeInTheDocument()
+      // The counter turns destructive only past the resolved limit — with a
+      // hardcoded 500 both the raised and the lowered case would be wrong.
+      if (expectedOverLimit) expect(counter).toHaveClass('text-destructive')
+      else expect(counter).toHaveClass('text-muted-foreground')
+    }
+  )
+
+  it('allows posting past 500 characters when the instance limit is higher', async () => {
+    renderPostBox(1000)
+
+    const message = 'a'.repeat(700)
+    fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
+      target: { value: message }
+    })
+
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    expect(postButton).toBeEnabled()
+
+    fireEvent.click(postButton)
+
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalled())
+    expect(createNoteMock).toHaveBeenCalledWith(
+      expect.objectContaining({ message })
+    )
+  })
+
+  it('blocks posting past a lowered instance limit', () => {
+    renderPostBox(100)
+
+    fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
+      target: { value: 'a'.repeat(120) }
+    })
+
+    expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled()
+    expect(createNoteMock).not.toHaveBeenCalled()
+  })
+
+  it('re-enables the submit button when the instance limit is raised under an open draft', () => {
+    const { rerender } = renderPostBox(100)
+
+    fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
+      target: { value: 'a'.repeat(120) }
+    })
+    expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled()
+
+    // The layout re-renders with a new resolved limit (router.refresh()); the
+    // draft itself does not change, so nothing re-runs the handlers.
+    rerender(
+      <InstanceLimitsProvider maxStatusCharacters={1000}>
+        <PostBox
+          host="activities.local"
+          profile={profile}
+          onDiscardReply={vi.fn()}
+          onPostCreated={vi.fn()}
+          onPostUpdated={vi.fn()}
+          onDiscardEdit={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+
+    expect(screen.getByRole('button', { name: 'Post' })).toBeEnabled()
+  })
+})
+
+describe('PostBox edit character limit', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    global.URL.createObjectURL = vi.fn(() => 'blob:new-media')
+    global.URL.revokeObjectURL = vi.fn()
+    global.crypto.randomUUID = vi.fn(() => 'temporary-media-id')
+    uploadAttachmentMock.mockResolvedValue({
+      type: 'upload',
+      id: 'uploaded-media',
+      mediaType: 'image/png',
+      url: 'https://activities.local/api/v1/files/uploaded.png',
+      width: 640,
+      height: 480,
+      name: 'replacement.png'
+    })
+  })
+
+  const renderEditPostBox = (maxStatusCharacters?: number) =>
+    render(
+      <InstanceLimitsProvider maxStatusCharacters={maxStatusCharacters}>
+        <PostBox
+          host="activities.local"
+          profile={profile}
+          isMediaUploadEnabled
+          editStatus={editStatus}
+          onDiscardReply={vi.fn()}
+          onPostCreated={vi.fn()}
+          onPostUpdated={vi.fn()}
+          onDiscardEdit={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+
+  it.each([
+    {
+      description: 'allows an edit past 500 when the instance limit is higher',
+      maxStatusCharacters: 1000,
+      expectedEnabled: true
+    },
+    {
+      description: 'blocks an edit past a lowered instance limit',
+      maxStatusCharacters: 100,
+      expectedEnabled: false
+    }
+  ])('$description', ({ maxStatusCharacters, expectedEnabled }) => {
+    renderEditPostBox(maxStatusCharacters)
+
+    fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
+      target: { value: 'a'.repeat(700) }
+    })
+
+    const updateButton = screen.getByRole('button', { name: 'Update' })
+    if (expectedEnabled) expect(updateButton).toBeEnabled()
+    else expect(updateButton).toBeDisabled()
+  })
+
+  it('keeps an over-limit draft unsubmittable when media is attached', async () => {
+    renderEditPostBox(100)
+
+    fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
+      target: { value: 'a'.repeat(120) }
+    })
+
+    // Attaching media re-derives `allowPost` through a different call site than
+    // the textarea handler; it must use the same resolved limit.
+    const fileInput = Array.from(
+      document.querySelectorAll<HTMLInputElement>(
+        'input[type="file"][name="file"]'
+      )
+    ).at(-1)!
+    fireEvent.change(fileInput, {
+      target: {
+        files: [
+          new File(['replacement'], 'replacement.png', { type: 'image/png' })
+        ]
+      }
+    })
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Remove media replacement.png' })
+      ).toBeInTheDocument()
+    )
+    expect(screen.getByRole('button', { name: 'Update' })).toBeDisabled()
+  })
+})
+
+describe('PostBox poll creation', () => {
+  // The poll editor renders a Radix Switch, which measures itself; jsdom has no
+  // ResizeObserver.
+  const originalResizeObserver = global.ResizeObserver
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    global.crypto.randomUUID = vi.fn(() => 'temporary-media-id')
+    createPollMock.mockResolvedValue(undefined)
+    global.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver
+  })
+
+  afterEach(() => {
+    global.ResizeObserver = originalResizeObserver
+  })
+
+  it('clears the draft after creating a poll so it cannot be re-posted as a note', async () => {
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+
+    const textarea = screen.getByPlaceholderText('What is on your mind?')
+    fireEvent.change(textarea, { target: { value: 'Best framework?' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add poll' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+    await waitFor(() => expect(createPollMock).toHaveBeenCalled())
+
+    // The poll UI is gone; if the question text survived, the re-enabled Post
+    // button would create a duplicate plain note on the next click.
+    await waitFor(() => expect(textarea).toHaveValue(''))
+    expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled()
+    expect(createNoteMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('PostBox new post character limit with attachments', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    global.URL.createObjectURL = vi.fn(() => 'blob:new-media')
+    global.URL.revokeObjectURL = vi.fn()
+    global.crypto.randomUUID = vi.fn(() => 'temporary-media-id')
+  })
+
+  it('keeps an over-limit new post unsubmittable when media is attached', async () => {
+    render(
+      <InstanceLimitsProvider maxStatusCharacters={100}>
+        <PostBox
+          host="activities.local"
+          profile={profile}
+          isMediaUploadEnabled
+          onDiscardReply={vi.fn()}
+          onPostCreated={vi.fn()}
+          onPostUpdated={vi.fn()}
+          onDiscardEdit={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+
+    fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
+      target: { value: 'a'.repeat(120) }
+    })
+
+    const fileInput = Array.from(
+      document.querySelectorAll<HTMLInputElement>(
+        'input[type="file"][name="file"]'
+      )
+    ).at(-1)!
+    fireEvent.change(fileInput, {
+      target: {
+        files: [new File(['image'], 'image.png', { type: 'image/png' })]
+      }
+    })
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Remove media image.png' })
+      ).toBeInTheDocument()
+    )
+    // hasNewPostContent runs from the attachment call site here — a hardcoded
+    // 500 would wrongly re-enable Post for this 120-character draft.
+    expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled()
   })
 })

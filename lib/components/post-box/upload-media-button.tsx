@@ -1,6 +1,7 @@
 import { ImagePlus } from 'lucide-react'
 import { FC, SyntheticEvent, useRef } from 'react'
 
+import { useInstanceLimits } from '@/lib/components/instance-limits'
 import { Button } from '@/lib/components/ui/button'
 import {
   ACCEPTED_FILE_TYPES,
@@ -9,6 +10,7 @@ import {
   MAX_WIDTH
 } from '@/lib/services/medias/constants'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
+import { formatFileSize } from '@/lib/utils/formatFileSize'
 import { logger } from '@/lib/utils/logger'
 import { resizeImage } from '@/lib/utils/resizeImage'
 
@@ -19,6 +21,8 @@ interface Props {
   attachments?: PostBoxAttachment[]
   onAddAttachment: (attachment: PostBoxAttachment) => void
   onDuplicateError: () => void
+  /** Reports every file rejected before upload (currently: over the size cap). */
+  onFilesRejected?: (message: string) => void
   onUploadStart: () => void
   onBeforeAddAttachments?: () => boolean | void | Promise<boolean | void>
 }
@@ -28,9 +32,11 @@ export const UploadMediaButton: FC<Props> = ({
   attachments = [],
   onAddAttachment,
   onDuplicateError,
+  onFilesRejected,
   onUploadStart,
   onBeforeAddAttachments
 }) => {
+  const { maxMediaFileSize } = useInstanceLimits()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const onOpenFile = () => {
     const input = fileInputRef.current
@@ -58,6 +64,7 @@ export const UploadMediaButton: FC<Props> = ({
     }
 
     const files = filteredFiles.slice(0, availableSlots)
+    const oversizeFileNames: string[] = []
 
     const processedAttachments = (
       await Promise.all(
@@ -66,6 +73,16 @@ export const UploadMediaButton: FC<Props> = ({
           try {
             const tempId = crypto.randomUUID()
             const file = await resizeImage(targetFile, MAX_WIDTH, MAX_HEIGHT)
+            // The upload endpoint enforces the instance's resolved
+            // media.maxFileSize, so reject over-cap files here rather than
+            // after a full upload round trip. Checked after resizing, which is
+            // what actually gets uploaded. Collected and reported together
+            // below, so a multi-select does not overwrite its own message.
+            if (file.size > maxMediaFileSize) {
+              oversizeFileNames.push(targetFile.name)
+              URL.revokeObjectURL(previewUrl)
+              return null
+            }
             return {
               type: MEDIA_TYPE,
               id: tempId,
@@ -94,6 +111,12 @@ export const UploadMediaButton: FC<Props> = ({
     ).filter(
       (attachment): attachment is PostBoxAttachment => attachment !== null
     )
+
+    if (oversizeFileNames.length > 0) {
+      onFilesRejected?.(
+        `${oversizeFileNames.join(', ')} ${oversizeFileNames.length === 1 ? 'is' : 'are'} larger than the ${formatFileSize(maxMediaFileSize)} upload limit`
+      )
+    }
 
     if (!processedAttachments.length) return
 

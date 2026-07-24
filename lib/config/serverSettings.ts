@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import {
+  DEFAULT_MAX_STATUS_CHARACTERS,
   MAX_POLL_EXPIRATION_SECONDS,
   MAX_POLL_OPTION_CHARS,
   MAX_STORED_MEDIA_ATTACHMENTS,
@@ -21,10 +22,6 @@ import { getEnvironmentList } from './utils'
 // it is coarser than the dotted key prefix (registrations.* live on the
 // Instance tab; polls.*/media.* live on the Posts & media tab).
 export type ServerSettingTab = 'instance' | 'posts' | 'network' | 'federation'
-
-// The public default for the maximum status length. Kept here so the composer
-// can fall back to it before the resolved value is threaded in.
-export const DEFAULT_MAX_STATUS_CHARACTERS = 500
 
 // Maximum poll expiration (~1 month). Uses the value the create/edit routes
 // actually enforce, so advertising and enforcement agree (the routes previously
@@ -341,7 +338,13 @@ export const SERVER_SETTING_FIELDS: ServerSettingField[] = [
     key: 'media.maxFileSize',
     group: 'posts',
     envVar: 'ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE',
-    schema: z.number().int().min(1),
+    // Bounded above by MAX_FILE_SIZE, the same ceiling the object-storage
+    // driver uses when it buffers a stored object back out (S3StorageFile's
+    // `getFile`). Letting an admin accept an upload larger than the read path
+    // will serve would store a file that can never be read back. An env-pinned
+    // value bypasses this schema, as it does for every field — but there the
+    // two sides agree, because the storage driver reads the same env config.
+    schema: z.number().int().min(1).max(MAX_FILE_SIZE),
     readEnv: readEnvNumber('ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE'),
     get: (s) => s.media.maxFileSize,
     set: (s, v) => {
