@@ -1,7 +1,7 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 
-import { MAX_FILE_SIZE } from './constants'
+import { MAX_CONFIGURABLE_FILE_SIZE, MAX_FILE_SIZE } from './constants'
 import {
   exceedsMaxMediaUploadSize,
   getMaxMediaUploadSize
@@ -51,16 +51,26 @@ describe('media upload size limit', () => {
       await expect(getMaxMediaUploadSize(database)).resolves.toBe(1_000)
     })
 
-    it('serves an admin-stored cap at the built-in ceiling', async () => {
+    it('serves an admin-stored cap at the built-in default', async () => {
       await setStoredMaxFileSize(MAX_FILE_SIZE)
       await expect(getMaxMediaUploadSize(database)).resolves.toBe(MAX_FILE_SIZE)
     })
 
-    // The registry schema caps media.maxFileSize at MAX_FILE_SIZE so an
-    // accepted upload can never exceed what the storage driver will read back
-    // out; a stored row above the ceiling fails validation and is ignored.
-    it('ignores a stored cap above the built-in ceiling', async () => {
-      await setStoredMaxFileSize(MAX_FILE_SIZE * 2)
+    // MAX_FILE_SIZE is only the default: an admin can raise the cap above it,
+    // and the object-storage read path bounds itself by this same resolved
+    // value, so a larger accepted upload can still be read back out.
+    it('serves an admin-stored cap above the built-in default', async () => {
+      await setStoredMaxFileSize(500 * 1024 * 1024)
+      await expect(getMaxMediaUploadSize(database)).resolves.toBe(
+        500 * 1024 * 1024
+      )
+    })
+
+    // The registry schema caps media.maxFileSize at MAX_CONFIGURABLE_FILE_SIZE
+    // so the read path's in-memory buffer stays bounded; a stored row above the
+    // ceiling fails validation and is ignored.
+    it('ignores a stored cap above the configurable ceiling', async () => {
+      await setStoredMaxFileSize(MAX_CONFIGURABLE_FILE_SIZE + 1)
       await expect(getMaxMediaUploadSize(database)).resolves.toBe(MAX_FILE_SIZE)
     })
   })
@@ -105,8 +115,15 @@ describe('media upload size limit', () => {
       )
     })
 
-    it('rejects a file above the built-in ceiling even with a higher stored cap', async () => {
-      await setStoredMaxFileSize(MAX_FILE_SIZE * 2)
+    it('accepts a file above the built-in default when the stored cap allows it', async () => {
+      await setStoredMaxFileSize(500 * 1024 * 1024)
+      await expect(
+        exceedsMaxMediaUploadSize([MAX_FILE_SIZE + 1], database)
+      ).resolves.toBe(false)
+    })
+
+    it('rejects a file above the built-in default with a stored cap over the ceiling', async () => {
+      await setStoredMaxFileSize(MAX_CONFIGURABLE_FILE_SIZE + 1)
       await expect(
         exceedsMaxMediaUploadSize([MAX_FILE_SIZE + 1], database)
       ).resolves.toBe(true)

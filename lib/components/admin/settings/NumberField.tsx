@@ -8,6 +8,12 @@ import { Input } from '@/lib/components/ui/input'
 // clearing/retyping stays smooth, and only emits finite numbers. Re-syncs the
 // buffer when the external value changes to one the buffer did not produce
 // (e.g. after a save).
+//
+// On blur the buffer is settled against min/max: these forms save over JSON, so
+// the input's `min`/`max` attributes are advisory only and an out-of-range value
+// would otherwise travel to the API and come back as an opaque 422. Clamping on
+// blur (rather than while typing) keeps typing smooth and keeps what the field
+// shows identical to what a save would send.
 interface NumberFieldProps {
   id?: string
   value: number
@@ -51,6 +57,23 @@ export const NumberField: FC<NumberFieldProps> = ({
     }
   }
 
+  const handleBlur = () => {
+    const parsed = Number(text)
+    if (text.trim() === '' || !Number.isFinite(parsed)) {
+      setText(String(value))
+      return
+    }
+
+    let settled = parsed
+    if (min !== undefined && settled < min) settled = min
+    if (max !== undefined && settled > max) settled = max
+    setText(String(settled))
+    if (settled !== value) {
+      lastEmitted.current = settled
+      onChange(settled)
+    }
+  }
+
   return (
     <div className="flex items-center gap-2">
       <Input
@@ -63,6 +86,7 @@ export const NumberField: FC<NumberFieldProps> = ({
         max={max}
         disabled={disabled}
         onChange={(event) => handleChange(event.target.value)}
+        onBlur={handleBlur}
         className="w-40"
       />
       {suffix && (

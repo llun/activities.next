@@ -3,10 +3,9 @@
 import { FC, useEffect, useState } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
-import { Input } from '@/lib/components/ui/input'
 import { Select } from '@/lib/components/ui/select'
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
-import { MAX_FILE_SIZE } from '@/lib/services/medias/constants'
+import { MAX_CONFIGURABLE_FILE_SIZE } from '@/lib/services/medias/constants'
 
 import type { ServerSettingLocks } from './InstanceSettingsForm'
 import { NumberField } from './NumberField'
@@ -16,12 +15,11 @@ import { SettingsSection } from './SettingsSection'
 import { useServerSettingsForm } from './useServerSettingsForm'
 
 const BYTES_PER_MB = 1024 * 1024
+const MAX_UPLOAD_MB = Math.floor(MAX_CONFIGURABLE_FILE_SIZE / BYTES_PER_MB)
 
 interface PostsMediaSettingsFormProps {
   settings: ResolvedServerSettings
   locks: ServerSettingLocks
-  // Human label for the (env-configured) storage backend, shown read-only.
-  storageBackend: string
 }
 
 const POSTS_KEYS = ['posts.maxCharacters', 'posts.maxMediaAttachments']
@@ -70,8 +68,7 @@ const withCurrent = (
 
 export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
   settings,
-  locks,
-  storageBackend
+  locks
 }) => {
   const { values, setValue, isDirty, statusFor, saveSection } =
     useServerSettingsForm({
@@ -294,7 +291,7 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
         <SettingsField
           label="Upload size limit"
           htmlFor="media-max-file-size"
-          help="Applies to images and video alike; existing media is never touched."
+          help={`Applies to images and video alike; existing media is never touched. Up to ${MAX_UPLOAD_MB.toLocaleString()} MB.`}
           locked={lock('media.maxFileSize').locked}
           envVar={lock('media.maxFileSize').envVar}
         >
@@ -302,25 +299,17 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
             id="media-max-file-size"
             value={Math.round(uploadBytes / BYTES_PER_MB)}
             min={1}
-            // The upload cap can be lowered but not raised past the ceiling the
-            // storage driver will read a stored object back out at; see the
+            // The object-storage driver buffers a stored object back out at the
+            // same resolved cap, so raising this stays consistent with the read
+            // path; the ceiling is what keeps that buffer bounded. See the
             // media.maxFileSize field in lib/config/serverSettings.
-            max={Math.floor(MAX_FILE_SIZE / BYTES_PER_MB)}
+            max={MAX_UPLOAD_MB}
             suffix="MB per file"
             disabled={lock('media.maxFileSize').locked}
             onChange={(next) =>
               setValue('media.maxFileSize', Math.round(next * BYTES_PER_MB))
             }
           />
-        </SettingsField>
-
-        <SettingsField
-          label="Storage backend"
-          htmlFor="media-storage-backend"
-          locked
-          help="Infrastructure configured in the environment (the ACTIVITIES_MEDIA_STORAGE_* variables); it cannot be managed here."
-        >
-          <Input id="media-storage-backend" value={storageBackend} disabled />
         </SettingsField>
       </SettingsSection>
     </div>

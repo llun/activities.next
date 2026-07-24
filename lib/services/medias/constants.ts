@@ -1,5 +1,11 @@
 // Maximum file size is 200 MB for video
 export const MAX_FILE_SIZE = 209_715_200
+// The ceiling an admin may raise the `media.maxFileSize` server setting to
+// (1 GiB). MAX_FILE_SIZE above is only the default; the object-storage read
+// path bounds itself by the resolved setting, so the cap can move without
+// storing media the driver would refuse to serve. This ceiling exists because
+// the read path buffers an object in memory, so an unbounded cap is an OOM.
+export const MAX_CONFIGURABLE_FILE_SIZE = 1_073_741_824
 export const MAX_ATTACHMENTS = 10
 export const MAX_WIDTH = 4000
 export const MAX_HEIGHT = 4000

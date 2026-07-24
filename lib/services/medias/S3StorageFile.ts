@@ -16,11 +16,7 @@ import sharp from 'sharp'
 
 import { MediaStorageS3Config } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
-import {
-  MAX_FILE_SIZE,
-  MAX_HEIGHT,
-  MAX_WIDTH
-} from '@/lib/services/medias/constants'
+import { MAX_HEIGHT, MAX_WIDTH } from '@/lib/services/medias/constants'
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
 import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
@@ -37,6 +33,7 @@ import {
   PresignedUrlOutput,
   ThumbnailStorageOutput
 } from '@/lib/services/medias/types'
+import { getMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 import { Media } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
@@ -131,7 +128,11 @@ export class S3FileStorage implements MediaStorage {
     if (!object.Body) return null
 
     const message = object.Body
-    const maxBytes = this._config.maxFileSize ?? MAX_FILE_SIZE
+    // Bound the in-memory buffer by the same resolved `media.maxFileSize` the
+    // upload paths enforce, not by the env-only storage config: an admin who
+    // raises the cap in the admin UI must still be able to read back what the
+    // instance then accepts.
+    const maxBytes = await getMaxMediaUploadSize(this._database)
     assertByteLengthWithinLimit({
       byteLength: object.ContentLength,
       maxBytes,
