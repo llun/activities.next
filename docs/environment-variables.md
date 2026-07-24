@@ -62,10 +62,18 @@ The variables that pin an admin-editable setting are:
 variable and are database-or-default only. `ACTIVITIES_ALLOW_MEDIA_DOMAINS` and
 the `ACTIVITIES_MEDIA_STORAGE_*` backend stay environment-only (they feed the
 Edge-runtime CSP and storage infrastructure). `ACTIVITIES_ALLOW_MEDIA_DOMAINS`
-is shown read-only on the Federation tab; the storage backend is not surfaced in
-the admin UI at all. On a multi-instance deployment, an admin's save takes effect
+is shown read-only on the Federation tab, and the resolved storage backend is
+shown read-only on the Posts & media tab. On a multi-instance deployment, an admin's save takes effect
 on other instances within a short cache window rather than instantly; an
 environment variable, when set, always wins regardless.
+
+The Posts & media tab also carries a **Configure environment** builder for the
+infrastructure that stays environment-only: it assembles a copy-pasteable `.env`
+block for media storage (`ACTIVITIES_MEDIA_STORAGE_*`) and for the fitness map
+provider (`ACTIVITIES_FITNESS_MAP_PROVIDER` and its credentials). The builder is
+inert — nothing typed into it is submitted, stored, or sent anywhere, and the
+server still only reads those values from the environment at boot, so a change
+needs a restart.
 
 ## Core Configuration
 
@@ -205,6 +213,8 @@ Required for media uploads (images and video in posts). If no media storage is c
 | `ACTIVITIES_MEDIA_STORAGE_ENDPOINT`          | S3-compatible API endpoint used for storage operations and browser presigned uploads (for services like MinIO, DigitalOcean Spaces, Cloudflare R2). If unset, the AWS SDK uses the standard AWS S3 endpoint for the configured region; set this for non-AWS S3-compatible providers. |
 | `ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE`     | Maximum file size in bytes (default: 200 MiB / `209715200`). Also pins the admin-editable `media.maxFileSize` setting; when unset, an admin can set the cap anywhere from 1 byte up to 1 GiB (`1073741824`).                                                                         |
 | `ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT` | Per-account combined media + fitness storage quota in bytes. If unset, the config value stays empty and the quota service applies its 1 GiB (`1073741824`) default when enforcing quota.                                                                                             |
+
+S3 credentials are not `ACTIVITIES_*` variables: the AWS SDK resolves them from its standard chain, so set `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` (or leave them unset when the host already supplies an IAM role or instance profile).
 
 > Upgrade note: If you previously set `ACTIVITIES_MEDIA_STORAGE_HOSTNAME` or `ACTIVITIES_FITNESS_STORAGE_HOSTNAME` to a MinIO, Cloudflare R2, DigitalOcean Spaces, or other S3-compatible API endpoint, move that value to the matching `*_STORAGE_ENDPOINT` variable. `*_STORAGE_HOSTNAME` is for a public hostname/CDN origin, not for S3 API operations or browser presigned uploads.
 

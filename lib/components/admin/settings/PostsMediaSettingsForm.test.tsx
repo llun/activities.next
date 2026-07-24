@@ -6,6 +6,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
 import { MAX_CONFIGURABLE_FILE_SIZE } from '@/lib/services/medias/constants'
+import type { MediaStorageBackendSummary } from '@/lib/services/medias/storageBackendSummary'
 
 import type { ServerSettingLocks } from './InstanceSettingsForm'
 import { PostsMediaSettingsForm } from './PostsMediaSettingsForm'
@@ -45,10 +46,23 @@ const baseSettings: ResolvedServerSettings = {
   federation: { mode: 'open', allowActorDomains: [] }
 }
 
+const baseStorageBackend: MediaStorageBackendSummary = {
+  label: 'S3 — media.example.social',
+  detail: 'eu-central-1'
+}
+
 const renderForm = (
   locks: ServerSettingLocks = {},
-  settings: ResolvedServerSettings = baseSettings
-) => render(<PostsMediaSettingsForm settings={settings} locks={locks} />)
+  settings: ResolvedServerSettings = baseSettings,
+  storageBackend: MediaStorageBackendSummary = baseStorageBackend
+) =>
+  render(
+    <PostsMediaSettingsForm
+      settings={settings}
+      locks={locks}
+      storageBackend={storageBackend}
+    />
+  )
 
 describe('PostsMediaSettingsForm', () => {
   beforeEach(() => {
@@ -62,9 +76,50 @@ describe('PostsMediaSettingsForm', () => {
     expect(screen.getByLabelText('Upload size limit')).toHaveValue(200)
   })
 
-  it('does not offer the storage backend, which is environment-only', () => {
+  // The backend is infrastructure read from the environment at boot, so it is
+  // reported with an env-lock badge rather than offered as an editable control.
+  it('reports the storage backend read-only', () => {
     renderForm()
-    expect(screen.queryByLabelText('Storage backend')).not.toBeInTheDocument()
+    expect(screen.getByText('Storage backend')).toBeInTheDocument()
+    expect(screen.getByText('S3 — media.example.social')).toBeInTheDocument()
+    expect(screen.getByText('(eu-central-1)')).toBeInTheDocument()
+
+    // Assert on controls, not on label association: the section's only control
+    // is the upload-size input, so a storage-backend control of any kind fails
+    // this. A queryByLabelText would not — the field has no `htmlFor`, and the
+    // env badge sits inside the label, so it never resolves either way.
+    const mediaSection = screen
+      .getByRole('heading', { name: 'Media' })
+      .closest('section')
+    expect(mediaSection).not.toBeNull()
+    const controls = (mediaSection as HTMLElement).querySelectorAll(
+      'input, select, textarea'
+    )
+    expect(controls).toHaveLength(1)
+    expect(controls[0]).toHaveAttribute('id', 'media-max-file-size')
+  })
+
+  it('omits the parenthesised detail when the backend has none', () => {
+    renderForm({}, baseSettings, { label: 'Local filesystem — ./uploads' })
+    expect(screen.getByText('Local filesystem — ./uploads')).toBeInTheDocument()
+    expect(screen.queryByText(/^\(/)).not.toBeInTheDocument()
+  })
+
+  it('keeps its own help on the storage backend instead of the pinned-by line', () => {
+    renderForm()
+    expect(
+      screen.getByText(/change it with the builder below/, { exact: false })
+    ).toBeInTheDocument()
+    expect(screen.getByText('Set by environment')).toHaveAttribute(
+      'title',
+      'ACTIVITIES_MEDIA_STORAGE_*'
+    )
+  })
+
+  it('renders the environment block builder below the saved settings', () => {
+    renderForm()
+    expect(screen.getByLabelText('Environment area')).toBeInTheDocument()
+    expect(screen.getByLabelText('Storage type')).toBeInTheDocument()
   })
 
   it('saves the post size picked from the presets', async () => {

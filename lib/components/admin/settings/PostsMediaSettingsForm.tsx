@@ -4,9 +4,13 @@ import { FC, useEffect, useState } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
 import { Select } from '@/lib/components/ui/select'
+import { MEDIA_STORAGE_ENV_PREFIX } from '@/lib/config/environmentTemplates'
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
 import { MAX_CONFIGURABLE_FILE_SIZE } from '@/lib/services/medias/constants'
+import type { MediaStorageBackendSummary } from '@/lib/services/medias/storageBackendSummary'
 
+import { EnvBlockBuilder } from './EnvBlockBuilder'
+import { EnvLockLabel } from './EnvLockBadge'
 import type { ServerSettingLocks } from './InstanceSettingsForm'
 import { NumberField } from './NumberField'
 import { SaveBar } from './SaveBar'
@@ -20,6 +24,9 @@ const MAX_UPLOAD_MB = Math.floor(MAX_CONFIGURABLE_FILE_SIZE / BYTES_PER_MB)
 interface PostsMediaSettingsFormProps {
   settings: ResolvedServerSettings
   locks: ServerSettingLocks
+  // The storage backend is environment-only, so it is reported here rather than
+  // edited. Resolved on the server (see describeMediaStorageBackend).
+  storageBackend: MediaStorageBackendSummary
 }
 
 const POSTS_KEYS = ['posts.maxCharacters', 'posts.maxMediaAttachments']
@@ -68,7 +75,8 @@ const withCurrent = (
 
 export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
   settings,
-  locks
+  locks,
+  storageBackend
 }) => {
   const { values, setValue, isDirty, statusFor, saveSection } =
     useServerSettingsForm({
@@ -126,7 +134,7 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
     <div className="space-y-6">
       <PageHeader
         title="Posts & media"
-        description="Limits for posts, polls, and uploads. Advertised via the instance API so apps follow along."
+        description="Limits for posts, polls, and uploads, plus the storage and map backends behind them. Limits are advertised via the instance API so apps follow along."
       />
 
       <SettingsSection
@@ -311,7 +319,28 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
             }
           />
         </SettingsField>
+
+        <SettingsField
+          label={
+            <EnvLockLabel envVar={MEDIA_STORAGE_ENV_PREFIX}>
+              Storage backend
+            </EnvLockLabel>
+          }
+          help="Read from the environment at boot — change it with the builder below, not here."
+        >
+          <p className="py-1 text-sm font-medium">
+            {storageBackend.label}
+            {storageBackend.detail && (
+              <span className="font-normal text-muted-foreground">
+                {' '}
+                ({storageBackend.detail})
+              </span>
+            )}
+          </p>
+        </SettingsField>
       </SettingsSection>
+
+      <EnvBlockBuilder />
     </div>
   )
 }
