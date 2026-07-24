@@ -1,0 +1,19 @@
+yarn.lock
+  s_927602eac52bad::t_56ef27b4eb3e4f 91,2929,2936,7570
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "c3f5307f2d0dcabb057ea60e950c18b9f59040bd",
+  "prompts": {},
+  "sessions": {
+    "s_927602eac52bad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3d9ff8a6-8c6f-438c-b76a-d5b7d92b268c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
