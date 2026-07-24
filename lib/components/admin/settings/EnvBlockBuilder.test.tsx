@@ -50,13 +50,15 @@ describe('EnvBlockBuilder', () => {
     )
   })
 
+  // Every variable name renders twice when it is in the block: once as the
+  // field's (or selector's) help, once in the block itself. Asserting the pair
+  // — rather than "at least one" — is what actually pins block membership.
   it('starts on media storage with the S3 block', () => {
     render(<EnvBlockBuilder />)
     const area = activeArea(STORAGE_AREA)
     expect(area.getByLabelText('Storage type')).toHaveValue('s3')
-    expect(area.getAllByText('ACTIVITIES_MEDIA_STORAGE_TYPE')).not.toHaveLength(
-      0
-    )
+    expect(area.getAllByText('ACTIVITIES_MEDIA_STORAGE_TYPE')).toHaveLength(2)
+    expect(area.getByText('s3')).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: MAPS_AREA })).toBeNull()
   })
 
@@ -104,9 +106,20 @@ describe('EnvBlockBuilder', () => {
       target: { value: 'super-secret-value' }
     })
 
-    // 12 mask characters: the mask never leaks the real length.
+    // The mask is fixed-width, so it leaks nothing about the real length.
     expect(area.getByText('••••••••••••')).toBeInTheDocument()
     expect(area.queryByText('super-secret-value')).toBeNull()
+  })
+
+  it('masks a short secret to the same width as a long one', () => {
+    render(<EnvBlockBuilder />)
+    const area = activeArea(STORAGE_AREA)
+
+    fireEvent.change(area.getByLabelText('Secret access key'), {
+      target: { value: 'abc' }
+    })
+
+    expect(area.getByText('••••••••••••')).toBeInTheDocument()
   })
 
   it('copies the real secret rather than the mask', async () => {
@@ -133,9 +146,8 @@ describe('EnvBlockBuilder', () => {
 
     const area = activeArea(MAPS_AREA)
     expect(area.getByLabelText('Map provider')).toHaveValue('mapbox')
-    expect(
-      area.getAllByText('ACTIVITIES_FITNESS_MAP_PROVIDER').length
-    ).toBeGreaterThan(0)
+    expect(area.getAllByText('ACTIVITIES_FITNESS_MAP_PROVIDER')).toHaveLength(2)
+    expect(area.getByText('mapbox')).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: STORAGE_AREA })).toBeNull()
     expect(
       screen.getByText(/does not save any of this/, { exact: false })
@@ -157,6 +169,10 @@ describe('EnvBlockBuilder', () => {
     expect(
       area.getByText(/OpenStreetMap needs no credentials/, { exact: false })
     ).toBeInTheDocument()
+    // The provider line is the whole block for osm — losing it would leave an
+    // empty block, which no other assertion here would notice.
+    expect(area.getAllByText('ACTIVITIES_FITNESS_MAP_PROVIDER')).toHaveLength(2)
+    expect(area.getByText('osm')).toBeInTheDocument()
   })
 
   it('keeps what was typed when the area changes and changes back', () => {

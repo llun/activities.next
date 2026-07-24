@@ -21,7 +21,8 @@ import { SettingsSection } from './SettingsSection'
 // admin does not have to look the variable names up, and it is deliberately
 // inert: nothing typed here is submitted, saved, or sent anywhere.
 
-const MASK_LENGTH = 12
+// A fixed-width mask, so the preview never gives away how long a secret is.
+const MASK = '•'.repeat(12)
 
 interface EnvBlockLine {
   name: string
@@ -100,12 +101,18 @@ const EnvBlockPreview: FC<{ lines: EnvBlockLine[] }> = ({ lines }) => {
       >
         {copied ? 'Copied' : 'Copy .env block'}
       </button>
-      <pre className="overflow-x-auto font-mono text-[12.5px] leading-6 text-neutral-200">
+      {/* pr-28 reserves the overlaid button's width. Without it the button
+          covers the tail of the first line, and since the scroll extent is set
+          by the longest line, that tail is unreachable at narrow widths
+          whenever line 1 is the longest — which is every single-line block
+          (`osm`) and the filesystem one. The reserve is inside the scroll area,
+          so scrolling now clears the button; on desktop nothing is near it. */}
+      <pre className="overflow-x-auto pr-28 font-mono text-[12.5px] leading-6 text-neutral-200">
         {lines.map(({ name, value, masked }) => (
           <div key={name}>
             <span className="text-orange-400">{name}</span>
             <span className="text-neutral-500">=</span>
-            {masked ? '•'.repeat(Math.min(value.length, MASK_LENGTH)) : value}
+            {masked ? MASK : value}
           </div>
         ))}
       </pre>

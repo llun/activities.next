@@ -77,7 +77,9 @@ const MEDIA_STORAGE_S3_FIELDS: EnvTemplateField[] = [
   {
     name: 'ACTIVITIES_MEDIA_STORAGE_ENDPOINT',
     label: 'Endpoint — optional, for R2 / MinIO',
-    placeholder: 'https://s3.eu-central-1.amazonaws.com',
+    // A non-AWS example on purpose: leaving this unset is what selects AWS, so
+    // an AWS URL here would illustrate the one value nobody should set.
+    placeholder: 'https://<account>.r2.cloudflarestorage.com',
     optional: true,
     wide: true
   },

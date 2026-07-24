@@ -78,7 +78,32 @@ describe('PostsMediaSettingsForm', () => {
     expect(screen.getByText('Storage backend')).toBeInTheDocument()
     expect(screen.getByText('S3 — media.example.social')).toBeInTheDocument()
     expect(screen.getByText('(eu-central-1)')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Storage backend')).not.toBeInTheDocument()
+
+    // Assert on controls, not on label association: the section's only control
+    // is the upload-size input, so a storage-backend control of any kind fails
+    // this. A queryByLabelText would not — the field has no `htmlFor`, and the
+    // env badge sits inside the label, so it never resolves either way.
+    const mediaSection = screen
+      .getByRole('heading', { name: 'Media' })
+      .closest('section')
+    expect(mediaSection).not.toBeNull()
+    const controls = (mediaSection as HTMLElement).querySelectorAll(
+      'input, select, textarea'
+    )
+    expect(controls).toHaveLength(1)
+    expect(controls[0]).toHaveAttribute('id', 'media-max-file-size')
+  })
+
+  it('omits the parenthesised detail when the backend has none', () => {
+    render(
+      <PostsMediaSettingsForm
+        settings={baseSettings}
+        locks={{}}
+        storageBackend={{ label: 'Local filesystem — ./uploads' }}
+      />
+    )
+    expect(screen.getByText('Local filesystem — ./uploads')).toBeInTheDocument()
+    expect(screen.queryByText(/^\(/)).not.toBeInTheDocument()
   })
 
   it('keeps its own help on the storage backend instead of the pinned-by line', () => {
