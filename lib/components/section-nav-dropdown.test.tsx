@@ -75,9 +75,42 @@ describe('SectionNavDropdown', () => {
     ).not.toHaveAttribute('aria-current')
   })
 
-  it('renders a group heading before a run of grouped tabs', async () => {
+  // The active row holds its orange wash on focus so hovering the current
+  // section doesn't flash it grey — which means focus and rest would otherwise
+  // render identically, and a keyboard user arrowing down the menu would watch
+  // the highlight disappear on exactly that row (WCAG 2.4.7). A focus ring is
+  // what keeps the two apart. jsdom has no Tailwind, so assert on the utility
+  // rather than on a computed style; without it the row has no focus
+  // affordance at all, since the shared item base sets `outline-hidden`.
+  it('keeps a focus indicator on the active row, which pins its own colours', async () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/fitness/strava')
+    renderDropdown()
+
+    const nav = screen.getByRole('navigation', { name: 'Fitness' })
+    fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
+
+    const menu = await screen.findByRole('menu')
+    const active = within(menu).getByRole('menuitem', { name: 'Strava' })
+    expect(active.className).toMatch(/focus:bg-primary\/10/)
+    expect(active.className).toMatch(/focus:ring-2/)
+
+    // Inactive rows keep the shared grey focus wash, so they need no ring.
+    const inactive = within(menu).getByRole('menuitem', { name: 'Overview' })
+    expect(inactive.className).not.toMatch(/focus:ring-2/)
+  })
+
+  // The design system's sub-nav is one flat run of links. A `group` field once
+  // split admin's server-settings tabs off behind a separator + heading, which
+  // read as though the other tabs weren't settings.
+  //
+  // Feed the menu the exact shape that used to trigger that split — tabs
+  // carrying a `group` — and assert it still renders flat. The cast is
+  // deliberate and load-bearing: `group` is no longer part of `SectionNavTab`,
+  // and a test using only well-typed tabs would pass against the grouping
+  // implementation too, guarding nothing.
+  it('renders the menu as one flat run even for tabs carrying a group', async () => {
     ;(usePathname as jest.Mock).mockReturnValue('/admin')
-    const groupedTabs: SectionNavTab[] = [
+    const groupedTabs = [
       { name: 'Overview', url: '/admin', icon: Activity },
       {
         name: 'Instance',
@@ -86,21 +119,18 @@ describe('SectionNavDropdown', () => {
         group: 'Settings'
       },
       { name: 'Network', url: '/admin/network', icon: Lock, group: 'Settings' }
-    ]
+    ] as SectionNavTab[]
     render(<SectionNavDropdown label="Admin" tabs={groupedTabs} />)
 
     const nav = screen.getByRole('navigation', { name: 'Admin' })
     fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
 
     const menu = await screen.findByRole('menu')
-    // The group label renders once, and the grouped items remain menu items.
-    expect(within(menu).getByText('Settings')).toBeInTheDocument()
-    expect(
-      within(menu).getByRole('menuitem', { name: 'Instance' })
-    ).toHaveAttribute('href', '/admin/instance')
-    expect(
-      within(menu).getByRole('menuitem', { name: 'Network' })
-    ).toBeInTheDocument()
-    expect(within(menu).getByRole('separator')).toBeInTheDocument()
+    expect(within(menu).queryByRole('separator')).not.toBeInTheDocument()
+    expect(within(menu).queryByText('Settings')).not.toBeInTheDocument()
+    // Every child of the menu is a link item — nothing else is rendered.
+    expect(within(menu).getAllByRole('menuitem')).toHaveLength(
+      groupedTabs.length
+    )
   })
 })

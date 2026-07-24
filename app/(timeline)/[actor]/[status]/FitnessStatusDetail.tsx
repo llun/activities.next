@@ -521,17 +521,26 @@ const SectionNav: FC<{
     <nav aria-label="Activity sections" className="w-full sm:max-w-[260px]">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="w-full justify-between">
+          {/* Chrome kept in step with SectionNavDropdown: h-10/rounded-lg
+              trigger, muted chevron, rounded-xl/shadow-lg menu, roomy
+              font-medium rows. */}
+          <Button
+            variant="outline"
+            className="h-10 w-full justify-between rounded-lg"
+          >
             <span className="flex items-center gap-2">
               <ActiveIcon className="size-4 text-primary" />
               {activeTab.label}
             </span>
-            <ChevronDown className="ml-2 size-4" />
+            <ChevronDown className="size-4 text-muted-foreground" />
           </Button>
         </DropdownMenuTrigger>
+        {/* Tailwind v4 parenthesis syntax — the v3 `w-[--radix-…]` form emits
+            `width: --radix-…` instead of `width: var(--radix-…)`, which the
+            browser drops, leaving the menu narrower than its trigger. */}
         <DropdownMenuContent
           align="start"
-          className="w-[--radix-dropdown-menu-trigger-width]"
+          className="w-(--radix-dropdown-menu-trigger-width) rounded-xl shadow-lg"
         >
           {tabs.map((tab) => {
             const Icon = tab.icon
@@ -544,11 +553,22 @@ const SectionNav: FC<{
                 // rather than aria-current="page".
                 aria-current={isActive ? 'true' : undefined}
                 className={cn(
-                  'flex w-full items-center gap-2',
-                  isActive && 'bg-primary/10 font-medium text-primary'
+                  'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 font-medium',
+                  isActive && [
+                    'bg-primary/10 text-primary focus:bg-primary/10 focus:text-primary',
+                    // Keeps focus visible on the current row, which otherwise
+                    // looks identical focused and at rest. See the same ring in
+                    // SectionNavDropdown.
+                    'focus:ring-2 focus:ring-primary/50'
+                  ]
                 )}
               >
-                <Icon className="size-4" />
+                <Icon
+                  className={cn(
+                    'size-4',
+                    isActive ? 'text-primary' : 'text-popover-foreground'
+                  )}
+                />
                 {tab.label}
               </DropdownMenuItem>
             )
