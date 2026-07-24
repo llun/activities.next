@@ -1,4 +1,5 @@
-export { EnvLockBadge, LockedFieldHelp } from './EnvLockBadge'
+export { EnvBlockBuilder } from './EnvBlockBuilder'
+export { EnvLockBadge, EnvLockLabel, LockedFieldHelp } from './EnvLockBadge'
 export { LanguagesPicker, LANGUAGE_OPTIONS } from './LanguagesPicker'
 export { LinesTextarea } from './LinesTextarea'
 export { NumberField } from './NumberField'

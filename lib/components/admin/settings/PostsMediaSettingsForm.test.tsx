@@ -45,8 +45,19 @@ const baseSettings: ResolvedServerSettings = {
   federation: { mode: 'open', allowActorDomains: [] }
 }
 
+const storageBackend = {
+  label: 'S3 — media.example.social',
+  detail: 'eu-central-1'
+}
+
 const renderForm = (locks: ServerSettingLocks = {}) =>
-  render(<PostsMediaSettingsForm settings={baseSettings} locks={locks} />)
+  render(
+    <PostsMediaSettingsForm
+      settings={baseSettings}
+      locks={locks}
+      storageBackend={storageBackend}
+    />
+  )
 
 describe('PostsMediaSettingsForm', () => {
   beforeEach(() => {
@@ -60,9 +71,31 @@ describe('PostsMediaSettingsForm', () => {
     expect(screen.getByLabelText('Upload size limit')).toHaveValue(200)
   })
 
-  it('does not offer the storage backend, which is environment-only', () => {
+  // The backend is infrastructure read from the environment at boot, so it is
+  // reported with an env-lock badge rather than offered as an editable control.
+  it('reports the storage backend read-only', () => {
     renderForm()
+    expect(screen.getByText('Storage backend')).toBeInTheDocument()
+    expect(screen.getByText('S3 — media.example.social')).toBeInTheDocument()
+    expect(screen.getByText('(eu-central-1)')).toBeInTheDocument()
     expect(screen.queryByLabelText('Storage backend')).not.toBeInTheDocument()
+  })
+
+  it('keeps its own help on the storage backend instead of the pinned-by line', () => {
+    renderForm()
+    expect(
+      screen.getByText(/change it with the builder below/, { exact: false })
+    ).toBeInTheDocument()
+    expect(screen.getByText('Set by environment')).toHaveAttribute(
+      'title',
+      'ACTIVITIES_MEDIA_STORAGE_*'
+    )
+  })
+
+  it('renders the environment block builder below the saved settings', () => {
+    renderForm()
+    expect(screen.getByLabelText('Environment area')).toBeInTheDocument()
+    expect(screen.getByLabelText('Storage type')).toBeInTheDocument()
   })
 
   it('saves the edited post limits', async () => {
