@@ -7,7 +7,10 @@ import {
   MAX_STORED_MEDIA_ATTACHMENTS,
   MIN_POLL_EXPIRATION_SECONDS
 } from '@/lib/services/mastodon/constants'
-import { MAX_FILE_SIZE } from '@/lib/services/medias/constants'
+import {
+  MAX_CONFIGURABLE_FILE_SIZE,
+  MAX_FILE_SIZE
+} from '@/lib/services/medias/constants'
 import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 
 import { getEnvironmentList } from './utils'
@@ -338,13 +341,12 @@ export const SERVER_SETTING_FIELDS: ServerSettingField[] = [
     key: 'media.maxFileSize',
     group: 'posts',
     envVar: 'ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE',
-    // Bounded above by MAX_FILE_SIZE, the same ceiling the object-storage
-    // driver uses when it buffers a stored object back out (S3StorageFile's
-    // `getFile`). Letting an admin accept an upload larger than the read path
-    // will serve would store a file that can never be read back. An env-pinned
-    // value bypasses this schema, as it does for every field — but there the
-    // two sides agree, because the storage driver reads the same env config.
-    schema: z.number().int().min(1).max(MAX_FILE_SIZE),
+    // MAX_FILE_SIZE (200 MiB) is only the default; the cap can be raised to
+    // MAX_CONFIGURABLE_FILE_SIZE. The object-storage driver bounds its
+    // read-back buffer by this same resolved setting (S3StorageFile's
+    // `getFile`), so raising the cap never stores a file the read path would
+    // then refuse to serve. The ceiling is what keeps that buffer bounded.
+    schema: z.number().int().min(1).max(MAX_CONFIGURABLE_FILE_SIZE),
     readEnv: readEnvNumber('ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE'),
     get: (s) => s.media.maxFileSize,
     set: (s, v) => {
