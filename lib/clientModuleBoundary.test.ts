@@ -14,8 +14,14 @@ import path from 'path'
 // live in `lib/services/statuses/pollDurations.ts`, which is not a client
 // module.
 //
-// `import type` is exempt: types are erased, so they never reach the runtime
-// boundary.
+// Type-only bindings are exempt (`import type …`, `export type …`, and a brace
+// list whose every binding is `type X`): TypeScript erases them, so they never
+// reach the runtime boundary. `export … from` re-exports are NOT exempt — they
+// resolve through the same client reference.
+//
+// Known limitation: only direct imports are checked. A server module reaching a
+// client module through a non-client intermediary (a barrel that re-exports it)
+// is invisible here, and would need real module-graph resolution.
 
 // Server-only trees. `app/**/page.tsx` and `layout.tsx` are excluded because a
 // Server Component importing a Client Component is the normal composition
@@ -59,18 +65,32 @@ const resolveImport = (specifier: string, fromFile: string): string | null => {
 const isClientModule = (filePath: string) =>
   /^['"]use client['"]/.test(fs.readFileSync(filePath, 'utf-8').trimStart())
 
+// `import`/`export … from '…'` statements. The clause excludes `;` and `=` so a
+// preceding `export const x = …` cannot swallow the following import.
+const MODULE_SPECIFIER_PATTERN =
+  /(?:^|\n)\s*(?:import|export)\s+([^;=]*?)\s*from\s*['"]([^'"]+)['"]/g
+
+// True when nothing in the clause survives compilation: a leading `type`
+// keyword, or a brace list in which every binding is individually `type`-marked.
+const isTypeOnlyClause = (clause: string) => {
+  if (/^type\b/.test(clause.trim())) return true
+  const braced = clause.match(/^\{([\s\S]*)\}$/)
+  if (!braced) return false
+  const bindings = braced[1]
+    .split(',')
+    .map((binding) => binding.trim())
+    .filter(Boolean)
+  return bindings.length > 0 && bindings.every((b) => /^type\b/.test(b))
+}
+
 describe('server-only modules', () => {
   it('never import a runtime value from a use client module', () => {
     const violations = SERVER_ROOTS.flatMap(collectServerFiles).flatMap(
       (serverFile) => {
         const source = fs.readFileSync(serverFile, 'utf-8')
-        return [
-          ...source.matchAll(
-            /(^|\n)\s*import\s+(type\s+)?[^;]*?from\s+'([^']+)'/g
-          )
-        ]
-          .filter(([, , typeOnly]) => !typeOnly)
-          .map(([, , , specifier]) => ({
+        return [...source.matchAll(MODULE_SPECIFIER_PATTERN)]
+          .filter(([, clause]) => !isTypeOnlyClause(clause))
+          .map(([, , specifier]) => ({
             specifier,
             resolved: resolveImport(specifier, serverFile)
           }))

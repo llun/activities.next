@@ -726,7 +726,7 @@ export const PostBox: FC<Props> = ({
       const { status, attachments: storedAttachments } = response
       onPostCreated(status, storedAttachments)
       dispatch(resetExtension())
-      // resetExtension() drops the policy back to the DEFAULT_STATE 'public';
+      // resetExtension() drops the policy back to the default 'public';
       // re-apply the actor's configured default so it stays sticky.
       dispatch(setQuoteApprovalPolicy(defaultQuotePolicyRef.current))
 

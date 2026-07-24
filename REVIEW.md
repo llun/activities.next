@@ -122,9 +122,10 @@ change doesn't touch.
 - Server-only code (`app/api/`, `lib/services|actions|jobs|database|config`)
   never imports a **runtime value** from a `'use client'` module — on the server
   it resolves to a client reference, so a constant read out of it is empty and no
-  test can see it (`lib/clientModuleBoundary.test.ts` enforces this). `import
-type` is fine. Shared constants live in a dependency-free module both sides
-  import. See **Server/Client Module Boundary** in `AGENTS.md`.
+  test can see it (`lib/clientModuleBoundary.test.ts` enforces this).
+  Type-only imports are fine; `export … from` re-exports are not. Shared
+  constants live in a dependency-free module both sides import. See
+  **Server/Client Module Boundary** in `AGENTS.md`.
 - Client authoring UI reads admin-configured limits from `useInstanceLimits()`
   rather than hardcoding a constant, and new authoring/upload surfaces render
   under `InstanceLimitsProvider`. The limits are still enforced server-side. See

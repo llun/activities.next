@@ -165,7 +165,15 @@ type Actions =
   | ActionSetFitnessFileUploaded
   | ActionRemoveFitnessFile
 
-const key = () => Math.round(Math.random() * 1000)
+// Monotonic, so two choices can never share a React key. `Math.round(Math.random()
+// * 1000)` collided roughly one pair in a thousand, which reconciled two
+// uncontrolled inputs onto one node and silently dropped an option — and the
+// default pair is now minted on every reset rather than once per module load.
+let nextChoiceKey = 0
+const key = () => {
+  nextChoiceKey += 1
+  return nextChoiceKey
+}
 
 // Fresh objects every time. The poll editor's choice inputs are uncontrolled
 // and write straight into the Choice objects (`choice.text = …`), so sharing one

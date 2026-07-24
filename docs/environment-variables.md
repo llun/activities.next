@@ -27,8 +27,10 @@ endpoint the web composer posts through. Every upload endpoint (`POST
 thumbnails, `POST /api/v1/medias/presigned`, `PATCH
 /api/v1/accounts/update_credentials` avatars/headers, and admin custom emoji)
 enforces the resolved `media.maxFileSize`. All of them answer `422` above the
-limit; the status routes name the limit in the `error` message, while the upload
-routes return the generic `Unprocessable entity`. The web composer, its poll
+limit. The status routes put the offending limit in the `error` message (except
+the poll-expiry one, which just says it is out of range); the upload routes
+return the generic `Unprocessable entity`, apart from
+`update_credentials`, which says `Invalid image file`. The web composer, its poll
 editor and media picker, the inline reply box, and the avatar/header picker all
 size themselves to the same resolved values rather than to fixed constants, so
 in normal use the client does not offer what the endpoint will refuse.

@@ -1,5 +1,10 @@
 import { z } from 'zod'
 
+import {
+  MIN_POLL_OPTIONS,
+  POLL_OPTIONS_CEILING,
+  POLL_OPTION_CHARS_CEILING
+} from '@/lib/services/mastodon/constants'
 import { SecondsToDurationText } from '@/lib/services/statuses/pollDurations'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { QuoteApprovalPolicy, Status } from '@/lib/types/domain/status'
@@ -26,7 +31,14 @@ export const CreatePollRequest = z.object({
   type: z.literal('poll'),
   message: z.string(),
   contentWarning: z.string().optional(),
-  choices: z.string().array(),
+  // Same structural floor and safety ceilings as PollSchema in
+  // app/api/v1/statuses/route.ts, so the two create endpoints agree on what a
+  // well-formed poll is; the admin-configured bounds are applied on top at
+  // runtime by validateStatusContentLimits.
+  choices: z
+    .array(z.string().trim().min(1).max(POLL_OPTION_CHARS_CEILING))
+    .min(MIN_POLL_OPTIONS)
+    .max(POLL_OPTIONS_CEILING),
   pollType: z.enum(['oneOf', 'anyOf']).optional(),
   // `.map(parseInt)` would pass the array index as the radix — '1800' parsed
   // base 1 is NaN, '21600' base 3 is 7, and so on — so all but the first
