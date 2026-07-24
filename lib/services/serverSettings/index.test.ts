@@ -1,5 +1,6 @@
 import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { MAX_CONFIGURABLE_FILE_SIZE } from '@/lib/services/medias/constants'
 import {
   getResolvedServerSettings,
   getServerSettingsView,
@@ -253,6 +254,34 @@ describe('server settings resolver', () => {
           { key: 'posts.maxCharacters', reason: 'invalid' }
         ])
       )
+      await database.destroy()
+    })
+
+    // Regression: the admin-editable media cap used to be bounded by the
+    // 200 MiB built-in default, so a 500 MB entry from the admin form came back
+    // as { key: 'media.maxFileSize', reason: 'invalid' } with a 422.
+    it('writes a media upload cap above the built-in default', async () => {
+      const database = await freshDatabase()
+      const result = await updateServerSettings(database, {
+        'media.maxFileSize': 500 * 1024 * 1024
+      })
+
+      expect(result.applied).toBe(true)
+      expect(result.rejected).toEqual([])
+      expect(result.view.settings.media.maxFileSize).toBe(500 * 1024 * 1024)
+      await database.destroy()
+    })
+
+    it('rejects a media upload cap above the configurable ceiling', async () => {
+      const database = await freshDatabase()
+      const result = await updateServerSettings(database, {
+        'media.maxFileSize': MAX_CONFIGURABLE_FILE_SIZE + 1
+      })
+
+      expect(result.applied).toBe(false)
+      expect(result.rejected).toEqual([
+        { key: 'media.maxFileSize', reason: 'invalid' }
+      ])
       await database.destroy()
     })
 

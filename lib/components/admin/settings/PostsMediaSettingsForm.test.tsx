@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
+import { MAX_CONFIGURABLE_FILE_SIZE } from '@/lib/services/medias/constants'
 
 import type { ServerSettingLocks } from './InstanceSettingsForm'
 import { PostsMediaSettingsForm } from './PostsMediaSettingsForm'
@@ -45,13 +46,7 @@ const baseSettings: ResolvedServerSettings = {
 }
 
 const renderForm = (locks: ServerSettingLocks = {}) =>
-  render(
-    <PostsMediaSettingsForm
-      settings={baseSettings}
-      locks={locks}
-      storageBackend="S3-compatible storage"
-    />
-  )
+  render(<PostsMediaSettingsForm settings={baseSettings} locks={locks} />)
 
 describe('PostsMediaSettingsForm', () => {
   beforeEach(() => {
@@ -63,9 +58,11 @@ describe('PostsMediaSettingsForm', () => {
     renderForm()
     expect(screen.getByLabelText('Post size')).toHaveValue(500)
     expect(screen.getByLabelText('Upload size limit')).toHaveValue(200)
-    expect(screen.getByLabelText('Storage backend')).toHaveValue(
-      'S3-compatible storage'
-    )
+  })
+
+  it('does not offer the storage backend, which is environment-only', () => {
+    renderForm()
+    expect(screen.queryByLabelText('Storage backend')).not.toBeInTheDocument()
   })
 
   it('saves the edited post limits', async () => {
@@ -97,9 +94,38 @@ describe('PostsMediaSettingsForm', () => {
     )
   })
 
-  it('always shows the storage backend as read-only and env-pinned', () => {
+  // Regression: 500 MB used to be refused with a 422 because the setting was
+  // capped at the 200 MiB built-in default.
+  it('saves an upload limit above the built-in default', async () => {
     renderForm()
-    expect(screen.getByLabelText('Storage backend')).toBeDisabled()
-    expect(screen.getByText('Set by environment')).toBeInTheDocument()
+    const input = screen.getByLabelText('Upload size limit')
+    fireEvent.change(input, { target: { value: '500' } })
+    fireEvent.blur(input)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Update' })[2])
+
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ 'media.maxFileSize': 500 * 1024 * 1024 })
+      )
+    )
+  })
+
+  it('clamps an upload limit above the ceiling instead of sending a 422', async () => {
+    renderForm()
+    const input = screen.getByLabelText('Upload size limit')
+    fireEvent.change(input, { target: { value: '5000' } })
+    fireEvent.blur(input)
+
+    const maxMb = MAX_CONFIGURABLE_FILE_SIZE / (1024 * 1024)
+    expect(input).toHaveValue(maxMb)
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Update' })[2])
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          'media.maxFileSize': MAX_CONFIGURABLE_FILE_SIZE
+        })
+      )
+    )
   })
 })
