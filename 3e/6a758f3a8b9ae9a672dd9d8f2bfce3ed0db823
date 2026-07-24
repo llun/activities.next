@@ -1,0 +1,24 @@
+lib/components/section-nav-dropdown.tsx
+  s_d64282cd90258d::t_8a073555881a6c 74-80,83
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_d64282cd90258d::t_99ff93ca4b71f6 532-534,537
+lib/components/tailwindCssVariableSyntax.test.ts
+  s_d64282cd90258d::t_6f94731794c29c 1-2,22-32,35-41,43-45,47-54
+  s_d64282cd90258d::t_9e8e88d59b82f7 3-21,33-34,42,46,55-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "3e6a758f3a8b9ae9a672dd9d8f2bfce3ed0db823",
+  "prompts": {},
+  "sessions": {
+    "s_d64282cd90258d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1faea951-ef32-48eb-adf5-9d2f315d8d61",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
