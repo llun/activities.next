@@ -71,13 +71,17 @@ const isClientModule = (filePath: string) =>
 
 // Every module specifier the file imports or re-exports a RUNTIME value from.
 // Side-effect imports (`import 'x'`) are excluded: they read no value.
-const collectValueImports = (source: string): string[] => {
+//
+// The ScriptKind follows the extension: parsing a `.ts` file as TSX turns a
+// generic arrow (`<T>(x: T) => x`) into JSX and drops every statement after it,
+// which would blind this check to anything declared below one.
+const collectValueImports = (fileName: string, source: string): string[] => {
   const sourceFile = ts.createSourceFile(
-    'module.tsx',
+    fileName,
     source,
     ts.ScriptTarget.Latest,
     true,
-    ts.ScriptKind.TSX
+    fileName.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
   )
 
   return sourceFile.statements.flatMap((statement) => {
@@ -114,7 +118,7 @@ describe('server-only modules', () => {
     const violations = SERVER_ROOTS.flatMap(collectServerFiles).flatMap(
       (serverFile) => {
         const source = fs.readFileSync(serverFile, 'utf-8')
-        return collectValueImports(source)
+        return collectValueImports(serverFile, source)
           .map((specifier) => ({
             specifier,
             resolved: resolveImport(specifier, serverFile)
