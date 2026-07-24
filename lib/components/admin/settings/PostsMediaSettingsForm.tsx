@@ -1,6 +1,6 @@
 'use client'
 
-import { FC } from 'react'
+import { FC, useEffect, useState } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
 import { Select } from '@/lib/components/ui/select'
@@ -30,6 +30,20 @@ const POLL_KEYS = [
   'polls.maxExpirationSeconds'
 ]
 const MEDIA_KEYS = ['media.maxFileSize']
+
+// Post size is picked from a few well-known caps; anything else is entered
+// through "Custom…", which reveals a plain number input beside the select.
+const CUSTOM_POST_SIZE = 'custom'
+const POST_SIZE_OPTIONS = [
+  { value: '500', label: '500 characters — Mastodon default' },
+  { value: '1000', label: '1,000 characters' },
+  { value: '5000', label: '5,000 characters' }
+]
+
+const postSizeModeFor = (maxCharacters: number) =>
+  POST_SIZE_OPTIONS.some((option) => option.value === String(maxCharacters))
+    ? String(maxCharacters)
+    : CUSTOM_POST_SIZE
 
 const MIN_EXPIRATION_OPTIONS = [
   { value: '300', label: '5 minutes' },
@@ -67,6 +81,13 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
       'media.maxFileSize': settings.media.maxFileSize
     })
 
+  // The picked mode is its own state, never derived from the current value:
+  // deriving it would re-evaluate on every keystroke and unmount the custom
+  // input as soon as a half-typed number passed through a preset.
+  const [selectedPostSizeMode, setSelectedPostSizeMode] = useState(() =>
+    postSizeModeFor(settings.posts.maxCharacters)
+  )
+
   const lock = (key: string) => locks[key] ?? { locked: false }
   const postsStatus = statusFor('posts')
   const pollsStatus = statusFor('polls')
@@ -74,6 +95,32 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
 
   const maxCharacters = values['posts.maxCharacters'] as number
   const uploadBytes = values['media.maxFileSize'] as number
+
+  // A preset stays picked only while the value still matches it: saving adopts
+  // the server-resolved value, which can land somewhere else entirely. When it
+  // does, re-derive from the value rather than always dropping to Custom, so a
+  // value that is itself a preset shows as that preset.
+  const resolvePostSizeMode = (mode: string) =>
+    mode === CUSTOM_POST_SIZE || mode === String(maxCharacters)
+      ? mode
+      : postSizeModeFor(maxCharacters)
+
+  const postSizeMode = resolvePostSizeMode(selectedPostSizeMode)
+
+  // Commit that, don't just render it. An orphaned preset left in state would
+  // match again the moment the value drifted back to it — flipping the select
+  // and unmounting the input while it was being typed into. Custom
+  // short-circuits, so this never fires during an edit.
+  // resolvePostSizeMode is re-created every render, but it only reads
+  // maxCharacters — the dependency below — so the closure is never stale.
+  useEffect(() => {
+    setSelectedPostSizeMode(resolvePostSizeMode)
+  }, [maxCharacters])
+
+  const changePostSizeMode = (mode: string) => {
+    setSelectedPostSizeMode(mode)
+    if (mode !== CUSTOM_POST_SIZE) setValue('posts.maxCharacters', Number(mode))
+  }
 
   return (
     <div className="space-y-6">
@@ -100,13 +147,30 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
           htmlFor="posts-max-characters"
           help={`New posts and edits are capped at ${maxCharacters.toLocaleString()} characters. Links always count as 23.`}
         >
-          <NumberField
-            id="posts-max-characters"
-            value={maxCharacters}
-            min={1}
-            suffix="characters"
-            onChange={(next) => setValue('posts.maxCharacters', next)}
-          />
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+            <Select
+              id="posts-max-characters"
+              value={postSizeMode}
+              onChange={(event) => changePostSizeMode(event.target.value)}
+            >
+              {POST_SIZE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+              <option value={CUSTOM_POST_SIZE}>Custom…</option>
+            </Select>
+            {postSizeMode === CUSTOM_POST_SIZE && (
+              <NumberField
+                id="posts-max-characters-custom"
+                ariaLabel="Custom post size"
+                value={maxCharacters}
+                min={1}
+                suffix="characters"
+                onChange={(next) => setValue('posts.maxCharacters', next)}
+              />
+            )}
+          </div>
         </SettingsField>
 
         <SettingsField
