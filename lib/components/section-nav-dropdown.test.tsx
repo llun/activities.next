@@ -75,20 +75,38 @@ describe('SectionNavDropdown', () => {
     ).not.toHaveAttribute('aria-current')
   })
 
-  // The design system's sub-nav is one flat run of links. A separator or group
-  // heading once split admin's server-settings tabs off from the rest, which
-  // read as though the other tabs weren't settings; keep the menu flat.
-  it('renders the menu as one flat run with no separators or headings', async () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/fitness')
-    renderDropdown()
+  // The design system's sub-nav is one flat run of links. A `group` field once
+  // split admin's server-settings tabs off behind a separator + heading, which
+  // read as though the other tabs weren't settings.
+  //
+  // Feed the menu the exact shape that used to trigger that split — tabs
+  // carrying a `group` — and assert it still renders flat. The cast is
+  // deliberate and load-bearing: `group` is no longer part of `SectionNavTab`,
+  // and a test using only well-typed tabs would pass against the grouping
+  // implementation too, guarding nothing.
+  it('renders the menu as one flat run even for tabs carrying a group', async () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/admin')
+    const groupedTabs = [
+      { name: 'Overview', url: '/admin', icon: Activity },
+      {
+        name: 'Instance',
+        url: '/admin/instance',
+        icon: Globe,
+        group: 'Settings'
+      },
+      { name: 'Network', url: '/admin/network', icon: Lock, group: 'Settings' }
+    ] as SectionNavTab[]
+    render(<SectionNavDropdown label="Admin" tabs={groupedTabs} />)
 
-    const nav = screen.getByRole('navigation', { name: 'Fitness' })
+    const nav = screen.getByRole('navigation', { name: 'Admin' })
     fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
 
     const menu = await screen.findByRole('menu')
     expect(within(menu).queryByRole('separator')).not.toBeInTheDocument()
+    expect(within(menu).queryByText('Settings')).not.toBeInTheDocument()
     // Every child of the menu is a link item — nothing else is rendered.
-    expect(within(menu).getAllByRole('menuitem')).toHaveLength(tabs.length)
-    expect(menu.textContent).toBe(tabs.map((tab) => tab.name).join(''))
+    expect(within(menu).getAllByRole('menuitem')).toHaveLength(
+      groupedTabs.length
+    )
   })
 })
