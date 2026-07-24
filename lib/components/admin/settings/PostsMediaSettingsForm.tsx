@@ -114,12 +114,10 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
   // match again the moment the value drifted back to it — flipping the select
   // and unmounting the input while it was being typed into. Custom
   // short-circuits, so this never fires during an edit.
+  // resolvePostSizeMode is re-created every render, but it only reads
+  // maxCharacters — the dependency below — so the closure is never stale.
   useEffect(() => {
-    setSelectedPostSizeMode((mode) =>
-      mode === CUSTOM_POST_SIZE || mode === String(maxCharacters)
-        ? mode
-        : postSizeModeFor(maxCharacters)
-    )
+    setSelectedPostSizeMode(resolvePostSizeMode)
   }, [maxCharacters])
 
   const changePostSizeMode = (mode: string) => {
