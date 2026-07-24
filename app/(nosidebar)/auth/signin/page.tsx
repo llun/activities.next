@@ -15,6 +15,7 @@ import {
 import { getBaseURL, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { Booleanish } from '@/lib/utils/zodBooleanish'
 
@@ -74,7 +75,10 @@ const Page: FC<Props> = async ({ searchParams }) => {
     return redirect(actor ? target : '/')
   }
 
-  const { auth, serviceName, registrationOpen } = getConfig()
+  const { auth, serviceName } = getConfig()
+  const {
+    registrations: { open: registrationOpen }
+  } = await getResolvedServerSettings(database)
   const credentialEnabled = auth?.enableCredential !== false
 
   // Use an absolute URL on the configured host (ACTIVITIES_HOST) so the logo

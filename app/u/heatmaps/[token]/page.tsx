@@ -2,10 +2,11 @@ import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
-import { getBaseURL, getConfig } from '@/lib/config'
+import { getBaseURL } from '@/lib/config'
 import { getPublicMapProvider } from '@/lib/config/mapProvider'
 import { getDatabase } from '@/lib/database'
 import { toPublicHeatmap } from '@/lib/services/fitness-files/publicHeatmap'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 
 import { SharedHeatmapPage } from './SharedHeatmapPage'
 import { buildSharedHeatmapView } from './sharedHeatmapView'
@@ -79,14 +80,16 @@ const Page: FC<PageProps> = async ({ params }) => {
     token
   })
 
-  const config = getConfig()
+  const {
+    registrations: { open: registrationOpen }
+  } = await getResolvedServerSettings(database)
   const mapProvider = getPublicMapProvider()
 
   return (
     <SharedHeatmapPage
       view={view}
       mapProvider={mapProvider}
-      signupOpen={config.registrationOpen}
+      signupOpen={registrationOpen}
       signinUrl="/auth/signin"
       signupUrl="/auth/signup"
     />

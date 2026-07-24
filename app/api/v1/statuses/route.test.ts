@@ -11,6 +11,7 @@ import {
   SCHEDULED_AT_TOO_SOON_ERROR
 } from '@/lib/services/mastodon/constants'
 import { getQueue } from '@/lib/services/queue'
+import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
@@ -573,6 +574,78 @@ describe('POST /api/v1/statuses', () => {
       { title: 'Green', votes_count: 0 },
       { title: 'Blue', votes_count: 0 }
     ])
+  })
+
+  it('rejects a status over the configured character limit with 422', async () => {
+    await database.setServerSetting({ key: 'posts.maxCharacters', value: 10 })
+    invalidateServerSettingsCache(database)
+    try {
+      const response = await POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body: JSON.stringify({ status: 'x'.repeat(11) }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+      expect(response.status).toBe(422)
+    } finally {
+      await database.deleteServerSetting({ key: 'posts.maxCharacters' })
+      invalidateServerSettingsCache(database)
+    }
+  })
+
+  it('accepts a longer status when the character limit is raised', async () => {
+    await database.setServerSetting({
+      key: 'posts.maxCharacters',
+      value: 5000
+    })
+    invalidateServerSettingsCache(database)
+    try {
+      const response = await POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body: JSON.stringify({ status: 'x'.repeat(1000) }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+      expect(response.status).toBe(200)
+    } finally {
+      await database.deleteServerSetting({ key: 'posts.maxCharacters' })
+      invalidateServerSettingsCache(database)
+    }
+  })
+
+  it('rejects a poll with more options than the configured limit with 422', async () => {
+    await database.setServerSetting({ key: 'polls.maxOptions', value: 2 })
+    invalidateServerSettingsCache(database)
+    try {
+      const response = await POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body: JSON.stringify({
+            status: 'Pick one',
+            poll: { options: ['a', 'b', 'c'], expires_in: 3600 }
+          }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+      expect(response.status).toBe(422)
+    } finally {
+      await database.deleteServerSetting({ key: 'polls.maxOptions' })
+      invalidateServerSettingsCache(database)
+    }
   })
 
   it('creates a poll from flattened form poll params', async () => {

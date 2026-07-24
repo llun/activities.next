@@ -5,6 +5,7 @@ import { getConfig } from '@/lib/config'
 import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { Database } from '@/lib/database/types'
 import { sendConfirmationEmail } from '@/lib/services/accounts/sendConfirmationEmail'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { getLocalActorId } from '@/lib/utils/activitypubId'
 import { logger } from '@/lib/utils/logger'
 import { isEmailAllowed, normalizeEmail } from '@/lib/utils/normalizeEmail'
@@ -37,8 +38,9 @@ export const registerAccount = async ({
   name
 }: RegisterAccountParams): Promise<RegisterAccountResult> => {
   const config = getConfig()
+  const settings = await getResolvedServerSettings(database)
 
-  if (!config.registrationOpen) {
+  if (!settings.registrations.open) {
     return { type: 'registration_closed' }
   }
 
@@ -47,9 +49,9 @@ export const registerAccount = async ({
   // same canonical (lowercased) address — even when this service is called
   // directly rather than through the request schema. See normalizeEmail.
   const email = normalizeEmail(rawEmail)
-  const { host: domain, allowEmails } = config
+  const domain = config.host
 
-  if (!isEmailAllowed(allowEmails, email)) {
+  if (!isEmailAllowed(settings.registrations.allowEmails, email)) {
     return { type: 'email_not_allowed' }
   }
 

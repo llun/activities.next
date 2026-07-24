@@ -1,16 +1,18 @@
 import Link from 'next/link'
-import { FC } from 'react'
 
 import { Logo } from '@/lib/components/layout/logo'
 import { Button } from '@/lib/components/ui/button'
-import { getBaseURL, getConfig } from '@/lib/config'
+import { getBaseURL } from '@/lib/config'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 
 // Public top bar shown to logged-out visitors in place of the app nav sidebar:
 // a slim sticky bar with the brand logo and Sign in / Create account links to
 // the real auth routes, matching the web-public design. The "Create account"
 // CTA is hidden when the server has closed registration.
-export const PublicTopBar: FC = () => {
-  const { registrationOpen } = getConfig()
+export const PublicTopBar = async () => {
+  const {
+    registrations: { open: registrationOpen }
+  } = await getResolvedServerSettings()
   // Absolute logo URL on the canonical origin (ACTIVITIES_HOST) so it resolves
   // even when this page is served on a CDN alias domain, matching PublicFooter.
   const logoSrc = new URL('/logo-nav.png', getBaseURL()).toString()

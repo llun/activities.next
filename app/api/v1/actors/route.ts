@@ -6,6 +6,7 @@ import { getConfig } from '@/lib/config'
 import { isFederationSigningActorUsername } from '@/lib/services/federation/instanceActor'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import {
   HTTP_STATUS,
   apiErrorResponse,
@@ -75,10 +76,11 @@ export const POST = traceApiRoute(
 
     const { username } = parsed.data
     const config = getConfig()
+    const { federation } = await getResolvedServerSettings()
     const domain =
       parsed.data.domain ?? currentActor.domain ?? headerHost(req.headers)
-    const allowedDomains = config.allowActorDomains?.length
-      ? config.allowActorDomains
+    const allowedDomains = federation.allowActorDomains.length
+      ? federation.allowActorDomains
       : [config.host]
 
     if (!allowedDomains.includes(domain)) {

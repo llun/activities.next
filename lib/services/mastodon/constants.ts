@@ -21,6 +21,13 @@ export const MAX_POLL_OPTION_CHARS = 50
 export const MIN_POLL_EXPIRATION_SECONDS = 5 * 60
 export const MAX_POLL_EXPIRATION_SECONDS = 60 * 60 * 24 * 31
 
+// Absolute safety ceilings for the poll create/edit request schema. The
+// admin-configured poll limits (server settings) are enforced at runtime and
+// never exceed these, so the schema stays bounded regardless of settings while
+// still allowing an admin to raise the limits above the Mastodon defaults.
+export const POLL_OPTIONS_CEILING = 50
+export const POLL_OPTION_CHARS_CEILING = 1000
+
 // Mastodon rejects a scheduled_at less than five minutes in the future.
 export const MIN_SCHEDULED_STATUS_AHEAD_MS = 5 * 60 * 1000
 export const SCHEDULED_AT_TOO_SOON_ERROR =

@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import type { Config } from '@/lib/config'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
+import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 
 import { GET } from './route'
 
@@ -131,6 +132,31 @@ describe('GET /api/v1/instance', () => {
     expect(body.registrations).toBe(true)
     expect(body.rules).toEqual([{ id: rule.id, text: 'No spam', hint: '' }])
     expect(body.contact_account).toBeNull()
+  })
+
+  it('reflects database-backed server settings', async () => {
+    await database.setServerSetting({
+      key: 'registrations.open',
+      value: false
+    })
+    await database.setServerSetting({
+      key: 'posts.maxCharacters',
+      value: 2000
+    })
+    invalidateServerSettingsCache(database)
+    try {
+      const response = await GET(
+        new NextRequest('https://llun.test/api/v1/instance'),
+        params
+      )
+      const body = await response.json()
+      expect(body.registrations).toBe(false)
+      expect(body.configuration.statuses.max_characters).toBe(2000)
+    } finally {
+      await database.deleteServerSetting({ key: 'registrations.open' })
+      await database.deleteServerSetting({ key: 'posts.maxCharacters' })
+      invalidateServerSettingsCache(database)
+    }
   })
 
   it('advertises the stored media ceiling as max_media_attachments', async () => {

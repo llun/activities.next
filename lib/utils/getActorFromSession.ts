@@ -1,8 +1,8 @@
 import { cookies } from 'next/headers'
 import { cache } from 'react'
 
-import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { isEmailAllowed } from '@/lib/utils/normalizeEmail'
 
 export interface AuthSession {
@@ -30,8 +30,8 @@ export const getAccountFromSession = async (
 ) => {
   if (!session?.user?.email) return null
 
-  const config = getConfig()
-  if (!isEmailAllowed(config.allowEmails, session.user.email)) {
+  const settings = await getResolvedServerSettings(database)
+  if (!isEmailAllowed(settings.registrations.allowEmails, session.user.email)) {
     return null
   }
 

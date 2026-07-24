@@ -100,6 +100,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Docker support** — Official container image at `ghcr.io/llun/activities.next`
 - ✅ **Vercel deployment** — Deploy as a serverless Next.js application
 - ✅ **Federation controls** — Admin allow/block rules, import for domain blocks, and allowlist mode
+- ✅ **Database-backed server settings** — Edit instance identity, registrations, post/poll/upload limits, and federation policy from the admin area, resolved `env → database → default` (an environment variable wins and locks the field). See [Environment Variables](environment-variables.md#database-backed-server-settings-env--database--default)
 
 ## In Progress
 

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 
@@ -70,20 +71,33 @@ describe('GET /api/v1/actors/domains', () => {
   })
 
   it('returns allowActorDomains when it is set', async () => {
-    mockGetConfig.mockReturnValue({
-      host: 'llun.test',
-      allowEmails: [],
-      allowActorDomains: ['domain1.test', 'domain2.test', 'llun.test']
+    mockGetConfig.mockReturnValue({ host: 'llun.test', allowEmails: [] })
+    // allowActorDomains is a database-backed federation setting.
+    await database.setServerSetting({
+      key: 'federation.allowActorDomains',
+      value: ['domain1.test', 'domain2.test', 'llun.test']
     })
+    invalidateServerSettingsCache(database)
 
-    const response = await GET(createRequest(), {
-      params: Promise.resolve({})
-    })
+    try {
+      const response = await GET(createRequest(), {
+        params: Promise.resolve({})
+      })
 
-    const data = await response.json()
-    expect(response.status).toBe(200)
-    expect(data.domains).toEqual(['domain1.test', 'domain2.test', 'llun.test'])
-    expect(data.host).toBe('llun.test')
+      const data = await response.json()
+      expect(response.status).toBe(200)
+      expect(data.domains).toEqual([
+        'domain1.test',
+        'domain2.test',
+        'llun.test'
+      ])
+      expect(data.host).toBe('llun.test')
+    } finally {
+      await database.deleteServerSetting({
+        key: 'federation.allowActorDomains'
+      })
+      invalidateServerSettingsCache(database)
+    }
   })
 
   it('returns host from config', async () => {

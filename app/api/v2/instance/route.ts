@@ -5,18 +5,15 @@ import { getDatabase } from '@/lib/database'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import {
   MASTODON_INSTANCE_API_VERSION,
-  MAX_PINNED_STATUSES,
-  MAX_STORED_MEDIA_ATTACHMENTS
+  MAX_PINNED_STATUSES
 } from '@/lib/services/mastodon/constants'
 import {
   getInstanceContactAccount,
   getInstanceContactEmail,
   getInstanceStats
 } from '@/lib/services/mastodon/instance'
-import {
-  ACCEPTED_FILE_TYPES,
-  MAX_FILE_SIZE
-} from '@/lib/services/medias/constants'
+import { ACCEPTED_FILE_TYPES } from '@/lib/services/medias/constants'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { isTranslationEnabled } from '@/lib/services/translation'
 import { InstanceRuleData } from '@/lib/types/database/operations'
 import { Rule } from '@/lib/types/mastodon/rule'
@@ -52,21 +49,20 @@ export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
       })
     }
   }
-  const [stats, contactAccount] = await Promise.all([
+  const [stats, contactAccount, serverSettings] = await Promise.all([
     getInstanceStats(database, config.host),
-    getInstanceContactAccount(database)
+    getInstanceContactAccount(database),
+    getResolvedServerSettings(database)
   ])
   return apiResponse({
     req,
     allowedMethods: CORS_HEADERS,
     data: {
       domain,
-      title: config.serviceName ?? 'Activities.next',
+      title: serverSettings.instance.name,
       version: VERSION,
       source_url: 'https://github.com/llun/activities.next',
-      description:
-        config.serviceDescription ??
-        'Personal activity pub server with Next.js',
+      description: serverSettings.instance.description,
       usage: {
         users: {
           active_month: stats.activeMonth
@@ -83,7 +79,7 @@ export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
         { src: `${baseUrl}/icon-192.png`, size: '192x192' },
         { src: `${baseUrl}/icon-512.png`, size: '512x512' }
       ],
-      languages: config.languages,
+      languages: serverSettings.instance.languages,
       api_versions: {
         mastodon: MASTODON_INSTANCE_API_VERSION
       },
@@ -102,36 +98,39 @@ export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
           max_pinned_statuses: MAX_PINNED_STATUSES
         },
         statuses: {
-          max_characters: 500,
-          max_media_attachments: MAX_STORED_MEDIA_ATTACHMENTS,
+          max_characters: serverSettings.posts.maxCharacters,
+          max_media_attachments: serverSettings.posts.maxMediaAttachments,
           characters_reserved_per_url: 23
         },
         media_attachments: {
           supported_mime_types: ACCEPTED_FILE_TYPES,
-          image_size_limit: config.mediaStorage?.maxFileSize ?? MAX_FILE_SIZE,
+          image_size_limit: serverSettings.media.maxFileSize,
           image_matrix_limit: 33177600,
-          video_size_limit: config.mediaStorage?.maxFileSize ?? MAX_FILE_SIZE,
+          video_size_limit: serverSettings.media.maxFileSize,
           video_frame_rate_limit: 120,
           video_matrix_limit: 8294400
         },
         polls: {
-          max_options: 4,
-          max_characters_per_option: 50,
-          min_expiration: 300,
-          max_expiration: 2629746
+          max_options: serverSettings.polls.maxOptions,
+          max_characters_per_option:
+            serverSettings.polls.maxCharactersPerOption,
+          min_expiration: serverSettings.polls.minExpirationSeconds,
+          max_expiration: serverSettings.polls.maxExpirationSeconds
         },
         translation: {
           enabled: isTranslationEnabled()
         }
       },
       registrations: {
-        enabled: config.registrationOpen,
+        enabled: serverSettings.registrations.open,
         approval_required: false,
         message: null,
         url: null
       },
       contact: {
-        email: getInstanceContactEmail(config),
+        email:
+          serverSettings.instance.contactEmail ||
+          getInstanceContactEmail(config),
         account: contactAccount
       },
       rules: rules.map((rule): Rule => ({

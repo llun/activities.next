@@ -245,3 +245,4 @@ CREATE INDEX `status_quotes_authorization_idx` on `status_quotes` (`authorizatio
 CREATE TABLE `moderation_actions` (`id` varchar(255), `targetActorId` varchar(255) not null, `moderatorAccountId` varchar(255) not null, `moderatorActorId` varchar(255) null, `action` varchar(32) not null, `reportId` varchar(255) null, `text` text not null default '', `createdAt` datetime default CURRENT_TIMESTAMP, primary key (`id`));
 CREATE INDEX `moderation_actions_target_idx` on `moderation_actions` (`targetActorId`, `createdAt`);
 CREATE INDEX `moderation_actions_report_idx` on `moderation_actions` (`reportId`);
+CREATE TABLE `server_settings` (`key` varchar(255), `value` text not null, `createdAt` datetime not null, `updatedAt` datetime not null, primary key (`key`));

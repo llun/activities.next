@@ -6,9 +6,12 @@ import {
   Flag,
   Globe,
   Hash,
+  Image,
   Megaphone,
+  Network,
   Rss,
   Scale,
+  Server,
   Settings,
   Smile,
   Users
@@ -39,6 +42,16 @@ const tabs: SectionNavTab[] = [
   { name: 'Federation', url: '/admin/federation', icon: Globe },
   { name: 'Relays', url: '/admin/relays', icon: Rss },
   { name: 'Custom emojis', url: '/admin/emojis', icon: Smile },
+  // Server settings — DB-backed instance policy, grouped under "Settings" below
+  // the moderation tools and above System.
+  { name: 'Instance', url: '/admin/instance', icon: Server, group: 'Settings' },
+  {
+    name: 'Posts & media',
+    url: '/admin/posts',
+    icon: Image,
+    group: 'Settings'
+  },
+  { name: 'Network', url: '/admin/network', icon: Network, group: 'Settings' },
   { name: 'System', url: '/admin/system', icon: Settings }
 ]
 

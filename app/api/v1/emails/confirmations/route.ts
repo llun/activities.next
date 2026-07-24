@@ -8,13 +8,13 @@
 // requires a `write` scope, rather than the cookie-only AuthenticatedGuard.
 import { z } from 'zod'
 
-import { getConfig } from '@/lib/config'
 import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { sendConfirmationEmail } from '@/lib/services/accounts/sendConfirmationEmail'
 import {
   OAuthGuardAnyScope,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { Scope } from '@/lib/types/database/operations'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -109,8 +109,8 @@ export const POST = traceApiRoute(
       if (newEmail && newEmail !== account.email) {
         // Honor the server's allow-list so the email param can't be used to
         // sidestep the same restriction enforced at registration.
-        const { allowEmails } = getConfig()
-        if (!isEmailAllowed(allowEmails, newEmail)) {
+        const { registrations } = await getResolvedServerSettings(database)
+        if (!isEmailAllowed(registrations.allowEmails, newEmail)) {
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,
