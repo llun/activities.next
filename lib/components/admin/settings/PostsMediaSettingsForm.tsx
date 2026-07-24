@@ -42,6 +42,11 @@ const POST_SIZE_OPTIONS = [
   { value: '5000', label: '5,000 characters' }
 ]
 
+const postSizeModeFor = (maxCharacters: number) =>
+  POST_SIZE_OPTIONS.some((option) => option.value === String(maxCharacters))
+    ? String(maxCharacters)
+    : CUSTOM_POST_SIZE
+
 const MIN_EXPIRATION_OPTIONS = [
   { value: '300', label: '5 minutes' },
   { value: '1800', label: '30 minutes' },
@@ -79,9 +84,12 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
       'media.maxFileSize': settings.media.maxFileSize
     })
 
-  // Sticky only for "Custom…": a stored value that is not one of the presets
-  // already resolves to custom on its own.
-  const [customPostSizeSelected, setCustomPostSizeSelected] = useState(false)
+  // The picked mode is its own state, never derived from the current value:
+  // deriving it would re-evaluate on every keystroke and unmount the custom
+  // input as soon as a half-typed number passed through a preset.
+  const [selectedPostSizeMode, setSelectedPostSizeMode] = useState(() =>
+    postSizeModeFor(settings.posts.maxCharacters)
+  )
 
   const lock = (key: string) => locks[key] ?? { locked: false }
   const postsStatus = statusFor('posts')
@@ -91,21 +99,17 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
   const maxCharacters = values['posts.maxCharacters'] as number
   const uploadBytes = values['media.maxFileSize'] as number
 
-  const isPresetPostSize = POST_SIZE_OPTIONS.some(
-    (option) => option.value === String(maxCharacters)
-  )
+  // A preset stays picked only while the value still matches it: saving adopts
+  // the server-resolved value, which can land somewhere else entirely.
   const postSizeMode =
-    customPostSizeSelected || !isPresetPostSize
-      ? CUSTOM_POST_SIZE
-      : String(maxCharacters)
+    selectedPostSizeMode === CUSTOM_POST_SIZE ||
+    selectedPostSizeMode === String(maxCharacters)
+      ? selectedPostSizeMode
+      : CUSTOM_POST_SIZE
 
   const changePostSizeMode = (mode: string) => {
-    if (mode === CUSTOM_POST_SIZE) {
-      setCustomPostSizeSelected(true)
-      return
-    }
-    setCustomPostSizeSelected(false)
-    setValue('posts.maxCharacters', Number(mode))
+    setSelectedPostSizeMode(mode)
+    if (mode !== CUSTOM_POST_SIZE) setValue('posts.maxCharacters', Number(mode))
   }
 
   return (

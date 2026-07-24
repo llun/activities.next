@@ -129,6 +129,42 @@ describe('PostsMediaSettingsForm', () => {
     expect(screen.getByLabelText('Custom post size')).toHaveValue(1000)
   })
 
+  // Typing 5000 passes through 500, a preset. Recomputing the mode from the
+  // value would unmount the input mid-edit and strand the admin at 500.
+  it('keeps the custom input mounted while typing past a preset value', () => {
+    renderForm(
+      {},
+      { ...baseSettings, posts: { ...baseSettings.posts, maxCharacters: 750 } }
+    )
+
+    for (const typed of ['5', '50', '500', '5000']) {
+      fireEvent.change(screen.getByLabelText('Custom post size'), {
+        target: { value: typed }
+      })
+      expect(screen.getByLabelText('Post size')).toHaveValue('custom')
+    }
+
+    expect(screen.getByLabelText('Custom post size')).toHaveValue(5000)
+  })
+
+  it('switches back from Custom to a preset', () => {
+    renderForm(
+      {},
+      { ...baseSettings, posts: { ...baseSettings.posts, maxCharacters: 750 } }
+    )
+    fireEvent.change(screen.getByLabelText('Post size'), {
+      target: { value: '500' }
+    })
+
+    expect(screen.getByLabelText('Post size')).toHaveValue('500')
+    expect(screen.queryByLabelText('Custom post size')).not.toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'New posts and edits are capped at 500 characters. Links always count as 23.'
+      )
+    ).toBeInTheDocument()
+  })
+
   it('converts the upload limit from MB to bytes on save', async () => {
     renderForm()
     fireEvent.change(screen.getByLabelText('Upload size limit'), {
