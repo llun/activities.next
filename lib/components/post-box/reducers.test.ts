@@ -1,6 +1,7 @@
 import {
-  DEFAULT_STATE,
   addAttachment,
+  createDefaultState,
+  resetExtension,
   setAttachments,
   setContentWarning,
   setContentWarningVisibility,
@@ -11,9 +12,9 @@ import {
 describe('post-box reducers', () => {
   it('disables poll mode when fitness file is attached', () => {
     const stateWithPoll = {
-      ...DEFAULT_STATE,
+      ...createDefaultState(),
       poll: {
-        ...DEFAULT_STATE.poll,
+        ...createDefaultState().poll,
         showing: true
       }
     }
@@ -36,7 +37,7 @@ describe('post-box reducers', () => {
 
   it('shows content warning input when text is set', () => {
     const nextState = statusExtensionReducer(
-      DEFAULT_STATE,
+      createDefaultState(),
       setContentWarning('Spoilers')
     )
 
@@ -46,7 +47,7 @@ describe('post-box reducers', () => {
 
   it('keeps content warning text when visibility is turned off', () => {
     const stateWithWarning = statusExtensionReducer(
-      DEFAULT_STATE,
+      createDefaultState(),
       setContentWarning('Spoilers')
     )
 
@@ -67,7 +68,7 @@ describe('post-box reducers', () => {
     } as File
     const stateWithFitnessFile = statusExtensionReducer(
       {
-        ...DEFAULT_STATE,
+        ...createDefaultState(),
         contentWarning: 'Spoilers',
         contentWarningVisible: true
       },
@@ -86,9 +87,9 @@ describe('post-box reducers', () => {
 
   it('clears poll and fitness state when entering attachment mode', () => {
     const stateWithPoll = {
-      ...DEFAULT_STATE,
+      ...createDefaultState(),
       poll: {
-        ...DEFAULT_STATE.poll,
+        ...createDefaultState().poll,
         showing: true
       },
       fitnessFile: {
@@ -122,7 +123,7 @@ describe('post-box reducers', () => {
 
   it('clears incompatible modes while managing an existing attachment list', () => {
     const stateWithAttachments = {
-      ...DEFAULT_STATE,
+      ...createDefaultState(),
       attachments: [
         {
           type: 'upload' as const,
@@ -166,9 +167,9 @@ describe('post-box reducers', () => {
 
   it('clears poll and fitness state when adding an attachment', () => {
     const stateWithPoll = {
-      ...DEFAULT_STATE,
+      ...createDefaultState(),
       poll: {
-        ...DEFAULT_STATE.poll,
+        ...createDefaultState().poll,
         showing: true
       },
       fitnessFile: {
@@ -196,5 +197,22 @@ describe('post-box reducers', () => {
     expect(nextState.attachments).toHaveLength(1)
     expect(nextState.poll.showing).toBe(false)
     expect(nextState.fitnessFile).toBeUndefined()
+  })
+
+  // The poll editor's choice inputs are uncontrolled and write straight into
+  // the Choice objects, so a shared default array would carry one draft's
+  // options into the next poll — and into every other composer on the page.
+  it('starts each reset from fresh poll choice objects', () => {
+    const state = createDefaultState()
+    state.poll.choices[0].text = 'SECRET'
+
+    const afterReset = statusExtensionReducer(state, resetExtension())
+
+    expect(afterReset.poll.choices.map((choice) => choice.text)).toEqual([
+      '',
+      ''
+    ])
+    expect(afterReset.poll.choices[0]).not.toBe(state.poll.choices[0])
+    expect(createDefaultState().poll.choices[0].text).toBe('')
   })
 })

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { SecondsToDurationText } from '@/lib/components/post-box/poll-durations'
+import { SecondsToDurationText } from '@/lib/services/statuses/pollDurations'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { QuoteApprovalPolicy, Status } from '@/lib/types/domain/status'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
@@ -29,9 +29,10 @@ export const CreatePollRequest = z.object({
   choices: z.string().array(),
   pollType: z.enum(['oneOf', 'anyOf']).optional(),
   // `.map(parseInt)` would pass the array index as the radix — '1800' parsed
-  // base 1 is NaN, '21600' base 3 is 7, and so on — so every duration except
-  // the first silently failed validation and the composer could only create
-  // 5-minute polls. Parse each key explicitly.
+  // base 1 is NaN, '21600' base 3 is 7, and so on — so all but the first
+  // duration silently failed validation. Parse each key explicitly. (The list
+  // itself was also empty on the server until the durations moved out of the
+  // 'use client' poll editor, so in practice no duration validated at all.)
   durationInSeconds: z.number().refine(
     (value) =>
       Object.keys(SecondsToDurationText)

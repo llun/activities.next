@@ -27,25 +27,26 @@ endpoint the web composer posts through. Every upload endpoint (`POST
 thumbnails, `POST /api/v1/medias/presigned`, `PATCH
 /api/v1/accounts/update_credentials` avatars/headers, and admin custom emoji)
 enforces the resolved `media.maxFileSize`. All of them answer `422` above the
-limit, with the specific limit in the `error` message. The web composer, its
-poll editor and media picker, the inline reply box, and the avatar/header
-picker all size themselves to the same resolved values rather than to fixed
-constants, so the client cannot offer something the endpoint will reject.
+limit; the status routes name the limit in the `error` message, while the upload
+routes return the generic `Unprocessable entity`. The web composer, its poll
+editor and media picker, the inline reply box, and the avatar/header picker all
+size themselves to the same resolved values rather than to fixed constants, so
+in normal use the client does not offer what the endpoint will refuse.
 
 `posts.maxMediaAttachments` is the exception: it is advertised to clients and
 bounds the admin form, but neither create endpoint rejects a status carrying
 more than the configured number of attachments. Lowering it changes what
 clients are told, not what is accepted.
 
-Several settings are bounded so the admin form cannot configure something the
-rest of the stack will not honour — `polls.maxOptions` at 50,
-`polls.maxCharactersPerOption` at 1,000, `posts.maxCharacters` at 100,000, and
-`posts.maxMediaAttachments` at the stored-media ceiling. `media.maxFileSize` is
-bounded at **200 MB** for a stronger reason than form hygiene: it is the size at
+Several settings carry an upper bound. `polls.maxOptions` (50) and
+`polls.maxCharactersPerOption` (1,000) match the ceilings the status create
+schema accepts; `posts.maxMediaAttachments` matches the stored-media ceiling;
+`posts.maxCharacters` (100,000) is a sanity bound only. `media.maxFileSize` is
+bounded at **200 MiB** (`209715200`) for a stronger reason: it is the size at
 which the object-storage driver will read a stored file back out, so accepting a
 larger upload would store media that could never be served. It can be lowered
-freely. An `ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE` above 200 MB still applies,
-because the storage driver reads that same variable.
+freely. An `ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE` above that still applies,
+because the storage driver reads the same variable.
 
 The variables that pin an admin-editable setting are:
 `ACTIVITIES_SERVICE_NAME`, `ACTIVITIES_SERVICE_DESCRIPTION`,

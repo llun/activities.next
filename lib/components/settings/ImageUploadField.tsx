@@ -73,13 +73,10 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
       // would reject a large photo that resizing brings comfortably under a
       // lowered cap.
       if (resizedFile.size > maxMediaFileSize) {
+        // The enclosing finally clears the uploading flag and the file input.
         setUploadError(
           `Image is too large. Maximum size is ${formatFileSize(maxMediaFileSize)}`
         )
-        setIsUploading(false)
-        if (fileInputRef.current) {
-          fileInputRef.current.value = ''
-        }
         return
       }
 

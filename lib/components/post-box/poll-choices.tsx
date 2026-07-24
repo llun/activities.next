@@ -8,8 +8,11 @@ import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Select } from '@/lib/components/ui/select'
 import { Switch } from '@/lib/components/ui/switch'
-
-import { DURATIONS, Duration, SecondsToDurationText } from './poll-durations'
+import {
+  DURATIONS,
+  Duration,
+  SecondsToDurationText
+} from '@/lib/services/statuses/pollDurations'
 
 export interface Choice {
   key: number
@@ -65,12 +68,19 @@ export const PollChoices: FC<Props> = ({
     return inRange.length > 0 ? inRange : DURATIONS
   }, [minPollExpirationSeconds, maxPollExpirationSeconds])
 
-  // A duration selected before the range changed (or the built-in default)
-  // can fall outside it; move to the closest offered one so the draft always
-  // carries a value the endpoint accepts.
+  // A duration selected before the range changed (or the built-in default) can
+  // fall outside it; move to the nearest offered one so the draft always
+  // carries a value the endpoint accepts, and so a range bounded from above
+  // does not silently collapse the selection to the shortest option.
   useEffect(() => {
     if (durations.includes(durationInSeconds)) return
-    onChooseDuration(durations[0])
+    const nearest = durations.reduce((closest, seconds) =>
+      Math.abs(seconds - durationInSeconds) <
+      Math.abs(closest - durationInSeconds)
+        ? seconds
+        : closest
+    )
+    onChooseDuration(nearest)
   }, [durations, durationInSeconds, onChooseDuration])
 
   if (!show) return null

@@ -119,6 +119,16 @@ change doesn't touch.
 - Settings/account forms are client components that POST JSON and show inline
   success/error, not HTML `<form method="post">` with server redirects; the route
   returns JSON via `apiResponse()`.
+- Server-only code (`app/api/`, `lib/services|actions|jobs|database|config`)
+  never imports a **runtime value** from a `'use client'` module — on the server
+  it resolves to a client reference, so a constant read out of it is empty and no
+  test can see it (`lib/clientModuleBoundary.test.ts` enforces this). `import
+type` is fine. Shared constants live in a dependency-free module both sides
+  import. See **Server/Client Module Boundary** in `AGENTS.md`.
+- Client authoring UI reads admin-configured limits from `useInstanceLimits()`
+  rather than hardcoding a constant, and new authoring/upload surfaces render
+  under `InstanceLimitsProvider`. The limits are still enforced server-side. See
+  **Instance Limits in Client Components** in `AGENTS.md`.
 - Validate any user-controlled URL before using it as an `href`: parse with
   `new URL()` and allow only the `http:` or `https:` protocols — not a `startsWith`
   or regex check — so a `javascript:` (or other) scheme can't become a DOM-XSS

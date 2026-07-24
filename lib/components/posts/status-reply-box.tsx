@@ -14,8 +14,8 @@ import {
 import { createNote, uploadAttachment } from '@/lib/client'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
 import {
-  DEFAULT_STATE,
   addAttachment,
+  createDefaultState,
   resetExtension,
   setAttachments,
   setContentWarning,
@@ -63,7 +63,8 @@ export const StatusReplyBox: FC<Props> = ({
 
   const [postExtension, dispatch] = useReducer(
     statusExtensionReducer,
-    DEFAULT_STATE
+    undefined,
+    createDefaultState
   )
   const postExtensionRef = useRef(postExtension)
   const removedAttachmentIdsRef = useRef<Set<string>>(new Set())
@@ -387,7 +388,7 @@ export const StatusReplyBox: FC<Props> = ({
                 onDuplicateError={() =>
                   setWarningMsg('Some files are already selected')
                 }
-                onFileRejected={(message) => setWarningMsg(message)}
+                onFilesRejected={(message) => setWarningMsg(message)}
                 onUploadStart={() => setWarningMsg(null)}
               />
               <div className="flex items-center gap-2 ml-auto">

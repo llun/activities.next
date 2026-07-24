@@ -1,12 +1,15 @@
 import { Reducer } from 'react'
 
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
+import {
+  DEFAULT_DURATION,
+  Duration
+} from '@/lib/services/statuses/pollDurations'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { QuoteApprovalPolicy } from '@/lib/types/domain/status'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 
 import { Choice } from './poll-choices'
-import { DEFAULT_DURATION, Duration } from './poll-durations'
 
 interface StatusExtension {
   attachments: PostBoxAttachment[]
@@ -164,24 +167,29 @@ type Actions =
 
 const key = () => Math.round(Math.random() * 1000)
 
-export const DEFAULT_CHOICES = [
+// Fresh objects every time. The poll editor's choice inputs are uncontrolled
+// and write straight into the Choice objects (`choice.text = …`), so sharing one
+// module-level array would carry the previous draft's options into the next
+// poll — and, because the module is shared, into every other composer on the
+// page.
+export const createDefaultChoices = (): Choice[] => [
   { key: key(), text: '' },
   { key: key(), text: '' }
 ]
 
-export const DEFAULT_STATE: StatusExtension = {
+export const createDefaultState = (): StatusExtension => ({
   attachments: [],
   contentWarning: '',
   contentWarningVisible: false,
   poll: {
     showing: false,
-    choices: DEFAULT_CHOICES,
+    choices: createDefaultChoices(),
     durationInSeconds: DEFAULT_DURATION,
     pollType: 'oneOf'
   },
   visibility: 'public',
   quoteApprovalPolicy: 'public'
-}
+})
 
 export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
   state,
@@ -194,8 +202,9 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
           URL.revokeObjectURL(attachment.url)
         }
       })
-      // Reset everything including visibility to default state after posting
-      return DEFAULT_STATE
+      // Reset everything including visibility to default state after posting.
+      // A fresh state, so the next poll starts from empty choice objects.
+      return createDefaultState()
     }
     case 'setAttachments': {
       const hasAttachments = action.attachments.length > 0
@@ -205,7 +214,7 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
         fitnessFile: hasAttachments ? undefined : state.fitnessFile,
         poll: hasAttachments
           ? {
-              ...DEFAULT_STATE.poll
+              ...createDefaultState().poll
             }
           : state.poll
       }
@@ -296,7 +305,7 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
         attachments: [...state.attachments, action.attachment],
         fitnessFile: undefined,
         poll: {
-          ...DEFAULT_STATE.poll
+          ...createDefaultState().poll
         }
       }
     }

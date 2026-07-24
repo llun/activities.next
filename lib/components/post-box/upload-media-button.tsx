@@ -21,8 +21,8 @@ interface Props {
   attachments?: PostBoxAttachment[]
   onAddAttachment: (attachment: PostBoxAttachment) => void
   onDuplicateError: () => void
-  /** Reports files rejected before upload (currently: over the size cap). */
-  onFileRejected?: (message: string) => void
+  /** Reports every file rejected before upload (currently: over the size cap). */
+  onFilesRejected?: (message: string) => void
   onUploadStart: () => void
   onBeforeAddAttachments?: () => boolean | void | Promise<boolean | void>
 }
@@ -32,7 +32,7 @@ export const UploadMediaButton: FC<Props> = ({
   attachments = [],
   onAddAttachment,
   onDuplicateError,
-  onFileRejected,
+  onFilesRejected,
   onUploadStart,
   onBeforeAddAttachments
 }) => {
@@ -64,6 +64,7 @@ export const UploadMediaButton: FC<Props> = ({
     }
 
     const files = filteredFiles.slice(0, availableSlots)
+    const oversizeFileNames: string[] = []
 
     const processedAttachments = (
       await Promise.all(
@@ -75,11 +76,10 @@ export const UploadMediaButton: FC<Props> = ({
             // The upload endpoint enforces the instance's resolved
             // media.maxFileSize, so reject over-cap files here rather than
             // after a full upload round trip. Checked after resizing, which is
-            // what actually gets uploaded.
+            // what actually gets uploaded. Collected and reported together
+            // below, so a multi-select does not overwrite its own message.
             if (file.size > maxMediaFileSize) {
-              onFileRejected?.(
-                `${targetFile.name} is larger than the ${formatFileSize(maxMediaFileSize)} upload limit`
-              )
+              oversizeFileNames.push(targetFile.name)
               URL.revokeObjectURL(previewUrl)
               return null
             }
@@ -111,6 +111,12 @@ export const UploadMediaButton: FC<Props> = ({
     ).filter(
       (attachment): attachment is PostBoxAttachment => attachment !== null
     )
+
+    if (oversizeFileNames.length > 0) {
+      onFilesRejected?.(
+        `${oversizeFileNames.join(', ')} ${oversizeFileNames.length === 1 ? 'is' : 'are'} larger than the ${formatFileSize(maxMediaFileSize)} upload limit`
+      )
+    }
 
     if (!processedAttachments.length) return
 

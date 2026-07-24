@@ -111,16 +111,48 @@ describe('PollChoices', () => {
     ])
   })
 
-  it('moves a selected duration that falls outside the configured range', () => {
-    const onChooseDuration = vi.fn()
-    renderPollChoices({
-      // The built-in default (1 day) is above this instance's maximum.
+  it.each([
+    {
+      description:
+        'moves a selection above the configured range to the nearest offered duration',
       durationInSeconds: 86_400,
+      minPollExpirationSeconds: undefined,
       maxPollExpirationSeconds: 3_600,
-      onChooseDuration
-    })
+      expectedDuration: 3_600
+    },
+    {
+      description:
+        'moves a selection below the configured range to the nearest offered duration',
+      durationInSeconds: 300,
+      minPollExpirationSeconds: 43_200,
+      maxPollExpirationSeconds: undefined,
+      expectedDuration: 43_200
+    }
+  ])(
+    '$description',
+    ({
+      durationInSeconds,
+      minPollExpirationSeconds,
+      maxPollExpirationSeconds,
+      expectedDuration
+    }) => {
+      const onChooseDuration = vi.fn()
+      renderPollChoices({
+        durationInSeconds,
+        minPollExpirationSeconds,
+        maxPollExpirationSeconds,
+        onChooseDuration
+      })
 
-    expect(onChooseDuration).toHaveBeenCalledWith(300)
+      expect(onChooseDuration).toHaveBeenCalledWith(expectedDuration)
+    }
+  )
+
+  it('leaves an in-range selection alone', () => {
+    const onChooseDuration = vi.fn()
+    renderPollChoices({ durationInSeconds: 86_400, onChooseDuration })
+
+    expect(onChooseDuration).not.toHaveBeenCalled()
   })
 
   it('keeps every duration when the configured range excludes them all', () => {

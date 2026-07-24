@@ -30,6 +30,7 @@ import {
 import { useInstanceLimits } from '@/lib/components/instance-limits'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
+import { Duration } from '@/lib/services/statuses/pollDurations'
 import {
   ActorProfile,
   getMention,
@@ -58,12 +59,11 @@ import { processStatusTextContent } from '@/lib/utils/text/processStatusText'
 
 import { EmojiPickerButton } from './emoji-picker-button'
 import { PollChoices } from './poll-choices'
-import { Duration } from './poll-durations'
 import { QuotedPreview } from './quoted-preview'
 import {
-  DEFAULT_STATE,
   addAttachment,
   addPollChoice,
+  createDefaultState,
   removeFitnessFile,
   removePollChoice,
   resetExtension,
@@ -335,7 +335,8 @@ export const PostBox: FC<Props> = ({
 
   const [postExtension, dispatch] = useReducer(
     statusExtensionReducer,
-    DEFAULT_STATE
+    undefined,
+    createDefaultState
   )
   const postExtensionRef = useRef(postExtension)
   // The actor's default quote policy (Mastodon posting:default:quote_policy),
@@ -945,7 +946,7 @@ export const PostBox: FC<Props> = ({
       const editText = getEditableStatusText(editStatus)
       const attachments = getEditableStatusAttachments(editStatus)
       const nextExtension = {
-        ...DEFAULT_STATE,
+        ...createDefaultState(),
         attachments,
         contentWarning: editStatus.summary ?? '',
         contentWarningVisible: Boolean(editStatus.summary)
@@ -961,7 +962,7 @@ export const PostBox: FC<Props> = ({
     } else {
       setText('')
       textRef.current = ''
-      postExtensionRef.current = DEFAULT_STATE
+      postExtensionRef.current = createDefaultState()
       dispatch(resetExtension())
       setAllowPost(false)
     }
@@ -1101,7 +1102,7 @@ export const PostBox: FC<Props> = ({
                   ],
                   fitnessFile: undefined,
                   poll: {
-                    ...DEFAULT_STATE.poll
+                    ...createDefaultState().poll
                   }
                 }
                 postExtensionRef.current = nextExtension
@@ -1123,7 +1124,7 @@ export const PostBox: FC<Props> = ({
               onDuplicateError={() =>
                 setWarningMsg('Some files are already selected')
               }
-              onFileRejected={(message) => setWarningMsg(message)}
+              onFilesRejected={(message) => setWarningMsg(message)}
               onUploadStart={() => setWarningMsg(null)}
               onBeforeAddAttachments={onRemoveFitnessFile}
             />
