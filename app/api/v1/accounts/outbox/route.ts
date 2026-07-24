@@ -8,6 +8,8 @@ import { createPollFromUserInput } from '@/lib/actions/createPoll'
 import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { resolveQuoteForCreate } from '@/lib/services/quotes/resolveQuoteForCreate'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
+import { validateStatusContentLimits } from '@/lib/services/statuses/contentLimits'
 import { toActivityPubObject } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -47,6 +49,33 @@ export const POST = traceApiRoute(
         })
       }
       const request = parsed.data
+      // Enforce the admin-configured status/poll limits (server settings), the
+      // same way POST /api/v1/statuses and PUT /api/v1/statuses/:id do. This is
+      // the endpoint the web composer creates through, so without it the
+      // resolved `posts.maxCharacters` was advertised and shown in the composer
+      // but never actually enforced on a create.
+      const serverSettings = await getResolvedServerSettings(database)
+      const limitError = validateStatusContentLimits(
+        request.type === 'poll'
+          ? {
+              status: request.message,
+              poll: {
+                options: request.choices,
+                expires_in: request.durationInSeconds
+              }
+            }
+          : { status: request.message },
+        serverSettings
+      )
+      if (limitError) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: limitError },
+          responseStatusCode: 422
+        })
+      }
+
       switch (request.type) {
         case 'note': {
           const {

@@ -1,11 +1,15 @@
 import { Reducer } from 'react'
 
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
+import {
+  DEFAULT_DURATION,
+  Duration
+} from '@/lib/services/statuses/pollDurations'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { QuoteApprovalPolicy } from '@/lib/types/domain/status'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 
-import { Choice, DEFAULT_DURATION, Duration } from './poll-choices'
+import { Choice } from './poll-choices'
 
 interface StatusExtension {
   attachments: PostBoxAttachment[]
@@ -56,10 +60,11 @@ type ActionSetContentWarningVisibility = ReturnType<
   typeof setContentWarningVisibility
 >
 
-export const addPollChoice = {
-  type: 'addPollChoice' as const
-}
-type ActionAddPollChoice = typeof addPollChoice
+export const addPollChoice = (maxOptions: number) => ({
+  type: 'addPollChoice' as const,
+  maxOptions
+})
+type ActionAddPollChoice = ReturnType<typeof addPollChoice>
 
 export const removePollChoice = (index: number) => ({
   type: 'removePollChoice' as const,
@@ -160,26 +165,39 @@ type Actions =
   | ActionSetFitnessFileUploaded
   | ActionRemoveFitnessFile
 
-const key = () => Math.round(Math.random() * 1000)
+// Monotonic, so two choices can never share a React key. `Math.round(Math.random()
+// * 1000)` collided roughly one pair in a thousand, which reconciled two
+// uncontrolled inputs onto one node and silently dropped an option — and the
+// default pair is now minted on every reset rather than once per module load.
+let nextChoiceKey = 0
+const key = () => {
+  nextChoiceKey += 1
+  return nextChoiceKey
+}
 
-export const DEFAULT_CHOICES = [
+// Fresh objects every time. The poll editor's choice inputs are uncontrolled
+// and write straight into the Choice objects (`choice.text = …`), so sharing one
+// module-level array would carry the previous draft's options into the next
+// poll — and, because the module is shared, into every other composer on the
+// page.
+export const createDefaultChoices = (): Choice[] => [
   { key: key(), text: '' },
   { key: key(), text: '' }
 ]
 
-export const DEFAULT_STATE: StatusExtension = {
+export const createDefaultState = (): StatusExtension => ({
   attachments: [],
   contentWarning: '',
   contentWarningVisible: false,
   poll: {
     showing: false,
-    choices: DEFAULT_CHOICES,
+    choices: createDefaultChoices(),
     durationInSeconds: DEFAULT_DURATION,
     pollType: 'oneOf'
   },
   visibility: 'public',
   quoteApprovalPolicy: 'public'
-}
+})
 
 export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
   state,
@@ -192,8 +210,9 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
           URL.revokeObjectURL(attachment.url)
         }
       })
-      // Reset everything including visibility to default state after posting
-      return DEFAULT_STATE
+      // Reset everything including visibility to default state after posting.
+      // A fresh state, so the next poll starts from empty choice objects.
+      return createDefaultState()
     }
     case 'setAttachments': {
       const hasAttachments = action.attachments.length > 0
@@ -203,7 +222,7 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
         fitnessFile: hasAttachments ? undefined : state.fitnessFile,
         poll: hasAttachments
           ? {
-              ...DEFAULT_STATE.poll
+              ...createDefaultState().poll
             }
           : state.poll
       }
@@ -246,7 +265,9 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
       }
     }
     case 'addPollChoice': {
-      if (state.poll.choices.length > 4) return state
+      // Bounded by the instance's resolved polls.maxOptions, so the composer
+      // can never build a poll the create endpoint will reject.
+      if (state.poll.choices.length >= action.maxOptions) return state
       return {
         ...state,
         poll: {
@@ -292,7 +313,7 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
         attachments: [...state.attachments, action.attachment],
         fitnessFile: undefined,
         poll: {
-          ...DEFAULT_STATE.poll
+          ...createDefaultState().poll
         }
       }
     }

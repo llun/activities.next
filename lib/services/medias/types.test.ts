@@ -1,6 +1,26 @@
 import { MediaSchema, PresigedMediaInput } from './types'
 
 describe('PresigedMediaInput', () => {
+  const validInput = {
+    fileName: 'photo.png',
+    checksum: 'a9993e364706816aba3e25717850c26c9cd0d89d',
+    width: 10,
+    height: 20,
+    contentType: 'image/png',
+    size: 1024
+  }
+
+  // The upload cap itself is the resolved media.maxFileSize, checked in the
+  // presigned route; the schema only has to reject a nonsensical byte count.
+  it.each([
+    { description: 'accepts a zero size', size: 0, expected: true },
+    { description: 'accepts a positive size', size: 1024, expected: true },
+    { description: 'rejects a negative size', size: -1, expected: false }
+  ])('$description', ({ size, expected }) => {
+    const parsed = PresigedMediaInput.safeParse({ ...validInput, size })
+    expect(parsed.success).toBe(expected)
+  })
+
   it('normalizes checksum input to lowercase', () => {
     const parsed = PresigedMediaInput.parse({
       fileName: 'photo.png',

@@ -4,6 +4,7 @@ import { Database } from '@/lib/database/types'
 import { saveMedia } from '@/lib/services/medias'
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { MediaSchema } from '@/lib/services/medias/types'
+import { exceedsMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import { Actor } from '@/lib/types/domain/actor'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -39,6 +40,22 @@ export const handleSyncMediaUpload = async (
 
   const media = MediaSchema.safeParse(Object.fromEntries(form.entries()))
   if (!media.success) {
+    return apiResponse({
+      req,
+      allowedMethods: corsHeaders,
+      data: ERROR_422,
+      responseStatusCode: 422
+    })
+  }
+
+  // The upload cap is the resolved `media.maxFileSize` server setting, which
+  // needs a database read, so it is checked here rather than in MediaSchema.
+  // Same 422 the schema failure above returns — Mastodon's "Validation failed".
+  const isOversize = await exceedsMaxMediaUploadSize(
+    [media.data.file.size, media.data.thumbnail?.size],
+    database
+  )
+  if (isOversize) {
     return apiResponse({
       req,
       allowedMethods: corsHeaders,

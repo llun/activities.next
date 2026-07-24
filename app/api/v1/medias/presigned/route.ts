@@ -7,6 +7,7 @@ import {
   getPresignedUrl
 } from '@/lib/services/medias'
 import { PresigedMediaInput } from '@/lib/services/medias/types'
+import { exceedsMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_404,
@@ -36,7 +37,12 @@ export const POST = traceApiRoute(
     try {
       const content = await req.json()
       const parsed = PresigedMediaInput.safeParse(content)
-      if (!parsed.success) {
+      // The size cap is the resolved `media.maxFileSize` server setting (a
+      // database read), so it is checked here rather than in PresigedMediaInput.
+      if (
+        !parsed.success ||
+        (await exceedsMaxMediaUploadSize([parsed.data.size], database))
+      ) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,

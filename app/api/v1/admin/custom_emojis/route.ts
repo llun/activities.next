@@ -7,6 +7,7 @@ import { AdminApiGuard } from '@/lib/services/guards/AdminApiGuard'
 import { deleteMediaFile, saveMedia } from '@/lib/services/medias'
 import { ACCEPTED_IMAGE_TYPES } from '@/lib/services/medias/constants'
 import { FileSchema } from '@/lib/services/medias/types'
+import { exceedsMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import { toAdminCustomEmoji } from '@/lib/types/domain/customEmoji'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -69,6 +70,17 @@ export const POST = traceApiRoute(
       !fileParsed.success ||
       !ACCEPTED_IMAGE_TYPES.includes(fileParsed.data.type)
     ) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
+      })
+    }
+
+    // The upload cap lives in the resolved `media.maxFileSize` server setting
+    // (a database read), so it is checked here rather than in FileSchema.
+    if (await exceedsMaxMediaUploadSize([fileParsed.data.size], database)) {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,

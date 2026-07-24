@@ -17,8 +17,38 @@ precedence **environment variable → database → built-in default**: an
 environment variable always wins and locks the field in the admin UI with a
 "Set by environment" badge, so removing the variable is what hands control back
 to the admin form. Clients read the resolved values from `/api/v1/instance` and
-`/api/v2/instance`, and the create/edit status APIs enforce the resolved
-post/poll limits.
+`/api/v2/instance`.
+
+Every endpoint that creates or edits a status enforces the resolved
+`posts.maxCharacters` and `polls.*` limits — `POST`/`PUT
+/api/v1/statuses[/:id]` and `POST /api/v1/accounts/outbox`, which is the
+endpoint the web composer posts through. Every upload endpoint (`POST
+/api/v1/media`, `POST /api/v2/media`, `PUT`/`PATCH /api/v1/media/:id`
+thumbnails, `POST /api/v1/medias/presigned`, `PATCH
+/api/v1/accounts/update_credentials` avatars/headers, and admin custom emoji)
+enforces the resolved `media.maxFileSize`. All of them answer `422` above the
+limit. The status routes put the offending limit in the `error` message (except
+the poll-expiry one, which just says it is out of range); the upload routes
+return the generic `Unprocessable entity`, apart from
+`update_credentials`, which says `Invalid image file`. The web composer, its poll
+editor and media picker, the inline reply box, and the avatar/header picker all
+size themselves to the same resolved values rather than to fixed constants, so
+in normal use the client does not offer what the endpoint will refuse.
+
+`posts.maxMediaAttachments` is the exception: it is advertised to clients and
+bounds the admin form, but neither create endpoint rejects a status carrying
+more than the configured number of attachments. Lowering it changes what
+clients are told, not what is accepted.
+
+Several settings carry an upper bound. `polls.maxOptions` (50) and
+`polls.maxCharactersPerOption` (1,000) match the ceilings the status create
+schema accepts; `posts.maxMediaAttachments` matches the stored-media ceiling;
+`posts.maxCharacters` (100,000) is a sanity bound only. `media.maxFileSize` is
+bounded at **200 MiB** (`209715200`) for a stronger reason: it is the size at
+which the object-storage driver will read a stored file back out, so accepting a
+larger upload would store media that could never be served. It can be lowered
+freely. An `ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE` above that still applies,
+because the storage driver reads the same variable.
 
 The variables that pin an admin-editable setting are:
 `ACTIVITIES_SERVICE_NAME`, `ACTIVITIES_SERVICE_DESCRIPTION`,
@@ -170,7 +200,7 @@ Required for media uploads (images and video in posts). If no media storage is c
 | `ACTIVITIES_MEDIA_STORAGE_REGION`            | S3 region (e.g., `us-east-1`).                                                                                                                                                                                                                                                       |
 | `ACTIVITIES_MEDIA_STORAGE_HOSTNAME`          | Public media hostname/CDN used to serve stored media files. If unset, media files are served through the app from the configured storage backend. This value is not used for S3 API operations.                                                                                      |
 | `ACTIVITIES_MEDIA_STORAGE_ENDPOINT`          | S3-compatible API endpoint used for storage operations and browser presigned uploads (for services like MinIO, DigitalOcean Spaces, Cloudflare R2). If unset, the AWS SDK uses the standard AWS S3 endpoint for the configured region; set this for non-AWS S3-compatible providers. |
-| `ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE`     | Maximum file size in bytes (default: 200 MiB / `209715200`).                                                                                                                                                                                                                         |
+| `ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE`     | Maximum file size in bytes (default: 200 MiB / `209715200`). Also pins the admin-editable `media.maxFileSize` setting; when unset, an admin can lower the cap but not raise it above this default.                                                                                   |
 | `ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT` | Per-account combined media + fitness storage quota in bytes. If unset, the config value stays empty and the quota service applies its 1 GiB (`1073741824`) default when enforcing quota.                                                                                             |
 
 > Upgrade note: If you previously set `ACTIVITIES_MEDIA_STORAGE_HOSTNAME` or `ACTIVITIES_FITNESS_STORAGE_HOSTNAME` to a MinIO, Cloudflare R2, DigitalOcean Spaces, or other S3-compatible API endpoint, move that value to the matching `*_STORAGE_ENDPOINT` variable. `*_STORAGE_HOSTNAME` is for a public hostname/CDN origin, not for S3 API operations or browser presigned uploads.

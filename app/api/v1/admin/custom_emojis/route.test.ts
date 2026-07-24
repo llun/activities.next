@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
 
+import { Database } from '@/lib/database/types'
+import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { GET, POST } from './route'
@@ -7,7 +9,8 @@ import { GET, POST } from './route'
 const mockDatabase = {
   getCustomEmojis: vi.fn(),
   getCustomEmojiByShortcode: vi.fn(),
-  createCustomEmoji: vi.fn()
+  createCustomEmoji: vi.fn(),
+  getAllServerSettings: vi.fn()
 }
 
 vi.mock('@/lib/database', () => ({
@@ -73,7 +76,12 @@ describe('/api/v1/admin/custom_emojis', () => {
     mockDatabase.getCustomEmojis.mockReset()
     mockDatabase.getCustomEmojiByShortcode.mockReset()
     mockDatabase.createCustomEmoji.mockReset()
+    mockDatabase.getAllServerSettings.mockReset()
+    mockDatabase.getAllServerSettings.mockResolvedValue([])
     mockSaveMedia.mockReset()
+    // The resolver caches per database instance, and this mock is shared across
+    // the file, so drop the cached view between cases.
+    invalidateServerSettingsCache(mockDatabase as unknown as Database)
   })
 
   it('lists all emoji including disabled ones with the admin shape', async () => {
@@ -210,6 +218,25 @@ describe('/api/v1/admin/custom_emojis', () => {
       params: Promise.resolve({})
     })
     expect(response.status).toBe(403)
+    expect(mockSaveMedia).not.toHaveBeenCalled()
+  })
+
+  it('rejects an image over the admin-configured media.maxFileSize with 422', async () => {
+    mockDatabase.getCustomEmojiByShortcode.mockResolvedValue(null)
+    // The sample image is 3 bytes. `getConfig()` here still reports a 1 MB
+    // mediaStorage cap, so a pass here would mean the stored setting is ignored.
+    mockDatabase.getAllServerSettings.mockResolvedValue([
+      { key: 'media.maxFileSize', value: 2 }
+    ])
+
+    const form = new FormData()
+    form.set('shortcode', 'blobcat')
+    form.set('image', makeImage())
+
+    const response = await POST(makeMultipartRequest(form), {
+      params: Promise.resolve({})
+    })
+    expect(response.status).toBe(422)
     expect(mockSaveMedia).not.toHaveBeenCalled()
   })
 
