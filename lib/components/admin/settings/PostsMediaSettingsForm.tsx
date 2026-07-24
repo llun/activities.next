@@ -100,22 +100,25 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
   const uploadBytes = values['media.maxFileSize'] as number
 
   // A preset stays picked only while the value still matches it: saving adopts
-  // the server-resolved value, which can land somewhere else entirely.
-  const postSizeMode =
-    selectedPostSizeMode === CUSTOM_POST_SIZE ||
-    selectedPostSizeMode === String(maxCharacters)
-      ? selectedPostSizeMode
-      : CUSTOM_POST_SIZE
+  // the server-resolved value, which can land somewhere else entirely. When it
+  // does, re-derive from the value rather than always dropping to Custom, so a
+  // value that is itself a preset shows as that preset.
+  const resolvePostSizeMode = (mode: string) =>
+    mode === CUSTOM_POST_SIZE || mode === String(maxCharacters)
+      ? mode
+      : postSizeModeFor(maxCharacters)
 
-  // Commit that fallback, don't just render it. An orphaned preset left in
-  // state would match again the moment the value drifted back to it — flipping
-  // the select and unmounting the input while it was being typed into. Custom
+  const postSizeMode = resolvePostSizeMode(selectedPostSizeMode)
+
+  // Commit that, don't just render it. An orphaned preset left in state would
+  // match again the moment the value drifted back to it — flipping the select
+  // and unmounting the input while it was being typed into. Custom
   // short-circuits, so this never fires during an edit.
   useEffect(() => {
     setSelectedPostSizeMode((mode) =>
       mode === CUSTOM_POST_SIZE || mode === String(maxCharacters)
         ? mode
-        : CUSTOM_POST_SIZE
+        : postSizeModeFor(maxCharacters)
     )
   }, [maxCharacters])
 

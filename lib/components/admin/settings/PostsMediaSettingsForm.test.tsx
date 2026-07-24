@@ -154,7 +154,7 @@ describe('PostsMediaSettingsForm', () => {
     mockUpdate.mockResolvedValue({
       settings: {
         ...baseSettings,
-        posts: { ...baseSettings.posts, maxCharacters: 500 }
+        posts: { ...baseSettings.posts, maxCharacters: 750 }
       },
       locks: {}
     })
@@ -168,7 +168,7 @@ describe('PostsMediaSettingsForm', () => {
     await waitFor(() =>
       expect(screen.getByLabelText('Post size')).toHaveValue('custom')
     )
-    expect(screen.getByLabelText('Custom post size')).toHaveValue(500)
+    expect(screen.getByLabelText('Custom post size')).toHaveValue(750)
 
     fireEvent.change(screen.getByLabelText('Custom post size'), {
       target: { value: '1000' }
@@ -176,6 +176,27 @@ describe('PostsMediaSettingsForm', () => {
 
     expect(screen.getByLabelText('Post size')).toHaveValue('custom')
     expect(screen.getByLabelText('Custom post size')).toHaveValue(1000)
+  })
+
+  it('selects the matching preset when a save resolves to another preset', async () => {
+    mockUpdate.mockResolvedValue({
+      settings: {
+        ...baseSettings,
+        posts: { ...baseSettings.posts, maxCharacters: 5000 }
+      },
+      locks: {}
+    })
+    renderForm()
+
+    fireEvent.change(screen.getByLabelText('Post size'), {
+      target: { value: '1000' }
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Update' })[0])
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Post size')).toHaveValue('5000')
+    )
+    expect(screen.queryByLabelText('Custom post size')).not.toBeInTheDocument()
   })
 
   it('switches back from Custom to a preset', () => {
