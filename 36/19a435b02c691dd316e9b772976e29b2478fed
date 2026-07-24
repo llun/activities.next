@@ -1,0 +1,19 @@
+lib/clientModuleBoundary.test.ts
+  s_4074db98cab964::t_d7fc2b12e0f384 3,21-24,72-81,83-109,117-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "3619a435b02c691dd316e9b772976e29b2478fed",
+  "prompts": {},
+  "sessions": {
+    "s_4074db98cab964": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c33ae999-5e09-4367-b055-c4406d93725e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
