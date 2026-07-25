@@ -4,6 +4,8 @@
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
+import { loadMaplibreModule } from '@/lib/utils/maplibre'
+
 import { FitnessPrivacyLocationSettings } from './FitnessPrivacyLocationSettings'
 
 // The GL loaders never resolve here, so the picker stays in its initializing
@@ -578,5 +580,113 @@ describe('FitnessPrivacyLocationSettings', () => {
         )
       })
     ).toBe(true)
+  })
+
+  describe('when the settings fail to load', () => {
+    const failingFetch = () =>
+      vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+        const method = init?.method ?? 'GET'
+        if (method === 'GET') {
+          return { ok: false, json: async () => ({}) } as Response
+        }
+        throw new Error('Unexpected write while settings are unloaded')
+      })
+
+    it('disables save and clear so a failed load cannot destroy saved zones', async () => {
+      failingFetch()
+
+      render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
+
+      expect(
+        await screen.findByText(/Failed to load fitness privacy settings/)
+      ).toBeInTheDocument()
+      // A save replaces the whole stored list, so saving from an empty form
+      // after a failed load would wipe every zone the actor configured.
+      expect(
+        screen.getByRole('button', { name: 'Save privacy locations' })
+      ).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Clear all' })).toBeDisabled()
+    })
+
+    it('does not prefill coordinates from the browser after a failed load', async () => {
+      const getCurrentPosition = vi.fn(
+        (success: (position: GeolocationPosition) => void) => {
+          success({
+            coords: { latitude: 52.010044, longitude: 5.678277 }
+          } as GeolocationPosition)
+        }
+      )
+      Object.defineProperty(global.navigator, 'geolocation', {
+        configurable: true,
+        value: { getCurrentPosition }
+      })
+      failingFetch()
+      // The auto-locate effect is gated on `isMapReady`, so the map has to
+      // actually finish loading or this test would pass for the wrong reason.
+      vi.mocked(loadMaplibreModule).mockResolvedValue({
+        Map: vi.fn(function MapStub() {
+          return {
+            addSource: vi.fn(),
+            addLayer: vi.fn(),
+            getSource: vi.fn(),
+            once: (_event: 'load', listener: () => void) => listener(),
+            on: vi.fn(),
+            flyTo: vi.fn(),
+            remove: vi.fn()
+          }
+        })
+      } as never)
+
+      render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
+
+      await screen.findByText(/Failed to load fitness privacy settings/)
+      await waitFor(() => expect(loadMaplibreModule).toHaveBeenCalled())
+
+      // The map's own initial-view lookup also calls geolocation, so assert on
+      // the form fields: prefilling them would dress an empty form up as a
+      // configured one. Give the effect a tick to run before asserting.
+      await waitFor(() => expect(getCurrentPosition).toHaveBeenCalled())
+      expect(screen.queryByDisplayValue('52.010044')).not.toBeInTheDocument()
+      expect(screen.getByLabelText('Latitude')).toHaveValue('')
+    })
+
+    it('recovers the saved zones when the retry succeeds', async () => {
+      let shouldFail = true
+      vi.spyOn(global, 'fetch').mockImplementation(async () => {
+        if (shouldFail) {
+          shouldFail = false
+          return { ok: false, json: async () => ({}) } as Response
+        }
+        return {
+          ok: true,
+          json: async () => ({
+            privacyLocations: [
+              {
+                latitude: 13.7563,
+                longitude: 100.5018,
+                hideRadiusMeters: 200
+              }
+            ]
+          })
+        } as Response
+      })
+
+      render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
+
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Retry loading' })
+      )
+
+      expect(
+        await screen.findByText('Hide radius: 200m', {
+          collapseWhitespace: true
+        })
+      ).toBeInTheDocument()
+      await waitFor(() =>
+        expect(
+          screen.getByRole('button', { name: 'Save privacy locations' })
+        ).not.toBeDisabled()
+      )
+    })
   })
 })

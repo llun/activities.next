@@ -324,6 +324,12 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
   >([])
 
   const [isLoading, setIsLoading] = useState(true)
+  // Only true once the existing settings have actually been read back. Saving
+  // builds the payload from `privacyLocations`, and a save REPLACES the whole
+  // stored list — so saving before a successful load would destroy every zone
+  // the actor has configured.
+  const [hasLoadedSettings, setHasLoadedSettings] = useState(false)
+  const [settingsReloadToken, setSettingsReloadToken] = useState(0)
   const [isSaving, setIsSaving] = useState(false)
   const [isRegeneratingMaps, setIsRegeneratingMaps] = useState(false)
   const [isLocatingCurrentPosition, setIsLocatingCurrentPosition] =
@@ -442,12 +448,16 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
         setDraftRadiusMeters(
           sanitizeDraftRadius(firstLocation?.hideRadiusMeters)
         )
+        setHasLoadedSettings(true)
       } catch {
         if (cancelled) {
           return
         }
 
-        setError('Failed to load fitness privacy settings')
+        setHasLoadedSettings(false)
+        setError(
+          'Failed to load fitness privacy settings. Saving is disabled until they load, so your saved locations are not overwritten.'
+        )
       } finally {
         isHydratingSettingsRef.current = false
         if (!cancelled) {
@@ -461,10 +471,12 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [settingsReloadToken])
 
   useEffect(() => {
-    if (!isMapReady || isLoading) {
+    // Never prefill from the browser before the settings have loaded: on a load
+    // failure it would dress an empty form up as a configured one.
+    if (!isMapReady || isLoading || !hasLoadedSettings) {
       return
     }
 
@@ -478,6 +490,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
 
     void syncWithCurrentLocation()
   }, [
+    hasLoadedSettings,
     isLoading,
     isMapReady,
     latitudeInput,
@@ -1033,6 +1046,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
             onClick={handleSave}
             disabled={
               isLoading ||
+              !hasLoadedSettings ||
               isSaving ||
               isRegeneratingMaps ||
               isLocatingCurrentPosition
@@ -1045,6 +1059,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
             onClick={handleClear}
             disabled={
               isLoading ||
+              !hasLoadedSettings ||
               isSaving ||
               isRegeneratingMaps ||
               isLocatingCurrentPosition
@@ -1052,6 +1067,14 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
           >
             Clear all
           </Button>
+          {!isLoading && !hasLoadedSettings ? (
+            <Button
+              variant="outline"
+              onClick={() => setSettingsReloadToken((token) => token + 1)}
+            >
+              Retry loading
+            </Button>
+          ) : null}
           <Button
             variant="outline"
             onClick={handleRegenerateOldStatusMaps}
