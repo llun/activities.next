@@ -62,7 +62,7 @@ export const StatusReactionSQLDatabaseMixin = (
       if (existing.length >= MAX_REACTIONS_PER_ACTOR) return false
 
       const currentTime = new Date()
-      const inserted = await trx('status_reactions')
+      await trx('status_reactions')
         .insert({
           statusId,
           actorId,
@@ -73,10 +73,14 @@ export const StatusReactionSQLDatabaseMixin = (
         })
         .onConflict(['statusId', 'actorId', 'name'])
         .ignore()
-      // A concurrent writer can win the race between the read above and this
-      // insert; `onConflict().ignore()` then reports zero affected rows, so the
-      // caller still learns nothing changed and skips the notification.
-      return Array.isArray(inserted) ? inserted.length > 0 : Boolean(inserted)
+      // The read above already established the row did not exist, so this is a
+      // real state change. `onConflict().ignore()` only covers a writer that won
+      // the race in between — at worst one duplicate notification, the same
+      // exposure `createLike`'s identical read-then-insert has always had. The
+      // insert's own result cannot be used to detect that: with no `returning`,
+      // knex hands back the raw driver response, which is truthy on PostgreSQL
+      // whether or not a row was actually added.
+      return true
     })
   },
 
