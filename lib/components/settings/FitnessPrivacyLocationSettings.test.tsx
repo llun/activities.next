@@ -56,10 +56,11 @@ describe('FitnessPrivacyLocationSettings', () => {
     const radiusSelect = screen.getByLabelText('Hide Radius')
     expect(radiusSelect).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: '0m' })).not.toBeInTheDocument()
-    expect(screen.getByRole('option', { name: '5m' })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: '10m' })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: '20m' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: '50m' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '100m' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '200m' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '500m' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '1km' })).toBeInTheDocument()
 
     expect(
       screen.getByText('No privacy locations added yet.')
@@ -121,7 +122,7 @@ describe('FitnessPrivacyLocationSettings', () => {
       target: { value: '100.5018' }
     })
     fireEvent.change(screen.getByLabelText('Hide Radius'), {
-      target: { value: '20' }
+      target: { value: '200' }
     })
 
     fireEvent.click(
@@ -161,7 +162,7 @@ describe('FitnessPrivacyLocationSettings', () => {
         {
           latitude: 13.7563,
           longitude: 100.5018,
-          hideRadiusMeters: 20
+          hideRadiusMeters: 200
         }
       ]
     })
@@ -280,7 +281,7 @@ describe('FitnessPrivacyLocationSettings', () => {
                 {
                   latitude: 13.7563,
                   longitude: 100.5018,
-                  hideRadiusMeters: 20
+                  hideRadiusMeters: 200
                 }
               ]
             })
@@ -361,7 +362,7 @@ describe('FitnessPrivacyLocationSettings', () => {
               {
                 latitude: 13.7563,
                 longitude: 100.5018,
-                hideRadiusMeters: 20
+                hideRadiusMeters: 200
               }
             ]
           })
@@ -422,7 +423,7 @@ describe('FitnessPrivacyLocationSettings', () => {
               {
                 latitude: 13.7563,
                 longitude: 100.5018,
-                hideRadiusMeters: 20
+                hideRadiusMeters: 200
               }
             ]
           })

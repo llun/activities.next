@@ -104,6 +104,9 @@ const DEFAULT_DRAFT_RADIUS = sanitizePrivacyRadiusMeters(
   NON_ZERO_RADIUS_OPTIONS[0] ?? 0
 )
 
+const formatRadiusLabel = (radiusMeters: number) =>
+  radiusMeters >= 1000 ? `${radiusMeters / 1000}km` : `${radiusMeters}m`
+
 const parseCoordinateInput = (value: string): number | null => {
   if (value.trim().length === 0) {
     return null
@@ -947,7 +950,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
             >
               {NON_ZERO_RADIUS_OPTIONS.map((radius) => (
                 <option key={radius} value={radius}>
-                  {radius}m
+                  {formatRadiusLabel(radius)}
                 </option>
               ))}
             </select>
@@ -1000,7 +1003,8 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
                       {location.longitude.toFixed(6)}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Hide radius: {location.hideRadiusMeters}m
+                      Hide radius:{' '}
+                      {formatRadiusLabel(location.hideRadiusMeters)}
                     </p>
                   </div>
                   <Button

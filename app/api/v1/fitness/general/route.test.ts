@@ -124,12 +124,12 @@ describe('Fitness General Settings API', () => {
           {
             latitude: 13.7563,
             longitude: 100.5018,
-            hideRadiusMeters: 20
+            hideRadiusMeters: 200
           }
         ],
         privacyHomeLatitude: 13.7563,
         privacyHomeLongitude: 100.5018,
-        privacyHideRadiusMeters: 20,
+        privacyHideRadiusMeters: 200,
         createdAt: Date.now(),
         updatedAt: Date.now()
       })
@@ -149,12 +149,12 @@ describe('Fitness General Settings API', () => {
         {
           latitude: 13.7563,
           longitude: 100.5018,
-          hideRadiusMeters: 20
+          hideRadiusMeters: 200
         }
       ])
       expect(data.privacyHomeLatitude).toBe(13.7563)
       expect(data.privacyHomeLongitude).toBe(100.5018)
-      expect(data.privacyHideRadiusMeters).toBe(20)
+      expect(data.privacyHideRadiusMeters).toBe(200)
     })
   })
 
@@ -166,7 +166,7 @@ describe('Fitness General Settings API', () => {
         serviceType: 'general',
         privacyHomeLatitude: 13.7563,
         privacyHomeLongitude: 100.5018,
-        privacyHideRadiusMeters: 10,
+        privacyHideRadiusMeters: 100,
         createdAt: Date.now(),
         updatedAt: Date.now()
       })
@@ -179,7 +179,7 @@ describe('Fitness General Settings API', () => {
           body: JSON.stringify({
             privacyHomeLatitude: 13.7563,
             privacyHomeLongitude: 100.5018,
-            privacyHideRadiusMeters: 10
+            privacyHideRadiusMeters: 100
           })
         }
       )
@@ -197,12 +197,12 @@ describe('Fitness General Settings API', () => {
             {
               latitude: 13.7563,
               longitude: 100.5018,
-              hideRadiusMeters: 10
+              hideRadiusMeters: 100
             }
           ],
           privacyHomeLatitude: 13.7563,
           privacyHomeLongitude: 100.5018,
-          privacyHideRadiusMeters: 10
+          privacyHideRadiusMeters: 100
         })
       )
     })
@@ -216,17 +216,17 @@ describe('Fitness General Settings API', () => {
           {
             latitude: 13.7563,
             longitude: 100.5018,
-            hideRadiusMeters: 20
+            hideRadiusMeters: 200
           },
           {
             latitude: 35.6764,
             longitude: 139.65,
-            hideRadiusMeters: 10
+            hideRadiusMeters: 100
           }
         ],
         privacyHomeLatitude: 13.7563,
         privacyHomeLongitude: 100.5018,
-        privacyHideRadiusMeters: 20,
+        privacyHideRadiusMeters: 200,
         createdAt: Date.now(),
         updatedAt: Date.now()
       })
@@ -241,12 +241,12 @@ describe('Fitness General Settings API', () => {
               {
                 latitude: 13.7563,
                 longitude: 100.5018,
-                hideRadiusMeters: 20
+                hideRadiusMeters: 200
               },
               {
                 latitude: 35.6764,
                 longitude: 139.65,
-                hideRadiusMeters: 10
+                hideRadiusMeters: 100
               }
             ]
           })
@@ -267,17 +267,17 @@ describe('Fitness General Settings API', () => {
             {
               latitude: 13.7563,
               longitude: 100.5018,
-              hideRadiusMeters: 20
+              hideRadiusMeters: 200
             },
             {
               latitude: 35.6764,
               longitude: 139.65,
-              hideRadiusMeters: 10
+              hideRadiusMeters: 100
             }
           ],
           privacyHomeLatitude: 13.7563,
           privacyHomeLongitude: 100.5018,
-          privacyHideRadiusMeters: 20
+          privacyHideRadiusMeters: 200
         })
       )
     })
@@ -291,12 +291,12 @@ describe('Fitness General Settings API', () => {
           {
             latitude: 13.7563,
             longitude: 100.5018,
-            hideRadiusMeters: 20
+            hideRadiusMeters: 200
           }
         ],
         privacyHomeLatitude: 13.7563,
         privacyHomeLongitude: 100.5018,
-        privacyHideRadiusMeters: 20,
+        privacyHideRadiusMeters: 200,
         createdAt: Date.now(),
         updatedAt: Date.now()
       })
@@ -347,17 +347,17 @@ describe('Fitness General Settings API', () => {
           {
             latitude: 13.7563,
             longitude: 100.5018,
-            hideRadiusMeters: 20
+            hideRadiusMeters: 200
           },
           {
             latitude: 35.6764,
             longitude: 139.65,
-            hideRadiusMeters: 10
+            hideRadiusMeters: 100
           }
         ],
         privacyHomeLatitude: 13.7563,
         privacyHomeLongitude: 100.5018,
-        privacyHideRadiusMeters: 20,
+        privacyHideRadiusMeters: 200,
         createdAt: Date.now(),
         updatedAt: Date.now()
       })
@@ -372,17 +372,17 @@ describe('Fitness General Settings API', () => {
               {
                 latitude: 13.7563,
                 longitude: 100.5018,
-                hideRadiusMeters: 20
+                hideRadiusMeters: 200
               },
               {
                 latitude: 35.6764,
                 longitude: 139.65,
-                hideRadiusMeters: 10
+                hideRadiusMeters: 100
               }
             ],
             privacyHomeLatitude: 1,
             privacyHomeLongitude: 2,
-            privacyHideRadiusMeters: 5
+            privacyHideRadiusMeters: 50
           })
         }
       )
@@ -398,17 +398,17 @@ describe('Fitness General Settings API', () => {
             {
               latitude: 13.7563,
               longitude: 100.5018,
-              hideRadiusMeters: 20
+              hideRadiusMeters: 200
             },
             {
               latitude: 35.6764,
               longitude: 139.65,
-              hideRadiusMeters: 10
+              hideRadiusMeters: 100
             }
           ],
           privacyHomeLatitude: 13.7563,
           privacyHomeLongitude: 100.5018,
-          privacyHideRadiusMeters: 20
+          privacyHideRadiusMeters: 200
         })
       )
     })
@@ -420,7 +420,7 @@ describe('Fitness General Settings API', () => {
         serviceType: 'general',
         privacyHomeLatitude: 13.7563,
         privacyHomeLongitude: 100.5018,
-        privacyHideRadiusMeters: 10,
+        privacyHideRadiusMeters: 100,
         createdAt: Date.now(),
         updatedAt: Date.now()
       })
@@ -433,7 +433,7 @@ describe('Fitness General Settings API', () => {
           body: JSON.stringify({
             privacyHomeLatitude: 13.7563,
             privacyHomeLongitude: 100.5018,
-            privacyHideRadiusMeters: 10
+            privacyHideRadiusMeters: 100
           })
         }
       )
@@ -447,12 +447,12 @@ describe('Fitness General Settings API', () => {
             {
               latitude: 13.7563,
               longitude: 100.5018,
-              hideRadiusMeters: 10
+              hideRadiusMeters: 100
             }
           ],
           privacyHomeLatitude: 13.7563,
           privacyHomeLongitude: 100.5018,
-          privacyHideRadiusMeters: 10
+          privacyHideRadiusMeters: 100
         })
       )
     })
@@ -467,7 +467,7 @@ describe('Fitness General Settings API', () => {
             privacyLocations: [{ latitude: 13.7563 }],
             privacyHomeLatitude: 13.7563,
             privacyHomeLongitude: 100.5018,
-            privacyHideRadiusMeters: 10
+            privacyHideRadiusMeters: 100
           })
         }
       )
@@ -508,7 +508,7 @@ describe('Fitness General Settings API', () => {
           body: JSON.stringify({
             privacyHomeLatitude: null,
             privacyHomeLongitude: null,
-            privacyHideRadiusMeters: 20
+            privacyHideRadiusMeters: 200
           })
         }
       )
@@ -529,7 +529,7 @@ describe('Fitness General Settings API', () => {
           body: JSON.stringify({
             privacyHomeLatitude: '13.7563',
             privacyHomeLongitude: 100.5018,
-            privacyHideRadiusMeters: 10
+            privacyHideRadiusMeters: 100
           })
         }
       )
@@ -577,7 +577,7 @@ describe('Fitness General Settings API', () => {
           body: JSON.stringify({
             privacyHomeLatitude: 13.7563,
             privacyHomeLongitude: 100.5018,
-            privacyHideRadiusMeters: 10
+            privacyHideRadiusMeters: 100
           })
         }
       )

@@ -1,8 +1,10 @@
 import {
+  FITNESS_PRIVACY_RADIUS_OPTIONS,
   downsamplePrivacySegments,
   getDistanceMeters,
   getFitnessPrivacyLocations,
-  getVisibleSegments
+  getVisibleSegments,
+  sanitizePrivacyRadiusMeters
 } from './privacy'
 
 interface SamplePoint {
@@ -126,12 +128,12 @@ describe('getFitnessPrivacyLocations', () => {
         {
           latitude: 37.7749,
           longitude: -122.4194,
-          hideRadiusMeters: 20
+          hideRadiusMeters: 200
         },
         {
           latitude: 34.0522,
           longitude: -118.2437,
-          hideRadiusMeters: 10
+          hideRadiusMeters: 100
         }
       ]
     })
@@ -140,12 +142,12 @@ describe('getFitnessPrivacyLocations', () => {
       {
         lat: 37.7749,
         lng: -122.4194,
-        radiusMeters: 20
+        radiusMeters: 200
       },
       {
         lat: 34.0522,
         lng: -118.2437,
-        radiusMeters: 10
+        radiusMeters: 100
       }
     ])
   })
@@ -164,5 +166,45 @@ describe('getFitnessPrivacyLocations', () => {
         radiusMeters: 50
       }
     ])
+  })
+
+  it('snaps a radius saved under the older smaller option set up to 50m', () => {
+    const locations = getFitnessPrivacyLocations({
+      privacyLocations: [
+        {
+          latitude: 40.7128,
+          longitude: -74.006,
+          hideRadiusMeters: 20
+        }
+      ]
+    })
+
+    expect(locations).toEqual([
+      {
+        lat: 40.7128,
+        lng: -74.006,
+        radiusMeters: 50
+      }
+    ])
+  })
+})
+
+describe('sanitizePrivacyRadiusMeters', () => {
+  it('offers 50m as the smallest enabled radius and 1km as the largest', () => {
+    expect(FITNESS_PRIVACY_RADIUS_OPTIONS).toEqual([0, 50, 100, 200, 500, 1000])
+  })
+
+  it.each([
+    { description: 'keeps a supported radius', value: 200, expected: 200 },
+    { description: 'keeps the disabled radius', value: 0, expected: 0 },
+    { description: 'snaps a legacy 5m radius up', value: 5, expected: 50 },
+    { description: 'snaps a legacy 20m radius up', value: 20, expected: 50 },
+    { description: 'snaps an in-between radius up', value: 300, expected: 500 },
+    { description: 'caps an oversized radius', value: 5000, expected: 1000 },
+    { description: 'rejects a negative radius', value: -10, expected: 0 },
+    { description: 'rejects a non-finite radius', value: NaN, expected: 0 },
+    { description: 'rejects a non-numeric radius', value: '50', expected: 0 }
+  ])('$description', ({ value, expected }) => {
+    expect(sanitizePrivacyRadiusMeters(value)).toBe(expected)
   })
 })
