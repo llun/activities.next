@@ -257,6 +257,50 @@ section-navigation patterns; pick by section type.
 - A dozen legacy components still call `fetch()` directly (the `Change*Form`s under `app/(timeline)/account/`, `StravaSettingsForm`, the OAuth/password-reset forms, and several `lib/components` settings/actor-switcher dialogs). They are frozen in an exception list in `eslint.config.mjs`; the lint rule blocks any new offender. Migrate them to `lib/client.ts` when touched and remove them from the list — never add to it.
 - The corresponding API route should return JSON via `apiResponse()`, not `Response.redirect()`.
 
+## Transactional & Notification Emails
+
+Every email the server sends goes through one shared skeleton, so a design or
+copy change lands in one place instead of eleven.
+
+- **One module per email** in `lib/services/email/templates/`, exporting a single
+  `build<Name>Email(params): RenderedEmail` (`{ subject, text, html }`). **Never
+  inline a subject or an HTML/text body at a call site** — the four account
+  emails used to, which is exactly why they could not be restyled together. The
+  caller supplies `from`/`to` and spreads the result into `sendMail`.
+- **Templates never write markup.** They compose blocks from
+  `@/lib/services/email/layout/blocks` and hand them to `renderEmail`
+  (`@/lib/services/email/layout/renderEmail`), which owns the 600px table
+  skeleton, the `<head>`, the header, and both footer variants. Colours and sizes
+  come from `@/lib/services/email/layout/theme` — email has no stylesheet, so
+  nothing may reference a CSS variable or a Tailwind class.
+- **Escaping lives in the block builders, not the templates.** A builder takes
+  plain strings and escapes them itself, so a template cannot forget one. The
+  only value the layout emits unescaped is a pre-sanitized status body passed as
+  `SanitizedBody`, produced by the existing `convertMarkdownText`/`sanitizeText`
+  pipeline — never assembled by hand.
+- **Every `href`/`src` is absolute and built from `getBaseURL()`.** A
+  root-relative URL is unresolvable in a mail client (note `convertMarkdownText`
+  emits `/tags/x` for hashtags), and a hardcoded `https://${config.host}` is
+  wrong under `ACTIVITIES_INSECURE_AUTH=true`. URLs are protocol-checked to
+  http/https/mailto; anything else degrades to plain text rather than shipping a
+  dead or dangerous link, since remote actors control `status.url`.
+- **The plain-text alternative is derived from the same block list**, never
+  hand-written beside the HTML. Both used to be maintained by hand and had
+  already drifted apart.
+- **A local `vi.mock('@/lib/config', …)` in a test MUST include `getBaseURL`.**
+  It shadows the global mock from `vitest.setup.ts`, and because most email call
+  sites deliberately catch delivery errors, omitting it does **not** fail loudly:
+  the template throws, the catch swallows it, and the test keeps passing while
+  the email silently stops sending. This has already happened twice
+  (`deleteActorJob.test.ts` and the password-reset route test), in both cases
+  hiding that `sendMail` was never reached at all.
+- **Verify a template change by rendering it**:
+  `./scripts/mock/renderEmailPreviews.ts` writes every template to HTML with
+  fixture data plus an index showing each one beside its plain-text twin (see
+  `docs/maintenance.md`). Emails are not pages, so this is the real-browser check
+  Definition of Done item 6 asks for. A browser is still a lower bar than a mail
+  client — for a change to the shared layout, also send one to a real inbox.
+
 ## Status Posts & Actions
 
 Every surface that renders a status post — the home timeline, profiles, lists,

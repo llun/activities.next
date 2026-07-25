@@ -167,6 +167,26 @@ change doesn't touch.
   Migrations and `scripts/` may use `console.*`. Do not log from React/client
   code.
 
+## Emails
+
+- Every email is built by a `build<Name>Email(params): RenderedEmail` module in
+  `lib/services/email/templates/`. No subject/HTML/text literals at a call site.
+- Templates compose blocks from `@/lib/services/email/layout/blocks` and render
+  through `renderEmail`; they never write markup. Escaping belongs to the block
+  builders, so a template hands in plain strings. The only unescaped value is a
+  pre-sanitized status body (`SanitizedBody`).
+- Every `href`/`src` is absolute and built from `getBaseURL()`. Root-relative
+  URLs are unresolvable in a mail client, and a hardcoded `https://${config.host}`
+  is wrong under `ACTIVITIES_INSECURE_AUTH=true`.
+- The plain-text part is derived from the same block list, never hand-written
+  alongside the HTML.
+- **A local `vi.mock('@/lib/config', …)` must include `getBaseURL`.** It shadows
+  the global mock, and because most email call sites catch delivery errors, an
+  omission does not fail loudly: the template throws, the catch swallows it, and
+  the test passes while the email silently stops sending. This has bitten twice.
+- Template changes are verified by rendering:
+  `./scripts/mock/renderEmailPreviews.ts` (see `docs/maintenance.md`).
+
 ## Style, imports & tests
 
 - TypeScript + React, 2-space indent; Prettier (no semicolons, single quotes,
