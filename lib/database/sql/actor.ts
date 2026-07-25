@@ -856,6 +856,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     readingAutoplayGifs,
     emailNotifications,
     pushNotifications,
+    replyByEmail,
     notificationPolicy,
     notificationAcceptedSenders,
     appendNotificationAcceptedSenders,
@@ -906,6 +907,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       ...(readingAutoplayGifs !== undefined ? { readingAutoplayGifs } : null),
       ...(emailNotifications !== undefined ? { emailNotifications } : null),
       ...(pushNotifications !== undefined ? { pushNotifications } : null),
+      ...(replyByEmail !== undefined ? { replyByEmail } : null),
       ...(notificationPolicy !== undefined ? { notificationPolicy } : null),
       ...(notificationAcceptedSenders !== undefined
         ? { notificationAcceptedSenders }

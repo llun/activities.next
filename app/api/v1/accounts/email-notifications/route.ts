@@ -12,6 +12,9 @@ const EmailNotificationSettingsRequest = z.object({
   reply: z.boolean().optional(),
   reblog: z.boolean().optional(),
   activity_import: z.boolean().optional(),
+  // Not a notification type: a top-level actor setting that lives on the same
+  // form. Pulled out below so it never lands inside `emailNotifications`.
+  reply_by_email: z.boolean().optional(),
   actorId: z.string().optional()
 })
 
@@ -46,7 +49,11 @@ export const POST = traceApiRoute(
       }
     }
 
-    const { actorId: _actorId, ...updates } = parsed.data
+    const {
+      actorId: _actorId,
+      reply_by_email: replyByEmail,
+      ...updates
+    } = parsed.data
 
     const filteredUpdates = Object.fromEntries(
       Object.entries(updates).filter(([, v]) => v !== undefined)
@@ -59,7 +66,8 @@ export const POST = traceApiRoute(
       emailNotifications: {
         ...settings?.emailNotifications,
         ...filteredUpdates
-      }
+      },
+      ...(replyByEmail !== undefined ? { replyByEmail } : null)
     })
 
     return apiResponse({

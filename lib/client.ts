@@ -2542,6 +2542,21 @@ export const updateEmailNotifications = async (
   return response.ok
 }
 
+// Reply by email is a top-level actor setting rather than a notification type,
+// but it is saved through the same endpoint because it belongs to the same
+// form. The route keeps it out of `emailNotifications`.
+export const updateReplyByEmail = async (
+  actorId: string,
+  enabled: boolean
+): Promise<boolean> => {
+  const response = await fetch('/api/v1/accounts/email-notifications', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ actorId, reply_by_email: enabled })
+  })
+  return response.ok
+}
+
 export const subscribePushNotifications = async (
   endpoint: string,
   keys: { p256dh: string; auth: string }

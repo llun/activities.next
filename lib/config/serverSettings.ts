@@ -64,6 +64,12 @@ export interface ResolvedServerSettings {
   media: {
     maxFileSize: number
   }
+  // Instance-wide kill switch for reply by email. It only gates a feature that
+  // additionally needs the inbound email configuration AND a per-account
+  // opt-in, so leaving it on changes nothing on an instance that has neither.
+  replyByEmail: {
+    enabled: boolean
+  }
   network: {
     requestTimeoutMs: number
     requestRetries: number
@@ -101,6 +107,9 @@ export const DEFAULT_SERVER_SETTINGS: ResolvedServerSettings = {
   },
   media: {
     maxFileSize: MAX_FILE_SIZE
+  },
+  replyByEmail: {
+    enabled: true
   },
   network: {
     requestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
@@ -351,6 +360,21 @@ export const SERVER_SETTING_FIELDS: ServerSettingField[] = [
     get: (s) => s.media.maxFileSize,
     set: (s, v) => {
       s.media.maxFileSize = v
+    }
+  }),
+
+  // Reply by email
+  field<boolean>({
+    key: 'replyByEmail.enabled',
+    group: 'posts',
+    // No env var: the environment decides whether inbound email exists at all
+    // (ACTIVITIES_EMAIL_INBOUND_*); this switch is the operator's runtime
+    // override on top of that, so pinning it would defeat its purpose.
+    schema: z.boolean(),
+    readEnv: () => undefined,
+    get: (s) => s.replyByEmail.enabled,
+    set: (s, v) => {
+      s.replyByEmail.enabled = v
     }
   }),
 

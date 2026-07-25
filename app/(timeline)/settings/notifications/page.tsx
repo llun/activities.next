@@ -2,8 +2,10 @@ import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
 import { NotificationSettings } from '@/lib/components/settings/NotificationSettings'
+import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { NotificationType } from '@/lib/types/database/operations'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -89,6 +91,14 @@ const Page = async ({ searchParams }: PageProps) => {
   const emailNotifications = settings?.emailNotifications || {}
   const pushNotifications = settings?.pushNotifications || {}
 
+  // Reply by email needs all three: the inbound + outbound email environment,
+  // the instance-wide admin switch, and this account's own opt-in below.
+  const config = getConfig()
+  const serverSettings = await getResolvedServerSettings(database)
+  const replyByEmailAvailable = Boolean(
+    config.email && config.emailInbound && serverSettings.replyByEmail.enabled
+  )
+
   return (
     <NotificationSettings
       key={selectedActor.id}
@@ -98,6 +108,8 @@ const Page = async ({ searchParams }: PageProps) => {
       emailNotifications={emailNotifications}
       pushNotifications={pushNotifications}
       notificationTypes={notificationTypes}
+      replyByEmailAvailable={replyByEmailAvailable}
+      replyByEmail={settings?.replyByEmail === true}
     />
   )
 }

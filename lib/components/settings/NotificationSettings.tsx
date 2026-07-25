@@ -8,7 +8,8 @@ import {
   subscribePushNotifications,
   unsubscribePushNotifications,
   updateEmailNotifications,
-  updatePushNotifications
+  updatePushNotifications,
+  updateReplyByEmail
 } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
 import { ActorSelector } from '@/lib/components/settings/ActorSelector'
@@ -34,6 +35,12 @@ interface Props {
   emailNotifications?: Record<string, boolean | undefined>
   pushNotifications?: Record<string, boolean | undefined>
   notificationTypes: NotificationTypeConfig[]
+  // Whether this instance can accept replies by email at all: inbound email is
+  // configured and an admin has not switched the feature off. When false the
+  // toggle is hidden entirely rather than shown disabled — a control that can
+  // never do anything is worse than no control.
+  replyByEmailAvailable?: boolean
+  replyByEmail?: boolean
 }
 
 type PushState =
@@ -51,7 +58,9 @@ export const NotificationSettings: FC<Props> = ({
   actors,
   emailNotifications,
   pushNotifications,
-  notificationTypes
+  notificationTypes,
+  replyByEmailAvailable = false,
+  replyByEmail = false
 }) => {
   // --- Email state ---
   const [emailSettings, setEmailSettings] = useState<Record<string, boolean>>(
@@ -70,6 +79,10 @@ export const NotificationSettings: FC<Props> = ({
   const [emailStatusMessage, setEmailStatusMessage] = useState<string | null>(
     null
   )
+
+  // --- Reply by email state ---
+  const [replyByEmailEnabled, setReplyByEmailEnabled] = useState(replyByEmail)
+  const [replyByEmailSaving, setReplyByEmailSaving] = useState(false)
 
   // --- Push state ---
   const [pushState, setPushState] = useState<PushState>('loading')
@@ -168,6 +181,25 @@ export const NotificationSettings: FC<Props> = ({
       await saveEmailSettings(updated)
     },
     [emailSettings, saveEmailSettings]
+  )
+
+  const handleReplyByEmailToggle = useCallback(
+    async (enabled: boolean) => {
+      setReplyByEmailEnabled(enabled)
+      setReplyByEmailSaving(true)
+      setEmailStatusMessage(null)
+      try {
+        const ok = await updateReplyByEmail(actorId, enabled)
+        if (!ok) setReplyByEmailEnabled(!enabled)
+        setEmailStatusMessage(ok ? 'Saved' : 'Failed to save')
+      } catch {
+        setReplyByEmailEnabled(!enabled)
+        setEmailStatusMessage('Failed to save')
+      } finally {
+        setReplyByEmailSaving(false)
+      }
+    },
+    [actorId]
   )
 
   const handlePushEnable = useCallback(async () => {
@@ -294,6 +326,29 @@ export const NotificationSettings: FC<Props> = ({
               onCheckedChange={handleEmailMasterToggle}
             />
           </div>
+
+          {/* Reply by email — only offered when the instance can receive it */}
+          {replyByEmailAvailable && (
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="reply-by-email" className="cursor-pointer">
+                  Reply by email
+                </Label>
+                <p className="text-[0.8rem] text-muted-foreground">
+                  Replying to a mention or reply notification posts your answer
+                  in that thread, at the same visibility. Anyone who can read
+                  that email can post as you, so only turn this on for a mailbox
+                  you trust.
+                </p>
+              </div>
+              <Switch
+                id="reply-by-email"
+                checked={replyByEmailEnabled}
+                disabled={replyByEmailSaving}
+                onCheckedChange={handleReplyByEmailToggle}
+              />
+            </div>
+          )}
 
           {/* Push master toggle */}
           {pushState === 'loading' && (

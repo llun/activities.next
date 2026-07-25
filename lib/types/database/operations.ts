@@ -159,6 +159,8 @@ export type UpdateActorParams = {
     added_to_collection?: boolean
     collection_update?: boolean
   }
+  // Opt in to reply by email (see ActorSettings.replyByEmail). Defaults off.
+  replyByEmail?: boolean
   fitness?: {
     strava?: {
       clientId: string

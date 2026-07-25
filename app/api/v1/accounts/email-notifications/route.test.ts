@@ -171,6 +171,45 @@ describe('POST /api/v1/accounts/email-notifications', () => {
     )
   })
 
+  it('saves reply_by_email as a top-level setting, not a notification type', async () => {
+    const req = new NextRequest(
+      'http://localhost/api/v1/accounts/email-notifications',
+      {
+        method: 'POST',
+        body: JSON.stringify({ reply_by_email: true }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }
+    )
+    const res = await POST(req, { params: Promise.resolve({}) })
+    expect(res.status).toBe(200)
+
+    const [params] = mockDb.updateActor.mock.calls[0]
+    expect(params.replyByEmail).toBe(true)
+    expect(params.emailNotifications).not.toHaveProperty('reply_by_email')
+  })
+
+  it('leaves replyByEmail untouched when the field is absent', async () => {
+    const req = new NextRequest(
+      'http://localhost/api/v1/accounts/email-notifications',
+      {
+        method: 'POST',
+        body: JSON.stringify({ like: true }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }
+    )
+    await POST(req, { params: Promise.resolve({}) })
+
+    expect(mockDb.updateActor.mock.calls[0][0]).not.toHaveProperty(
+      'replyByEmail'
+    )
+  })
+
   it('returns 403 when targeting an actor not owned by current user', async () => {
     const req = new NextRequest(
       'http://localhost/api/v1/accounts/email-notifications',

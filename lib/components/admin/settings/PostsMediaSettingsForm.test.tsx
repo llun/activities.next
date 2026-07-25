@@ -38,6 +38,7 @@ const baseSettings: ResolvedServerSettings = {
     maxExpirationSeconds: 2678400
   },
   media: { maxFileSize: 209715200 },
+  replyByEmail: { enabled: true },
   network: {
     requestTimeoutMs: 4000,
     requestRetries: 1,
@@ -54,13 +55,15 @@ const baseStorageBackend: MediaStorageBackendSummary = {
 const renderForm = (
   locks: ServerSettingLocks = {},
   settings: ResolvedServerSettings = baseSettings,
-  storageBackend: MediaStorageBackendSummary = baseStorageBackend
+  storageBackend: MediaStorageBackendSummary = baseStorageBackend,
+  replyByEmailConfigured = true
 ) =>
   render(
     <PostsMediaSettingsForm
       settings={settings}
       locks={locks}
       storageBackend={storageBackend}
+      replyByEmailConfigured={replyByEmailConfigured}
     />
   )
 
@@ -316,5 +319,26 @@ describe('PostsMediaSettingsForm', () => {
         })
       )
     )
+  })
+
+  it('saves the reply-by-email kill switch', async () => {
+    renderForm()
+    expect(screen.getByLabelText(/Reply by email is/)).toBeChecked()
+
+    fireEvent.click(screen.getByLabelText(/Reply by email is/))
+    // Reply by email is the fourth section.
+    fireEvent.click(screen.getAllByRole('button', { name: 'Update' })[3])
+
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith({ 'replyByEmail.enabled': false })
+    )
+  })
+
+  it('says the feature is inert when inbound email is not configured', () => {
+    renderForm({}, baseSettings, baseStorageBackend, false)
+
+    expect(
+      screen.getByText(/ACTIVITIES_EMAIL_INBOUND_SECRET/)
+    ).toBeInTheDocument()
   })
 })

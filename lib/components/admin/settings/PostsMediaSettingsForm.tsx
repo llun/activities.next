@@ -4,6 +4,7 @@ import { FC, useEffect, useState } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
 import { Select } from '@/lib/components/ui/select'
+import { Switch } from '@/lib/components/ui/switch'
 import { MEDIA_STORAGE_ENV_PREFIX } from '@/lib/config/environmentTemplates'
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
 import { MAX_CONFIGURABLE_FILE_SIZE } from '@/lib/services/medias/constants'
@@ -14,7 +15,7 @@ import { EnvLockLabel } from './EnvLockBadge'
 import type { ServerSettingLocks } from './InstanceSettingsForm'
 import { NumberField } from './NumberField'
 import { SaveBar } from './SaveBar'
-import { SettingsField } from './SettingsField'
+import { ControlRow, SettingsField } from './SettingsField'
 import { SettingsSection } from './SettingsSection'
 import { useServerSettingsForm } from './useServerSettingsForm'
 
@@ -27,6 +28,10 @@ interface PostsMediaSettingsFormProps {
   // The storage backend is environment-only, so it is reported here rather than
   // edited. Resolved on the server (see describeMediaStorageBackend).
   storageBackend: MediaStorageBackendSummary
+  // Whether ACTIVITIES_EMAIL_INBOUND_* and outbound email are both configured.
+  // The switch stays editable either way — an admin may pre-set it — but the
+  // help line says plainly that nothing happens until the environment is there.
+  replyByEmailConfigured: boolean
 }
 
 const POSTS_KEYS = ['posts.maxCharacters', 'posts.maxMediaAttachments']
@@ -37,6 +42,7 @@ const POLL_KEYS = [
   'polls.maxExpirationSeconds'
 ]
 const MEDIA_KEYS = ['media.maxFileSize']
+const REPLY_BY_EMAIL_KEYS = ['replyByEmail.enabled']
 
 // Post size is picked from a few well-known caps; anything else is entered
 // through "Custom…", which reveals a plain number input beside the select.
@@ -76,7 +82,8 @@ const withCurrent = (
 export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
   settings,
   locks,
-  storageBackend
+  storageBackend,
+  replyByEmailConfigured
 }) => {
   const { values, setValue, isDirty, statusFor, saveSection } =
     useServerSettingsForm({
@@ -86,7 +93,8 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
       'polls.maxCharactersPerOption': settings.polls.maxCharactersPerOption,
       'polls.minExpirationSeconds': settings.polls.minExpirationSeconds,
       'polls.maxExpirationSeconds': settings.polls.maxExpirationSeconds,
-      'media.maxFileSize': settings.media.maxFileSize
+      'media.maxFileSize': settings.media.maxFileSize,
+      'replyByEmail.enabled': settings.replyByEmail.enabled
     })
 
   // The picked mode is its own state, never derived from the current value:
@@ -100,6 +108,8 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
   const postsStatus = statusFor('posts')
   const pollsStatus = statusFor('polls')
   const mediaStatus = statusFor('media')
+  const replyByEmailStatus = statusFor('replyByEmail')
+  const replyByEmailEnabled = values['replyByEmail.enabled'] as boolean
 
   const maxCharacters = values['posts.maxCharacters'] as number
   const uploadBytes = values['media.maxFileSize'] as number
@@ -338,6 +348,42 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
             )}
           </p>
         </SettingsField>
+      </SettingsSection>
+
+      <SettingsSection
+        title="Reply by email"
+        description="Whether people may answer a mention or reply notification by replying to the email."
+        footer={
+          <SaveBar
+            dirty={isDirty(REPLY_BY_EMAIL_KEYS)}
+            saving={replyByEmailStatus.saving}
+            saved={replyByEmailStatus.saved}
+            error={replyByEmailStatus.error}
+            onSave={() => saveSection('replyByEmail', REPLY_BY_EMAIL_KEYS)}
+          />
+        }
+      >
+        <ControlRow
+          label={
+            replyByEmailEnabled
+              ? 'Reply by email is allowed'
+              : 'Reply by email is off'
+          }
+          description={
+            replyByEmailConfigured
+              ? 'Each account still has to opt in under Settings → Notifications; the toggle is off by default. Switching this off stops new reply addresses being issued and refuses replies to the ones already sent.'
+              : 'Nothing happens until ACTIVITIES_EMAIL_INBOUND_SECRET, ACTIVITIES_EMAIL_INBOUND_DOMAIN and outbound email are all set — the inbound webhook answers 404 without them.'
+          }
+          htmlFor="reply-by-email-enabled"
+        >
+          <Switch
+            id="reply-by-email-enabled"
+            checked={replyByEmailEnabled}
+            onCheckedChange={(checked) =>
+              setValue('replyByEmail.enabled', checked)
+            }
+          />
+        </ControlRow>
       </SettingsSection>
 
       <EnvBlockBuilder />

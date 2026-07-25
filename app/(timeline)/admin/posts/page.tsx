@@ -21,12 +21,14 @@ const Page = async () => {
   const { settings, locks } = await getServerSettingsView(database)
   // The storage backend stays environment-only (it is infrastructure read at
   // boot), so it is summarised here and shown read-only.
-  const storageBackend = describeMediaStorageBackend(getConfig().mediaStorage)
+  const config = getConfig()
+  const storageBackend = describeMediaStorageBackend(config.mediaStorage)
   return (
     <PostsMediaSettingsForm
       settings={settings}
       locks={locks}
       storageBackend={storageBackend}
+      replyByEmailConfigured={Boolean(config.email && config.emailInbound)}
     />
   )
 }

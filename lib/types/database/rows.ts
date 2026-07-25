@@ -67,6 +67,11 @@ export interface ActorSettings {
     added_to_collection?: boolean
     collection_update?: boolean
   }
+  // Opt in to reply by email: mention and reply notification emails carry a
+  // Reply-To that posts a real fediverse reply. Absent means off — this turns
+  // an email address into a posting capability, so it has to be chosen
+  // deliberately rather than inherited from a default.
+  replyByEmail?: boolean
   // Mastodon notification policy. Each value is 'accept' | 'filter' | 'drop'.
   // Structurally compatible with NotificationPolicy in database/operations.ts
   // (kept inline here to avoid an operations<->rows import cycle, matching the
