@@ -13,8 +13,11 @@
 //     every one of these zones silently reverts to a radius the product no
 //     longer considers private, with no migration to point at.
 //
-// Snapping upward never shrinks a zone, so this backfill can only increase how
-// much is hidden — it cannot expose a GPS point that was previously masked.
+// Within the supported range, snapping upward never shrinks a zone, so this
+// backfill can only increase how much is hidden. (A stored radius ABOVE the
+// largest option would clamp down to it, but the API has never accepted one —
+// the previous option set topped out at 50m — and the runtime sanitizer clamps
+// identically on read, so effective masking is unchanged either way.)
 //
 // The snap logic is duplicated here on purpose: migrations must not import app
 // code, because they have to keep working when that code later changes. Keep it
@@ -24,6 +27,10 @@
 // were generated under the old, narrower radius. Migrations run outside the
 // worker and have no queue access, so regeneration stays a deliberate action —
 // use "Regenerate maps for old statuses" on the fitness privacy settings page.
+//
+// Run this before the new version starts serving traffic: the backfill reads a
+// chunk and then writes it, so a settings save landing in between would be
+// recomputed from the migration's older snapshot.
 //
 // Rows are read in keyset-paginated chunks (ordered by id) so peak memory stays
 // bounded, and the whole backfill runs in one transaction: either every row is
@@ -69,11 +76,17 @@ const snapLocations = (locations) => {
   const snapped = locations.map((location) => {
     if (!location || typeof location !== 'object') return location
 
-    const radius = snapRadius(location.hideRadiusMeters)
-    if (radius === location.hideRadiusMeters) return location
+    // Same rule as parseLocations: never turn a value we do not understand
+    // into a lost one. Writing snapRadius's 0 here would destroy, say, a
+    // stringified "20" that a later fix could otherwise still coerce.
+    const radius = location.hideRadiusMeters
+    if (typeof radius !== 'number' || !Number.isFinite(radius)) return location
+
+    const snappedRadius = snapRadius(radius)
+    if (snappedRadius === radius) return location
 
     changed = true
-    return { ...location, hideRadiusMeters: radius }
+    return { ...location, hideRadiusMeters: snappedRadius }
   })
 
   return changed ? snapped : null
@@ -82,6 +95,8 @@ const snapLocations = (locations) => {
 export const up = async function (knex) {
   await knex.transaction(async (trx) => {
     let lastId = null
+    let updatedRows = 0
+    const unparseableIds = []
 
     for (;;) {
       const query = trx('fitness_settings')
@@ -107,6 +122,10 @@ export const up = async function (knex) {
         }
 
         const locations = parseLocations(row.privacyLocations)
+        if (!locations && row.privacyLocations) {
+          unparseableIds.push(row.id)
+        }
+
         if (locations) {
           const snappedLocations = snapLocations(locations)
           if (snappedLocations) {
@@ -118,10 +137,28 @@ export const up = async function (knex) {
 
         if (Object.keys(update).length > 0) {
           await trx('fitness_settings').where('id', row.id).update(update)
+          updatedRows += 1
         }
       }
 
+      if (rows.length < CHUNK_SIZE) break
+
       lastId = rows[rows.length - 1].id
+    }
+
+    // An operator running a privacy-data rewrite should not have to guess
+    // whether it did anything.
+    console.log(
+      `[snap_fitness_privacy_radius] snapped ${updatedRows} fitness_settings row(s)`
+    )
+
+    if (unparseableIds.length > 0) {
+      // This is the one moment every row is scanned. Such a row already reads
+      // as "no privacy zones" at runtime, so it is worth surfacing here rather
+      // than waiting for someone to open that actor's settings.
+      console.warn(
+        `[snap_fitness_privacy_radius] left ${unparseableIds.length} row(s) with unparseable privacyLocations untouched — these actors currently have NO privacy zones at runtime: ${unparseableIds.join(', ')}`
+      )
     }
   })
 }
