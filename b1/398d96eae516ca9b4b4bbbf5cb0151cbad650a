@@ -1,0 +1,22 @@
+lib/services/email/extractReplyText.ts
+  s_2f8f98bd1d8b55::t_fd7de6b66d63c0 49-65
+  s_2f8f98bd1d8b55::t_af3f2df9c60283 157
+lib/services/email/extractReplyText.test.ts
+  s_2f8f98bd1d8b55::t_1e6929596e898e 78-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "b1398d96eae516ca9b4b4bbbf5cb0151cbad650a",
+  "prompts": {},
+  "sessions": {
+    "s_2f8f98bd1d8b55": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fe73386a-874f-4632-8456-f9a69e911a24",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
