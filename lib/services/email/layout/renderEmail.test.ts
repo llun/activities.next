@@ -81,6 +81,21 @@ describe('renderEmail', () => {
     })
     expect(html.indexOf('First')).toBeLessThan(html.indexOf('Second'))
   })
+
+  it('escapes the preheader', () => {
+    const { html } = render({ preheader: '"><script>alert(1)</script>' })
+    expect(html).not.toContain('<script')
+    expect(html).not.toContain('"><script>alert(1)</script>')
+  })
+
+  it('still renders a well-formed document with no blocks', () => {
+    const { html, text } = render({ blocks: [] })
+    expect(html.startsWith('<!doctype html>')).toBe(true)
+    expect(html).toContain('</html>')
+    expect(html.match(/width="600"/g)).toHaveLength(1)
+    // The footer is not a block, so it survives an empty card.
+    expect(text).toContain('This email was sent to anna@example.com')
+  })
 })
 
 describe('renderEmail text alternative', () => {
