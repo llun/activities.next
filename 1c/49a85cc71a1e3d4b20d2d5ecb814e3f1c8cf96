@@ -1,0 +1,36 @@
+lib/services/notifications/sendNotificationAlerts.ts
+  s_181a4d159922fc::t_60bd4d9cbecaaa 13-18
+  s_181a4d159922fc::t_8468812b8f0191 4
+lib/actions/acceptFollowRequest.ts
+  s_181a4d159922fc::t_8b658d8d2c3de0 4,79
+lib/actions/createNote.ts
+  s_181a4d159922fc::t_a9d87c88cde541 697-701,737-741
+  s_181a4d159922fc::t_1cab1e68724587 9-10
+lib/actions/announce.ts
+  s_181a4d159922fc::t_7f31fabd18cf2c 5,126-130
+lib/actions/acceptFollowRequest.test.ts
+  s_181a4d159922fc::t_a665da83d44792 6,91,93,105-107
+lib/actions/like.ts
+  s_181a4d159922fc::t_7f31fabd18cf2c 3,64-68
+lib/services/timelines/mentionNotification.ts
+  s_181a4d159922fc::t_a9d87c88cde541 114-118,177-181
+  s_181a4d159922fc::t_1cab1e68724587 4-5
+lib/actions/createFollower.ts
+  s_181a4d159922fc::t_8b658d8d2c3de0 5-6,84-87,130-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "1c49a85cc71a1e3d4b20d2d5ecb814e3f1c8cf96",
+  "prompts": {},
+  "sessions": {
+    "s_181a4d159922fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b59141f-f9f0-4af4-8aea-39520836e6cc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
