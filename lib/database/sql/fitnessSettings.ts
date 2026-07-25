@@ -96,11 +96,14 @@ export const parseStoredPrivacyLocations = (
       // Returning [] here means "no privacy zones", which republishes every
       // route segment those zones were hiding. That must never happen
       // silently: an operator needs to see it and restore the column.
+      // `err`, not `error`: an Error's message and stack are non-enumerable,
+      // so `error` serializes to `{}` and the operator learns nothing. The
+      // logger's own formatter reads `err.stack` to emit `stack_trace`.
       logger.error({
         message: 'Failed to parse stored fitness privacy locations',
         actorId: context.actorId,
         serviceType: context.serviceType,
-        error
+        err: error
       })
       return []
     }
