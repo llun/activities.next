@@ -1,0 +1,75 @@
+lib/services/reactions/reactionName.test.ts
+  s_85d91c6baf9d58::t_ec678bba78f668 33-37
+  s_85d91c6baf9d58::t_0d070ac7715c08 1-32,38-61
+app/api/v1/pleroma/statuses/[id]/reactions/[emoji]/route.ts
+  s_85d91c6baf9d58::t_865ed8e159901f 3,6,13,15,21,29,36-63,67,77
+  s_85d91c6baf9d58::t_4bd6e524a2e4b5 1-2,4-5,7-12,14,16-20,22-28,30-35,64-66,68-76,78-82
+lib/services/reactions/reactionGroupKey.test.ts
+  s_85d91c6baf9d58::t_ec678bba78f668 1-40
+app/api/v1/pleroma/statuses/[id]/reactions/route.ts
+  s_85d91c6baf9d58::t_39736cbe9dd47c 1-52
+app/api/v1/statuses/[id]/react/[name]/route.ts
+  s_85d91c6baf9d58::t_4bd6e524a2e4b5 1-33
+lib/activities/reactionActivity.test.ts
+  s_85d91c6baf9d58::t_84f27ab99b326b 1-98
+lib/services/reactions/reactionRouteHandlers.test.ts
+  s_85d91c6baf9d58::t_64e2adc6d52905 33,53-60,82-91,103-106,111-119
+  s_85d91c6baf9d58::t_5f3af567d0b307 1-32,34-52,61-81,92-102,107-110,120-137
+docs/mastodon-api-compatibility.md
+  s_85d91c6baf9d58::t_64e2adc6d52905 245-264,270-278
+  s_85d91c6baf9d58::t_4d7c0a77cdb38f 279
+lib/services/reactions/reactionGroupKey.ts
+  s_85d91c6baf9d58::t_4eafc5592b2aaa 2-16
+  s_85d91c6baf9d58::t_ec678bba78f668 1
+lib/services/reactions/reactStatus.ts
+  s_85d91c6baf9d58::t_32977b7022b258 96-97,110
+  s_85d91c6baf9d58::t_0d86a1ca0fdd18 1-95,98-109,111-187
+lib/actions/emojiReaction.ts
+  s_85d91c6baf9d58::t_4eafc5592b2aaa 7
+lib/services/reactions/reactStatus.test.ts
+  s_85d91c6baf9d58::t_21d097e6804ddf 1,6-117,122-277
+  s_85d91c6baf9d58::t_64e2adc6d52905 2-5,118-121
+lib/services/reactions/reactionName.ts
+  s_85d91c6baf9d58::t_b2bf562cedf406 15-18,20
+  s_85d91c6baf9d58::t_edf482fefd035b 1-14,19,21-49
+lib/actions/emojiReaction.test.ts
+  s_85d91c6baf9d58::t_ec678bba78f668 11
+app/api/v1/statuses/[id]/unreact/[name]/route.ts
+  s_85d91c6baf9d58::t_4bd6e524a2e4b5 1-33
+lib/services/reactions/getStatusReactionList.ts
+  s_85d91c6baf9d58::t_39736cbe9dd47c 1-70
+app/api/v1/routeScopeWiring.test.ts
+  s_85d91c6baf9d58::t_118763c606b606 37-53
+lib/database/sql/pushSubscription.ts
+  s_85d91c6baf9d58::t_6727d61641f999 45
+  s_85d91c6baf9d58::t_7e04ff9d4b9af2 65
+lib/types/database/operations.ts
+  s_85d91c6baf9d58::t_bae385db2a8ce9 3297-3298
+lib/activities/index.ts
+  s_85d91c6baf9d58::t_e63ee0b78cca26 16-23,947-1033
+  s_85d91c6baf9d58::t_64e2adc6d52905 40
+  s_85d91c6baf9d58::t_a2b924064f5ab1 1034
+lib/activities/reactionActivity.ts
+  s_85d91c6baf9d58::t_3196b16e51787b 1-102
+docs/features.md
+  s_85d91c6baf9d58::t_64e2adc6d52905 49
+lib/services/reactions/reactionRouteHandlers.ts
+  s_85d91c6baf9d58::t_2ae3696e70a988 1-5,10-17,23-59,65-84
+  s_85d91c6baf9d58::t_865ed8e159901f 6-9,18-22,60-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "68b396cc95ace4d5c7fcbb5c9063f0714ccd414d",
+  "prompts": {},
+  "sessions": {
+    "s_85d91c6baf9d58": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8685a26c-353a-478b-9125-3aeb9c98a29a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
