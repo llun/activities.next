@@ -1,0 +1,26 @@
+lib/services/email/templates/changeEmail.test.ts
+  s_181a4d159922fc::t_972188cf4d17a4 1-34
+lib/services/email/templates/changeEmail.ts
+  s_181a4d159922fc::t_54d31e57248bd5 1-42
+app/api/v1/accounts/email/route.test.ts
+  s_181a4d159922fc::t_2e938a19b10873 165-191
+app/api/v1/accounts/email/route.ts
+  s_181a4d159922fc::t_dc6bdcce7dfb35 6
+  s_181a4d159922fc::t_0121654a14d06a 77-80,84-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "e21120d82a71e8c5559e9468871d1bad9704f168",
+  "prompts": {},
+  "sessions": {
+    "s_181a4d159922fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b59141f-f9f0-4af4-8aea-39520836e6cc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
