@@ -216,12 +216,12 @@ describe('FitnessSettings database operations', () => {
           {
             latitude: 13.7563,
             longitude: 100.5018,
-            hideRadiusMeters: 20
+            hideRadiusMeters: 200
           }
         ],
         privacyHomeLatitude: 13.7563,
         privacyHomeLongitude: 100.5018,
-        privacyHideRadiusMeters: 20
+        privacyHideRadiusMeters: 200
       })
 
       expect(settings.serviceType).toBe('general')
@@ -229,12 +229,12 @@ describe('FitnessSettings database operations', () => {
         {
           latitude: 13.7563,
           longitude: 100.5018,
-          hideRadiusMeters: 20
+          hideRadiusMeters: 200
         }
       ])
       expect(settings.privacyHomeLatitude).toBe(13.7563)
       expect(settings.privacyHomeLongitude).toBe(100.5018)
-      expect(settings.privacyHideRadiusMeters).toBe(20)
+      expect(settings.privacyHideRadiusMeters).toBe(200)
     })
   })
 
@@ -386,7 +386,7 @@ describe('FitnessSettings database operations', () => {
           {
             latitude: 35.6764,
             longitude: 139.65,
-            hideRadiusMeters: 10
+            hideRadiusMeters: 100
           }
         ],
         privacyHomeLatitude: 40.7128,
@@ -403,7 +403,7 @@ describe('FitnessSettings database operations', () => {
         {
           latitude: 35.6764,
           longitude: 139.65,
-          hideRadiusMeters: 10
+          hideRadiusMeters: 100
         }
       ])
       expect(updated?.privacyHomeLatitude).toBe(40.7128)
