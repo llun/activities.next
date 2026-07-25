@@ -29,33 +29,6 @@ vi.mock('@/lib/client', () => ({
   uploadFitnessFile: vi.fn()
 }))
 
-const mockReactMarkdown = vi.fn(
-  ({ children }: { children: string; remarkPlugins?: unknown[] }) => (
-    <div>{children}</div>
-  )
-)
-
-vi.mock('react-markdown', () => ({
-  __esModule: true,
-  default: (props: { children: string; remarkPlugins?: unknown[] }) =>
-    mockReactMarkdown(props)
-}))
-
-vi.mock('rehype-sanitize', () => ({
-  __esModule: true,
-  default: vi.fn()
-}))
-
-vi.mock('remark-breaks', () => ({
-  __esModule: true,
-  default: vi.fn()
-}))
-
-vi.mock('remark-gfm', () => ({
-  __esModule: true,
-  default: vi.fn()
-}))
-
 vi.mock('@/lib/utils/resizeImage', () => ({
   resizeImage: vi.fn((file) => Promise.resolve(file))
 }))
