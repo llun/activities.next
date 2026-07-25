@@ -78,32 +78,38 @@ export interface FitnessSettingsDatabase {
   deleteFitnessSettings: (params: DeleteFitnessSettingsParams) => Promise<void>
 }
 
-const parseStoredPrivacyLocations = (
-  value: SQLFitnessSettings['privacyLocations']
+export const parseStoredPrivacyLocations = (
+  value: SQLFitnessSettings['privacyLocations'],
+  context: { actorId: string; serviceType: string }
 ): FitnessPrivacyLocationSettingsEntry[] | undefined => {
   if (value === null || value === undefined) {
     return undefined
   }
 
   // SQLite hands back the `json` column as TEXT; PostgreSQL `jsonb` arrives
-  // already parsed. Only the string branch can throw, so only it is guarded —
-  // `sanitizePrivacyLocationSettings` is total and must not be swallowed.
-  if (typeof value !== 'string') {
-    return sanitizePrivacyLocationSettings(value)
+  // already parsed, so only the string branch needs a parse at all.
+  let parsedValue: unknown = value
+  if (typeof value === 'string') {
+    try {
+      parsedValue = getCompatibleJSON<unknown>(value)
+    } catch (error) {
+      // Returning [] here means "no privacy zones", which republishes every
+      // route segment those zones were hiding. That must never happen
+      // silently: an operator needs to see it and restore the column.
+      logger.error({
+        message: 'Failed to parse stored fitness privacy locations',
+        actorId: context.actorId,
+        serviceType: context.serviceType,
+        error
+      })
+      return []
+    }
   }
 
-  try {
-    return sanitizePrivacyLocationSettings(getCompatibleJSON<unknown>(value))
-  } catch (error) {
-    // Returning [] here means "no privacy zones", which republishes every route
-    // segment those zones were hiding. That must never happen silently: an
-    // operator needs to see it and restore the column.
-    logger.error({
-      message: 'Failed to parse stored fitness privacy locations',
-      error
-    })
-    return []
-  }
+  // Deliberately outside the try. `sanitizePrivacyLocationSettings` is total,
+  // and if that ever stops being true the throw must surface rather than be
+  // mislabelled as a parse failure and swallowed into "no privacy zones".
+  return sanitizePrivacyLocationSettings(parsedValue)
 }
 
 export const FitnessSettingsSQLDatabaseMixin = (
@@ -273,7 +279,10 @@ export const FitnessSettingsSQLDatabaseMixin = (
         ? getCompatibleTime(row.oauthStateExpiry)
         : undefined,
       defaultVisibility: row.defaultVisibility || undefined,
-      privacyLocations: parseStoredPrivacyLocations(row.privacyLocations),
+      privacyLocations: parseStoredPrivacyLocations(row.privacyLocations, {
+        actorId: row.actorId,
+        serviceType: row.serviceType
+      }),
       privacyHomeLatitude: row.privacyHomeLatitude ?? undefined,
       privacyHomeLongitude: row.privacyHomeLongitude ?? undefined,
       privacyHideRadiusMeters: row.privacyHideRadiusMeters ?? undefined,
@@ -311,7 +320,10 @@ export const FitnessSettingsSQLDatabaseMixin = (
         ? getCompatibleTime(row.oauthStateExpiry)
         : undefined,
       defaultVisibility: row.defaultVisibility || undefined,
-      privacyLocations: parseStoredPrivacyLocations(row.privacyLocations),
+      privacyLocations: parseStoredPrivacyLocations(row.privacyLocations, {
+        actorId: row.actorId,
+        serviceType: row.serviceType
+      }),
       privacyHomeLatitude: row.privacyHomeLatitude ?? undefined,
       privacyHomeLongitude: row.privacyHomeLongitude ?? undefined,
       privacyHideRadiusMeters: row.privacyHideRadiusMeters ?? undefined,
@@ -349,7 +361,10 @@ export const FitnessSettingsSQLDatabaseMixin = (
         ? getCompatibleTime(row.oauthStateExpiry)
         : undefined,
       defaultVisibility: row.defaultVisibility || undefined,
-      privacyLocations: parseStoredPrivacyLocations(row.privacyLocations),
+      privacyLocations: parseStoredPrivacyLocations(row.privacyLocations, {
+        actorId: row.actorId,
+        serviceType: row.serviceType
+      }),
       privacyHomeLatitude: row.privacyHomeLatitude ?? undefined,
       privacyHomeLongitude: row.privacyHomeLongitude ?? undefined,
       privacyHideRadiusMeters: row.privacyHideRadiusMeters ?? undefined,
