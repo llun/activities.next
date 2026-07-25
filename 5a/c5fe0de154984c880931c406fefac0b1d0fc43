@@ -1,0 +1,23 @@
+lib/database/sql/snapFitnessPrivacyRadiusMigration.test.ts
+  s_f1060d736d3617::t_d6bee7c4f17d4b 183-194
+  s_f1060d736d3617::t_da48e09ad746e3 1-182,195-212
+migrations/20260725000000_snap_fitness_privacy_radius.js
+  s_f1060d736d3617::t_fe563f25837a32 16-20,31-34,79-86,89,98-99,125-128,140,144-145,148-161
+  s_f1060d736d3617::t_ea9c63c47ac573 162
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "5ac5fe0de154984c880931c406fefac0b1d0fc43",
+  "prompts": {},
+  "sessions": {
+    "s_f1060d736d3617": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "176afecc-def0-4231-84bd-81dc9f91fa81",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
