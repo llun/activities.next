@@ -12,13 +12,19 @@ vi.mock('@/lib/services/email', () => ({
   sendMail: vi.fn().mockResolvedValue(undefined)
 }))
 
+// This local factory shadows the global @/lib/config mock, so it has to supply
+// every export the code under test reaches — including getBaseURL, which the
+// shared email layout uses to build absolute links. Omitting it does not fail
+// loudly: the job catches email errors by design, so the deletion email would
+// silently stop sending while these tests still passed.
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn().mockReturnValue({
     host: 'test.social',
     email: {
       serviceFromAddress: 'noreply@test.social'
     }
-  })
+  }),
+  getBaseURL: vi.fn().mockReturnValue('https://test.social')
 }))
 
 describe('deleteActorJob', () => {
@@ -72,6 +78,21 @@ describe('deleteActorJob', () => {
     // Verify actor is deleted
     actor = await database.getActorFromId({ id: actorId })
     expect(actor).toBeNull()
+
+    // The deletion receipt actually goes out. Asserted explicitly because the
+    // job swallows email failures, so without this a broken template would go
+    // unnoticed here.
+    const { sendMail } = await vi.importMock<
+      typeof import('@/lib/services/email')
+    >('@/lib/services/email')
+    expect(sendMail).toHaveBeenCalledTimes(1)
+    const message = sendMail.mock.calls[0][0]
+    expect(message.to).toEqual([`${username}@test.social`])
+    expect(message.subject).toBe(
+      `Your actor @${username}@test.social has been deleted from test.social`
+    )
+    expect(message.content.html).toContain('Your actor was deleted')
+    expect(message.content.text).toContain('Your actor was deleted')
   })
 
   it('handles non-existent actor gracefully', async () => {

@@ -3,11 +3,8 @@ import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
 import { sendMail } from '@/lib/services/email'
-import {
-  getHTMLContent,
-  getSubject,
-  getTextContent
-} from '@/lib/services/email/templates/actorDeleted'
+import { buildActorDeletedEmail } from '@/lib/services/email/templates/actorDeleted'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { logger } from '@/lib/utils/logger'
 import { getSpan } from '@/lib/utils/trace'
 
@@ -160,14 +157,20 @@ export const deleteActorJob = createJobHandle(
       const config = getConfig()
       if (config.email) {
         try {
+          // The admin can leave the instance contact address blank, in which
+          // case the notice falls back to naming no address rather than
+          // pointing the user at the no-reply sender.
+          const { instance } = await getResolvedServerSettings(database)
+          const email = buildActorDeletedEmail({
+            recipient: actor,
+            recipientEmail: accountEmail,
+            contactEmail: instance.contactEmail || undefined
+          })
           await sendMail({
             from: config.email.serviceFromAddress,
             to: [accountEmail],
-            subject: getSubject(actor),
-            content: {
-              text: getTextContent(actor),
-              html: getHTMLContent(actor)
-            }
+            subject: email.subject,
+            content: { text: email.text, html: email.html }
           })
           logger.info({
             message: 'Sent actor deletion email notification',
