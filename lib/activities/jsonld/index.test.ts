@@ -7,6 +7,7 @@ import {
   offlineDocumentLoader
 } from '@/lib/activities/jsonld'
 import { BaseNote, getContent, getLanguage } from '@/lib/activities/note'
+import { Like } from '@/lib/types/activitypub'
 
 const asRecord = (value: unknown) => value as Record<string, unknown>
 
@@ -566,6 +567,31 @@ describe('compactActivityPub', () => {
       type: 'Note'
     }
     await expect(compactActivityPub(malformed)).resolves.toBe(malformed)
+  })
+})
+
+describe('Like schema tolerance', () => {
+  // A `Like` that carries something unreadable where the reaction should be must
+  // still parse as a plain favourite. Failing the whole activity would turn
+  // favourites that worked before emoji reactions existed into a 400.
+  it.each([
+    {
+      description: 'a language-tagged content object',
+      content: { '@value': '🔥', '@language': 'ja' }
+    },
+    { description: 'a multi-value content array', content: ['🔥', '🎉'] },
+    { description: 'a non-string content', content: 42 }
+  ])('parses a Like with $description as a plain favourite', ({ content }) => {
+    const parsed = Like.safeParse({
+      id: 'https://remote.example/likes/1',
+      type: 'Like',
+      actor: 'https://remote.example/users/alice',
+      object: 'https://llun.test/users/bob/statuses/1',
+      content
+    })
+
+    expect(parsed.success).toBeTrue()
+    expect(parsed.data?.content).toBeUndefined()
   })
 })
 

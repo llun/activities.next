@@ -103,9 +103,14 @@ export const Like = z.object({
   id: z.string(),
   actor: z.string(),
   object: z.union([z.string(), Note]),
-  content: z.string().optional(),
-  _misskey_reaction: z.string().optional(),
-  tag: Tag.array().optional()
+  // Liberal per the ActivityPub & JSON-LD rules: a sender whose document
+  // carries a default language can have compaction render `content` as a
+  // language-tagged object rather than a scalar. Degrade that to `undefined`
+  // instead of failing the whole activity — a `Like` we cannot read a reaction
+  // from is simply an ordinary favourite, which is the pre-reaction behaviour.
+  content: z.string().optional().catch(undefined),
+  _misskey_reaction: z.string().optional().catch(undefined),
+  tag: Tag.array().optional().catch(undefined)
 })
 
 export type Like = z.infer<typeof Like>

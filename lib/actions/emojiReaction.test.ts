@@ -272,6 +272,41 @@ describe('emojiReactionRequest', () => {
       expect(reactors.map((reactor) => reactor.actorId)).not.toContain(actor)
     })
 
+    it('refuses to bind an image to another instance emoji namespace', async () => {
+      // evil.test relays `:blobcat@good.test:` with an image on its OWN host, so
+      // the same-host URL check passes. It must still not supply the picture for
+      // good.test's namespace: the rollup unwraps one url per (status, name)
+      // group, so it would displace the real one.
+      const statusId = statuses.primary.secondPost
+      const actor = 'https://evil.test/users/mallory'
+      await emojiReactionRequest({
+        activity: {
+          ...emojiReactActivity({ object: statusId }),
+          actor,
+          content: ':blobcat@good.test:',
+          tag: [
+            {
+              type: 'Emoji',
+              name: ':blobcat@good.test:',
+              icon: {
+                type: 'Image',
+                mediaType: 'image/png',
+                url: 'https://evil.test/emoji/blobcat.png'
+              }
+            }
+          ]
+        },
+        database
+      })
+
+      const rollups = await database.getStatusReactionRollups({
+        statusIds: [statusId]
+      })
+      const rollup = rollups.find((entry) => entry.name === 'blobcat@good.test')
+      expect(rollup).toBeDefined()
+      expect(rollup?.url).toBeNull()
+    })
+
     it('keeps an already-namespaced shortcode as sent', async () => {
       const statusId = statuses.replyAuthor.mentionReplyToPrimary
       await emojiReactionRequest({

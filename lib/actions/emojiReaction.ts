@@ -137,6 +137,15 @@ const resolveReactionEmoji = (
   }
 }
 
+// Whether the sender is entitled to supply the image for this reaction name.
+// Only the instance that owns the namespace is: otherwise a hostile peer could
+// relay `:blobcat@good.test:` with an image on its own host, pass the
+// same-host URL check, and — because the rollup unwraps one url per
+// (statusId, name) group — have its image displace the real one that
+// good.test's own reactors stored.
+const ownsReactionNamespace = (name: string, senderHost: string) =>
+  name.endsWith(`@${senderHost}`)
+
 const getReactionEmojiUrl = ({
   activity,
   shortcode,
@@ -148,6 +157,8 @@ const getReactionEmojiUrl = ({
   name: string
   senderHost: string
 }): string | null => {
+  if (!ownsReactionNamespace(name, senderHost)) return null
+
   const candidateNames = new Set([shortcode, name])
   for (const rawTag of activity.tag ?? []) {
     const tag = ReactionEmojiTag.safeParse(rawTag)
