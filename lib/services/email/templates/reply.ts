@@ -1,50 +1,52 @@
 import { getConfig } from '@/lib/config'
+import {
+  getShortName,
+  toQuoteAuthor
+} from '@/lib/services/email/layout/actorDisplay'
+import {
+  button,
+  headline,
+  label,
+  quote
+} from '@/lib/services/email/layout/blocks'
+import { renderEmail } from '@/lib/services/email/layout/renderEmail'
+import { RenderedEmail } from '@/lib/services/email/types'
 import { ActorProfile, getMention } from '@/lib/types/domain/actor'
 import { EditableStatus } from '@/lib/types/domain/status'
-import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
-import { sanitizeText } from '@/lib/utils/text/sanitizeText'
 
-export const getSubject = (actor: ActorProfile) =>
-  `@${actor.username} replied to your post in ${getConfig().host}`
+import { getStatusBody } from './statusBody'
+import { getEmailStatusUrl } from './statusUrl'
 
-const getLocalStatusUrl = (status: EditableStatus): string => {
-  const config = getConfig()
-  if (status.url.startsWith(`https://${config.host}`)) {
-    return status.url
-  }
-  if (!status.actor) {
-    return status.url
-  }
-  const actorMention = getMention(status.actor, true)
-  const encodedStatusId = encodeURIComponent(status.id)
-  return `https://${config.host}/${actorMention}/${encodedStatusId}`
+export interface ReplyEmailParams {
+  /** The actor replied to — receives this email. */
+  recipient: ActorProfile
+  /** Who replied. */
+  actor: ActorProfile
+  /** The reply itself, not the post it answers. */
+  status: EditableStatus
 }
 
-export const getTextContent = (status: EditableStatus) => {
-  const localUrl = getLocalStatusUrl(status)
-  const actorMention = status.actor ? getMention(status.actor, true) : 'Unknown'
-
-  return `
-${actorMention} replied to your post.
-
-Reply: ${status.text}
-
-View this post on your server: ${localUrl}
-`.trim()
-}
-
-export const getHTMLContent = (status: EditableStatus) => {
-  const config = getConfig()
-  const localUrl = getLocalStatusUrl(status)
-  const actorMention = status.actor ? getMention(status.actor, true) : 'Unknown'
-  const messageHtml = status.isLocalActor
-    ? convertMarkdownText(config.host)(status.text)
-    : sanitizeText(status.text)
-
-  return `
-<h3>${actorMention} replied to your post</h3>
-<p><strong>Reply:</strong></p>
-<div>${messageHtml}</div>
-<p><a href="${localUrl}">View this post on your server</a></p>
-`.trim()
-}
+/** Someone replied to your post. The quote block shows their reply. */
+export const buildReplyEmail = ({
+  recipient,
+  actor,
+  status
+}: ReplyEmailParams): RenderedEmail =>
+  renderEmail({
+    subject: `@${actor.username} replied to your post in ${getConfig().host}`,
+    preheader: `${getShortName(actor)} replied to your post.`,
+    blocks: [
+      headline(`${getShortName(actor)} replied to your post`),
+      label('Reply:'),
+      quote({
+        author: toQuoteAuthor(status.actor ?? actor),
+        body: getStatusBody(status)
+      }),
+      button({ label: 'View post', url: getEmailStatusUrl(status) })
+    ],
+    footer: {
+      kind: 'notification',
+      eventLabel: 'replies',
+      handle: getMention(recipient, true)
+    }
+  })
