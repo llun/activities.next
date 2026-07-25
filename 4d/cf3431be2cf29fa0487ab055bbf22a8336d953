@@ -1,0 +1,38 @@
+lib/database/sql/index.ts
+  s_2f8f98bd1d8b55::t_af234495383f70 163
+  s_2f8f98bd1d8b55::t_6e6192503ef3d2 14
+  s_2f8f98bd1d8b55::t_892130819082a0 75
+lib/database/sql/emailReplyToken.test.ts
+  s_2f8f98bd1d8b55::t_a7b412ea071ed2 1-115
+migrations/schema.sqlite.sql
+  s_2f8f98bd1d8b55::t_5f79c86f4d702f 249-252
+migrations/schema.sql
+  s_2f8f98bd1d8b55::t_2fe4d4914cdfae 326-337,1247-1252,1551-1553
+  s_2f8f98bd1d8b55::t_5880c1c72b0fc6 1554
+lib/database/sql/emailReplyToken.ts
+  s_2f8f98bd1d8b55::t_41dfb248b718cd 30,40-41
+  s_2f8f98bd1d8b55::t_1631f3f2ad5816 1-29,31-39,42-99
+migrations/20260726000000_add_email_reply_tokens.js
+  s_2f8f98bd1d8b55::t_3777ee28e84938 1-48
+lib/database/types.ts
+  s_2f8f98bd1d8b55::t_e0a046b007e395 100
+  s_2f8f98bd1d8b55::t_1cefb207c092d0 20
+lib/types/database/operations.ts
+  s_2f8f98bd1d8b55::t_0fcf71fea2eac3 1390-1438
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "4dcf3431be2cf29fa0487ab055bbf22a8336d953",
+  "prompts": {},
+  "sessions": {
+    "s_2f8f98bd1d8b55": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fe73386a-874f-4632-8456-f9a69e911a24",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
