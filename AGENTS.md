@@ -277,9 +277,11 @@ place instead of eleven.
 
 - **One module per email** in `lib/services/email/templates/`, exporting a single
   `build<Name>Email(params): RenderedEmail` (`{ subject, text, html }`). **Never
-  inline a subject or an HTML/text body at a call site** — the four account
-  emails used to, which is exactly why they could not be restyled together. The
-  caller supplies `from`/`to` and spreads the result into `sendMail`.
+  inline a subject or an HTML/text body at a call site** — three of the four
+  account emails used to, which is exactly why they could not be restyled
+  together. (`actorDeleted` was already a module; its problem was hand-written
+  raw markup.) The caller supplies `from`/`to` and spreads the result into
+  `sendMail`.
 - **Templates never write markup.** They compose blocks from
   `@/lib/services/email/layout/blocks` and hand them to `renderEmail`
   (`@/lib/services/email/layout/renderEmail`), which owns the 600px table

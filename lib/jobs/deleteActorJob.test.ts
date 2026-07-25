@@ -82,7 +82,9 @@ describe('deleteActorJob', () => {
     // The deletion receipt actually goes out. Asserted explicitly because the
     // job swallows email failures, so without this a broken template would go
     // unnoticed here.
-    const { sendMail } = vi.mocked(await import('@/lib/services/email'))
+    const { sendMail } = await vi.importMock<
+      typeof import('@/lib/services/email')
+    >('@/lib/services/email')
     expect(sendMail).toHaveBeenCalledTimes(1)
     const message = sendMail.mock.calls[0][0]
     expect(message.to).toEqual([`${username}@test.social`])

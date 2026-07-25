@@ -159,7 +159,7 @@ describe('fallbackUrl', () => {
 })
 
 describe('note', () => {
-  it('renders above a hairline rule', () => {
+  it('is separated from the body by a hairline rule', () => {
     expect(note('You can ignore this email.').html).toContain(
       'border-top:1px solid'
     )

@@ -167,7 +167,9 @@ from, so set it to the instance you want the preview to look like.
 
 > **Note:** A browser is a lower bar than a mail client. For a change to the
 > shared layout, also send at least one email to a real inbox and check it in
-> Gmail and Apple Mail, including dark mode.
+> Gmail, Apple Mail **and Outlook**, including dark mode. Outlook is the only
+> client where the `mso-` properties and the ghost table do anything, so it is
+> the one a browser preview cannot stand in for.
 
 ### Admin Role Management
 
