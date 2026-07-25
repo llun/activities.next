@@ -1609,6 +1609,61 @@ describe('ActorDatabase', () => {
         expect(await database.countFeaturedTags({ actorId })).toBe(0)
       })
 
+      it('removes emoji reactions the deleted actor made', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `delete-reaction-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        const authorId = `https://${TEST_DOMAIN}/users/react-author-${suffix}`
+        const statusId = `${authorId}/statuses/reacted-${suffix}`
+
+        await database.createAccount({
+          email: `${username}@${TEST_DOMAIN}`,
+          username,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+        await database.createAccount({
+          email: `react-author-${suffix}@${TEST_DOMAIN}`,
+          username: `react-author-${suffix}`,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-author-${suffix}`,
+          publicKey: `publicKey-author-${suffix}`
+        })
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: authorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Reacted status'
+        })
+        await database.createStatusReaction({
+          statusId,
+          actorId,
+          name: `react-${suffix}`
+        })
+        expect(
+          await database.getStatusReactionActors({
+            statusId,
+            name: `react-${suffix}`
+          })
+        ).toHaveLength(1)
+
+        await database.deleteActorData({ actorId })
+
+        // Otherwise a re-registered username reclaiming this actor URL would
+        // inherit the reaction as its own.
+        expect(
+          await database.getStatusReactionActors({
+            statusId,
+            name: `react-${suffix}`
+          })
+        ).toEqual([])
+      })
+
       it('removes account notes referencing the deleted actor on either side', async () => {
         const suffix = crypto.randomUUID().slice(0, 8)
         const username = `delete-note-${suffix}`

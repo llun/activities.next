@@ -4,7 +4,10 @@ import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { shouldCreateNotification } from '@/lib/services/notifications/shouldNotify'
-import { MAX_REACTION_NAME_LENGTH } from '@/lib/services/statuses/reactionLimits'
+import {
+  MAX_REACTION_NAME_LENGTH,
+  MAX_STORED_REACTION_NAME_LENGTH
+} from '@/lib/services/statuses/reactionLimits'
 import { EmojiReact, Like } from '@/lib/types/activitypub'
 import { NotificationType } from '@/lib/types/database/operations'
 import { logger } from '@/lib/utils/logger'
@@ -35,6 +38,18 @@ const ReactionEmojiTag = z.looseObject({
 })
 
 const stripColons = (value: string) => value.replace(/^:+|:+$/g, '')
+
+// A custom-emoji reference is normally colon-wrapped (`:blobcat:`), but a sender
+// can omit the colons — and a bare shortcode MUST NOT be stored unqualified, or
+// the rollup would resolve it against our own `customEmojis` table and let a
+// remote actor pick which local emoji image its chip renders. A shortcode is
+// exactly `[A-Za-z0-9_]+`; no unicode emoji matches that (keycaps such as `1️⃣`
+// carry U+FE0F/U+20E3, so they never do either).
+const SHORTCODE_PATTERN = /^[A-Za-z0-9_]+$/
+
+const isCustomEmojiReference = (reaction: string) =>
+  (reaction.startsWith(':') && reaction.endsWith(':') && reaction.length > 2) ||
+  SHORTCODE_PATTERN.test(reaction)
 
 const getHost = (url: string): string | null => {
   try {
@@ -76,9 +91,7 @@ const resolveReactionEmoji = (
   reaction: string,
   activity: ReactionActivity
 ): { name: string; url: string | null } | null => {
-  const isCustomEmoji =
-    reaction.startsWith(':') && reaction.endsWith(':') && reaction.length > 2
-  if (!isCustomEmoji) return { name: reaction, url: null }
+  if (!isCustomEmojiReference(reaction)) return { name: reaction, url: null }
 
   const shortcode = stripColons(reaction)
   if (!shortcode) return null
@@ -100,6 +113,21 @@ const resolveReactionEmoji = (
     if (senderHost === getConfig().host) return shortcode
     return `${shortcode}@${senderHost}`
   })()
+
+  // The raw reaction is bounded, but the namespaced name is not: a long
+  // shortcode plus a long hostname can overrun the varchar(255) columns it is
+  // stored in (`status_reactions.name`, `notifications.reactionName`, and the
+  // notification `groupKey` built from it). Postgres rejects the write, which
+  // the shared-inbox job would surface as a failed job rather than a 400.
+  if (name.length > MAX_STORED_REACTION_NAME_LENGTH) {
+    logger.warn({
+      message: 'Dropping emoji reaction whose namespaced name is too long',
+      activityId: activity.id,
+      actorId: activity.actor,
+      nameLength: name.length
+    })
+    return null
+  }
 
   return {
     name,
@@ -169,12 +197,16 @@ export const emojiReactionRequest = async ({
 
   const statusId = getReactionTarget(activity)
   const { name, url } = resolved
-  await database.createStatusReaction({
+  const stored = await database.createStatusReaction({
     statusId,
     actorId: activity.actor,
     name,
     url
   })
+  // Nothing changed — an unknown status, a redelivery of a reaction we already
+  // hold, or an actor past the per-status cap. Notifying anyway would let a
+  // sender replay one activity into unbounded notifications.
+  if (!stored) return
 
   const status = await database.getStatus({ statusId, withReplies: false })
   if (!status) return

@@ -3558,6 +3558,34 @@ describe('StatusDatabase', () => {
         expect(afterDeleteCount).toBe(beforeDeleteCount - 1)
       })
 
+      it('removes emoji reactions for a deleted status', async () => {
+        const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const statusId = `${primaryActorId}/statuses/delete-reactions-${suffix}`
+
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: primaryActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Delete reactions status'
+        })
+        await database.createStatusReaction({
+          statusId,
+          actorId: primaryActorId,
+          name: '\u{1F525}'
+        })
+        expect(
+          await database.getStatusReactionRollups({ statusIds: [statusId] })
+        ).toHaveLength(1)
+
+        await database.deleteStatus({ statusId })
+
+        expect(
+          await database.getStatusReactionRollups({ statusIds: [statusId] })
+        ).toEqual([])
+      })
+
       it('removes the detected-language row for a deleted status', async () => {
         const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
         const statusId = `${primaryActorId}/statuses/delete-detected-${suffix}`

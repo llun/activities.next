@@ -29,10 +29,11 @@ type SQLStatusReactionActorRow = {
   createdAt: number | Date | string
 }
 
-// A remote custom-emoji reaction is namespaced `shortcode@domain`; anything
-// without the separator is either a unicode emoji (which never matches a
-// shortcode) or a *local* shortcode, whose image is resolved live from
-// `customEmojis` so an admin re-upload propagates to existing reactions.
+// Every remote custom-emoji reaction is namespaced `shortcode@domain` by
+// `resolveReactionEmoji` — including one the sender wrote without colons — so a
+// stored name without the separator is either a unicode emoji (which never
+// matches a shortcode) or a genuinely *local* shortcode, whose image resolves
+// live from `customEmojis` so an admin re-upload propagates to existing chips.
 const isLocalShortcodeCandidate = (name: string) => !name.includes('@')
 
 export const StatusReactionSQLDatabaseMixin = (
@@ -44,30 +45,24 @@ export const StatusReactionSQLDatabaseMixin = (
     name,
     url
   }: CreateStatusReactionParams) {
-    await database.transaction(async (trx) => {
+    return database.transaction(async (trx) => {
       const status = await trx('statuses').where('id', statusId).first('id')
-      if (!status) return
+      if (!status) return false
 
-      const existingCount = await trx('status_reactions')
+      // The actor's existing reactions on this status, capped at 8, so one
+      // query answers both "already reacted with this name?" and "at the cap?".
+      const existing = await trx('status_reactions')
         .where({ statusId, actorId })
-        .count<{ count: number | string }>({ count: '*' })
-        .first()
-      // The cap drops the overflow rather than evicting an earlier reaction: an
-      // eviction would desynchronise us from the sender, who still believes the
-      // dropped reaction stands. Re-reacting with an existing name is not an
-      // overflow, so the `onConflict().ignore()` below stays reachable.
-      const alreadyReacted = await trx('status_reactions')
-        .where({ statusId, actorId, name })
-        .first('name')
-      if (
-        !alreadyReacted &&
-        Number(existingCount?.count ?? 0) >= MAX_REACTIONS_PER_ACTOR
-      ) {
-        return
-      }
+        .select<{ name: string }[]>('name')
+      // Re-reacting with a name already stored is an idempotent no-op, not an
+      // overflow. A genuine overflow drops the new reaction rather than evicting
+      // an earlier one: eviction would desynchronise us from the sender, which
+      // still believes the evicted reaction stands.
+      if (existing.some((row) => row.name === name)) return false
+      if (existing.length >= MAX_REACTIONS_PER_ACTOR) return false
 
       const currentTime = new Date()
-      await trx('status_reactions')
+      const inserted = await trx('status_reactions')
         .insert({
           statusId,
           actorId,
@@ -78,6 +73,10 @@ export const StatusReactionSQLDatabaseMixin = (
         })
         .onConflict(['statusId', 'actorId', 'name'])
         .ignore()
+      // A concurrent writer can win the race between the read above and this
+      // insert; `onConflict().ignore()` then reports zero affected rows, so the
+      // caller still learns nothing changed and skips the notification.
+      return Array.isArray(inserted) ? inserted.length > 0 : Boolean(inserted)
     })
   },
 
@@ -86,9 +85,10 @@ export const StatusReactionSQLDatabaseMixin = (
     actorId,
     name
   }: DeleteStatusReactionParams) {
-    await database('status_reactions')
+    const deleted = await database('status_reactions')
       .where({ statusId, actorId, name })
       .delete()
+    return deleted > 0
   },
 
   async getStatusReactionRollups({
@@ -142,7 +142,7 @@ export const StatusReactionSQLDatabaseMixin = (
     // shortcode text, matching how the picker and emoji list treat it.
     const localEmojiChunks = localShortcodes.length
       ? await Promise.all(
-          chunkArray(localShortcodes, getWhereInBatchSize(database)).map(
+          chunkArray(localShortcodes, getWhereInBatchSize(database, 1)).map(
             (chunk) =>
               database('customEmojis')
                 .whereIn('shortcode', chunk)

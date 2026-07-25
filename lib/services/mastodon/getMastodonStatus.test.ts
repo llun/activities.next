@@ -708,6 +708,13 @@ describe('getMastodonStatus', () => {
     })
 
     it('surfaces a boosted status reactions on the reblog, not the wrapper', async () => {
+      // announce-1 boosts ACTOR1's post-3, so the reaction has to land there for
+      // the assertion below to distinguish wrapper from reblog.
+      await database.createStatusReaction({
+        statusId: `${ACTOR1_ID}/statuses/post-3`,
+        actorId: ACTOR2_ID,
+        name: '\u{1F44F}'
+      })
       const announceStatus = (await database.getStatus({
         statusId: `${ACTOR2_ID}/statuses/announce-1`
       })) as Status
@@ -715,7 +722,18 @@ describe('getMastodonStatus', () => {
 
       expect(mastodonStatus?.reactions).toEqual([])
       expect(mastodonStatus?.pleroma?.emoji_reactions).toEqual([])
-      expect(mastodonStatus?.reblog).not.toBeNull()
+      expect(mastodonStatus?.reblog?.reactions).toEqual([
+        {
+          name: '\u{1F44F}',
+          count: 1,
+          me: false,
+          url: null,
+          static_url: null
+        }
+      ])
+      expect(mastodonStatus?.reblog?.pleroma?.emoji_reactions).toEqual(
+        mastodonStatus?.reblog?.reactions
+      )
     })
   })
 

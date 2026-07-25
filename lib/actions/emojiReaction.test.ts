@@ -198,6 +198,40 @@ describe('emojiReactionRequest', () => {
       }
     )
 
+    it('namespaces a colon-less shortcode so it cannot name a local emoji', async () => {
+      // A remote sender that omits the colons must not end up addressing our own
+      // customEmojis table — the chip would render an arbitrary local image.
+      const statusId = statuses.primary.post
+      await emojiReactionRequest({
+        activity: emojiReactActivity({
+          object: statusId,
+          content: 'partyparrot'
+        }),
+        database
+      })
+
+      const reactors = await database.getStatusReactionActors({ statusId })
+      const names = reactors.map((reactor) => reactor.name)
+      expect(names).toContain('partyparrot@remote.test')
+      expect(names).not.toContain('partyparrot')
+    })
+
+    it('drops a reaction whose namespaced name would overflow storage', async () => {
+      const statusId = statuses.primary.post
+      const actor = `https://${'a'.repeat(60)}.${'b'.repeat(60)}.${'c'.repeat(60)}.${'d'.repeat(60)}/users/long`
+      await emojiReactionRequest({
+        activity: {
+          ...emojiReactActivity({ object: statusId }),
+          actor,
+          content: `:${'x'.repeat(60)}:`
+        },
+        database
+      })
+
+      const reactors = await database.getStatusReactionActors({ statusId })
+      expect(reactors.map((reactor) => reactor.actorId)).not.toContain(actor)
+    })
+
     it('keeps an already-namespaced shortcode as sent', async () => {
       const statusId = statuses.replyAuthor.mentionReplyToPrimary
       await emojiReactionRequest({
@@ -273,6 +307,22 @@ describe('emojiReactionRequest', () => {
         reactionName: '💜',
         groupKey: `emoji_reaction:${statusId}:💜`
       })
+    })
+
+    it('does not notify again when the same reaction is redelivered', async () => {
+      const statusId = statuses.primary.post
+      const activity = emojiReactActivity({ object: statusId, content: '🛎️' })
+      await emojiReactionRequest({ activity, database })
+      await emojiReactionRequest({ activity, database })
+
+      const notifications = await database.getNotifications({
+        actorId: actors.primary.id,
+        limit: 50,
+        types: [NotificationType.enum.emoji_reaction]
+      })
+      expect(
+        notifications.filter((entry) => entry.reactionName === '🛎️')
+      ).toHaveLength(1)
     })
 
     it('does not notify the author when they react to their own status', async () => {

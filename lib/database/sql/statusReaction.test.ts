@@ -119,6 +119,56 @@ describe('StatusReactionDatabase', () => {
         )
       })
 
+      it.each([
+        {
+          description: 'a first-time reaction reports that it stored a row',
+          setup: false,
+          expected: true
+        },
+        {
+          description: 'a repeat of the same reaction reports no change',
+          setup: true,
+          expected: false
+        }
+      ])('$description', async ({ setup, expected }) => {
+        const statusId = statuses.replyAuthor.announcePrimary
+        const name = setup ? 'repeat' : 'first-time'
+        if (setup) {
+          await database.createStatusReaction({
+            statusId,
+            actorId: emptyActorId,
+            name
+          })
+        }
+
+        expect(
+          await database.createStatusReaction({
+            statusId,
+            actorId: emptyActorId,
+            name
+          })
+        ).toBe(expected)
+      })
+
+      it('reports no change for an unknown status or past the cap', async () => {
+        expect(
+          await database.createStatusReaction({
+            statusId: 'https://nonexistent.status/id',
+            actorId: emptyActorId,
+            name: '👍'
+          })
+        ).toBeFalse()
+
+        const statusId = statuses.primary.postWithAttachments
+        expect(
+          await database.createStatusReaction({
+            statusId,
+            actorId: extraActorId,
+            name: 'over-the-cap'
+          })
+        ).toBeFalse()
+      })
+
       it('counts the cap per actor, not per status', async () => {
         const statusId = statuses.primary.postWithAttachments
         await database.createStatusReaction({
@@ -358,14 +408,27 @@ describe('StatusReactionDatabase', () => {
         ])
       })
 
-      it('does nothing when the reaction does not exist', async () => {
-        await expect(
-          database.deleteStatusReaction({
+      it('reports whether a row was actually removed', async () => {
+        expect(
+          await database.deleteStatusReaction({
             statusId,
             actorId: emptyActorId,
             name: '🥳'
           })
-        ).resolves.toBeUndefined()
+        ).toBeFalse()
+
+        await database.createStatusReaction({
+          statusId,
+          actorId: emptyActorId,
+          name: '🫶'
+        })
+        expect(
+          await database.deleteStatusReaction({
+            statusId,
+            actorId: emptyActorId,
+            name: '🫶'
+          })
+        ).toBeTrue()
       })
     })
   })

@@ -2859,10 +2859,15 @@ export type StatusReactionActor = {
 }
 
 export interface StatusReactionDatabase {
-  // Idempotent on (statusId, actorId, name). Does nothing when the status does
-  // not exist or the actor is already at the per-status reaction cap.
-  createStatusReaction(params: CreateStatusReactionParams): Promise<void>
-  deleteStatusReaction(params: DeleteStatusReactionParams): Promise<void>
+  // Idempotent on (statusId, actorId, name). Returns whether a row was actually
+  // stored: false when the status does not exist, the actor had already reacted
+  // with this name, or the actor is at the per-status reaction cap. Callers use
+  // it to fire notifications (and, from PR 5.1b, federation) only on a real
+  // state change.
+  createStatusReaction(params: CreateStatusReactionParams): Promise<boolean>
+  // Returns whether a row was removed, so callers can skip the outbound Undo
+  // (PR 5.1b) when the reaction was not there to begin with.
+  deleteStatusReaction(params: DeleteStatusReactionParams): Promise<boolean>
   // Rollups grouped by (statusId, name) for the given statuses, ordered by
   // first-reaction time ascending (Pleroma's insertion order).
   getStatusReactionRollups(
