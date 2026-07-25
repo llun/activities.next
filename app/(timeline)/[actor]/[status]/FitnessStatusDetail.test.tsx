@@ -469,6 +469,46 @@ describe('FitnessStatusDetail', () => {
     )
   })
 
+  it('renders the route map without a GPS trace badge', async () => {
+    renderDetail()
+
+    await waitFor(() =>
+      expect(mockGetFitnessRouteData).toHaveBeenCalledTimes(1)
+    )
+    await waitFor(() =>
+      expect(screen.queryByText('GPS trace')).not.toBeInTheDocument()
+    )
+  })
+
+  it('dismisses the hidden-privacy-segment notice when it is tapped', async () => {
+    mockGetFitnessRouteData.mockResolvedValue({
+      ...routeData,
+      segments: [
+        {
+          isHiddenByPrivacy: false,
+          samples: routeData.samples.slice(0, 2)
+        },
+        {
+          isHiddenByPrivacy: true,
+          samples: routeData.samples.slice(1)
+        }
+      ]
+    })
+
+    renderDetail()
+
+    const notice = await screen.findByRole('button', {
+      name: 'Green segments are hidden from other viewers'
+    })
+    fireEvent.click(notice)
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText('Green segments are hidden from other viewers')
+      ).not.toBeInTheDocument()
+    )
+  })
+
   it('surfaces an error banner when route data fails to load', async () => {
     mockGetFitnessRouteData.mockRejectedValue(new Error('boom'))
 

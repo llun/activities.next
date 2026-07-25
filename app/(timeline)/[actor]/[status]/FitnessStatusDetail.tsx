@@ -863,6 +863,10 @@ const ActivityMapPanel: FC<{
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapboxMap | null>(null)
   const [mapLoadError, setMapLoadError] = useState<string | null>(null)
+  // The privacy notice is an acknowledgement, not a persistent legend — tapping
+  // it clears it so it stops covering the map.
+  const [isPrivacyNoticeDismissed, setIsPrivacyNoticeDismissed] =
+    useState(false)
   const drawableRouteSegments = useMemo(
     () => routeSegments.filter((segment) => segment.samples.length >= 2),
     [routeSegments]
@@ -1197,13 +1201,14 @@ const ActivityMapPanel: FC<{
               </button>
             </div>
           ) : null}
-          <div className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md border bg-background/95 px-2.5 py-1 text-xs font-medium text-muted-foreground shadow-sm">
-            <Route className="size-3.5" /> GPS trace
-          </div>
-          {hasHiddenPrivacySegments ? (
-            <div className="absolute bottom-3 left-3 rounded-md border border-green-300 bg-background/95 px-3 py-2 text-xs font-medium text-green-700 shadow-sm dark:border-green-900 dark:text-green-400">
+          {hasHiddenPrivacySegments && !isPrivacyNoticeDismissed ? (
+            <button
+              type="button"
+              onClick={() => setIsPrivacyNoticeDismissed(true)}
+              className="absolute bottom-3 left-3 rounded-md border border-green-300 bg-background/95 px-3 py-2 text-xs font-medium text-green-700 shadow-sm dark:border-green-900 dark:text-green-400"
+            >
               Green segments are hidden from other viewers
-            </div>
+            </button>
           ) : null}
         </>
       ) : onOpenMap && mapAttachment ? (
