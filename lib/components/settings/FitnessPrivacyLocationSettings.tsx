@@ -324,6 +324,15 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
   >([])
 
   const [isLoading, setIsLoading] = useState(true)
+  // Only true once the existing settings have actually been read back. Saving
+  // builds the payload from `privacyLocations`, and a save REPLACES the whole
+  // stored list — so saving before a successful load would destroy every zone
+  // the actor has configured.
+  const [hasLoadedSettings, setHasLoadedSettings] = useState(false)
+  const [settingsReloadToken, setSettingsReloadToken] = useState(0)
+  // The map's click handler is registered once, inside the init effect, so it
+  // cannot read `hasLoadedSettings` directly without going stale.
+  const hasLoadedSettingsRef = useRef(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isRegeneratingMaps, setIsRegeneratingMaps] = useState(false)
   const [isLocatingCurrentPosition, setIsLocatingCurrentPosition] =
@@ -424,6 +433,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
 
     const fetchSettings = async () => {
       try {
+        isHydratingSettingsRef.current = true
         setIsLoading(true)
         setError(null)
 
@@ -442,12 +452,15 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
         setDraftRadiusMeters(
           sanitizeDraftRadius(firstLocation?.hideRadiusMeters)
         )
+        hasLoadedSettingsRef.current = true
+        setHasLoadedSettings(true)
       } catch {
         if (cancelled) {
           return
         }
 
-        setError('Failed to load fitness privacy settings')
+        hasLoadedSettingsRef.current = false
+        setHasLoadedSettings(false)
       } finally {
         isHydratingSettingsRef.current = false
         if (!cancelled) {
@@ -461,10 +474,12 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [settingsReloadToken])
 
   useEffect(() => {
-    if (!isMapReady || isLoading) {
+    // Never prefill from the browser before the settings have loaded: on a load
+    // failure it would dress an empty form up as a configured one.
+    if (!isMapReady || isLoading || !hasLoadedSettings) {
       return
     }
 
@@ -478,6 +493,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
 
     void syncWithCurrentLocation()
   }, [
+    hasLoadedSettings,
     isLoading,
     isMapReady,
     latitudeInput,
@@ -563,6 +579,12 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
         })
 
         map.on('click', ({ lngLat }) => {
+          // Writing into greyed-out fields would contradict the disabled
+          // editing surface after a failed load.
+          if (!hasLoadedSettingsRef.current) {
+            return
+          }
+
           setLatitudeInput(lngLat.lat.toFixed(6))
           setLongitudeInput(lngLat.lng.toFixed(6))
           setError(null)
@@ -814,6 +836,11 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
     }
   }
 
+  // Everything that edits the draft or the list is disabled until the existing
+  // settings are known. Otherwise the user builds a list against an empty form
+  // and is told to "save settings to apply" against a disabled Save button.
+  const isEditingDisabled = isLoading || !hasLoadedSettings || isSaving
+
   const handleRegenerateOldStatusMaps = async () => {
     setError(null)
     setMessage(null)
@@ -911,7 +938,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
                   flyToMarker()
                 }
               }}
-              disabled={isLoading || isSaving}
+              disabled={isEditingDisabled}
             />
           </div>
 
@@ -929,7 +956,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
                   flyToMarker()
                 }
               }}
-              disabled={isLoading || isSaving}
+              disabled={isEditingDisabled}
             />
           </div>
         </div>
@@ -945,7 +972,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
                   sanitizeDraftRadius(Number(event.target.value))
                 )
               }}
-              disabled={isLoading || isSaving}
+              disabled={isEditingDisabled}
               className="flex h-10 w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {NON_ZERO_RADIUS_OPTIONS.map((radius) => (
@@ -966,8 +993,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
             variant="outline"
             onClick={handleUseCurrentLocation}
             disabled={
-              isLoading ||
-              isSaving ||
+              isEditingDisabled ||
               isRegeneratingMaps ||
               isLocatingCurrentPosition
             }
@@ -978,8 +1004,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
             variant="outline"
             onClick={handleAddLocation}
             disabled={
-              isLoading ||
-              isSaving ||
+              isEditingDisabled ||
               isRegeneratingMaps ||
               isLocatingCurrentPosition
             }
@@ -1011,7 +1036,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
                     variant="outline"
                     size="sm"
                     onClick={() => handleRemoveLocation(index)}
-                    disabled={isLoading || isSaving || isRegeneratingMaps}
+                    disabled={isEditingDisabled || isRegeneratingMaps}
                   >
                     Remove
                   </Button>
@@ -1025,6 +1050,15 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
           )}
         </div>
 
+        {!isLoading && !hasLoadedSettings ? (
+          // Derived from the condition, not stored in `error`, which every
+          // action handler clears — the guard below must never be left
+          // unexplained.
+          <p className="text-sm text-destructive">
+            Failed to load your saved privacy locations. Editing and saving are
+            disabled so the locations you already have are not overwritten.
+          </p>
+        ) : null}
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         {message ? <p className="text-sm text-green-600">{message}</p> : null}
 
@@ -1032,8 +1066,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
           <Button
             onClick={handleSave}
             disabled={
-              isLoading ||
-              isSaving ||
+              isEditingDisabled ||
               isRegeneratingMaps ||
               isLocatingCurrentPosition
             }
@@ -1044,14 +1077,21 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
             variant="outline"
             onClick={handleClear}
             disabled={
-              isLoading ||
-              isSaving ||
+              isEditingDisabled ||
               isRegeneratingMaps ||
               isLocatingCurrentPosition
             }
           >
             Clear all
           </Button>
+          {!isLoading && !hasLoadedSettings ? (
+            <Button
+              variant="outline"
+              onClick={() => setSettingsReloadToken((token) => token + 1)}
+            >
+              Retry loading
+            </Button>
+          ) : null}
           <Button
             variant="outline"
             onClick={handleRegenerateOldStatusMaps}
