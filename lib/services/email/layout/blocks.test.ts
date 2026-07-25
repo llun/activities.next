@@ -30,6 +30,11 @@ describe('paragraph', () => {
   })
 
   it('uses a tighter bottom margin when tight is set', () => {
+    // Asserted as a string on purpose: the visible effect is Outlook-only.
+    // Standards engines collapse the 4px with the next block's 20px margin-top
+    // to the same 20px the default gives, so a rendered-gap assertion would see
+    // no difference and read as dead code. Word does not collapse margins, and
+    // there this is what keeps the gap near 20px instead of 40px.
     expect(paragraph('a', { tight: true }).html).toContain('margin:0 0 4px')
     expect(paragraph('a').html).toContain('margin:0 0 20px')
   })

@@ -88,9 +88,16 @@ export const headline = (text: string): EmailBlock => ({
 })
 
 /**
- * Body copy under the headline. `tight` shrinks the bottom margin for a
- * paragraph that runs straight into a following block, matching the design's
- * two-paragraph actor-deleted card.
+ * Body copy under the headline.
+ *
+ * `tight` shrinks the bottom margin for a paragraph that runs straight into a
+ * following block. It looks like a no-op and is not: in a standards engine the
+ * 4px collapses with the next block's 20px `margin-top` to 20px — the same gap
+ * the default would give — but Outlook's Word engine does not collapse margins
+ * at all. There it sums, so `tight` yields 4+20=24px against the 20px every
+ * other client shows, where the default would give 40px. It exists to keep
+ * Outlook close to the design, and removing it would widen that gap, not
+ * tidy up dead code.
  */
 export const paragraph = (
   content: InlineContent,
