@@ -28,6 +28,12 @@ describe('FitnessPrivacyLocationSettings', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+    // `restoreAllMocks` does not reset an implementation set on a vi.fn() from
+    // a module mock factory, so a test that makes the GL loader resolve would
+    // otherwise leak a live map into every later test in this file.
+    vi.mocked(loadMaplibreModule).mockImplementation(
+      () => new Promise(() => {})
+    )
     Object.defineProperty(global.navigator, 'geolocation', {
       configurable: true,
       value: originalGeolocation
@@ -360,8 +366,11 @@ describe('FitnessPrivacyLocationSettings', () => {
     })
 
     const postBodies = fetchMock.mock.calls
-      .filter(([, init]) => {
-        return (init?.method ?? 'GET') === 'POST'
+      .filter(([input, init]) => {
+        return (
+          input === '/api/v1/fitness/general' &&
+          (init?.method ?? 'GET') === 'POST'
+        )
       })
       .map(([, init]) => JSON.parse(String(init?.body)))
 
@@ -598,7 +607,7 @@ describe('FitnessPrivacyLocationSettings', () => {
       render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
 
       expect(
-        await screen.findByText(/Failed to load fitness privacy settings/)
+        await screen.findByText(/Failed to load your saved privacy locations/)
       ).toBeInTheDocument()
       // A save replaces the whole stored list, so saving from an empty form
       // after a failed load would wipe every zone the actor configured.
@@ -639,7 +648,7 @@ describe('FitnessPrivacyLocationSettings', () => {
 
       render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
 
-      await screen.findByText(/Failed to load fitness privacy settings/)
+      await screen.findByText(/Failed to load your saved privacy locations/)
       await waitFor(() => expect(loadMaplibreModule).toHaveBeenCalled())
 
       // The map's own initial-view lookup also calls geolocation, so assert on
@@ -648,6 +657,76 @@ describe('FitnessPrivacyLocationSettings', () => {
       await waitFor(() => expect(getCurrentPosition).toHaveBeenCalled())
       expect(screen.queryByDisplayValue('52.010044')).not.toBeInTheDocument()
       expect(screen.getByLabelText('Latitude')).toHaveValue('')
+    })
+
+    it('disables the whole editing surface, not just save', async () => {
+      failingFetch()
+
+      render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
+
+      await screen.findByText(/Failed to load your saved privacy locations/)
+
+      // Leaving these enabled lets the user build a list against an empty form
+      // and be told to "save settings to apply" against a disabled Save.
+      expect(
+        screen.getByRole('button', { name: 'Add location to list' })
+      ).toBeDisabled()
+      expect(
+        screen.getByRole('button', { name: 'Use current location' })
+      ).toBeDisabled()
+      expect(screen.getByLabelText('Latitude')).toBeDisabled()
+      expect(screen.getByLabelText('Hide Radius')).toBeDisabled()
+    })
+
+    it('keeps explaining why saving is disabled after an unrelated action', async () => {
+      vi.spyOn(global, 'fetch').mockImplementation(async (_input, init) => {
+        if ((init?.method ?? 'GET') === 'GET') {
+          return { ok: false, json: async () => ({}) } as Response
+        }
+        return {
+          ok: false,
+          json: async () => ({ error: 'Regeneration unavailable' })
+        } as Response
+      })
+
+      render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
+
+      expect(
+        await screen.findByText(/Failed to load your saved privacy locations/)
+      ).toBeInTheDocument()
+
+      // Regenerate is deliberately not gated, and its handler clears the shared
+      // `error` slot — so the guard's explanation must not live there.
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Regenerate maps for old statuses' })
+      )
+
+      // Await the handler settling so no in-flight POST leaks into the next
+      // test's fetch spy.
+      expect(
+        await screen.findByText('Regeneration unavailable')
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(/Failed to load your saved privacy locations/)
+      ).toBeInTheDocument()
+    })
+
+    it('treats an unrecognised 200 body as a failed load', async () => {
+      // A bare cast would accept this as "loaded with no zones", and the next
+      // save would replace the stored list with an empty one.
+      vi.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({ unexpected: true })
+      } as Response)
+
+      render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
+
+      expect(
+        await screen.findByText(/Failed to load your saved privacy locations/)
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Save privacy locations' })
+      ).toBeDisabled()
     })
 
     it('recovers the saved zones when the retry succeeds', async () => {

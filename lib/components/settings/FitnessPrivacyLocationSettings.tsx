@@ -430,6 +430,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
 
     const fetchSettings = async () => {
       try {
+        isHydratingSettingsRef.current = true
         setIsLoading(true)
         setError(null)
 
@@ -455,9 +456,6 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
         }
 
         setHasLoadedSettings(false)
-        setError(
-          'Failed to load fitness privacy settings. Saving is disabled until they load, so your saved locations are not overwritten.'
-        )
       } finally {
         isHydratingSettingsRef.current = false
         if (!cancelled) {
@@ -827,6 +825,11 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
     }
   }
 
+  // Everything that edits the draft or the list is disabled until the existing
+  // settings are known. Otherwise the user builds a list against an empty form
+  // and is told to "save settings to apply" against a disabled Save button.
+  const isEditingDisabled = isLoading || !hasLoadedSettings || isSaving
+
   const handleRegenerateOldStatusMaps = async () => {
     setError(null)
     setMessage(null)
@@ -924,7 +927,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
                   flyToMarker()
                 }
               }}
-              disabled={isLoading || isSaving}
+              disabled={isEditingDisabled}
             />
           </div>
 
@@ -942,7 +945,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
                   flyToMarker()
                 }
               }}
-              disabled={isLoading || isSaving}
+              disabled={isEditingDisabled}
             />
           </div>
         </div>
@@ -958,7 +961,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
                   sanitizeDraftRadius(Number(event.target.value))
                 )
               }}
-              disabled={isLoading || isSaving}
+              disabled={isEditingDisabled}
               className="flex h-10 w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {NON_ZERO_RADIUS_OPTIONS.map((radius) => (
@@ -979,8 +982,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
             variant="outline"
             onClick={handleUseCurrentLocation}
             disabled={
-              isLoading ||
-              isSaving ||
+              isEditingDisabled ||
               isRegeneratingMaps ||
               isLocatingCurrentPosition
             }
@@ -991,8 +993,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
             variant="outline"
             onClick={handleAddLocation}
             disabled={
-              isLoading ||
-              isSaving ||
+              isEditingDisabled ||
               isRegeneratingMaps ||
               isLocatingCurrentPosition
             }
@@ -1024,7 +1025,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
                     variant="outline"
                     size="sm"
                     onClick={() => handleRemoveLocation(index)}
-                    disabled={isLoading || isSaving || isRegeneratingMaps}
+                    disabled={isEditingDisabled || isRegeneratingMaps}
                   >
                     Remove
                   </Button>
@@ -1038,6 +1039,15 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
           )}
         </div>
 
+        {!isLoading && !hasLoadedSettings ? (
+          // Derived from the condition, not stored in `error`, which every
+          // action handler clears — the guard below must never be left
+          // unexplained.
+          <p className="text-sm text-destructive">
+            Failed to load your saved privacy locations. Editing and saving are
+            disabled so the locations you already have are not overwritten.
+          </p>
+        ) : null}
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         {message ? <p className="text-sm text-green-600">{message}</p> : null}
 
@@ -1045,9 +1055,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
           <Button
             onClick={handleSave}
             disabled={
-              isLoading ||
-              !hasLoadedSettings ||
-              isSaving ||
+              isEditingDisabled ||
               isRegeneratingMaps ||
               isLocatingCurrentPosition
             }
@@ -1058,9 +1066,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
             variant="outline"
             onClick={handleClear}
             disabled={
-              isLoading ||
-              !hasLoadedSettings ||
-              isSaving ||
+              isEditingDisabled ||
               isRegeneratingMaps ||
               isLocatingCurrentPosition
             }
