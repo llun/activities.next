@@ -2,6 +2,7 @@ import crypto from 'crypto'
 
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
+import { isActorModerationBlocked } from '@/lib/services/guards/OAuthGuard'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import {
   EmailReplyTokenData,
@@ -130,9 +131,14 @@ export const mintReplyToken = async (
  * notification email, or undefined when this notification must not be
  * repliable.
  *
- * Three gates, all of which must pass — the inbound/outbound email
- * configuration, the instance-wide admin switch, and the recipient's own
- * opt-in (absent means off).
+ * Four gates, all of which must pass — the inbound/outbound email
+ * configuration, the recipient's moderation state, the instance-wide admin
+ * switch, and the recipient's own opt-in (absent means off).
+ *
+ * The moderation check is belt-and-braces: the job re-checks it at redemption,
+ * which is the authoritative gate. Checking here too means a suspended or
+ * disabled account is never sent an email advertising a capability it does not
+ * have.
  *
  * Minting is a database write on a path that is otherwise pure reads, so every
  * failure is swallowed: the caller falls back to a normal, non-repliable
@@ -146,6 +152,9 @@ export const createReplyToAddress = async (
   try {
     const { email, emailInbound } = getConfig()
     if (!email || !emailInbound) return undefined
+
+    const actor = await database.getActorFromId({ id: actorId })
+    if (!actor || isActorModerationBlocked(actor)) return undefined
 
     const serverSettings = await getResolvedServerSettings(database)
     if (!serverSettings.replyByEmail.enabled) return undefined

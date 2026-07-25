@@ -255,6 +255,23 @@ describe('extractReplyText', () => {
       )
     })
 
+    it.each([
+      {
+        description: 'a date without a clock time',
+        line: 'On 25 July I asked Alice about the outage and here is what she wrote:'
+      },
+      {
+        description: 'a version number',
+        line: 'On v2 of the spec, this is what the author wrote:'
+      }
+    ])(
+      'keeps prose whose only header-ish token is $description',
+      ({ line }) => {
+        const text = `Some context.\n${line}\n\n> ${REPLY_SENTINEL}\n> quoted`
+        expect(extractReplyText({ text })).toBe(`Some context.\n${line}`)
+      }
+    )
+
     it('keeps a From: the sender typed in a collapsed Outlook HTML reply', () => {
       const html =
         '<div dir="ltr">The bounce says From: postmaster@example.tld — do ' +
@@ -268,16 +285,63 @@ describe('extractReplyText', () => {
     })
   })
 
+  // Regression: the gap between Sent: and Subject: was bounded at 80, but real
+  // Outlook puts To: and often Cc: in between — so the run stopped matching and
+  // the whole header block, including the REPLIER'S OWN email address, was
+  // published and federated.
+  it.each([
+    {
+      description: 'To: and Cc: lines',
+      headers:
+        '<b>To:</b> Bob Smith &lt;bob.smith@example.tld&gt;<br>' +
+        '<b>Cc:</b> Team &lt;team@example.tld&gt;<br>'
+    },
+    {
+      description: 'a corporate-length To: line',
+      headers:
+        '<b>To:</b> Bob Smith-Jones ' +
+        '&lt;bob.smith-jones@engineering.example.com&gt;<br>'
+    },
+    {
+      description: 'To: and Importance: lines',
+      headers:
+        '<b>To:</b> Bob &lt;bob@example.tld&gt;<br>' +
+        '<b>Importance:</b> High<br>'
+    }
+  ])('drops an Outlook header block carrying $description', ({ headers }) => {
+    const html =
+      '<div>My actual reply.</div><hr><div id="divRplyFwdMsg">' +
+      '<b>From:</b> Activities &lt;noreply@example.tld&gt;<br>' +
+      '<b>Sent:</b> Saturday, July 25, 2026 9:00 PM<br>' +
+      `${headers}<b>Subject:</b> someone mentioned you</div>` +
+      `<p>${REPLY_SENTINEL}</p>`
+
+    const extracted = extractReplyText({ html })
+    expect(extracted).toBe('My actual reply.')
+    expect(extracted).not.toContain('@example.tld')
+  })
+
   // A single reply used to be able to pin the worker: the unbounded lazy span
   // rescanned the rest of the line for every "From:" on it, and an HTML body
   // collapses to ONE line of up to megabytes.
-  it('parses a large single-line body in linear time', () => {
+  //
+  // The truncation cap is the guarantee worth asserting — it holds whatever
+  // the regexes do, and unlike a wall-clock bound it does not flake under a
+  // loaded parallel runner. The generous timing bound below is only a smoke
+  // test for a future regex that backtracks catastrophically.
+  it('truncates a body far larger than any status could be', () => {
+    const extracted = extractReplyText({ text: 'x'.repeat(1024 * 1024) })
+
+    expect(extracted).toHaveLength(256 * 1024)
+  })
+
+  it('does not blow up on a large single-line body', () => {
     const body = 'From: a '.repeat(50_000)
     const started = Date.now()
 
     extractReplyText({ text: body })
 
-    expect(Date.now() - started).toBeLessThan(1000)
+    expect(Date.now() - started).toBeLessThan(5000)
   })
 
   it('falls back to the HTML part when there is no text part', () => {

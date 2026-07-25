@@ -277,10 +277,10 @@ describe('replyByEmailJob', () => {
     expect(mockSendMail).not.toHaveBeenCalled()
   })
 
-  // Regression: an expired or spent token used to be lumped in with an unknown
-  // one and dropped with only a log line — so the sender believed they had
-  // posted. The row still names its owner, so they can and must be told.
-  it('tells the sender when the reply address has expired', async () => {
+  // An expired or spent token drops in silence on purpose: every failure below
+  // answers the sender by email, and answering an unbounded stream of messages
+  // to one leaked address turned the instance into a mail amplifier.
+  it('posts nothing and sends nothing when the reply address has expired', async () => {
     const token = await mintFor(publicStatus.id)
     const row = await database.getEmailReplyToken({
       tokenHash: hashReplyToken(token)
@@ -300,17 +300,10 @@ describe('replyByEmailJob', () => {
 
     const replies = await repliesTo(database, publicStatus.id)
     expect(replies.some((reply) => reply.text.includes('Too late'))).toBe(false)
-    expect(mockSendMail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: [actor1.account?.email],
-        content: expect.objectContaining({
-          text: expect.stringContaining('has expired')
-        })
-      })
-    )
+    expect(mockSendMail).not.toHaveBeenCalled()
   })
 
-  it('tells the sender when the reply address is spent', async () => {
+  it('posts nothing and sends nothing once the reply address is spent', async () => {
     const token = await mintFor(publicStatus.id)
     const row = await database.getEmailReplyToken({
       tokenHash: hashReplyToken(token)
@@ -333,34 +326,44 @@ describe('replyByEmailJob', () => {
     expect(replies.some((reply) => reply.text.includes('One too many'))).toBe(
       false
     )
-    expect(mockSendMail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        content: expect.objectContaining({
-          text: expect.stringContaining('as many times as it allows')
-        })
-      })
-    )
+    expect(mockSendMail).not.toHaveBeenCalled()
   })
 
-  it('refuses a suspended actor', async () => {
+  // Every failure notice sits behind the claim, so one leaked address can
+  // produce at most REPLY_TOKEN_MAX_USES of them however many messages arrive.
+  it('spends a use for a reply it cannot post, bounding the notices', async () => {
     const token = await mintFor(publicStatus.id)
-    await database.setActorSuspended({ actorId: ACTOR1_ID, suspended: true })
+    const row = await database.getEmailReplyToken({
+      tokenHash: hashReplyToken(token)
+    })
 
-    try {
-      await runJob(database, {
-        token,
-        messageId: '<suspended@example.tld>',
-        text: replyBody('Should not post.')
-      })
+    await runJob(database, {
+      token,
+      messageId: '<empty-body-costs-a-use@example.tld>',
+      text: `${REPLY_SENTINEL}\n> quoted original only`
+    })
 
-      const replies = await repliesTo(database, publicStatus.id)
-      expect(
-        replies.some((reply) => reply.text.includes('Should not post'))
-      ).toBe(false)
-      expect(mockSendMail).not.toHaveBeenCalled()
-    } finally {
-      await database.setActorSuspended({ actorId: ACTOR1_ID, suspended: false })
+    await expect(
+      database.getEmailReplyToken({ tokenHash: hashReplyToken(token) })
+    ).resolves.toMatchObject({ id: row!.id, useCount: 1 })
+    expect(mockSendMail).toHaveBeenCalledTimes(1)
+  })
+
+  // A duplicate delivery must not eat the budget the notices are bounded by.
+  it('does not spend a use on a duplicated delivery', async () => {
+    const token = await mintFor(publicStatus.id)
+    const data = {
+      token,
+      messageId: '<duplicate-costs-one-use@example.tld>',
+      text: replyBody('Counted once.')
     }
+
+    await runJob(database, data)
+    await runJob(database, data)
+
+    await expect(
+      database.getEmailReplyToken({ tokenHash: hashReplyToken(token) })
+    ).resolves.toMatchObject({ useCount: 1 })
   })
 
   // The admin switch has to be re-checked at redemption, not just at minting:
@@ -388,13 +391,46 @@ describe('replyByEmailJob', () => {
       expect(mockSendMail).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.objectContaining({
-            text: expect.stringContaining('switched off')
+            text: expect.stringContaining('switched off on this server')
           })
         })
       )
     } finally {
       await database.deleteServerSetting({ key: 'replyByEmail.enabled' })
       invalidateServerSettingsCache(database)
+    }
+  })
+
+  // The canonical moderation gate is suspended OR account-disabled. Reply by
+  // email is a posting surface, so an admin disabling an account has to stop
+  // it here too — the account can no longer sign in or use any token, but it
+  // still holds reply addresses.
+  it('refuses an actor whose account has been disabled', async () => {
+    const token = await mintFor(publicStatus.id)
+    await database.setAccountDisabled({
+      accountId: actor1.account!.id,
+      disabled: true
+    })
+
+    try {
+      await runJob(database, {
+        token,
+        messageId: '<account-disabled@example.tld>',
+        text: replyBody('Disabled accounts cannot post.')
+      })
+
+      const replies = await repliesTo(database, publicStatus.id)
+      expect(
+        replies.some((reply) =>
+          reply.text.includes('Disabled accounts cannot post')
+        )
+      ).toBe(false)
+      expect(mockSendMail).not.toHaveBeenCalled()
+    } finally {
+      await database.setAccountDisabled({
+        accountId: actor1.account!.id,
+        disabled: false
+      })
     }
   })
 
@@ -412,11 +448,14 @@ describe('replyByEmailJob', () => {
     expect(
       replies.some((reply) => reply.text.includes('Should not post either'))
     ).toBe(false)
+    // The account setting, not the instance one — the toggle is hidden while
+    // the instance switch is off, so blaming the wrong one sends people
+    // looking for a control that is not there.
     expect(mockSendMail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: [actor1.account?.email],
         content: expect.objectContaining({
-          text: expect.stringContaining('switched off')
+          text: expect.stringContaining('switched off for your account')
         })
       })
     )

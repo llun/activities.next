@@ -18,6 +18,7 @@ import {
   getSubject as getFailureSubject,
   getTextContent as getFailureTextContent
 } from '@/lib/services/email/templates/replyByEmailFailure'
+import { isActorModerationBlocked } from '@/lib/services/guards/OAuthGuard'
 import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { saveMedia } from '@/lib/services/medias'
 import { ACCEPTED_FILE_TYPES } from '@/lib/services/medias/constants'
@@ -178,20 +179,52 @@ export const replyByEmailJob = createJobHandle(
       return
     }
 
-    // An expired or spent token still names its owner, so tell them rather
-    // than letting the reply vanish. Reported before the moderation and opt-in
-    // checks below only in the sense that it is the more specific reason.
-    if (resolution.status !== 'ok') {
+    // The canonical moderation gate, shared with every authenticated API
+    // surface: a suspended actor OR a disabled account. Reply by email is a
+    // posting surface, so an admin who disables an account has to stop it here
+    // too — otherwise the account keeps posting through addresses it was
+    // issued before.
+    if (isActorModerationBlocked(actor)) {
       logger.warn({
-        message: `Reply by email: token ${resolution.status}`,
+        message: 'Reply by email: actor is suspended or the account disabled',
         actorId: actor.id
       })
-      if (!actor.suspendedAt) await notifyFailure(actor, resolution.status)
       return
     }
-    if (actor.suspendedAt) {
+
+    // Duplicate deliveries are settled BEFORE a use is spent, so a provider
+    // retrying one message cannot eat the token's budget.
+    const idempotencyKey = idempotencyKeyFor(data)
+    const alreadyPosted = await database.getIdempotentStatusId({
+      actorId: actor.id,
+      key: idempotencyKey
+    })
+    if (alreadyPosted) return
+
+    // Spend the use here, before anything that can send mail or store media.
+    //
+    // Every failure below answers the sender with an email, and until this
+    // moved up none of those paths spent a use — so one leaked address was an
+    // unbounded stream of "we could not post your reply" mail into the account
+    // owner's inbox, from the instance's own sending domain. Charging a use
+    // first bounds the whole surface, notices included, to the token's
+    // ceiling.
+    //
+    // The claim also re-tests the ceiling and expiry inside the UPDATE, so a
+    // burst of concurrent deliveries cannot all pass one stale read.
+    const claimed =
+      resolution.status === 'ok' &&
+      (await database.claimEmailReplyTokenUse({
+        id: token.id,
+        maxUses: REPLY_TOKEN_MAX_USES,
+        now: Date.now()
+      }))
+    if (!claimed) {
+      // Nothing is sent back: by the time a token is expired or spent its
+      // owner has already had the notice, and answering every further message
+      // is what made this an amplifier.
       logger.warn({
-        message: 'Reply by email: actor is suspended',
+        message: `Reply by email: token ${resolution.status === 'ok' ? 'spent' : resolution.status}`,
         actorId: actor.id
       })
       return
@@ -199,11 +232,12 @@ export const replyByEmailJob = createJobHandle(
 
     const serverSettings = await getResolvedServerSettings(database)
     const actorSettings = await database.getActorSettings({ actorId: actor.id })
-    if (
-      !serverSettings.replyByEmail.enabled ||
-      actorSettings?.replyByEmail !== true
-    ) {
-      await notifyFailure(actor, 'disabled')
+    if (!serverSettings.replyByEmail.enabled) {
+      await notifyFailure(actor, 'disabled-instance')
+      return
+    }
+    if (actorSettings?.replyByEmail !== true) {
+      await notifyFailure(actor, 'disabled-account')
       return
     }
 
@@ -224,13 +258,6 @@ export const replyByEmailJob = createJobHandle(
         from
       })
     }
-
-    const idempotencyKey = idempotencyKeyFor(data)
-    const alreadyPosted = await database.getIdempotentStatusId({
-      actorId: actor.id,
-      key: idempotencyKey
-    })
-    if (alreadyPosted) return
 
     const replyStatus = await database.getStatus({
       statusId: token.statusId,
@@ -256,27 +283,6 @@ export const replyByEmailJob = createJobHandle(
     )
     if (limitError) {
       await notifyFailure(actor, 'too-long', statusUrl)
-      return
-    }
-
-    // Spend the use BEFORE any expensive work and before posting. Reading the
-    // count at resolve time and incrementing at the end left a window in which
-    // a burst of deliveries all saw the same stale count and all posted, so
-    // the ceiling only held when replies arrived one at a time. Claiming here
-    // also stops an abusive burst from doing media work it will not get to use.
-    // The trade-off is that a post which then fails still costs a use — the
-    // right way round, since the ceiling exists to bound abuse.
-    const claimed = await database.claimEmailReplyTokenUse({
-      id: token.id,
-      maxUses: REPLY_TOKEN_MAX_USES,
-      now: Date.now()
-    })
-    if (!claimed) {
-      logger.warn({
-        message: 'Reply by email: token spent before this reply could claim it',
-        actorId: actor.id
-      })
-      await notifyFailure(actor, 'exhausted', statusUrl)
       return
     }
 

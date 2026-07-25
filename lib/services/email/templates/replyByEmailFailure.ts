@@ -7,19 +7,21 @@ import { getConfig } from '@/lib/config'
 export type ReplyByEmailFailureReason =
   | 'empty'
   | 'too-long'
-  | 'expired'
-  | 'exhausted'
-  | 'disabled'
+  | 'disabled-account'
+  | 'disabled-instance'
   | 'thread-missing'
   | 'not-posted'
 
 const REASONS: Record<ReplyByEmailFailureReason, string> = {
   empty: 'the message had no text above the quoted original',
   'too-long': 'the message was longer than this server allows for a post',
-  expired: 'the reply address in that notification has expired',
-  exhausted:
-    'that notification has already been replied to as many times as it allows',
-  disabled: 'reply by email is switched off for this account',
+  // Kept separate because the account setting is hidden from Settings →
+  // Notifications while the instance switch is off: telling someone to change
+  // a toggle they cannot see sends them looking for something that is not
+  // there.
+  'disabled-account':
+    'reply by email is switched off for your account — you can turn it back on under Settings, Notifications',
+  'disabled-instance': 'reply by email is switched off on this server',
   'thread-missing': 'the post being replied to is no longer available',
   'not-posted':
     'the server could not publish it (a direct thread with no recipients, or a blocked or muted conversation)'

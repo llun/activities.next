@@ -22,12 +22,18 @@ const ATTRIBUTION_MAX_LINES = 3
  *
  * "On", "Am", "El", "Le" and "From:" are ordinary English, so shape alone
  * cannot tell a machine-generated header from a sentence. A real attribution
- * always carries a date, a time or an address; "I asked El Nino about it and
- * here is what he wrote:" carries neither. Requiring that evidence is what
- * separates the two — matching on shape alone truncated real posts three
- * review rounds running.
+ * always carries an address or a clock time; "On 25 July I asked Alice about
+ * the outage and here is what she wrote:" carries neither. Requiring that
+ * evidence is what separates the two — matching on shape alone truncated real
+ * posts three review rounds running.
+ *
+ * A bare digit is deliberately NOT enough: a sentence mentioning any date or
+ * number satisfied it, which put the whole-line branch back in play and went
+ * on deleting the sender's text. Every client probed (Gmail desktop and
+ * mobile, Apple Mail, Thunderbird, Outlook.com, Yahoo, Proton) emits an
+ * address or an HH:MM in its attribution.
  */
-const ATTRIBUTION_EVIDENCE = /[0-9]|@/
+const ATTRIBUTION_EVIDENCE = /@|\d{1,2}:\d{2}/
 // The attribution opener when it trails the sender's text on the SAME line —
 // the normal shape once htmlToPlainText has collapsed an HTML reply onto one
 // line. Scanned globally so the LAST qualifying opener wins: anchoring a single
@@ -39,14 +45,23 @@ const INLINE_ATTRIBUTION_OPENER = /(?:^|\s)(?:On|Le|Am|El)\s/g
  *
  * Its HTML reply has no underscore rule — it emits `<hr>`, which
  * htmlToPlainText drops — so this run is the only marker left. All three
- * headers are required, in order, with tightly bounded gaps: two of them with
- * a paragraph of prose in between is a sender who happened to type "From:",
- * not a header block. The bounds are also what keep this linear — an unbounded
- * lazy span rescans the rest of the line for every "From:" on it, which is
- * quadratic on the single multi-megabyte line an HTML body collapses to.
+ * headers are required in order, with bounded gaps.
+ *
+ * The two gaps are deliberately different sizes. The first stays tight so a
+ * sender who types "From: postmaster@…" in their own prose cannot reach the
+ * real block further down the line and delete everything in between. The
+ * second has to be generous, because Outlook puts `To:` — and often `Cc:` or
+ * `Importance:` — between `Sent:` and `Subject:`; at 80 it missed any block
+ * with a corporate-length recipient, and the whole header, including the
+ * replier's own email address, was published.
+ *
+ * Bounded rather than lazy-unbounded because an unbounded span rescans the
+ * rest of the line for every "From:" on it, which is quadratic on the single
+ * multi-megabyte line an HTML body collapses to. Do NOT express the middle as
+ * a repeated `(?:…\b(?:To|Cc):)*` group — that backtracks catastrophically.
  */
 const INLINE_HEADER_RUN =
-  /(?:^|\s)From:[^\n]{0,80}?\b(?:Sent|Date):[^\n]{0,80}?\bSubject:\s/g
+  /(?:^|\s)From:[^\n]{0,80}?\b(?:Sent|Date):[^\n]{0,300}?\bSubject:\s/g
 const ORIGINAL_MESSAGE =
   /^-{2,}\s*(Original Message|Forwarded message)\s*-{2,}$/i
 // Outlook separates the quoted original with a rule of underscores.

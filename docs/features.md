@@ -113,7 +113,8 @@ Attachments the media pipeline accepts (JPEG, PNG, MP4, WebM, QuickTime, M4A)
 ride along; anything else, and any inline image referenced from the quoted
 history, is dropped rather than failing the reply. A reply that cannot be
 posted gets a short notice back explaining why, so it never disappears
-silently.
+silently — up to the token's use ceiling, after which further messages to a
+spent or expired address are dropped without a reply.
 
 ### Turning it on
 
@@ -173,7 +174,14 @@ is treated as a bearer capability that will leak eventually:
 - Only a keyed HMAC of the token is stored, so a database leak cannot be turned
   into a working reply address.
 - A token is scoped to exactly one (account, post) pair — it cannot post
-  anywhere else — and expires after 30 days or 20 uses.
+  anywhere else — and expires after 30 days or 20 uses. A use is spent by every
+  message that reaches the address, not only by a successful post, so the
+  "we couldn't post your reply" notices are bounded by the same ceiling; past
+  it, further messages to that address are dropped in silence rather than
+  answered.
+- The account's moderation state is re-checked when the reply arrives: a
+  suspended actor or a disabled account cannot post, even through an address it
+  was issued earlier.
 - Duplicate deliveries of one message are de-duplicated on its `Message-Id`, so
   a provider retry cannot post twice.
 - The account, its moderation state, and both switches are re-checked when the
