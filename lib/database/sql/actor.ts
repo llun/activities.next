@@ -1529,6 +1529,12 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         await deleteRowsByColumnChunks(trx, 'tags', 'statusId', statusIds)
         await deleteRowsByColumnChunks(trx, 'recipients', 'statusId', statusIds)
         await deleteRowsByColumnChunks(trx, 'likes', 'statusId', statusIds)
+        await deleteRowsByColumnChunks(
+          trx,
+          'status_reactions',
+          'statusId',
+          statusIds
+        )
         await deleteRowsByColumnChunks(trx, 'bookmarks', 'statusId', statusIds)
         await deleteRowsByColumnChunks(
           trx,
@@ -1674,6 +1680,10 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
       // Delete likes made by this actor
       await trx('likes').where('actorId', actorId).delete()
+
+      // Delete emoji reactions made by this actor, so a recreated actor URL
+      // cannot resurface them as the new owner's own reactions.
+      await trx('status_reactions').where('actorId', actorId).delete()
 
       // Delete bookmarks made by this actor
       await trx('bookmarks').where('actorId', actorId).delete()

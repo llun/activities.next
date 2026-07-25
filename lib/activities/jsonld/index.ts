@@ -34,6 +34,7 @@ const FEP_044F_NAMESPACE = 'https://w3id.org/fep/044f#'
 const GOTOSOCIAL_NAMESPACE = 'https://gotosocial.org/ns#'
 const FEDIBIRD_NAMESPACE = 'http://fedibird.com/ns#'
 const MISSKEY_NAMESPACE = 'https://misskey-hub.net/ns#'
+const LITEPUB_NAMESPACE = 'http://litepub.social/ns#'
 
 const BUNDLED_CONTEXTS: Record<string, unknown> = {
   [ACTIVITY_STREAMS_CONTEXT_URL]: activityStreamsContext,
@@ -72,6 +73,24 @@ const getProcessor = (): Promise<JsonLdProcessor> => {
 }
 
 /**
+ * Extension terms we match on that a sender may emit *without* defining them —
+ * either because it omits `@context` entirely or because it declares them in a
+ * vocabulary our offline loader cannot dereference.
+ *
+ * This matters because the bundled ActivityStreams context sets
+ * `"@vocab": "_:"`, so an undefined property expands to a blank node that
+ * `stripJsonLdArtifacts` then deletes: an undefined `_misskey_reaction` would
+ * simply vanish and a Misskey reaction would read as a plain favourite. The
+ * object is prepended to every inbound context as the LOWEST-precedence entry
+ * (same trick as the security/v1 fallback below), so a sender that does define
+ * these terms still wins.
+ */
+export const EXTENSION_TERM_FALLBACK_CONTEXT = {
+  EmojiReact: `${LITEPUB_NAMESPACE}EmojiReact`,
+  _misskey_reaction: `${MISSKEY_NAMESPACE}_misskey_reaction`
+}
+
+/**
  * Default context applied to inbound documents that omit `@context` entirely
  * (for example individual `orderedItems` inside an outbox collection, which do
  * not repeat the collection's context). Treating them as ActivityStreams is the
@@ -79,6 +98,7 @@ const getProcessor = (): Promise<JsonLdProcessor> => {
  * them.
  */
 const DEFAULT_INPUT_CONTEXT = [
+  EXTENSION_TERM_FALLBACK_CONTEXT,
   ACTIVITY_STREAMS_CONTEXT_URL,
   SECURITY_V1_CONTEXT_URL
 ]
@@ -100,6 +120,7 @@ const CANONICAL_CONTEXT = {
       gts: GOTOSOCIAL_NAMESPACE,
       fedibird: FEDIBIRD_NAMESPACE,
       misskey: MISSKEY_NAMESPACE,
+      litepub: LITEPUB_NAMESPACE,
 
       // Extension *types* we match on, aliased so they compact to bare terms.
       // These are not defined in the bundled ActivityStreams context, so without
@@ -112,6 +133,11 @@ const CANONICAL_CONTEXT = {
       // strict `type` validators drop them.
       QuoteRequest: 'fep044f:QuoteRequest',
       QuoteAuthorization: 'fep044f:QuoteAuthorization',
+      // Emoji-reaction extension type (FEP-c0e0, litepub vocabulary). A Pleroma
+      // sender that declares it via its own (unresolvable) context survives on
+      // the blank-node type recovery below, but one that types the activity with
+      // the full IRI needs this alias or the reaction is dropped.
+      EmojiReact: 'litepub:EmojiReact',
 
       // Extension terms we read, mapped to their canonical IRIs so they survive
       // compaction as bare property names instead of being dropped.
@@ -150,6 +176,11 @@ const CANONICAL_CONTEXT = {
       quoteUrl: 'as:quoteUrl',
       quoteUri: 'fedibird:quoteUri',
       _misskey_quote: 'misskey:_misskey_quote',
+      // Misskey carries the reaction on a `Like` under both `content` (a core
+      // AS2 term) and `_misskey_reaction`, which it defines in its own context —
+      // so without this alias the property compacts to `misskey:_misskey_reaction`
+      // and the reaction reads as a plain favourite.
+      _misskey_reaction: 'misskey:_misskey_reaction',
       quoteAuthorization: {
         '@id': 'fep044f:quoteAuthorization',
         '@type': '@id'
@@ -316,6 +347,9 @@ export const normalizeInputContext = (input: Record<string, unknown>) => {
   if (!sanitized.some(referencesSecurityV1Context)) {
     sanitized.unshift(SECURITY_V1_CONTEXT_URL)
   }
+  // Same reasoning, one step lower: the extension-term fallback must never
+  // override a definition the sender supplies for itself.
+  sanitized.unshift(EXTENSION_TERM_FALLBACK_CONTEXT)
 
   return { ...input, '@context': sanitized }
 }

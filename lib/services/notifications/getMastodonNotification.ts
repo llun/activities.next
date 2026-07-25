@@ -27,6 +27,8 @@ type MastodonNotificationType =
   | 'collection_update'
   | 'admin.sign_up'
   | 'admin.report'
+  // Ecosystem dialect (Pleroma/Akkoma), not core Mastodon.
+  | 'pleroma:emoji_reaction'
 
 export interface MastodonNotification {
   id: string
@@ -40,6 +42,9 @@ export interface MastodonNotification {
   group_key: string
   account: Mastodon.Account
   status?: Mastodon.Status
+  // Pleroma dialect: the emoji of a `pleroma:emoji_reaction` notification.
+  // Absent for every other type.
+  emoji?: string
   // Non-standard fields for grouping support (backward compatibility)
   grouped_count?: number
   grouped_accounts?: Mastodon.Account[]
@@ -74,6 +79,8 @@ const mapNotificationType = (
       return 'added_to_collection'
     case 'collection_update':
       return 'collection_update'
+    case 'emoji_reaction':
+      return 'pleroma:emoji_reaction'
     default:
       return 'mention' // Default fallback
   }
@@ -160,7 +167,11 @@ export const getMastodonNotification = async (
     created_at: getISOTimeUTC(notification.createdAt),
     group_key: groupKey,
     account,
-    status
+    status,
+    ...(notification.type === NotificationType.enum.emoji_reaction &&
+    notification.reactionName
+      ? { emoji: notification.reactionName }
+      : {})
   }
 
   // Include grouping fields if enabled and notification is grouped

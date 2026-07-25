@@ -4,6 +4,7 @@ import { isConversationMutedForActor } from '@/lib/services/mastodon/conversatio
 import { getEffectiveQuoteApprovalPolicy } from '@/lib/services/quotes/quotePolicy'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Mastodon } from '@/lib/types/activitypub'
+import { StatusReactionRollup } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { getMastodonAttachment } from '@/lib/types/domain/attachment'
 import { FollowStatus } from '@/lib/types/domain/follow'
@@ -54,6 +55,8 @@ type PollVoteState = {
   ownVotes: number[]
 }
 type PollVoteCache = Map<string, PollVoteState>
+// statusId -> its (name, count, me) rollups, in first-reaction order.
+type StatusReactionsCache = Map<string, StatusReactionRollup[]>
 
 interface GetMastodonStatusOptions {
   accountCache?: MastodonAccountCache
@@ -61,6 +64,10 @@ interface GetMastodonStatusOptions {
   quotedStatusCache?: QuotedStatusCache
   statusMetricsCache?: StatusMetricsCache
   pollVoteCache?: PollVoteCache
+  // Emoji-reaction rollups for the whole page, resolved by getMastodonStatuses
+  // in one grouped query. A missing entry falls back to a single per-status
+  // lookup (the single-status routes), mirroring statusMetricsCache.
+  reactionsCache?: StatusReactionsCache
   // Depth of quote nesting: 0 emits a full Quote (embedding the quoted status),
   // >= 1 emits a ShallowQuote (id only) and does not recurse further.
   quoteDepth?: number
@@ -391,6 +398,39 @@ const getStatusRepliesCount = async (
   return database.getStatusRepliesCount({ statusId })
 }
 
+const EMPTY_REACTIONS: StatusReactionRollup[] = []
+
+// Reads the page-wide rollups the batch path prefetched, and falls back to a
+// single lookup for a status the batch did not cover (or the single-status
+// routes, which pass no cache at all) — the same contract as
+// getStatusReblogsCount. `has` rather than a truthiness check, so a status with
+// no reactions resolves from the cache instead of re-querying.
+const getStatusReactions = async (
+  database: Database,
+  statusId: string,
+  currentActorId?: string,
+  options?: GetMastodonStatusOptions
+): Promise<StatusReactionRollup[]> => {
+  const cached = options?.reactionsCache
+  if (cached?.has(statusId)) return cached.get(statusId) ?? EMPTY_REACTIONS
+
+  return database.getStatusReactionRollups({
+    statusIds: [statusId],
+    currentActorId
+  })
+}
+
+const toMastodonReactions = (
+  rollups: StatusReactionRollup[]
+): Mastodon.StatusReaction[] =>
+  rollups.map((rollup) => ({
+    name: rollup.name,
+    count: rollup.count,
+    me: rollup.me,
+    url: rollup.url,
+    static_url: rollup.staticUrl
+  }))
+
 const getPollVoteState = async (
   database: Database,
   status: StatusPoll,
@@ -465,6 +505,10 @@ export const getMastodonStatus = async (
     replies_count: 0,
     reblogs_count: reblogsCount,
     favourites_count: 0,
+    // An Announce wrapper carries no reactions of its own; the boosted status
+    // surfaces them on `reblog`, exactly as it does for the counts above.
+    reactions: [],
+    pleroma: { emoji_reactions: [] },
 
     favourited: false,
     reblogged: false,
@@ -519,6 +563,9 @@ export const getMastodonStatus = async (
     : null
   const repliesCount = await getStatusRepliesCount(database, status.id, options)
 
+  const reactions = toMastodonReactions(
+    await getStatusReactions(database, status.id, currentActorId, options)
+  )
   const mentions = getMentionsFromTags(status.tags)
   const emojis = getEmojisFromTags(status.tags)
   const hashtags = getHashtagsFromTags(status.tags, host)
@@ -542,6 +589,11 @@ export const getMastodonStatus = async (
 
     favourites_count: status.totalLikes || 0,
     favourited: status.isActorLiked ?? false,
+
+    // Both dialects are derived from the same rollups, so they cannot disagree.
+    // Reactions are never favourites: they do not feed favourites_count.
+    reactions,
+    pleroma: { emoji_reactions: reactions },
 
     reblogged: status.actorAnnounceStatusId !== null,
     content: processStatusText(host, status),
@@ -735,7 +787,8 @@ export const getMastodonStatuses = async (
     viewerActor,
     pollVotes,
     pinnedStatusIds,
-    mutedConversationRootIds
+    mutedConversationRootIds,
+    reactionRollups
   ] = await Promise.all([
     database.getMastodonActorsFromIds({
       ids: requestedActorIds
@@ -779,8 +832,30 @@ export const getMastodonStatuses = async (
       : Promise.resolve<string[]>([]),
     currentActorId
       ? database.getActorMutedConversationRootIds({ actorId: currentActorId })
-      : Promise.resolve<string[]>([])
+      : Promise.resolve<string[]>([]),
+    // One grouped query for the whole page — the statuses that carry metrics
+    // plus the quoted statuses embedded in them — seeded into reactionsCache
+    // below so no status needs a lookup of its own.
+    database.getStatusReactionRollups({
+      statusIds: [...requestedMetricStatusIds, ...requestedQuoteStatusIds],
+      currentActorId
+    })
   ])
+  // Seed every requested id, including those with no reactions, so a reaction-
+  // less status resolves from the cache rather than falling back to a query.
+  const reactionsCache: StatusReactionsCache = new Map(
+    [...requestedMetricStatusIds, ...requestedQuoteStatusIds].map(
+      (statusId) => [statusId, EMPTY_REACTIONS] as const
+    )
+  )
+  for (const rollup of reactionRollups) {
+    const existing = reactionsCache.get(rollup.statusId)
+    if (existing && existing !== EMPTY_REACTIONS) {
+      existing.push(rollup)
+      continue
+    }
+    reactionsCache.set(rollup.statusId, [rollup])
+  }
   const requestedActorIdSet = new Set(requestedActorIds)
   const accountCache: MastodonAccountCache = new Map()
 
@@ -851,6 +926,7 @@ export const getMastodonStatuses = async (
     conversationRootCache:
       inputOptions.conversationRootCache ?? new Map<string, string>(),
     accountCache,
+    reactionsCache,
     statusMetricsCache: {
       reblogs: new Map(
         requestedMetricStatusIds.map((statusId) => [
