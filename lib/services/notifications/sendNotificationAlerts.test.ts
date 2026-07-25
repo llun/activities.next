@@ -195,6 +195,56 @@ describe('sendNotificationAlerts', () => {
     })
   })
 
+  it('forwards a reply-by-email address as the Reply-To header', async () => {
+    const db = makeDb()
+    sendNotificationAlerts({
+      database: db,
+      actorId: 'actor1',
+      sourceActorId: 'source1',
+      events: [
+        {
+          type: NotificationType.enum.mention,
+          emailContent: {
+            recipientEmail: 'user@example.com',
+            subject: 'You were mentioned',
+            text: 'Hello text',
+            html: '<p>Hello html</p>',
+            replyTo: 'reply+token@reply.llun.test'
+          }
+        }
+      ]
+    })
+    await flushPromises()
+
+    expect(sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({ replyTo: 'reply+token@reply.llun.test' })
+    )
+  })
+
+  it('omits replyTo entirely when the notification is not repliable', async () => {
+    const db = makeDb()
+    sendNotificationAlerts({
+      database: db,
+      actorId: 'actor1',
+      sourceActorId: 'source1',
+      events: [
+        {
+          type: NotificationType.enum.mention,
+          emailContent: {
+            recipientEmail: 'user@example.com',
+            subject: 'You were mentioned',
+            text: 'Hello text',
+            html: '<p>Hello html</p>'
+          }
+        }
+      ]
+    })
+    await flushPromises()
+
+    expect(sendMail).toHaveBeenCalledTimes(1)
+    expect(sendMail.mock.calls[0][0]).not.toHaveProperty('replyTo')
+  })
+
   it('skips email when emailContent is not provided', async () => {
     const db = makeDb()
     sendNotificationAlerts({

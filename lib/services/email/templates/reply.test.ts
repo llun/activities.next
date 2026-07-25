@@ -1,3 +1,4 @@
+import { REPLY_SENTINEL } from '@/lib/services/email/replyMarker'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { EditableStatus, StatusType } from '@/lib/types/domain/status'
 
@@ -56,6 +57,16 @@ describe('reply email template', () => {
       expect(result).toContain('Reply: This is a reply to your post!')
       expect(result).toContain('View this post on your server:')
     })
+
+    it('omits the reply sentinel by default', () => {
+      expect(getTextContent(mockStatus)).not.toContain(REPLY_SENTINEL)
+    })
+
+    it('leads with the reply sentinel when the email is repliable', () => {
+      const result = getTextContent(mockStatus, { repliable: true })
+      expect(result.split('\n')[0]).toBe(REPLY_SENTINEL)
+      expect(result).toContain('Reply: This is a reply to your post!')
+    })
   })
 
   describe('getHTMLContent', () => {
@@ -65,6 +76,15 @@ describe('reply email template', () => {
         '@replier@remote.example.com replied to your post'
       )
       expect(result).toContain('View this post on your server')
+    })
+
+    it('omits the reply sentinel by default', () => {
+      expect(getHTMLContent(mockStatus)).not.toContain(REPLY_SENTINEL)
+    })
+
+    it('leads with the reply sentinel when the email is repliable', () => {
+      const result = getHTMLContent(mockStatus, { repliable: true })
+      expect(result.startsWith(`<p>${REPLY_SENTINEL}</p>`)).toBe(true)
     })
   })
 })

@@ -1,3 +1,4 @@
+import { REPLY_SENTINEL } from '@/lib/services/email/replyMarker'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { EditableStatus, StatusType } from '@/lib/types/domain/status'
 
@@ -51,6 +52,18 @@ describe('mention email template', () => {
       expect(result).toContain('View this post on your server:')
       expect(result).toContain('test.llun.dev/@mentioner@remote.example.com')
     })
+
+    it('omits the reply sentinel by default', () => {
+      expect(getTextContent(mockStatus)).not.toContain(REPLY_SENTINEL)
+    })
+
+    it('leads with the reply sentinel when the email is repliable', () => {
+      const result = getTextContent(mockStatus, { repliable: true })
+      // The sentinel must be the FIRST line: mail clients quote the original
+      // below the new text, so anything above it is the sender's reply.
+      expect(result.split('\n')[0]).toBe(REPLY_SENTINEL)
+      expect(result).toContain('@mentioner@remote.example.com mentioned you')
+    })
   })
 
   describe('getHTMLContent', () => {
@@ -86,6 +99,15 @@ describe('mention email template', () => {
       const result = getHTMLContent(remoteStatus)
       expect(result).not.toContain('<script>')
       expect(result).toContain('<p>Hello</p>')
+    })
+
+    it('omits the reply sentinel by default', () => {
+      expect(getHTMLContent(mockStatus)).not.toContain(REPLY_SENTINEL)
+    })
+
+    it('leads with the reply sentinel when the email is repliable', () => {
+      const result = getHTMLContent(mockStatus, { repliable: true })
+      expect(result.startsWith(`<p>${REPLY_SENTINEL}</p>`)).toBe(true)
     })
   })
 })

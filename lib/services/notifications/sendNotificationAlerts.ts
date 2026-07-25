@@ -14,6 +14,11 @@ export interface EmailContent {
   subject: string
   text: string
   html: string
+  // Reply-by-email address for this notification. When set, replying to the
+  // email posts a real fediverse reply in the same thread; the body carries the
+  // matching sentinel line. Producers mint it best-effort, so an absent value
+  // just means a normal, non-repliable notification.
+  replyTo?: string
 }
 
 export interface NotificationEvent {
@@ -103,6 +108,9 @@ export const sendNotificationAlerts = (
           return sendMail({
             from: config.email!.serviceFromAddress,
             to: [emailContent.recipientEmail],
+            ...(emailContent.replyTo
+              ? { replyTo: emailContent.replyTo }
+              : null),
             subject: emailContent.subject,
             content: {
               text: emailContent.text,
