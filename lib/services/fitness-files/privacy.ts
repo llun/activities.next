@@ -1,7 +1,19 @@
-export const FITNESS_PRIVACY_RADIUS_OPTIONS = [0, 5, 10, 20, 50] as const
+// MUST stay sorted ascending — `sanitizePrivacyRadiusMeters` snaps upwards by
+// taking the first option that clears the input. `0` means "no privacy zone".
+// 50m is the smallest zone worth having: consumer GPS drifts by tens of metres,
+// so anything tighter leaves the start/finish of a route pinned to the doorstep
+// it was meant to hide. `privacy.test.ts` enforces both invariants.
+export const FITNESS_PRIVACY_RADIUS_OPTIONS = [
+  0, 50, 100, 200, 500, 1000
+] as const
 
 export type FitnessPrivacyRadiusMeters =
   (typeof FITNESS_PRIVACY_RADIUS_OPTIONS)[number]
+
+// Derived, not a second literal: a hand-maintained copy would silently cap
+// below a newly added option.
+export const MAX_FITNESS_PRIVACY_RADIUS_METERS =
+  FITNESS_PRIVACY_RADIUS_OPTIONS[FITNESS_PRIVACY_RADIUS_OPTIONS.length - 1]
 
 interface Coordinate {
   lat: number
@@ -39,15 +51,17 @@ const toRadians = (degrees: number) => (degrees * Math.PI) / 180
 export const sanitizePrivacyRadiusMeters = (
   value: unknown
 ): FitnessPrivacyRadiusMeters => {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
     return 0
   }
 
-  return FITNESS_PRIVACY_RADIUS_OPTIONS.includes(
-    value as FitnessPrivacyRadiusMeters
+  // Snap an unlisted radius up to the next supported option rather than
+  // dropping it to 0. Zones saved under the older, smaller option set (5m,
+  // 10m, 20m) would otherwise silently stop hiding anything.
+  return (
+    FITNESS_PRIVACY_RADIUS_OPTIONS.find((option) => option >= value) ??
+    MAX_FITNESS_PRIVACY_RADIUS_METERS
   )
-    ? (value as FitnessPrivacyRadiusMeters)
-    : 0
 }
 
 const sanitizeLatitude = (value: unknown): number | null => {

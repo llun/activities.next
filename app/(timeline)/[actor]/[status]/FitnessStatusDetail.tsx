@@ -22,7 +22,8 @@ import {
   Play,
   Plus,
   Route,
-  Unlock
+  Unlock,
+  X
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { FC, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
@@ -863,6 +864,10 @@ const ActivityMapPanel: FC<{
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapboxMap | null>(null)
   const [mapLoadError, setMapLoadError] = useState<string | null>(null)
+  // The privacy notice is an acknowledgement, not a persistent legend — tapping
+  // it clears it so it stops covering the map.
+  const [isPrivacyNoticeDismissed, setIsPrivacyNoticeDismissed] =
+    useState(false)
   const drawableRouteSegments = useMemo(
     () => routeSegments.filter((segment) => segment.samples.length >= 2),
     [routeSegments]
@@ -875,6 +880,14 @@ const ActivityMapPanel: FC<{
     () => drawableRouteSegments.some((segment) => segment.isHiddenByPrivacy),
     [drawableRouteSegments]
   )
+
+  // The panel is not keyed per file, so switching activity files in an
+  // aggregated post swaps `routeSegments` underneath the same instance. Without
+  // this reset a dismissal would carry over and the next file would draw green
+  // segments with no explanation.
+  useEffect(() => {
+    setIsPrivacyNoticeDismissed(false)
+  }, [routeSegments])
 
   // Keyed on the descriptor's fields (not its object identity) so an inline prop
   // literal doesn't tear the map down on every parent render. Apple renders
@@ -1197,13 +1210,16 @@ const ActivityMapPanel: FC<{
               </button>
             </div>
           ) : null}
-          <div className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md border bg-background/95 px-2.5 py-1 text-xs font-medium text-muted-foreground shadow-sm">
-            <Route className="size-3.5" /> GPS trace
-          </div>
-          {hasHiddenPrivacySegments ? (
-            <div className="absolute bottom-3 left-3 rounded-md border border-green-300 bg-background/95 px-3 py-2 text-xs font-medium text-green-700 shadow-sm dark:border-green-900 dark:text-green-400">
+          {hasHiddenPrivacySegments && !isPrivacyNoticeDismissed ? (
+            <button
+              type="button"
+              onClick={() => setIsPrivacyNoticeDismissed(true)}
+              aria-label="Dismiss notice: green segments are hidden from other viewers"
+              className="absolute bottom-3 left-3 inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-green-300 bg-background/95 px-3 py-2 text-xs font-medium text-green-700 shadow-sm hover:bg-muted dark:border-green-900 dark:text-green-400"
+            >
               Green segments are hidden from other viewers
-            </div>
+              <X className="size-3.5 shrink-0" aria-hidden="true" />
+            </button>
           ) : null}
         </>
       ) : onOpenMap && mapAttachment ? (

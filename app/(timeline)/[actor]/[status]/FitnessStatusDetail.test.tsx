@@ -153,6 +153,16 @@ const routeData: FitnessRouteDataResponse = {
   speedSeries: [18, 22, 25, 28, 20, 16]
 }
 
+// A route split into a visible leg and a privacy-hidden leg, so the map panel
+// renders the green-segment notice.
+const routeDataWithHiddenSegments: FitnessRouteDataResponse = {
+  ...routeData,
+  segments: [
+    { isHiddenByPrivacy: false, samples: routeData.samples.slice(0, 2) },
+    { isHiddenByPrivacy: true, samples: routeData.samples.slice(1) }
+  ]
+}
+
 const buildFitnessFile = (
   overrides: Partial<StatusFitnessFileItem> = {}
 ): StatusFitnessFileItem => ({
@@ -467,6 +477,78 @@ describe('FitnessStatusDetail', () => {
     await waitFor(() =>
       expect(screen.getByText('file 2 of 2')).toBeInTheDocument()
     )
+  })
+
+  it('renders the route map without a GPS trace badge', async () => {
+    renderDetail()
+
+    // Positive anchor first: the zoom control lives in the same overlay
+    // fragment the badge used to, so its presence proves the overlay really
+    // rendered and the badge assertion below is not vacuous.
+    expect(await screen.findByLabelText('Zoom in map')).toBeInTheDocument()
+    expect(screen.queryByText('GPS trace')).not.toBeInTheDocument()
+  })
+
+  it('omits the privacy notice when no segment is hidden', async () => {
+    renderDetail()
+
+    expect(await screen.findByLabelText('Zoom in map')).toBeInTheDocument()
+    expect(
+      screen.queryByText('Green segments are hidden from other viewers')
+    ).not.toBeInTheDocument()
+  })
+
+  it('dismisses the hidden-privacy-segment notice when it is tapped', async () => {
+    mockGetFitnessRouteData.mockResolvedValue(routeDataWithHiddenSegments)
+
+    renderDetail()
+
+    const notice = await screen.findByRole('button', {
+      name: 'Dismiss notice: green segments are hidden from other viewers'
+    })
+    fireEvent.click(notice)
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText('Green segments are hidden from other viewers')
+      ).not.toBeInTheDocument()
+    )
+  })
+
+  it('brings the privacy notice back when another activity file is selected', async () => {
+    mockGetFitnessFilesByStatus.mockResolvedValue([
+      buildFitnessFile({ id: 'fit-1', fileName: 'ride-morning.gpx' }),
+      buildFitnessFile({
+        id: 'fit-2',
+        fileName: 'ride-evening.gpx',
+        isPrimary: false,
+        activityStartTime: Date.parse('2026-05-27T18:00:00Z')
+      })
+    ])
+    mockGetFitnessRouteData.mockResolvedValue(routeDataWithHiddenSegments)
+
+    renderDetail()
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Dismiss notice: green segments are hidden from other viewers'
+      })
+    )
+    await waitFor(() =>
+      expect(
+        screen.queryByText('Green segments are hidden from other viewers')
+      ).not.toBeInTheDocument()
+    )
+
+    // The panel is not keyed per file, so a dismissal must not carry over to a
+    // different route that also has hidden segments.
+    fireEvent.change(await screen.findByLabelText('Activity file'), {
+      target: { value: 'fit-2' }
+    })
+
+    expect(
+      await screen.findByText('Green segments are hidden from other viewers')
+    ).toBeInTheDocument()
   })
 
   it('surfaces an error banner when route data fails to load', async () => {
