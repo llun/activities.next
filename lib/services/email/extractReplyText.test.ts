@@ -151,6 +151,45 @@ describe('extractReplyText', () => {
     expect(extractReplyText({ text })).toBe('Here is what she wrote:')
   })
 
+  // Regression: the inline trim matched leftmost, so it cut at the sender's
+  // OWN first "On …"/"Am …" sentence and published the truncated remainder as
+  // a real status, with no failure notice because something survived.
+  it.each([
+    {
+      description: 'a sentence starting with On',
+      body: '<div>Yes, that works.</div><div>On Tuesday I am offline.</div>',
+      expected: 'Yes, that works. On Tuesday I am offline.'
+    },
+    {
+      description: 'a sentence starting with Am',
+      body: '<div>Thanks! Am I right that this ships today?</div>',
+      expected: 'Thanks! Am I right that this ships today?'
+    }
+  ])(
+    'keeps $description ahead of the quoted attribution',
+    ({ body, expected }) => {
+      const html =
+        `${body}<div class="gmail_quote"><div class="gmail_attr">On Sat, ` +
+        'Jul 25, 2026 at 9:00 PM Activities &lt;noreply@example.tld&gt; wrote:' +
+        `<br></div><blockquote><p>${REPLY_SENTINEL}</p></blockquote></div>`
+
+      expect(extractReplyText({ html })).toBe(expected)
+    }
+  )
+
+  // Outlook's HTML reply uses <hr> (which htmlToPlainText drops) instead of a
+  // row of underscores, so the whole-line divider cut cannot see it.
+  it('drops an inline Outlook header run from a collapsed HTML reply', () => {
+    const html =
+      '<div>My actual reply.</div><hr><div id="divRplyFwdMsg">' +
+      '<b>From:</b> Activities &lt;noreply@example.tld&gt;<br>' +
+      '<b>Sent:</b> Saturday 25 July 2026 21:00<br>' +
+      '<b>Subject:</b> someone mentioned you</div>' +
+      `<p>${REPLY_SENTINEL}</p>`
+
+    expect(extractReplyText({ html })).toBe('My actual reply.')
+  })
+
   it('falls back to the HTML part when there is no text part', () => {
     const html = `<p>Just this bit.</p><p>${REPLY_SENTINEL}</p><h3>@someone mentioned you</h3>`
     expect(extractReplyText({ html })).toBe('Just this bit.')

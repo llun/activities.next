@@ -16,11 +16,17 @@ const QUOTE_PREFIX = /^[ \t]*(?:>[ \t]?)+/
 const ATTRIBUTION_OPENER = /^(On|Le|Am|El)\b/
 const ATTRIBUTION_CLOSER = /\bwrote:$/
 const ATTRIBUTION_MAX_LINES = 3
-// The same header when it trails the sender's text on the SAME line, which is
+// The attribution opener when it trails the sender's text on the SAME line —
 // the normal shape once htmlToPlainText has collapsed an HTML reply onto one
-// line. Matching only the attribution-shaped suffix means the sender's text in
-// front of it survives.
-const INLINE_ATTRIBUTION = /(?:^|\s)(?:On|Le|Am|El)\s.*\bwrote:\s*$/
+// line. Scanned globally so the LAST opener can be chosen: a single regex
+// anchored only at its end matches leftmost, which cut at the sender's own
+// first "On …" sentence and silently published a truncated post.
+const INLINE_ATTRIBUTION_OPENER = /(?:^|\s)(?:On|Le|Am|El)\s/g
+// Outlook's HTML reply has no underscore rule — it emits `<hr>`, which
+// htmlToPlainText drops — so this header run is the only marker left. The
+// whole From/Sent-or-Subject sequence is required so an ordinary sentence
+// mentioning "From:" is not mistaken for it.
+const INLINE_HEADER_RUN = /(?:^|\s)From:\s.*?\b(?:Sent|Subject):\s/
 const ORIGINAL_MESSAGE =
   /^-{2,}\s*(Original Message|Forwarded message)\s*-{2,}$/i
 // Outlook separates the quoted original with a rule of underscores.
@@ -61,11 +67,19 @@ const cutAtSentinel = (value: string) => {
 // dividers are unambiguous: they do not occur in ordinary prose, unlike the
 // "…wrote:" heuristic below.
 const cutAtDivider = (lines: string[]) => {
-  const index = lines.findIndex((line) => {
-    const value = cleaned(line)
-    return ORIGINAL_MESSAGE.test(value) || OUTLOOK_DIVIDER.test(value)
-  })
-  return index === -1 ? lines : lines.slice(0, index)
+  for (let index = 0; index < lines.length; index += 1) {
+    const value = cleaned(lines[index])
+    if (ORIGINAL_MESSAGE.test(value) || OUTLOOK_DIVIDER.test(value)) {
+      return lines.slice(0, index)
+    }
+    // The same header block, but inline — an Outlook reply that arrived as
+    // HTML and has been collapsed onto one line.
+    const headerRun = INLINE_HEADER_RUN.exec(lines[index])
+    if (headerRun) {
+      return [...lines.slice(0, index), lines[index].slice(0, headerRun.index)]
+    }
+  }
+  return lines
 }
 
 // Fallback for a message with no sentinel (a forward, or a client that
@@ -126,10 +140,19 @@ const dropTrailingAttribution = (lines: string[]) => {
   }
 
   // No opener on a line of its own, so the attribution trails the sender's
-  // text on this line. Trim only the attribution-shaped suffix.
-  const trimmed = lines[lastIndex].replace(INLINE_ATTRIBUTION, '')
-  if (trimmed !== lines[lastIndex]) {
-    return [...lines.slice(0, lastIndex), trimmed]
+  // text on this line. Cut at the LAST opener rather than the first: the
+  // sender's own sentences may well start with "On …" or "Am …", and leaving a
+  // stray date fragment in the post is far better than deleting words they
+  // actually wrote.
+  let inlineStart = -1
+  for (const match of lines[lastIndex].matchAll(INLINE_ATTRIBUTION_OPENER)) {
+    inlineStart = match.index
+  }
+  if (inlineStart >= 0) {
+    return [
+      ...lines.slice(0, lastIndex),
+      lines[lastIndex].slice(0, inlineStart)
+    ]
   }
 
   // Ends in "wrote:" but nothing marks it as an attribution header — it is the
@@ -154,11 +177,11 @@ const trimBlankEdges = (lines: string[]) => {
 /**
  * Recover what the sender actually typed from an inbound reply.
  *
- * Prefers the `text/plain` part and falls back to the HTML one. Note that the
- * HTML fallback goes through `htmlToPlainText`, which collapses the message to
- * a single line — the sentinel cut still works there, but the quote and
- * attribution heuristics have nothing to bite on, so an HTML-only reply with no
- * sentinel comes back whole.
+ * Prefers the `text/plain` part and falls back to the HTML one. The HTML
+ * fallback goes through `htmlToPlainText`, which collapses the message onto a
+ * single line, so the *line-based* heuristics (quoted blocks, a whole-line
+ * divider) have nothing to bite on there; the sentinel cut and the two inline
+ * trims below are what carry that path.
  *
  * Returns an empty string when nothing is left, which callers must treat as
  * "abandon the reply" rather than posting a blank status.

@@ -11,6 +11,7 @@ import {
   mintReplyToken
 } from '@/lib/services/email/replyToken'
 import { saveMedia } from '@/lib/services/medias'
+import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
@@ -240,33 +241,41 @@ describe('replyByEmailJob', () => {
       data: { token: 'never-minted', text: 'hello' }
     },
     {
-      description: 'inbound email is not configured',
-      data: { token: 'irrelevant', text: 'hello' },
-      unconfigured: true
-    },
-    {
       description: 'the payload does not match the schema',
       data: { nope: true }
     }
-  ])(
-    'posts nothing and warns nobody when $description',
-    async ({ data, unconfigured }) => {
-      if (unconfigured) {
-        mockGetConfig.mockReturnValue({
-          ...baseConfig,
-          emailInbound: undefined
-        })
-      }
-      const before = await repliesTo(database, publicStatus.id)
+  ])('posts nothing and warns nobody when $description', async ({ data }) => {
+    const before = await repliesTo(database, publicStatus.id)
 
-      await runJob(database, data)
+    await runJob(database, data)
 
-      expect(await repliesTo(database, publicStatus.id)).toHaveLength(
-        before.length
+    expect(await repliesTo(database, publicStatus.id)).toHaveLength(
+      before.length
+    )
+    expect(mockSendMail).not.toHaveBeenCalled()
+  })
+
+  // Deliberately uses a REAL token: with a bogus one the job would stop at the
+  // token lookup regardless, so the case would pass with the config guard
+  // deleted and prove nothing about it.
+  it('posts nothing when inbound email is no longer configured', async () => {
+    const token = await mintFor(publicStatus.id)
+    mockGetConfig.mockReturnValue({ ...baseConfig, emailInbound: undefined })
+
+    await runJob(database, {
+      token,
+      messageId: '<unconfigured@example.tld>',
+      text: replyBody('Should not reach the thread.')
+    })
+
+    const replies = await repliesTo(database, publicStatus.id)
+    expect(
+      replies.some((reply) =>
+        reply.text.includes('Should not reach the thread')
       )
-      expect(mockSendMail).not.toHaveBeenCalled()
-    }
-  )
+    ).toBe(false)
+    expect(mockSendMail).not.toHaveBeenCalled()
+  })
 
   // Regression: an expired or spent token used to be lumped in with an unknown
   // one and dropped with only a log line — so the sender believed they had
@@ -347,6 +356,41 @@ describe('replyByEmailJob', () => {
       expect(mockSendMail).not.toHaveBeenCalled()
     } finally {
       await database.setActorSuspended({ actorId: ACTOR1_ID, suspended: false })
+    }
+  })
+
+  // The admin switch has to be re-checked at redemption, not just at minting:
+  // tokens live 30 days, so an instance that turns the feature off must stop
+  // honouring every address it already handed out.
+  it('refuses a still-opted-in actor once the admin switch is off', async () => {
+    const token = await mintFor(publicStatus.id)
+    await database.setServerSetting({
+      key: 'replyByEmail.enabled',
+      value: false
+    })
+    invalidateServerSettingsCache(database)
+
+    try {
+      await runJob(database, {
+        token,
+        messageId: '<instance-disabled@example.tld>',
+        text: replyBody('Instance said no.')
+      })
+
+      const replies = await repliesTo(database, publicStatus.id)
+      expect(
+        replies.some((reply) => reply.text.includes('Instance said no'))
+      ).toBe(false)
+      expect(mockSendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.objectContaining({
+            text: expect.stringContaining('switched off')
+          })
+        })
+      )
+    } finally {
+      await database.deleteServerSetting({ key: 'replyByEmail.enabled' })
+      invalidateServerSettingsCache(database)
     }
   })
 
