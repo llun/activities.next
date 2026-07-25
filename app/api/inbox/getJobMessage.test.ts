@@ -1,5 +1,6 @@
 import {
   CREATE_NOTE_JOB_NAME,
+  EMOJI_REACTION_JOB_NAME,
   HANDLE_QUOTE_REQUEST_JOB_NAME
 } from '@/lib/jobs/names'
 
@@ -284,5 +285,70 @@ describe('getJobMessage', () => {
     )
 
     expect(result).toBeNull()
+  })
+
+  describe('emoji reactions', () => {
+    const statusId = 'https://llun.test/users/target/statuses/1'
+    const emojiReact = {
+      id: 'https://remote.test/activities/react-1',
+      type: 'EmojiReact',
+      actor: verifiedSenderActorId,
+      object: statusId,
+      content: '\u{1F525}'
+    }
+    const misskeyLike = {
+      id: 'https://remote.test/activities/react-2',
+      type: 'Like',
+      actor: verifiedSenderActorId,
+      object: statusId,
+      content: '\u{1F525}',
+      _misskey_reaction: '\u{1F525}'
+    }
+    const plainLike = {
+      id: 'https://remote.test/activities/like-1',
+      type: 'Like',
+      actor: verifiedSenderActorId,
+      object: statusId
+    }
+    const undoOf = (object: Record<string, unknown>) => ({
+      id: `${object.id}-undo`,
+      type: 'Undo',
+      actor: verifiedSenderActorId,
+      object
+    })
+
+    it.each([
+      { description: 'an EmojiReact', activity: emojiReact },
+      { description: 'a Like carrying a reaction', activity: misskeyLike },
+      { description: 'an Undo of an EmojiReact', activity: undoOf(emojiReact) },
+      {
+        description: 'an Undo of a Like carrying a reaction',
+        activity: undoOf(misskeyLike)
+      }
+    ])('routes $description to the emoji reaction job', ({ activity }) => {
+      const result = getJobMessage(activity as never, verifiedSenderActorId)
+
+      expect(result?.name).toBe(EMOJI_REACTION_JOB_NAME)
+      expect(result?.data).toEqual(activity)
+    })
+
+    it.each([
+      { description: 'a plain Like', activity: plainLike },
+      {
+        description: 'an Undo of a plain Like',
+        activity: undoOf(plainLike)
+      }
+    ])('leaves $description unrouted', ({ activity }) => {
+      expect(getJobMessage(activity as never, verifiedSenderActorId)).toBeNull()
+    })
+
+    it('rejects a reaction whose actor differs from the verified sender', () => {
+      const result = getJobMessage(
+        { ...emojiReact, actor: 'https://evil.example/users/mallory' } as never,
+        verifiedSenderActorId
+      )
+
+      expect(result).toBeNull()
+    })
   })
 })

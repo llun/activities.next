@@ -29,6 +29,14 @@ product or security decision, not a gap to be closed.
   tokens age out quickly. Mastodon-only clients that never refresh will need to
   re-authorize weekly. Configured in `lib/services/auth/auth.ts`.
 
+- **A remote reaction is not a favourite.** Mastodon has no reaction concept, so
+  a Misskey `Like` carrying an emoji used to land here as an ordinary favourite
+  and inflate `favourites_count`. It is now stored as an emoji reaction instead:
+  no `likes` row, no favourites-count movement. `favourites_count`/`favourited`
+  therefore count exactly local favourites plus plain remote `Like`s. Reactions
+  received before this change stay favourites — they are indistinguishable from
+  genuine ones in storage, so there is no backfill.
+
 - **`GET /oauth/userinfo` `sub` is the local account id, not the actor URI.**
   The OpenID Connect `userinfo` response uses the owning account (user record)
   id for `sub` so it matches the `sub` claim in the OIDC `id_token`. Actor-scoped
@@ -224,6 +232,20 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
 - **Hosted quote-authorization stamps** — `GET /users/:username/quote_authorizations/:id`
   serves the FEP-044f `QuoteAuthorization` object for an approved quote; it 404s
   once the quote is revoked (the edge is no longer `accepted`).
+- **Status emoji reactions** — a Misskey/Pleroma-style reaction store that is
+  deliberately **separate from favourites**. Every serialized `Status` carries
+  the same rollups under both ecosystem names — `pleroma.emoji_reactions`
+  (Pleroma/Akkoma, what Husky and the Megalodon-family clients read) and
+  `reactions` (the glitch-soc dialect) — each entry being
+  `{name, count, me, url, static_url}`. `name` is a unicode emoji, a local
+  custom-emoji shortcode, or `shortcode@domain` for a remote custom emoji.
+  Reactions arrive as their own notification type, `pleroma:emoji_reaction`,
+  which carries an extra `emoji` field; `types[]`/`exclude_types[]` accept that
+  name. None of this is core Mastodon API, and vanilla clients ignore all of it.
+  Inbound federation accepts both dialects at the per-user **and** shared
+  inboxes: the litepub `EmojiReact` of FEP-c0e0 and a Misskey-style `Like`
+  carrying `content`/`_misskey_reaction`, plus the `Undo` of either. A **plain**
+  `Like` (no reaction content) remains an ordinary favourite.
 - **Remote statuses** — `/api/v1/accounts/:id/remote-statuses` exposes cached
   remote posts for an actor.
 - **Admin CRUD extras** — custom emoji, domain allow/deny lists (with import),

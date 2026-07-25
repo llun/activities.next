@@ -1,5 +1,6 @@
 import {
   ACTIVITY_STREAMS_CONTEXT_URL,
+  EXTENSION_TERM_FALLBACK_CONTEXT,
   SECURITY_V1_CONTEXT_URL,
   compactActivityPub,
   normalizeInputContext,
@@ -194,6 +195,140 @@ describe('compactActivityPub', () => {
     expect(tags).toHaveLength(1)
     expect(tags[0].type).toBe('Hashtag')
     expect(tags[0].name).toBe('#fediverse')
+  })
+
+  // Emoji reactions arrive in two dialects: Pleroma/Akkoma's `EmojiReact`
+  // (FEP-c0e0, litepub vocabulary) and Misskey's `Like` carrying `content` plus
+  // `_misskey_reaction`. Both the matched type and the matched property must
+  // survive compaction as bare terms, whichever way the sender declares them —
+  // otherwise the reaction silently degrades to a plain favourite.
+  it('keeps a bare EmojiReact type from a litepub-context sender', async () => {
+    const result = asRecord(
+      await compactActivityPub({
+        '@context': [
+          ACTIVITY_STREAMS_CONTEXT_URL,
+          'http://litepub.social/schemas/litepub-0.1.jsonld'
+        ],
+        id: 'https://pleroma.example/activities/1',
+        type: 'EmojiReact',
+        actor: 'https://pleroma.example/users/alice',
+        object: 'https://remote.example/notes/1',
+        content: '🔥'
+      })
+    )
+
+    expect(result.type).toBe('EmojiReact')
+    expect(result.content).toBe('🔥')
+    expect(result.object).toBe('https://remote.example/notes/1')
+  })
+
+  it('keeps an EmojiReact type declared as a full litepub IRI', async () => {
+    const result = asRecord(
+      await compactActivityPub({
+        '@context': ACTIVITY_STREAMS_CONTEXT_URL,
+        id: 'https://pleroma.example/activities/2',
+        type: 'http://litepub.social/ns#EmojiReact',
+        actor: 'https://pleroma.example/users/alice',
+        object: 'https://remote.example/notes/1',
+        content: ':blobcat:',
+        tag: [
+          {
+            type: 'http://joinmastodon.org/ns#Emoji',
+            name: ':blobcat:',
+            icon: {
+              type: 'Image',
+              url: 'https://pleroma.example/emoji/blobcat.png'
+            }
+          }
+        ]
+      })
+    )
+
+    expect(result.type).toBe('EmojiReact')
+    const tags = result.tag as Array<Record<string, unknown>>
+    expect(tags[0].type).toBe('Emoji')
+  })
+
+  it('keeps the FEP-c0e0 example EmojiReact readable', async () => {
+    // Verbatim from FEP-c0e0 (context-less, as the spec's example is written).
+    const result = asRecord(
+      await compactActivityPub({
+        actor: 'https://alice.social/users/alice',
+        content: '🔥',
+        type: 'EmojiReact',
+        object:
+          'https://bob.social/objects/57caeb99-424c-4692-b74f-0a6682050932'
+      })
+    )
+
+    expect(result.type).toBe('EmojiReact')
+    expect(result.content).toBe('🔥')
+  })
+
+  it('keeps _misskey_reaction when the sender defines it inline', async () => {
+    // Shape of a real Misskey `renderLike`: the reaction is carried on both
+    // `content` and `_misskey_reaction`, with the term defined in Misskey's own
+    // context (which our offline loader cannot dereference).
+    const result = asRecord(
+      await compactActivityPub({
+        '@context': [
+          ACTIVITY_STREAMS_CONTEXT_URL,
+          {
+            misskey: 'https://misskey-hub.net/ns#',
+            _misskey_reaction: 'misskey:_misskey_reaction',
+            toot: 'http://joinmastodon.org/ns#',
+            Emoji: 'toot:Emoji'
+          }
+        ],
+        id: 'https://misskey.example/likes/1',
+        type: 'Like',
+        actor: 'https://misskey.example/users/alice',
+        object: 'https://remote.example/notes/1',
+        content: ':blobcat:',
+        _misskey_reaction: ':blobcat:',
+        tag: [
+          {
+            id: 'https://misskey.example/emojis/blobcat',
+            type: 'Emoji',
+            name: ':blobcat:',
+            icon: {
+              type: 'Image',
+              mediaType: 'image/png',
+              url: 'https://misskey.example/files/blobcat.png'
+            }
+          }
+        ]
+      })
+    )
+
+    expect(result.type).toBe('Like')
+    expect(result._misskey_reaction).toBe(':blobcat:')
+    expect(result.content).toBe(':blobcat:')
+    const tags = result.tag as Array<Record<string, unknown>>
+    expect(tags[0].type).toBe('Emoji')
+  })
+
+  it.each([
+    { description: 'the sender omits @context entirely', context: undefined },
+    {
+      description: 'the sender lists only ActivityStreams',
+      context: ACTIVITY_STREAMS_CONTEXT_URL
+    }
+  ])('keeps _misskey_reaction when $description', async ({ context }) => {
+    const result = asRecord(
+      await compactActivityPub({
+        ...(context ? { '@context': context } : {}),
+        id: 'https://misskey.example/likes/2',
+        type: 'Like',
+        actor: 'https://misskey.example/users/alice',
+        object: 'https://remote.example/notes/1',
+        content: '👍',
+        _misskey_reaction: '👍'
+      })
+    )
+
+    expect(result.type).toBe('Like')
+    expect(result._misskey_reaction).toBe('👍')
   })
 
   it('keeps quote extension terms when the sender defines them with full IRIs', async () => {
@@ -465,6 +600,7 @@ describe('normalizeInputContext', () => {
 
   it('applies the default context when @context is absent', () => {
     expect(contextOf({ id: 'https://remote.example/notes/1' })).toEqual([
+      EXTENSION_TERM_FALLBACK_CONTEXT,
       ACTIVITY_STREAMS_CONTEXT_URL,
       SECURITY_V1_CONTEXT_URL
     ])
@@ -508,9 +644,24 @@ describe('normalizeInputContext', () => {
       ]
     }) as unknown[]
 
-    // Prepended, so a sender's own contexts/terms still override it.
-    expect(context[0]).toBe(SECURITY_V1_CONTEXT_URL)
+    // Prepended, so a sender's own contexts/terms still override it. Only the
+    // extension-term fallback sits below it.
+    expect(context[0]).toEqual(EXTENSION_TERM_FALLBACK_CONTEXT)
+    expect(context[1]).toBe(SECURITY_V1_CONTEXT_URL)
     expect(context).toContain(ACTIVITY_STREAMS_CONTEXT_URL)
+  })
+
+  it('adds the extension-term fallback below every sender context', () => {
+    const context = contextOf({
+      '@context': [
+        ACTIVITY_STREAMS_CONTEXT_URL,
+        SECURITY_V1_CONTEXT_URL,
+        { _misskey_reaction: 'https://misskey-hub.net/ns#_misskey_reaction' }
+      ]
+    }) as unknown[]
+
+    expect(context[0]).toEqual(EXTENSION_TERM_FALLBACK_CONTEXT)
+    expect(context.indexOf(ACTIVITY_STREAMS_CONTEXT_URL)).toBeGreaterThan(0)
   })
 
   it('does not duplicate security/v1 when the sender already lists it', () => {
@@ -538,6 +689,7 @@ describe('normalizeInputContext', () => {
 
   it('wraps a single string @context into an array with the fallback', () => {
     expect(contextOf({ '@context': ACTIVITY_STREAMS_CONTEXT_URL })).toEqual([
+      EXTENSION_TERM_FALLBACK_CONTEXT,
       SECURITY_V1_CONTEXT_URL,
       ACTIVITY_STREAMS_CONTEXT_URL
     ])

@@ -7,6 +7,7 @@ import { FilterResult } from '@/lib/types/mastodon/filterResult'
 import { MediaAttachment } from '@/lib/types/mastodon/mediaAttachment/index'
 import { Poll } from '@/lib/types/mastodon/poll/index'
 import { PreviewCard } from '@/lib/types/mastodon/previewCard'
+import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import { Visibility } from '@/lib/types/mastodon/visibility'
 
 import { Application } from './application'
@@ -191,6 +192,18 @@ export const BaseStatus = z.object({
     .describe('The status this status quotes'),
   quote_approval: QuoteApproval.optional().describe(
     'Who may quote this status and where the current viewer stands'
-  )
+  ),
+
+  // Emoji reactions (Epic 5.1). Ecosystem extensions, not core Mastodon: the
+  // same rollups are served under the glitch-soc name (`reactions`) and the
+  // Pleroma/Akkoma one (`pleroma.emoji_reactions`) so both dialects of client
+  // read one store. They can never disagree — one serializer fills both.
+  reactions: StatusReaction.array()
+    .optional()
+    .describe('Emoji reactions on this status (glitch-soc dialect)'),
+  pleroma: z
+    .object({ emoji_reactions: StatusReaction.array() })
+    .optional()
+    .describe('Pleroma/Akkoma extension fields')
 })
 export type BaseStatus = z.infer<typeof BaseStatus>

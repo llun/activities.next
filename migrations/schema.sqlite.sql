@@ -38,7 +38,7 @@ CREATE UNIQUE INDEX `actors_username_domain_unique` on `actors` (`username`, `do
 CREATE INDEX `recipientsTypeActorIdIndex` on `recipients` (`type`, `actorId`);
 CREATE INDEX `timelinesActorIdTimelineCreatedAtIndex` on `timelines` (`actorId`, `timeline`, `createdAt`);
 CREATE INDEX `timelinesStatusIdIndex` on `timelines` (`statusId`);
-CREATE TABLE `notifications` (`id` varchar(255), `actorId` varchar(255) not null, `type` varchar(255) not null, `sourceActorId` varchar(255) not null, `statusId` varchar(255), `followId` varchar(255), `isRead` boolean default '0', `readAt` datetime, `groupKey` varchar(255), `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, `filtered` boolean not null default '0', primary key (`id`));
+CREATE TABLE `notifications` (`id` varchar(255), `actorId` varchar(255) not null, `type` varchar(255) not null, `sourceActorId` varchar(255) not null, `statusId` varchar(255), `followId` varchar(255), `isRead` boolean default '0', `readAt` datetime, `groupKey` varchar(255), `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, `filtered` boolean not null default '0', `reactionName` varchar(255) null, primary key (`id`));
 CREATE INDEX `notifications_actor_created` on `notifications` (`actorId`, `createdAt`);
 CREATE INDEX `notifications_actor_unread` on `notifications` (`actorId`, `isRead`, `createdAt`);
 CREATE INDEX `notifications_group_key` on `notifications` (`groupKey`, `createdAt`);
@@ -246,3 +246,6 @@ CREATE TABLE `moderation_actions` (`id` varchar(255), `targetActorId` varchar(25
 CREATE INDEX `moderation_actions_target_idx` on `moderation_actions` (`targetActorId`, `createdAt`);
 CREATE INDEX `moderation_actions_report_idx` on `moderation_actions` (`reportId`);
 CREATE TABLE `server_settings` (`key` varchar(255), `value` text not null, `createdAt` datetime not null, `updatedAt` datetime not null, primary key (`key`));
+CREATE TABLE `status_reactions` (`statusId` varchar(255) not null, `actorId` varchar(255) not null, `name` varchar(255) not null, `url` text null, `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, primary key (`statusId`, `actorId`, `name`));
+CREATE INDEX `status_reactions_status_created` on `status_reactions` (`statusId`, `createdAt`);
+CREATE INDEX `status_reactions_actor` on `status_reactions` (`actorId`);

@@ -1,0 +1,198 @@
+import { Knex } from 'knex'
+
+import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { chunkArray, getWhereInBatchSize } from '@/lib/database/sql/utils/knex'
+import { MAX_REACTIONS_PER_ACTOR } from '@/lib/services/statuses/reactionLimits'
+import {
+  CreateStatusReactionParams,
+  DeleteStatusReactionParams,
+  GetStatusReactionActorsParams,
+  GetStatusReactionRollupsParams,
+  StatusReactionActor,
+  StatusReactionDatabase,
+  StatusReactionRollup
+} from '@/lib/types/database/operations'
+
+// count()/max() come back as strings on Postgres but numbers on SQLite.
+type SQLStatusReactionRollupRow = {
+  statusId: string
+  name: string
+  count: number | string
+  mine: number | string
+  reactionUrl: string | null
+  firstReactedAt: number | Date | string
+}
+
+type SQLStatusReactionActorRow = {
+  name: string
+  actorId: string
+  createdAt: number | Date | string
+}
+
+// A remote custom-emoji reaction is namespaced `shortcode@domain`; anything
+// without the separator is either a unicode emoji (which never matches a
+// shortcode) or a *local* shortcode, whose image is resolved live from
+// `customEmojis` so an admin re-upload propagates to existing reactions.
+const isLocalShortcodeCandidate = (name: string) => !name.includes('@')
+
+export const StatusReactionSQLDatabaseMixin = (
+  database: Knex
+): StatusReactionDatabase => ({
+  async createStatusReaction({
+    statusId,
+    actorId,
+    name,
+    url
+  }: CreateStatusReactionParams) {
+    await database.transaction(async (trx) => {
+      const status = await trx('statuses').where('id', statusId).first('id')
+      if (!status) return
+
+      const existingCount = await trx('status_reactions')
+        .where({ statusId, actorId })
+        .count<{ count: number | string }>({ count: '*' })
+        .first()
+      // The cap drops the overflow rather than evicting an earlier reaction: an
+      // eviction would desynchronise us from the sender, who still believes the
+      // dropped reaction stands. Re-reacting with an existing name is not an
+      // overflow, so the `onConflict().ignore()` below stays reachable.
+      const alreadyReacted = await trx('status_reactions')
+        .where({ statusId, actorId, name })
+        .first('name')
+      if (
+        !alreadyReacted &&
+        Number(existingCount?.count ?? 0) >= MAX_REACTIONS_PER_ACTOR
+      ) {
+        return
+      }
+
+      const currentTime = new Date()
+      await trx('status_reactions')
+        .insert({
+          statusId,
+          actorId,
+          name,
+          url: url ?? null,
+          createdAt: currentTime,
+          updatedAt: currentTime
+        })
+        .onConflict(['statusId', 'actorId', 'name'])
+        .ignore()
+    })
+  },
+
+  async deleteStatusReaction({
+    statusId,
+    actorId,
+    name
+  }: DeleteStatusReactionParams) {
+    await database('status_reactions')
+      .where({ statusId, actorId, name })
+      .delete()
+  },
+
+  async getStatusReactionRollups({
+    statusIds,
+    currentActorId
+  }: GetStatusReactionRollupsParams) {
+    const uniqueStatusIds = [...new Set(statusIds)]
+    if (uniqueStatusIds.length === 0) return []
+
+    // `mine` is 1 when the querying actor is among the reactors for this
+    // (statusId, name) group. MAX over a per-row CASE is portable across SQLite
+    // and PostgreSQL — the same shape getAnnouncementReactions uses. An absent
+    // currentActorId can never match a stored actor id, so `me` is always false.
+    const meActorId = currentActorId ?? ''
+    const rowChunks = await Promise.all(
+      chunkArray(uniqueStatusIds, getWhereInBatchSize(database, 1)).map(
+        async (chunk) =>
+          (await database('status_reactions')
+            .whereIn('statusId', chunk)
+            .groupBy('statusId', 'name')
+            .select('statusId', 'name')
+            .count({ count: '*' })
+            .max({
+              mine: database.raw('CASE WHEN ?? = ? THEN 1 ELSE 0 END', [
+                'actorId',
+                meActorId
+              ])
+            })
+            // Only remote custom emoji store a url, and every row for one
+            // (statusId, name) carries the same one, so MAX just unwraps it.
+            .max({ reactionUrl: 'url' })
+            .min({ firstReactedAt: 'createdAt' })
+            // Pleroma orders reactions by first-reaction time ascending; `name`
+            // only breaks ties so the order is stable.
+            .orderBy('firstReactedAt', 'asc')
+            .orderBy('name', 'asc')) as SQLStatusReactionRollupRow[]
+      )
+    )
+    const rows = rowChunks.flat()
+
+    const localShortcodes = [
+      ...new Set(
+        rows
+          .filter(
+            (row) => !row.reactionUrl && isLocalShortcodeCandidate(row.name)
+          )
+          .map((row) => row.name)
+      )
+    ]
+    // A disabled custom emoji stops rendering as an image and falls back to its
+    // shortcode text, matching how the picker and emoji list treat it.
+    const localEmojiChunks = localShortcodes.length
+      ? await Promise.all(
+          chunkArray(localShortcodes, getWhereInBatchSize(database)).map(
+            (chunk) =>
+              database('customEmojis')
+                .whereIn('shortcode', chunk)
+                .where('disabled', false)
+                .select<
+                  { shortcode: string; url: string; staticUrl: string }[]
+                >('shortcode', 'url', 'staticUrl')
+          )
+        )
+      : []
+    const localEmojis = new Map(
+      localEmojiChunks
+        .flat()
+        .map((emoji) => [
+          emoji.shortcode,
+          { url: emoji.url, staticUrl: emoji.staticUrl }
+        ])
+    )
+
+    return rows.map((row): StatusReactionRollup => {
+      const localEmoji = row.reactionUrl ? undefined : localEmojis.get(row.name)
+      return {
+        statusId: row.statusId,
+        name: row.name,
+        count: Number(row.count),
+        me: Number(row.mine) === 1,
+        // Remote custom emoji have no separate static variant, so the stored
+        // animated url doubles as `static_url` (Mastodon requires both).
+        url: row.reactionUrl ?? localEmoji?.url ?? null,
+        staticUrl: row.reactionUrl ?? localEmoji?.staticUrl ?? null
+      }
+    })
+  },
+
+  async getStatusReactionActors({
+    statusId,
+    name
+  }: GetStatusReactionActorsParams) {
+    const query = database('status_reactions').where('statusId', statusId)
+    if (name !== undefined) query.where('name', name)
+
+    const rows = (await query
+      .select('name', 'actorId', 'createdAt')
+      .orderBy('createdAt', 'asc')
+      .orderBy('actorId', 'asc')) as SQLStatusReactionActorRow[]
+
+    return rows.map((row): StatusReactionActor => ({
+      name: row.name,
+      actorId: row.actorId,
+      createdAt: getCompatibleTime(row.createdAt)
+    }))
+  }
+})

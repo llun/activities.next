@@ -8,6 +8,11 @@ import {
 import { applyRemoteBlock } from '@/lib/actions/applyRemoteBlock'
 import { applyRemoteUnblock } from '@/lib/actions/applyRemoteUnblock'
 import { createFollower } from '@/lib/actions/createFollower'
+import {
+  emojiReactionRequest,
+  getReactionContent,
+  undoEmojiReactionRequest
+} from '@/lib/actions/emojiReaction'
 import { handleQuoteResponse } from '@/lib/actions/handleQuoteResponse'
 import { likeRequest } from '@/lib/actions/like'
 import { rejectFollowRequest } from '@/lib/actions/rejectFollowRequest'
@@ -27,6 +32,7 @@ import { getQueue } from '@/lib/services/queue'
 import {
   Accept,
   Block,
+  EmojiReact,
   Follow,
   Like,
   Reject,
@@ -83,6 +89,7 @@ const Activity = z.union([
   Reject,
   Follow,
   Block,
+  EmojiReact,
   Like,
   Undo,
   ReferenceUndo,
@@ -302,8 +309,24 @@ export const POST = traceApiRoute(
                   responseStatusCode: 202
                 })
               }
+              case 'EmojiReact': {
+                await emojiReactionRequest({ activity, database })
+                return apiResponse({
+                  req,
+                  allowedMethods: CORS_HEADERS,
+                  data: DEFAULT_202,
+                  responseStatusCode: 202
+                })
+              }
               case 'Like': {
-                await likeRequest({ activity, database })
+                // A Like carrying a reaction is a Misskey-family emoji reaction,
+                // never a favourite: it must not write a `likes` row or move
+                // favourites_count. A plain Like stays a favourite.
+                if (getReactionContent(activity)) {
+                  await emojiReactionRequest({ activity, database })
+                } else {
+                  await likeRequest({ activity, database })
+                }
                 return apiResponse({
                   req,
                   allowedMethods: CORS_HEADERS,
@@ -374,8 +397,38 @@ export const POST = traceApiRoute(
                   })
                 }
 
+                // Pleroma/Akkoma undo their own EmojiReact; Misskey undoes the
+                // rendered Like, which still carries the reaction. Both remove a
+                // reaction, never a favourite.
+                const undoEmojiReact = EmojiReact.safeParse(undoObject)
+                if (undoEmojiReact.success) {
+                  await undoEmojiReactionRequest({
+                    activity: { ...undoEmojiReact.data, actor: activity.actor },
+                    database
+                  })
+                  return apiResponse({
+                    req,
+                    allowedMethods: CORS_HEADERS,
+                    data: DEFAULT_202,
+                    responseStatusCode: 202
+                  })
+                }
+
                 const undoLike = Like.safeParse(undoObject)
                 if (undoLike.success) {
+                  if (getReactionContent(undoLike.data)) {
+                    await undoEmojiReactionRequest({
+                      activity: { ...undoLike.data, actor: activity.actor },
+                      database
+                    })
+                    return apiResponse({
+                      req,
+                      allowedMethods: CORS_HEADERS,
+                      data: DEFAULT_202,
+                      responseStatusCode: 202
+                    })
+                  }
+
                   const likedObject = undoLike.data.object
                   await database.deleteLike({
                     actorId: activity.actor,
