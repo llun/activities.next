@@ -1,4 +1,4 @@
-import { Status, StatusType } from '@/lib/types/domain/status'
+import { EditableStatus, StatusType } from '@/lib/types/domain/status'
 
 import { getEmailActorUrl, getEmailStatusUrl } from './statusUrl'
 
@@ -32,7 +32,7 @@ const remoteStatus = {
   attachments: [],
   replies: [],
   createdAt: 1000
-} as unknown as Status
+} as unknown as EditableStatus
 
 describe('getEmailStatusUrl', () => {
   it('points a remote status at the recipient own server, not the origin', () => {
@@ -49,7 +49,10 @@ describe('getEmailStatusUrl', () => {
   })
 
   it('falls back to the status url when no path can be derived', () => {
-    const actorless = { ...remoteStatus, actor: undefined } as unknown as Status
+    const actorless = {
+      ...remoteStatus,
+      actor: undefined
+    } as unknown as EditableStatus
     expect(getEmailStatusUrl(actorless)).toBe(remoteStatus.url)
   })
 })

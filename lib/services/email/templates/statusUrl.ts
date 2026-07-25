@@ -1,5 +1,5 @@
 import { getBaseURL } from '@/lib/config'
-import { Status } from '@/lib/types/domain/status'
+import { EditableStatus } from '@/lib/types/domain/status'
 import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
 
 /**
@@ -15,8 +15,12 @@ import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
  * derived. That value is remote-controlled, so callers must pass it through the
  * layout's URL check rather than emitting it directly — `button` and
  * `fallbackUrl` already do.
+ *
+ * Takes `EditableStatus` rather than the wider `Status`: only a Note or a Poll
+ * carries a `url`, and an Announce is never what a notification email quotes —
+ * the call sites unwrap to the original status first.
  */
-export const getEmailStatusUrl = (status: Status): string => {
+export const getEmailStatusUrl = (status: EditableStatus): string => {
   const path = getStatusDetailPath(status)
   return path ? `${getBaseURL()}${path}` : status.url
 }

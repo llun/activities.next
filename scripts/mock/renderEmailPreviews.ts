@@ -79,6 +79,10 @@ const maythee = fixtureActor('maythee', 'mastodon.social', 'Maythee')
 const ben = fixtureActor('ben', 'llun.social', 'Ben Carter')
 const rin = fixtureActor('rin', 'pixelfed.social', 'Rin')
 
+// Only the fields the templates actually read are populated — a full
+// EditableStatus carries ~30 more (edits, reply, quote state, visibility, …)
+// that no email touches. Cast through `unknown` for that reason, matching the
+// test fixtures; a preview does not need a faithful database row.
 const fixtureStatus = (
   actor: ActorProfile,
   text: string,
@@ -99,7 +103,7 @@ const fixtureStatus = (
     attachments: [],
     replies: [],
     createdAt: 1_700_000_000_000
-  }) as EditableStatus
+  }) as unknown as EditableStatus
 
 const annaPost = fixtureStatus(
   anna,
