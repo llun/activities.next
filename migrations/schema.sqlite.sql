@@ -246,3 +246,7 @@ CREATE TABLE `moderation_actions` (`id` varchar(255), `targetActorId` varchar(25
 CREATE INDEX `moderation_actions_target_idx` on `moderation_actions` (`targetActorId`, `createdAt`);
 CREATE INDEX `moderation_actions_report_idx` on `moderation_actions` (`reportId`);
 CREATE TABLE `server_settings` (`key` varchar(255), `value` text not null, `createdAt` datetime not null, `updatedAt` datetime not null, primary key (`key`));
+CREATE TABLE `email_reply_tokens` (`id` varchar(255), `tokenHash` varchar(64) not null, `actorId` varchar(255) not null, `statusId` varchar(255) not null, `notificationType` varchar(255) not null, `useCount` integer not null default '0', `lastUsedAt` datetime null, `expiresAt` datetime not null, `createdAt` datetime not null, primary key (`id`));
+CREATE UNIQUE INDEX `email_reply_tokens_tokenhash_unique` on `email_reply_tokens` (`tokenHash`);
+CREATE INDEX `email_reply_tokens_actor` on `email_reply_tokens` (`actorId`);
+CREATE INDEX `email_reply_tokens_expires` on `email_reply_tokens` (`expiresAt`);

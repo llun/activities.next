@@ -1388,6 +1388,55 @@ export interface IdempotencyDatabase {
 }
 
 // ============================================================================
+// Email Reply Token Database
+// ============================================================================
+
+// Which notification email minted the token. Purely informational today (it is
+// logged and reported back on failure), but it keeps a mention token
+// distinguishable from a reply token without re-deriving it from the status.
+export type EmailReplyTokenNotificationType = 'mention' | 'reply'
+
+export type EmailReplyTokenData = {
+  id: string
+  // HMAC-SHA256 hex digest of the token. The raw token is never persisted.
+  tokenHash: string
+  actorId: string
+  statusId: string
+  notificationType: EmailReplyTokenNotificationType
+  useCount: number
+  lastUsedAt: number | null
+  expiresAt: number
+  createdAt: number
+}
+
+export type CreateEmailReplyTokenParams = {
+  tokenHash: string
+  actorId: string
+  statusId: string
+  notificationType: EmailReplyTokenNotificationType
+  expiresAt: number
+}
+
+export type GetEmailReplyTokenParams = { tokenHash: string }
+export type RecordEmailReplyTokenUseParams = { id: string }
+export type DeleteExpiredEmailReplyTokensParams = { before: number }
+
+export interface EmailReplyTokenDatabase {
+  createEmailReplyToken(
+    params: CreateEmailReplyTokenParams
+  ): Promise<EmailReplyTokenData>
+  getEmailReplyToken(
+    params: GetEmailReplyTokenParams
+  ): Promise<EmailReplyTokenData | null>
+  recordEmailReplyTokenUse(
+    params: RecordEmailReplyTokenUseParams
+  ): Promise<void>
+  deleteExpiredEmailReplyTokens(
+    params: DeleteExpiredEmailReplyTokensParams
+  ): Promise<number>
+}
+
+// ============================================================================
 // Translation Cache Database
 // ============================================================================
 

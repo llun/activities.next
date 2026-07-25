@@ -17,6 +17,7 @@ import {
   CollectionDatabase,
   CustomEmojiDatabase,
   DirectConversationDatabase,
+  EmailReplyTokenDatabase,
   EndorsementDatabase,
   FeaturedTagDatabase,
   FilterDatabase,
@@ -96,6 +97,7 @@ export type Database = AccountDatabase &
   SuggestionDatabase &
   TrendsDatabase &
   IdempotencyDatabase &
+  EmailReplyTokenDatabase &
   TranslationCacheDatabase &
   TimelineDatabase &
   BaseDatabase

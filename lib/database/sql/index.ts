@@ -11,6 +11,7 @@ import { BookmarkSQLDatabaseMixin } from '@/lib/database/sql/bookmark'
 import { CollectionSQLDatabaseMixin } from '@/lib/database/sql/collection'
 import { DirectConversationSQLDatabaseMixin } from '@/lib/database/sql/conversation'
 import { CustomEmojiSQLDatabaseMixin } from '@/lib/database/sql/customEmoji'
+import { EmailReplyTokenSQLDatabaseMixin } from '@/lib/database/sql/emailReplyToken'
 import { EndorsementSQLDatabaseMixin } from '@/lib/database/sql/endorsement'
 import { FeaturedTagSQLDatabaseMixin } from '@/lib/database/sql/featuredTag'
 import { FilterSQLDatabaseMixin } from '@/lib/database/sql/filter'
@@ -71,6 +72,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const statusMuteDatabase = StatusMuteSQLDatabaseMixin(database)
   const statusQuoteDatabase = StatusQuoteSQLDatabaseMixin(database)
   const idempotencyDatabase = IdempotencySQLDatabaseMixin(database)
+  const emailReplyTokenDatabase = EmailReplyTokenSQLDatabaseMixin(database)
   const translationCacheDatabase = TranslationCacheSQLDatabaseMixin(database)
   const statusDetectedLanguageDatabase =
     StatusDetectedLanguageSQLDatabaseMixin(database)
@@ -158,6 +160,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...statusMuteDatabase,
     ...statusQuoteDatabase,
     ...idempotencyDatabase,
+    ...emailReplyTokenDatabase,
     ...translationCacheDatabase,
     ...statusDetectedLanguageDatabase,
     ...collectionDatabase,
