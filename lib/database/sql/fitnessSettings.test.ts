@@ -1,4 +1,8 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import {
+  getTestSQLDatabase,
+  getTestSQLDatabaseWithInstance
+} from '@/lib/database/testUtils'
+import { logger } from '@/lib/utils/logger'
 
 describe('FitnessSettings database operations', () => {
   let database: Awaited<ReturnType<typeof getTestSQLDatabase>>
@@ -737,5 +741,90 @@ describe('FitnessSettings database operations', () => {
       expect(final?.refreshToken).toBe('refresh-token-abc')
       expect(final?.webhookToken).toBe('webhook-token-xyz')
     })
+  })
+})
+
+describe('parseStoredPrivacyLocations', () => {
+  const actorId = 'test-actor-corrupt-privacy'
+
+  const setup = async () => {
+    const { database, instance } = getTestSQLDatabaseWithInstance()
+    await database.migrate()
+    await database.createActor({
+      actorId,
+      username: 'corruptprivacy',
+      domain: 'test.example.com',
+      inboxUrl: `https://test.example.com/users/corruptprivacy/inbox`,
+      outboxUrl: `https://test.example.com/users/corruptprivacy/outbox`,
+      followersUrl: `https://test.example.com/users/corruptprivacy/followers`,
+      sharedInboxUrl: 'https://test.example.com/shared/inbox',
+      publicKey: 'test-public-key-corruptprivacy',
+      privateKey: 'test-private-key-corruptprivacy',
+      createdAt: Date.now()
+    })
+    await database.createFitnessSettings({
+      actorId,
+      serviceType: 'general',
+      privacyLocations: [
+        { latitude: 13.7563, longitude: 100.5018, hideRadiusMeters: 200 }
+      ]
+    })
+    return { database, instance }
+  }
+
+  it('logs an error when the stored privacy locations cannot be parsed', async () => {
+    const { database, instance } = await setup()
+    const loggerErrorSpy = vi
+      .spyOn(logger, 'error')
+      .mockImplementation(() => undefined)
+
+    try {
+      await instance('fitness_settings')
+        .where({ actorId, serviceType: 'general' })
+        .update({ privacyLocations: 'not-json{' })
+
+      const settings = await database.getFitnessSettings({
+        actorId,
+        serviceType: 'general'
+      })
+
+      // Degrading to "no privacy zones" republishes every segment those zones
+      // were hiding, so it must never be silent.
+      expect(settings?.privacyLocations).toEqual([])
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Failed to parse stored fitness privacy locations'
+        })
+      )
+    } finally {
+      loggerErrorSpy.mockRestore()
+    }
+  })
+
+  it('does not log when a stored location is merely unusable', async () => {
+    const { database, instance } = await setup()
+    const loggerErrorSpy = vi
+      .spyOn(logger, 'error')
+      .mockImplementation(() => undefined)
+
+    try {
+      // Valid JSON the sanitizer rejects. This is not a parse failure, so the
+      // narrowed catch must not fire and nothing should be logged.
+      await instance('fitness_settings')
+        .where({ actorId, serviceType: 'general' })
+        .update({
+          privacyLocations: JSON.stringify([{ latitude: 'nope' }])
+        })
+
+      const settings = await database.getFitnessSettings({
+        actorId,
+        serviceType: 'general'
+      })
+
+      expect(settings?.privacyLocations).toEqual([])
+      expect(loggerErrorSpy).not.toHaveBeenCalled()
+    } finally {
+      loggerErrorSpy.mockRestore()
+    }
   })
 })

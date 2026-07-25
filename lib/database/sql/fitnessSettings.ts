@@ -10,6 +10,7 @@ import {
 } from '@/lib/types/database/fitnessSettings'
 import { Visibility as MastodonVisibilitySchema } from '@/lib/types/mastodon/visibility'
 import { decrypt, encrypt } from '@/lib/utils/crypto'
+import { logger } from '@/lib/utils/logger'
 
 export interface CreateFitnessSettingsParams {
   actorId: string
@@ -84,12 +85,23 @@ const parseStoredPrivacyLocations = (
     return undefined
   }
 
+  // SQLite hands back the `json` column as TEXT; PostgreSQL `jsonb` arrives
+  // already parsed. Only the string branch can throw, so only it is guarded —
+  // `sanitizePrivacyLocationSettings` is total and must not be swallowed.
+  if (typeof value !== 'string') {
+    return sanitizePrivacyLocationSettings(value)
+  }
+
   try {
-    const parsedValue =
-      typeof value === 'string' ? getCompatibleJSON<unknown>(value) : value
-    const sanitized = sanitizePrivacyLocationSettings(parsedValue)
-    return sanitized
-  } catch {
+    return sanitizePrivacyLocationSettings(getCompatibleJSON<unknown>(value))
+  } catch (error) {
+    // Returning [] here means "no privacy zones", which republishes every route
+    // segment those zones were hiding. That must never happen silently: an
+    // operator needs to see it and restore the column.
+    logger.error({
+      message: 'Failed to parse stored fitness privacy locations',
+      error
+    })
     return []
   }
 }
