@@ -1,6 +1,5 @@
 import knex, { Knex } from 'knex'
 
-import { FITNESS_PRIVACY_RADIUS_OPTIONS } from '@/lib/services/fitness-files/privacy'
 import * as migration from '@/migrations/20260725000000_snap_fitness_privacy_radius'
 
 interface SettingsRow {
@@ -26,6 +25,7 @@ describe('snap fitness privacy radius migration', () => {
 
     await database.schema.createTable('fitness_settings', (table) => {
       table.string('id').primary()
+      table.string('actorId')
       table.integer('privacyHideRadiusMeters')
       table.json('privacyLocations')
     })
@@ -148,17 +148,25 @@ describe('snap fitness privacy radius migration', () => {
     ])
   })
 
-  it('reports unparseable rows so an operator can inspect them', async () => {
+  it('reports the ACTOR of an unusable row, not the settings-row id', async () => {
     const warn = vi.spyOn(console, 'warn')
     await database('fitness_settings').insert({
-      id: 'broken-1',
+      id: 'settings-row-1',
+      actorId: 'actor-1',
       privacyHideRadiusMeters: null,
       privacyLocations: 'not-json{'
     })
 
     await migration.up(database)
 
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('broken-1'))
+    // fitness_settings.id is an unrelated UUID; an operator pasting it into an
+    // actor lookup would find nothing.
+    const [message] = warn.mock.calls.at(-1) ?? []
+    expect(String(message)).toContain('actor-1')
+    expect(String(message)).not.toContain('settings-row-1')
+    // Such a row still falls back to the legacy home zone, so the warning must
+    // not claim the actor has no protection at all.
+    expect(String(message)).not.toMatch(/NO privacy zones/i)
   })
 
   it('is idempotent', async () => {
@@ -200,13 +208,43 @@ describe('snap fitness privacy radius migration', () => {
     expect(rows.every((row) => row.privacyHideRadiusMeters === 50)).toBe(true)
   })
 
-  it('snaps to the option set this migration shipped with', () => {
-    // Frozen on purpose. The migration duplicates the list because migrations
-    // must keep behaving the same after app code moves on — so this pins the
-    // historical snap rather than tracking FITNESS_PRIVACY_RADIUS_OPTIONS. If
-    // the app's set changes, add a NEW migration; never edit an applied one.
-    expect([0, 50, 100, 200, 500, 1000]).toEqual([
-      ...FITNESS_PRIVACY_RADIUS_OPTIONS
-    ])
-  })
+  // Pins the migration's OWN duplicated option list by exercising every
+  // boundary. Deliberately not compared against FITNESS_PRIVACY_RADIUS_OPTIONS:
+  // the migration keeps its historical behaviour on purpose, so a future option
+  // added to the app must arrive as a NEW migration rather than an edit to this
+  // applied one. A typo in the migration's array is caught here instead.
+  it.each([
+    { description: 'snaps 1 up to 50', stored: 1, expected: 50 },
+    { description: 'keeps 50 at 50', stored: 50, expected: 50 },
+    { description: 'snaps 51 up to 100', stored: 51, expected: 100 },
+    { description: 'snaps 150 up to 200', stored: 150, expected: 200 },
+    { description: 'snaps 250 up to 500', stored: 250, expected: 500 },
+    { description: 'snaps 600 up to 1000', stored: 600, expected: 1000 },
+    { description: 'keeps 1000 at 1000', stored: 1000, expected: 1000 },
+    {
+      description: 'clamps 5000 down to the 1000 maximum',
+      stored: 5000,
+      expected: 1000
+    }
+  ])(
+    '$description',
+    async ({ stored, expected }: { stored: number; expected: number }) => {
+      await database('fitness_settings').insert({
+        id: '1',
+        actorId: 'actor-1',
+        privacyHideRadiusMeters: stored,
+        privacyLocations: JSON.stringify([
+          { latitude: 1, longitude: 2, hideRadiusMeters: stored }
+        ])
+      })
+
+      await migration.up(database)
+
+      const [row] = await readRows(database)
+      expect(row.privacyHideRadiusMeters).toBe(expected)
+      expect(JSON.parse(String(row.privacyLocations))).toEqual([
+        { latitude: 1, longitude: 2, hideRadiusMeters: expected }
+      ])
+    }
+  )
 })

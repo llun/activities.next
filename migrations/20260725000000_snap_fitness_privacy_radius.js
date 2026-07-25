@@ -96,11 +96,11 @@ export const up = async function (knex) {
   await knex.transaction(async (trx) => {
     let lastId = null
     let updatedRows = 0
-    const unparseableIds = []
+    const unusableLocationActorIds = []
 
     for (;;) {
       const query = trx('fitness_settings')
-        .select('id', 'privacyLocations', 'privacyHideRadiusMeters')
+        .select('id', 'actorId', 'privacyLocations', 'privacyHideRadiusMeters')
         .orderBy('id', 'asc')
         .limit(CHUNK_SIZE)
 
@@ -123,7 +123,9 @@ export const up = async function (knex) {
 
         const locations = parseLocations(row.privacyLocations)
         if (!locations && row.privacyLocations) {
-          unparseableIds.push(row.id)
+          // Report the actor, not the settings-row UUID — the id column here
+          // is unrelated to `actors.id` and would look up nothing.
+          unusableLocationActorIds.push(row.actorId)
         }
 
         if (locations) {
@@ -152,12 +154,21 @@ export const up = async function (knex) {
       `[snap_fitness_privacy_radius] snapped ${updatedRows} fitness_settings row(s)`
     )
 
-    if (unparseableIds.length > 0) {
-      // This is the one moment every row is scanned. Such a row already reads
-      // as "no privacy zones" at runtime, so it is worth surfacing here rather
-      // than waiting for someone to open that actor's settings.
+    if (unusableLocationActorIds.length > 0) {
+      // Deliberately states only what this migration can actually see. Such a
+      // row reads as an empty location list at runtime, but that is NOT the
+      // same as "no protection": getFitnessPrivacyLocations then falls back to
+      // the legacy privacyHomeLatitude/Longitude zone, which may well still be
+      // masking the actor's home. Claiming otherwise would send an operator
+      // into an emergency for actors who are fine.
+      const sample = unusableLocationActorIds.slice(0, 20)
+      const suffix =
+        unusableLocationActorIds.length > sample.length
+          ? `, … (${unusableLocationActorIds.length - sample.length} more)`
+          : ''
+
       console.warn(
-        `[snap_fitness_privacy_radius] left ${unparseableIds.length} row(s) with unparseable privacyLocations untouched — these actors currently have NO privacy zones at runtime: ${unparseableIds.join(', ')}`
+        `[snap_fitness_privacy_radius] ${unusableLocationActorIds.length} row(s) have a privacyLocations value that is not a usable list; left untouched. These actors fall back to the legacy home zone, if they have one — worth inspecting: ${sample.join(', ')}${suffix}`
       )
     }
   })
