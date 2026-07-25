@@ -1,0 +1,26 @@
+lib/services/email/templates/emailDesign.test.ts
+  s_181a4d159922fc::t_78e2497cf57aff 123-126
+  s_181a4d159922fc::t_9f61a5244e5213 156,160-165
+  s_181a4d159922fc::t_c4878c1f96c0c2 212
+  s_181a4d159922fc::t_f0f4d4c818c300 269-276,278-320
+  s_181a4d159922fc::t_03eaa08ec262e8 136
+  s_181a4d159922fc::t_60a87f9cfef1a3 1-122,127-135,137-145,147-155,157-159,166-177,186-194,202,210-211,213-217,228,230-254,264,266-268,277,321
+  s_181a4d159922fc::t_a16cf62b6b0496 146
+  s_181a4d159922fc::t_b54e8e40e23674 178-185,195-201,203-209,218-227,229,255-263,265
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "51bdc06a534f25a5f1a861e36ec69f0e3d5f7dca",
+  "prompts": {},
+  "sessions": {
+    "s_181a4d159922fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b59141f-f9f0-4af4-8aea-39520836e6cc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
