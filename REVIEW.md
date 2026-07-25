@@ -172,9 +172,11 @@ change doesn't touch.
 - **Migration in progress.** Only the four account/security emails
   (`verifyEmail`, `changeEmail`, `resetPassword`, `actorDeleted`) are on the
   shared layout. The seven notification templates still use the old
-  `getSubject`/`getTextContent`/`getHTMLContent` trio with raw markup and
-  hardcoded `https://${config.host}` links. Apply the rules below to any template
-  a change touches; don't copy the old shape into a new one.
+  `getSubject`/`getTextContent`/`getHTMLContent` trio with raw markup, and their
+  links are wrong in two different ways: `like`/`mention`/`reply`/`reblog`
+  hardcode `https://${config.host}`, while `follow`/`followRequest` link the
+  remote `actor.id` rather than the local profile. Apply the rules below to any
+  template a change touches; don't copy the old shape into a new one.
 - Every migrated email is built by a `build<Name>Email(params): RenderedEmail`
   module in `lib/services/email/templates/`. No subject/HTML/text literals at a
   call site.

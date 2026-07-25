@@ -267,11 +267,13 @@ place instead of eleven.
 > `verifyEmail.ts`, `changeEmail.ts`, `resetPassword.ts`, `actorDeleted.ts`.
 > The seven notification templates — `follow.ts`, `followRequest.ts`, `like.ts`,
 > `mention.ts`, `reply.ts`, `reblog.ts`, `activityImport.ts` — still export the
-> old `getSubject`/`getTextContent`/`getHTMLContent` trio, write raw markup,
-> hand-maintain both media, and build links from a hardcoded
-> `https://${config.host}`. They are being migrated, not grandfathered: apply the
-> rules below to any template you touch, and do not copy the old shape into a new
-> one.
+> old `getSubject`/`getTextContent`/`getHTMLContent` trio, write raw markup, and
+> hand-maintain both media. Their links are broken in two different ways:
+> `like`/`mention`/`reply`/`reblog` build a local status URL from a hardcoded
+> `https://${config.host}`, while `follow`/`followRequest` link the **remote**
+> `actor.id` directly instead of the local profile page (`activityImport` has no
+> link at all). They are being migrated, not grandfathered: apply the rules below
+> to any template you touch, and do not copy the old shape into a new one.
 
 - **One module per email** in `lib/services/email/templates/`, exporting a single
   `build<Name>Email(params): RenderedEmail` (`{ subject, text, html }`). **Never
