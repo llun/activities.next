@@ -2169,6 +2169,15 @@ export const StatusSQLDatabaseMixin = (
       statusIdsToDelete
     )
     await deleteRowsByColumnChunks(trx, 'likes', 'statusId', statusIdsToDelete)
+    // Emoji reactions follow the status, like favourites do. A remote status
+    // that is deleted and later re-fetched under the same id would otherwise
+    // come back wearing its old reaction chips.
+    await deleteRowsByColumnChunks(
+      trx,
+      'status_reactions',
+      'statusId',
+      statusIdsToDelete
+    )
     await deleteRowsByColumnChunks(trx, 'tags', 'statusId', statusIdsToDelete)
     await deleteRowsByColumnChunks(
       trx,

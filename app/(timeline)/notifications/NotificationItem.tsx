@@ -96,7 +96,13 @@ export const NotificationItem = ({
     const name = acc.display_name || acc.username
 
     if (cfg.kind === 'status') {
-      line1 = <span className="text-muted-foreground">{cfg.verb}</span>
+      // An emoji reaction names the emoji it was made with; every other status
+      // type just states the verb.
+      const verb =
+        notification.type === 'emoji_reaction' && notification.reactionName
+          ? `reacted with ${notification.reactionName} to your post`
+          : cfg.verb
+      line1 = <span className="text-muted-foreground">{verb}</span>
       const withStatus = hasStatusActor(withAccount) ? withAccount : null
       if (withStatus) {
         statusPath = getNotificationStatusPath(withStatus.status)

@@ -29,6 +29,12 @@ describe('mastodonTypeToInternal', () => {
     expect(mastodonTypeToInternal('quoted_update')).toEqual(['quoted_update'])
   })
 
+  it('maps pleroma:emoji_reaction to emoji_reaction', () => {
+    expect(mastodonTypeToInternal('pleroma:emoji_reaction')).toEqual([
+      'emoji_reaction'
+    ])
+  })
+
   it('passes unknown types through unchanged', () => {
     expect(mastodonTypeToInternal('follow')).toEqual(['follow'])
     expect(mastodonTypeToInternal('follow_request')).toEqual(['follow_request'])
@@ -39,6 +45,12 @@ describe('mastodonTypeToInternal', () => {
 describe('internalTypeToMastodon', () => {
   it('maps quote to quote', () => {
     expect(internalTypeToMastodon('quote')).toBe('quote')
+  })
+
+  it('maps emoji_reaction to pleroma:emoji_reaction', () => {
+    expect(internalTypeToMastodon('emoji_reaction')).toBe(
+      'pleroma:emoji_reaction'
+    )
   })
 
   it('maps quoted_update to quoted_update', () => {

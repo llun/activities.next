@@ -21,6 +21,7 @@ export * from './list'
 export * from './report'
 export * from './rule'
 export * from './scheduledStatus'
+export * from './statusReaction'
 export * from './suggestion'
 
 export * from './filter/index'

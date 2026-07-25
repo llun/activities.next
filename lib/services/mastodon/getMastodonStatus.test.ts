@@ -580,6 +580,163 @@ describe('getMastodonStatus', () => {
     })
   })
 
+  describe('emoji reactions', () => {
+    const reactedStatusId = `${ACTOR1_ID}/statuses/post-2`
+    // Rollups are ordered by first-reaction time, stored with millisecond
+    // resolution — space the writes so the expected order is deterministic.
+    const tick = () => new Promise((resolve) => setTimeout(resolve, 5))
+
+    beforeAll(async () => {
+      await database.createStatusReaction({
+        statusId: reactedStatusId,
+        actorId: ACTOR2_ID,
+        name: '\u{1F525}'
+      })
+      await tick()
+      await database.createStatusReaction({
+        statusId: reactedStatusId,
+        actorId: ACTOR3_ID,
+        name: '\u{1F525}'
+      })
+      await tick()
+      await database.createStatusReaction({
+        statusId: reactedStatusId,
+        actorId: ACTOR3_ID,
+        name: 'partyparrot@remote.test',
+        url: 'https://remote.test/emoji/partyparrot.png'
+      })
+    })
+
+    it('serializes the rollups under both dialect names', async () => {
+      const status = (await database.getStatus({
+        statusId: reactedStatusId
+      })) as Status
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        status,
+        ACTOR2_ID
+      )
+
+      const expected = [
+        {
+          name: '\u{1F525}',
+          count: 2,
+          me: true,
+          url: null,
+          static_url: null
+        },
+        {
+          name: 'partyparrot@remote.test',
+          count: 1,
+          me: false,
+          url: 'https://remote.test/emoji/partyparrot.png',
+          static_url: 'https://remote.test/emoji/partyparrot.png'
+        }
+      ]
+      expect(mastodonStatus?.reactions).toEqual(expected)
+      // The two dialects come from one rollup, so they can never disagree.
+      expect(mastodonStatus?.pleroma?.emoji_reactions).toEqual(
+        mastodonStatus?.reactions
+      )
+    })
+
+    it('never lets a reaction move the favourite counters', async () => {
+      const status = (await database.getStatus({
+        statusId: reactedStatusId,
+        currentActorId: ACTOR2_ID
+      })) as Status
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        status,
+        ACTOR2_ID
+      )
+
+      expect(mastodonStatus?.favourites_count).toBe(0)
+      expect(mastodonStatus?.favourited).toBeFalse()
+    })
+
+    it('reports me false for a viewer who has not reacted', async () => {
+      const status = (await database.getStatus({
+        statusId: reactedStatusId
+      })) as Status
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        status,
+        ACTOR1_ID
+      )
+
+      expect(
+        mastodonStatus?.reactions?.every((reaction) => reaction.me === false)
+      ).toBeTrue()
+    })
+
+    it('serializes empty arrays for a status without reactions', async () => {
+      const status = (await database.getStatus({
+        statusId: `${ACTOR1_ID}/statuses/post-1`
+      })) as Status
+      const mastodonStatus = await getMastodonStatus(database, status)
+
+      expect(mastodonStatus?.reactions).toEqual([])
+      expect(mastodonStatus?.pleroma?.emoji_reactions).toEqual([])
+    })
+
+    it('resolves the whole page with one grouped rollup query', async () => {
+      const firstStatus = (await database.getStatus({
+        statusId: reactedStatusId
+      })) as Status
+      const secondStatus = (await database.getStatus({
+        statusId: `${ACTOR1_ID}/statuses/post-1`
+      })) as Status
+      const getStatusReactionRollups = vi.spyOn(
+        database,
+        'getStatusReactionRollups'
+      )
+
+      const mastodonStatuses = await getMastodonStatuses(
+        database,
+        [firstStatus, secondStatus],
+        ACTOR2_ID
+      )
+
+      expect(getStatusReactionRollups).toHaveBeenCalledTimes(1)
+      expect(getStatusReactionRollups).toHaveBeenCalledWith({
+        statusIds: [firstStatus.id, secondStatus.id],
+        currentActorId: ACTOR2_ID
+      })
+      expect(mastodonStatuses[0].reactions).toHaveLength(2)
+      expect(mastodonStatuses[1].reactions).toEqual([])
+    })
+
+    it('surfaces a boosted status reactions on the reblog, not the wrapper', async () => {
+      // announce-1 boosts ACTOR1's post-3, so the reaction has to land there for
+      // the assertion below to distinguish wrapper from reblog.
+      await database.createStatusReaction({
+        statusId: `${ACTOR1_ID}/statuses/post-3`,
+        actorId: ACTOR2_ID,
+        name: '\u{1F44F}'
+      })
+      const announceStatus = (await database.getStatus({
+        statusId: `${ACTOR2_ID}/statuses/announce-1`
+      })) as Status
+      const mastodonStatus = await getMastodonStatus(database, announceStatus)
+
+      expect(mastodonStatus?.reactions).toEqual([])
+      expect(mastodonStatus?.pleroma?.emoji_reactions).toEqual([])
+      expect(mastodonStatus?.reblog?.reactions).toEqual([
+        {
+          name: '\u{1F44F}',
+          count: 1,
+          me: false,
+          url: null,
+          static_url: null
+        }
+      ])
+      expect(mastodonStatus?.reblog?.pleroma?.emoji_reactions).toEqual(
+        mastodonStatus?.reblog?.reactions
+      )
+    })
+  })
+
   it('returns mastodon status from status model', async () => {
     const status = (await database.getStatus({
       statusId: `${ACTOR1_ID}/statuses/post-1`

@@ -40,6 +40,10 @@ export const mastodonTypeToInternal = (type: string): NotificationType[] => {
       return [NotificationType.enum.quote]
     case 'quoted_update':
       return [NotificationType.enum.quoted_update]
+    // Pleroma dialect (there is no core Mastodon emoji-reaction type), so
+    // clients can filter reactions with `types[]`/`exclude_types[]`.
+    case 'pleroma:emoji_reaction':
+      return [NotificationType.enum.emoji_reaction]
     default:
       return [type as NotificationType]
   }
@@ -68,6 +72,8 @@ export type MastodonNotificationType =
   | 'collection_update'
   | 'admin.sign_up'
   | 'admin.report'
+  // Ecosystem dialect (Pleroma/Akkoma), not core Mastodon.
+  | 'pleroma:emoji_reaction'
 
 /**
  * Maps this codebase's internal NotificationType to the Mastodon entity type.
@@ -99,6 +105,8 @@ export const internalTypeToMastodon = (
       return 'added_to_collection'
     case 'collection_update':
       return 'collection_update'
+    case 'emoji_reaction':
+      return 'pleroma:emoji_reaction'
     default:
       return 'mention'
   }

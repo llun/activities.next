@@ -8,6 +8,7 @@ import {
   Quote,
   Repeat2,
   Reply,
+  Smile,
   UserPlus,
   Users
 } from 'lucide-react'
@@ -95,6 +96,13 @@ export const NOTIFICATION_TYPE_CONFIG: Record<
     icon: PencilLine,
     badgeClassName: PRIMARY_BADGE,
     verb: 'edited a post you quoted',
+    kind: 'status'
+  },
+  emoji_reaction: {
+    icon: Smile,
+    badgeClassName:
+      'bg-[hsl(38_92%_50%/0.12)] text-[hsl(30_80%_38%)] dark:bg-[hsl(38_92%_50%/0.16)] dark:text-[hsl(38_90%_65%)]',
+    verb: 'reacted to your post',
     kind: 'status'
   },
   activity_import: {

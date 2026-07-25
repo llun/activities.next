@@ -79,6 +79,13 @@ describe('getMastodonNotification', () => {
         type: NotificationType.enum.mention,
         statusId,
         expected: 'mention'
+      },
+      {
+        description:
+          'maps emoji_reaction to the Pleroma pleroma:emoji_reaction type',
+        type: NotificationType.enum.emoji_reaction,
+        statusId,
+        expected: 'pleroma:emoji_reaction'
       }
     ])(
       '$description',
@@ -99,6 +106,42 @@ describe('getMastodonNotification', () => {
         expect(mastodonNotification?.type).toBe(expected)
       }
     )
+  })
+
+  describe('emoji reactions', () => {
+    it('surfaces the reaction emoji on the notification', async () => {
+      const notification = await database.createNotification({
+        actorId: actor1Id,
+        type: NotificationType.enum.emoji_reaction,
+        sourceActorId: actor2Id,
+        statusId,
+        reactionName: '\u{1F525}'
+      })
+
+      const mastodonNotification = await getMastodonNotification(
+        database,
+        notification
+      )
+
+      expect(mastodonNotification?.type).toBe('pleroma:emoji_reaction')
+      expect(mastodonNotification?.emoji).toBe('\u{1F525}')
+    })
+
+    it('omits emoji for every other notification type', async () => {
+      const notification = await database.createNotification({
+        actorId: actor1Id,
+        type: NotificationType.enum.like,
+        sourceActorId: actor2Id,
+        statusId
+      })
+
+      const mastodonNotification = await getMastodonNotification(
+        database,
+        notification
+      )
+
+      expect(mastodonNotification).not.toHaveProperty('emoji')
+    })
   })
 
   describe('group key', () => {
