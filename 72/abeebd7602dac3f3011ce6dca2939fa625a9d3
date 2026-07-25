@@ -1,0 +1,21 @@
+lib/services/fitness-files/privacyRadiusMigration.test.ts
+  s_f1060d736d3617::t_288a5c9400603a 1-57
+migrations/20260725000000_snap_fitness_privacy_radius.js
+  s_f1060d736d3617::t_5cd73a87c873c6 1-135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "72abeebd7602dac3f3011ce6dca2939fa625a9d3",
+  "prompts": {},
+  "sessions": {
+    "s_f1060d736d3617": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "176afecc-def0-4231-84bd-81dc9f91fa81",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
