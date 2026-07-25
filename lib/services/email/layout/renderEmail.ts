@@ -36,9 +36,13 @@ export interface RenderEmailOptions {
   footer: EmailFooter
 }
 
-// Padding for the inbox preview strip. Without it a client backfills the
-// snippet with whatever body copy comes next — usually the wordmark and host.
-const PREHEADER_PADDING = '&zwnj;&nbsp;'.repeat(8)
+// Padding for the inbox preview strip. Without enough of it a client backfills
+// the snippet with whatever body copy comes next — here the wordmark and host,
+// so the preview would read "…account on example.com. Activities example.com
+// Verify your email…". Gmail's list snippet runs to ~100 characters and
+// Outlook.com's to ~120, and the longest preheader below is 89, so the padding
+// has to cover the remainder rather than just trail it.
+const PREHEADER_PADDING = '&zwnj;&nbsp;'.repeat(30)
 
 const footerLinkStyle = `color:${TEXT_CHROME};text-decoration:underline;`
 
@@ -52,7 +56,10 @@ const renderHeader = (baseUrl: string, host: string): string => {
     // Explicit dimensions and display:block keep the three-column header intact
     // when the client blocks remote images, which most do by default. The
     // wordmark beside it is real text, so the header still reads without it.
-    `<td width="28" style="width:28px;"><img src="${escapeHtml(logoUrl)}" width="28" height="28" alt="Activities" style="display:block;width:28px;height:28px;border-radius:${RADIUS_FULL};border:0;"></td>` +
+    // alt is empty on purpose: the wordmark beside it says "Activities" in real
+    // text, so alt text here would make a client with images off read
+    // "Activities Activities example.com".
+    `<td width="28" style="width:28px;"><img src="${escapeHtml(logoUrl)}" width="28" height="28" alt="" style="display:block;width:28px;height:28px;border-radius:${RADIUS_FULL};border:0;"></td>` +
     `<td style="padding-left:8px;font-family:${FONT_STACK};font-size:20px;font-weight:600;letter-spacing:-0.01em;color:${TEXT_STRONG};">Activities</td>` +
     `<td align="right" style="font-family:${FONT_STACK};font-size:13px;color:${TEXT_CHROME};">${escapeHtml(host)}</td>` +
     `</tr></table>`
@@ -118,8 +125,16 @@ export const renderEmail = ({
     `<meta name="viewport" content="width=device-width,initial-scale=1">\n` +
     `<meta name="color-scheme" content="light dark">\n` +
     `<meta name="supported-color-schemes" content="light dark">\n` +
+    // Apple Mail and iOS Mail data detectors would otherwise auto-link the
+    // recipient address in the footer and the "expires in 24 hours" note,
+    // rendering them as blue underlined links inside muted grey copy.
+    `<meta name="format-detection" content="telephone=no,date=no,address=no,email=no">\n` +
+    `<meta name="x-apple-disable-message-reformatting">\n` +
     `<title>${escapeHtml(subject)}</title>\n` +
-    `<!--[if mso]><style>table,td,a,p,div{font-family:Arial,Helvetica,sans-serif !important;}</style><![endif]-->\n` +
+    // h1 has to be in this list too — without it Outlook's Word engine leaves
+    // the headline on the inline stack (resolving to Segoe UI) while every
+    // other element becomes Arial, so each email mixes two typefaces.
+    `<!--[if mso]><style>table,td,a,p,div,h1,strong{font-family:Arial,Helvetica,sans-serif !important;}</style><![endif]-->\n` +
     `</head>\n` +
     `<body style="margin:0;padding:0;background-color:${PAGE_BACKGROUND};" bgcolor="${PAGE_BACKGROUND}">\n` +
     // mso-hide:all is required on top of display:none — Outlook honours only
@@ -127,9 +142,14 @@ export const renderEmail = ({
     `<span style="display:none;font-size:1px;color:${PAGE_BACKGROUND};line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">${escapeHtml(preheader)}${PREHEADER_PADDING}</span>\n` +
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${PAGE_BACKGROUND}" style="background-color:${PAGE_BACKGROUND};">\n` +
     `<tr><td align="center" style="padding:32px 16px;">\n` +
-    // table-layout:fixed stops a long unbreakable verification URL from
-    // stretching the column past 600px in clients that ignore word-break.
-    `<table role="presentation" width="${CONTENT_WIDTH}" cellpadding="0" cellspacing="0" border="0" style="width:${CONTENT_WIDTH}px;max-width:${CONTENT_WIDTH}px;table-layout:fixed;">\n` +
+    // width:100% (not a fixed 600px) is what lets the column shrink on a phone.
+    // The `width` ATTRIBUTE is what Outlook's Word engine reads, so it still
+    // gets a 600px table; every other client honours the style and caps at
+    // max-width. A fixed style width combined with the width=device-width meta
+    // above is the classic mobile-overflow bug: the meta suppresses iOS Mail's
+    // shrink-to-fit, so a rigid 600px table just overflows a 375pt screen.
+    // table-layout:fixed keeps a long unbreakable URL from stretching it.
+    `<table role="presentation" width="${CONTENT_WIDTH}" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:${CONTENT_WIDTH}px;table-layout:fixed;">\n` +
     `<tr><td style="padding:0 8px 16px;">${renderHeader(baseUrl, host)}</td></tr>\n` +
     `<tr><td bgcolor="${CARD_BACKGROUND}" style="background-color:${CARD_BACKGROUND};border:1px solid ${BORDER};border-radius:${RADIUS_CARD};padding:28px 28px 26px;">${body}</td></tr>\n` +
     `<tr><td style="padding:20px 8px 0;font-family:${FONT_STACK};font-size:12px;line-height:1.7;color:${TEXT_CHROME};">${renderFooterHtml(footer, baseUrl, host)}</td></tr>\n` +

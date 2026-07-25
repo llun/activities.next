@@ -51,12 +51,42 @@ describe('renderEmail', () => {
     expect(html).toContain('display:none')
     expect(html).toContain('mso-hide:all')
     expect(html).toContain('Choose a new password.')
-    expect(html).toContain('&zwnj;&nbsp;'.repeat(8))
+    // Enough padding to outrun Gmail's ~100-character snippet, so the preview
+    // cannot backfill with the wordmark and host that follow.
+    expect(html).toContain('&zwnj;&nbsp;'.repeat(30))
   })
 
   it('points the logo at an absolute url on the configured host', () => {
     expect(render().html).toContain(
-      `<img src="${BASE_URL}/logo-nav.png" width="28" height="28" alt="Activities"`
+      `<img src="${BASE_URL}/logo-nav.png" width="28" height="28" alt=""`
+    )
+  })
+
+  it('leaves the logo alt empty so it does not duplicate the wordmark', () => {
+    const { html } = render()
+    expect(html).not.toContain('alt="Activities"')
+    expect(html).toContain('>Activities</td>')
+  })
+
+  it('lets the content column shrink on a narrow screen', () => {
+    const { html } = render()
+    // The width ATTRIBUTE is for Outlook; the style is what every other client
+    // uses, and a fixed width there would overflow a phone.
+    expect(html).toContain('width="600"')
+    expect(html).toContain(
+      'style="width:100%;max-width:600px;table-layout:fixed;"'
+    )
+  })
+
+  it('suppresses apple mail data detectors', () => {
+    const { html } = render()
+    expect(html).toContain('name="format-detection"')
+    expect(html).toContain('name="x-apple-disable-message-reformatting"')
+  })
+
+  it('forces arial on headings too in outlook', () => {
+    expect(render().html).toContain(
+      '<!--[if mso]><style>table,td,a,p,div,h1,strong{font-family:Arial'
     )
   })
 
