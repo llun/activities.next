@@ -96,7 +96,7 @@ export const paragraph = (
   content: InlineContent,
   options: { tight?: boolean } = {}
 ): EmailBlock => ({
-  html: `<p style="margin:0 0 ${options.tight ? '4px' : '20px'};font-family:${FONT_STACK};font-size:14px;line-height:1.65;color:${TEXT_BODY};">${renderInlineHtml(content)}</p>`,
+  html: `<p style="margin:0 0 ${options.tight ? '4px' : '20px'};font-family:${FONT_STACK};font-size:14px;line-height:1.65;color:${TEXT_BODY};word-wrap:break-word;">${renderInlineHtml(content)}</p>`,
   text: renderInlineText(content)
 })
 
@@ -121,7 +121,11 @@ export const button = (options: { label: string; url: string }): EmailBlock => {
   return {
     html:
       `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>` +
-      `<td align="center" bgcolor="${BUTTON_BACKGROUND}" style="background-color:${BUTTON_BACKGROUND};border-radius:${RADIUS_BUTTON};">` +
+      // mso-padding-alt gives Outlook the padding it otherwise loses: the Word
+      // engine ignores `display:block`, so the anchor stays inline and its
+      // vertical padding adds no height to the line box — leaving a 20px-tall
+      // orange strip instead of a 40px button.
+      `<td align="center" bgcolor="${BUTTON_BACKGROUND}" style="background-color:${BUTTON_BACKGROUND};border-radius:${RADIUS_BUTTON};mso-padding-alt:10px 20px;">` +
       `<a href="${escapeHtml(url)}" style="display:block;padding:10px 20px;font-family:${FONT_STACK};font-size:14px;font-weight:500;line-height:20px;color:${BUTTON_TEXT};text-decoration:none;border-radius:${RADIUS_BUTTON};">${escapeHtml(options.label)}</a>` +
       `</td></tr></table>`,
     text: `${options.label}: ${url}`
@@ -139,7 +143,12 @@ export const fallbackUrl = (url: string): EmailBlock => {
   return {
     html:
       `<p style="margin:16px 0 0;font-family:${FONT_STACK};font-size:12px;line-height:1.6;color:${TEXT_MUTED};">Or open this link in your browser:<br>` +
-      `<a href="${escapeHtml(safe)}" style="color:${TEXT_MUTED};text-decoration:underline;word-break:break-all;">${escapeHtml(safe)}</a></p>`,
+      // word-wrap is the Microsoft-origin property and is the only one Outlook's
+      // Word engine honours; word-break covers everything else. Both are needed:
+      // a real verification link is ~98 characters (the codes are 43-char
+      // base64url), which overflows the 544px card interior as one unbreakable
+      // token.
+      `<a href="${escapeHtml(safe)}" style="color:${TEXT_MUTED};text-decoration:underline;word-break:break-all;word-wrap:break-word;">${escapeHtml(safe)}</a></p>`,
     text: ''
   }
 }
@@ -149,6 +158,6 @@ export const fallbackUrl = (url: string): EmailBlock => {
  * expiry, who to contact. Separated from the body by a hairline rule.
  */
 export const note = (content: InlineContent): EmailBlock => ({
-  html: `<p style="margin:20px 0 0;padding-top:16px;border-top:1px solid ${BORDER_SUBTLE};font-family:${FONT_STACK};font-size:13px;line-height:1.6;color:${TEXT_MUTED};">${renderInlineHtml(content)}</p>`,
+  html: `<p style="margin:20px 0 0;padding-top:16px;border-top:1px solid ${BORDER_SUBTLE};font-family:${FONT_STACK};font-size:13px;line-height:1.6;color:${TEXT_MUTED};word-wrap:break-word;">${renderInlineHtml(content)}</p>`,
   text: renderInlineText(content)
 })
