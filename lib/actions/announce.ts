@@ -2,11 +2,7 @@ import crypto from 'crypto'
 
 import { Database } from '@/lib/database/types'
 import { SEND_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
-import {
-  getHTMLContent,
-  getSubject,
-  getTextContent
-} from '@/lib/services/email/templates/reblog'
+import { buildBoostEmail } from '@/lib/services/email/templates/reblog'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { shouldCreateNotification } from '@/lib/services/notifications/shouldNotify'
@@ -127,9 +123,11 @@ export const userAnnounce = async ({
                   emailContent: targetActor?.account
                     ? {
                         recipientEmail: targetActor.account.email,
-                        subject: getSubject(currentActor),
-                        text: getTextContent(currentActor, editableStatus),
-                        html: getHTMLContent(currentActor, editableStatus)
+                        ...buildBoostEmail({
+                          recipient: targetActor,
+                          actor: currentActor,
+                          status: editableStatus
+                        })
                       }
                     : undefined
                 }

@@ -6,16 +6,8 @@ import {
   SEND_NOTE_JOB_NAME,
   SEND_QUOTE_REQUEST_JOB_NAME
 } from '@/lib/jobs/names'
-import {
-  getHTMLContent as getMentionHTMLContent,
-  getSubject as getMentionSubject,
-  getTextContent as getMentionTextContent
-} from '@/lib/services/email/templates/mention'
-import {
-  getHTMLContent as getReplyHTMLContent,
-  getSubject as getReplySubject,
-  getTextContent as getReplyTextContent
-} from '@/lib/services/email/templates/reply'
+import { buildMentionEmail } from '@/lib/services/email/templates/mention'
+import { buildReplyEmail } from '@/lib/services/email/templates/reply'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
@@ -702,9 +694,11 @@ export const createNoteFromUserInput = async ({
               emailContent: targetActor?.account
                 ? {
                     recipientEmail: targetActor.account.email,
-                    subject: getReplySubject(currentActor),
-                    text: getReplyTextContent(status),
-                    html: getReplyHTMLContent(status)
+                    ...buildReplyEmail({
+                      recipient: targetActor,
+                      actor: currentActor,
+                      status
+                    })
                   }
                 : undefined
             }
@@ -740,9 +734,11 @@ export const createNoteFromUserInput = async ({
                 emailContent: targetActor?.account
                   ? {
                       recipientEmail: targetActor.account.email,
-                      subject: getMentionSubject(currentActor),
-                      text: getMentionTextContent(status),
-                      html: getMentionHTMLContent(status)
+                      ...buildMentionEmail({
+                        recipient: targetActor,
+                        actor: currentActor,
+                        status
+                      })
                     }
                   : undefined
               }

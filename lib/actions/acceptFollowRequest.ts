@@ -1,11 +1,7 @@
 import { AcceptFollow } from '@/lib/activities/acceptFollow'
 import { Database } from '@/lib/database/types'
 import { SEND_UNDO_FOLLOW_JOB_NAME } from '@/lib/jobs/names'
-import {
-  getHTMLContent,
-  getSubject,
-  getTextContent
-} from '@/lib/services/email/templates/follow'
+import { buildFollowEmail } from '@/lib/services/email/templates/follow'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
 import { NotificationType } from '@/lib/types/database/operations'
@@ -80,9 +76,7 @@ export const acceptFollowRequest = async ({
           type: NotificationType.enum.follow,
           emailContent: {
             recipientEmail: targetActor.account.email,
-            subject: getSubject(actor),
-            text: getTextContent(actor),
-            html: getHTMLContent(actor)
+            ...buildFollowEmail({ recipient: targetActor, actor })
           }
         }
       ]
