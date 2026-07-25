@@ -41,9 +41,14 @@ describe('renderEmail', () => {
     )
   })
 
-  it('renders a single 600px content column', () => {
+  it('pins the column to 600px for outlook with a ghost table', () => {
     const { html } = render()
-    expect(html.match(/width="600"/g)).toHaveLength(1)
+    // Word ignores max-width, so without this the fluid width would let the
+    // card fill the whole reading pane in Outlook.
+    expect(html).toContain(
+      '<!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;"><tr><td><![endif]-->'
+    )
+    expect(html).toContain('<!--[if mso]></td></tr></table><![endif]-->')
   })
 
   it('hides the preheader from the rendered body in outlook too', () => {
@@ -70,9 +75,9 @@ describe('renderEmail', () => {
 
   it('lets the content column shrink on a narrow screen', () => {
     const { html } = render()
-    // The width ATTRIBUTE is for Outlook; the style is what every other client
-    // uses, and a fixed width there would overflow a phone.
-    expect(html).toContain('width="600"')
+    // A fixed style width would overflow a phone, because the
+    // width=device-width meta suppresses iOS Mail's shrink-to-fit. Outlook is
+    // held to 600px by the ghost table instead.
     expect(html).toContain(
       'style="width:100%;max-width:600px;table-layout:fixed;"'
     )
@@ -122,7 +127,6 @@ describe('renderEmail', () => {
     const { html, text } = render({ blocks: [] })
     expect(html.startsWith('<!doctype html>')).toBe(true)
     expect(html).toContain('</html>')
-    expect(html.match(/width="600"/g)).toHaveLength(1)
     // The footer is not a block, so it survives an empty card.
     expect(text).toContain('This email was sent to anna@example.com')
   })

@@ -142,18 +142,26 @@ export const renderEmail = ({
     `<span style="display:none;font-size:1px;color:${PAGE_BACKGROUND};line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">${escapeHtml(preheader)}${PREHEADER_PADDING}</span>\n` +
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${PAGE_BACKGROUND}" style="background-color:${PAGE_BACKGROUND};">\n` +
     `<tr><td align="center" style="padding:32px 16px;">\n` +
-    // width:100% (not a fixed 600px) is what lets the column shrink on a phone.
-    // The `width` ATTRIBUTE is what Outlook's Word engine reads, so it still
-    // gets a 600px table; every other client honours the style and caps at
-    // max-width. A fixed style width combined with the width=device-width meta
-    // above is the classic mobile-overflow bug: the meta suppresses iOS Mail's
-    // shrink-to-fit, so a rigid 600px table just overflows a 375pt screen.
-    // table-layout:fixed keeps a long unbreakable URL from stretching it.
+    // width:100% (not a fixed 600px) is what lets the column shrink on a phone:
+    // a rigid width combined with the width=device-width meta above is the
+    // classic mobile-overflow bug, because that meta is exactly what suppresses
+    // iOS Mail's shrink-to-fit. table-layout:fixed keeps a long unbreakable URL
+    // from stretching it.
+    //
+    // Outlook's Word engine does not support max-width, so on its own the
+    // width:100% would let the card fill the whole reading pane there. The MSO
+    // ghost table below pins it to 600px for Outlook only — every other client
+    // sees a comment. Relying on the width ATTRIBUTE to beat the inline style
+    // instead would be a guess: in standards engines the style wins, which is
+    // precisely why the column can shrink at all.
+    `<!--[if mso]><table role="presentation" width="${CONTENT_WIDTH}" cellpadding="0" cellspacing="0" border="0" style="width:${CONTENT_WIDTH}px;"><tr><td><![endif]-->\n` +
     `<table role="presentation" width="${CONTENT_WIDTH}" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:${CONTENT_WIDTH}px;table-layout:fixed;">\n` +
     `<tr><td style="padding:0 8px 16px;">${renderHeader(baseUrl, host)}</td></tr>\n` +
     `<tr><td bgcolor="${CARD_BACKGROUND}" style="background-color:${CARD_BACKGROUND};border:1px solid ${BORDER};border-radius:${RADIUS_CARD};padding:28px 28px 26px;">${body}</td></tr>\n` +
     `<tr><td style="padding:20px 8px 0;font-family:${FONT_STACK};font-size:12px;line-height:1.7;color:${TEXT_CHROME};">${renderFooterHtml(footer, baseUrl, host)}</td></tr>\n` +
-    `</table>\n</td></tr>\n</table>\n</body>\n</html>\n`
+    `</table>\n` +
+    `<!--[if mso]></td></tr></table><![endif]-->\n` +
+    `</td></tr>\n</table>\n</body>\n</html>\n`
 
   const text = [
     ...blocks.map((block) => block.text).filter(Boolean),
