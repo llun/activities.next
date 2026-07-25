@@ -171,6 +171,12 @@ change doesn't touch.
 
 - TypeScript + React, 2-space indent; Prettier (no semicolons, single quotes,
   import sorting) is clean. Unused vars are `_`-prefixed.
+- No raw NUL bytes in source — write `\0` (or a printable separator) instead.
+  A raw one is legal in a string and passes prettier, ESLint, build and tests,
+  but makes git treat the file as **binary**: it stops diffing (GitHub shows
+  "Binary file not shown"), `grep` skips it, and blame/merge break. Guarded by
+  `lib/sourceControlCharacters.test.ts`; a diff line reading
+  `Bin 0 -> N bytes` for a `.ts` file is the symptom.
 - Absolute imports (`@/lib/...`) for anything outside the current directory;
   same-directory `./` only, no `../`. The same rule applies to `vi.mock(...)`
   paths.
