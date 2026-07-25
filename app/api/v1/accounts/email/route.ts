@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
 import { sendMail } from '@/lib/services/email'
+import { buildChangeEmail } from '@/lib/services/email/templates/changeEmail'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -73,20 +74,15 @@ export const POST = traceApiRoute(
       const config = getConfig()
       if (config.email) {
         try {
+          const email = buildChangeEmail({
+            recipientEmail: newEmail,
+            emailChangeCode
+          })
           await sendMail({
             from: config.email.serviceFromAddress,
             to: [newEmail],
-            subject: 'Verify your new email address',
-            content: {
-              text: `You requested to change your email address. Please verify your new email by opening this link: https://${config.host}/account/verify-email?code=${emailChangeCode}`,
-              html: `
-                <p>You requested to change your email address.</p>
-                <p>Please verify your new email by clicking the link below:</p>
-                <p><a href="https://${config.host}/account/verify-email?code=${emailChangeCode}">Verify Email Address</a></p>
-                <p>If you didn't request this change, you can safely ignore this email.</p>
-                <p>This link will expire in 24 hours.</p>
-              `
-            }
+            subject: email.subject,
+            content: { text: email.text, html: email.html }
           })
         } catch (error) {
           logger.error({

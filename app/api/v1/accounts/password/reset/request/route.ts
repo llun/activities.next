@@ -6,6 +6,7 @@ import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { hashPasswordResetCode } from '@/lib/services/auth/passwordResetCode'
 import { sendMail } from '@/lib/services/email'
+import { buildResetPasswordEmail } from '@/lib/services/email/templates/resetPassword'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -105,20 +106,15 @@ export const POST = traceApiRoute(
         }
 
         try {
+          const message = buildResetPasswordEmail({
+            recipientEmail: email,
+            passwordResetCode
+          })
           await sendMail({
             from: config.email.serviceFromAddress,
             to: [email],
-            subject: 'Reset your password',
-            content: {
-              text: `You requested a password reset. Open this link to continue: https://${config.host}/auth/reset-password?code=${passwordResetCode}`,
-              html: `
-                <p>You requested a password reset.</p>
-                <p>Open the link below to choose a new password:</p>
-                <p><a href="https://${config.host}/auth/reset-password?code=${passwordResetCode}">Reset Password</a></p>
-                <p>If you did not request this, you can safely ignore this email.</p>
-                <p>This link expires in 24 hours.</p>
-              `
-            }
+            subject: message.subject,
+            content: { text: message.text, html: message.html }
           })
         } catch (_error) {
           logger.error({ email }, 'Failed to send password reset email')

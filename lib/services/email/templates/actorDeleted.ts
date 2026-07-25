@@ -1,22 +1,53 @@
 import { getConfig } from '@/lib/config'
-import { Actor } from '@/lib/types/domain/actor'
+import { headline, note, paragraph } from '@/lib/services/email/layout/blocks'
+import { renderEmail } from '@/lib/services/email/layout/renderEmail'
+import { RenderedEmail } from '@/lib/services/email/types'
+import { ActorProfile, getMention } from '@/lib/types/domain/actor'
 
-export const getSubject = (actor: Actor) =>
-  `Your actor @${actor.username}@${actor.domain} has been deleted from ${getConfig().host}`
+export interface ActorDeletedParams {
+  /** The actor that was removed. */
+  recipient: ActorProfile
+  recipientEmail: string
+  /** Instance contact address, if the admin has configured one. */
+  contactEmail?: string
+}
 
-export const getTextContent = (actor: Actor) =>
-  `
-Your actor @${actor.username}@${actor.domain} has been successfully deleted.
+/**
+ * Deletion receipt. The only email with no call to action: there is nothing
+ * left to open, so the card closes on who to contact if this was unexpected.
+ */
+export const buildActorDeletedEmail = ({
+  recipient,
+  recipientEmail,
+  contactEmail
+}: ActorDeletedParams): RenderedEmail => {
+  const { host } = getConfig()
+  const handle = getMention(recipient, true)
 
-All data associated with this actor, including posts, follows, and media, has been permanently removed from ${getConfig().host}.
-
-If you did not request this deletion, please contact us immediately.
-`.trim()
-
-export const getHTMLContent = (actor: Actor) =>
-  `
-<h2>Actor Deletion Complete</h2>
-<p>Your actor <strong>@${actor.username}@${actor.domain}</strong> has been successfully deleted.</p>
-<p>All data associated with this actor, including posts, follows, and media, has been permanently removed from ${getConfig().host}.</p>
-<p>If you did not request this deletion, please contact us immediately.</p>
-`.trim()
+  return renderEmail({
+    subject: `Your actor ${handle} has been deleted from ${host}`,
+    preheader: `Your actor ${handle} and all associated data have been permanently removed.`,
+    blocks: [
+      headline('Your actor was deleted'),
+      paragraph([
+        'Your actor ',
+        { strong: handle },
+        ' has been successfully deleted.'
+      ]),
+      paragraph(
+        `All data associated with this actor, including posts, follows, and media, has been permanently removed from ${host}.`,
+        { tight: true }
+      ),
+      note(
+        contactEmail
+          ? [
+              'If you did not request this deletion, contact your server admin immediately at ',
+              { label: contactEmail, href: `mailto:${contactEmail}` },
+              '.'
+            ]
+          : 'If you did not request this deletion, contact your server admin immediately.'
+      )
+    ],
+    footer: { kind: 'account', recipientEmail }
+  })
+}
