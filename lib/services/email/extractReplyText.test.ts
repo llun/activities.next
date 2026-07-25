@@ -75,6 +75,40 @@ describe('extractReplyText', () => {
     expect(extractReplyText({ text })).toBe('My answer.')
   })
 
+  // Regression: Outlook puts an unquoted divider + header block BETWEEN the
+  // reply and the quoted original. The sentinel cut alone left that block
+  // behind, and because it carries no `>` markers the tail cleanup did not
+  // remove it either — so the headers were posted as part of the status.
+  it('drops an unquoted Outlook header block that sits above the sentinel', () => {
+    const text = [
+      'My actual reply.',
+      '',
+      '________________________________',
+      'From: Activities <noreply@example.tld>',
+      'Sent: Saturday 25 July 2026 21:00',
+      'Subject: someone mentioned you',
+      '',
+      REPLY_SENTINEL
+    ].join('\n')
+
+    expect(extractReplyText({ text })).toBe('My actual reply.')
+  })
+
+  it('cuts at the sentinel even when the client hard-wrapped it', () => {
+    // The sentinel no longer matches as one string, so the attribution
+    // fallback has to carry the cut.
+    const text = [
+      'My actual reply.',
+      '',
+      'On Sat, Jul 25, 2026 at 9:00 PM Someone <someone@example.tld> wrote:',
+      '> --- Reply above this line to',
+      '> respond ---',
+      '> @someone mentioned you in a post.'
+    ].join('\n')
+
+    expect(extractReplyText({ text })).toBe('My actual reply.')
+  })
+
   it('strips a trailing signature block', () => {
     const text = [
       'Done.',

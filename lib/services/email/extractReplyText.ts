@@ -46,6 +46,23 @@ const cutAtSentinel = (value: string) => {
   return index === -1 ? null : value.slice(0, index)
 }
 
+// Cut at an "-----Original Message-----" / "---- Forwarded message ----" rule
+// or Outlook's underscore divider, wherever it appears.
+//
+// Applied even when the sentinel was found, because Outlook puts an unquoted
+// header block (divider, From:, Sent:, Subject:) BETWEEN the reply and the
+// quoted original — so the sentinel cut alone leaves that block behind, and it
+// is not `>`-quoted, so the tail cleanup does not remove it either. These
+// dividers are unambiguous: they do not occur in ordinary prose, unlike the
+// "…wrote:" heuristic below.
+const cutAtDivider = (lines: string[]) => {
+  const index = lines.findIndex((line) => {
+    const value = cleaned(line)
+    return ORIGINAL_MESSAGE.test(value) || OUTLOOK_DIVIDER.test(value)
+  })
+  return index === -1 ? lines : lines.slice(0, index)
+}
+
 // Fallback for a message with no sentinel (a forward, or a client that
 // rewrapped the body): cut at the first attribution header anywhere in the
 // text. Only used when the sentinel is missing — a precise cut must never be
@@ -54,9 +71,6 @@ const cutAtSentinel = (value: string) => {
 const cutAtAttribution = (lines: string[]) => {
   for (let index = 0; index < lines.length; index += 1) {
     const line = cleaned(lines[index])
-    if (ORIGINAL_MESSAGE.test(line) || OUTLOOK_DIVIDER.test(line)) {
-      return lines.slice(0, index)
-    }
     if (!ATTRIBUTION_OPENER.test(line)) continue
 
     for (let span = 0; span < ATTRIBUTION_MAX_LINES; span += 1) {
@@ -140,7 +154,7 @@ export const extractReplyText = ({ text, html }: ReplyBodyInput): string => {
   if (plain.trim().length === 0) return ''
 
   const sentinelCut = cutAtSentinel(plain)
-  let lines = (sentinelCut ?? plain).split('\n')
+  let lines = cutAtDivider((sentinelCut ?? plain).split('\n'))
 
   // Without a precise cut point, fall back to finding the quoted original.
   if (sentinelCut === null) lines = cutAtAttribution(lines)
