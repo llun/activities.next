@@ -223,38 +223,39 @@ describe('reactStatus', () => {
     ).toMatchObject({ ok: true, changed: false })
   })
 
-  it('does not notify or federate when nothing changed', async () => {
-    const statusId = `${ACTOR2_ID}/statuses/post-2`
+  it('does not federate again when nothing changed', async () => {
+    // Must use a REMOTE-authored status: on a local self-authored one the
+    // federation and notification branches are both skipped anyway, so the
+    // assertions would hold even with the `changed` guard removed.
+    const remoteStatusId = `${EXTERNAL_ACTOR1}/statuses/unchanged-1`
+    await database.createNote({
+      id: remoteStatusId,
+      url: remoteStatusId,
+      actorId: EXTERNAL_ACTOR1,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      text: 'Remote post'
+    })
+
     const first = await reactStatus({
       database,
       currentActor: reactor,
-      statusId,
+      statusId: remoteStatusId,
       name: '🙌'
     })
-    expect(first).toMatchObject({ changed: true })
-
-    vi.clearAllMocks()
-    const before = await database.getNotifications({
-      actorId: reactor.id,
-      limit: 50,
-      types: [NotificationType.enum.emoji_reaction]
-    })
+    expect(first).toMatchObject({ ok: true, changed: true })
+    expect(mockSendReaction).toHaveBeenCalledTimes(1)
 
     const repeat = await reactStatus({
       database,
       currentActor: reactor,
-      statusId,
+      statusId: remoteStatusId,
       name: '🙌'
     })
 
     expect(repeat).toMatchObject({ ok: true, changed: false })
-    expect(mockSendReaction).not.toHaveBeenCalled()
-    const after = await database.getNotifications({
-      actorId: reactor.id,
-      limit: 50,
-      types: [NotificationType.enum.emoji_reaction]
-    })
-    expect(after).toHaveLength(before.length)
+    // Still once: a redelivered reaction must not re-post to the remote inbox.
+    expect(mockSendReaction).toHaveBeenCalledTimes(1)
   })
 })
 

@@ -31,6 +31,7 @@ const ALERT_KEYS: (keyof PushAlerts)[] = [
   'update',
   'quote',
   'quoted_update',
+  'pleroma:emoji_reaction',
   'admin.sign_up',
   'admin.report'
 ]
