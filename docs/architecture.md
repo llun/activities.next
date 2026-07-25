@@ -82,18 +82,19 @@ User Action ──→ Service Layer ──→ Queue Job
 
 The frontend and API layer, organized using Next.js route groups:
 
-| Directory             | Purpose                                                                                                                                                                  |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `app/(timeline)/`     | Main app pages with sidebar (home, profile, notifications, settings)                                                                                                     |
-| `app/(nosidebar)/`    | Authentication pages without sidebar (login, signup, OAuth consent)                                                                                                      |
-| `app/api/auth/`       | Authentication endpoints (better-auth)                                                                                                                                   |
-| `app/api/v1/`         | Mastodon-compatible API v1 (statuses, timelines, accounts, notifications)                                                                                                |
-| `app/api/v2/`         | Mastodon-compatible API v2 (instance info, media, search)                                                                                                                |
-| `app/api/users/`      | ActivityPub actor endpoints (inbox, outbox, followers, following)                                                                                                        |
-| `app/api/oauth/`      | OAuth 2.0 provider endpoints (authorize, userinfo, revoke) — the token endpoint lives at `app/(nosidebar)/oauth/token/`, serving `/oauth/token`                          |
-| `app/api/oembed/`     | Public oEmbed provider (`GET /api/oembed`) returning rich embed metadata for this instance's public/unlisted status pages                                                |
-| `app/api/well-known/` | Federation discovery (WebFinger, host-meta, OAuth/OIDC metadata) — NodeInfo is served from `app/api/nodeinfo/` via a `next.config.ts` rewrite of `/.well-known/nodeinfo` |
-| `app/health/`         | Unauthenticated `GET /health` liveness probe returning `{"status":"UP"}`                                                                                                 |
+| Directory              | Purpose                                                                                                                                                                  |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `app/(timeline)/`      | Main app pages with sidebar (home, profile, notifications, settings)                                                                                                     |
+| `app/(nosidebar)/`     | Authentication pages without sidebar (login, signup, OAuth consent)                                                                                                      |
+| `app/api/auth/`        | Authentication endpoints (better-auth)                                                                                                                                   |
+| `app/api/v1/`          | Mastodon-compatible API v1 (statuses, timelines, accounts, notifications)                                                                                                |
+| `app/api/v2/`          | Mastodon-compatible API v2 (instance info, media, search)                                                                                                                |
+| `app/api/users/`       | ActivityPub actor endpoints (inbox, outbox, followers, following)                                                                                                        |
+| `app/api/oauth/`       | OAuth 2.0 provider endpoints (authorize, userinfo, revoke) — the token endpoint lives at `app/(nosidebar)/oauth/token/`, serving `/oauth/token`                          |
+| `app/api/oembed/`      | Public oEmbed provider (`GET /api/oembed`) returning rich embed metadata for this instance's public/unlisted status pages                                                |
+| `app/api/v1/webhooks/` | Signed provider callbacks — Strava activity events, and inbound reply mail at `POST /api/v1/webhooks/email` (see [Reply by email](features.md#reply-by-email))           |
+| `app/api/well-known/`  | Federation discovery (WebFinger, host-meta, OAuth/OIDC metadata) — NodeInfo is served from `app/api/nodeinfo/` via a `next.config.ts` rewrite of `/.well-known/nodeinfo` |
+| `app/health/`          | Unauthenticated `GET /health` liveness probe returning `{"status":"UP"}`                                                                                                 |
 
 ### `lib/` — Core Business Logic
 
@@ -182,7 +183,8 @@ Media files (images and video) and fitness files (.fit, .gpx, .tcx) support mult
          │ follows  │ │ likes  │ │attachments │ │ tags  │ │timelines │
          └──────────┘ └────────┘ └────────────┘ └───────┘ └──────────┘
 
-Other tables: sessions, notifications, medias, fitness_files,
+Other tables: sessions, notifications, medias, email_reply_tokens,
+              fitness_files,
               fitness_settings, strava_archive_imports,
               fitness_route_heatmaps, fitness_route_heatmap_region_names,
               collections, collection_members, collection_timeline,

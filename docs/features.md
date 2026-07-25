@@ -43,6 +43,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Notifications** — Like, follow, mention, reblog, follow request, quote (someone quoted your post), quote-update (a post you quoted was edited), and collection (added-to-collection / collection-update) notifications
 - ✅ **Notification grouping** — Group similar notifications together
 - ✅ **Email notifications** — Configurable email alerts for each notification type
+- ✅ **Reply by email** — Answer a mention or reply notification by replying to the email; see [Reply by email](#reply-by-email) below
 - ✅ **Push notifications** — Web Push subscriptions with VAPID configuration
 - ✅ **Unread count** — Badge showing unread notification count
 
@@ -101,6 +102,89 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Vercel deployment** — Deploy as a serverless Next.js application
 - ✅ **Federation controls** — Admin allow/block rules, import for domain blocks, and allowlist mode
 - ✅ **Database-backed server settings** — Edit instance identity, registrations, post/poll/upload limits, and federation policy from the admin area, resolved `env → database → default` (an environment variable wins and locks the field). See [Environment Variables](environment-variables.md#database-backed-server-settings-env--database--default)
+
+## Reply by email
+
+Mention and reply notification emails can carry a `Reply-To` address. Hitting
+Reply in any mail client and sending posts a real fediverse reply, in the right
+thread and at the same visibility as the post being answered — a reply to a
+direct message stays direct, without the sender having to type an `@mention`.
+Attachments the media pipeline accepts (JPEG, PNG, MP4, WebM, QuickTime, M4A)
+ride along; anything else, and any inline image referenced from the quoted
+history, is dropped rather than failing the reply. A reply that cannot be
+posted gets a short notice back explaining why, so it never disappears
+silently.
+
+### Turning it on
+
+Three switches, all of which must be on:
+
+1. **Environment** — `ACTIVITIES_EMAIL_INBOUND_SECRET` and
+   `ACTIVITIES_EMAIL_INBOUND_DOMAIN` (plus the outbound `ACTIVITIES_EMAIL_*`
+   settings). See
+   [Environment Variables](environment-variables.md#inbound-reply-by-email).
+2. **Instance** — the **Reply by email** switch on **Admin → Posts & media**,
+   on by default. Switching it off stops new reply addresses being issued and
+   refuses replies to the ones already sent.
+3. **Account** — the **Reply by email** toggle in **Settings →
+   Notifications**, **off by default**. It turns an email address into a
+   posting capability, so it has to be a deliberate choice.
+
+### Operator setup
+
+The inbound domain needs an **MX record pointing at whichever provider will
+POST the webhook** (Mailgun Routes, SendGrid Inbound Parse, Postmark inbound,
+an AWS SES receipt rule with a Lambda, …). Point that provider at
+`POST /api/v1/webhooks/email` and have it sign each request:
+
+```text
+x-activities-signature: t=<unix-seconds>,v1=<hex>
+v1 = HMAC-SHA256(ACTIVITIES_EMAIL_INBOUND_SECRET, "<t>.<raw request body>")
+```
+
+The timestamp is signed together with the body — a signature over the body
+alone would stay valid forever — and requests more than five minutes out of
+step are refused. The endpoint answers `404` when inbound email is not
+configured, `401` on a bad or stale signature, `413` above 10 MB, `422` on a
+payload it cannot use, and `202` once the message is queued.
+
+The JSON body it expects:
+
+```json
+{
+  "to": ["reply+<token>@reply.example.tld"],
+  "cc": [],
+  "from": "someone@example.tld",
+  "messageId": "<id@example.tld>",
+  "subject": "Re: …",
+  "text": "…",
+  "html": "…",
+  "attachments": [
+    { "filename": "shot.png", "contentType": "image/png", "contentBase64": "…" }
+  ]
+}
+```
+
+### How it is bounded
+
+The reply address travels in plaintext email and shows up in mail logs, so it
+is treated as a bearer capability that will leak eventually:
+
+- Only a keyed HMAC of the token is stored, so a database leak cannot be turned
+  into a working reply address.
+- A token is scoped to exactly one (account, post) pair — it cannot post
+  anywhere else — and expires after 30 days or 20 uses.
+- Duplicate deliveries of one message are de-duplicated on its `Message-Id`, so
+  a provider retry cannot post twice.
+- The account, its moderation state, and both switches are re-checked when the
+  reply arrives, not when the address was minted.
+- `From` is only checked softly. Without the DKIM/SPF result — which a
+  normalized JSON webhook has already discarded — it is trivially forgeable,
+  while requiring it would break replying from an alias, a plus-address, or a
+  work account. The token is the real authorization; a mismatch is logged.
+
+Expired rows can be cleared with
+[the prune script](maintenance.md#reply-by-email-token-pruning).
 
 ## In Progress
 

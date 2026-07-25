@@ -134,6 +134,21 @@ NODE_ENV=production ./scripts/maintenance/manageAdminRole.ts add admin@example.c
 NODE_ENV=production ./scripts/maintenance/manageAdminRole.ts remove admin@example.com
 ```
 
+### Reply-by-Email Token Pruning
+
+Deletes expired rows from `email_reply_tokens` (see
+[Reply by email](features.md#reply-by-email)):
+
+```bash
+NODE_ENV=production ./scripts/maintenance/pruneEmailReplyTokens.ts --dry-run
+NODE_ENV=production ./scripts/maintenance/pruneEmailReplyTokens.ts
+```
+
+> **Note:** This is housekeeping, not a security control. A token stops working
+> the moment it passes `expiresAt` whether or not this ever runs; the rows are
+> small and the column is indexed. Only worth putting on a cron if the instance
+> sends a lot of repliable notifications.
+
 ### Fitness and Strava Maintenance
 
 Useful scripts for interrupted imports, route heatmap rebuilds, and Strava maintenance:
