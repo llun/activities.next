@@ -1,13 +1,20 @@
 import { randomBytes } from 'crypto'
 
+import { getConfig } from '@/lib/config'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
+import { REPLY_SENTINEL } from '@/lib/services/email/replyMarker'
+import {
+  extractReplyTokenFromAddress,
+  resolveReplyToken
+} from '@/lib/services/email/replyToken'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
+import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
 import {
   EXTERNAL_ACTOR1,
   EXTERNAL_ACTOR1_FOLLOWERS
@@ -26,6 +33,8 @@ vi.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
 const mockSendAlerts = sendNotificationAlerts as jest.MockedFunction<
   typeof sendNotificationAlerts
 >
+const mockGetConfig = getConfig as jest.MockedFunction<typeof getConfig>
+const baseConfig = mockGetConfig()
 
 const createNote = async (
   database: Database,
@@ -678,5 +687,79 @@ describe('notifyRemoteReplyAndMention', () => {
       await notificationsForStatus(database, actor.id, replyStatus.id)
     ).toHaveLength(0)
     expect(mockSendAlerts).not.toHaveBeenCalled()
+  })
+
+  describe('reply by email', () => {
+    const notifyMention = async (actor: Actor) => {
+      const status = await createNote(
+        database,
+        EXTERNAL_ACTOR1,
+        `Hello ${getActorURL(actor)}`,
+        EXTERNAL_ACTOR1_FOLLOWERS
+      )
+      await createMentionTag(
+        database,
+        status.id,
+        getActorURL(actor),
+        actor.username
+      )
+      await notifyRemoteReplyAndMention({
+        database,
+        currentActor: actor,
+        status
+      })
+      return status
+    }
+
+    beforeEach(() => {
+      // Inbound email configured for the whole block, so the only thing these
+      // cases vary is the actor's own opt-in.
+      mockGetConfig.mockReturnValue({
+        ...baseConfig,
+        emailInbound: {
+          secret: 'inbound-secret',
+          domain: 'reply.llun.dev',
+          localPartPrefix: 'reply'
+        }
+      })
+    })
+
+    afterEach(async () => {
+      await database.updateActor({ actorId: ACTOR4_ID, replyByEmail: false })
+      mockGetConfig.mockReturnValue(baseConfig)
+    })
+
+    it('leaves the email non-repliable when the actor has not opted in', async () => {
+      const actor = (await database.getActorFromId({ id: ACTOR4_ID })) as Actor
+      await notifyMention(actor)
+
+      const { events } = mockSendAlerts.mock.calls[0][0]
+      expect(events[0].emailContent).toBeDefined()
+      expect(events[0].emailContent).not.toHaveProperty('replyTo')
+      expect(events[0].emailContent?.text).not.toContain(REPLY_SENTINEL)
+    })
+
+    it('attaches a reply address and the sentinel once the actor opts in', async () => {
+      const actor = (await database.getActorFromId({ id: ACTOR4_ID })) as Actor
+      await database.updateActor({ actorId: ACTOR4_ID, replyByEmail: true })
+
+      const status = await notifyMention(actor)
+
+      const { events } = mockSendAlerts.mock.calls[0][0]
+      const emailContent = events[0].emailContent
+      expect(emailContent?.replyTo).toMatch(
+        /^reply\+[A-Za-z0-9_-]+@reply\.llun\.dev$/
+      )
+      expect(emailContent?.text).toContain(REPLY_SENTINEL)
+      expect(emailContent?.html).toContain(REPLY_SENTINEL)
+
+      // The token must thread the reply under the status the email is about.
+      const token = extractReplyTokenFromAddress(emailContent!.replyTo!)
+      await expect(resolveReplyToken(database, token!)).resolves.toMatchObject({
+        actorId: actor.id,
+        statusId: status.id,
+        notificationType: 'mention'
+      })
+    })
   })
 })

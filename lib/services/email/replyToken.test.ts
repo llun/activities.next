@@ -3,11 +3,15 @@ import {
   databaseBeforeAll,
   getTestDatabaseTable
 } from '@/lib/database/testUtils'
+import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { TEST_DOMAIN } from '@/lib/stub/const'
+import { seedDatabase } from '@/lib/stub/database'
+import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 
 import {
   REPLY_TOKEN_MAX_USES,
   REPLY_TOKEN_TTL_MS,
+  createReplyToAddress,
   extractReplyTokenFromAddress,
   findReplyTokenInRecipients,
   hashReplyToken,
@@ -31,6 +35,7 @@ describe('replyToken', () => {
 
   beforeAll(async () => {
     await databaseBeforeAll(table)
+    await Promise.all(table.map((item) => seedDatabase(item[1])))
   })
 
   afterAll(async () => {
@@ -230,6 +235,93 @@ describe('replyToken', () => {
       await expect(
         resolveReplyToken(database, minted!.token)
       ).resolves.toBeNull()
+    })
+
+    describe('createReplyToAddress', () => {
+      const params = {
+        actorId: ACTOR1_ID,
+        statusId: `${ACTOR1_ID}/statuses/post-1`,
+        notificationType: 'reply' as const
+      }
+
+      afterEach(async () => {
+        await database.updateActor({
+          actorId: ACTOR1_ID,
+          replyByEmail: false
+        })
+        await database.deleteServerSetting({ key: 'replyByEmail.enabled' })
+        invalidateServerSettingsCache(database)
+      })
+
+      it('returns undefined when the actor has not opted in', async () => {
+        await expect(
+          createReplyToAddress(database, params)
+        ).resolves.toBeUndefined()
+      })
+
+      it('returns a reply address once the actor opts in', async () => {
+        await database.updateActor({
+          actorId: ACTOR1_ID,
+          replyByEmail: true
+        })
+
+        const address = await createReplyToAddress(database, params)
+        expect(address).toMatch(/^reply\+[A-Za-z0-9_-]+@reply\.llun\.dev$/)
+
+        const token = extractReplyTokenFromAddress(address!)
+        await expect(
+          resolveReplyToken(database, token!)
+        ).resolves.toMatchObject(params)
+      })
+
+      it('returns undefined when the admin switch is off', async () => {
+        await database.updateActor({
+          actorId: ACTOR1_ID,
+          replyByEmail: true
+        })
+        await database.setServerSetting({
+          key: 'replyByEmail.enabled',
+          value: false
+        })
+        invalidateServerSettingsCache(database)
+
+        await expect(
+          createReplyToAddress(database, params)
+        ).resolves.toBeUndefined()
+      })
+
+      it('returns undefined when inbound email is not configured', async () => {
+        await database.updateActor({
+          actorId: ACTOR1_ID,
+          replyByEmail: true
+        })
+        mockGetConfig.mockReturnValue({
+          ...baseConfig,
+          emailInbound: undefined
+        })
+
+        await expect(
+          createReplyToAddress(database, params)
+        ).resolves.toBeUndefined()
+      })
+
+      it('returns undefined rather than throwing when the mint fails', async () => {
+        await database.updateActor({
+          actorId: ACTOR1_ID,
+          replyByEmail: true
+        })
+        const createEmailReplyToken = vi
+          .spyOn(database, 'createEmailReplyToken')
+          .mockRejectedValue(new Error('database unavailable'))
+
+        try {
+          await expect(
+            createReplyToAddress(database, params)
+          ).resolves.toBeUndefined()
+        } finally {
+          createEmailReplyToken.mockRestore()
+        }
+      })
     })
   })
 })

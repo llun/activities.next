@@ -2,10 +2,12 @@ import crypto from 'crypto'
 
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import {
   EmailReplyTokenData,
   EmailReplyTokenNotificationType
 } from '@/lib/types/database/operations'
+import { logger } from '@/lib/utils/logger'
 
 import { parseEmailAddress, splitEmailAddress } from './address'
 
@@ -120,6 +122,51 @@ export const mintReplyToken = async (
   return {
     token,
     address: `${emailInbound.localPartPrefix}+${token}@${emailInbound.domain}`
+  }
+}
+
+/**
+ * The producer-facing entry point: returns a Reply-To address for a
+ * notification email, or undefined when this notification must not be
+ * repliable.
+ *
+ * Three gates, all of which must pass — the inbound/outbound email
+ * configuration, the instance-wide admin switch, and the recipient's own
+ * opt-in (absent means off).
+ *
+ * Minting is a database write on a path that is otherwise pure reads, so every
+ * failure is swallowed: the caller falls back to a normal, non-repliable
+ * notification rather than losing the email. Both producers already treat the
+ * email channel as best-effort.
+ */
+export const createReplyToAddress = async (
+  database: Database,
+  { actorId, statusId, notificationType }: MintReplyTokenParams
+): Promise<string | undefined> => {
+  try {
+    const { email, emailInbound } = getConfig()
+    if (!email || !emailInbound) return undefined
+
+    const serverSettings = await getResolvedServerSettings(database)
+    if (!serverSettings.replyByEmail.enabled) return undefined
+
+    const actorSettings = await database.getActorSettings({ actorId })
+    if (actorSettings?.replyByEmail !== true) return undefined
+
+    const minted = await mintReplyToken(database, {
+      actorId,
+      statusId,
+      notificationType
+    })
+    return minted?.address
+  } catch (error) {
+    logger.error({
+      message: 'Failed to mint a reply-by-email address',
+      actorId,
+      statusId,
+      err: error
+    })
+    return undefined
   }
 }
 

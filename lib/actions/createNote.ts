@@ -6,6 +6,7 @@ import {
   SEND_NOTE_JOB_NAME,
   SEND_QUOTE_REQUEST_JOB_NAME
 } from '@/lib/jobs/names'
+import { createReplyToAddress } from '@/lib/services/email/replyToken'
 import {
   getHTMLContent as getMentionHTMLContent,
   getSubject as getMentionSubject,
@@ -688,7 +689,17 @@ export const createNoteFromUserInput = async ({
       // A failed actor lookup only skips the email content; the push alert
       // must still be dispatched.
       .catch(() => null)
-      .then((targetActor) =>
+      .then(async (targetActor) => {
+        // Best-effort: a failed mint degrades to a normal, non-repliable
+        // email rather than losing the notification.
+        const replyTo = targetActor?.account
+          ? await createReplyToAddress(database, {
+              actorId: replyStatus.actorId,
+              statusId,
+              notificationType: 'reply'
+            })
+          : undefined
+        const repliable = Boolean(replyTo)
         sendNotificationAlerts({
           database,
           actorId: replyStatus.actorId,
@@ -703,14 +714,15 @@ export const createNoteFromUserInput = async ({
                 ? {
                     recipientEmail: targetActor.account.email,
                     subject: getReplySubject(currentActor),
-                    text: getReplyTextContent(status),
-                    html: getReplyHTMLContent(status)
+                    text: getReplyTextContent(status, { repliable }),
+                    html: getReplyHTMLContent(status, { repliable }),
+                    ...(replyTo ? { replyTo } : null)
                   }
                 : undefined
             }
           ]
         })
-      )
+      })
       .catch(() => undefined)
   }
 
@@ -726,7 +738,15 @@ export const createNoteFromUserInput = async ({
         // A failed actor lookup only skips the email content; the push alert
         // must still be dispatched.
         .catch(() => null)
-        .then((targetActor) =>
+        .then(async (targetActor) => {
+          const replyTo = targetActor?.account
+            ? await createReplyToAddress(database, {
+                actorId: mentionedActorId,
+                statusId,
+                notificationType: 'mention'
+              })
+            : undefined
+          const repliable = Boolean(replyTo)
           sendNotificationAlerts({
             database,
             actorId: mentionedActorId,
@@ -741,14 +761,15 @@ export const createNoteFromUserInput = async ({
                   ? {
                       recipientEmail: targetActor.account.email,
                       subject: getMentionSubject(currentActor),
-                      text: getMentionTextContent(status),
-                      html: getMentionHTMLContent(status)
+                      text: getMentionTextContent(status, { repliable }),
+                      html: getMentionHTMLContent(status, { repliable }),
+                      ...(replyTo ? { replyTo } : null)
                     }
                   : undefined
               }
             ]
           })
-        )
+        })
         .catch(() => undefined)
     }
   }

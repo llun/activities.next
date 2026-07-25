@@ -1,6 +1,7 @@
 import { SpanStatusCode } from '@opentelemetry/api'
 
 import { getConfig } from '@/lib/config'
+import { createReplyToAddress } from '@/lib/services/email/replyToken'
 import {
   getHTMLContent as getMentionHTMLContent,
   getSubject as getMentionSubject,
@@ -117,11 +118,19 @@ export const notifyRemoteReplyAndMention = async ({
               // channel would silently drop for that case.
               const account = currentActor.account
               if (config.email && account && status.actor) {
+                // Best-effort: an unrepliable email is still a good email.
+                const replyTo = await createReplyToAddress(database, {
+                  actorId: currentActor.id,
+                  statusId: status.id,
+                  notificationType: 'reply'
+                })
+                const repliable = Boolean(replyTo)
                 replyEvent.emailContent = {
                   recipientEmail: account.email,
                   subject: getReplySubject(status.actor),
-                  text: getReplyTextContent(status),
-                  html: getReplyHTMLContent(status)
+                  text: getReplyTextContent(status, { repliable }),
+                  html: getReplyHTMLContent(status, { repliable }),
+                  ...(replyTo ? { replyTo } : null)
                 }
               }
               alertEvents.push(replyEvent)
@@ -178,11 +187,18 @@ export const notifyRemoteReplyAndMention = async ({
             notificationId: mentionNotification.id
           }
           if (config.email && account && status.actor) {
+            const replyTo = await createReplyToAddress(database, {
+              actorId: currentActor.id,
+              statusId: status.id,
+              notificationType: 'mention'
+            })
+            const repliable = Boolean(replyTo)
             mentionEvent.emailContent = {
               recipientEmail: account.email,
               subject: getMentionSubject(status.actor),
-              text: getMentionTextContent(status),
-              html: getMentionHTMLContent(status)
+              text: getMentionTextContent(status, { repliable }),
+              html: getMentionHTMLContent(status, { repliable }),
+              ...(replyTo ? { replyTo } : null)
             }
           }
           alertEvents.push(mentionEvent)
