@@ -121,8 +121,11 @@ export const StatusReactionSQLDatabaseMixin = (
                 meActorId
               ])
             })
-            // Only remote custom emoji store a url, and every row for one
-            // (statusId, name) carries the same one, so MAX just unwraps it.
+            // Only remote custom emoji store a url, and a name is namespaced
+            // to the one instance allowed to supply its image
+            // (`ownsReactionNamespace`), so the rows in a group agree except
+            // when that instance re-uploads its emoji at a new url — MAX then
+            // just picks one of its own. It can never surface another peer's.
             .max({ reactionUrl: 'url' })
             .min({ firstReactedAt: 'createdAt' })
             // Pleroma orders reactions by first-reaction time ascending; `name`
