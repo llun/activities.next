@@ -126,7 +126,11 @@ export const button = (options: { label: string; url: string }): EmailBlock => {
       // vertical padding adds no height to the line box — leaving a 20px-tall
       // orange strip instead of a 40px button.
       `<td align="center" bgcolor="${BUTTON_BACKGROUND}" style="background-color:${BUTTON_BACKGROUND};border-radius:${RADIUS_BUTTON};mso-padding-alt:10px 20px;">` +
-      `<a href="${escapeHtml(url)}" style="display:block;padding:10px 20px;font-family:${FONT_STACK};font-size:14px;font-weight:500;line-height:20px;color:${BUTTON_TEXT};text-decoration:none;border-radius:${RADIUS_BUTTON};">${escapeHtml(options.label)}</a>` +
+      // mso-padding-alt:0 on the anchor is the other half of the recipe: Word
+      // DOES apply horizontal padding to an inline element, so without the
+      // reset the button gets the cell's 20px plus the anchor's 20px on each
+      // side. Every other client ignores the property.
+      `<a href="${escapeHtml(url)}" style="display:block;padding:10px 20px;mso-padding-alt:0;font-family:${FONT_STACK};font-size:14px;font-weight:500;line-height:20px;color:${BUTTON_TEXT};text-decoration:none;border-radius:${RADIUS_BUTTON};">${escapeHtml(options.label)}</a>` +
       `</td></tr></table>`,
     text: `${options.label}: ${url}`
   }

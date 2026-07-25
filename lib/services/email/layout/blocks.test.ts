@@ -25,6 +25,10 @@ describe('paragraph', () => {
     expect(paragraph(XSS).html).not.toContain('<script>')
   })
 
+  it('lets an over-long unbroken word wrap instead of overflowing the card', () => {
+    expect(paragraph('a').html).toContain('word-wrap:break-word')
+  })
+
   it('uses a tighter bottom margin when tight is set', () => {
     expect(paragraph('a', { tight: true }).html).toContain('margin:0 0 4px')
     expect(paragraph('a').html).toContain('margin:0 0 20px')
@@ -96,6 +100,14 @@ describe('button', () => {
     ).toContain('<td align="center" bgcolor="#E66A0F"')
   })
 
+  it('carries both halves of the outlook padding recipe', () => {
+    const { html } = button({ label: 'Go', url: 'https://example.com' })
+    // The cell supplies the padding Word drops from the inline anchor, and the
+    // anchor resets its own so Outlook does not apply both.
+    expect(html).toContain('mso-padding-alt:10px 20px;')
+    expect(html).toContain('mso-padding-alt:0;')
+  })
+
   it('renders the label and links to the url', () => {
     const { html, text } = button({
       label: 'View post',
@@ -125,7 +137,10 @@ describe('button', () => {
 describe('fallbackUrl', () => {
   it('renders the raw url as a breakable link', () => {
     const { html } = fallbackUrl('https://example.com/verify?code=abc')
+    // Both properties are needed: Outlook's Word engine honours only
+    // word-wrap, everything else honours word-break.
     expect(html).toContain('word-break:break-all')
+    expect(html).toContain('word-wrap:break-word')
     expect(html).toContain('>https://example.com/verify?code=abc</a>')
   })
 
@@ -147,5 +162,9 @@ describe('note', () => {
 
   it('escapes the text', () => {
     expect(note(XSS).html).not.toContain('<script>')
+  })
+
+  it('lets an over-long unbroken word wrap instead of overflowing the card', () => {
+    expect(note('a').html).toContain('word-wrap:break-word')
   })
 })
