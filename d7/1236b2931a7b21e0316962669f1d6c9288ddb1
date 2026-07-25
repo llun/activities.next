@@ -1,0 +1,19 @@
+scripts/mock/renderEmailPreviews.ts
+  s_181a4d159922fc::t_02c0a41fb23f15 40-45,77,85,93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "d71236b2931a7b21e0316962669f1d6c9288ddb1",
+  "prompts": {},
+  "sessions": {
+    "s_181a4d159922fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b59141f-f9f0-4af4-8aea-39520836e6cc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
