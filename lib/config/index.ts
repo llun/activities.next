@@ -15,6 +15,7 @@ import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 import { AuthConfig, getAuthConfig } from './auth'
 import { getDatabaseConfig } from './database'
 import { getEmailConfig } from './email'
+import { EmailInboundConfig, getEmailInboundConfig } from './emailInbound'
 import { FitnessStorageConfig, getFitnessStorageConfig } from './fitnessStorage'
 import { getHostConfigFromEnvironment } from './host'
 import { MediaStorageConfig, getMediaStorageConfig } from './mediaStorage'
@@ -60,6 +61,9 @@ const Config = z.object({
   email: z
     .union([SMTPConfig, LambdaConfig, ResendConfig, SESConfig])
     .optional(),
+  // Inbound email (reply by email). Only meaningful alongside `email`: the
+  // outbound half mints the reply address, this half receives the answer.
+  emailInbound: EmailInboundConfig.optional(),
   mediaStorage: MediaStorageConfig.optional(),
   fitnessStorage: FitnessStorageConfig.optional(),
   openTelemetry: OpenTelemetryConfig.optional(),
@@ -141,6 +145,7 @@ const getConfigFromEnvironment = () => {
         process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS === 'true',
       federationMode: process.env.ACTIVITIES_FEDERATION_MODE || 'open',
       ...getEmailConfig(),
+      ...getEmailInboundConfig(),
       ...getAuthConfig(),
       ...getDatabaseConfig(),
       ...getMediaStorageConfig(),

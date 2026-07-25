@@ -157,6 +157,29 @@ Email is used for account verification and notifications.
 | `ACTIVITIES_EMAIL_TYPE` | Email provider: `smtp`, `resend`, `ses`, or `lambda`.   |
 | `ACTIVITIES_EMAIL_FROM` | Sender email address (e.g., `noreply@your-domain.tld`). |
 
+### Inbound (reply by email)
+
+Optional. Makes mention and reply notification emails repliable: each one
+carries a `Reply-To: <prefix>+<token>@<domain>` address, and an email provider
+that receives mail for that domain POSTs the message to `POST
+/api/v1/webhooks/email`, which posts it back as a real fediverse reply in the
+same thread and at the same visibility. See
+[Reply by email](features.md#reply-by-email) for the operator setup (the domain
+needs an MX record pointing at the provider) and the webhook contract.
+
+Both `ACTIVITIES_EMAIL_INBOUND_SECRET` and `ACTIVITIES_EMAIL_INBOUND_DOMAIN`
+are required — setting only one disables the feature. The feature also needs
+the outbound email settings above, the instance-wide **Reply by email** admin
+switch (on by default), and a per-account opt-in in
+**Settings → Notifications** (off by default). When the inbound config is
+absent, `POST /api/v1/webhooks/email` answers `404`.
+
+| Variable                                     | Description                                                                                                                                |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ACTIVITIES_EMAIL_INBOUND_SECRET`            | Shared secret the provider signs inbound webhook payloads with (`x-activities-signature: t=<unix-seconds>,v1=<hex>`). Required.            |
+| `ACTIVITIES_EMAIL_INBOUND_DOMAIN`            | Bare domain that receives replies, e.g. `reply.example.tld`. Required; a value with a scheme, a user part, or no dot disables the feature. |
+| `ACTIVITIES_EMAIL_INBOUND_LOCAL_PART_PREFIX` | Local-part prefix of the reply address. Optional, defaults to `reply`. Restricted to `A-Z a-z 0-9 . _ -`; anything else falls back.        |
+
 ### SMTP
 
 | Variable                         | Description                     |
