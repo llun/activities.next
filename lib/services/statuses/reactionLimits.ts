@@ -17,6 +17,12 @@ export const MAX_REACTION_NAME_LENGTH = 100
 
 // Hard cap for the name actually stored, which for a remote custom emoji is the
 // derived `shortcode@domain` and so can be much longer than the raw reaction.
-// Matches the `varchar(255)` columns it lands in (`status_reactions.name`,
-// `notifications.reactionName`, and the `groupKey` derived from it).
+// Matches the `varchar(255)` columns it lands in: `status_reactions.name` and
+// `notifications.reactionName`.
 export const MAX_STORED_REACTION_NAME_LENGTH = 255
+
+// `notifications.groupKey` is also varchar(255), but it is a *concatenation* of
+// a status id (a URL) and the reaction name, so bounding the name alone does not
+// bound it. Postgres rejects the oversized write; SQLite ignores varchar lengths
+// entirely, so no SQLite-only test can catch a regression here.
+export const MAX_NOTIFICATION_GROUP_KEY_LENGTH = 255

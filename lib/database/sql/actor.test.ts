@@ -1664,6 +1664,47 @@ describe('ActorDatabase', () => {
         ).toEqual([])
       })
 
+      it('removes reactions other actors left on the deleted actor statuses', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `delete-reacted-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        const statusId = `${actorId}/statuses/reacted-${suffix}`
+        const reactorId = `https://remote.test/users/reactor-${suffix}`
+
+        await database.createAccount({
+          email: `${username}@${TEST_DOMAIN}`,
+          username,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Status others reacted to'
+        })
+        await database.createStatusReaction({
+          statusId,
+          actorId: reactorId,
+          name: `react-${suffix}`
+        })
+        expect(
+          await database.getStatusReactionRollups({ statusIds: [statusId] })
+        ).toHaveLength(1)
+
+        await database.deleteActorData({ actorId })
+
+        // The per-status cleanup branch: the reaction belongs to a remote actor,
+        // so only the statusId sweep can remove it.
+        expect(
+          await database.getStatusReactionRollups({ statusIds: [statusId] })
+        ).toEqual([])
+      })
+
       it('removes account notes referencing the deleted actor on either side', async () => {
         const suffix = crypto.randomUUID().slice(0, 8)
         const username = `delete-note-${suffix}`

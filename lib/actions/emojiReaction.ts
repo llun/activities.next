@@ -5,11 +5,13 @@ import { Database } from '@/lib/database/types'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { shouldCreateNotification } from '@/lib/services/notifications/shouldNotify'
 import {
+  MAX_NOTIFICATION_GROUP_KEY_LENGTH,
   MAX_REACTION_NAME_LENGTH,
   MAX_STORED_REACTION_NAME_LENGTH
 } from '@/lib/services/statuses/reactionLimits'
 import { EmojiReact, Like } from '@/lib/types/activitypub'
 import { NotificationType } from '@/lib/types/database/operations'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
 // A reaction-bearing activity is either a litepub `EmojiReact` (Pleroma/Akkoma,
@@ -182,6 +184,20 @@ const getReactionTarget = (activity: ReactionActivity) =>
   typeof activity.object === 'string' ? activity.object : activity.object.id
 
 /**
+ * Groups an actor's reaction notifications per (status, emoji). Both parts are
+ * remote-controlled and unbounded-ish — the status id is a URL and the name can
+ * be a full `shortcode@domain` — so the readable form is used only while it fits
+ * the varchar(255) column, with a digest of the same inputs as the overflow
+ * fallback. The digest is deterministic, so a group stays stable across
+ * deliveries either way.
+ */
+export const getReactionGroupKey = (statusId: string, name: string) => {
+  const groupKey = `emoji_reaction:${statusId}:${name}`
+  if (groupKey.length <= MAX_NOTIFICATION_GROUP_KEY_LENGTH) return groupKey
+  return `emoji_reaction:${getHashFromString(`${statusId}:${name}`)}`
+}
+
+/**
  * Store an inbound emoji reaction. A reaction is never a favourite: it writes no
  * `likes` row and never moves `favourites_count`.
  */
@@ -222,7 +238,7 @@ export const emojiReactionRequest = async ({
     sourceActorId: activity.actor,
     statusId: status.id,
     reactionName: name,
-    groupKey: `emoji_reaction:${status.id}:${name}`
+    groupKey: getReactionGroupKey(status.id, name)
   })
 }
 
