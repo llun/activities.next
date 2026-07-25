@@ -3,11 +3,14 @@ import {
   reactStatus,
   unreactStatus
 } from '@/lib/services/reactions/reactStatus'
+import { MAX_REACTIONS_PER_ACTOR } from '@/lib/services/statuses/reactionLimits'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
+import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { NotificationType } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 const mockSendReaction = vi.fn()
 const mockSendUndoReaction = vi.fn()
@@ -162,6 +165,64 @@ describe('reactStatus', () => {
     expect(mockSendReaction).not.toHaveBeenCalled()
   })
 
+  it('reacts to the boosted post rather than the boost wrapper', async () => {
+    // The serializer renders an Announce wrapper with empty reactions by design,
+    // so a reaction stored against the wrapper would be invisible everywhere.
+    const announceId = `${ACTOR2_ID}/statuses/announce-1`
+    const boostedId = `${ACTOR1_ID}/statuses/post-3`
+
+    const result = await reactStatus({
+      database,
+      currentActor: reactor,
+      statusId: announceId,
+      name: '🛰️'
+    })
+
+    expect(result).toMatchObject({ ok: true, changed: true })
+    expect(
+      (await database.getStatusReactionActors({ statusId: boostedId })).map(
+        (entry) => entry.name
+      )
+    ).toContain('🛰️')
+    expect(
+      await database.getStatusReactionActors({ statusId: announceId })
+    ).toEqual([])
+  })
+
+  it('reports cap-reached instead of silently dropping the reaction', async () => {
+    const statusId = `${ACTOR2_ID}/statuses/reply-1`
+    const names = ['🍎', '🍊', '🍋', '🍉', '🍇', '🍓', '🍒', '🥝']
+    expect(names).toHaveLength(MAX_REACTIONS_PER_ACTOR)
+    for (const name of names) {
+      const result = await reactStatus({
+        database,
+        currentActor: reactor,
+        statusId,
+        name
+      })
+      expect(result).toMatchObject({ ok: true, changed: true })
+    }
+
+    expect(
+      await reactStatus({
+        database,
+        currentActor: reactor,
+        statusId,
+        name: '🍍'
+      })
+    ).toEqual({ ok: false, reason: 'cap-reached' })
+
+    // A reaction already held stays idempotent rather than reporting the cap.
+    expect(
+      await reactStatus({
+        database,
+        currentActor: reactor,
+        statusId,
+        name: '🍎'
+      })
+    ).toMatchObject({ ok: true, changed: false })
+  })
+
   it('does not notify or federate when nothing changed', async () => {
     const statusId = `${ACTOR2_ID}/statuses/post-2`
     const first = await reactStatus({
@@ -261,6 +322,74 @@ describe('unreactStatus', () => {
 
     expect(result).toMatchObject({ changed: true })
     expect(await database.getStatusReactionActors({ statusId })).toEqual([])
+  })
+
+  describe('federating the retraction', () => {
+    const remoteStatusId = `${EXTERNAL_ACTOR1}/statuses/remote-1`
+
+    beforeAll(async () => {
+      // EXTERNAL_ACTOR1 is already seeded by seedDatabase.
+      await database.createNote({
+        id: remoteStatusId,
+        url: remoteStatusId,
+        actorId: EXTERNAL_ACTOR1,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Remote post'
+      })
+    })
+
+    it('sends the Undo for a remote status', async () => {
+      await reactStatus({
+        database,
+        currentActor: reactor,
+        statusId: remoteStatusId,
+        name: '🔭'
+      })
+
+      const result = await unreactStatus({
+        database,
+        currentActor: reactor,
+        statusId: remoteStatusId,
+        name: '🔭'
+      })
+
+      expect(result).toMatchObject({ changed: true })
+      expect(mockSendUndoReaction).toHaveBeenCalledTimes(1)
+    })
+
+    it('withholds the Undo when the actor also favourited the status', async () => {
+      // A vanilla-Mastodon receiver resolves Undo{Like} by (account, status),
+      // and our reaction Like landed there as a favourite. Sending the Undo
+      // would destroy the genuine favourite the actor still holds.
+      await reactStatus({
+        database,
+        currentActor: reactor,
+        statusId: remoteStatusId,
+        name: '📡'
+      })
+      await database.createLike({
+        actorId: reactor.id,
+        statusId: remoteStatusId
+      })
+      vi.clearAllMocks()
+
+      const result = await unreactStatus({
+        database,
+        currentActor: reactor,
+        statusId: remoteStatusId,
+        name: '📡'
+      })
+
+      expect(result).toMatchObject({ changed: true })
+      expect(mockSendUndoReaction).not.toHaveBeenCalled()
+      // The reaction is still gone locally — only the outbound Undo is withheld.
+      expect(
+        (
+          await database.getStatusReactionActors({ statusId: remoteStatusId })
+        ).map((entry) => entry.name)
+      ).not.toContain('📡')
+    })
   })
 
   it('reports no change when the reaction was not there', async () => {

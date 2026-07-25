@@ -47,3 +47,15 @@ export const getCustomEmojiShortcode = (value: string): string | null => {
       : value
   return SHORTCODE.test(shortcode) ? shortcode : null
 }
+
+/**
+ * The form a reaction is *stored* in, for callers that receive one as free text
+ * (a URL segment, an inbound activity). Colons are stripped from a shortcode;
+ * anything else is passed through untouched so an unknown or remote name still
+ * matches what is on the row.
+ */
+export const normalizeStoredReactionName = (value: string): string => {
+  const trimmed = value.trim()
+  if (isUnicodeEmojiReaction(trimmed)) return trimmed
+  return getCustomEmojiShortcode(trimmed) ?? trimmed
+}

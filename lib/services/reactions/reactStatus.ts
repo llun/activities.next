@@ -5,13 +5,15 @@ import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotific
 import { shouldCreateNotification } from '@/lib/services/notifications/shouldNotify'
 import {
   getCustomEmojiShortcode,
-  isUnicodeEmojiReaction
+  isUnicodeEmojiReaction,
+  normalizeStoredReactionName
 } from '@/lib/services/reactions/reactionName'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
+import { MAX_REACTIONS_PER_ACTOR } from '@/lib/services/statuses/reactionLimits'
 import { NotificationType } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { CustomEmojiData } from '@/lib/types/domain/customEmoji'
-import { Status } from '@/lib/types/domain/status'
+import { Status, getOriginalStatus } from '@/lib/types/domain/status'
 
 import { getReactionGroupKey } from './reactionGroupKey'
 
@@ -30,6 +32,10 @@ export type ReactStatusResult =
   // Not something this instance can render or federate: not a single emoji
   // grapheme, and not a shortcode naming an enabled local custom emoji.
   | { ok: false; reason: 'invalid-emoji' }
+  // The actor already holds MAX_REACTIONS_PER_ACTOR distinct reactions here.
+  // Reported rather than silently dropped: the storage layer would no-op, and
+  // the client would see a 200 whose Status does not contain its reaction.
+  | { ok: false; reason: 'cap-reached' }
 
 type ResolvedReaction = { name: string; customEmoji: CustomEmojiData | null }
 
@@ -127,8 +133,29 @@ export const reactStatus = async ({
   const resolved = await resolveLocalReaction(database, name)
   if (!resolved) return { ok: false, reason: 'invalid-emoji' }
 
+  // Reacting to a boost reacts to the post it boosts. The serializer renders an
+  // Announce wrapper with empty reactions by design (they belong to the
+  // original, and surface on `reblog`), so storing against the wrapper would
+  // federate a reaction that is then invisible on every Status entity.
+  const target = getOriginalStatus(status)
+
+  // The storage layer drops a reaction past the cap silently, which would make
+  // this look like a success that did nothing. Check first so the caller gets a
+  // real error. Racy under concurrency, but the cap is advisory anyway.
+  const existing = await database.getStatusReactionRollups({
+    statusIds: [target.id],
+    currentActorId: currentActor.id
+  })
+  const mine = existing.filter((rollup) => rollup.me)
+  if (
+    mine.length >= MAX_REACTIONS_PER_ACTOR &&
+    !mine.some((rollup) => rollup.name === resolved.name)
+  ) {
+    return { ok: false, reason: 'cap-reached' }
+  }
+
   const changed = await database.createStatusReaction({
-    statusId,
+    statusId: target.id,
     actorId: currentActor.id,
     name: resolved.name
   })
@@ -138,7 +165,7 @@ export const reactStatus = async ({
     await announceReaction({
       database,
       currentActor,
-      status,
+      status: target,
       reaction: resolved.name,
       customEmoji: resolved.customEmoji
     })
@@ -163,21 +190,36 @@ export const unreactStatus = async ({
 
   // Removal accepts whatever is stored rather than re-validating: an emoji that
   // was legal when it was added must stay removable after an admin disables it.
-  const shortcode = getCustomEmojiShortcode(name)
-  const storedName = isUnicodeEmojiReaction(name) ? name : (shortcode ?? name)
+  const storedName = normalizeStoredReactionName(name)
+  const target = getOriginalStatus(status)
 
   const changed = await database.deleteStatusReaction({
-    statusId,
+    statusId: target.id,
     actorId: currentActor.id,
     name: storedName
   })
-  if (changed && !status.isLocalActor) {
+  if (changed && !target.isLocalActor) {
+    // A vanilla-Mastodon receiver resolves `Undo{Like}` by (account, status),
+    // not by activity id — and it stored our reaction Like as a favourite. If
+    // the actor also genuinely favourited this status, sending the Undo would
+    // destroy that favourite there. Withhold it: the favourite is the state
+    // that should survive, and the reaction is already gone locally.
+    if (
+      await database.isActorLikedStatus({
+        statusId: target.id,
+        actorId: currentActor.id
+      })
+    ) {
+      return { ok: true, changed, status }
+    }
+
+    const shortcode = getCustomEmojiShortcode(storedName)
     const customEmoji = shortcode
       ? await database.getCustomEmojiByShortcode(shortcode)
       : null
     await sendUndoReaction({
       currentActor,
-      status,
+      status: target,
       reaction: storedName,
       customEmoji
     })

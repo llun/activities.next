@@ -56,7 +56,9 @@ export const GET = traceApiRoute(
 
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: reactions })
     },
-    guardOptions
+    // `any`, so a token holding only the granular `read:statuses` is accepted;
+    // the guard otherwise defaults to requiring every listed scope.
+    { ...guardOptions, matchMode: 'any' }
   ),
   { addAttributes: reactionRouteAttributes }
 )

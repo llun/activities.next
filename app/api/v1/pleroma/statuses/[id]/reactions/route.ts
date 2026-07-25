@@ -1,4 +1,7 @@
-import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import {
+  OptionalOAuthGuard,
+  corsErrorResponse
+} from '@/lib/services/guards/OAuthGuard'
 import { getStatusReactionList } from '@/lib/services/reactions/getStatusReactionList'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -41,7 +44,11 @@ export const GET = traceApiRoute(
         allowedMethods: CORS_HEADERS,
         data: reactions
       })
-    }
+    },
+    // `any`, so a token holding only the granular `read:statuses` is accepted;
+    // the guard otherwise defaults to requiring every listed scope. The CORS
+    // error responder keeps guard-level 401/403 readable cross-origin.
+    { errorResponse: corsErrorResponse(CORS_HEADERS), matchMode: 'any' }
   ),
   {
     addAttributes: async (_req, context) => {

@@ -57,6 +57,7 @@ export const reactionWriteHandler =
     })
 
     if (!result.ok) {
+      // `invalid-emoji` and `cap-reached` are both unprocessable input.
       return apiCorsError(
         req,
         corsHeaders,

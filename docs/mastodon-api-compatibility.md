@@ -277,6 +277,19 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   favourite arrives as a `❤` reaction and a later reaction replaces it (their
   one-per-user rule). Reacting never favourites the post locally.
 
+  One consequence needs care on removal: Mastodon resolves `Undo{Like}` by
+  _(account, status)_, not by activity id, and it stored the reaction as a
+  favourite. So retracting a reaction would delete the recipient-side favourite
+  — including a genuine one the actor had also made, since Mastodon dedups the
+  two into a single row. The `Undo` is therefore **withheld when the actor still
+  favourites the status**: the favourite is the state that should survive, and
+  the reaction is already gone locally either way.
+
+  Reacting to a boost applies the reaction to the **boosted post**, matching how
+  the rollups are serialized (an `Announce` wrapper reports no reactions of its
+  own; they appear on `reblog`). A reaction past the per-actor cap of 8 answers
+  `422` rather than a 200 that silently stored nothing.
+
   Known limitation: reactions are capped at 8 distinct emoji per actor per
   status, but the number of _distinct_ emoji on a status is not capped, and the
   rollups are serialized in full (twice — once per dialect) on every status.
