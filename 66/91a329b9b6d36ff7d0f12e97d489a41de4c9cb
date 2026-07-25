@@ -1,0 +1,40 @@
+lib/jobs/replyByEmailJob.ts
+  s_2f8f98bd1d8b55::t_1412622ba23661 305-309
+  s_2f8f98bd1d8b55::t_bbbd884f408193 262-282
+  s_2f8f98bd1d8b55::t_5f80ef3322256e 11-14
+lib/services/email/extractReplyText.test.ts
+  s_2f8f98bd1d8b55::t_679ab382a9e1ea 233-235
+  s_2f8f98bd1d8b55::t_b98d5c839014eb 193-232,236-282
+lib/database/sql/emailReplyToken.test.ts
+  s_2f8f98bd1d8b55::t_8e6b8514c10154 63,72-79,84-90,96-145
+  s_2f8f98bd1d8b55::t_990dbd74749a81 146
+lib/database/sql/emailReplyToken.ts
+  s_2f8f98bd1d8b55::t_25f675c1cc523f 83-91,93-95,97
+  s_2f8f98bd1d8b55::t_20ac8f7393eab7 6,12
+lib/services/email/replyToken.test.ts
+  s_2f8f98bd1d8b55::t_5f80ef3322256e 237-241
+lib/jobs/replyByEmailJob.test.ts
+  s_2f8f98bd1d8b55::t_8e6b8514c10154 320-323
+  s_2f8f98bd1d8b55::t_5f80ef3322256e 319
+lib/services/email/extractReplyText.ts
+  s_2f8f98bd1d8b55::t_2e8b3544fa770c 14-15,19-30,33-35,37-49,60-69,75-78,93-103,106-108,115-117,123-149,151-152,155,186-188,192-200,204-207,210-212,222,246-250
+lib/types/database/operations.ts
+  s_2f8f98bd1d8b55::t_57a434716bb188 1423-1427
+  s_2f8f98bd1d8b55::t_2c89cb9f333908 1437-1448
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "6691a329b9b6d36ff7d0f12e97d489a41de4c9cb",
+  "prompts": {},
+  "sessions": {
+    "s_2f8f98bd1d8b55": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fe73386a-874f-4632-8456-f9a69e911a24",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
