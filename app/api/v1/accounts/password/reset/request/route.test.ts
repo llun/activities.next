@@ -18,7 +18,14 @@ vi.mock('@/lib/utils/logger', () => ({
   }
 }))
 
+// This local factory shadows the global @/lib/config mock, so it has to supply
+// every export the code under test reaches — including getBaseURL, which the
+// shared email layout uses to build absolute links. Omitting it does not fail
+// loudly: the route catches email errors, so a template that throws is
+// indistinguishable from a delivery failure, and the "email sending fails"
+// tests below would pass without sendMail ever being reached.
 vi.mock('@/lib/config', () => ({
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
   getConfig: vi.fn().mockReturnValue({
     host: 'llun.test',
     secretPhase: 'test-secret-phase',
@@ -79,6 +86,24 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
       updatedAt: Date.now()
     })
     mockDb.requestPasswordReset.mockResolvedValue(true)
+  })
+
+  it('sends the reset email with a link to the reset page', async () => {
+    const response = await POST(buildRequest({ email: 'test@llun.test' }))
+
+    expect(response.status).toBe(200)
+    expect(mockSendMail).toHaveBeenCalledTimes(1)
+    const message = mockSendMail.mock.calls[0][0]
+    expect(message.to).toEqual(['test@llun.test'])
+    expect(message.subject).toBe('Reset your password')
+    // The code is generated inside the route, so match the link shape rather
+    // than a fixed value.
+    expect(message.content.html).toMatch(
+      /href="https:\/\/llun\.test\/auth\/reset-password\?code=[^"]+"/
+    )
+    expect(message.content.text).toContain(
+      'https://llun.test/auth/reset-password?code='
+    )
   })
 
   it('returns uniform success and restores the reset code when email sending fails', async () => {
