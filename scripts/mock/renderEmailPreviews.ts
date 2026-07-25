@@ -1,8 +1,12 @@
 #!/usr/bin/env -S node scripts/run.cjs
 /**
- * Renders every email template to HTML files so they can be eyeballed in a
+ * Renders the email templates to HTML files so they can be eyeballed in a
  * browser. Emails are not pages, so there is nothing to point a dev server at;
  * this is how a template change gets a real visual check before it ships.
+ *
+ * NOTE: covers only the templates listed in buildPreviews() below — currently
+ * the four account/security emails. The seven notification templates are not on
+ * the shared layout yet; add each one here in the PR that migrates it.
  *
  * Pure function calls with fixture data — no database is opened, no network
  * request is made, and no mail is sent. Only `getConfig()`/`getBaseURL()` are

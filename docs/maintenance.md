@@ -127,8 +127,10 @@ Creates a test user for development/testing:
 
 ### Render Email Previews
 
-Renders every email template to standalone HTML files so a template change can be
-checked visually. Emails are not pages, so there is no dev-server route to open —
+Renders email templates to standalone HTML files so a template change can be
+checked visually. Covers the templates listed in `buildPreviews()` — currently
+the four account/security emails; the notification templates are not on the
+shared layout yet. Emails are not pages, so there is no dev-server route to open —
 this is the visual verification step for anything under
 `lib/services/email/templates/`.
 
@@ -136,7 +138,7 @@ this is the visual verification step for anything under
 ./scripts/mock/renderEmailPreviews.ts [outDir]
 ```
 
-It writes one file per template plus an `index.html` that shows each rendered
+It writes one file per covered template plus an `index.html` that shows each rendered
 email beside its plain-text alternative, then prints a `file://` URL. Output goes
 to a temporary directory unless `outDir` is given, so nothing lands in the working
 tree.

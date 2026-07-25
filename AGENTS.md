@@ -259,8 +259,19 @@ section-navigation patterns; pick by section type.
 
 ## Transactional & Notification Emails
 
-Every email the server sends goes through one shared skeleton, so a design or
-copy change lands in one place instead of eleven.
+Emails go through one shared skeleton, so a design or copy change lands in one
+place instead of eleven.
+
+> **Migration in progress — this describes the target, not the whole tree yet.**
+> Only the four account/security emails are on the shared layout:
+> `verifyEmail.ts`, `changeEmail.ts`, `resetPassword.ts`, `actorDeleted.ts`.
+> The seven notification templates — `follow.ts`, `followRequest.ts`, `like.ts`,
+> `mention.ts`, `reply.ts`, `reblog.ts`, `activityImport.ts` — still export the
+> old `getSubject`/`getTextContent`/`getHTMLContent` trio, write raw markup,
+> hand-maintain both media, and build links from a hardcoded
+> `https://${config.host}`. They are being migrated, not grandfathered: apply the
+> rules below to any template you touch, and do not copy the old shape into a new
+> one.
 
 - **One module per email** in `lib/services/email/templates/`, exporting a single
   `build<Name>Email(params): RenderedEmail` (`{ subject, text, html }`). **Never
@@ -274,10 +285,11 @@ copy change lands in one place instead of eleven.
   come from `@/lib/services/email/layout/theme` — email has no stylesheet, so
   nothing may reference a CSS variable or a Tailwind class.
 - **Escaping lives in the block builders, not the templates.** A builder takes
-  plain strings and escapes them itself, so a template cannot forget one. The
-  only value the layout emits unescaped is a pre-sanitized status body passed as
-  `SanitizedBody`, produced by the existing `convertMarkdownText`/`sanitizeText`
-  pipeline — never assembled by hand.
+  plain strings and escapes them itself, so a template cannot forget one. Nothing
+  in the layout emits an unescaped value today. When the notification templates
+  land they will need to pass an already-sanitized post body through; that must
+  go through the existing `convertMarkdownText`/`sanitizeText` pipeline and be
+  the single, explicitly-typed exception — never markup assembled by hand.
 - **Every `href`/`src` is absolute and built from `getBaseURL()`.** A
   root-relative URL is unresolvable in a mail client (note `convertMarkdownText`
   emits `/tags/x` for hashtags), and a hardcoded `https://${config.host}` is
@@ -295,11 +307,18 @@ copy change lands in one place instead of eleven.
   (`deleteActorJob.test.ts` and the password-reset route test), in both cases
   hiding that `sendMail` was never reached at all.
 - **Verify a template change by rendering it**:
-  `./scripts/mock/renderEmailPreviews.ts` writes every template to HTML with
-  fixture data plus an index showing each one beside its plain-text twin (see
-  `docs/maintenance.md`). Emails are not pages, so this is the real-browser check
-  Definition of Done item 6 asks for. A browser is still a lower bar than a mail
-  client — for a change to the shared layout, also send one to a real inbox.
+  `./scripts/mock/renderEmailPreviews.ts` writes each template it covers to HTML
+  with fixture data, plus an index showing every one beside its plain-text twin
+  (see `docs/maintenance.md`). Emails are not pages, so this is the real-browser
+  check Definition of Done item 6 asks for. **It currently covers only the four
+  account emails** — add a template to `buildPreviews()` in the same PR that
+  migrates it, or the change ships unpreviewable. Keep the fixture values
+  production-shaped: the codes are 43-char base64url, and a short placeholder
+  hides the link-wrapping problems a real one exposes.
+- A browser is a lower bar than a mail client. For a change to the shared layout,
+  also send one to a real inbox and check Gmail, Apple Mail and Outlook —
+  Outlook's Word engine is the one that needs `mso-` properties and the ghost
+  table, and none of that is observable in a browser.
 
 ## Status Posts & Actions
 

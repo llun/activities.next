@@ -169,12 +169,19 @@ change doesn't touch.
 
 ## Emails
 
-- Every email is built by a `build<Name>Email(params): RenderedEmail` module in
-  `lib/services/email/templates/`. No subject/HTML/text literals at a call site.
+- **Migration in progress.** Only the four account/security emails
+  (`verifyEmail`, `changeEmail`, `resetPassword`, `actorDeleted`) are on the
+  shared layout. The seven notification templates still use the old
+  `getSubject`/`getTextContent`/`getHTMLContent` trio with raw markup and
+  hardcoded `https://${config.host}` links. Apply the rules below to any template
+  a change touches; don't copy the old shape into a new one.
+- Every migrated email is built by a `build<Name>Email(params): RenderedEmail`
+  module in `lib/services/email/templates/`. No subject/HTML/text literals at a
+  call site.
 - Templates compose blocks from `@/lib/services/email/layout/blocks` and render
   through `renderEmail`; they never write markup. Escaping belongs to the block
-  builders, so a template hands in plain strings. The only unescaped value is a
-  pre-sanitized status body (`SanitizedBody`).
+  builders, so a template hands in plain strings, and nothing in the layout emits
+  an unescaped value today.
 - Every `href`/`src` is absolute and built from `getBaseURL()`. Root-relative
   URLs are unresolvable in a mail client, and a hardcoded `https://${config.host}`
   is wrong under `ACTIVITIES_INSECURE_AUTH=true`.
@@ -185,7 +192,12 @@ change doesn't touch.
   omission does not fail loudly: the template throws, the catch swallows it, and
   the test passes while the email silently stops sending. This has bitten twice.
 - Template changes are verified by rendering:
-  `./scripts/mock/renderEmailPreviews.ts` (see `docs/maintenance.md`).
+  `./scripts/mock/renderEmailPreviews.ts` (see `docs/maintenance.md`). It covers
+  only the four migrated templates — a PR migrating another must add it to
+  `buildPreviews()`, and fixtures must be production-shaped (43-char codes).
+- Outlook-only properties (`mso-padding-alt` on both the button cell and its
+  anchor, `mso-hide:all`, the MSO ghost table pinning the column to 600px) are
+  load-bearing and invisible in a browser. Don't drop them as dead style.
 
 ## Style, imports & tests
 
