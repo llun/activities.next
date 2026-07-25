@@ -1,0 +1,135 @@
+lib/services/notifications/getMastodonNotification.test.ts
+  s_85d91c6baf9d58::t_0ddd1cefd476a6 82-88,111-144
+  s_85d91c6baf9d58::t_05632cc1b7a98b 145-146
+lib/database/sql/statusReaction.ts
+  s_85d91c6baf9d58::t_6d8e498192f7b9 1-107,110-126,128-134,138-149,153-198
+  s_85d91c6baf9d58::t_bf298182865137 135-137,150-152
+  s_85d91c6baf9d58::t_1879b64cd43f21 108-109,127
+migrations/20260726000000_add_status_reactions.js
+  s_85d91c6baf9d58::t_10149266f65a25 1-38
+lib/database/types.ts
+  s_85d91c6baf9d58::t_40ca8bd12a2b7d 47,97
+app/api/users/[username]/inbox/route.test.ts
+  s_85d91c6baf9d58::t_ecacc867c8c2ee 16-18,142,145-159,215-217,586-648,658,667,673-688
+  s_85d91c6baf9d58::t_bf298182865137 649-657,659-666,668-672
+  s_85d91c6baf9d58::t_3ac4abbe1b0a41 689-690
+lib/types/database/operations.ts
+  s_85d91c6baf9d58::t_85774b543eb3f5 3185-3187
+  s_85d91c6baf9d58::t_6b3f765e2ec2eb 2806-2876
+  s_85d91c6baf9d58::t_8f7fc90ccc3b18 3208-3210,3225-3226
+  s_85d91c6baf9d58::t_0efebd7ae23122 147,159
+lib/activities/jsonld/index.ts
+  s_85d91c6baf9d58::t_e2834ee2902296 136-140
+  s_85d91c6baf9d58::t_4199ac0f46d2c8 179-183
+  s_85d91c6baf9d58::t_5b225612bdf6e6 350-352
+  s_85d91c6baf9d58::t_bac92aea8e469d 76-87,89-92,101
+  s_85d91c6baf9d58::t_dc90e1ac76917f 88
+  s_85d91c6baf9d58::t_f2e03bc3a1f7da 37
+  s_85d91c6baf9d58::t_717d8b3c22aa02 123
+  s_85d91c6baf9d58::t_856e5e5c7d700b 75
+lib/types/activitypub/activities.ts
+  s_85d91c6baf9d58::t_574c19f4c24da3 139-142,147
+  s_85d91c6baf9d58::t_17ab37eadaa6df 4
+  s_85d91c6baf9d58::t_d22142b0c47f47 86,88-96,99-100,105-108,113-117
+  s_85d91c6baf9d58::t_445cea82ada3c4 118
+lib/jobs/emojiReactionJob.ts
+  s_85d91c6baf9d58::t_13cdb8a1a482ca 1-55
+app/(timeline)/notifications/notificationConfig.ts
+  s_85d91c6baf9d58::t_e0d199d41982b4 11,101-105
+  s_85d91c6baf9d58::t_0d1999198b3f85 106-107
+lib/database/sql/statusReaction.test.ts
+  s_85d91c6baf9d58::t_bf298182865137 168-175,236-239
+  s_85d91c6baf9d58::t_a4dc60bba347d7 1-167,176-235,240-321,323-334,337-343,345,347-351,353,355-372
+  s_85d91c6baf9d58::t_e7aa67fd237a5b 322,335-336,344,346,352,354
+migrations/schema.sql
+  s_85d91c6baf9d58::t_15deb23ae0fa08 666-667,975-983,1449-1451,1680-1682
+  s_85d91c6baf9d58::t_ecd2782c15c8b9 1683
+lib/types/mastodon/index.ts
+  s_85d91c6baf9d58::t_ccd58cdddda389 24
+app/api/inbox/getJobMessage.ts
+  s_85d91c6baf9d58::t_e0567851046fa6 21-22
+  s_85d91c6baf9d58::t_b313c0e4447a32 251-269
+  s_85d91c6baf9d58::t_a1a988b8c9fa94 10
+  s_85d91c6baf9d58::t_cd38a29d0489d4 92-105
+lib/jobs/emojiReactionJob.test.ts
+  s_85d91c6baf9d58::t_bf298182865137 59-62,64-66,118-120
+  s_85d91c6baf9d58::t_90db0ba5742239 1-58,63,67-117,121-122
+lib/services/mastodon/getMastodonStatus.ts
+  s_85d91c6baf9d58::t_050fec73e0d0f9 403-407,415
+  s_85d91c6baf9d58::t_63f326545a43fa 836-838,840,844-845,847-849
+  s_85d91c6baf9d58::t_69dfcc7fa2c3ae 7,58-59,67-70,401-402,408-414,416-433,508-511,566-568,593-597,790-791,835,839,841-842,846,850-858,929
+lib/jobs/index.ts
+  s_85d91c6baf9d58::t_9998fa1a825d29 10,25,106-107
+docs/features.md
+  s_85d91c6baf9d58::t_84eb81e38a4db7 43,49
+  s_85d91c6baf9d58::t_1050791eda1fad 50
+lib/database/sql/notification.ts
+  s_85d91c6baf9d58::t_af0dddf46cd153 52,64
+  s_85d91c6baf9d58::t_37d4436ca1ed9d 25-26
+lib/activities/jsonld/index.test.ts
+  s_85d91c6baf9d58::t_45afededa6da0a 311-317,320
+  s_85d91c6baf9d58::t_9f69db27d1b29f 200-310,318-319,321-333
+  s_85d91c6baf9d58::t_dcbbe2a9459b51 3,603,647-650,654-666,692
+lib/services/notifications/notificationTypeMapping.test.ts
+  s_85d91c6baf9d58::t_0ddd1cefd476a6 32-37,50-54
+  s_85d91c6baf9d58::t_ba246547b9227b 55
+lib/types/mastodon/status/base.ts
+  s_85d91c6baf9d58::t_ccd58cdddda389 10,195-207
+app/(timeline)/notifications/NotificationItem.tsx
+  s_85d91c6baf9d58::t_e0d199d41982b4 99-105
+lib/services/notifications/notificationTypeMapping.ts
+  s_85d91c6baf9d58::t_6a7f3100e90998 108-109
+  s_85d91c6baf9d58::t_8ed4e198d617d9 75-76
+  s_85d91c6baf9d58::t_00056c952a3892 43-46
+app/api/inbox/getJobMessage.test.ts
+  s_85d91c6baf9d58::t_46159a509e6871 3,289-352
+  s_85d91c6baf9d58::t_bdcb3ba70a7a5d 353
+app/api/users/[username]/inbox/route.ts
+  s_85d91c6baf9d58::t_03beb3fe89334b 11-15,35,92,312-320,322-329,400-416,419-431
+lib/database/sql/index.ts
+  s_85d91c6baf9d58::t_40ca8bd12a2b7d 45,74,162
+lib/actions/emojiReaction.ts
+  s_85d91c6baf9d58::t_bf298182865137 104-107
+  s_85d91c6baf9d58::t_88eff56e523ebb 1-103,108-217
+migrations/schema.sqlite.sql
+  s_85d91c6baf9d58::t_f68f3dfadfdd54 41,249-251
+lib/services/notifications/getMastodonNotification.ts
+  s_85d91c6baf9d58::t_748f76181c1c43 82-83
+  s_85d91c6baf9d58::t_b77f2c5f18b650 30-31
+  s_85d91c6baf9d58::t_39b1f0ab39b7e7 170-174
+  s_85d91c6baf9d58::t_b2714ea12871a5 45-47
+lib/types/mastodon/statusReaction.ts
+  s_85d91c6baf9d58::t_48bcd7c8f2c70a 1-33
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_85d91c6baf9d58::t_93432062d46a87 585-587,595,601
+  s_85d91c6baf9d58::t_bf298182865137 614-618,648-652,662-666
+  s_85d91c6baf9d58::t_12797cb96cbead 583-584,588-594,596-600,602-613,619-647,653-661,667-721
+lib/services/statuses/reactionLimits.ts
+  s_85d91c6baf9d58::t_8bcef7d58301b6 1-17
+docs/mastodon-api-compatibility.md
+  s_85d91c6baf9d58::t_84eb81e38a4db7 32-39
+  s_85d91c6baf9d58::t_e4f3b1eb12df20 235-248
+lib/types/database/rows.ts
+  s_85d91c6baf9d58::t_0efebd7ae23122 53,67
+lib/actions/emojiReaction.test.ts
+  s_85d91c6baf9d58::t_bf298182865137 40-44,164-183,185-189,191-199
+  s_85d91c6baf9d58::t_0008ccc0ce84a4 1-39,45-163,184,190,200-368
+lib/jobs/names.ts
+  s_85d91c6baf9d58::t_df0205e483684a 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "2df6ce10d42c28a42d2de2d2aea4a48ced89d6a7",
+  "prompts": {},
+  "sessions": {
+    "s_85d91c6baf9d58": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8685a26c-353a-478b-9125-3aeb9c98a29a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
