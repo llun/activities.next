@@ -316,7 +316,11 @@ describe('replyByEmailJob', () => {
       tokenHash: hashReplyToken(token)
     })
     for (let use = 0; use < REPLY_TOKEN_MAX_USES; use += 1) {
-      await database.recordEmailReplyTokenUse({ id: row!.id })
+      await database.claimEmailReplyTokenUse({
+        id: row!.id,
+        maxUses: REPLY_TOKEN_MAX_USES,
+        now: Date.now()
+      })
     }
 
     await runJob(database, {

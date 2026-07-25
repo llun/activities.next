@@ -8,7 +8,10 @@ import { sendMail } from '@/lib/services/email'
 import { parseEmailAddress } from '@/lib/services/email/address'
 import { extractReplyText } from '@/lib/services/email/extractReplyText'
 import { InboundEmailAttachment } from '@/lib/services/email/inboundPayload'
-import { resolveReplyToken } from '@/lib/services/email/replyToken'
+import {
+  REPLY_TOKEN_MAX_USES,
+  resolveReplyToken
+} from '@/lib/services/email/replyToken'
 import {
   ReplyByEmailFailureReason,
   getHTMLContent as getFailureHTMLContent,
@@ -256,6 +259,27 @@ export const replyByEmailJob = createJobHandle(
       return
     }
 
+    // Spend the use BEFORE any expensive work and before posting. Reading the
+    // count at resolve time and incrementing at the end left a window in which
+    // a burst of deliveries all saw the same stale count and all posted, so
+    // the ceiling only held when replies arrived one at a time. Claiming here
+    // also stops an abusive burst from doing media work it will not get to use.
+    // The trade-off is that a post which then fails still costs a use — the
+    // right way round, since the ceiling exists to bound abuse.
+    const claimed = await database.claimEmailReplyTokenUse({
+      id: token.id,
+      maxUses: REPLY_TOKEN_MAX_USES,
+      now: Date.now()
+    })
+    if (!claimed) {
+      logger.warn({
+        message: 'Reply by email: token spent before this reply could claim it',
+        actorId: actor.id
+      })
+      await notifyFailure(actor, 'exhausted', statusUrl)
+      return
+    }
+
     const attachments = await storeAttachments(
       database,
       actor,
@@ -278,14 +302,11 @@ export const replyByEmailJob = createJobHandle(
       return
     }
 
-    await Promise.all([
-      database.saveIdempotencyKey({
-        actorId: actor.id,
-        key: idempotencyKey,
-        statusId: status.id
-      }),
-      database.recordEmailReplyTokenUse({ id: token.id })
-    ])
+    await database.saveIdempotencyKey({
+      actorId: actor.id,
+      key: idempotencyKey,
+      statusId: status.id
+    })
 
     logger.info({
       message: 'Posted a reply from an inbound email',

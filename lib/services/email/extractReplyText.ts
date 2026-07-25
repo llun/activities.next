@@ -11,22 +11,42 @@ export interface ReplyBodyInput {
 // spaces ('> > nested').
 const QUOTE_PREFIX = /^[ \t]*(?:>[ \t]?)+/
 // "On <date>, <someone> wrote:" and its common localisations. Clients wrap it
-// over as many as three lines, so the tail is matched against a small joined
-// window rather than a single line.
+// over as many as three lines, so a small window of CONTIGUOUS lines is joined
+// before matching — never across a blank line, which a header never contains.
 const ATTRIBUTION_OPENER = /^(On|Le|Am|El)\b/
 const ATTRIBUTION_CLOSER = /\bwrote:$/
 const ATTRIBUTION_MAX_LINES = 3
+/**
+ * The single rule that keeps every heuristic below from eating the sender's
+ * own prose.
+ *
+ * "On", "Am", "El", "Le" and "From:" are ordinary English, so shape alone
+ * cannot tell a machine-generated header from a sentence. A real attribution
+ * always carries a date, a time or an address; "I asked El Nino about it and
+ * here is what he wrote:" carries neither. Requiring that evidence is what
+ * separates the two — matching on shape alone truncated real posts three
+ * review rounds running.
+ */
+const ATTRIBUTION_EVIDENCE = /[0-9]|@/
 // The attribution opener when it trails the sender's text on the SAME line —
 // the normal shape once htmlToPlainText has collapsed an HTML reply onto one
-// line. Scanned globally so the LAST opener can be chosen: a single regex
-// anchored only at its end matches leftmost, which cut at the sender's own
-// first "On …" sentence and silently published a truncated post.
+// line. Scanned globally so the LAST qualifying opener wins: anchoring a single
+// regex at its end matches leftmost, which cut at the sender's own first
+// "On …" sentence and published the truncated remainder.
 const INLINE_ATTRIBUTION_OPENER = /(?:^|\s)(?:On|Le|Am|El)\s/g
-// Outlook's HTML reply has no underscore rule — it emits `<hr>`, which
-// htmlToPlainText drops — so this header run is the only marker left. The
-// whole From/Sent-or-Subject sequence is required so an ordinary sentence
-// mentioning "From:" is not mistaken for it.
-const INLINE_HEADER_RUN = /(?:^|\s)From:\s.*?\b(?:Sent|Subject):\s/
+/**
+ * Outlook's forwarded-header block, inline.
+ *
+ * Its HTML reply has no underscore rule — it emits `<hr>`, which
+ * htmlToPlainText drops — so this run is the only marker left. All three
+ * headers are required, in order, with tightly bounded gaps: two of them with
+ * a paragraph of prose in between is a sender who happened to type "From:",
+ * not a header block. The bounds are also what keep this linear — an unbounded
+ * lazy span rescans the rest of the line for every "From:" on it, which is
+ * quadratic on the single multi-megabyte line an HTML body collapses to.
+ */
+const INLINE_HEADER_RUN =
+  /(?:^|\s)From:[^\n]{0,80}?\b(?:Sent|Date):[^\n]{0,80}?\bSubject:\s/g
 const ORIGINAL_MESSAGE =
   /^-{2,}\s*(Original Message|Forwarded message)\s*-{2,}$/i
 // Outlook separates the quoted original with a rule of underscores.
@@ -37,12 +57,25 @@ const SIGNATURE_DELIMITER = /^--\s?$/
 // U+00A0. HTML mail is full of them, and a line of them is not "blank" to
 // String.trim, so the delimiters above would stop matching.
 const NON_BREAKING_SPACE = /\u00a0/g
+/**
+ * Everything past this is discarded before parsing.
+ *
+ * The sender's own text is always at the TOP of a reply, so truncating the
+ * tail can never lose a word of it — while a body far larger than any status
+ * could ever be is pure quoted history. The webhook already caps the request
+ * at 10 MB, but `validateStatusContentLimits` only runs on the extracted text,
+ * i.e. after this function, so it is no protection for the parser itself.
+ */
+const MAX_PARSE_CHARS = 256 * 1024
 
 const stripQuote = (line: string) => line.replace(QUOTE_PREFIX, '')
 const cleaned = (line: string) => stripQuote(line).trim()
 
 const normalize = (value: string) =>
-  value.replace(/\r\n?/g, '\n').replace(NON_BREAKING_SPACE, ' ')
+  value
+    .replace(/\r\n?/g, '\n')
+    .replace(NON_BREAKING_SPACE, ' ')
+    .slice(0, MAX_PARSE_CHARS)
 
 /**
  * Cut at the sentinel our own notification emails carry.
@@ -57,48 +90,69 @@ const cutAtSentinel = (value: string) => {
   return index === -1 ? null : value.slice(0, index)
 }
 
-// Cut at an "-----Original Message-----" / "---- Forwarded message ----" rule
-// or Outlook's underscore divider, wherever it appears.
+// Index of the last inline header run on a line, or -1. Last rather than first
+// for the same reason as the attribution opener: an earlier "From:" is far
+// more likely to be the sender quoting a header at us than the real block.
+const lastHeaderRunIndex = (line: string) => {
+  let index = -1
+  for (const match of line.matchAll(INLINE_HEADER_RUN)) index = match.index
+  return index
+}
+
+// Cut at an "-----Original Message-----" / "---- Forwarded message ----" rule,
+// Outlook's underscore divider, or an inline header run — wherever it appears.
 //
 // Applied even when the sentinel was found, because Outlook puts an unquoted
-// header block (divider, From:, Sent:, Subject:) BETWEEN the reply and the
-// quoted original — so the sentinel cut alone leaves that block behind, and it
-// is not `>`-quoted, so the tail cleanup does not remove it either. These
-// dividers are unambiguous: they do not occur in ordinary prose, unlike the
-// "…wrote:" heuristic below.
+// header block BETWEEN the reply and the quoted original: the sentinel cut
+// alone leaves it behind, and it carries no `>` markers, so the quoted-tail
+// cleanup does not remove it either.
 const cutAtDivider = (lines: string[]) => {
   for (let index = 0; index < lines.length; index += 1) {
     const value = cleaned(lines[index])
     if (ORIGINAL_MESSAGE.test(value) || OUTLOOK_DIVIDER.test(value)) {
       return lines.slice(0, index)
     }
-    // The same header block, but inline — an Outlook reply that arrived as
-    // HTML and has been collapsed onto one line.
-    const headerRun = INLINE_HEADER_RUN.exec(lines[index])
-    if (headerRun) {
-      return [...lines.slice(0, index), lines[index].slice(0, headerRun.index)]
+    const headerRun = lastHeaderRunIndex(lines[index])
+    if (headerRun >= 0) {
+      return [...lines.slice(0, index), lines[index].slice(0, headerRun)]
     }
   }
   return lines
 }
 
+/**
+ * Does an attribution header start at `index` and, within a few CONTIGUOUS
+ * lines, close with "wrote:" and carry date/address evidence?
+ *
+ * The contiguity matters: joining across a blank line fused a sender's own
+ * "On Friday I will be away." with the client's attribution two lines below
+ * and deleted the paragraph in between.
+ */
+const attributionSpan = (lines: string[], index: number) => {
+  if (!ATTRIBUTION_OPENER.test(cleaned(lines[index]))) return false
+
+  const parts: string[] = []
+  for (let span = 0; span < ATTRIBUTION_MAX_LINES; span += 1) {
+    const line = lines[index + span]
+    if (line === undefined) break
+    const value = cleaned(line)
+    if (span > 0 && value === '') break
+    parts.push(value)
+
+    const joined = parts.join(' ')
+    if (ATTRIBUTION_CLOSER.test(joined) && ATTRIBUTION_EVIDENCE.test(joined)) {
+      return true
+    }
+  }
+  return false
+}
+
 // Fallback for a message with no sentinel (a forward, or a client that
-// rewrapped the body): cut at the first attribution header anywhere in the
-// text. Only used when the sentinel is missing — a precise cut must never be
-// second-guessed by a heuristic that would also fire on "…he wrote:" inside
-// someone's actual reply.
+// rewrapped the body): cut at the first real attribution header. Only used
+// when the sentinel is missing — a precise cut must never be second-guessed.
 const cutAtAttribution = (lines: string[]) => {
   for (let index = 0; index < lines.length; index += 1) {
-    const line = cleaned(lines[index])
-    if (!ATTRIBUTION_OPENER.test(line)) continue
-
-    for (let span = 0; span < ATTRIBUTION_MAX_LINES; span += 1) {
-      const joined = lines
-        .slice(index, index + span + 1)
-        .map(cleaned)
-        .join(' ')
-      if (ATTRIBUTION_CLOSER.test(joined)) return lines.slice(0, index)
-    }
+    if (attributionSpan(lines, index)) return lines.slice(0, index)
   }
   return lines
 }
@@ -129,24 +183,33 @@ const dropTrailingAttribution = (lines: string[]) => {
   }
   if (!ATTRIBUTION_CLOSER.test(last)) return lines
 
-  // Walk back for the "On …" opener the closer belongs to, so a wrapped
-  // attribution is removed whole rather than leaving its first line behind.
+  // Walk back over CONTIGUOUS lines for the opener this closer belongs to, so
+  // a wrapped attribution goes whole — and stop at a blank line, which a real
+  // header never spans.
   for (let span = 0; span < ATTRIBUTION_MAX_LINES; span += 1) {
     const start = lastIndex - span
     if (start < 0) break
-    if (ATTRIBUTION_OPENER.test(cleaned(lines[start]))) {
-      return lines.slice(0, start)
-    }
+    const startValue = cleaned(lines[start])
+    if (span > 0 && startValue === '') break
+    if (!ATTRIBUTION_OPENER.test(startValue)) continue
+
+    const joined = lines
+      .slice(start, lastIndex + 1)
+      .map(cleaned)
+      .join(' ')
+    if (ATTRIBUTION_EVIDENCE.test(joined)) return lines.slice(0, start)
   }
 
   // No opener on a line of its own, so the attribution trails the sender's
-  // text on this line. Cut at the LAST opener rather than the first: the
-  // sender's own sentences may well start with "On …" or "Am …", and leaving a
-  // stray date fragment in the post is far better than deleting words they
-  // actually wrote.
+  // text on this line. Cut at the LAST opener whose remainder still looks like
+  // a header: the sender's own sentences may well start with "On …" or "Am …",
+  // and leaving a stray date fragment in the post is far better than deleting
+  // words they actually wrote.
   let inlineStart = -1
   for (const match of lines[lastIndex].matchAll(INLINE_ATTRIBUTION_OPENER)) {
-    inlineStart = match.index
+    if (ATTRIBUTION_EVIDENCE.test(lines[lastIndex].slice(match.index))) {
+      inlineStart = match.index
+    }
   }
   if (inlineStart >= 0) {
     return [
@@ -156,8 +219,7 @@ const dropTrailingAttribution = (lines: string[]) => {
   }
 
   // Ends in "wrote:" but nothing marks it as an attribution header — it is the
-  // sender's own sentence ("Here is what she wrote:"). Dropping the line here
-  // is what used to throw away the whole of an HTML-only reply.
+  // sender's own sentence ("Here is what she wrote:"). Leave it alone.
   return lines
 }
 
@@ -181,7 +243,11 @@ const trimBlankEdges = (lines: string[]) => {
  * fallback goes through `htmlToPlainText`, which collapses the message onto a
  * single line, so the *line-based* heuristics (quoted blocks, a whole-line
  * divider) have nothing to bite on there; the sentinel cut and the two inline
- * trims below are what carry that path.
+ * trims are what carry that path.
+ *
+ * Every heuristic here errs towards keeping too much rather than too little.
+ * Leaving a stray fragment of a quoted header in a post is a cosmetic problem;
+ * deleting a sentence the sender wrote is silent, published, and irreversible.
  *
  * Returns an empty string when nothing is left, which callers must treat as
  * "abandon the reply" rather than posting a blank status.

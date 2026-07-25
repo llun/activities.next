@@ -3,13 +3,13 @@ import { randomUUID } from 'node:crypto'
 
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
+  ClaimEmailReplyTokenUseParams,
   CreateEmailReplyTokenParams,
   DeleteExpiredEmailReplyTokensParams,
   EmailReplyTokenData,
   EmailReplyTokenDatabase,
   EmailReplyTokenNotificationType,
-  GetEmailReplyTokenParams,
-  RecordEmailReplyTokenUseParams
+  GetEmailReplyTokenParams
 } from '@/lib/types/database/operations'
 
 type SQLEmailReplyToken = {
@@ -80,13 +80,21 @@ export const EmailReplyTokenSQLDatabaseMixin = (
     return row ? toEmailReplyToken(row) : null
   },
 
-  async recordEmailReplyTokenUse({ id }: RecordEmailReplyTokenUseParams) {
-    // Increment in the database rather than read-modify-write so two replies
-    // landing at once can't both write the same count and lose one use.
-    await database('email_reply_tokens')
+  async claimEmailReplyTokenUse({
+    id,
+    maxUses,
+    now
+  }: ClaimEmailReplyTokenUseParams) {
+    // The ceiling and expiry are part of the WHERE, so the check and the spend
+    // are one statement. Concurrent claims serialize on the row: exactly
+    // `maxUses` of them can ever succeed, however many arrive at once.
+    const claimed = await database('email_reply_tokens')
       .where({ id })
-      .update({ lastUsedAt: new Date() })
+      .where('useCount', '<', maxUses)
+      .where('expiresAt', '>', new Date(now))
+      .update({ lastUsedAt: new Date(now) })
       .increment('useCount', 1)
+    return claimed > 0
   },
 
   async deleteExpiredEmailReplyTokens({

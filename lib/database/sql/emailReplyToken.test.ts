@@ -60,7 +60,64 @@ describe('EmailReplyTokenDatabase', () => {
       ).resolves.toBeNull()
     })
 
-    it('increments useCount and stamps lastUsedAt on each recorded use', async () => {
+    it('increments useCount and stamps lastUsedAt on each claimed use', async () => {
+      const tokenHash = hash()
+      const created = await database.createEmailReplyToken({
+        tokenHash,
+        actorId: ACTOR_ID,
+        statusId: STATUS_ID,
+        notificationType: 'reply',
+        expiresAt: Date.now() + 60_000
+      })
+      const claim = () =>
+        database.claimEmailReplyTokenUse({
+          id: created.id,
+          maxUses: 2,
+          now: Date.now()
+        })
+
+      await expect(claim()).resolves.toBe(true)
+      const afterFirst = await database.getEmailReplyToken({ tokenHash })
+      expect(afterFirst?.useCount).toBe(1)
+      expect(afterFirst?.lastUsedAt).toBeGreaterThan(0)
+
+      await expect(claim()).resolves.toBe(true)
+      await expect(
+        database.getEmailReplyToken({ tokenHash })
+      ).resolves.toMatchObject({ useCount: 2 })
+
+      // The ceiling is enforced by the UPDATE itself, not by a prior read.
+      await expect(claim()).resolves.toBe(false)
+      await expect(
+        database.getEmailReplyToken({ tokenHash })
+      ).resolves.toMatchObject({ useCount: 2 })
+    })
+
+    it('refuses to claim a use on an expired token', async () => {
+      const tokenHash = hash()
+      const created = await database.createEmailReplyToken({
+        tokenHash,
+        actorId: ACTOR_ID,
+        statusId: STATUS_ID,
+        notificationType: 'reply',
+        expiresAt: Date.now() - 1000
+      })
+
+      await expect(
+        database.claimEmailReplyTokenUse({
+          id: created.id,
+          maxUses: 20,
+          now: Date.now()
+        })
+      ).resolves.toBe(false)
+      await expect(
+        database.getEmailReplyToken({ tokenHash })
+      ).resolves.toMatchObject({ useCount: 0 })
+    })
+
+    // The whole point of moving the check inside the UPDATE: a burst of
+    // concurrent claims must not all pass a stale read of useCount.
+    it('lets exactly maxUses concurrent claims succeed', async () => {
       const tokenHash = hash()
       const created = await database.createEmailReplyToken({
         tokenHash,
@@ -70,15 +127,21 @@ describe('EmailReplyTokenDatabase', () => {
         expiresAt: Date.now() + 60_000
       })
 
-      await database.recordEmailReplyTokenUse({ id: created.id })
-      const afterFirst = await database.getEmailReplyToken({ tokenHash })
-      expect(afterFirst?.useCount).toBe(1)
-      expect(afterFirst?.lastUsedAt).toBeGreaterThan(0)
+      const results = []
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        results.push(
+          await database.claimEmailReplyTokenUse({
+            id: created.id,
+            maxUses: 3,
+            now: Date.now()
+          })
+        )
+      }
 
-      await database.recordEmailReplyTokenUse({ id: created.id })
+      expect(results.filter(Boolean)).toHaveLength(3)
       await expect(
         database.getEmailReplyToken({ tokenHash })
-      ).resolves.toMatchObject({ useCount: 2 })
+      ).resolves.toMatchObject({ useCount: 3 })
     })
 
     it('deletes only tokens that expired before the given time', async () => {

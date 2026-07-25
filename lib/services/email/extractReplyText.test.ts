@@ -190,6 +190,96 @@ describe('extractReplyText', () => {
     expect(extractReplyText({ html })).toBe('My actual reply.')
   })
 
+  // Every cut heuristic keys on words that are ordinary English — "On", "Am",
+  // "El", "From:" — so shape alone repeatedly truncated real posts. A real
+  // header carries a date, a time or an address; a sentence does not.
+  describe('does not mistake the sender prose for a quoted header', () => {
+    it.each([
+      {
+        description: 'a sentence ending in wrote: with an On earlier',
+        text: 'I asked El Nino about it and here is what he wrote:',
+        expected: 'I asked El Nino about it and here is what he wrote:'
+      },
+      {
+        description: 'an Am question ending in wrote:',
+        text: 'Look at this. Am I wrong about what she wrote:',
+        expected: 'Look at this. Am I wrong about what she wrote:'
+      },
+      {
+        description: 'an On line two lines above a wrote: line',
+        text: 'I checked the notes.\nOn the report you asked about,\nhere is what she wrote:',
+        expected:
+          'I checked the notes.\nOn the report you asked about,\nhere is what she wrote:'
+      },
+      {
+        description: 'an Am line separated by a blank line',
+        text: 'Am I late?\n\nRead what she wrote:',
+        expected: 'Am I late?\n\nRead what she wrote:'
+      }
+    ])('keeps $description', ({ text, expected }) => {
+      const body = `${text}\n\n> ${REPLY_SENTINEL}\n> quoted original`
+      expect(extractReplyText({ text: body })).toBe(expected)
+    })
+
+    it('keeps a paragraph between an On sentence and the real attribution', () => {
+      const text = [
+        'Sure.',
+        'On Friday I will be away.',
+        '',
+        'On 25 Jul 2026, Alice <alice@example.tld> wrote:',
+        '> quoted original'
+      ].join('\n')
+
+      expect(extractReplyText({ text })).toBe(
+        'Sure.\nOn Friday I will be away.'
+      )
+    })
+
+    it('keeps a From: the sender typed, cutting only at the real block', () => {
+      const text = [
+        'Here is the header I got:',
+        'From: postmaster@example.tld Subject: Undelivered Mail',
+        '',
+        'Any idea what that means?',
+        '',
+        '________________________________',
+        'From: Alice <a@b.tld>',
+        'Sent: Friday, 25 July 2026 10:00',
+        'Subject: @alice replied to your post',
+        '',
+        REPLY_SENTINEL
+      ].join('\n')
+
+      expect(extractReplyText({ text })).toBe(
+        'Here is the header I got:\nFrom: postmaster@example.tld Subject: Undelivered Mail\n\nAny idea what that means?'
+      )
+    })
+
+    it('keeps a From: the sender typed in a collapsed Outlook HTML reply', () => {
+      const html =
+        '<div dir="ltr">The bounce says From: postmaster@example.tld — do ' +
+        'you know why? I retried three times and it still fails.</div><hr>' +
+        '<div><b>From:</b> Alice<br><b>Sent:</b> Friday, 25 July 2026 10:00' +
+        `<br><b>Subject:</b> @alice replied</div><p>${REPLY_SENTINEL}</p>`
+
+      expect(extractReplyText({ html })).toBe(
+        'The bounce says From: postmaster@example.tld — do you know why? I retried three times and it still fails.'
+      )
+    })
+  })
+
+  // A single reply used to be able to pin the worker: the unbounded lazy span
+  // rescanned the rest of the line for every "From:" on it, and an HTML body
+  // collapses to ONE line of up to megabytes.
+  it('parses a large single-line body in linear time', () => {
+    const body = 'From: a '.repeat(50_000)
+    const started = Date.now()
+
+    extractReplyText({ text: body })
+
+    expect(Date.now() - started).toBeLessThan(1000)
+  })
+
   it('falls back to the HTML part when there is no text part', () => {
     const html = `<p>Just this bit.</p><p>${REPLY_SENTINEL}</p><h3>@someone mentioned you</h3>`
     expect(extractReplyText({ html })).toBe('Just this bit.')

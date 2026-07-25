@@ -1420,7 +1420,11 @@ export type CreateEmailReplyTokenParams = {
 }
 
 export type GetEmailReplyTokenParams = { tokenHash: string }
-export type RecordEmailReplyTokenUseParams = { id: string }
+export type ClaimEmailReplyTokenUseParams = {
+  id: string
+  maxUses: number
+  now: number
+}
 export type DeleteExpiredEmailReplyTokensParams = { before: number }
 
 export interface EmailReplyTokenDatabase {
@@ -1430,9 +1434,18 @@ export interface EmailReplyTokenDatabase {
   getEmailReplyToken(
     params: GetEmailReplyTokenParams
   ): Promise<EmailReplyTokenData | null>
-  recordEmailReplyTokenUse(
-    params: RecordEmailReplyTokenUseParams
-  ): Promise<void>
+  /**
+   * Atomically spend one use, or report that there was none left.
+   *
+   * The expiry and ceiling are re-tested inside the UPDATE rather than read
+   * first and acted on afterwards: reading, posting, then incrementing leaves
+   * a window in which every concurrent delivery of a token sees the same stale
+   * count, so all of them post and the ceiling becomes advisory. Returns false
+   * when the row is already spent or expired.
+   */
+  claimEmailReplyTokenUse(
+    params: ClaimEmailReplyTokenUseParams
+  ): Promise<boolean>
   deleteExpiredEmailReplyTokens(
     params: DeleteExpiredEmailReplyTokensParams
   ): Promise<number>
