@@ -242,10 +242,40 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   Reactions arrive as their own notification type, `pleroma:emoji_reaction`,
   which carries an extra `emoji` field; `types[]`/`exclude_types[]` accept that
   name. None of this is core Mastodon API, and vanilla clients ignore all of it.
+  The write endpoints are the Pleroma/Akkoma dialect, with the glitch-soc pair
+  as thin aliases over the same service and store, so the two can never
+  disagree. All take `write` or `write:favourites`; the reads take `read` or
+  `read:statuses` and accept anonymous callers (`me` is then always false):
+
+  | Endpoint                                                     | Dialect           |
+  | ------------------------------------------------------------ | ----------------- |
+  | `PUT`/`DELETE /api/v1/pleroma/statuses/:id/reactions/:emoji` | Pleroma (primary) |
+  | `GET /api/v1/pleroma/statuses/:id/reactions`                 | Pleroma           |
+  | `GET /api/v1/pleroma/statuses/:id/reactions/:emoji`          | Pleroma           |
+  | `POST /api/v1/statuses/:id/react/:name`                      | glitch-soc        |
+  | `POST /api/v1/statuses/:id/unreact/:name`                    | glitch-soc        |
+
+  The write endpoints return the affected `Status`; the reads return
+  `{name, count, me, url, static_url, accounts}` in first-reaction order. A
+  reaction this instance originates must be a **single emoji grapheme** or a
+  shortcode naming an enabled local custom emoji — anything else is `422`. That
+  is stricter than what is accepted inbound, deliberately: we have to be able to
+  render and federate what we send.
+
   Inbound federation accepts both dialects at the per-user **and** shared
   inboxes: the litepub `EmojiReact` of FEP-c0e0 and a Misskey-style `Like`
   carrying `content`/`_misskey_reaction`, plus the `Undo` of either. A **plain**
   `Like` (no reaction content) remains an ordinary favourite.
+
+  **Outbound, a reaction is emitted as a Misskey-style `Like`** — the emoji on
+  both `content` and `_misskey_reaction`, plus an `Emoji` tag for a custom one —
+  because that is the only spelling every server family renders something for.
+  The consequence is worth stating plainly: **on vanilla Mastodon your reaction
+  arrives as a favourite.** Mastodon has no `EmojiReact` handler at all and
+  drops that activity silently, while its `Like` handler ignores `content`, so a
+  visible favourite is strictly better than nothing. On the Misskey family a
+  favourite arrives as a `❤` reaction and a later reaction replaces it (their
+  one-per-user rule). Reacting never favourites the post locally.
 
   Known limitation: reactions are capped at 8 distinct emoji per actor per
   status, but the number of _distinct_ emoji on a status is not capped, and the

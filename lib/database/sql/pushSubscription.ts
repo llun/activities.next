@@ -42,6 +42,7 @@ export const DEFAULT_PUSH_ALERTS: PushAlerts = {
   update: false,
   quote: false,
   quoted_update: false,
+  'pleroma:emoji_reaction': false,
   'admin.sign_up': false,
   'admin.report': false
 }
@@ -61,6 +62,7 @@ export const ALL_PUSH_ALERTS_ENABLED: PushAlerts = {
   update: true,
   quote: true,
   quoted_update: true,
+  'pleroma:emoji_reaction': true,
   'admin.sign_up': true,
   'admin.report': true
 }

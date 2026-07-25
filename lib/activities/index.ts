@@ -13,6 +13,14 @@ import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { LikeStatus } from '@/lib/activities/likeAction'
 import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
+import {
+  REACTION_CONTEXT,
+  ReactionActivity,
+  UndoReactionActivity,
+  getReactionContent,
+  getReactionEmojiTag,
+  reactionActivityId
+} from '@/lib/activities/reactionActivity'
 import { RejectFollow } from '@/lib/activities/rejectFollow'
 import { UndoBlock } from '@/lib/activities/undoBlock'
 import { UndoFollow } from '@/lib/activities/undoFollow'
@@ -29,6 +37,7 @@ import {
 } from '@/lib/types/activitypub/activities'
 import { Actor } from '@/lib/types/domain/actor'
 import { Block as DomainBlock } from '@/lib/types/domain/block'
+import { CustomEmojiData } from '@/lib/types/domain/customEmoji'
 import { Follow } from '@/lib/types/domain/follow'
 import { Relay } from '@/lib/types/domain/relay'
 import {
@@ -930,6 +939,94 @@ export const sendLike = async ({ currentActor, status }: LikeParams) =>
         currentActor,
         activity,
         logPrefix: 'sendLike'
+      })
+      span.end()
+    }
+  )
+
+interface ReactionParams {
+  currentActor: Actor
+  status: Status
+  // The stored reaction name: a unicode emoji, or a local custom-emoji
+  // shortcode whose row is passed alongside so the Emoji tag can be rendered.
+  reaction: string
+  customEmoji: CustomEmojiData | null
+}
+
+const buildReactionActivity = ({
+  currentActor,
+  status,
+  reaction,
+  customEmoji
+}: ReactionParams): ReactionActivity => {
+  const content = getReactionContent(reaction, customEmoji)
+  const emojiTag = getReactionEmojiTag(customEmoji)
+  return {
+    '@context': REACTION_CONTEXT,
+    id: reactionActivityId(currentActor.id, status.id, reaction, statusIdHash),
+    type: 'Like',
+    actor: currentActor.id,
+    object: status.id,
+    // Misskey sets both; `content` is what every other family reads.
+    content,
+    _misskey_reaction: content,
+    ...(emojiTag ? { tag: [emojiTag] } : {})
+  }
+}
+
+export const sendReaction = async (params: ReactionParams) =>
+  getTracer().startActiveSpan(
+    'activities.sendReaction',
+    {
+      attributes: {
+        actorId: params.currentActor.id,
+        statusId: params.status.id
+      }
+    },
+    async (span) => {
+      const { currentActor, status } = params
+      if (!status.actor) return
+
+      await postActivityToInbox({
+        span,
+        inbox: status.actor.inboxUrl,
+        currentActor,
+        activity: buildReactionActivity(params),
+        logPrefix: 'sendReaction'
+      })
+      span.end()
+    }
+  )
+
+export const sendUndoReaction = async (params: ReactionParams) =>
+  getTracer().startActiveSpan(
+    'activities.sendUndoReaction',
+    {
+      attributes: {
+        actorId: params.currentActor.id,
+        statusId: params.status.id
+      }
+    },
+    async (span) => {
+      const { currentActor, status } = params
+      if (!status.actor) return
+
+      const reactionActivity = buildReactionActivity(params)
+      const activity: UndoReactionActivity = {
+        '@context': REACTION_CONTEXT,
+        id: `${reactionActivity.id}/undo`,
+        type: 'Undo',
+        actor: currentActor.id,
+        // Embed the reaction verbatim: Misskey undoes the rendered Like, and a
+        // receiver needs the content to know which reaction is being retracted.
+        object: reactionActivity
+      }
+      await postActivityToInbox({
+        span,
+        inbox: status.actor.inboxUrl,
+        currentActor,
+        activity,
+        logPrefix: 'sendUndoReaction'
       })
       span.end()
     }
