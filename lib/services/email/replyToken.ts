@@ -171,22 +171,33 @@ export const createReplyToAddress = async (
 }
 
 /**
- * Look a token up by its keyed hash, rejecting rows that have expired or spent
- * their use ceiling. Returns null in every failure case — the caller cannot
- * distinguish "never existed" from "expired", which is the point.
+ * Why a token could not be used.
+ *
+ * `unknown` is deliberately distinct from the other two: an unknown hash gives
+ * us no actor, so there is nobody to tell, while an expired or spent row still
+ * names its owner and can therefore be answered instead of dropped silently.
  */
+export type ReplyTokenResolution =
+  | { status: 'ok'; token: EmailReplyTokenData }
+  | { status: 'expired'; token: EmailReplyTokenData }
+  | { status: 'exhausted'; token: EmailReplyTokenData }
+  | { status: 'unknown' }
+
+/** Look a token up by its keyed hash and say whether it may still be used. */
 export const resolveReplyToken = async (
   database: Database,
   token: string
-): Promise<EmailReplyTokenData | null> => {
-  if (!REPLY_TOKEN_PATTERN.test(token)) return null
+): Promise<ReplyTokenResolution> => {
+  if (!REPLY_TOKEN_PATTERN.test(token)) return { status: 'unknown' }
 
   const row = await database.getEmailReplyToken({
     tokenHash: hashReplyToken(token)
   })
-  if (!row) return null
-  if (row.expiresAt <= Date.now()) return null
-  if (row.useCount >= REPLY_TOKEN_MAX_USES) return null
+  if (!row) return { status: 'unknown' }
+  if (row.expiresAt <= Date.now()) return { status: 'expired', token: row }
+  if (row.useCount >= REPLY_TOKEN_MAX_USES) {
+    return { status: 'exhausted', token: row }
+  }
 
-  return row
+  return { status: 'ok', token: row }
 }

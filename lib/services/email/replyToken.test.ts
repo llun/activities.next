@@ -140,9 +140,12 @@ describe('replyToken', () => {
 
       const resolved = await resolveReplyToken(database, minted!.token)
       expect(resolved).toMatchObject({
-        actorId: ACTOR_ID,
-        statusId: STATUS_ID,
-        notificationType: 'mention'
+        status: 'ok',
+        token: {
+          actorId: ACTOR_ID,
+          statusId: STATUS_ID,
+          notificationType: 'mention'
+        }
       })
     })
 
@@ -185,10 +188,10 @@ describe('replyToken', () => {
       ).resolves.toBeNull()
     })
 
-    it('does not resolve an unknown token', async () => {
+    it('reports an unknown token as unknown', async () => {
       await expect(
         resolveReplyToken(database, 'never-minted')
-      ).resolves.toBeNull()
+      ).resolves.toEqual({ status: 'unknown' })
     })
 
     it('does not resolve an expired token', async () => {
@@ -210,15 +213,17 @@ describe('replyToken', () => {
       vi.useFakeTimers()
       vi.setSystemTime(new Date(row!.expiresAt + 1))
       try {
+        // Distinguished from 'unknown' on purpose: the row still names its
+        // owner, so the job can tell them instead of dropping the reply.
         await expect(
           resolveReplyToken(database, minted!.token)
-        ).resolves.toBeNull()
+        ).resolves.toMatchObject({ status: 'expired' })
       } finally {
         vi.useRealTimers()
       }
     })
 
-    it('does not resolve a token that spent its use ceiling', async () => {
+    it('reports a token that spent its use ceiling as exhausted', async () => {
       const minted = await mintReplyToken(database, {
         actorId: ACTOR_ID,
         statusId: STATUS_ID,
@@ -234,7 +239,7 @@ describe('replyToken', () => {
 
       await expect(
         resolveReplyToken(database, minted!.token)
-      ).resolves.toBeNull()
+      ).resolves.toMatchObject({ status: 'exhausted' })
     })
 
     describe('createReplyToAddress', () => {
@@ -271,7 +276,7 @@ describe('replyToken', () => {
         const token = extractReplyTokenFromAddress(address!)
         await expect(
           resolveReplyToken(database, token!)
-        ).resolves.toMatchObject(params)
+        ).resolves.toMatchObject({ status: 'ok', token: params })
       })
 
       it('returns undefined when the admin switch is off', async () => {

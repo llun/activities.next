@@ -16,6 +16,11 @@ const QUOTE_PREFIX = /^[ \t]*(?:>[ \t]?)+/
 const ATTRIBUTION_OPENER = /^(On|Le|Am|El)\b/
 const ATTRIBUTION_CLOSER = /\bwrote:$/
 const ATTRIBUTION_MAX_LINES = 3
+// The same header when it trails the sender's text on the SAME line, which is
+// the normal shape once htmlToPlainText has collapsed an HTML reply onto one
+// line. Matching only the attribution-shaped suffix means the sender's text in
+// front of it survives.
+const INLINE_ATTRIBUTION = /(?:^|\s)(?:On|Le|Am|El)\s.*\bwrote:\s*$/
 const ORIGINAL_MESSAGE =
   /^-{2,}\s*(Original Message|Forwarded message)\s*-{2,}$/i
 // Outlook separates the quoted original with a rule of underscores.
@@ -103,7 +108,8 @@ const dropTrailingBlankAndQuotedLines = (lines: string[]) => {
 const dropTrailingAttribution = (lines: string[]) => {
   if (lines.length === 0) return lines
 
-  const last = cleaned(lines[lines.length - 1])
+  const lastIndex = lines.length - 1
+  const last = cleaned(lines[lastIndex])
   if (ORIGINAL_MESSAGE.test(last) || OUTLOOK_DIVIDER.test(last)) {
     return lines.slice(0, -1)
   }
@@ -111,14 +117,25 @@ const dropTrailingAttribution = (lines: string[]) => {
 
   // Walk back for the "On …" opener the closer belongs to, so a wrapped
   // attribution is removed whole rather than leaving its first line behind.
-  for (let span = 1; span <= ATTRIBUTION_MAX_LINES; span += 1) {
-    const start = lines.length - span
+  for (let span = 0; span < ATTRIBUTION_MAX_LINES; span += 1) {
+    const start = lastIndex - span
     if (start < 0) break
     if (ATTRIBUTION_OPENER.test(cleaned(lines[start]))) {
       return lines.slice(0, start)
     }
   }
-  return lines.slice(0, -1)
+
+  // No opener on a line of its own, so the attribution trails the sender's
+  // text on this line. Trim only the attribution-shaped suffix.
+  const trimmed = lines[lastIndex].replace(INLINE_ATTRIBUTION, '')
+  if (trimmed !== lines[lastIndex]) {
+    return [...lines.slice(0, lastIndex), trimmed]
+  }
+
+  // Ends in "wrote:" but nothing marks it as an attribution header — it is the
+  // sender's own sentence ("Here is what she wrote:"). Dropping the line here
+  // is what used to throw away the whole of an HTML-only reply.
+  return lines
 }
 
 const dropSignature = (lines: string[]) => {

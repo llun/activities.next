@@ -29,8 +29,13 @@ export async function sendResendMail(message: Message) {
     from: getAddressFromEmail(message.from),
     to: message.to.map((email) => getAddressFromEmail(email)),
     subject: message.subject,
+    // `replyTo`, not `reply_to`: resend-node v4 renamed the option, and its
+    // own serializer is what emits the API's snake_case `reply_to` (see
+    // parseEmailToApiOptions). Passing the wire name means the SDK never sees
+    // the value and the header is silently dropped. TypeScript cannot catch it
+    // — the key arrives through a spread, so no excess-property check applies.
     ...(message.replyTo
-      ? { reply_to: getAddressFromEmail(message.replyTo) }
+      ? { replyTo: getAddressFromEmail(message.replyTo) }
       : null),
     html: message.content.html,
     text: message.content.text

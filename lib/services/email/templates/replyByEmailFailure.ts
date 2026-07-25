@@ -8,6 +8,7 @@ export type ReplyByEmailFailureReason =
   | 'empty'
   | 'too-long'
   | 'expired'
+  | 'exhausted'
   | 'disabled'
   | 'thread-missing'
   | 'not-posted'
@@ -16,6 +17,8 @@ const REASONS: Record<ReplyByEmailFailureReason, string> = {
   empty: 'the message had no text above the quoted original',
   'too-long': 'the message was longer than this server allows for a post',
   expired: 'the reply address in that notification has expired',
+  exhausted:
+    'that notification has already been replied to as many times as it allows',
   disabled: 'reply by email is switched off for this account',
   'thread-missing': 'the post being replied to is no longer available',
   'not-posted':

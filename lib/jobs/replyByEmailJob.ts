@@ -156,15 +156,13 @@ export const replyByEmailJob = createJobHandle(
     const { email, emailInbound } = getConfig()
     if (!email || !emailInbound) return
 
-    // An unresolvable token gives us no actor to answer, so there is nobody to
-    // tell. Log it and stop.
-    const token = await resolveReplyToken(database, data.token)
-    if (!token) {
-      logger.warn({
-        message: 'Reply by email: token expired, spent or unknown'
-      })
+    const resolution = await resolveReplyToken(database, data.token)
+    // An unknown hash names no actor, so there is genuinely nobody to answer.
+    if (resolution.status === 'unknown') {
+      logger.warn({ message: 'Reply by email: unknown token' })
       return
     }
+    const token = resolution.token
 
     // Everything is re-checked here rather than trusted from mint time: the
     // actor may have been suspended, deleted or opted out since.
@@ -174,6 +172,18 @@ export const replyByEmailJob = createJobHandle(
         message: 'Reply by email: actor is gone or not local',
         actorId: token.actorId
       })
+      return
+    }
+
+    // An expired or spent token still names its owner, so tell them rather
+    // than letting the reply vanish. Reported before the moderation and opt-in
+    // checks below only in the sense that it is the more specific reason.
+    if (resolution.status !== 'ok') {
+      logger.warn({
+        message: `Reply by email: token ${resolution.status}`,
+        actorId: actor.id
+      })
+      if (!actor.suspendedAt) await notifyFailure(actor, resolution.status)
       return
     }
     if (actor.suspendedAt) {

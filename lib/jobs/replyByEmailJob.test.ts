@@ -5,8 +5,13 @@ import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import { sendMail } from '@/lib/services/email'
 import { REPLY_SENTINEL } from '@/lib/services/email/replyMarker'
-import { hashReplyToken, mintReplyToken } from '@/lib/services/email/replyToken'
+import {
+  REPLY_TOKEN_MAX_USES,
+  hashReplyToken,
+  mintReplyToken
+} from '@/lib/services/email/replyToken'
 import { saveMedia } from '@/lib/services/medias'
+import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -43,8 +48,19 @@ vi.mock('@/lib/services/medias', () => ({
   saveMedia: vi.fn().mockResolvedValue(null)
 }))
 
+// Stubbed so a stored media id resolves to a real attachment. Against the live
+// helper it would return null (no medias row for the fake id), which silently
+// posts the reply with no attachments at all — the exact hole that let the
+// storeAttachments -> createNoteFromUserInput wiring go untested.
+vi.mock('@/lib/services/statuses/mediaIds', () => ({
+  getAttachmentsFromMediaIds: vi.fn().mockResolvedValue([])
+}))
+
 const mockSendMail = sendMail as jest.MockedFunction<typeof sendMail>
 const mockSaveMedia = saveMedia as jest.MockedFunction<typeof saveMedia>
+const mockGetAttachments = getAttachmentsFromMediaIds as jest.MockedFunction<
+  typeof getAttachmentsFromMediaIds
+>
 const mockGetConfig = getConfig as jest.MockedFunction<typeof getConfig>
 
 const INBOUND = {
@@ -119,6 +135,7 @@ describe('replyByEmailJob', () => {
     mockRequests(fetchMock)
     mockGetConfig.mockReturnValue({ ...baseConfig, emailInbound: INBOUND })
     mockSaveMedia.mockResolvedValue(null)
+    mockGetAttachments.mockResolvedValue([])
     await database.updateActor({ actorId: ACTOR1_ID, replyByEmail: true })
   })
 
@@ -250,6 +267,67 @@ describe('replyByEmailJob', () => {
       expect(mockSendMail).not.toHaveBeenCalled()
     }
   )
+
+  // Regression: an expired or spent token used to be lumped in with an unknown
+  // one and dropped with only a log line — so the sender believed they had
+  // posted. The row still names its owner, so they can and must be told.
+  it('tells the sender when the reply address has expired', async () => {
+    const token = await mintFor(publicStatus.id)
+    const row = await database.getEmailReplyToken({
+      tokenHash: hashReplyToken(token)
+    })
+
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(row!.expiresAt + 1))
+    try {
+      await runJob(database, {
+        token,
+        messageId: '<expired-token@example.tld>',
+        text: replyBody('Too late.')
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+
+    const replies = await repliesTo(database, publicStatus.id)
+    expect(replies.some((reply) => reply.text.includes('Too late'))).toBe(false)
+    expect(mockSendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: [actor1.account?.email],
+        content: expect.objectContaining({
+          text: expect.stringContaining('has expired')
+        })
+      })
+    )
+  })
+
+  it('tells the sender when the reply address is spent', async () => {
+    const token = await mintFor(publicStatus.id)
+    const row = await database.getEmailReplyToken({
+      tokenHash: hashReplyToken(token)
+    })
+    for (let use = 0; use < REPLY_TOKEN_MAX_USES; use += 1) {
+      await database.recordEmailReplyTokenUse({ id: row!.id })
+    }
+
+    await runJob(database, {
+      token,
+      messageId: '<spent-token@example.tld>',
+      text: replyBody('One too many.')
+    })
+
+    const replies = await repliesTo(database, publicStatus.id)
+    expect(replies.some((reply) => reply.text.includes('One too many'))).toBe(
+      false
+    )
+    expect(mockSendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.objectContaining({
+          text: expect.stringContaining('as many times as it allows')
+        })
+      })
+    )
+  })
 
   it('refuses a suspended actor', async () => {
     const token = await mintFor(publicStatus.id)
@@ -392,9 +470,19 @@ describe('replyByEmailJob', () => {
     expect(mockSaveMedia).not.toHaveBeenCalled()
   })
 
-  it('stores a real image attachment on the reply', async () => {
+  it('stores a real image attachment and puts it on the reply', async () => {
     const token = await mintFor(publicStatus.id)
     mockSaveMedia.mockResolvedValue({ id: 'media-1' } as never)
+    mockGetAttachments.mockResolvedValue([
+      {
+        type: 'upload',
+        id: 'media-1',
+        mediaType: 'image/png',
+        url: 'https://llun.test/api/v1/files/shot.png',
+        width: 100,
+        height: 100
+      }
+    ] as never)
 
     await runJob(database, {
       token,
@@ -413,5 +501,18 @@ describe('replyByEmailJob', () => {
     const [, , media] = mockSaveMedia.mock.calls[0]
     expect(media.file).toBeInstanceOf(File)
     expect(media.file.type).toBe('image/png')
+    // The stored id must actually be resolved and threaded into the post.
+    expect(mockGetAttachments).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ id: ACTOR1_ID }),
+      ['media-1']
+    )
+
+    const replies = await repliesTo(database, publicStatus.id)
+    const posted = replies.find((reply) =>
+      reply.text.includes('Here is the screenshot')
+    )
+    expect(posted?.attachments).toHaveLength(1)
+    expect(posted?.attachments[0].mediaType).toBe('image/png')
   })
 })

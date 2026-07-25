@@ -756,9 +756,12 @@ describe('notifyRemoteReplyAndMention', () => {
       // The token must thread the reply under the status the email is about.
       const token = extractReplyTokenFromAddress(emailContent!.replyTo!)
       await expect(resolveReplyToken(database, token!)).resolves.toMatchObject({
-        actorId: actor.id,
-        statusId: status.id,
-        notificationType: 'mention'
+        status: 'ok',
+        token: {
+          actorId: actor.id,
+          statusId: status.id,
+          notificationType: 'mention'
+        }
       })
     })
   })

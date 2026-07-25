@@ -129,6 +129,28 @@ describe('extractReplyText', () => {
     expect(extractReplyText({ text })).toBe('Reply body.')
   })
 
+  // Regression: htmlToPlainText collapses an HTML reply onto one line, so the
+  // trailing "On … wrote:" shares that line with the sender's text. The
+  // trailing-attribution step used to drop the whole line, which returned ''
+  // and turned every Gmail HTML-only reply into a "we could not post" notice.
+  it('keeps the sender text when the attribution shares its line', () => {
+    const html =
+      '<div dir="ltr">My reply text</div><br><div class="gmail_quote">' +
+      '<div class="gmail_attr">On Sat, Jul 25, 2026 at 9:00 PM Activities ' +
+      '&lt;noreply@example.tld&gt; wrote:<br></div><blockquote><p>' +
+      `${REPLY_SENTINEL}</p><h3>@someone mentioned you</h3></blockquote></div>`
+
+    expect(extractReplyText({ html })).toBe('My reply text')
+  })
+
+  // Regression: the same fallback also destroyed any plain-text reply whose
+  // own last line happened to end in "wrote:".
+  it('keeps a sentence of the sender that merely ends in wrote:', () => {
+    const text = `Here is what she wrote:\n\n> ${REPLY_SENTINEL}`
+
+    expect(extractReplyText({ text })).toBe('Here is what she wrote:')
+  })
+
   it('falls back to the HTML part when there is no text part', () => {
     const html = `<p>Just this bit.</p><p>${REPLY_SENTINEL}</p><h3>@someone mentioned you</h3>`
     expect(extractReplyText({ html })).toBe('Just this bit.')
