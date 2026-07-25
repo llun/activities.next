@@ -22,7 +22,8 @@ import {
   Play,
   Plus,
   Route,
-  Unlock
+  Unlock,
+  X
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { FC, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
@@ -880,6 +881,14 @@ const ActivityMapPanel: FC<{
     [drawableRouteSegments]
   )
 
+  // The panel is not keyed per file, so switching activity files in an
+  // aggregated post swaps `routeSegments` underneath the same instance. Without
+  // this reset a dismissal would carry over and the next file would draw green
+  // segments with no explanation.
+  useEffect(() => {
+    setIsPrivacyNoticeDismissed(false)
+  }, [routeSegments])
+
   // Keyed on the descriptor's fields (not its object identity) so an inline prop
   // literal doesn't tear the map down on every parent render. Apple renders
   // through MapKit JS, not a GL engine, so it has no GL provider descriptor.
@@ -1205,9 +1214,11 @@ const ActivityMapPanel: FC<{
             <button
               type="button"
               onClick={() => setIsPrivacyNoticeDismissed(true)}
-              className="absolute bottom-3 left-3 rounded-md border border-green-300 bg-background/95 px-3 py-2 text-xs font-medium text-green-700 shadow-sm dark:border-green-900 dark:text-green-400"
+              aria-label="Dismiss notice: green segments are hidden from other viewers"
+              className="absolute bottom-3 left-3 inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-green-300 bg-background/95 px-3 py-2 text-xs font-medium text-green-700 shadow-sm hover:bg-muted dark:border-green-900 dark:text-green-400"
             >
               Green segments are hidden from other viewers
+              <X className="size-3.5 shrink-0" aria-hidden="true" />
             </button>
           ) : null}
         </>

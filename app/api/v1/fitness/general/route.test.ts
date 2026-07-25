@@ -156,6 +156,48 @@ describe('Fitness General Settings API', () => {
       expect(data.privacyHomeLongitude).toBe(100.5018)
       expect(data.privacyHideRadiusMeters).toBe(200)
     })
+
+    it('snaps a zone saved under the older option set up to 50m', async () => {
+      // A 20m zone predates the 50m floor. It must keep hiding something
+      // rather than sanitize to 0 and silently expose the home location.
+      mockDb.getFitnessSettings.mockResolvedValue({
+        id: 'general-settings-id',
+        actorId: ACTOR1_ID,
+        serviceType: 'general',
+        privacyLocations: [
+          {
+            latitude: 13.7563,
+            longitude: 100.5018,
+            hideRadiusMeters: 20
+          }
+        ],
+        privacyHomeLatitude: 13.7563,
+        privacyHomeLongitude: 100.5018,
+        privacyHideRadiusMeters: 20,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      })
+
+      const request = new NextRequest(
+        'http://llun.test/api/v1/fitness/general',
+        {
+          method: 'GET'
+        }
+      )
+
+      const response = await GET(request, { params: Promise.resolve({}) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.privacyLocations).toEqual([
+        {
+          latitude: 13.7563,
+          longitude: 100.5018,
+          hideRadiusMeters: 50
+        }
+      ])
+      expect(data.privacyHideRadiusMeters).toBe(50)
+    })
   })
 
   describe('POST /api/v1/fitness/general', () => {
@@ -382,7 +424,10 @@ describe('Fitness General Settings API', () => {
             ],
             privacyHomeLatitude: 1,
             privacyHomeLongitude: 2,
-            privacyHideRadiusMeters: 50
+            // Deliberately a radius the current option set rejects: when
+            // `privacyLocations` is present the legacy fields must be ignored
+            // outright, not validated or applied.
+            privacyHideRadiusMeters: 5
           })
         }
       )
@@ -476,6 +521,85 @@ describe('Fitness General Settings API', () => {
 
       expect(response.status).toBe(422)
       expect(mockDb.createFitnessSettings).not.toHaveBeenCalled()
+    })
+
+    // The Zod schemas are the only thing keeping an out-of-set radius out of
+    // the database, and this is the release that redefined the set.
+    it.each([
+      { description: 'rejects a legacy 5m radius', hideRadiusMeters: 5 },
+      { description: 'rejects a legacy 10m radius', hideRadiusMeters: 10 },
+      { description: 'rejects a legacy 20m radius', hideRadiusMeters: 20 },
+      {
+        description: 'rejects an unlisted in-between radius',
+        hideRadiusMeters: 75
+      },
+      {
+        description: 'rejects a radius above the 1km cap',
+        hideRadiusMeters: 2000
+      }
+    ])(
+      '$description',
+      async ({ hideRadiusMeters }: { hideRadiusMeters: number }) => {
+        const request = new NextRequest(
+          'http://llun.test/api/v1/fitness/general',
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' },
+            body: JSON.stringify({
+              privacyLocations: [
+                {
+                  latitude: 13.7563,
+                  longitude: 100.5018,
+                  hideRadiusMeters
+                }
+              ]
+            })
+          }
+        )
+
+        const response = await POST(request, { params: Promise.resolve({}) })
+
+        expect(response.status).toBe(422)
+        expect(mockDb.createFitnessSettings).not.toHaveBeenCalled()
+        expect(mockDb.updateFitnessSettings).not.toHaveBeenCalled()
+      }
+    )
+
+    it('accepts the 1km radius at the top of the option set', async () => {
+      mockDb.getFitnessSettings.mockResolvedValue(null)
+
+      const request = new NextRequest(
+        'http://llun.test/api/v1/fitness/general',
+        {
+          method: 'POST',
+          headers: { Origin: 'https://llun.test' },
+          body: JSON.stringify({
+            privacyLocations: [
+              {
+                latitude: 13.7563,
+                longitude: 100.5018,
+                hideRadiusMeters: 1000
+              }
+            ]
+          })
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockDb.createFitnessSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          privacyLocations: [
+            {
+              latitude: 13.7563,
+              longitude: 100.5018,
+              hideRadiusMeters: 1000
+            }
+          ],
+          privacyHideRadiusMeters: 1000
+        })
+      )
     })
 
     it('rejects request when only one coordinate is provided', async () => {

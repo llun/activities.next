@@ -267,6 +267,46 @@ describe('FitnessPrivacyLocationSettings', () => {
     expect(getCurrentPosition).toHaveBeenCalledTimes(2)
   })
 
+  it.each([
+    {
+      description: 'renders a metre radius in the saved list',
+      stored: 200,
+      label: 'Hide radius: 200m'
+    },
+    {
+      description: 'renders the 1km radius in the saved list',
+      stored: 1000,
+      label: 'Hide radius: 1km'
+    },
+    {
+      description: 'renders a legacy radius snapped up to the 50m floor',
+      stored: 20,
+      label: 'Hide radius: 50m'
+    }
+  ])(
+    '$description',
+    async ({ stored, label }: { stored: number; label: string }) => {
+      vi.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          privacyLocations: [
+            {
+              latitude: 13.7563,
+              longitude: 100.5018,
+              hideRadiusMeters: stored
+            }
+          ]
+        })
+      } as Response)
+
+      render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
+
+      expect(
+        await screen.findByText(label, { collapseWhitespace: true })
+      ).toBeInTheDocument()
+    }
+  )
+
   it('persists clear all by posting an empty privacy locations list', async () => {
     const fetchMock = vi
       .spyOn(global, 'fetch')
