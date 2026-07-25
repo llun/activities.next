@@ -1,0 +1,46 @@
+lib/components/settings/FitnessPrivacyLocationSettings.test.tsx
+  s_f1060d736d3617::t_6868b37d6b88bd 271-280
+  s_f1060d736d3617::t_9847bdeda96f6f 286-300,302,304-308
+  s_f1060d736d3617::t_ba775de1bc2508 270,281-285,301,303,309
+lib/services/fitness-files/privacy.ts
+  s_f1060d736d3617::t_759d134b18b937 1-5,13-16
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_f1060d736d3617::t_89ea50216fa7b8 156-165
+  s_f1060d736d3617::t_02864b0f147d06 485-498,502,507,518-552
+  s_f1060d736d3617::t_4ae748634b3b44 553
+lib/services/fitness-files/privacy.test.ts
+  s_f1060d736d3617::t_76bdee392d0070 3
+  s_f1060d736d3617::t_499c14e2feeec8 75-76,80-81,83-84,97-100
+  s_f1060d736d3617::t_996c3d5ed19bda 90
+  s_f1060d736d3617::t_a17e9bea0dfdf5 226-231
+  s_f1060d736d3617::t_ec81e778832575 195,200-215
+  s_f1060d736d3617::t_89d14fb662912c 115-116
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_f1060d736d3617::t_6ca6e49657b2a6 884-891
+  s_f1060d736d3617::t_2a7b81990dd274 25-26
+  s_f1060d736d3617::t_6088e9dafda134 1217-1218,1221
+app/api/v1/fitness/general/route.test.ts
+  s_f1060d736d3617::t_f7de8a97047b76 159-200
+  s_f1060d736d3617::t_9279c3bad892c7 526-531,559,561,567-604
+  s_f1060d736d3617::t_0723bd9352def5 427-430
+  s_f1060d736d3617::t_6868b37d6b88bd 532-539
+  s_f1060d736d3617::t_9847bdeda96f6f 543-558
+  s_f1060d736d3617::t_27084d4ca275b8 540-542
+  s_f1060d736d3617::t_8ba0fb8bcb38b3 560,562-566
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "1c9f30578c07284352c9cb936507d471ee44e3ef",
+  "prompts": {},
+  "sessions": {
+    "s_f1060d736d3617": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "176afecc-def0-4231-84bd-81dc9f91fa81",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
