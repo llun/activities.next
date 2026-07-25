@@ -246,6 +246,16 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   inboxes: the litepub `EmojiReact` of FEP-c0e0 and a Misskey-style `Like`
   carrying `content`/`_misskey_reaction`, plus the `Undo` of either. A **plain**
   `Like` (no reaction content) remains an ordinary favourite.
+
+  Known limitation: reactions are capped at 8 distinct emoji per actor per
+  status, but the number of _distinct_ emoji on a status is not capped, and the
+  rollups are serialized in full (twice — once per dialect) on every status.
+  A federating peer with many actors can therefore inflate the size of a status
+  entity. Storage is unaffected; the cost is response size. A per-status cap is
+  deliberately out of scope for the first release — see the reaction-spam note
+  in the epic plan — so treat an abusive peer as a moderation/defederation
+  matter for now.
+
 - **Remote statuses** — `/api/v1/accounts/:id/remote-statuses` exposes cached
   remote posts for an actor.
 - **Admin CRUD extras** — custom emoji, domain allow/deny lists (with import),
