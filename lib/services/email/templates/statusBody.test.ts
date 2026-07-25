@@ -61,10 +61,30 @@ describe('getStatusBody', () => {
     expect(text).toContain('there')
   })
 
-  it('does not let a remote script tag through', () => {
+  it.each([
+    { description: 'a local author', isLocalActor: true },
+    { description: 'a remote author', isLocalActor: false }
+  ])('strips raw html from $description', ({ isLocalActor }) => {
+    // The local branch runs markdown, which does NOT sanitize — marked has
+    // shipped no sanitizer since v5. Without an unconditional sanitize step a
+    // local user could plant a tracking pixel or a layout-breaking <style> in
+    // someone else's inbox, and quote() emits this value unescaped.
     const { html } = getStatusBody(
-      status({ text: '<script>alert(1)</script>hi', isLocalActor: false })
+      status({
+        text: 'Hi <img src="https://tracker.evil.example/p.gif" onerror="alert(1)"><script>alert(2)</script><style>body{display:none}</style>',
+        isLocalActor
+      })
     )
     expect(html).not.toContain('<script')
+    expect(html).not.toContain('<style')
+    expect(html).not.toContain('onerror')
+    expect(html).not.toContain('tracker.evil.example')
+  })
+
+  it('still renders markdown for a local author', () => {
+    const { html } = getStatusBody(
+      status({ text: 'a **bold** word', isLocalActor: true })
+    )
+    expect(html).toContain('<strong>bold</strong>')
   })
 })

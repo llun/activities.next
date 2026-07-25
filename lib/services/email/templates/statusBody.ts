@@ -30,10 +30,19 @@ const absolutizeLinks = (html: string): string =>
  * part, which for a remote actor meant a wall of markup.
  */
 export const getStatusBody = (status: EditableStatus): SanitizedBody => {
-  const html = absolutizeLinks(
-    status.isLocalActor
-      ? convertMarkdownText(getConfig().host)(status.text)
-      : sanitizeText(status.text)
-  )
+  // Markdown for a local author, then sanitize ALWAYS — the same order as
+  // processStatusTextContent, which is what the web UI renders through.
+  //
+  // These must not become an either/or. `marked` has shipped no sanitizer since
+  // v5, so running only the markdown step lets a local author put raw HTML
+  // straight into another user's inbox: a tracking pixel (read receipt plus IP),
+  // a <style> block that hides the real card, or arbitrary anchor markup for
+  // phishing. `quote()` emits this value unescaped, so sanitizing here is the
+  // only thing standing between a post body and the recipient's mail client.
+  const rendered = status.isLocalActor
+    ? convertMarkdownText(getConfig().host)(status.text)
+    : status.text
+  // Absolutize after sanitizing, so only hrefs that survived it are rewritten.
+  const html = absolutizeLinks(sanitizeText(rendered))
   return { html, text: htmlToPlainText(html) }
 }

@@ -164,6 +164,18 @@ const actorlessHostileStatus = {
   actor: undefined
 } as unknown as EditableStatus
 
+/**
+ * The same hostile body from a LOCAL author. This branch runs markdown, which
+ * does not sanitize, so it needs its own coverage — a suite whose fixtures are
+ * all remote silently never exercises it, which is exactly how the missing
+ * sanitize step survived review once already.
+ */
+const localHostileStatus = {
+  ...hostileStatus,
+  isLocalActor: true,
+  text: 'Hi <img src="https://tracker.evil.example/p.gif" onerror="alert(1)"><script>alert(2)</script><style>body{display:none}</style>'
+} as unknown as EditableStatus
+
 const count = (haystack: string, needle: string) =>
   haystack.split(needle).length - 1
 
@@ -316,6 +328,52 @@ describe('email design conformance', () => {
       // remote-controlled status.url. The button builder must refuse it.
       expect(email.html).not.toContain('javascript:')
       expect(count(email.html, 'bgcolor="#E66A0F"')).toBe(0)
+    }
+  )
+
+  it.each([
+    {
+      description: 'mention',
+      email: buildMentionEmail({
+        recipient: hostileActor,
+        actor: hostileActor,
+        status: localHostileStatus
+      })
+    },
+    {
+      description: 'reply',
+      email: buildReplyEmail({
+        recipient: hostileActor,
+        actor: hostileActor,
+        status: localHostileStatus
+      })
+    },
+    {
+      description: 'like',
+      email: buildLikeEmail({
+        recipient: hostileActor,
+        actor: hostileActor,
+        status: localHostileStatus
+      })
+    },
+    {
+      description: 'boost',
+      email: buildBoostEmail({
+        recipient: hostileActor,
+        actor: hostileActor,
+        status: localHostileStatus
+      })
+    }
+  ])(
+    '$description strips raw html from a LOCAL author post body',
+    ({ email }) => {
+      // The markdown branch does not sanitize on its own, so a local author
+      // could otherwise plant a tracking pixel or a layout-breaking <style>
+      // in another user's inbox.
+      expect(email.html).not.toContain('<script')
+      expect(email.html).not.toContain('<style>body')
+      expect(email.html).not.toContain('onerror')
+      expect(email.html).not.toContain('tracker.evil.example')
     }
   )
 })
