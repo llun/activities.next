@@ -632,6 +632,7 @@ describe('FitnessPrivacyLocationSettings', () => {
       failingFetch()
       // The auto-locate effect is gated on `isMapReady`, so the map has to
       // actually finish loading or this test would pass for the wrong reason.
+      // The `getCurrentPosition` wait below is the real sync point.
       vi.mocked(loadMaplibreModule).mockResolvedValue({
         Map: vi.fn(function MapStub() {
           return {
@@ -649,7 +650,6 @@ describe('FitnessPrivacyLocationSettings', () => {
       render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
 
       await screen.findByText(/Failed to load your saved privacy locations/)
-      await waitFor(() => expect(loadMaplibreModule).toHaveBeenCalled())
 
       // The map's own initial-view lookup also calls geolocation, so assert on
       // the form fields: prefilling them would dress an empty form up as a

@@ -330,6 +330,9 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
   // the actor has configured.
   const [hasLoadedSettings, setHasLoadedSettings] = useState(false)
   const [settingsReloadToken, setSettingsReloadToken] = useState(0)
+  // The map's click handler is registered once, inside the init effect, so it
+  // cannot read `hasLoadedSettings` directly without going stale.
+  const hasLoadedSettingsRef = useRef(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isRegeneratingMaps, setIsRegeneratingMaps] = useState(false)
   const [isLocatingCurrentPosition, setIsLocatingCurrentPosition] =
@@ -449,12 +452,14 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
         setDraftRadiusMeters(
           sanitizeDraftRadius(firstLocation?.hideRadiusMeters)
         )
+        hasLoadedSettingsRef.current = true
         setHasLoadedSettings(true)
       } catch {
         if (cancelled) {
           return
         }
 
+        hasLoadedSettingsRef.current = false
         setHasLoadedSettings(false)
       } finally {
         isHydratingSettingsRef.current = false
@@ -574,6 +579,12 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
         })
 
         map.on('click', ({ lngLat }) => {
+          // Writing into greyed-out fields would contradict the disabled
+          // editing surface after a failed load.
+          if (!hasLoadedSettingsRef.current) {
+            return
+          }
+
           setLatitudeInput(lngLat.lat.toFixed(6))
           setLongitudeInput(lngLat.lng.toFixed(6))
           setError(null)
