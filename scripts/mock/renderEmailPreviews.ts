@@ -37,6 +37,12 @@ import { escapeHtml } from '@/lib/utils/text/escapeHtml'
 
 const RECIPIENT = 'anna@example.com'
 
+// Production codes are crypto.randomBytes(32).toString('base64url') — 43
+// characters, giving a ~98-character link. A short placeholder would fit the
+// card comfortably and hide the wrapping problems a real link exposes, so the
+// fixtures match the real length.
+const FIXTURE_CODE = 'Yk3nQ8xR2vL7pT1wZ0aB5cD9eF4gH6jK8mN2qS5tU7x'
+
 const fixtureActor = (
   username: string,
   domain: string,
@@ -68,7 +74,7 @@ const buildPreviews = (): Preview[] => [
     group: 'Account & security',
     email: buildVerifyEmail({
       recipientEmail: RECIPIENT,
-      verificationCode: '3kd92mf8a1'
+      verificationCode: FIXTURE_CODE
     })
   },
   {
@@ -76,7 +82,7 @@ const buildPreviews = (): Preview[] => [
     group: 'Account & security',
     email: buildChangeEmail({
       recipientEmail: 'new@example.com',
-      emailChangeCode: 'v8s02kd71m'
+      emailChangeCode: FIXTURE_CODE
     })
   },
   {
@@ -84,7 +90,7 @@ const buildPreviews = (): Preview[] => [
     group: 'Account & security',
     email: buildResetPasswordEmail({
       recipientEmail: RECIPIENT,
-      passwordResetCode: 'r2m59xk03p'
+      passwordResetCode: FIXTURE_CODE
     })
   },
   {
