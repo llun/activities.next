@@ -162,6 +162,33 @@ describe('POST /api/v1/accounts/email', () => {
     )
   })
 
+  it('sends the verification email to the new address', async () => {
+    const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
+      method: 'POST',
+      body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://llun.test'
+      }
+    })
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    expect(mockSendMail).toHaveBeenCalledTimes(1)
+    const message = mockSendMail.mock.calls[0][0]
+    expect(message.to).toEqual(['new-email@llun.test'])
+    expect(message.subject).toBe('Verify your new email address')
+    // The code is generated inside the route, so match the link shape rather
+    // than a fixed value.
+    expect(message.content.html).toMatch(
+      /href="https:\/\/llun\.test\/account\/verify-email\?code=[^"]+"/
+    )
+    expect(message.content.text).toContain(
+      'https://llun.test/account/verify-email?code='
+    )
+  })
+
   it('rejects changing to a differently-cased address owned by another account', async () => {
     // The session resolves to account-1; the requested new address (once
     // normalized) already belongs to account-2, so the change is rejected.
