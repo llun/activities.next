@@ -1,4 +1,24 @@
+import { parseStoredPrivacyLocations } from '@/lib/database/sql/fitnessSettings'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { SQLFitnessSettings } from '@/lib/types/database/fitnessSettings'
+import { logger } from '@/lib/utils/logger'
+
+// Lets one test force the (normally total) sanitizer to throw, so the
+// "catch only wraps the parse" invariant is actually exercised.
+const sanitizerFailure = vi.hoisted(() => ({ value: null as Error | null }))
+vi.mock('@/lib/services/fitness-files/privacy', async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import('@/lib/services/fitness-files/privacy')
+    >()
+  return {
+    ...actual,
+    sanitizePrivacyLocationSettings: (value: unknown) => {
+      if (sanitizerFailure.value) throw sanitizerFailure.value
+      return actual.sanitizePrivacyLocationSettings(value)
+    }
+  }
+})
 
 describe('FitnessSettings database operations', () => {
   let database: Awaited<ReturnType<typeof getTestSQLDatabase>>
@@ -737,5 +757,109 @@ describe('FitnessSettings database operations', () => {
       expect(final?.refreshToken).toBe('refresh-token-abc')
       expect(final?.webhookToken).toBe('webhook-token-xyz')
     })
+  })
+})
+
+describe('parseStoredPrivacyLocations', () => {
+  const context = { actorId: 'actor-1', serviceType: 'general' }
+  const zone = { latitude: 13.7563, longitude: 100.5018, hideRadiusMeters: 200 }
+
+  it('logs an error and reports no zones when the stored JSON cannot be parsed', () => {
+    const loggerErrorSpy = vi
+      .spyOn(logger, 'error')
+      .mockImplementation(() => undefined)
+
+    try {
+      // Reporting "no privacy zones" republishes every route segment those
+      // zones were hiding, so it must never be silent.
+      expect(parseStoredPrivacyLocations('not-json{', context)).toEqual([])
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Failed to parse stored fitness privacy locations',
+          actorId: 'actor-1',
+          serviceType: 'general',
+          // `err`, not `error`: the latter serializes to {} and tells an
+          // operator nothing about why the column failed to parse.
+          err: expect.any(SyntaxError)
+        })
+      )
+    } finally {
+      loggerErrorSpy.mockRestore()
+    }
+  })
+
+  it.each([
+    {
+      description: 'parses the SQLite TEXT representation',
+      value: JSON.stringify([zone])
+    },
+    {
+      description: 'passes through the already-parsed PostgreSQL jsonb value',
+      value: [zone]
+    }
+  ])(
+    '$description',
+    ({ value }: { value: SQLFitnessSettings['privacyLocations'] }) => {
+      const loggerErrorSpy = vi
+        .spyOn(logger, 'error')
+        .mockImplementation(() => undefined)
+
+      try {
+        expect(parseStoredPrivacyLocations(value, context)).toEqual([zone])
+        expect(loggerErrorSpy).not.toHaveBeenCalled()
+      } finally {
+        loggerErrorSpy.mockRestore()
+      }
+    }
+  )
+
+  it.each([
+    { description: 'treats a null column as unset', value: null },
+    { description: 'treats an absent column as unset', value: undefined }
+  ])(
+    '$description',
+    ({ value }: { value: SQLFitnessSettings['privacyLocations'] }) => {
+      expect(parseStoredPrivacyLocations(value, context)).toBeUndefined()
+    }
+  )
+
+  it('drops an unusable entry without logging a parse failure', () => {
+    const loggerErrorSpy = vi
+      .spyOn(logger, 'error')
+      .mockImplementation(() => undefined)
+
+    try {
+      // Valid JSON the sanitizer rejects. That is not a parse failure, so the
+      // catch must not fire and nothing should be logged.
+      expect(
+        parseStoredPrivacyLocations(
+          JSON.stringify([{ latitude: 'nope' }]),
+          context
+        )
+      ).toEqual([])
+      expect(loggerErrorSpy).not.toHaveBeenCalled()
+    } finally {
+      loggerErrorSpy.mockRestore()
+    }
+  })
+
+  it('lets a sanitizer failure surface instead of reporting no zones', () => {
+    // This is what pins the catch to the parse. With the sanitizer back inside
+    // the try, the throw would be swallowed, mislabelled as a parse failure,
+    // and turned into "no privacy zones" — republishing every hidden segment.
+    const loggerErrorSpy = vi
+      .spyOn(logger, 'error')
+      .mockImplementation(() => undefined)
+    sanitizerFailure.value = new Error('sanitizer exploded')
+
+    try {
+      expect(() =>
+        parseStoredPrivacyLocations(JSON.stringify([zone]), context)
+      ).toThrow('sanitizer exploded')
+      expect(loggerErrorSpy).not.toHaveBeenCalled()
+    } finally {
+      sanitizerFailure.value = null
+      loggerErrorSpy.mockRestore()
+    }
   })
 })

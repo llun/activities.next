@@ -10,6 +10,7 @@ import {
 } from '@/lib/types/database/fitnessSettings'
 import { Visibility as MastodonVisibilitySchema } from '@/lib/types/mastodon/visibility'
 import { decrypt, encrypt } from '@/lib/utils/crypto'
+import { logger } from '@/lib/utils/logger'
 
 export interface CreateFitnessSettingsParams {
   actorId: string
@@ -77,21 +78,41 @@ export interface FitnessSettingsDatabase {
   deleteFitnessSettings: (params: DeleteFitnessSettingsParams) => Promise<void>
 }
 
-const parseStoredPrivacyLocations = (
-  value: SQLFitnessSettings['privacyLocations']
+export const parseStoredPrivacyLocations = (
+  value: SQLFitnessSettings['privacyLocations'],
+  context: { actorId: string; serviceType: string }
 ): FitnessPrivacyLocationSettingsEntry[] | undefined => {
   if (value === null || value === undefined) {
     return undefined
   }
 
-  try {
-    const parsedValue =
-      typeof value === 'string' ? getCompatibleJSON<unknown>(value) : value
-    const sanitized = sanitizePrivacyLocationSettings(parsedValue)
-    return sanitized
-  } catch {
-    return []
+  // SQLite hands back the `json` column as TEXT; PostgreSQL `jsonb` arrives
+  // already parsed, so only the string branch needs a parse at all.
+  let parsedValue: unknown = value
+  if (typeof value === 'string') {
+    try {
+      parsedValue = getCompatibleJSON<unknown>(value)
+    } catch (error) {
+      // Returning [] here means "no privacy zones", which republishes every
+      // route segment those zones were hiding. That must never happen
+      // silently: an operator needs to see it and restore the column.
+      // `err`, not `error`: an Error's message and stack are non-enumerable,
+      // so `error` serializes to `{}` and the operator learns nothing. The
+      // logger's own formatter reads `err.stack` to emit `stack_trace`.
+      logger.error({
+        message: 'Failed to parse stored fitness privacy locations',
+        actorId: context.actorId,
+        serviceType: context.serviceType,
+        err: error
+      })
+      return []
+    }
   }
+
+  // Deliberately outside the try. `sanitizePrivacyLocationSettings` is total,
+  // and if that ever stops being true the throw must surface rather than be
+  // mislabelled as a parse failure and swallowed into "no privacy zones".
+  return sanitizePrivacyLocationSettings(parsedValue)
 }
 
 export const FitnessSettingsSQLDatabaseMixin = (
@@ -261,7 +282,10 @@ export const FitnessSettingsSQLDatabaseMixin = (
         ? getCompatibleTime(row.oauthStateExpiry)
         : undefined,
       defaultVisibility: row.defaultVisibility || undefined,
-      privacyLocations: parseStoredPrivacyLocations(row.privacyLocations),
+      privacyLocations: parseStoredPrivacyLocations(row.privacyLocations, {
+        actorId: row.actorId,
+        serviceType: row.serviceType
+      }),
       privacyHomeLatitude: row.privacyHomeLatitude ?? undefined,
       privacyHomeLongitude: row.privacyHomeLongitude ?? undefined,
       privacyHideRadiusMeters: row.privacyHideRadiusMeters ?? undefined,
@@ -299,7 +323,10 @@ export const FitnessSettingsSQLDatabaseMixin = (
         ? getCompatibleTime(row.oauthStateExpiry)
         : undefined,
       defaultVisibility: row.defaultVisibility || undefined,
-      privacyLocations: parseStoredPrivacyLocations(row.privacyLocations),
+      privacyLocations: parseStoredPrivacyLocations(row.privacyLocations, {
+        actorId: row.actorId,
+        serviceType: row.serviceType
+      }),
       privacyHomeLatitude: row.privacyHomeLatitude ?? undefined,
       privacyHomeLongitude: row.privacyHomeLongitude ?? undefined,
       privacyHideRadiusMeters: row.privacyHideRadiusMeters ?? undefined,
@@ -337,7 +364,10 @@ export const FitnessSettingsSQLDatabaseMixin = (
         ? getCompatibleTime(row.oauthStateExpiry)
         : undefined,
       defaultVisibility: row.defaultVisibility || undefined,
-      privacyLocations: parseStoredPrivacyLocations(row.privacyLocations),
+      privacyLocations: parseStoredPrivacyLocations(row.privacyLocations, {
+        actorId: row.actorId,
+        serviceType: row.serviceType
+      }),
       privacyHomeLatitude: row.privacyHomeLatitude ?? undefined,
       privacyHomeLongitude: row.privacyHomeLongitude ?? undefined,
       privacyHideRadiusMeters: row.privacyHideRadiusMeters ?? undefined,
