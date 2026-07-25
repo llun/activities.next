@@ -33,6 +33,7 @@ import {
   PUBLISH_SCHEDULED_STATUS_JOB_NAME,
   REGENERATE_FITNESS_MAPS_JOB_NAME,
   RELAY_ANNOUNCE_JOB_NAME,
+  REPLY_BY_EMAIL_JOB_NAME,
   SEND_ANNOUNCE_JOB_NAME,
   SEND_BLOCK_JOB_NAME,
   SEND_FLAG_JOB_NAME,
@@ -51,6 +52,7 @@ import {
 import { processFitnessFileJob } from './processFitnessFileJob'
 import { publishScheduledStatusJob } from './publishScheduledStatusJob'
 import { regenerateFitnessMapsJob } from './regenerateFitnessMapsJob'
+import { replyByEmailJob } from './replyByEmailJob'
 import { sendAnnounceJob } from './sendAnnounceJob'
 import { sendBlockJob } from './sendBlockJob'
 import { sendFlagJob } from './sendFlagJob'
@@ -101,5 +103,6 @@ export const JOBS: Record<string, JobHandle> = {
   [SEND_FLAG_JOB_NAME]: sendFlagJob,
   [FETCH_REMOTE_STATUS_JOB_NAME]: fetchRemoteStatusJob,
   [PUBLISH_SCHEDULED_STATUS_JOB_NAME]: publishScheduledStatusJob,
-  [INGEST_COLLECTION_MEMBER_JOB_NAME]: ingestCollectionMemberJob
+  [INGEST_COLLECTION_MEMBER_JOB_NAME]: ingestCollectionMemberJob,
+  [REPLY_BY_EMAIL_JOB_NAME]: replyByEmailJob
 }
