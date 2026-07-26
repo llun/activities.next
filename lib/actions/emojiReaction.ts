@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
+import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { shouldCreateNotification } from '@/lib/services/notifications/shouldNotify'
 import { getReactionGroupKey } from '@/lib/services/reactions/reactionGroupKey'
 import {
@@ -228,7 +229,7 @@ export const emojiReactionRequest = async ({
     return
   }
 
-  await createNotificationWithPolicy(database, {
+  const notification = await createNotificationWithPolicy(database, {
     actorId: status.actorId,
     type: NotificationType.enum.emoji_reaction,
     sourceActorId: activity.actor,
@@ -236,6 +237,33 @@ export const emojiReactionRequest = async ({
     reactionName: name,
     groupKey: getReactionGroupKey(status.id, name)
   })
+  if (!notification || notification.filtered) return
+
+  // Fan out the push alert, mirroring `likeRequest`. Without this an inbound
+  // federated reaction records a notification row but never reaches the
+  // recipient's device — so the whole reaction push path would only ever fire
+  // for a local actor reacting to a local post. Fire-and-forget: alert delivery
+  // must not fail the inbound activity. No email content: there is no reaction
+  // email template yet, and sendNotificationAlerts only mails events with one.
+  database
+    .getActorFromId({ id: activity.actor })
+    .then((sourceActor) => {
+      if (!sourceActor) return
+      sendNotificationAlerts({
+        database,
+        actorId: status.actorId,
+        sourceActorId: activity.actor,
+        sourceActor,
+        statusId: status.id,
+        events: [
+          {
+            type: NotificationType.enum.emoji_reaction,
+            notificationId: notification.id
+          }
+        ]
+      })
+    })
+    .catch(() => undefined)
 }
 
 /**

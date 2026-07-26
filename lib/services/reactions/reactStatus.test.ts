@@ -359,6 +359,41 @@ describe('unreactStatus', () => {
       expect(mockSendUndoReaction).toHaveBeenCalledTimes(1)
     })
 
+    it('withholds the Undo while the actor still holds another reaction', async () => {
+      // A Like-only receiver collapsed both of our reaction Likes into a single
+      // favourite, so undoing one would delete the representation of the other.
+      await reactStatus({
+        database,
+        currentActor: reactor,
+        statusId: remoteStatusId,
+        name: '🌍'
+      })
+      await reactStatus({
+        database,
+        currentActor: reactor,
+        statusId: remoteStatusId,
+        name: '🌎'
+      })
+      vi.clearAllMocks()
+
+      await unreactStatus({
+        database,
+        currentActor: reactor,
+        statusId: remoteStatusId,
+        name: '🌍'
+      })
+      expect(mockSendUndoReaction).not.toHaveBeenCalled()
+
+      // Retracting the last one has nothing left to represent, so it goes out.
+      await unreactStatus({
+        database,
+        currentActor: reactor,
+        statusId: remoteStatusId,
+        name: '🌎'
+      })
+      expect(mockSendUndoReaction).toHaveBeenCalledTimes(1)
+    })
+
     it('withholds the Undo when the actor also favourited the status', async () => {
       // A vanilla-Mastodon receiver resolves Undo{Like} by (account, status),
       // and our reaction Like landed there as a favourite. Sending the Undo

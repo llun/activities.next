@@ -200,16 +200,22 @@ export const unreactStatus = async ({
   })
   if (changed && !target.isLocalActor) {
     // A vanilla-Mastodon receiver resolves `Undo{Like}` by (account, status),
-    // not by activity id — and it stored our reaction Like as a favourite. If
-    // the actor also genuinely favourited this status, sending the Undo would
-    // destroy that favourite there. Withhold it: the favourite is the state
-    // that should survive, and the reaction is already gone locally.
-    if (
-      await database.isActorLikedStatus({
+    // not by activity id, and it collapsed everything we sent for this status —
+    // every reaction Like plus any real favourite — into ONE favourite row.
+    // Sending the Undo would therefore delete the representation of whatever is
+    // left. Withhold it while anything should still be represented there; the
+    // reaction is already gone locally either way.
+    const [stillFavourited, remaining] = await Promise.all([
+      database.isActorLikedStatus({
         statusId: target.id,
         actorId: currentActor.id
+      }),
+      database.getStatusReactionRollups({
+        statusIds: [target.id],
+        currentActorId: currentActor.id
       })
-    ) {
+    ])
+    if (stillFavourited || remaining.some((rollup) => rollup.me)) {
       return { ok: true, changed, status }
     }
 

@@ -253,6 +253,16 @@ const MULTI_METHOD: Array<{
   methods: Record<string, string[]>
 }> = [
   {
+    // Reads and writes on one reaction URL: a GET<->mutation scope swap here
+    // would pass the flattened EXPECTED assertion above.
+    module: '@/app/api/v1/pleroma/statuses/[id]/reactions/[emoji]/route',
+    methods: {
+      GET: ['read', 'read:statuses'],
+      PUT: ['write', 'write:favourites'],
+      DELETE: ['write', 'write:favourites']
+    }
+  },
+  {
     module: '@/app/api/v1/notifications/route',
     methods: {
       GET: ['read', 'read:notifications'],
