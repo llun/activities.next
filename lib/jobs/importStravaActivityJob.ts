@@ -19,11 +19,14 @@ import {
   REGENERATE_FITNESS_MAPS_JOB_NAME,
   SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
+import { buildActivityImportEmail } from '@/lib/services/email/templates/activityImport'
 import { saveFitnessFile } from '@/lib/services/fitness-files'
 import { withImportLock } from '@/lib/services/fitness-files/importLock'
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
+import { getActivityImportGroupKey } from '@/lib/services/notifications/activityImportGroupKey'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
+import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
 import {
   StravaActivity,
@@ -43,7 +46,7 @@ import {
 import { getStravaActivityBatchId } from '@/lib/services/strava/activityBatch'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Actor, getMention } from '@/lib/types/domain/actor'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import { EditableStatus, Status, StatusType } from '@/lib/types/domain/status'
 import { Visibility } from '@/lib/types/mastodon/visibility'
 import { getManufacturerKeyFromDeviceName } from '@/lib/utils/fitnessDeviceBrands'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -67,7 +70,18 @@ const JobData = z.object({
       accessToken: z.string()
     })
     .optional(),
-  visibility: Visibility.optional()
+  visibility: Visibility.optional(),
+  // Whether a completed import should email the actor.
+  //
+  // Set by the caller, never hardcoded here. The webhook is only one of this
+  // job's five entry points: retry-all (POST /api/v1/fitness/retry-failed) and
+  // three scripts/fitness recovery tools also drive it, and each of those is a
+  // bulk operation over every failed batch for an actor — exactly the case
+  // where a re-import DOES create a brand-new status. Hardcoding true here
+  // would mail once per recovered activity.
+  //
+  // Defaults to false so a caller is silent until it opts in.
+  notifyOnComplete: z.boolean().optional().default(false)
 })
 
 const MAX_STRAVA_PHOTOS_TO_ATTACH = 4
@@ -93,16 +107,6 @@ STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('fc00::', 7, 'ipv6')
 STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('fe80::', 10, 'ipv6')
 STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('ff00::', 8, 'ipv6')
 STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('2001:db8::', 32, 'ipv6')
-
-const getActivityImportGroupKey = (
-  actorId: string,
-  activityStartDate?: string
-) => {
-  const dateStr = activityStartDate
-    ? activityStartDate.slice(0, 10)
-    : new Date().toISOString().slice(0, 10)
-  return `activity_import:${actorId}:${dateStr}`
-}
 
 const getStravaFallbackPostId = ({
   actorId,
@@ -372,9 +376,13 @@ const getOrCreateStravaFallbackNote = async ({
 export const importStravaActivityJob = createJobHandle(
   IMPORT_STRAVA_ACTIVITY_JOB_NAME,
   async (database, message) => {
-    const { actorId, stravaActivityId, stravaAuth, visibility } = JobData.parse(
-      message.data
-    )
+    const {
+      actorId,
+      stravaActivityId,
+      stravaAuth,
+      visibility,
+      notifyOnComplete
+    } = JobData.parse(message.data)
 
     const actor = await database.getActorFromId({ id: actorId })
     const fitnessSettings =
@@ -494,14 +502,64 @@ export const importStravaActivityJob = createJobHandle(
           data: { actorId, statusId: createdNote.id }
         })
 
-        if (isNewFallback) {
-          await createNotificationWithPolicy(database, {
+        // Gated on notifyOnComplete as a whole, not just on the email. This
+        // path never creates a fitness file — the activity had no exportable
+        // streams — so it never reaches processFitnessFileJob and has to
+        // notify for itself, and every channel has to be gated together.
+        //
+        // Gating only emailContent would leave push firing on every bulk
+        // recovery run: `main` produced no push here at all (the branch created
+        // the notification row and stopped), so an ungated fan-out would be a
+        // new one-per-activity regression on the adjacent channel.
+        //
+        // It also keeps this path consistent with the main one, where the whole
+        // notify step sits inside the same check: a retry or a repair script
+        // creates the post silently, with no bell entry either.
+        //
+        // The email degrades to headline, lead and button: no route map, no
+        // stats, because there are none.
+        if (isNewFallback && notifyOnComplete) {
+          const notification = await createNotificationWithPolicy(database, {
             actorId,
             type: 'activity_import',
             sourceActorId: actorId,
             statusId: createdNote.id,
-            groupKey: getActivityImportGroupKey(actorId, activity.start_date)
+            groupKey: getActivityImportGroupKey(
+              actorId,
+              activity.start_date ? Date.parse(activity.start_date) : undefined
+            )
           })
+
+          if (notification && !notification.filtered) {
+            const status = await database.getStatus({
+              statusId: createdNote.id,
+              withReplies: false
+            })
+            if (status) {
+              sendNotificationAlerts({
+                database,
+                actorId,
+                sourceActorId: actorId,
+                sourceActor: actor,
+                statusId: createdNote.id,
+                events: [
+                  {
+                    type: 'activity_import',
+                    notificationId: notification.id,
+                    emailContent: actor.account
+                      ? {
+                          recipientEmail: actor.account.email,
+                          ...buildActivityImportEmail({
+                            recipient: actor,
+                            status: status as EditableStatus
+                          })
+                        }
+                      : undefined
+                  }
+                ]
+              })
+            }
+          }
         }
 
         return
@@ -638,7 +696,10 @@ export const importStravaActivityJob = createJobHandle(
             batchId,
             fitnessFileIds: [targetFitnessFile.id],
             overlapFitnessFileIds,
-            visibility: resolvedVisibility
+            visibility: resolvedVisibility,
+            // Forwarded from this job's own caller, so only the webhook — one
+            // activity, arriving while the user is elsewhere — emails.
+            notifyOnComplete
           }
         })
       })
@@ -683,15 +744,11 @@ export const importStravaActivityJob = createJobHandle(
       activity
     })
 
-    if (isNewImport) {
-      await createNotificationWithPolicy(database, {
-        actorId,
-        type: 'activity_import',
-        sourceActorId: actorId,
-        statusId: importedFitnessFile.statusId,
-        groupKey: getActivityImportGroupKey(actorId, activity.start_date)
-      })
-    }
+    // The notification for this path now fires at the end of
+    // processFitnessFileJob instead. Creating it here was premature: under
+    // QStash that job is only enqueued at this point, so the route map and the
+    // parsed stats do not exist yet and the email would arrive empty.
+    // importFitnessFilesJob sets notifyOnComplete for a first import.
 
     // Only fall back to a regenerate-map job for a re-imported PRIMARY file
     // that still lacks a map. On a fresh import the primary is already handed

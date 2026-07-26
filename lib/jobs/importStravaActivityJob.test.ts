@@ -66,6 +66,12 @@ const mockSaveFitnessFile = saveFitnessFile as jest.MockedFunction<
   typeof saveFitnessFile
 >
 const mockSaveMedia = saveMedia as jest.MockedFunction<typeof saveMedia>
+const mockSendNotificationAlerts = vi.fn()
+vi.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
+  sendNotificationAlerts: (...args: unknown[]) =>
+    mockSendNotificationAlerts(...args)
+}))
+
 const mockImportFitnessFilesJob = importFitnessFilesJob as jest.MockedFunction<
   typeof importFitnessFilesJob
 >
@@ -986,7 +992,47 @@ describe('importStravaActivityJob', () => {
     )
   })
 
-  it('creates activity_import notification on normal path with activity date in group key', async () => {
+  it('does not opt into the import email unless its caller asked for it', async () => {
+    // Retry-all and the scripts/fitness recovery tools drive this same job in
+    // bulk over every failed batch for an actor, and a re-import there DOES
+    // create a brand-new status. Hardcoding the opt-in inside this job would
+    // mail once per recovered activity.
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-no-notify-default',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: { actorId: 'actor-1', stravaActivityId: '123' }
+    })
+
+    expect(mockImportFitnessFilesJob).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        data: expect.objectContaining({ notifyOnComplete: false })
+      })
+    )
+  })
+
+  it('forwards the import email opt-in from the webhook', async () => {
+    // Without this the whole feature can be switched off by deleting one
+    // literal, with every test still green.
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-notify-optin',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123',
+        notifyOnComplete: true
+      }
+    })
+
+    expect(mockImportFitnessFilesJob).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        data: expect.objectContaining({ notifyOnComplete: true })
+      })
+    )
+  })
+
+  it('defers the activity_import notification on the normal path', async () => {
     await importStravaActivityJob(database as unknown as Database, {
       id: 'job-notify-normal',
       name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
@@ -996,14 +1042,13 @@ describe('importStravaActivityJob', () => {
       }
     })
 
-    expect(database.createNotification).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorId: 'actor-1',
-        type: 'activity_import',
-        sourceActorId: 'actor-1',
-        statusId: 'status-1',
-        groupKey: 'activity_import:actor-1:2026-01-01'
-      })
+    // The notification now fires at the end of processFitnessFileJob, once the
+    // route map and the parsed stats exist. Creating it here would be premature
+    // under QStash, where that job is only enqueued at this point — the email
+    // would arrive with an empty card in production while looking correct in
+    // local dev, where NoQueue runs the job inline.
+    expect(database.createNotification).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'activity_import' })
     )
   })
 
@@ -1028,7 +1073,8 @@ describe('importStravaActivityJob', () => {
       name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
       data: {
         actorId: 'actor-1',
-        stravaActivityId: '125'
+        stravaActivityId: '125',
+        notifyOnComplete: true
       }
     })
 
@@ -1040,6 +1086,39 @@ describe('importStravaActivityJob', () => {
         statusId: 'status-new',
         groupKey: 'activity_import:actor-1:2026-01-01'
       })
+    )
+  })
+
+  // The positive case is covered by the group-key test above, which opts in
+  // and asserts the notification is created. This is the regression guard: it
+  // fails the moment the notifyOnComplete gate is removed from that branch.
+  it('stays entirely silent on the fallback path without the opt-in', async () => {
+    mockGetStravaActivity.mockResolvedValueOnce({
+      id: 127,
+      name: 'Treadmill session',
+      distance: 5_000,
+      elapsed_time: 1_500,
+      start_date: '2026-01-01T00:00:00.000Z',
+      sport_type: 'Run',
+      visibility: 'everyone'
+    })
+    mockGetStravaActivityStreams.mockResolvedValueOnce({
+      time: { type: 'time', data: [0, 10, 20] }
+    })
+    mockBuildGpxFromStravaStreams.mockReturnValueOnce(null)
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-fallback-silent',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: { actorId: 'actor-1', stravaActivityId: '127' }
+    })
+
+    // Every channel, not just email. `main` produced no push from this branch,
+    // so leaving push ungated would be a new one-per-activity regression for a
+    // bulk recovery run.
+    expect(mockSendNotificationAlerts).not.toHaveBeenCalled()
+    expect(database.createNotification).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'activity_import' })
     )
   })
 

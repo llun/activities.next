@@ -2,6 +2,7 @@ import { RenderedEmail } from '@/lib/services/email/types'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { EditableStatus, StatusType } from '@/lib/types/domain/status'
 
+import { buildActivityImportEmail } from './activityImport'
 import { buildActorDeletedEmail } from './actorDeleted'
 import { buildChangeEmail } from './changeEmail'
 import { buildFollowEmail } from './follow'
@@ -152,6 +153,31 @@ const cases: Case[] = [
       recipient: hostileActor,
       actor: hostileActor,
       status: hostileStatus
+    }),
+    buttons: 1,
+    footer: 'notification'
+  },
+  {
+    description: 'activity import',
+    email: buildActivityImportEmail({
+      recipient: hostileActor,
+      status: hostileStatus,
+      fitness: {
+        id: 'f',
+        actorId: 'a',
+        path: 'p',
+        fileName: XSS,
+        fileType: 'fit',
+        mimeType: 'x',
+        bytes: 1,
+        totalDistanceMeters: 8210,
+        totalDurationSeconds: 2538,
+        activityType: XSS,
+        activityStartTime: 1_700_000_000_000,
+        createdAt: 1,
+        updatedAt: 1
+      } as never,
+      mapImageUrl: 'javascript:alert(1)'
     }),
     buttons: 1,
     footer: 'notification'

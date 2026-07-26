@@ -56,8 +56,8 @@ const notificationTypes: {
   {
     key: 'activity_import',
     label: 'Fitness Activity Imported',
-    description:
-      'A Strava fitness activity has been imported and is ready to view'
+    // Provider-agnostic: this fires for any background import, not just Strava.
+    description: 'A fitness activity has been imported and is ready to view'
   }
 ]
 

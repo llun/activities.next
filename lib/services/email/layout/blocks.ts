@@ -8,6 +8,7 @@ import {
   BUTTON_TEXT,
   FONT_STACK,
   INSET_BACKGROUND,
+  MAP_BACKGROUND,
   RADIUS_BUTTON,
   RADIUS_FULL,
   RADIUS_INSET,
@@ -227,5 +228,86 @@ export const quote = (options: {
     text: body
       ? `${author.displayName} (${author.handle})\n${body.text}`
       : `${author.displayName} (${author.handle})`
+  }
+}
+
+/** One figure in the fitness stat row. */
+export interface EmailStat {
+  readonly label: string
+  readonly value: string
+}
+
+/**
+ * The fitness activity summary card: an optional route map over a title row and
+ * a row of stats.
+ *
+ * Everything here comes from the status and its fitness file, so the card says
+ * nothing about which service produced the activity — a Strava webhook, a
+ * direct .fit upload and a future provider all render identically.
+ */
+export const statCard = (options: {
+  /** Absolute URL of the route image. Omitted for an activity with no GPS. */
+  mapImageUrl?: string
+  title: string
+  /** Right-aligned start time, pre-formatted. */
+  timestamp?: string
+  stats: readonly EmailStat[]
+  /** e.g. "Imported from activity file · morning-run.fit". */
+  footnote?: string
+}): EmailBlock => {
+  const { mapImageUrl, title, timestamp, stats, footnote } = options
+  const safeMap = mapImageUrl ? safeUrl(mapImageUrl) : null
+
+  // width but no height: the generated map is 4:3 while the design slot is
+  // wider, so a fixed height would letterbox or crop it. Letting the client
+  // scale keeps the whole route visible.
+  const mapHtml = safeMap
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 12px;"><tr>` +
+      `<td style="border:1px solid ${BORDER};border-radius:6px;background-color:${MAP_BACKGROUND};">` +
+      `<img src="${escapeHtml(safeMap)}" width="512" alt="Route map" style="display:block;width:100%;max-width:512px;height:auto;border:0;border-radius:6px;">` +
+      `</td></tr></table>`
+    : ''
+
+  const titleHtml =
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>` +
+    `<td style="font-family:${FONT_STACK};font-size:15px;font-weight:600;color:${TEXT};word-wrap:break-word;">${escapeHtml(title)}</td>` +
+    (timestamp
+      ? `<td align="right" style="font-family:${FONT_STACK};font-size:12px;color:${TEXT_MUTED};white-space:nowrap;">${escapeHtml(timestamp)}</td>`
+      : '') +
+    `</tr></table>`
+
+  const statWidth = stats.length > 0 ? Math.floor(100 / stats.length) : 100
+  const statsHtml =
+    stats.length > 0
+      ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:12px;"><tr>` +
+        stats
+          .map(
+            (stat) =>
+              `<td width="${statWidth}%" style="font-family:${FONT_STACK};">` +
+              `<div style="font-size:12px;color:${TEXT_MUTED};">${escapeHtml(stat.label)}</div>` +
+              `<div style="font-size:18px;font-weight:600;letter-spacing:-0.01em;color:${TEXT};margin-top:2px;">${escapeHtml(stat.value)}</div>` +
+              `</td>`
+          )
+          .join('') +
+        `</tr></table>`
+      : ''
+
+  const footnoteHtml = footnote
+    ? `<div style="margin-top:12px;padding-top:10px;border-top:1px solid ${BORDER};font-family:${FONT_STACK};font-size:12px;color:${TEXT_MUTED};word-wrap:break-word;">${escapeHtml(footnote)}</div>`
+    : ''
+
+  const textLines = [
+    timestamp ? `${title} (${timestamp})` : title,
+    ...stats.map((stat) => `${stat.label}: ${stat.value}`),
+    ...(footnote ? [footnote] : [])
+  ]
+
+  return {
+    html:
+      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;"><tr>` +
+      `<td bgcolor="${INSET_BACKGROUND}" style="background-color:${INSET_BACKGROUND};border:1px solid ${BORDER};border-radius:${RADIUS_INSET};padding:16px;">` +
+      `${mapHtml}${titleHtml}${statsHtml}${footnoteHtml}` +
+      `</td></tr></table>`,
+    text: textLines.join('\n')
   }
 }

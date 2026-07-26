@@ -45,6 +45,12 @@ vi.mock('@/lib/services/medias', async () => ({
   saveMedia: vi.fn()
 }))
 
+const mockSendNotificationAlerts = vi.fn()
+vi.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
+  sendNotificationAlerts: (...args: unknown[]) =>
+    mockSendNotificationAlerts(...args)
+}))
+
 const mockGetFitnessFileBuffer = getFitnessFileBuffer as jest.MockedFunction<
   typeof getFitnessFileBuffer
 >
@@ -473,5 +479,56 @@ describe('processFitnessFileJob', () => {
         msg.name === GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME
     )
     expect(heatmapCalls).toHaveLength(0)
+  })
+
+  describe('import notification', () => {
+    it('tells the actor when a first import completes', async () => {
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+
+      await processFitnessFileJob(database, {
+        id: 'job-notify',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          statusId,
+          fitnessFileId,
+          notifyOnComplete: true
+        }
+      })
+
+      expect(mockSendNotificationAlerts).toHaveBeenCalledTimes(1)
+      const call = mockSendNotificationAlerts.mock.calls[0][0]
+      expect(call.actorId).toBe(actor.id)
+      expect(call.events[0].type).toBe('activity_import')
+
+      // The whole point of this PR: the email actually goes out, and it goes
+      // out from here — after the map and the parsed stats exist — rather than
+      // where the import was enqueued.
+      const emailContent = call.events[0].emailContent
+      expect(emailContent.recipientEmail).toBe(actor.account?.email)
+      expect(emailContent.subject).toContain(
+        'Your fitness activity was imported'
+      )
+      expect(emailContent.html).toContain('>View status</a>')
+      expect(emailContent.html.toLowerCase()).not.toContain('strava')
+    })
+
+    it('stays silent when the run is a reprocess rather than a first import', async () => {
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+
+      // notifyOnComplete defaults to false, which is what a retry, a backfill
+      // script and a direct upload all get.
+      await processFitnessFileJob(database, {
+        id: 'job-no-notify',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      expect(mockSendNotificationAlerts).not.toHaveBeenCalled()
+    })
   })
 })

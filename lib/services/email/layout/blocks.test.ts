@@ -5,7 +5,8 @@ import {
   label,
   note,
   paragraph,
-  quote
+  quote,
+  statCard
 } from './blocks'
 import { MONOGRAM_PALETTE } from './theme'
 
@@ -235,5 +236,77 @@ describe('quote', () => {
   it('lets a long unbroken body word wrap', () => {
     const { html } = quote({ author, body: { html: 'x', text: 'x' } })
     expect(html).toContain('word-wrap:break-word')
+  })
+})
+
+describe('statCard', () => {
+  const stats = [
+    { label: 'Distance', value: '8.21 km' },
+    { label: 'Time', value: '42:18' },
+    { label: 'Pace', value: '5:09 / km' }
+  ]
+
+  it('renders the title, stats and footnote', () => {
+    const { html, text } = statCard({
+      title: 'Morning run',
+      timestamp: 'Today, 07:12',
+      stats,
+      footnote: 'Imported from activity file · morning-run.fit'
+    })
+    expect(html).toContain('>Morning run</td>')
+    expect(html).toContain('>Today, 07:12</td>')
+    expect(html).toContain('>Distance</div>')
+    expect(html).toContain('>8.21 km</div>')
+    expect(text).toContain('Morning run (Today, 07:12)')
+    expect(text).toContain('Distance: 8.21 km')
+    expect(text).toContain('morning-run.fit')
+  })
+
+  it('divides the row evenly between the stats it is given', () => {
+    expect(statCard({ title: 'a', stats }).html).toContain('width="33%"')
+    expect(statCard({ title: 'a', stats: stats.slice(0, 2) }).html).toContain(
+      'width="50%"'
+    )
+  })
+
+  it('renders the route map when one is available', () => {
+    const { html } = statCard({
+      title: 'a',
+      stats,
+      mapImageUrl: 'https://example.com/api/v1/files/map.webp'
+    })
+    expect(html).toContain('alt="Route map"')
+    expect(html).toContain('src="https://example.com/api/v1/files/map.webp"')
+    // No fixed height: the generated map is 4:3 and the slot is wider, so
+    // letting the client scale keeps the whole route visible.
+    expect(html).toContain('height:auto')
+  })
+
+  it('omits the map for an activity with no route', () => {
+    const { html } = statCard({ title: 'a', stats })
+    expect(html).not.toContain('alt="Route map"')
+    expect(html).not.toContain('<img')
+  })
+
+  it('refuses an unsafe map url', () => {
+    const { html } = statCard({
+      title: 'a',
+      stats,
+      mapImageUrl: 'javascript:alert(1)'
+    })
+    expect(html).not.toContain('javascript:')
+    expect(html).not.toContain('<img')
+  })
+
+  it('still renders with no stats at all', () => {
+    const { html } = statCard({ title: 'Indoor ride', stats: [] })
+    expect(html).toContain('>Indoor ride</td>')
+    expect(html).not.toContain('<div style="font-size:12px')
+  })
+
+  it('escapes a hostile activity title and footnote', () => {
+    const { html } = statCard({ title: XSS, stats: [], footnote: XSS })
+    expect(html).not.toContain(XSS)
+    expect(html).not.toContain('<script')
   })
 })

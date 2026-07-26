@@ -169,14 +169,9 @@ change doesn't touch.
 
 ## Emails
 
-- **Migration in progress — one template left.** Ten of eleven are on the shared
-  layout; only `activityImport.ts` still uses the old
-  `getSubject`/`getTextContent`/`getHTMLContent` trio, and nothing sends it.
-  Apply the rules below when migrating it; don't copy the old shape into a new
-  template.
-- Every migrated email is built by a `build<Name>Email(params): RenderedEmail`
-  module in `lib/services/email/templates/`. No subject/HTML/text literals at a
-  call site.
+- Every email is built by a `build<Name>Email(params): RenderedEmail` module in
+  `lib/services/email/templates/`. No subject/HTML/text literals at a call site.
+  All eleven templates follow this; there is no legacy shape left to copy.
 - Templates compose blocks from `@/lib/services/email/layout/blocks` and render
   through `renderEmail`; they never write markup. Escaping belongs to the block
   builders, so a template hands in plain strings, and nothing in the layout emits
