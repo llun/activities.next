@@ -1207,9 +1207,9 @@ describe('FitnessHeatmapView', () => {
       />
     )
 
-    // A gate, not a count assertion — the exact number is captured below. An
-    // exact count inside waitFor can never recover if the extra call lands
-    // before the first poll.
+    // A gate, not a count assertion — the exact number is captured below. Call
+    // counts only ever grow, so an exact count inside waitFor can never recover
+    // if an extra call lands before the count is captured below.
     await waitFor(() => {
       expect(mockGetFitnessRouteHeatmaps).toHaveBeenCalled()
     })
@@ -1347,7 +1347,7 @@ describe('RouteHeatmapMap', () => {
       <RouteHeatmapMap
         heatmap={worldHeatmap({
           updatedAt: 3,
-          // The third point must sit off the straight line between the
+          // The interior point must sit off the straight line between the
           // endpoints: simplifySegmentsToBudget runs Douglas-Peucker at a 1m
           // tolerance, so a collinear point is dropped and the "updated"
           // geometry would be byte-identical to the original.
