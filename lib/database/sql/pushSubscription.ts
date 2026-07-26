@@ -42,7 +42,13 @@ export const DEFAULT_PUSH_ALERTS: PushAlerts = {
   update: false,
   quote: false,
   quoted_update: false,
-  'pleroma:emoji_reaction': false,
+  // Deliberately true, unlike every Mastodon-documented flag above.
+  // `pleroma:emoji_reaction` is an ecosystem extension that no Mastodon client
+  // will ever request, and `normalizeAlerts` resolves a key absent from a
+  // stored row to this default — so `false` would permanently suppress reaction
+  // pushes for every subscription that predates the key, i.e. all of them. An
+  // Akkoma-aware client that explicitly sets it false is still honoured.
+  'pleroma:emoji_reaction': true,
   'admin.sign_up': false,
   'admin.report': false
 }

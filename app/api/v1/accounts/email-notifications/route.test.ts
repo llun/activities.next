@@ -171,6 +171,33 @@ describe('POST /api/v1/accounts/email-notifications', () => {
     )
   })
 
+  it('persists emoji_reaction so the email master toggle can stay off', async () => {
+    // The settings page drives BOTH the Email and Push columns from one
+    // `notificationTypes` list. A key this schema does not declare is stripped
+    // silently, and the master toggle is recomputed as
+    // `some((nt) => stored[nt.key] !== false)` — so a missing key reads back as
+    // enabled and switching the whole Email channel off never sticks.
+    const req = new NextRequest(
+      'http://localhost/api/v1/accounts/email-notifications',
+      {
+        method: 'POST',
+        body: JSON.stringify({ emoji_reaction: false }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }
+    )
+    const res = await POST(req, { params: Promise.resolve({}) })
+
+    expect(res.status).toBe(200)
+    expect(mockDb.updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        emailNotifications: { emoji_reaction: false }
+      })
+    )
+  })
+
   it('returns 403 when targeting an actor not owned by current user', async () => {
     const req = new NextRequest(
       'http://localhost/api/v1/accounts/email-notifications',
