@@ -1207,8 +1207,11 @@ describe('FitnessHeatmapView', () => {
       />
     )
 
+    // A gate, not a count assertion — the exact number is captured below. An
+    // exact count inside waitFor can never recover if the extra call lands
+    // before the first poll.
     await waitFor(() => {
-      expect(mockGetFitnessRouteHeatmaps).toHaveBeenCalledTimes(1)
+      expect(mockGetFitnessRouteHeatmaps).toHaveBeenCalled()
     })
 
     const callsAfterInitialLoad = mockGetFitnessRouteHeatmaps.mock.calls.length
@@ -1245,8 +1248,9 @@ describe('FitnessHeatmapView', () => {
       />
     )
 
+    // A gate, not a count assertion — see the sibling test above.
     await waitFor(() => {
-      expect(mockGetFitnessRouteHeatmaps).toHaveBeenCalledTimes(1)
+      expect(mockGetFitnessRouteHeatmaps).toHaveBeenCalled()
     })
 
     const callsAfterInitialLoad = mockGetFitnessRouteHeatmaps.mock.calls.length
@@ -1331,18 +1335,27 @@ describe('RouteHeatmapMap', () => {
     const { rerender } = render(
       <RouteHeatmapMap heatmap={worldHeatmap()} mapProvider={{ type: 'osm' }} />
     )
-    await screen.findByText('OpenFreeMap')
+    // Wait for the *initial* push before clearing, not just for the provider
+    // label. The label appears in the commit that flips isMapLoaded, while the
+    // first setData runs in that commit's passive effect — a later macrotask.
+    // Clearing on the label alone can therefore land between the two, leaving
+    // the initial push to arrive after the clear and inflate every later count.
+    await waitFor(() => expect(setData).toHaveBeenCalled())
     setData.mockClear()
 
     rerender(
       <RouteHeatmapMap
         heatmap={worldHeatmap({
           updatedAt: 3,
+          // The third point must sit off the straight line between the
+          // endpoints: simplifySegmentsToBudget runs Douglas-Peucker at a 1m
+          // tolerance, so a collinear point is dropped and the "updated"
+          // geometry would be byte-identical to the original.
           segments: [
             {
               points: [
                 { lat: 52.36, lng: 4.88 },
-                { lat: 52.37, lng: 4.89 },
+                { lat: 52.37, lng: 4.91 },
                 { lat: 52.39, lng: 4.91 }
               ]
             }
@@ -1352,7 +1365,28 @@ describe('RouteHeatmapMap', () => {
       />
     )
 
-    await waitFor(() => expect(setData).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(setData).toHaveBeenCalled())
+    // Assert the payload rather than the call count: the point of the test is
+    // that the new geometry reaches the source, and a redundant extra push
+    // would be harmless.
+    expect(setData.mock.lastCall?.[0]).toMatchObject({
+      type: 'FeatureCollection',
+      features: [
+        expect.objectContaining({
+          geometry: {
+            type: 'LineString',
+            coordinates: [
+              [4.88, 52.36],
+              [4.91, 52.37],
+              [4.91, 52.39]
+            ]
+          }
+        })
+      ]
+    })
+    // …and that it went to the *existing* source: the map is never rebuilt for
+    // an in-place cache update.
+    expect(mapConstructor).toHaveBeenCalledTimes(1)
   })
 
   it('renders an empty route state without loading any map provider', () => {
