@@ -406,6 +406,62 @@ describe('unreactStatus', () => {
     })
   })
 
+  it('still removes a reaction after the status stops being readable', async () => {
+    // The author narrows a public post to followers-only afterwards. Refusing
+    // would leave the reaction counted in everyone else's rollups forever.
+    const statusId = `${ACTOR1_ID}/statuses/narrowed-1`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: ACTOR1_ID,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      text: 'Public then narrowed'
+    })
+    await reactStatus({
+      database,
+      currentActor: reactor,
+      statusId,
+      name: '🔒'
+    })
+    await database.updateNoteVisibility({
+      statusId,
+      to: [`${ACTOR1_ID}/followers`],
+      cc: []
+    })
+
+    const result = await unreactStatus({
+      database,
+      currentActor: reactor,
+      statusId,
+      name: '🔒'
+    })
+
+    expect(result).toMatchObject({ ok: true, changed: true })
+    expect(await database.getStatusReactionActors({ statusId })).toEqual([])
+  })
+
+  it('reports not-found for an unreadable status the actor never reacted to', async () => {
+    const statusId = `${ACTOR1_ID}/statuses/narrowed-2`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: ACTOR1_ID,
+      to: [`${ACTOR1_ID}/followers`],
+      cc: [],
+      text: 'Never readable'
+    })
+
+    const result = await unreactStatus({
+      database,
+      currentActor: reactor,
+      statusId,
+      name: '🔒'
+    })
+
+    expect(result).toEqual({ ok: false, reason: 'not-found' })
+  })
+
   it('reports no change when the reaction was not there', async () => {
     const result = await unreactStatus({
       database,

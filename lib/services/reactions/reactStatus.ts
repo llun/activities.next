@@ -180,18 +180,42 @@ export const unreactStatus = async ({
   statusId,
   name
 }: ReactStatusParams): Promise<ReactStatusResult> => {
-  const status = await getReadableStatus({
+  const readableStatus = await getReadableStatus({
     database,
     statusId,
     currentActor,
     withReplies: false
   })
+  // A status readable when the actor reacted may since have narrowed its
+  // audience (the author edits its visibility, or an accepted follow goes away).
+  // Refusing here would trap the reaction forever: it keeps counting in every
+  // viewer's rollups and, for a remote post, is never retracted upstream — the
+  // same unrecoverable-for-the-user shape that made us always send the Undo.
+  // Holding the row is itself proof the actor could read the status at the time,
+  // so fall back on ownership, exactly as unfavourite/unbookmark/unreblog do.
+  const status =
+    readableStatus ??
+    (await database.getStatus({
+      statusId,
+      withReplies: false,
+      currentActorId: currentActor.id
+    }))
   if (!status) return { ok: false, reason: 'not-found' }
 
   // Removal accepts whatever is stored rather than re-validating: an emoji that
   // was legal when it was added must stay removable after an admin disables it.
   const storedName = normalizeStoredReactionName(name)
   const target = getOriginalStatus(status)
+
+  if (!readableStatus) {
+    const own = await database.getStatusReactionRollups({
+      statusIds: [target.id],
+      currentActorId: currentActor.id
+    })
+    if (!own.some((rollup) => rollup.me && rollup.name === storedName)) {
+      return { ok: false, reason: 'not-found' }
+    }
+  }
 
   const changed = await database.deleteStatusReaction({
     statusId: target.id,
