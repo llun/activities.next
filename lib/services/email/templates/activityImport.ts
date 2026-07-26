@@ -115,8 +115,14 @@ const getStats = (fitness?: FitnessFile): EmailStat[] => {
 /**
  * A background import finished and created a post.
  *
- * Everything rendered comes from the status and its fitness file — no provider
- * is named anywhere, in the copy or the data.
+ * Everything rendered comes from the status and its fitness file, and none of
+ * the COPY names a provider — the same template serves a Strava webhook, a
+ * direct .fit upload and any future integration.
+ *
+ * The one place a provider name can surface is the footnote, which prints the
+ * real file name: a Strava import stores `strava-<activityId>.tcx`. That is the
+ * user's own file, not wording we chose, and hiding it would make the footnote
+ * lie about which file produced the post.
  */
 export const buildActivityImportEmail = ({
   recipient,

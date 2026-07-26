@@ -356,6 +356,13 @@ export const processFitnessFileJob = createJobHandle(
       // is enqueued looks correct locally — NoQueue runs this job inline — but
       // under QStash the map and the parsed stats do not exist yet, so the
       // email would ship empty in production and full in dev.
+      //
+      // Behaviour change worth knowing: an import whose PROCESSING fails now
+      // produces no activity_import notification at all, where the old
+      // enqueue-time call produced one as soon as the status existed. That is
+      // intended — "your activity arrived" should not fire for an activity that
+      // did not finish arriving — and the failure is already surfaced in the
+      // fitness UI with a retry affordance.
       if (notifyOnComplete) {
         await notifyActivityImported({
           database,
