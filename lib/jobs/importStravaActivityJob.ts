@@ -502,14 +502,23 @@ export const importStravaActivityJob = createJobHandle(
           data: { actorId, statusId: createdNote.id }
         })
 
-        if (isNewFallback) {
-          // This path never creates a fitness file — the activity had no
-          // exportable streams — so it never reaches processFitnessFileJob and
-          // has to notify for itself. The email degrades to headline, lead and
-          // button: no route map, no stats, because there are none.
-          //
-          // Gated on notifyOnComplete for the same reason as the main path: a
-          // bulk recovery run must not mail once per activity.
+        // Gated on notifyOnComplete as a whole, not just on the email. This
+        // path never creates a fitness file — the activity had no exportable
+        // streams — so it never reaches processFitnessFileJob and has to
+        // notify for itself, and every channel has to be gated together.
+        //
+        // Gating only emailContent would leave push firing on every bulk
+        // recovery run: `main` produced no push here at all (the branch created
+        // the notification row and stopped), so an ungated fan-out would be a
+        // new one-per-activity regression on the adjacent channel.
+        //
+        // It also keeps this path consistent with the main one, where the whole
+        // notify step sits inside the same check: a retry or a repair script
+        // creates the post silently, with no bell entry either.
+        //
+        // The email degrades to headline, lead and button: no route map, no
+        // stats, because there are none.
+        if (isNewFallback && notifyOnComplete) {
           const notification = await createNotificationWithPolicy(database, {
             actorId,
             type: 'activity_import',
@@ -537,16 +546,15 @@ export const importStravaActivityJob = createJobHandle(
                   {
                     type: 'activity_import',
                     notificationId: notification.id,
-                    emailContent:
-                      notifyOnComplete && actor.account
-                        ? {
-                            recipientEmail: actor.account.email,
-                            ...buildActivityImportEmail({
-                              recipient: actor,
-                              status: status as EditableStatus
-                            })
-                          }
-                        : undefined
+                    emailContent: actor.account
+                      ? {
+                          recipientEmail: actor.account.email,
+                          ...buildActivityImportEmail({
+                            recipient: actor,
+                            status: status as EditableStatus
+                          })
+                        }
+                      : undefined
                   }
                 ]
               })

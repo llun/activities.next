@@ -66,6 +66,12 @@ const mockSaveFitnessFile = saveFitnessFile as jest.MockedFunction<
   typeof saveFitnessFile
 >
 const mockSaveMedia = saveMedia as jest.MockedFunction<typeof saveMedia>
+const mockSendNotificationAlerts = vi.fn()
+vi.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
+  sendNotificationAlerts: (...args: unknown[]) =>
+    mockSendNotificationAlerts(...args)
+}))
+
 const mockImportFitnessFilesJob = importFitnessFilesJob as jest.MockedFunction<
   typeof importFitnessFilesJob
 >
@@ -1067,7 +1073,8 @@ describe('importStravaActivityJob', () => {
       name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
       data: {
         actorId: 'actor-1',
-        stravaActivityId: '125'
+        stravaActivityId: '125',
+        notifyOnComplete: true
       }
     })
 
@@ -1079,6 +1086,39 @@ describe('importStravaActivityJob', () => {
         statusId: 'status-new',
         groupKey: 'activity_import:actor-1:2026-01-01'
       })
+    )
+  })
+
+  // The positive case is covered by the group-key test above, which opts in
+  // and asserts the notification is created. This is the regression guard: it
+  // fails the moment the notifyOnComplete gate is removed from that branch.
+  it('stays entirely silent on the fallback path without the opt-in', async () => {
+    mockGetStravaActivity.mockResolvedValueOnce({
+      id: 127,
+      name: 'Treadmill session',
+      distance: 5_000,
+      elapsed_time: 1_500,
+      start_date: '2026-01-01T00:00:00.000Z',
+      sport_type: 'Run',
+      visibility: 'everyone'
+    })
+    mockGetStravaActivityStreams.mockResolvedValueOnce({
+      time: { type: 'time', data: [0, 10, 20] }
+    })
+    mockBuildGpxFromStravaStreams.mockReturnValueOnce(null)
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-fallback-silent',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: { actorId: 'actor-1', stravaActivityId: '127' }
+    })
+
+    // Every channel, not just email. `main` produced no push from this branch,
+    // so leaving push ungated would be a new one-per-activity regression for a
+    // bulk recovery run.
+    expect(mockSendNotificationAlerts).not.toHaveBeenCalled()
+    expect(database.createNotification).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'activity_import' })
     )
   })
 
