@@ -42,7 +42,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **List timelines** — Per-list timelines honoring replies policy, exclusive lists, and block/mute/keyword filtering
 - ✅ **Notifications** — Like, follow, mention, reblog, follow request, quote (someone quoted your post), quote-update (a post you quoted was edited), emoji reaction (someone reacted to your post, served as the Pleroma `pleroma:emoji_reaction` type), and collection (added-to-collection / collection-update) notifications
 - ✅ **Notification grouping** — Group similar notifications together
-- ✅ **Email notifications** — Configurable email alerts for each notification type
+- ✅ **Email notifications** — Configurable email alerts for each notification type, including fitness activity imports
 - ✅ **Push notifications** — Web Push subscriptions with VAPID configuration
 - ✅ **Unread count** — Badge showing unread notification count
 
