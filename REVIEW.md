@@ -192,6 +192,11 @@ change doesn't touch.
 - Outlook-only properties (`mso-padding-alt` on both the button cell and its
   anchor, `mso-hide:all`, the MSO ghost table pinning the column to 600px) are
   load-bearing and invisible in a browser. Don't drop them as dead style.
+- **An email image never points at a stored media path directly.** Stored images
+  are WebP, which Outlook desktop and Windows Mail cannot decode. An email image
+  needs a stored JPEG copy (`saveMediaImageRendition(…, 'jpeg')`) and a column
+  remembering it — the route map uses `fitness_files.mapImageEmailPath` — with the
+  WebP kept only as a fallback for rows written before that column existed.
 
 ## Style, imports & tests
 

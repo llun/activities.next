@@ -21,8 +21,16 @@ import { MediaValidationError } from '@/lib/services/medias/errors'
 import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
 import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
 import { getMediaAttachment } from '@/lib/services/medias/getMediaAttachment'
+import {
+  DEFAULT_IMAGE_OUTPUT_FORMAT,
+  type ImageOutputFormat,
+  encodeImageOutput,
+  getImageOutputFormatDetail
+} from '@/lib/services/medias/imageOutputFormat'
+import { getMediaFileUrl } from '@/lib/services/medias/mediaFileUrl'
 import { checkQuotaAvailable } from '@/lib/services/medias/quota'
 import {
+  ImageRenditionOutput,
   MediaSchema,
   MediaStorage,
   MediaStorageGetFileOutput,
@@ -82,6 +90,11 @@ const PRESIGNED_UPLOAD_UNHOISTABLE_HEADERS = new Set([
   'x-amz-checksum-sha1',
   'x-amz-meta-checksumsha1'
 ])
+
+interface UploadImageOptions {
+  isThumbnail?: boolean
+  format?: ImageOutputFormat
+}
 
 export class S3FileStorage implements MediaStorage {
   private static _instance: MediaStorage
@@ -403,7 +416,9 @@ export class S3FileStorage implements MediaStorage {
       // Video preview extraction can fail (no decodable frame); only build a
       // thumbnail when we actually have a preview image to avoid sharp(null).
       const thumbnail = previewImage
-        ? await this._uploadImageBufferToS3(currentTime, previewImage, true)
+        ? await this._uploadImageBufferToS3(currentTime, previewImage, {
+            isThumbnail: true
+          })
         : null
       const storedMedia = await this._database.createMedia({
         actorId: actor.id,
@@ -419,11 +434,11 @@ export class S3FileStorage implements MediaStorage {
         },
         ...(thumbnail
           ? {
-              // Use the resized WebP's actual size/dimensions (outputInfo).
+              // Use the resized image's actual size/dimensions (outputInfo).
               thumbnail: {
                 path: thumbnail.path,
                 bytes: thumbnail.outputInfo.size,
-                mimeType: 'image/webp',
+                mimeType: thumbnail.contentType,
                 metaData: {
                   width: thumbnail.outputInfo.width,
                   height: thumbnail.outputInfo.height
@@ -481,17 +496,54 @@ export class S3FileStorage implements MediaStorage {
       )
     }
 
-    // Use the stored WebP's actual size/dimensions (outputInfo), not the input
+    // Use the stored image's actual size/dimensions (outputInfo), not the input
     // image's metadata.
-    const { outputInfo, path } = await this._uploadImageToS3(
+    const { outputInfo, path, contentType } = await this._uploadImageToS3(
       Date.now(),
       file,
-      true
+      { isThumbnail: true }
     )
     return {
       path,
       bytes: outputInfo.size,
-      mimeType: 'image/webp',
+      mimeType: contentType,
+      metaData: {
+        width: outputInfo.width,
+        height: outputInfo.height
+      }
+    }
+  }
+
+  async saveImageRendition(
+    actor: Actor,
+    file: File,
+    imageFormat: ImageOutputFormat
+  ): Promise<ImageRenditionOutput | null> {
+    if (!file.type.startsWith('image')) return null
+
+    // Quota-checked like saveFile/saveThumbnail: a rendition is stored bytes
+    // too, even though it gets no `medias` row of its own.
+    const quotaCheck = await checkQuotaAvailable(
+      this._database,
+      actor,
+      file.size
+    )
+    if (!quotaCheck.available) {
+      throw new MediaValidationError(
+        `Storage quota exceeded. Used: ${quotaCheck.used} bytes, Limit: ${quotaCheck.limit} bytes`
+      )
+    }
+
+    const { outputInfo, path, contentType } = await this._uploadImageToS3(
+      Date.now(),
+      file,
+      { format: imageFormat }
+    )
+    return {
+      path,
+      url: getMediaFileUrl(this._host, path),
+      bytes: outputInfo.size,
+      mimeType: contentType,
       metaData: {
         width: outputInfo.width,
         height: outputInfo.height
@@ -502,44 +554,47 @@ export class S3FileStorage implements MediaStorage {
   private async _uploadImageToS3(
     currentTime: number,
     file: File,
-    isThumbnail = false
+    options: UploadImageOptions = {}
   ) {
     return this._uploadImageBufferToS3(
       currentTime,
       Buffer.from(await file.arrayBuffer()),
-      isThumbnail
+      options
     )
   }
 
   private async _uploadImageBufferToS3(
     currentTime: number,
     buffer: Buffer,
-    isThumbnail = false
+    {
+      isThumbnail = false,
+      format: imageFormat = DEFAULT_IMAGE_OUTPUT_FORMAT
+    }: UploadImageOptions = {}
   ) {
     const { bucket } = this._config
     const randomPrefix = crypto.randomBytes(8).toString('hex')
+    const { extension, contentType } = getImageOutputFormatDetail(imageFormat)
 
-    const resizedImage = sharp(buffer)
-      .resize(MAX_WIDTH, MAX_HEIGHT, { fit: 'inside' })
-      .rotate()
-      .webp({ quality: 95, smartSubsample: true, nearLossless: true })
+    const resizedImage = encodeImageOutput(
+      sharp(buffer).resize(MAX_WIDTH, MAX_HEIGHT, { fit: 'inside' }).rotate(),
+      imageFormat
+    )
 
     const tempFilePath = join(
       tmpdir(),
-      `${crypto.randomBytes(8).toString('hex')}.webp`
+      `${crypto.randomBytes(8).toString('hex')}.${extension}`
     )
     // `metadata()` reports the INPUT image; `toFile()` resolves with the OUTPUT
-    // info (post-resize/WebP dimensions and byte size). Read metadata from a
-    // separate sharp instance so the two operations don't run concurrently on
+    // info (post-resize/re-encode dimensions and byte size). Read metadata from
+    // a separate sharp instance so the two operations don't run concurrently on
     // the same pipeline.
     const [metaData, outputInfo] = await Promise.all([
       sharp(buffer).metadata(),
       resizedImage.keepExif().toFile(tempFilePath)
     ])
 
-    const contentType = 'image/webp'
     const timeDirectory = format(currentTime, 'yyyy-MM-dd')
-    const path = `medias/${timeDirectory}/${randomPrefix}${isThumbnail ? '-thumbnail' : ''}.webp`
+    const path = `medias/${timeDirectory}/${randomPrefix}${isThumbnail ? '-thumbnail' : ''}.${extension}`
     const s3client = this._client
 
     // Outer finally guarantees the temp file is removed even if fs.open throws;

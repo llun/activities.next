@@ -166,15 +166,18 @@ describe('regenerateFitnessMapsJob', () => {
     })
     expect(fitnessFile).toBeDefined()
 
+    const oldEmailMapPath = `medias/old-route-map-${postId}.jpg`
     await database.updateFitnessFileActivityData(fitnessFile!.id, {
       hasMapData: true,
-      mapImagePath: oldMedia!.original.path
+      mapImagePath: oldMedia!.original.path,
+      mapImageEmailPath: oldEmailMapPath
     })
 
     return {
       statusId,
       fitnessFileId: fitnessFile!.id,
-      oldMediaId: String(oldMedia!.id)
+      oldMediaId: String(oldMedia!.id),
+      oldEmailMapPath
     }
   }
 
@@ -247,7 +250,7 @@ describe('regenerateFitnessMapsJob', () => {
   }
 
   it('replaces old maps and publishes an update note job', async () => {
-    const { statusId, fitnessFileId, oldMediaId } =
+    const { statusId, fitnessFileId, oldMediaId, oldEmailMapPath } =
       await setupStatusWithOldMap()
 
     await regenerateFitnessMapsJob(database, {
@@ -265,6 +268,13 @@ describe('regenerateFitnessMapsJob', () => {
     expect(refreshedFitnessFile?.processingStatus).toBe('completed')
     expect(refreshedFitnessFile?.hasMapData).toBe(true)
     expect(refreshedFitnessFile?.mapImagePath).toBe('medias/new-route-map.webp')
+
+    // The JPEG copy of the replaced map belonged to an email that was sent when
+    // the activity first arrived. Regeneration has nothing to replace it with,
+    // and after a privacy change it may show a route the owner has since
+    // hidden, so it is dropped rather than left fetchable at its old URL.
+    expect(refreshedFitnessFile?.mapImageEmailPath).toBeUndefined()
+    expect(mockDeleteMediaFile).toHaveBeenCalledWith(database, oldEmailMapPath)
 
     const refreshedStatus = await database.getStatus({
       statusId,

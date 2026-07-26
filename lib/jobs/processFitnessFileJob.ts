@@ -15,11 +15,12 @@ import {
   getFitnessPrivacyLocations,
   getVisibleSegments
 } from '@/lib/services/fitness-files/privacy'
-import { saveMedia } from '@/lib/services/medias'
+import { saveMedia, saveMediaImageRendition } from '@/lib/services/medias'
 import { getActivityImportGroupKey } from '@/lib/services/notifications/activityImportGroupKey'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
+import { Actor } from '@/lib/types/domain/actor'
 import { EditableStatus, StatusType } from '@/lib/types/domain/status'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -117,6 +118,70 @@ const buildActivitySummary = (data: FitnessActivityData): string => {
   }
 
   return base
+}
+
+/**
+ * Store a JPEG copy of the route map, for the import email only.
+ *
+ * Every image the media storages write is WebP. Gmail, Apple Mail and new
+ * Outlook decode it; Outlook desktop (which renders mail with the Word engine)
+ * and Windows Mail do not, so those recipients got the `alt` text where their
+ * route should have been. This copy is not attached to the status, never
+ * federates, and is not what any web surface renders — it exists so the email
+ * has an `<img src>` every mail client can display. Its path is recorded on the
+ * fitness file so it stays tied to the map it was made from.
+ *
+ * Returns the URL to put in the email, or undefined when no copy could be
+ * stored — the caller then falls back to the WebP, which is what every activity
+ * imported before this column existed still uses.
+ */
+const storeEmailMapImage = async ({
+  database,
+  actor,
+  statusId,
+  fitnessFileId,
+  mapImageFile
+}: {
+  database: Database
+  actor: Actor
+  statusId: string
+  fitnessFileId: string
+  mapImageFile: File
+}): Promise<string | undefined> => {
+  try {
+    const rendition = await saveMediaImageRendition(
+      database,
+      actor,
+      mapImageFile,
+      'jpeg'
+    )
+    if (!rendition) {
+      logger.warn({
+        message: 'Failed to store the route map copy for email',
+        actorId: actor.id,
+        statusId,
+        fitnessFileId
+      })
+      return undefined
+    }
+
+    await database.updateFitnessFileActivityData(fitnessFileId, {
+      mapImageEmailPath: rendition.path
+    })
+    return rendition.url
+  } catch (error) {
+    // Best-effort: the map is already stored and attached by the time this
+    // runs, so failing here costs Outlook recipients their image and nothing
+    // else. It must never fail the import.
+    logger.warn({
+      message: 'Failed to store the route map copy for email',
+      actorId: actor.id,
+      statusId,
+      fitnessFileId,
+      error: (error as Error).message
+    })
+    return undefined
+  }
 }
 
 /**
@@ -249,6 +314,7 @@ export const processFitnessFileJob = createJobHandle(
         activityStartTime: activityData.startTime ?? null,
         hasMapData: false,
         mapImagePath: null,
+        mapImageEmailPath: null,
         // Only overwrite each device field when parsing found a value for it.
         // Preserves device info already set from other sources (e.g. Strava import).
         // Each field is guarded independently so a file with manufacturer-but-no-product-name
@@ -286,14 +352,15 @@ export const processFitnessFileJob = createJobHandle(
 
           if (mapImageBuffer) {
             const mapImageBytes = new Uint8Array(mapImageBuffer)
+            const mapImageFile = new File(
+              [mapImageBytes],
+              `${fitnessFileId}-route-map.png`,
+              {
+                type: 'image/png'
+              }
+            )
             const storedMap = await saveMedia(database, actor, {
-              file: new File(
-                [mapImageBytes],
-                `${fitnessFileId}-route-map.png`,
-                {
-                  type: 'image/png'
-                }
-              ),
+              file: mapImageFile,
               description: `${fitnessFile.fileName} route map`
             })
 
@@ -321,7 +388,20 @@ export const processFitnessFileJob = createJobHandle(
                 mapImagePath: getAttachmentMediaPath(storedMap.url)
               })
 
-              mapImageUrl = storedMap.url
+              // The WebP is what the post and every web surface use; the email
+              // prefers a JPEG copy, because Outlook desktop cannot decode
+              // WebP. Only worth storing when an email is actually going out —
+              // a direct upload notifies nobody, so a copy would be storage
+              // spent on an image no one would ever fetch.
+              mapImageUrl = notifyOnComplete
+                ? ((await storeEmailMapImage({
+                    database,
+                    actor,
+                    statusId,
+                    fitnessFileId,
+                    mapImageFile
+                  })) ?? storedMap.url)
+                : storedMap.url
             }
           }
         } catch (error) {

@@ -309,6 +309,18 @@ it; there is no legacy shape left to copy.
   a fixture the preview cannot represent honestly: the fitness card passes no map
   URL because the generated maps are 4:3 and any stand-in image renders the card
   a third taller than it ever will be.
+- **An email must never point an `<img src>` at a stored image path directly.**
+  Every image the media storages write is WebP (`_saveImageBuffer` /
+  `_uploadImageBufferToS3`), and Outlook desktop (Word rendering engine) and
+  Windows Mail have no WebP decoder — those recipients get the `alt` text.
+  Storage takes an output format (`saveMediaImageRendition(database, actor, file,
+'jpeg')`, defaulting to WebP everywhere else), so an email image needs a stored
+  JPEG copy and a column to remember it: the route map's lives in
+  `fitness_files.mapImageEmailPath`, and the import email falls back to the WebP
+  only for activities imported before that column existed. An on-demand
+  transcode off `/api/v1/files/:path` is **not** an option — with object storage
+  that route answers `Response.redirect(url, 308)`, so there are no bytes to
+  convert.
 - A browser is a lower bar than a mail client. For a change to the shared layout,
   also send one to a real inbox and check Gmail, Apple Mail and Outlook —
   Outlook's Word engine is the one that needs `mso-` properties and the ghost

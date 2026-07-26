@@ -111,6 +111,41 @@ const removeOldMapAttachmentsAndMedia = async ({
   }
 }
 
+/**
+ * Drop the JPEG copy of a map that is being replaced or removed.
+ *
+ * That copy exists only for the activity-import email, which was sent when the
+ * activity first arrived, so regeneration has nothing to replace it with — and
+ * keeping it would leave a route the owner may have just hidden behind a new
+ * privacy location fetchable at its old URL. Best-effort, like every other
+ * storage cleanup here: the reference is already gone from the database.
+ */
+const removeEmailMapImage = async ({
+  database,
+  statusId,
+  fitnessFileId,
+  mapImageEmailPath
+}: {
+  database: Database
+  statusId: string
+  fitnessFileId: string
+  mapImageEmailPath?: string
+}) => {
+  if (!mapImageEmailPath) return
+
+  const deleted = await deleteMediaFile(database, mapImageEmailPath).catch(
+    () => false
+  )
+  if (!deleted) {
+    logger.warn({
+      message: 'Failed to delete route map email copy from storage',
+      statusId,
+      fitnessFileId,
+      path: mapImageEmailPath
+    })
+  }
+}
+
 export const regenerateFitnessMapsJob = createJobHandle(
   REGENERATE_FITNESS_MAPS_JOB_NAME,
   async (database, message) => {
@@ -194,7 +229,14 @@ export const regenerateFitnessMapsJob = createJobHandle(
 
           await database.updateFitnessFileActivityData(fitnessFileId, {
             hasMapData: false,
-            mapImagePath: null
+            mapImagePath: null,
+            mapImageEmailPath: null
+          })
+          await removeEmailMapImage({
+            database,
+            statusId,
+            fitnessFileId,
+            mapImageEmailPath: fitnessFile.mapImageEmailPath
           })
           await database.updateFitnessFileProcessingStatus(
             fitnessFileId,
@@ -268,16 +310,25 @@ export const regenerateFitnessMapsJob = createJobHandle(
 
           await database.updateFitnessFileActivityData(fitnessFileId, {
             hasMapData: true,
-            mapImagePath: getAttachmentMediaPath(storedMap.url)
+            mapImagePath: getAttachmentMediaPath(storedMap.url),
+            mapImageEmailPath: null
           })
           changedMapAttachment = true
         } else {
           await database.updateFitnessFileActivityData(fitnessFileId, {
             hasMapData: false,
-            mapImagePath: null
+            mapImagePath: null,
+            mapImageEmailPath: null
           })
           changedMapAttachment = oldAttachmentIds.length > 0
         }
+
+        await removeEmailMapImage({
+          database,
+          statusId,
+          fitnessFileId,
+          mapImageEmailPath: fitnessFile.mapImageEmailPath
+        })
 
         await removeOldMapAttachmentsAndMedia({
           database,

@@ -52,6 +52,7 @@ Important columns include:
 - `movingTimeSeconds` — time (seconds) the athlete was actually moving, with stops excluded. Kept separate from `totalDurationSeconds` (elapsed time) so average pace/speed is computed over moving time, matching how Strava reports it. Nullable: records parsed before this column existed, or files with no per-point data to derive it, fall back to elapsed time (backfill with `scripts/fitness/backfillFitnessMovingTime.ts`).
 - `activityType`, `activityStartTime`
 - `hasMapData`, `mapImagePath`
+- `mapImageEmailPath` — path of a JPEG copy of the route map in `mapImagePath`, stored for the activity-import email only. Every image the media storages write is WebP, which Outlook desktop (Word rendering engine) and Windows Mail cannot decode, so those recipients saw the image's alt text instead of their route. The copy is not attached to the status and never federates. Nullable and only written when an import actually sends an email: an activity with no GPS data has no map, a direct upload notifies nobody, and activities imported before this column existed keep pointing their (already sent) email at the WebP. Cleared, and the file deleted, when **Regenerate maps** replaces or removes the map it was made from.
 - `deviceManufacturer`, `deviceName`
 - `createdAt`, `updatedAt`, `deletedAt`
 
@@ -103,7 +104,7 @@ This endpoint is **anonymous / unauthenticated** on purpose: public embeds and s
 1. The post box uploads the selected fitness file and attaches its ID to a new status.
 2. `processFitnessFileJob` downloads the stored file, parses `.fit`, `.gpx`, or `.tcx` data, and updates the `fitness_files` metadata.
 3. Privacy locations from fitness settings are applied before route maps or route-data responses expose coordinates.
-4. If visible GPS coordinates remain, a route map PNG is generated, stored as media, and inserted as the first status attachment named `Activity route map`.
+4. If visible GPS coordinates remain, a route map PNG is generated, stored as media (as WebP, like every stored image), and inserted as the first status attachment named `Activity route map`. When the import is an unattended one that emails the owner, a JPEG copy of the same map is stored for that email and recorded in `mapImageEmailPath`.
 5. Empty fitness posts are backfilled with an activity summary.
 6. The status is published to followers and route heatmap cache jobs are queued.
 

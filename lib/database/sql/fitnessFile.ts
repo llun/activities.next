@@ -41,6 +41,7 @@ export interface UpdateFitnessFileActivityData {
   activityStartTime?: Date | null
   hasMapData?: boolean | null
   mapImagePath?: string | null
+  mapImageEmailPath?: string | null
   deviceManufacturer?: string | null
   deviceName?: string | null
   sourceUrl?: string | null
@@ -305,6 +306,7 @@ const parseSQLFitnessFile = (row: SQLFitnessFile): FitnessFile => ({
   description: row.description ?? undefined,
   hasMapData: Boolean(row.hasMapData),
   mapImagePath: row.mapImagePath ?? undefined,
+  mapImageEmailPath: row.mapImageEmailPath ?? undefined,
   processingStatus: row.processingStatus ?? 'pending',
   isPrimary:
     row.isPrimary === null || row.isPrimary === undefined
@@ -354,6 +356,8 @@ export const FitnessFileSQLDatabaseMixin = (
         description: params.description ?? null,
         hasMapData: params.hasMapData ?? false,
         mapImagePath: params.mapImagePath ?? null,
+        // Only ever written by the import job, once the map exists.
+        mapImageEmailPath: null,
         isPrimary: true,
         importBatchId: params.importBatchId ?? null,
         importStatus: params.importBatchId ? 'pending' : null,
@@ -820,6 +824,9 @@ export const FitnessFileSQLDatabaseMixin = (
     }
     if ('mapImagePath' in data) {
       updateData.mapImagePath = data.mapImagePath ?? null
+    }
+    if ('mapImageEmailPath' in data) {
+      updateData.mapImageEmailPath = data.mapImageEmailPath ?? null
     }
     if ('deviceManufacturer' in data) {
       updateData.deviceManufacturer = data.deviceManufacturer ?? null
