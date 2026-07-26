@@ -249,8 +249,11 @@ describe('S3FitnessStorage stored file name', () => {
       // This is the flow that takes the name as a plain JSON request field,
       // so it is the likeliest source of an over-long one.
       description: 'caps an over-long name at the stored column width',
+      // The input can't reuse `OVER_LONG_FITNESS_FILE_NAME` — this route
+      // requires `.zip` — but the cap drops the extension either way, so the
+      // expected value is the shared one.
       fileName: `${'a'.repeat(500)}.zip`,
-      expected: 'a'.repeat(200)
+      expected: OVER_LONG_FITNESS_FILE_NAME_TRUNCATED
     }
   ])(
     'getPresignedForSaveFileUrl $description',

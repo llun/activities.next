@@ -116,7 +116,8 @@ describe('LocalFileFitnessStorage.saveFile stored file name', () => {
 
   // The type comes from the raw name because sanitizing can truncate a long
   // name past its extension, and `getFitnessFileType` throws when neither the
-  // name nor the MIME type identifies a type.
+  // name nor the MIME type identifies a type. This pins the ordering — hoisting
+  // the sanitizer above the detection breaks this upload and nothing else.
   it('still detects the file type for a name the byte cap truncates', async () => {
     const { stored } = await saveFile(
       OVER_LONG_FITNESS_FILE_NAME,
