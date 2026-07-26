@@ -24,6 +24,7 @@ import { saveFitnessFile } from '@/lib/services/fitness-files'
 import { withImportLock } from '@/lib/services/fitness-files/importLock'
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
+import { getActivityImportGroupKey } from '@/lib/services/notifications/activityImportGroupKey'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
@@ -95,16 +96,6 @@ STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('fc00::', 7, 'ipv6')
 STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('fe80::', 10, 'ipv6')
 STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('ff00::', 8, 'ipv6')
 STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('2001:db8::', 32, 'ipv6')
-
-const getActivityImportGroupKey = (
-  actorId: string,
-  activityStartDate?: string
-) => {
-  const dateStr = activityStartDate
-    ? activityStartDate.slice(0, 10)
-    : new Date().toISOString().slice(0, 10)
-  return `activity_import:${actorId}:${dateStr}`
-}
 
 const getStravaFallbackPostId = ({
   actorId,
@@ -506,7 +497,10 @@ export const importStravaActivityJob = createJobHandle(
             type: 'activity_import',
             sourceActorId: actorId,
             statusId: createdNote.id,
-            groupKey: getActivityImportGroupKey(actorId, activity.start_date)
+            groupKey: getActivityImportGroupKey(
+              actorId,
+              activity.start_date ? Date.parse(activity.start_date) : undefined
+            )
           })
 
           if (notification && !notification.filtered) {
@@ -675,7 +669,13 @@ export const importStravaActivityJob = createJobHandle(
             batchId,
             fitnessFileIds: [targetFitnessFile.id],
             overlapFitnessFileIds,
-            visibility: resolvedVisibility
+            visibility: resolvedVisibility,
+            // The only publisher that emails. A webhook delivers one activity
+            // while the user is doing something else, so an email is the point.
+            // Every other caller of this job is a batch — the archive walker,
+            // the multi-file upload, retry-all, the recovery scripts — and each
+            // leaves this false so a bulk import stays silent.
+            notifyOnComplete: true
           }
         })
       })

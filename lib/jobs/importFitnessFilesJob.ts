@@ -33,7 +33,21 @@ const JobData = z.object({
   batchId: z.string(),
   fitnessFileIds: z.array(z.string()).min(1),
   overlapFitnessFileIds: z.array(z.string()).default([]),
-  visibility: Visibility.default('public')
+  visibility: Visibility.default('public'),
+  // Whether a completed import here should email the actor.
+  //
+  // Set by the ORIGINATING publisher, never inferred here. This job is the
+  // single funnel for every bulk import in the repo — the Strava archive
+  // walker, the multi-file upload endpoint, the retry-all path and the
+  // recovery scripts all come through it — and each of those is a batch where
+  // "a status was newly created" is true for every activity in it. Inferring
+  // the flag from that would mail once per activity: a 500-ride archive import
+  // would send 500 emails.
+  //
+  // Only an unattended, single-activity import sets it: the Strava webhook.
+  // Defaulting to false means a new caller is silent until it opts in, which is
+  // the safe direction to be wrong in.
+  notifyOnComplete: z.boolean().optional().default(false)
 })
 
 const ACTOR_NOT_FOUND_IMPORT_ERROR = 'Actor not found for fitness import'
@@ -221,7 +235,8 @@ export const importFitnessFilesJob = createJobHandle(
       batchId,
       fitnessFileIds,
       overlapFitnessFileIds,
-      visibility
+      visibility,
+      notifyOnComplete
     } = JobData.parse(message.data)
 
     const actor = await database.getActorFromId({ id: actorId })
@@ -441,10 +456,10 @@ export const importFitnessFilesJob = createJobHandle(
               statusId: status.id,
               fitnessFileId: primaryFitnessFileId,
               publishSendNote: false,
-              // A brand-new status means a genuine first import, which is the
-              // only case worth emailing about. Re-processing an existing
-              // status (a retry, a backfill) must stay silent.
-              notifyOnComplete: !existingStatus
+              // Both conditions: the caller has to be one that emails at all,
+              // AND this has to be a genuine first import rather than a
+              // reprocess of a status that already exists.
+              notifyOnComplete: notifyOnComplete && !existingStatus
             }
           })
         }

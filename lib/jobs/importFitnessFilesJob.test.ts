@@ -183,8 +183,9 @@ describe('importFitnessFilesJob', () => {
         statusId: updatedFirst!.statusId,
         fitnessFileId: firstFile!.id,
         publishSendNote: false,
-        // A brand-new status: a genuine first import, so the actor is told.
-        notifyOnComplete: true
+        // The default: this batch's publisher did not opt in, so the import
+        // stays silent even though the status is brand new.
+        notifyOnComplete: false
       }
     })
   })
@@ -280,8 +281,6 @@ describe('importFitnessFilesJob', () => {
         statusId,
         fitnessFileId: firstFile!.id,
         publishSendNote: false,
-        // Reusing an existing status means this is a retry, which must stay
-        // silent rather than re-emailing about an activity already reported.
         notifyOnComplete: false
       }
     })
@@ -725,5 +724,87 @@ describe('importFitnessFilesJob', () => {
     expect(success?.importStatus).toBe('completed')
     expect(success?.statusId).toBeDefined()
     expect(getQueue().publish).toHaveBeenCalledTimes(1)
+  })
+
+  describe('import notification opt-in', () => {
+    const createFile = async (name: string) => {
+      const file = await database.createFitnessFile({
+        actorId: actor.id,
+        path: `fitness/${name}.fit`,
+        fileName: `${name}.fit`,
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1_024,
+        importBatchId: 'batch-notify-optin'
+      })
+      return file!.id
+    }
+
+    const stubParse = (count: number) => {
+      for (let index = 0; index < count; index += 1) {
+        mockParseFitnessFile.mockResolvedValueOnce({
+          coordinates: [],
+          trackPoints: [],
+          totalDistanceMeters: 5_000 + index,
+          totalDurationSeconds: 1_500 + index,
+          // Distinct start times so the files do not merge as one overlapping
+          // activity — the point is several separate imports in one batch.
+          startTime: new Date(Date.UTC(2026, 0, 2 + index))
+        })
+      }
+    }
+
+    it('stays silent for a bulk batch that did not opt in', async () => {
+      // This job is the funnel for every bulk import: the Strava archive
+      // walker, the multi-file upload endpoint, retry-all, the recovery
+      // scripts. Each activity in a batch gets its own brand-new status, so
+      // inferring "notify" from that alone would mail once per activity — a
+      // 500-ride archive import would send 500 emails.
+      const fitnessFileIds = await Promise.all([
+        createFile('bulk-a'),
+        createFile('bulk-b'),
+        createFile('bulk-c')
+      ])
+      stubParse(3)
+
+      await importFitnessFilesJob(database, {
+        id: 'job-bulk-silent',
+        name: IMPORT_FITNESS_FILES_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          batchId: 'batch-notify-optin',
+          fitnessFileIds
+        }
+      })
+
+      const publishes = (getQueue().publish as jest.Mock).mock.calls
+        .map(([message]) => message)
+        .filter((message) => message.name === PROCESS_FITNESS_FILE_JOB_NAME)
+      expect(publishes.length).toBeGreaterThan(0)
+      for (const message of publishes) {
+        expect(message.data.notifyOnComplete).toBe(false)
+      }
+    })
+
+    it('notifies when the publisher opted in and the status is new', async () => {
+      const fitnessFileIds = [await createFile('single-opt-in')]
+      stubParse(1)
+
+      await importFitnessFilesJob(database, {
+        id: 'job-single-notify',
+        name: IMPORT_FITNESS_FILES_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          batchId: 'batch-notify-optin-single',
+          fitnessFileIds,
+          notifyOnComplete: true
+        }
+      })
+
+      const publish = (getQueue().publish as jest.Mock).mock.calls
+        .map(([message]) => message)
+        .find((message) => message.name === PROCESS_FITNESS_FILE_JOB_NAME)
+      expect(publish?.data.notifyOnComplete).toBe(true)
+    })
   })
 })
