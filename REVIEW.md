@@ -193,10 +193,15 @@ change doesn't touch.
   anchor, `mso-hide:all`, the MSO ghost table pinning the column to 600px) are
   load-bearing and invisible in a browser. Don't drop them as dead style.
 - **An email image never points at a stored media path directly.** Stored images
-  are WebP, which Outlook desktop and Windows Mail cannot decode. An email image
-  needs a stored JPEG copy (`saveMediaImageRendition(…, 'jpeg')`) and a column
-  remembering it — the route map uses `fitness_files.mapImageEmailPath` — with the
-  WebP kept only as a fallback for rows written before that column existed.
+  are WebP unless the caller asked for another format, and Outlook desktop and
+  Windows Mail cannot decode WebP. An email image needs a stored JPEG copy
+  (`saveMediaImageRendition(…, 'jpeg')`) and a column remembering it — the route
+  map uses `fitness_files.mapImageEmailPath` — with the WebP as a **live**
+  fallback for every case where no copy exists (storage unconfigured, over quota,
+  failed encode, or a row predating the column), not legacy-only dead code. A
+  stored file with no `medias` row is invisible to generic media cleanup, backup
+  and deletion, so check each of those knows about it and that the file is
+  deleted wherever its reference is dropped.
 
 ## Style, imports & tests
 

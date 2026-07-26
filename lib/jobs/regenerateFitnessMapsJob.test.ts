@@ -199,6 +199,7 @@ describe('regenerateFitnessMapsJob', () => {
     const entries: Array<{
       fitnessFileId: string
       oldMediaId: string
+      oldEmailMapPath: string
     }> = []
 
     for (const index of [1, 2]) {
@@ -235,14 +236,17 @@ describe('regenerateFitnessMapsJob', () => {
       })
       expect(fitnessFile).toBeDefined()
 
+      const oldEmailMapPath = `medias/old-route-map-${postId}-${index}.jpg`
       await database.updateFitnessFileActivityData(fitnessFile!.id, {
         hasMapData: true,
-        mapImagePath: oldMedia!.original.path
+        mapImagePath: oldMedia!.original.path,
+        mapImageEmailPath: oldEmailMapPath
       })
 
       entries.push({
         fitnessFileId: fitnessFile!.id,
-        oldMediaId: String(oldMedia!.id)
+        oldMediaId: String(oldMedia!.id),
+        oldEmailMapPath
       })
     }
 
@@ -303,7 +307,7 @@ describe('regenerateFitnessMapsJob', () => {
   })
 
   it('keeps old map untouched when regeneration fails', async () => {
-    const { statusId, fitnessFileId, oldMediaId } =
+    const { statusId, fitnessFileId, oldMediaId, oldEmailMapPath } =
       await setupStatusWithOldMap()
     mockGenerateMapImage.mockRejectedValueOnce(new Error('map failed'))
 
@@ -321,6 +325,12 @@ describe('regenerateFitnessMapsJob', () => {
     })
     expect(refreshedFitnessFile?.processingStatus).toBe('failed')
     expect(refreshedFitnessFile?.mapImagePath).toBe('medias/old-route-map.webp')
+    // The reference must survive a failed regeneration, or the copy is orphaned.
+    expect(refreshedFitnessFile?.mapImageEmailPath).toBe(oldEmailMapPath)
+    expect(mockDeleteMediaFile).not.toHaveBeenCalledWith(
+      database,
+      oldEmailMapPath
+    )
 
     const oldMedia = await database.getMediaByIdForAccount({
       mediaId: oldMediaId,
@@ -343,6 +353,57 @@ describe('regenerateFitnessMapsJob', () => {
         name: SEND_UPDATE_NOTE_JOB_NAME
       })
     )
+  })
+
+  it('removes the map and its email copy when no visible coordinates remain', async () => {
+    const { statusId, fitnessFileId, oldMediaId, oldEmailMapPath } =
+      await setupStatusWithOldMap()
+
+    // A privacy location that swallows the whole route leaves nothing to draw,
+    // so the map is removed rather than regenerated.
+    mockParseFitnessFile.mockResolvedValueOnce({
+      coordinates: [],
+      trackPoints: [],
+      totalDistanceMeters: 0,
+      totalDurationSeconds: 600,
+      activityType: 'running'
+    })
+
+    await regenerateFitnessMapsJob(database, {
+      id: 'job-regenerate-no-coordinates',
+      name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        fitnessFileIds: [fitnessFileId]
+      }
+    })
+
+    expect(mockGenerateMapImage).not.toHaveBeenCalled()
+
+    const refreshedFitnessFile = await database.getFitnessFile({
+      id: fitnessFileId
+    })
+    expect(refreshedFitnessFile?.processingStatus).toBe('completed')
+    expect(refreshedFitnessFile?.hasMapData).toBe(false)
+    expect(refreshedFitnessFile?.mapImagePath).toBeUndefined()
+    // The copy must not outlive the map: it shows the route the owner just hid.
+    expect(refreshedFitnessFile?.mapImageEmailPath).toBeUndefined()
+    expect(mockDeleteMediaFile).toHaveBeenCalledWith(database, oldEmailMapPath)
+
+    const oldMedia = await database.getMediaByIdForAccount({
+      mediaId: oldMediaId,
+      accountId: actor.account!.id
+    })
+    expect(oldMedia).toBeNull()
+
+    const refreshedStatus = await database.getStatus({
+      statusId,
+      withReplies: false
+    })
+    const mapAttachments = refreshedStatus?.attachments.filter(
+      (attachment) => attachment.name === 'Activity route map'
+    )
+    expect(mapAttachments).toHaveLength(0)
   })
 
   it('heals a non-primary file by removing its stray map instead of regenerating', async () => {
@@ -376,6 +437,14 @@ describe('regenerateFitnessMapsJob', () => {
     expect(refreshedNonPrimary?.hasMapData).toBe(false)
     expect(refreshedNonPrimary?.mapImagePath).toBeUndefined()
     expect(refreshedNonPrimary?.processingStatus).toBe('completed')
+
+    // The stray map's email copy goes with it: it has no `medias` row, so the
+    // fitness file was its only reference.
+    expect(refreshedNonPrimary?.mapImageEmailPath).toBeUndefined()
+    expect(mockDeleteMediaFile).toHaveBeenCalledWith(
+      database,
+      nonPrimaryEntry.oldEmailMapPath
+    )
 
     // Its stray map media is deleted, while the primary file's map is left
     // untouched.

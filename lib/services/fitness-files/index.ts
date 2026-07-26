@@ -10,6 +10,7 @@ import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { Actor } from '@/lib/types/domain/actor'
 
 import { S3FitnessStorage } from './S3StorageFile'
+import { deleteEmailMapImage } from './emailMapImage'
 import { LocalFileFitnessStorage } from './localFile'
 import { FitnessFileUploadSchema } from './types'
 
@@ -158,6 +159,11 @@ export const deleteFitnessFile = async (
 
       if (storageDeleted) {
         await database.deleteFitnessFile({ id: fileId })
+        await deleteEmailMapImage({
+          database,
+          fitnessFileId: fileId,
+          mapImageEmailPath: targetFileMetadata.mapImageEmailPath
+        })
       }
       return storageDeleted
     }
@@ -171,6 +177,11 @@ export const deleteFitnessFile = async (
 
       if (storageDeleted) {
         await database.deleteFitnessFile({ id: fileId })
+        await deleteEmailMapImage({
+          database,
+          fitnessFileId: fileId,
+          mapImageEmailPath: targetFileMetadata.mapImageEmailPath
+        })
       }
       return storageDeleted
     }

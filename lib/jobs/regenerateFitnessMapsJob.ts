@@ -6,6 +6,7 @@ import {
   SEND_UPDATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { getFitnessFile } from '@/lib/services/fitness-files'
+import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import {
@@ -111,41 +112,6 @@ const removeOldMapAttachmentsAndMedia = async ({
   }
 }
 
-/**
- * Drop the JPEG copy of a map that is being replaced or removed.
- *
- * That copy exists only for the activity-import email, which was sent when the
- * activity first arrived, so regeneration has nothing to replace it with — and
- * keeping it would leave a route the owner may have just hidden behind a new
- * privacy location fetchable at its old URL. Best-effort, like every other
- * storage cleanup here: the reference is already gone from the database.
- */
-const removeEmailMapImage = async ({
-  database,
-  statusId,
-  fitnessFileId,
-  mapImageEmailPath
-}: {
-  database: Database
-  statusId: string
-  fitnessFileId: string
-  mapImageEmailPath?: string
-}) => {
-  if (!mapImageEmailPath) return
-
-  const deleted = await deleteMediaFile(database, mapImageEmailPath).catch(
-    () => false
-  )
-  if (!deleted) {
-    logger.warn({
-      message: 'Failed to delete route map email copy from storage',
-      statusId,
-      fitnessFileId,
-      path: mapImageEmailPath
-    })
-  }
-}
-
 export const regenerateFitnessMapsJob = createJobHandle(
   REGENERATE_FITNESS_MAPS_JOB_NAME,
   async (database, message) => {
@@ -232,9 +198,8 @@ export const regenerateFitnessMapsJob = createJobHandle(
             mapImagePath: null,
             mapImageEmailPath: null
           })
-          await removeEmailMapImage({
+          await deleteEmailMapImage({
             database,
-            statusId,
             fitnessFileId,
             mapImageEmailPath: fitnessFile.mapImageEmailPath
           })
@@ -323,9 +288,11 @@ export const regenerateFitnessMapsJob = createJobHandle(
           changedMapAttachment = oldAttachmentIds.length > 0
         }
 
-        await removeEmailMapImage({
+        // The copy backed an email sent when the activity arrived, so there is
+        // nothing to replace it with — and after a privacy change it may show a
+        // route the owner has since hidden.
+        await deleteEmailMapImage({
           database,
-          statusId,
           fitnessFileId,
           mapImageEmailPath: fitnessFile.mapImageEmailPath
         })

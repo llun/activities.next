@@ -310,17 +310,23 @@ it; there is no legacy shape left to copy.
   URL because the generated maps are 4:3 and any stand-in image renders the card
   a third taller than it ever will be.
 - **An email must never point an `<img src>` at a stored image path directly.**
-  Every image the media storages write is WebP (`_saveImageBuffer` /
-  `_uploadImageBufferToS3`), and Outlook desktop (Word rendering engine) and
-  Windows Mail have no WebP decoder — those recipients get the `alt` text.
-  Storage takes an output format (`saveMediaImageRendition(database, actor, file,
-'jpeg')`, defaulting to WebP everywhere else), so an email image needs a stored
-  JPEG copy and a column to remember it: the route map's lives in
-  `fitness_files.mapImageEmailPath`, and the import email falls back to the WebP
-  only for activities imported before that column existed. An on-demand
-  transcode off `/api/v1/files/:path` is **not** an option — with object storage
-  that route answers `Response.redirect(url, 308)`, so there are no bytes to
-  convert.
+  The media storages write WebP unless the caller asks for another format
+  (`_saveImageBuffer` / `_uploadImageBufferToS3`), and Outlook desktop (Word
+  rendering engine) and Windows Mail have no WebP decoder — those recipients get
+  the `alt` text. So an email image needs a stored JPEG copy
+  (`saveMediaImageRendition(database, actor, file, 'jpeg')`) plus a column to
+  remember it; the route map's lives in `fitness_files.mapImageEmailPath`. Keep
+  the WebP as a **live** fallback for whenever the copy is missing — no media
+  storage configured, over quota, a failed encode — not merely for rows written
+  before the column existed. A stored file with no `medias` row is invisible to
+  every generic media path, so whoever writes one owns its whole lifecycle:
+  delete it wherever the reference is dropped (`deleteEmailMapImage` covers
+  import, reprocess, map regeneration and activity deletion), teach
+  `scripts/maintenance/cleanupMediaStorage.ts` that it is referenced, and add it
+  to `scripts/backup/productionArchive.ts`. An on-demand transcode off
+  `/api/v1/files/:path` is **not** an option: with object storage behind a public
+  hostname that route answers `Response.redirect(url, 308)`, so there are no
+  bytes to convert.
 - A browser is a lower bar than a mail client. For a change to the shared layout,
   also send one to a real inbox and check Gmail, Apple Mail and Outlook —
   Outlook's Word engine is the one that needs `mso-` properties and the ghost

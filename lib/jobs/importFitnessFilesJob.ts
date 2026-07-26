@@ -9,6 +9,7 @@ import { Database } from '@/lib/database/types'
 import { groupFitnessActivitiesByOverlap } from '@/lib/jobs/fitnessImportOverlap'
 import { PROCESS_FITNESS_FILE_JOB_NAME } from '@/lib/jobs/names'
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
+import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import {
   isParseableFitnessFileType,
@@ -337,6 +338,15 @@ export const importFitnessFilesJob = createJobHandle(
           buffer
         })
 
+        // Same reason as processFitnessFileJob: the reset below de-references
+        // any copy stored for an earlier import of this row, and a file that
+        // ends up non-primary never reaches processFitnessFileJob to rewrite it.
+        await deleteEmailMapImage({
+          database,
+          fitnessFileId: fitnessFile.id,
+          mapImageEmailPath: fitnessFile.mapImageEmailPath
+        })
+
         await database.updateFitnessFileActivityData(fitnessFile.id, {
           totalDistanceMeters: activityData.totalDistanceMeters,
           totalDurationSeconds: activityData.totalDurationSeconds,
@@ -346,6 +356,7 @@ export const importFitnessFilesJob = createJobHandle(
           activityStartTime: activityData.startTime ?? null,
           hasMapData: false,
           mapImagePath: null,
+          mapImageEmailPath: null,
           ...(activityData.deviceManufacturer !== undefined
             ? { deviceManufacturer: activityData.deviceManufacturer }
             : {}),

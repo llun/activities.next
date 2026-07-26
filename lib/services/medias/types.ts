@@ -185,9 +185,12 @@ export interface MediaStorage {
   ): Promise<ThumbnailStorageOutput | null>
   // Processes and stores an image in a specific output format, without creating
   // a `medias` row. Used to keep a JPEG copy of a route map for mail clients
-  // that cannot decode the stored WebP. Enforces the account storage quota
-  // (throws MediaValidationError when exceeded) and returns null for non-image
-  // input.
+  // that cannot decode the stored WebP. Returns null for non-image input, and
+  // refuses with a MediaValidationError when the account is already over its
+  // storage quota — but the stored bytes are NOT added to the usage counters,
+  // which are only maintained alongside `medias` rows. The caller owns the
+  // returned path: nothing else references it, so store one only where the path
+  // is recorded durably and deleted with whatever it belongs to.
   saveImageRendition(
     actor: Actor,
     file: File,

@@ -1,3 +1,4 @@
+import { getConfig } from '@/lib/config'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import {
   GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
@@ -9,7 +10,11 @@ import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
 import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
-import { saveMedia, saveMediaImageRendition } from '@/lib/services/medias'
+import {
+  deleteMediaFile,
+  saveMedia,
+  saveMediaImageRendition
+} from '@/lib/services/medias'
 import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
@@ -43,7 +48,8 @@ vi.mock('@/lib/services/fitness-files/generateMapImage', async () => ({
 
 vi.mock('@/lib/services/medias', async () => ({
   saveMedia: vi.fn(),
-  saveMediaImageRendition: vi.fn()
+  saveMediaImageRendition: vi.fn(),
+  deleteMediaFile: vi.fn()
 }))
 
 const mockSendNotificationAlerts = vi.fn()
@@ -64,6 +70,9 @@ const mockGenerateMapImage = generateMapImage as jest.MockedFunction<
 const mockSaveMedia = saveMedia as jest.MockedFunction<typeof saveMedia>
 const mockSaveMediaImageRendition =
   saveMediaImageRendition as jest.MockedFunction<typeof saveMediaImageRendition>
+const mockDeleteMediaFile = deleteMediaFile as jest.MockedFunction<
+  typeof deleteMediaFile
+>
 
 describe('processFitnessFileJob', () => {
   const database = getTestSQLDatabase()
@@ -167,6 +176,8 @@ describe('processFitnessFileJob', () => {
       },
       description: 'Route map'
     })
+
+    mockDeleteMediaFile.mockResolvedValue(true)
 
     mockSaveMediaImageRendition.mockResolvedValue({
       path: 'medias/route-map.jpg',
@@ -643,6 +654,85 @@ describe('processFitnessFileJob', () => {
       expect(html).toContain(
         '<img src="https://llun.test/api/v1/files/medias/route-map.webp"'
       )
+    })
+
+    it('deletes a stale jpeg copy when the activity is reprocessed', async () => {
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+      arrangeRouteWithMap()
+
+      // First run: an unattended import that emails the owner and stores a copy.
+      await processFitnessFileJob(database, {
+        id: 'job-reprocess-first',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          statusId,
+          fitnessFileId,
+          notifyOnComplete: true
+        }
+      })
+      expect(
+        (await database.getFitnessFile({ id: fitnessFileId }))
+          ?.mapImageEmailPath
+      ).toBe('medias/route-map.jpg')
+
+      mockDeleteMediaFile.mockClear()
+      arrangeRouteWithMap()
+
+      // A retry or a recovery script reprocesses with notifyOnComplete false, so
+      // nothing rewrites the column. Without deleting the file it is orphaned —
+      // and if the owner added a privacy location first, the old UNFILTERED
+      // route would stay fetchable at its unchanged URL.
+      await processFitnessFileJob(database, {
+        id: 'job-reprocess-retry',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      expect(mockDeleteMediaFile).toHaveBeenCalledWith(
+        database,
+        'medias/route-map.jpg'
+      )
+      const reprocessed = await database.getFitnessFile({ id: fitnessFileId })
+      expect(reprocessed?.mapImageEmailPath).toBeUndefined()
+    })
+
+    it('stores no jpeg copy when the instance sends no email', async () => {
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+      arrangeRouteWithMap()
+
+      const config = getConfig()
+      vi.mocked(getConfig).mockReturnValue({
+        ...config,
+        email: undefined
+      } as unknown as ReturnType<typeof getConfig>)
+
+      try {
+        await processFitnessFileJob(database, {
+          id: 'job-notify-no-email-config',
+          name: PROCESS_FITNESS_FILE_JOB_NAME,
+          data: {
+            actorId: actor.id,
+            statusId,
+            fitnessFileId,
+            notifyOnComplete: true
+          }
+        })
+      } finally {
+        vi.mocked(getConfig).mockReturnValue(config)
+      }
+
+      // Nothing would ever fetch it, so it must not be written.
+      expect(mockSaveMediaImageRendition).not.toHaveBeenCalled()
+      const updatedFitnessFile = await database.getFitnessFile({
+        id: fitnessFileId
+      })
+      expect(updatedFitnessFile?.mapImagePath).toBe('medias/route-map.webp')
+      expect(updatedFitnessFile?.mapImageEmailPath).toBeUndefined()
     })
 
     it('stores no jpeg copy when no email is going out', async () => {

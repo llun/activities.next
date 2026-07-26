@@ -521,8 +521,10 @@ export class S3FileStorage implements MediaStorage {
   ): Promise<ImageRenditionOutput | null> {
     if (!file.type.startsWith('image')) return null
 
-    // Quota-checked like saveFile/saveThumbnail: a rendition is stored bytes
-    // too, even though it gets no `medias` row of its own.
+    // Refuse the write when the account is already over quota. Note the bytes
+    // are not metered afterwards: usage is counter-based and those counters are
+    // maintained alongside `medias` rows, which a rendition has none of. Keep
+    // renditions few and small.
     const quotaCheck = await checkQuotaAvailable(
       this._database,
       actor,

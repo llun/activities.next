@@ -27,25 +27,37 @@ async function getAllMediaPathsFromDatabase(
   const database = knex(config.database)
 
   try {
+    const paths = new Set<string>()
+    // Stored paths are already relative to the storage root, which is what
+    // listLocalFiles/listS3Files return, so they are comparable as-is. Only an
+    // absolute value needs rebasing — applying path.relative unconditionally
+    // resolved a relative path against the CWD instead, producing a
+    // `../../…` string that matched nothing, so every file in local storage
+    // was reported as orphaned and `--yes` would have deleted all of it.
+    const addPath = (value: unknown) => {
+      if (typeof value !== 'string' || !value) return
+      paths.add(
+        basePath && path.isAbsolute(value)
+          ? path.relative(basePath, value)
+          : value
+      )
+    }
+
     // Get all media paths from the medias table
     const medias = await database('medias').select('original', 'thumbnail')
-
-    const paths = new Set<string>()
     for (const media of medias) {
-      if (media.original) {
-        // For local file storage, normalize to relative paths
-        const originalPath = basePath
-          ? path.relative(basePath, media.original)
-          : media.original
-        paths.add(originalPath)
-      }
-      if (media.thumbnail) {
-        // For local file storage, normalize to relative paths
-        const thumbnailPath = basePath
-          ? path.relative(basePath, media.thumbnail)
-          : media.thumbnail
-        paths.add(thumbnailPath)
-      }
+      addPath(media.original)
+      addPath(media.thumbnail)
+    }
+
+    // Fitness route maps keep a JPEG copy for the activity-import email, which
+    // lives in media storage but deliberately has no `medias` row — the
+    // fitness file is its only reference. Without this it looks orphaned, and
+    // this script would delete a file the database still points at.
+    const fitnessFiles =
+      await database('fitness_files').select('mapImageEmailPath')
+    for (const fitnessFile of fitnessFiles) {
+      addPath(fitnessFile.mapImageEmailPath)
     }
 
     return paths
