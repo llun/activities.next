@@ -178,7 +178,9 @@ describe('ReactionRow', () => {
 
     // Readable, but not a control: a disabled button would drop the count out
     // of the tab order and grey it out for everyone who cannot react.
-    const chip = screen.getByLabelText('🔥 reaction, 2')
+    // Exposed as an image with the emoji in its label: the glyph is aria-hidden,
+    // so the label is the only thing that names which reaction this count is for.
+    const chip = screen.getByRole('img', { name: '🔥 reaction, 2' })
     expect(chip).toHaveTextContent('2')
     expect(chip.tagName).toBe('SPAN')
     expect(screen.queryByRole('button')).not.toBeInTheDocument()

@@ -166,6 +166,11 @@ export const ReactionRow: FC<ReactionRowProps> = ({
           return (
             <span
               key={reaction.name}
+              // `role="img"` so the label is authoritative: the glyph itself is
+              // aria-hidden, and aria-label on a generic span is not reliably
+              // announced, which would leave a screen reader reading just the
+              // count with no idea which emoji it belongs to.
+              role="img"
               className={chipClass(reaction.me, false)}
               aria-label={`${reaction.name} reaction, ${reaction.count}`}
             >

@@ -59,6 +59,28 @@ describe('resolveStatusFromPath', () => {
     getStatus: vi.fn().mockResolvedValue(null)
   })
 
+  it('hydrates the focused status for the signed-in viewer', async () => {
+    const database = createDatabase()
+    database.getStatus.mockResolvedValueOnce(originalStatus)
+    const viewerId = 'https://remote.example/users/viewer'
+
+    await resolveStatusFromPath({
+      database,
+      actorParam: '@original@remote.example',
+      statusParam: '123',
+      currentActorId: viewerId
+    })
+
+    // Without the viewer id the focused status resolves with no like, bookmark
+    // or reaction state, so the viewer's own emoji reaction renders as "Add" on
+    // the one surface where the chips are interactive.
+    expect(database.getStatus).toHaveBeenCalledWith({
+      statusId: 'https://remote.example/users/original/statuses/123',
+      withReplies: false,
+      currentActorId: viewerId
+    })
+  })
+
   it('resolves a hash route from the scoped actor lookup', async () => {
     const database = createDatabase()
     database.getStatusFromUrlHash.mockResolvedValueOnce(originalStatus)
