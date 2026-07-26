@@ -440,7 +440,11 @@ export const importFitnessFilesJob = createJobHandle(
               actorId,
               statusId: status.id,
               fitnessFileId: primaryFitnessFileId,
-              publishSendNote: false
+              publishSendNote: false,
+              // A brand-new status means a genuine first import, which is the
+              // only case worth emailing about. Re-processing an existing
+              // status (a retry, a backfill) must stay silent.
+              notifyOnComplete: !existingStatus
             }
           })
         }

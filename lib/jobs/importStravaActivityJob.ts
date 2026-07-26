@@ -19,11 +19,13 @@ import {
   REGENERATE_FITNESS_MAPS_JOB_NAME,
   SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
+import { buildActivityImportEmail } from '@/lib/services/email/templates/activityImport'
 import { saveFitnessFile } from '@/lib/services/fitness-files'
 import { withImportLock } from '@/lib/services/fitness-files/importLock'
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
+import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
 import {
   StravaActivity,
@@ -43,7 +45,7 @@ import {
 import { getStravaActivityBatchId } from '@/lib/services/strava/activityBatch'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Actor, getMention } from '@/lib/types/domain/actor'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import { EditableStatus, Status, StatusType } from '@/lib/types/domain/status'
 import { Visibility } from '@/lib/types/mastodon/visibility'
 import { getManufacturerKeyFromDeviceName } from '@/lib/utils/fitnessDeviceBrands'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -495,13 +497,48 @@ export const importStravaActivityJob = createJobHandle(
         })
 
         if (isNewFallback) {
-          await createNotificationWithPolicy(database, {
+          // This path never creates a fitness file — the activity had no
+          // exportable streams — so it never reaches processFitnessFileJob and
+          // has to notify for itself. The email degrades to headline, lead and
+          // button: no route map, no stats, because there are none.
+          const notification = await createNotificationWithPolicy(database, {
             actorId,
             type: 'activity_import',
             sourceActorId: actorId,
             statusId: createdNote.id,
             groupKey: getActivityImportGroupKey(actorId, activity.start_date)
           })
+
+          if (notification && !notification.filtered) {
+            const status = await database.getStatus({
+              statusId: createdNote.id,
+              withReplies: false
+            })
+            if (status) {
+              sendNotificationAlerts({
+                database,
+                actorId,
+                sourceActorId: actorId,
+                sourceActor: actor,
+                statusId: createdNote.id,
+                events: [
+                  {
+                    type: 'activity_import',
+                    notificationId: notification.id,
+                    emailContent: actor.account
+                      ? {
+                          recipientEmail: actor.account.email,
+                          ...buildActivityImportEmail({
+                            recipient: actor,
+                            status: status as EditableStatus
+                          })
+                        }
+                      : undefined
+                  }
+                ]
+              })
+            }
+          }
         }
 
         return
@@ -683,15 +720,11 @@ export const importStravaActivityJob = createJobHandle(
       activity
     })
 
-    if (isNewImport) {
-      await createNotificationWithPolicy(database, {
-        actorId,
-        type: 'activity_import',
-        sourceActorId: actorId,
-        statusId: importedFitnessFile.statusId,
-        groupKey: getActivityImportGroupKey(actorId, activity.start_date)
-      })
-    }
+    // The notification for this path now fires at the end of
+    // processFitnessFileJob instead. Creating it here was premature: under
+    // QStash that job is only enqueued at this point, so the route map and the
+    // parsed stats do not exist yet and the email would arrive empty.
+    // importFitnessFilesJob sets notifyOnComplete for a first import.
 
     // Only fall back to a regenerate-map job for a re-imported PRIMARY file
     // that still lacks a map. On a fresh import the primary is already handed

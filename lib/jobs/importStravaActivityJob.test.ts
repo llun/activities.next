@@ -986,7 +986,7 @@ describe('importStravaActivityJob', () => {
     )
   })
 
-  it('creates activity_import notification on normal path with activity date in group key', async () => {
+  it('defers the activity_import notification on the normal path', async () => {
     await importStravaActivityJob(database as unknown as Database, {
       id: 'job-notify-normal',
       name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
@@ -996,14 +996,13 @@ describe('importStravaActivityJob', () => {
       }
     })
 
-    expect(database.createNotification).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorId: 'actor-1',
-        type: 'activity_import',
-        sourceActorId: 'actor-1',
-        statusId: 'status-1',
-        groupKey: 'activity_import:actor-1:2026-01-01'
-      })
+    // The notification now fires at the end of processFitnessFileJob, once the
+    // route map and the parsed stats exist. Creating it here would be premature
+    // under QStash, where that job is only enqueued at this point — the email
+    // would arrive with an empty card in production while looking correct in
+    // local dev, where NoQueue runs the job inline.
+    expect(database.createNotification).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'activity_import' })
     )
   })
 

@@ -1,6 +1,8 @@
 import { z } from 'zod'
 
+import { Database } from '@/lib/database/types'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { buildActivityImportEmail } from '@/lib/services/email/templates/activityImport'
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
@@ -14,8 +16,11 @@ import {
   getVisibleSegments
 } from '@/lib/services/fitness-files/privacy'
 import { saveMedia } from '@/lib/services/medias'
+import { getActivityImportGroupKey } from '@/lib/services/notifications/activityImportGroupKey'
+import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
+import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
-import { StatusType } from '@/lib/types/domain/status'
+import { EditableStatus, StatusType } from '@/lib/types/domain/status'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
@@ -27,7 +32,15 @@ const JobData = z.object({
   actorId: z.string(),
   statusId: z.string(),
   fitnessFileId: z.string(),
-  publishSendNote: z.boolean().optional().default(true)
+  publishSendNote: z.boolean().optional().default(true),
+  // Whether this run should tell the actor their activity arrived.
+  //
+  // Deliberately NOT derived from publishSendNote, which is false for the
+  // Strava path, the user-triggered retry endpoint AND the scripts/fitness
+  // backfills alike — reusing it would mass-mail on a backfill. Only a genuine
+  // first import sets this, and only an unattended importer sets it at all: a
+  // direct upload needs no email, because the user is watching the composer.
+  notifyOnComplete: z.boolean().optional().default(false)
 })
 
 const ACTIVITY_LABELS: Record<string, { label: string; emoji: string }> = {
@@ -106,12 +119,91 @@ const buildActivitySummary = (data: FitnessActivityData): string => {
   return base
 }
 
+/**
+ * Tell the actor their activity arrived, once the post is actually complete.
+ *
+ * Best-effort: a notification or delivery failure must not fail the import or
+ * leave the file stuck in `processing`, so everything here is caught and
+ * logged. Errors are reported rather than swallowed silently.
+ */
+const notifyActivityImported = async ({
+  database,
+  actorId,
+  statusId,
+  fitnessFileId,
+  mapImageUrl
+}: {
+  database: Database
+  actorId: string
+  statusId: string
+  fitnessFileId: string
+  mapImageUrl?: string
+}) => {
+  try {
+    const [actor, status, fitnessFile] = await Promise.all([
+      database.getActorFromId({ id: actorId }),
+      database.getStatus({ statusId, withReplies: false }),
+      database.getFitnessFile({ id: fitnessFileId })
+    ])
+    if (!actor || !status) return
+
+    const notification = await createNotificationWithPolicy(database, {
+      actorId,
+      type: 'activity_import',
+      sourceActorId: actorId,
+      statusId,
+      groupKey: getActivityImportGroupKey(
+        actorId,
+        fitnessFile?.activityStartTime
+      )
+    })
+    if (!notification || notification.filtered) return
+
+    sendNotificationAlerts({
+      database,
+      actorId,
+      sourceActorId: actorId,
+      sourceActor: actor,
+      statusId,
+      events: [
+        {
+          type: 'activity_import',
+          notificationId: notification.id,
+          emailContent: actor.account
+            ? {
+                recipientEmail: actor.account.email,
+                ...buildActivityImportEmail({
+                  recipient: actor,
+                  status: status as EditableStatus,
+                  fitness: fitnessFile ?? undefined,
+                  mapImageUrl
+                })
+              }
+            : undefined
+        }
+      ]
+    })
+  } catch (error) {
+    logger.error({
+      message: 'Failed to notify actor of completed fitness import',
+      actorId,
+      statusId,
+      fitnessFileId,
+      err: error instanceof Error ? error : new Error(String(error))
+    })
+  }
+}
+
 export const processFitnessFileJob = createJobHandle(
   PROCESS_FITNESS_FILE_JOB_NAME,
   async (database, message) => {
-    const { actorId, statusId, fitnessFileId, publishSendNote } = JobData.parse(
-      message.data
-    )
+    const {
+      actorId,
+      statusId,
+      fitnessFileId,
+      publishSendNote,
+      notifyOnComplete
+    } = JobData.parse(message.data)
 
     await database.updateFitnessFileProcessingStatus(
       fitnessFileId,
@@ -181,6 +273,10 @@ export const processFitnessFileJob = createJobHandle(
 
       const filteredCoordinates = visibleSegments.flat()
 
+      // Captured for the import email. Only set when a map was generated in
+      // THIS run, which is exactly when the email is sent — a first import.
+      let mapImageUrl: string | undefined
+
       if (filteredCoordinates.length >= 2) {
         try {
           const mapImageBuffer = await generateMapImage({
@@ -224,6 +320,8 @@ export const processFitnessFileJob = createJobHandle(
                 hasMapData: true,
                 mapImagePath: getAttachmentMediaPath(storedMap.url)
               })
+
+              mapImageUrl = storedMap.url
             }
           }
         } catch (error) {
@@ -253,6 +351,20 @@ export const processFitnessFileJob = createJobHandle(
         fitnessFileId,
         'completed'
       )
+
+      // Notify only here, at the end of processing. Doing it where the import
+      // is enqueued looks correct locally — NoQueue runs this job inline — but
+      // under QStash the map and the parsed stats do not exist yet, so the
+      // email would ship empty in production and full in dev.
+      if (notifyOnComplete) {
+        await notifyActivityImported({
+          database,
+          actorId,
+          statusId,
+          fitnessFileId,
+          mapImageUrl
+        })
+      }
 
       if (publishSendNote) {
         await getQueue().publish({

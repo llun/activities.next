@@ -182,7 +182,9 @@ describe('importFitnessFilesJob', () => {
         actorId: actor.id,
         statusId: updatedFirst!.statusId,
         fitnessFileId: firstFile!.id,
-        publishSendNote: false
+        publishSendNote: false,
+        // A brand-new status: a genuine first import, so the actor is told.
+        notifyOnComplete: true
       }
     })
   })
@@ -277,7 +279,10 @@ describe('importFitnessFilesJob', () => {
         actorId: actor.id,
         statusId,
         fitnessFileId: firstFile!.id,
-        publishSendNote: false
+        publishSendNote: false,
+        // Reusing an existing status means this is a retry, which must stay
+        // silent rather than re-emailing about an activity already reported.
+        notifyOnComplete: false
       }
     })
   })
