@@ -17,6 +17,8 @@ export const FONT_STACK =
 export const PAGE_BACKGROUND = '#f4f4f4'
 /** The single card holding the message body. */
 export const CARD_BACKGROUND = '#fdfdfd'
+/** Inset blocks: quoted posts, and the fitness stat card once it lands. */
+export const INSET_BACKGROUND = '#f5f5f5'
 
 export const BORDER = '#e5e5e5'
 /** Lighter rule used only for the in-card "if you didn't request this" divider. */
@@ -39,5 +41,15 @@ export const BUTTON_TEXT = '#ffffff'
 export const CONTENT_WIDTH = 600
 
 export const RADIUS_CARD = '12px'
+export const RADIUS_INSET = '8px'
 export const RADIUS_BUTTON = '6px'
 export const RADIUS_FULL = '9999px'
+
+// Monogram fills for the quoted-actor avatar. Picked deterministically from the
+// actor's handle so the same person is always the same colour across emails.
+export const MONOGRAM_PALETTE = [
+  '#a855f7',
+  '#6366f1',
+  '#ea580c',
+  '#14b8a6'
+] as const

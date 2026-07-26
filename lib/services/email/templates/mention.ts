@@ -1,47 +1,45 @@
 import { getConfig } from '@/lib/config'
+import {
+  getShortName,
+  toQuoteAuthor
+} from '@/lib/services/email/layout/actorDisplay'
+import { button, headline, quote } from '@/lib/services/email/layout/blocks'
+import { renderEmail } from '@/lib/services/email/layout/renderEmail'
+import { RenderedEmail } from '@/lib/services/email/types'
 import { ActorProfile, getMention } from '@/lib/types/domain/actor'
 import { EditableStatus } from '@/lib/types/domain/status'
-import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
-import { sanitizeText } from '@/lib/utils/text/sanitizeText'
 
-export const getSubject = (actor: ActorProfile) =>
-  `@${actor.username} mentions you in ${getConfig().host}`
+import { getStatusBody } from './statusBody'
+import { getEmailStatusUrl } from './statusUrl'
 
-const getLocalStatusUrl = (status: EditableStatus): string => {
-  if (!status.actor) {
-    return status.url
-  }
-  const config = getConfig()
-  const actorMention = getMention(status.actor, true)
-  const encodedStatusId = encodeURIComponent(status.id)
-  return `https://${config.host}/${actorMention}/${encodedStatusId}`
+export interface MentionEmailParams {
+  /** The mentioned actor — receives this email. */
+  recipient: ActorProfile
+  /** Who wrote the post. */
+  actor: ActorProfile
+  status: EditableStatus
 }
 
-export const getTextContent = (status: EditableStatus) => {
-  const localUrl = getLocalStatusUrl(status)
-  const actorMention = status.actor ? getMention(status.actor, true) : 'Unknown'
-
-  return `
-${actorMention} mentioned you in a post.
-
-Message: ${status.text}
-
-View this post on your server: ${localUrl}
-`.trim()
-}
-
-export const getHTMLContent = (status: EditableStatus) => {
-  const config = getConfig()
-  const localUrl = getLocalStatusUrl(status)
-  const actorMention = status.actor ? getMention(status.actor, true) : 'Unknown'
-  const messageHtml = status.isLocalActor
-    ? convertMarkdownText(config.host)(status.text)
-    : sanitizeText(status.text)
-
-  return `
-<h3>${actorMention} mentioned you in a post</h3>
-<p><strong>Message:</strong></p>
-<div>${messageHtml}</div>
-<p><a href="${localUrl}">View this post on your server</a></p>
-`.trim()
-}
+/** Someone mentioned you. The quote block shows THEIR post, not yours. */
+export const buildMentionEmail = ({
+  recipient,
+  actor,
+  status
+}: MentionEmailParams): RenderedEmail =>
+  renderEmail({
+    subject: `@${actor.username} mentions you in ${getConfig().host}`,
+    preheader: `${getShortName(actor)} mentioned you in a post.`,
+    blocks: [
+      headline(`${getShortName(actor)} mentioned you in a post`),
+      quote({
+        author: toQuoteAuthor(status.actor ?? actor),
+        body: getStatusBody(status)
+      }),
+      button({ label: 'View post', url: getEmailStatusUrl(status) })
+    ],
+    footer: {
+      kind: 'notification',
+      eventLabel: 'mentions',
+      handle: getMention(recipient, true)
+    }
+  })

@@ -3,11 +3,7 @@ import { enableFetchMocks } from 'jest-fetch-mock'
 import { acceptFollowRequest } from '@/lib/actions/acceptFollowRequest'
 import { AcceptFollow } from '@/lib/activities/acceptFollow'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import {
-  getHTMLContent,
-  getSubject,
-  getTextContent
-} from '@/lib/services/email/templates/follow'
+import { buildFollowEmail } from '@/lib/services/email/templates/follow'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
@@ -92,7 +88,9 @@ describe('Accept follow action', () => {
         followId: followRequest.id
       })
       const actor5 = await database.getActorFromId({ id: ACTOR5_ID })
+      const actor1 = await database.getActorFromId({ id: ACTOR1_ID })
       if (!actor5) fail('Actor5 should be exists')
+      if (!actor1) fail('Actor1 should be exists')
       expect(acceptedRequest?.status).toEqual(FollowStatus.enum.Accepted)
 
       expect(sendNotificationAlerts).toHaveBeenCalledWith(
@@ -104,9 +102,9 @@ describe('Accept follow action', () => {
               type: NotificationType.enum.follow,
               emailContent: expect.objectContaining({
                 recipientEmail: 'test1@llun.test',
-                subject: getSubject(actor5),
-                text: getTextContent(actor5),
-                html: getHTMLContent(actor5)
+                // The recipient is threaded through so the footer can name the
+                // account whose notification settings control this email.
+                ...buildFollowEmail({ recipient: actor1, actor: actor5 })
               })
             }
           ]

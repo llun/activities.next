@@ -1,14 +1,21 @@
 import { escapeHtml } from '@/lib/utils/text/escapeHtml'
 
+import { QuoteAuthor, getInitials, getMonogramColor } from './actorDisplay'
 import {
+  BORDER,
   BORDER_SUBTLE,
   BUTTON_BACKGROUND,
   BUTTON_TEXT,
   FONT_STACK,
+  INSET_BACKGROUND,
   RADIUS_BUTTON,
+  RADIUS_FULL,
+  RADIUS_INSET,
   TEXT,
   TEXT_BODY,
-  TEXT_MUTED
+  TEXT_CHROME,
+  TEXT_MUTED,
+  TEXT_STRONG
 } from './theme'
 
 /**
@@ -172,3 +179,53 @@ export const note = (content: InlineContent): EmailBlock => ({
   html: `<p style="margin:20px 0 0;padding-top:16px;border-top:1px solid ${BORDER_SUBTLE};font-family:${FONT_STACK};font-size:13px;line-height:1.6;color:${TEXT_MUTED};word-wrap:break-word;">${renderInlineHtml(content)}</p>`,
   text: renderInlineText(content)
 })
+
+/**
+ * A post body that has ALREADY been through the sanitize/markdown pipeline.
+ *
+ * This is the one and only value the layout emits without escaping, which is
+ * why it is a named type rather than a bare string: a plain `string` parameter
+ * would make it far too easy to hand raw remote text straight into the HTML.
+ * Build it with `getStatusBody`, never by hand.
+ */
+export interface SanitizedBody {
+  readonly html: string
+  readonly text: string
+}
+
+/**
+ * The muted inset card quoting an actor — their monogram, display name and
+ * handle, optionally over the post body.
+ *
+ * `follow`/`followRequest` pass no body (the actor row is the whole point);
+ * `like`/`boost` quote the RECIPIENT's own post, `mention`/`reply` the sender's.
+ */
+export const quote = (options: {
+  author: QuoteAuthor
+  body?: SanitizedBody
+}): EmailBlock => {
+  const { author, body } = options
+  const initials = getInitials(author.displayName)
+  const monogram = getMonogramColor(author.handle)
+
+  const bodyHtml = body
+    ? `<div style="margin-top:8px;font-family:${FONT_STACK};font-size:14px;line-height:1.6;color:${TEXT_BODY};word-wrap:break-word;">${body.html}</div>`
+    : ''
+
+  return {
+    html:
+      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;"><tr>` +
+      `<td bgcolor="${INSET_BACKGROUND}" style="background-color:${INSET_BACKGROUND};border:1px solid ${BORDER};border-radius:${RADIUS_INSET};padding:14px 16px;">` +
+      `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>` +
+      // line-height equal to the height is what centres the initials vertically
+      // in Outlook, which ignores flex and vertical-align on a coloured box.
+      `<td width="24" height="24" align="center" bgcolor="${monogram}" style="width:24px;height:24px;border-radius:${RADIUS_FULL};color:${BUTTON_TEXT};font-family:${FONT_STACK};font-size:10px;font-weight:600;line-height:24px;">${escapeHtml(initials)}</td>` +
+      `<td style="padding-left:8px;font-family:${FONT_STACK};font-size:14px;font-weight:600;color:${TEXT_STRONG};white-space:nowrap;">${escapeHtml(author.displayName)}</td>` +
+      `<td style="padding-left:6px;font-family:${FONT_STACK};font-size:13px;color:${TEXT_CHROME};">${escapeHtml(author.handle)}</td>` +
+      `</tr></table>${bodyHtml}` +
+      `</td></tr></table>`,
+    text: body
+      ? `${author.displayName} (${author.handle})\n${body.text}`
+      : `${author.displayName} (${author.handle})`
+  }
+}

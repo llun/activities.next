@@ -169,14 +169,11 @@ change doesn't touch.
 
 ## Emails
 
-- **Migration in progress.** Only the four account/security emails
-  (`verifyEmail`, `changeEmail`, `resetPassword`, `actorDeleted`) are on the
-  shared layout. The seven notification templates still use the old
-  `getSubject`/`getTextContent`/`getHTMLContent` trio with raw markup, and their
-  links are wrong in two different ways: `like`/`mention`/`reply`/`reblog`
-  hardcode `https://${config.host}`, while `follow`/`followRequest` link the
-  remote `actor.id` rather than the local profile. Apply the rules below to any
-  template a change touches; don't copy the old shape into a new one.
+- **Migration in progress — one template left.** Ten of eleven are on the shared
+  layout; only `activityImport.ts` still uses the old
+  `getSubject`/`getTextContent`/`getHTMLContent` trio, and nothing sends it.
+  Apply the rules below when migrating it; don't copy the old shape into a new
+  template.
 - Every migrated email is built by a `build<Name>Email(params): RenderedEmail`
   module in `lib/services/email/templates/`. No subject/HTML/text literals at a
   call site.
@@ -194,9 +191,9 @@ change doesn't touch.
   omission does not fail loudly: the template throws, the catch swallows it, and
   the test passes while the email silently stops sending. This has bitten twice.
 - Template changes are verified by rendering:
-  `./scripts/mock/renderEmailPreviews.ts` (see `docs/maintenance.md`). It covers
-  only the four migrated templates — a PR migrating another must add it to
-  `buildPreviews()`, and fixtures must be production-shaped (43-char codes).
+  `./scripts/mock/renderEmailPreviews.ts` (see `docs/maintenance.md`). A PR
+  migrating a template must add it to `buildPreviews()`, and fixtures must be
+  production-shaped (43-char codes).
 - Outlook-only properties (`mso-padding-alt` on both the button cell and its
   anchor, `mso-hide:all`, the MSO ghost table pinning the column to 600px) are
   load-bearing and invisible in a browser. Don't drop them as dead style.

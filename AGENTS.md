@@ -262,18 +262,12 @@ section-navigation patterns; pick by section type.
 Emails go through one shared skeleton, so a design or copy change lands in one
 place instead of eleven.
 
-> **Migration in progress — this describes the target, not the whole tree yet.**
-> Only the four account/security emails are on the shared layout:
-> `verifyEmail.ts`, `changeEmail.ts`, `resetPassword.ts`, `actorDeleted.ts`.
-> The seven notification templates — `follow.ts`, `followRequest.ts`, `like.ts`,
-> `mention.ts`, `reply.ts`, `reblog.ts`, `activityImport.ts` — still export the
-> old `getSubject`/`getTextContent`/`getHTMLContent` trio, write raw markup, and
-> hand-maintain both media. Their links are broken in two different ways:
-> `like`/`mention`/`reply`/`reblog` build a local status URL from a hardcoded
-> `https://${config.host}`, while `follow`/`followRequest` link the **remote**
-> `actor.id` directly instead of the local profile page (`activityImport` has no
-> link at all). They are being migrated, not grandfathered: apply the rules below
-> to any template you touch, and do not copy the old shape into a new one.
+> **Migration in progress — one template left.** Ten of the eleven are on the
+> shared layout. Only `activityImport.ts` still exports the old
+> `getSubject`/`getTextContent`/`getHTMLContent` trio and writes raw markup —
+> and nothing sends it, so it is dead code until the fitness import wiring
+> lands. Apply the rules below when migrating it, and do not copy the old shape
+> into a new template.
 
 - **One module per email** in `lib/services/email/templates/`, exporting a single
   `build<Name>Email(params): RenderedEmail` (`{ subject, text, html }`). **Never

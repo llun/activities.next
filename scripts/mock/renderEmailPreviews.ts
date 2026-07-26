@@ -5,8 +5,9 @@
  * this is how a template change gets a real visual check before it ships.
  *
  * NOTE: covers only the templates listed in buildPreviews() below — currently
- * the four account/security emails. The seven notification templates are not on
- * the shared layout yet; add each one here in the PR that migrates it.
+ * the four account/security emails and the six notification emails. The fitness
+ * activity-import email is not on the shared layout yet; add it here in the PR
+ * that migrates it.
  *
  * Pure function calls with fixture data — no database is opened, no network
  * request is made, and no mail is sent. Only `getConfig()`/`getBaseURL()` are
@@ -33,10 +34,17 @@ import path from 'path'
 
 import { buildActorDeletedEmail } from '@/lib/services/email/templates/actorDeleted'
 import { buildChangeEmail } from '@/lib/services/email/templates/changeEmail'
+import { buildFollowEmail } from '@/lib/services/email/templates/follow'
+import { buildFollowRequestEmail } from '@/lib/services/email/templates/followRequest'
+import { buildLikeEmail } from '@/lib/services/email/templates/like'
+import { buildMentionEmail } from '@/lib/services/email/templates/mention'
+import { buildBoostEmail } from '@/lib/services/email/templates/reblog'
+import { buildReplyEmail } from '@/lib/services/email/templates/reply'
 import { buildResetPasswordEmail } from '@/lib/services/email/templates/resetPassword'
 import { buildVerifyEmail } from '@/lib/services/email/templates/verifyEmail'
 import { RenderedEmail } from '@/lib/services/email/types'
 import { ActorProfile } from '@/lib/types/domain/actor'
+import { EditableStatus, StatusType } from '@/lib/types/domain/status'
 import { escapeHtml } from '@/lib/utils/text/escapeHtml'
 
 const RECIPIENT = 'anna@example.com'
@@ -65,6 +73,43 @@ const fixtureActor = (
   lastStatusAt: Date.now(),
   createdAt: Date.now()
 })
+
+const anna = fixtureActor('anna', 'llun.social', 'Anna')
+const maythee = fixtureActor('maythee', 'mastodon.social', 'Maythee')
+const ben = fixtureActor('ben', 'llun.social', 'Ben Carter')
+const rin = fixtureActor('rin', 'pixelfed.social', 'Rin')
+
+// Only the fields the templates actually read are populated — a full
+// EditableStatus carries ~30 more (edits, reply, quote state, visibility, …)
+// that no email touches. Cast through `unknown` for that reason, matching the
+// test fixtures; a preview does not need a faithful database row.
+const fixtureStatus = (
+  actor: ActorProfile,
+  text: string,
+  id: string
+): EditableStatus =>
+  ({
+    id: `https://${actor.domain}/statuses/${id}`,
+    url: `https://${actor.domain}/@${actor.username}/${id}`,
+    actorId: actor.id,
+    actor,
+    isLocalActor: actor.domain === 'llun.social',
+    type: StatusType.enum.Note,
+    text,
+    summary: '',
+    to: [],
+    cc: [],
+    tags: [],
+    attachments: [],
+    replies: [],
+    createdAt: 1_700_000_000_000
+  }) as unknown as EditableStatus
+
+const annaPost = fixtureStatus(
+  anna,
+  'Morning run done — 8.2 km along the river. The new shoes are holding up surprisingly well. #running',
+  'note-88101'
+)
 
 interface Preview {
   slug: string
@@ -105,6 +150,52 @@ const buildPreviews = (): Preview[] => [
       recipientEmail: RECIPIENT,
       contactEmail: 'admin@llun.social'
     })
+  },
+  {
+    slug: 'follow',
+    group: 'Notifications',
+    email: buildFollowEmail({ recipient: anna, actor: maythee })
+  },
+  {
+    slug: 'follow-request',
+    group: 'Notifications',
+    email: buildFollowRequestEmail({ recipient: anna, actor: ben })
+  },
+  {
+    slug: 'mention',
+    group: 'Notifications',
+    email: buildMentionEmail({
+      recipient: anna,
+      actor: maythee,
+      status: fixtureStatus(
+        maythee,
+        '@anna have you tried the new Garmin Connect sync yet? Curious how it handles multi-sport days.',
+        'note-88213'
+      )
+    })
+  },
+  {
+    slug: 'reply',
+    group: 'Notifications',
+    email: buildReplyEmail({
+      recipient: anna,
+      actor: rin,
+      status: fixtureStatus(
+        rin,
+        'This is brilliant — federated fitness is genuinely the dream. Adding it to my instance tonight.',
+        'note-88214'
+      )
+    })
+  },
+  {
+    slug: 'like',
+    group: 'Notifications',
+    email: buildLikeEmail({ recipient: anna, actor: maythee, status: annaPost })
+  },
+  {
+    slug: 'boost',
+    group: 'Notifications',
+    email: buildBoostEmail({ recipient: anna, actor: ben, status: annaPost })
   }
 ]
 
