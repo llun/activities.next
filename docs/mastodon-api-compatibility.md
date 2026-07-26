@@ -277,13 +277,15 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   favourite arrives as a `❤` reaction and a later reaction replaces it (their
   one-per-user rule). Reacting never favourites the post locally.
 
-  One consequence needs care on removal: Mastodon resolves `Undo{Like}` by
-  _(account, status)_, not by activity id, and it stored the reaction as a
-  favourite. So retracting a reaction would delete the recipient-side favourite
-  — including a genuine one the actor had also made, since Mastodon dedups the
-  two into a single row. The `Undo` is therefore **withheld when the actor still
-  favourites the status**: the favourite is the state that should survive, and
-  the reaction is already gone locally either way.
+  Removal is where the single-shape compromise bites. A reaction-native
+  receiver (Misskey family, Pleroma/Akkoma, another Activity.next) resolves the
+  `Undo` by reaction content and removes exactly that emoji. Vanilla Mastodon
+  resolves `Undo{Like}` by _(account, status)_ against the one favourite our
+  reaction degraded into, so it can also clear a genuine favourite or the
+  stand-in for another of your reactions. The `Undo` is sent regardless: the
+  Mastodon-side effect is cosmetic on a server that never rendered the reaction
+  and is recoverable by re-favouriting, whereas withholding it would leave the
+  reaction stuck visible forever on exactly the servers that do render it.
 
   Reacting to a boost applies the reaction to the **boosted post**, matching how
   the rollups are serialized (an `Announce` wrapper reports no reactions of its

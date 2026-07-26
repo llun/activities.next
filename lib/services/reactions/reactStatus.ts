@@ -199,26 +199,23 @@ export const unreactStatus = async ({
     name: storedName
   })
   if (changed && !target.isLocalActor) {
-    // A vanilla-Mastodon receiver resolves `Undo{Like}` by (account, status),
-    // not by activity id, and it collapsed everything we sent for this status —
-    // every reaction Like plus any real favourite — into ONE favourite row.
-    // Sending the Undo would therefore delete the representation of whatever is
-    // left. Withhold it while anything should still be represented there; the
-    // reaction is already gone locally either way.
-    const [stillFavourited, remaining] = await Promise.all([
-      database.isActorLikedStatus({
-        statusId: target.id,
-        actorId: currentActor.id
-      }),
-      database.getStatusReactionRollups({
-        statusIds: [target.id],
-        currentActorId: currentActor.id
-      })
-    ])
-    if (stillFavourited || remaining.some((rollup) => rollup.me)) {
-      return { ok: true, changed, status }
-    }
-
+    // The Undo always goes out, even though on a Like-only receiver it can clear
+    // more than the one reaction. One activity shape serves two Undo semantics
+    // and they cannot both be satisfied without per-instance software detection
+    // (rejected in the epic design):
+    //
+    // - Reaction-native receivers (Misskey family, Pleroma/Akkoma, other
+    //   activities.next instances) resolve the Undo by reaction content, so they
+    //   remove exactly this emoji — and if we withhold it the reaction stays
+    //   visible there FOREVER, with nothing the user can do about it.
+    // - Vanilla Mastodon resolves it by (account, status) against the single
+    //   favourite our reaction degraded into, so it may also clear a genuine
+    //   favourite or the stand-in for another reaction.
+    //
+    // Sending wins: the second case is a cosmetic artifact on a server that
+    // never rendered the reaction at all, and the user can re-favourite.
+    // Withholding would be a permanent, unrecoverable bug on exactly the servers
+    // this feature exists for.
     const shortcode = getCustomEmojiShortcode(storedName)
     const customEmoji = shortcode
       ? await database.getCustomEmojiByShortcode(shortcode)
