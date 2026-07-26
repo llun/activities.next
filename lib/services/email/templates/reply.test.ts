@@ -1,70 +1,80 @@
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { EditableStatus, StatusType } from '@/lib/types/domain/status'
 
-import { getHTMLContent, getSubject, getTextContent } from './reply'
+import { buildReplyEmail } from './reply'
 
-describe('reply email template', () => {
-  const mockActor: ActorProfile = {
-    id: 'https://remote.example.com/users/replier',
-    username: 'replier',
-    domain: 'remote.example.com',
-    name: 'Replier User',
-    createdAt: Date.now(),
-    statusesCount: 0,
-    followersCount: 0,
-    followingCount: 0
-  }
+const HOST = 'test.llun.dev'
+const BASE_URL = `https://${HOST}`
 
-  const mockStatus: EditableStatus = {
-    id: 'https://remote.example.com/statuses/456',
-    url: 'https://remote.example.com/@replier/456',
-    actorId: 'https://remote.example.com/users/replier',
-    actor: {
-      id: 'https://remote.example.com/users/replier',
-      username: 'replier',
-      domain: 'remote.example.com',
-      name: 'Replier User',
-      createdAt: Date.now(),
-      statusesCount: 0,
-      followersCount: 0,
-      followingCount: 0
-    },
+const profile = (overrides: Partial<ActorProfile> = {}): ActorProfile => ({
+  id: 'https://remote.example.com/users/ben',
+  username: 'ben',
+  domain: 'remote.example.com',
+  name: 'Ben Carter',
+  followersUrl: '',
+  inboxUrl: '',
+  sharedInboxUrl: '',
+  followingCount: 0,
+  followersCount: 0,
+  statusCount: 0,
+  lastStatusAt: null,
+  createdAt: 1000,
+  ...overrides
+})
+
+const recipient = profile({
+  id: `${BASE_URL}/users/anna`,
+  username: 'anna',
+  domain: HOST,
+  name: 'Anna'
+})
+
+const status = (overrides: Partial<EditableStatus> = {}): EditableStatus =>
+  ({
+    id: `${BASE_URL}/statuses/1`,
+    url: `${BASE_URL}/@anna/1`,
+    actorId: `${BASE_URL}/users/anna`,
+    actor: recipient,
+    isLocalActor: true,
     type: StatusType.enum.Note,
-    text: 'This is a reply to your post!',
+    text: 'Morning run done',
     summary: '',
     to: [],
     cc: [],
     tags: [],
     attachments: [],
     replies: [],
-    createdAt: Date.now()
-  }
+    createdAt: 1000,
+    ...overrides
+  }) as EditableStatus
 
-  describe('getSubject', () => {
-    it('returns subject with actor username and host', () => {
-      const result = getSubject(mockActor)
-      expect(result).toMatch(/@replier replied to your post in/)
-    })
+const sender = profile()
+const replyStatus = status({
+  actor: sender,
+  actorId: sender.id,
+  isLocalActor: false,
+  text: 'This is brilliant'
+})
+
+const build = () =>
+  buildReplyEmail({ recipient, actor: sender, status: replyStatus })
+
+describe('buildReplyEmail', () => {
+  it('keeps the subject the codebase already used', () => {
+    expect(build().subject).toBe(`@ben replied to your post in ${HOST}`)
   })
 
-  describe('getTextContent', () => {
-    it('returns text content with message and local URL', () => {
-      const result = getTextContent(mockStatus)
-      expect(result).toContain(
-        '@replier@remote.example.com replied to your post'
-      )
-      expect(result).toContain('Reply: This is a reply to your post!')
-      expect(result).toContain('View this post on your server:')
-    })
+  it('labels the quote as the reply', () => {
+    const { html } = build()
+    expect(html).toContain('>Reply:</p>')
+    expect(html).toContain('This is brilliant')
   })
 
-  describe('getHTMLContent', () => {
-    it('returns HTML content with message and local URL', () => {
-      const result = getHTMLContent(mockStatus)
-      expect(result).toContain(
-        '@replier@remote.example.com replied to your post'
-      )
-      expect(result).toContain('View this post on your server')
-    })
+  it('quotes the replier, not the recipient', () => {
+    expect(build().html).toContain('>@ben@remote.example.com</td>')
+  })
+
+  it('uses the notification footer naming replies', () => {
+    expect(build().html).toContain('email notifications for replies')
   })
 })

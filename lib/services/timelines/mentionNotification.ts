@@ -1,16 +1,8 @@
 import { SpanStatusCode } from '@opentelemetry/api'
 
 import { getConfig } from '@/lib/config'
-import {
-  getHTMLContent as getMentionHTMLContent,
-  getSubject as getMentionSubject,
-  getTextContent as getMentionTextContent
-} from '@/lib/services/email/templates/mention'
-import {
-  getHTMLContent as getReplyHTMLContent,
-  getSubject as getReplySubject,
-  getTextContent as getReplyTextContent
-} from '@/lib/services/email/templates/reply'
+import { buildMentionEmail } from '@/lib/services/email/templates/mention'
+import { buildReplyEmail } from '@/lib/services/email/templates/reply'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import {
   NotificationEvent,
@@ -119,9 +111,11 @@ export const notifyRemoteReplyAndMention = async ({
               if (config.email && account && status.actor) {
                 replyEvent.emailContent = {
                   recipientEmail: account.email,
-                  subject: getReplySubject(status.actor),
-                  text: getReplyTextContent(status),
-                  html: getReplyHTMLContent(status)
+                  ...buildReplyEmail({
+                    recipient: currentActor,
+                    actor: status.actor,
+                    status
+                  })
                 }
               }
               alertEvents.push(replyEvent)
@@ -180,9 +174,11 @@ export const notifyRemoteReplyAndMention = async ({
           if (config.email && account && status.actor) {
             mentionEvent.emailContent = {
               recipientEmail: account.email,
-              subject: getMentionSubject(status.actor),
-              text: getMentionTextContent(status),
-              html: getMentionHTMLContent(status)
+              ...buildMentionEmail({
+                recipient: currentActor,
+                actor: status.actor,
+                status
+              })
             }
           }
           alertEvents.push(mentionEvent)

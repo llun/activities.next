@@ -1,41 +1,51 @@
-import { Actor } from '@/lib/types/domain/actor'
+import { ActorProfile } from '@/lib/types/domain/actor'
 
-import { getHTMLContent, getSubject, getTextContent } from './followRequest'
+import { buildFollowRequestEmail } from './followRequest'
 
-describe('followRequest email template', () => {
-  const mockActor: Actor = {
-    id: 'https://remote.example.com/users/requester',
-    username: 'requester',
-    domain: 'remote.example.com',
-    name: 'Requester User',
-    createdAt: Date.now(),
-    statusesCount: 0,
-    followersCount: 0,
-    followingCount: 0
-  }
+const HOST = 'test.llun.dev'
+const BASE_URL = `https://${HOST}`
 
-  describe('getSubject', () => {
-    it('returns subject with actor username and host', () => {
-      const result = getSubject(mockActor)
-      expect(result).toMatch(/@requester wants to follow you in/)
-    })
+const actor = (overrides: Partial<ActorProfile> = {}): ActorProfile => ({
+  id: 'https://remote.example.com/users/ben',
+  username: 'ben',
+  domain: 'remote.example.com',
+  name: 'Ben Carter',
+  followersUrl: '',
+  inboxUrl: '',
+  sharedInboxUrl: '',
+  followingCount: 0,
+  followersCount: 0,
+  statusCount: 0,
+  lastStatusAt: null,
+  createdAt: 1000,
+  ...overrides
+})
+
+const recipient = actor({
+  id: `${BASE_URL}/users/anna`,
+  username: 'anna',
+  domain: HOST,
+  name: 'Anna'
+})
+
+describe('buildFollowRequestEmail', () => {
+  const build = () => buildFollowRequestEmail({ recipient, actor: actor() })
+
+  it('keeps the subject the codebase already used', () => {
+    expect(build().subject).toBe(`@ben wants to follow you in ${HOST}`)
   })
 
-  describe('getTextContent', () => {
-    it('returns text content with username and id', () => {
-      const result = getTextContent(mockActor)
-      expect(result).toEqual(
-        'requester (https://remote.example.com/users/requester) has requested to follow you'
-      )
-    })
+  it('explains why approval is needed', () => {
+    expect(build().text).toContain('Your account approves followers manually')
   })
 
-  describe('getHTMLContent', () => {
-    it('returns HTML content with linked actor', () => {
-      const result = getHTMLContent(mockActor)
-      expect(result).toEqual(
-        '<p><a href="https://remote.example.com/users/requester">requester</a> has requested to follow you</p>'
-      )
-    })
+  it('sends the reader to notifications where the controls are', () => {
+    const { html } = build()
+    expect(html).toContain(`href="${BASE_URL}/notifications"`)
+    expect(html).toContain('>Review request</a>')
+  })
+
+  it('uses the notification footer naming follow requests', () => {
+    expect(build().html).toContain('email notifications for follow requests')
   })
 })

@@ -1,4 +1,13 @@
-import { button, fallbackUrl, headline, label, note, paragraph } from './blocks'
+import {
+  button,
+  fallbackUrl,
+  headline,
+  label,
+  note,
+  paragraph,
+  quote
+} from './blocks'
+import { MONOGRAM_PALETTE } from './theme'
 
 const XSS = '"><script>alert(1)</script>'
 
@@ -171,5 +180,60 @@ describe('note', () => {
 
   it('lets an over-long unbroken word wrap instead of overflowing the card', () => {
     expect(note('a').html).toContain('word-wrap:break-word')
+  })
+})
+
+describe('quote', () => {
+  const author = { displayName: 'Ben Carter', handle: '@ben@example.com' }
+
+  it('renders the monogram, display name and handle', () => {
+    const { html } = quote({ author })
+    expect(html).toContain('>BC</td>')
+    expect(html).toContain('>Ben Carter</td>')
+    expect(html).toContain('>@ben@example.com</td>')
+  })
+
+  it('gives the monogram a colour from the palette', () => {
+    const { html } = quote({ author })
+    const bgcolor = html.match(
+      /bgcolor="(#[0-9a-f]{6})" style="width:24px/
+    )?.[1]
+    expect(MONOGRAM_PALETTE).toContain(bgcolor)
+  })
+
+  it('renders the actor row alone when there is no body', () => {
+    const { html, text } = quote({ author })
+    expect(html).not.toContain('margin-top:8px')
+    expect(text).toBe('Ben Carter (@ben@example.com)')
+  })
+
+  it('renders a pre-sanitized body below the actor row', () => {
+    const { html, text } = quote({
+      author,
+      body: { html: '<p>Hello <b>there</b></p>', text: 'Hello there' }
+    })
+    expect(html).toContain('<p>Hello <b>there</b></p>')
+    expect(text).toBe('Ben Carter (@ben@example.com)\nHello there')
+  })
+
+  it('escapes the display name and handle', () => {
+    const { html } = quote({ author: { displayName: XSS, handle: XSS } })
+    expect(html).not.toContain(XSS)
+    expect(html).not.toContain('<script')
+  })
+
+  it('emits the body html verbatim because it is already sanitized', () => {
+    // The single unescaped slot in the layout. It is the caller's job to have
+    // run getStatusBody first; this asserts the contract rather than a bug.
+    const { html } = quote({
+      author,
+      body: { html: '<a href="https://example.com/x">link</a>', text: 'link' }
+    })
+    expect(html).toContain('<a href="https://example.com/x">link</a>')
+  })
+
+  it('lets a long unbroken body word wrap', () => {
+    const { html } = quote({ author, body: { html: 'x', text: 'x' } })
+    expect(html).toContain('word-wrap:break-word')
   })
 })
