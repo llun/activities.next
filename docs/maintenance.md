@@ -127,10 +127,8 @@ Creates a test user for development/testing:
 
 ### Render Email Previews
 
-Renders email templates to standalone HTML files so a template change can be
-checked visually. Covers the templates listed in `buildPreviews()` — currently
-every email except the fitness activity import, which is not on the shared
-layout yet. Emails are not pages, so there is no dev-server route to open —
+Renders every email template to standalone HTML files so a template change can
+be checked visually. Emails are not pages, so there is no dev-server route to open —
 this is the visual verification step for anything under
 `lib/services/email/templates/`.
 
