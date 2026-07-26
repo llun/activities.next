@@ -675,7 +675,8 @@ CREATE TABLE public.notifications (
     "groupKey" character varying(255),
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    filtered boolean DEFAULT false NOT NULL
+    filtered boolean DEFAULT false NOT NULL,
+    "reactionName" character varying(255)
 );
 
 CREATE TABLE public."oauthAccessToken" (
@@ -979,6 +980,15 @@ CREATE TABLE public.status_quotes (
     state character varying(255) DEFAULT 'pending'::character varying NOT NULL,
     "quoteRequestId" text,
     "authorizationUri" text,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE public.status_reactions (
+    "statusId" character varying(255) NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    name character varying(255) NOT NULL,
+    url text,
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
@@ -1454,6 +1464,9 @@ ALTER TABLE ONLY public.status_pins
 ALTER TABLE ONLY public.status_quotes
     ADD CONSTRAINT status_quotes_pkey PRIMARY KEY ("statusId");
 
+ALTER TABLE ONLY public.status_reactions
+    ADD CONSTRAINT status_reactions_pkey PRIMARY KEY ("statusId", "actorId", name);
+
 ALTER TABLE ONLY public.statuses
     ADD CONSTRAINT statuses_pkey PRIMARY KEY (id);
 
@@ -1685,6 +1698,10 @@ CREATE INDEX status_pins_status ON public.status_pins USING btree ("statusId");
 CREATE INDEX status_quotes_authorization_idx ON public.status_quotes USING btree ("authorizationUri");
 
 CREATE INDEX status_quotes_quoted_state_idx ON public.status_quotes USING btree ("quotedStatusId", state, "createdAt");
+
+CREATE INDEX status_reactions_actor ON public.status_reactions USING btree ("actorId");
+
+CREATE INDEX status_reactions_status_created ON public.status_reactions USING btree ("statusId", "createdAt");
 
 CREATE INDEX "statusesReplyHashIndex" ON public.statuses USING btree ("replyHash");
 

@@ -2,16 +2,8 @@ import { SpanStatusCode } from '@opentelemetry/api'
 
 import { getConfig } from '@/lib/config'
 import { createReplyToAddress } from '@/lib/services/email/replyToken'
-import {
-  getHTMLContent as getMentionHTMLContent,
-  getSubject as getMentionSubject,
-  getTextContent as getMentionTextContent
-} from '@/lib/services/email/templates/mention'
-import {
-  getHTMLContent as getReplyHTMLContent,
-  getSubject as getReplySubject,
-  getTextContent as getReplyTextContent
-} from '@/lib/services/email/templates/reply'
+import { buildMentionEmail } from '@/lib/services/email/templates/mention'
+import { buildReplyEmail } from '@/lib/services/email/templates/reply'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import {
   NotificationEvent,
@@ -127,9 +119,12 @@ export const notifyRemoteReplyAndMention = async ({
                 const repliable = Boolean(replyTo)
                 replyEvent.emailContent = {
                   recipientEmail: account.email,
-                  subject: getReplySubject(status.actor),
-                  text: getReplyTextContent(status, { repliable }),
-                  html: getReplyHTMLContent(status, { repliable }),
+                  ...buildReplyEmail({
+                    recipient: currentActor,
+                    actor: status.actor,
+                    status,
+                    repliable
+                  }),
                   ...(replyTo ? { replyTo } : null)
                 }
               }
@@ -195,9 +190,12 @@ export const notifyRemoteReplyAndMention = async ({
             const repliable = Boolean(replyTo)
             mentionEvent.emailContent = {
               recipientEmail: account.email,
-              subject: getMentionSubject(status.actor),
-              text: getMentionTextContent(status, { repliable }),
-              html: getMentionHTMLContent(status, { repliable }),
+              ...buildMentionEmail({
+                recipient: currentActor,
+                actor: status.actor,
+                status,
+                repliable
+              }),
               ...(replyTo ? { replyTo } : null)
             }
           }

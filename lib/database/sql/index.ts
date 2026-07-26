@@ -43,6 +43,7 @@ import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { StatusDetectedLanguageSQLDatabaseMixin } from '@/lib/database/sql/statusDetectedLanguage'
 import { StatusMuteSQLDatabaseMixin } from '@/lib/database/sql/statusMute'
 import { StatusQuoteSQLDatabaseMixin } from '@/lib/database/sql/statusQuote'
+import { StatusReactionSQLDatabaseMixin } from '@/lib/database/sql/statusReaction'
 import { StravaArchiveImportSQLDatabaseMixin } from '@/lib/database/sql/stravaArchiveImport'
 import { SuggestionSQLDatabaseMixin } from '@/lib/database/sql/suggestion'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
@@ -71,6 +72,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const featuredTagDatabase = FeaturedTagSQLDatabaseMixin(database)
   const statusMuteDatabase = StatusMuteSQLDatabaseMixin(database)
   const statusQuoteDatabase = StatusQuoteSQLDatabaseMixin(database)
+  const statusReactionDatabase = StatusReactionSQLDatabaseMixin(database)
   const idempotencyDatabase = IdempotencySQLDatabaseMixin(database)
   const emailReplyTokenDatabase = EmailReplyTokenSQLDatabaseMixin(database)
   const translationCacheDatabase = TranslationCacheSQLDatabaseMixin(database)
@@ -159,6 +161,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...featuredTagDatabase,
     ...statusMuteDatabase,
     ...statusQuoteDatabase,
+    ...statusReactionDatabase,
     ...idempotencyDatabase,
     ...emailReplyTokenDatabase,
     ...translationCacheDatabase,

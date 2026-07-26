@@ -125,6 +125,52 @@ Creates a test user for development/testing:
 
 > **Note:** This script is for development and testing purposes only. In production, users should register through the web interface at `/auth/signup`.
 
+### Render Email Previews
+
+Renders email templates to standalone HTML files so a template change can be
+checked visually. Covers the templates listed in `buildPreviews()` — currently
+every email except the fitness activity import, which is not on the shared
+layout yet. Emails are not pages, so there is no dev-server route to open —
+this is the visual verification step for anything under
+`lib/services/email/templates/`.
+
+```bash
+./scripts/mock/renderEmailPreviews.ts [outDir]
+```
+
+It writes one file per covered template plus an `index.html` that shows each rendered
+email beside its plain-text alternative, then prints a `file://` URL. Output goes
+to a temporary directory unless `outDir` is given, so nothing lands in the working
+tree.
+
+Nothing is sent, no database is opened, and no network request is made — but
+`getConfig()` validates the whole environment schema, so a database entry must be
+present even though nothing connects to it. Either source an existing
+`.env.local`:
+
+```bash
+set -a; . ./.env.local; set +a
+./scripts/mock/renderEmailPreviews.ts
+```
+
+…or pass throwaway values inline:
+
+```bash
+ACTIVITIES_HOST=llun.social ACTIVITIES_SECRET_PHASE=preview \
+ACTIVITIES_DATABASE_CLIENT=better-sqlite3 \
+ACTIVITIES_DATABASE_SQLITE_FILENAME=./unused.sqlite3 \
+./scripts/mock/renderEmailPreviews.ts
+```
+
+`ACTIVITIES_HOST` is what the templates render in the header and build every link
+from, so set it to the instance you want the preview to look like.
+
+> **Note:** A browser is a lower bar than a mail client. For a change to the
+> shared layout, also send at least one email to a real inbox and check it in
+> Gmail, Apple Mail **and Outlook**, including dark mode. Outlook is the only
+> client where the `mso-` properties and the ghost table do anything, so it is
+> the one a browser preview cannot stand in for.
+
 ### Admin Role Management
 
 Adds or removes the admin role for an account by email:

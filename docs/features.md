@@ -40,12 +40,14 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Main timeline** — Home feed with posts from followed accounts
 - ✅ **Favorites page** — Browse posts you've favorited
 - ✅ **List timelines** — Per-list timelines honoring replies policy, exclusive lists, and block/mute/keyword filtering
-- ✅ **Notifications** — Like, follow, mention, reblog, follow request, quote (someone quoted your post), quote-update (a post you quoted was edited), and collection (added-to-collection / collection-update) notifications
+- ✅ **Notifications** — Like, follow, mention, reblog, follow request, quote (someone quoted your post), quote-update (a post you quoted was edited), emoji reaction (someone reacted to your post, served as the Pleroma `pleroma:emoji_reaction` type), and collection (added-to-collection / collection-update) notifications
 - ✅ **Notification grouping** — Group similar notifications together
 - ✅ **Email notifications** — Configurable email alerts for each notification type
 - ✅ **Reply by email** — Answer a mention or reply notification by replying to the email; see [Reply by email](#reply-by-email) below
 - ✅ **Push notifications** — Web Push subscriptions with VAPID configuration
 - ✅ **Unread count** — Badge showing unread notification count
+
+- 🚧 **Status emoji reactions** — Inbound federation and storage have shipped: a reaction from Pleroma/Akkoma (`EmojiReact`) or the Misskey family (a `Like` carrying `content`/`_misskey_reaction`) is stored as a reaction rather than a favourite and is served on every status as `pleroma.emoji_reactions` and `reactions`. The write API, outbound federation, and the picker UI are still landing
 
 ### Storage & Media
 

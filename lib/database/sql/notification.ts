@@ -22,6 +22,8 @@ const fixNotificationDataDate = (data: Notification): Notification => ({
   // SQLite stores booleans as 0/1; normalize to real booleans to honor the type.
   filtered: Boolean(data.filtered),
   isRead: Boolean(data.isRead),
+  // Nullable column: only `emoji_reaction` rows carry a name.
+  reactionName: data.reactionName ?? undefined,
   createdAt: getCompatibleTime(data.createdAt),
   updatedAt: getCompatibleTime(data.updatedAt),
   readAt: data.readAt ? getCompatibleTime(data.readAt) : undefined
@@ -47,6 +49,7 @@ export const NotificationSQLDatabaseMixin = (
     statusId,
     followId,
     groupKey,
+    reactionName,
     filtered = false
   }: CreateNotificationParams) {
     const currentTime = new Date()
@@ -58,6 +61,7 @@ export const NotificationSQLDatabaseMixin = (
       statusId,
       followId,
       groupKey,
+      reactionName,
       isRead: false,
       filtered,
       createdAt: currentTime.getTime(),

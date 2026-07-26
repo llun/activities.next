@@ -1,66 +1,53 @@
 import { getConfig } from '@/lib/config'
+import {
+  getShortName,
+  toQuoteAuthor
+} from '@/lib/services/email/layout/actorDisplay'
+import { button, headline, quote } from '@/lib/services/email/layout/blocks'
+import { renderEmail } from '@/lib/services/email/layout/renderEmail'
 import { REPLY_SENTINEL } from '@/lib/services/email/replyMarker'
+import { RenderedEmail } from '@/lib/services/email/types'
 import { ActorProfile, getMention } from '@/lib/types/domain/actor'
 import { EditableStatus } from '@/lib/types/domain/status'
-import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
-import { sanitizeText } from '@/lib/utils/text/sanitizeText'
 
-// `repliable` is set when the message carries a reply-by-email Reply-To. It
-// adds the sentinel line the inbound parser cuts on, so it must never be set
-// for a message without that header — the line would promise something the
-// instance cannot deliver.
-export interface MentionTemplateOptions {
+import { getStatusBody } from './statusBody'
+import { getEmailStatusUrl } from './statusUrl'
+
+export interface MentionEmailParams {
+  /** The mentioned actor — receives this email. */
+  recipient: ActorProfile
+  /** Who wrote the post. */
+  actor: ActorProfile
+  status: EditableStatus
+  /**
+   * Set only when the message will carry a reply-by-email `Reply-To`.
+   * Adds the marker line the inbound parser cuts on.
+   */
   repliable?: boolean
 }
 
-export const getSubject = (actor: ActorProfile) =>
-  `@${actor.username} mentions you in ${getConfig().host}`
-
-const getLocalStatusUrl = (status: EditableStatus): string => {
-  if (!status.actor) {
-    return status.url
-  }
-  const config = getConfig()
-  const actorMention = getMention(status.actor, true)
-  const encodedStatusId = encodeURIComponent(status.id)
-  return `https://${config.host}/${actorMention}/${encodedStatusId}`
-}
-
-export const getTextContent = (
-  status: EditableStatus,
-  { repliable = false }: MentionTemplateOptions = {}
-) => {
-  const localUrl = getLocalStatusUrl(status)
-  const actorMention = status.actor ? getMention(status.actor, true) : 'Unknown'
-
-  const body = `
-${actorMention} mentioned you in a post.
-
-Message: ${status.text}
-
-View this post on your server: ${localUrl}
-`.trim()
-
-  return repliable ? `${REPLY_SENTINEL}\n\n${body}` : body
-}
-
-export const getHTMLContent = (
-  status: EditableStatus,
-  { repliable = false }: MentionTemplateOptions = {}
-) => {
-  const config = getConfig()
-  const localUrl = getLocalStatusUrl(status)
-  const actorMention = status.actor ? getMention(status.actor, true) : 'Unknown'
-  const messageHtml = status.isLocalActor
-    ? convertMarkdownText(config.host)(status.text)
-    : sanitizeText(status.text)
-
-  const body = `
-<h3>${actorMention} mentioned you in a post</h3>
-<p><strong>Message:</strong></p>
-<div>${messageHtml}</div>
-<p><a href="${localUrl}">View this post on your server</a></p>
-`.trim()
-
-  return repliable ? `<p>${REPLY_SENTINEL}</p>\n${body}` : body
-}
+/** Someone mentioned you. The quote block shows THEIR post, not yours. */
+export const buildMentionEmail = ({
+  recipient,
+  actor,
+  status,
+  repliable = false
+}: MentionEmailParams): RenderedEmail =>
+  renderEmail({
+    ...(repliable ? { replyMarker: REPLY_SENTINEL } : null),
+    subject: `@${actor.username} mentions you in ${getConfig().host}`,
+    preheader: `${getShortName(actor)} mentioned you in a post.`,
+    blocks: [
+      headline(`${getShortName(actor)} mentioned you in a post`),
+      quote({
+        author: toQuoteAuthor(status.actor ?? actor),
+        body: getStatusBody(status)
+      }),
+      button({ label: 'View post', url: getEmailStatusUrl(status) })
+    ],
+    footer: {
+      kind: 'notification',
+      eventLabel: 'mentions',
+      handle: getMention(recipient, true)
+    }
+  })

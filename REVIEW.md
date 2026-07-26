@@ -167,6 +167,37 @@ change doesn't touch.
   Migrations and `scripts/` may use `console.*`. Do not log from React/client
   code.
 
+## Emails
+
+- **Migration in progress — one template left.** Ten of eleven are on the shared
+  layout; only `activityImport.ts` still uses the old
+  `getSubject`/`getTextContent`/`getHTMLContent` trio, and nothing sends it.
+  Apply the rules below when migrating it; don't copy the old shape into a new
+  template.
+- Every migrated email is built by a `build<Name>Email(params): RenderedEmail`
+  module in `lib/services/email/templates/`. No subject/HTML/text literals at a
+  call site.
+- Templates compose blocks from `@/lib/services/email/layout/blocks` and render
+  through `renderEmail`; they never write markup. Escaping belongs to the block
+  builders, so a template hands in plain strings, and nothing in the layout emits
+  an unescaped value today.
+- Every `href`/`src` is absolute and built from `getBaseURL()`. Root-relative
+  URLs are unresolvable in a mail client, and a hardcoded `https://${config.host}`
+  is wrong under `ACTIVITIES_INSECURE_AUTH=true`.
+- The plain-text part is derived from the same block list, never hand-written
+  alongside the HTML.
+- **A local `vi.mock('@/lib/config', …)` must include `getBaseURL`.** It shadows
+  the global mock, and because most email call sites catch delivery errors, an
+  omission does not fail loudly: the template throws, the catch swallows it, and
+  the test passes while the email silently stops sending. This has bitten twice.
+- Template changes are verified by rendering:
+  `./scripts/mock/renderEmailPreviews.ts` (see `docs/maintenance.md`). A PR
+  migrating a template must add it to `buildPreviews()`, and fixtures must be
+  production-shaped (43-char codes).
+- Outlook-only properties (`mso-padding-alt` on both the button cell and its
+  anchor, `mso-hide:all`, the MSO ghost table pinning the column to 600px) are
+  load-bearing and invisible in a browser. Don't drop them as dead style.
+
 ## Style, imports & tests
 
 - TypeScript + React, 2-space indent; Prettier (no semicolons, single quotes,

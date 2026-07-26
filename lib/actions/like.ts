@@ -1,10 +1,6 @@
 import { LikeStatus } from '@/lib/activities/likeAction'
 import { Database } from '@/lib/database/types'
-import {
-  getHTMLContent,
-  getSubject,
-  getTextContent
-} from '@/lib/services/email/templates/like'
+import { buildLikeEmail } from '@/lib/services/email/templates/like'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { shouldCreateNotification } from '@/lib/services/notifications/shouldNotify'
@@ -65,9 +61,11 @@ export const likeRequest = async ({
                 emailContent: targetActor?.account
                   ? {
                       recipientEmail: targetActor.account.email,
-                      subject: getSubject(sourceActor),
-                      text: getTextContent(sourceActor, editableStatus),
-                      html: getHTMLContent(sourceActor, editableStatus)
+                      ...buildLikeEmail({
+                        recipient: targetActor,
+                        actor: sourceActor,
+                        status: editableStatus
+                      })
                     }
                   : undefined
               }

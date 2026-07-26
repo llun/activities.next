@@ -7,6 +7,7 @@ import {
   CREATE_POLL_JOB_NAME,
   CREATE_POLL_VOTE_JOB_NAME,
   DELETE_OBJECT_JOB_NAME,
+  EMOJI_REACTION_JOB_NAME,
   HANDLE_QUOTE_REQUEST_JOB_NAME,
   UPDATE_NOTE_JOB_NAME,
   UPDATE_POLL_JOB_NAME
@@ -17,6 +18,8 @@ import {
   AnnounceAction,
   CreateAction,
   DeleteAction,
+  ENTITY_TYPE_EMOJI_REACT,
+  ENTITY_TYPE_LIKE,
   UndoAction,
   UpdateAction
 } from '@/lib/types/activitypub/activities'
@@ -84,6 +87,20 @@ const extractActivityPubIds = (value: unknown): string[] => {
   if (typeof value.href === 'string') return [value.href]
   if (typeof value.url === 'string') return [value.url]
   return []
+}
+
+// A reaction-bearing activity is either a litepub `EmojiReact` or a
+// Misskey-style `Like` whose emoji rides on `content`/`_misskey_reaction`. A
+// plain `Like` is NOT one: favourites are not routed from the shared inbox
+// today, and quietly starting to would change favourite semantics here.
+const isReactionBearing = (value: unknown): boolean => {
+  if (!isRecord(value)) return false
+  if (value.type === ENTITY_TYPE_EMOJI_REACT) return true
+  if (value.type !== ENTITY_TYPE_LIKE) return false
+  return (
+    typeof value._misskey_reaction === 'string' ||
+    typeof value.content === 'string'
+  )
 }
 
 const createObjectActorMismatch = (
@@ -227,6 +244,25 @@ export const getJobMessage = (
       id: deduplicationId,
       name: DELETE_OBJECT_JOB_NAME,
       data: activity.object,
+      verifiedSenderActorId
+    })
+  }
+
+  // Emoji reactions delivered to the shared inbox (Pleroma-family delivery may
+  // target it instead of the recipient's personal inbox). Both dialects and the
+  // Undo of each route to one job; a plain Like still falls through to `null`.
+  if (
+    isReactionBearing(activity) ||
+    (activity.type === UndoAction && isReactionBearing(activity.object))
+  ) {
+    if (activityActorMismatch(activity, verifiedSenderActorId)) {
+      return null
+    }
+
+    return createJobMessage({
+      id: deduplicationId,
+      name: EMOJI_REACTION_JOB_NAME,
+      data: activity,
       verifiedSenderActorId
     })
   }

@@ -151,7 +151,8 @@ ActivityPub objects are **JSON-LD**, so the same logical object can arrive in ma
 
 - **Canonicalise every inbound ActivityPub document with `compactActivityPub` from `@/lib/activities/jsonld` before validating or processing it.** It runs the real `jsonld` processor, compacting against one canonical context so downstream code (and the Zod schemas) can rely on a predictable shape: bare `type` terms, id references as strings, and `to`/`cc`/`tag`/`attachment` always arrays. **Any new entry point that parses an untrusted remote AP note/activity/actor MUST compact first.** Already wired: the shared inbox (`app/api/inbox/route.ts`), the per-user inbox (`app/api/users/[username]/inbox/route.ts`), `getActorPerson`, `getActorPosts`, and `getNote` (so `getRemoteStatus` and boosted-note resolution inherit it). `compactActivityPub` is generic (`<T>(input: T) => Promise<T>`), preserves the document's logical shape, and falls back to the raw input on any processing error.
 - **The processor must never dereference remote `@context` URLs at runtime** (SSRF/DoS vector). Contexts are bundled as committed offline assets under `lib/activities/jsonld/contexts/` and served by `offlineDocumentLoader`; unknown context URLs resolve to an empty context (their terms simply drop). Add new contexts as bundled assets, never as network fetches. `jsonld` (via `rdf-canonize`) is a heavy, Node-only dependency that breaks under jsdom, so it is imported **lazily** inside `compactActivityPub` — keep it that way so it never enters component/jsdom test module graphs.
-- **Extension `type`s that are not defined in the bundled ActivityStreams context must be aliased in `CANONICAL_CONTEXT`**, otherwise compaction emits a CURIE (e.g. `toot:Emoji`, `as:Hashtag`, `schema:PropertyValue`) that the strict `type` validators then drop. `Emoji`, `Hashtag`, and `PropertyValue` are the currently-aliased ones (all other matched AS2 types are already in the bundled context). If you start matching on a new non-AS2 `type`, add its alias **and a regression test** asserting it survives compaction as a bare term.
+- **Extension `type`s that are not defined in the bundled ActivityStreams context must be aliased in `CANONICAL_CONTEXT`**, otherwise compaction emits a CURIE (e.g. `toot:Emoji`, `as:Hashtag`, `schema:PropertyValue`) that the strict `type` validators then drop. `Emoji`, `Hashtag`, `PropertyValue`, `QuoteRequest`, `QuoteAuthorization`, and `EmojiReact` are the currently-aliased ones (all other matched AS2 types are already in the bundled context). If you start matching on a new non-AS2 `type`, add its alias **and a regression test** asserting it survives compaction as a bare term.
+- **An alias in `CANONICAL_CONTEXT` only helps when the _sender_ defines the term too.** `CANONICAL_CONTEXT` is the context compaction targets; expansion still uses the document's own `@context`, and the bundled ActivityStreams context sets `"@vocab": "_:"`, so a term the sender never defines expands to a blank node — which `stripJsonLdArtifacts` recovers for `type` values but **deletes** for property keys. For terms peers commonly emit undefined (Misskey's `_misskey_reaction`) or declare in a vocabulary the offline loader cannot resolve (litepub's `EmojiReact`), also add them to `EXTENSION_TERM_FALLBACK_CONTEXT`, which `normalizeInputContext` prepends to every inbound document as the lowest-precedence entry — so a sender that does define the term still wins. This is the same trick that keeps litepub actors' `publicKey` readable via the `security/v1` fallback.
 - **Keep the Zod schemas liberal, not strict.** Model only the fields you consume; never `.strict()`; tolerate unknown tag/attachment kinds via the `z.looseObject({})` fallback in the `Tag`/`Attachment` unions (`z.looseObject` is valid Zod v4 — see `lib/types/activitypub/actor.ts`); never Zod-validate `@context`. Narrow loose values back to fully-valid known shapes at the consumption boundary with `safeParse` (e.g. `getTags`/`getAttachments` return only valid `KnownTag`/`Document` via `KnownTag.safeParse`/`Document.safeParse`).
 - **Do not change `http://schema.org#` to `https`.** Mastodon maps the `schema` prefix to the non-standard `http://schema.org#` base in actor `@context`; the canonical context must use the same IRI so profile fields (`PropertyValue`/`value`) compact correctly.
 - Compaction emits the public collection as the compact alias `as:Public`; `toRecipientArray` canonicalises it back to the full ActivityStreams Public IRI when coercing recipients for persistence so stored recipients have one canonical form. JSON-LD blank-node ids (`_:b0`) are document-local artifacts and are rejected by `extractActivityPubId`/`normalizeActivityPubUri` — they are never valid resolvable ActivityPub ids.
@@ -262,6 +263,67 @@ section-navigation patterns; pick by section type.
   - Manage loading state with `useState`
 - A dozen legacy components still call `fetch()` directly (the `Change*Form`s under `app/(timeline)/account/`, `StravaSettingsForm`, the OAuth/password-reset forms, and several `lib/components` settings/actor-switcher dialogs). They are frozen in an exception list in `eslint.config.mjs`; the lint rule blocks any new offender. Migrate them to `lib/client.ts` when touched and remove them from the list — never add to it.
 - The corresponding API route should return JSON via `apiResponse()`, not `Response.redirect()`.
+
+## Transactional & Notification Emails
+
+Emails go through one shared skeleton, so a design or copy change lands in one
+place instead of eleven.
+
+> **Migration in progress — one template left.** Ten of the eleven are on the
+> shared layout. Only `activityImport.ts` still exports the old
+> `getSubject`/`getTextContent`/`getHTMLContent` trio and writes raw markup —
+> and nothing sends it, so it is dead code until the fitness import wiring
+> lands. Apply the rules below when migrating it, and do not copy the old shape
+> into a new template.
+
+- **One module per email** in `lib/services/email/templates/`, exporting a single
+  `build<Name>Email(params): RenderedEmail` (`{ subject, text, html }`). **Never
+  inline a subject or an HTML/text body at a call site** — three of the four
+  account emails used to, which is exactly why they could not be restyled
+  together. (`actorDeleted` was already a module; its problem was hand-written
+  raw markup.) The caller supplies `from`/`to` and spreads the result into
+  `sendMail`.
+- **Templates never write markup.** They compose blocks from
+  `@/lib/services/email/layout/blocks` and hand them to `renderEmail`
+  (`@/lib/services/email/layout/renderEmail`), which owns the 600px table
+  skeleton, the `<head>`, the header, and both footer variants. Colours and sizes
+  come from `@/lib/services/email/layout/theme` — email has no stylesheet, so
+  nothing may reference a CSS variable or a Tailwind class.
+- **Escaping lives in the block builders, not the templates.** A builder takes
+  plain strings and escapes them itself, so a template cannot forget one. Nothing
+  in the layout emits an unescaped value today. When the notification templates
+  land they will need to pass an already-sanitized post body through; that must
+  go through the existing `convertMarkdownText`/`sanitizeText` pipeline and be
+  the single, explicitly-typed exception — never markup assembled by hand.
+- **Every `href`/`src` is absolute and built from `getBaseURL()`.** A
+  root-relative URL is unresolvable in a mail client (note `convertMarkdownText`
+  emits `/tags/x` for hashtags), and a hardcoded `https://${config.host}` is
+  wrong under `ACTIVITIES_INSECURE_AUTH=true`. URLs are protocol-checked to
+  http/https/mailto; anything else degrades to plain text rather than shipping a
+  dead or dangerous link, since remote actors control `status.url`.
+- **The plain-text alternative is derived from the same block list**, never
+  hand-written beside the HTML. Both used to be maintained by hand and had
+  already drifted apart.
+- **A local `vi.mock('@/lib/config', …)` in a test MUST include `getBaseURL`.**
+  It shadows the global mock from `vitest.setup.ts`, and because most email call
+  sites deliberately catch delivery errors, omitting it does **not** fail loudly:
+  the template throws, the catch swallows it, and the test keeps passing while
+  the email silently stops sending. This has already happened twice
+  (`deleteActorJob.test.ts` and the password-reset route test), in both cases
+  hiding that `sendMail` was never reached at all.
+- **Verify a template change by rendering it**:
+  `./scripts/mock/renderEmailPreviews.ts` writes each template it covers to HTML
+  with fixture data, plus an index showing every one beside its plain-text twin
+  (see `docs/maintenance.md`). Emails are not pages, so this is the real-browser
+  check Definition of Done item 6 asks for. **It currently covers only the four
+  account emails** — add a template to `buildPreviews()` in the same PR that
+  migrates it, or the change ships unpreviewable. Keep the fixture values
+  production-shaped: the codes are 43-char base64url, and a short placeholder
+  hides the link-wrapping problems a real one exposes.
+- A browser is a lower bar than a mail client. For a change to the shared layout,
+  also send one to a real inbox and check Gmail, Apple Mail and Outlook —
+  Outlook's Word engine is the one that needs `mso-` properties and the ghost
+  table, and none of that is observable in a browser.
 
 ## Status Posts & Actions
 

@@ -1,6 +1,7 @@
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { sendMail } from '@/lib/services/email'
+import { RenderedEmail } from '@/lib/services/email/types'
 import { NotificationType } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
@@ -9,15 +10,17 @@ import { shouldSendEmailForNotification } from './emailNotificationSettings'
 import { sendPushNotification } from './pushNotification'
 import { shouldSendPushForNotification } from './pushNotificationSettings'
 
-export interface EmailContent {
+/**
+ * A rendered template plus its destination. Defined in terms of
+ * {@link RenderedEmail} so a call site can spread a `build*Email()` result
+ * straight in, and so the two stay in step if the template contract changes.
+ */
+export type EmailContent = RenderedEmail & {
   recipientEmail: string
-  subject: string
-  text: string
-  html: string
   // Reply-by-email address for this notification. When set, replying to the
-  // email posts a real fediverse reply in the same thread; the body carries the
-  // matching sentinel line. Producers mint it best-effort, so an absent value
-  // just means a normal, non-repliable notification.
+  // email posts a real fediverse reply in the same thread, and the rendered
+  // body carries the matching marker line. Producers mint it best-effort, so
+  // an absent value just means a normal, non-repliable notification.
   replyTo?: string
 }
 

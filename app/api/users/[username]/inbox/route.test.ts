@@ -13,6 +13,9 @@ const mockDeleteLike = vi.fn()
 const mockApplyRemoteBlock = vi.fn()
 const mockApplyRemoteUnblock = vi.fn()
 const mockUndoFollowRequest = vi.fn()
+const mockLikeRequest = vi.fn()
+const mockEmojiReactionRequest = vi.fn()
+const mockUndoEmojiReactionRequest = vi.fn()
 const mockVerifyAllows = vi.fn()
 const mockGetModerationStatesForActors = vi.fn()
 const mockDatabase = {
@@ -136,8 +139,23 @@ vi.mock('@/lib/actions/applyRemoteUnblock', () => ({
 }))
 
 vi.mock('@/lib/actions/like', () => ({
-  likeRequest: vi.fn()
+  likeRequest: (...params: unknown[]) => mockLikeRequest(...params)
 }))
+
+vi.mock('@/lib/actions/emojiReaction', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/actions/emojiReaction')
+  >('@/lib/actions/emojiReaction')
+  return {
+    // getReactionContent is a pure classifier the route branches on — keep the
+    // real one so the tests exercise the actual Like/reaction fork.
+    getReactionContent: actual.getReactionContent,
+    emojiReactionRequest: (...params: unknown[]) =>
+      mockEmojiReactionRequest(...params),
+    undoEmojiReactionRequest: (...params: unknown[]) =>
+      mockUndoEmojiReactionRequest(...params)
+  }
+})
 
 vi.mock('@/lib/actions/rejectFollowRequest', () => ({
   rejectFollowRequest: vi.fn()
@@ -194,6 +212,9 @@ describe('POST /api/users/[username]/inbox', () => {
       targetActorId: 'https://activities.local/users/llun'
     })
     mockUndoFollowRequest.mockResolvedValue(true)
+    mockLikeRequest.mockResolvedValue(undefined)
+    mockEmojiReactionRequest.mockResolvedValue(undefined)
+    mockUndoEmojiReactionRequest.mockResolvedValue(undefined)
     mockGetModerationStatesForActors.mockResolvedValue(new Map())
     mockActivityBody = mockDefaultActivityBody
     mockConsumeRequestBody = false
@@ -560,6 +581,111 @@ describe('POST /api/users/[username]/inbox', () => {
 
     expect(response.status).toBe(202)
     expect(mockDeleteLike).not.toHaveBeenCalled()
+  })
+
+  describe('emoji reactions', () => {
+    const inboxRequest = (body: Record<string, unknown>) =>
+      new NextRequest('https://activities.local/api/users/llun/inbox', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+    const post = (body: Record<string, unknown>) =>
+      POST(inboxRequest(body), {
+        params: Promise.resolve({ username: 'llun' })
+      })
+
+    const statusId = 'https://activities.local/users/llun/statuses/1'
+    const emojiReact = {
+      id: 'https://remote.test/users/alice#emoji-reactions/1',
+      type: 'EmojiReact',
+      actor: 'https://remote.test/users/alice',
+      object: statusId,
+      content: '\u{1F525}'
+    }
+    const misskeyLike = {
+      id: 'https://remote.test/users/alice#likes/1',
+      type: 'Like',
+      actor: 'https://remote.test/users/alice',
+      object: statusId,
+      content: '\u{1F525}',
+      _misskey_reaction: '\u{1F525}'
+    }
+    const plainLike = {
+      id: 'https://remote.test/users/alice#likes/2',
+      type: 'Like',
+      actor: 'https://remote.test/users/alice',
+      object: statusId
+    }
+
+    it.each([
+      { description: 'an EmojiReact', activity: emojiReact },
+      { description: 'a Like carrying a reaction', activity: misskeyLike }
+    ])('routes $description to emojiReactionRequest', async ({ activity }) => {
+      const response = await post(activity)
+
+      expect(response.status).toBe(202)
+      expect(mockEmojiReactionRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          database: mockDatabase,
+          activity: expect.objectContaining({ content: '\u{1F525}' })
+        })
+      )
+      // A reaction is never a favourite.
+      expect(mockLikeRequest).not.toHaveBeenCalled()
+    })
+
+    it('keeps routing a plain Like to likeRequest', async () => {
+      const response = await post(plainLike)
+
+      expect(response.status).toBe(202)
+      expect(mockLikeRequest).toHaveBeenCalledTimes(1)
+      expect(mockEmojiReactionRequest).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      { description: 'an EmojiReact', object: emojiReact },
+      { description: 'a Like carrying a reaction', object: misskeyLike }
+    ])(
+      'routes an Undo of $description to undoEmojiReactionRequest',
+      async ({ object }) => {
+        const response = await post({
+          id: 'https://remote.test/users/alice/activities/undo-reaction',
+          type: 'Undo',
+          actor: 'https://remote.test/users/alice',
+          object
+        })
+
+        expect(response.status).toBe(202)
+        expect(mockUndoEmojiReactionRequest).toHaveBeenCalledWith(
+          expect.objectContaining({
+            database: mockDatabase,
+            activity: expect.objectContaining({
+              actor: 'https://remote.test/users/alice',
+              content: '\u{1F525}'
+            })
+          })
+        )
+        // The favourite is untouched.
+        expect(mockDeleteLike).not.toHaveBeenCalled()
+      }
+    )
+
+    it('keeps routing an Undo of a plain Like to deleteLike', async () => {
+      const response = await post({
+        id: 'https://remote.test/users/alice/activities/undo-like',
+        type: 'Undo',
+        actor: 'https://remote.test/users/alice',
+        object: plainLike
+      })
+
+      expect(response.status).toBe(202)
+      expect(mockDeleteLike).toHaveBeenCalledWith({
+        actorId: 'https://remote.test/users/alice',
+        statusId
+      })
+      expect(mockUndoEmojiReactionRequest).not.toHaveBeenCalled()
+    })
   })
 
   it('uses the verified Undo actor when deleting likes', async () => {

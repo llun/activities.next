@@ -1,113 +1,84 @@
-import { REPLY_SENTINEL } from '@/lib/services/email/replyMarker'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { EditableStatus, StatusType } from '@/lib/types/domain/status'
 
-import { getHTMLContent, getSubject, getTextContent } from './mention'
+import { buildMentionEmail } from './mention'
 
-describe('mention email template', () => {
-  const mockActor: ActorProfile = {
-    id: 'https://remote.example.com/users/mentioner',
-    username: 'mentioner',
-    domain: 'remote.example.com',
-    name: 'Mentioner User',
-    createdAt: Date.now(),
-    statusesCount: 0,
-    followersCount: 0,
-    followingCount: 0
-  }
+const HOST = 'test.llun.dev'
+const BASE_URL = `https://${HOST}`
 
-  const mockStatus: EditableStatus = {
-    id: 'https://remote.example.com/statuses/123',
-    url: 'https://remote.example.com/@mentioner/123',
-    actorId: mockActor.id,
-    actor: mockActor,
+const profile = (overrides: Partial<ActorProfile> = {}): ActorProfile => ({
+  id: 'https://remote.example.com/users/ben',
+  username: 'ben',
+  domain: 'remote.example.com',
+  name: 'Ben Carter',
+  followersUrl: '',
+  inboxUrl: '',
+  sharedInboxUrl: '',
+  followingCount: 0,
+  followersCount: 0,
+  statusCount: 0,
+  lastStatusAt: null,
+  createdAt: 1000,
+  ...overrides
+})
+
+const recipient = profile({
+  id: `${BASE_URL}/users/anna`,
+  username: 'anna',
+  domain: HOST,
+  name: 'Anna'
+})
+
+const status = (overrides: Partial<EditableStatus> = {}): EditableStatus =>
+  ({
+    id: `${BASE_URL}/statuses/1`,
+    url: `${BASE_URL}/@anna/1`,
+    actorId: `${BASE_URL}/users/anna`,
+    actor: recipient,
+    isLocalActor: true,
     type: StatusType.enum.Note,
-    text: 'Hey @user@test.example.com check this out!',
+    text: 'Morning run done',
     summary: '',
     to: [],
     cc: [],
     tags: [],
     attachments: [],
     replies: [],
-    createdAt: Date.now()
-  }
+    createdAt: 1000,
+    ...overrides
+  }) as EditableStatus
 
-  describe('getSubject', () => {
-    it('returns subject with actor username and host', () => {
-      const result = getSubject(mockActor)
-      // Uses config host from test config
-      expect(result).toMatch(/@mentioner mentions you in/)
-    })
+const sender = profile()
+const senderStatus = status({
+  actor: sender,
+  actorId: sender.id,
+  isLocalActor: false,
+  text: 'hey @anna have you tried this'
+})
+
+const build = () =>
+  buildMentionEmail({ recipient, actor: sender, status: senderStatus })
+
+describe('buildMentionEmail', () => {
+  it('keeps the subject the codebase already used', () => {
+    expect(build().subject).toBe(`@ben mentions you in ${HOST}`)
   })
 
-  describe('getTextContent', () => {
-    it('returns text content with local URL and message', () => {
-      const result = getTextContent(mockStatus)
-      // Should link to local server, not remote
-      expect(result).toContain('@mentioner@remote.example.com mentioned you')
-      expect(result).toContain(
-        'Message: Hey @user@test.example.com check this out!'
-      )
-      // Should use local server URL (test.llun.dev from mock config)
-      expect(result).toContain('View this post on your server:')
-      expect(result).toContain('test.llun.dev/@mentioner@remote.example.com')
-    })
-
-    it('omits the reply sentinel by default', () => {
-      expect(getTextContent(mockStatus)).not.toContain(REPLY_SENTINEL)
-    })
-
-    it('leads with the reply sentinel when the email is repliable', () => {
-      const result = getTextContent(mockStatus, { repliable: true })
-      // The sentinel must be the FIRST line: mail clients quote the original
-      // below the new text, so anything above it is the sender's reply.
-      expect(result.split('\n')[0]).toBe(REPLY_SENTINEL)
-      expect(result).toContain('@mentioner@remote.example.com mentioned you')
-    })
+  it('uses the short name in the headline', () => {
+    expect(build().html).toContain('Ben mentioned you in a post')
   })
 
-  describe('getHTMLContent', () => {
-    it('returns HTML content with message and local URL for remote actor', () => {
-      const result = getHTMLContent(mockStatus)
-      expect(result).toContain('@mentioner@remote.example.com mentioned you')
-      expect(result).toContain(
-        '<div>Hey @user@test.example.com check this out!</div>'
-      )
-      // Should link to local server, not remote
-      expect(result).toContain('View this post on your server')
-      expect(result).toContain('test.llun.dev/@mentioner@remote.example.com')
-    })
+  it('quotes the sender, not the recipient', () => {
+    const { html } = build()
+    expect(html).toContain('>Ben Carter</td>')
+    expect(html).toContain('>@ben@remote.example.com</td>')
+  })
 
-    it('converts markdown to HTML for local actor status', () => {
-      const localStatus: EditableStatus = {
-        ...mockStatus,
-        isLocalActor: true,
-        text: 'Line one\nLine two\nLine three'
-      }
-      const result = getHTMLContent(localStatus)
-      expect(result).toContain(
-        '<div><p>Line one<br>Line two<br>Line three</p></div>'
-      )
-    })
+  it('carries no label because the post is the subject of the email', () => {
+    expect(build().html).not.toContain('>Your post:</p>')
+  })
 
-    it('sanitizes remote actor HTML in email', () => {
-      const remoteStatus: EditableStatus = {
-        ...mockStatus,
-        isLocalActor: false,
-        text: '<p>Hello</p><script>alert("xss")</script>'
-      }
-      const result = getHTMLContent(remoteStatus)
-      expect(result).not.toContain('<script>')
-      expect(result).toContain('<p>Hello</p>')
-    })
-
-    it('omits the reply sentinel by default', () => {
-      expect(getHTMLContent(mockStatus)).not.toContain(REPLY_SENTINEL)
-    })
-
-    it('leads with the reply sentinel when the email is repliable', () => {
-      const result = getHTMLContent(mockStatus, { repliable: true })
-      expect(result.startsWith(`<p>${REPLY_SENTINEL}</p>`)).toBe(true)
-    })
+  it('uses the notification footer naming mentions', () => {
+    expect(build().html).toContain('email notifications for mentions')
   })
 })

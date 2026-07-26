@@ -2,16 +2,8 @@ import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { acceptFollow, rejectFollow } from '@/lib/activities'
 import { FollowRequest } from '@/lib/activities/followAction'
 import { Database } from '@/lib/database/types'
-import {
-  getHTMLContent as getFollowHTMLContent,
-  getSubject as getFollowSubject,
-  getTextContent as getFollowTextContent
-} from '@/lib/services/email/templates/follow'
-import {
-  getHTMLContent as getFollowRequestHTMLContent,
-  getSubject as getFollowRequestSubject,
-  getTextContent as getFollowRequestTextContent
-} from '@/lib/services/email/templates/followRequest'
+import { buildFollowEmail } from '@/lib/services/email/templates/follow'
+import { buildFollowRequestEmail } from '@/lib/services/email/templates/followRequest'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { followGroupKey } from '@/lib/services/notifications/followGrouping'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
@@ -89,9 +81,10 @@ export const createFollower = async ({
             emailContent: targetActor.account
               ? {
                   recipientEmail: targetActor.account.email,
-                  subject: getFollowRequestSubject(followerActor),
-                  text: getFollowRequestTextContent(followerActor),
-                  html: getFollowRequestHTMLContent(followerActor)
+                  ...buildFollowRequestEmail({
+                    recipient: targetActor,
+                    actor: followerActor
+                  })
                 }
               : undefined
           }
@@ -134,9 +127,10 @@ export const createFollower = async ({
             emailContent: targetActor.account
               ? {
                   recipientEmail: targetActor.account.email,
-                  subject: getFollowSubject(followerActor),
-                  text: getFollowTextContent(followerActor),
-                  html: getFollowHTMLContent(followerActor)
+                  ...buildFollowEmail({
+                    recipient: targetActor,
+                    actor: followerActor
+                  })
                 }
               : undefined
           }
