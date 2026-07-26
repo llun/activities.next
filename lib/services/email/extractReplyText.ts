@@ -47,21 +47,25 @@ const INLINE_ATTRIBUTION_OPENER = /(?:^|\s)(?:On|Le|Am|El)\s/g
  * htmlToPlainText drops — so this run is the only marker left. All three
  * headers are required in order, with bounded gaps.
  *
- * The two gaps are deliberately different sizes. The first stays tight so a
- * sender who types "From: postmaster@…" in their own prose cannot reach the
- * real block further down the line and delete everything in between. The
- * second has to be generous, because Outlook puts `To:` — and often `Cc:` or
- * `Importance:` — between `Sent:` and `Subject:`; at 80 it missed any block
- * with a corporate-length recipient, and the whole header, including the
- * replier's own email address, was published.
+ * What keeps a sender's own "From: postmaster@…" from bridging to the real
+ * block further down the line — and deleting everything in between — is not
+ * the length of the first gap but its CONTENT: a header value never contains
+ * sentence-ending punctuation, and the prose between someone's typed "From:"
+ * and the real header almost always does. Bounding that gap by length instead
+ * broke on any instance whose service name is long, and leaked the whole
+ * block, including the replier's own address, into the post.
  *
- * Bounded rather than lazy-unbounded because an unbounded span rescans the
- * rest of the line for every "From:" on it, which is quadratic on the single
- * multi-megabyte line an HTML body collapses to. Do NOT express the middle as
- * a repeated `(?:…\b(?:To|Cc):)*` group — that backtracks catastrophically.
+ * The second gap only has to be generous: Outlook puts `To:` — and often `Cc:`
+ * or `Importance:` — between `Sent:` and `Subject:`.
+ *
+ * Both are bounded rather than lazy-unbounded because an unbounded span
+ * rescans the rest of the line for every "From:" on it, which is quadratic on
+ * the single multi-megabyte line an HTML body collapses to. Do NOT express the
+ * middle as a repeated `(?:…\b(?:To|Cc):)*` group — that backtracks
+ * catastrophically.
  */
 const INLINE_HEADER_RUN =
-  /(?:^|\s)From:[^\n]{0,80}?\b(?:Sent|Date):[^\n]{0,300}?\bSubject:\s/g
+  /(?:^|\s)From:(?:(?![.?!]\s)[^\n]){0,200}?\b(?:Sent|Date):[^\n]{0,300}?\bSubject:\s/g
 const ORIGINAL_MESSAGE =
   /^-{2,}\s*(Original Message|Forwarded message)\s*-{2,}$/i
 // Outlook separates the quoted original with a rule of underscores.

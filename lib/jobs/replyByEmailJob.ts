@@ -104,16 +104,30 @@ const notifyFailure = async (
  * calendar invites — so an unusable part is dropped rather than failing the
  * whole reply. Losing a signature logo must not cost someone their post.
  */
+const isQuotedInlineImage = (
+  attachment: InboundEmailAttachment,
+  html?: string
+) => {
+  // Angle brackets are part of the Content-ID header syntax, not the id.
+  const contentId = attachment.contentId?.replace(/^<|>$/g, '')
+  if (!contentId || !html) return false
+  return html.includes(`cid:${contentId}`)
+}
+
 const storeAttachments = async (
   database: Database,
   actor: Actor,
-  attachments: InboundEmailAttachment[]
+  attachments: InboundEmailAttachment[],
+  html?: string
 ): Promise<PostBoxAttachment[]> => {
   const usable = attachments.filter((attachment) => {
-    if (attachment.contentId || attachment.disposition === 'inline') {
-      return false
-    }
-    return ACCEPTED_FILE_TYPES.includes(attachment.contentType)
+    if (!ACCEPTED_FILE_TYPES.includes(attachment.contentType)) return false
+    // Skip a part only when the body actually references it with `cid:` — a
+    // signature logo, or an image embedded in the quoted history. Treating
+    // every inline part as decoration instead lost real photos: Apple Mail and
+    // iOS Mail mark a picture someone deliberately attached as inline too, so
+    // the reply posted as text only and nothing said why.
+    return !isQuotedInlineImage(attachment, html)
   })
   if (usable.length === 0) return []
 
@@ -289,7 +303,8 @@ export const replyByEmailJob = createJobHandle(
     const attachments = await storeAttachments(
       database,
       actor,
-      data.attachments ?? []
+      data.attachments ?? [],
+      data.html
     )
 
     // No `visibility`: createNoteFromUserInput inherits it from the parent, so

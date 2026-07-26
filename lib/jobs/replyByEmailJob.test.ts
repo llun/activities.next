@@ -537,13 +537,14 @@ describe('replyByEmailJob', () => {
     ).toBe(true)
   })
 
-  it('skips an inline image referenced from the quoted history', async () => {
+  it('skips an inline image the quoted body actually references', async () => {
     const token = await mintFor(publicStatus.id)
 
     await runJob(database, {
       token,
       messageId: '<inline-logo@example.tld>',
       text: replyBody('No signature logo please.'),
+      html: '<p>No signature logo please.</p><img src="cid:logo@signature">',
       attachments: [
         {
           filename: 'logo.png',
@@ -555,6 +556,35 @@ describe('replyByEmailJob', () => {
     })
 
     expect(mockSaveMedia).not.toHaveBeenCalled()
+  })
+
+  // Apple Mail and iOS Mail mark a photo someone deliberately attached as
+  // inline, with a Content-ID the body never references. Treating every inline
+  // part as decoration dropped those silently — the reply posted as text only
+  // and nothing said why, while the docs promise attachments ride along.
+  it('keeps an inline photo the body does not reference', async () => {
+    const token = await mintFor(publicStatus.id)
+    mockSaveMedia.mockResolvedValue({ id: 'media-photo' } as never)
+
+    await runJob(database, {
+      token,
+      messageId: '<iphone-photo@example.tld>',
+      text: replyBody('Here is the photo.'),
+      html: '<p>Here is the photo.</p>',
+      attachments: [
+        {
+          filename: 'IMG_0001.jpeg',
+          contentType: 'image/jpeg',
+          contentId: '<A1B2C3@example.tld>',
+          disposition: 'inline',
+          contentBase64: Buffer.from('jpeg bytes').toString('base64')
+        }
+      ]
+    })
+
+    expect(mockSaveMedia).toHaveBeenCalledTimes(1)
+    const [, , media] = mockSaveMedia.mock.calls[0]
+    expect(media.file.type).toBe('image/jpeg')
   })
 
   it('stores a real image attachment and puts it on the reply', async () => {
