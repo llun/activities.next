@@ -160,28 +160,36 @@ Media files (images and video) and fitness files (.fit, .gpx, .tcx) support mult
 - **S3** — Amazon S3
 - **Object storage** — Any S3-compatible service (MinIO, DigitalOcean Spaces, Cloudflare R2, etc.)
 
-Images that the **server** writes — anything through `saveMedia` /
-`saveMediaThumbnail`, which covers avatars, headers, custom emojis, generated
-fitness route maps, and any upload posted to the sync upload endpoint — are
-re-encoded to WebP and bounded by a 4000x4000 pixel box. That box is a **cap,
-not a target**: an image already inside it is stored at its own dimensions and
-is never upscaled.
+An image reaches storage by one of two routes, and only one of them processes
+the bytes. Which route a given upload takes is a property of the mechanism, not
+of the surface the user is on — the same picker can take either.
 
-The **presigned direct-to-S3** path is the exception, and it is what the web
-composer prefers whenever object storage is configured: the browser PUTs
-straight to the bucket, so those bytes are stored exactly as uploaded — original
-format, no re-encode, no server-side dimension cap. The only cap there is the
-browser-side canvas resize in `lib/utils/resizeImage.ts`, which a non-browser
-API client does not run.
+**Server-side write** (`saveMedia` / `saveMediaThumbnail` in
+`lib/services/medias/`) re-encodes to WebP and bounds the result by a 4000x4000
+pixel box. That box is a **cap, not a target**: an image already inside it is
+stored at its own dimensions and is never upscaled. This runs for the sync
+upload endpoint, the Mastodon-API multipart avatar/header
+(`PATCH /api/v1/accounts/update_credentials`), custom emojis, and the fitness
+route maps the server generates itself.
 
-Images that predate that rule were enlarged on disk to fill the box. The
-`medias` row was not: `original.metaData` and `original.bytes` are read from the
-uploaded file, so they always described the source. An affected attachment
-therefore **serves a file several times larger than the dimensions and byte
-count it advertises**, and per-account storage usage under-counts it — a query
-for oversized rows will not find these. Only thumbnails recorded the enlarged
-numbers (`thumbnail.metaData`/`thumbnail.bytes`, surfaced as `meta.small`), so
-those over-counted usage instead.
+**Presigned direct-to-S3** stores the bytes exactly as uploaded — original
+format, no re-encode, no server-side dimension cap — because the browser PUTs
+straight to the bucket. `uploadAttachment` (`lib/client.ts`) tries this first
+and only falls back to the sync endpoint when the instance has no object
+storage, so on an S3/object instance it is what the post composer _and_ the
+Settings/Account avatar and header pickers actually use. The only cap there is
+the browser-side canvas resize in `lib/utils/resizeImage.ts`, which a
+non-browser API client never runs.
+
+Images written by the server-side route before the cap became downscale-only
+were enlarged on disk to fill the box. The `medias` row was not:
+`original.metaData` and `original.bytes` are read from the uploaded file, so
+they always described the source. An affected attachment therefore **serves a
+file several times larger than the dimensions and byte count it advertises**,
+and per-account storage usage under-counts it — a query for oversized rows will
+not find these. Only thumbnails recorded the enlarged numbers
+(`thumbnail.metaData`/`thumbnail.bytes`, surfaced as `meta.small`), so those
+over-counted usage instead.
 
 Nothing re-encodes existing media, so an instance's storage keeps both shapes
 until the affected attachments are deleted.
