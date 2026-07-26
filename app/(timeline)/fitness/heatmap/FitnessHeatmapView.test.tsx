@@ -1209,7 +1209,7 @@ describe('FitnessHeatmapView', () => {
 
     // A gate, not a count assertion — the exact number is captured below. Call
     // counts only ever grow, so an exact count inside waitFor can never recover
-    // if an extra call lands before the count is captured below.
+    // if an extra call lands before waitFor's first successful check.
     await waitFor(() => {
       expect(mockGetFitnessRouteHeatmaps).toHaveBeenCalled()
     })
@@ -1338,8 +1338,10 @@ describe('RouteHeatmapMap', () => {
     // Wait for the *initial* push before clearing, not just for the provider
     // label. The label appears in the commit that flips isMapLoaded, while the
     // first setData runs in that commit's passive effect — a later macrotask.
-    // Clearing on the label alone can therefore land between the two, leaving
-    // the initial push to arrive after the clear and inflate every later count.
+    // Clearing on the label alone can therefore land between the two, in which
+    // case the clear silently does nothing and the initial push stays in the
+    // record — which is what made the old exact-count assertion here
+    // unsatisfiable.
     await waitFor(() => expect(setData).toHaveBeenCalled())
     setData.mockClear()
 
