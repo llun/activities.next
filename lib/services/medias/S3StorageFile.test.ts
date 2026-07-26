@@ -57,6 +57,13 @@ vi.mock('@/lib/services/medias/extractVideoImage', () => ({
   extractVideoImage: vi.fn()
 }))
 
+// A real 1x1 PNG, so the video preview and image branches run sharp for real
+// rather than against a stand-in the production code could never receive.
+const ONE_PIXEL_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64'
+)
+
 describe('S3FileStorage presigned upload completion', () => {
   const send = vi.fn()
   const actor = {
@@ -458,25 +465,41 @@ describe('S3FileStorage saveFile with a video', () => {
       streams: [{ codec_type: 'video', width: 10, height: 10 }],
       format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2' }
     })
-    // No decodable preview frame, so no thumbnail is produced — this test is
-    // about the video's own temp file and object key.
-    vi.mocked(extractVideoImage).mockResolvedValue(null as unknown as Buffer)
+    // `extractVideoImage` resolves a real frame or rejects — it never resolves
+    // null — so the thumbnail branch runs here exactly as it does in production.
+    vi.mocked(extractVideoImage).mockResolvedValue(ONE_PIXEL_PNG)
   })
 
-  // Regression: the temp path was `join(tmpdir(), randomHex + file.name)`, so a
-  // name of `../../../../etc/cron.d/x` — or, because prefix and name were
-  // concatenated without a separator, `deadbeef../../evil.mp4` — escaped the
-  // temp directory and the upload wrote wherever the name pointed.
+  // Regression: the temp path was `join(tmpdir(), randomHex + file.name)`, and
+  // `path.join` resolves `..`. Three `..` are needed to escape: the first is
+  // absorbed by the 16-character random prefix's own segment (which is why
+  // `../../evil.mp4` merely lands back on a predictable `<tmpdir>/evil.mp4`).
   it('writes the temp video inside the temp directory for a traversing name', async () => {
-    const file = new File([Buffer.from('video-bytes')], '../../evil.mp4', {
-      type: 'video/mp4'
-    })
+    const file = new File(
+      [Buffer.from('video-bytes')],
+      '../../../../etc/cron.d/evil.mp4',
+      { type: 'video/mp4' }
+    )
 
     await createStorage().saveFile(actor, { file })
 
     expect(extractVideoImage).toHaveBeenCalledTimes(1)
     const tempPath = vi.mocked(extractVideoImage).mock.calls[0][0]
     expect(resolve(dirname(tempPath))).toBe(resolve(tmpdir()))
+    expect(basename(tempPath)).toMatch(/^[0-9a-f]{16}-evil\.mp4$/)
+  })
+
+  // Regression: without the separator the random prefix is cancelled out, so
+  // every upload of this name resolves to the same `<tmpdir>/evil.mp4` and one
+  // upload can overwrite another's temp file mid-probe.
+  it('keeps the random prefix effective for a name starting with a parent reference', async () => {
+    const file = new File([Buffer.from('video-bytes')], '../../evil.mp4', {
+      type: 'video/mp4'
+    })
+
+    await createStorage().saveFile(actor, { file })
+
+    const tempPath = vi.mocked(extractVideoImage).mock.calls[0][0]
     expect(basename(tempPath)).toMatch(/^[0-9a-f]{16}-evil\.mp4$/)
   })
 
@@ -499,6 +522,22 @@ describe('S3FileStorage saveFile with a video', () => {
 
     await expect(createStorage().saveFile(actor, { file })).rejects.toThrow(
       'ffprobe failed'
+    )
+
+    const tempPath = vi.mocked(extractVideoImage).mock.calls[0][0]
+    await expect(fs.access(tempPath)).rejects.toThrow()
+  })
+
+  // The realistic failure: ffmpeg finds no decodable frame, so
+  // `extractVideoImage` rejects. The temp file must still go.
+  it('removes the temp video when preview extraction fails', async () => {
+    vi.mocked(extractVideoImage).mockRejectedValue(new Error('ffmpeg failed'))
+    const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {
+      type: 'video/mp4'
+    })
+
+    await expect(createStorage().saveFile(actor, { file })).rejects.toThrow(
+      'ffmpeg failed'
     )
 
     const tempPath = vi.mocked(extractVideoImage).mock.calls[0][0]
@@ -556,6 +595,33 @@ describe('S3FileStorage saveFile with a video', () => {
     expect(database.createMedia).toHaveBeenCalledWith(
       expect.objectContaining({
         original: expect.objectContaining({ fileName: 'evil.mp4' })
+      })
+    )
+  })
+
+  // `saveFile`'s image branch is a separate `createMedia` call from the video
+  // branch above, so it needs its own coverage.
+  it('stores a sanitized original file name for an image', async () => {
+    database.createMedia.mockResolvedValue({
+      id: 'media-2',
+      actorId: 'actor-1',
+      original: {
+        path: 'medias/2026-01-01/photo.webp',
+        bytes: ONE_PIXEL_PNG.length,
+        mimeType: 'image/png',
+        metaData: { width: 1, height: 1 },
+        fileName: 'evil.png'
+      }
+    } as never)
+    const file = new File([ONE_PIXEL_PNG], '/etc/cron.d/evil.png', {
+      type: 'image/png'
+    })
+
+    await createStorage().saveFile(actor, { file })
+
+    expect(database.createMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        original: expect.objectContaining({ fileName: 'evil.png' })
       })
     )
   })

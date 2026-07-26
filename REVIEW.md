@@ -57,6 +57,24 @@ change doesn't touch.
   status still returns the full `Status` with `bookmarked: false`, not a redacted
   one.
 
+## Uploaded file names
+
+- A supplied file name (`File.name`, the presigned flow's `fileName`) is
+  attacker-controlled: only browser multipart uploads send a bare basename. In
+  the media storage drivers it must never be joined to a path, passed to
+  `extname`, or persisted raw — it goes through `@/lib/services/medias/fileName`
+  first. (`lib/services/fitness-files/` is a known unfixed exception; its paths
+  are safe but its stored names are not sanitized.)
+- Temp paths from a supplied name use `createMediaTempFilePath` (random prefix,
+  explicit separator, parent asserted to be `tmpdir()`), never
+  `join(tmpdir(), prefix + name)` — `path.join` resolves `..`, and prepending a
+  prefix without a separator does not stop it: enough `..` still escapes, and
+  fewer cancel the prefix out into a predictable path.
+- A generated path's extension comes from the validated content type via
+  `getStoredMediaExtension()`, not from the name. Every `ACCEPTED_FILE_TYPES`
+  entry needs a mapping in `EXTENSION_BY_CONTENT_TYPE`, or it falls through to
+  the name.
+
 ## Unique constraints (TOCTOU)
 
 - Pre-checking uniqueness (email/username exists?) before an insert/update is a
@@ -159,19 +177,6 @@ change doesn't touch.
   full-height layouts, so mobile browser toolbars don't break centering.
 - One `<main>` landmark per page: don't render `<main>` in a `page.tsx` when an
   ancestor layout already provides one.
-
-## Uploaded file names
-
-- A supplied file name (`File.name`, the presigned flow's `fileName`) is
-  attacker-controlled: only browser multipart uploads send a bare basename. It
-  must never be joined to a path, passed to `extname`, or persisted raw — it goes
-  through `@/lib/services/medias/fileName` first.
-- Temp paths from a supplied name use `createMediaTempFilePath` (random prefix,
-  explicit separator, parent asserted to be `tmpdir()`), never
-  `join(tmpdir(), prefix + name)` — `path.join` resolves `..`, and a prefix
-  concatenated without a separator does not stop it.
-- A generated path's extension comes from `getStoredMediaExtension(contentType,
-fileName)` — the validated content type — not from the name.
 
 ## Logging
 

@@ -639,7 +639,10 @@ export class S3FileStorage implements MediaStorage {
   private async _uploadVideoToS3(currentTime: number, file: File) {
     const buffer = Buffer.from(await file.arrayBuffer())
     const tmpVideoFile = createMediaTempFilePath(file.name)
-    await fs.writeFile(tmpVideoFile, buffer)
+    // `wx` (O_EXCL) so the write fails rather than following a symlink someone
+    // planted at the path, or clobbering an existing file. The 64-bit random
+    // prefix already makes that infeasible to aim at; this makes it impossible.
+    await fs.writeFile(tmpVideoFile, buffer, { flag: 'wx' })
     // `finally` so a probe/preview failure still removes the temp file instead
     // of leaking it for the lifetime of the container.
     const [probe, previewImage] = await Promise.all([

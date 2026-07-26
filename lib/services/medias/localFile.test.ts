@@ -30,6 +30,14 @@ vi.mock('@/lib/services/medias/extractVideoImage', () => ({
   extractVideoImage: vi.fn()
 }))
 
+// A real 1x1 PNG, so the preview branch runs sharp for real rather than against
+// a stand-in the production code could never receive: `extractVideoImage`
+// resolves a frame or rejects, never null.
+const ONE_PIXEL_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64'
+)
+
 describe('LocalFileStorage.getFile', () => {
   let tempDir: string
   let mediaRoot: string
@@ -380,7 +388,7 @@ describe('LocalFileStorage.saveFile with a video', () => {
       streams: [{ codec_type: 'video', width: 10, height: 10 }],
       format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2' }
     })
-    vi.mocked(extractVideoImage).mockResolvedValue(null as unknown as Buffer)
+    vi.mocked(extractVideoImage).mockResolvedValue(ONE_PIXEL_PNG)
   })
 
   afterEach(async () => {
@@ -397,6 +405,10 @@ describe('LocalFileStorage.saveFile with a video', () => {
       database
     )
 
+  // A guard, not a regression: this driver always built its path from a
+  // generated prefix plus an extension, and `path.extname` can never return a
+  // separator, so a supplied name never reached the path here. The traversal
+  // was in the S3 driver's temp file. Keep the guard so that stays true.
   it('keeps a traversing file name inside the media root', async () => {
     const file = new File([Buffer.from('video-bytes')], '../../evil.mp4', {
       type: 'video/mp4'
@@ -407,7 +419,10 @@ describe('LocalFileStorage.saveFile with a video', () => {
     const storedPath = vi.mocked(database.createMedia).mock.calls[0][0].original
       .path
     expect(storedPath).toMatch(/^[0-9a-f]{16}\.mp4$/)
-    expect(await fs.readdir(mediaRoot)).toEqual([storedPath])
+    // The video plus the WebP thumbnail rendered from the preview frame.
+    const stored = await fs.readdir(mediaRoot)
+    expect(stored).toContain(storedPath)
+    expect(stored).toHaveLength(2)
   })
 
   it('stores a sanitized original file name', async () => {
