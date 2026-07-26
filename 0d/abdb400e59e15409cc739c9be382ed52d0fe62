@@ -1,0 +1,23 @@
+lib/services/email/templates/activityImport.ts
+  s_181a4d159922fc::t_639d7c5dacd48c 118-125
+app/(timeline)/settings/notifications/page.tsx
+  s_181a4d159922fc::t_639d7c5dacd48c 59-60
+lib/jobs/processFitnessFileJob.ts
+  s_181a4d159922fc::t_639d7c5dacd48c 359-365
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "0dabdb400e59e15409cc739c9be382ed52d0fe62",
+  "prompts": {},
+  "sessions": {
+    "s_181a4d159922fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b59141f-f9f0-4af4-8aea-39520836e6cc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

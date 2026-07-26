@@ -1,0 +1,21 @@
+lib/services/email/templates/activityImport.ts
+  s_181a4d159922fc::t_8d5d08e08576df 2-19,21,23-32,34-152
+lib/services/email/templates/activityImport.test.ts
+  s_181a4d159922fc::t_79543041f2cd2c 1-3,5-79,81-104,107-109,111,114-131,133-165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "5465ae832e54ae88b3ff83a7b2419289f067e548",
+  "prompts": {},
+  "sessions": {
+    "s_181a4d159922fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b59141f-f9f0-4af4-8aea-39520836e6cc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

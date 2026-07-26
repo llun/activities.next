@@ -1,0 +1,27 @@
+app/api/v1/webhooks/strava/[webhookToken]/route.test.ts
+  s_181a4d159922fc::t_2c59685e392f9d 105-109,150-151,201-202
+lib/jobs/importStravaActivityJob.ts
+  s_181a4d159922fc::t_40849852a855a6 73-84,692-694
+  s_181a4d159922fc::t_3a11ab508492b2 379-384,510-512,540-542
+  s_181a4d159922fc::t_3888c2cd56d188 385,543-549
+lib/jobs/importStravaActivityJob.test.ts
+  s_181a4d159922fc::t_d474624e9b9570 989-1028
+app/api/v1/webhooks/strava/[webhookToken]/route.ts
+  s_181a4d159922fc::t_3888c2cd56d188 187-192
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "c1bfc2fd7cce83152091e0c3e90d0c3726a1d15a",
+  "prompts": {},
+  "sessions": {
+    "s_181a4d159922fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b59141f-f9f0-4af4-8aea-39520836e6cc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
