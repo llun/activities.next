@@ -54,22 +54,36 @@ const FALLBACK_EXTENSIONS = new Set([
   '.m4v'
 ])
 
-// Characters a stored name may never contain:
+// Characters a stored name may never contain. The name is federated and shown
+// to other users as the attachment's `name` (mediaIds.ts uses it as alt text
+// when there is no description), so this is about display as much as about `fs`.
 // - C0 controls and DEL: `fs` rejects NUL outright, and CR/LF are header
-//   injection anywhere the name is echoed.
-// - The C1 range, for the same reason one layer up.
-// - Zero-width, bidi embedding/override/isolate, and line/paragraph separators:
-//   the stored name is federated and rendered to other users as the
-//   attachment's name, where these let it display as something other than what
-//   is stored — a U+202E before `gnp.exe` renders the tail reversed, so an
-//   executable name reads as `photo.png`.
+//   injection anywhere the name is echoed. Plus the C1 range, one layer up.
+// - The bidi controls — marks, embeddings, overrides, isolates, and the line and
+//   paragraph separators that sit in the same block. These are the Trojan Source
+//   set: a U+202E before `gnp.exe` renders the tail reversed, so an executable
+//   name reads as `photo.png`.
+// - Invisible spacing that carries no orthographic meaning.
+//
+// U+200C ZWNJ and U+200D ZWJ are deliberately NOT stripped: they are
+// orthographic joiners that Persian and Indic scripts need to spell words
+// correctly (`می‌خواهم` becomes a misspelling without one) and that hold emoji
+// sequences together (`👨‍👩‍👧‍👦` decomposes into four separate people). Neither can
+// reorder text, so neither belongs in the set above.
 const isStrippedCharacter = (code: number) =>
+  // C0 controls, DEL, and C1
   code <= 0x1f ||
   (code >= 0x7f && code <= 0x9f) ||
-  (code >= 0x200b && code <= 0x200f) ||
-  (code >= 0x2028 && code <= 0x2029) ||
-  (code >= 0x202a && code <= 0x202e) ||
+  // Bidi: ALM, LRM/RLM, LS/PS + embeddings and overrides, isolates
+  code === 0x061c ||
+  (code >= 0x200e && code <= 0x200f) ||
+  (code >= 0x2028 && code <= 0x202e) ||
   (code >= 0x2066 && code <= 0x2069) ||
+  // Invisible spacing: ZWSP, MONGOLIAN VOWEL SEPARATOR, WORD JOINER and the
+  // invisible math operators, BOM
+  code === 0x200b ||
+  code === 0x180e ||
+  (code >= 0x2060 && code <= 0x2064) ||
   code === 0xfeff
 
 const stripFormattingCharacters = (value: string) =>

@@ -219,7 +219,9 @@ describe('LocalFileStorage image output format', () => {
   })
 
   it('rejects a rendition that would exceed the account quota', async () => {
-    database.getStorageUsageForAccount.mockResolvedValue(Number.MAX_SAFE_INTEGER)
+    database.getStorageUsageForAccount.mockResolvedValue(
+      Number.MAX_SAFE_INTEGER
+    )
 
     await expect(
       createStorage().saveImageRendition(actor, await createPngFile(), 'jpeg')
@@ -426,9 +428,13 @@ describe('LocalFileStorage.saveFile with a video', () => {
   })
 
   it('stores a sanitized original file name', async () => {
-    const file = new File([Buffer.from('video-bytes')], '/etc/cron.d/evil.mp4', {
-      type: 'video/mp4'
-    })
+    const file = new File(
+      [Buffer.from('video-bytes')],
+      '/etc/cron.d/evil.mp4',
+      {
+        type: 'video/mp4'
+      }
+    )
 
     await createStorage().saveFile(actor, { file })
 
@@ -453,4 +459,3 @@ describe('LocalFileStorage.saveFile with a video', () => {
     expect(storedPath).toMatch(/^[0-9a-f]{16}\.mp4$/)
   })
 })
-

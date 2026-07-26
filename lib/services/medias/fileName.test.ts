@@ -18,6 +18,10 @@ const DEL = String.fromCharCode(0x7f)
 const BACKSLASH = String.fromCharCode(92)
 const RIGHT_TO_LEFT_OVERRIDE = String.fromCharCode(0x202e)
 const ZERO_WIDTH_SPACE = String.fromCharCode(0x200b)
+const WORD_JOINER = String.fromCharCode(0x2060)
+const ARABIC_LETTER_MARK = String.fromCharCode(0x61c)
+const ZERO_WIDTH_JOINER = String.fromCharCode(0x200d)
+const ZERO_WIDTH_NON_JOINER = String.fromCharCode(0x200c)
 
 // Names a non-browser API client can put in the multipart `filename` parameter
 // or the presigned request's `fileName` field. Browser uploads always send a
@@ -94,6 +98,33 @@ describe('sanitizeStoredFileName', () => {
       description: 'strips zero-width characters',
       input: `clip${ZERO_WIDTH_SPACE}.mp4`,
       expected: 'clip.mp4'
+    },
+    {
+      description: 'strips the word joiner',
+      input: `clip${WORD_JOINER}.mp4`,
+      expected: 'clip.mp4'
+    },
+    {
+      description: 'strips the Arabic letter mark',
+      input: `clip${ARABIC_LETTER_MARK}.mp4`,
+      expected: 'clip.mp4'
+    },
+    // ZWNJ and ZWJ are orthographic joiners, not bidi controls: stripping them
+    // misspells Persian and Indic names and decomposes emoji sequences.
+    {
+      description: 'keeps the zero-width non-joiner Persian spelling needs',
+      input: `می${ZERO_WIDTH_NON_JOINER}خواهم.mp4`,
+      expected: `می${ZERO_WIDTH_NON_JOINER}خواهم.mp4`
+    },
+    {
+      description: 'keeps the zero-width joiner that holds an emoji together',
+      input: `👨${ZERO_WIDTH_JOINER}👩${ZERO_WIDTH_JOINER}👧 trip.mp4`,
+      expected: `👨${ZERO_WIDTH_JOINER}👩${ZERO_WIDTH_JOINER}👧 trip.mp4`
+    },
+    {
+      description: 'keeps names in non-Latin scripts unchanged',
+      input: 'รูปภาพวันหยุด.jpg',
+      expected: 'รูปภาพวันหยุด.jpg'
     },
     {
       description: 'trims surrounding whitespace',
