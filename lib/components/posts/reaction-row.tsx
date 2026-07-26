@@ -111,20 +111,24 @@ export const ReactionRow: FC<ReactionRowProps> = ({
     )
     setPendingName(name)
     try {
-      const updated = removing
+      const result = removing
         ? await unreactFromStatus({ statusId: status.id, name })
         : await reactToStatus({ statusId: status.id, name })
-      if (!updated) {
+      if (!result.ok) {
         setReactions(previous)
+        // The server's own message when it rejected the request outright (the
+        // per-actor cap, an emoji this instance won't take) — "try again" would
+        // be a lie there, since the same request always fails the same way.
         setError(
-          removing
-            ? 'Failed to remove reaction. Please try again.'
-            : 'Failed to add reaction. Please try again.'
+          result.error ??
+            (removing
+              ? 'Failed to remove reaction. Please try again.'
+              : 'Failed to add reaction. Please try again.')
         )
         return
       }
-      setReactions(updated)
-      onReactionsChanged?.(status, updated)
+      setReactions(result.reactions)
+      onReactionsChanged?.(status, result.reactions)
     } catch {
       setReactions(previous)
       setError('Failed to update reaction. Please try again.')
@@ -142,25 +146,49 @@ export const ReactionRow: FC<ReactionRowProps> = ({
 
   return (
     <div className="relative mt-2 flex flex-wrap items-center gap-1.5">
-      {visible.map((reaction) => (
-        <button
-          key={reaction.name}
-          type="button"
-          disabled={!currentActor || pendingName === reaction.name}
-          aria-pressed={reaction.me}
-          aria-label={`${reaction.me ? 'Remove' : 'Add'} ${reaction.name} reaction`}
-          className={chipClass(reaction.me)}
-          onClick={(event) => {
-            event.stopPropagation()
-            void toggle(reaction.name)
-          }}
-        >
-          <ReactionGlyph reaction={reaction} />
-          <span className="text-xs font-medium tabular-nums">
-            {formatCount(reaction.count)}
-          </span>
-        </button>
-      ))}
+      {visible.map((reaction) => {
+        const body = (
+          <>
+            <ReactionGlyph reaction={reaction} />
+            <span className="text-xs font-medium tabular-nums">
+              {formatCount(reaction.count)}
+            </span>
+          </>
+        )
+
+        // A reader who cannot react gets a plain, readable chip rather than a
+        // disabled button: a disabled control drops out of the tab order and
+        // renders greyed out, which would hide the counts from keyboard and
+        // screen-reader users on every logged-out surface.
+        if (!currentActor) {
+          return (
+            <span
+              key={reaction.name}
+              className={chipClass(reaction.me)}
+              aria-label={`${reaction.name} reaction, ${reaction.count}`}
+            >
+              {body}
+            </span>
+          )
+        }
+
+        return (
+          <button
+            key={reaction.name}
+            type="button"
+            disabled={pendingName === reaction.name}
+            aria-pressed={reaction.me}
+            aria-label={`${reaction.me ? 'Remove' : 'Add'} ${reaction.name} reaction`}
+            className={chipClass(reaction.me)}
+            onClick={(event) => {
+              event.stopPropagation()
+              void toggle(reaction.name)
+            }}
+          >
+            {body}
+          </button>
+        )
+      })}
       {hiddenCount > 0 && (
         <span className="text-muted-foreground text-xs tabular-nums">
           +{hiddenCount}

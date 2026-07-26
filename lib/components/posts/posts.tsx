@@ -8,6 +8,7 @@ import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
+import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 import { getActualStatus } from '@/lib/utils/text/processStatusText'
@@ -51,6 +52,10 @@ interface Props {
     isBookmarked: boolean
   ) => void
   onLikeChanged?: (status: StatusNote | StatusPoll, isLiked: boolean) => void
+  onReactionsChanged?: (
+    status: StatusNote | StatusPoll,
+    reactions: StatusReaction[]
+  ) => void
 }
 
 export const Posts: FC<Props> = ({
@@ -68,7 +73,8 @@ export const Posts: FC<Props> = ({
   onPostUpdated,
   onPostDeleted,
   onBookmarkChanged,
-  onLikeChanged
+  onLikeChanged,
+  onReactionsChanged
 }) => {
   const router = useRouter()
   const [modalMedias, setModalMedias] = useState<{
@@ -152,6 +158,7 @@ export const Posts: FC<Props> = ({
                 onPostDeleted={onPostDeleted}
                 onBookmarkChanged={onBookmarkChanged}
                 onLikeChanged={onLikeChanged}
+                onReactionsChanged={onReactionsChanged}
                 onOpenStatus={openStatus}
                 onShowAttachment={(allMedias, index) => {
                   setModalMedias({ medias: allMedias, initialSelection: index })

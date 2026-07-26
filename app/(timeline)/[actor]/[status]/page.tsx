@@ -79,7 +79,8 @@ const Page: FC<Props> = async ({ params }) => {
   const resolvedStatus = await resolveStatusFromPath({
     database,
     actorParam: actor,
-    statusParam
+    statusParam,
+    currentActorId: currentActor?.id
   })
   if (!resolvedStatus) return notFound()
 

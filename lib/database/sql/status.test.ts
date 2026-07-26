@@ -358,6 +358,72 @@ describe('StatusDatabase', () => {
         })
       })
 
+      describe('emoji reaction hydration', () => {
+        const reactedStatusId = statuses.primary.post
+
+        afterEach(async () => {
+          await database.deleteStatusReaction({
+            statusId: reactedStatusId,
+            actorId: extraActorId,
+            name: '🔥'
+          })
+          await database.deleteStatusReaction({
+            statusId: reactedStatusId,
+            actorId: replyAuthorId,
+            name: '🔥'
+          })
+        })
+
+        it('hydrates rollups onto a single status with the viewer own flag', async () => {
+          await database.createStatusReaction({
+            statusId: reactedStatusId,
+            actorId: extraActorId,
+            name: '🔥'
+          })
+          await database.createStatusReaction({
+            statusId: reactedStatusId,
+            actorId: replyAuthorId,
+            name: '🔥'
+          })
+
+          const status = (await database.getStatus({
+            statusId: reactedStatusId,
+            withReplies: false,
+            currentActorId: extraActorId
+          })) as StatusNote
+
+          expect(status.reactions).toEqual([
+            { name: '🔥', count: 2, me: true, url: null, static_url: null }
+          ])
+        })
+
+        it('hydrates rollups for every status a list returns', async () => {
+          await database.createStatusReaction({
+            statusId: reactedStatusId,
+            actorId: extraActorId,
+            name: '🔥'
+          })
+
+          // getActorStatuses batches its rollups, so the reacted status carries
+          // them and every other status in the page resolves to an empty array
+          // from the same batch rather than a per-status query.
+          const actorStatuses = await database.getActorStatuses({
+            actorId: primaryActorId,
+            visibleToActorId: extraActorId
+          })
+          const reacted = actorStatuses.find(
+            (status) => status.id === reactedStatusId
+          ) as StatusNote
+
+          expect(reacted.reactions).toEqual([
+            { name: '🔥', count: 1, me: true, url: null, static_url: null }
+          ])
+          for (const status of actorStatuses) {
+            expect(status.reactions).toBeDefined()
+          }
+        })
+      })
+
       it('returns status with replies', async () => {
         const status = (await database.getStatus({
           statusId: statuses.primary.post,

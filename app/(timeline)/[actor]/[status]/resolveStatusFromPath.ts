@@ -8,6 +8,9 @@ interface ResolveStatusFromPathParams {
   >
   actorParam: string
   statusParam: string
+  // The signed-in viewer, so the focused status is hydrated with their own
+  // like/bookmark/reaction state. Omitted for anonymous readers.
+  currentActorId?: string
 }
 
 interface ResolveStatusFromPathResult {
@@ -43,7 +46,8 @@ const getStatusForPathActor = (status: Status, actorId: string) => {
 export const resolveStatusFromPath = async ({
   database,
   actorParam,
-  statusParam
+  statusParam,
+  currentActorId
 }: ResolveStatusFromPathParams): Promise<ResolveStatusFromPathResult | null> => {
   const decodedActor = decodePathParam(actorParam)
   const decodedStatusParam = decodePathParam(statusParam)
@@ -91,13 +95,15 @@ export const resolveStatusFromPath = async ({
   if (!status && !isStatusHash) {
     status = await database.getStatus({
       statusId: fullStatusId,
-      withReplies: false
+      withReplies: false,
+      currentActorId
     })
   }
 
   if (!status && !isStatusHash && !isFullStatusUrl) {
     status = await database.getStatus({
       statusId: decodedStatusParam,
+      currentActorId,
       withReplies: false
     })
   }

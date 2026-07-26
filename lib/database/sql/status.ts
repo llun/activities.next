@@ -1215,6 +1215,35 @@ export const StatusSQLDatabaseMixin = (
     })
   }
 
+  // Batched emoji-reaction rollups for a page of statuses, in the shape the
+  // domain Status carries. Every hydration site uses this so none of them falls
+  // back to the per-status lookup — that fallback exists for single-status
+  // routes, not for list paths.
+  async function buildReactionRollupContext(
+    statusIds: string[],
+    currentActorId?: string
+  ): Promise<Map<string, StatusReaction[]>> {
+    const context = new Map<string, StatusReaction[]>(
+      statusIds.map((statusId) => [statusId, []])
+    )
+    if (statusIds.length === 0) return context
+
+    const rollups = await statusReactionDatabase.getStatusReactionRollups({
+      statusIds,
+      currentActorId
+    })
+    for (const rollup of rollups) {
+      context.get(rollup.statusId)?.push({
+        name: rollup.name,
+        count: rollup.count,
+        me: rollup.me,
+        url: rollup.url,
+        static_url: rollup.staticUrl
+      })
+    }
+    return context
+  }
+
   async function getStatusReplies({
     statusId,
     url,
@@ -1251,7 +1280,7 @@ export const StatusSQLDatabaseMixin = (
     // Batch detected-language and quote-edge hydration so this doesn't N+1 one
     // query per reply (mirroring getStatusesByIds).
     const hydrationStatusIds = await collectHydrationStatusIds(statuses)
-    const [detectedLanguages, quoteEdges] = await Promise.all([
+    const [detectedLanguages, quoteEdges, reactionRollups] = await Promise.all([
       hydrationStatusIds.size > 0
         ? statusDetectedLanguageDatabase.getDetectedLanguages({
             statusIds: [...hydrationStatusIds]
@@ -1259,11 +1288,16 @@ export const StatusSQLDatabaseMixin = (
         : Promise.resolve({}),
       hydrationStatusIds.size > 0
         ? getStatusQuoteEdges([...hydrationStatusIds])
-        : Promise.resolve(new Map<string, StatusQuote>())
+        : Promise.resolve(new Map<string, StatusQuote>()),
+      buildReactionRollupContext(
+        [...hydrationStatusIds],
+        visibleToActorId ?? undefined
+      )
     ])
     const hydrationContext: StatusHydrationContext = {
       detectedLanguages,
-      quoteEdges
+      quoteEdges,
+      reactionRollups
     }
     const statusesWithAttachments = (
       await Promise.all(
@@ -1490,7 +1524,7 @@ export const StatusSQLDatabaseMixin = (
     // query per status (mirroring getStatusesByIds) — actor status lists back
     // profile pages and the Mastodon accounts/:id/statuses endpoint.
     const hydrationStatusIds = await collectHydrationStatusIds(statuses)
-    const [detectedLanguages, quoteEdges] = await Promise.all([
+    const [detectedLanguages, quoteEdges, reactionRollups] = await Promise.all([
       hydrationStatusIds.size > 0
         ? statusDetectedLanguageDatabase.getDetectedLanguages({
             statusIds: [...hydrationStatusIds]
@@ -1498,11 +1532,16 @@ export const StatusSQLDatabaseMixin = (
         : Promise.resolve({}),
       hydrationStatusIds.size > 0
         ? getStatusQuoteEdges([...hydrationStatusIds])
-        : Promise.resolve(new Map<string, StatusQuote>())
+        : Promise.resolve(new Map<string, StatusQuote>()),
+      buildReactionRollupContext(
+        [...hydrationStatusIds],
+        visibleToActorId ?? undefined
+      )
     ])
     const hydrationContext: StatusHydrationContext = {
       detectedLanguages,
-      quoteEdges
+      quoteEdges,
+      reactionRollups
     }
     const statusesWithAttachments = (
       await Promise.all(
@@ -1656,29 +1695,11 @@ export const StatusSQLDatabaseMixin = (
             .whereIn('statusId', [...hydrationStatusIds])
             .select<{ statusId: string }[]>('statusId')
         : Promise.resolve([]),
-      hasHydrationStatusIds
-        ? statusReactionDatabase.getStatusReactionRollups({
-            statusIds: [...hydrationStatusIds],
-            currentActorId
-          })
-        : Promise.resolve([])
+      buildReactionRollupContext([...hydrationStatusIds], currentActorId)
     ])
     hydrationContext.detectedLanguages = detectedLanguages
     hydrationContext.quoteEdges = quoteEdges
-    // Seed every requested id, including those with no reactions, so a
-    // reaction-less status resolves from the batch instead of re-querying.
-    hydrationContext.reactionRollups = new Map(
-      [...hydrationStatusIds].map((statusId) => [statusId, []])
-    )
-    for (const rollup of reactionRollups) {
-      hydrationContext.reactionRollups.get(rollup.statusId)?.push({
-        name: rollup.name,
-        count: rollup.count,
-        me: rollup.me,
-        url: rollup.url,
-        static_url: rollup.staticUrl
-      })
-    }
+    hydrationContext.reactionRollups = reactionRollups
     if (currentActorId) {
       hydrationContext.bookmarkedStatusIds = new Set(
         bookmarkRows.map((row) => row.statusId)

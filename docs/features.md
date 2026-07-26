@@ -46,7 +46,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Push notifications** — Web Push subscriptions with VAPID configuration
 - ✅ **Unread count** — Badge showing unread notification count
 
-- ✅ **Status emoji reactions** — React to any post with a unicode emoji or an instance custom emoji, separately from favouriting it. Chips under each post show who reacted with what, and a picker adds your own. Reactions federate both ways: inbound from Pleroma/Akkoma (`EmojiReact`) and the Misskey family (a `Like` carrying `content`/`_misskey_reaction`), outbound as a Misskey-style `Like` that vanilla Mastodon shows as a favourite. Served on every status as `pleroma.emoji_reactions` and `reactions`, with `PUT`/`DELETE /api/v1/pleroma/statuses/:id/reactions/:emoji` (plus glitch-soc `react`/`unreact` aliases)
+- ✅ **Status emoji reactions** — React to any post with a unicode emoji or an instance custom emoji, separately from favouriting it. Chips under each post show each emoji with its count (yours highlighted), and a picker adds your own; the accounts behind a reaction are available from the API rather than the chips. Reactions federate both ways: inbound from Pleroma/Akkoma (`EmojiReact`) and the Misskey family (a `Like` carrying `content`/`_misskey_reaction`), outbound as a Misskey-style `Like` that vanilla Mastodon shows as a favourite. Served on every status as `pleroma.emoji_reactions` and `reactions`, with `PUT`/`DELETE /api/v1/pleroma/statuses/:id/reactions/:emoji` (plus glitch-soc `react`/`unreact` aliases)
 
 ### Storage & Media
 

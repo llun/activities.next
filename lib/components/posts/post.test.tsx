@@ -62,7 +62,10 @@ vi.mock('@/lib/client', () => ({
   getFitnessProcessingState: vi.fn().mockResolvedValue(null),
   getTranslationCapability: vi.fn(),
   getTranslationLanguages: vi.fn(),
-  translateStatus: vi.fn()
+  translateStatus: vi.fn(),
+  reactToStatus: vi.fn(),
+  unreactFromStatus: vi.fn(),
+  getCustomEmojis: vi.fn().mockResolvedValue([])
 }))
 
 const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
@@ -405,6 +408,50 @@ describe('Post', () => {
     expect(
       screen.queryByRole('link', { name: '@hackers.pub' })
     ).not.toBeInTheDocument()
+  })
+
+  it('renders the reaction row above the action row for a signed-in viewer', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentActor={status.actor ?? undefined}
+        currentTime={currentTime}
+        showActions
+        status={{
+          ...status,
+          reactions: [
+            { name: '🔥', count: 2, me: true, url: null, static_url: null }
+          ]
+        }}
+        onShowAttachment={vi.fn()}
+      />
+    )
+
+    expect(screen.getByLabelText('Remove 🔥 reaction')).toHaveTextContent('2')
+    expect(screen.getByLabelText('Add reaction')).toBeInTheDocument()
+  })
+
+  it('renders reaction chips read-only when the post shows no actions', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentActor={status.actor ?? undefined}
+        currentTime={currentTime}
+        showActions={false}
+        status={{
+          ...status,
+          reactions: [
+            { name: '🔥', count: 2, me: false, url: null, static_url: null }
+          ]
+        }}
+        onShowAttachment={vi.fn()}
+      />
+    )
+
+    // The chip is still readable, but nothing on the row can be actioned —
+    // `showActions={false}` withholds the actor from the reaction row too.
+    expect(screen.getByLabelText('🔥 reaction, 2')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Add reaction')).not.toBeInTheDocument()
   })
 
   it('renders the primary action row plus an overflow menu, with owner authoring actions consolidated into the menu', () => {

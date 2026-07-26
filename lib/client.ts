@@ -468,8 +468,39 @@ export const likeStatus = async ({ statusId }: DefaultStatusParams) => {
 }
 
 /**
+ * The outcome of a reaction write. A 4xx that the user cannot retry away (the
+ * per-actor cap, an emoji this instance rejects) carries the server's own
+ * message so the row can say what actually went wrong instead of inviting a
+ * retry that will always fail the same way.
+ */
+export type ReactionUpdateResult =
+  | { ok: true; reactions: MastodonStatusReaction[] }
+  | { ok: false; error?: string }
+
+const toReactionUpdateResult = async (
+  response: Response
+): Promise<ReactionUpdateResult> => {
+  if (!response.ok) {
+    // 4xx is a verdict on the request itself; 5xx and network faults are
+    // transient, and get the caller's generic retry copy.
+    if (response.status >= 400 && response.status < 500) {
+      const body = await response.json().catch(() => null)
+      const error = (body as { error?: unknown } | null)?.error
+      if (typeof error === 'string' && error.length > 0)
+        return { ok: false, error }
+    }
+    return { ok: false }
+  }
+  const status = (await response.json()) as MastodonStatus
+  return {
+    ok: true,
+    reactions: status.pleroma?.emoji_reactions ?? status.reactions ?? []
+  }
+}
+
+/**
  * Adds the current actor's emoji reaction to a status and returns the updated
- * reaction rollups, or null on failure so the caller can revert its optimistic
+ * reaction rollups, or a failure the caller can use to revert its optimistic
  * chip. `name` is a unicode emoji or a local custom-emoji shortcode.
  *
  * Uses the Pleroma/Akkoma dialect, which is the primary reaction surface (the
@@ -480,9 +511,7 @@ export const likeStatus = async ({ statusId }: DefaultStatusParams) => {
 export const reactToStatus = async ({
   statusId,
   name
-}: DefaultStatusParams & { name: string }): Promise<
-  MastodonStatusReaction[] | null
-> => {
+}: DefaultStatusParams & { name: string }): Promise<ReactionUpdateResult> => {
   const response = await fetch(
     `/api/v1/pleroma/statuses/${urlToId(statusId)}/reactions/${encodeURIComponent(name)}`,
     {
@@ -492,21 +521,17 @@ export const reactToStatus = async ({
       }
     }
   )
-  if (!response.ok) return null
-  const status = (await response.json()) as MastodonStatus
-  return status.pleroma?.emoji_reactions ?? status.reactions ?? []
+  return toReactionUpdateResult(response)
 }
 
 /**
  * Removes the current actor's emoji reaction from a status and returns the
- * updated rollups, or null on failure.
+ * updated rollups, or a failure the caller can use to revert.
  */
 export const unreactFromStatus = async ({
   statusId,
   name
-}: DefaultStatusParams & { name: string }): Promise<
-  MastodonStatusReaction[] | null
-> => {
+}: DefaultStatusParams & { name: string }): Promise<ReactionUpdateResult> => {
   const response = await fetch(
     `/api/v1/pleroma/statuses/${urlToId(statusId)}/reactions/${encodeURIComponent(name)}`,
     {
@@ -516,9 +541,7 @@ export const unreactFromStatus = async ({
       }
     }
   )
-  if (!response.ok) return null
-  const status = (await response.json()) as MastodonStatus
-  return status.pleroma?.emoji_reactions ?? status.reactions ?? []
+  return toReactionUpdateResult(response)
 }
 
 export const bookmarkStatus = async ({ statusId }: DefaultStatusParams) => {

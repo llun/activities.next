@@ -72,7 +72,7 @@ describe('ReactionRow', () => {
 
   it('adds a reaction optimistically and reconciles with the server', async () => {
     const served: StatusReaction[] = [{ ...fire, count: 3, me: true }]
-    mockReactToStatus.mockResolvedValue(served)
+    mockReactToStatus.mockResolvedValue({ ok: true, reactions: served })
     const onReactionsChanged = vi.fn()
     const status = statusWith([fire])
 
@@ -99,7 +99,10 @@ describe('ReactionRow', () => {
   })
 
   it('removes the viewer own reaction', async () => {
-    mockUnreactFromStatus.mockResolvedValue([{ ...fire, count: 1, me: false }])
+    mockUnreactFromStatus.mockResolvedValue({
+      ok: true,
+      reactions: [{ ...fire, count: 1, me: false }]
+    })
 
     render(
       <ReactionRow
@@ -114,7 +117,7 @@ describe('ReactionRow', () => {
   })
 
   it('reverts the chip and shows an error when the request fails', async () => {
-    mockReactToStatus.mockResolvedValue(null)
+    mockReactToStatus.mockResolvedValue({ ok: false })
 
     render(
       <ReactionRow currentActor={currentActor} status={statusWith([fire])} />
@@ -126,6 +129,24 @@ describe('ReactionRow', () => {
     )
     // Reverted: back to the un-pressed chip with its original count.
     expect(screen.getByLabelText('Add 🔥 reaction')).toHaveTextContent('2')
+  })
+
+  it('shows the server message instead of a retry prompt when it refuses', async () => {
+    mockReactToStatus.mockResolvedValue({
+      ok: false,
+      error: 'You can only add 8 reactions to a post.'
+    })
+
+    render(
+      <ReactionRow currentActor={currentActor} status={statusWith([fire])} />
+    )
+    fireEvent.click(screen.getByLabelText('Add 🔥 reaction'))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('reaction-error')).toHaveTextContent(
+        'You can only add 8 reactions to a post.'
+      )
+    )
   })
 
   it('renders a custom emoji as an image and a unicode one as text', () => {
@@ -152,11 +173,15 @@ describe('ReactionRow', () => {
     expect(screen.getByLabelText('Add 🔥 reaction')).toHaveTextContent('🔥')
   })
 
-  it('renders read-only chips without an add button for a logged-out reader', () => {
+  it('renders read-only chips for a logged-out reader without any control', () => {
     render(<ReactionRow status={statusWith([fire])} />)
 
-    expect(screen.getByLabelText('Add 🔥 reaction')).toBeDisabled()
-    expect(screen.queryByLabelText('Add reaction')).not.toBeInTheDocument()
+    // Readable, but not a control: a disabled button would drop the count out
+    // of the tab order and grey it out for everyone who cannot react.
+    const chip = screen.getByLabelText('🔥 reaction, 2')
+    expect(chip).toHaveTextContent('2')
+    expect(chip.tagName).toBe('SPAN')
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
   it('renders nothing for a logged-out reader on a post with no reactions', () => {
@@ -166,7 +191,10 @@ describe('ReactionRow', () => {
   })
 
   it('opens the picker and reacts with the chosen emoji', async () => {
-    mockReactToStatus.mockResolvedValue([{ ...fire, count: 1, me: true }])
+    mockReactToStatus.mockResolvedValue({
+      ok: true,
+      reactions: [{ ...fire, count: 1, me: true }]
+    })
 
     render(<ReactionRow currentActor={currentActor} status={statusWith([])} />)
     fireEvent.click(screen.getByLabelText('Add reaction'))
