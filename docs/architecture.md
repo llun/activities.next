@@ -160,10 +160,19 @@ Media files (images and video) and fitness files (.fit, .gpx, .tcx) support mult
 - **S3** — Amazon S3
 - **Object storage** — Any S3-compatible service (MinIO, DigitalOcean Spaces, Cloudflare R2, etc.)
 
-Every stored image — uploaded originals, their thumbnails, avatars, headers,
-custom emojis, and generated fitness route maps — is re-encoded to WebP and
-bounded by a 4000x4000 pixel box. That box is a **cap, not a target**: an image
-already inside it is stored at its own dimensions and is never upscaled.
+Images that the **server** writes — anything through `saveMedia` /
+`saveMediaThumbnail`, which covers avatars, headers, custom emojis, generated
+fitness route maps, and any upload posted to the sync upload endpoint — are
+re-encoded to WebP and bounded by a 4000x4000 pixel box. That box is a **cap,
+not a target**: an image already inside it is stored at its own dimensions and
+is never upscaled.
+
+The **presigned direct-to-S3** path is the exception, and it is what the web
+composer prefers whenever object storage is configured: the browser PUTs
+straight to the bucket, so those bytes are stored exactly as uploaded — original
+format, no re-encode, no server-side dimension cap. The only cap there is the
+browser-side canvas resize in `lib/utils/resizeImage.ts`, which a non-browser
+API client does not run.
 
 Images that predate that rule were enlarged on disk to fill the box. The
 `medias` row was not: `original.metaData` and `original.bytes` are read from the
