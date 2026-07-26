@@ -70,7 +70,18 @@ const JobData = z.object({
       accessToken: z.string()
     })
     .optional(),
-  visibility: Visibility.optional()
+  visibility: Visibility.optional(),
+  // Whether a completed import should email the actor.
+  //
+  // Set by the caller, never hardcoded here. The webhook is only one of this
+  // job's five entry points: retry-all (POST /api/v1/fitness/retry-failed) and
+  // three scripts/fitness recovery tools also drive it, and each of those is a
+  // bulk operation over every failed batch for an actor — exactly the case
+  // where a re-import DOES create a brand-new status. Hardcoding true here
+  // would mail once per recovered activity.
+  //
+  // Defaults to false so a caller is silent until it opts in.
+  notifyOnComplete: z.boolean().optional().default(false)
 })
 
 const MAX_STRAVA_PHOTOS_TO_ATTACH = 4
@@ -365,9 +376,13 @@ const getOrCreateStravaFallbackNote = async ({
 export const importStravaActivityJob = createJobHandle(
   IMPORT_STRAVA_ACTIVITY_JOB_NAME,
   async (database, message) => {
-    const { actorId, stravaActivityId, stravaAuth, visibility } = JobData.parse(
-      message.data
-    )
+    const {
+      actorId,
+      stravaActivityId,
+      stravaAuth,
+      visibility,
+      notifyOnComplete
+    } = JobData.parse(message.data)
 
     const actor = await database.getActorFromId({ id: actorId })
     const fitnessSettings =
@@ -492,6 +507,9 @@ export const importStravaActivityJob = createJobHandle(
           // exportable streams — so it never reaches processFitnessFileJob and
           // has to notify for itself. The email degrades to headline, lead and
           // button: no route map, no stats, because there are none.
+          //
+          // Gated on notifyOnComplete for the same reason as the main path: a
+          // bulk recovery run must not mail once per activity.
           const notification = await createNotificationWithPolicy(database, {
             actorId,
             type: 'activity_import',
@@ -519,15 +537,16 @@ export const importStravaActivityJob = createJobHandle(
                   {
                     type: 'activity_import',
                     notificationId: notification.id,
-                    emailContent: actor.account
-                      ? {
-                          recipientEmail: actor.account.email,
-                          ...buildActivityImportEmail({
-                            recipient: actor,
-                            status: status as EditableStatus
-                          })
-                        }
-                      : undefined
+                    emailContent:
+                      notifyOnComplete && actor.account
+                        ? {
+                            recipientEmail: actor.account.email,
+                            ...buildActivityImportEmail({
+                              recipient: actor,
+                              status: status as EditableStatus
+                            })
+                          }
+                        : undefined
                   }
                 ]
               })
@@ -670,12 +689,9 @@ export const importStravaActivityJob = createJobHandle(
             fitnessFileIds: [targetFitnessFile.id],
             overlapFitnessFileIds,
             visibility: resolvedVisibility,
-            // The only publisher that emails. A webhook delivers one activity
-            // while the user is doing something else, so an email is the point.
-            // Every other caller of this job is a batch — the archive walker,
-            // the multi-file upload, retry-all, the recovery scripts — and each
-            // leaves this false so a bulk import stays silent.
-            notifyOnComplete: true
+            // Forwarded from this job's own caller, so only the webhook — one
+            // activity, arriving while the user is elsewhere — emails.
+            notifyOnComplete
           }
         })
       })

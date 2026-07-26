@@ -184,7 +184,12 @@ export const POST = traceApiRoute(
         data: {
           actorId: fitnessSettings.actorId,
           stravaActivityId,
-          visibility
+          visibility,
+          // The one entry point that emails: a single activity arriving
+          // unattended, which is the whole reason to tell the user. Retry-all
+          // and the scripts/fitness recovery tools drive the same job in bulk
+          // and deliberately leave this off.
+          notifyOnComplete: true
         }
       })
 

@@ -986,6 +986,46 @@ describe('importStravaActivityJob', () => {
     )
   })
 
+  it('does not opt into the import email unless its caller asked for it', async () => {
+    // Retry-all and the scripts/fitness recovery tools drive this same job in
+    // bulk over every failed batch for an actor, and a re-import there DOES
+    // create a brand-new status. Hardcoding the opt-in inside this job would
+    // mail once per recovered activity.
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-no-notify-default',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: { actorId: 'actor-1', stravaActivityId: '123' }
+    })
+
+    expect(mockImportFitnessFilesJob).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        data: expect.objectContaining({ notifyOnComplete: false })
+      })
+    )
+  })
+
+  it('forwards the import email opt-in from the webhook', async () => {
+    // Without this the whole feature can be switched off by deleting one
+    // literal, with every test still green.
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-notify-optin',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123',
+        notifyOnComplete: true
+      }
+    })
+
+    expect(mockImportFitnessFilesJob).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        data: expect.objectContaining({ notifyOnComplete: true })
+      })
+    )
+  })
+
   it('defers the activity_import notification on the normal path', async () => {
     await importStravaActivityJob(database as unknown as Database, {
       id: 'job-notify-normal',
