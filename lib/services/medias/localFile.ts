@@ -14,6 +14,7 @@ import { MAX_HEIGHT, MAX_WIDTH, STORED_IMAGE_RESIZE_OPTIONS } from './constants'
 import { MediaValidationError } from './errors'
 import { extractVideoImage } from './extractVideoImage'
 import { extractVideoMeta } from './extractVideoMeta'
+import { getStoredMediaExtension, sanitizeStoredFileName } from './fileName'
 import { getMediaAttachment } from './getMediaAttachment'
 import {
   DEFAULT_IMAGE_OUTPUT_FORMAT,
@@ -150,9 +151,7 @@ export class LocalFileStorage implements MediaStorage {
     const thumbnail = media.thumbnail
       ? await this._saveImageFile(media.thumbnail, { isThumbnail: true })
       : previewImage
-        ? await this._saveImageBuffer(`video-thumbnail.jpg`, previewImage, {
-            isThumbnail: true
-          })
+        ? await this._saveImageBuffer(previewImage, { isThumbnail: true })
         : null
     const storedMedia = await this._database.createMedia({
       actorId: actor.id,
@@ -164,7 +163,7 @@ export class LocalFileStorage implements MediaStorage {
           width: metaData.width ?? 0,
           height: metaData.height ?? 0
         },
-        fileName: file.name
+        fileName: sanitizeStoredFileName(file.name)
       },
       ...(thumbnail
         ? {
@@ -269,14 +268,15 @@ export class LocalFileStorage implements MediaStorage {
     options: SaveImageOptions = {}
   ) {
     return this._saveImageBuffer(
-      imageFile.name,
       Buffer.from(await imageFile.arrayBuffer()),
       options
     )
   }
 
+  // Images are re-encoded under a generated name, so the supplied file name
+  // plays no part in the stored path — the parameter that used to carry it was
+  // never read here.
   private async _saveImageBuffer(
-    fileName: string,
     imageBuffer: Buffer,
     {
       isThumbnail = false,
@@ -334,9 +334,7 @@ export class LocalFileStorage implements MediaStorage {
       ? { width: videoStream.width, height: videoStream.height }
       : { width: 0, height: 0 }
 
-    const ext = videoFile.name.endsWith('.mov')
-      ? '.mp4'
-      : path.extname(videoFile.name)
+    const ext = getStoredMediaExtension(videoFile.type, videoFile.name)
 
     const randomPrefix = crypto.randomBytes(8).toString('hex')
     const filename = `${randomPrefix}${ext}`

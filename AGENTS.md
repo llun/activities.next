@@ -677,6 +677,14 @@ A full sub-agent review round yields no new actionable comments, or you have run
 - Review `docs/setup.md` and the database setup guides before changing auth, host, or database settings.
 - The full environment-variable catalog lives in `.env.example` (annotated) and `docs/environment-variables.md` — consult both before adding a new `ACTIVITIES_*` variable in `lib/config/`.
 
+### Uploaded file names are untrusted input
+
+- **Never join, `extname`, or persist a supplied file name directly — put it through `@/lib/services/medias/fileName` first.** `File.name` and the presigned flow's `fileName` field are plain client-controlled strings: only a browser multipart upload is guaranteed to send a bare basename, and every non-browser Mastodon client (`POST /api/v1/media`, `POST /api/v2/media`, `POST /api/v1/medias/presigned`) puts whatever it likes there.
+- `sanitizeStoredFileName` reduces a name to one inert path segment (cuts at the last `/` **or** `\`, drops control characters, rejects `.`/`..`, caps it at 200 bytes so it fits both `varchar(255)` and a filesystem name). Use it for anything persisted or handed to another system.
+- `createMediaTempFilePath` is the only sanctioned way to build a temp path from a supplied name. `path.join` resolves `..`, so `join(tmpdir(), randomHex + file.name)` escaped `tmpdir()` outright — both via `../../../../etc/…` and, because the prefix and the name were concatenated with no separator, via `deadbeef../../evil.mp4`. The helper adds the separator and asserts the result's parent is still `tmpdir()`.
+- `getStoredMediaExtension(contentType, fileName)` derives a generated path's extension from the **validated content type**, not the name. A name only has to contain a dot to steer the object key (`clip.mp4/../../evil.html` reduces to `evil.html`, and a 300-character extension produces a key no filesystem accepts). It also fixes the case-sensitive `endsWith('.mov')` check that stored `MOVIE.MOV` as `.MOV`.
+- Covered by `lib/services/medias/fileName.test.ts` plus entry-point regression tests in `S3StorageFile.test.ts` / `localFile.test.ts`.
+
 ## Database Backends & Local Setup
 
 - Supported backends: SQLite (`docs/sqlite-setup.md`) and PostgreSQL (`docs/postgresql-setup.md`). MySQL-compatible Knex configuration paths also exist and should not be broken casually.

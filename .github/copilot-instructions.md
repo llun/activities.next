@@ -19,6 +19,11 @@ Always refer to and follow the guidelines in [AGENTS.md](../AGENTS.md) for all c
 - Always use `apiResponse` and `apiErrorResponse` from `@/lib/utils/response`.
 - **Do NOT** use `Response.json()` directly in API routes.
 
+### Uploaded File Names
+
+- A supplied file name (`File.name`, the presigned upload's `fileName`) is untrusted client input — only browser multipart uploads send a bare basename.
+- Never join it to a path, pass it to `extname`, or persist it raw. Use `sanitizeStoredFileName`, `createMediaTempFilePath`, and `getStoredMediaExtension` from `@/lib/services/medias/fileName`.
+
 ### Workflow
 
 - Use Node.js 24 and `yarn` only — never `npm` commands.

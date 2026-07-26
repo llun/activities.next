@@ -5,6 +5,8 @@ import sharp from 'sharp'
 
 import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
+import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
+import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
 import { Actor } from '@/lib/types/domain/actor'
 
 import { MAX_HEIGHT, MAX_WIDTH } from './constants'
@@ -18,6 +20,14 @@ vi.mock('@/lib/utils/logger', () => ({
     info: vi.fn(),
     debug: vi.fn()
   }
+}))
+
+vi.mock('@/lib/services/medias/extractVideoMeta', () => ({
+  extractVideoMeta: vi.fn()
+}))
+
+vi.mock('@/lib/services/medias/extractVideoImage', () => ({
+  extractVideoImage: vi.fn()
 }))
 
 describe('LocalFileStorage.getFile', () => {
@@ -201,9 +211,7 @@ describe('LocalFileStorage image output format', () => {
   })
 
   it('rejects a rendition that would exceed the account quota', async () => {
-    database.getStorageUsageForAccount.mockResolvedValue(
-      Number.MAX_SAFE_INTEGER
-    )
+    database.getStorageUsageForAccount.mockResolvedValue(Number.MAX_SAFE_INTEGER)
 
     await expect(
       createStorage().saveImageRendition(actor, await createPngFile(), 'jpeg')
@@ -334,3 +342,100 @@ describe('LocalFileStorage.saveFile image sizing', () => {
     })
   })
 })
+
+describe('LocalFileStorage.saveFile with a video', () => {
+  let tempDir: string
+  let mediaRoot: string
+
+  const actor = { id: 'actor-1', account: { id: 'account-1' } } as Actor
+
+  const database = {
+    createMedia: vi.fn(),
+    getActorFromId: vi.fn(),
+    getFitnessStorageUsageForAccount: vi.fn(),
+    getStorageUsageForAccount: vi.fn()
+  } as unknown as jest.Mocked<Database>
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'activities-media-'))
+    mediaRoot = path.join(tempDir, 'media')
+    await fs.mkdir(mediaRoot)
+
+    database.getActorFromId.mockResolvedValue(actor)
+    database.getStorageUsageForAccount.mockResolvedValue(0)
+    database.getFitnessStorageUsageForAccount.mockResolvedValue(0)
+    database.createMedia.mockResolvedValue({
+      id: 'media-1',
+      actorId: 'actor-1',
+      original: {
+        path: 'clip.mp4',
+        bytes: 11,
+        mimeType: 'video/mp4',
+        metaData: { width: 10, height: 10 },
+        fileName: 'clip.mp4'
+      }
+    } as never)
+    vi.mocked(extractVideoMeta).mockResolvedValue({
+      streams: [{ codec_type: 'video', width: 10, height: 10 }],
+      format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2' }
+    })
+    vi.mocked(extractVideoImage).mockResolvedValue(null as unknown as Buffer)
+  })
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true })
+  })
+
+  const createStorage = () =>
+    new LocalFileStorage(
+      {
+        type: MediaStorageType.LocalFile,
+        path: mediaRoot
+      },
+      'llun.test',
+      database
+    )
+
+  it('keeps a traversing file name inside the media root', async () => {
+    const file = new File([Buffer.from('video-bytes')], '../../evil.mp4', {
+      type: 'video/mp4'
+    })
+
+    await createStorage().saveFile(actor, { file })
+
+    const storedPath = vi.mocked(database.createMedia).mock.calls[0][0].original
+      .path
+    expect(storedPath).toMatch(/^[0-9a-f]{16}\.mp4$/)
+    expect(await fs.readdir(mediaRoot)).toEqual([storedPath])
+  })
+
+  it('stores a sanitized original file name', async () => {
+    const file = new File([Buffer.from('video-bytes')], '/etc/cron.d/evil.mp4', {
+      type: 'video/mp4'
+    })
+
+    await createStorage().saveFile(actor, { file })
+
+    expect(database.createMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        original: expect.objectContaining({ fileName: 'evil.mp4' })
+      })
+    )
+  })
+
+  it('derives the stored extension from the content type', async () => {
+    const file = new File([Buffer.from('video-bytes')], 'MOVIE.MOV', {
+      type: 'video/quicktime'
+    })
+
+    await createStorage().saveFile(actor, { file })
+
+    // `endsWith('.mov')` used to miss the uppercase spelling and store the file
+    // as `.MOV`, which local `getFile` then served as `video/quicktime`.
+    const storedPath = vi.mocked(database.createMedia).mock.calls[0][0].original
+      .path
+    expect(storedPath).toMatch(/^[0-9a-f]{16}\.mp4$/)
+  })
+})
+

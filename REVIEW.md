@@ -160,6 +160,19 @@ change doesn't touch.
 - One `<main>` landmark per page: don't render `<main>` in a `page.tsx` when an
   ancestor layout already provides one.
 
+## Uploaded file names
+
+- A supplied file name (`File.name`, the presigned flow's `fileName`) is
+  attacker-controlled: only browser multipart uploads send a bare basename. It
+  must never be joined to a path, passed to `extname`, or persisted raw — it goes
+  through `@/lib/services/medias/fileName` first.
+- Temp paths from a supplied name use `createMediaTempFilePath` (random prefix,
+  explicit separator, parent asserted to be `tmpdir()`), never
+  `join(tmpdir(), prefix + name)` — `path.join` resolves `..`, and a prefix
+  concatenated without a separator does not stop it.
+- A generated path's extension comes from `getStoredMediaExtension(contentType,
+fileName)` — the validated content type — not from the name.
+
 ## Logging
 
 - No `console.*` in committed code (lint-enforced in `app/`/`lib/`). Server-side
