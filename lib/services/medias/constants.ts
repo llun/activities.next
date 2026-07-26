@@ -19,7 +19,7 @@ export const MAX_HEIGHT = 4000
 // 800x600 route map (39 KB PNG) was stored as a 4000x3000 WebP of 271 KB, a
 // size no surface ever displays. Matches `lib/utils/resizeImage.ts`, which the
 // browser upload path already applies as a downscale-only cap.
-export const IMAGE_RESIZE_OPTIONS = {
+export const STORED_IMAGE_RESIZE_OPTIONS = {
   fit: 'inside',
   withoutEnlargement: true
 } as const

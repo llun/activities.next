@@ -221,6 +221,18 @@ change doesn't touch.
   is separately `vi.mock`'d. (Some review bots wrongly flag `vi.importMock` as
   non-existent — it is a valid, documented Vitest API.)
 
+## Stored media
+
+- Stored-image resizes go through `STORED_IMAGE_RESIZE_OPTIONS`
+  (`lib/services/medias/constants.ts`), never an inline `{ fit: 'inside' }`.
+  sharp's `fit: 'inside'` **enlarges** by default, so a bare
+  `MAX_WIDTH`/`MAX_HEIGHT` box is an upscale, not a cap — it inflates every
+  stored image below the cap, silently, with no error and no test failure.
+- `original.metaData`/`original.bytes` describe the **uploaded** file, while
+  `thumbnail.*` describes the **stored** WebP (`outputInfo`). Know which one a
+  change reads: only the latter moves when the encode pipeline changes, and only
+  the latter feeds `meta.small`.
+
 ## Docs hygiene
 
 - `docs/` is durable, general-purpose reference only. No implementation plans,

@@ -268,39 +268,69 @@ describe('LocalFileStorage.saveFile image sizing', () => {
     })
   }
 
-  const readStoredImage = async () => {
+  // Thumbnails are written alongside the original as `<prefix>-thumbnail.webp`,
+  // so each helper has to pick out the file it means.
+  const readStored = async (kind: 'original' | 'thumbnail') => {
     const files = await fs.readdir(mediaRoot)
-    expect(files).toHaveLength(1)
-    return sharp(await fs.readFile(path.join(mediaRoot, files[0]))).metadata()
+    const match = files.find(
+      (file) => file.endsWith('-thumbnail.webp') === (kind === 'thumbnail')
+    )
+    if (!match) throw new Error(`No stored ${kind} in [${files.join(', ')}]`)
+    return sharp(await fs.readFile(path.join(mediaRoot, match))).metadata()
   }
 
-  // Regression: `fit: 'inside'` enlarges by default, so every image below the
-  // 4000x4000 cap was upscaled to fill it — an 800x600 route map was stored as
-  // a 4000x3000 WebP roughly 7x the source's bytes, and no surface ever
-  // displayed it at that size.
-  it('stores an image below the cap at its original dimensions', async () => {
-    const attachment = await createStorage().saveFile(actor, {
-      file: await createPngFile(800, 600)
+  const readStoredImage = () => readStored('original')
+
+  // Regression: `fit: 'inside'` enlarges by default, so the MAX_WIDTH/MAX_HEIGHT
+  // box was an upscale rather than a cap — an 800x600 route map was stored as a
+  // 4000x3000 WebP, at a size no surface ever displays. Asserting on the bytes
+  // actually written is what catches it: `original.metaData` is read from the
+  // INPUT image, so it reported 800x600 either way.
+  it.each([
+    {
+      description: 'stores an image below the cap at its own dimensions',
+      source: { width: 800, height: 600 },
+      stored: { width: 800, height: 600 }
+    },
+    {
+      description: 'scales an image above the cap down to fit',
+      source: { width: MAX_WIDTH + 200, height: (MAX_HEIGHT + 200) / 2 },
+      stored: { width: MAX_WIDTH, height: MAX_HEIGHT / 2 }
+    }
+  ])('$description', async ({ source, stored }) => {
+    await createStorage().saveFile(actor, {
+      file: await createPngFile(source.width, source.height)
     })
 
-    await expect(readStoredImage()).resolves.toMatchObject({
-      width: 800,
-      height: 600
-    })
-    expect(attachment?.meta.original).toMatchObject({
+    await expect(readStoredImage()).resolves.toMatchObject(stored)
+  })
+
+  // The thumbnail path is where the upscale reached the database: unlike the
+  // original, `thumbnail.metaData`/`bytes` come from `outputInfo` — the stored
+  // WebP — so an upscaled thumbnail was reported as 4000x3000 in the Mastodon
+  // attachment's `meta.small` and charged to the account's storage quota.
+  it('records the thumbnail dimensions actually stored', async () => {
+    const thumbnail = await createStorage().saveThumbnail(
+      actor,
+      await createPngFile(800, 600)
+    )
+
+    expect(thumbnail?.metaData).toEqual({ width: 800, height: 600 })
+    await expect(readStored('thumbnail')).resolves.toMatchObject({
       width: 800,
       height: 600
     })
   })
 
-  it('scales an image above the cap down to fit', async () => {
-    await createStorage().saveFile(actor, {
-      file: await createPngFile(MAX_WIDTH + 200, (MAX_HEIGHT + 200) / 2)
+  it('reports the stored thumbnail as meta.small on the attachment', async () => {
+    const attachment = await createStorage().saveFile(actor, {
+      file: await createPngFile(800, 600),
+      thumbnail: await createPngFile(400, 300)
     })
 
-    await expect(readStoredImage()).resolves.toMatchObject({
-      width: MAX_WIDTH,
-      height: MAX_HEIGHT / 2
+    expect(attachment?.meta.small).toMatchObject({
+      width: 400,
+      height: 300
     })
   })
 })

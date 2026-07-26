@@ -17,9 +17,9 @@ import sharp from 'sharp'
 import { MediaStorageS3Config } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
 import {
-  IMAGE_RESIZE_OPTIONS,
   MAX_HEIGHT,
-  MAX_WIDTH
+  MAX_WIDTH,
+  STORED_IMAGE_RESIZE_OPTIONS
 } from '@/lib/services/medias/constants'
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
@@ -583,7 +583,7 @@ export class S3FileStorage implements MediaStorage {
 
     const resizedImage = encodeImageOutput(
       sharp(buffer)
-        .resize(MAX_WIDTH, MAX_HEIGHT, IMAGE_RESIZE_OPTIONS)
+        .resize(MAX_WIDTH, MAX_HEIGHT, STORED_IMAGE_RESIZE_OPTIONS)
         .rotate(),
       imageFormat
     )

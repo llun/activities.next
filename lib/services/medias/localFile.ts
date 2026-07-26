@@ -10,7 +10,7 @@ import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 
-import { IMAGE_RESIZE_OPTIONS, MAX_HEIGHT, MAX_WIDTH } from './constants'
+import { MAX_HEIGHT, MAX_WIDTH, STORED_IMAGE_RESIZE_OPTIONS } from './constants'
 import { MediaValidationError } from './errors'
 import { extractVideoImage } from './extractVideoImage'
 import { extractVideoMeta } from './extractVideoMeta'
@@ -291,7 +291,7 @@ export class LocalFileStorage implements MediaStorage {
     const filePath = path.resolve(process.cwd(), uploadPath, filename)
     const resizedImage = encodeImageOutput(
       sharp(imageBuffer)
-        .resize(MAX_WIDTH, MAX_HEIGHT, IMAGE_RESIZE_OPTIONS)
+        .resize(MAX_WIDTH, MAX_HEIGHT, STORED_IMAGE_RESIZE_OPTIONS)
         .rotate(),
       format
     )

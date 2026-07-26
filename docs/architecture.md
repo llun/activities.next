@@ -160,14 +160,22 @@ Media files (images and video) and fitness files (.fit, .gpx, .tcx) support mult
 - **S3** — Amazon S3
 - **Object storage** — Any S3-compatible service (MinIO, DigitalOcean Spaces, Cloudflare R2, etc.)
 
-Uploaded images (originals, thumbnails, and generated fitness route maps) are
-re-encoded to WebP and bounded by a 4000x4000 pixel box. That box is a **cap,
-not a target**: an image already inside it is stored at its own dimensions and
-is never upscaled. Images stored before this became true were enlarged to fill
-the box, so older rows can be several times larger than their source and carry
-dimensions the source never had. They are still served correctly and are left
-as-is — nothing re-encodes them — so an instance's media directory may hold a
-mix of both until those attachments are deleted.
+Every stored image — uploaded originals, their thumbnails, avatars, headers,
+custom emojis, and generated fitness route maps — is re-encoded to WebP and
+bounded by a 4000x4000 pixel box. That box is a **cap, not a target**: an image
+already inside it is stored at its own dimensions and is never upscaled.
+
+Images that predate that rule were enlarged on disk to fill the box. The
+`medias` row was not: `original.metaData` and `original.bytes` are read from the
+uploaded file, so they always described the source. An affected attachment
+therefore **serves a file several times larger than the dimensions and byte
+count it advertises**, and per-account storage usage under-counts it — a query
+for oversized rows will not find these. Only thumbnails recorded the enlarged
+numbers (`thumbnail.metaData`/`thumbnail.bytes`, surfaced as `meta.small`), so
+those over-counted usage instead.
+
+Nothing re-encodes existing media, so an instance's storage keeps both shapes
+until the affected attachments are deleted.
 
 ## Database Schema (Simplified)
 
