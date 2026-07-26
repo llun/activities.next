@@ -1,0 +1,46 @@
+lib/jobs/replyByEmailJob.ts
+  s_2f8f98bd1d8b55::t_2070b8def81383 138-144
+  s_2f8f98bd1d8b55::t_1c11bd849151ae 101-102,104-108,110-116,123-127,177-183
+  s_2f8f98bd1d8b55::t_0f7583d21fecd9 17,80-84,88-89
+  s_2f8f98bd1d8b55::t_6354ae13e19b90 117-122
+lib/services/email/templates/emailDesign.test.ts
+  s_2f8f98bd1d8b55::t_3f88683a555716 13,68-77
+REVIEW.md
+  s_2f8f98bd1d8b55::t_db04616b3f095b 172
+lib/database/sql/actor.ts
+  s_2f8f98bd1d8b55::t_1ddf2a1c257c0d 1696-1701
+lib/services/email/templates/replyByEmailFailure.ts
+  s_2f8f98bd1d8b55::t_2e906dd1780819 2-4,8-14,38-46,49-50,53,55,59-76
+scripts/mock/renderEmailPreviews.ts
+  s_2f8f98bd1d8b55::t_1bf9860e4ac132 123,128
+  s_2f8f98bd1d8b55::t_3f88683a555716 122,125-127,129-130
+  s_2f8f98bd1d8b55::t_f4cbd88a5f71f5 124
+  s_2f8f98bd1d8b55::t_48c85358081a0a 43
+lib/services/email/layout/renderEmail.test.ts
+  s_2f8f98bd1d8b55::t_48e810a9670197 62-64,68
+lib/jobs/replyByEmailJob.test.ts
+  s_2f8f98bd1d8b55::t_2070b8def81383 565-601
+lib/services/email/extractReplyText.ts
+  s_2f8f98bd1d8b55::t_2e6dba543d7413 91,93-100,102-103
+  s_2f8f98bd1d8b55::t_1ddf2a1c257c0d 90,92,101,104,293
+AGENTS.md
+  s_2f8f98bd1d8b55::t_db04616b3f095b 272
+docs/features.md
+  s_2f8f98bd1d8b55::t_1ddf2a1c257c0d 114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "892112f7cde3e84073e024f6a49a4233db1cd02d",
+  "prompts": {},
+  "sessions": {
+    "s_2f8f98bd1d8b55": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fe73386a-874f-4632-8456-f9a69e911a24",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
