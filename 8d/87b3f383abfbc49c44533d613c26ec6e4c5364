@@ -1,0 +1,226 @@
+app/api/v1/accounts/email/route.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 6,77-80,84-85
+lib/services/email/templates/statusBody.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-90
+lib/types/mastodon/status/base.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 10,195-207
+lib/services/email/layout/blocks.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-231
+lib/activities/jsonld/index.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 3,10,201-334,573-597,629,673-676,680-692,718
+app/api/v1/accounts/email/route.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 165-191
+lib/database/sql/status.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 2172-2180
+lib/types/database/operations.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 147,159,2870-2945,3254-3256,3277-3279,3294-3295
+lib/database/sql/actor.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1612-1707
+lib/services/email/templates/follow.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-35,38-59,62-65,67
+app/(timeline)/notifications/notificationConfig.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 11,101-105
+  s_2f8f98bd1d8b55::t_7a1537c156a4d6 106-107
+lib/services/timelines/mentionNotification.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 5-6,122-124,193-195
+  s_2f8f98bd1d8b55::t_1d52cdd0ae5123 125-127,196-198
+app/(timeline)/notifications/NotificationItem.tsx
+  s_2f8f98bd1d8b55::t_e79702ffa31391 99-105
+lib/actions/acceptFollowRequest.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 4,79
+lib/services/email/layout/renderEmail.ts
+  s_2f8f98bd1d8b55::t_70af61ac9d5f54 37-47,127-128,152-155,183
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-36,48-126,129-151,156-182,184-189
+lib/services/mastodon/getMastodonStatus.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 7,58-59,67-70,401-433,508-511,566-568,593-597,790-791,835-842,844-858,929
+scripts/mock/renderEmailPreviews.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-275
+app/api/users/[username]/inbox/route.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 11-15,35,92,312-320,322-329,400-416,419-431
+lib/services/notifications/notificationTypeMapping.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 43-46,75-76,108-109
+lib/services/email/templates/statusUrl.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-66
+lib/services/email/layout/actorDisplay.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-69
+lib/types/activitypub/activities.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 4,86,88-96,99-100,105-113,118-123,144-147,152
+lib/database/sql/status.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 3561-3588
+lib/database/sql/index.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 46,75,164
+lib/database/sql/statusReaction.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-205
+AGENTS.md
+  s_2f8f98bd1d8b55::t_e79702ffa31391 154-155,267-326
+  s_2f8f98bd1d8b55::t_5b90926907fa87 327
+lib/jobs/deleteActorJob.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 6-7,160-168,172-173
+lib/services/email/layout/blocks.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-239
+lib/services/email/templates/statusBody.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-57
+lib/services/notifications/notificationTypeMapping.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 32-37,50-54
+  s_2f8f98bd1d8b55::t_3b7defc0e64621 55
+lib/services/email/templates/reblog.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 4,6-7,9-38,40,47-58,60-64,67-68,71-72
+lib/services/email/templates/actorDeleted.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 2-5,7-13,15-25,27-53
+lib/services/email/templates/statusUrl.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-30
+lib/services/email/types.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 23-35
+lib/services/email/layout/renderEmail.test.ts
+  s_2f8f98bd1d8b55::t_09a5327aeb76c6 1-3,22-52,56,73-74
+  s_2f8f98bd1d8b55::t_e79702ffa31391 4-21,75-261
+  s_2f8f98bd1d8b55::t_eb62a9b121db70 53-55,57-72
+lib/services/email/layout/theme.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-55
+lib/jobs/emojiReactionJob.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-122
+lib/services/notifications/sendNotificationAlerts.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 4,13-18
+  s_2f8f98bd1d8b55::t_524c64d684c0dd 21-23
+docs/features.md
+  s_2f8f98bd1d8b55::t_e79702ffa31391 43,50
+  s_2f8f98bd1d8b55::t_89268052ada08d 51
+lib/services/email/templates/reply.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 2-12,14,18-27,35-38,41-42,44-60
+  s_2f8f98bd1d8b55::t_0894c7c388d344 28-31,39-40,43
+migrations/20260726000000_add_status_reactions.js
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-38
+migrations/schema.sql
+  s_2f8f98bd1d8b55::t_e79702ffa31391 678-679,987-995,1467-1469,1702-1704
+  s_2f8f98bd1d8b55::t_406d7c943af81e 1705
+app/api/users/[username]/inbox/route.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 16-18,142,145-159,215-217,586-688
+  s_2f8f98bd1d8b55::t_249ec0de14d400 689-690
+app/api/v1/accounts/password/reset/request/route.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 9,109-112,116-117
+lib/actions/createNote.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 10-11,708-710,758-760
+  s_2f8f98bd1d8b55::t_1d52cdd0ae5123 711-713,761-763
+lib/services/email/templates/followRequest.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-39,42-45,48-49
+lib/services/email/templates/like.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 4,6-7,9-38,40,47-49,51-56,59-88,91-96,98
+lib/services/email/templates/verifyEmail.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-45
+app/api/v1/accounts/password/reset/request/route.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 21-26,28,91-106
+  s_2f8f98bd1d8b55::t_5befd216309911 107-108
+lib/database/sql/statusReaction.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-435
+app/api/inbox/getJobMessage.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 3,289-352
+  s_2f8f98bd1d8b55::t_e5efdf70bbe161 353
+lib/actions/createFollower.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 5-6,84-87,130-133
+lib/services/email/templates/emailDesign.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-379
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 583-739
+lib/services/email/templates/mention.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 4,6-7,9-38,40,47-49,51-57,59-60,62-64,67-69,71-75,77-79,81-82
+lib/database/sql/notification.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 25-26,52,64
+lib/types/mastodon/statusReaction.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-33
+package.json
+  s_2f8f98bd1d8b55::t_e79702ffa31391 3
+lib/services/notifications/getMastodonNotification.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 82-88,111-144
+  s_2f8f98bd1d8b55::t_d040a4f879f91e 145-146
+lib/services/notifications/getMastodonNotification.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 30-31,45-47,82-83,170-174
+lib/services/accounts/sendConfirmationEmail.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1,3,21-24,29-30
+lib/services/email/templates/mention.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 2-7,9,13-21,29-32,35-36,38-53
+  s_2f8f98bd1d8b55::t_0894c7c388d344 22-25,33-34,37
+lib/database/types.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 48,98
+lib/services/email/templates/reblog.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 2-13,17-18,20-25,28-61
+lib/services/email/templates/resetPassword.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-41
+lib/types/mastodon/index.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 24
+migrations/schema.sqlite.sql
+  s_2f8f98bd1d8b55::t_4194b8d008bf39 249-251
+  s_2f8f98bd1d8b55::t_e79702ffa31391 41
+app/api/inbox/getJobMessage.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 10,21-22,92-105,251-265
+  s_2f8f98bd1d8b55::t_5df7a294d568f0 266-269
+docs/mastodon-api-compatibility.md
+  s_2f8f98bd1d8b55::t_e79702ffa31391 32-39,235-258
+lib/services/statuses/reactionLimits.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-28
+lib/activities/jsonld/index.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 37,75-92,101,123,136-140,179-183,350-352
+lib/services/email/templates/reply.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 4,6-7,9-38,40,47-49,51-57,59-60,62-64,67-71,73-75,77-78
+lib/services/email/templates/changeEmail.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-34
+lib/jobs/emojiReactionJob.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-55
+lib/actions/like.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 3,64-68
+lib/services/email/templates/changeEmail.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-42
+lib/services/email/templates/followRequest.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-14,16-21,23-28,30-51
+lib/jobs/deleteActorJob.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 15-19,26-27,81-95
+lib/services/email/templates/follow.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 2-9,11,13-18,20-44
+lib/actions/acceptFollowRequest.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 6,91,93,105-107
+lib/services/email/templates/like.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 2-13,17-18,20-25,28-53
+lib/jobs/index.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 10,25,110
+  s_2f8f98bd1d8b55::t_299104b632e369 109
+lib/services/email/templates/resetPassword.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-44
+lib/services/email/templates/verifyEmail.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-49
+lib/types/database/rows.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 53,67
+lib/jobs/names.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 35
+REVIEW.md
+  s_2f8f98bd1d8b55::t_e79702ffa31391 170-200
+lib/actions/emojiReaction.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-493
+lib/services/email/layout/actorDisplay.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-161
+lib/services/email/templates/actorDeleted.test.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-74
+lib/database/sql/actor.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1534-1539,1686-1688
+  s_2f8f98bd1d8b55::t_1fb933d9ddb298 1689
+docs/maintenance.md
+  s_2f8f98bd1d8b55::t_e79702ffa31391 128-173
+lib/actions/emojiReaction.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 1-276
+lib/actions/announce.ts
+  s_2f8f98bd1d8b55::t_e79702ffa31391 5,126-130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "8d87b3f383abfbc49c44533d613c26ec6e4c5364",
+  "prompts": {},
+  "sessions": {
+    "s_2f8f98bd1d8b55": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fe73386a-874f-4632-8456-f9a69e911a24",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
