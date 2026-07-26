@@ -46,3 +46,12 @@ export const getStatusBody = (status: EditableStatus): SanitizedBody => {
   const html = absolutizeLinks(sanitizeText(rendered))
   return { html, text: htmlToPlainText(html) }
 }
+
+// Deliberately stops where the web pipeline continues: processStatusTextContent
+// also runs convertEmojisToImages and sanitizeTrustedStatusText. Custom emoji
+// therefore stay as literal `:shortcode:` text in an email rather than becoming
+// <img> tags — which is the better degradation, since mail clients block remote
+// images by default and a row of broken-image icons reads worse than the
+// shortcode. Everything else the renderer emits survives unchanged: hashtag and
+// mention links keep their class/rel, headings and images are dropped to text
+// exactly as they are on the web, because both paths share sanitizeText.
