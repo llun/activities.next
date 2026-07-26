@@ -1,0 +1,68 @@
+scripts/maintenance/cleanupMediaStorage.ts
+  s_f00bc373d2ba59::t_06f1c72250a7c3 30,37-38,44-45,49-56,59-60
+  s_f00bc373d2ba59::t_7bb04f860c8967 31-36,39-43
+  s_f00bc373d2ba59::t_885ff9c330828b 57-58
+AGENTS.md
+  s_f00bc373d2ba59::t_c934ca105d9035 313-329
+lib/jobs/processFitnessFileJob.ts
+  s_f00bc373d2ba59::t_ea81babeb27938 23
+  s_f00bc373d2ba59::t_2f68bed0665f1e 3,8,127-149,208,335-346,432-441
+  s_f00bc373d2ba59::t_f2aa32d01dbc4a 126
+lib/services/medias/localFile.ts
+  s_f00bc373d2ba59::t_85464e99fe4c5f 237-240
+docs/fitness-file-storage.md
+  s_f00bc373d2ba59::t_58c4c6b91628c2 107
+  s_f00bc373d2ba59::t_817d3100b4efb0 55
+lib/services/fitness-files/index.ts
+  s_f00bc373d2ba59::t_b19dd4253f7901 13,162-166,180-184
+lib/jobs/regenerateFitnessMapsJob.test.ts
+  s_f00bc373d2ba59::t_8ac6813d7126d6 358-408
+  s_f00bc373d2ba59::t_0625d97e097c24 202,239,242-243,248-249,310,328-333,441-447
+  s_f00bc373d2ba59::t_b349817cc9e162 448
+docs/features.md
+  s_f00bc373d2ba59::t_58c4c6b91628c2 60
+lib/services/medias/S3StorageFile.ts
+  s_f00bc373d2ba59::t_85464e99fe4c5f 524-527
+lib/services/fitness-files/emailMapImage.ts
+  s_f00bc373d2ba59::t_4c9ca6938ea1ed 1-40
+lib/jobs/regenerateFitnessMapsJob.ts
+  s_f00bc373d2ba59::t_b19dd4253f7901 9,201,291-294
+lib/services/fitness-files/index.test.ts
+  s_f00bc373d2ba59::t_f696ebe9611797 1-120
+lib/services/medias/types.ts
+  s_f00bc373d2ba59::t_85464e99fe4c5f 188-193
+docs/environment-variables.md
+  s_f00bc373d2ba59::t_58c4c6b91628c2 248,273
+lib/jobs/importFitnessFilesJob.ts
+  s_f00bc373d2ba59::t_c9dc99805ed149 341-349,359
+  s_f00bc373d2ba59::t_ea81babeb27938 12
+docs/maintenance.md
+  s_f00bc373d2ba59::t_cae7c6848061a7 13,18
+  s_f00bc373d2ba59::t_edb23c224a4009 19
+lib/jobs/processFitnessFileJob.test.ts
+  s_f00bc373d2ba59::t_96e8d3765fb6b0 1,659-736
+  s_f00bc373d2ba59::t_e1a49b8e12ebe1 13-17,51-52,73-75,180
+  s_f00bc373d2ba59::t_ad2e5890e69d5e 181,737
+lib/services/medias/imageOutputFormat.test.ts
+  s_f00bc373d2ba59::t_ef47e119ad545d 63-85
+lib/services/medias/mediaFileUrl.test.ts
+  s_f00bc373d2ba59::t_ef47e119ad545d 22-33
+REVIEW.md
+  s_f00bc373d2ba59::t_ae271cf89f5765 196-204
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "b2130b70813266c25a1622c578de3cf335d90503",
+  "prompts": {},
+  "sessions": {
+    "s_f00bc373d2ba59": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9fe2341a-719d-453d-8ad9-22b4f91dd55c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
