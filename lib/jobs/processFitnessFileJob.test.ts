@@ -735,6 +735,43 @@ describe('processFitnessFileJob', () => {
       expect(updatedFitnessFile?.mapImageEmailPath).toBeUndefined()
     })
 
+    it('stores no jpeg copy when the owner turned import emails off', async () => {
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+      arrangeRouteWithMap()
+
+      await database.updateActor({
+        actorId: actor.id,
+        emailNotifications: { activity_import: false }
+      })
+
+      try {
+        await processFitnessFileJob(database, {
+          id: 'job-notify-email-off',
+          name: PROCESS_FITNESS_FILE_JOB_NAME,
+          data: {
+            actorId: actor.id,
+            statusId,
+            fitnessFileId,
+            notifyOnComplete: true
+          }
+        })
+      } finally {
+        await database.updateActor({
+          actorId: actor.id,
+          emailNotifications: { activity_import: true }
+        })
+      }
+
+      expect(mockSaveMediaImageRendition).not.toHaveBeenCalled()
+      const updatedFitnessFile = await database.getFitnessFile({
+        id: fitnessFileId
+      })
+      expect(updatedFitnessFile?.mapImagePath).toBe('medias/route-map.webp')
+      expect(updatedFitnessFile?.mapImageEmailPath).toBeUndefined()
+    })
+
     it('stores no jpeg copy when no email is going out', async () => {
       const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
         text: 'Morning run'

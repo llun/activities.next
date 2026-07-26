@@ -359,8 +359,10 @@ describe('regenerateFitnessMapsJob', () => {
     const { statusId, fitnessFileId, oldMediaId, oldEmailMapPath } =
       await setupStatusWithOldMap()
 
-    // A privacy location that swallows the whole route leaves nothing to draw,
-    // so the map is removed rather than regenerated.
+    // Nothing left to draw — the same end state a privacy location that
+    // swallows the whole route produces — so the map is removed, not
+    // regenerated. Stubbed at the parse boundary rather than through settings so
+    // the branch is reached directly.
     mockParseFitnessFile.mockResolvedValueOnce({
       coordinates: [],
       trackPoints: [],

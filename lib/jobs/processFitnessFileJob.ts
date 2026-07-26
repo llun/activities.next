@@ -144,7 +144,28 @@ const willSendImportEmail = async ({
   if (!notifyOnComplete) return false
   if (!getConfig().email) return false
   if (!actor.account) return false
-  return shouldSendEmailForNotification(database, actor.id, 'activity_import')
+
+  try {
+    return await shouldSendEmailForNotification(
+      database,
+      actor.id,
+      'activity_import'
+    )
+  } catch (error) {
+    // Never let a settings read decide the fate of the map. This runs inside the
+    // map-generation try/catch, so a throw here would be logged as a map failure
+    // and would skip the assignment entirely — leaving the email with no image
+    // at all, not even the WebP fallback. Fail towards having the copy: the cost
+    // of a wrong guess is one small unused file, versus an Outlook recipient
+    // losing their route.
+    logger.warn({
+      message:
+        'Could not read email notification settings; storing the route map copy anyway',
+      actorId: actor.id,
+      error: toImportErrorMessage(error, 'Unknown settings read error')
+    })
+    return true
+  }
 }
 
 /**

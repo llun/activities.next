@@ -8,6 +8,7 @@ import {
   annotateMastodonStatusesWithFilters,
   getActiveFilters
 } from '@/lib/services/filters/applyFilters'
+import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
 import {
   OAuthGuardAnyScope,
   OptionalOAuthGuard
@@ -582,6 +583,21 @@ export const DELETE = traceApiRoute(
             ]
           : []
 
+      // The route map's JPEG copy for the import email has no `medias` row, so
+      // it is not in `status.attachments` and the media-manager flow below
+      // cannot reach it. Capture it while the fitness files are still linked to
+      // this status — deleting the status only nulls their `statusId`. Without
+      // this, delete_media removes the WebP the post showed while the copy of
+      // the same map stays fetchable at its unchanged URL.
+      const emailMapImagesToDelete = shouldDeleteMedia
+        ? (await database.getFitnessFilesByStatus({ statusId }))
+            .filter((fitnessFile) => Boolean(fitnessFile.mapImageEmailPath))
+            .map((fitnessFile) => ({
+              fitnessFileId: fitnessFile.id,
+              mapImageEmailPath: fitnessFile.mapImageEmailPath
+            }))
+        : []
+
       // Get the status for return before deletion
       const mastodonStatus = await getMastodonStatus(
         database,
@@ -628,6 +644,16 @@ export const DELETE = traceApiRoute(
             }
           })
         }
+      }
+
+      for (const emailMapImage of emailMapImagesToDelete) {
+        await deleteEmailMapImage({ database, ...emailMapImage })
+        // Drop the reference too: a row pointing at a deleted object makes
+        // productionArchive abort under its default --storage-scope referenced.
+        await database.updateFitnessFileActivityData(
+          emailMapImage.fitnessFileId,
+          { mapImageEmailPath: null }
+        )
       }
 
       return apiResponse({

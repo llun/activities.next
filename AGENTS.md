@@ -320,8 +320,10 @@ it; there is no legacy shape left to copy.
   storage configured, over quota, a failed encode — not merely for rows written
   before the column existed. A stored file with no `medias` row is invisible to
   every generic media path, so whoever writes one owns its whole lifecycle:
-  delete it wherever the reference is dropped (`deleteEmailMapImage` covers
-  import, reprocess, map regeneration and activity deletion), teach
+  delete it wherever the reference is dropped — `deleteEmailMapImage` is the one
+  helper for that, and every site that drops a reference must call it (activity
+  delete, `delete_media` status delete, reprocess, re-import, map regeneration,
+  the Strava repair script) — teach
   `scripts/maintenance/cleanupMediaStorage.ts` that it is referenced, and add it
   to `scripts/backup/productionArchive.ts`. An on-demand transcode off
   `/api/v1/files/:path` is **not** an option: with object storage behind a public

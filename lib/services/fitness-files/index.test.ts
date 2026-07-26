@@ -4,6 +4,7 @@ import { Database } from '@/lib/database/types'
 import { deleteMediaFile } from '@/lib/services/medias'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 
+import { S3FitnessStorage } from './S3StorageFile'
 import { deleteFitnessFile } from './index'
 import { LocalFileFitnessStorage } from './localFile'
 
@@ -35,7 +36,8 @@ describe('deleteFitnessFile', () => {
 
   const database = {
     getFitnessFile: vi.fn(),
-    deleteFitnessFile: vi.fn()
+    deleteFitnessFile: vi.fn(),
+    updateFitnessFileActivityData: vi.fn()
   } as unknown as jest.Mocked<Database>
 
   const fitnessFile = {
@@ -52,42 +54,86 @@ describe('deleteFitnessFile', () => {
     updatedAt: 1
   } as FitnessFile
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-
-    mockGetConfig.mockReturnValue({
-      host: 'llun.test',
+  // Both storage branches run the same cleanup, so both are exercised rather
+  // than trusting the local one to stand in for object storage.
+  const storageBackends = [
+    {
+      description: 'local file storage',
       fitnessStorage: {
         type: FitnessStorageType.LocalFile,
         path: '/tmp/fitness'
-      }
+      },
+      storageClass: LocalFileFitnessStorage
+    },
+    {
+      description: 'object storage',
+      fitnessStorage: {
+        type: FitnessStorageType.ObjectStorage,
+        bucket: 'bucket',
+        region: 'us-east-1',
+        prefix: 'fitness/'
+      },
+      storageClass: S3FitnessStorage
+    }
+  ]
+
+  const arrangeStorage = (backend: (typeof storageBackends)[number]) => {
+    mockGetConfig.mockReturnValue({
+      host: 'llun.test',
+      fitnessStorage: backend.fitnessStorage
     } as unknown as ReturnType<typeof getConfig>)
 
-    vi.spyOn(LocalFileFitnessStorage, 'getStorage').mockReturnValue({
+    vi.spyOn(
+      backend.storageClass as unknown as {
+        getStorage: (...args: unknown[]) => unknown
+      },
+      'getStorage'
+    ).mockReturnValue({
       deleteFile: storageDeleteFile
-    } as unknown as ReturnType<typeof LocalFileFitnessStorage.getStorage>)
+    })
+  }
 
+  beforeEach(() => {
+    vi.clearAllMocks()
     storageDeleteFile.mockResolvedValue(true)
     mockDeleteMediaFile.mockResolvedValue(true)
     database.deleteFitnessFile.mockResolvedValue(true)
+    database.updateFitnessFileActivityData.mockResolvedValue(true)
+    arrangeStorage(storageBackends[0])
   })
 
-  it('deletes the route map email copy along with the activity', async () => {
-    const deleted = await deleteFitnessFile(database, 'fitness-1', fitnessFile)
+  it.each(storageBackends)(
+    'deletes the route map email copy along with the activity on $description',
+    async (backend) => {
+      arrangeStorage(backend)
 
-    expect(deleted).toBe(true)
-    expect(storageDeleteFile).toHaveBeenCalledWith('fitness/morning-run.fit')
-    expect(database.deleteFitnessFile).toHaveBeenCalledWith({
-      id: 'fitness-1'
-    })
-    // The copy has no `medias` row, so no generic media-cleanup path can find
-    // it — deleting the activity has to delete it explicitly, or the route
-    // stays fetchable at its old URL.
-    expect(mockDeleteMediaFile).toHaveBeenCalledWith(
-      database,
-      'medias/2026-07-26/route-map.jpg'
-    )
-  })
+      const deleted = await deleteFitnessFile(
+        database,
+        'fitness-1',
+        fitnessFile
+      )
+
+      expect(deleted).toBe(true)
+      expect(storageDeleteFile).toHaveBeenCalledWith('fitness/morning-run.fit')
+      expect(database.deleteFitnessFile).toHaveBeenCalledWith({
+        id: 'fitness-1'
+      })
+      // The copy has no `medias` row, so no generic media-cleanup path can find
+      // it — deleting the activity has to delete it explicitly, or the route
+      // stays fetchable at its old URL.
+      expect(mockDeleteMediaFile).toHaveBeenCalledWith(
+        database,
+        'medias/2026-07-26/route-map.jpg'
+      )
+      // The row is only soft-deleted, so the reference has to go too: a row
+      // pointing at a deleted object makes productionArchive abort under its
+      // default referenced scope.
+      expect(database.updateFitnessFileActivityData).toHaveBeenCalledWith(
+        'fitness-1',
+        { mapImageEmailPath: null }
+      )
+    }
+  )
 
   it('deletes nothing extra when the activity has no email copy', async () => {
     const deleted = await deleteFitnessFile(database, 'fitness-1', {
@@ -97,6 +143,7 @@ describe('deleteFitnessFile', () => {
 
     expect(deleted).toBe(true)
     expect(mockDeleteMediaFile).not.toHaveBeenCalled()
+    expect(database.updateFitnessFileActivityData).not.toHaveBeenCalled()
   })
 
   it('still deletes the activity when removing the email copy fails', async () => {

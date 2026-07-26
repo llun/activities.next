@@ -164,6 +164,14 @@ export const deleteFitnessFile = async (
           fitnessFileId: fileId,
           mapImageEmailPath: targetFileMetadata.mapImageEmailPath
         })
+        if (targetFileMetadata.mapImageEmailPath) {
+          // The row is only soft-deleted, so leaving the path on it would keep
+          // a reference to an object that is gone — which makes
+          // productionArchive abort under its default referenced scope.
+          await database.updateFitnessFileActivityData(fileId, {
+            mapImageEmailPath: null
+          })
+        }
       }
       return storageDeleted
     }
@@ -182,6 +190,14 @@ export const deleteFitnessFile = async (
           fitnessFileId: fileId,
           mapImageEmailPath: targetFileMetadata.mapImageEmailPath
         })
+        if (targetFileMetadata.mapImageEmailPath) {
+          // The row is only soft-deleted, so leaving the path on it would keep
+          // a reference to an object that is gone — which makes
+          // productionArchive abort under its default referenced scope.
+          await database.updateFitnessFileActivityData(fileId, {
+            mapImageEmailPath: null
+          })
+        }
       }
       return storageDeleted
     }

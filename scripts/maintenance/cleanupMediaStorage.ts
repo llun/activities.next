@@ -17,7 +17,12 @@ import knex from 'knex'
 import path from 'path'
 
 import { getConfig } from '@/lib/config'
-import { MediaStorageType } from '@/lib/config/mediaStorage'
+import { FitnessStorageType } from '@/lib/config/fitnessStorage'
+import {
+  type MediaStorageConfig,
+  MediaStorageType
+} from '@/lib/config/mediaStorage'
+import { getEffectiveFitnessStorageConfig } from '@/lib/services/fitness-files'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 
 async function getAllMediaPathsFromDatabase(
@@ -54,8 +59,12 @@ async function getAllMediaPathsFromDatabase(
     // lives in media storage but deliberately has no `medias` row — the
     // fitness file is its only reference. Without this it looks orphaned, and
     // this script would delete a file the database still points at.
-    const fitnessFiles =
-      await database('fitness_files').select('mapImageEmailPath')
+    // Only LIVE rows count as references. A soft-deleted row keeps its column
+    // values, and the delete paths already remove the file, so counting them
+    // would make anything they missed unreclaimable forever.
+    const fitnessFiles = await database('fitness_files')
+      .whereNull('deletedAt')
+      .select('mapImageEmailPath')
     for (const fitnessFile of fitnessFiles) {
       addPath(fitnessFile.mapImageEmailPath)
     }
@@ -64,6 +73,56 @@ async function getAllMediaPathsFromDatabase(
   } finally {
     await database.destroy()
   }
+}
+
+/**
+ * Storage-root-relative prefix that fitness files occupy inside MEDIA storage.
+ *
+ * With no fitness storage configured, fitness files fall back to the media
+ * backend under a `fitness/` directory (local) or key prefix (S3) — see
+ * `getEffectiveFitnessStorageConfig`. Those objects are referenced by
+ * `fitness_files.path`, which is relative to the FITNESS root, not this
+ * script's, so they can never match a media reference and every one of them
+ * would be reported as orphaned: running `--yes` would delete every stored
+ * .fit/.gpx/.tcx and every Strava archive, permanently breaking route data,
+ * retries and Regenerate maps.
+ *
+ * This script only manages media, so it skips that namespace outright rather
+ * than trying to translate a second path convention. `scripts/backup/
+ * productionArchive.ts` excludes the same shared prefix from its media plan.
+ *
+ * The bucket comparison is deliberately name-only: if two providers happen to
+ * share a bucket name, over-skipping leaves a few files unreclaimed, which is
+ * the right way for a deletion tool to be wrong.
+ */
+const getSharedFitnessPrefix = (mediaStorage: MediaStorageConfig) => {
+  const fitnessStorage = getEffectiveFitnessStorageConfig()
+  if (!fitnessStorage) return null
+
+  if (
+    mediaStorage.type === MediaStorageType.LocalFile &&
+    fitnessStorage.type === FitnessStorageType.LocalFile
+  ) {
+    const mediaRoot = path.resolve(process.cwd(), mediaStorage.path)
+    const fitnessRoot = path.resolve(process.cwd(), fitnessStorage.path)
+    const relative = path.relative(mediaRoot, fitnessRoot)
+    if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+      return null
+    }
+    return `${relative.replace(/\\/g, '/').replace(/\/+$/, '')}/`
+  }
+
+  const mediaIsS3 =
+    mediaStorage.type === MediaStorageType.S3Storage ||
+    mediaStorage.type === MediaStorageType.ObjectStorage
+  const fitnessIsS3 =
+    fitnessStorage.type === FitnessStorageType.S3Storage ||
+    fitnessStorage.type === FitnessStorageType.ObjectStorage
+  if (!mediaIsS3 || !fitnessIsS3) return null
+  if (mediaStorage.bucket !== fitnessStorage.bucket) return null
+
+  const prefix = fitnessStorage.prefix || 'fitness/'
+  return prefix.endsWith('/') ? prefix : `${prefix}/`
 }
 
 async function listLocalFiles(basePath: string): Promise<string[]> {
@@ -291,6 +350,20 @@ async function cleanupMediaStorage() {
   }
 
   console.log(`   Found ${storageFiles.length} files in storage`)
+
+  // Fitness files may live inside media storage but are not this script's to
+  // manage, and their references are relative to a different root.
+  const fitnessPrefix = getSharedFitnessPrefix(config.mediaStorage)
+  if (fitnessPrefix) {
+    const before = storageFiles.length
+    storageFiles = storageFiles.filter(
+      (file) => !file.startsWith(fitnessPrefix)
+    )
+    const skipped = before - storageFiles.length
+    console.log(
+      `   Skipped ${skipped} file(s) under the shared fitness prefix '${fitnessPrefix}' (managed as fitness storage, not media)`
+    )
+  }
 
   // Step 3: Find orphaned files
   console.log('\n🔍 Step 3: Identifying orphaned files...')

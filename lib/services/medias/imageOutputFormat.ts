@@ -45,9 +45,11 @@ export const encodeImageOutput = (
   if (format === 'jpeg') {
     return image.jpeg({
       quality: 90,
-      // 4:4:4 for the same reason the WebP encoder gets `smartSubsample`: a
-      // route map is a saturated 4px polyline over pale map tiles, and chroma
-      // subsampling smears exactly that.
+      // A route map is a saturated 4px polyline over pale map tiles, which is
+      // exactly what chroma subsampling smears. (The WebP branch needs no
+      // equivalent: `nearLossless` puts libwebp in lossless mode, where
+      // subsampling never applies — `smartSubsample` is carried there only
+      // because the encoders this replaced passed it.)
       chromaSubsampling: '4:4:4',
       // Baseline, not progressive. This format exists for Outlook's Word
       // engine, so it stays on the most conservative JPEG variant available.

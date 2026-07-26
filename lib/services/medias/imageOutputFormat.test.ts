@@ -7,15 +7,29 @@ import {
   getImageOutputFormatDetail
 } from './imageOutputFormat'
 
-const createImage = () =>
-  sharp({
-    create: {
-      width: 8,
-      height: 6,
-      channels: 3,
-      background: { r: 255, g: 59, b: 48 }
+// Deterministic non-uniform content. A solid fill is useless here: the encoders
+// produce identical bytes for it whatever quality is asked for, so a byte
+// comparison against a solid image pins nothing.
+const WIDTH = 64
+const HEIGHT = 48
+
+const createImage = () => {
+  const pixels = Buffer.alloc(WIDTH * HEIGHT * 3)
+  for (let y = 0; y < HEIGHT; y += 1) {
+    for (let x = 0; x < WIDTH; x += 1) {
+      const offset = (y * WIDTH + x) * 3
+      // Pale background with a saturated diagonal line through it — the shape a
+      // route map actually has.
+      const onRoute = Math.abs(x - y * 1.3) < 2
+      pixels[offset] = onRoute ? 255 : 232 - ((x * 7 + y * 13) % 24)
+      pixels[offset + 1] = onRoute ? 59 : 228 - ((x * 11 + y * 5) % 24)
+      pixels[offset + 2] = onRoute ? 48 : 221 - ((x * 3 + y * 17) % 24)
     }
+  }
+  return sharp(pixels, {
+    raw: { width: WIDTH, height: HEIGHT, channels: 3 }
   })
+}
 
 describe('getImageOutputFormatDetail', () => {
   it.each([
@@ -82,5 +96,23 @@ describe('encodeImageOutput', () => {
     ])
 
     expect(encoded.equals(expected)).toBe(true)
+  })
+
+  // Guards the guard: if the fixture were flat, the comparison above would hold
+  // for any quality and pin nothing. `nearLossless` is covered by the byte
+  // comparison; `smartSubsample` is deliberately not asserted because
+  // near-lossless puts libwebp in lossless mode, where chroma subsampling never
+  // applies — it is carried only because the pre-existing encoders passed it.
+  it('has a fixture that actually reacts to webp quality', async () => {
+    const [high, low] = await Promise.all([
+      createImage()
+        .webp({ quality: 95, smartSubsample: true, nearLossless: true })
+        .toBuffer(),
+      createImage()
+        .webp({ quality: 20, smartSubsample: true, nearLossless: true })
+        .toBuffer()
+    ])
+
+    expect(high.equals(low)).toBe(false)
   })
 })
