@@ -5,6 +5,11 @@ import path from 'path'
 import { FitnessStorageType } from '@/lib/config/fitnessStorage'
 import { Database } from '@/lib/database/types'
 import { LocalFileFitnessStorage } from '@/lib/services/fitness-files/localFile'
+import {
+  OVER_LONG_FITNESS_FILE_NAME,
+  OVER_LONG_FITNESS_FILE_NAME_TRUNCATED,
+  STORED_FITNESS_FILE_NAME_CASES
+} from '@/lib/services/fitness-files/testUtils'
 import { Actor } from '@/lib/types/domain/actor'
 
 describe('LocalFileFitnessStorage path containment', () => {
@@ -90,51 +95,23 @@ describe('LocalFileFitnessStorage.saveFile stored file name', () => {
     }
   }
 
-  it.each([
-    {
-      description: 'strips a POSIX directory prefix',
-      fileName: '../../../etc/cron.d/ride.gpx',
-      expected: 'ride.gpx'
-    },
-    {
-      description: 'strips a Windows directory prefix',
-      fileName: `..${String.fromCharCode(92)}..${String.fromCharCode(92)}ride.gpx`,
-      expected: 'ride.gpx'
-    },
-    {
-      description: 'strips a NUL byte',
-      fileName: `ride.gpx${String.fromCharCode(0)}.exe`,
-      expected: 'ride.gpx.exe'
-    },
-    {
-      description: 'strips a bidi override that disguises the name',
-      fileName: `ride${String.fromCharCode(0x202e)}xpg.gpx`,
-      expected: 'ridexpg.gpx'
-    },
-    {
-      description: 'falls back when the name reduces to a directory reference',
-      fileName: '..',
-      expected: 'file'
-    },
-    {
-      description: 'keeps an ordinary name unchanged',
-      fileName: 'Morning Ride.gpx',
-      expected: 'Morning Ride.gpx'
-    }
-  ])('$description', async ({ fileName, expected }) => {
-    const { output, stored } = await saveFile(fileName)
+  it.each(STORED_FITNESS_FILE_NAME_CASES)(
+    '$description',
+    async ({ fileName, expected }) => {
+      const { output, stored } = await saveFile(fileName)
 
-    expect(stored.fileName).toBe(expected)
-    expect(output.fileName).toBe(expected)
-  })
+      expect(stored.fileName).toBe(expected)
+      expect(output.fileName).toBe(expected)
+    }
+  )
 
   // `fitness_files.fileName` is `varchar(255) not null`, so an unbounded name is
   // an insert failure on PostgreSQL — a 500 on an otherwise valid upload.
   it('caps an over-long name at the stored column width', async () => {
-    const { output, stored } = await saveFile(`${'a'.repeat(500)}.gpx`)
+    const { output, stored } = await saveFile(OVER_LONG_FITNESS_FILE_NAME)
 
-    expect(Buffer.byteLength(stored.fileName)).toBeLessThanOrEqual(200)
-    expect(output.fileName).toBe(stored.fileName)
+    expect(stored.fileName).toBe(OVER_LONG_FITNESS_FILE_NAME_TRUNCATED)
+    expect(output.fileName).toBe(OVER_LONG_FITNESS_FILE_NAME_TRUNCATED)
   })
 
   // The type comes from the raw name because sanitizing can truncate a long
@@ -142,7 +119,7 @@ describe('LocalFileFitnessStorage.saveFile stored file name', () => {
   // name nor the MIME type identifies a type.
   it('still detects the file type for a name the byte cap truncates', async () => {
     const { stored } = await saveFile(
-      `${'a'.repeat(500)}.gpx`,
+      OVER_LONG_FITNESS_FILE_NAME,
       'application/octet-stream'
     )
 

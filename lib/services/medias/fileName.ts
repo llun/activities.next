@@ -14,8 +14,9 @@ import { MediaValidationError } from '@/lib/services/medias/errors'
 // reduction happens once, at the point the name enters storage.
 //
 // `sanitizeStoredFileName` is shared with the fitness storage drivers, which
-// take the same untrusted name from `POST /api/v1/fitness-files` and its
-// presigned variant. It lives here rather than in a neutral module because
+// take the same untrusted name from `POST /api/v1/fitness-files` and
+// `POST /api/v1/fitness/strava/archive/presigned`. It lives here rather than
+// in a neutral module because
 // `lib/services/fitness-files/` already reaches into this directory for the
 // upload machinery it shares (`medias/quota`). The rest of the module — the
 // extension map and the temp-path builder — is media-specific.

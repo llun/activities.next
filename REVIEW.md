@@ -65,7 +65,7 @@ change doesn't touch.
   `lib/services/fitness-files/`) it must never be joined to a path, passed to
   `extname`, or persisted raw — it goes through `@/lib/services/medias/fileName`
   first. `medias.originalFileName` and `fitness_files.fileName` are both
-  `varchar(255)`, so an unsanitized name is also a PostgreSQL insert failure.
+  `varchar(255)`, so an over-long name is also a PostgreSQL insert failure.
 - Temp paths from a supplied name use `createMediaTempFilePath` (random prefix,
   explicit separator, parent asserted to be `tmpdir()`), never
   `join(tmpdir(), prefix + name)` — `path.join` resolves `..`, and prepending a

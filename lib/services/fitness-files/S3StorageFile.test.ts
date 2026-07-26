@@ -7,6 +7,11 @@ import {
 import { FitnessStorageType } from '@/lib/config/fitnessStorage'
 import { Database } from '@/lib/database/types'
 import { S3FitnessStorage } from '@/lib/services/fitness-files/S3StorageFile'
+import {
+  OVER_LONG_FITNESS_FILE_NAME,
+  OVER_LONG_FITNESS_FILE_NAME_TRUNCATED,
+  STORED_FITNESS_FILE_NAME_CASES
+} from '@/lib/services/fitness-files/testUtils'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { Actor } from '@/lib/types/domain/actor'
 
@@ -179,64 +184,47 @@ describe('S3FitnessStorage stored file name', () => {
   const storedRecord = () =>
     vi.mocked(database.createFitnessFile).mock.calls[0][0]
 
-  it.each([
-    {
-      description: 'strips a POSIX directory prefix',
-      fileName: '../../../etc/cron.d/ride.gpx',
-      expected: 'ride.gpx'
-    },
-    {
-      description: 'strips a Windows directory prefix',
-      fileName: `..${String.fromCharCode(92)}..${String.fromCharCode(92)}ride.gpx`,
-      expected: 'ride.gpx'
-    },
-    {
-      description: 'strips a NUL byte',
-      fileName: `ride.gpx${String.fromCharCode(0)}.exe`,
-      expected: 'ride.gpx.exe'
-    },
-    {
-      description: 'falls back when the name reduces to a directory reference',
-      fileName: '.',
-      expected: 'file'
-    },
-    {
-      description: 'keeps an ordinary name unchanged',
-      fileName: 'Morning Ride.gpx',
-      expected: 'Morning Ride.gpx'
-    }
-  ])('saveFile $description', async ({ fileName, expected }) => {
-    const file = new File([Buffer.from('<gpx/>')], fileName, {
-      type: 'application/gpx+xml'
+  const saveFile = (fileName: string, type = 'application/gpx+xml') =>
+    createStorage().saveFile(actor, {
+      file: new File([Buffer.from('<gpx/>')], fileName, { type })
     })
 
-    const output = await createStorage().saveFile(actor, { file })
+  it.each(STORED_FITNESS_FILE_NAME_CASES)(
+    'saveFile $description',
+    async ({ fileName, expected }) => {
+      const output = await saveFile(fileName)
 
-    expect(storedRecord().fileName).toBe(expected)
-    expect(output.fileName).toBe(expected)
-  })
+      expect(storedRecord().fileName).toBe(expected)
+      expect(output.fileName).toBe(expected)
+    }
+  )
 
   // `fitness_files.fileName` is `varchar(255) not null`, so an unbounded name is
   // an insert failure on PostgreSQL — a 500 on an otherwise valid upload.
   it('saveFile caps an over-long name at the stored column width', async () => {
-    const file = new File([Buffer.from('<gpx/>')], `${'a'.repeat(500)}.gpx`, {
-      type: 'application/gpx+xml'
-    })
+    const output = await saveFile(OVER_LONG_FITNESS_FILE_NAME)
 
-    const output = await createStorage().saveFile(actor, { file })
+    expect(storedRecord().fileName).toBe(OVER_LONG_FITNESS_FILE_NAME_TRUNCATED)
+    expect(output.fileName).toBe(OVER_LONG_FITNESS_FILE_NAME_TRUNCATED)
+  })
 
-    expect(Buffer.byteLength(storedRecord().fileName)).toBeLessThanOrEqual(200)
-    expect(output.fileName).toBe(storedRecord().fileName)
+  // The type comes from the raw name because sanitizing can truncate a long
+  // name past its extension, and `getFitnessFileType` throws when neither the
+  // name nor the MIME type identifies a type. This pins the ordering — hoisting
+  // the sanitizer above the detection breaks this upload and nothing else.
+  it('saveFile still detects the file type for a name the byte cap truncates', async () => {
+    await saveFile(OVER_LONG_FITNESS_FILE_NAME, 'application/octet-stream')
+
+    expect(storedRecord().fileType).toBe('gpx')
+    expect(storedRecord().path).toMatch(
+      /^\d{4}-\d{2}-\d{2}\/[0-9a-f]{16}\.gpx$/
+    )
   })
 
   // A guard, not a regression: the key has always come from a generated prefix
   // plus the allowlisted type, so a supplied name never reached it.
   it('saveFile keeps a traversing name out of the object key', async () => {
-    const file = new File([Buffer.from('<gpx/>')], '../../../evil.gpx', {
-      type: 'application/gpx+xml'
-    })
-
-    await createStorage().saveFile(actor, { file })
+    await saveFile('../../../evil.gpx')
 
     expect(storedRecord().path).toMatch(
       /^\d{4}-\d{2}-\d{2}\/[0-9a-f]{16}\.gpx$/
@@ -256,6 +244,13 @@ describe('S3FitnessStorage stored file name', () => {
       description: 'falls back when the name reduces to nothing usable',
       fileName: `${String.fromCharCode(0x200b)}   `,
       expected: 'file'
+    },
+    {
+      // This is the flow that takes the name as a plain JSON request field,
+      // so it is the likeliest source of an over-long one.
+      description: 'caps an over-long name at the stored column width',
+      fileName: `${'a'.repeat(500)}.zip`,
+      expected: 'a'.repeat(200)
     }
   ])(
     'getPresignedForSaveFileUrl $description',
