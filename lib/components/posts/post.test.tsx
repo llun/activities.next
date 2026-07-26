@@ -427,8 +427,17 @@ describe('Post', () => {
       />
     )
 
-    expect(screen.getByLabelText('Remove 🔥 reaction')).toHaveTextContent('2')
+    const chip = screen.getByLabelText('Remove 🔥 reaction, 2')
+    expect(chip).toHaveTextContent('2')
     expect(screen.getByLabelText('Add reaction')).toBeInTheDocument()
+
+    // Ordering is the point of the name: chips belong to the post, so they sit
+    // between the content and the action row, not below it.
+    const likeButton = screen.getByLabelText(/^Like/)
+    expect(
+      chip.compareDocumentPosition(likeButton) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
   })
 
   it('renders reaction chips read-only when the post shows no actions', () => {
@@ -450,7 +459,9 @@ describe('Post', () => {
 
     // The chip is still readable, but nothing on the row can be actioned —
     // `showActions={false}` withholds the actor from the reaction row too.
-    expect(screen.getByLabelText('🔥 reaction, 2')).toBeInTheDocument()
+    expect(
+      screen.getByRole('img', { name: '🔥 reaction, 2' })
+    ).toBeInTheDocument()
     expect(screen.queryByLabelText('Add reaction')).not.toBeInTheDocument()
   })
 

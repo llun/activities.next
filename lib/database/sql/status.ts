@@ -1249,7 +1249,8 @@ export const StatusSQLDatabaseMixin = (
     url,
     limit,
     publicOnly = false,
-    visibleToActorId
+    visibleToActorId,
+    currentActorId
   }: GetStatusRepliesParams) {
     let query = database('statuses')
       .where((builder) => {
@@ -1289,10 +1290,7 @@ export const StatusSQLDatabaseMixin = (
       hydrationStatusIds.size > 0
         ? getStatusQuoteEdges([...hydrationStatusIds])
         : Promise.resolve(new Map<string, StatusQuote>()),
-      buildReactionRollupContext(
-        [...hydrationStatusIds],
-        visibleToActorId ?? undefined
-      )
+      buildReactionRollupContext([...hydrationStatusIds], currentActorId)
     ])
     const hydrationContext: StatusHydrationContext = {
       detectedLanguages,
@@ -1304,7 +1302,7 @@ export const StatusSQLDatabaseMixin = (
         statuses.map((item) =>
           getStatusWithAttachmentsFromData(
             item,
-            undefined,
+            currentActorId,
             undefined,
             hydrationContext
           )
@@ -1368,6 +1366,7 @@ export const StatusSQLDatabaseMixin = (
 
   async function getActorStatuses({
     actorId,
+    currentActorId,
     minStatusId,
     maxStatusId,
     limit = PER_PAGE_LIMIT,
@@ -1533,10 +1532,7 @@ export const StatusSQLDatabaseMixin = (
       hydrationStatusIds.size > 0
         ? getStatusQuoteEdges([...hydrationStatusIds])
         : Promise.resolve(new Map<string, StatusQuote>()),
-      buildReactionRollupContext(
-        [...hydrationStatusIds],
-        visibleToActorId ?? undefined
-      )
+      buildReactionRollupContext([...hydrationStatusIds], currentActorId)
     ])
     const hydrationContext: StatusHydrationContext = {
       detectedLanguages,
@@ -1548,7 +1544,7 @@ export const StatusSQLDatabaseMixin = (
         statuses.map((item) =>
           getStatusWithAttachmentsFromData(
             item,
-            undefined,
+            currentActorId,
             undefined,
             hydrationContext
           )
@@ -2644,6 +2640,7 @@ export const StatusSQLDatabaseMixin = (
 
   async function getStatusesByHashtag({
     hashtag,
+    currentActorId,
     limit = PER_PAGE_LIMIT,
     minStatusId,
     maxStatusId,
@@ -2762,7 +2759,7 @@ export const StatusSQLDatabaseMixin = (
     const rows = await query
     const statusIds = rows.map((row: { id: string }) => row.id)
     if (statusIds.length === 0) return []
-    return getStatusesByIds({ statusIds })
+    return getStatusesByIds({ statusIds, currentActorId })
   }
 
   async function getHashtagCounter({
@@ -3376,7 +3373,8 @@ export const StatusSQLDatabaseMixin = (
 
   async function getStatusFromUrlHash({
     urlHash,
-    actorId
+    actorId,
+    currentActorId
   }: GetStatusFromUrlHashParams) {
     const query = database('statuses').where('urlHash', urlHash)
     if (actorId) {
@@ -3386,7 +3384,7 @@ export const StatusSQLDatabaseMixin = (
     const status = await query.first()
     if (!status) return null
 
-    return getStatusWithAttachmentsFromData(status)
+    return getStatusWithAttachmentsFromData(status, currentActorId)
   }
 
   async function getActorAnnouncedStatusId({

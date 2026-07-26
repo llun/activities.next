@@ -78,12 +78,14 @@ export const resolveStatusFromPath = async ({
   if (isStatusHash) {
     status = await database.getStatusFromUrlHash({
       urlHash: decodedStatusParam,
-      actorId: actorIdFromPath
+      actorId: actorIdFromPath,
+      currentActorId
     })
 
     if (!status && actorIdFromPath) {
       const unscopedStatus = await database.getStatusFromUrlHash({
-        urlHash: decodedStatusParam
+        urlHash: decodedStatusParam,
+        currentActorId
       })
 
       if (unscopedStatus) {

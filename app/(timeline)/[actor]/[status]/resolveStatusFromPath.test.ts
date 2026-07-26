@@ -81,6 +81,28 @@ describe('resolveStatusFromPath', () => {
     })
   })
 
+  it('hydrates a hash route for the signed-in viewer too', async () => {
+    const database = createDatabase()
+    database.getStatusFromUrlHash.mockResolvedValueOnce(originalStatus)
+    const viewerId = 'https://remote.example/users/viewer'
+
+    await resolveStatusFromPath({
+      database,
+      actorParam: '@original@remote.example',
+      statusParam: statusHash,
+      currentActorId: viewerId
+    })
+
+    // The hash route lands on the same detail page as the id route, so it has
+    // to hydrate the viewer's own state the same way — otherwise their emoji
+    // reaction renders as "Add" on exactly one of the two URLs for one post.
+    expect(database.getStatusFromUrlHash).toHaveBeenCalledWith({
+      urlHash: statusHash,
+      actorId: originalActorId,
+      currentActorId: viewerId
+    })
+  })
+
   it('resolves a hash route from the scoped actor lookup', async () => {
     const database = createDatabase()
     database.getStatusFromUrlHash.mockResolvedValueOnce(originalStatus)

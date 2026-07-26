@@ -481,13 +481,22 @@ const toReactionUpdateResult = async (
   response: Response
 ): Promise<ReactionUpdateResult> => {
   if (!response.ok) {
-    // 4xx is a verdict on the request itself; 5xx and network faults are
-    // transient, and get the caller's generic retry copy.
-    if (response.status >= 400 && response.status < 500) {
-      const body = await response.json().catch(() => null)
-      const error = (body as { error?: unknown } | null)?.error
-      if (typeof error === 'string' && error.length > 0)
-        return { ok: false, error }
+    // Only a 422 the route deliberately marked with a `reason` carries copy
+    // meant for a person. Every other 4xx answers with the bare HTTP reason
+    // phrase ('Unauthorized', 'Not Found'), which must never be shown as if it
+    // explained the failure — those fall through to the caller's own wording.
+    if (response.status === 422) {
+      const body = (await response.json().catch(() => null)) as {
+        error?: unknown
+        reason?: unknown
+      } | null
+      if (
+        typeof body?.reason === 'string' &&
+        typeof body.error === 'string' &&
+        body.error.length > 0
+      ) {
+        return { ok: false, error: body.error }
+      }
     }
     return { ok: false }
   }

@@ -348,8 +348,12 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   change visibility / who-can-quote, delete-own; mute / block / report for other
   actors; copy link; open original) and wires reply/quote/edit itself. `Post`
   also renders the emoji **reaction row** (chips + picker) as a sibling directly
-  above that action row, gated on the same `showActions` + `currentActor` pair —
-  reactions are **not** favourites and never touch the like button's state. A page
+  above that action row. It follows the same `showActions` + `currentActor` gate,
+  but degrades rather than disappearing: a reader who cannot react (logged out,
+  `showActions={false}`, or a remote custom emoji this instance cannot react
+  with) still sees the chips as read-only labels, and only the picker and the
+  toggling are withheld. Reactions are **not** favourites and never touch the
+  like button's state. A page
   must **not** pass per-status action callbacks (`onReply`, `onQuote`, `onEdit`)
   and must **not** hide individual actions — that per-page drift is exactly what
   this consolidation removed (profiles used to lack Quote/Edit; six feeds had a
@@ -381,7 +385,10 @@ consistency is enforced by keeping the wiring in one place rather than per page.
 - The bespoke fitness activity detail (`FitnessStatusDetail`) and the
   notification snippet (`StatusNotification`) are intentionally separate
   presentations and are outside this contract; everything else goes through
-  `Posts`/`Post`.
+  `Posts`/`Post`. The fitness detail composes its own action row, so it renders
+  `ReactionRow` explicitly — a post's reactions must be visible and addable
+  wherever its action row is, and that page is the one surface that has to opt
+  in by hand.
 
 ## Better-auth Plugin Guidelines
 

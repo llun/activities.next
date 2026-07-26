@@ -204,6 +204,9 @@ const Page: FC<Props> = async ({ params }) => {
     replies = await database.getStatusReplies({
       statusId,
       url: statusUrl,
+      // Separate from the visibility filter below: this is the viewer whose
+      // like, bookmark and reaction state each reply is hydrated with.
+      currentActorId: currentActor?.id,
       ...(currentActor
         ? { visibleToActorId: currentActor.id }
         : { publicOnly: true })

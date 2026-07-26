@@ -76,7 +76,11 @@ export const reactionWriteHandler =
           error:
             result.reason === 'cap-reached'
               ? `You can only add ${MAX_REACTIONS_PER_ACTOR} reactions to a post.`
-              : 'That emoji cannot be used as a reaction.'
+              : 'That emoji cannot be used as a reaction.',
+          // Marks `error` as copy written for a person, so a client can show it
+          // as-is. Without it a client cannot tell this apart from the generic
+          // `{ error: 'Unprocessable entity' }` every other 4xx returns.
+          reason: result.reason
         },
         responseStatusCode: 422
       })

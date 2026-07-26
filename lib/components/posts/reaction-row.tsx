@@ -1,10 +1,11 @@
 'use client'
 
 import { SmilePlus } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import { FC, useEffect, useRef, useState } from 'react'
 
 import { reactToStatus, unreactFromStatus } from '@/lib/client'
 import { useDismissingError } from '@/lib/components/posts/actions/actionButtonShared'
+import { isUnicodeEmojiReaction } from '@/lib/services/reactions/reactionName'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusPoll } from '@/lib/types/domain/status'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
@@ -19,6 +20,21 @@ const formatCount = (count: number): string => (count > 99 ? '99+' : `${count}`)
 // The rollups arrive in first-reaction order, so the oldest — which is also the
 // most established — stay visible.
 const MAX_VISIBLE_CHIPS = 12
+
+// The write path accepts a unicode emoji or one of THIS instance's enabled
+// shortcodes — nothing else. So a chip is only offered as a control when the
+// viewer could actually succeed:
+//   • unicode                        → always
+//   • local shortcode, still enabled → the rollup carries a url (the rollup
+//     query resolves urls only for non-disabled local emoji)
+//   • local shortcode, disabled/gone → no url, so withheld
+//   • remote `shortcode@domain`      → namespaced, never locally reactable
+// Own reactions stay actionable regardless, so a reaction is always removable.
+const canJoinReaction = (reaction: StatusReaction): boolean => {
+  if (reaction.me) return true
+  if (isUnicodeEmojiReaction(reaction.name)) return true
+  return !reaction.name.includes('@') && Boolean(reaction.url)
+}
 
 const chipClass = (mine: boolean, interactive = true) =>
   cn(
@@ -75,19 +91,38 @@ export const ReactionRow: FC<ReactionRowProps> = ({
   )
   const [pendingName, setPendingName] = useState<string | null>(null)
   const [isPicking, setIsPicking] = useState(false)
+  const pickerTriggerRef = useRef<HTMLButtonElement>(null)
   const [error, setError] = useDismissingError()
 
+  // Read inside the resync effect without being one of its dependencies: making
+  // it a dependency would re-run the effect when a write settles and overwrite
+  // the server's rollups with the (still stale) prop.
+  const pendingNameRef = useRef<string | null>(null)
+  pendingNameRef.current = pendingName
+
   useEffect(() => {
+    // A write in flight owns the local state: resyncing from the prop mid-flight
+    // would discard the optimistic chip, then be overwritten by the server's
+    // rollups a moment later, flickering the count.
+    if (pendingNameRef.current) return
     setReactions(status.reactions ?? [])
     setError(null)
   }, [status.id, status.reactions, setError])
 
-  const toggle = async (name: string) => {
+  const toggle = async (name: string, intent: 'toggle' | 'add' = 'toggle') => {
+    // Single-flight: each response carries the status's full authoritative
+    // rollups, so two overlapping writes would race and the loser's chip would
+    // vanish. Every chip is disabled while one is pending, so this guard is a
+    // backstop rather than a silent refusal.
     if (!currentActor || pendingName) return
 
     const previous = reactions
     const existing = previous.find((reaction) => reaction.name === name)
-    const removing = Boolean(existing?.me)
+    // A chip toggles; a pick from the picker only ever adds. Routing a pick
+    // through the toggle would make "React with 🔥" *remove* a 🔥 the viewer had
+    // already added — the opposite of what the item says it does.
+    if (intent === 'add' && existing?.me) return
+    const removing = intent === 'toggle' && Boolean(existing?.me)
 
     // Optimistic: bump or drop the chip, then reconcile with the server's
     // authoritative rollups (which also carry the custom-emoji urls).
@@ -158,11 +193,12 @@ export const ReactionRow: FC<ReactionRowProps> = ({
           </>
         )
 
-        // A reader who cannot react gets a plain, readable chip rather than a
-        // disabled button: a disabled control drops out of the tab order and
-        // renders greyed out, which would hide the counts from keyboard and
-        // screen-reader users on every logged-out surface.
-        if (!currentActor) {
+        // A chip nobody can act on — a logged-out reader, or a remote custom
+        // emoji this instance cannot react with — is a plain, readable chip
+        // rather than a disabled button: a disabled control drops out of the tab
+        // order and renders greyed out, hiding the count from keyboard and
+        // screen-reader users.
+        if (!currentActor || !canJoinReaction(reaction)) {
           return (
             <span
               key={reaction.name}
@@ -183,9 +219,12 @@ export const ReactionRow: FC<ReactionRowProps> = ({
           <button
             key={reaction.name}
             type="button"
-            disabled={pendingName === reaction.name}
+            // Every chip is disabled while a write is in flight: the response
+            // carries the whole status's rollups, so overlapping writes would
+            // race and lose one of the two changes.
+            disabled={pendingName !== null}
             aria-pressed={reaction.me}
-            aria-label={`${reaction.me ? 'Remove' : 'Add'} ${reaction.name} reaction`}
+            aria-label={`${reaction.me ? 'Remove' : 'Add'} ${reaction.name} reaction, ${reaction.count}`}
             className={chipClass(reaction.me)}
             onClick={(event) => {
               event.stopPropagation()
@@ -203,7 +242,9 @@ export const ReactionRow: FC<ReactionRowProps> = ({
       )}
       {currentActor && (
         <button
+          ref={pickerTriggerRef}
           type="button"
+          disabled={pendingName !== null}
           aria-label="Add reaction"
           aria-haspopup="dialog"
           aria-expanded={isPicking}
@@ -218,10 +259,18 @@ export const ReactionRow: FC<ReactionRowProps> = ({
       )}
       {isPicking && (
         <ReactionPicker
-          onClose={() => setIsPicking(false)}
+          // Focus goes back to the trigger on close, so dismissing the picker
+          // with Escape or an outside click does not dump a keyboard user on
+          // <body>. On a pick the chip that appears is the natural next target,
+          // but the trigger is still the element that was activated.
+          onClose={() => {
+            setIsPicking(false)
+            pickerTriggerRef.current?.focus()
+          }}
           onPick={(name) => {
             setIsPicking(false)
-            void toggle(name)
+            pickerTriggerRef.current?.focus()
+            void toggle(name, 'add')
           }}
         />
       )}

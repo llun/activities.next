@@ -50,6 +50,10 @@ const Page = async ({ params }: PageProps) => {
     fetchBatch: ({ maxStatusId, limit }) =>
       database.getStatusesByHashtag({
         hashtag: tag,
+        // Hydration only (this timeline is public either way): without it the
+        // viewer's own like, bookmark and reaction state reads false on the
+        // server-rendered page while the client-paginated pages have it.
+        currentActorId: actor?.id,
         limit,
         maxStatusId: maxStatusId ?? undefined
       })

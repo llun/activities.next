@@ -409,7 +409,10 @@ describe('StatusDatabase', () => {
           // from the same batch rather than a per-status query.
           const actorStatuses = await database.getActorStatuses({
             actorId: primaryActorId,
-            visibleToActorId: extraActorId
+            // The hydration viewer, deliberately NOT `visibleToActorId` — that
+            // one is the visibility filter and passing a viewer there would
+            // change which statuses come back.
+            currentActorId: extraActorId
           })
           const reacted = actorStatuses.find(
             (status) => status.id === reactedStatusId
@@ -418,8 +421,49 @@ describe('StatusDatabase', () => {
           expect(reacted.reactions).toEqual([
             { name: '🔥', count: 1, me: true, url: null, static_url: null }
           ])
+          // Every other status in the page resolves to an empty array from the
+          // same batch. `toEqual([])` rather than `toBeDefined()`: the per-status
+          // fallback would also leave these defined, so only the exact value
+          // distinguishes a seeded batch from a fallback query.
           for (const status of actorStatuses) {
-            expect(status.reactions).toBeDefined()
+            if (status.id === reactedStatusId) continue
+            if (status.type === StatusType.enum.Announce) continue
+            expect(status.reactions).toEqual([])
+          }
+        })
+
+        it('hydrates rollups for the replies under a status', async () => {
+          const replies = await database.getStatusReplies({
+            statusId: statuses.primary.post,
+            currentActorId: extraActorId
+          })
+          expect(replies.length).toBeGreaterThan(0)
+
+          const target = replies[0]
+          await database.createStatusReaction({
+            statusId: target.id,
+            actorId: extraActorId,
+            name: '🎯'
+          })
+
+          try {
+            const hydrated = await database.getStatusReplies({
+              statusId: statuses.primary.post,
+              currentActorId: extraActorId
+            })
+            const reacted = hydrated.find(
+              (reply) => reply.id === target.id
+            ) as StatusNote
+
+            expect(reacted.reactions).toEqual([
+              { name: '🎯', count: 1, me: true, url: null, static_url: null }
+            ])
+          } finally {
+            await database.deleteStatusReaction({
+              statusId: target.id,
+              actorId: extraActorId,
+              name: '🎯'
+            })
           }
         })
       })
