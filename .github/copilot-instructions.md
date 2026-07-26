@@ -21,8 +21,8 @@ Always refer to and follow the guidelines in [AGENTS.md](../AGENTS.md) for all c
 
 ### Uploaded File Names
 
-- A supplied file name (`File.name`, the presigned upload's `fileName`) is untrusted client input — only browser multipart uploads send a bare basename.
-- In the media storage drivers, never join it to a path, pass it to `extname`, or persist it raw. Use `sanitizeStoredFileName`, `createMediaTempFilePath`, and `getStoredMediaExtension` from `@/lib/services/medias/fileName`.
+- A supplied file name (`File.name`, the presigned uploads' `fileName`) is untrusted client input — only browser multipart uploads send a bare basename.
+- In the upload storage drivers (`lib/services/medias/`, `lib/services/fitness-files/`), never join it to a path, pass it to `extname`, or persist it raw. Use `sanitizeStoredFileName`, `createMediaTempFilePath`, and `getStoredMediaExtension` from `@/lib/services/medias/fileName`.
 
 ### Workflow
 

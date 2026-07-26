@@ -10,6 +10,7 @@ import type { ReadableStream as WebReadableStream } from 'stream/web'
 
 import { FitnessStorageFileConfig } from '@/lib/config/fitnessStorage'
 import { Database } from '@/lib/database/types'
+import { sanitizeStoredFileName } from '@/lib/services/medias/fileName'
 import { checkQuotaAvailable } from '@/lib/services/medias/quota'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
@@ -133,8 +134,17 @@ export class LocalFileFitnessStorage implements FitnessStorage {
     }
 
     // Generate file path
+    // Detect the type from the raw name: `sanitizeStoredFileName` caps the name
+    // at 200 bytes, which can truncate a very long name past its extension, and
+    // `getFitnessFileType` throws when neither the name nor the MIME type
+    // identifies a type. The detected type is one of four literals and is the
+    // only part of the name that reaches the storage path.
     const fileType = getFitnessFileType(file.name, file.type)
     const ext = `.${fileType}`
+    // The supplied name itself is only persisted and rendered back to the user,
+    // so it is reduced to an inert, bounded segment first. `fitness_files.fileName`
+    // is `varchar(255) not null`, which an unbounded name fails to insert into.
+    const storedFileName = sanitizeStoredFileName(file.name)
     const currentTime = Date.now()
     const randomPrefix = crypto.randomBytes(8).toString('hex')
     const timeDirectory = format(currentTime, 'yyyy-MM-dd')
@@ -152,7 +162,7 @@ export class LocalFileFitnessStorage implements FitnessStorage {
     const storedFile = await this._database.createFitnessFile({
       actorId: actor.id,
       path: fileName,
-      fileName: file.name,
+      fileName: storedFileName,
       fileType,
       mimeType: file.type,
       bytes: file.size,
@@ -180,7 +190,7 @@ export class LocalFileFitnessStorage implements FitnessStorage {
       file_type: fileType,
       mime_type: file.type,
       url,
-      fileName: file.name,
+      fileName: storedFileName,
       size: file.size,
       description,
       hasMapData: false

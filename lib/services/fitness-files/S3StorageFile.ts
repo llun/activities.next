@@ -16,6 +16,7 @@ import {
   FitnessStorageS3Config
 } from '@/lib/config/fitnessStorage'
 import { Database } from '@/lib/database/types'
+import { sanitizeStoredFileName } from '@/lib/services/medias/fileName'
 import { checkQuotaAvailable } from '@/lib/services/medias/quota'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
@@ -168,8 +169,17 @@ export class S3FitnessStorage implements FitnessStorage {
     }
 
     const { bucket, prefix } = this._config
+    // Detect the type from the raw name: `sanitizeStoredFileName` caps the name
+    // at 200 bytes, which can truncate a very long name past its extension, and
+    // `getFitnessFileType` throws when neither the name nor the MIME type
+    // identifies a type. The detected type is one of four literals and is the
+    // only part of the name that reaches the object key.
     const fileType = getFitnessFileType(file.name, file.type)
     const ext = `.${fileType}`
+    // The supplied name itself is only persisted and rendered back to the user,
+    // so it is reduced to an inert, bounded segment first. `fitness_files.fileName`
+    // is `varchar(255) not null`, which an unbounded name fails to insert into.
+    const storedFileName = sanitizeStoredFileName(file.name)
 
     const currentTime = Date.now()
     const randomPrefix = crypto.randomBytes(8).toString('hex')
@@ -192,7 +202,7 @@ export class S3FitnessStorage implements FitnessStorage {
     const storedFile = await this._database.createFitnessFile({
       actorId: actor.id,
       path: fileName, // Store relative path without prefix
-      fileName: file.name,
+      fileName: storedFileName,
       fileType,
       mimeType: file.type,
       bytes: file.size,
@@ -220,7 +230,7 @@ export class S3FitnessStorage implements FitnessStorage {
       file_type: fileType,
       mime_type: file.type,
       url,
-      fileName: file.name,
+      fileName: storedFileName,
       size: file.size,
       description,
       hasMapData: false
@@ -275,7 +285,9 @@ export class S3FitnessStorage implements FitnessStorage {
     const storedFile = await this._database.createFitnessFile({
       actorId: actor.id,
       path: fileName,
-      fileName: input.fileName,
+      // The presigned flow takes the name as a plain request field, so it is
+      // untrusted even when a browser is the client.
+      fileName: sanitizeStoredFileName(input.fileName),
       fileType: 'zip',
       mimeType: input.contentType,
       bytes: input.size,
