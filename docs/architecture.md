@@ -167,10 +167,13 @@ of the surface the user is on — the same picker can take either.
 **Server-side write** (`saveMedia` / `saveMediaThumbnail` in
 `lib/services/medias/`) re-encodes to WebP and bounds the result by a 4000x4000
 pixel box. That box is a **cap, not a target**: an image already inside it is
-stored at its own dimensions and is never upscaled. This runs for the sync
-upload endpoint, the Mastodon-API multipart avatar/header
-(`PATCH /api/v1/accounts/update_credentials`), custom emojis, and the fitness
-route maps the server generates itself.
+stored at its own dimensions and is never upscaled. This runs whenever the
+server itself holds the bytes: the sync upload endpoint, the Mastodon-API
+multipart avatar/header handler (`PATCH /api/v1/accounts/update_credentials`
+and `PATCH /api/v1/profile`), custom emojis, thumbnail replacement
+(`PUT /api/v1/media/:id`), and the fitness import jobs — which cover both the
+route maps the server generates and the arbitrary-sized activity photos it
+fetches from Strava.
 
 **Presigned direct-to-S3** stores the bytes exactly as uploaded — original
 format, no re-encode, no server-side dimension cap — because the browser PUTs
