@@ -20,12 +20,14 @@ const formatCount = (count: number): string => (count > 99 ? '99+' : `${count}`)
 // most established — stay visible.
 const MAX_VISIBLE_CHIPS = 12
 
-const chipClass = (mine: boolean) =>
+const chipClass = (mine: boolean, interactive = true) =>
   cn(
     'flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[13px] transition-colors disabled:cursor-not-allowed disabled:opacity-50',
     mine
       ? 'border-primary/45 bg-primary/10 text-primary'
-      : 'border-border bg-background text-foreground hover:bg-muted'
+      : 'border-border bg-background text-foreground',
+    // No hover affordance on a chip that cannot be clicked.
+    !mine && interactive && 'hover:bg-muted'
   )
 
 // A custom emoji renders as its image; a unicode emoji and a custom emoji whose
@@ -164,7 +166,7 @@ export const ReactionRow: FC<ReactionRowProps> = ({
           return (
             <span
               key={reaction.name}
-              className={chipClass(reaction.me)}
+              className={chipClass(reaction.me, false)}
               aria-label={`${reaction.name} reaction, ${reaction.count}`}
             >
               {body}
