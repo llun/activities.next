@@ -1,0 +1,50 @@
+lib/services/fitness-files/S3StorageFile.test.ts
+  s_24163c3e5dc970::t_d735413d85663d 140-272
+  s_24163c3e5dc970::t_2279bfaab11e11 29-31
+  s_24163c3e5dc970::t_25e9d0630e8fa7 1-5
+  s_24163c3e5dc970::t_0f6a75bd2943b9 32
+AGENTS.md
+  s_24163c3e5dc970::t_949c55475b912f 671-672
+  s_24163c3e5dc970::t_a8c7db34e51fb5 666
+  s_24163c3e5dc970::t_a22f92cbd8704d 667
+CLAUDE.md
+  s_24163c3e5dc970::t_b7283022d6b9ff 43
+lib/services/fitness-files/localFile.test.ts
+  s_24163c3e5dc970::t_ee80649d6d5a51 8,42-164
+  s_b294d530b9cf18::t_6daf45906d44fe 165
+lib/services/fitness-files/localFile.ts
+  s_24163c3e5dc970::t_9b57a04b4fbe6b 13,137-141,144-147,165,193
+lib/services/fitness-files/S3StorageFile.ts
+  s_24163c3e5dc970::t_9b57a04b4fbe6b 19,172-176,179-182,205,233,288-290
+.github/copilot-instructions.md
+  s_24163c3e5dc970::t_1f8830032c24bb 24-25
+lib/services/medias/fileName.ts
+  s_24163c3e5dc970::t_100fd95abc1808 26-30
+  s_24163c3e5dc970::t_5da7738cc2c6aa 15-21
+REVIEW.md
+  s_24163c3e5dc970::t_600034773251e2 62,64-65,67-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "f27faeb7915f2f1092a7f21c2b10b799f90bd617",
+  "prompts": {},
+  "sessions": {
+    "s_24163c3e5dc970": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e7e9c00-7215-40b7-9bc0-b8ce224ae630",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_b294d530b9cf18": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5d34f930-05d2-4e7f-abca-7087022e883d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
