@@ -1,0 +1,24 @@
+scripts/mock/renderEmailPreviews.ts
+  s_181a4d159922fc::t_a01a3d556428dd 82-85,106
+lib/services/email/templates/statusUrl.ts
+  s_181a4d159922fc::t_8850cb978fcb02 18-21,23
+  s_181a4d159922fc::t_8c51d8e6cbf43c 2
+lib/services/email/templates/statusUrl.test.ts
+  s_181a4d159922fc::t_568f56e750e6de 1,35,52-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "44ccd721c062b5e08942ee11693ead86b777131d",
+  "prompts": {},
+  "sessions": {
+    "s_181a4d159922fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b59141f-f9f0-4af4-8aea-39520836e6cc",
+        "model": "claude-opus-5"
+      },
+      "human_author": null
+    }
+  }
+}
