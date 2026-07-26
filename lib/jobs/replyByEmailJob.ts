@@ -14,9 +14,7 @@ import {
 } from '@/lib/services/email/replyToken'
 import {
   ReplyByEmailFailureReason,
-  getHTMLContent as getFailureHTMLContent,
-  getSubject as getFailureSubject,
-  getTextContent as getFailureTextContent
+  buildReplyByEmailFailureEmail
 } from '@/lib/services/email/templates/replyByEmailFailure'
 import { isActorModerationBlocked } from '@/lib/services/guards/OAuthGuard'
 import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
@@ -79,14 +77,16 @@ const notifyFailure = async (
   try {
     // Deliberately no replyTo: a notice about a failed reply must not itself be
     // repliable, or a misconfigured mailbox could bounce it around the loop.
+    const { subject, text, html } = buildReplyByEmailFailureEmail({
+      reason,
+      recipientEmail: recipient,
+      statusUrl
+    })
     await sendMail({
       from: email.serviceFromAddress,
       to: [recipient],
-      subject: getFailureSubject(),
-      content: {
-        text: getFailureTextContent(reason, statusUrl),
-        html: getFailureHTMLContent(reason, statusUrl)
-      }
+      subject,
+      content: { text, html }
     })
   } catch (error) {
     logger.error({
@@ -98,12 +98,33 @@ const notifyFailure = async (
 }
 
 /**
- * Turn the payload's base64 parts into stored media.
+ * Reduce a provider-supplied filename to something safe to hand the media
+ * pipeline.
  *
- * Email carries a lot the media pipeline does not accept — PDFs, inline GIFs,
- * calendar invites — so an unusable part is dropped rather than failing the
- * whole reply. Losing a signature logo must not cost someone their post.
+ * The name reaches `join(tmpdir(), <random> + file.name)` and a `writeFile` in
+ * the object-storage video path, and `join` resolves `..` segments — so
+ * `../../../../etc/cron.d/x` escapes the temp directory entirely. Every other
+ * upload surface gets a basename from a browser's multipart encoder; inbound
+ * email is the first that takes this string straight off the wire.
  */
+const safeAttachmentFilename = (filename?: string) => {
+  if (!filename) return 'attachment'
+  // Basename only: strip anything up to the last separator of either flavour,
+  // then remove path and control characters that survived.
+  const base = filename
+    .split(/[\\/]/)
+    .pop()
+    // Strip C0 controls by code point rather than a character class: a control
+    // range inside a regex literal trips the no-control-regex lint rule, and
+    // spelling it out here is clearer about intent anyway.
+    ?.split('')
+    .filter((character) => character.charCodeAt(0) > 0x1f)
+    .join('')
+    .trim()
+  if (!base || base === '.' || base === '..') return 'attachment'
+  return base.slice(0, 200)
+}
+
 const isQuotedInlineImage = (
   attachment: InboundEmailAttachment,
   html?: string
@@ -114,6 +135,13 @@ const isQuotedInlineImage = (
   return html.includes(`cid:${contentId}`)
 }
 
+/**
+ * Turn the payload's base64 parts into stored media.
+ *
+ * Email carries a lot the media pipeline does not accept — PDFs, inline GIFs,
+ * calendar invites — so an unusable part is dropped rather than failing the
+ * whole reply. Losing a signature logo must not cost someone their post.
+ */
 const storeAttachments = async (
   database: Database,
   actor: Actor,
@@ -146,9 +174,13 @@ const storeAttachments = async (
         continue
       }
 
-      const file = new File([buffer], attachment.filename ?? 'attachment', {
-        type: attachment.contentType
-      })
+      const file = new File(
+        [buffer],
+        safeAttachmentFilename(attachment.filename),
+        {
+          type: attachment.contentType
+        }
+      )
       const saved = await saveMedia(database, actor, { file })
       if (saved) mediaIds.push(saved.id)
     } catch (error) {

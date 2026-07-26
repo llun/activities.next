@@ -59,14 +59,13 @@ describe('renderEmail', () => {
       )
     })
 
+    // Whole document on purpose: a client quotes the rendered body, but a
+    // provider that hands over the entire document must not put <title> — which
+    // carries the subject as real text — above the marker.
     it('lets the parser recover the sender text from the html part', () => {
       const { html } = render({ replyMarker: REPLY_SENTINEL })
-      // A client quotes the rendered body, not the raw document — the marker is
-      // the first thing inside <body>, and <head> (which carries the subject in
-      // <title>) is never part of a quote.
-      const body = html.slice(html.indexOf('<body'))
 
-      expect(extractReplyText({ html: `<p>My answer.</p>${body}` })).toBe(
+      expect(extractReplyText({ html: `<p>My answer.</p>${html}` })).toBe(
         'My answer.'
       )
     })

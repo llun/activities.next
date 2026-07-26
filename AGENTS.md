@@ -269,7 +269,7 @@ section-navigation patterns; pick by section type.
 Emails go through one shared skeleton, so a design or copy change lands in one
 place instead of eleven.
 
-> **Migration in progress — one template left.** Ten of the eleven are on the
+> **Migration in progress — one template left.** Eleven of the twelve are on the
 > shared layout. Only `activityImport.ts` still exports the old
 > `getSubject`/`getTextContent`/`getHTMLContent` trio and writes raw markup —
 > and nothing sends it, so it is dead code until the fitness import wiring

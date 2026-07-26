@@ -87,6 +87,21 @@ const NON_BREAKING_SPACE = /\u00a0/g
  */
 const MAX_PARSE_CHARS = 256 * 1024
 
+/**
+ * Remove any `<head>` region, keeping everything around it.
+ *
+ * A client quotes the rendered body, but a provider that hands over the whole
+ * document would otherwise put `<title>` — which carries the subject as real
+ * text that sanitize-html keeps — above the reply marker, and the parser
+ * preserves everything above the marker.
+ *
+ * Only the head REGION goes. Cutting everything before `<body>` instead would
+ * delete the sender's own text, which in a quoted reply sits ahead of the
+ * quoted document — the same mistake as every other over-eager cut here.
+ */
+const stripDocumentHead = (html: string) =>
+  html.replace(/<head\b[^>]*>[\s\S]*?<\/head>/gi, ' ')
+
 const stripQuote = (line: string) => line.replace(QUOTE_PREFIX, '')
 const cleaned = (line: string) => stripQuote(line).trim()
 
@@ -275,7 +290,7 @@ export const extractReplyText = ({ text, html }: ReplyBodyInput): string => {
   const plain =
     typeof text === 'string' && text.trim().length > 0
       ? normalize(text)
-      : normalize(htmlToPlainText(html))
+      : normalize(htmlToPlainText(html ? stripDocumentHead(html) : html))
   if (plain.trim().length === 0) return ''
 
   const sentinelCut = cutAtSentinel(plain)

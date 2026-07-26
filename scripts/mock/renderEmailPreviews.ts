@@ -40,6 +40,7 @@ import { buildLikeEmail } from '@/lib/services/email/templates/like'
 import { buildMentionEmail } from '@/lib/services/email/templates/mention'
 import { buildBoostEmail } from '@/lib/services/email/templates/reblog'
 import { buildReplyEmail } from '@/lib/services/email/templates/reply'
+import { buildReplyByEmailFailureEmail } from '@/lib/services/email/templates/replyByEmailFailure'
 import { buildResetPasswordEmail } from '@/lib/services/email/templates/resetPassword'
 import { buildVerifyEmail } from '@/lib/services/email/templates/verifyEmail'
 import { RenderedEmail } from '@/lib/services/email/types'
@@ -118,6 +119,15 @@ interface Preview {
 }
 
 const buildPreviews = (): Preview[] => [
+  {
+    slug: 'reply-by-email-failure',
+    group: 'Account & security',
+    email: buildReplyByEmailFailureEmail({
+      reason: 'too-long',
+      recipientEmail: 'anna@example.com',
+      statusUrl: 'https://test.llun.dev/@anna/note-88213'
+    })
+  },
   {
     slug: 'verify-email',
     group: 'Account & security',

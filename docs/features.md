@@ -111,7 +111,7 @@ Mention and reply notification emails can carry a `Reply-To` address. Hitting
 Reply in any mail client and sending posts a real fediverse reply, in the right
 thread and at the same visibility as the post being answered — a reply to a
 direct message stays direct, without the sender having to type an `@mention`.
-Attachments the media pipeline accepts (JPEG, PNG, MP4, WebM, QuickTime, M4A)
+Attachments the media pipeline accepts (JPEG, PNG, MP4, WebM, QuickTime — audio is not stored)
 ride along; anything else, and any inline image referenced from the quoted
 history, is dropped rather than failing the reply. A reply that cannot be
 posted gets a short notice back explaining why, so it never disappears

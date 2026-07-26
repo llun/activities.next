@@ -169,7 +169,7 @@ change doesn't touch.
 
 ## Emails
 
-- **Migration in progress — one template left.** Ten of eleven are on the shared
+- **Migration in progress — one template left.** Eleven of twelve are on the shared
   layout; only `activityImport.ts` still uses the old
   `getSubject`/`getTextContent`/`getHTMLContent` trio, and nothing sends it.
   Apply the rules below when migrating it; don't copy the old shape into a new

@@ -1,9 +1,17 @@
 import { getConfig } from '@/lib/config'
+import { button, headline, paragraph } from '@/lib/services/email/layout/blocks'
+import { renderEmail } from '@/lib/services/email/layout/renderEmail'
+import { RenderedEmail } from '@/lib/services/email/types'
 
 // A dropped email reply is invisible to whoever sent it — they believe they
 // posted. This notice turns the worst failure mode (silent data loss) into an
-// ordinary one. It carries no Reply-To of its own, so answering it cannot loop
-// back into the reply pipeline.
+// ordinary one.
+//
+// It deliberately carries no `replyMarker` and no `Reply-To`: a notice about a
+// failed reply must not itself be repliable, or a misconfigured mailbox could
+// bounce it around the loop. The `account` footer is right for the same
+// reason — it is not one of the social events the notification settings can
+// switch off, so there is no toggle to link to.
 export type ReplyByEmailFailureReason =
   | 'empty'
   | 'too-long'
@@ -27,62 +35,42 @@ const REASONS: Record<ReplyByEmailFailureReason, string> = {
     'the server could not publish it (a direct thread with no recipients, or a blocked or muted conversation)'
 }
 
-const HTML_ESCAPES: Record<string, string> = {
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  '"': '&quot;',
-  "'": '&#39;'
+export interface ReplyByEmailFailureParams {
+  reason: ReplyByEmailFailureReason
+  recipientEmail: string
+  /**
+   * The thread the reply was meant for. Omitted when it is gone, and dropped
+   * by the block builder unless it is a usable http(s) URL — it can originate
+   * from a remote server.
+   */
+  statusUrl?: string
 }
 
-const escapeHtml = (value: string) =>
-  value.replace(/[&<>"']/g, (character) => HTML_ESCAPES[character])
-
-// The thread URL can originate from a remote server, so it is parsed and
-// restricted to http/https before it is allowed to become an href (see the
-// URL-validation rule in REVIEW.md). An unusable value degrades to the
-// link-free wording rather than shipping an unchecked scheme into a mail
-// client.
-const safeHref = (statusUrl?: string) => {
-  if (!statusUrl) return null
+const isWebUrl = (statusUrl?: string) => {
+  if (!statusUrl) return false
   try {
     const url = new URL(statusUrl)
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
-    return url.toString()
+    return url.protocol === 'http:' || url.protocol === 'https:'
   } catch {
-    return null
+    return false
   }
 }
 
-export const getSubject = () =>
-  `Your reply was not posted to ${getConfig().host}`
-
-export const getTextContent = (
-  reason: ReplyByEmailFailureReason,
-  statusUrl?: string
-) => {
-  const href = safeHref(statusUrl)
-  return [
-    'We could not post your emailed reply.',
-    '',
-    `Reason: ${REASONS[reason]}.`,
-    '',
-    href
-      ? `Nothing was published. You can still reply from the web: ${href}`
-      : 'Nothing was published. You can still reply from the web.'
-  ].join('\n')
-}
-
-export const getHTMLContent = (
-  reason: ReplyByEmailFailureReason,
-  statusUrl?: string
-) => {
-  const href = safeHref(statusUrl)
-  return [
-    '<h3>We could not post your emailed reply</h3>',
-    `<p><strong>Reason:</strong> ${REASONS[reason]}.</p>`,
-    href
-      ? `<p>Nothing was published. You can still <a href="${escapeHtml(href)}">reply from the web</a>.</p>`
-      : '<p>Nothing was published. You can still reply from the web.</p>'
-  ].join('\n')
-}
+export const buildReplyByEmailFailureEmail = ({
+  reason,
+  recipientEmail,
+  statusUrl
+}: ReplyByEmailFailureParams): RenderedEmail =>
+  renderEmail({
+    subject: `Your reply was not posted to ${getConfig().host}`,
+    preheader: 'Nothing was published — here is why.',
+    blocks: [
+      headline('We could not post your emailed reply'),
+      paragraph(['Reason: ', { strong: REASONS[reason] }, '.']),
+      paragraph('Nothing was published.', { tight: true }),
+      ...(isWebUrl(statusUrl)
+        ? [button({ label: 'Reply from the web', url: statusUrl as string })]
+        : [])
+    ],
+    footer: { kind: 'account', recipientEmail }
+  })

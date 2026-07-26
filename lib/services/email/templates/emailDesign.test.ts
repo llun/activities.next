@@ -10,6 +10,7 @@ import { buildLikeEmail } from './like'
 import { buildMentionEmail } from './mention'
 import { buildBoostEmail } from './reblog'
 import { buildReplyEmail } from './reply'
+import { buildReplyByEmailFailureEmail } from './replyByEmailFailure'
 import { buildResetPasswordEmail } from './resetPassword'
 import { buildVerifyEmail } from './verifyEmail'
 
@@ -64,6 +65,16 @@ interface Case {
 }
 
 const cases: Case[] = [
+  {
+    description: 'reply by email failure',
+    email: buildReplyByEmailFailureEmail({
+      reason: 'too-long',
+      recipientEmail: XSS,
+      statusUrl: 'https://test.llun.dev/@anna/1'
+    }),
+    buttons: 1,
+    footer: 'account'
+  },
   {
     description: 'verify email',
     email: buildVerifyEmail({ recipientEmail: XSS, verificationCode: CODE }),

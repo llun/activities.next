@@ -562,6 +562,43 @@ describe('replyByEmailJob', () => {
   // inline, with a Content-ID the body never references. Treating every inline
   // part as decoration dropped those silently — the reply posted as text only
   // and nothing said why, while the docs promise attachments ride along.
+  // The filename reaches join(tmpdir(), <random> + file.name) and a writeFile
+  // in the object-storage video path, and join() resolves `..` — so an
+  // unsanitised name escapes the temp directory. Inbound email is the first
+  // upload surface that takes this string straight off the wire.
+  it.each([
+    {
+      description: 'a traversal path',
+      filename: '../../../../etc/cron.d/x.png'
+    },
+    { description: 'a windows path', filename: 'C:\\Windows\\evil.png' },
+    { description: 'a bare dotdot', filename: '..' }
+  ])(
+    'sanitises $description in an attachment filename',
+    async ({ filename }) => {
+      const token = await mintFor(publicStatus.id)
+      mockSaveMedia.mockResolvedValue({ id: 'media-x' } as never)
+
+      await runJob(database, {
+        token,
+        messageId: `<filename-${filename.length}@example.tld>`,
+        text: replyBody('Attachment with an awkward name.'),
+        attachments: [
+          {
+            filename,
+            contentType: 'image/png',
+            contentBase64: Buffer.from('png').toString('base64')
+          }
+        ]
+      })
+
+      expect(mockSaveMedia).toHaveBeenCalledTimes(1)
+      const [, , media] = mockSaveMedia.mock.calls[0]
+      expect(media.file.name).not.toContain('..')
+      expect(media.file.name).not.toMatch(/[\\/]/)
+    }
+  )
+
   it('keeps an inline photo the body does not reference', async () => {
     const token = await mintFor(publicStatus.id)
     mockSaveMedia.mockResolvedValue({ id: 'media-photo' } as never)

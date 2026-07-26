@@ -1693,6 +1693,12 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       // Delete markers made by this actor
       await trx('markers').where('actorId', actorId).delete()
 
+      // Reply-by-email capability tokens issued to this actor. They are dead
+      // once the actor is gone (the job re-checks), but they name the actor
+      // and the statuses they were minted for, so they go with the account
+      // rather than sitting until the prune script runs.
+      await trx('email_reply_tokens').where('actorId', actorId).delete()
+
       const pollAnswersMadeByActor: { statusId: string; choice: number }[] =
         await trx('poll_answers')
           .where('actorId', actorId)
