@@ -9,6 +9,21 @@ export const MAX_CONFIGURABLE_FILE_SIZE = 1_073_741_824
 export const MAX_ATTACHMENTS = 10
 export const MAX_WIDTH = 4000
 export const MAX_HEIGHT = 4000
+
+// sharp resize options shared by every stored-image pipeline (LocalFileStorage
+// and S3FileStorage), kept in one place so the two cannot drift apart.
+//
+// `withoutEnlargement` is load-bearing: sharp's `fit: 'inside'` ENLARGES by
+// default, so without it the MAX_WIDTH/MAX_HEIGHT box stops being a cap and
+// becomes an upscale — every image below 4000x4000 was blown up to fill it. An
+// 800x600 route map (39 KB PNG) was stored as a 4000x3000 WebP of 271 KB, a
+// size no surface ever displays. Matches `lib/utils/resizeImage.ts`, which the
+// browser upload path already applies as a downscale-only cap.
+export const IMAGE_RESIZE_OPTIONS = {
+  fit: 'inside',
+  withoutEnlargement: true
+} as const
+
 // Default quota per account is 1GB (1,073,741,824 bytes)
 export const DEFAULT_QUOTA_PER_ACCOUNT = 1_073_741_824
 

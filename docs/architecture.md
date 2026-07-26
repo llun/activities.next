@@ -160,6 +160,15 @@ Media files (images and video) and fitness files (.fit, .gpx, .tcx) support mult
 - **S3** — Amazon S3
 - **Object storage** — Any S3-compatible service (MinIO, DigitalOcean Spaces, Cloudflare R2, etc.)
 
+Uploaded images (originals, thumbnails, and generated fitness route maps) are
+re-encoded to WebP and bounded by a 4000x4000 pixel box. That box is a **cap,
+not a target**: an image already inside it is stored at its own dimensions and
+is never upscaled. Images stored before this became true were enlarged to fill
+the box, so older rows can be several times larger than their source and carry
+dimensions the source never had. They are still served correctly and are left
+as-is — nothing re-encodes them — so an instance's media directory may hold a
+mix of both until those attachments are deleted.
+
 ## Database Schema (Simplified)
 
 ```

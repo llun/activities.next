@@ -7,6 +7,7 @@ import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/domain/actor'
 
+import { MAX_HEIGHT, MAX_WIDTH } from './constants'
 import { MediaValidationError } from './errors'
 import { LocalFileStorage } from './localFile'
 
@@ -208,5 +209,98 @@ describe('LocalFileStorage image output format', () => {
       createStorage().saveImageRendition(actor, await createPngFile(), 'jpeg')
     ).rejects.toThrow(MediaValidationError)
     expect(await fs.readdir(mediaRoot)).toEqual([])
+  })
+})
+
+describe('LocalFileStorage.saveFile image sizing', () => {
+  let tempDir: string
+  let mediaRoot: string
+
+  const actor = { id: 'actor-1' } as Actor
+
+  const database = {
+    createMedia: vi.fn(),
+    getActorFromId: vi.fn(),
+    getStorageUsageForAccount: vi.fn(),
+    getFitnessStorageUsageForAccount: vi.fn()
+  } as unknown as jest.Mocked<Database>
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'activities-media-'))
+    mediaRoot = path.join(tempDir, 'media')
+    await fs.mkdir(mediaRoot)
+
+    database.getActorFromId.mockResolvedValue({
+      id: 'actor-1',
+      account: { id: 'account-1' }
+    } as never)
+    database.getStorageUsageForAccount.mockResolvedValue(0)
+    database.getFitnessStorageUsageForAccount.mockResolvedValue(0)
+    database.createMedia.mockImplementation((async (params: unknown) => ({
+      id: 'media-1',
+      ...(params as object)
+    })) as never)
+  })
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true })
+  })
+
+  const createStorage = () =>
+    new LocalFileStorage(
+      {
+        type: MediaStorageType.LocalFile,
+        path: mediaRoot
+      },
+      'llun.test',
+      database
+    )
+
+  const createPngFile = async (width: number, height: number) => {
+    const buffer = await sharp({
+      create: { width, height, channels: 3, background: '#3366cc' }
+    })
+      .png()
+      .toBuffer()
+    return new File([new Uint8Array(buffer)], 'route-map.png', {
+      type: 'image/png'
+    })
+  }
+
+  const readStoredImage = async () => {
+    const files = await fs.readdir(mediaRoot)
+    expect(files).toHaveLength(1)
+    return sharp(await fs.readFile(path.join(mediaRoot, files[0]))).metadata()
+  }
+
+  // Regression: `fit: 'inside'` enlarges by default, so every image below the
+  // 4000x4000 cap was upscaled to fill it — an 800x600 route map was stored as
+  // a 4000x3000 WebP roughly 7x the source's bytes, and no surface ever
+  // displayed it at that size.
+  it('stores an image below the cap at its original dimensions', async () => {
+    const attachment = await createStorage().saveFile(actor, {
+      file: await createPngFile(800, 600)
+    })
+
+    await expect(readStoredImage()).resolves.toMatchObject({
+      width: 800,
+      height: 600
+    })
+    expect(attachment?.meta.original).toMatchObject({
+      width: 800,
+      height: 600
+    })
+  })
+
+  it('scales an image above the cap down to fit', async () => {
+    await createStorage().saveFile(actor, {
+      file: await createPngFile(MAX_WIDTH + 200, (MAX_HEIGHT + 200) / 2)
+    })
+
+    await expect(readStoredImage()).resolves.toMatchObject({
+      width: MAX_WIDTH,
+      height: MAX_HEIGHT / 2
+    })
   })
 })
