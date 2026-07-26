@@ -165,3 +165,19 @@ describe('buildActivityImportEmail', () => {
     expect(build().html).toContain('email notifications for fitness imports')
   })
 })
+
+describe('buildActivityImportEmail title truncation', () => {
+  it('does not split an emoji when truncating', () => {
+    // Auto-generated fitness captions lead with an emoji, so a cut landing
+    // mid-surrogate would render a replacement character in the mail client.
+    const emojiTitle = '🏃'.repeat(90)
+    const { html } = buildActivityImportEmail({
+      recipient,
+      status: status(emojiTitle),
+      fitness: fitness()
+    })
+    expect(html).not.toContain('�')
+    // A lone high surrogate would survive a code-unit slice.
+    expect(html).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/)
+  })
+})

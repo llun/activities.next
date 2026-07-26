@@ -50,8 +50,16 @@ const getActivityTitle = (
     .find((line) => line.length > 0)
 
   if (firstLine) {
-    return firstLine.length > MAX_TITLE_LENGTH
-      ? `${firstLine.slice(0, MAX_TITLE_LENGTH - 1).trimEnd()}…`
+    // Iterate code POINTS, not code units: these captions routinely lead with
+    // an emoji (buildActivitySummary emits one per activity type), and slicing
+    // a string mid-surrogate leaves a lone half that renders as a replacement
+    // character in the mail client.
+    const characters = Array.from(firstLine)
+    return characters.length > MAX_TITLE_LENGTH
+      ? `${characters
+          .slice(0, MAX_TITLE_LENGTH - 1)
+          .join('')
+          .trimEnd()}…`
       : firstLine
   }
 
