@@ -17,8 +17,10 @@ export const FONT_STACK =
 export const PAGE_BACKGROUND = '#f4f4f4'
 /** The single card holding the message body. */
 export const CARD_BACKGROUND = '#fdfdfd'
-/** Inset blocks: quoted posts, and the fitness stat card once it lands. */
+/** Inset blocks: quoted posts and the fitness stat card. */
 export const INSET_BACKGROUND = '#f5f5f5'
+/** Wash behind a route map, visible while the image is blocked or loading. */
+export const MAP_BACKGROUND = '#eef1f4'
 
 export const BORDER = '#e5e5e5'
 /** Lighter rule used only for the in-card "if you didn't request this" divider. */
