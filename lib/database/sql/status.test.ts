@@ -352,6 +352,7 @@ describe('StatusDatabase', () => {
           isLocalActor: true,
           totalLikes: 0,
           totalShares: 0,
+          reactions: [],
           attachments: [],
           tags: []
         })

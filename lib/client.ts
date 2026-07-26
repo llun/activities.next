@@ -27,6 +27,7 @@ import type { ListEntity } from '@/lib/types/mastodon/list'
 import type { MediaAttachment } from '@/lib/types/mastodon/mediaAttachment'
 import type { PreviewCard } from '@/lib/types/mastodon/previewCard'
 import type { Status as MastodonStatus } from '@/lib/types/mastodon/status'
+import type { StatusReaction as MastodonStatusReaction } from '@/lib/types/mastodon/statusReaction'
 import type { Tag } from '@/lib/types/mastodon/tag'
 import type { Translation } from '@/lib/types/mastodon/translation'
 import { normalizeActorId } from '@/lib/utils/activitypub'
@@ -464,6 +465,60 @@ export const likeStatus = async ({ statusId }: DefaultStatusParams) => {
     }
   )
   return response.status === 200
+}
+
+/**
+ * Adds the current actor's emoji reaction to a status and returns the updated
+ * reaction rollups, or null on failure so the caller can revert its optimistic
+ * chip. `name` is a unicode emoji or a local custom-emoji shortcode.
+ *
+ * Uses the Pleroma/Akkoma dialect, which is the primary reaction surface (the
+ * glitch-soc `react`/`unreact` routes are aliases over the same store). This is
+ * an ecosystem extension, not core Mastodon API.
+ * @see https://docs.akkoma.dev/stable/development/API/pleroma_api/
+ */
+export const reactToStatus = async ({
+  statusId,
+  name
+}: DefaultStatusParams & { name: string }): Promise<
+  MastodonStatusReaction[] | null
+> => {
+  const response = await fetch(
+    `/api/v1/pleroma/statuses/${urlToId(statusId)}/reactions/${encodeURIComponent(name)}`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }
+  )
+  if (!response.ok) return null
+  const status = (await response.json()) as MastodonStatus
+  return status.pleroma?.emoji_reactions ?? status.reactions ?? []
+}
+
+/**
+ * Removes the current actor's emoji reaction from a status and returns the
+ * updated rollups, or null on failure.
+ */
+export const unreactFromStatus = async ({
+  statusId,
+  name
+}: DefaultStatusParams & { name: string }): Promise<
+  MastodonStatusReaction[] | null
+> => {
+  const response = await fetch(
+    `/api/v1/pleroma/statuses/${urlToId(statusId)}/reactions/${encodeURIComponent(name)}`,
+    {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }
+  )
+  if (!response.ok) return null
+  const status = (await response.json()) as MastodonStatus
+  return status.pleroma?.emoji_reactions ?? status.reactions ?? []
 }
 
 export const bookmarkStatus = async ({ statusId }: DefaultStatusParams) => {
