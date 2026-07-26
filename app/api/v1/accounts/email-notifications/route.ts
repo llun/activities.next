@@ -11,6 +11,7 @@ const EmailNotificationSettingsRequest = z.object({
   mention: z.boolean().optional(),
   reply: z.boolean().optional(),
   reblog: z.boolean().optional(),
+  emoji_reaction: z.boolean().optional(),
   activity_import: z.boolean().optional(),
   actorId: z.string().optional()
 })

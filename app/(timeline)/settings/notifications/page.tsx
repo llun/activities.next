@@ -49,6 +49,11 @@ const notificationTypes: {
     description: 'Someone reblogs your post'
   },
   {
+    key: 'emoji_reaction',
+    label: 'Reactions',
+    description: 'Someone reacts to your post with an emoji'
+  },
+  {
     key: 'activity_import',
     label: 'Fitness Activity Imported',
     description:

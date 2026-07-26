@@ -29,6 +29,7 @@ const NOTIFICATION_TYPE_TO_ALERT: Partial<
   reblog: 'reblog',
   quote: 'quote',
   quoted_update: 'quoted_update',
+  emoji_reaction: 'pleroma:emoji_reaction',
   activity_import: 'status'
 }
 
@@ -115,6 +116,11 @@ const getNotificationContent = (
       return {
         title: 'Quoted',
         body: `${displayName} quoted your post`
+      }
+    case 'emoji_reaction':
+      return {
+        title: 'Reaction',
+        body: `${displayName} reacted to your post`
       }
     case 'quoted_update':
       return {
