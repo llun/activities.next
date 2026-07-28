@@ -31,6 +31,23 @@ describe('ENV_TEMPLATE_AREAS', () => {
     expect(field.placeholder.trim()).not.toBe('')
   })
 
+  // The filesystem block is the one an operator can paste and run as-is, and
+  // that only holds while its required variables carry real defaults. Without
+  // one, `ACTIVITIES_MEDIA_STORAGE_PATH=` disables media storage outright
+  // (getMediaStorageConfig treats blank as unset — before that guard it
+  // resolved to the process CWD and served the application directory).
+  it('keeps the filesystem storage block runnable with nothing typed', () => {
+    const storage = ENV_TEMPLATE_AREAS.find((area) => area.value === 'storage')
+    if (storage?.kind !== 'choice') throw new Error('storage area is missing')
+    const fs = storage.choices.find((choice) => choice.value === 'fs')
+    if (!fs) throw new Error('fs choice is missing')
+
+    expect(fs.fields.length).toBeGreaterThan(0)
+    for (const field of fs.fields.filter((candidate) => !candidate.optional)) {
+      expect(field.defaultValue).toBeTruthy()
+    }
+  })
+
   it('names every variable in the ACTIVITIES_ or AWS_ namespace', () => {
     for (const { field } of fieldsOf()) {
       expect(field.name).toMatch(/^(ACTIVITIES|AWS)_/)

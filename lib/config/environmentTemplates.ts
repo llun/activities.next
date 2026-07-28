@@ -15,9 +15,16 @@ export interface EnvTemplateField {
   // Environment variable this input fills in.
   name: string
   label: string
+  // Example shown *in the input*. Never emitted into the generated block: an
+  // example that reached a `.env` verbatim would be a working configuration
+  // built out of values the operator does not own (see EnvBlockBuilder).
   placeholder: string
+  // A genuinely correct value the operator can keep, emitted into the block
+  // when nothing is typed. Only for variables that have a real default — an
+  // example is not one.
+  defaultValue?: string
   // Left out of the generated block until the admin types a value. Required
-  // fields always appear, carrying their placeholder as a visible to-do.
+  // fields always appear, empty, as a visible to-do.
   optional?: boolean
   // Masked in the preview, included verbatim when copied.
   secret?: boolean
@@ -85,6 +92,10 @@ const MEDIA_STORAGE_FILESYSTEM_FIELDS: EnvTemplateField[] = [
     name: 'ACTIVITIES_MEDIA_STORAGE_PATH',
     label: 'Media directory',
     placeholder: './uploads',
+    // A real default rather than an example, so the block stays runnable with
+    // nothing typed. Emitting this empty would resolve to the process CWD and
+    // serve the application directory over /api/v1/files.
+    defaultValue: './uploads',
     wide: true
   }
 ]
@@ -184,11 +195,10 @@ const REPLY_BY_EMAIL_FIELDS: EnvTemplateField[] = [
   {
     name: 'ACTIVITIES_EMAIL_INBOUND_SECRET',
     label: 'Webhook signing secret — generate with `openssl rand -hex 32`',
-    // A required field carries its placeholder into the block as a visible
-    // to-do, so a secret's placeholder has to be unmistakably a stub. Naming
-    // the command here instead would put a runnable line where the value goes,
-    // and `min(1)` accepts it: the instance would then verify every inbound
-    // webhook against a signing key published in this repository.
+    // Deliberately no `defaultValue`: there is no correct default for a signing
+    // key, so the block lists this empty. The builder never emits a placeholder
+    // as a value, which is what keeps a pasted-unedited block from
+    // authenticating every inbound webhook against a string published here.
     placeholder: 'your-webhook-signing-secret',
     secret: true,
     wide: true

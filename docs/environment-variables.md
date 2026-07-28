@@ -76,11 +76,18 @@ inert — nothing typed into it is submitted, stored, or sent anywhere, and the
 server still only reads those values from the environment at boot, so a change
 needs a restart.
 
-A required variable you have not filled in is listed in the block with an empty
-value (`NAME=`) rather than its example. The example belongs to the input beside
+A required variable you have not filled in is listed in the block with its real
+default if it has one (`ACTIVITIES_MEDIA_STORAGE_PATH=./uploads`) and empty
+otherwise (`NAME=`) — never its example. The example belongs to the input beside
 it: a block that carried examples as values could be pasted verbatim and boot a
 real configuration out of them — a signing secret published in this repository,
-or a reply domain the operator does not own.
+or a bucket and reply domain the operator does not own.
+
+Media storage refuses a blank required value rather than accepting it, so
+`ACTIVITIES_MEDIA_STORAGE_PATH=` or an empty bucket/region disables storage with
+a warning instead of starting a broken backend. (An empty path would otherwise
+resolve to the process working directory, putting uploads in the application
+root and serving it over `/api/v1/files`.)
 
 Where a database-backed setting depends on one of those environment-only values,
 the control stays visible and reports the blocker rather than disappearing. The

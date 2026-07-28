@@ -10,6 +10,8 @@ import {
   within
 } from '@testing-library/react'
 
+import { ENV_TEMPLATE_AREAS } from '@/lib/config/environmentTemplates'
+
 import { EnvBlockBuilder } from './EnvBlockBuilder'
 
 const STORAGE_AREA = 'Media storage — filesystem or S3'
@@ -249,33 +251,94 @@ describe('EnvBlockBuilder', () => {
   })
 
   // The invariant that keeps an unfilled block from booting a real
-  // configuration. A placeholder is the *input's* example; emitting it as the
-  // value produced lines an operator could paste verbatim and have work —
+  // configuration, checked against the string the COPY button actually writes
+  // — the preview's textContent has no newlines, so scraping it cannot see
+  // individual lines at all.
+  //
+  // A placeholder is the *input's* example; emitting it as the value produced
+  // lines an operator could paste verbatim and have work.
   // `ACTIVITIES_EMAIL_INBOUND_SECRET=your-webhook-signing-secret` satisfies
   // `min(1)`, so the instance would verify every inbound webhook against a
-  // string published in this repository. `NAME=` cannot boot anything.
-  it.each([
-    { area: 'storage', label: STORAGE_AREA },
-    { area: 'maps', label: MAPS_AREA },
-    { area: 'reply-by-email', label: REPLY_AREA }
-  ])('never puts a placeholder in the $area block', ({ area, label }) => {
-    render(<EnvBlockBuilder />)
-    selectArea(area)
-    const scope = screen.getByRole('group', { name: label })
-
-    const placeholders = [...scope.querySelectorAll('input')]
-      .map((input) => input.placeholder)
-      .filter(Boolean)
-    expect(placeholders.length).toBeGreaterThan(0)
-
-    const block = scope.querySelector('pre')!.textContent ?? ''
-    for (const placeholder of placeholders) {
-      expect(block).not.toContain(placeholder)
+  // string published in this repository. A `defaultValue` is the exception and
+  // is emitted, because it is a correct value rather than an example.
+  describe.each(
+    ENV_TEMPLATE_AREAS.flatMap((area) =>
+      area.kind === 'choice'
+        ? area.choices.map((choice) => ({
+            area: area.value,
+            label: area.label,
+            choice: choice.value,
+            selectorName: area.selectorName,
+            fields: choice.fields
+          }))
+        : [
+            {
+              area: area.value,
+              label: area.label,
+              choice: null,
+              selectorName: null,
+              fields: area.fields
+            }
+          ]
+    )
+  )('$area/$choice block', ({ area, label, choice, selectorName, fields }) => {
+    const copiedBlock = async () => {
+      render(<EnvBlockBuilder />)
+      selectArea(area)
+      const scope = activeArea(label)
+      if (choice && selectorName) {
+        fireEvent.change(scope.getByLabelText(/type|provider/i), {
+          target: { value: choice }
+        })
+      }
+      fireEvent.click(scope.getByRole('button', { name: 'Copy .env block' }))
+      await waitFor(() => expect(writeText).toHaveBeenCalled())
+      return writeText.mock.calls.at(-1)![0] as string
     }
-    // Required variables are still listed, so the block is a to-do list rather
-    // than empty — every line just ends at the `=`.
-    for (const line of block.split('\n').filter(Boolean)) {
-      expect(line).toMatch(/=$/)
-    }
+
+    const required = fields.filter((field) => !field.optional)
+
+    it('lists every required variable and no optional one', async () => {
+      const block = await copiedBlock()
+      const names = block.split('\n').map((line) => line.split('=')[0])
+
+      for (const field of required) expect(names).toContain(field.name)
+      for (const field of fields.filter((f) => f.optional)) {
+        expect(names).not.toContain(field.name)
+      }
+      if (selectorName) expect(names).toContain(selectorName)
+      // Guards the vacuous pass: an empty block satisfies every "not present"
+      // assertion above on its own.
+      expect(names.filter(Boolean).length).toBe(
+        required.length + (selectorName ? 1 : 0)
+      )
+    })
+
+    // A placeholder may only reach the block when it is *also* the field's
+    // declared default — i.e. a correct value that happens to double as the
+    // example, like `./uploads`. Anything else is someone else's bucket, domain
+    // or signing key.
+    it.each(fields.map((field) => ({ field })))(
+      'never emits $field.name as its placeholder',
+      async ({ field }) => {
+        const block = await copiedBlock()
+        const line = block
+          .split('\n')
+          .find((candidate) => candidate.startsWith(`${field.name}=`))
+        if (!line || field.defaultValue === field.placeholder) return
+        expect(line.slice(field.name.length + 1)).not.toBe(field.placeholder)
+      }
+    )
+
+    it('leaves an unfilled required variable empty unless it has a default', async () => {
+      const block = await copiedBlock()
+
+      for (const field of required) {
+        const line = block
+          .split('\n')
+          .find((candidate) => candidate.startsWith(`${field.name}=`))!
+        expect(line.slice(field.name.length + 1)).toBe(field.defaultValue ?? '')
+      }
+    })
   })
 })

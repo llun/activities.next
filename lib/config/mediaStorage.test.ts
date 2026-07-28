@@ -69,6 +69,62 @@ describe('MediaStorage config', () => {
   })
 
   describe('getMediaStorageConfig', () => {
+    // A blank value is worse than a missing one: missing fails Config.parse
+    // loudly (z.string() rejects undefined), while `NAME=` satisfies it and
+    // boots a live-but-broken backend. An empty path resolves to the process
+    // CWD, so uploads land in the application directory and /api/v1/files
+    // serves it — reachable from the admin env-block builder, which lists
+    // required variables empty.
+    it.each([
+      {
+        name: 'an empty filesystem path',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 'fs',
+          ACTIVITIES_MEDIA_STORAGE_PATH: ''
+        }
+      },
+      {
+        name: 'a whitespace-only filesystem path',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 'fs',
+          ACTIVITIES_MEDIA_STORAGE_PATH: '   '
+        }
+      },
+      {
+        name: 'an empty bucket',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+          ACTIVITIES_MEDIA_STORAGE_BUCKET: '',
+          ACTIVITIES_MEDIA_STORAGE_REGION: 'eu-central-1'
+        }
+      },
+      {
+        name: 'an empty region',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+          ACTIVITIES_MEDIA_STORAGE_BUCKET: 'media.example.social',
+          ACTIVITIES_MEDIA_STORAGE_REGION: ''
+        }
+      }
+    ])('refuses to configure storage from $name', ({ env }) => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      Object.assign(process.env, env)
+
+      expect(getMediaStorageConfig()).toBeNull()
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('empty'))
+      warn.mockRestore()
+    })
+
+    it('trims a padded value rather than rejecting it', () => {
+      process.env.ACTIVITIES_MEDIA_STORAGE_TYPE = 'fs'
+      process.env.ACTIVITIES_MEDIA_STORAGE_PATH = '  /data/uploads  '
+
+      expect(getMediaStorageConfig()?.mediaStorage).toMatchObject({
+        type: 'fs',
+        path: '/data/uploads'
+      })
+    })
+
     it('returns null when no media storage env vars', () => {
       const config = getMediaStorageConfig()
       expect(config).toBeNull()
