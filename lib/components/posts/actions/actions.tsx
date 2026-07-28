@@ -21,11 +21,8 @@ import { useBookmarkState } from './useBookmarkState'
 import { useCompactActionBar } from './useCompactActionBar'
 
 interface Props extends PostProps {
-  /**
-   * The post's reaction rollups, shared with the chip row above. Absent only on
-   * surfaces that render no chips at all.
-   */
-  reactionState?: ReactionState
+  /** The post's reaction rollups, shared with the chip row above. */
+  reactionState: ReactionState
   onShowEdits?: (status: Status) => void
 }
 
@@ -70,19 +67,15 @@ export const Actions: FC<Props> = ({
   // least-used ones move into the menu that is already there.
   const extraItems: PostMenuExtraItem[] = isCompact
     ? [
-        ...(reactionState
-          ? [
-              {
-                key: 'react',
-                icon: <SmilePlus className="size-4" />,
-                label: 'React to post',
-                // The picker autofocuses its search field, so it has to open
-                // after the menu has finished handing focus back.
-                deferUntilClosed: true,
-                onSelect: () => reactionState.setIsPicking(true)
-              }
-            ]
-          : []),
+        {
+          key: 'react',
+          icon: <SmilePlus className="size-4" />,
+          label: 'React to post',
+          // The picker autofocuses its search field, so it has to open after
+          // the menu has finished handing focus back.
+          deferUntilClosed: true,
+          onSelect: () => reactionState.setIsPicking(true)
+        },
         {
           key: 'bookmark',
           icon: (
@@ -117,11 +110,9 @@ export const Actions: FC<Props> = ({
         onLikeChanged={onLikeChanged}
       />
       {isCompact ? null : <BookmarkButton state={bookmark} />}
-      {reactionState ? (
-        // Still mounted when compact: the picker it renders is portalled, and
-        // the menu item that opens it needs somewhere for it to live.
-        <ReactionButton state={reactionState} hideTrigger={isCompact} />
-      ) : null}
+      {/* Still mounted when compact: the picker it renders is portalled, and
+          the menu item that opens it needs somewhere for it to live. */}
+      <ReactionButton state={reactionState} hideTrigger={isCompact} />
       {hasEditHistory ? (
         <EditHistoryButton
           status={actualStatus}
@@ -136,7 +127,7 @@ export const Actions: FC<Props> = ({
         status={actualStatus}
         isOwner={isOwner}
         canEdit={canEdit}
-        triggerRef={isCompact ? reactionState?.triggerRef : undefined}
+        triggerRef={isCompact ? reactionState.triggerRef : undefined}
         extraItems={extraItems}
         onReply={onReply}
         onEdit={onEdit}
