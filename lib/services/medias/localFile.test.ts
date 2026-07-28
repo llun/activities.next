@@ -7,6 +7,7 @@ import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/domain/actor'
 
+import { MAX_HEIGHT, MAX_WIDTH } from './constants'
 import { MediaValidationError } from './errors'
 import { LocalFileStorage } from './localFile'
 
@@ -208,5 +209,128 @@ describe('LocalFileStorage image output format', () => {
       createStorage().saveImageRendition(actor, await createPngFile(), 'jpeg')
     ).rejects.toThrow(MediaValidationError)
     expect(await fs.readdir(mediaRoot)).toEqual([])
+  })
+})
+
+describe('LocalFileStorage.saveFile image sizing', () => {
+  let tempDir: string
+  let mediaRoot: string
+
+  const actor = { id: 'actor-1' } as Actor
+
+  const database = {
+    createMedia: vi.fn(),
+    getActorFromId: vi.fn(),
+    getStorageUsageForAccount: vi.fn(),
+    getFitnessStorageUsageForAccount: vi.fn()
+  } as unknown as jest.Mocked<Database>
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'activities-media-'))
+    mediaRoot = path.join(tempDir, 'media')
+    await fs.mkdir(mediaRoot)
+
+    database.getActorFromId.mockResolvedValue({
+      id: 'actor-1',
+      account: { id: 'account-1' }
+    } as never)
+    database.getStorageUsageForAccount.mockResolvedValue(0)
+    database.getFitnessStorageUsageForAccount.mockResolvedValue(0)
+    database.createMedia.mockImplementation((async (params: unknown) => ({
+      id: 'media-1',
+      ...(params as object)
+    })) as never)
+  })
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true })
+  })
+
+  const createStorage = () =>
+    new LocalFileStorage(
+      {
+        type: MediaStorageType.LocalFile,
+        path: mediaRoot
+      },
+      'llun.test',
+      database
+    )
+
+  const createPngFile = async (width: number, height: number) => {
+    const buffer = await sharp({
+      create: { width, height, channels: 3, background: '#3366cc' }
+    })
+      .png()
+      .toBuffer()
+    return new File([new Uint8Array(buffer)], 'route-map.png', {
+      type: 'image/png'
+    })
+  }
+
+  // Thumbnails are written alongside the original as `<prefix>-thumbnail.webp`,
+  // so each helper has to pick out the file it means.
+  const readStored = async (kind: 'original' | 'thumbnail') => {
+    const files = await fs.readdir(mediaRoot)
+    const match = files.find(
+      (file) => file.endsWith('-thumbnail.webp') === (kind === 'thumbnail')
+    )
+    if (!match) throw new Error(`No stored ${kind} in [${files.join(', ')}]`)
+    return sharp(await fs.readFile(path.join(mediaRoot, match))).metadata()
+  }
+
+  const readStoredImage = () => readStored('original')
+
+  // Regression: `fit: 'inside'` enlarges by default, so the MAX_WIDTH/MAX_HEIGHT
+  // box was an upscale rather than a cap — an 800x600 route map was stored as a
+  // 4000x3000 WebP, at a size no surface ever displays. Asserting on the bytes
+  // actually written is what catches it: `original.metaData` is read from the
+  // INPUT image, so it reported 800x600 either way.
+  it.each([
+    {
+      description: 'stores an image below the cap at its own dimensions',
+      source: { width: 800, height: 600 },
+      stored: { width: 800, height: 600 }
+    },
+    {
+      description: 'scales an image above the cap down to fit',
+      source: { width: MAX_WIDTH + 200, height: (MAX_HEIGHT + 200) / 2 },
+      stored: { width: MAX_WIDTH, height: MAX_HEIGHT / 2 }
+    }
+  ])('$description', async ({ source, stored }) => {
+    await createStorage().saveFile(actor, {
+      file: await createPngFile(source.width, source.height)
+    })
+
+    await expect(readStoredImage()).resolves.toMatchObject(stored)
+  })
+
+  // The thumbnail path is where the upscale reached the database: unlike the
+  // original, `thumbnail.metaData`/`bytes` come from `outputInfo` — the stored
+  // WebP — so an upscaled thumbnail was reported as 4000x3000 in the Mastodon
+  // attachment's `meta.small` and charged to the account's storage quota.
+  it('records the thumbnail dimensions actually stored', async () => {
+    const thumbnail = await createStorage().saveThumbnail(
+      actor,
+      await createPngFile(800, 600)
+    )
+
+    expect(thumbnail?.metaData).toEqual({ width: 800, height: 600 })
+    await expect(readStored('thumbnail')).resolves.toMatchObject({
+      width: 800,
+      height: 600
+    })
+  })
+
+  it('reports the stored thumbnail as meta.small on the attachment', async () => {
+    const attachment = await createStorage().saveFile(actor, {
+      file: await createPngFile(800, 600),
+      thumbnail: await createPngFile(400, 300)
+    })
+
+    expect(attachment?.meta.small).toMatchObject({
+      width: 400,
+      height: 300
+    })
   })
 })
