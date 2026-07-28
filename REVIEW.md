@@ -80,7 +80,9 @@ change doesn't touch.
   stored, never from the stored file: `extractVideoImage` rejects when ffmpeg
   finds no decodable frame, and a stored file with no `medias` row is
   unreachable by everything except `scripts/maintenance/cleanupMediaStorage.ts`.
-  Its temp copy is named `video<ext>` and takes nothing from the supplied name —
+  Its temp copy goes through `createMediaTempFilePath` like any other, but the
+  name it hands over is the server-derived `video<ext>` (so the path is
+  `<random prefix>-video<ext>`) and takes nothing from the supplied name —
   ffmpeg picks its demuxer from the path too, and `image2` beats content probing
   for an image extension carrying a `%0Nd` or `*` pattern, so `IMG_%04d.jpg` on
   a valid mp4 turned a storable upload into a 500. Validate the container from

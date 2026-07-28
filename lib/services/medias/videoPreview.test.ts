@@ -82,29 +82,34 @@ describe('extractVideoPreviewFrame', () => {
   // clobber must survive, since a collision is the one case where the path is
   // not this call's to remove.
   it('refuses to write over an existing temp path', async () => {
-    const scratchDir = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'video-preview-')
-    )
-    const collision = path.join(scratchDir, 'existing-video.mp4')
     const spy = vi.spyOn(fs, 'open')
+    let collision: string | null = null
 
     try {
-      await fs.writeFile(collision, 'someone-elses-bytes')
-      // The random prefix makes a real collision infeasible to aim at, so the
-      // path has to be forced to prove the flag is the thing preventing it.
-      spy.mockImplementationOnce((_target, flags) => fs.open(collision, flags))
+      // The random prefix makes a real collision infeasible to aim at, so one
+      // is planted at the path production actually chose. Colliding on some
+      // other path would prove nothing: the assertion below is that production
+      // does not remove *this* file, and it only ever unlinks its own.
+      spy.mockImplementationOnce(async (target, flags) => {
+        collision = String(target)
+        await fs.writeFile(collision, 'someone-elses-bytes')
+        return fs.open(target, flags)
+      })
 
       await expect(
         extractVideoPreviewFrame(Buffer.from('video-bytes'), '.mp4')
       ).rejects.toMatchObject({ code: 'EEXIST' })
 
       expect(extractVideoImage).not.toHaveBeenCalled()
-      await expect(fs.readFile(collision, 'utf-8')).resolves.toBe(
+      // A collision is the one case where the path is not this call's to
+      // remove, so cleanup has to start after the open, not around it.
+      await expect(fs.readFile(collision!, 'utf-8')).resolves.toBe(
         'someone-elses-bytes'
       )
     } finally {
       spy.mockRestore()
-      await fs.rm(scratchDir, { recursive: true, force: true })
+      // Correct behaviour leaves the planted file alone, so the test owns it.
+      if (collision) await fs.unlink(collision).catch(() => undefined)
     }
   })
 
