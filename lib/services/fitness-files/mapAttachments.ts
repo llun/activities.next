@@ -35,11 +35,11 @@ export const findRouteMapAttachments = async ({
 /**
  * Drops route map attachments and the media rows/files behind them.
  *
- * Shared by both jobs that replace a route map, and always called AFTER the
- * replacement is stored — so a leftover file is the worst thing a failure here
- * can cost. Only the storage deletions are swallowed (a missing object is not
- * worth a retry); the database calls can throw, so callers must contain them:
- * both jobs run this inside a catch that neither fails the activity nor
+ * Shared by both jobs that replace a route map, and always called once the map it removes is
+ * no longer the one the status should show — so a leftover file is the worst
+ * thing a failure here can cost. Only the storage deletions are swallowed (a
+ * missing object is not worth a retry); the database calls can throw, so every
+ * call site contains them in a catch that neither fails the activity nor
  * reports it as a map-generation failure.
  */
 export const removeRouteMapAttachmentsAndMedia = async ({
@@ -78,7 +78,7 @@ export const removeRouteMapAttachmentsAndMedia = async ({
       deletionResults.forEach((result, index) => {
         if (result.status === 'rejected' || !result.value) {
           logger.warn({
-            message: 'Failed to delete legacy map media file from storage',
+            message: 'Failed to delete replaced map media file from storage',
             statusId,
             mediaId,
             path: filePaths[index],
@@ -93,7 +93,7 @@ export const removeRouteMapAttachmentsAndMedia = async ({
     const deletedMedia = await database.deleteMedia({ mediaId })
     if (!deletedMedia) {
       logger.warn({
-        message: 'Failed to delete legacy map media database record',
+        message: 'Failed to delete replaced map media database record',
         statusId,
         mediaId
       })

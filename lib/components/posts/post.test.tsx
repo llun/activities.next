@@ -1100,7 +1100,7 @@ describe('Post', () => {
       )
 
       expect(
-        screen.getByText(/route map could not be generated/i)
+        screen.getByText(/route map image could not be generated/i)
       ).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument()
       expect(screen.queryByText(/Processing failed/i)).not.toBeInTheDocument()
@@ -1160,7 +1160,7 @@ describe('Post', () => {
 
       // Someone else's missing image is not a reader's problem.
       expect(
-        screen.queryByText(/route map could not be generated/i)
+        screen.queryByText(/route map image could not be generated/i)
       ).not.toBeInTheDocument()
       expect(
         screen.queryByRole('button', { name: /Retry/i })

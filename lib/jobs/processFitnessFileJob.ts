@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
-import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { SEND_NOTE_JOB_NAME, SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { buildActivityImportEmail } from '@/lib/services/email/templates/activityImport'
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
@@ -51,7 +51,16 @@ const JobData = z.object({
   // backfills alike — reusing it would mass-mail on a backfill. Only a genuine
   // first import sets this, and only an unattended importer sets it at all: a
   // direct upload needs no email, because the user is watching the composer.
-  notifyOnComplete: z.boolean().optional().default(false)
+  notifyOnComplete: z.boolean().optional().default(false),
+  // Whether a changed route map should be federated as an Update.
+  //
+  // Only the per-status retry endpoint sets it, because only there is the
+  // status known to be live already: this run replaces its map attachment, and
+  // without an Update every remote copy keeps pointing at bytes this run just
+  // deleted. The import paths must NOT set it — their status is federated by
+  // the Create the importer publishes, and an Update racing it would describe
+  // an object the receiver has not seen.
+  publishUpdateNote: z.boolean().optional().default(false)
 })
 
 const ACTIVITY_LABELS: Record<string, { label: string; emoji: string }> = {
@@ -311,7 +320,7 @@ const notifyActivityImported = async ({
       actorId,
       statusId,
       fitnessFileId,
-      err: error instanceof Error ? error : new Error(String(error))
+      err: toLoggableError(error)
     })
   }
 }
@@ -324,7 +333,8 @@ export const processFitnessFileJob = createJobHandle(
       statusId,
       fitnessFileId,
       publishSendNote,
-      notifyOnComplete
+      notifyOnComplete,
+      publishUpdateNote
     } = JobData.parse(message.data)
 
     await database.updateFitnessFileProcessingStatus(
@@ -431,6 +441,24 @@ export const processFitnessFileJob = createJobHandle(
             fitnessFileId,
             err: toLoggableError(error)
           })
+
+          // Recorded, not just logged: the status is now carrying a route map
+          // it should not — a duplicate, and after a privacy change an
+          // unfiltered one — so the owner needs the retry that re-attempts
+          // this. Contained the same way as the write in the map catch.
+          try {
+            await database.updateFitnessFileActivityData(fitnessFileId, {
+              mapError: 'Failed to remove the previous route map'
+            })
+          } catch (writeError) {
+            logger.error({
+              message: 'Failed to record the route map cleanup failure',
+              actorId,
+              statusId,
+              fitnessFileId,
+              err: toLoggableError(writeError)
+            })
+          }
         }
       }
 
@@ -485,6 +513,10 @@ export const processFitnessFileJob = createJobHandle(
       // and every stats/heatmap rollup. The activity here parsed fine and its
       // post federated — only the image is missing.
       let mapErrorMessage: string | undefined
+
+      // Whether this run changed what the status shows as its route map, which
+      // is what a federated Update would be about.
+      let mapAttachmentChanged = false
 
       if (filteredCoordinates.length >= 2) {
         try {
@@ -541,6 +573,7 @@ export const processFitnessFileJob = createJobHandle(
           // pre-privacy-filter image staying fetchable at its unchanged URL
           // after the owner added a privacy location.
           await dropPreviousMap()
+          mapAttachmentChanged = true
 
           // The WebP is what the post and every web surface use; the email
           // prefers a JPEG copy, because Outlook desktop cannot decode WebP.
@@ -602,6 +635,7 @@ export const processFitnessFileJob = createJobHandle(
           mapImageEmailPath: null
         })
         await dropPreviousMap()
+        mapAttachmentChanged = previousMapAttachments.length > 0
       }
 
       if (
@@ -657,6 +691,19 @@ export const processFitnessFileJob = createJobHandle(
             statusId
           }
         })
+      } else if (publishUpdateNote && mapAttachmentChanged) {
+        // The status is already live on other instances and this run swapped
+        // its route map, deleting the bytes the old attachment pointed at —
+        // so without this every remote copy keeps a dead image URL. Mirrors
+        // what regenerateFitnessMapsJob publishes for the same mutation.
+        await getQueue().publish({
+          id: getHashFromString(`${statusId}:send-update-note:fitness-map`),
+          name: SEND_UPDATE_NOTE_JOB_NAME,
+          data: {
+            actorId,
+            statusId
+          }
+        })
       }
 
       // Route heatmaps are intentionally NOT regenerated here. Importing an
@@ -684,6 +731,23 @@ export const processFitnessFileJob = createJobHandle(
         'failed',
         errorMessage
       )
+
+      // A whole-activity failure supersedes any map reason: the file's own
+      // status now carries the diagnostic, and leaving both set makes the
+      // fitness files page report a missing map instead of a failed import.
+      try {
+        await database.updateFitnessFileActivityData(fitnessFileId, {
+          mapError: null
+        })
+      } catch (writeError) {
+        logger.error({
+          message: 'Failed to clear the route map reason on a failed file',
+          actorId,
+          statusId,
+          fitnessFileId,
+          err: toLoggableError(writeError)
+        })
+      }
     }
   }
 )

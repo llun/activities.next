@@ -121,10 +121,6 @@ export const GET = traceApiRoute(
               },
               now
             ),
-            // The fact only. This payload is readable by every viewer of the
-            // status, and the reason is a raw error string — the owner reads it
-            // on their own fitness files page.
-            mapFailed: Boolean(file.mapError),
             totalDistanceMeters: file.totalDistanceMeters ?? null,
             totalDurationSeconds: file.totalDurationSeconds ?? null,
             movingTimeSeconds: file.movingTimeSeconds ?? null,

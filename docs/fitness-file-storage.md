@@ -112,7 +112,7 @@ This endpoint is **anonymous / unauthenticated** on purpose: public embeds and s
 6. Empty fitness posts are backfilled with an activity summary.
 7. The status is published to followers and route heatmap cache jobs are queued.
 
-Reprocessing a file (a retry, a recovery script, a re-import) removes the route map attachment and media the previous run created before attaching the new one. Without that the post renders the same route twice, and the stale image — which no column points at any more — can show a route a privacy location added since would have hidden.
+Reprocessing a file (a retry, a recovery script, a re-import) attaches its new route map first and removes the previous attachment and media only once that replacement is stored — the other order turns a failed reprocess into data loss, leaving an activity that had a map with none at all. Removing it at all is what stops the post rendering the same route twice, and what stops a stale image — which no column points at any more — from showing a route a privacy location added since would have hidden. A retry through `POST /api/v1/statuses/:id/retry-fitness` federates the replacement as an Update, since the status is already live elsewhere.
 
 ## User-Facing Features
 

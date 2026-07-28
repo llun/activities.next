@@ -109,7 +109,11 @@ export const POST = traceApiRoute(
             actorId: currentActor.id,
             statusId,
             fitnessFileId: file.id,
-            publishSendNote: false
+            publishSendNote: false,
+            // The status is already live — this endpoint only ever reprocesses
+            // an existing one — so a replaced route map has to federate as an
+            // Update, or remote copies keep an image URL this run deletes.
+            publishUpdateNote: true
           }
         })
         publishedFileIds.push(file.id)

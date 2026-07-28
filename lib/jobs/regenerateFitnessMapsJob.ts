@@ -119,13 +119,25 @@ export const regenerateFitnessMapsJob = createJobHandle(
         // renders duplicate images. Heal such a file by removing any stray map
         // it owns and marking it done, without parsing or regenerating.
         if (fitnessFile.isPrimary === false) {
-          await removeRouteMapAttachmentsAndMedia({
-            database,
-            accountId: actor.account.id,
-            statusId,
-            attachmentIds: oldAttachmentIds,
-            mediaIds: oldMediaIds
-          })
+          // Contained like the other cleanup call: a stray map this file must
+          // not own is worth removing, but failing to remove it is not worth
+          // marking a fully parsed activity `failed` and hiding it everywhere.
+          try {
+            await removeRouteMapAttachmentsAndMedia({
+              database,
+              accountId: actor.account.id,
+              statusId,
+              attachmentIds: oldAttachmentIds,
+              mediaIds: oldMediaIds
+            })
+          } catch (error) {
+            logger.error({
+              message: 'Failed to remove a stray route map from a merged post',
+              actorId,
+              fitnessFileId,
+              err: toLoggableError(error)
+            })
+          }
 
           await database.updateFitnessFileActivityData(fitnessFileId, {
             hasMapData: false,

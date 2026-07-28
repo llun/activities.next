@@ -579,7 +579,7 @@ describe('FitnessStatusDetail', () => {
       renderDetail({ status: mapFailedStatus() })
 
       expect(
-        screen.getByText(/route map could not be generated/i)
+        screen.getByText(/route map image could not be generated/i)
       ).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument()
     })
@@ -588,7 +588,7 @@ describe('FitnessStatusDetail', () => {
       renderDetail({ status: mapFailedStatus(), currentActor: null })
 
       expect(
-        screen.queryByText(/route map could not be/i)
+        screen.queryByText(/route map image could not be/i)
       ).not.toBeInTheDocument()
     })
 
@@ -596,7 +596,7 @@ describe('FitnessStatusDetail', () => {
       renderDetail()
 
       expect(
-        screen.queryByText(/route map could not be/i)
+        screen.queryByText(/route map image could not be/i)
       ).not.toBeInTheDocument()
     })
   })

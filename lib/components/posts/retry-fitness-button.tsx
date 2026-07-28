@@ -23,9 +23,9 @@ const LEAD_TEXT: Record<NonNullable<Props['variant']>, string> = {
   failed: 'Processing failed. The original activity file is still available.',
   stuck:
     'Processing is taking longer than expected. The original activity file is still available.',
-  map: 'The route map could not be generated. Everything else in this activity is intact.',
+  map: 'The route map image could not be generated. Everything else in this activity is intact.',
   'map-stale':
-    'The route map could not be updated, so this is the previous one. Everything else in this activity is intact.'
+    'The route map image could not be updated, so this is the previous one. Everything else in this activity is intact.'
 }
 
 export const RetryFitnessButton: FC<Props> = ({

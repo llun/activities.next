@@ -617,6 +617,37 @@ describe('processFitnessFileJob', () => {
       ).toBeNull()
     })
 
+    it('records a cleanup failure instead of failing the activity', async () => {
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+
+      await processFitnessFileJob(database, {
+        id: 'job-map-cleanup-first',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      vi.spyOn(database, 'deleteAttachmentsByIds').mockRejectedValueOnce(
+        new Error('attachment delete failed')
+      )
+      await processFitnessFileJob(database, {
+        id: 'job-map-cleanup-second',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      const refreshed = await database.getFitnessFile({ id: fitnessFileId })
+      // The new map exists, so this is not a generation failure and certainly
+      // not an activity failure — but the status is now carrying a map it
+      // should not, so the owner gets the retry that re-attempts the cleanup.
+      expect(refreshed).toMatchObject({
+        processingStatus: 'completed',
+        hasMapData: true,
+        mapError: 'Failed to remove the previous route map'
+      })
+    })
+
     it('leaves another fitness file’s map on the same status alone', async () => {
       const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
         text: 'Merged same-ride post'

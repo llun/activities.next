@@ -115,6 +115,35 @@ describe('buildActivityImportEmail', () => {
     expect(build().html).not.toContain('alt="Route map"')
   })
 
+  it('does not promise a route the post could not produce', () => {
+    // The email still goes out when the route map failed — the activity did
+    // arrive — so the copy has to drop the route and point at the retry
+    // instead, or it contradicts what the post shows its owner.
+    const { html, text } = build({
+      fitness: fitness({
+        hasMapData: false,
+        mapError: 'Failed to store generated route map image'
+      })
+    })
+
+    expect(text).toContain('A status with the stats was created')
+    expect(text).toContain('route map could not be generated')
+    expect(html).not.toContain('A status with the route and stats')
+  })
+
+  it('keeps the route wording when the activity still has its map', () => {
+    // A failed REgeneration keeps the previous map, so the status does have a
+    // route to show.
+    const { text } = build({
+      fitness: fitness({
+        hasMapData: true,
+        mapError: 'tile server down'
+      })
+    })
+
+    expect(text).toContain('A status with the route and stats')
+  })
+
   it('labels the third stat by activity type', () => {
     // A run is paced; a ride is measured in average speed.
     expect(build().text).toContain('Pace:')

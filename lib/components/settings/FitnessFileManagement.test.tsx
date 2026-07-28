@@ -371,6 +371,86 @@ describe('FitnessFileManagement', () => {
       ).not.toBeInTheDocument()
     })
 
+    it.each([
+      {
+        description:
+          'shows the map failure reason on a file that produced no map',
+        hasMapData: false,
+        expectedChip: 'No route map'
+      },
+      {
+        description:
+          'says the map is out of date when the previous one is still shown',
+        hasMapData: true,
+        expectedChip: 'Route map out of date'
+      }
+    ])('$description', ({ hasMapData, expectedChip }) => {
+      // This page is the owner's own file list, so it is the one surface that
+      // renders the reason itself rather than just the fact.
+      render(
+        <FitnessFileManagement
+          used={1024}
+          limit={10485760}
+          fitnessFiles={[
+            {
+              id: 'fitness-map-failed',
+              actorId: 'https://example.com/users/alice',
+              fileName: 'ride.fit',
+              fileType: 'fit' as const,
+              mimeType: 'application/vnd.ant.fit',
+              bytes: 1024,
+              createdAt: Date.now(),
+              url: '/api/v1/fitness-files/fitness-map-failed',
+              importStatus: 'completed' as const,
+              mapError: 'Failed to store generated route map image',
+              hasMapData
+            }
+          ]}
+          currentPage={1}
+          itemsPerPage={25}
+          totalItems={1}
+        />
+      )
+
+      expect(screen.getByText(expectedChip)).toBeInTheDocument()
+      expect(
+        screen.getByText('Failed to store generated route map image')
+      ).toBeInTheDocument()
+      // A missing map is not a failed import.
+      expect(screen.queryByText('Import failed')).not.toBeInTheDocument()
+    })
+
+    it('reports a failed import rather than its stale map reason', () => {
+      render(
+        <FitnessFileManagement
+          used={1024}
+          limit={10485760}
+          fitnessFiles={[
+            {
+              id: 'fitness-both',
+              actorId: 'https://example.com/users/alice',
+              fileName: 'ride.fit',
+              fileType: 'fit' as const,
+              mimeType: 'application/vnd.ant.fit',
+              bytes: 1024,
+              createdAt: Date.now(),
+              url: '/api/v1/fitness-files/fitness-both',
+              importStatus: 'failed' as const,
+              importError: 'Invalid TCX file structure',
+              mapError: 'tile server down'
+            }
+          ]}
+          currentPage={1}
+          itemsPerPage={25}
+          totalItems={1}
+        />
+      )
+
+      // Two contradictory blocks for one file is worse than the bigger one.
+      expect(screen.getByText('Import failed')).toBeInTheDocument()
+      expect(screen.queryByText('No route map')).not.toBeInTheDocument()
+    })
+
     it('retries every failed import at once via the Retry all failed button', async () => {
       const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
         ok: true,
