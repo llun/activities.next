@@ -342,62 +342,61 @@ describe('PostsMediaSettingsForm', () => {
     )
   })
 
-  // Shown rather than hidden so an admin finds the setting and learns why it is
-  // inert. Locking only ever applies to turning ON something inert.
-  it('disables the reply-by-email switch when it is already off and unavailable', () => {
-    renderForm({}, settingsWithReplyByEmail(false), baseStorageBackend, {
-      inbound: false
-    })
+  // `replyByEmail.enabled` is one shared row every instance reads, and it
+  // defaults to on, so THIS process missing the variables says nothing about
+  // the rest of the fleet. Locking either direction would put a cluster-wide
+  // control out of reach of whichever pod the admin is talking to — unable to
+  // stop workers that do have the variables, or to start them again after.
+  it.each([
+    { name: 'stored on', enabled: true },
+    { name: 'stored off', enabled: false }
+  ])(
+    'leaves the reply-by-email switch editable while unavailable ($name)',
+    ({ enabled }) => {
+      renderForm({}, settingsWithReplyByEmail(enabled), baseStorageBackend, {
+        inbound: false
+      })
 
-    const toggle = screen.getByLabelText(/Reply by email is unavailable/)
-    expect(toggle).toBeDisabled()
-    expect(toggle).not.toBeChecked()
-    expect(
-      screen.getByText(/This instance cannot receive replies/)
-    ).toBeInTheDocument()
-  })
+      const toggle = screen.getByLabelText(/^Reply by email is/)
+      expect(toggle).not.toBeDisabled()
+      // The stored value, never a fabricated `false`.
+      expect(toggle.getAttribute('aria-checked')).toBe(String(enabled))
+      expect(
+        screen.getByText(/This setting has no effect here/)
+      ).toBeInTheDocument()
+      expect(screen.getByText(/stays editable from here/)).toBeInTheDocument()
+    }
+  )
 
-  // The setting is a cluster-wide DB row that defaults to on, so THIS process
-  // missing the variables says nothing about the rest of the fleet. Reporting a
-  // stored `true` as `false`, or locking it, would put the kill switch out of
-  // reach of the pod the admin happens to be talking to.
-  it('keeps a stored-on switch readable and writable while unavailable', () => {
-    renderForm({}, settingsWithReplyByEmail(true), baseStorageBackend, {
-      inbound: false
-    })
+  it.each([
+    { name: 'off', from: true, to: false },
+    { name: 'back on', from: false, to: true }
+  ])(
+    'lets the admin switch reply by email $name while unavailable',
+    async ({ from, to }) => {
+      renderForm({}, settingsWithReplyByEmail(from), baseStorageBackend, {
+        inbound: false
+      })
 
-    const toggle = screen.getByLabelText(
-      /Reply by email is allowed, but unavailable here/
-    )
-    expect(toggle).toBeChecked()
-    expect(toggle).not.toBeDisabled()
-    expect(
-      screen.getByText(/switch it off here to stop them/)
-    ).toBeInTheDocument()
-  })
+      fireEvent.click(screen.getByLabelText(/^Reply by email is/))
+      fireEvent.click(screen.getAllByRole('button', { name: 'Update' }).at(-1)!)
 
-  it('lets the admin turn a stored-on switch off while unavailable', async () => {
-    renderForm({}, settingsWithReplyByEmail(true), baseStorageBackend, {
-      inbound: false
-    })
+      await waitFor(() => expect(mockUpdate).toHaveBeenCalled())
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ 'replyByEmail.enabled': to })
+      )
+    }
+  )
 
-    fireEvent.click(
-      screen.getByLabelText(/Reply by email is allowed, but unavailable here/)
-    )
-    fireEvent.click(screen.getAllByRole('button', { name: 'Update' }).at(-1)!)
-
-    await waitFor(() => expect(mockUpdate).toHaveBeenCalled())
-    expect(mockUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ 'replyByEmail.enabled': false })
-    )
-  })
-
-  it('keeps the switch usable once both halves of email are configured', () => {
+  // Anchored: 'Reply by email is allowed' is a prefix of the unavailable
+  // label, so an unanchored match would pass in the very state it rules out.
+  it('says nothing about the environment once both halves are configured', () => {
     renderForm()
 
-    const toggle = screen.getByLabelText(/Reply by email is allowed/)
+    const toggle = screen.getByLabelText('Reply by email is allowed')
     expect(toggle).not.toBeDisabled()
     expect(toggle).toBeChecked()
+    expect(screen.queryByText(/This setting has no effect here/)).toBeNull()
   })
 
   // Naming both halves when only one is missing sends the admin to re-check
@@ -413,12 +412,19 @@ describe('PostsMediaSettingsForm', () => {
     expect(screen.queryByText(/Build the block with/)).toBeNull()
   })
 
-  it('names the inbound half and points at the builder when inbound is missing', () => {
-    renderForm({}, settingsWithReplyByEmail(false), baseStorageBackend, {
-      inbound: false
-    })
+  it.each([
+    { name: 'only inbound is missing', email: { inbound: false } },
+    {
+      name: 'both halves are missing',
+      email: { inbound: false, outbound: false }
+    }
+  ])(
+    'names the inbound half and points at the builder when $name',
+    ({ email }) => {
+      renderForm({}, settingsWithReplyByEmail(false), baseStorageBackend, email)
 
-    expect(screen.getByText('inbound email')).toBeInTheDocument()
-    expect(screen.getByText(/Build the block with/)).toBeInTheDocument()
-  })
+      expect(screen.getByText('inbound email')).toBeInTheDocument()
+      expect(screen.getByText(/Build the block with/)).toBeInTheDocument()
+    }
+  )
 })

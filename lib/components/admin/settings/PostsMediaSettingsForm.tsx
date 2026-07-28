@@ -381,24 +381,25 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
       >
         <ControlRow
           label={
-            replyByEmailEnabled
-              ? replyByEmailConfigured
+            replyByEmailConfigured
+              ? replyByEmailEnabled
                 ? 'Reply by email is allowed'
-                : 'Reply by email is allowed, but unavailable here'
-              : replyByEmailConfigured
-                ? 'Reply by email is off'
-                : 'Reply by email is unavailable'
+                : 'Reply by email is off'
+              : replyByEmailEnabled
+                ? 'Reply by email is allowed, but unavailable here'
+                : 'Reply by email is off, and unavailable here'
           }
           description={
             replyByEmailConfigured ? (
               'Each account still has to opt in under Settings → Notifications; the toggle is off by default. Switching this off stops new reply addresses being issued and refuses replies to the ones already sent.'
             ) : (
               <>
-                This instance cannot receive replies —{' '}
+                This setting has no effect here —{' '}
                 <EnvLockLabel envVar={missingEmailEnvPrefix}>
                   {missingEmailHalf}
                 </EnvLockLabel>{' '}
-                is read from the environment at boot.
+                is read from the environment at boot, and this instance has none
+                configured.
                 {emailInboundConfigured ? null : (
                   <>
                     {' '}
@@ -407,27 +408,26 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
                     </strong>{' '}
                     below, then restart.
                   </>
-                )}
-                {replyByEmailEnabled
-                  ? ' The stored setting is still on, and every instance that does have the environment honours it — switch it off here to stop them.'
-                  : null}
+                )}{' '}
+                It is still stored and still honoured by every instance that
+                does have the environment, so it stays editable from here.
               </>
             )
           }
           htmlFor="reply-by-email-enabled"
         >
-          {/* Shown rather than hidden so an admin looking for the setting finds
-              it and learns why it is inert. The state is the DB row's, never a
-              fabricated `false`: this switch is cluster-wide, defaults to on,
-              and *this* process missing the variables says nothing about the
-              rest of the fleet. So it only locks in the one direction that
-              cannot matter — turning on something inert. While it reads on it
-              stays writable, or the kill switch would be unreachable from the
-              pod the admin happens to be talking to. */}
+          {/* Always editable, and always the DB row's own value — never a
+              fabricated `false` and never locked. This switch is one shared
+              row that every instance reads, and it defaults to on, so *this*
+              process missing the variables says nothing about the rest of the
+              fleet. Locking either direction puts a cluster-wide control out
+              of reach of whichever pod the admin happens to be talking to: a
+              web pod without the variables could neither stop workers that
+              have them, nor start them again afterwards. The unavailability is
+              said in the label and help instead, which costs nothing. */}
           <Switch
             id="reply-by-email-enabled"
             checked={replyByEmailEnabled}
-            disabled={!replyByEmailConfigured && !replyByEmailEnabled}
             onCheckedChange={(checked) =>
               setValue('replyByEmail.enabled', checked)
             }
