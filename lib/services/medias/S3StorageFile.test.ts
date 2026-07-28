@@ -11,7 +11,11 @@ import { Readable } from 'stream'
 import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
 import { S3FileStorage } from '@/lib/services/medias/S3StorageFile'
-import { MAX_FILE_SIZE } from '@/lib/services/medias/constants'
+import {
+  MAX_FILE_SIZE,
+  MAX_HEIGHT,
+  MAX_WIDTH
+} from '@/lib/services/medias/constants'
 import { getMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import { Actor } from '@/lib/types/domain/actor'
 import { StreamByteLimitError } from '@/lib/utils/streamLimit'
@@ -491,5 +495,120 @@ describe('S3FileStorage image output format', () => {
       url: `https://llun.test/api/v1/files/${putObjectInput().Key}`
     })
     expect(database.createMedia).not.toHaveBeenCalled()
+  })
+})
+
+describe('S3FileStorage saveFile image sizing', () => {
+  const send = vi.fn()
+  const actor = { id: 'actor-1' } as Actor
+  const database = {
+    createMedia: vi.fn(),
+    getActorFromId: vi.fn(),
+    getStorageUsageForAccount: vi.fn(),
+    getFitnessStorageUsageForAccount: vi.fn()
+  } as unknown as jest.Mocked<Database>
+
+  // The uploaded WebPs, captured off each PutObjectCommand body. The storage
+  // deletes its temp file as soon as `send` resolves, so the stream has to be
+  // drained inside the mock.
+  let uploadedBodies: Buffer[]
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    uploadedBodies = []
+    ;(S3Client as jest.MockedClass<typeof S3Client>).mockImplementation(
+      function () {
+        return { send } as unknown as S3Client
+      }
+    )
+    send.mockImplementation(async (command) => {
+      if (command instanceof PutObjectCommand) {
+        const chunks: Buffer[] = []
+        for await (const chunk of command.input.Body as Readable) {
+          chunks.push(Buffer.from(chunk))
+        }
+        uploadedBodies.push(Buffer.concat(chunks))
+        return {}
+      }
+      throw new Error('Unexpected command')
+    })
+    database.getActorFromId.mockResolvedValue({
+      id: 'actor-1',
+      account: { id: 'account-1' }
+    } as never)
+    database.getStorageUsageForAccount.mockResolvedValue(0)
+    database.getFitnessStorageUsageForAccount.mockResolvedValue(0)
+    database.createMedia.mockImplementation((async (params: unknown) => ({
+      id: 'media-1',
+      ...(params as object)
+    })) as never)
+  })
+
+  const createStorage = () =>
+    new S3FileStorage(
+      {
+        type: MediaStorageType.ObjectStorage,
+        bucket: 'bucket',
+        region: 'us-east-1',
+        endpoint: 'https://s3.example.com'
+      },
+      'llun.test',
+      database
+    )
+
+  const createPngFile = async (width: number, height: number) => {
+    const buffer = await sharp({
+      create: { width, height, channels: 3, background: '#3366cc' }
+    })
+      .png()
+      .toBuffer()
+    return new File([new Uint8Array(buffer)], 'route-map.png', {
+      type: 'image/png'
+    })
+  }
+
+  const readUploadedImage = async () => {
+    expect(uploadedBodies).toHaveLength(1)
+    return sharp(uploadedBodies[0]).metadata()
+  }
+
+  // Regression: `fit: 'inside'` enlarges by default, so the MAX_WIDTH/MAX_HEIGHT
+  // box was an upscale rather than a cap. Asserting on the uploaded bytes is
+  // what catches it: `original.metaData` is read from the INPUT image, so it
+  // reported the source dimensions either way.
+  it.each([
+    {
+      description: 'uploads an image below the cap at its own dimensions',
+      source: { width: 800, height: 600 },
+      uploaded: { width: 800, height: 600 }
+    },
+    {
+      description: 'scales an image above the cap down to fit',
+      source: { width: MAX_WIDTH + 200, height: (MAX_HEIGHT + 200) / 2 },
+      uploaded: { width: MAX_WIDTH, height: MAX_HEIGHT / 2 }
+    }
+  ])('$description', async ({ source, uploaded }) => {
+    await createStorage().saveFile(actor, {
+      file: await createPngFile(source.width, source.height)
+    })
+
+    await expect(readUploadedImage()).resolves.toMatchObject(uploaded)
+  })
+
+  // The thumbnail path is where the upscale reached the database: unlike the
+  // original, the returned `metaData`/`bytes` come from `outputInfo` — the
+  // stored WebP — so an upscaled thumbnail was reported as 4000x3000 in the
+  // Mastodon attachment's `meta.small` and charged to the account's quota.
+  it('records the thumbnail dimensions actually uploaded', async () => {
+    const thumbnail = await createStorage().saveThumbnail(
+      actor,
+      await createPngFile(800, 600)
+    )
+
+    expect(thumbnail?.metaData).toEqual({ width: 800, height: 600 })
+    await expect(readUploadedImage()).resolves.toMatchObject({
+      width: 800,
+      height: 600
+    })
   })
 })
