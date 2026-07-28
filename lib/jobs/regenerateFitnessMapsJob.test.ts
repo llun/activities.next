@@ -306,8 +306,10 @@ describe('regenerateFitnessMapsJob', () => {
     })
   })
 
-  // Both branches record the reason on the fitness file, which is the same
-  // policy processFitnessFileJob applies to a map failure during import.
+  // Every branch records the reason in `mapError` and leaves the file
+  // `completed` — the same policy processFitnessFileJob applies on the import
+  // path. `failed` would hide an activity this job never even touched behind
+  // every surface gated on `completed`.
   it.each([
     {
       description: 'keeps old map untouched when map rendering throws',
@@ -343,8 +345,10 @@ describe('regenerateFitnessMapsJob', () => {
     const refreshedFitnessFile = await database.getFitnessFile({
       id: fitnessFileId
     })
-    expect(refreshedFitnessFile?.processingStatus).toBe('failed')
-    expect(refreshedFitnessFile?.importError).toBe(expectedError)
+    expect(refreshedFitnessFile?.processingStatus).toBe('completed')
+    expect(refreshedFitnessFile?.mapError).toBe(expectedError)
+    // A map failure is not an import failure.
+    expect(refreshedFitnessFile?.importError).toBeUndefined()
     expect(refreshedFitnessFile?.mapImagePath).toBe('medias/old-route-map.webp')
     // The reference must survive a failed regeneration, or the copy is orphaned.
     expect(refreshedFitnessFile?.mapImageEmailPath).toBe(oldEmailMapPath)
@@ -374,6 +378,31 @@ describe('regenerateFitnessMapsJob', () => {
         name: SEND_UPDATE_NOTE_JOB_NAME
       })
     )
+  })
+
+  it('clears a recorded map failure once regeneration succeeds', async () => {
+    const { fitnessFileId } = await setupStatusWithOldMap()
+    mockGenerateMapImage.mockRejectedValue(new Error('tile server down'))
+
+    await regenerateFitnessMapsJob(database, {
+      id: 'job-regenerate-clears-first',
+      name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+      data: { actorId: actor.id, fitnessFileIds: [fitnessFileId] }
+    })
+    expect(
+      (await database.getFitnessFile({ id: fitnessFileId }))?.mapError
+    ).toBe('tile server down')
+
+    mockGenerateMapImage.mockResolvedValue(Buffer.from('new-map-image'))
+    await regenerateFitnessMapsJob(database, {
+      id: 'job-regenerate-clears-second',
+      name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+      data: { actorId: actor.id, fitnessFileIds: [fitnessFileId] }
+    })
+
+    const refreshed = await database.getFitnessFile({ id: fitnessFileId })
+    expect(refreshed?.mapError).toBeUndefined()
+    expect(refreshed?.mapImagePath).toBe('medias/new-route-map.webp')
   })
 
   it('removes the map and its email copy when no visible coordinates remain', async () => {

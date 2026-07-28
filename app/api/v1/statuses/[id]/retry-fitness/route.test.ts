@@ -188,6 +188,44 @@ describe('POST /api/v1/statuses/[id]/retry-fitness', () => {
     expect(refreshed?.processingStatus).toBe('pending')
   })
 
+  it('retries a completed file whose route map failed', async () => {
+    const { status, file } = await seedFitnessStatus(database, 'map-failed')
+    await database.updateFitnessFileProcessingStatus(file.id, 'completed')
+    await database.updateFitnessFileActivityData(file.id, {
+      mapError: 'Failed to store generated route map image'
+    })
+
+    const response = await callRetry(status.id)
+    expect(response.status).toBe(200)
+    const json = (await response.json()) as { retried: number }
+    expect(json.retried).toBe(1)
+
+    // This endpoint is the retry the post offers its owner for a missing map:
+    // the activity itself never failed, so nothing else marks it retriable.
+    const refreshed = await database.getFitnessFile({ id: file.id })
+    expect(refreshed?.processingStatus).toBe('pending')
+  })
+
+  it('rolls a map-failed file back to completed, not failed, when queueing fails', async () => {
+    const { status, file } = await seedFitnessStatus(database, 'map-rollback')
+    await database.updateFitnessFileProcessingStatus(file.id, 'completed')
+    await database.updateFitnessFileActivityData(file.id, {
+      mapError: 'tile server down'
+    })
+    ;(getQueue().publish as jest.Mock).mockRejectedValueOnce(
+      new Error('queue unavailable')
+    )
+
+    const response = await callRetry(status.id)
+    expect(response.status).toBe(500)
+
+    // Rolling this one back to `failed` would hide a perfectly good activity
+    // behind every surface gated on `completed`.
+    const refreshed = await database.getFitnessFile({ id: file.id })
+    expect(refreshed?.processingStatus).toBe('completed')
+    expect(refreshed?.mapError).toBe('tile server down')
+  })
+
   it('rejects a retry from someone who does not own the status and queues nothing', async () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor2.email }

@@ -45,6 +45,12 @@ export const StatusFitnessFile = z.object({
   // must have died mid-job; signals clients to offer a retry. Computed
   // server-side from the file's `updatedAt`.
   processingStuck: z.boolean().optional(),
+  // True when a route map was expected but could not be rendered or stored.
+  // Deliberately a boolean, not the reason: this payload is served to every
+  // viewer of the status, and the reason is a raw error string that can name
+  // internal infrastructure. The owner reads the reason on their own fitness
+  // files page instead.
+  mapFailed: z.boolean().optional(),
   totalDistanceMeters: z.number().optional(),
   totalDurationSeconds: z.number().optional(),
   movingTimeSeconds: z.number().optional(),

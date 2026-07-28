@@ -1322,6 +1322,7 @@ export const FitnessStatusDetail: FC<Props> = ({
         activityType: status.fitness.activityType ?? null,
         activityStartTime: status.createdAt,
         hasMapData: status.fitness.hasMapData ?? false,
+        mapFailed: status.fitness.mapFailed ?? false,
         description: status.fitness.description ?? null,
         deviceManufacturer: status.fitness.deviceManufacturer ?? null,
         deviceName: status.fitness.deviceName ?? null,

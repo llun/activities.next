@@ -42,6 +42,7 @@ export interface UpdateFitnessFileActivityData {
   hasMapData?: boolean | null
   mapImagePath?: string | null
   mapImageEmailPath?: string | null
+  mapError?: string | null
   deviceManufacturer?: string | null
   deviceName?: string | null
   sourceUrl?: string | null
@@ -307,6 +308,7 @@ const parseSQLFitnessFile = (row: SQLFitnessFile): FitnessFile => ({
   hasMapData: Boolean(row.hasMapData),
   mapImagePath: row.mapImagePath ?? undefined,
   mapImageEmailPath: row.mapImageEmailPath ?? undefined,
+  mapError: row.mapError ?? undefined,
   processingStatus: row.processingStatus ?? 'pending',
   isPrimary:
     row.isPrimary === null || row.isPrimary === undefined
@@ -827,6 +829,14 @@ export const FitnessFileSQLDatabaseMixin = (
     }
     if ('mapImageEmailPath' in data) {
       updateData.mapImageEmailPath = data.mapImageEmailPath ?? null
+    }
+    if ('mapError' in data) {
+      // Shares `importError`'s cap: both are operator/owner-facing reasons
+      // written from a thrown value, so an unbounded message is the same insert
+      // hazard here as there.
+      updateData.mapError = data.mapError
+        ? truncateImportError(data.mapError)
+        : null
     }
     if ('deviceManufacturer' in data) {
       updateData.deviceManufacturer = data.deviceManufacturer ?? null

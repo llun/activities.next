@@ -11,14 +11,3 @@ export const toImportErrorMessage = (
   error: unknown,
   fallback = 'Unknown fitness import error'
 ) => (error instanceof Error ? error.message : String(error)) || fallback
-
-/**
- * Normalizes a thrown value into the `err` field the logger reports on.
- *
- * `logger`'s formatter reads `err.stack` to emit `stack_trace`, which is what
- * error reporting groups and displays — a bare `error: message` string gives it
- * nothing to work with. Anything can be thrown, so wrap non-Errors rather than
- * passing them through and losing the stack silently.
- */
-export const toLoggableError = (error: unknown): Error =>
-  error instanceof Error ? error : new Error(String(error))

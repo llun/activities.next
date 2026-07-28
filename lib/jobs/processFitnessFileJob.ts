@@ -7,10 +7,13 @@ import { buildActivityImportEmail } from '@/lib/services/email/templates/activit
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
+import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import {
-  toImportErrorMessage,
-  toLoggableError
-} from '@/lib/services/fitness-files/importError'
+  ROUTE_MAP_ATTACHMENT_NAME,
+  findRouteMapAttachments,
+  getAttachmentMediaIds,
+  removeRouteMapAttachmentsAndMedia
+} from '@/lib/services/fitness-files/mapAttachments'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
 import {
   isParseableFitnessFileType,
@@ -31,6 +34,7 @@ import { EditableStatus, StatusType } from '@/lib/types/domain/status'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { createJobHandle } from './createJobHandle'
 import { PROCESS_FITNESS_FILE_JOB_NAME } from './names'
@@ -165,7 +169,8 @@ const willSendImportEmail = async ({
       message:
         'Could not read email notification settings; storing the route map copy anyway',
       actorId: actor.id,
-      error: toImportErrorMessage(error, 'Unknown settings read error')
+      error: toImportErrorMessage(error, 'Unknown settings read error'),
+      err: toLoggableError(error)
     })
     return true
   }
@@ -229,7 +234,8 @@ const storeEmailMapImage = async ({
       actorId: actor.id,
       statusId,
       fitnessFileId,
-      error: toImportErrorMessage(error, 'Unknown route map copy error')
+      error: toImportErrorMessage(error, 'Unknown route map copy error'),
+      err: toLoggableError(error)
     })
     return undefined
   }
@@ -368,6 +374,29 @@ export const processFitnessFileJob = createJobHandle(
         mapImageEmailPath: fitnessFile.mapImageEmailPath
       })
 
+      // Same reasoning for the map this file already had on the status: the
+      // reset drops the reference, and the block below appends a NEW attachment
+      // — so without this a reprocess leaves the post showing the same route
+      // twice, the stale one rendered from a pre-privacy-filter image that no
+      // column points at any more. Matched by the file's own recorded path so a
+      // merged same-ride post never loses the other file's map.
+      const previousMapAttachments = await findRouteMapAttachments({
+        database,
+        statusId,
+        mapImagePath: fitnessFile.mapImagePath
+      })
+      if (previousMapAttachments.length > 0 && actor.account) {
+        await removeRouteMapAttachmentsAndMedia({
+          database,
+          accountId: actor.account.id,
+          statusId,
+          attachmentIds: previousMapAttachments.map(
+            (attachment) => attachment.id
+          ),
+          mediaIds: getAttachmentMediaIds(previousMapAttachments)
+        })
+      }
+
       await database.updateFitnessFileActivityData(fitnessFileId, {
         totalDistanceMeters: activityData.totalDistanceMeters,
         totalDurationSeconds: activityData.totalDurationSeconds,
@@ -378,6 +407,9 @@ export const processFitnessFileJob = createJobHandle(
         hasMapData: false,
         mapImagePath: null,
         mapImageEmailPath: null,
+        // Cleared up front so a re-run never shows the previous run's map
+        // failure while it is busy producing a map.
+        mapError: null,
         // Only overwrite each device field when parsing found a value for it.
         // Preserves device info already set from other sources (e.g. Strava import).
         // Each field is guarded independently so a file with manufacturer-but-no-product-name
@@ -406,12 +438,16 @@ export const processFitnessFileJob = createJobHandle(
       // THIS run, which is exactly when the email is sent — a first import.
       let mapImageUrl: string | undefined
 
-      // Set when the route map could not be produced or stored. The post is
-      // worth keeping without its map, so this does not abort the import — but
-      // it is recorded on the fitness file below instead of passing silently,
-      // the same way regenerateFitnessMapsJob records its map failures. A
-      // persistent map outage would otherwise produce map-less posts forever
-      // with no signal to the owner or the operator.
+      // Set when the route map could not be produced or stored. Recorded on the
+      // fitness file below rather than passing silently — a persistent map
+      // outage would otherwise produce map-less posts forever with no signal to
+      // the owner or the operator.
+      //
+      // It is deliberately NOT `processingStatus: 'failed'`: that flag means
+      // "this activity is not usable" and gates the status detail dashboard,
+      // the post's stat grid, the fitness overview, the profile's Fitness tab
+      // and every stats/heatmap rollup. The activity here parsed fine and its
+      // post federated — only the image is missing.
       let mapErrorMessage: string | undefined
 
       if (filteredCoordinates.length >= 2) {
@@ -452,7 +488,7 @@ export const processFitnessFileJob = createJobHandle(
             url: storedMap.url,
             width: storedMap.meta.original.width,
             height: storedMap.meta.original.height,
-            name: 'Activity route map',
+            name: ROUTE_MAP_ATTACHMENT_NAME,
             mediaId: storedMap.id
           })
 
@@ -493,6 +529,10 @@ export const processFitnessFileJob = createJobHandle(
             error: mapErrorMessage,
             err: toLoggableError(error)
           })
+
+          await database.updateFitnessFileActivityData(fitnessFileId, {
+            mapError: mapErrorMessage
+          })
         }
       }
 
@@ -507,18 +547,14 @@ export const processFitnessFileJob = createJobHandle(
         })
       }
 
-      // A map failure lands here rather than in the catch below: the activity
-      // itself imported, so the post keeps its text, its stats and its
-      // federation. Recording `failed` with the reason is what makes the
-      // missing map visible — the post shows a retry affordance to its owner
-      // and the file is picked up by the retry endpoints, exactly as a map
-      // failure in regenerateFitnessMapsJob is. The cost is that a file in
-      // `failed` is excluded from the fitness stats/heatmap rollups until a
-      // retry succeeds, which is the same trade-off that job already makes.
+      // `completed` even when the map failed: the file parsed, the stats are
+      // stored and the post is live, so every surface gated on `completed` —
+      // the detail dashboard, the stat grid, the overview, the rollups — should
+      // show it. The missing map travels separately in `mapError`, which the
+      // post surfaces to its owner as a retry.
       await database.updateFitnessFileProcessingStatus(
         fitnessFileId,
-        mapErrorMessage ? 'failed' : 'completed',
-        mapErrorMessage
+        'completed'
       )
 
       // Notify only here, at the end of processing. Doing it where the import
@@ -531,8 +567,8 @@ export const processFitnessFileJob = createJobHandle(
       // enqueue-time call produced one as soon as the status existed. That is
       // intended — "your activity arrived" should not fire for an activity that
       // did not finish arriving — and the failure is already surfaced in the
-      // fitness UI with a retry affordance. A map-only failure is the one
-      // exception: the activity DID arrive, so it still notifies, and the email
+      // fitness UI with a retry affordance. A map-only failure is not such a
+      // case: the activity arrived, so it notifies as usual, and the email
       // simply carries no map image (`mapImageUrl` stays undefined).
       if (notifyOnComplete) {
         await notifyActivityImported({

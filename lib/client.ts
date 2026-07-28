@@ -2293,6 +2293,9 @@ export interface StatusFitnessFileItem {
   activityType: string | null
   activityStartTime: number | null
   hasMapData: boolean
+  // A route map was expected but could not be rendered or stored. The fact
+  // only — the reason is owner-only and lives on the fitness files page.
+  mapFailed: boolean
   description: string | null
   deviceManufacturer: string | null
   deviceName: string | null

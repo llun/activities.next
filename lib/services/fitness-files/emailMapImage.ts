@@ -1,6 +1,7 @@
 import { Database } from '@/lib/database/types'
 import { deleteMediaFile } from '@/lib/services/medias'
 import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 /**
  * Delete the JPEG copy of a route map kept for the activity-import email.
@@ -27,14 +28,21 @@ export const deleteEmailMapImage = async ({
 }) => {
   if (!mapImageEmailPath) return
 
+  // Keep the cause: "permission denied" and "network timeout" need different
+  // responses from whoever reads this, and a bare `false` tells them neither.
+  let deletionError: unknown
   const deleted = await deleteMediaFile(database, mapImageEmailPath).catch(
-    () => false
+    (error) => {
+      deletionError = error
+      return false
+    }
   )
   if (!deleted) {
     logger.warn({
       message: 'Failed to delete route map email copy from storage',
       fitnessFileId,
-      path: mapImageEmailPath
+      path: mapImageEmailPath,
+      ...(deletionError ? { err: toLoggableError(deletionError) } : {})
     })
   }
 }

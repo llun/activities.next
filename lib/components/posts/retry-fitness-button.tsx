@@ -9,15 +9,18 @@ import { cn } from '@/lib/utils'
 interface Props {
   statusId: string
   // `failed`: the job threw and gave up. `stuck`: the file is still marked
-  // `processing` long after its worker died mid-run. Both are retriable; the
-  // copy differs so the owner sees why.
-  variant?: 'failed' | 'stuck'
+  // `processing` long after its worker died mid-run. `map`: the activity
+  // imported fine but its route map could not be rendered or stored — a
+  // degraded success, so it reads as a note rather than an error. All three are
+  // retriable; the copy differs so the owner sees why.
+  variant?: 'failed' | 'stuck' | 'map'
 }
 
 const LEAD_TEXT: Record<NonNullable<Props['variant']>, string> = {
   failed: 'Processing failed. The original activity file is still available.',
   stuck:
-    'Processing is taking longer than expected. The original activity file is still available.'
+    'Processing is taking longer than expected. The original activity file is still available.',
+  map: 'The route map could not be generated. Everything else in this activity is intact.'
 }
 
 export const RetryFitnessButton: FC<Props> = ({
@@ -38,7 +41,13 @@ export const RetryFitnessButton: FC<Props> = ({
   }
 
   return (
-    <div className="mt-2 flex items-center gap-2 text-destructive">
+    <div
+      className={cn(
+        'mt-2 flex items-center gap-2',
+        // A missing map is a degraded success, not a failed post — don't shout.
+        variant === 'map' ? 'text-muted-foreground' : 'text-destructive'
+      )}
+    >
       <span>{LEAD_TEXT[variant]}</span>
       <span className="inline-flex flex-col gap-0.5">
         <button

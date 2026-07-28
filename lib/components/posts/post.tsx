@@ -144,6 +144,12 @@ export const Post: FC<PostProps> = (props) => {
   const fitnessRetryVariant: 'failed' | 'stuck' =
     fitnessProcessingStatus === 'failed' ? 'failed' : 'stuck'
   const isFitnessCompleted = fitnessProcessingStatus === 'completed'
+  // A completed activity whose route map could not be rendered or stored. The
+  // activity itself is intact — stats, charts, attachments and federation are
+  // unaffected — so this stays a quiet owner-only retry rather than the
+  // destructive "Processing failed" banner every viewer sees.
+  const isFitnessMapFailed =
+    isFitnessCompleted && Boolean(fitnessFile?.mapFailed)
   const fitnessDistance = formatFitnessDistance(
     fitnessFile?.totalDistanceMeters
   )
@@ -260,6 +266,10 @@ export const Post: FC<PostProps> = (props) => {
                 </span>
               </div>
             )
+          ) : null}
+
+          {isFitnessMapFailed && isOwner ? (
+            <RetryFitnessButton statusId={actualStatus.id} variant="map" />
           ) : null}
 
           {isFitnessCompleted && fitnessStats.length > 0 ? (

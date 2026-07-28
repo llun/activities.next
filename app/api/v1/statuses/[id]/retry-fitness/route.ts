@@ -51,10 +51,17 @@ export const POST = traceApiRoute(
     // killed mid-job (e.g. OOM/deploy) before it could write `completed` or
     // `failed`, and nothing re-queues it. Treat such stuck files as retriable
     // while leaving genuinely in-flight jobs (recent `processing`) alone.
+    //
+    // A `completed` file carrying a `mapError` is the third case: the activity
+    // imported, but its route map could not be rendered or stored. Re-running
+    // the job is exactly what regenerates it, and this endpoint is the retry
+    // the post offers its owner — the batch "retry failed" path deliberately
+    // does not pick these up, because it would re-run the whole import.
     const now = Date.now()
     const retriableFiles = files.filter(
       (file) =>
         file.processingStatus === 'failed' ||
+        Boolean(file.mapError) ||
         isFitnessProcessingStuck(file, now)
     )
 
@@ -94,12 +101,16 @@ export const POST = traceApiRoute(
 
       for (const file of unpublishedFiles) {
         try {
-          // Restore the reason the reset to `pending` cleared. Without it the
-          // file rolls back to `failed` with no explanation — losing the
-          // diagnostic exactly when the retry could not even be queued.
+          // Restore the status the reset to `pending` overwrote, and with it
+          // the reason that reset cleared — without this the file rolls back to
+          // `failed` with no explanation, losing the diagnostic exactly when the
+          // retry could not even be queued. Restoring the file's OWN prior
+          // status matters now that a `completed` file with a `mapError` is
+          // retriable: rolling that one back to `failed` would hide a perfectly
+          // good activity across every surface gated on `completed`.
           await database.updateFitnessFileProcessingStatus(
             file.id,
-            'failed',
+            file.processingStatus ?? 'failed',
             file.importError ?? undefined
           )
         } catch (rollbackError) {
