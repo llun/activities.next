@@ -81,6 +81,8 @@ For the most common task shapes, follow the step-by-step **Task Recipes** sectio
   ```
 
 - **Do NOT** use logger in React components or client-side code—logging is for server-side only.
+- **When logging a caught error, pass the error object as `err`**, not only its message. The logger's formatter reads `err.stack` and emits it as `stack_trace`, which is what Cloud Error Reporting groups and displays; `error: someError.message` alone reports nothing actionable. Anything can be thrown, so normalize first (`err: error instanceof Error ? error : new Error(String(error))` — the fitness jobs share `toLoggableError` from `@/lib/services/fitness-files/importError`). Keep a human-readable `error: <message>` alongside it when the same string is also persisted.
+- **A failure that degrades a feature must not be logged as a `warn` and forgotten.** If the user can see the degradation (a missing route map, an unrendered attachment), record it wherever the feature's state lives so it is visible and retryable — a `logger.warn` with no persisted trace is how a permanent outage becomes invisible.
 
 ## API Response Guidelines
 

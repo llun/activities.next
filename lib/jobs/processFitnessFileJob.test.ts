@@ -10,6 +10,7 @@ import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
 import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
+import { isRetriableFitnessFile } from '@/lib/services/fitness-files/retryImports'
 import {
   deleteMediaFile,
   saveMedia,
@@ -290,37 +291,134 @@ describe('processFitnessFileJob', () => {
     expect(getQueue().publish).toHaveBeenCalledTimes(1)
   })
 
-  it('continues federation when map generation fails', async () => {
-    const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
-      text: 'Map can fail'
-    })
-
-    mockGenerateMapImage.mockRejectedValue(new Error('map rendering failed'))
-
-    await processFitnessFileJob(database, {
-      id: 'job-id-3',
-      name: PROCESS_FITNESS_FILE_JOB_NAME,
-      data: { actorId: actor.id, statusId, fitnessFileId }
-    })
-
-    const updatedFitnessFile = await database.getFitnessFile({
-      id: fitnessFileId
-    })
-    expect(updatedFitnessFile).toMatchObject({
-      processingStatus: 'completed',
-      hasMapData: false
-    })
-    expect(updatedFitnessFile?.mapImagePath).toBeUndefined()
-
-    expect(mockSaveMedia).not.toHaveBeenCalled()
-    expect(getQueue().publish).toHaveBeenCalledTimes(1)
-    expect(getQueue().publish).toHaveBeenCalledWith({
-      id: getHashFromString(`${statusId}:send-note`),
-      name: SEND_NOTE_JOB_NAME,
-      data: {
-        actorId: actor.id,
-        statusId
+  describe('route map failures', () => {
+    // A map failure is a degraded success, not a dead import: the activity
+    // itself arrived, so the post keeps its summary text and still federates.
+    // What must never happen is the failure passing silently — it is recorded
+    // on the fitness file, the same way regenerateFitnessMapsJob records its
+    // own map failures, so the owner sees it and can retry.
+    it.each([
+      {
+        description: 'records the reason when map rendering throws',
+        arrange: () =>
+          mockGenerateMapImage.mockRejectedValue(
+            new Error('map rendering failed')
+          ),
+        expectedError: 'map rendering failed'
+      },
+      {
+        description: 'records the reason when the renderer produces no image',
+        arrange: () => mockGenerateMapImage.mockResolvedValue(null),
+        expectedError: 'Generated map image buffer is empty'
+      },
+      {
+        description: 'records the reason when storing the map image fails',
+        arrange: () => mockSaveMedia.mockResolvedValue(null),
+        expectedError: 'Failed to store generated route map image'
       }
+    ])('$description', async ({ arrange, expectedError }) => {
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: ''
+      })
+      arrange()
+
+      await processFitnessFileJob(database, {
+        id: `job-map-failure-${expectedError}`,
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      const updatedFitnessFile = await database.getFitnessFile({
+        id: fitnessFileId
+      })
+      expect(updatedFitnessFile).toMatchObject({
+        processingStatus: 'failed',
+        importError: expectedError,
+        hasMapData: false,
+        // The parsed activity survives the map failure.
+        totalDistanceMeters: 5_200,
+        activityType: 'running'
+      })
+      expect(updatedFitnessFile?.mapImagePath).toBeUndefined()
+      // The whole point of recording it: the file is picked up by the retry
+      // endpoints instead of sitting there looking complete.
+      expect(isRetriableFitnessFile(updatedFitnessFile!)).toBe(true)
+
+      const status = await database.getStatus({ statusId, withReplies: false })
+      if (status?.type !== StatusType.enum.Note) fail('Expected a note status')
+      expect(status.text).toContain('Running')
+      expect(status.attachments).toHaveLength(0)
+
+      expect(getQueue().publish).toHaveBeenCalledWith({
+        id: getHashFromString(`${statusId}:send-note`),
+        name: SEND_NOTE_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          statusId
+        }
+      })
+    })
+
+    it('still tells the actor the activity arrived, without a map image', async () => {
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+
+      mockGenerateMapImage.mockRejectedValue(new Error('map rendering failed'))
+
+      await processFitnessFileJob(database, {
+        id: 'job-map-failure-notify',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          statusId,
+          fitnessFileId,
+          notifyOnComplete: true
+        }
+      })
+
+      // The activity DID arrive — only its map is missing — so the import
+      // notification still fires, unlike a processing failure that leaves no
+      // post worth announcing.
+      expect(mockSendNotificationAlerts).toHaveBeenCalledTimes(1)
+      const { html } =
+        mockSendNotificationAlerts.mock.calls[0][0].events[0].emailContent
+      expect(html).not.toContain('route-map')
+      // No map means nothing to make a JPEG copy of.
+      expect(mockSaveMediaImageRendition).not.toHaveBeenCalled()
+    })
+
+    it('clears the map failure when a retry succeeds', async () => {
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+
+      mockGenerateMapImage.mockRejectedValue(new Error('tile server down'))
+      await processFitnessFileJob(database, {
+        id: 'job-map-failure-first',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+      expect(
+        (await database.getFitnessFile({ id: fitnessFileId }))?.importError
+      ).toBe('tile server down')
+
+      mockGenerateMapImage.mockResolvedValue(Buffer.from('png-map-image'))
+      await processFitnessFileJob(database, {
+        id: 'job-map-failure-retry',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      const retriedFitnessFile = await database.getFitnessFile({
+        id: fitnessFileId
+      })
+      expect(retriedFitnessFile).toMatchObject({
+        processingStatus: 'completed',
+        hasMapData: true,
+        mapImagePath: 'medias/route-map.webp'
+      })
+      expect(retriedFitnessFile?.importError).toBeUndefined()
     })
   })
 

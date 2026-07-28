@@ -306,10 +306,30 @@ describe('regenerateFitnessMapsJob', () => {
     })
   })
 
-  it('keeps old map untouched when regeneration fails', async () => {
+  // Both branches record the reason on the fitness file, which is the same
+  // policy processFitnessFileJob applies to a map failure during import.
+  it.each([
+    {
+      description: 'keeps old map untouched when map rendering throws',
+      arrange: () =>
+        mockGenerateMapImage.mockRejectedValue(new Error('map failed')),
+      expectedError: 'map failed'
+    },
+    {
+      description:
+        'keeps old map untouched when the renderer produces no image',
+      arrange: () => mockGenerateMapImage.mockResolvedValue(null),
+      expectedError: 'Generated map image buffer is empty'
+    },
+    {
+      description: 'keeps old map untouched when storing the new map fails',
+      arrange: () => mockSaveMedia.mockResolvedValue(null),
+      expectedError: 'Failed to store generated route map image'
+    }
+  ])('$description', async ({ arrange, expectedError }) => {
     const { statusId, fitnessFileId, oldMediaId, oldEmailMapPath } =
       await setupStatusWithOldMap()
-    mockGenerateMapImage.mockRejectedValueOnce(new Error('map failed'))
+    arrange()
 
     await regenerateFitnessMapsJob(database, {
       id: 'job-regenerate-failed',
@@ -324,6 +344,7 @@ describe('regenerateFitnessMapsJob', () => {
       id: fitnessFileId
     })
     expect(refreshedFitnessFile?.processingStatus).toBe('failed')
+    expect(refreshedFitnessFile?.importError).toBe(expectedError)
     expect(refreshedFitnessFile?.mapImagePath).toBe('medias/old-route-map.webp')
     // The reference must survive a failed regeneration, or the copy is orphaned.
     expect(refreshedFitnessFile?.mapImageEmailPath).toBe(oldEmailMapPath)

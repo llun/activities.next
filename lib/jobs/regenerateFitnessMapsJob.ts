@@ -8,7 +8,10 @@ import {
 import { getFitnessFile } from '@/lib/services/fitness-files'
 import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
-import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
+import {
+  toImportErrorMessage,
+  toLoggableError
+} from '@/lib/services/fitness-files/importError'
 import {
   isParseableFitnessFileType,
   parseFitnessFile
@@ -322,7 +325,8 @@ export const regenerateFitnessMapsJob = createJobHandle(
           message: 'Failed to regenerate fitness map for old status',
           actorId,
           fitnessFileId,
-          error: errorMessage
+          error: errorMessage,
+          err: toLoggableError(error)
         })
 
         await database.updateFitnessFileProcessingStatus(

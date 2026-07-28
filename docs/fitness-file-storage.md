@@ -107,8 +107,9 @@ This endpoint is **anonymous / unauthenticated** on purpose: public embeds and s
 2. `processFitnessFileJob` downloads the stored file, parses `.fit`, `.gpx`, or `.tcx` data, and updates the `fitness_files` metadata.
 3. Privacy locations from fitness settings are applied before route maps or route-data responses expose coordinates.
 4. If visible GPS coordinates remain, a route map is rendered to a PNG buffer and stored as media — re-encoded to WebP, the default for every stored image — then inserted as the first status attachment named `Activity route map`. When the import is an unattended one that emails the owner, a JPEG copy of the same map is stored for that email and recorded in `mapImageEmailPath`.
-5. Empty fitness posts are backfilled with an activity summary.
-6. The status is published to followers and route heatmap cache jobs are queued.
+5. A route map that cannot be rendered or stored does **not** fail the import — a post without a map beats no post, so the status keeps its text, its parsed stats, and its federation. The failure is recorded rather than swallowed: `processingStatus` becomes `failed` and `importError` carries the reason, so the post shows its owner the same retry affordance a processing failure does and the file is picked up by the retry endpoints. This is the policy `regenerateFitnessMapsJob` already applies to a failed regeneration, and the trade-off is the same — a file left in `failed` is excluded from the fitness stats and heatmap rollups until a retry succeeds. A first import still notifies the owner, because the activity itself did arrive; its email simply carries no map image.
+6. Empty fitness posts are backfilled with an activity summary.
+7. The status is published to followers and route heatmap cache jobs are queued.
 
 ## User-Facing Features
 

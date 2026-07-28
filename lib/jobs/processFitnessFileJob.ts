@@ -7,7 +7,10 @@ import { buildActivityImportEmail } from '@/lib/services/email/templates/activit
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
-import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
+import {
+  toImportErrorMessage,
+  toLoggableError
+} from '@/lib/services/fitness-files/importError'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
 import {
   isParseableFitnessFileType,
@@ -403,6 +406,14 @@ export const processFitnessFileJob = createJobHandle(
       // THIS run, which is exactly when the email is sent — a first import.
       let mapImageUrl: string | undefined
 
+      // Set when the route map could not be produced or stored. The post is
+      // worth keeping without its map, so this does not abort the import — but
+      // it is recorded on the fitness file below instead of passing silently,
+      // the same way regenerateFitnessMapsJob records its map failures. A
+      // persistent map outage would otherwise produce map-less posts forever
+      // with no signal to the owner or the operator.
+      let mapErrorMessage: string | undefined
+
       if (filteredCoordinates.length >= 2) {
         try {
           const mapImageBuffer = await generateMapImage({
@@ -410,74 +421,77 @@ export const processFitnessFileJob = createJobHandle(
             routeSegments: visibleSegments
           })
 
-          if (mapImageBuffer) {
-            const mapImageBytes = new Uint8Array(mapImageBuffer)
-            const mapImageFile = new File(
-              [mapImageBytes],
-              `${fitnessFileId}-route-map.png`,
-              {
-                type: 'image/png'
-              }
-            )
-            const storedMap = await saveMedia(database, actor, {
-              file: mapImageFile,
-              description: `${fitnessFile.fileName} route map`
-            })
+          // The caller already established there is a route to draw, so an
+          // empty buffer here means the renderer produced nothing — a failure,
+          // not "this activity has no map". Treated as one in both jobs.
+          if (!mapImageBuffer) {
+            throw new Error('Generated map image buffer is empty')
+          }
 
-            if (!storedMap) {
-              logger.warn({
-                message: 'Failed to store generated route map image',
-                actorId,
-                statusId,
-                fitnessFileId
-              })
-            } else {
-              await database.createAttachment({
-                actorId,
-                statusId,
-                mediaType: storedMap.mime_type,
-                url: storedMap.url,
-                width: storedMap.meta.original.width,
-                height: storedMap.meta.original.height,
-                name: 'Activity route map',
-                mediaId: storedMap.id
-              })
+          const mapImageBytes = new Uint8Array(mapImageBuffer)
+          const mapImageFile = new File(
+            [mapImageBytes],
+            `${fitnessFileId}-route-map.png`,
+            {
+              type: 'image/png'
+            }
+          )
+          const storedMap = await saveMedia(database, actor, {
+            file: mapImageFile,
+            description: `${fitnessFile.fileName} route map`
+          })
 
-              await database.updateFitnessFileActivityData(fitnessFileId, {
-                hasMapData: true,
-                mapImagePath: getAttachmentMediaPath(storedMap.url)
-              })
+          if (!storedMap) {
+            throw new Error('Failed to store generated route map image')
+          }
 
-              // The WebP is what the post and every web surface use; the email
-              // prefers a JPEG copy, because Outlook desktop cannot decode
-              // WebP. Only store one when an email is genuinely going out,
-              // otherwise it is storage spent on an image nobody will ever
-              // fetch: a direct upload notifies no one, an instance with no
-              // email configured sends nothing, and the owner may have turned
-              // activity-import emails off.
-              mapImageUrl = (await willSendImportEmail({
+          await database.createAttachment({
+            actorId,
+            statusId,
+            mediaType: storedMap.mime_type,
+            url: storedMap.url,
+            width: storedMap.meta.original.width,
+            height: storedMap.meta.original.height,
+            name: 'Activity route map',
+            mediaId: storedMap.id
+          })
+
+          await database.updateFitnessFileActivityData(fitnessFileId, {
+            hasMapData: true,
+            mapImagePath: getAttachmentMediaPath(storedMap.url)
+          })
+
+          // The WebP is what the post and every web surface use; the email
+          // prefers a JPEG copy, because Outlook desktop cannot decode WebP.
+          // Only store one when an email is genuinely going out, otherwise it
+          // is storage spent on an image nobody will ever fetch: a direct
+          // upload notifies no one, an instance with no email configured sends
+          // nothing, and the owner may have turned activity-import emails off.
+          mapImageUrl = (await willSendImportEmail({
+            database,
+            actor,
+            notifyOnComplete
+          }))
+            ? ((await storeEmailMapImage({
                 database,
                 actor,
-                notifyOnComplete
-              }))
-                ? ((await storeEmailMapImage({
-                    database,
-                    actor,
-                    statusId,
-                    fitnessFileId,
-                    mapImageFile
-                  })) ?? storedMap.url)
-                : storedMap.url
-            }
-          }
+                statusId,
+                fitnessFileId,
+                mapImageFile
+              })) ?? storedMap.url)
+            : storedMap.url
         } catch (error) {
-          const nodeError = error as Error
-          logger.warn({
-            message: 'Map generation failed; continuing without route map',
+          mapErrorMessage = toImportErrorMessage(
+            error,
+            'Unknown route map generation error'
+          )
+          logger.error({
+            message: 'Failed to generate route map for fitness activity',
             actorId,
             statusId,
             fitnessFileId,
-            error: nodeError.message
+            error: mapErrorMessage,
+            err: toLoggableError(error)
           })
         }
       }
@@ -493,9 +507,18 @@ export const processFitnessFileJob = createJobHandle(
         })
       }
 
+      // A map failure lands here rather than in the catch below: the activity
+      // itself imported, so the post keeps its text, its stats and its
+      // federation. Recording `failed` with the reason is what makes the
+      // missing map visible — the post shows a retry affordance to its owner
+      // and the file is picked up by the retry endpoints, exactly as a map
+      // failure in regenerateFitnessMapsJob is. The cost is that a file in
+      // `failed` is excluded from the fitness stats/heatmap rollups until a
+      // retry succeeds, which is the same trade-off that job already makes.
       await database.updateFitnessFileProcessingStatus(
         fitnessFileId,
-        'completed'
+        mapErrorMessage ? 'failed' : 'completed',
+        mapErrorMessage
       )
 
       // Notify only here, at the end of processing. Doing it where the import
@@ -508,7 +531,9 @@ export const processFitnessFileJob = createJobHandle(
       // enqueue-time call produced one as soon as the status existed. That is
       // intended — "your activity arrived" should not fire for an activity that
       // did not finish arriving — and the failure is already surfaced in the
-      // fitness UI with a retry affordance.
+      // fitness UI with a retry affordance. A map-only failure is the one
+      // exception: the activity DID arrive, so it still notifies, and the email
+      // simply carries no map image (`mapImageUrl` stays undefined).
       if (notifyOnComplete) {
         await notifyActivityImported({
           database,
@@ -546,7 +571,8 @@ export const processFitnessFileJob = createJobHandle(
         actorId,
         statusId,
         fitnessFileId,
-        error: errorMessage
+        error: errorMessage,
+        err: toLoggableError(error)
       })
 
       await database.updateFitnessFileProcessingStatus(
