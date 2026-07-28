@@ -159,19 +159,21 @@ export const deleteFitnessFile = async (
 
       if (storageDeleted) {
         await database.deleteFitnessFile({ id: fileId })
+        if (targetFileMetadata.mapImageEmailPath) {
+          // Reference first, file second. The row is only soft-deleted, so a
+          // path left on it points at an object that is gone, which makes
+          // productionArchive abort under its default referenced scope; doing
+          // it in this order means a failure either way leaves a state that
+          // repairs itself rather than one that blocks backups.
+          await database.updateFitnessFileActivityData(fileId, {
+            mapImageEmailPath: null
+          })
+        }
         await deleteEmailMapImage({
           database,
           fitnessFileId: fileId,
           mapImageEmailPath: targetFileMetadata.mapImageEmailPath
         })
-        if (targetFileMetadata.mapImageEmailPath) {
-          // The row is only soft-deleted, so leaving the path on it would keep
-          // a reference to an object that is gone — which makes
-          // productionArchive abort under its default referenced scope.
-          await database.updateFitnessFileActivityData(fileId, {
-            mapImageEmailPath: null
-          })
-        }
       }
       return storageDeleted
     }
@@ -185,19 +187,21 @@ export const deleteFitnessFile = async (
 
       if (storageDeleted) {
         await database.deleteFitnessFile({ id: fileId })
+        if (targetFileMetadata.mapImageEmailPath) {
+          // Reference first, file second. The row is only soft-deleted, so a
+          // path left on it points at an object that is gone, which makes
+          // productionArchive abort under its default referenced scope; doing
+          // it in this order means a failure either way leaves a state that
+          // repairs itself rather than one that blocks backups.
+          await database.updateFitnessFileActivityData(fileId, {
+            mapImageEmailPath: null
+          })
+        }
         await deleteEmailMapImage({
           database,
           fitnessFileId: fileId,
           mapImageEmailPath: targetFileMetadata.mapImageEmailPath
         })
-        if (targetFileMetadata.mapImageEmailPath) {
-          // The row is only soft-deleted, so leaving the path on it would keep
-          // a reference to an object that is gone — which makes
-          // productionArchive abort under its default referenced scope.
-          await database.updateFitnessFileActivityData(fileId, {
-            mapImageEmailPath: null
-          })
-        }
       }
       return storageDeleted
     }

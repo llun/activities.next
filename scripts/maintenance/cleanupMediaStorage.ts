@@ -12,6 +12,7 @@ import {
   ListObjectsV2Command,
   type S3Client
 } from '@aws-sdk/client-s3'
+import { realpathSync } from 'fs'
 import fs from 'fs/promises'
 import knex from 'knex'
 import path from 'path'
@@ -75,6 +76,14 @@ async function getAllMediaPathsFromDatabase(
   }
 }
 
+const toRealPath = (target: string) => {
+  try {
+    return realpathSync(target)
+  } catch {
+    return target
+  }
+}
+
 /**
  * `path.relative`, but tolerant of a case-insensitive filesystem.
  *
@@ -88,19 +97,31 @@ async function getAllMediaPathsFromDatabase(
  * the same directory), and a `..`-prefixed path when it genuinely is not.
  */
 const getContainedRelativePath = (from: string, to: string) => {
-  const direct = path.relative(from, to)
+  // Resolve symlinks first, for the same reason the case comparison below
+  // exists: `/data/media` and a `/data/media-link` pointing at it are one
+  // directory, and comparing the spellings would call them unrelated. Falls
+  // back to the given path when it does not exist yet — realpath throws ENOENT,
+  // and a missing directory simply has nothing in it to skip.
+  const realFrom = toRealPath(from)
+  const realTo = toRealPath(to)
+  const direct = path.relative(realFrom, realTo)
   if (!direct.startsWith('..') && !path.isAbsolute(direct)) return direct
   if (process.platform !== 'darwin' && process.platform !== 'win32') {
     return direct
   }
 
-  const insensitive = path.relative(from.toLowerCase(), to.toLowerCase())
+  const insensitive = path.relative(
+    realFrom.toLowerCase(),
+    realTo.toLowerCase()
+  )
   if (insensitive.startsWith('..') || path.isAbsolute(insensitive)) {
     return direct
   }
   // Same length, differing only by case, so the real-cased tail of `to` is the
   // relative path as it actually appears in the listing.
-  return insensitive === '' ? '' : to.slice(to.length - insensitive.length)
+  return insensitive === ''
+    ? ''
+    : realTo.slice(realTo.length - insensitive.length)
 }
 
 /**

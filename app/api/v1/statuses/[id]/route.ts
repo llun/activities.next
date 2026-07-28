@@ -651,13 +651,18 @@ export const DELETE = traceApiRoute(
         // a storage or database hiccup here must not turn a completed delete
         // into a 500 the client reads as "your post is still there".
         try {
-          await deleteEmailMapImage({ database, ...emailMapImage })
-          // Drop the reference too: a row pointing at a deleted object makes
-          // productionArchive abort under its default --storage-scope referenced.
+          // Drop the reference BEFORE the file. Nulling is the only step here
+          // that can throw, and this order makes both failure modes benign: a
+          // failed null skips the delete and leaves a consistent row, while a
+          // failure after it leaves a plain orphan that cleanupMediaStorage
+          // reclaims, because only live rows count as references. The reverse
+          // order can strand a live row pointing at a deleted object, which
+          // makes productionArchive abort under its default referenced scope.
           await database.updateFitnessFileActivityData(
             emailMapImage.fitnessFileId,
             { mapImageEmailPath: null }
           )
+          await deleteEmailMapImage({ database, ...emailMapImage })
         } catch (error) {
           logger.warn({
             message:

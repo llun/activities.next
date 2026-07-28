@@ -3144,6 +3144,78 @@ describe('GET /api/v1/statuses/[id]', () => {
       )
     })
 
+    const createNoteWithFitnessEmailCopy = async (suffix: string) => {
+      const { statusId } = await createNoteWithMedia(suffix)
+      const fitnessFile = await database.createFitnessFile({
+        actorId: ACTOR1_ID,
+        statusId,
+        path: `fitness/api-delete-${suffix}.fit`,
+        fileName: `api-delete-${suffix}.fit`,
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 2_048
+      })
+      expect(fitnessFile).toBeDefined()
+      await database.updateFitnessFileActivityData(fitnessFile!.id, {
+        hasMapData: true,
+        mapImagePath: `medias/api-delete-${suffix}.webp`,
+        mapImageEmailPath: `medias/api-delete-${suffix}.jpg`
+      })
+      return { statusId, fitnessFileId: fitnessFile!.id }
+    }
+
+    it('deletes the route map email copy when delete_media is true', async () => {
+      const { statusId, fitnessFileId } =
+        await createNoteWithFitnessEmailCopy('email-copy')
+
+      const response = await deleteStatusRequest(statusId, '?delete_media=true')
+
+      expect(response.status).toBe(200)
+      // The copy has no `medias` row, so it is not in status.attachments and
+      // the media-manager flow cannot reach it. Without this the WebP the post
+      // displayed is destroyed while the JPEG of the same map stays fetchable.
+      expect(deleteMediaFile).toHaveBeenCalledWith(
+        expect.anything(),
+        'medias/api-delete-email-copy.jpg'
+      )
+      const fitnessFile = await database.getFitnessFile({ id: fitnessFileId })
+      expect(fitnessFile?.mapImageEmailPath).toBeUndefined()
+    })
+
+    it('keeps the route map email copy when delete_media is not requested', async () => {
+      const { statusId, fitnessFileId } =
+        await createNoteWithFitnessEmailCopy('email-copy-kept')
+
+      const response = await deleteStatusRequest(statusId)
+
+      expect(response.status).toBe(200)
+      expect(deleteMediaFile).not.toHaveBeenCalledWith(
+        expect.anything(),
+        'medias/api-delete-email-copy-kept.jpg'
+      )
+      const fitnessFile = await database.getFitnessFile({ id: fitnessFileId })
+      expect(fitnessFile?.mapImageEmailPath).toBe(
+        'medias/api-delete-email-copy-kept.jpg'
+      )
+    })
+
+    it('still reports success when cleaning up the email copy fails', async () => {
+      const { statusId } =
+        await createNoteWithFitnessEmailCopy('email-copy-err')
+      vi.mocked(deleteMediaFile).mockRejectedValueOnce(
+        new Error('storage unavailable')
+      )
+
+      const response = await deleteStatusRequest(statusId, '?delete_media=true')
+
+      // The status is already gone by then, so a cleanup hiccup must not read
+      // to the client as "your post is still there".
+      expect(response.status).toBe(200)
+      await expect(
+        database.getStatus({ statusId, withReplies: false })
+      ).resolves.toBeNull()
+    })
+
     it.each([
       { description: 'omits delete_media', suffix: 'keep-default', query: '' },
       {
