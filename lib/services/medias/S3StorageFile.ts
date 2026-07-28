@@ -11,7 +11,7 @@ import { format } from 'date-fns'
 import fs from 'fs/promises'
 import { IncomingMessage } from 'http'
 import { tmpdir } from 'os'
-import { extname, join } from 'path'
+import { join } from 'path'
 import sharp from 'sharp'
 
 import { MediaStorageS3Config } from '@/lib/config/mediaStorage'
@@ -24,6 +24,11 @@ import {
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
 import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
+import {
+  createMediaTempFilePath,
+  getStoredMediaExtension,
+  sanitizeStoredFileName
+} from '@/lib/services/medias/fileName'
 import { getMediaAttachment } from '@/lib/services/medias/getMediaAttachment'
 import {
   DEFAULT_IMAGE_OUTPUT_FORMAT,
@@ -215,13 +220,15 @@ export class S3FileStorage implements MediaStorage {
     }
 
     const { bucket } = this._config
-    const { fileName } = presignedMedia
+    // The client supplies this one directly (there is no multipart part to read
+    // it from), so it is the least trustworthy name of all.
+    const fileName = sanitizeStoredFileName(presignedMedia.fileName)
 
     const currentTime = Date.now()
     const randomPrefix = crypto.randomBytes(8).toString('hex')
     const timeDirectory = format(currentTime, 'yyyy-MM-dd')
 
-    const ext = fileName.endsWith('.mov') ? '.mp4' : extname(fileName)
+    const ext = getStoredMediaExtension(presignedMedia.contentType, fileName)
     const mimeType =
       presignedMedia.contentType === 'video/quicktime'
         ? 'video/mp4'
@@ -434,7 +441,7 @@ export class S3FileStorage implements MediaStorage {
             width: metaData.width ?? 0,
             height: metaData.height ?? 0
           },
-          fileName: file.name
+          fileName: sanitizeStoredFileName(file.name)
         },
         ...(thumbnail
           ? {
@@ -470,7 +477,7 @@ export class S3FileStorage implements MediaStorage {
           width: metaData.width ?? 0,
           height: metaData.height ?? 0
         },
-        fileName: file.name
+        fileName: sanitizeStoredFileName(file.name)
       },
       ...(media.description ? { description: media.description } : null),
       ...(media.focus ? { focus: media.focus } : null)
@@ -631,16 +638,17 @@ export class S3FileStorage implements MediaStorage {
 
   private async _uploadVideoToS3(currentTime: number, file: File) {
     const buffer = Buffer.from(await file.arrayBuffer())
-    const tmpVideoFile = join(
-      tmpdir(),
-      `${crypto.randomBytes(8).toString('hex')}${file.name}`
-    )
-    await fs.writeFile(tmpVideoFile, buffer)
+    const tmpVideoFile = createMediaTempFilePath(file.name)
+    // `wx` (O_EXCL) so the write fails rather than following a symlink someone
+    // planted at the path, or clobbering an existing file. The 64-bit random
+    // prefix already makes that infeasible to aim at; this makes it impossible.
+    await fs.writeFile(tmpVideoFile, buffer, { flag: 'wx' })
+    // `finally` so a probe/preview failure still removes the temp file instead
+    // of leaking it for the lifetime of the container.
     const [probe, previewImage] = await Promise.all([
       extractVideoMeta(buffer),
       extractVideoImage(tmpVideoFile)
-    ])
-    await fs.unlink(tmpVideoFile)
+    ]).finally(() => fs.unlink(tmpVideoFile).catch(() => undefined))
     const videoStream = probe.streams.find(
       (stream) => stream.codec_type === 'video'
     )
@@ -659,7 +667,7 @@ export class S3FileStorage implements MediaStorage {
     const { bucket } = this._config
     const randomPrefix = crypto.randomBytes(8).toString('hex')
     const timeDirectory = format(currentTime, 'yyyy-MM-dd')
-    const ext = file.name.endsWith('.mov') ? '.mp4' : extname(file.name)
+    const ext = getStoredMediaExtension(file.type, file.name)
     const path = `medias/${timeDirectory}/${randomPrefix}${ext}`
     const s3client = this._client
     const command = new PutObjectCommand({
