@@ -10,35 +10,6 @@ const fieldsOf = (): { area: string; field: EnvTemplateField }[] =>
   )
 
 describe('ENV_TEMPLATE_AREAS', () => {
-  // A required field carries its placeholder into the generated block as the
-  // value (EnvBlockBuilder falls back to it when nothing is typed), so a
-  // placeholder an admin could paste and have *work* is a credential this
-  // repository publishes. Every secret placeholder therefore has to be
-  // obviously a stub, and never a command that reads like the builder already
-  // ran it.
-  const secretFields = fieldsOf().filter(({ field }) => field.secret)
-
-  it('has at least one secret field to check', () => {
-    expect(secretFields.length).toBeGreaterThan(0)
-  })
-
-  it.each(secretFields.map(({ area, field }) => ({ area, field })))(
-    'keeps the $area secret placeholder $field.name an obvious stub',
-    ({ field }) => {
-      // Either a self-describing stub or a truncated real-format example.
-      expect(field.placeholder).toMatch(/your-|…|EXAMPLE/)
-    }
-  )
-
-  it.each(secretFields.map(({ area, field }) => ({ area, field })))(
-    'keeps the $area secret placeholder $field.name from being a runnable command',
-    ({ field }) => {
-      expect(field.placeholder).not.toMatch(
-        /\b(openssl|head|dd|uuidgen|pwgen|python3?|node)\b/
-      )
-    }
-  )
-
   it('gives every field a unique variable name within its area', () => {
     for (const area of ENV_TEMPLATE_AREAS) {
       const groups =
@@ -49,6 +20,20 @@ describe('ENV_TEMPLATE_AREAS', () => {
         const names = group.map((field) => field.name)
         expect(new Set(names).size).toBe(names.length)
       }
+    }
+  })
+
+  it.each(fieldsOf())('gives $area/$field.name a placeholder', ({ field }) => {
+    // The placeholder is the input's example. It is deliberately NOT what the
+    // generated block carries — see the emptiness invariant in
+    // EnvBlockBuilder.test.tsx, which is what keeps an unfilled block from
+    // booting a real configuration.
+    expect(field.placeholder.trim()).not.toBe('')
+  })
+
+  it('names every variable in the ACTIVITIES_ or AWS_ namespace', () => {
+    for (const { field } of fieldsOf()) {
+      expect(field.name).toMatch(/^(ACTIVITIES|AWS)_/)
     }
   })
 })

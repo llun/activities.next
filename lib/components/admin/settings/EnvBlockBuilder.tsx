@@ -147,12 +147,21 @@ const EnvAreaBuilder: FC<{ area: EnvTemplateArea }> = ({ area }) => {
     const fieldLines = fields.flatMap<EnvBlockLine>((field) => {
       const value = (values[field.name] ?? '').trim()
       // An optional variable only belongs in the block once it has a value; a
-      // required one carries its placeholder as a visible to-do.
+      // required one is always listed, empty, as a visible to-do.
+      //
+      // Never its placeholder. A placeholder is an example for the input beside
+      // it, and pasting one as a value boots a real configuration out of it:
+      // `ACTIVITIES_EMAIL_INBOUND_SECRET=your-webhook-signing-secret` passes
+      // `min(1)`, so the instance would authenticate every inbound webhook
+      // against a string published in this repository, and the domain example
+      // would mail live reply tokens to a domain the operator does not own.
+      // `NAME=` cannot boot anything: the config resolvers all treat an empty
+      // value as unset and leave the feature off.
       if (field.optional && !value) return []
       return [
         {
           name: field.name,
-          value: value || field.placeholder,
+          value,
           masked: Boolean(field.secret && value)
         }
       ]

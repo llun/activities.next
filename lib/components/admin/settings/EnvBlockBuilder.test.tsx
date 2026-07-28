@@ -81,8 +81,8 @@ describe('EnvBlockBuilder', () => {
     const area = activeArea(STORAGE_AREA)
 
     // A variable name appears once as the field's help and once more in the
-    // preview. Required variables carry their placeholder as a visible to-do;
-    // the optional endpoint is absent from the block entirely.
+    // preview. Required variables are listed empty as a visible to-do; the
+    // optional endpoint is absent from the block entirely.
     expect(area.getAllByText('ACTIVITIES_MEDIA_STORAGE_BUCKET')).toHaveLength(2)
     expect(area.getAllByText('ACTIVITIES_MEDIA_STORAGE_ENDPOINT')).toHaveLength(
       1
@@ -229,6 +229,7 @@ describe('EnvBlockBuilder', () => {
     expect(area.getAllByText('ACTIVITIES_EMAIL_INBOUND_SECRET')).toHaveLength(2)
     // The secret belongs in the block, but only ever masked.
     expect(area.queryByText('a-signing-secret')).toBeNull()
+    expect(area.getByText('•'.repeat(12))).toBeInTheDocument()
     // Optional and untouched, so it stays out of the block entirely.
     expect(
       area.getAllByText('ACTIVITIES_EMAIL_INBOUND_LOCAL_PART_PREFIX')
@@ -245,5 +246,36 @@ describe('EnvBlockBuilder', () => {
     expect(area.queryByLabelText('Storage type')).toBeNull()
     expect(area.queryByLabelText('Map provider')).toBeNull()
     expect(area.queryAllByRole('combobox')).toHaveLength(0)
+  })
+
+  // The invariant that keeps an unfilled block from booting a real
+  // configuration. A placeholder is the *input's* example; emitting it as the
+  // value produced lines an operator could paste verbatim and have work —
+  // `ACTIVITIES_EMAIL_INBOUND_SECRET=your-webhook-signing-secret` satisfies
+  // `min(1)`, so the instance would verify every inbound webhook against a
+  // string published in this repository. `NAME=` cannot boot anything.
+  it.each([
+    { area: 'storage', label: STORAGE_AREA },
+    { area: 'maps', label: MAPS_AREA },
+    { area: 'reply-by-email', label: REPLY_AREA }
+  ])('never puts a placeholder in the $area block', ({ area, label }) => {
+    render(<EnvBlockBuilder />)
+    selectArea(area)
+    const scope = screen.getByRole('group', { name: label })
+
+    const placeholders = [...scope.querySelectorAll('input')]
+      .map((input) => input.placeholder)
+      .filter(Boolean)
+    expect(placeholders.length).toBeGreaterThan(0)
+
+    const block = scope.querySelector('pre')!.textContent ?? ''
+    for (const placeholder of placeholders) {
+      expect(block).not.toContain(placeholder)
+    }
+    // Required variables are still listed, so the block is a to-do list rather
+    // than empty — every line just ends at the `=`.
+    for (const line of block.split('\n').filter(Boolean)) {
+      expect(line).toMatch(/=$/)
+    }
   })
 })

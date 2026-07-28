@@ -76,6 +76,12 @@ inert — nothing typed into it is submitted, stored, or sent anywhere, and the
 server still only reads those values from the environment at boot, so a change
 needs a restart.
 
+A required variable you have not filled in is listed in the block with an empty
+value (`NAME=`) rather than its example. The example belongs to the input beside
+it: a block that carried examples as values could be pasted verbatim and boot a
+real configuration out of them — a signing secret published in this repository,
+or a reply domain the operator does not own.
+
 Where a database-backed setting depends on one of those environment-only values,
 the control stays visible and reports the blocker rather than disappearing. The
 **Reply by email** toggle on the same tab reads _unavailable_ whenever either
@@ -84,14 +90,18 @@ missing, and its help line names the half that is actually missing — pointing 
 the builder only for the inbound half, which is the half the builder can
 assemble.
 
-That toggle is a database row every instance honours, and it defaults to on, so
-it always shows its **stored** value and locks in one direction only: it cannot
-be switched on where the feature would be inert, but a stored _on_ stays
-readable and writable. Otherwise an instance whose own environment is
-incomplete — a web pod in a split deployment, say — would render the
-cluster-wide kill switch as off and offer no way to turn it off. The per-account
-opt-in under Settings → Notifications is hidden outright when the feature is
-unavailable, since that is per-account state with nothing to opt in to.
+That toggle is a single database row every instance reads, and it defaults to
+on, so it always shows its **stored** value and stays editable — it is never
+disabled and never rendered as off just because the local process lacks the
+variables. An instance whose own environment is incomplete (a web pod in a split
+deployment, say) says nothing about the rest of the fleet, and disabling the
+control there would put a cluster-wide switch out of reach of exactly the
+process the admin is talking to: unable to stop workers that _do_ have the
+variables, and unable to start them again afterwards.
+
+The per-account opt-in under Settings → Notifications is hidden outright when
+the feature is unavailable. That is the opposite call for the opposite reason:
+it is per-account state, local to one person, with nothing to opt in to.
 
 ## Core Configuration
 
