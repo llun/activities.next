@@ -1,0 +1,31 @@
+lib/config/fitnessStorage.ts
+  s_2f8f98bd1d8b55::t_a7a50f88ca518f 136-138,140-146,150,156,159-169,173-174
+lib/config/fitnessStorage.test.ts
+  s_2f8f98bd1d8b55::t_09dac13073d920 66-114
+lib/services/email/extractReplyText.ts
+  s_2f8f98bd1d8b55::t_798204e246208f 271-279
+  s_2f8f98bd1d8b55::t_9a8b53fe6df8d4 144-155,166-170,175-181,225-226,260-266,319-325,327-340
+  s_2f8f98bd1d8b55::t_58903ccd238b39 227-233
+  s_2f8f98bd1d8b55::t_9c0a4cdca163c2 43-49,295-303
+  s_2f8f98bd1d8b55::t_d71546580fa14b 50
+lib/services/email/extractReplyText.test.ts
+  s_2f8f98bd1d8b55::t_08fdeefa0532c3 399-486
+docs/environment-variables.md
+  s_2f8f98bd1d8b55::t_2fbb9890113ebc 86-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "6a0f2b0afe858ea258f58c2329a776f3524c50be",
+  "prompts": {},
+  "sessions": {
+    "s_2f8f98bd1d8b55": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fe73386a-874f-4632-8456-f9a69e911a24",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
