@@ -76,6 +76,11 @@ async function getAllMediaPathsFromDatabase(
   }
 }
 
+// macOS and Windows fold case in path lookups, so two spellings can name the
+// same file or directory.
+const isCaseInsensitiveFilesystem = () =>
+  process.platform === 'darwin' || process.platform === 'win32'
+
 const toRealPath = (target: string) => {
   try {
     return realpathSync(target)
@@ -106,9 +111,7 @@ const getContainedRelativePath = (from: string, to: string) => {
   const realTo = toRealPath(to)
   const direct = path.relative(realFrom, realTo)
   if (!direct.startsWith('..') && !path.isAbsolute(direct)) return direct
-  if (process.platform !== 'darwin' && process.platform !== 'win32') {
-    return direct
-  }
+  if (!isCaseInsensitiveFilesystem()) return direct
 
   // Compare segment by segment and rebuild from the real-cased segments. Any
   // approach that measures one string against the other assumes lowercasing
@@ -426,9 +429,17 @@ async function cleanupMediaStorage() {
   // manage, and their references are relative to a different root.
   if (fitnessPrefix) {
     const before = storageFiles.length
-    storageFiles = storageFiles.filter(
-      (file) => !file.startsWith(fitnessPrefix)
-    )
+    // Match the prefix the same way the filesystem matches names. The prefix
+    // carries the CONFIGURED spelling while the listing carries the on-disk
+    // one, so `ACTIVITIES_FITNESS_STORAGE_PATH=…/Fitness` against a directory
+    // created as `fitness` would skip nothing on a case-insensitive
+    // filesystem — and every stored activity file would be offered for
+    // deletion, which is the whole reason this skip exists.
+    const matchesFitnessPrefix = isCaseInsensitiveFilesystem()
+      ? (file: string) =>
+          file.toLowerCase().startsWith(fitnessPrefix.toLowerCase())
+      : (file: string) => file.startsWith(fitnessPrefix)
+    storageFiles = storageFiles.filter((file) => !matchesFitnessPrefix(file))
     const skipped = before - storageFiles.length
     console.log(
       `   Skipped ${skipped} file(s) under the shared fitness prefix '${fitnessPrefix}' (managed as fitness storage, not media)`

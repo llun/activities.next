@@ -3111,8 +3111,13 @@ describe('GET /api/v1/statuses/[id]', () => {
     // `vi.clearAllMocks()` in the suite's beforeEach clears call history but NOT
     // implementations, so a `mockImplementation` set by one test here would
     // otherwise stay installed for the remaining ~800 tests in this file.
+    // `mockReset()` alone is not enough: the module mock is created as
+    // `vi.fn().mockResolvedValue(true)`, so resetting drops it to `undefined`
+    // and every later delete resolves undefined — which `deleteEmailMapImage`
+    // turns into a TypeError that the route then swallows, quietly putting
+    // tests on the failure path while they still pass.
     afterEach(() => {
-      vi.mocked(deleteMediaFile).mockReset()
+      vi.mocked(deleteMediaFile).mockReset().mockResolvedValue(true)
     })
 
     const deleteStatusRequest = (statusId: string, query = '') =>
@@ -3225,11 +3230,39 @@ describe('GET /api/v1/statuses/[id]', () => {
       await expect(
         database.getStatus({ statusId, withReplies: false })
       ).resolves.toBeNull()
-      // Reference-first ordering: the column is cleared even though the file
-      // could not be removed, leaving a plain orphan for cleanupMediaStorage
-      // rather than a live row pointing at a half-deleted object.
+      // The column is cleared even though the file could not be removed,
+      // leaving a plain orphan for cleanupMediaStorage rather than a live row
+      // pointing at a half-deleted object.
       const fitnessFile = await database.getFitnessFile({ id: fitnessFileId })
       expect(fitnessFile?.mapImageEmailPath).toBeUndefined()
+    })
+
+    it('clears the email copy reference before deleting the file', async () => {
+      const { statusId } =
+        await createNoteWithFitnessEmailCopy('email-copy-ord')
+      const updateSpy = vi.spyOn(database, 'updateFitnessFileActivityData')
+
+      const response = await deleteStatusRequest(statusId, '?delete_media=true')
+      expect(response.status).toBe(200)
+
+      // Ordering is the invariant, and the resulting column state cannot show
+      // it: deleteEmailMapImage swallows storage errors, so the column ends up
+      // null either way. Compare when the two calls actually happened.
+      const nullOutOrder = updateSpy.mock.invocationCallOrder[0]
+      const copyDeleteOrder = vi
+        .mocked(deleteMediaFile)
+        .mock.calls.reduce<number | null>(
+          (found, call, index) =>
+            call[1].endsWith('.jpg')
+              ? vi.mocked(deleteMediaFile).mock.invocationCallOrder[index]
+              : found,
+          null
+        )
+
+      expect(nullOutOrder).toBeDefined()
+      expect(copyDeleteOrder).not.toBeNull()
+      expect(nullOutOrder).toBeLessThan(copyDeleteOrder as number)
+      updateSpy.mockRestore()
     })
 
     it('still reports success when clearing the email copy reference fails', async () => {
