@@ -334,11 +334,25 @@ describe('PostsMediaSettingsForm', () => {
     )
   })
 
-  it('says the feature is inert when inbound email is not configured', () => {
+  // Disabled rather than hidden: an admin looking for the switch should find
+  // it and learn why it cannot be used. It also must not read as "on" while
+  // the instance cannot receive a single reply.
+  it('disables the reply-by-email switch when inbound email is not configured', () => {
     renderForm({}, baseSettings, baseStorageBackend, false)
 
+    const toggle = screen.getByLabelText(/Reply by email is unavailable/)
+    expect(toggle).toBeDisabled()
+    expect(toggle).not.toBeChecked()
     expect(
-      screen.getByText(/ACTIVITIES_EMAIL_INBOUND_SECRET/)
+      screen.getByText(/This instance cannot receive replies/)
     ).toBeInTheDocument()
+  })
+
+  it('keeps the switch usable once inbound email is configured', () => {
+    renderForm()
+
+    const toggle = screen.getByLabelText(/Reply by email is allowed/)
+    expect(toggle).not.toBeDisabled()
+    expect(toggle).toBeChecked()
   })
 })

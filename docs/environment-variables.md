@@ -69,11 +69,19 @@ environment variable, when set, always wins regardless.
 
 The Posts & media tab also carries a **Configure environment** builder for the
 infrastructure that stays environment-only: it assembles a copy-pasteable `.env`
-block for media storage (`ACTIVITIES_MEDIA_STORAGE_*`) and for the fitness map
-provider (`ACTIVITIES_FITNESS_MAP_PROVIDER` and its credentials). The builder is
+block for media storage (`ACTIVITIES_MEDIA_STORAGE_*`), for the fitness map
+provider (`ACTIVITIES_FITNESS_MAP_PROVIDER` and its credentials), and for
+reply by email (`ACTIVITIES_EMAIL_INBOUND_*`). The builder is
 inert — nothing typed into it is submitted, stored, or sent anywhere, and the
 server still only reads those values from the environment at boot, so a change
 needs a restart.
+
+Where a database-backed setting depends on one of those environment-only values,
+the switch is disabled rather than hidden: the **Reply by email** toggle on the
+same tab stays visible, reads _unavailable_, and points at the builder whenever
+`ACTIVITIES_EMAIL_INBOUND_*` or the outbound `ACTIVITIES_EMAIL_*` settings are
+missing. The per-account opt-in under Settings → Notifications is hidden
+outright in that case, since there is nothing for an account to opt in to.
 
 ## Core Configuration
 

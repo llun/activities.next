@@ -5,7 +5,10 @@ import { FC, useEffect, useState } from 'react'
 import { PageHeader } from '@/lib/components/page-header'
 import { Select } from '@/lib/components/ui/select'
 import { Switch } from '@/lib/components/ui/switch'
-import { MEDIA_STORAGE_ENV_PREFIX } from '@/lib/config/environmentTemplates'
+import {
+  EMAIL_INBOUND_ENV_PREFIX,
+  MEDIA_STORAGE_ENV_PREFIX
+} from '@/lib/config/environmentTemplates'
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
 import { MAX_CONFIGURABLE_FILE_SIZE } from '@/lib/services/medias/constants'
 import type { MediaStorageBackendSummary } from '@/lib/services/medias/storageBackendSummary'
@@ -365,20 +368,36 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
       >
         <ControlRow
           label={
-            replyByEmailEnabled
-              ? 'Reply by email is allowed'
-              : 'Reply by email is off'
+            !replyByEmailConfigured
+              ? 'Reply by email is unavailable'
+              : replyByEmailEnabled
+                ? 'Reply by email is allowed'
+                : 'Reply by email is off'
           }
           description={
-            replyByEmailConfigured
-              ? 'Each account still has to opt in under Settings → Notifications; the toggle is off by default. Switching this off stops new reply addresses being issued and refuses replies to the ones already sent.'
-              : 'Nothing happens until ACTIVITIES_EMAIL_INBOUND_SECRET, ACTIVITIES_EMAIL_INBOUND_DOMAIN and outbound email are all set — the inbound webhook answers 404 without them.'
+            replyByEmailConfigured ? (
+              'Each account still has to opt in under Settings → Notifications; the toggle is off by default. Switching this off stops new reply addresses being issued and refuses replies to the ones already sent.'
+            ) : (
+              <>
+                This instance cannot receive replies:{' '}
+                <EnvLockLabel envVar={EMAIL_INBOUND_ENV_PREFIX}>
+                  inbound email
+                </EnvLockLabel>{' '}
+                and the outbound email settings are read from the environment at
+                boot. Build the block with{' '}
+                <strong>Configure environment</strong> below, then restart.
+              </>
+            )
           }
           htmlFor="reply-by-email-enabled"
         >
+          {/* Disabled rather than hidden: an admin looking for the switch
+              should find it and learn why it cannot be used, instead of
+              wondering whether the feature exists at all. */}
           <Switch
             id="reply-by-email-enabled"
-            checked={replyByEmailEnabled}
+            checked={replyByEmailConfigured && replyByEmailEnabled}
+            disabled={!replyByEmailConfigured}
             onCheckedChange={(checked) =>
               setValue('replyByEmail.enabled', checked)
             }
