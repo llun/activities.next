@@ -176,6 +176,14 @@ and `PATCH /api/v1/profile`), custom emojis, thumbnail replacement
 and the fitness import jobs — which cover both the route maps the server
 generates and the arbitrary-sized activity photos it fetches from Strava.
 
+The sync upload endpoint also accepts an optional `thumbnail` beside the file,
+and both storage drivers treat it identically: it is re-encoded and stored the
+same way, recorded on the media row from the **stored** file's size and
+dimensions (so it is metered against the account's storage usage), and surfaced
+as the attachment's `meta.small` and `preview_url`. For a video it replaces the
+frame the server would otherwise extract; without one, a video still gets that
+extracted frame and an image gets no thumbnail at all.
+
 **Presigned direct-to-S3** stores the bytes exactly as uploaded — original
 format, no re-encode, no server-side dimension cap — because the browser PUTs
 straight to the bucket. `uploadAttachment` (`lib/client.ts`) tries this first

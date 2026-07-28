@@ -419,54 +419,22 @@ export class S3FileStorage implements MediaStorage {
       )
     }
 
-    if (file.type.startsWith('video')) {
-      const { path, metaData, previewImage } = await this._uploadVideoToS3(
-        currentTime,
-        file
-      )
-      // Video preview extraction can fail (no decodable frame); only build a
-      // thumbnail when we actually have a preview image to avoid sharp(null).
-      const thumbnail = previewImage
+    const { path, metaData, previewImage } = file.type.startsWith('video')
+      ? await this._uploadVideoToS3(currentTime, file)
+      : await this._uploadImageToS3(currentTime, file)
+    // Same precedence as the local driver: a caller-supplied thumbnail wins
+    // over a frame extracted from a video, and video preview extraction can
+    // fail (no decodable frame), so only fall back to the preview when we
+    // actually have one — sharp(null) would throw.
+    const thumbnail = media.thumbnail
+      ? await this._uploadImageToS3(currentTime, media.thumbnail, {
+          isThumbnail: true
+        })
+      : previewImage
         ? await this._uploadImageBufferToS3(currentTime, previewImage, {
             isThumbnail: true
           })
         : null
-      const storedMedia = await this._database.createMedia({
-        actorId: actor.id,
-        original: {
-          path,
-          bytes: file.size,
-          mimeType: file.type,
-          metaData: {
-            width: metaData.width ?? 0,
-            height: metaData.height ?? 0
-          },
-          fileName: sanitizeStoredFileName(file.name)
-        },
-        ...(thumbnail
-          ? {
-              // Use the resized image's actual size/dimensions (outputInfo).
-              thumbnail: {
-                path: thumbnail.path,
-                bytes: thumbnail.outputInfo.size,
-                mimeType: thumbnail.contentType,
-                metaData: {
-                  width: thumbnail.outputInfo.width,
-                  height: thumbnail.outputInfo.height
-                }
-              }
-            }
-          : null),
-        ...(media.description ? { description: media.description } : null),
-        ...(media.focus ? { focus: media.focus } : null)
-      })
-      if (!storedMedia) {
-        throw new Error('Fail to store media')
-      }
-      return this._getSaveFileOutput(storedMedia)
-    }
-
-    const { metaData, path } = await this._uploadImageToS3(currentTime, file)
     const storedMedia = await this._database.createMedia({
       actorId: actor.id,
       original: {
@@ -479,6 +447,20 @@ export class S3FileStorage implements MediaStorage {
         },
         fileName: sanitizeStoredFileName(file.name)
       },
+      ...(thumbnail
+        ? {
+            // Use the resized image's actual size/dimensions (outputInfo).
+            thumbnail: {
+              path: thumbnail.path,
+              bytes: thumbnail.outputInfo.size,
+              mimeType: thumbnail.contentType,
+              metaData: {
+                width: thumbnail.outputInfo.width,
+                height: thumbnail.outputInfo.height
+              }
+            }
+          }
+        : null),
       ...(media.description ? { description: media.description } : null),
       ...(media.focus ? { focus: media.focus } : null)
     })
@@ -633,7 +615,17 @@ export class S3FileStorage implements MediaStorage {
     } finally {
       await fs.unlink(tempFilePath).catch(() => undefined)
     }
-    return { image: resizedImage, metaData, outputInfo, path, contentType }
+    // `previewImage` is always null here — it only exists so an image and a
+    // video upload share one result shape in `saveFile`, as they do in the
+    // local driver.
+    return {
+      image: resizedImage,
+      metaData,
+      outputInfo,
+      path,
+      contentType,
+      previewImage: null
+    }
   }
 
   private async _uploadVideoToS3(currentTime: number, file: File) {

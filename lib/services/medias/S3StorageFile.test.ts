@@ -627,6 +627,192 @@ describe('S3FileStorage saveFile with a video', () => {
   })
 })
 
+// Regression: the image branch called `createMedia` with no `thumbnail` key at
+// all, so a client that uploaded one (MediaSchema accepts it, and
+// handleSyncMediaUpload passes it straight through) got it stored on a
+// filesystem instance and silently dropped on an object-storage one — the same
+// upload produced a different `meta.small`/`preview_url` per backend. The video
+// branch had the matching gap: it always used the extracted frame and ignored a
+// caller-supplied thumbnail. Mirrors `localFile.test.ts`.
+describe('S3FileStorage saveFile with a caller-supplied thumbnail', () => {
+  const send = vi.fn()
+  const actor = { id: 'actor-1', account: { id: 'account-1' } } as Actor
+  const database = {
+    createMedia: vi.fn(),
+    getActorFromId: vi.fn(),
+    getStorageUsageForAccount: vi.fn(),
+    getFitnessStorageUsageForAccount: vi.fn()
+  } as unknown as jest.Mocked<Database>
+
+  // Every PutObjectCommand with the bytes it actually uploaded. The storage
+  // deletes its temp file as soon as `send` resolves, so an image stream has to
+  // be drained inside the mock.
+  let uploads: { key: string; body: Buffer }[]
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    uploads = []
+    ;(S3Client as jest.MockedClass<typeof S3Client>).mockImplementation(
+      function () {
+        return { send } as unknown as S3Client
+      }
+    )
+    send.mockImplementation(async (command) => {
+      if (!(command instanceof PutObjectCommand)) {
+        throw new Error('Unexpected command')
+      }
+      const { Key, Body } = command.input
+      const chunks: Buffer[] = []
+      if (Buffer.isBuffer(Body)) {
+        chunks.push(Body)
+      } else {
+        for await (const chunk of Body as Readable) {
+          chunks.push(Buffer.from(chunk))
+        }
+      }
+      uploads.push({ key: String(Key), body: Buffer.concat(chunks) })
+      return {}
+    })
+    database.getActorFromId.mockResolvedValue(actor)
+    database.getStorageUsageForAccount.mockResolvedValue(0)
+    database.getFitnessStorageUsageForAccount.mockResolvedValue(0)
+    database.createMedia.mockImplementation((async (params: unknown) => ({
+      id: 'media-1',
+      actorId: actor.id,
+      ...(params as object)
+    })) as never)
+    vi.mocked(extractVideoMeta).mockResolvedValue({
+      streams: [{ codec_type: 'video', width: 10, height: 10 }],
+      format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2' }
+    })
+    vi.mocked(extractVideoImage).mockResolvedValue(ONE_PIXEL_PNG)
+  })
+
+  const createStorage = () =>
+    new S3FileStorage(
+      {
+        type: MediaStorageType.ObjectStorage,
+        bucket: 'bucket',
+        region: 'us-east-1',
+        endpoint: 'https://s3.example.com'
+      },
+      'llun.test',
+      database
+    )
+
+  const createPngFile = async (width: number, height: number) => {
+    const buffer = await sharp({
+      create: { width, height, channels: 3, background: '#3366cc' }
+    })
+      .png()
+      .toBuffer()
+    return new File([new Uint8Array(buffer)], 'route-map.png', {
+      type: 'image/png'
+    })
+  }
+
+  // Thumbnails are uploaded under the same prefix as the original, suffixed
+  // `-thumbnail`, so each helper has to pick out the object it means.
+  const uploaded = (kind: 'original' | 'thumbnail') => {
+    const match = uploads.find(
+      (upload) =>
+        upload.key.endsWith('-thumbnail.webp') === (kind === 'thumbnail')
+    )
+    if (!match) {
+      throw new Error(
+        `No uploaded ${kind} in [${uploads.map((upload) => upload.key).join(', ')}]`
+      )
+    }
+    return match
+  }
+
+  it('uploads a caller-supplied thumbnail alongside the image', async () => {
+    await createStorage().saveFile(actor, {
+      file: await createPngFile(800, 600),
+      thumbnail: await createPngFile(400, 300)
+    })
+
+    expect(uploads).toHaveLength(2)
+    await expect(
+      sharp(uploaded('thumbnail').body).metadata()
+    ).resolves.toMatchObject({ width: 400, height: 300, format: 'webp' })
+  })
+
+  // `thumbnail.bytes` is metered: `createMedia` adds it to the account's usage
+  // counter, so it has to describe the stored WebP (`outputInfo`) rather than
+  // the uploaded PNG.
+  it('records the stored thumbnail on the media row', async () => {
+    await createStorage().saveFile(actor, {
+      file: await createPngFile(800, 600),
+      thumbnail: await createPngFile(400, 300)
+    })
+
+    const thumbnail = uploaded('thumbnail')
+    expect(database.createMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        thumbnail: {
+          path: thumbnail.key,
+          bytes: thumbnail.body.length,
+          mimeType: 'image/webp',
+          metaData: { width: 400, height: 300 }
+        }
+      })
+    )
+  })
+
+  it('reports the stored thumbnail as meta.small on the attachment', async () => {
+    const attachment = await createStorage().saveFile(actor, {
+      file: await createPngFile(800, 600),
+      thumbnail: await createPngFile(400, 300)
+    })
+
+    expect(attachment?.meta.small).toMatchObject({ width: 400, height: 300 })
+    expect(attachment?.preview_url).toBe(
+      `https://llun.test/api/v1/files/${uploaded('thumbnail').key}`
+    )
+  })
+
+  it('stores no thumbnail for an image uploaded without one', async () => {
+    await createStorage().saveFile(actor, {
+      file: await createPngFile(800, 600)
+    })
+
+    expect(uploads).toHaveLength(1)
+    expect(database.createMedia).toHaveBeenCalledWith(
+      expect.not.objectContaining({ thumbnail: expect.anything() })
+    )
+  })
+
+  it('prefers a caller-supplied thumbnail over the extracted video frame', async () => {
+    const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {
+      type: 'video/mp4'
+    })
+
+    await createStorage().saveFile(actor, {
+      file,
+      thumbnail: await createPngFile(400, 300)
+    })
+
+    // The video plus one thumbnail — the 1x1 preview frame is not uploaded.
+    expect(uploads).toHaveLength(2)
+    await expect(
+      sharp(uploaded('thumbnail').body).metadata()
+    ).resolves.toMatchObject({ width: 400, height: 300 })
+  })
+
+  it('falls back to the extracted video frame when no thumbnail is supplied', async () => {
+    const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {
+      type: 'video/mp4'
+    })
+
+    await createStorage().saveFile(actor, { file })
+
+    await expect(
+      sharp(uploaded('thumbnail').body).metadata()
+    ).resolves.toMatchObject({ width: 1, height: 1 })
+  })
+})
+
 describe('S3FileStorage getFile', () => {
   const send = vi.fn()
   const database = {} as unknown as jest.Mocked<Database>
