@@ -458,4 +458,74 @@ describe('LocalFileStorage.saveFile with a video', () => {
       .path
     expect(storedPath).toMatch(/^[0-9a-f]{16}\.mp4$/)
   })
+
+  const createPngFile = async (width: number, height: number) => {
+    const buffer = await sharp({
+      create: { width, height, channels: 3, background: '#3366cc' }
+    })
+      .png()
+      .toBuffer()
+    return new File([new Uint8Array(buffer)], 'route-map.png', {
+      type: 'image/png'
+    })
+  }
+
+  const readStoredThumbnail = async () => {
+    const files = await fs.readdir(mediaRoot)
+    const match = files.find((file) => file.endsWith('-thumbnail.webp'))
+    if (!match) throw new Error(`No stored thumbnail in [${files.join(', ')}]`)
+    return sharp(await fs.readFile(path.join(mediaRoot, match))).metadata()
+  }
+
+  // Which of the two thumbnail sources wins was untested on this driver, so the
+  // precedence could be inverted here — reintroducing exactly the bug the S3
+  // driver had — with nothing failing.
+  it('prefers a caller-supplied thumbnail over the extracted video frame', async () => {
+    const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {
+      type: 'video/mp4'
+    })
+
+    await createStorage().saveFile(actor, {
+      file,
+      thumbnail: await createPngFile(400, 300)
+    })
+
+    // 400x300 rather than the 1x1 extracted frame.
+    await expect(readStoredThumbnail()).resolves.toMatchObject({
+      width: 400,
+      height: 300
+    })
+  })
+
+  it('falls back to the extracted video frame when no thumbnail is supplied', async () => {
+    const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {
+      type: 'video/mp4'
+    })
+
+    await createStorage().saveFile(actor, { file })
+
+    await expect(readStoredThumbnail()).resolves.toMatchObject({
+      width: 1,
+      height: 1
+    })
+  })
+
+  // `MediaSchema.thumbnail` accepts every ACCEPTED_FILE_TYPES entry, videos
+  // included. Reaching sharp with one rejects with a plain Error — a 500, not
+  // the 422 every other bad upload gets — and by then the original is already
+  // written with no `medias` row to reclaim it by.
+  it('refuses a thumbnail that is not an image before storing anything', async () => {
+    const thumbnail = new File([Buffer.from('video-bytes')], 'clip.mp4', {
+      type: 'video/mp4'
+    })
+
+    await expect(
+      createStorage().saveFile(actor, {
+        file: await createPngFile(800, 600),
+        thumbnail
+      })
+    ).rejects.toThrow(MediaValidationError)
+    await expect(fs.readdir(mediaRoot)).resolves.toHaveLength(0)
+    expect(database.createMedia).not.toHaveBeenCalled()
+  })
 })

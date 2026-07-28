@@ -181,8 +181,10 @@ and both storage drivers treat it identically: it is re-encoded and stored the
 same way, recorded on the media row from the **stored** file's size and
 dimensions (so it is metered against the account's storage usage), and surfaced
 as the attachment's `meta.small` and `preview_url`. For a video it replaces the
-frame the server would otherwise extract; without one, a video still gets that
-extracted frame and an image gets no thumbnail at all.
+extracted frame — the frame is extracted either way, so it saves no work — while
+without one a video keeps that frame and an image gets no thumbnail at all. A
+thumbnail that is not an image is refused before anything is stored, so an
+unusable one cannot leave an orphaned original behind.
 
 **Presigned direct-to-S3** stores the bytes exactly as uploaded — original
 format, no re-encode, no server-side dimension cap — because the browser PUTs

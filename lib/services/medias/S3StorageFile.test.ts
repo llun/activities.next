@@ -19,6 +19,7 @@ import {
   MAX_HEIGHT,
   MAX_WIDTH
 } from '@/lib/services/medias/constants'
+import { MediaValidationError } from '@/lib/services/medias/errors'
 import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
 import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
 import { getMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
@@ -599,8 +600,9 @@ describe('S3FileStorage saveFile with a video', () => {
     )
   })
 
-  // `saveFile`'s image branch is a separate `createMedia` call from the video
-  // branch above, so it needs its own coverage.
+  // The image and video branches share one `createMedia` call, but only the
+  // image branch reaches it through `_uploadImageToS3`, so it needs its own
+  // coverage.
   it('stores a sanitized original file name for an image', async () => {
     database.createMedia.mockResolvedValue({
       id: 'media-2',
@@ -760,6 +762,32 @@ describe('S3FileStorage saveFile with a caller-supplied thumbnail', () => {
     )
   })
 
+  // Both fixtures above sit inside the 4000x4000 box, where the input and the
+  // stored file have the same dimensions — so only an above-cap thumbnail
+  // distinguishes `outputInfo` from the input `metaData`. Reporting the input's
+  // dimensions is the bug #1334 fixed on the original's side.
+  it('records an above-cap thumbnail at the dimensions it was stored at', async () => {
+    await createStorage().saveFile(actor, {
+      file: await createPngFile(800, 600),
+      thumbnail: await createPngFile(MAX_WIDTH + 200, (MAX_HEIGHT + 200) / 2)
+    })
+
+    expect(database.createMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        thumbnail: expect.objectContaining({
+          metaData: { width: MAX_WIDTH, height: MAX_HEIGHT / 2 }
+        })
+      })
+    )
+    await expect(
+      sharp(uploaded('thumbnail').body).metadata()
+    ).resolves.toMatchObject({ width: MAX_WIDTH, height: MAX_HEIGHT / 2 })
+    // The original is bounded independently and is well inside the box.
+    await expect(
+      sharp(uploaded('original').body).metadata()
+    ).resolves.toMatchObject({ width: 800, height: 600 })
+  })
+
   it('reports the stored thumbnail as meta.small on the attachment', async () => {
     const attachment = await createStorage().saveFile(actor, {
       file: await createPngFile(800, 600),
@@ -770,6 +798,46 @@ describe('S3FileStorage saveFile with a caller-supplied thumbnail', () => {
     expect(attachment?.preview_url).toBe(
       `https://llun.test/api/v1/files/${uploaded('thumbnail').key}`
     )
+  })
+
+  // `description` and `focus` are spread into the same `createMedia` call the
+  // thumbnail is, so the refactor that unified the two branches could have
+  // dropped them without any other test noticing.
+  it('keeps the description and focus alongside the thumbnail', async () => {
+    const attachment = await createStorage().saveFile(actor, {
+      file: await createPngFile(800, 600),
+      thumbnail: await createPngFile(400, 300),
+      description: 'A blue square',
+      focus: { x: 0.5, y: -0.25 }
+    })
+
+    expect(database.createMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: 'A blue square',
+        focus: { x: 0.5, y: -0.25 }
+      })
+    )
+    expect(attachment?.description).toBe('A blue square')
+    expect(attachment?.meta.focus).toEqual({ x: 0.5, y: -0.25 })
+  })
+
+  // `MediaSchema.thumbnail` accepts every ACCEPTED_FILE_TYPES entry, videos
+  // included. Reaching sharp with one rejects with a plain Error — a 500, not
+  // the 422 every other bad upload gets — and by then the original is already
+  // in the bucket with no `medias` row to reclaim it by.
+  it('refuses a thumbnail that is not an image before storing anything', async () => {
+    const thumbnail = new File([Buffer.from('video-bytes')], 'clip.mp4', {
+      type: 'video/mp4'
+    })
+
+    await expect(
+      createStorage().saveFile(actor, {
+        file: await createPngFile(800, 600),
+        thumbnail
+      })
+    ).rejects.toThrow(MediaValidationError)
+    expect(uploads).toHaveLength(0)
+    expect(database.createMedia).not.toHaveBeenCalled()
   })
 
   it('stores no thumbnail for an image uploaded without one', async () => {

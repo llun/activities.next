@@ -406,6 +406,14 @@ export class S3FileStorage implements MediaStorage {
     if (!file.type.startsWith('image') && !file.type.startsWith('video')) {
       return null
     }
+    // `MediaSchema.thumbnail` is a `FileSchema`, which accepts every entry of
+    // ACCEPTED_FILE_TYPES — video and audio included. Refuse an unusable one
+    // here, before anything is uploaded: reaching sharp with it rejects with a
+    // plain Error, which is a 500 rather than a 422 and leaves the already
+    // stored original behind with no `medias` row to reclaim it by.
+    if (media.thumbnail && !media.thumbnail.type.startsWith('image')) {
+      throw new MediaValidationError('Thumbnail must be an image')
+    }
 
     // Check quota before saving
     const quotaCheck = await checkQuotaAvailable(
@@ -422,10 +430,10 @@ export class S3FileStorage implements MediaStorage {
     const { path, metaData, previewImage } = file.type.startsWith('video')
       ? await this._uploadVideoToS3(currentTime, file)
       : await this._uploadImageToS3(currentTime, file)
-    // Same precedence as the local driver: a caller-supplied thumbnail wins
-    // over a frame extracted from a video, and video preview extraction can
-    // fail (no decodable frame), so only fall back to the preview when we
-    // actually have one — sharp(null) would throw.
+    // Same precedence as the local driver: a caller-supplied thumbnail wins,
+    // and a video otherwise falls back to the frame extracted from it. The
+    // image arm is what makes `previewImage` null here — a video whose frame
+    // cannot be decoded rejects rather than resolving null.
     const thumbnail = media.thumbnail
       ? await this._uploadImageToS3(currentTime, media.thumbnail, {
           isThumbnail: true

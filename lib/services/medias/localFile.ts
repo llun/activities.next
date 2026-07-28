@@ -132,6 +132,14 @@ export class LocalFileStorage implements MediaStorage {
     if (!file.type.startsWith('image') && !file.type.startsWith('video')) {
       return null
     }
+    // `MediaSchema.thumbnail` is a `FileSchema`, which accepts every entry of
+    // ACCEPTED_FILE_TYPES — video and audio included. Refuse an unusable one
+    // here, before anything is written: reaching sharp with it rejects with a
+    // plain Error, which is a 500 rather than a 422 and leaves the already
+    // stored original behind with no `medias` row to reclaim it by.
+    if (media.thumbnail && !media.thumbnail.type.startsWith('image')) {
+      throw new MediaValidationError('Thumbnail must be an image')
+    }
 
     // Check quota before saving
     const quotaCheck = await checkQuotaAvailable(
