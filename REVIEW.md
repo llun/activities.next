@@ -135,7 +135,7 @@ change doesn't touch.
   data-sync callbacks (`onStatusCreated`/`onPostUpdated`/`onPostDeleted`/
   `onLikeChanged`/`onBookmarkChanged`/`onReactionsChanged`) and
   `isMediaUploadEnabled`. See **Status Posts & Actions** in `AGENTS.md`.
-- The reaction chips and the action row are both full-bleed (`-ml-[52px]`) and
+- The reaction chips and the action row are both full-bleed (`-ml-13`) and
   the row is `justify-between` with no `ml-auto` on the `⋯` wrapper (an auto
   margin eats the free space and re-clusters the row). The picker trigger lives
   in the action row (`ReactionButton`), not beside the chips, and both halves

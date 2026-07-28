@@ -4,6 +4,7 @@ import {
   Dispatch,
   RefObject,
   SetStateAction,
+  useCallback,
   useEffect,
   useRef,
   useState
@@ -21,10 +22,12 @@ export const formatReactionCount = (count: number): string =>
 
 export interface ReactionState {
   /**
-   * The viewer, when they may react. Undefined on a logged-out or read-only
-   * surface, which leaves the chips readable but inert.
+   * Whether the viewer may react at all. False on a logged-out or read-only
+   * surface, which leaves the chips readable but inert. Deliberately a boolean
+   * rather than the actor: a consumer keying off an actor id here would be
+   * reading a value the hook never reconciles against the status.
    */
-  currentActor?: ActorProfile
+  canReact: boolean
   reactions: StatusReaction[]
   /** Every rollup's count added up — the number the action-bar trigger shows. */
   total: number
@@ -95,9 +98,11 @@ export const useReactionState = ({
     setError(null)
   }, [status.id, status.reactions, setError])
 
-  const focusTrigger = () => {
+  // Stable, so an effect that hands focus back can depend on it without
+  // re-running on every render.
+  const focusTrigger = useCallback(() => {
     triggerRef.current?.focus()
-  }
+  }, [])
 
   const toggle = async (name: string, intent: 'toggle' | 'add' = 'toggle') => {
     // Single-flight: each response carries the status's full authoritative
@@ -171,7 +176,7 @@ export const useReactionState = ({
   }
 
   return {
-    currentActor,
+    canReact: Boolean(currentActor),
     reactions,
     total: reactions.reduce((sum, reaction) => sum + reaction.count, 0),
     mine: reactions.some((reaction) => reaction.me),

@@ -10,7 +10,7 @@ import {
 } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 
-import { ActionButtonError } from './actionButtonShared'
+import { ActionRowErrors } from './actionButtonShared'
 import { BookmarkButton } from './bookmark-button'
 import { EditHistoryButton } from './edit-history-button'
 import { LikeButton } from './like-button'
@@ -119,18 +119,26 @@ export const Actions: FC<Props> = ({
         status={actualStatus}
         onLikeChanged={onLikeChanged}
       />
-      {isCompact ? (
-        // The button is gone but its failures are not: it is the only thing
-        // that renders the bookmark error, so the row has to show it instead.
-        bookmark.error ? (
-          <ActionButtonError message={bookmark.error} testId="bookmark-error" />
-        ) : null
-      ) : (
-        <BookmarkButton state={bookmark} />
-      )}
+      {isCompact ? null : <BookmarkButton state={bookmark} />}
       {/* Still mounted when compact: the picker it renders is portalled, and
           the menu item that opens it needs somewhere for it to live. */}
       <ReactionButton state={reactionState} hideTrigger={isCompact} />
+      {isCompact ? (
+        // Those two buttons are gone from the row but their failures are not,
+        // and each button was the only thing that rendered its own error. The
+        // stack is absolutely positioned, so it adds no flex item and cannot
+        // skew the spacing.
+        <ActionRowErrors
+          errors={[
+            ...(bookmark.error
+              ? [{ message: bookmark.error, testId: 'bookmark-error' }]
+              : []),
+            ...(reactionState.error
+              ? [{ message: reactionState.error, testId: 'reaction-error' }]
+              : [])
+          ]}
+        />
+      ) : null}
       {hasEditHistory ? (
         <EditHistoryButton
           status={actualStatus}

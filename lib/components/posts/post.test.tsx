@@ -744,18 +744,18 @@ describe('Post', () => {
       />
     )
 
-    const primaryActions = screen.getByRole('group', {
+    const actions = screen.getByRole('group', {
       name: 'Post actions'
     })
 
+    expect(within(actions).getByRole('button', { name: 'Repost' })).toHaveClass(
+      'disabled:opacity-50'
+    )
+    expect(within(actions).getByRole('button', { name: 'Like' })).toHaveClass(
+      'disabled:opacity-50'
+    )
     expect(
-      within(primaryActions).getByRole('button', { name: 'Repost' })
-    ).toHaveClass('disabled:opacity-50')
-    expect(
-      within(primaryActions).getByRole('button', { name: 'Like' })
-    ).toHaveClass('disabled:opacity-50')
-    expect(
-      within(primaryActions).getByRole('button', { name: 'Bookmark' })
+      within(actions).getByRole('button', { name: 'Bookmark' })
     ).toHaveClass('disabled:opacity-50')
   })
 
@@ -1463,6 +1463,70 @@ describe('Post', () => {
 
       expect(await screen.findByTestId('bookmark-error')).toHaveTextContent(
         'Failed to bookmark post. Please try again.'
+      )
+    })
+
+    it('closes an open picker onto the new trigger when the row turns compact', async () => {
+      observeWidth(900)
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={status}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Add reaction' }))
+      await screen.findByRole('dialog', { name: 'Choose a reaction' })
+
+      act(() => resizeTo?.(320))
+
+      // The panel is placed from its anchor's rect once, and the anchor it was
+      // measured against has just unmounted — so leaving it open would strand
+      // it over empty space. Focus has to follow it somewhere deliberate, not
+      // fall back to <body> with the panel gone.
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('dialog', { name: 'Choose a reaction' })
+        ).not.toBeInTheDocument()
+      )
+      expect(screen.getByRole('button', { name: 'More actions' })).toHaveFocus()
+    })
+
+    it('stacks a bookmark and a reaction failure instead of overlapping them', async () => {
+      observeWidth(320)
+      ;(bookmarkStatus as jest.Mock).mockResolvedValue(false)
+      ;(reactToStatus as jest.Mock).mockResolvedValue({ ok: false })
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={{
+            ...status,
+            reactions: [
+              { name: '🔥', count: 2, me: false, url: null, static_url: null }
+            ]
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      const menu = await openMenu()
+      fireEvent.click(within(menu).getByRole('menuitem', { name: 'Bookmark' }))
+      await screen.findByTestId('bookmark-error')
+      fireEvent.click(screen.getByLabelText('Add 🔥 reaction, 2'))
+      const reactionError = await screen.findByTestId('reaction-error')
+
+      // Both writes are independent, so both can fail inside one dismiss
+      // window. Anchored individually they would be two opaque boxes at the
+      // same `right-0 top-full`, one hiding the other; they share one stack.
+      expect(screen.getByTestId('bookmark-error').parentElement).toBe(
+        reactionError.parentElement
       )
     })
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { SmilePlus } from 'lucide-react'
-import { FC, useEffect } from 'react'
+import { FC, useEffect, useRef } from 'react'
 
 import {
   ACTION_BUTTON_CLASS,
@@ -14,7 +14,7 @@ import {
 } from '@/lib/components/posts/useReactionState'
 import { cn } from '@/lib/utils'
 
-export const getReactionButtonLabel = (total: number) =>
+const getReactionButtonLabel = (total: number) =>
   total > 0
     ? `Add reaction, ${total} ${total === 1 ? 'reaction' : 'reactions'}`
     : 'Add reaction'
@@ -23,8 +23,8 @@ interface Props {
   state: ReactionState
   /**
    * A post too narrow to carry the whole bar hands the trigger to the ⋯ menu
-   * instead. The picker and its error still render from here — they are
-   * portalled and viewport-positioned, so they only need to stay mounted.
+   * instead. The picker still renders from here — it is portalled and
+   * viewport-positioned, so it only needs to stay mounted.
    */
   hideTrigger?: boolean
 }
@@ -36,32 +36,41 @@ interface Props {
  * read-out of what people picked.
  */
 export const ReactionButton: FC<Props> = ({ state, hideTrigger }) => {
-  const { isPicking, setIsPicking, pendingName, total, mine, triggerRef } =
-    state
+  const {
+    isPicking,
+    setIsPicking,
+    focusTrigger,
+    pendingName,
+    total,
+    mine,
+    triggerRef
+  } = state
   const isBusy = pendingName !== null
   const error = state.error ? (
     <ActionButtonError message={state.error} testId="reaction-error" />
   ) : null
 
-  // The element the picker hangs off moves between this button and the ⋯
-  // trigger when the row crosses its width threshold. The panel is placed from
-  // the anchor's rect when it opens and does not re-measure on a ref swap, so
-  // an open picker would be stranded over the button that just unmounted.
-  // Close it and let the viewer reopen it from wherever the trigger now lives.
+  // Read inside the effect below without being one of its dependencies, so an
+  // ordinary open or close does not re-run it.
+  const isPickingRef = useRef(isPicking)
+  isPickingRef.current = isPicking
+
   useEffect(() => {
+    // The element the picker hangs off moves between this button and the ⋯
+    // trigger when the row crosses its width threshold. The panel is placed
+    // from the anchor's rect when it opens and does not re-measure on a ref
+    // swap, so an open picker would be stranded over the button that just
+    // unmounted. Close it — and hand focus to whichever trigger now exists,
+    // because the panel disappearing out from under a keyboard user would
+    // otherwise drop them on <body>.
+    if (!isPickingRef.current) return
     setIsPicking(false)
-  }, [hideTrigger, setIsPicking])
+    focusTrigger()
+  }, [hideTrigger, setIsPicking, focusTrigger])
 
   return (
     <>
-      {hideTrigger ? (
-        // Deliberately NOT a wrapper element: the row is `justify-between`, so
-        // even a zero-width child claims one of the gaps and skews every other
-        // action's position. The error is `position: absolute`, so it is out of
-        // flow and lays nothing out — it anchors to the row, which is
-        // `relative` for exactly this.
-        error
-      ) : (
+      {hideTrigger ? null : (
         <span className="relative inline-flex items-center justify-center">
           <button
             ref={triggerRef}
@@ -100,11 +109,11 @@ export const ReactionButton: FC<Props> = ({ state, hideTrigger }) => {
           // but the trigger is still the element that was activated.
           onClose={() => {
             setIsPicking(false)
-            state.focusTrigger()
+            focusTrigger()
           }}
           onPick={(name) => {
             setIsPicking(false)
-            state.focusTrigger()
+            focusTrigger()
             void state.toggle(name, 'add')
           }}
         />

@@ -72,11 +72,11 @@ const trigger = () => screen.getByRole('button', { name: /^Add reaction/ })
 // a logged-out surface has no action row, so there is no trigger to share with.
 const readOnlyReactionState = (
   status: StatusNote,
-  actor?: ActorProfile
+  canReact = false
 ): ReactionState => {
   const reactions = status.reactions ?? []
   return {
-    currentActor: actor,
+    canReact,
     reactions,
     total: reactions.reduce((sum, reaction) => sum + reaction.count, 0),
     mine: reactions.some((reaction) => reaction.me),
@@ -260,9 +260,7 @@ describe('ReactionRow', () => {
     // The picker trigger lives in the action row now, so an unreacted post must
     // not leave an empty chip row (and its top margin) behind.
     const { container } = render(
-      <ReactionRow
-        state={readOnlyReactionState(statusWith([]), currentActor)}
-      />
+      <ReactionRow state={readOnlyReactionState(statusWith([]), true)} />
     )
 
     expect(container).toBeEmptyDOMElement()

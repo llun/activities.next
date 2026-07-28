@@ -107,7 +107,7 @@ interface ReactionRowProps {
  * Reactions are NOT favourites: this row never touches the like button's state.
  */
 export const ReactionRow: FC<ReactionRowProps> = ({ state, fullBleed }) => {
-  const { currentActor, reactions, pendingName, toggle } = state
+  const { canReact, reactions, pendingName, toggle } = state
 
   // Nothing to show: the picker trigger no longer lives here, so an unreacted
   // post gets no empty row (and no stray spacing above the action bar).
@@ -143,7 +143,7 @@ export const ReactionRow: FC<ReactionRowProps> = ({ state, fullBleed }) => {
         // rather than a disabled button: a disabled control drops out of the tab
         // order and renders greyed out, hiding the count from keyboard and
         // screen-reader users.
-        if (!currentActor || !canJoinReaction(reaction)) {
+        if (!canReact || !canJoinReaction(reaction)) {
           return (
             <span
               key={reaction.name}

@@ -364,8 +364,9 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   `InlineStatusComposer` internally — that is the shared layer doing the wiring,
   not a page opting into per-status callbacks.)
 - **The chip row and the action row both span the whole status.** Each is pulled
-  `-ml-[52px]` — the avatar column (40px) plus its gap (12px) — so it starts at
-  the post's own left edge rather than under the text, and the action row is
+  `-ml-13` — 13 spacing steps, which is the `size-10` avatar column plus its
+  `gap-3`, so the pull tracks the root font size the way those two do — and each
+  starts at the post's own left edge rather than under the text, and the action row is
   `justify-between` so every action is evenly spaced with the `⋯` menu pinned to
   the far right. Do **not** put `ml-auto` back on the `⋯` wrapper: an auto
   margin absorbs all the free space before `justify-content` sees it, which

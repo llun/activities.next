@@ -20,7 +20,7 @@ import {
 import { Input } from '@/lib/components/ui/input'
 import { cn } from '@/lib/utils'
 
-export interface CustomEmojiOption {
+interface CustomEmojiOption {
   shortcode: string
   url: string
 }
