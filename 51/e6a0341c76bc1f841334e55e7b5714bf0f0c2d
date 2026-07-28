@@ -1,0 +1,26 @@
+lib/components/admin/settings/EnvBlockBuilder.tsx
+  s_2f8f98bd1d8b55::t_a8c33800ef12c7 134-136,140-144,147,160-163,170-179,181-196
+lib/config/environmentTemplates.ts
+  s_2f8f98bd1d8b55::t_c55c16fa0035bf 75-78
+  s_2f8f98bd1d8b55::t_071a5318eea85f 37,48-70,164-188,191,214,242-250
+lib/components/admin/settings/EnvBlockBuilder.test.tsx
+  s_2f8f98bd1d8b55::t_a546170c60fd8a 17,214-216,218-241,243-246,248
+  s_2f8f98bd1d8b55::t_4f21bbdb04dc8d 217,242
+  s_2f8f98bd1d8b55::t_74bc38ca95415d 247
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "51e6a0341c76bc1f841334e55e7b5714bf0f0c2d",
+  "prompts": {},
+  "sessions": {
+    "s_2f8f98bd1d8b55": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fe73386a-874f-4632-8456-f9a69e911a24",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
