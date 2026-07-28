@@ -1,0 +1,28 @@
+lib/config/environmentTemplates.test.ts
+  s_5de0d2ab87ffcf::t_7083c96e2d7a18 60-63
+docs/environment-variables.md
+  s_5de0d2ab87ffcf::t_b841f7e833af81 117-135
+  s_5de0d2ab87ffcf::t_e1062257958a21 280
+  s_5de0d2ab87ffcf::t_c3802a63c34e77 97-104
+proxy.test.ts
+  s_5de0d2ab87ffcf::t_e2a5b6e6ecfabd 387-421
+  s_5de0d2ab87ffcf::t_76c3ec4e6b1d60 14-22
+lib/config/mediaStorage.ts
+  s_5de0d2ab87ffcf::t_9f583ceb4d53b6 46-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "efee42d31154b72485d845bed1af3de35bf89443",
+  "prompts": {},
+  "sessions": {
+    "s_5de0d2ab87ffcf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5ea0b3c1-a9b1-4405-8f70-0ef171540ace",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
