@@ -13,6 +13,7 @@ import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { logger } from '@/lib/utils/logger'
 
 vi.mock('@/lib/services/queue', async () => ({
   getQueue: vi.fn().mockReturnValue({
@@ -331,6 +332,7 @@ describe('regenerateFitnessMapsJob', () => {
   ])('$description', async ({ arrange, expectedError }) => {
     const { statusId, fitnessFileId, oldMediaId, oldEmailMapPath } =
       await setupStatusWithOldMap()
+    const loggerError = vi.spyOn(logger, 'error')
     arrange()
 
     await regenerateFitnessMapsJob(database, {
@@ -378,6 +380,17 @@ describe('regenerateFitnessMapsJob', () => {
         name: SEND_UPDATE_NOTE_JOB_NAME
       })
     )
+
+    // Reported at error level with the error object itself, so the stack
+    // reaches error reporting instead of a bare message string.
+    expect(loggerError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Failed to regenerate route map for fitness activity',
+        fitnessFileId,
+        error: expectedError,
+        err: expect.any(Error)
+      })
+    )
   })
 
   it('clears a recorded map failure once regeneration succeeds', async () => {
@@ -409,6 +422,13 @@ describe('regenerateFitnessMapsJob', () => {
     const { statusId, fitnessFileId, oldMediaId, oldEmailMapPath } =
       await setupStatusWithOldMap()
 
+    // A reason left over from an earlier failed regeneration. There is now no
+    // map to produce at all, so it must not survive — a stale reason keeps the
+    // post offering its owner a retry forever.
+    await database.updateFitnessFileActivityData(fitnessFileId, {
+      mapError: 'tile server down'
+    })
+
     // Nothing left to draw — the same end state a privacy location that
     // swallows the whole route produces — so the map is removed, not
     // regenerated. Stubbed at the parse boundary rather than through settings so
@@ -438,6 +458,7 @@ describe('regenerateFitnessMapsJob', () => {
     expect(refreshedFitnessFile?.processingStatus).toBe('completed')
     expect(refreshedFitnessFile?.hasMapData).toBe(false)
     expect(refreshedFitnessFile?.mapImagePath).toBeUndefined()
+    expect(refreshedFitnessFile?.mapError).toBeUndefined()
     // The copy must not outlive the map: it shows the route the owner just hid.
     expect(refreshedFitnessFile?.mapImageEmailPath).toBeUndefined()
     expect(mockDeleteMediaFile).toHaveBeenCalledWith(database, oldEmailMapPath)
@@ -470,6 +491,13 @@ describe('regenerateFitnessMapsJob', () => {
       nonPrimaryEntry.fitnessFileId,
       false
     )
+    // This file is not supposed to own a map, so a reason recorded when it
+    // tried is not a pending problem — left behind it makes the status look
+    // permanently retriable.
+    await database.updateFitnessFileActivityData(
+      nonPrimaryEntry.fitnessFileId,
+      { mapError: 'tile server down' }
+    )
 
     await regenerateFitnessMapsJob(database, {
       id: 'job-regenerate-non-primary',
@@ -489,6 +517,7 @@ describe('regenerateFitnessMapsJob', () => {
     expect(refreshedNonPrimary?.hasMapData).toBe(false)
     expect(refreshedNonPrimary?.mapImagePath).toBeUndefined()
     expect(refreshedNonPrimary?.processingStatus).toBe('completed')
+    expect(refreshedNonPrimary?.mapError).toBeUndefined()
 
     // The stray map's email copy goes with it: it has no `medias` row, so the
     // fitness file was its only reference.

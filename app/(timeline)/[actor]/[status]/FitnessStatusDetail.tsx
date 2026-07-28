@@ -49,6 +49,7 @@ import { ActorAvatar } from '@/lib/components/posts/actor'
 import { Media } from '@/lib/components/posts/media'
 import { Post } from '@/lib/components/posts/post'
 import { ReactionRow } from '@/lib/components/posts/reaction-row'
+import { RetryFitnessButton } from '@/lib/components/posts/retry-fitness-button'
 import { StatusReplyBox } from '@/lib/components/posts/status-reply-box'
 import { useReactionState } from '@/lib/components/posts/useReactionState'
 import { Button } from '@/lib/components/ui/button'
@@ -1343,6 +1344,7 @@ export const FitnessStatusDetail: FC<Props> = ({
     status.fitness?.elevationGainMeters,
     status.fitness?.activityType,
     status.fitness?.hasMapData,
+    status.fitness?.mapFailed,
     status.fitness?.description,
     status.fitness?.deviceManufacturer,
     status.fitness?.deviceName,
@@ -2039,6 +2041,14 @@ export const FitnessStatusDetail: FC<Props> = ({
         active={activeSection}
         onChange={setActiveSection}
       />
+
+      {/* This page replaces `Post` for a completed fitness activity, so the
+          retry `Post` offers for a missing route map has to exist here too —
+          otherwise the owner who opens the activity to ask where their map went
+          is the one person who cannot act on it. */}
+      {fitness?.mapFailed && isOwner ? (
+        <RetryFitnessButton statusId={status.id} variant="map" />
+      ) : null}
 
       {/* When the route-data load fails and there is no map panel to host the
           banner, surface the error here so the failure is never invisible. */}

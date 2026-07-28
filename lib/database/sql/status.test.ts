@@ -626,6 +626,71 @@ describe('StatusDatabase', () => {
         })
       })
 
+      it('reports a recorded map failure as a boolean, never as the reason', async () => {
+        const statusId = `${emptyActorId}/statuses/fitness-map-failed`
+
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'This activity has no route map'
+        })
+
+        const fitnessFile = await database.createFitnessFile({
+          actorId: emptyActorId,
+          statusId,
+          path: `fitness/${Date.now()}-map-failed.fit`,
+          fileName: 'map-failed.fit',
+          fileType: 'fit',
+          mimeType: 'application/octet-stream',
+          bytes: 4096
+        })
+        await database.updateFitnessFileActivityData(fitnessFile!.id, {
+          mapError: 's3.internal.example: connection refused'
+        })
+        await database.updateFitnessFileProcessingStatus(
+          fitnessFile!.id,
+          'completed'
+        )
+
+        const status = (await database.getStatus({ statusId })) as StatusNote
+        // This payload is served to every viewer of the status, so it carries
+        // the fact and never the reason — a raw error string can name internal
+        // infrastructure. The owner reads the reason on their own files page.
+        expect(status.fitness?.mapFailed).toBe(true)
+        expect(JSON.stringify(status.fitness)).not.toContain('s3.internal')
+        // The activity itself is fine and must stay usable everywhere.
+        expect(status.fitness?.processingStatus).toBe('completed')
+      })
+
+      it('leaves mapFailed false for an activity whose map is fine', async () => {
+        const statusId = `${emptyActorId}/statuses/fitness-map-ok`
+
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'This activity has a route map'
+        })
+
+        await database.createFitnessFile({
+          actorId: emptyActorId,
+          statusId,
+          path: `fitness/${Date.now()}-map-ok.fit`,
+          fileName: 'map-ok.fit',
+          fileType: 'fit',
+          mimeType: 'application/octet-stream',
+          bytes: 4096
+        })
+
+        const status = (await database.getStatus({ statusId })) as StatusNote
+        expect(status.fitness?.mapFailed).toBe(false)
+      })
+
       it('serializes movingTimeSeconds when present and omits it otherwise', async () => {
         const withStatusId = `${emptyActorId}/statuses/fitness-moving`
         await database.createNote({

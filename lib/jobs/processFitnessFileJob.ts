@@ -362,30 +362,38 @@ export const processFitnessFileJob = createJobHandle(
         buffer: fitnessBuffer
       })
 
-      // The reset below de-references any copy an earlier run stored, so delete
-      // the file too. A retry or a recovery script leaves notifyOnComplete
-      // false, so nothing would rewrite the column: without this the object is
-      // orphaned, and worse, if the owner added a privacy location before
-      // reprocessing, the old UNFILTERED route would stay fetchable at its
-      // unchanged URL.
-      await deleteEmailMapImage({
-        database,
-        fitnessFileId,
-        mapImageEmailPath: fitnessFile.mapImageEmailPath
-      })
-
-      // Same reasoning for the map this file already had on the status: the
-      // reset drops the reference, and the block below appends a NEW attachment
-      // — so without this a reprocess leaves the post showing the same route
-      // twice, the stale one rendered from a pre-privacy-filter image that no
-      // column points at any more. Matched by the file's own recorded path so a
-      // merged same-ride post never loses the other file's map.
+      // What this file already has on the status. Removed only once a
+      // replacement is safely stored — deleting up front means a run that then
+      // fails to render leaves the activity with no map at all, turning a
+      // failed reprocess into data loss. Same guard regenerateFitnessMapsJob
+      // makes. Matched by the file's own recorded path, so a merged same-ride
+      // post never loses the other file's map.
       const previousMapAttachments = await findRouteMapAttachments({
         database,
         statusId,
         mapImagePath: fitnessFile.mapImagePath
       })
-      if (previousMapAttachments.length > 0 && actor.account) {
+      const dropPreviousMap = async () => {
+        await deleteEmailMapImage({
+          database,
+          fitnessFileId,
+          mapImageEmailPath: fitnessFile.mapImageEmailPath
+        })
+
+        if (previousMapAttachments.length === 0) return
+        if (!actor.account) {
+          // Nothing can resolve the media rows without an account, and leaving
+          // the attachment in place would show the route twice.
+          logger.warn({
+            message:
+              'Cannot remove the previous route map: actor has no account',
+            actorId,
+            statusId,
+            fitnessFileId
+          })
+          return
+        }
+
         await removeRouteMapAttachmentsAndMedia({
           database,
           accountId: actor.account.id,
@@ -404,11 +412,10 @@ export const processFitnessFileJob = createJobHandle(
         elevationGainMeters: activityData.elevationGainMeters,
         activityType: activityData.activityType,
         activityStartTime: activityData.startTime ?? null,
-        hasMapData: false,
-        mapImagePath: null,
-        mapImageEmailPath: null,
         // Cleared up front so a re-run never shows the previous run's map
-        // failure while it is busy producing a map.
+        // failure while it is busy producing a map. The map columns themselves
+        // are NOT reset here: until a replacement exists, the map this file
+        // already has is the best it has.
         mapError: null,
         // Only overwrite each device field when parsing found a value for it.
         // Preserves device info already set from other sources (e.g. Strava import).
@@ -494,8 +501,17 @@ export const processFitnessFileJob = createJobHandle(
 
           await database.updateFitnessFileActivityData(fitnessFileId, {
             hasMapData: true,
-            mapImagePath: getAttachmentMediaPath(storedMap.url)
+            mapImagePath: getAttachmentMediaPath(storedMap.url),
+            mapImageEmailPath: null
           })
+
+          // The replacement is stored and attached, so the previous map can go.
+          // Doing it here rather than up front is what keeps a failed reprocess
+          // from costing the activity the map it already had; doing it at all is
+          // what stops the post rendering the same route twice, and what stops a
+          // pre-privacy-filter image staying fetchable at its unchanged URL
+          // after the owner added a privacy location.
+          await dropPreviousMap()
 
           // The WebP is what the post and every web surface use; the email
           // prefers a JPEG copy, because Outlook desktop cannot decode WebP.
@@ -530,10 +546,33 @@ export const processFitnessFileJob = createJobHandle(
             err: toLoggableError(error)
           })
 
-          await database.updateFitnessFileActivityData(fitnessFileId, {
-            mapError: mapErrorMessage
-          })
+          try {
+            await database.updateFitnessFileActivityData(fitnessFileId, {
+              mapError: mapErrorMessage
+            })
+          } catch (writeError) {
+            // Recording the reason must never cost the import. Letting this
+            // reach the outer catch would mark a parsed activity `failed`, skip
+            // the summary backfill and skip the federation publish — the exact
+            // outcome this whole change exists to prevent, over a DB blip.
+            logger.error({
+              message: 'Failed to record the route map failure reason',
+              actorId,
+              statusId,
+              fitnessFileId,
+              err: toLoggableError(writeError)
+            })
+          }
         }
+      } else {
+        // No route to draw (indoor activity, or a privacy zone that swallows
+        // the whole route). Any map this file used to have is now wrong.
+        await database.updateFitnessFileActivityData(fitnessFileId, {
+          hasMapData: false,
+          mapImagePath: null,
+          mapImageEmailPath: null
+        })
+        await dropPreviousMap()
       }
 
       if (

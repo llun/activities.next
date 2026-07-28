@@ -504,10 +504,83 @@ describe('processFitnessFileJob', () => {
       expect(retriedFitnessFile?.mapError).toBeUndefined()
     })
 
+    it('keeps the map it already had when the reprocess fails to make a new one', async () => {
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+
+      await processFitnessFileJob(database, {
+        id: 'job-map-keep-first',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      mockDeleteMediaFile.mockClear()
+      mockGenerateMapImage.mockRejectedValue(new Error('tile server down'))
+      await processFitnessFileJob(database, {
+        id: 'job-map-keep-retry',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      // Removing the old map before producing a replacement would turn a failed
+      // retry into data loss — during an outage the owner would end up with no
+      // map at all, having started with one.
+      const refreshed = await database.getFitnessFile({ id: fitnessFileId })
+      expect(refreshed).toMatchObject({
+        processingStatus: 'completed',
+        hasMapData: true,
+        mapImagePath: 'medias/route-map.webp',
+        mapError: 'tile server down'
+      })
+      expect(mockDeleteMediaFile).not.toHaveBeenCalled()
+
+      const status = await database.getStatus({ statusId, withReplies: false })
+      if (status?.type !== StatusType.enum.Note) fail('Expected a note status')
+      expect(status.attachments).toHaveLength(1)
+    })
+
     it('replaces the previous map instead of attaching a second one', async () => {
       const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
         text: 'Morning run'
       })
+
+      // Real media rows, so the cleanup's media lookup and deletion actually
+      // run — `saveMedia` is mocked, and its stub id resolves to nothing.
+      const storeMapMedia = async (path: string) => {
+        const media = await database.createMedia({
+          actorId: actor.id,
+          original: {
+            path,
+            bytes: 1_400,
+            mimeType: 'image/webp',
+            metaData: { width: 800, height: 600 }
+          }
+        })
+        return {
+          id: String(media!.id),
+          type: 'image' as const,
+          mime_type: 'image/webp',
+          url: `https://llun.test/api/v1/files/${path}`,
+          preview_url: null,
+          text_url: null,
+          remote_url: null,
+          meta: {
+            original: {
+              width: 800,
+              height: 600,
+              size: '800x600',
+              aspect: 1.3333333333
+            }
+          },
+          description: 'Route map'
+        }
+      }
+      const firstMap = await storeMapMedia('medias/route-map-first.webp')
+      const secondMap = await storeMapMedia('medias/route-map-second.webp')
+      mockSaveMedia
+        .mockResolvedValueOnce(firstMap)
+        .mockResolvedValueOnce(secondMap)
 
       await processFitnessFileJob(database, {
         id: 'job-map-replace-first',
@@ -515,6 +588,7 @@ describe('processFitnessFileJob', () => {
         data: { actorId: actor.id, statusId, fitnessFileId }
       })
 
+      mockDeleteMediaFile.mockClear()
       await processFitnessFileJob(database, {
         id: 'job-map-replace-second',
         name: PROCESS_FITNESS_FILE_JOB_NAME,
@@ -527,6 +601,75 @@ describe('processFitnessFileJob', () => {
       const status = await database.getStatus({ statusId, withReplies: false })
       if (status?.type !== StatusType.enum.Note) fail('Expected a note status')
       expect(status.attachments).toHaveLength(1)
+      expect(status.attachments[0].url).toContain('route-map-second.webp')
+
+      // The bytes and the media row go too, or every reprocess leaks a file
+      // that no cleanup pass can attribute to anything.
+      expect(mockDeleteMediaFile).toHaveBeenCalledWith(
+        database,
+        'medias/route-map-first.webp'
+      )
+      expect(
+        await database.getMediaByIdForAccount({
+          mediaId: firstMap.id,
+          accountId: actor.account!.id
+        })
+      ).toBeNull()
+    })
+
+    it('leaves another fitness file’s map on the same status alone', async () => {
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Merged same-ride post'
+      })
+
+      // A merged same-ride post: the other device's file owns its own map on
+      // the same status. Reprocessing this file must not touch it.
+      const otherMedia = await database.createMedia({
+        actorId: actor.id,
+        original: {
+          path: 'medias/other-device-route-map.webp',
+          bytes: 1_400,
+          mimeType: 'image/webp',
+          metaData: { width: 800, height: 600 }
+        }
+      })
+      await database.createAttachment({
+        actorId: actor.id,
+        statusId,
+        mediaType: 'image/webp',
+        url: `https://llun.test/api/v1/files/${otherMedia!.original.path}`,
+        width: 800,
+        height: 600,
+        name: 'Activity route map',
+        mediaId: otherMedia!.id
+      })
+
+      await processFitnessFileJob(database, {
+        id: 'job-map-other-file-first',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+      await processFitnessFileJob(database, {
+        id: 'job-map-other-file-second',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      // Matching on this file's own recorded path is what keeps the other
+      // file's map out of the cleanup, even though both are named the same.
+      const status = await database.getStatus({ statusId, withReplies: false })
+      if (status?.type !== StatusType.enum.Note) fail('Expected a note status')
+      expect(
+        status.attachments.some((attachment) =>
+          attachment.url.includes('other-device-route-map.webp')
+        )
+      ).toBe(true)
+      expect(
+        await database.getMediaByIdForAccount({
+          mediaId: String(otherMedia!.id),
+          accountId: actor.account!.id
+        })
+      ).toBeTruthy()
       expect(status.attachments[0]).toMatchObject({
         name: 'Activity route map'
       })

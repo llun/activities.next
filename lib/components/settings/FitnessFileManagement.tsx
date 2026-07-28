@@ -46,6 +46,10 @@ interface FitnessFileItem {
   statusId?: string
   importStatus?: 'pending' | 'completed' | 'failed'
   importError?: string | null
+  // Why this file's route map is missing. Separate from importError: the
+  // activity itself imported fine. This page is the owner's own file list, so
+  // it is the one surface that shows the reason rather than just the fact.
+  mapError?: string | null
   importBatchId?: string
 }
 
@@ -326,6 +330,19 @@ export function FitnessFileManagement({
                                 {fitnessFile.importError}
                               </p>
                             )}
+                          </div>
+                        )}
+                        {fitnessFile.mapError && (
+                          <div className="space-y-1 pt-1">
+                            {/* Muted, not destructive: the activity imported —
+                                only its route map is missing. Retrying is
+                                offered on the post itself. */}
+                            <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                              No route map
+                            </span>
+                            <p className="text-xs text-muted-foreground">
+                              {fitnessFile.mapError}
+                            </p>
                           </div>
                         )}
                       </div>

@@ -104,6 +104,16 @@ const regenerateRouteMap = async (
   })
 
   const refreshedFile = await database.getFitnessFile({ id: file.id })
+  // A map failure no longer marks the file `failed` — that would hide a
+  // perfectly good activity — so `completed` alone no longer means a map was
+  // produced. Without the mapError check this script reports success for every
+  // file during a tile-server outage.
+  if (refreshedFile?.mapError) {
+    console.log(
+      `  [${file.id}] route map regeneration failed: ${refreshedFile.mapError}`
+    )
+    return false
+  }
   return refreshedFile?.processingStatus === 'completed'
 }
 

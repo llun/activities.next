@@ -202,8 +202,33 @@ describe('POST /api/v1/statuses/[id]/retry-fitness', () => {
 
     // This endpoint is the retry the post offers its owner for a missing map:
     // the activity itself never failed, so nothing else marks it retriable.
+    // It keeps its `completed` status while the job re-runs — `pending` would
+    // hide a usable activity behind every `completed` gate and, unlike
+    // `processing`, is never detected as stranded, so a dropped queue message
+    // would leave the post spinning with no retry left to offer.
     const refreshed = await database.getFitnessFile({ id: file.id })
-    expect(refreshed?.processingStatus).toBe('pending')
+    expect(refreshed?.processingStatus).toBe('completed')
+    expect(getQueue().publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ fitnessFileId: file.id })
+      })
+    )
+  })
+
+  it('ignores a map failure recorded on a non-primary file', async () => {
+    const { status, file } = await seedFitnessStatus(database, 'map-nonprimary')
+    await database.updateFitnessFileProcessingStatus(file.id, 'completed')
+    await database.updateFitnessFilePrimary(file.id, false)
+    await database.updateFitnessFileActivityData(file.id, {
+      mapError: 'tile server down'
+    })
+
+    // A non-primary file (the second device of a merged same-ride post) must
+    // never own the status's map, so a reason left on one is not something to
+    // retry — acting on it would attach a second route map on every click.
+    const response = await callRetry(status.id)
+    expect(response.status).toBe(422)
+    expect(getQueue().publish).not.toHaveBeenCalled()
   })
 
   it('rolls a map-failed file back to completed, not failed, when queueing fails', async () => {
@@ -219,8 +244,10 @@ describe('POST /api/v1/statuses/[id]/retry-fitness', () => {
     const response = await callRetry(status.id)
     expect(response.status).toBe(500)
 
-    // Rolling this one back to `failed` would hide a perfectly good activity
-    // behind every surface gated on `completed`.
+    // It was never reset, so there is nothing to roll back — and rolling it
+    // back to `failed` would hide a perfectly good activity behind every
+    // surface gated on `completed`. The reason survives, so the retry the post
+    // offers is still there after the queue recovers.
     const refreshed = await database.getFitnessFile({ id: file.id })
     expect(refreshed?.processingStatus).toBe('completed')
     expect(refreshed?.mapError).toBe('tile server down')
