@@ -35,7 +35,11 @@ describe('requiredStorageValue', () => {
     { description: 'spaces', value: '   ' },
     { description: 'a tab', value: '\t' },
     { description: 'a newline', value: '\n' },
-    { description: 'mixed whitespace', value: ' \t \n ' }
+    { description: 'mixed whitespace', value: ' \t \n ' },
+    // `trim()` strips these too, which a hand-rolled /^[ \t\n]*$/ would not —
+    // and they are what a value pasted from a web page actually contains.
+    { description: 'a non-breaking space', value: ' ' },
+    { description: 'an ideographic space', value: '　' }
   ])('returns null and warns when the value is $description', ({ value }) => {
     process.env.ACTIVITIES_MEDIA_STORAGE_PATH = value
 

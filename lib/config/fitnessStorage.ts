@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { requiredStorageValue } from '@/lib/config/storageValue'
 import { matcher } from '@/lib/config/utils'
+import { logger } from '@/lib/utils/logger'
 
 export enum FitnessStorageType {
   LocalFile = 'fs',
@@ -67,6 +68,20 @@ const getMapboxAccessToken = (): string | undefined => {
   const trimmed = token.trim()
   return trimmed.length > 0 ? trimmed : undefined
 }
+
+/**
+ * Whether the operator configured fitness storage in its own right, rather than
+ * leaving it to inherit media storage.
+ *
+ * `getFitnessStorageConfig` returning `null` is ambiguous on its own: it covers
+ * both "never configured" and "configured, but disabled because a required
+ * value was blank or the type was unrecognised". Only the first may fall back
+ * to media storage — falling back in the second case would quietly write
+ * fitness files into the media bucket right after warning that fitness storage
+ * is disabled. `getEffectiveFitnessStorageConfig` uses this to tell them apart.
+ */
+export const hasExplicitFitnessStorageType = (): boolean =>
+  Boolean(process.env.ACTIVITIES_FITNESS_STORAGE_TYPE)
 
 export const getFitnessStorageConfig = (): {
   fitnessStorage: FitnessStorageConfig
@@ -178,6 +193,12 @@ export const getFitnessStorageConfig = (): {
       }
     }
     default:
+      // An explicitly configured type no longer falls back to media storage, so
+      // a typo here disables fitness storage outright. Say so rather than
+      // leaving the operator to notice that uploads stopped.
+      logger.warn(
+        `Unknown ACTIVITIES_FITNESS_STORAGE_TYPE value "${fitnessStorageType}"; fitness storage will be disabled`
+      )
       return null
   }
 }

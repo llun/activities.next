@@ -19,6 +19,13 @@ describe('MediaStorage config', () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv }
+    // `matcher('ACTIVITIES_MEDIA_STORAGE_')` keys off ANY variable with that
+    // prefix, and the documented local workflow exports .env.local into the
+    // shell — so a developer's own storage config would otherwise decide which
+    // branch these tests take.
+    for (const key of Object.keys(process.env)) {
+      if (key.startsWith('ACTIVITIES_MEDIA_STORAGE_')) delete process.env[key]
+    }
     mockWarn.mockReset()
   })
 
@@ -164,7 +171,7 @@ describe('MediaStorage config', () => {
     // Whitespace is truthy, so it slipped past every existing falsy check.
     it.each([
       {
-        description: 'the fs path is empty',
+        description: 'returns null when the fs path is empty',
         env: {
           ACTIVITIES_MEDIA_STORAGE_TYPE: 'fs',
           ACTIVITIES_MEDIA_STORAGE_PATH: ''
@@ -172,7 +179,7 @@ describe('MediaStorage config', () => {
         warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_PATH'
       },
       {
-        description: 'the fs path is whitespace only',
+        description: 'returns null when the fs path is whitespace only',
         env: {
           ACTIVITIES_MEDIA_STORAGE_TYPE: 'fs',
           ACTIVITIES_MEDIA_STORAGE_PATH: '   '
@@ -180,7 +187,7 @@ describe('MediaStorage config', () => {
         warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_PATH'
       },
       {
-        description: 'the s3 bucket is empty',
+        description: 'returns null when the s3 bucket is empty',
         env: {
           ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
           ACTIVITIES_MEDIA_STORAGE_BUCKET: '',
@@ -189,7 +196,7 @@ describe('MediaStorage config', () => {
         warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_BUCKET'
       },
       {
-        description: 'the s3 bucket is whitespace only',
+        description: 'returns null when the s3 bucket is whitespace only',
         env: {
           ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
           ACTIVITIES_MEDIA_STORAGE_BUCKET: '  ',
@@ -198,7 +205,7 @@ describe('MediaStorage config', () => {
         warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_BUCKET'
       },
       {
-        description: 'the s3 region is empty',
+        description: 'returns null when the s3 region is empty',
         env: {
           ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
           ACTIVITIES_MEDIA_STORAGE_BUCKET: 'test-bucket',
@@ -207,7 +214,7 @@ describe('MediaStorage config', () => {
         warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_REGION'
       },
       {
-        description: 'the s3 region is whitespace only',
+        description: 'returns null when the s3 region is whitespace only',
         env: {
           ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
           ACTIVITIES_MEDIA_STORAGE_BUCKET: 'test-bucket',
@@ -216,7 +223,7 @@ describe('MediaStorage config', () => {
         warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_REGION'
       },
       {
-        description: 'the object storage bucket is empty',
+        description: 'returns null when the object storage bucket is empty',
         env: {
           ACTIVITIES_MEDIA_STORAGE_TYPE: 'object',
           ACTIVITIES_MEDIA_STORAGE_BUCKET: '',
@@ -224,12 +231,31 @@ describe('MediaStorage config', () => {
         },
         warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_BUCKET'
       }
-    ])('returns null when $description', ({ env, warnedVariable }) => {
+    ])('$description', ({ env, warnedVariable }) => {
       Object.assign(process.env, env)
 
       expect(getMediaStorageConfig()).toBeNull()
       expect(mockWarn).toHaveBeenCalledWith(
         `${warnedVariable} is set but empty; media storage will be disabled`
+      )
+      expect(mockWarn).toHaveBeenCalledTimes(1)
+    })
+
+    // Both values are read before either is checked, so an operator with two
+    // blank variables sees both names instead of fixing them one boot at a
+    // time. Short-circuiting on the first would still pass every row above.
+    it('warns for every blank required value before disabling storage', () => {
+      process.env.ACTIVITIES_MEDIA_STORAGE_TYPE = 's3'
+      process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET = ''
+      process.env.ACTIVITIES_MEDIA_STORAGE_REGION = '  '
+
+      expect(getMediaStorageConfig()).toBeNull()
+      expect(mockWarn).toHaveBeenCalledTimes(2)
+      expect(mockWarn).toHaveBeenCalledWith(
+        'ACTIVITIES_MEDIA_STORAGE_BUCKET is set but empty; media storage will be disabled'
+      )
+      expect(mockWarn).toHaveBeenCalledWith(
+        'ACTIVITIES_MEDIA_STORAGE_REGION is set but empty; media storage will be disabled'
       )
     })
 
@@ -262,17 +288,58 @@ describe('MediaStorage config', () => {
     })
 
     // Unset must keep failing loudly in `Config.parse` rather than quietly
-    // disabling storage — only blank changed behaviour.
-    it('leaves an unset required value undefined for schema validation', () => {
-      process.env.ACTIVITIES_MEDIA_STORAGE_TYPE = 'fs'
-      delete process.env.ACTIVITIES_MEDIA_STORAGE_PATH
+    // disabling storage — only blank changed behaviour. Relaxing any guard's
+    // `=== null` to `== null` would swap one for the other, and without these
+    // the whole suite still passes.
+    it.each([
+      {
+        description: 'leaves an unset fs path undefined for schema validation',
+        env: { ACTIVITIES_MEDIA_STORAGE_TYPE: 'fs' },
+        unset: 'ACTIVITIES_MEDIA_STORAGE_PATH',
+        schema: MediaStorageFileConfig,
+        field: 'path'
+      },
+      {
+        description:
+          'leaves an unset s3 bucket undefined for schema validation',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+          ACTIVITIES_MEDIA_STORAGE_REGION: 'us-east-1'
+        },
+        unset: 'ACTIVITIES_MEDIA_STORAGE_BUCKET',
+        schema: MediaStorageS3Config,
+        field: 'bucket'
+      },
+      {
+        description:
+          'leaves an unset s3 region undefined for schema validation',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+          ACTIVITIES_MEDIA_STORAGE_BUCKET: 'test-bucket'
+        },
+        unset: 'ACTIVITIES_MEDIA_STORAGE_REGION',
+        schema: MediaStorageS3Config,
+        field: 'region'
+      }
+    ])('$description', ({ env, unset, schema, field }) => {
+      Object.assign(process.env, env)
+      delete process.env[unset]
 
       const config = getMediaStorageConfig()
 
       expect(config).not.toBeNull()
-      expect((config?.mediaStorage as { path?: string }).path).toBeUndefined()
-      expect(() => MediaStorageFileConfig.parse(config?.mediaStorage)).toThrow()
+      expect(
+        (config?.mediaStorage as Record<string, unknown>)[field]
+      ).toBeUndefined()
       expect(mockWarn).not.toHaveBeenCalled()
+
+      // Name the failing field: a bare `.toThrow()` also passes when some
+      // unrelated field is what Zod rejected.
+      const result = schema.safeParse(config?.mediaStorage)
+      expect(result.success).toBe(false)
+      expect(
+        result.error?.issues.map((issue) => issue.path.join('.'))
+      ).toContain(field)
     })
   })
 })
