@@ -1,0 +1,63 @@
+lib/config/mediaStorage.test.ts
+  s_5de0d2ab87ffcf::t_e674cabae58aeb 83,91,99,108,115,121-126,134-164
+  s_bacf13bfd97c8f::t_8711297bc696c5 165
+docs/fitness-file-storage.md
+  s_5de0d2ab87ffcf::t_c2e25f47978c4d 34
+lib/config/utils.ts
+  s_5de0d2ab87ffcf::t_8828c810b73cf5 1-2,10-53
+  s_5de0d2ab87ffcf::t_d705470f7ea209 54
+docs/environment-variables.md
+  s_5de0d2ab87ffcf::t_819a696fcecaed 82-85,87,90-108
+  s_5de0d2ab87ffcf::t_246bb2cebd1881 253
+  s_5de0d2ab87ffcf::t_2728ef2330464a 254
+lib/config/fitnessStorage.ts
+  s_5de0d2ab87ffcf::t_83a5b2344e0af7 4-8
+  s_5de0d2ab87ffcf::t_1afd8ed5042b96 77,83-84,90-95,100,103-104
+  s_5de0d2ab87ffcf::t_b85d78f91bc652 124
+lib/components/admin/settings/EnvBlockBuilder.test.tsx
+  s_5de0d2ab87ffcf::t_93355f73318e03 250,259
+  s_5de0d2ab87ffcf::t_afb70df24b8283 339-340
+  s_5de0d2ab87ffcf::t_4eceb7b884da7d 242-249,251-258,261,263-275,277-292,294,297-308,310-338
+  s_5de0d2ab87ffcf::t_8790e21a5912fe 235,239-241
+lib/config/mediaStorage.ts
+  s_5de0d2ab87ffcf::t_9d97bc32dcf327 98
+  s_5de0d2ab87ffcf::t_6041f0b9568754 3-7
+  s_5de0d2ab87ffcf::t_6a03b944cdd5f2 46-47,56-57,66
+lib/config/fitnessStorage.test.ts
+  s_5de0d2ab87ffcf::t_090f54a5ce7c93 3-4
+  s_5de0d2ab87ffcf::t_86fcd7fb90587e 43,51,60,69-82
+  s_5de0d2ab87ffcf::t_ab3216b09a60e9 141-150
+  s_5de0d2ab87ffcf::t_ebb2baeddea6a5 26-31,35
+  s_5de0d2ab87ffcf::t_fa052858ccb18c 92,100,108,117,124-140,154-165
+  s_bacf13bfd97c8f::t_254855ddc54eca 166-167
+lib/config/environmentTemplates.test.ts
+  s_5de0d2ab87ffcf::t_f02b0a2971b3e3 14-20
+lib/components/admin/settings/EnvBlockBuilder.tsx
+  s_5de0d2ab87ffcf::t_95da18bf9bf424 155-162
+.env.example
+  s_5de0d2ab87ffcf::t_69e7bc5344e5b5 136-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "c36217102d6a0a43d04c72ea0cd49616357dbe0d",
+  "prompts": {},
+  "sessions": {
+    "s_5de0d2ab87ffcf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5ea0b3c1-a9b1-4405-8f70-0ef171540ace",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_bacf13bfd97c8f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "43d31ca8-b754-400d-86bd-2acdf8bc8319",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
