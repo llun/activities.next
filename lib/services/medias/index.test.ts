@@ -4,7 +4,11 @@ import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/domain/actor'
 
 import * as S3FileStorage from './S3StorageFile'
-import {
+import * as mediaStorageService from './index'
+import * as LocalFileStorage from './localFile'
+import { MediaSchema, PresigedMediaInput } from './types'
+
+const {
   completePresignedMediaUpload,
   deleteMediaFile,
   getMedia,
@@ -12,9 +16,7 @@ import {
   saveMedia,
   saveMediaImageRendition,
   saveMediaThumbnail
-} from './index'
-import * as LocalFileStorage from './localFile'
-import { MediaSchema, PresigedMediaInput } from './types'
+} = mediaStorageService
 
 vi.mock('@/lib/config')
 vi.mock('@/lib/utils/logger', () => ({
@@ -105,6 +107,10 @@ const S3_STORAGE_TYPES = [
   MediaStorageType.S3Storage,
   MediaStorageType.ObjectStorage
 ]
+
+// Re-exported error class rather than a storage-delegating function, so it is
+// the one export the matrix below does not describe.
+const NON_DELEGATING_EXPORTS = ['PresignedUploadValidationError']
 
 interface MediaStorageFunctionCase {
   name: string
@@ -205,6 +211,41 @@ describe('Media Storage Service', () => {
     )
   })
 
+  // The delegation matrix below only protects what it enumerates, and an
+  // `it.each([])` registers zero tests without failing. Without these guards the
+  // matrix can silently shrink: dropping a STORAGE_CONFIGS entry, adding a
+  // fourth MediaStorageType, or exporting an eighth function all leave a green
+  // suite that no longer covers the case this file exists to catch.
+  describe('matrix coverage', () => {
+    it('describes every function exported from the module', () => {
+      const exported = Object.keys(mediaStorageService).filter(
+        (name) => !NON_DELEGATING_EXPORTS.includes(name)
+      )
+
+      expect(exported.sort()).toEqual(
+        MEDIA_STORAGE_FUNCTIONS.map(
+          (mediaFunction) => mediaFunction.name
+        ).sort()
+      )
+    })
+
+    it('exercises every configurable storage type', () => {
+      const exercised = STORAGE_CONFIGS.map(
+        (storage) => storage.mediaStorage.type
+      )
+
+      expect(exercised.sort()).toEqual(Object.values(MediaStorageType).sort())
+    })
+
+    it('declares at least one supported storage type per function', () => {
+      const withoutSupportedTypes = MEDIA_STORAGE_FUNCTIONS.filter(
+        (mediaFunction) => mediaFunction.supportedTypes.length === 0
+      ).map((mediaFunction) => mediaFunction.name)
+
+      expect(withoutSupportedTypes).toEqual([])
+    })
+  })
+
   describe.each(MEDIA_STORAGE_FUNCTIONS)('$name', (mediaFunction) => {
     const supported = STORAGE_CONFIGS.filter((storage) =>
       mediaFunction.supportedTypes.includes(storage.mediaStorage.type)
@@ -277,6 +318,11 @@ describe('Media Storage Service', () => {
       const result = await deleteMediaFile(mockDatabase, 'medias/test.jpg')
 
       expect(result).toBe(false)
+      // Without this the assertion above cannot tell a driver that returned
+      // false from the `default` branch, which returns false too.
+      expect(localStorageMock.deleteFile).toHaveBeenCalledWith(
+        'medias/test.jpg'
+      )
     })
 
     it('passes the path through unchanged', async () => {
