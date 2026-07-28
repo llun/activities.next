@@ -1,0 +1,21 @@
+app/api/v1/statuses/[id]/route.test.ts
+  s_f00bc373d2ba59::t_ec36df5f40470a 3202-3203,3205-3211,3221-3249
+scripts/maintenance/cleanupMediaStorage.ts
+  s_f00bc373d2ba59::t_59f6580d3240d1 113-126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "fbf36e9d606812aa11d28022b1a88cf5f7eb4b42",
+  "prompts": {},
+  "sessions": {
+    "s_f00bc373d2ba59": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9fe2341a-719d-453d-8ad9-22b4f91dd55c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
