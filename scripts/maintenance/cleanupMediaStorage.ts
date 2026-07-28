@@ -76,6 +76,34 @@ async function getAllMediaPathsFromDatabase(
 }
 
 /**
+ * `path.relative`, but tolerant of a case-insensitive filesystem.
+ *
+ * macOS and Windows treat `/data/Media` and `/data/media` as one directory, so
+ * a fitness root that differs from the media root only by case really does sit
+ * inside the listing — while plain `path.relative` reports `../media/...` and
+ * would let the caller conclude the two are unrelated. For a tool that deletes
+ * files, guessing "unrelated" is the expensive direction to be wrong in.
+ *
+ * Returns a path relative to `from` when `to` is inside it (`''` when they are
+ * the same directory), and a `..`-prefixed path when it genuinely is not.
+ */
+const getContainedRelativePath = (from: string, to: string) => {
+  const direct = path.relative(from, to)
+  if (!direct.startsWith('..') && !path.isAbsolute(direct)) return direct
+  if (process.platform !== 'darwin' && process.platform !== 'win32') {
+    return direct
+  }
+
+  const insensitive = path.relative(from.toLowerCase(), to.toLowerCase())
+  if (insensitive.startsWith('..') || path.isAbsolute(insensitive)) {
+    return direct
+  }
+  // Same length, differing only by case, so the real-cased tail of `to` is the
+  // relative path as it actually appears in the listing.
+  return insensitive === '' ? '' : to.slice(to.length - insensitive.length)
+}
+
+/**
  * Storage-root-relative prefix that fitness files occupy inside MEDIA storage.
  *
  * With no fitness storage configured, fitness files fall back to the media
@@ -105,7 +133,7 @@ const getSharedFitnessPrefix = (mediaStorage: MediaStorageConfig) => {
   ) {
     const mediaRoot = path.resolve(process.cwd(), mediaStorage.path)
     const fitnessRoot = path.resolve(process.cwd(), fitnessStorage.path)
-    const relative = path.relative(mediaRoot, fitnessRoot)
+    const relative = getContainedRelativePath(mediaRoot, fitnessRoot)
     if (relative === '') {
       // Same directory for both: nothing in the listing distinguishes a fitness
       // file from a media file, so any orphan set would include every stored
