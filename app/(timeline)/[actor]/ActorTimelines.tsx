@@ -22,6 +22,7 @@ import {
   StatusPoll,
   StatusType
 } from '@/lib/types/domain/status'
+import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 
 import { ActorMediaGallery } from './ActorMediaGallery'
 
@@ -230,6 +231,22 @@ export const ActorTimelines: FC<Props> = ({
     []
   )
 
+  // Reactions have to be synced alongside likes and bookmarks: those handlers
+  // replace the status object in this page's own copy, which re-renders the
+  // reaction row from its (now stale) `reactions` prop and would otherwise
+  // revert a chip the viewer just added.
+  const handleReactionsChanged = useCallback(
+    (status: StatusNote | StatusPoll, reactions: StatusReaction[]) => {
+      setCurrentStatuses((previousStatuses) =>
+        updateMatchingStatus(previousStatuses, status.id, (target) => ({
+          ...target,
+          reactions
+        }))
+      )
+    },
+    []
+  )
+
   const loadMoreStatuses = useCallback(async () => {
     const nextPageUrl = currentStatusPagination.nextPageUrl
     if (isLoadingRef.current || !nextPageUrl) return
@@ -331,6 +348,7 @@ export const ActorTimelines: FC<Props> = ({
         onPostDeleted={handlePostDeleted}
         onLikeChanged={handleLikeChanged}
         onBookmarkChanged={handleBookmarkChanged}
+        onReactionsChanged={handleReactionsChanged}
       />
     ) : (
       <EmptyState>{emptyMessage}</EmptyState>

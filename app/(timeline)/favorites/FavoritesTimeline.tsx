@@ -17,6 +17,7 @@ import {
   StatusType,
   getOriginalStatus
 } from '@/lib/types/domain/status'
+import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 
 const MAX_EMPTY_FAVOURITE_CONTINUATIONS = 5
 
@@ -77,6 +78,16 @@ export const FavoritesTimeline: FC<FavoritesTimelineProps> = ({
 
   const onLikeChanged = (status: StatusNote | StatusPoll, isLiked: boolean) => {
     if (!isLiked) removeStatus(status)
+  }
+
+  // Keep this page's copy in step with a reaction the viewer just added, so a
+  // later edit (which replaces the status object) doesn't re-render the reaction
+  // row from a stale `reactions` prop and drop the chip.
+  const onReactionsChanged = (
+    status: StatusNote | StatusPoll,
+    reactions: StatusReaction[]
+  ) => {
+    updateStatus({ ...status, reactions })
   }
 
   const loadMoreStatuses = useCallback(async () => {
@@ -149,6 +160,7 @@ export const FavoritesTimeline: FC<FavoritesTimelineProps> = ({
           onPostDeleted={removeStatus}
           onPostUpdated={updateStatus}
           onLikeChanged={onLikeChanged}
+          onReactionsChanged={onReactionsChanged}
         />
       ) : (
         <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">

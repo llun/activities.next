@@ -88,6 +88,11 @@ describe('reactionWriteHandler', () => {
       description: 'an emoji this instance cannot render',
       reason: 'invalid-emoji',
       expected: 422
+    },
+    {
+      description: 'a viewer already at the per-actor cap',
+      reason: 'cap-reached',
+      expected: 422
     }
   ])('answers $expected for $description', async ({ reason, expected }) => {
     mockReactStatus.mockResolvedValue({ ok: false, reason })
@@ -97,6 +102,30 @@ describe('reactionWriteHandler', () => {
     expect(response.status).toBe(expected)
     expect(mockRefetchedStatusResponse).not.toHaveBeenCalled()
   })
+
+  it.each([
+    {
+      reason: 'cap-reached',
+      error: 'You can only add 8 reactions to a post.'
+    },
+    {
+      reason: 'invalid-emoji',
+      error: 'That emoji cannot be used as a reaction.'
+    }
+  ])(
+    'explains a $reason refusal in the response body',
+    async ({ reason, error }) => {
+      mockReactStatus.mockResolvedValue({ ok: false, reason })
+
+      const response = await invoke('react', { id: 'status-1', emoji: '🔥' })
+      const body = await response.json()
+
+      // The client shows `error` to the user verbatim, and only does so when
+      // `reason` is present — that marker is what separates this from the bare
+      // `{ error: 'Unprocessable entity' }` every other 4xx returns.
+      expect(body).toEqual({ error, reason })
+    }
+  )
 
   it.each([
     {

@@ -59,12 +59,13 @@ change doesn't touch.
 
 ## Uploaded file names
 
-- A supplied file name (`File.name`, the presigned flow's `fileName`) is
+- A supplied file name (`File.name`, the presigned flows' `fileName`) is
   attacker-controlled: only browser multipart uploads send a bare basename. In
-  the media storage drivers it must never be joined to a path, passed to
+  the upload storage drivers (`lib/services/medias/`,
+  `lib/services/fitness-files/`) it must never be joined to a path, passed to
   `extname`, or persisted raw — it goes through `@/lib/services/medias/fileName`
-  first. (`lib/services/fitness-files/` is a known unfixed exception; its paths
-  are safe but its stored names are not sanitized.)
+  first. `medias.originalFileName` and `fitness_files.fileName` are both
+  `varchar(255)`, so an over-long name is also a PostgreSQL insert failure.
 - Temp paths from a supplied name use `createMediaTempFilePath` (random prefix,
   explicit separator, parent asserted to be `tmpdir()`), never
   `join(tmpdir(), prefix + name)` — `path.join` resolves `..`, and prepending a

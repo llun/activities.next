@@ -28,6 +28,10 @@ type ProfileData = {
 
 type ProfileDataOptions = {
   statusPageUrl?: string
+  // The signed-in viewer. Hydration only — it decides the like/bookmark/reaction
+  // state on the returned statuses, not which statuses are returned (that stays
+  // governed by the profile's own visibility rules).
+  currentActorId?: string
 }
 
 export const getProfileData = async (
@@ -51,7 +55,10 @@ export const getProfileData = async (
       followersCount,
       hasFitnessData
     ] = await Promise.all([
-      database.getActorStatuses({ actorId: persistedActor.id }),
+      database.getActorStatuses({
+        actorId: persistedActor.id,
+        currentActorId: options.currentActorId
+      }),
       database.getActorStatusesCount({ actorId: persistedActor.id }),
       database.getAttachmentsForActor({ actorId: persistedActor.id }),
       database.getActorFollowingCount({ actorId: persistedActor.id }),

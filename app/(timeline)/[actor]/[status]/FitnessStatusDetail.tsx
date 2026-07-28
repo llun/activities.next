@@ -46,6 +46,7 @@ import { RepostButton } from '@/lib/components/posts/actions/repost-button'
 import { ActorAvatar } from '@/lib/components/posts/actor'
 import { Media } from '@/lib/components/posts/media'
 import { Post } from '@/lib/components/posts/post'
+import { ReactionRow } from '@/lib/components/posts/reaction-row'
 import { StatusReplyBox } from '@/lib/components/posts/status-reply-box'
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -1958,6 +1959,20 @@ export const FitnessStatusDetail: FC<Props> = ({
             )}
           </div>
         </div>
+
+        {/* Reactions belong to the post, so they sit above the action bar here as
+            they do in `Post`. This page composes its own action row instead of
+            using `Posts`, so the row has to be added explicitly — without it a
+            fitness post is the one surface where an existing reaction is
+            invisible and no new one can be added. */}
+        {(currentActor || (status.reactions?.length ?? 0) > 0) && (
+          <div className="border-t px-4 pt-2.5">
+            <ReactionRow
+              currentActor={currentActor ?? undefined}
+              status={status}
+            />
+          </div>
+        )}
 
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t px-4 py-2.5">
           {sourceHref ? (

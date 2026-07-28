@@ -555,6 +555,8 @@ export type GetStatusRepliesParams = BaseStatusParams & {
   limit?: number
   publicOnly?: boolean
   visibleToActorId?: string | null
+  // Hydration-only viewer; see GetActorStatusesParams.
+  currentActorId?: string
 }
 export type GetStatusEditHistoryParams = BaseStatusParams
 // A single superseded revision of a status (a row in `status_history`). `text`
@@ -577,10 +579,19 @@ export type DeleteStatusParams = BaseStatusParams & {
 
 export type GetStatusFromUrlParams = {
   url: string
+  // The signed-in viewer, so the resolved status carries their own like,
+  // bookmark and reaction state. A status's `url` is its web permalink, which
+  // is never equal to its `id`, so this lookup — not the id lookup beside it —
+  // is what a pasted link actually resolves through.
+  currentActorId?: string
 }
 export type GetStatusFromUrlHashParams = {
   urlHash: string
   actorId?: string
+  // The signed-in viewer, so the returned status carries their own like,
+  // bookmark and reaction state — the hash route lands on the same status
+  // detail page as the id route and must hydrate it the same way.
+  currentActorId?: string
 }
 
 export type GetActorAnnouncedStatusIdParams = {
@@ -627,6 +638,11 @@ export type GetActorStatusesCountParams = {
 }
 export type GetActorStatusesParams = {
   actorId: string
+  // The signed-in viewer, for hydration only: it decides the like, bookmark and
+  // reaction state carried on the returned statuses. `visibleToActorId` below is
+  // the separate *visibility filter* and must not be conflated with it — a
+  // viewer id passed there changes which statuses come back.
+  currentActorId?: string
   minStatusId?: string | null
   maxStatusId?: string | null
   limit?: number
@@ -704,6 +720,10 @@ export type DeleteStatusTagsByTypeParams = {
 }
 export type GetStatusesByHashtagParams = {
   hashtag: string
+  // The signed-in viewer. Hydration only — it decides the like/bookmark/reaction
+  // state on the returned statuses and never which statuses are returned (a tag
+  // timeline is public by definition).
+  currentActorId?: string
   limit?: number
   minStatusId?: string
   maxStatusId?: string
@@ -1651,12 +1671,20 @@ export type GetCollectionTimelineParams = {
   // getPublicCollectionTimeline instead.
   actorId: string
   projection?: 'owner' | 'public'
+  // Hydration-only viewer; see GetPublicCollectionTimelineParams. Defaults to
+  // the owner, so the owner's own public preview still shows their state.
+  currentActorId?: string
   limit?: number
   maxStatusId?: string | null
   minStatusId?: string | null
 }
 export type GetPublicCollectionTimelineParams = {
   id: string
+  // The signed-in reader, for hydration only. `projection` decides WHICH
+  // statuses this feed contains; this decides whose like/bookmark/reaction
+  // state they carry. A public feed rendered for a signed-in viewer still shows
+  // interactive controls, so those controls must reflect that viewer.
+  currentActorId?: string
   limit?: number
   maxStatusId?: string | null
   minStatusId?: string | null

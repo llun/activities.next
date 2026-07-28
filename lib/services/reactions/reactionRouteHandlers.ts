@@ -7,10 +7,13 @@ import {
   reactStatus,
   unreactStatus
 } from '@/lib/services/reactions/reactStatus'
-import { MAX_REACTION_NAME_LENGTH } from '@/lib/services/statuses/reactionLimits'
+import {
+  MAX_REACTIONS_PER_ACTOR,
+  MAX_REACTION_NAME_LENGTH
+} from '@/lib/services/statuses/reactionLimits'
 import { Actor } from '@/lib/types/domain/actor'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { apiCorsError } from '@/lib/utils/response'
+import { apiCorsError, apiResponse } from '@/lib/utils/response'
 import { idToUrl } from '@/lib/utils/urlToId'
 
 // Next's App Router already percent-decodes a dynamic segment, so this is the
@@ -57,12 +60,30 @@ export const reactionWriteHandler =
     })
 
     if (!result.ok) {
-      // `invalid-emoji` and `cap-reached` are both unprocessable input.
-      return apiCorsError(
+      if (result.reason === 'not-found') {
+        return apiCorsError(req, corsHeaders, 404)
+      }
+
+      // `invalid-emoji` and `cap-reached` are both unprocessable input, and
+      // both are permanent for this request — the client shows the message
+      // rather than inviting a retry that would fail identically. Mastodon's
+      // own errors carry a human-readable `error` string, so this stays in
+      // dialect.
+      return apiResponse({
         req,
-        corsHeaders,
-        result.reason === 'not-found' ? 404 : 422
-      )
+        allowedMethods: corsHeaders,
+        data: {
+          error:
+            result.reason === 'cap-reached'
+              ? `You can only add ${MAX_REACTIONS_PER_ACTOR} reactions to a post.`
+              : 'That emoji cannot be used as a reaction.',
+          // Marks `error` as copy written for a person, so a client can show it
+          // as-is. Without it a client cannot tell this apart from the generic
+          // `{ error: 'Unprocessable entity' }` every other 4xx returns.
+          reason: result.reason
+        },
+        responseStatusCode: 422
+      })
     }
 
     // Both dialects answer with the affected Status, refetched so the caller

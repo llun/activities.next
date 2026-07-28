@@ -27,6 +27,7 @@ import type { ListEntity } from '@/lib/types/mastodon/list'
 import type { MediaAttachment } from '@/lib/types/mastodon/mediaAttachment'
 import type { PreviewCard } from '@/lib/types/mastodon/previewCard'
 import type { Status as MastodonStatus } from '@/lib/types/mastodon/status'
+import type { StatusReaction as MastodonStatusReaction } from '@/lib/types/mastodon/statusReaction'
 import type { Tag } from '@/lib/types/mastodon/tag'
 import type { Translation } from '@/lib/types/mastodon/translation'
 import { normalizeActorId } from '@/lib/utils/activitypub'
@@ -464,6 +465,92 @@ export const likeStatus = async ({ statusId }: DefaultStatusParams) => {
     }
   )
   return response.status === 200
+}
+
+/**
+ * The outcome of a reaction write. A 4xx that the user cannot retry away (the
+ * per-actor cap, an emoji this instance rejects) carries the server's own
+ * message so the row can say what actually went wrong instead of inviting a
+ * retry that will always fail the same way.
+ */
+export type ReactionUpdateResult =
+  | { ok: true; reactions: MastodonStatusReaction[] }
+  | { ok: false; error?: string }
+
+const toReactionUpdateResult = async (
+  response: Response
+): Promise<ReactionUpdateResult> => {
+  if (!response.ok) {
+    // Only a 422 the route deliberately marked with a `reason` carries copy
+    // meant for a person. Every other 4xx answers with the bare HTTP reason
+    // phrase ('Unauthorized', 'Not Found'), which must never be shown as if it
+    // explained the failure — those fall through to the caller's own wording.
+    if (response.status === 422) {
+      const body = (await response.json().catch(() => null)) as {
+        error?: unknown
+        reason?: unknown
+      } | null
+      if (
+        typeof body?.reason === 'string' &&
+        typeof body.error === 'string' &&
+        body.error.length > 0
+      ) {
+        return { ok: false, error: body.error }
+      }
+    }
+    return { ok: false }
+  }
+  const status = (await response.json()) as MastodonStatus
+  return {
+    ok: true,
+    reactions: status.pleroma?.emoji_reactions ?? status.reactions ?? []
+  }
+}
+
+/**
+ * Adds the current actor's emoji reaction to a status and returns the updated
+ * reaction rollups, or a failure the caller can use to revert its optimistic
+ * chip. `name` is a unicode emoji or a local custom-emoji shortcode.
+ *
+ * Uses the Pleroma/Akkoma dialect, which is the primary reaction surface (the
+ * glitch-soc `react`/`unreact` routes are aliases over the same store). This is
+ * an ecosystem extension, not core Mastodon API.
+ * @see https://docs.akkoma.dev/stable/development/API/pleroma_api/
+ */
+export const reactToStatus = async ({
+  statusId,
+  name
+}: DefaultStatusParams & { name: string }): Promise<ReactionUpdateResult> => {
+  const response = await fetch(
+    `/api/v1/pleroma/statuses/${urlToId(statusId)}/reactions/${encodeURIComponent(name)}`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }
+  )
+  return toReactionUpdateResult(response)
+}
+
+/**
+ * Removes the current actor's emoji reaction from a status and returns the
+ * updated rollups, or a failure the caller can use to revert.
+ */
+export const unreactFromStatus = async ({
+  statusId,
+  name
+}: DefaultStatusParams & { name: string }): Promise<ReactionUpdateResult> => {
+  const response = await fetch(
+    `/api/v1/pleroma/statuses/${urlToId(statusId)}/reactions/${encodeURIComponent(name)}`,
+    {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }
+  )
+  return toReactionUpdateResult(response)
 }
 
 export const bookmarkStatus = async ({ statusId }: DefaultStatusParams) => {

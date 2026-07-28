@@ -3,6 +3,7 @@ import { normalizeStoredReactionName } from '@/lib/services/reactions/reactionNa
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Mastodon } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
+import { getOriginalStatus } from '@/lib/types/domain/status'
 import { idToUrl } from '@/lib/utils/urlToId'
 
 // The Pleroma/Akkoma `GET .../reactions` entry: the rollup a Status already
@@ -35,6 +36,11 @@ export const getStatusReactionList = async ({
   })
   if (!status) return null
 
+  // Reactions are stored against the boosted post, never the boost — so read
+  // them back from the same target the write path used, or reacting through a
+  // boost's id would store a row that a GET on that same id cannot see.
+  const targetStatusId = getOriginalStatus(status).id
+
   // The `:emoji` URL segment is free text, and the write path stores a custom
   // emoji colon-free — so normalise identically here or `GET .../reactions/:x:`
   // would find nothing that `PUT .../reactions/:x:` had just created.
@@ -42,11 +48,11 @@ export const getStatusReactionList = async ({
 
   const [rollups, reactors] = await Promise.all([
     database.getStatusReactionRollups({
-      statusIds: [statusId],
+      statusIds: [targetStatusId],
       currentActorId: currentActor?.id
     }),
     database.getStatusReactionActors({
-      statusId,
+      statusId: targetStatusId,
       ...(storedName ? { name: storedName } : {})
     })
   ])

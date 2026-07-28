@@ -79,7 +79,8 @@ const Page: FC<Props> = async ({ params }) => {
   const resolvedStatus = await resolveStatusFromPath({
     database,
     actorParam: actor,
-    statusParam
+    statusParam,
+    currentActorId: currentActor?.id
   })
   if (!resolvedStatus) return notFound()
 
@@ -203,6 +204,9 @@ const Page: FC<Props> = async ({ params }) => {
     replies = await database.getStatusReplies({
       statusId,
       url: statusUrl,
+      // Separate from the visibility filter below: this is the viewer whose
+      // like, bookmark and reaction state each reply is hydrated with.
+      currentActorId: currentActor?.id,
       ...(currentActor
         ? { visibleToActorId: currentActor.id }
         : { publicOnly: true })
@@ -226,7 +230,11 @@ const Page: FC<Props> = async ({ params }) => {
   if (status.type !== StatusType.enum.Announce && status.reply) {
     let replyStatus = await database.getStatus({
       statusId: status.reply,
-      withReplies: false
+      withReplies: false,
+      // Ancestors render the same interactive chips as the focused status, so
+      // they need the same viewer — otherwise one post shows its reaction
+      // highlighted on the timeline and unhighlighted as a thread ancestor.
+      currentActorId: currentActor?.id
     })
     while (previouses.length < 3 && replyStatus) {
       // `getStatus` does no visibility filtering, so without this guard a public
@@ -253,7 +261,8 @@ const Page: FC<Props> = async ({ params }) => {
       }
       replyStatus = await database.getStatus({
         statusId: replyStatus.reply,
-        withReplies: false
+        withReplies: false,
+        currentActorId: currentActor?.id
       })
     }
   }
@@ -323,6 +332,9 @@ const Page: FC<Props> = async ({ params }) => {
         // logged-out `PublicShell` already provides its own, so scope the gap
         // to the signed-in card to keep the spacing consistent across both.
         currentActorProfile && 'mt-4',
+        // No `overflow-hidden`: this card contains posts, and a post's
+        // non-portaled overlays (the reaction picker) would be clipped by it —
+        // the same reason `Posts` dropped it.
         'overflow-hidden rounded-2xl border bg-background/80 shadow-sm'
       )}
     >

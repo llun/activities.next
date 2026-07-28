@@ -12,13 +12,24 @@ import { MediaValidationError } from '@/lib/services/medias/errors'
 // + '../../../evil.mp4')` lands a directory above `tmpdir()`. Everything the
 // storage drivers derive from a supplied name goes through this module, so the
 // reduction happens once, at the point the name enters storage.
+//
+// `sanitizeStoredFileName` is shared with the fitness storage drivers, which
+// take the same untrusted name from every fitness upload route
+// (`POST /api/v1/fitness-files`, `POST /api/v1/fitness/import`, and the Strava
+// archive's multipart and presigned variants). It lives here rather than in a
+// neutral module because `lib/services/fitness-files/` already reaches into
+// this directory for the upload machinery it shares (`medias/quota`). The rest
+// of the module — the extension map and the temp-path builder — is
+// media-specific.
 
 /** Name used when a supplied file name reduces to nothing usable. */
 export const FALLBACK_STORED_FILE_NAME = 'file'
 
-// `medias.originalFileName` is `varchar(255)` and most filesystems cap a single
-// path segment at 255 bytes, so the stored name is bounded by the tighter of the
-// two. 200 leaves room for the random prefix `createMediaTempFilePath` prepends.
+// `medias.originalFileName` and `fitness_files.fileName` are both
+// `varchar(255)` — an over-long name is an insert failure on PostgreSQL, not
+// just an ugly one — and most filesystems cap a single path segment at 255
+// bytes, so the stored name is bounded by the tighter of the two. 200 leaves
+// room for the random prefix `createMediaTempFilePath` prepends.
 const MAX_STORED_FILE_NAME_BYTES = 200
 
 // The stored path's extension is derived from the (already validated) content
