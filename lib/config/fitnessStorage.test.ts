@@ -1,16 +1,26 @@
 import path from 'path'
 
+import { logger } from '@/lib/utils/logger'
+
 import {
   DEFAULT_FITNESS_MAX_FILE_SIZE,
   FitnessStorageType,
   getFitnessStorageConfig
 } from './fitnessStorage'
 
+vi.mock('@/lib/utils/logger', () => ({
+  logger: {
+    warn: vi.fn()
+  }
+}))
+
 describe('FitnessStorage config', () => {
   const originalEnv = process.env
+  const mockWarn = logger.warn as jest.Mock
 
   beforeEach(() => {
     process.env = { ...originalEnv }
+    mockWarn.mockReset()
   })
 
   afterAll(() => {
@@ -107,6 +117,191 @@ describe('FitnessStorage config', () => {
       const config = getFitnessStorageConfig()
 
       expect(config).toBeNull()
+    })
+
+    // Both branches read required values raw. A blank fitness path hit the same
+    // `path.resolve('')` as the media one, and in the fallback branch a blank
+    // media path slipped through `|| 'uploads'` into `uploads/fitness` under
+    // the process CWD. Whitespace is truthy, so it survived those checks too.
+    it.each([
+      {
+        description: 'the fitness fs path is empty',
+        env: {
+          ACTIVITIES_FITNESS_STORAGE_TYPE: 'fs',
+          ACTIVITIES_FITNESS_STORAGE_PATH: ''
+        },
+        warnedVariable: 'ACTIVITIES_FITNESS_STORAGE_PATH'
+      },
+      {
+        description: 'the fitness fs path is whitespace only',
+        env: {
+          ACTIVITIES_FITNESS_STORAGE_TYPE: 'fs',
+          ACTIVITIES_FITNESS_STORAGE_PATH: '   '
+        },
+        warnedVariable: 'ACTIVITIES_FITNESS_STORAGE_PATH'
+      },
+      {
+        description: 'the fitness s3 bucket is empty',
+        env: {
+          ACTIVITIES_FITNESS_STORAGE_TYPE: 's3',
+          ACTIVITIES_FITNESS_STORAGE_BUCKET: '',
+          ACTIVITIES_FITNESS_STORAGE_REGION: 'us-east-1'
+        },
+        warnedVariable: 'ACTIVITIES_FITNESS_STORAGE_BUCKET'
+      },
+      {
+        description: 'the fitness s3 bucket is whitespace only',
+        env: {
+          ACTIVITIES_FITNESS_STORAGE_TYPE: 's3',
+          ACTIVITIES_FITNESS_STORAGE_BUCKET: '  ',
+          ACTIVITIES_FITNESS_STORAGE_REGION: 'us-east-1'
+        },
+        warnedVariable: 'ACTIVITIES_FITNESS_STORAGE_BUCKET'
+      },
+      {
+        description: 'the fitness s3 region is empty',
+        env: {
+          ACTIVITIES_FITNESS_STORAGE_TYPE: 's3',
+          ACTIVITIES_FITNESS_STORAGE_BUCKET: 'fitness-bucket',
+          ACTIVITIES_FITNESS_STORAGE_REGION: ''
+        },
+        warnedVariable: 'ACTIVITIES_FITNESS_STORAGE_REGION'
+      },
+      {
+        description: 'the fitness object storage region is whitespace only',
+        env: {
+          ACTIVITIES_FITNESS_STORAGE_TYPE: 'object',
+          ACTIVITIES_FITNESS_STORAGE_BUCKET: 'fitness-bucket',
+          ACTIVITIES_FITNESS_STORAGE_REGION: '\t'
+        },
+        warnedVariable: 'ACTIVITIES_FITNESS_STORAGE_REGION'
+      },
+      {
+        description: 'the fallback media fs path is empty',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 'fs',
+          ACTIVITIES_MEDIA_STORAGE_PATH: ''
+        },
+        warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_PATH'
+      },
+      {
+        description: 'the fallback media fs path is whitespace only',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 'fs',
+          ACTIVITIES_MEDIA_STORAGE_PATH: '   '
+        },
+        warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_PATH'
+      },
+      {
+        description: 'the fallback media s3 bucket is empty',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+          ACTIVITIES_MEDIA_STORAGE_BUCKET: '',
+          ACTIVITIES_MEDIA_STORAGE_REGION: 'us-east-1'
+        },
+        warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_BUCKET'
+      },
+      {
+        description: 'the fallback media s3 bucket is whitespace only',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+          ACTIVITIES_MEDIA_STORAGE_BUCKET: '  ',
+          ACTIVITIES_MEDIA_STORAGE_REGION: 'us-east-1'
+        },
+        warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_BUCKET'
+      },
+      {
+        description: 'the fallback media object storage region is empty',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 'object',
+          ACTIVITIES_MEDIA_STORAGE_BUCKET: 'bucket',
+          ACTIVITIES_MEDIA_STORAGE_REGION: ''
+        },
+        warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_REGION'
+      },
+      {
+        description:
+          'the fallback media object storage region is whitespace only',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 'object',
+          ACTIVITIES_MEDIA_STORAGE_BUCKET: 'bucket',
+          ACTIVITIES_MEDIA_STORAGE_REGION: '\t'
+        },
+        warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_REGION'
+      }
+    ])('returns null when $description', ({ env, warnedVariable }) => {
+      Object.assign(process.env, env)
+
+      expect(getFitnessStorageConfig()).toBeNull()
+      expect(mockWarn).toHaveBeenCalledWith(
+        `${warnedVariable} is set but empty; fitness storage will be disabled`
+      )
+    })
+
+    it('trims a padded fitness path instead of rejecting it', () => {
+      process.env.ACTIVITIES_FITNESS_STORAGE_TYPE = 'fs'
+      process.env.ACTIVITIES_FITNESS_STORAGE_PATH = '  /fitness/uploads  '
+
+      const config = getFitnessStorageConfig()
+
+      expect((config?.fitnessStorage as { path: string }).path).toBe(
+        '/fitness/uploads'
+      )
+      expect(mockWarn).not.toHaveBeenCalled()
+    })
+
+    it('trims a padded fitness bucket and region instead of rejecting them', () => {
+      process.env.ACTIVITIES_FITNESS_STORAGE_TYPE = 's3'
+      process.env.ACTIVITIES_FITNESS_STORAGE_BUCKET = ' fitness-bucket '
+      process.env.ACTIVITIES_FITNESS_STORAGE_REGION = '\tus-east-1 '
+
+      const config = getFitnessStorageConfig()
+
+      expect((config?.fitnessStorage as { bucket: string }).bucket).toBe(
+        'fitness-bucket'
+      )
+      expect((config?.fitnessStorage as { region: string }).region).toBe(
+        'us-east-1'
+      )
+      expect(mockWarn).not.toHaveBeenCalled()
+    })
+
+    it('trims the padded fallback media path before appending fitness', () => {
+      process.env.ACTIVITIES_MEDIA_STORAGE_TYPE = 'fs'
+      process.env.ACTIVITIES_MEDIA_STORAGE_PATH = '  /data/uploads  '
+
+      const config = getFitnessStorageConfig()
+
+      expect((config?.fitnessStorage as { path: string }).path).toBe(
+        path.join('/data/uploads', 'fitness')
+      )
+      expect(mockWarn).not.toHaveBeenCalled()
+    })
+
+    // An unset fallback media path keeps its historical `uploads` default; only
+    // a blank one is now treated as unconfigured.
+    it('keeps the uploads default when the fallback media path is unset', () => {
+      process.env.ACTIVITIES_MEDIA_STORAGE_TYPE = 'fs'
+      delete process.env.ACTIVITIES_MEDIA_STORAGE_PATH
+
+      const config = getFitnessStorageConfig()
+
+      expect((config?.fitnessStorage as { path: string }).path).toBe(
+        path.join('uploads', 'fitness')
+      )
+      expect(mockWarn).not.toHaveBeenCalled()
+    })
+
+    // Unset must keep failing loudly in `Config.parse`, not disable storage.
+    it('leaves an unset fitness path undefined for schema validation', () => {
+      process.env.ACTIVITIES_FITNESS_STORAGE_TYPE = 'fs'
+      delete process.env.ACTIVITIES_FITNESS_STORAGE_PATH
+
+      const config = getFitnessStorageConfig()
+
+      expect(config).not.toBeNull()
+      expect((config?.fitnessStorage as { path?: string }).path).toBeUndefined()
+      expect(mockWarn).not.toHaveBeenCalled()
     })
   })
 })

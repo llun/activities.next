@@ -1,3 +1,5 @@
+import { logger } from '@/lib/utils/logger'
+
 import {
   MediaStorageFileConfig,
   MediaStorageS3Config,
@@ -5,11 +7,19 @@ import {
   getMediaStorageConfig
 } from './mediaStorage'
 
+vi.mock('@/lib/utils/logger', () => ({
+  logger: {
+    warn: vi.fn()
+  }
+}))
+
 describe('MediaStorage config', () => {
   const originalEnv = process.env
+  const mockWarn = logger.warn as jest.Mock
 
   beforeEach(() => {
     process.env = { ...originalEnv }
+    mockWarn.mockReset()
   })
 
   afterAll(() => {
@@ -146,6 +156,123 @@ describe('MediaStorage config', () => {
       const config = getMediaStorageConfig()
 
       expect(config).toBeNull()
+    })
+
+    // A set-but-blank required value used to satisfy `z.string()` and boot a
+    // live-but-broken backend: `path.resolve('')` is the process CWD, so
+    // uploads landed in the application directory and /api/v1/files served it.
+    // Whitespace is truthy, so it slipped past every existing falsy check.
+    it.each([
+      {
+        description: 'the fs path is empty',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 'fs',
+          ACTIVITIES_MEDIA_STORAGE_PATH: ''
+        },
+        warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_PATH'
+      },
+      {
+        description: 'the fs path is whitespace only',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 'fs',
+          ACTIVITIES_MEDIA_STORAGE_PATH: '   '
+        },
+        warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_PATH'
+      },
+      {
+        description: 'the s3 bucket is empty',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+          ACTIVITIES_MEDIA_STORAGE_BUCKET: '',
+          ACTIVITIES_MEDIA_STORAGE_REGION: 'us-east-1'
+        },
+        warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_BUCKET'
+      },
+      {
+        description: 'the s3 bucket is whitespace only',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+          ACTIVITIES_MEDIA_STORAGE_BUCKET: '  ',
+          ACTIVITIES_MEDIA_STORAGE_REGION: 'us-east-1'
+        },
+        warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_BUCKET'
+      },
+      {
+        description: 'the s3 region is empty',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+          ACTIVITIES_MEDIA_STORAGE_BUCKET: 'test-bucket',
+          ACTIVITIES_MEDIA_STORAGE_REGION: ''
+        },
+        warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_REGION'
+      },
+      {
+        description: 'the s3 region is whitespace only',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+          ACTIVITIES_MEDIA_STORAGE_BUCKET: 'test-bucket',
+          ACTIVITIES_MEDIA_STORAGE_REGION: '\t'
+        },
+        warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_REGION'
+      },
+      {
+        description: 'the object storage bucket is empty',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 'object',
+          ACTIVITIES_MEDIA_STORAGE_BUCKET: '',
+          ACTIVITIES_MEDIA_STORAGE_REGION: 'auto'
+        },
+        warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_BUCKET'
+      }
+    ])('returns null when $description', ({ env, warnedVariable }) => {
+      Object.assign(process.env, env)
+
+      expect(getMediaStorageConfig()).toBeNull()
+      expect(mockWarn).toHaveBeenCalledWith(
+        `${warnedVariable} is set but empty; media storage will be disabled`
+      )
+    })
+
+    it('trims a padded fs path instead of rejecting it', () => {
+      process.env.ACTIVITIES_MEDIA_STORAGE_TYPE = 'fs'
+      process.env.ACTIVITIES_MEDIA_STORAGE_PATH = '  /data/uploads  '
+
+      const config = getMediaStorageConfig()
+
+      expect((config?.mediaStorage as { path: string }).path).toBe(
+        '/data/uploads'
+      )
+      expect(mockWarn).not.toHaveBeenCalled()
+    })
+
+    it('trims a padded bucket and region instead of rejecting them', () => {
+      process.env.ACTIVITIES_MEDIA_STORAGE_TYPE = 's3'
+      process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET = ' test-bucket '
+      process.env.ACTIVITIES_MEDIA_STORAGE_REGION = ' us-east-1\n'
+
+      const config = getMediaStorageConfig()
+
+      expect((config?.mediaStorage as { bucket: string }).bucket).toBe(
+        'test-bucket'
+      )
+      expect((config?.mediaStorage as { region: string }).region).toBe(
+        'us-east-1'
+      )
+      expect(mockWarn).not.toHaveBeenCalled()
+    })
+
+    // Unset must keep failing loudly in `Config.parse` rather than quietly
+    // disabling storage — only blank changed behaviour.
+    it('leaves an unset required value undefined for schema validation', () => {
+      process.env.ACTIVITIES_MEDIA_STORAGE_TYPE = 'fs'
+      delete process.env.ACTIVITIES_MEDIA_STORAGE_PATH
+
+      const config = getMediaStorageConfig()
+
+      expect(config).not.toBeNull()
+      expect((config?.mediaStorage as { path?: string }).path).toBeUndefined()
+      expect(() => MediaStorageFileConfig.parse(config?.mediaStorage)).toThrow()
+      expect(mockWarn).not.toHaveBeenCalled()
     })
   })
 })

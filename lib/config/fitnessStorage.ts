@@ -1,6 +1,7 @@
 import path from 'path'
 import { z } from 'zod'
 
+import { requiredStorageValue } from '@/lib/config/storageValue'
 import { matcher } from '@/lib/config/utils'
 
 export enum FitnessStorageType {
@@ -77,26 +78,42 @@ export const getFitnessStorageConfig = (): {
     if (!hasEnvironmentMediaStorage) return null
 
     switch (process.env.ACTIVITIES_MEDIA_STORAGE_TYPE) {
-      case FitnessStorageType.LocalFile:
+      case FitnessStorageType.LocalFile: {
+        // The same guard as the media resolver, because this is the same
+        // variable. A blank value used to fall through to `|| 'uploads'` and
+        // resolve against the process CWD, rooting fitness uploads inside the
+        // application directory.
+        const mediaPath = requiredStorageValue(
+          'ACTIVITIES_MEDIA_STORAGE_PATH',
+          'fitness storage'
+        )
+        if (mediaPath === null) return null
         return {
           fitnessStorage: {
             type: process.env.ACTIVITIES_MEDIA_STORAGE_TYPE,
-            path: path.join(
-              process.env.ACTIVITIES_MEDIA_STORAGE_PATH || 'uploads',
-              'fitness'
-            ),
+            path: path.join(mediaPath ?? 'uploads', 'fitness'),
             maxFileSize: getFitnessMaxFileSize(),
             quotaPerAccount: getMediaQuotaPerAccount(),
             mapboxAccessToken: getMapboxAccessToken()
           }
         }
+      }
       case FitnessStorageType.S3Storage:
       case FitnessStorageType.ObjectStorage: {
+        const mediaBucket = requiredStorageValue(
+          'ACTIVITIES_MEDIA_STORAGE_BUCKET',
+          'fitness storage'
+        )
+        const mediaRegion = requiredStorageValue(
+          'ACTIVITIES_MEDIA_STORAGE_REGION',
+          'fitness storage'
+        )
+        if (mediaBucket === null || mediaRegion === null) return null
         return {
           fitnessStorage: {
             type: process.env.ACTIVITIES_MEDIA_STORAGE_TYPE,
-            bucket: process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET as string,
-            region: process.env.ACTIVITIES_MEDIA_STORAGE_REGION as string,
+            bucket: mediaBucket as string,
+            region: mediaRegion as string,
             hostname:
               process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME || undefined,
             endpoint:
@@ -113,24 +130,42 @@ export const getFitnessStorageConfig = (): {
     }
   }
 
+  // Fitness's own variables need the same guard as the media ones they replace:
+  // a blank value here reaches the identical `path.resolve('')`.
   switch (fitnessStorageType) {
-    case FitnessStorageType.LocalFile:
+    case FitnessStorageType.LocalFile: {
+      const storagePath = requiredStorageValue(
+        'ACTIVITIES_FITNESS_STORAGE_PATH',
+        'fitness storage'
+      )
+      if (storagePath === null) return null
       return {
         fitnessStorage: {
           type: fitnessStorageType,
-          path: process.env.ACTIVITIES_FITNESS_STORAGE_PATH as string,
+          // Unset stays `undefined` so `Config.parse` still rejects it loudly.
+          path: storagePath as string,
           maxFileSize: getFitnessMaxFileSize(),
           quotaPerAccount: getFitnessQuotaPerAccount(),
           mapboxAccessToken: getMapboxAccessToken()
         }
       }
+    }
     case FitnessStorageType.S3Storage:
     case FitnessStorageType.ObjectStorage: {
+      const bucket = requiredStorageValue(
+        'ACTIVITIES_FITNESS_STORAGE_BUCKET',
+        'fitness storage'
+      )
+      const region = requiredStorageValue(
+        'ACTIVITIES_FITNESS_STORAGE_REGION',
+        'fitness storage'
+      )
+      if (bucket === null || region === null) return null
       return {
         fitnessStorage: {
           type: fitnessStorageType,
-          bucket: process.env.ACTIVITIES_FITNESS_STORAGE_BUCKET as string,
-          region: process.env.ACTIVITIES_FITNESS_STORAGE_REGION as string,
+          bucket: bucket as string,
+          region: region as string,
           hostname:
             process.env.ACTIVITIES_FITNESS_STORAGE_HOSTNAME || undefined,
           endpoint:

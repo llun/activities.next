@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { requiredStorageValue } from '@/lib/config/storageValue'
 import { matcher } from '@/lib/config/utils'
 import { MAX_FILE_SIZE } from '@/lib/services/medias/constants'
 
@@ -46,11 +47,18 @@ export const getMediaStorageConfig = (): {
   if (!hasEnvironmentMediaStorage) return null
 
   switch (process.env.ACTIVITIES_MEDIA_STORAGE_TYPE) {
-    case MediaStorageType.LocalFile:
+    case MediaStorageType.LocalFile: {
+      const storagePath = requiredStorageValue(
+        'ACTIVITIES_MEDIA_STORAGE_PATH',
+        'media storage'
+      )
+      if (storagePath === null) return null
       return {
         mediaStorage: {
           type: process.env.ACTIVITIES_MEDIA_STORAGE_TYPE,
-          path: process.env.ACTIVITIES_MEDIA_STORAGE_PATH as string,
+          // An unset path stays `undefined` on purpose so `Config.parse` keeps
+          // rejecting it loudly; only a blank one is handled above.
+          path: storagePath as string,
           maxFileSize:
             (process.env.ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE &&
               parseInt(
@@ -67,13 +75,23 @@ export const getMediaStorageConfig = (): {
             undefined
         }
       }
+    }
     case MediaStorageType.S3Storage:
     case MediaStorageType.ObjectStorage: {
+      const bucket = requiredStorageValue(
+        'ACTIVITIES_MEDIA_STORAGE_BUCKET',
+        'media storage'
+      )
+      const region = requiredStorageValue(
+        'ACTIVITIES_MEDIA_STORAGE_REGION',
+        'media storage'
+      )
+      if (bucket === null || region === null) return null
       return {
         mediaStorage: {
           type: process.env.ACTIVITIES_MEDIA_STORAGE_TYPE,
-          bucket: process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET as string,
-          region: process.env.ACTIVITIES_MEDIA_STORAGE_REGION as string,
+          bucket: bucket as string,
+          region: region as string,
           hostname: process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME || undefined,
           endpoint: process.env.ACTIVITIES_MEDIA_STORAGE_ENDPOINT || undefined,
           maxFileSize:
