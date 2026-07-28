@@ -418,7 +418,7 @@ describe('regenerateFitnessMapsJob', () => {
     expect(refreshed?.mapImagePath).toBe('medias/new-route-map.webp')
   })
 
-  it('records a cleanup failure without failing the activity', async () => {
+  it('keeps the regenerated map when the previous one cannot be removed', async () => {
     const { statusId, fitnessFileId } = await setupStatusWithOldMap()
     vi.spyOn(database, 'deleteAttachmentsByIds').mockRejectedValueOnce(
       new Error('attachment delete failed')
@@ -430,15 +430,16 @@ describe('regenerateFitnessMapsJob', () => {
       data: { actorId: actor.id, fitnessFileIds: [fitnessFileId] }
     })
 
-    // This is the run a privacy change triggers, so the map left behind is the
-    // route the owner was trying to hide. The activity is fine — the new map
-    // exists — so the reason is what earns them the retry that repairs it.
+    // The regenerated map is stored and attached by now, so a cleanup failure
+    // must not undo it: the activity stays `completed` with its new map, and
+    // the leftover attachment is logged rather than reported as a map failure
+    // the owner cannot act on.
     const refreshed = await database.getFitnessFile({ id: fitnessFileId })
     expect(refreshed).toMatchObject({
       processingStatus: 'completed',
-      mapError: 'Failed to remove the previous route map',
       mapImagePath: 'medias/new-route-map.webp'
     })
+    expect(refreshed?.mapError).toBeUndefined()
 
     const status = await database.getStatus({ statusId, withReplies: false })
     const mapAttachments = status?.attachments.filter(

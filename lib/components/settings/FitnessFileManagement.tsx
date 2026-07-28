@@ -31,7 +31,6 @@ import {
   DialogTitle
 } from '@/lib/components/ui/dialog'
 import { Progress } from '@/lib/components/ui/progress'
-import { MAP_CLEANUP_ERROR } from '@/lib/services/fitness-files/mapErrors'
 import { formatFileSize } from '@/lib/utils/formatFileSize'
 
 interface FitnessFileItem {
@@ -349,11 +348,9 @@ export function FitnessFileManagement({
                                   offered on the post itself. */}
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                                  {fitnessFile.mapError === MAP_CLEANUP_ERROR
-                                    ? 'Extra route map'
-                                    : fitnessFile.hasMapData
-                                      ? 'Route map out of date'
-                                      : 'No route map'}
+                                  {fitnessFile.hasMapData
+                                    ? 'Route map out of date'
+                                    : 'No route map'}
                                 </span>
                               </div>
                               <p className="text-xs text-muted-foreground">

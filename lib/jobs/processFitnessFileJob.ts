@@ -10,12 +10,10 @@ import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import {
   ROUTE_MAP_ATTACHMENT_NAME,
-  findOrphanRouteMapAttachments,
   findRouteMapAttachments,
   getAttachmentMediaIds,
   removeRouteMapAttachmentsAndMedia
 } from '@/lib/services/fitness-files/mapAttachments'
-import { MAP_CLEANUP_ERROR } from '@/lib/services/fitness-files/mapErrors'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
 import {
   isParseableFitnessFileType,
@@ -411,19 +409,7 @@ export const processFitnessFileJob = createJobHandle(
             mapImageEmailPath: fitnessFile.mapImageEmailPath
           })
 
-          // Normally only this file's own recorded map. The wider sweep — every
-          // route map attachment no fitness file claims — runs only when the
-          // file records that a previous run failed to remove one, because the
-          // pointer that identified it has since moved on and nothing else can
-          // find it again. Keeping the sweep to that case matters: the
-          // attachment name is media alt text a user can type themselves, so an
-          // unconditional name match would delete their own attachment.
-          const isRepairingCleanup = fitnessFile.mapError === MAP_CLEANUP_ERROR
-          const removableMapAttachments = isRepairingCleanup
-            ? await findOrphanRouteMapAttachments({ database, statusId })
-            : previousMapAttachments
-
-          if (removableMapAttachments.length === 0) return
+          if (previousMapAttachments.length === 0) return
           if (!actor.account) {
             // Nothing can resolve the media rows without an account, and
             // leaving the attachment in place shows the route twice.
@@ -441,12 +427,19 @@ export const processFitnessFileJob = createJobHandle(
             database,
             accountId: actor.account.id,
             statusId,
-            attachmentIds: removableMapAttachments.map(
+            attachmentIds: previousMapAttachments.map(
               (attachment) => attachment.id
             ),
-            mediaIds: getAttachmentMediaIds(removableMapAttachments)
+            mediaIds: getAttachmentMediaIds(previousMapAttachments)
           })
         } catch (error) {
+          // Logged, not recorded on the file. The replacement is already
+          // stored and attached, so what a failure here leaves behind is a
+          // stale attachment — visible, but nothing the owner can act on: a
+          // retry would attach a third map, not remove the second. Recording it
+          // as a map failure needs a repair key that survives every later run,
+          // which a free-text column cannot be. `scripts/maintenance/
+          // cleanupMediaStorage.ts` is what reclaims the bytes.
           logger.error({
             message: 'Failed to remove the previous route map',
             actorId,
@@ -454,24 +447,6 @@ export const processFitnessFileJob = createJobHandle(
             fitnessFileId,
             err: toLoggableError(error)
           })
-
-          // Recorded, not just logged: the status is now carrying a route map
-          // it should not — a duplicate, and after a privacy change an
-          // unfiltered one — so the owner needs the retry that re-attempts
-          // this. Contained the same way as the write in the map catch.
-          try {
-            await database.updateFitnessFileActivityData(fitnessFileId, {
-              mapError: MAP_CLEANUP_ERROR
-            })
-          } catch (writeError) {
-            logger.error({
-              message: 'Failed to record the route map cleanup failure',
-              actorId,
-              statusId,
-              fitnessFileId,
-              err: toLoggableError(writeError)
-            })
-          }
         }
       }
 
@@ -735,14 +710,28 @@ export const processFitnessFileJob = createJobHandle(
       // the exact harm this change exists to prevent. Record the reason as what
       // it is, a map that is still missing, and leave the activity alone.
       if (retryingMapFailure) {
-        await database.updateFitnessFileActivityData(fitnessFileId, {
-          mapError: errorMessage
-        })
-        await database.updateFitnessFileProcessingStatus(
-          fitnessFileId,
-          'completed'
-        )
-        return
+        try {
+          await database.updateFitnessFileActivityData(fitnessFileId, {
+            mapError: errorMessage
+          })
+          await database.updateFitnessFileProcessingStatus(
+            fitnessFileId,
+            'completed'
+          )
+          return
+        } catch (writeError) {
+          // Contained like every other reason-write here: rethrowing would
+          // leave the file in `processing` until the staleness window, which is
+          // the state this branch exists to avoid.
+          logger.error({
+            message: 'Failed to restore a retried activity after a failure',
+            actorId,
+            statusId,
+            fitnessFileId,
+            err: toLoggableError(writeError)
+          })
+          return
+        }
       }
 
       await database.updateFitnessFileProcessingStatus(

@@ -15,7 +15,6 @@ import {
   getAttachmentMediaIds,
   removeRouteMapAttachmentsAndMedia
 } from '@/lib/services/fitness-files/mapAttachments'
-import { MAP_CLEANUP_ERROR } from '@/lib/services/fitness-files/mapErrors'
 import {
   isParseableFitnessFileType,
   parseFitnessFile
@@ -303,29 +302,15 @@ export const regenerateFitnessMapsJob = createJobHandle(
             mediaIds: oldMediaIds
           })
         } catch (error) {
+          // Logged, not recorded: the new map is already stored and attached,
+          // and a leftover is not something a retry can remove — it would
+          // attach a third. See the same call in processFitnessFileJob.
           logger.error({
             message: 'Failed to remove the previous route map',
             actorId,
             fitnessFileId,
             err: toLoggableError(error)
           })
-
-          // Recorded, not merely logged: this is the run a privacy change
-          // triggers, so the map left behind is the unfiltered route. The
-          // owner needs the retry, and the next run's orphan sweep is what
-          // actually removes it.
-          try {
-            await database.updateFitnessFileActivityData(fitnessFileId, {
-              mapError: MAP_CLEANUP_ERROR
-            })
-          } catch (writeError) {
-            logger.error({
-              message: 'Failed to record the route map cleanup failure',
-              actorId,
-              fitnessFileId,
-              err: toLoggableError(writeError)
-            })
-          }
         }
 
         await database.updateFitnessFileProcessingStatus(

@@ -619,7 +619,7 @@ describe('processFitnessFileJob', () => {
       ).toBeNull()
     })
 
-    it('records a cleanup failure instead of failing the activity', async () => {
+    it('keeps the activity intact when the previous map cannot be removed', async () => {
       const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
         text: 'Morning run'
       })
@@ -642,66 +642,16 @@ describe('processFitnessFileJob', () => {
         data: { actorId: actor.id, statusId, fitnessFileId }
       })
 
+      // The replacement is stored and attached by the time the cleanup runs, so
+      // a failure there costs a stale attachment and nothing else: it must not
+      // read as a map failure (the map exists) nor as an activity failure.
       const refreshed = await database.getFitnessFile({ id: fitnessFileId })
-      // The new map exists, so this is not a generation failure and certainly
-      // not an activity failure — but the status is now carrying a map it
-      // should not, so the owner gets the retry that re-attempts the cleanup.
       expect(refreshed).toMatchObject({
         processingStatus: 'completed',
         hasMapData: true,
-        mapError: 'Failed to remove the previous route map'
+        mapImagePath: 'medias/cleanup-2.webp'
       })
-    })
-
-    it('sweeps up a map a previous run failed to remove', async () => {
-      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
-        text: 'Morning run'
-      })
-      mockSaveMedia
-        .mockResolvedValueOnce(await storeMapMedia('medias/sweep-1.webp'))
-        .mockResolvedValueOnce(await storeMapMedia('medias/sweep-2.webp'))
-        .mockResolvedValueOnce(await storeMapMedia('medias/sweep-3.webp'))
-
-      await processFitnessFileJob(database, {
-        id: 'job-map-sweep-first',
-        name: PROCESS_FITNESS_FILE_JOB_NAME,
-        data: { actorId: actor.id, statusId, fitnessFileId }
-      })
-
-      vi.spyOn(database, 'deleteAttachmentsByIds').mockRejectedValueOnce(
-        new Error('attachment delete failed')
-      )
-      await processFitnessFileJob(database, {
-        id: 'job-map-sweep-second',
-        name: PROCESS_FITNESS_FILE_JOB_NAME,
-        data: { actorId: actor.id, statusId, fitnessFileId }
-      })
-
-      // Two maps on the post, and the pointer that identified the first one has
-      // already moved on — so the retry has to find it some other way or the
-      // leftover (after a privacy change, an unfiltered route) is permanent.
-      const afterFailure = await database.getStatus({
-        statusId,
-        withReplies: false
-      })
-      if (afterFailure?.type !== StatusType.enum.Note) {
-        fail('Expected a note status')
-      }
-      expect(afterFailure.attachments).toHaveLength(2)
-
-      await processFitnessFileJob(database, {
-        id: 'job-map-sweep-retry',
-        name: PROCESS_FITNESS_FILE_JOB_NAME,
-        data: { actorId: actor.id, statusId, fitnessFileId }
-      })
-
-      const status = await database.getStatus({ statusId, withReplies: false })
-      if (status?.type !== StatusType.enum.Note) fail('Expected a note status')
-      expect(status.attachments).toHaveLength(1)
-      expect(status.attachments[0].url).toContain('sweep-3.webp')
-      expect(
-        (await database.getFitnessFile({ id: fitnessFileId }))?.mapError
-      ).toBeUndefined()
+      expect(refreshed?.mapError).toBeUndefined()
     })
 
     it('leaves another fitness file’s map on the same status alone', async () => {

@@ -29,7 +29,6 @@ import {
   PUBLIC_ACTIVITY_RECIPIENTS,
   applyPotentiallyReadableStatusFilter as applyPotentiallyReadableStatusVisibilityFilter
 } from '@/lib/database/sql/utils/statusVisibility'
-import { MAP_CLEANUP_ERROR } from '@/lib/services/fitness-files/mapErrors'
 import { isFitnessProcessingStuck } from '@/lib/services/fitness-files/processingState'
 import { SQLFitnessFile } from '@/lib/types/database/fitnessFile'
 import { ActorDatabase } from '@/lib/types/database/operations'
@@ -3093,12 +3092,9 @@ export const StatusSQLDatabaseMixin = (
               // The kind of problem, never the reason — see StatusFitnessFile.
               ...(fitnessFile.mapError
                 ? {
-                    mapFailure:
-                      fitnessFile.mapError === MAP_CLEANUP_ERROR
-                        ? ('duplicate' as const)
-                        : fitnessFile.hasMapData
-                          ? ('stale' as const)
-                          : ('missing' as const)
+                    mapFailure: fitnessFile.hasMapData
+                      ? ('stale' as const)
+                      : ('missing' as const)
                   }
                 : {}),
               ...(typeof fitnessFile.totalDistanceMeters === 'number'

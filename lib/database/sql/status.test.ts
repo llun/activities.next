@@ -626,7 +626,7 @@ describe('StatusDatabase', () => {
         })
       })
 
-      it('reports a recorded map failure as a boolean, never as the reason', async () => {
+      it('reports a recorded map failure as a kind, never as the reason', async () => {
         const statusId = `${emptyActorId}/statuses/fitness-map-failed`
 
         await database.createNote({

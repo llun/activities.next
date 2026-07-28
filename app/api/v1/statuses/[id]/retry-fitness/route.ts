@@ -64,10 +64,20 @@ export const POST = traceApiRoute(
     // produce a map at all, so a reason left on one would otherwise make the
     // status retriable forever and attach a second route map on every click.
     const now = Date.now()
-    const isRetriableMapFailure = (file: (typeof files)[number]) =>
+    // Whether this file's ACTIVITY is fine and only its map is not — which is
+    // what decides both that it is worth retrying at all and that a failure in
+    // the retry must not demote it. `completed` for the file that is sitting
+    // there with a recorded reason; `processing` too, because a map retry parks
+    // the file there and a worker that dies leaves it stuck: without this the
+    // follow-up retry would take the plain `failed` path and hide a live
+    // activity everywhere.
+    const isMapOnlyFailure = (file: (typeof files)[number]) =>
       Boolean(file.mapError) &&
-      file.processingStatus === 'completed' &&
-      file.isPrimary !== false
+      file.isPrimary !== false &&
+      (file.processingStatus === 'completed' ||
+        file.processingStatus === 'processing')
+    const isRetriableMapFailure = (file: (typeof files)[number]) =>
+      isMapOnlyFailure(file) && file.processingStatus === 'completed'
     const retriableFiles = files.filter(
       (file) =>
         file.processingStatus === 'failed' ||
@@ -112,7 +122,7 @@ export const POST = traceApiRoute(
             publishSendNote: false,
             // This file's activity is live and fine; only its map is not. Tells
             // the job not to demote it if this run fails too.
-            retryingMapFailure: isRetriableMapFailure(file)
+            retryingMapFailure: isMapOnlyFailure(file)
           }
         })
         publishedFileIds.push(file.id)

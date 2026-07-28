@@ -9,15 +9,14 @@ import { cn } from '@/lib/utils'
 interface Props {
   statusId: string
   // `failed`: the job threw and gave up. `stuck`: the file is still marked
-  // `processing` long after its worker died mid-run. The three `map-*` variants
+  // `processing` long after its worker died mid-run. The two `map-*` variants
   // are degraded successes — the activity imported fine and only its route map
   // is wrong — so they read as notes rather than errors, and each describes what
-  // the post actually looks like: no map (`missing`), the previous map because
-  // the new one could not be made (`stale` — after a privacy change that is the
-  // route the owner was trying to hide), or the new map plus an older one the
-  // run could not remove (`duplicate`).
+  // the post actually looks like: no map (`missing`), or the previous map
+  // because the new one could not be made (`stale` — after a privacy change,
+  // that is the route the owner was trying to hide).
   // All are retriable; the copy differs so the owner sees why.
-  variant?: 'failed' | 'stuck' | 'map-missing' | 'map-stale' | 'map-duplicate'
+  variant?: 'failed' | 'stuck' | 'map-missing' | 'map-stale'
 }
 
 const LEAD_TEXT: Record<NonNullable<Props['variant']>, string> = {
@@ -27,9 +26,7 @@ const LEAD_TEXT: Record<NonNullable<Props['variant']>, string> = {
   'map-missing':
     'The route map image could not be generated. Everything else in this activity is intact.',
   'map-stale':
-    'The route map image could not be updated, so this is the previous one. Everything else in this activity is intact.',
-  'map-duplicate':
-    'An older route map image could not be removed, so this activity may show two. Everything else in it is intact.'
+    'The route map image could not be updated, so this is the previous one. Everything else in this activity is intact.'
 }
 
 export const RetryFitnessButton: FC<Props> = ({

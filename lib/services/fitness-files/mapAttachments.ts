@@ -101,42 +101,6 @@ export const removeRouteMapAttachmentsAndMedia = async ({
   }
 }
 
-/**
- * Route map attachments on a status that no fitness file claims any more.
- *
- * A failed cleanup used to be unrepairable: the run had already moved the
- * file's `mapImagePath` to the new map, and `findRouteMapAttachments` matches
- * on that path, so nothing could ever identify the leftover again — the post
- * kept rendering an extra route (after a privacy change, the unfiltered one)
- * forever. Matching by "named as a route map and claimed by none of this
- * status's fitness files" finds those leftovers on the next run instead, and
- * is still safe for a merged same-ride post, whose other file's map IS claimed.
- */
-export const findOrphanRouteMapAttachments = async ({
-  database,
-  statusId
-}: {
-  database: Database
-  statusId: string
-}) => {
-  const [attachments, fitnessFiles] = await Promise.all([
-    database.getAttachmentsWithMedia({ statusId }),
-    database.getFitnessFilesByStatus({ statusId })
-  ])
-
-  const claimedPaths = new Set(
-    fitnessFiles
-      .map((file) => file.mapImagePath)
-      .filter((path): path is string => Boolean(path))
-  )
-
-  return attachments.filter(
-    (attachment) =>
-      attachment.name === ROUTE_MAP_ATTACHMENT_NAME &&
-      !claimedPaths.has(getAttachmentMediaPath(attachment.url))
-  )
-}
-
 /** Unique media ids behind a set of attachments. */
 export const getAttachmentMediaIds = (
   attachments: Array<{ mediaId?: string | null }>
