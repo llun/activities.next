@@ -133,8 +133,16 @@ change doesn't touch.
   `onEdit`), hide individual actions, or build a bespoke post/action row.
   Reply/quote/edit use the shared `InlineStatusComposer`; pages pass only
   data-sync callbacks (`onStatusCreated`/`onPostUpdated`/`onPostDeleted`/
-  `onLikeChanged`/`onBookmarkChanged`) and `isMediaUploadEnabled`. See
-  **Status Posts & Actions** in `AGENTS.md`.
+  `onLikeChanged`/`onBookmarkChanged`/`onReactionsChanged`) and
+  `isMediaUploadEnabled`. See **Status Posts & Actions** in `AGENTS.md`.
+- The reaction chips and the action row are both full-bleed (`-ml-[52px]`) and
+  the row is `justify-between` with no `ml-auto` on the `⋯` wrapper (an auto
+  margin eats the free space and re-clusters the row). The picker trigger lives
+  in the action row (`ReactionButton`), not beside the chips, and both halves
+  share one `useReactionState`; `useBookmarkState` is held by `Actions` for the
+  same reason. A row narrower than 400px — measured by `ResizeObserver` on the
+  row itself, never a viewport breakpoint — hands bookmark and react to the `⋯`
+  menu, and a menu item opening a focus-taking surface uses `deferUntilClosed`.
 - Settings/account forms are client components that POST JSON and show inline
   success/error, not HTML `<form method="post">` with server redirects; the route
   returns JSON via `apiResponse()`.
