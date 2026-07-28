@@ -106,7 +106,13 @@ const getSharedFitnessPrefix = (mediaStorage: MediaStorageConfig) => {
     const mediaRoot = path.resolve(process.cwd(), mediaStorage.path)
     const fitnessRoot = path.resolve(process.cwd(), fitnessStorage.path)
     const relative = path.relative(mediaRoot, fitnessRoot)
-    if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+    if (relative === '') {
+      // Same directory for both: nothing in the listing distinguishes a fitness
+      // file from a media file, so any orphan set would include every stored
+      // activity. Refuse rather than guess.
+      return 'INDISTINGUISHABLE'
+    }
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
       return null
     }
     return `${relative.replace(/\\/g, '/').replace(/\/+$/, '')}/`
@@ -308,6 +314,20 @@ async function cleanupMediaStorage() {
 
   console.log(`Storage Type: ${config.mediaStorage.type}`)
 
+  const fitnessPrefix = getSharedFitnessPrefix(config.mediaStorage)
+  if (fitnessPrefix === 'INDISTINGUISHABLE') {
+    console.error(
+      '\nError: fitness storage points at the same directory as media storage.'
+    )
+    console.error(
+      'Every stored activity file would be reported as an orphaned media file.'
+    )
+    console.error(
+      'Point ACTIVITIES_FITNESS_STORAGE_PATH at its own directory before running this.'
+    )
+    process.exit(1)
+  }
+
   // Determine base path for local storage normalization
   const basePath =
     config.mediaStorage.type === MediaStorageType.LocalFile
@@ -353,7 +373,6 @@ async function cleanupMediaStorage() {
 
   // Fitness files may live inside media storage but are not this script's to
   // manage, and their references are relative to a different root.
-  const fitnessPrefix = getSharedFitnessPrefix(config.mediaStorage)
   if (fitnessPrefix) {
     const before = storageFiles.length
     storageFiles = storageFiles.filter(

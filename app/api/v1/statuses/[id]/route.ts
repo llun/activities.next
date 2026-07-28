@@ -647,13 +647,26 @@ export const DELETE = traceApiRoute(
       }
 
       for (const emailMapImage of emailMapImagesToDelete) {
-        await deleteEmailMapImage({ database, ...emailMapImage })
-        // Drop the reference too: a row pointing at a deleted object makes
-        // productionArchive abort under its default --storage-scope referenced.
-        await database.updateFitnessFileActivityData(
-          emailMapImage.fitnessFileId,
-          { mapImageEmailPath: null }
-        )
+        // Best-effort, like the media loop above: the status is already gone, so
+        // a storage or database hiccup here must not turn a completed delete
+        // into a 500 the client reads as "your post is still there".
+        try {
+          await deleteEmailMapImage({ database, ...emailMapImage })
+          // Drop the reference too: a row pointing at a deleted object makes
+          // productionArchive abort under its default --storage-scope referenced.
+          await database.updateFitnessFileActivityData(
+            emailMapImage.fitnessFileId,
+            { mapImageEmailPath: null }
+          )
+        } catch (error) {
+          logger.warn({
+            message:
+              'Failed to clean up route map email copy for deleted status',
+            statusId,
+            fitnessFileId: emailMapImage.fitnessFileId,
+            error: (error as Error).message
+          })
+        }
       }
 
       return apiResponse({
