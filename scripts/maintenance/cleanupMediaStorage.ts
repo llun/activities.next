@@ -110,14 +110,20 @@ const getContainedRelativePath = (from: string, to: string) => {
     return direct
   }
 
-  // Compare on lowercased copies, but measure the tail against the REAL paths:
-  // lowercasing does not always preserve length ('İ' becomes two code units),
-  // so sizing the slice from the lowercased copy could cut in the wrong place.
-  const loweredFrom = realFrom.toLowerCase()
-  const loweredTo = realTo.toLowerCase()
-  if (loweredTo === loweredFrom) return ''
-  if (!loweredTo.startsWith(`${loweredFrom}${path.sep}`)) return direct
-  return realTo.slice(realFrom.length + 1)
+  // Compare segment by segment and rebuild from the real-cased segments. Any
+  // approach that measures one string against the other assumes lowercasing
+  // preserves length, and it does not — 'İ' lowercases to two code units — so
+  // an index taken from either side can cut in the wrong place. Splitting side-
+  // steps the question entirely.
+  const fromSegments = realFrom.split(path.sep)
+  const toSegments = realTo.split(path.sep)
+  if (toSegments.length < fromSegments.length) return direct
+  const isContained = fromSegments.every(
+    (segment, index) =>
+      segment.toLowerCase() === toSegments[index].toLowerCase()
+  )
+  if (!isContained) return direct
+  return toSegments.slice(fromSegments.length).join('/')
 }
 
 /**

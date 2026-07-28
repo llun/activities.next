@@ -3199,12 +3199,16 @@ describe('GET /api/v1/statuses/[id]', () => {
       )
     })
 
-    it('still reports success when cleaning up the email copy fails', async () => {
-      const { statusId } =
+    it('still reports success when deleting the email copy fails', async () => {
+      const { statusId, fitnessFileId } =
         await createNoteWithFitnessEmailCopy('email-copy-err')
-      vi.mocked(deleteMediaFile).mockRejectedValueOnce(
-        new Error('storage unavailable')
-      )
+      // Target the copy by PATH, not by call order: the status's own media is
+      // deleted first, so a `mockRejectedValueOnce` is eaten by that call and
+      // this passes without the email copy ever failing.
+      vi.mocked(deleteMediaFile).mockImplementation(async (_database, path) => {
+        if (path.endsWith('.jpg')) throw new Error('storage unavailable')
+        return true
+      })
 
       const response = await deleteStatusRequest(statusId, '?delete_media=true')
 
@@ -3214,6 +3218,35 @@ describe('GET /api/v1/statuses/[id]', () => {
       await expect(
         database.getStatus({ statusId, withReplies: false })
       ).resolves.toBeNull()
+      // Reference-first ordering: the column is cleared even though the file
+      // could not be removed, leaving a plain orphan for cleanupMediaStorage
+      // rather than a live row pointing at a half-deleted object.
+      const fitnessFile = await database.getFitnessFile({ id: fitnessFileId })
+      expect(fitnessFile?.mapImageEmailPath).toBeUndefined()
+    })
+
+    it('still reports success when clearing the email copy reference fails', async () => {
+      const { statusId } = await createNoteWithFitnessEmailCopy('email-copy-db')
+      // The null-out is the only statement in that block that can throw —
+      // deleteEmailMapImage swallows storage errors itself — so this is what
+      // actually exercises the catch.
+      const updateSpy = vi
+        .spyOn(database, 'updateFitnessFileActivityData')
+        .mockRejectedValueOnce(new Error('database unavailable'))
+
+      try {
+        const response = await deleteStatusRequest(
+          statusId,
+          '?delete_media=true'
+        )
+
+        expect(response.status).toBe(200)
+        await expect(
+          database.getStatus({ statusId, withReplies: false })
+        ).resolves.toBeNull()
+      } finally {
+        updateSpy.mockRestore()
+      }
     })
 
     it.each([
