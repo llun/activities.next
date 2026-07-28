@@ -65,9 +65,14 @@ const canJoinReaction = (reaction: StatusReaction): boolean => {
   return !reaction.name.includes('@') && Boolean(reaction.url)
 }
 
-const chipClass = (mine: boolean, interactive = true) =>
+const chipClass = (mine: boolean, interactive = true, busy = false) =>
   cn(
-    'flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[13px] transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+    'flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[13px] transition-colors',
+    // Busy rather than `disabled`: a disabled control is blurred by the browser
+    // and drops out of the tab order, which would throw a keyboard user back to
+    // <body> mid-interaction. aria-disabled conveys the same state to assistive
+    // tech while keeping focus where the user put it.
+    busy && 'cursor-not-allowed opacity-50',
     mine
       ? 'border-primary/45 bg-primary/10 text-primary'
       : 'border-border bg-background text-foreground',
@@ -253,13 +258,14 @@ export const ReactionRow: FC<ReactionRowProps> = ({
           <button
             key={reaction.name}
             type="button"
-            // Every chip is disabled while a write is in flight: the response
+            // Every chip goes busy while a write is in flight: the response
             // carries the whole status's rollups, so overlapping writes would
-            // race and lose one of the two changes.
-            disabled={pendingName !== null}
+            // race and lose one of the two changes. `aria-disabled` rather than
+            // `disabled` so the button the user just activated keeps focus.
+            aria-disabled={pendingName !== null}
             aria-pressed={reaction.me}
             aria-label={`${reaction.me ? 'Remove' : 'Add'} ${reaction.name} reaction, ${reaction.count}`}
-            className={chipClass(reaction.me)}
+            className={chipClass(reaction.me, true, pendingName !== null)}
             onClick={(event) => {
               event.stopPropagation()
               void toggle(reaction.name)
@@ -278,13 +284,17 @@ export const ReactionRow: FC<ReactionRowProps> = ({
         <button
           ref={pickerTriggerRef}
           type="button"
-          disabled={pendingName !== null}
+          aria-disabled={pendingName !== null}
           aria-label="Add reaction"
           aria-haspopup="dialog"
           aria-expanded={isPicking}
-          className="border-border bg-background text-muted-foreground hover:bg-muted flex h-7 w-7 items-center justify-center rounded-full border transition-colors"
+          className={cn(
+            'border-border bg-background text-muted-foreground hover:bg-muted flex h-7 w-7 items-center justify-center rounded-full border transition-colors',
+            pendingName !== null && 'cursor-not-allowed opacity-50'
+          )}
           onClick={(event) => {
             event.stopPropagation()
+            if (pendingName) return
             setIsPicking((value) => !value)
           }}
         >

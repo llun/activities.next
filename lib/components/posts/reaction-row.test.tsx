@@ -344,7 +344,7 @@ describe('ReactionRow', () => {
     expect(screen.getByLabelText('Remove 🔥 reaction, 2')).toBeInTheDocument()
   })
 
-  it('disables every chip while a reaction write is in flight', async () => {
+  it('marks every chip busy while a reaction write is in flight', async () => {
     let resolveRequest: (value: unknown) => void = () => {}
     mockReactToStatus.mockReturnValue(
       new Promise((resolve) => {
@@ -361,14 +361,56 @@ describe('ReactionRow', () => {
     fireEvent.click(screen.getByLabelText('Add 🔥 reaction, 2'))
 
     // Overlapping writes would race on the full rollups the response carries,
-    // so the row refuses a second interaction visibly rather than silently.
-    expect(screen.getByLabelText('Add 🎉 reaction, 1')).toBeDisabled()
-    expect(screen.getByLabelText('Add reaction')).toBeDisabled()
+    // so the row refuses a second interaction visibly rather than silently —
+    // via aria-disabled, not `disabled`, which would blur the control the user
+    // just activated and drop keyboard focus to <body>.
+    const other = screen.getByLabelText('Add 🎉 reaction, 1')
+    const trigger = screen.getByLabelText('Add reaction')
+    expect(other).toHaveAttribute('aria-disabled', 'true')
+    expect(trigger).toHaveAttribute('aria-disabled', 'true')
+    expect(other).toBeEnabled()
+    expect(trigger).toBeEnabled()
+
+    // Busy means inert, not merely styled.
+    fireEvent.click(other)
+    expect(mockReactToStatus).toHaveBeenCalledTimes(1)
 
     resolveRequest({ ok: true, reactions: [{ ...fire, count: 3, me: true }] })
     await waitFor(() =>
-      expect(screen.getByLabelText('Remove 🔥 reaction, 3')).toBeEnabled()
+      expect(screen.getByLabelText('Remove 🔥 reaction, 3')).toHaveAttribute(
+        'aria-disabled',
+        'false'
+      )
     )
+  })
+
+  it('keeps focus on the trigger across a picker-driven reaction', async () => {
+    let resolveRequest: (value: unknown) => void = () => {}
+    mockReactToStatus.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRequest = resolve
+      })
+    )
+
+    render(<ReactionRow currentActor={currentActor} status={statusWith([])} />)
+    const trigger = screen.getByLabelText('Add reaction')
+    fireEvent.click(trigger)
+    await screen.findByRole('dialog', { name: 'Choose a reaction' })
+
+    const firstEmoji = screen
+      .getAllByRole('button')
+      .find((button) =>
+        button.getAttribute('aria-label')?.startsWith('React with')
+      )
+    fireEvent.click(firstEmoji as HTMLElement)
+
+    // The trigger is focused by onPick and must STAY focused while the write is
+    // in flight — disabling it here would blur it and reset the user's tab
+    // position to the top of the document.
+    await waitFor(() => expect(trigger).toHaveFocus())
+    resolveRequest({ ok: true, reactions: [{ ...fire, count: 1, me: true }] })
+    await waitFor(() => expect(mockReactToStatus).toHaveBeenCalledTimes(1))
+    expect(trigger).toHaveFocus()
   })
 
   it('returns focus to the trigger when the picker closes', async () => {

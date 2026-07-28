@@ -50,9 +50,10 @@ const Page = async ({ params }: PageProps) => {
     fetchBatch: ({ maxStatusId, limit }) =>
       database.getStatusesByHashtag({
         hashtag: tag,
-        // Hydration only (this timeline is public either way): without it the
-        // viewer's own like, bookmark and reaction state reads false on the
-        // server-rendered page while the client-paginated pages have it.
+        // Hydration only — this timeline is public either way. The load-more
+        // endpoint (app/api/v1/tags/[tag]/route.ts) passes the same viewer, so
+        // page 1 and the pages appended after it agree about the viewer's own
+        // like, bookmark and reaction state.
         currentActorId: actor?.id,
         limit,
         maxStatusId: maxStatusId ?? undefined
