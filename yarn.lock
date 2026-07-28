@@ -3912,7 +3912,7 @@ __metadata:
     eslint: "npm:^10.7.0"
     eslint-plugin-unused-imports: "npm:^4.4.1"
     fast-xml-parser: "npm:^5.10.1"
-    fit-file-parser: "npm:^3.1.0"
+    fit-file-parser: "npm:^4.1.0"
     globals: "npm:^17.7.0"
     got: "npm:^15.1.0"
     html-react-parser: "npm:^6.1.5"
@@ -5200,12 +5200,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"fit-file-parser@npm:^3.1.0":
-  version: 3.1.0
-  resolution: "fit-file-parser@npm:3.1.0"
+"fit-file-parser@npm:^4.1.0":
+  version: 4.1.0
+  resolution: "fit-file-parser@npm:4.1.0"
   dependencies:
     buffer: "npm:^6.0.3"
-  checksum: 10c0/6dd5017cadf0f7f15bdf0090d1377c542b27a8d8ef9fdab4e03a4e4764d1480f1f19c2ca3a2425faab4246192d3b804299b7060bb1d18fddb50eeda427ed9cec
+  checksum: 10c0/0861170eb836f0710c77bad3db22dbacb649fe160c82e3b5d82fb8c136dc3fd1949b7a608f2d9b07b278fc0fcad42aad187ff3d8248fa117c1bf115237dca752
   languageName: node
   linkType: hard
 
