@@ -7,8 +7,9 @@ import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/domain/actor'
 
 import * as S3FileStorage from './S3StorageFile'
-import { deleteMediaFile, saveMediaImageRendition } from './index'
+import { deleteMediaFile, saveMedia, saveMediaImageRendition } from './index'
 import * as LocalFileStorage from './localFile'
+import { MediaSchema } from './types'
 
 vi.mock('fs', () => ({
   promises: {
@@ -35,15 +36,20 @@ const mockUnlink = fs.unlink as jest.MockedFunction<typeof fs.unlink>
 const mockS3Send = vi.fn()
 const mockDeleteFile = vi.fn()
 const mockSaveImageRendition = vi.fn()
+// saveFile is mocked per driver so a test can tell which storage was reached.
+const mockLocalSaveFile = vi.fn()
+const mockS3SaveFile = vi.fn()
 
 // Mock the storage getStorage methods
 const mockLocalStorage = {
   deleteFile: mockDeleteFile,
-  saveImageRendition: mockSaveImageRendition
+  saveImageRendition: mockSaveImageRendition,
+  saveFile: mockLocalSaveFile
 }
 const mockS3Storage = {
   deleteFile: mockDeleteFile,
-  saveImageRendition: mockSaveImageRendition
+  saveImageRendition: mockSaveImageRendition,
+  saveFile: mockS3SaveFile
 }
 
 vi.spyOn(LocalFileStorage.LocalFileStorage, 'getStorage').mockReturnValue(
@@ -64,6 +70,8 @@ describe('Media Storage Service', () => {
     vi.clearAllMocks()
     mockDeleteFile.mockReset()
     mockSaveImageRendition.mockReset()
+    mockLocalSaveFile.mockReset()
+    mockS3SaveFile.mockReset()
     ;(S3Client as jest.MockedClass<typeof S3Client>).mockImplementation(
       function () {
         return {
@@ -71,6 +79,66 @@ describe('Media Storage Service', () => {
         } as unknown as S3Client
       }
     )
+  })
+
+  describe('saveMedia', () => {
+    const actor = { id: 'actor-1' } as Actor
+    const media: MediaSchema = {
+      file: new File(['jpeg'], 'photo.jpg', { type: 'image/jpeg' })
+    }
+    const saveFileOutput = { id: 'media-1' }
+
+    // Both S3-backed config types must reach the S3 driver: `s3` used to fall
+    // through to the `default` branch, so every synchronous upload on an
+    // instance configured with it was rejected with a 422.
+    it.each([
+      {
+        description: 'delegates s3 storage to the s3 driver',
+        mediaStorage: { type: MediaStorageType.S3Storage, bucket: 'bucket' }
+      },
+      {
+        description: 'delegates object storage to the s3 driver',
+        mediaStorage: { type: MediaStorageType.ObjectStorage, bucket: 'bucket' }
+      }
+    ])('$description', async ({ mediaStorage }) => {
+      mockGetConfig.mockReturnValue({
+        mediaStorage,
+        host: 'llun.test'
+      } as unknown as ReturnType<typeof getConfig>)
+      mockS3SaveFile.mockResolvedValue(saveFileOutput)
+
+      const result = await saveMedia(mockDatabase, actor, media)
+
+      expect(result).toEqual(saveFileOutput)
+      expect(mockS3SaveFile).toHaveBeenCalledWith(actor, media)
+      expect(mockLocalSaveFile).not.toHaveBeenCalled()
+    })
+
+    it('delegates local file storage to the local driver', async () => {
+      mockGetConfig.mockReturnValue({
+        mediaStorage: { type: MediaStorageType.LocalFile, path: '/tmp/media' },
+        host: 'llun.test'
+      } as unknown as ReturnType<typeof getConfig>)
+      mockLocalSaveFile.mockResolvedValue(saveFileOutput)
+
+      const result = await saveMedia(mockDatabase, actor, media)
+
+      expect(result).toEqual(saveFileOutput)
+      expect(mockLocalSaveFile).toHaveBeenCalledWith(actor, media)
+      expect(mockS3SaveFile).not.toHaveBeenCalled()
+    })
+
+    it('returns null when no storage is configured', async () => {
+      mockGetConfig.mockReturnValue({
+        host: 'llun.test'
+      } as unknown as ReturnType<typeof getConfig>)
+
+      const result = await saveMedia(mockDatabase, actor, media)
+
+      expect(result).toBeNull()
+      expect(mockLocalSaveFile).not.toHaveBeenCalled()
+      expect(mockS3SaveFile).not.toHaveBeenCalled()
+    })
   })
 
   describe('deleteMediaFile', () => {
