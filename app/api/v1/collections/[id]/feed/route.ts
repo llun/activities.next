@@ -41,78 +41,85 @@ export const GET = traceApiRoute(
   'getPublicCollectionFeed',
   OptionalOAuthGuard<Params>(
     [Scope.enum.read],
-    timelineErrorBoundary(CORS_HEADERS, async (req, { database, params }) => {
-      const { id } = await params
-      const url = new URL(req.url)
-      const format = url.searchParams.get('format')
-      const parsedQuery = parseTimelineQuery(url.searchParams)
-      if (!parsedQuery.ok) {
+    timelineErrorBoundary(
+      CORS_HEADERS,
+      async (req, { database, currentActor, params }) => {
+        const { id } = await params
+        const url = new URL(req.url)
+        const format = url.searchParams.get('format')
+        const parsedQuery = parseTimelineQuery(url.searchParams)
+        if (!parsedQuery.ok) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_400,
+            responseStatusCode: 400
+          })
+        }
+        const limit = parsedQuery.query.limit
+        const maxStatusId = parsedQuery.query.maxStatusId
+        const minStatusId =
+          parsedQuery.query.minStatusId ?? parsedQuery.query.sinceStatusId
+
+        const statuses = await database.getPublicCollectionTimeline({
+          id,
+          // Load-more for the same feed the page rendered, so it hydrates for the
+          // same viewer — otherwise their own state flips to un-acted partway
+          // down one scroll.
+          currentActorId: currentActor?.id,
+          limit,
+          maxStatusId,
+          minStatusId
+        })
+        if (statuses === null) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_404,
+            responseStatusCode: 404
+          })
+        }
+
+        // The activities.next web app renders the public feed with the same
+        // domain-shaped <Posts> path as the list/collection timelines, so it asks
+        // for the internal format. The default (Mastodon entities + Link headers)
+        // stays the public, client-compatible response.
+        if (format === TimelineFormat.enum.activities_next) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: {
+              statuses: statuses.map((item) => cleanJson(item)),
+              nextMaxStatusId:
+                statuses.length > 0 ? statuses[statuses.length - 1].id : null,
+              prevMinStatusId: statuses.length > 0 ? statuses[0].id : null
+            }
+          })
+        }
+
+        const mastodonStatuses = await getMastodonStatuses(database, statuses)
+
+        const host = headerHost(req.headers)
+        const firstStatus = statuses[0]
+        const lastStatus = statuses[statuses.length - 1]
+        const nextLink = lastStatus
+          ? `<https://${host}/api/v1/collections/${id}/feed?limit=${limit}&max_id=${urlToId(lastStatus.id)}>; rel="next"`
+          : null
+        const prevLink = firstStatus
+          ? `<https://${host}/api/v1/collections/${id}/feed?limit=${limit}&min_id=${urlToId(firstStatus.id)}>; rel="prev"`
+          : null
+        const links = [nextLink, prevLink].filter(Boolean).join(', ')
+
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: ERROR_400,
-          responseStatusCode: 400
+          data: mastodonStatuses,
+          additionalHeaders: [
+            ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
+          ]
         })
       }
-      const limit = parsedQuery.query.limit
-      const maxStatusId = parsedQuery.query.maxStatusId
-      const minStatusId =
-        parsedQuery.query.minStatusId ?? parsedQuery.query.sinceStatusId
-
-      const statuses = await database.getPublicCollectionTimeline({
-        id,
-        limit,
-        maxStatusId,
-        minStatusId
-      })
-      if (statuses === null) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
-      }
-
-      // The activities.next web app renders the public feed with the same
-      // domain-shaped <Posts> path as the list/collection timelines, so it asks
-      // for the internal format. The default (Mastodon entities + Link headers)
-      // stays the public, client-compatible response.
-      if (format === TimelineFormat.enum.activities_next) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: {
-            statuses: statuses.map((item) => cleanJson(item)),
-            nextMaxStatusId:
-              statuses.length > 0 ? statuses[statuses.length - 1].id : null,
-            prevMinStatusId: statuses.length > 0 ? statuses[0].id : null
-          }
-        })
-      }
-
-      const mastodonStatuses = await getMastodonStatuses(database, statuses)
-
-      const host = headerHost(req.headers)
-      const firstStatus = statuses[0]
-      const lastStatus = statuses[statuses.length - 1]
-      const nextLink = lastStatus
-        ? `<https://${host}/api/v1/collections/${id}/feed?limit=${limit}&max_id=${urlToId(lastStatus.id)}>; rel="next"`
-        : null
-      const prevLink = firstStatus
-        ? `<https://${host}/api/v1/collections/${id}/feed?limit=${limit}&min_id=${urlToId(firstStatus.id)}>; rel="prev"`
-        : null
-      const links = [nextLink, prevLink].filter(Boolean).join(', ')
-
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: mastodonStatuses,
-        additionalHeaders: [
-          ...(links.length > 0 ? [['Link', links] as [string, string]] : [])
-        ]
-      })
-    }),
+    ),
     { errorResponse: corsErrorResponse(CORS_HEADERS) }
   )
 )

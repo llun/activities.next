@@ -346,7 +346,14 @@ consistency is enforced by keeping the wiring in one place rather than per page.
 - **The action set is owned by `Posts`, not by pages.** `Posts` renders the full
   action row (reply, boost, like, bookmark) plus the `⋯` menu (quote, edit-own,
   change visibility / who-can-quote, delete-own; mute / block / report for other
-  actors; copy link; open original) and wires reply/quote/edit itself. A page
+  actors; copy link; open original) and wires reply/quote/edit itself. `Post`
+  also renders the emoji **reaction row** (chips + picker) as a sibling directly
+  above that action row. It follows the same `showActions` + `currentActor` gate,
+  but degrades rather than disappearing: a reader who cannot react (logged out,
+  `showActions={false}`, or a remote custom emoji this instance cannot react
+  with) still sees the chips as read-only labels, and only the picker and the
+  toggling are withheld. Reactions are **not** favourites and never touch the
+  like button's state. A page
   must **not** pass per-status action callbacks (`onReply`, `onQuote`, `onEdit`)
   and must **not** hide individual actions — that per-page drift is exactly what
   this consolidation removed (profiles used to lack Quote/Edit; six feeds had a
@@ -366,8 +373,10 @@ consistency is enforced by keeping the wiring in one place rather than per page.
 - **Pages supply only optional data-sync callbacks** for their own feed state:
   `onStatusCreated` (a reply/quote was created — prepend it if it belongs in this
   feed, otherwise ignore), `onPostUpdated` (an edit — replace the status in
-  place), `onPostDeleted`, `onLikeChanged`, `onBookmarkChanged`. These mutate the
-  page's own `statuses` copy; they never decide which actions are shown.
+  place), `onPostDeleted`, `onLikeChanged`, `onBookmarkChanged`,
+  `onReactionsChanged` (the emoji-reaction rollups for a status changed). These
+  mutate the page's own `statuses` copy; they never decide which actions are
+  shown.
 - **Read-only or logged-out surfaces** pass `showActions={false}` (optionally
   with `showReadOnlyStats` to show non-interactive engagement counts instead — as
   the logged-out landing feed and logged-out profile do). That is the _only_
@@ -376,7 +385,10 @@ consistency is enforced by keeping the wiring in one place rather than per page.
 - The bespoke fitness activity detail (`FitnessStatusDetail`) and the
   notification snippet (`StatusNotification`) are intentionally separate
   presentations and are outside this contract; everything else goes through
-  `Posts`/`Post`.
+  `Posts`/`Post`. The fitness detail composes its own action row, so it renders
+  `ReactionRow` explicitly — a post's reactions must be visible and addable
+  wherever its action row is, and that page is the one surface that has to opt
+  in by hand.
 
 ## Better-auth Plugin Guidelines
 
@@ -679,13 +691,13 @@ A full sub-agent review round yields no new actionable comments, or you have run
 
 ### Uploaded file names are untrusted input
 
-- **In the media storage drivers (`lib/services/medias/`), never join, `extname`, or persist a supplied file name directly — put it through `@/lib/services/medias/fileName` first.** `File.name` and the presigned flow's `fileName` field are plain client-controlled strings: only a browser multipart upload is guaranteed to send a bare basename, and every non-browser Mastodon client (`POST /api/v1/media`, `POST /api/v2/media`, `POST /api/v1/medias/presigned`) puts whatever it likes there. Apply the same treatment to any new code that accepts an uploaded name.
-- `sanitizeStoredFileName` reduces a name to one inert path segment (cuts at the last `/` **or** `\`, drops control, C1, bidi and invisible-spacing characters, rejects `.`/`..`, caps it at 200 bytes so it fits both `varchar(255)` and a filesystem name). Use it for anything persisted or handed to another system — the stored name is federated and becomes the attachment's `name`/alt text on other instances, so bidi overrides there are a display-spoofing vector. It deliberately keeps U+200C/U+200D, which Persian and Indic spelling and emoji sequences need.
+- **In the upload storage drivers (`lib/services/medias/`, `lib/services/fitness-files/`), never join, `extname`, or persist a supplied file name directly — put it through `@/lib/services/medias/fileName` first.** `File.name` and the presigned flows' `fileName` field are plain client-controlled strings: only a browser multipart upload is guaranteed to send a bare basename. Every non-browser Mastodon client (`POST /api/v1/media`, `POST /api/v2/media`, `POST /api/v1/medias/presigned`) puts whatever it likes there, and so do the fitness uploads (`POST /api/v1/fitness-files`, `POST /api/v1/fitness/import`, `POST /api/v1/fitness/strava/archive`, `POST /api/v1/fitness/strava/archive/presigned`). The module lives under `medias/` and is shared, the same way `medias/quota` already is. Apply the same treatment to any new code that accepts an uploaded name.
+- `sanitizeStoredFileName` reduces a name to one inert path segment (cuts at the last `/` **or** `\`, drops control, C1, bidi and invisible-spacing characters, rejects `.`/`..`, caps it at 200 bytes so it fits both `varchar(255)` and a filesystem name). Use it for anything persisted or handed to another system — the stored name is federated and becomes the attachment's `name`/alt text on other instances, so bidi overrides there are a display-spoofing vector, and both `medias.originalFileName` and `fitness_files.fileName` are rendered back to users. The cap is not only cosmetic: those columns are `varchar(255)`, so an unbounded name is an insert failure on PostgreSQL. It deliberately keeps U+200C/U+200D, which Persian and Indic spelling and emoji sequences need.
 - `createMediaTempFilePath` is the only sanctioned way to build a temp path from a supplied name. `path.join` resolves `..`, so `join(tmpdir(), randomHex + file.name)` escaped `tmpdir()` given three or more `..` (the first is absorbed by the prefix's own segment). With fewer, the name instead cancels the prefix out and lands on a **predictable** `<tmpdir>/<name>`, so one upload can overwrite another's temp file. The helper adds the separator and asserts the result's parent is still `tmpdir()`.
 - `getStoredMediaExtension(contentType, fileName)` derives a generated path's extension from the **validated content type**, not the name. `extname('clip.mp4/../../evil.html')` is `.html`, which on the local driver became the stored filename and made `/api/v1/files/…` serve an mp4/HTML polyglot as `text/html` on the instance origin; a 300-character extension produces a local filename no filesystem accepts. It falls back to the name's extension only for content types outside the map — which the upload routes already reject — and then only for an allowlisted media extension. It also fixes the case-sensitive `endsWith('.mov')` check that stored `MOVIE.MOV` as `.MOV`.
 - **Every entry of `ACCEPTED_FILE_TYPES` must have a mapping in `EXTENSION_BY_CONTENT_TYPE`.** A type without one falls through to the supplied name, which is the hole this module closes; `fileName.test.ts` asserts the map covers the list.
-- Covered by `lib/services/medias/fileName.test.ts` plus entry-point regression tests in `S3StorageFile.test.ts` / `localFile.test.ts`.
-- **Known gap:** `lib/services/fitness-files/` still persists `file.name` raw into `fitness_files.fileName` (`varchar(255) not null`). Its paths are safe — the extension comes from the `getFitnessFileType` allowlist and writes go through `assertFitnessStoragePath` — but the name is unbounded and unsanitized. Route it through `sanitizeStoredFileName` when you next touch that code.
+- In `lib/services/fitness-files/`, only the stored name is sanitized. `getFitnessFileType` keeps reading the **raw** name: the 200-byte cap can truncate a long name past its extension, and that function throws when neither the name nor the MIME type identifies a type. Its return is one of four literals and is the only part of a supplied name that reaches a storage path.
+- Covered by `lib/services/medias/fileName.test.ts` plus entry-point regression tests in the `S3StorageFile.test.ts` / `localFile.test.ts` of both `medias/` and `fitness-files/`.
 
 ## Database Backends & Local Setup
 

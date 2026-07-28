@@ -103,7 +103,8 @@ export const getSQLDatabase = (database: Knex): Database => {
     likeDatabase,
     bookmarkDatabase,
     mediaDatabase,
-    statusDetectedLanguageDatabase
+    statusDetectedLanguageDatabase,
+    statusReactionDatabase
   )
   const listDatabase = ListSQLDatabaseMixin(
     database,

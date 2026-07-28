@@ -220,7 +220,10 @@ describe('getSQLDatabase', () => {
       likeDatabase,
       bookmarkDatabase,
       mediaDatabase,
-      statusDetectedLanguageDatabase
+      statusDetectedLanguageDatabase,
+      expect.objectContaining({
+        getStatusReactionRollups: expect.any(Function)
+      })
     )
     expect(timelineMixinMock).toHaveBeenCalledWith(knexDatabase, statusDatabase)
   })

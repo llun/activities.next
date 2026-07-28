@@ -12,6 +12,7 @@ import {
   StatusPoll,
   StatusType
 } from '@/lib/types/domain/status'
+import type { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import {
   formatFitnessDistance,
   formatFitnessDuration,
@@ -36,6 +37,7 @@ import { ContentWarning } from './content-warning'
 import { FitnessProcessingProgress } from './fitness-processing-progress'
 import { Poll } from './poll'
 import { QuoteCard } from './quote-card'
+import { ReactionRow } from './reaction-row'
 import { ReadOnlyStats } from './read-only-stats'
 import { RetryFitnessButton } from './retry-fitness-button'
 import { TranslateContent } from './translate-content'
@@ -63,6 +65,10 @@ export interface PostProps {
     isBookmarked: boolean
   ) => void
   onLikeChanged?: (status: StatusNote | StatusPoll, isLiked: boolean) => void
+  onReactionsChanged?: (
+    status: StatusNote | StatusPoll,
+    reactions: StatusReaction[]
+  ) => void
   onOpenStatus?: (status: Status) => void
   onShowAttachment: OnMediaSelectedHandle
   collapsible?: boolean
@@ -349,6 +355,16 @@ export const Post: FC<PostProps> = (props) => {
           )}
 
           <div>
+            {/* Chips sit between the content and the action row: they belong to
+                the post, not to the actions, and a logged-out reader still sees
+                them (read-only) while the action row is hidden. An Announce
+                wrapper carries no reactions of its own — they live on the
+                boosted status, which is what `getActualStatus` resolves to. */}
+            <ReactionRow
+              currentActor={props.showActions ? props.currentActor : undefined}
+              status={actualStatus}
+              onReactionsChanged={props.onReactionsChanged}
+            />
             <Actions {...props} />
             {props.showReadOnlyStats && !props.showActions && (
               <ReadOnlyStats status={status} />

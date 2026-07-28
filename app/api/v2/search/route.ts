@@ -344,7 +344,15 @@ const getResolvedStatus = async ({
     (await database.getStatus({
       statusId: query,
       currentActorId: currentActor.id
-    })) ?? (await database.getStatusFromUrl({ url: query }))
+    })) ??
+    // The url lookup is the one that actually fires for a pasted permalink (a
+    // status's `url` is never its `id`), so it needs the same viewer as the id
+    // lookup above — otherwise the resolved hit renders with no reaction, like
+    // or bookmark state while the indexed hits beside it render with it.
+    (await database.getStatusFromUrl({
+      url: query,
+      currentActorId: currentActor.id
+    }))
 
   const status =
     localStatus ??

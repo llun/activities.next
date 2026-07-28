@@ -207,6 +207,7 @@ const readCollectionFeed = async ({
   collectionSeq,
   projection,
   ownerActorId,
+  viewerActorId,
   limit,
   maxStatusId,
   minStatusId
@@ -219,6 +220,7 @@ const readCollectionFeed = async ({
   collectionSeq: string | number
   projection: 'owner' | 'public'
   ownerActorId: string
+  viewerActorId?: string
   limit: number
   maxStatusId?: string | null
   minStatusId?: string | null
@@ -304,11 +306,14 @@ const readCollectionFeed = async ({
   const rows = await query
   const statusIds = rows.map((row) => row.id as string)
   if (statusIds.length === 0) return []
-  // Owner projection hydrates the owner's action state; the public projection
-  // is anonymous (no viewer), so action state is intentionally un-acted.
+  // `projection` chose WHICH statuses this feed contains; the viewer decides
+  // whose action state they carry. Those are separate concerns: a public feed
+  // read by a signed-in visitor still renders interactive chips and buttons, so
+  // hydrating it anonymously would show that visitor their own reaction, like
+  // and bookmark as un-acted.
   return getStatusesByIds(
     statusIds,
-    projection === 'owner' ? ownerActorId : undefined
+    viewerActorId ?? (projection === 'owner' ? ownerActorId : undefined)
   )
 }
 
@@ -865,6 +870,7 @@ export const CollectionSQLDatabaseMixin = (
     id,
     actorId,
     projection = 'owner',
+    currentActorId,
     limit = PER_PAGE_LIMIT,
     maxStatusId,
     minStatusId
@@ -877,6 +883,7 @@ export const CollectionSQLDatabaseMixin = (
       collectionSeq: seq,
       projection,
       ownerActorId: actorId,
+      viewerActorId: currentActorId ?? actorId,
       limit,
       maxStatusId,
       minStatusId
@@ -885,6 +892,7 @@ export const CollectionSQLDatabaseMixin = (
 
   async getPublicCollectionTimeline({
     id,
+    currentActorId,
     limit = PER_PAGE_LIMIT,
     maxStatusId,
     minStatusId
@@ -909,6 +917,7 @@ export const CollectionSQLDatabaseMixin = (
       collectionSeq: collection.seq,
       projection: 'public',
       ownerActorId: collection.ownerActorId,
+      viewerActorId: currentActorId,
       limit,
       maxStatusId,
       minStatusId

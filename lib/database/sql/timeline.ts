@@ -9,7 +9,6 @@ import {
   GetTimelineParams,
   TimelineDatabase
 } from '@/lib/types/database/operations'
-import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 export const TimelineSQLDatabaseMixin = (
@@ -261,19 +260,17 @@ export const TimelineSQLDatabaseMixin = (
         // Ascending (min_id) rows come back oldest-first; flip to newest-first.
         if (ascending) statusesId.reverse()
 
-        const statuses: Array<Status | null> = []
-        for (const { statusId } of statusesId) {
-          // Keep status hydration sequential; each status load fans out more DB
-          // work and parallelizing the outer loop can overflow RSC async tracing.
-          statuses.push(
-            await statusDatabase.getStatus({
-              statusId,
-              currentActorId: actorId
-            })
-          )
-        }
-
-        return statuses.filter((status): status is Status => !!status)
+        // One batched hydration rather than a status-at-a-time loop: this is the
+        // busiest page in the app, and the per-status path re-queries detected
+        // languages, quote edges, bookmarks, likes and reaction rollups once per
+        // row. getStatusesByIds returns them in the ids' order, so the timeline
+        // ordering established above is preserved. (The loop this replaces was
+        // sequential to avoid a parallel fan-out overflowing RSC async tracing;
+        // a single batched call does not fan out at all.)
+        return statusDatabase.getStatusesByIds({
+          statusIds: statusesId.map(({ statusId }) => statusId),
+          currentActorId: actorId
+        })
       }
       default: {
         return []
