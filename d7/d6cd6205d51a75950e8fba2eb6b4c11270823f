@@ -1,0 +1,25 @@
+app/(timeline)/fitness/page.tsx
+  s_85d91c6baf9d58::t_c1526e8f2a3b95 90-95
+lib/database/sql/status.test.ts
+  s_85d91c6baf9d58::t_cf95459007d820 435-464
+lib/database/sql/status.ts
+  s_85d91c6baf9d58::t_ec0f437ebcd735 142-145,1260,1271,1273,1282-1290,1294-1297,2935,2971-2976,3067
+app/(timeline)/[actor]/[status]/page.tsx
+  s_85d91c6baf9d58::t_0016daf920907a 233-237,264-265
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "d7d6cd6205d51a75950e8fba2eb6b4c11270823f",
+  "prompts": {},
+  "sessions": {
+    "s_85d91c6baf9d58": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8685a26c-353a-478b-9125-3aeb9c98a29a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
