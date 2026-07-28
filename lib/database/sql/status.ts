@@ -1255,18 +1255,28 @@ export const StatusSQLDatabaseMixin = (
     StatusHydrationContext,
     'likedStatusIds' | 'bookmarkedStatusIds'
   > | null> {
-    if (!currentActorId || statusIds.length === 0) return null
+    // No viewer means no viewer state to resolve, and the consumer must be left
+    // with the fields UNSET — it reads an unset field as "not batched, look this
+    // status up individually", which is the correct behaviour for anonymous
+    // reads (where the lookup is skipped outright).
+    if (!currentActorId) return null
 
-    const [bookmarkRows, likeRows] = await Promise.all([
-      database('bookmarks')
-        .where('actorId', currentActorId)
-        .whereIn('statusId', statusIds)
-        .select<{ statusId: string }[]>('statusId'),
-      database('likes')
-        .where('actorId', currentActorId)
-        .whereIn('statusId', statusIds)
-        .select<{ statusId: string }[]>('statusId')
-    ])
+    // A viewer with nothing to look up still gets empty sets rather than null:
+    // returning null here would mark the page as un-batched and send every row
+    // back to a per-status query.
+    const [bookmarkRows, likeRows] =
+      statusIds.length === 0
+        ? [[], []]
+        : await Promise.all([
+            database('bookmarks')
+              .where('actorId', currentActorId)
+              .whereIn('statusId', statusIds)
+              .select<{ statusId: string }[]>('statusId'),
+            database('likes')
+              .where('actorId', currentActorId)
+              .whereIn('statusId', statusIds)
+              .select<{ statusId: string }[]>('statusId')
+          ])
     return {
       bookmarkedStatusIds: new Set(bookmarkRows.map((row) => row.statusId)),
       likedStatusIds: new Set(likeRows.map((row) => row.statusId))
