@@ -4316,7 +4316,7 @@ __metadata:
     kysely: "npm:^0.29.4"
     lint-staged: "npm:^17.2.0"
     lodash: "npm:^4.18.1"
-    lucide-react: "npm:^1.26.0"
+    lucide-react: "npm:^1.27.0"
     marked: "npm:^18.0.7"
     mime-types: "npm:^3.0.2"
     nanostores: "npm:^1.4.1"
@@ -6569,12 +6569,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lucide-react@npm:^1.26.0":
-  version: 1.26.0
-  resolution: "lucide-react@npm:1.26.0"
+"lucide-react@npm:^1.27.0":
+  version: 1.27.0
+  resolution: "lucide-react@npm:1.27.0"
   peerDependencies:
     react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
-  checksum: 10c0/018125879059e926ba2fe441295237331e563923e0ee80f1d3aeb25edccd6cf71f50a16aa7c447c4da5c33f5ecaf05a81f4475a634a7fa6055b3c8a6710149f0
+  checksum: 10c0/18b078fed81124ee3535350c8aa1718945c94fe87d7f76c815cb49bdf39ed49f6fa53fb9b3aa56653dc8ca3523ea91c76cf3040dfb8b3497b1e6356b29f3e5c9
   languageName: node
   linkType: hard
 
