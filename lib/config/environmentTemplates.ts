@@ -76,6 +76,10 @@ export const MEDIA_STORAGE_ENV_PREFIX = 'ACTIVITIES_MEDIA_STORAGE_*'
 // switch on Posts & media can only turn OFF something these variables turned on.
 export const EMAIL_INBOUND_ENV_PREFIX = 'ACTIVITIES_EMAIL_INBOUND_*'
 
+// The outbound half. Not in the builder — each provider has its own field set,
+// and the reply-by-email help line only needs to name it as the blocker.
+export const EMAIL_OUTBOUND_ENV_PREFIX = 'ACTIVITIES_EMAIL_*'
+
 const MEDIA_STORAGE_FILESYSTEM_FIELDS: EnvTemplateField[] = [
   {
     name: 'ACTIVITIES_MEDIA_STORAGE_PATH',
@@ -179,8 +183,13 @@ const REPLY_BY_EMAIL_FIELDS: EnvTemplateField[] = [
   },
   {
     name: 'ACTIVITIES_EMAIL_INBOUND_SECRET',
-    label: 'Webhook signing secret',
-    placeholder: 'openssl rand -hex 32',
+    label: 'Webhook signing secret — generate with `openssl rand -hex 32`',
+    // A required field carries its placeholder into the block as a visible
+    // to-do, so a secret's placeholder has to be unmistakably a stub. Naming
+    // the command here instead would put a runnable line where the value goes,
+    // and `min(1)` accepts it: the instance would then verify every inbound
+    // webhook against a signing key published in this repository.
+    placeholder: 'your-webhook-signing-secret',
     secret: true,
     wide: true
   }
