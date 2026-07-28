@@ -8,16 +8,6 @@ import * as mediaStorageService from './index'
 import * as LocalFileStorage from './localFile'
 import { MediaSchema, PresigedMediaInput } from './types'
 
-const {
-  completePresignedMediaUpload,
-  deleteMediaFile,
-  getMedia,
-  getPresignedUrl,
-  saveMedia,
-  saveMediaImageRendition,
-  saveMediaThumbnail
-} = mediaStorageService
-
 vi.mock('@/lib/config')
 vi.mock('@/lib/utils/logger', () => ({
   logger: {
@@ -113,77 +103,87 @@ const S3_STORAGE_TYPES = [
 const NON_DELEGATING_EXPORTS = ['PresignedUploadValidationError']
 
 interface MediaStorageFunctionCase {
-  name: string
+  name: keyof typeof mediaStorageService
   /** Method on the resolved storage driver the function must delegate to. */
   method: keyof StorageMock
-  expectedArguments: unknown[]
+  /**
+   * Arguments after `database`. Every function in this module hands these
+   * straight to its driver method, so the harness both invokes the export with
+   * them and asserts the driver received them. A future function that reshapes
+   * its arguments fails loudly here rather than needing a silent second field.
+   */
+  callArguments: unknown[]
   /** Storage types the function delegates for; the rest fall back. */
   supportedTypes: MediaStorageType[]
   /** Value returned when no driver handles the configured storage type. */
   fallbackValue: null | false
-  call: () => Promise<unknown>
 }
 
 const MEDIA_STORAGE_FUNCTIONS: MediaStorageFunctionCase[] = [
   {
     name: 'saveMedia',
     method: 'saveFile',
-    expectedArguments: [actor, media],
+    callArguments: [actor, media],
     supportedTypes: ALL_STORAGE_TYPES,
-    fallbackValue: null,
-    call: () => saveMedia(mockDatabase, actor, media)
+    fallbackValue: null
   },
   {
     name: 'saveMediaThumbnail',
     method: 'saveThumbnail',
-    expectedArguments: [actor, file],
+    callArguments: [actor, file],
     supportedTypes: ALL_STORAGE_TYPES,
-    fallbackValue: null,
-    call: () => saveMediaThumbnail(mockDatabase, actor, file)
+    fallbackValue: null
   },
   {
     name: 'saveMediaImageRendition',
     method: 'saveImageRendition',
-    expectedArguments: [actor, file, 'jpeg'],
+    callArguments: [actor, file, 'jpeg'],
     supportedTypes: ALL_STORAGE_TYPES,
-    fallbackValue: null,
-    call: () => saveMediaImageRendition(mockDatabase, actor, file, 'jpeg')
+    fallbackValue: null
   },
   {
     name: 'getPresignedUrl',
     method: 'getPresigedForSaveFileUrl',
-    expectedArguments: [actor, presignedInput],
+    callArguments: [actor, presignedInput],
     // Presigned uploads go straight to the bucket, so local file storage has
     // nothing to sign.
     supportedTypes: S3_STORAGE_TYPES,
-    fallbackValue: null,
-    call: () => getPresignedUrl(mockDatabase, actor, presignedInput)
+    fallbackValue: null
   },
   {
     name: 'completePresignedMediaUpload',
     method: 'completePresignedUpload',
-    expectedArguments: [actor, 'media-1'],
+    callArguments: [actor, 'media-1'],
     supportedTypes: S3_STORAGE_TYPES,
-    fallbackValue: null,
-    call: () => completePresignedMediaUpload(mockDatabase, actor, 'media-1')
+    fallbackValue: null
   },
   {
     name: 'getMedia',
     method: 'getFile',
-    expectedArguments: ['medias/test.jpg'],
+    callArguments: ['medias/test.jpg'],
     supportedTypes: ALL_STORAGE_TYPES,
-    fallbackValue: null,
-    call: () => getMedia(mockDatabase, 'medias/test.jpg')
+    fallbackValue: null
   },
   {
     name: 'deleteMediaFile',
     method: 'deleteFile',
-    expectedArguments: ['medias/test.jpg'],
+    callArguments: ['medias/test.jpg'],
     supportedTypes: ALL_STORAGE_TYPES,
-    fallbackValue: false,
-    call: () => deleteMediaFile(mockDatabase, 'medias/test.jpg')
+    fallbackValue: false
   }
 ]
+
+/**
+ * Invokes the live export named by the row. Looking the function up by `name`
+ * rather than capturing it in a per-row closure is what keeps a copy-pasted row
+ * honest: a row labelled one function cannot end up exercising another.
+ */
+const invoke = (mediaFunction: MediaStorageFunctionCase) => {
+  const exported = mediaStorageService[mediaFunction.name] as (
+    ...args: unknown[]
+  ) => Promise<unknown>
+  return exported(mockDatabase, ...mediaFunction.callArguments)
+}
 
 const configureStorage = (mediaStorage: unknown) => {
   mockGetConfig.mockReturnValue({
@@ -212,10 +212,10 @@ describe('Media Storage Service', () => {
   })
 
   // The delegation matrix below only protects what it enumerates, and an
-  // `it.each([])` registers zero tests without failing. Without these guards the
-  // matrix can silently shrink: dropping a STORAGE_CONFIGS entry, adding a
-  // fourth MediaStorageType, or exporting an eighth function all leave a green
-  // suite that no longer covers the case this file exists to catch.
+  // `it.each([])` registers zero tests without failing, so the matrix can
+  // silently shrink: exporting an eighth function, dropping a STORAGE_CONFIGS
+  // entry, or adding a fourth MediaStorageType would each leave a green suite
+  // that no longer covers the case this file exists to catch.
   describe('matrix coverage', () => {
     it('describes every function exported from the module', () => {
       const exported = Object.keys(mediaStorageService).filter(
@@ -237,12 +237,14 @@ describe('Media Storage Service', () => {
       expect(exercised.sort()).toEqual(Object.values(MediaStorageType).sort())
     })
 
-    it('declares at least one supported storage type per function', () => {
-      const withoutSupportedTypes = MEDIA_STORAGE_FUNCTIONS.filter(
-        (mediaFunction) => mediaFunction.supportedTypes.length === 0
-      ).map((mediaFunction) => mediaFunction.name)
-
-      expect(withoutSupportedTypes).toEqual([])
+    // Without this, a new enum member is auto-classified as unsupported: adding
+    // it to STORAGE_CONFIGS alone turns the previous guard green again while
+    // every function merely asserts that returning null for it is correct —
+    // which is precisely the silent-null bug this file exists to catch.
+    it('treats every configurable storage type as supported by default', () => {
+      expect([...ALL_STORAGE_TYPES].sort()).toEqual(
+        Object.values(MediaStorageType).sort()
+      )
     })
   })
 
@@ -267,7 +269,7 @@ describe('Media Storage Service', () => {
           : S3FileStorage.S3FileStorage.getStorage
       expectedStorage[mediaFunction.method].mockResolvedValue(DELEGATED_RESULT)
 
-      const result = await mediaFunction.call()
+      const result = await invoke(mediaFunction)
 
       expect(result).toBe(DELEGATED_RESULT)
       expect(expectedGetStorage).toHaveBeenCalledWith(
@@ -276,7 +278,7 @@ describe('Media Storage Service', () => {
         mockDatabase
       )
       expect(expectedStorage[mediaFunction.method]).toHaveBeenCalledWith(
-        ...mediaFunction.expectedArguments
+        ...mediaFunction.callArguments
       )
       expect(otherStorage[mediaFunction.method]).not.toHaveBeenCalled()
     })
@@ -287,7 +289,7 @@ describe('Media Storage Service', () => {
         async (storage) => {
           configureStorage(storage.mediaStorage)
 
-          const result = await mediaFunction.call()
+          const result = await invoke(mediaFunction)
 
           expect(result).toBe(mediaFunction.fallbackValue)
           expect(localStorageMock[mediaFunction.method]).not.toHaveBeenCalled()
@@ -299,7 +301,7 @@ describe('Media Storage Service', () => {
     it('returns the fallback value when no storage is configured', async () => {
       configureStorage(undefined)
 
-      const result = await mediaFunction.call()
+      const result = await invoke(mediaFunction)
 
       expect(result).toBe(mediaFunction.fallbackValue)
       expect(localStorageMock[mediaFunction.method]).not.toHaveBeenCalled()
@@ -315,7 +317,10 @@ describe('Media Storage Service', () => {
     it('returns false when the driver reports the deletion failed', async () => {
       localStorageMock.deleteFile.mockResolvedValue(false)
 
-      const result = await deleteMediaFile(mockDatabase, 'medias/test.jpg')
+      const result = await mediaStorageService.deleteMediaFile(
+        mockDatabase,
+        'medias/test.jpg'
+      )
 
       expect(result).toBe(false)
       // Without this the assertion above cannot tell a driver that returned
@@ -328,7 +333,10 @@ describe('Media Storage Service', () => {
     it('passes the path through unchanged', async () => {
       localStorageMock.deleteFile.mockResolvedValue(true)
 
-      await deleteMediaFile(mockDatabase, 'medias/file with spaces.jpg')
+      await mediaStorageService.deleteMediaFile(
+        mockDatabase,
+        'medias/file with spaces.jpg'
+      )
 
       expect(localStorageMock.deleteFile).toHaveBeenCalledWith(
         'medias/file with spaces.jpg'
