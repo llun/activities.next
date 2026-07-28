@@ -2,10 +2,12 @@ lib/services/medias/S3StorageFile.test.ts
   s_80d63357656a60::t_ba1093ecec647e 8,14-18
   s_80d63357656a60::t_b1cac15dc4c1b3 411,501-540,545-602
   s_80d63357656a60::t_7946e54769e034 541-544
+  s_80d63357656a60::t_4e117e6dc20c26 500
 lib/services/medias/localFile.test.ts
   s_80d63357656a60::t_df5a7e6ee24646 4,8,10
   s_80d63357656a60::t_676ecbe60e8e40 79,215-239,244-306
   s_80d63357656a60::t_7946e54769e034 240-243
+  s_80d63357656a60::t_4e117e6dc20c26 214
 lib/services/medias/constants.ts
   s_80d63357656a60::t_6bb7c4e86a094e 26
   s_80d63357656a60::t_65ce703066feb6 12-25
@@ -14,8 +16,10 @@ docs/architecture.md
   s_80d63357656a60::t_94e8c3cc6f94da 162
 lib/services/medias/localFile.ts
   s_80d63357656a60::t_e1718803565641 13
+  s_80d63357656a60::t_c22b43ea8fc220 294
 lib/services/medias/S3StorageFile.ts
   s_80d63357656a60::t_d5837e492a6304 19-23
+  s_80d63357656a60::t_e3ac7d34472cc7 585-587
 ---
 {
   "schema_version": "authorship/3.0.0",
