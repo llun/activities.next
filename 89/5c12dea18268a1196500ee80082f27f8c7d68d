@@ -1,0 +1,19 @@
+scripts/maintenance/cleanupMediaStorage.ts
+  s_f00bc373d2ba59::t_cc8d883dcaa967 113-120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "895c12dea18268a1196500ee80082f27f8c7d68d",
+  "prompts": {},
+  "sessions": {
+    "s_f00bc373d2ba59": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9fe2341a-719d-453d-8ad9-22b4f91dd55c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
