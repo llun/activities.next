@@ -3108,6 +3108,13 @@ describe('GET /api/v1/statuses/[id]', () => {
       return { statusId, media: media! }
     }
 
+    // `vi.clearAllMocks()` in the suite's beforeEach clears call history but NOT
+    // implementations, so a `mockImplementation` set by one test here would
+    // otherwise stay installed for the remaining ~800 tests in this file.
+    afterEach(() => {
+      vi.mocked(deleteMediaFile).mockReset()
+    })
+
     const deleteStatusRequest = (statusId: string, query = '') =>
       DELETE(
         new NextRequest(
