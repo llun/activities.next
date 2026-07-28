@@ -898,25 +898,6 @@ describe('S3FileStorage saveFile with a caller-supplied thumbnail', () => {
     ).resolves.toBeTruthy()
   })
 
-  // The declared type is only a claim, and sharp is the real arbiter — so the
-  // type guard above cannot be the whole story. Validating the bytes up front
-  // is what keeps this a 422 with nothing stored, rather than a 500 with an
-  // original in the bucket that no `medias` row will ever reference.
-  it('refuses unreadable thumbnail bytes before storing anything', async () => {
-    const thumbnail = new File([Buffer.from('not-an-image')], 'evil.png', {
-      type: 'image/png'
-    })
-
-    await expect(
-      createStorage().saveFile(actor, {
-        file: await createPngFile(800, 600),
-        thumbnail
-      })
-    ).rejects.toThrow(MediaValidationError)
-    expect(uploads).toHaveLength(0)
-    expect(database.createMedia).not.toHaveBeenCalled()
-  })
-
   // What is left after that check is a storage fault, not bad input: it must
   // keep its own error — a logged 500, not a 422 telling the caller its
   // perfectly good thumbnail was rejected — while still reclaiming the original.
@@ -945,18 +926,18 @@ describe('S3FileStorage saveFile with a caller-supplied thumbnail', () => {
     expect(deletedKeys).toEqual([uploads[0].key])
   })
 
-  // `metadata()` reads the header, so this is the input the up-front check
-  // cannot catch — it reaches the encoder, and without the classifier in the
-  // catch the caller would get a logged 500 for its own corrupt bytes.
-  it('refuses a truncated thumbnail and reclaims the stored original', async () => {
+  // The case a header parse would let through: the driver has to decode the
+  // thumbnail fully before it stores the original, or the encoder is the first
+  // thing to notice and the caller gets a 500 for its own corrupt bytes.
+  it('refuses a truncated thumbnail before storing anything', async () => {
     await expect(
       createStorage().saveFile(actor, {
         file: await createPngFile(800, 600),
         thumbnail: await createTruncatedPngFile(400, 300)
       })
     ).rejects.toThrow(MediaValidationError)
+    expect(uploads).toHaveLength(0)
     expect(database.createMedia).not.toHaveBeenCalled()
-    expect(deletedKeys).toEqual([uploaded('original').key])
   })
 
   it('refuses truncated bytes on the standalone thumbnail path', async () => {

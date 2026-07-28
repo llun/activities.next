@@ -183,12 +183,10 @@ dimensions (so it is metered against the account's storage usage), and surfaced
 as the attachment's `meta.small` and `preview_url`. For a video it replaces the
 extracted frame — the frame is extracted either way, so it saves no work — while
 without one a video keeps that frame and an image gets no thumbnail at all. A
-supplied thumbnail is client input, so both drivers validate it through the same
-module: the declared type and a header parse before anything is stored, and — if
-storing it fails anyway, as a truncated image only can once the encoder reaches
-the missing bytes — a full decode to decide what went wrong. Unusable input is a
-422; a storage fault keeps its own error and stays a logged 500. Either way the
-original stored alongside it is reclaimed, because a `medias` row is the only
+supplied thumbnail is client input, so both drivers validate it the same way and
+before anything is stored: unusable input is a 422 with nothing written, while a
+storage fault keeps its own error and stays a logged 500. Whatever fails after
+the first write reclaims what it stored, because a `medias` row is the only
 handle anything has on a stored path and a file written without one is
 unreachable.
 

@@ -642,28 +642,10 @@ describe('LocalFileStorage.saveFile with a caller-supplied thumbnail', () => {
     ).resolves.toBeTruthy()
   })
 
-  // The declared type is only a claim, and sharp is the real arbiter — so the
-  // type guard above cannot be the whole story. Validating the bytes up front
-  // is what keeps this a 422 with nothing stored.
-  it('refuses unreadable thumbnail bytes before storing anything', async () => {
-    const thumbnail = new File([Buffer.from('not-an-image')], 'evil.png', {
-      type: 'image/png'
-    })
-
-    await expect(
-      createStorage().saveFile(actor, {
-        file: await createPngFile(800, 600),
-        thumbnail
-      })
-    ).rejects.toThrow(MediaValidationError)
-    expect(database.createMedia).not.toHaveBeenCalled()
-    await expect(fs.readdir(mediaRoot)).resolves.toHaveLength(0)
-  })
-
-  // `metadata()` reads the header, so this is the input the up-front check
-  // cannot catch — it reaches the encoder, and without the classifier in the
-  // catch the caller would get a logged 500 for its own corrupt bytes.
-  it('refuses a truncated thumbnail and reclaims the stored original', async () => {
+  // The case a header parse would let through: the driver has to decode the
+  // thumbnail fully before it stores the original, or the encoder is the first
+  // thing to notice and the caller gets a 500 for its own corrupt bytes.
+  it('refuses a truncated thumbnail before storing anything', async () => {
     await expect(
       createStorage().saveFile(actor, {
         file: await createPngFile(800, 600),

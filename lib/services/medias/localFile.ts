@@ -24,10 +24,7 @@ import {
 } from './imageOutputFormat'
 import { getMediaFileUrl } from './mediaFileUrl'
 import { checkQuotaAvailable, getUploadQuotaReservation } from './quota'
-import {
-  assertReadableThumbnail,
-  assertThumbnailDecodable
-} from './thumbnailInput'
+import { readValidThumbnail } from './thumbnailInput'
 import {
   ImageRenditionOutput,
   MediaSchema,
@@ -136,14 +133,14 @@ export class LocalFileStorage implements MediaStorage {
     if (!file.type.startsWith('image') && !file.type.startsWith('video')) {
       return null
     }
-    // Validate the thumbnail before anything is written, so unusable bytes
-    // cannot leave a stored original behind.
-    if (media.thumbnail) {
-      await assertReadableThumbnail(media.thumbnail)
-    }
+    // Read and validate the thumbnail before anything is written, so unusable
+    // bytes cannot leave a stored original behind.
+    const thumbnailBuffer = media.thumbnail
+      ? await readValidThumbnail(media.thumbnail)
+      : null
 
-    // Check quota before saving; the reservation covers the thumbnail, whose
-    // stored bytes `createMedia` meters too.
+    // Check quota before saving; see `getUploadQuotaReservation` for why the
+    // thumbnail's share of it is an estimate.
     const quotaCheck = await checkQuotaAvailable(
       this._database,
       actor,
@@ -158,22 +155,19 @@ export class LocalFileStorage implements MediaStorage {
     const { path, metaData, previewImage } = file.type.startsWith('video')
       ? await this._saveVideoFile(file)
       : await this._saveImageFile(file)
+    // A caller-supplied thumbnail wins; a video otherwise falls back to the
+    // frame extracted from it.
+    const thumbnailSource = thumbnailBuffer ?? previewImage
     let thumbnail
     try {
-      thumbnail = media.thumbnail
-        ? await this._saveImageFile(media.thumbnail, { isThumbnail: true })
-        : previewImage
-          ? await this._saveImageBuffer(previewImage, { isThumbnail: true })
-          : null
+      thumbnail = thumbnailSource
+        ? await this._saveImageBuffer(thumbnailSource, { isThumbnail: true })
+        : null
     } catch (error) {
+      // The thumbnail's bytes were validated above, so this is a storage fault
+      // of ours: keep the error — it has to stay a logged 500, not a 422 the
+      // client will not retry — but put the original back first.
       await this._reclaimStored(path)
-      // Tell the caller's bad bytes apart from a fault of ours: an image whose
-      // body is truncated passes the header check up front and only fails once
-      // the encoder reaches the missing bytes. Anything else keeps its own
-      // error and stays a logged 500, not a 422 the client will not retry.
-      if (media.thumbnail) {
-        await assertThumbnailDecodable(media.thumbnail)
-      }
       throw error
     }
     let storedMedia
@@ -226,6 +220,10 @@ export class LocalFileStorage implements MediaStorage {
     file: File
   ): Promise<ThumbnailStorageOutput | null> {
     if (!file.type.startsWith('image')) return null
+    // Same validation saveFile applies, so the dedicated thumbnail endpoint
+    // answers unusable bytes with the same 422 rather than a 500.
+    const buffer = await readValidThumbnail(file)
+
     // Enforce the account quota like saveFile, so a thumbnail replacement can't
     // push usage past the limit.
     const quotaCheck = await checkQuotaAvailable(
@@ -241,17 +239,10 @@ export class LocalFileStorage implements MediaStorage {
 
     // Use the stored image's actual size/dimensions (outputInfo), not the input
     // image's metadata.
-    let stored
-    try {
-      stored = await this._saveImageFile(file, { isThumbnail: true })
-    } catch (error) {
-      // The same split saveFile makes: bytes that will not decode are the
-      // caller's 422, anything else is ours and stays a logged 500. Nothing is
-      // stored before this, so there is nothing to reclaim.
-      await assertThumbnailDecodable(file)
-      throw error
-    }
-    const { outputInfo, path, contentType } = stored
+    const { outputInfo, path, contentType } = await this._saveImageBuffer(
+      buffer,
+      { isThumbnail: true }
+    )
     return {
       path,
       bytes: outputInfo.size,
@@ -302,11 +293,11 @@ export class LocalFileStorage implements MediaStorage {
 
   // A stored path is reachable only through its `medias` row, so anything that
   // fails before that row exists has to take the files back out.
-  private async _reclaimStored(...paths: (string | undefined)[]) {
+  private async _reclaimStored(originalPath: string, thumbnailPath?: string) {
     await Promise.all(
-      paths
-        .filter((path) => path !== undefined)
-        .map((path) => this.deleteFile(path).catch(() => false))
+      [originalPath, thumbnailPath]
+        .filter((stored) => stored !== undefined)
+        .map((stored) => this.deleteFile(stored).catch(() => false))
     )
   }
 
