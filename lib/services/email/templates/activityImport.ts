@@ -140,7 +140,12 @@ export const buildActivityImportEmail = ({
     blocks: [
       headline('Your fitness activity was imported'),
       paragraph(
-        'Your fitness activity has been imported. A status with the route and stats was created on your profile — open it to view or share.'
+        // An import whose route map failed is still sent — the activity did
+        // arrive — so the copy must not promise a route the post does not have.
+        // The post itself tells its owner the map failed and offers a retry.
+        fitness?.mapError && !fitness?.hasMapData
+          ? 'Your fitness activity has been imported. A status with the stats was created on your profile — open it to view or share. Its route map could not be generated; you can retry that from the post.'
+          : 'Your fitness activity has been imported. A status with the route and stats was created on your profile — open it to view or share.'
       ),
       ...(hasCard
         ? [

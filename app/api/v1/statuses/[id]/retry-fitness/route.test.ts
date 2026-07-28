@@ -202,17 +202,41 @@ describe('POST /api/v1/statuses/[id]/retry-fitness', () => {
 
     // This endpoint is the retry the post offers its owner for a missing map:
     // the activity itself never failed, so nothing else marks it retriable.
-    // It keeps its `completed` status while the job re-runs — `pending` would
-    // hide a usable activity behind every `completed` gate and, unlike
-    // `processing`, is never detected as stranded, so a dropped queue message
-    // would leave the post spinning with no retry left to offer.
+    // It goes to `processing`, not `pending`: that marks the run as in flight
+    // (so a second click finds nothing to retry instead of queueing a second
+    // job that attaches a second map) and is the one state the staleness check
+    // recovers, so a dropped queue message still gets its retry back.
     const refreshed = await database.getFitnessFile({ id: file.id })
-    expect(refreshed?.processingStatus).toBe('completed')
+    expect(refreshed?.processingStatus).toBe('processing')
+    expect(refreshed?.mapError).toBe(
+      'Failed to store generated route map image'
+    )
     expect(getQueue().publish).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ fitnessFileId: file.id })
       })
     )
+  })
+
+  it('ignores a second map retry while the first is still in flight', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2030-04-01T00:00:00.000Z'))
+
+    const { status, file } = await seedFitnessStatus(database, 'map-double')
+    await database.updateFitnessFileProcessingStatus(file.id, 'completed')
+    await database.updateFitnessFileActivityData(file.id, {
+      mapError: 'tile server down'
+    })
+
+    expect((await callRetry(status.id)).status).toBe(200)
+
+    // A stale tab, or an owner who reloads and clicks again. Without the
+    // in-flight marker both requests publish (the queue ids are salted per
+    // request), both jobs attach a map, and the post keeps two of them
+    // permanently — only one is ever matched for cleanup again.
+    vi.setSystemTime(new Date(Date.now() + 5_000))
+    expect((await callRetry(status.id)).status).toBe(422)
+    expect(getQueue().publish).toHaveBeenCalledTimes(1)
   })
 
   it('ignores a map failure recorded on a non-primary file', async () => {
@@ -244,10 +268,9 @@ describe('POST /api/v1/statuses/[id]/retry-fitness', () => {
     const response = await callRetry(status.id)
     expect(response.status).toBe(500)
 
-    // It was never reset, so there is nothing to roll back — and rolling it
-    // back to `failed` would hide a perfectly good activity behind every
-    // surface gated on `completed`. The reason survives, so the retry the post
-    // offers is still there after the queue recovers.
+    // Rolling it back to `failed` would hide a perfectly good activity behind
+    // every surface gated on `completed`. The reason survives a status write,
+    // so the retry the post offers is still there after the queue recovers.
     const refreshed = await database.getFitnessFile({ id: file.id })
     expect(refreshed?.processingStatus).toBe('completed')
     expect(refreshed?.mapError).toBe('tile server down')

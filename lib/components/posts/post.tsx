@@ -150,6 +150,14 @@ export const Post: FC<PostProps> = (props) => {
   // destructive "Processing failed" banner every viewer sees.
   const isFitnessMapFailed =
     isFitnessCompleted && Boolean(fitnessFile?.mapFailed)
+  // The activity can still be showing the map an earlier run produced — that is
+  // what a failed REgeneration leaves behind — so the copy must not claim there
+  // is no map. It matters beyond wording: the map still on the post is the one
+  // the owner tried to replace, which after a privacy change is the unfiltered
+  // route.
+  const fitnessMapRetryVariant: 'map' | 'map-stale' = fitnessFile?.hasMapData
+    ? 'map-stale'
+    : 'map'
   const fitnessDistance = formatFitnessDistance(
     fitnessFile?.totalDistanceMeters
   )
@@ -269,7 +277,10 @@ export const Post: FC<PostProps> = (props) => {
           ) : null}
 
           {isFitnessMapFailed && isOwner ? (
-            <RetryFitnessButton statusId={actualStatus.id} variant="map" />
+            <RetryFitnessButton
+              statusId={actualStatus.id}
+              variant={fitnessMapRetryVariant}
+            />
           ) : null}
 
           {isFitnessCompleted && fitnessStats.length > 0 ? (

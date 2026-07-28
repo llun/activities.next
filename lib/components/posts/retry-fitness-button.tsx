@@ -11,16 +11,21 @@ interface Props {
   // `failed`: the job threw and gave up. `stuck`: the file is still marked
   // `processing` long after its worker died mid-run. `map`: the activity
   // imported fine but its route map could not be rendered or stored — a
-  // degraded success, so it reads as a note rather than an error. All three are
-  // retriable; the copy differs so the owner sees why.
-  variant?: 'failed' | 'stuck' | 'map'
+  // degraded success, so it reads as a note rather than an error. `map-stale`:
+  // same, except the activity still has the map from an earlier run, so the
+  // copy must not claim there is none — and that map may predate the privacy
+  // location the owner just added, which is the reason they regenerated.
+  // All are retriable; the copy differs so the owner sees why.
+  variant?: 'failed' | 'stuck' | 'map' | 'map-stale'
 }
 
 const LEAD_TEXT: Record<NonNullable<Props['variant']>, string> = {
   failed: 'Processing failed. The original activity file is still available.',
   stuck:
     'Processing is taking longer than expected. The original activity file is still available.',
-  map: 'The route map could not be generated. Everything else in this activity is intact.'
+  map: 'The route map could not be generated. Everything else in this activity is intact.',
+  'map-stale':
+    'The route map could not be updated, so this is the previous one. Everything else in this activity is intact.'
 }
 
 export const RetryFitnessButton: FC<Props> = ({
@@ -45,7 +50,9 @@ export const RetryFitnessButton: FC<Props> = ({
       className={cn(
         'mt-2 flex items-center gap-2',
         // A missing map is a degraded success, not a failed post — don't shout.
-        variant === 'map' ? 'text-muted-foreground' : 'text-destructive'
+        variant === 'map' || variant === 'map-stale'
+          ? 'text-muted-foreground'
+          : 'text-destructive'
       )}
     >
       <span>{LEAD_TEXT[variant]}</span>

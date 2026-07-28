@@ -50,6 +50,9 @@ interface FitnessFileItem {
   // activity itself imported fine. This page is the owner's own file list, so
   // it is the one surface that shows the reason rather than just the fact.
   mapError?: string | null
+  // Whether a map exists despite `mapError` — a failed REgeneration keeps the
+  // previous one, so the copy must not claim there is none.
+  hasMapData?: boolean
   importBatchId?: string
 }
 
@@ -332,14 +335,18 @@ export function FitnessFileManagement({
                             )}
                           </div>
                         )}
-                        {fitnessFile.mapError && (
+                        {fitnessFile.mapError && !importFailed && (
                           <div className="space-y-1 pt-1">
                             {/* Muted, not destructive: the activity imported —
-                                only its route map is missing. Retrying is
-                                offered on the post itself. */}
-                            <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                              No route map
-                            </span>
+                                only its route map is missing or out of date.
+                                Retrying is offered on the post itself. */}
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                                {fitnessFile.hasMapData
+                                  ? 'Route map out of date'
+                                  : 'No route map'}
+                              </span>
+                            </div>
                             <p className="text-xs text-muted-foreground">
                               {fitnessFile.mapError}
                             </p>

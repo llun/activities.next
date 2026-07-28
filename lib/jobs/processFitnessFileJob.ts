@@ -373,36 +373,65 @@ export const processFitnessFileJob = createJobHandle(
         statusId,
         mapImagePath: fitnessFile.mapImagePath
       })
-      const dropPreviousMap = async () => {
-        await deleteEmailMapImage({
-          database,
+      if (fitnessFile.mapImagePath && previousMapAttachments.length === 0) {
+        // The file names a map that no attachment on the status matches, so
+        // nothing will be cleaned up and the run below adds another one. Worth
+        // saying out loud: it is the one way this path can silently leave a
+        // post rendering two routes.
+        logger.warn({
+          message: 'Recorded route map has no matching attachment to replace',
+          actorId,
+          statusId,
           fitnessFileId,
-          mapImageEmailPath: fitnessFile.mapImageEmailPath
+          mapImagePath: fitnessFile.mapImagePath
         })
+      }
 
-        if (previousMapAttachments.length === 0) return
-        if (!actor.account) {
-          // Nothing can resolve the media rows without an account, and leaving
-          // the attachment in place would show the route twice.
-          logger.warn({
-            message:
-              'Cannot remove the previous route map: actor has no account',
+      // Contained on purpose: by the time this runs the replacement is already
+      // stored, so a failure here costs a leftover file and nothing else. Left
+      // uncontained it would be recorded as a map-generation failure on a run
+      // that produced a perfectly good map (or, in the no-route branch, fail
+      // the whole activity) — the opposite of what the reason column is for.
+      const dropPreviousMap = async () => {
+        try {
+          await deleteEmailMapImage({
+            database,
+            fitnessFileId,
+            mapImageEmailPath: fitnessFile.mapImageEmailPath
+          })
+
+          if (previousMapAttachments.length === 0) return
+          if (!actor.account) {
+            // Nothing can resolve the media rows without an account, and
+            // leaving the attachment in place shows the route twice.
+            logger.warn({
+              message:
+                'Cannot remove the previous route map: actor has no account',
+              actorId,
+              statusId,
+              fitnessFileId
+            })
+            return
+          }
+
+          await removeRouteMapAttachmentsAndMedia({
+            database,
+            accountId: actor.account.id,
+            statusId,
+            attachmentIds: previousMapAttachments.map(
+              (attachment) => attachment.id
+            ),
+            mediaIds: getAttachmentMediaIds(previousMapAttachments)
+          })
+        } catch (error) {
+          logger.error({
+            message: 'Failed to remove the previous route map',
             actorId,
             statusId,
-            fitnessFileId
+            fitnessFileId,
+            err: toLoggableError(error)
           })
-          return
         }
-
-        await removeRouteMapAttachmentsAndMedia({
-          database,
-          accountId: actor.account.id,
-          statusId,
-          attachmentIds: previousMapAttachments.map(
-            (attachment) => attachment.id
-          ),
-          mediaIds: getAttachmentMediaIds(previousMapAttachments)
-        })
       }
 
       await database.updateFitnessFileActivityData(fitnessFileId, {

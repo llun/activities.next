@@ -267,22 +267,36 @@ export const regenerateFitnessMapsJob = createJobHandle(
           continue
         }
 
-        // The copy backed an email sent when the activity arrived, so there is
-        // nothing to replace it with — and after a privacy change it may show a
-        // route the owner has since hidden.
-        await deleteEmailMapImage({
-          database,
-          fitnessFileId,
-          mapImageEmailPath: fitnessFile.mapImageEmailPath
-        })
+        // Contained: the replacement already exists by now, so a cleanup
+        // failure costs a leftover file. Left uncontained it reaches the catch
+        // below and marks a regenerated, perfectly usable activity `failed` —
+        // hiding it from the detail dashboard, the stat grid, the overview and
+        // every rollup — and skips the federated update note as well.
+        try {
+          // The copy backed an email sent when the activity arrived, so there
+          // is nothing to replace it with — and after a privacy change it may
+          // show a route the owner has since hidden.
+          await deleteEmailMapImage({
+            database,
+            fitnessFileId,
+            mapImageEmailPath: fitnessFile.mapImageEmailPath
+          })
 
-        await removeRouteMapAttachmentsAndMedia({
-          database,
-          accountId: actor.account.id,
-          statusId,
-          attachmentIds: oldAttachmentIds,
-          mediaIds: oldMediaIds
-        })
+          await removeRouteMapAttachmentsAndMedia({
+            database,
+            accountId: actor.account.id,
+            statusId,
+            attachmentIds: oldAttachmentIds,
+            mediaIds: oldMediaIds
+          })
+        } catch (error) {
+          logger.error({
+            message: 'Failed to remove the previous route map',
+            actorId,
+            fitnessFileId,
+            err: toLoggableError(error)
+          })
+        }
 
         await database.updateFitnessFileProcessingStatus(
           fitnessFileId,

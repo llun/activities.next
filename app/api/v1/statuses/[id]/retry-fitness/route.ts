@@ -14,6 +14,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { idToUrl } from '@/lib/utils/urlToId'
 
@@ -87,15 +88,18 @@ export const POST = traceApiRoute(
     const publishedFileIds: string[] = []
     try {
       for (const file of retriableFiles) {
-        // A map-only failure keeps its `completed` status while it re-runs: the
-        // activity is usable throughout, and `pending` would both hide it
-        // behind every `completed` gate and — unlike `processing` — never be
+        // `processing` for a map-only failure, not `pending`: it marks the run
+        // as in flight, so a second click (a stale tab, an impatient owner)
+        // finds nothing retriable instead of queueing a second job that
+        // attaches a second map — the queue ids are salted per request, so
+        // nothing else de-duplicates them. `pending` would not do: it is never
         // detected as stranded, so a dropped queue message would leave the post
-        // spinning with no retry left to offer. The job writes `processing`
-        // itself as soon as it starts.
-        if (!isRetriableMapFailure(file)) {
-          await database.updateFitnessFileProcessingStatus(file.id, 'pending')
-        }
+        // spinning with no retry left to offer, while a stuck `processing` file
+        // gets its retry back after the staleness window.
+        await database.updateFitnessFileProcessingStatus(
+          file.id,
+          isRetriableMapFailure(file) ? 'processing' : 'pending'
+        )
         await getQueue().publish({
           id: getHashFromString(
             `${statusId}:${file.id}:retry-fitness:${retryTimestamp}`
@@ -111,17 +115,24 @@ export const POST = traceApiRoute(
         publishedFileIds.push(file.id)
       }
     } catch (error) {
-      const nodeError = error as Error
       const unpublishedFiles = retriableFiles.filter(
         (f) => !publishedFileIds.includes(f.id)
       )
 
       for (const file of unpublishedFiles) {
-        // A map-only failure was never reset, so there is nothing to roll back
-        // — and writing its status again would only refresh `updatedAt`.
-        if (isRetriableMapFailure(file)) continue
-
         try {
+          // A map-only failure goes back to `completed`: it never failed as an
+          // activity, and `failed` would hide it behind every surface gated on
+          // `completed`. Its `mapError` is untouched by a status write, so the
+          // post keeps offering the retry.
+          if (isRetriableMapFailure(file)) {
+            await database.updateFitnessFileProcessingStatus(
+              file.id,
+              'completed'
+            )
+            continue
+          }
+
           // Restore the reason the reset to `pending` cleared. Without it the
           // file rolls back to `failed` with no explanation — losing the
           // diagnostic exactly when the retry could not even be queued.
@@ -140,7 +151,7 @@ export const POST = traceApiRoute(
             message: 'Failed to roll back fitness file status',
             fitnessFileId: file.id,
             statusId,
-            error: (rollbackError as Error).message
+            err: toLoggableError(rollbackError)
           })
         }
       }
@@ -151,7 +162,7 @@ export const POST = traceApiRoute(
         actorId: currentActor.id,
         published: publishedFileIds.length,
         failed: unpublishedFiles.length,
-        error: nodeError.message
+        err: toLoggableError(error)
       })
 
       if (publishedFileIds.length === 0) {

@@ -2045,9 +2045,18 @@ export const FitnessStatusDetail: FC<Props> = ({
       {/* This page replaces `Post` for a completed fitness activity, so the
           retry `Post` offers for a missing route map has to exist here too —
           otherwise the owner who opens the activity to ask where their map went
-          is the one person who cannot act on it. */}
-      {fitness?.mapFailed && isOwner ? (
-        <RetryFitnessButton statusId={status.id} variant="map" />
+          is the one person who cannot act on it.
+          Read from `status.fitness` (the status's primary file), NOT the
+          file the switcher has selected: the retry endpoint only acts on the
+          primary, so a button driven by a non-primary file's reason would 422
+          on every click. Same `completed` gate `Post` applies. */}
+      {status.fitness?.mapFailed &&
+      status.fitness?.processingStatus === 'completed' &&
+      isOwner ? (
+        <RetryFitnessButton
+          statusId={status.id}
+          variant={status.fitness.hasMapData ? 'map-stale' : 'map'}
+        />
       ) : null}
 
       {/* When the route-data load fails and there is no map panel to host the

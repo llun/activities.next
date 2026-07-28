@@ -35,9 +35,12 @@ export const findRouteMapAttachments = async ({
 /**
  * Drops route map attachments and the media rows/files behind them.
  *
- * Shared by both jobs that replace a route map. Every step is best-effort and
- * logged rather than thrown: the caller has already produced the replacement
- * map by this point, so failing here would undo good work over a leftover file.
+ * Shared by both jobs that replace a route map, and always called AFTER the
+ * replacement is stored — so a leftover file is the worst thing a failure here
+ * can cost. Only the storage deletions are swallowed (a missing object is not
+ * worth a retry); the database calls can throw, so callers must contain them:
+ * both jobs run this inside a catch that neither fails the activity nor
+ * reports it as a map-generation failure.
  */
 export const removeRouteMapAttachmentsAndMedia = async ({
   database,

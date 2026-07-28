@@ -1122,6 +1122,32 @@ describe('Post', () => {
       expect(screen.getByText('Duration')).toBeInTheDocument()
     })
 
+    it('does not claim there is no map when the previous one is still shown', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          currentActor={status.actor!}
+          status={{
+            ...mapFailedStatus,
+            fitness: { ...mapFailedStatus.fitness, hasMapData: true }
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      // A failed REgeneration keeps the map it could not replace. Saying it
+      // "could not be generated" would read as "you have no map" when the truth
+      // is that the old one — possibly predating a privacy location the owner
+      // just added — is still on the post.
+      expect(
+        screen.getByText(/could not be updated, so this is the previous one/i)
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByText(/could not be generated/i)
+      ).not.toBeInTheDocument()
+    })
+
     it('says nothing to a viewer who is not the owner', () => {
       render(
         <Post
