@@ -25,6 +25,7 @@ export const saveMedia = async (
         media
       )
     }
+    case MediaStorageType.S3Storage:
     case MediaStorageType.ObjectStorage: {
       return S3FileStorage.getStorage(mediaStorage, host, database).saveFile(
         actor,
