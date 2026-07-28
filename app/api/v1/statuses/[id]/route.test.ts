@@ -3240,29 +3240,35 @@ describe('GET /api/v1/statuses/[id]', () => {
     it('clears the email copy reference before deleting the file', async () => {
       const { statusId } =
         await createNoteWithFitnessEmailCopy('email-copy-ord')
+      // Spy AFTER the setup writes, so the first recorded call is the route's.
       const updateSpy = vi.spyOn(database, 'updateFitnessFileActivityData')
 
-      const response = await deleteStatusRequest(statusId, '?delete_media=true')
-      expect(response.status).toBe(200)
+      try {
+        const response = await deleteStatusRequest(
+          statusId,
+          '?delete_media=true'
+        )
+        expect(response.status).toBe(200)
 
-      // Ordering is the invariant, and the resulting column state cannot show
-      // it: deleteEmailMapImage swallows storage errors, so the column ends up
-      // null either way. Compare when the two calls actually happened.
-      const nullOutOrder = updateSpy.mock.invocationCallOrder[0]
-      const copyDeleteOrder = vi
-        .mocked(deleteMediaFile)
-        .mock.calls.reduce<number | null>(
-          (found, call, index) =>
-            call[1].endsWith('.jpg')
-              ? vi.mocked(deleteMediaFile).mock.invocationCallOrder[index]
-              : found,
-          null
+        // Ordering is the invariant, and the resulting column state cannot show
+        // it: deleteEmailMapImage swallows storage errors, so the column ends
+        // up null either way. Compare when the two calls actually happened —
+        // `mock.calls` and `mock.invocationCallOrder` are parallel arrays.
+        const deleteMock = vi.mocked(deleteMediaFile).mock
+        const copyIndex = deleteMock.calls.findIndex((call) =>
+          call[1].endsWith('.jpg')
         )
 
-      expect(nullOutOrder).toBeDefined()
-      expect(copyDeleteOrder).not.toBeNull()
-      expect(nullOutOrder).toBeLessThan(copyDeleteOrder as number)
-      updateSpy.mockRestore()
+        expect(updateSpy.mock.invocationCallOrder).toHaveLength(1)
+        expect(copyIndex).toBeGreaterThanOrEqual(0)
+        expect(updateSpy.mock.invocationCallOrder[0]).toBeLessThan(
+          deleteMock.invocationCallOrder[copyIndex]
+        )
+      } finally {
+        // Restore in a finally: a failed assertion above would otherwise leave
+        // the spy installed for the rest of this file.
+        updateSpy.mockRestore()
+      }
     })
 
     it('still reports success when clearing the email copy reference fails', async () => {
