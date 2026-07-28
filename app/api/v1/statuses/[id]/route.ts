@@ -8,6 +8,7 @@ import {
   annotateMastodonStatusesWithFilters,
   getActiveFilters
 } from '@/lib/services/filters/applyFilters'
+import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
 import {
   OAuthGuardAnyScope,
   OptionalOAuthGuard
@@ -582,6 +583,21 @@ export const DELETE = traceApiRoute(
             ]
           : []
 
+      // The route map's JPEG copy for the import email has no `medias` row, so
+      // it is not in `status.attachments` and the media-manager flow below
+      // cannot reach it. Capture it while the fitness files are still linked to
+      // this status — deleting the status only nulls their `statusId`. Without
+      // this, delete_media removes the WebP the post showed while the copy of
+      // the same map stays fetchable at its unchanged URL.
+      const emailMapImagesToDelete = shouldDeleteMedia
+        ? (await database.getFitnessFilesByStatus({ statusId }))
+            .filter((fitnessFile) => Boolean(fitnessFile.mapImageEmailPath))
+            .map((fitnessFile) => ({
+              fitnessFileId: fitnessFile.id,
+              mapImageEmailPath: fitnessFile.mapImageEmailPath
+            }))
+        : []
+
       // Get the status for return before deletion
       const mastodonStatus = await getMastodonStatus(
         database,
@@ -626,6 +642,34 @@ export const DELETE = traceApiRoute(
                 mediaId
               })
             }
+          })
+        }
+      }
+
+      for (const emailMapImage of emailMapImagesToDelete) {
+        // Best-effort, like the media loop above: the status is already gone, so
+        // a storage or database hiccup here must not turn a completed delete
+        // into a 500 the client reads as "your post is still there".
+        try {
+          // Drop the reference BEFORE the file. Nulling is the only step here
+          // that can throw, and this order makes both failure modes benign: a
+          // failed null skips the delete and leaves a consistent row, while a
+          // failure after it leaves a plain orphan that cleanupMediaStorage
+          // reclaims, because only live rows count as references. The reverse
+          // order can strand a live row pointing at a deleted object, which
+          // makes productionArchive abort under its default referenced scope.
+          await database.updateFitnessFileActivityData(
+            emailMapImage.fitnessFileId,
+            { mapImageEmailPath: null }
+          )
+          await deleteEmailMapImage({ database, ...emailMapImage })
+        } catch (error) {
+          logger.warn({
+            message:
+              'Failed to clean up route map email copy for deleted status',
+            statusId,
+            fitnessFileId: emailMapImage.fitnessFileId,
+            error: (error as Error).message
           })
         }
       }

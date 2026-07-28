@@ -1,9 +1,11 @@
 import { z } from 'zod'
 
+import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { buildActivityImportEmail } from '@/lib/services/email/templates/activityImport'
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
+import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
@@ -15,11 +17,13 @@ import {
   getFitnessPrivacyLocations,
   getVisibleSegments
 } from '@/lib/services/fitness-files/privacy'
-import { saveMedia } from '@/lib/services/medias'
+import { saveMedia, saveMediaImageRendition } from '@/lib/services/medias'
 import { getActivityImportGroupKey } from '@/lib/services/notifications/activityImportGroupKey'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
+import { shouldSendEmailForNotification } from '@/lib/services/notifications/emailNotificationSettings'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
+import { Actor } from '@/lib/types/domain/actor'
 import { EditableStatus, StatusType } from '@/lib/types/domain/status'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -117,6 +121,115 @@ const buildActivitySummary = (data: FitnessActivityData): string => {
   }
 
   return base
+}
+
+/**
+ * Whether this run will actually email the owner about the import.
+ *
+ * `notifyOnComplete` alone only says the run is an unattended first import; it
+ * says nothing about whether an email can be delivered. Checked so a copy of the
+ * map is not stored on instances that send no email at all, or for an owner who
+ * turned activity-import emails off. The one case still not knowable here is the
+ * notification policy filtering the event, which is decided after the map exists.
+ */
+const willSendImportEmail = async ({
+  database,
+  actor,
+  notifyOnComplete
+}: {
+  database: Database
+  actor: Actor
+  notifyOnComplete: boolean
+}) => {
+  if (!notifyOnComplete) return false
+  if (!getConfig().email) return false
+  if (!actor.account) return false
+
+  try {
+    return await shouldSendEmailForNotification(
+      database,
+      actor.id,
+      'activity_import'
+    )
+  } catch (error) {
+    // Never let a settings read decide the fate of the map. This runs inside the
+    // map-generation try/catch, so a throw here would be logged as a map failure
+    // and would skip the assignment entirely — leaving the email with no image
+    // at all, not even the WebP fallback. Fail towards having the copy: the cost
+    // of a wrong guess is one small unused file, versus an Outlook recipient
+    // losing their route.
+    logger.warn({
+      message:
+        'Could not read email notification settings; storing the route map copy anyway',
+      actorId: actor.id,
+      error: toImportErrorMessage(error, 'Unknown settings read error')
+    })
+    return true
+  }
+}
+
+/**
+ * Store a JPEG copy of the route map, for the import email only.
+ *
+ * Every image the media storages write is WebP. Gmail, Apple Mail and new
+ * Outlook decode it; Outlook desktop (which renders mail with the Word engine)
+ * and Windows Mail do not, so those recipients got the `alt` text where their
+ * route should have been. This copy is not attached to the status, never
+ * federates, and is not what any web surface renders — it exists so the email
+ * has an `<img src>` every mail client can display. Its path is recorded on the
+ * fitness file so it stays tied to the map it was made from.
+ *
+ * Returns the URL to put in the email, or undefined when no copy could be
+ * stored — the caller then falls back to the WebP, which is what every activity
+ * imported before this column existed still uses.
+ */
+const storeEmailMapImage = async ({
+  database,
+  actor,
+  statusId,
+  fitnessFileId,
+  mapImageFile
+}: {
+  database: Database
+  actor: Actor
+  statusId: string
+  fitnessFileId: string
+  mapImageFile: File
+}): Promise<string | undefined> => {
+  try {
+    const rendition = await saveMediaImageRendition(
+      database,
+      actor,
+      mapImageFile,
+      'jpeg'
+    )
+    if (!rendition) {
+      logger.warn({
+        message: 'Failed to store the route map copy for email',
+        actorId: actor.id,
+        statusId,
+        fitnessFileId
+      })
+      return undefined
+    }
+
+    await database.updateFitnessFileActivityData(fitnessFileId, {
+      mapImageEmailPath: rendition.path
+    })
+    return rendition.url
+  } catch (error) {
+    // Best-effort: the map is already stored and attached by the time this
+    // runs, so failing here costs Outlook recipients their image and nothing
+    // else. It must never fail the import.
+    logger.warn({
+      message: 'Failed to store the route map copy for email',
+      actorId: actor.id,
+      statusId,
+      fitnessFileId,
+      error: toImportErrorMessage(error, 'Unknown route map copy error')
+    })
+    return undefined
+  }
 }
 
 /**
@@ -240,6 +353,18 @@ export const processFitnessFileJob = createJobHandle(
         buffer: fitnessBuffer
       })
 
+      // The reset below de-references any copy an earlier run stored, so delete
+      // the file too. A retry or a recovery script leaves notifyOnComplete
+      // false, so nothing would rewrite the column: without this the object is
+      // orphaned, and worse, if the owner added a privacy location before
+      // reprocessing, the old UNFILTERED route would stay fetchable at its
+      // unchanged URL.
+      await deleteEmailMapImage({
+        database,
+        fitnessFileId,
+        mapImageEmailPath: fitnessFile.mapImageEmailPath
+      })
+
       await database.updateFitnessFileActivityData(fitnessFileId, {
         totalDistanceMeters: activityData.totalDistanceMeters,
         totalDurationSeconds: activityData.totalDurationSeconds,
@@ -249,6 +374,7 @@ export const processFitnessFileJob = createJobHandle(
         activityStartTime: activityData.startTime ?? null,
         hasMapData: false,
         mapImagePath: null,
+        mapImageEmailPath: null,
         // Only overwrite each device field when parsing found a value for it.
         // Preserves device info already set from other sources (e.g. Strava import).
         // Each field is guarded independently so a file with manufacturer-but-no-product-name
@@ -286,14 +412,15 @@ export const processFitnessFileJob = createJobHandle(
 
           if (mapImageBuffer) {
             const mapImageBytes = new Uint8Array(mapImageBuffer)
+            const mapImageFile = new File(
+              [mapImageBytes],
+              `${fitnessFileId}-route-map.png`,
+              {
+                type: 'image/png'
+              }
+            )
             const storedMap = await saveMedia(database, actor, {
-              file: new File(
-                [mapImageBytes],
-                `${fitnessFileId}-route-map.png`,
-                {
-                  type: 'image/png'
-                }
-              ),
+              file: mapImageFile,
               description: `${fitnessFile.fileName} route map`
             })
 
@@ -321,7 +448,26 @@ export const processFitnessFileJob = createJobHandle(
                 mapImagePath: getAttachmentMediaPath(storedMap.url)
               })
 
-              mapImageUrl = storedMap.url
+              // The WebP is what the post and every web surface use; the email
+              // prefers a JPEG copy, because Outlook desktop cannot decode
+              // WebP. Only store one when an email is genuinely going out,
+              // otherwise it is storage spent on an image nobody will ever
+              // fetch: a direct upload notifies no one, an instance with no
+              // email configured sends nothing, and the owner may have turned
+              // activity-import emails off.
+              mapImageUrl = (await willSendImportEmail({
+                database,
+                actor,
+                notifyOnComplete
+              }))
+                ? ((await storeEmailMapImage({
+                    database,
+                    actor,
+                    statusId,
+                    fitnessFileId,
+                    mapImageFile
+                  })) ?? storedMap.url)
+                : storedMap.url
             }
           }
         } catch (error) {

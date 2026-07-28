@@ -374,6 +374,43 @@ describe('FitnessFileDatabase', () => {
         })
       })
 
+      it('persists the email map image path alongside the map path', async () => {
+        const created = await database.createFitnessFile({
+          actorId: actors.primary.id,
+          path: 'fitness/email-map.fit',
+          fileName: 'email-map.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1024
+        })
+
+        expect(created?.mapImageEmailPath).toBeUndefined()
+
+        await database.updateFitnessFileActivityData(created!.id, {
+          hasMapData: true,
+          mapImagePath: 'medias/2026-07-26/route-map.webp',
+          mapImageEmailPath: 'medias/2026-07-26/route-map.jpg'
+        })
+
+        const fetched = await database.getFitnessFile({ id: created!.id })
+        expect(fetched).toMatchObject({
+          mapImagePath: 'medias/2026-07-26/route-map.webp',
+          mapImageEmailPath: 'medias/2026-07-26/route-map.jpg'
+        })
+
+        // Reprocessing clears both, so a run that no longer produces a map does
+        // not leave the previous one referenced.
+        await database.updateFitnessFileActivityData(created!.id, {
+          hasMapData: false,
+          mapImagePath: null,
+          mapImageEmailPath: null
+        })
+
+        const cleared = await database.getFitnessFile({ id: created!.id })
+        expect(cleared?.mapImagePath).toBeUndefined()
+        expect(cleared?.mapImageEmailPath).toBeUndefined()
+      })
+
       it('records the failure reason and clears it once the file processes again', async () => {
         const created = await database.createFitnessFile({
           actorId: actors.primary.id,

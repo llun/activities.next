@@ -10,6 +10,7 @@ import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { Actor } from '@/lib/types/domain/actor'
 
 import { S3FitnessStorage } from './S3StorageFile'
+import { deleteEmailMapImage } from './emailMapImage'
 import { LocalFileFitnessStorage } from './localFile'
 import { FitnessFileUploadSchema } from './types'
 
@@ -158,6 +159,21 @@ export const deleteFitnessFile = async (
 
       if (storageDeleted) {
         await database.deleteFitnessFile({ id: fileId })
+        if (targetFileMetadata.mapImageEmailPath) {
+          // Reference first, file second. The row is only soft-deleted, so a
+          // path left on it points at an object that is gone, which makes
+          // productionArchive abort under its default referenced scope; doing
+          // it in this order means a failure either way leaves a state that
+          // repairs itself rather than one that blocks backups.
+          await database.updateFitnessFileActivityData(fileId, {
+            mapImageEmailPath: null
+          })
+        }
+        await deleteEmailMapImage({
+          database,
+          fitnessFileId: fileId,
+          mapImageEmailPath: targetFileMetadata.mapImageEmailPath
+        })
       }
       return storageDeleted
     }
@@ -171,6 +187,21 @@ export const deleteFitnessFile = async (
 
       if (storageDeleted) {
         await database.deleteFitnessFile({ id: fileId })
+        if (targetFileMetadata.mapImageEmailPath) {
+          // Reference first, file second. The row is only soft-deleted, so a
+          // path left on it points at an object that is gone, which makes
+          // productionArchive abort under its default referenced scope; doing
+          // it in this order means a failure either way leaves a state that
+          // repairs itself rather than one that blocks backups.
+          await database.updateFitnessFileActivityData(fileId, {
+            mapImageEmailPath: null
+          })
+        }
+        await deleteEmailMapImage({
+          database,
+          fitnessFileId: fileId,
+          mapImageEmailPath: targetFileMetadata.mapImageEmailPath
+        })
       }
       return storageDeleted
     }

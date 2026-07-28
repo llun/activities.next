@@ -15,13 +15,26 @@ import { MediaValidationError } from './errors'
 import { extractVideoImage } from './extractVideoImage'
 import { extractVideoMeta } from './extractVideoMeta'
 import { getMediaAttachment } from './getMediaAttachment'
+import {
+  DEFAULT_IMAGE_OUTPUT_FORMAT,
+  type ImageOutputFormat,
+  encodeImageOutput,
+  getImageOutputFormatDetail
+} from './imageOutputFormat'
+import { getMediaFileUrl } from './mediaFileUrl'
 import { checkQuotaAvailable } from './quota'
 import {
+  ImageRenditionOutput,
   MediaSchema,
   MediaStorage,
   MediaStorageGetFileOutput,
   ThumbnailStorageOutput
 } from './types'
+
+interface SaveImageOptions {
+  isThumbnail?: boolean
+  format?: ImageOutputFormat
+}
 
 export class LocalFileStorage implements MediaStorage {
   private static _instance: MediaStorage
@@ -133,11 +146,13 @@ export class LocalFileStorage implements MediaStorage {
 
     const { path, metaData, previewImage } = file.type.startsWith('video')
       ? await this._saveVideoFile(file)
-      : await this._saveImageFile(file, false)
+      : await this._saveImageFile(file)
     const thumbnail = media.thumbnail
-      ? await this._saveImageFile(media.thumbnail, true)
+      ? await this._saveImageFile(media.thumbnail, { isThumbnail: true })
       : previewImage
-        ? await this._saveImageBuffer(`video-thumbnail.jpg`, previewImage, true)
+        ? await this._saveImageBuffer(`video-thumbnail.jpg`, previewImage, {
+            isThumbnail: true
+          })
         : null
     const storedMedia = await this._database.createMedia({
       actorId: actor.id,
@@ -153,12 +168,12 @@ export class LocalFileStorage implements MediaStorage {
       },
       ...(thumbnail
         ? {
-            // Use the resized WebP's actual size/dimensions (outputInfo), not
+            // Use the resized image's actual size/dimensions (outputInfo), not
             // the input image's metadata.
             thumbnail: {
               path: thumbnail.path,
               bytes: thumbnail.outputInfo.size,
-              mimeType: 'image/webp',
+              mimeType: thumbnail.contentType,
               metaData: {
                 width: thumbnail.outputInfo.width,
                 height: thumbnail.outputInfo.height
@@ -196,13 +211,15 @@ export class LocalFileStorage implements MediaStorage {
       )
     }
 
-    // Use the stored WebP's actual size/dimensions (outputInfo), not the input
+    // Use the stored image's actual size/dimensions (outputInfo), not the input
     // image's metadata.
-    const { outputInfo, path } = await this._saveImageFile(file, true)
+    const { outputInfo, path, contentType } = await this._saveImageFile(file, {
+      isThumbnail: true
+    })
     return {
       path,
       bytes: outputInfo.size,
-      mimeType: 'image/webp',
+      mimeType: contentType,
       metaData: {
         width: outputInfo.width,
         height: outputInfo.height
@@ -210,31 +227,77 @@ export class LocalFileStorage implements MediaStorage {
     }
   }
 
-  private async _saveImageFile(imageFile: File, isThumbnail = false) {
+  async saveImageRendition(
+    actor: Actor,
+    file: File,
+    format: ImageOutputFormat
+  ): Promise<ImageRenditionOutput | null> {
+    if (!file.type.startsWith('image')) return null
+
+    // Refuse the write when the account is already over quota. Note the bytes
+    // are not metered afterwards: usage is counter-based and those counters are
+    // maintained alongside `medias` rows, which a rendition has none of. Keep
+    // renditions few and small.
+    const quotaCheck = await checkQuotaAvailable(
+      this._database,
+      actor,
+      file.size
+    )
+    if (!quotaCheck.available) {
+      throw new MediaValidationError(
+        `Storage quota exceeded. Used: ${quotaCheck.used} bytes, Limit: ${quotaCheck.limit} bytes`
+      )
+    }
+
+    const { outputInfo, path, contentType } = await this._saveImageFile(file, {
+      format
+    })
+    return {
+      path,
+      url: getMediaFileUrl(this._host, path),
+      bytes: outputInfo.size,
+      mimeType: contentType,
+      metaData: {
+        width: outputInfo.width,
+        height: outputInfo.height
+      }
+    }
+  }
+
+  private async _saveImageFile(
+    imageFile: File,
+    options: SaveImageOptions = {}
+  ) {
     return this._saveImageBuffer(
       imageFile.name,
       Buffer.from(await imageFile.arrayBuffer()),
-      isThumbnail
+      options
     )
   }
 
   private async _saveImageBuffer(
     fileName: string,
     imageBuffer: Buffer,
-    isThumbnail = false
+    {
+      isThumbnail = false,
+      format = DEFAULT_IMAGE_OUTPUT_FORMAT
+    }: SaveImageOptions = {}
   ) {
     const uploadPath = this._config.path
+    const { extension, contentType } = getImageOutputFormatDetail(format)
 
     const randomPrefix = crypto.randomBytes(8).toString('hex')
-    const filename = `${randomPrefix}${isThumbnail ? '-thumbnail' : ''}.webp`
+    const filename = `${randomPrefix}${isThumbnail ? '-thumbnail' : ''}.${extension}`
     const filePath = path.resolve(process.cwd(), uploadPath, filename)
-    const resizedImage = sharp(imageBuffer)
-      .resize(MAX_WIDTH, MAX_HEIGHT, { fit: 'inside' })
-      .rotate()
-      .webp({ quality: 95, smartSubsample: true, nearLossless: true })
+    const resizedImage = encodeImageOutput(
+      sharp(imageBuffer)
+        .resize(MAX_WIDTH, MAX_HEIGHT, { fit: 'inside' })
+        .rotate(),
+      format
+    )
     // `metadata()` reports the INPUT image; `toFile()` resolves with the OUTPUT
-    // info (post-resize/WebP dimensions and byte size). Callers that need the
-    // stored file's real size/dimensions (e.g. thumbnails) use `outputInfo`.
+    // info (post-resize/re-encode dimensions and byte size). Callers that need
+    // the stored file's real size/dimensions (e.g. thumbnails) use `outputInfo`.
     // Read metadata from a separate sharp instance so the two operations don't
     // run concurrently on the same pipeline.
     const [metaData, outputInfo] = await Promise.all([
@@ -247,7 +310,7 @@ export class LocalFileStorage implements MediaStorage {
       metaData,
       outputInfo,
       path: filename,
-      contentType: 'image/webp',
+      contentType,
       previewImage: null
     }
   }
