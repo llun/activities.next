@@ -83,13 +83,14 @@ it: a block that carried examples as values could be pasted verbatim and boot a
 real configuration out of them — a signing secret published in this repository,
 or a bucket and reply domain the operator does not own.
 
-Both storage resolvers refuse a blank required value rather than accepting it,
-so `ACTIVITIES_MEDIA_STORAGE_PATH=` or an empty bucket/region disables media
-**and** fitness storage with a warning instead of starting a broken backend.
-Fitness storage falls back to the same `ACTIVITIES_MEDIA_STORAGE_*` variables,
-so it needs the same guard: an empty path would otherwise resolve relative to
-the process working directory, putting uploads in the application root — and for
-media, serving that directory over `/api/v1/files`.
+Both storage resolvers refuse a blank required value rather than accepting it.
+An empty `ACTIVITIES_MEDIA_STORAGE_PATH` or `ACTIVITIES_FITNESS_STORAGE_PATH`,
+or an empty bucket/region on either family, disables that storage with a warning
+instead of starting a broken backend. An empty path would otherwise resolve
+relative to the process working directory, putting uploads in the application
+root — and for media, serving that directory over `/api/v1/files`. Fitness
+storage falls back to the `ACTIVITIES_MEDIA_STORAGE_*` variables when its own
+are unset, and the guard applies on both paths.
 
 Where a database-backed setting depends on one of those environment-only values,
 the control stays visible and reports the blocker rather than disappearing. The

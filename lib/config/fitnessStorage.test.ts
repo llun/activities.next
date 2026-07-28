@@ -63,6 +63,55 @@ describe('FitnessStorage config', () => {
       }
     )
 
+    // The same guard on fitness's own variables. These reach the identical
+    // path.resolve('') in LocalFileFitnessStorage, so a blank one roots
+    // .fit/.gpx uploads at the process CWD exactly as the media path did.
+    it.each([
+      {
+        name: 'a blank path',
+        env: {
+          ACTIVITIES_FITNESS_STORAGE_TYPE: 'fs',
+          ACTIVITIES_FITNESS_STORAGE_PATH: ''
+        }
+      },
+      {
+        name: 'a whitespace-only path',
+        env: {
+          ACTIVITIES_FITNESS_STORAGE_TYPE: 'fs',
+          ACTIVITIES_FITNESS_STORAGE_PATH: '   '
+        }
+      },
+      {
+        name: 'a blank bucket',
+        env: {
+          ACTIVITIES_FITNESS_STORAGE_TYPE: 's3',
+          ACTIVITIES_FITNESS_STORAGE_BUCKET: '',
+          ACTIVITIES_FITNESS_STORAGE_REGION: 'eu-central-1'
+        }
+      },
+      {
+        name: 'a blank region',
+        env: {
+          ACTIVITIES_FITNESS_STORAGE_TYPE: 's3',
+          ACTIVITIES_FITNESS_STORAGE_BUCKET: 'fitness.example.social',
+          ACTIVITIES_FITNESS_STORAGE_REGION: ''
+        }
+      }
+    ])('refuses its own storage variables configured with $name', ({ env }) => {
+      Object.assign(process.env, env)
+      expect(getFitnessStorageConfig()).toBeNull()
+    })
+
+    it('trims a padded path on its own variables', () => {
+      process.env.ACTIVITIES_FITNESS_STORAGE_TYPE = 'fs'
+      process.env.ACTIVITIES_FITNESS_STORAGE_PATH = '  /data/fitness  '
+
+      expect(getFitnessStorageConfig()?.fitnessStorage).toMatchObject({
+        type: 'fs',
+        path: '/data/fitness'
+      })
+    })
+
     it('returns null when no fitness or media storage env vars are set', () => {
       const config = getFitnessStorageConfig()
       expect(config).toBeNull()

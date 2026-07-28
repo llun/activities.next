@@ -396,4 +396,92 @@ describe('extractReplyText', () => {
       'just a plain reply'
     )
   })
+
+  // Every case below published a TRUNCATED status before these guards: the
+  // sender's own words were deleted and the fragment posted with no notice.
+  // That is the one unrecoverable failure this module exists to avoid, so each
+  // is pinned with the exact input that produced it.
+  describe('never deletes what the sender wrote', () => {
+    const CLIENT_QUOTE = [
+      '',
+      'On Sat, Jul 25, 2026 at 9:00 PM Activities <noreply@example.tld> wrote:',
+      `> ${REPLY_SENTINEL}`,
+      '> hello'
+    ].join('\n')
+
+    // The HTML part collapses to ONE line, so a reply that merely STARTS with
+    // "On" looked like an attribution header and the whole reply vanished.
+    it('keeps a one-line HTML reply that starts with On', () => {
+      const html =
+        '<div dir="ltr">On it!</div><div class="gmail_quote">' +
+        '<div class="gmail_attr">On Sat, Jul 25, 2026 at 9:00 PM Activities ' +
+        '&lt;noreply@example.tld&gt; wrote:<br></div>' +
+        `<blockquote><p>${REPLY_SENTINEL}</p></blockquote></div>`
+
+      expect(extractReplyText({ html })).toBe('On it!')
+    })
+
+    it.each([
+      {
+        name: 'an On sentence on its own line',
+        body: 'Thanks, that clears it up.\nOn my read of the 15:00 call we already agreed, here is what Ada wrote:'
+      },
+      {
+        name: 'an On sentence mid-line',
+        body: 'Here is the note. On my read of the 15:00 standup, this is what Ada wrote:'
+      }
+    ])('keeps $name — a clock time is not a date', ({ body }) => {
+      expect(extractReplyText({ text: body + CLIENT_QUOTE })).toBe(body)
+    })
+
+    // A pasted bounce has the same From:/Date:/Subject: shape as Outlook's
+    // block, so only the tail tells them apart.
+    it('keeps a mail header the sender pasted, and their question after it', () => {
+      const html =
+        '<div dir="ltr">Got this bounce today:</div>' +
+        '<div>From: postmaster@example.tld</div>' +
+        '<div>Date: Sat, 25 Jul 2026 09:00:00 +0000</div>' +
+        '<div>Subject: Undelivered Mail Returned to Sender</div>' +
+        '<div>Any idea what that means?</div>'
+
+      expect(extractReplyText({ html })).toContain('Any idea what that means?')
+    })
+
+    it('keeps a postscript written below the signature delimiter', () => {
+      const body =
+        'Sounds good.\n\n-- \nAlice\n\nPS: the window moved to Thursday.'
+
+      expect(extractReplyText({ text: body + CLIENT_QUOTE })).toContain(
+        'PS: the window moved to Thursday.'
+      )
+    })
+
+    it('keeps text below an underscore rule used as a prose separator', () => {
+      const body =
+        'Here are the two options.\n________________\nOption B is cheaper.'
+
+      expect(extractReplyText({ text: body + CLIENT_QUOTE })).toContain(
+        'Option B is cheaper.'
+      )
+    })
+
+    // The other direction still has to work, or the guards would just disable
+    // the parser.
+    it('still drops a real contiguous signature', () => {
+      const body = 'Sounds good.\n\n-- \nAlice\nAcme Corp'
+
+      expect(extractReplyText({ text: body + CLIENT_QUOTE })).toBe(
+        'Sounds good.'
+      )
+    })
+
+    it('still drops a real inline attribution', () => {
+      const body =
+        'My reply text On Sat, Jul 25, 2026 at 9:00 PM Activities <noreply@example.tld> wrote:'
+
+      expect(extractReplyText({ text: body + CLIENT_QUOTE })).toBe(
+        'My reply text'
+      )
+    })
+  })
 })

@@ -40,6 +40,14 @@ const ATTRIBUTION_EVIDENCE = /@|\d{1,2}:\d{2}/
 // regex at its end matches leftmost, which cut at the sender's own first
 // "On …" sentence and published the truncated remainder.
 const INLINE_ATTRIBUTION_OPENER = /(?:^|\s)(?:On|Le|Am|El)\s/g
+
+// What follows a real attribution opener: a date. Gmail/Outlook produce
+// "On Sat, Jul 25, 2026 …", "Am 25.07.2026 …", "El 25 de julio …". A locale
+// that spells the weekday out first ("Le lundi 25 …") simply is not matched,
+// which leaves a stray header fragment in the post — cosmetic, and the side to
+// err on.
+const ATTRIBUTION_DATE_START =
+  /^\s*(?:On|Le|Am|El)\s+(?:\d|Mon|Tue|Wed|Thu|Fri|Sat|Sun|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i
 /**
  * Outlook's forwarded-header block, inline.
  *
@@ -133,6 +141,18 @@ const lastHeaderRunIndex = (line: string) => {
   return index
 }
 
+// Does the text about to be discarded read like something a person wrote,
+// rather than a mail client's header block?
+//
+// A discarded run of `Field: value` lines carries no sentence punctuation. A
+// sender's own prose does. This is the difference between Outlook's unquoted
+// header block — which we want gone — and a sender pasting a bounce message and
+// then asking a question about it, which we must never delete. When in doubt it
+// answers true, because leaving a header fragment in the post is cosmetic and
+// deleting a sentence is published and irreversible.
+const PROSE = /[.?!]["')\]]?(?:\s|$)/
+const looksLikeProse = (text: string) => PROSE.test(text.trim())
+
 // Cut at an "-----Original Message-----" / "---- Forwarded message ----" rule,
 // Outlook's underscore divider, or an inline header run — wherever it appears.
 //
@@ -143,11 +163,22 @@ const lastHeaderRunIndex = (line: string) => {
 const cutAtDivider = (lines: string[]) => {
   for (let index = 0; index < lines.length; index += 1) {
     const value = cleaned(lines[index])
-    if (ORIGINAL_MESSAGE.test(value) || OUTLOOK_DIVIDER.test(value)) {
+    // "-----Original Message-----" is unambiguous; the bare underscore rule is
+    // not, so it has to prove the tail is not prose before taking it.
+    if (ORIGINAL_MESSAGE.test(value)) return lines.slice(0, index)
+    if (OUTLOOK_DIVIDER.test(value)) {
+      if (looksLikeProse(lines.slice(index + 1).join('\n'))) continue
       return lines.slice(0, index)
     }
     const headerRun = lastHeaderRunIndex(lines[index])
     if (headerRun >= 0) {
+      const discarded = [
+        lines[index].slice(headerRun),
+        ...lines.slice(index + 1)
+      ].join('\n')
+      // A sender who pastes a bounce and then asks about it produces the same
+      // From:/Date:/Subject: shape as Outlook. Only the tail tells them apart.
+      if (looksLikeProse(discarded)) continue
       return [...lines.slice(0, index), lines[index].slice(0, headerRun)]
     }
   }
@@ -191,6 +222,15 @@ const cutAtAttribution = (lines: string[]) => {
   return lines
 }
 
+// Strip the blank lines and `>` quoting left hanging after a cut.
+//
+// Known limit: `>` is also ordinary fediverse markup, so a reply that ENDS on a
+// markdown blockquote loses that last quoted run. Requiring an attribution to
+// introduce the quoting was tried and is wrong — a client quote often arrives
+// with its attribution already removed, and "only a quoted block" has none at
+// all — so the two are genuinely indistinguishable here. Documented rather than
+// guessed at, because guessing wrong in the other direction publishes the
+// client's entire quoted original as if the sender had written it.
 const dropTrailingBlankAndQuotedLines = (lines: string[]) => {
   let end = lines.length
   while (end > 0) {
@@ -204,9 +244,6 @@ const dropTrailingBlankAndQuotedLines = (lines: string[]) => {
   return lines.slice(0, end)
 }
 
-// Remove an attribution header sitting at the very end of the kept text. After
-// a sentinel cut this is what is left of "On … wrote:" immediately above the
-// quoted original.
 const dropTrailingAttribution = (lines: string[]) => {
   if (lines.length === 0) return lines
 
@@ -220,12 +257,26 @@ const dropTrailingAttribution = (lines: string[]) => {
   // Walk back over CONTIGUOUS lines for the opener this closer belongs to, so
   // a wrapped attribution goes whole — and stop at a blank line, which a real
   // header never spans.
-  for (let span = 0; span < ATTRIBUTION_MAX_LINES; span += 1) {
+  //
+  // Starts at the PREVIOUS line on purpose. A closer whose own line also opens
+  // with "On" is ambiguous — "On it! On Sat … wrote:" is a one-line HTML reply,
+  // not a header — and anchoring there deleted the whole line, which on the
+  // collapsed HTML path is the entire reply. That case belongs to the inline
+  // branch below, which picks the LAST opener rather than the first.
+  for (let span = 1; span < ATTRIBUTION_MAX_LINES; span += 1) {
     const start = lastIndex - span
     if (start < 0) break
     const startValue = cleaned(lines[start])
     if (span > 0 && startValue === '') break
-    if (!ATTRIBUTION_OPENER.test(startValue)) continue
+    // Same date requirement as the inline branch: without it, a sender's own
+    // line beginning "On my read of the 15:00 call …" directly above the
+    // client's attribution was taken as the opener and deleted.
+    if (
+      !ATTRIBUTION_OPENER.test(startValue) ||
+      !ATTRIBUTION_DATE_START.test(startValue)
+    ) {
+      continue
+    }
 
     const joined = lines
       .slice(start, lastIndex + 1)
@@ -241,7 +292,15 @@ const dropTrailingAttribution = (lines: string[]) => {
   // words they actually wrote.
   let inlineStart = -1
   for (const match of lines[lastIndex].matchAll(INLINE_ATTRIBUTION_OPENER)) {
-    if (ATTRIBUTION_EVIDENCE.test(lines[lastIndex].slice(match.index))) {
+    const remainder = lines[lastIndex].slice(match.index)
+    // Evidence alone is not enough: an "@" or a clock time anywhere later on
+    // the line is satisfied by the sender's own words ("On my read of the 15:00
+    // call …"), and cutting there deleted the sentence. A real attribution puts
+    // a DATE immediately after the opener, so require one.
+    if (
+      ATTRIBUTION_EVIDENCE.test(remainder) &&
+      ATTRIBUTION_DATE_START.test(remainder)
+    ) {
       inlineStart = match.index
     }
   }
@@ -257,9 +316,28 @@ const dropTrailingAttribution = (lines: string[]) => {
   return lines
 }
 
+// Drop a trailing signature block.
+//
+// Clients insert `-- ` and leave the cursor free, so writing a postscript below
+// it is ordinary — and a bare `--` is also used as a prose separator. A real
+// signature is a CONTIGUOUS run to the end of the message, so a blank line
+// followed by more content means this delimiter is not introducing one, and
+// cutting there would delete what the sender wrote after it.
 const dropSignature = (lines: string[]) => {
-  const index = lines.findIndex((line) => SIGNATURE_DELIMITER.test(line))
-  return index === -1 ? lines : lines.slice(0, index)
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!SIGNATURE_DELIMITER.test(lines[index])) continue
+
+    const rest = lines.slice(index + 1)
+    const lastContent = rest.reduce(
+      (found, line, offset) => (line.trim() === '' ? found : offset),
+      -1
+    )
+    const contiguous = rest
+      .slice(0, lastContent + 1)
+      .every((line) => line.trim() !== '')
+    if (contiguous) return lines.slice(0, index)
+  }
+  return lines
 }
 
 const trimBlankEdges = (lines: string[]) => {

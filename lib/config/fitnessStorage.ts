@@ -133,24 +133,45 @@ export const getFitnessStorageConfig = (): {
     }
   }
 
+  // Fitness's own variables need the same guard as the media ones it falls back
+  // to — a blank value here reaches the identical `path.resolve('')` and roots
+  // uploads at the process CWD.
   switch (fitnessStorageType) {
-    case FitnessStorageType.LocalFile:
+    case FitnessStorageType.LocalFile: {
+      const storagePath = requiredStorageValue(
+        'ACTIVITIES_FITNESS_STORAGE_PATH',
+        process.env.ACTIVITIES_FITNESS_STORAGE_PATH,
+        'fitness storage'
+      )
+      if (storagePath === null) return null
       return {
         fitnessStorage: {
           type: fitnessStorageType,
-          path: process.env.ACTIVITIES_FITNESS_STORAGE_PATH as string,
+          path: storagePath as string,
           maxFileSize: getFitnessMaxFileSize(),
           quotaPerAccount: getFitnessQuotaPerAccount(),
           mapboxAccessToken: getMapboxAccessToken()
         }
       }
+    }
     case FitnessStorageType.S3Storage:
     case FitnessStorageType.ObjectStorage: {
+      const bucket = requiredStorageValue(
+        'ACTIVITIES_FITNESS_STORAGE_BUCKET',
+        process.env.ACTIVITIES_FITNESS_STORAGE_BUCKET,
+        'fitness storage'
+      )
+      const region = requiredStorageValue(
+        'ACTIVITIES_FITNESS_STORAGE_REGION',
+        process.env.ACTIVITIES_FITNESS_STORAGE_REGION,
+        'fitness storage'
+      )
+      if (bucket === null || region === null) return null
       return {
         fitnessStorage: {
           type: fitnessStorageType,
-          bucket: process.env.ACTIVITIES_FITNESS_STORAGE_BUCKET as string,
-          region: process.env.ACTIVITIES_FITNESS_STORAGE_REGION as string,
+          bucket: bucket as string,
+          region: region as string,
           hostname:
             process.env.ACTIVITIES_FITNESS_STORAGE_HOSTNAME || undefined,
           endpoint:
