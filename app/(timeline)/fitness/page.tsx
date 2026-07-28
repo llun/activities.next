@@ -87,7 +87,12 @@ const Page: FC = async () => {
   )
   const loadedStatuses = await Promise.all(
     statusIds.map((statusId) =>
-      database.getStatus({ statusId }).catch(() => null)
+      database
+        // This page is signed-in only, and these statuses render the same
+        // interactive chips as everywhere else — without the viewer their
+        // reaction (and like/bookmark) state reads false.
+        .getStatus({ statusId, currentActorId: currentActor.id })
+        .catch(() => null)
     )
   )
   const statuses = loadedStatuses.filter(

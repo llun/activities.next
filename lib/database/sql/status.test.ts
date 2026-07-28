@@ -432,6 +432,36 @@ describe('StatusDatabase', () => {
           }
         })
 
+        it('resolves the viewer own boost from the batch on a list path', async () => {
+          // actorAnnounceStatusId is the boost button's state. It used to be
+          // looked up per status (fully hydrating an Announce just to read its
+          // id); it now comes from the same batch as likes and bookmarks, so
+          // the list path must still report it correctly.
+          const announceId = await database.createAnnounce({
+            id: `${extraActorId}/statuses/announce-batch-test`,
+            actorId: extraActorId,
+            cc: [],
+            to: [ACTIVITY_STREAM_PUBLIC],
+            originalStatusId: reactedStatusId
+          })
+
+          try {
+            const actorStatuses = await database.getActorStatuses({
+              actorId: primaryActorId,
+              currentActorId: extraActorId
+            })
+            const boosted = actorStatuses.find(
+              (status) => status.id === reactedStatusId
+            ) as StatusNote
+
+            expect(boosted.actorAnnounceStatusId).toEqual(announceId?.id)
+          } finally {
+            await database.deleteStatus({
+              statusId: `${extraActorId}/statuses/announce-batch-test`
+            })
+          }
+        })
+
         it('hydrates rollups for the replies under a status', async () => {
           const replies = await database.getStatusReplies({
             statusId: statuses.primary.post,

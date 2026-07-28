@@ -139,6 +139,10 @@ const publicRecipientStatusIds = (database: Knex) =>
 type StatusHydrationContext = {
   bookmarkedStatusIds?: Set<string>
   likedStatusIds?: Set<string>
+  // originalStatusId -> the viewer's own Announce id for it. Only the id is
+  // ever consumed, so this batches what would otherwise be a per-status lookup
+  // that fully hydrates an Announce just to read `.id` off it.
+  announcedStatusIds?: Map<string, string>
   // Pre-batched content-detected languages, keyed by statusId. Viewer-
   // independent (unlike the like/bookmark sets above), so callers populate it
   // for any timeline page regardless of whether a viewer is signed in.
@@ -1253,7 +1257,7 @@ export const StatusSQLDatabaseMixin = (
     currentActorId?: string
   ): Promise<Pick<
     StatusHydrationContext,
-    'likedStatusIds' | 'bookmarkedStatusIds'
+    'likedStatusIds' | 'bookmarkedStatusIds' | 'announcedStatusIds'
   > | null> {
     // No viewer means no viewer state to resolve, and the consumer must be left
     // with the fields UNSET — it reads an unset field as "not batched, look this
@@ -1264,9 +1268,9 @@ export const StatusSQLDatabaseMixin = (
     // A viewer with nothing to look up still gets empty sets rather than null:
     // returning null here would mark the page as un-batched and send every row
     // back to a per-status query.
-    const [bookmarkRows, likeRows] =
+    const [bookmarkRows, likeRows, announceRows] =
       statusIds.length === 0
-        ? [[], []]
+        ? [[], [], []]
         : await Promise.all([
             database('bookmarks')
               .where('actorId', currentActorId)
@@ -1275,11 +1279,22 @@ export const StatusSQLDatabaseMixin = (
             database('likes')
               .where('actorId', currentActorId)
               .whereIn('statusId', statusIds)
-              .select<{ statusId: string }[]>('statusId')
+              .select<{ statusId: string }[]>('statusId'),
+            database('statuses')
+              .where('type', StatusType.enum.Announce)
+              .where('actorId', currentActorId)
+              .whereIn('originalStatusId', statusIds)
+              .select<{ id: string; originalStatusId: string }[]>(
+                'id',
+                'originalStatusId'
+              )
           ])
     return {
       bookmarkedStatusIds: new Set(bookmarkRows.map((row) => row.statusId)),
-      likedStatusIds: new Set(likeRows.map((row) => row.statusId))
+      likedStatusIds: new Set(likeRows.map((row) => row.statusId)),
+      announcedStatusIds: new Map(
+        announceRows.map((row) => [row.originalStatusId, row.id] as const)
+      )
     }
   }
 
@@ -2917,7 +2932,7 @@ export const StatusSQLDatabaseMixin = (
       totalShares,
       isActorLikedStatusResult,
       isActorBookmarkedStatusResult,
-      actorAnnounceStatus,
+      actorAnnounceStatusId,
       edits,
       fitnessFile,
       detectedLanguage,
@@ -2953,10 +2968,12 @@ export const StatusSQLDatabaseMixin = (
             })
         : false,
       currentActorId
-        ? getActorAnnounceStatus({
-            statusId: data.id,
-            actorId: currentActorId
-          })
+        ? hydrationContext.announcedStatusIds
+          ? (hydrationContext.announcedStatusIds.get(data.id) ?? null)
+          : getActorAnnouncedStatusId({
+              originalStatusId: data.id,
+              actorId: currentActorId
+            })
         : null,
       database('status_history').where('statusId', data.id),
       // A status can carry several fitness files (e.g. the same ride merged
@@ -3047,7 +3064,7 @@ export const StatusSQLDatabaseMixin = (
       reactions,
       isActorLiked: isActorLikedStatusResult,
       isActorBookmarked: isActorBookmarkedStatusResult,
-      actorAnnounceStatusId: actorAnnounceStatus?.id ?? null,
+      actorAnnounceStatusId,
       isLocalActor: Boolean(actor?.account),
       attachments: orderedAttachments,
       tags,

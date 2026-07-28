@@ -230,7 +230,11 @@ const Page: FC<Props> = async ({ params }) => {
   if (status.type !== StatusType.enum.Announce && status.reply) {
     let replyStatus = await database.getStatus({
       statusId: status.reply,
-      withReplies: false
+      withReplies: false,
+      // Ancestors render the same interactive chips as the focused status, so
+      // they need the same viewer — otherwise one post shows its reaction
+      // highlighted on the timeline and unhighlighted as a thread ancestor.
+      currentActorId: currentActor?.id
     })
     while (previouses.length < 3 && replyStatus) {
       // `getStatus` does no visibility filtering, so without this guard a public
@@ -257,7 +261,8 @@ const Page: FC<Props> = async ({ params }) => {
       }
       replyStatus = await database.getStatus({
         statusId: replyStatus.reply,
-        withReplies: false
+        withReplies: false,
+        currentActorId: currentActor?.id
       })
     }
   }
