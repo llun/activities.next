@@ -20,6 +20,7 @@ import { isActorModerationBlocked } from '@/lib/services/guards/OAuthGuard'
 import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { saveMedia } from '@/lib/services/medias'
 import { ACCEPTED_FILE_TYPES } from '@/lib/services/medias/constants'
+import { sanitizeStoredFileName } from '@/lib/services/medias/fileName'
 import { exceedsMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { validateStatusContentLimits } from '@/lib/services/statuses/contentLimits'
@@ -97,34 +98,6 @@ const notifyFailure = async (
   }
 }
 
-/**
- * Reduce a provider-supplied filename to something safe to hand the media
- * pipeline.
- *
- * The name reaches `join(tmpdir(), <random> + file.name)` and a `writeFile` in
- * the object-storage video path, and `join` resolves `..` segments — so
- * `../../../../etc/cron.d/x` escapes the temp directory entirely. Every other
- * upload surface gets a basename from a browser's multipart encoder; inbound
- * email is the first that takes this string straight off the wire.
- */
-const safeAttachmentFilename = (filename?: string) => {
-  if (!filename) return 'attachment'
-  // Basename only: strip anything up to the last separator of either flavour,
-  // then remove path and control characters that survived.
-  const base = filename
-    .split(/[\\/]/)
-    .pop()
-    // Strip C0 controls by code point rather than a character class: a control
-    // range inside a regex literal trips the no-control-regex lint rule, and
-    // spelling it out here is clearer about intent anyway.
-    ?.split('')
-    .filter((character) => character.charCodeAt(0) > 0x1f)
-    .join('')
-    .trim()
-  if (!base || base === '.' || base === '..') return 'attachment'
-  return base.slice(0, 200)
-}
-
 const isQuotedInlineImage = (
   attachment: InboundEmailAttachment,
   html?: string
@@ -176,7 +149,10 @@ const storeAttachments = async (
 
       const file = new File(
         [buffer],
-        safeAttachmentFilename(attachment.filename),
+        // The shared sanitizer is mandatory for anything reaching media
+        // storage (REVIEW.md, 'Uploaded file names'): the drivers join this
+        // name into a temp path, and path.join resolves '..'.
+        sanitizeStoredFileName(attachment.filename ?? ''),
         {
           type: attachment.contentType
         }
