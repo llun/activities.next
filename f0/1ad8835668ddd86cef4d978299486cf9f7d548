@@ -1,0 +1,51 @@
+REVIEW.md
+  s_b294d530b9cf18::t_0305d2b488a86f 163-173,175
+  s_b294d530b9cf18::t_63bccea290568b 174
+lib/services/medias/localFile.ts
+  s_b294d530b9cf18::t_50913630098827 166
+  s_b294d530b9cf18::t_197aaab24f5e73 17
+  s_b294d530b9cf18::t_5ddc15133d1810 337
+lib/services/medias/fileName.test.ts
+  s_b294d530b9cf18::t_316aeb5e942f1f 1-224
+lib/services/medias/S3StorageFile.ts
+  s_b294d530b9cf18::t_65279560b49d5d 635,637-638,642
+  s_b294d530b9cf18::t_b84522640b0a56 661
+  s_b294d530b9cf18::t_f77adfb295507d 476
+  s_b294d530b9cf18::t_01bbb1f216e7de 219-221,227
+  s_b294d530b9cf18::t_ba27638cf6edc3 14,23-27
+  s_b294d530b9cf18::t_0d754120393dbe 440
+lib/services/medias/localFile.test.ts
+  s_b294d530b9cf18::t_0e663b54724627 88,222-289,293-316
+  s_b294d530b9cf18::t_39084fd6286756 8-10,24-30
+  s_b294d530b9cf18::t_47d90e4051123f 31
+AGENTS.md
+  s_b294d530b9cf18::t_539a6ac369cf9e 680-687
+CLAUDE.md
+  s_b294d530b9cf18::t_185e2bb7d710c3 43
+lib/services/medias/fileName.ts
+  s_b294d530b9cf18::t_66fbaa5d63a123 1-131
+.github/copilot-instructions.md
+  s_b294d530b9cf18::t_916bf28978091a 22-26
+lib/services/medias/S3StorageFile.test.ts
+  s_b294d530b9cf18::t_65dbfc53c7252e 542-548
+  s_b294d530b9cf18::t_a839872cd9812c 212-249
+  s_b294d530b9cf18::t_401bf15474aa08 48-55
+  s_b294d530b9cf18::t_c50c010eb881e2 8-10,18-19
+  s_b294d530b9cf18::t_910e03f079b8d2 408-541,549-559
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "f01ad8835668ddd86cef4d978299486cf9f7d548",
+  "prompts": {},
+  "sessions": {
+    "s_b294d530b9cf18": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5d34f930-05d2-4e7f-abca-7087022e883d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
