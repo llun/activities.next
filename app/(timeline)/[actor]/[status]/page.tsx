@@ -285,7 +285,10 @@ const Page: FC<Props> = async ({ params }) => {
           // which already supplies its own top padding, so only the signed-in
           // surface needs this gap.
           currentActorProfile && 'mt-4',
-          'overflow-hidden rounded-2xl border bg-background/80 shadow-sm'
+          // No `overflow-hidden`: this card contains posts, and a post's
+          // non-portaled overlays (the reaction picker) would be clipped by it —
+          // the same reason `Posts` dropped it.
+          'rounded-2xl border bg-background/80 shadow-sm'
         )}
       >
         {currentActorProfile ? (
@@ -332,7 +335,10 @@ const Page: FC<Props> = async ({ params }) => {
         // logged-out `PublicShell` already provides its own, so scope the gap
         // to the signed-in card to keep the spacing consistent across both.
         currentActorProfile && 'mt-4',
-        'overflow-hidden rounded-2xl border bg-background/80 shadow-sm'
+        // No `overflow-hidden`: this card contains posts, and a post's
+        // non-portaled overlays (the reaction picker) would be clipped by it —
+        // the same reason `Posts` dropped it.
+        'rounded-2xl border bg-background/80 shadow-sm'
       )}
     >
       {currentActorProfile ? (

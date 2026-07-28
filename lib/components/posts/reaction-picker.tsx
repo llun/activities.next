@@ -154,7 +154,13 @@ export const ReactionPicker: FC<ReactionPickerProps> = ({
       <div
         role="dialog"
         aria-label="Choose a reaction"
-        className="bg-background absolute bottom-9 left-0 z-40 w-72 overflow-hidden rounded-xl border shadow-lg"
+        // Opens downward (like the composer's emoji picker) rather than upward.
+        // Upward it needs ~330px of clear space above the chip row, which the
+        // status detail page does not have — the focused post sits ~170px from
+        // the top of its card, so the panel's head was clipped away by the
+        // card's overflow, and block-start overflow can never be scrolled back
+        // into view.
+        className="bg-background absolute top-full left-0 z-40 mt-2 w-72 overflow-hidden rounded-xl border shadow-lg"
       >
         <div className="border-b p-2.5">
           <div className="relative">

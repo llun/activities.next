@@ -1607,12 +1607,20 @@ export type GetCollectionTimelineParams = {
   // getPublicCollectionTimeline instead.
   actorId: string
   projection?: 'owner' | 'public'
+  // Hydration-only viewer; see GetPublicCollectionTimelineParams. Defaults to
+  // the owner, so the owner's own public preview still shows their state.
+  currentActorId?: string
   limit?: number
   maxStatusId?: string | null
   minStatusId?: string | null
 }
 export type GetPublicCollectionTimelineParams = {
   id: string
+  // The signed-in reader, for hydration only. `projection` decides WHICH
+  // statuses this feed contains; this decides whose like/bookmark/reaction
+  // state they carry. A public feed rendered for a signed-in viewer still shows
+  // interactive controls, so those controls must reflect that viewer.
+  currentActorId?: string
   limit?: number
   maxStatusId?: string | null
   minStatusId?: string | null
