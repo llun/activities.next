@@ -14,7 +14,11 @@ import { MAX_HEIGHT, MAX_WIDTH, STORED_IMAGE_RESIZE_OPTIONS } from './constants'
 import { MediaValidationError } from './errors'
 import { extractVideoImage } from './extractVideoImage'
 import { extractVideoMeta } from './extractVideoMeta'
-import { getStoredMediaExtension, sanitizeStoredFileName } from './fileName'
+import {
+  createMediaTempFilePath,
+  getStoredMediaExtension,
+  sanitizeStoredFileName
+} from './fileName'
 import { getMediaAttachment } from './getMediaAttachment'
 import {
   DEFAULT_IMAGE_OUTPUT_FORMAT,
@@ -353,10 +357,26 @@ export class LocalFileStorage implements MediaStorage {
     }
   }
 
+  // Mirrors `S3FileStorage._uploadVideoToS3`: the probe and the preview frame
+  // both read a temp copy, so nothing reaches the media root until both have
+  // succeeded. Writing the video there first and extracting from it afterwards
+  // left the bytes on disk whenever ffmpeg found no decodable frame, with no
+  // `medias` row — the only handle anything but
+  // `scripts/maintenance/cleanupMediaStorage.ts` has on a stored path.
   private async _saveVideoFile(videoFile: File) {
     const uploadPath = this._config.path
     const buffer = Buffer.from(await videoFile.arrayBuffer())
-    const probe = await extractVideoMeta(Buffer.from(buffer))
+    const tmpVideoFile = createMediaTempFilePath(videoFile.name)
+    // `wx` (O_EXCL) so the write fails rather than following a symlink someone
+    // planted at the path, or clobbering an existing file. The 64-bit random
+    // prefix already makes that infeasible to aim at; this makes it impossible.
+    await fs.writeFile(tmpVideoFile, buffer, { flag: 'wx' })
+    // `finally` so a probe/preview failure still removes the temp file instead
+    // of leaking it for the lifetime of the container.
+    const [probe, previewImage] = await Promise.all([
+      extractVideoMeta(buffer),
+      extractVideoImage(tmpVideoFile)
+    ]).finally(() => fs.unlink(tmpVideoFile).catch(() => undefined))
     const videoStream = probe.streams.find(
       (stream) => stream.codec_type === 'video'
     )
@@ -378,7 +398,6 @@ export class LocalFileStorage implements MediaStorage {
     const filename = `${randomPrefix}${ext}`
     const filePath = path.resolve(process.cwd(), uploadPath, filename)
     await fs.writeFile(filePath, buffer)
-    const previewImage = await extractVideoImage(filePath)
     return {
       metaData,
       path: filename,

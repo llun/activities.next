@@ -464,6 +464,61 @@ describe('LocalFileStorage.saveFile with a video', () => {
     )
   })
 
+  // Regression: the video was written into the media root and the preview frame
+  // extracted from it only afterwards, so a clip ffmpeg cannot decode left the
+  // bytes on disk with no `medias` row — and a row is the only handle anything
+  // but `scripts/maintenance/cleanupMediaStorage.ts` has on a stored path. The
+  // S3 driver never had the gap: it extracts from its temp file before it
+  // uploads, so a failed extraction stores nothing.
+  it('stores nothing when the preview frame cannot be extracted', async () => {
+    vi.mocked(extractVideoImage).mockRejectedValue(new Error('ffmpeg failed'))
+    const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {
+      type: 'video/mp4'
+    })
+
+    // The extraction's own error, not a `MediaValidationError`: a storage-side
+    // fault stays a logged 500 rather than the 422 a client will not retry.
+    await expect(createStorage().saveFile(actor, { file })).rejects.toThrow(
+      'ffmpeg failed'
+    )
+
+    expect(await fs.readdir(mediaRoot)).toEqual([])
+    expect(database.createMedia).not.toHaveBeenCalled()
+    // Nor may the temp copy the extraction read outlive the failure.
+    const tempPath = vi.mocked(extractVideoImage).mock.calls[0][0]
+    await expect(fs.access(tempPath)).rejects.toThrow()
+  })
+
+  it('removes the temp video once probing finishes', async () => {
+    const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {
+      type: 'video/mp4'
+    })
+
+    await createStorage().saveFile(actor, { file })
+
+    const tempPath = vi.mocked(extractVideoImage).mock.calls[0][0]
+    await expect(fs.access(tempPath)).rejects.toThrow()
+  })
+
+  // The temp copy is built from the supplied name, so it needs the entry-point
+  // guard the S3 driver already has: `path.join` resolves `..`, and it takes
+  // three of them to escape — the first is absorbed by the random prefix's own
+  // segment, which is why the separator between prefix and name is load-bearing.
+  it('writes the temp video inside the temp directory for a traversing name', async () => {
+    const file = new File(
+      [Buffer.from('video-bytes')],
+      '../../../../etc/cron.d/evil.mp4',
+      { type: 'video/mp4' }
+    )
+
+    await createStorage().saveFile(actor, { file })
+
+    expect(extractVideoImage).toHaveBeenCalledTimes(1)
+    const tempPath = vi.mocked(extractVideoImage).mock.calls[0][0]
+    expect(path.resolve(path.dirname(tempPath))).toBe(path.resolve(os.tmpdir()))
+    expect(path.basename(tempPath)).toMatch(/^[0-9a-f]{16}-evil\.mp4$/)
+  })
+
   it('derives the stored extension from the content type', async () => {
     const file = new File([Buffer.from('video-bytes')], 'MOVIE.MOV', {
       type: 'video/quicktime'

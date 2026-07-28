@@ -546,6 +546,24 @@ describe('S3FileStorage saveFile with a video', () => {
     await expect(fs.access(tempPath)).rejects.toThrow()
   })
 
+  // The other half of that failure, and the half the local driver got wrong:
+  // extraction runs before the `PutObjectCommand`, so a video with no decodable
+  // frame is never stored. Mirrors `localFile.test.ts` — a stored object with no
+  // `medias` row is unreachable by everything except the cleanup script.
+  it('stores nothing when the preview frame cannot be extracted', async () => {
+    vi.mocked(extractVideoImage).mockRejectedValue(new Error('ffmpeg failed'))
+    const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {
+      type: 'video/mp4'
+    })
+
+    await expect(createStorage().saveFile(actor, { file })).rejects.toThrow(
+      'ffmpeg failed'
+    )
+
+    expect(send).not.toHaveBeenCalled()
+    expect(database.createMedia).not.toHaveBeenCalled()
+  })
+
   it.each([
     {
       description: 'derives the object key extension from the content type',
