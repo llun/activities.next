@@ -571,7 +571,7 @@ describe('FitnessStatusDetail', () => {
       buildStatus({
         fitness: {
           ...buildStatus().fitness,
-          mapFailed: true
+          mapFailure: 'missing' as const
         }
       } as Partial<StatusNote>)
 

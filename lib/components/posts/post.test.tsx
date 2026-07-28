@@ -1084,7 +1084,7 @@ describe('Post', () => {
         totalDurationSeconds: 9480,
         elevationGainMeters: 964,
         activityType: 'run',
-        mapFailed: true
+        mapFailure: 'missing' as const
       }
     }
 
@@ -1122,6 +1122,30 @@ describe('Post', () => {
       expect(screen.getByText('Duration')).toBeInTheDocument()
     })
 
+    it('names the extra map when an older one could not be removed', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          currentActor={status.actor!}
+          status={{
+            ...mapFailedStatus,
+            fitness: {
+              ...mapFailedStatus.fitness,
+              mapFailure: 'duplicate' as const
+            }
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      // The map WAS produced here — saying it could not be is the opposite of
+      // what the post shows.
+      expect(
+        screen.getByText(/older route map image could not be removed/i)
+      ).toBeInTheDocument()
+    })
+
     it('does not claim there is no map when the previous one is still shown', () => {
       render(
         <Post
@@ -1130,7 +1154,10 @@ describe('Post', () => {
           currentActor={status.actor!}
           status={{
             ...mapFailedStatus,
-            fitness: { ...mapFailedStatus.fitness, hasMapData: true }
+            fitness: {
+              ...mapFailedStatus.fitness,
+              mapFailure: 'stale' as const
+            }
           }}
           onShowAttachment={vi.fn()}
         />

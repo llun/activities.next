@@ -659,13 +659,46 @@ describe('StatusDatabase', () => {
         // This payload is served to every viewer of the status, so it carries
         // the fact and never the reason — a raw error string can name internal
         // infrastructure. The owner reads the reason on their own files page.
-        expect(status.fitness?.mapFailed).toBe(true)
+        expect(status.fitness?.mapFailure).toBe('missing')
         expect(JSON.stringify(status.fitness)).not.toContain('s3.internal')
         // The activity itself is fine and must stay usable everywhere.
         expect(status.fitness?.processingStatus).toBe('completed')
       })
 
-      it('leaves mapFailed false for an activity whose map is fine', async () => {
+      it('distinguishes a stale map from a missing one', async () => {
+        const statusId = `${emptyActorId}/statuses/fitness-map-stale`
+
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'This activity still shows its previous route map'
+        })
+
+        const fitnessFile = await database.createFitnessFile({
+          actorId: emptyActorId,
+          statusId,
+          path: `fitness/${Date.now()}-map-stale.fit`,
+          fileName: 'map-stale.fit',
+          fileType: 'fit',
+          mimeType: 'application/octet-stream',
+          bytes: 4096
+        })
+        await database.updateFitnessFileActivityData(fitnessFile!.id, {
+          hasMapData: true,
+          mapImagePath: 'medias/old-route-map.webp',
+          mapError: 'tile server down'
+        })
+
+        // A failed regeneration keeps the map it could not replace, so the copy
+        // the post picks must not claim the activity has none.
+        const status = (await database.getStatus({ statusId })) as StatusNote
+        expect(status.fitness?.mapFailure).toBe('stale')
+      })
+
+      it('leaves mapFailure unset for an activity whose map is fine', async () => {
         const statusId = `${emptyActorId}/statuses/fitness-map-ok`
 
         await database.createNote({
@@ -688,7 +721,7 @@ describe('StatusDatabase', () => {
         })
 
         const status = (await database.getStatus({ statusId })) as StatusNote
-        expect(status.fitness?.mapFailed).toBe(false)
+        expect(status.fitness?.mapFailure).toBeUndefined()
       })
 
       it('serializes movingTimeSeconds when present and omits it otherwise', async () => {

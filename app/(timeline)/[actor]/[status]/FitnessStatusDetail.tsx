@@ -2048,12 +2048,12 @@ export const FitnessStatusDetail: FC<Props> = ({
           file the switcher has selected: the retry endpoint only acts on the
           primary, so a button driven by a non-primary file's reason would 422
           on every click. Same `completed` gate `Post` applies. */}
-      {status.fitness?.mapFailed &&
+      {status.fitness?.mapFailure &&
       status.fitness?.processingStatus === 'completed' &&
       isOwner ? (
         <RetryFitnessButton
           statusId={status.id}
-          variant={status.fitness.hasMapData ? 'map-stale' : 'map'}
+          variant={`map-${status.fitness.mapFailure}`}
         />
       ) : null}
 

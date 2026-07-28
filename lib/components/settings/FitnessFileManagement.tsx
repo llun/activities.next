@@ -31,6 +31,7 @@ import {
   DialogTitle
 } from '@/lib/components/ui/dialog'
 import { Progress } from '@/lib/components/ui/progress'
+import { MAP_CLEANUP_ERROR } from '@/lib/services/fitness-files/mapErrors'
 import { formatFileSize } from '@/lib/utils/formatFileSize'
 
 interface FitnessFileItem {
@@ -53,6 +54,10 @@ interface FitnessFileItem {
   // Whether a map exists despite `mapError` — a failed REgeneration keeps the
   // previous one, so the copy must not claim there is none.
   hasMapData?: boolean
+  // A non-primary file (the second device of a merged same-ride post) never
+  // owns the status's map, so a reason left on one is not actionable: the retry
+  // the post offers deliberately skips it.
+  isPrimary?: boolean
   importBatchId?: string
 }
 
@@ -335,23 +340,27 @@ export function FitnessFileManagement({
                             )}
                           </div>
                         )}
-                        {fitnessFile.mapError && !importFailed && (
-                          <div className="space-y-1 pt-1">
-                            {/* Muted, not destructive: the activity imported —
-                                only its route map is missing or out of date.
-                                Retrying is offered on the post itself. */}
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                                {fitnessFile.hasMapData
-                                  ? 'Route map out of date'
-                                  : 'No route map'}
-                              </span>
+                        {fitnessFile.mapError &&
+                          !importFailed &&
+                          fitnessFile.isPrimary !== false && (
+                            <div className="space-y-1 pt-1">
+                              {/* Muted, not destructive: the activity imported —
+                                  only its route map is wrong. Retrying is
+                                  offered on the post itself. */}
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                                  {fitnessFile.mapError === MAP_CLEANUP_ERROR
+                                    ? 'Extra route map'
+                                    : fitnessFile.hasMapData
+                                      ? 'Route map out of date'
+                                      : 'No route map'}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {fitnessFile.mapError}
+                              </p>
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                              {fitnessFile.mapError}
-                            </p>
-                          </div>
-                        )}
+                          )}
                       </div>
 
                       <div className="flex gap-2">

@@ -311,6 +311,39 @@ describe('processFitnessFileJob', () => {
       })
     })
 
+    // Real media rows with distinct paths, as production produces: `saveMedia`
+    // is mocked, so its stub id resolves to nothing and the cleanup's media
+    // lookup would find nothing to delete.
+    const storeMapMedia = async (path: string) => {
+      const media = await database.createMedia({
+        actorId: actor.id,
+        original: {
+          path,
+          bytes: 1_400,
+          mimeType: 'image/webp',
+          metaData: { width: 800, height: 600 }
+        }
+      })
+      return {
+        id: String(media!.id),
+        type: 'image' as const,
+        mime_type: 'image/webp',
+        url: `https://llun.test/api/v1/files/${path}`,
+        preview_url: null,
+        text_url: null,
+        remote_url: null,
+        meta: {
+          original: {
+            width: 800,
+            height: 600,
+            size: '800x600',
+            aspect: 1.3333333333
+          }
+        },
+        description: 'Route map'
+      }
+    }
+
     // A map failure is a degraded success, not a dead import: the activity
     // arrived, so the file stays `completed` — anything else hides a good
     // activity behind every `completed` gate — and the post keeps its summary
@@ -545,37 +578,6 @@ describe('processFitnessFileJob', () => {
         text: 'Morning run'
       })
 
-      // Real media rows, so the cleanup's media lookup and deletion actually
-      // run — `saveMedia` is mocked, and its stub id resolves to nothing.
-      const storeMapMedia = async (path: string) => {
-        const media = await database.createMedia({
-          actorId: actor.id,
-          original: {
-            path,
-            bytes: 1_400,
-            mimeType: 'image/webp',
-            metaData: { width: 800, height: 600 }
-          }
-        })
-        return {
-          id: String(media!.id),
-          type: 'image' as const,
-          mime_type: 'image/webp',
-          url: `https://llun.test/api/v1/files/${path}`,
-          preview_url: null,
-          text_url: null,
-          remote_url: null,
-          meta: {
-            original: {
-              width: 800,
-              height: 600,
-              size: '800x600',
-              aspect: 1.3333333333
-            }
-          },
-          description: 'Route map'
-        }
-      }
       const firstMap = await storeMapMedia('medias/route-map-first.webp')
       const secondMap = await storeMapMedia('medias/route-map-second.webp')
       mockSaveMedia
@@ -621,6 +623,9 @@ describe('processFitnessFileJob', () => {
       const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
         text: 'Morning run'
       })
+      mockSaveMedia
+        .mockResolvedValueOnce(await storeMapMedia('medias/cleanup-1.webp'))
+        .mockResolvedValueOnce(await storeMapMedia('medias/cleanup-2.webp'))
 
       await processFitnessFileJob(database, {
         id: 'job-map-cleanup-first',
@@ -648,13 +653,65 @@ describe('processFitnessFileJob', () => {
       })
     })
 
+    it('sweeps up a map a previous run failed to remove', async () => {
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+      mockSaveMedia
+        .mockResolvedValueOnce(await storeMapMedia('medias/sweep-1.webp'))
+        .mockResolvedValueOnce(await storeMapMedia('medias/sweep-2.webp'))
+        .mockResolvedValueOnce(await storeMapMedia('medias/sweep-3.webp'))
+
+      await processFitnessFileJob(database, {
+        id: 'job-map-sweep-first',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      vi.spyOn(database, 'deleteAttachmentsByIds').mockRejectedValueOnce(
+        new Error('attachment delete failed')
+      )
+      await processFitnessFileJob(database, {
+        id: 'job-map-sweep-second',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      // Two maps on the post, and the pointer that identified the first one has
+      // already moved on — so the retry has to find it some other way or the
+      // leftover (after a privacy change, an unfiltered route) is permanent.
+      const afterFailure = await database.getStatus({
+        statusId,
+        withReplies: false
+      })
+      if (afterFailure?.type !== StatusType.enum.Note) {
+        fail('Expected a note status')
+      }
+      expect(afterFailure.attachments).toHaveLength(2)
+
+      await processFitnessFileJob(database, {
+        id: 'job-map-sweep-retry',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      const status = await database.getStatus({ statusId, withReplies: false })
+      if (status?.type !== StatusType.enum.Note) fail('Expected a note status')
+      expect(status.attachments).toHaveLength(1)
+      expect(status.attachments[0].url).toContain('sweep-3.webp')
+      expect(
+        (await database.getFitnessFile({ id: fitnessFileId }))?.mapError
+      ).toBeUndefined()
+    })
+
     it('leaves another fitness file’s map on the same status alone', async () => {
       const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
         text: 'Merged same-ride post'
       })
 
-      // A merged same-ride post: the other device's file owns its own map on
-      // the same status. Reprocessing this file must not touch it.
+      // A merged same-ride post: the other device has its own fitness file, and
+      // that file claims its own map on the same status. Reprocessing this file
+      // must not touch it.
       const otherMedia = await database.createMedia({
         actorId: actor.id,
         original: {
@@ -674,6 +731,23 @@ describe('processFitnessFileJob', () => {
         name: 'Activity route map',
         mediaId: otherMedia!.id
       })
+      const otherFitnessFile = await database.createFitnessFile({
+        actorId: actor.id,
+        statusId,
+        path: 'fitness/other-device.fit',
+        fileName: 'other-device.fit',
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 4_096
+      })
+      await database.updateFitnessFileActivityData(otherFitnessFile!.id, {
+        hasMapData: true,
+        mapImagePath: otherMedia!.original.path
+      })
+
+      mockSaveMedia
+        .mockResolvedValueOnce(await storeMapMedia('medias/merged-1.webp'))
+        .mockResolvedValueOnce(await storeMapMedia('medias/merged-2.webp'))
 
       await processFitnessFileJob(database, {
         id: 'job-map-other-file-first',

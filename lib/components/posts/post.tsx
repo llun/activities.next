@@ -144,20 +144,21 @@ export const Post: FC<PostProps> = (props) => {
   const fitnessRetryVariant: 'failed' | 'stuck' =
     fitnessProcessingStatus === 'failed' ? 'failed' : 'stuck'
   const isFitnessCompleted = fitnessProcessingStatus === 'completed'
-  // A completed activity whose route map could not be rendered or stored. The
-  // activity itself is intact — stats, charts, attachments and federation are
-  // unaffected — so this stays a quiet owner-only retry rather than the
-  // destructive "Processing failed" banner every viewer sees.
-  const isFitnessMapFailed =
-    isFitnessCompleted && Boolean(fitnessFile?.mapFailed)
-  // The activity can still be showing the map an earlier run produced — that is
-  // what a failed REgeneration leaves behind — so the copy must not claim there
-  // is no map. It matters beyond wording: the map still on the post is the one
-  // the owner tried to replace, which after a privacy change is the unfiltered
-  // route.
-  const fitnessMapRetryVariant: 'map' | 'map-stale' = fitnessFile?.hasMapData
-    ? 'map-stale'
-    : 'map'
+  // A completed activity whose route map is wrong. The activity itself is
+  // intact — stats, charts, attachments and federation are unaffected — so this
+  // stays a quiet owner-only retry rather than the destructive "Processing
+  // failed" banner every viewer sees.
+  // What is wrong with the route map, when something is. The copy differs per
+  // kind because the post looks different in each: no map at all, the previous
+  // map still shown because the new one could not be made, or the new one plus
+  // an older one the run could not remove. Saying "could not be generated"
+  // above a rendered map is how an owner concludes the feature is lying.
+  const fitnessMapFailure = isFitnessCompleted
+    ? fitnessFile?.mapFailure
+    : undefined
+  const fitnessMapRetryVariant = fitnessMapFailure
+    ? (`map-${fitnessMapFailure}` as const)
+    : undefined
   const fitnessDistance = formatFitnessDistance(
     fitnessFile?.totalDistanceMeters
   )
@@ -276,7 +277,7 @@ export const Post: FC<PostProps> = (props) => {
             )
           ) : null}
 
-          {isFitnessMapFailed && isOwner ? (
+          {fitnessMapRetryVariant && isOwner ? (
             <RetryFitnessButton
               statusId={actualStatus.id}
               variant={fitnessMapRetryVariant}

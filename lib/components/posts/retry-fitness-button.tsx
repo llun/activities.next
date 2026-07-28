@@ -9,23 +9,27 @@ import { cn } from '@/lib/utils'
 interface Props {
   statusId: string
   // `failed`: the job threw and gave up. `stuck`: the file is still marked
-  // `processing` long after its worker died mid-run. `map`: the activity
-  // imported fine but its route map could not be rendered or stored — a
-  // degraded success, so it reads as a note rather than an error. `map-stale`:
-  // same, except the activity still has the map from an earlier run, so the
-  // copy must not claim there is none — and that map may predate the privacy
-  // location the owner just added, which is the reason they regenerated.
+  // `processing` long after its worker died mid-run. The three `map-*` variants
+  // are degraded successes — the activity imported fine and only its route map
+  // is wrong — so they read as notes rather than errors, and each describes what
+  // the post actually looks like: no map (`missing`), the previous map because
+  // the new one could not be made (`stale` — after a privacy change that is the
+  // route the owner was trying to hide), or the new map plus an older one the
+  // run could not remove (`duplicate`).
   // All are retriable; the copy differs so the owner sees why.
-  variant?: 'failed' | 'stuck' | 'map' | 'map-stale'
+  variant?: 'failed' | 'stuck' | 'map-missing' | 'map-stale' | 'map-duplicate'
 }
 
 const LEAD_TEXT: Record<NonNullable<Props['variant']>, string> = {
   failed: 'Processing failed. The original activity file is still available.',
   stuck:
     'Processing is taking longer than expected. The original activity file is still available.',
-  map: 'The route map image could not be generated. Everything else in this activity is intact.',
+  'map-missing':
+    'The route map image could not be generated. Everything else in this activity is intact.',
   'map-stale':
-    'The route map image could not be updated, so this is the previous one. Everything else in this activity is intact.'
+    'The route map image could not be updated, so this is the previous one. Everything else in this activity is intact.',
+  'map-duplicate':
+    'An older route map image could not be removed, so this activity may show two. Everything else in it is intact.'
 }
 
 export const RetryFitnessButton: FC<Props> = ({
@@ -50,7 +54,7 @@ export const RetryFitnessButton: FC<Props> = ({
       className={cn(
         'mt-2 flex items-center gap-2',
         // A missing map is a degraded success, not a failed post — don't shout.
-        variant === 'map' || variant === 'map-stale'
+        variant.startsWith('map-')
           ? 'text-muted-foreground'
           : 'text-destructive'
       )}

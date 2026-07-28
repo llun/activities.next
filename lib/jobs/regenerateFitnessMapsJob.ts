@@ -15,6 +15,7 @@ import {
   getAttachmentMediaIds,
   removeRouteMapAttachmentsAndMedia
 } from '@/lib/services/fitness-files/mapAttachments'
+import { MAP_CLEANUP_ERROR } from '@/lib/services/fitness-files/mapErrors'
 import {
   isParseableFitnessFileType,
   parseFitnessFile
@@ -308,6 +309,23 @@ export const regenerateFitnessMapsJob = createJobHandle(
             fitnessFileId,
             err: toLoggableError(error)
           })
+
+          // Recorded, not merely logged: this is the run a privacy change
+          // triggers, so the map left behind is the unfiltered route. The
+          // owner needs the retry, and the next run's orphan sweep is what
+          // actually removes it.
+          try {
+            await database.updateFitnessFileActivityData(fitnessFileId, {
+              mapError: MAP_CLEANUP_ERROR
+            })
+          } catch (writeError) {
+            logger.error({
+              message: 'Failed to record the route map cleanup failure',
+              actorId,
+              fitnessFileId,
+              err: toLoggableError(writeError)
+            })
+          }
         }
 
         await database.updateFitnessFileProcessingStatus(
@@ -336,6 +354,22 @@ export const regenerateFitnessMapsJob = createJobHandle(
           'failed',
           errorMessage
         )
+
+        // The file's own status now carries the diagnostic; leaving a map
+        // reason set as well makes the fitness files page report a missing map
+        // instead of the failure.
+        try {
+          await database.updateFitnessFileActivityData(fitnessFileId, {
+            mapError: null
+          })
+        } catch (writeError) {
+          logger.error({
+            message: 'Failed to clear the route map reason on a failed file',
+            actorId,
+            fitnessFileId,
+            err: toLoggableError(writeError)
+          })
+        }
       }
     }
 

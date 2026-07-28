@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
-import { SEND_NOTE_JOB_NAME, SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { buildActivityImportEmail } from '@/lib/services/email/templates/activityImport'
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
@@ -10,10 +10,12 @@ import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import {
   ROUTE_MAP_ATTACHMENT_NAME,
+  findOrphanRouteMapAttachments,
   findRouteMapAttachments,
   getAttachmentMediaIds,
   removeRouteMapAttachmentsAndMedia
 } from '@/lib/services/fitness-files/mapAttachments'
+import { MAP_CLEANUP_ERROR } from '@/lib/services/fitness-files/mapErrors'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
 import {
   isParseableFitnessFileType,
@@ -51,16 +53,7 @@ const JobData = z.object({
   // backfills alike — reusing it would mass-mail on a backfill. Only a genuine
   // first import sets this, and only an unattended importer sets it at all: a
   // direct upload needs no email, because the user is watching the composer.
-  notifyOnComplete: z.boolean().optional().default(false),
-  // Whether a changed route map should be federated as an Update.
-  //
-  // Only the per-status retry endpoint sets it, because only there is the
-  // status known to be live already: this run replaces its map attachment, and
-  // without an Update every remote copy keeps pointing at bytes this run just
-  // deleted. The import paths must NOT set it — their status is federated by
-  // the Create the importer publishes, and an Update racing it would describe
-  // an object the receiver has not seen.
-  publishUpdateNote: z.boolean().optional().default(false)
+  notifyOnComplete: z.boolean().optional().default(false)
 })
 
 const ACTIVITY_LABELS: Record<string, { label: string; emoji: string }> = {
@@ -333,9 +326,15 @@ export const processFitnessFileJob = createJobHandle(
       statusId,
       fitnessFileId,
       publishSendNote,
-      notifyOnComplete,
-      publishUpdateNote
+      notifyOnComplete
     } = JobData.parse(message.data)
+
+    // Read before the status is overwritten: it decides whether a failure in
+    // this run may demote the file (a first import) or must not (a reprocess of
+    // an activity that is already live and usable). See the outer catch.
+    const entryProcessingStatus = (
+      await database.getFitnessFile({ id: fitnessFileId })
+    )?.processingStatus
 
     await database.updateFitnessFileProcessingStatus(
       fitnessFileId,
@@ -410,7 +409,16 @@ export const processFitnessFileJob = createJobHandle(
             mapImageEmailPath: fitnessFile.mapImageEmailPath
           })
 
-          if (previousMapAttachments.length === 0) return
+          // Everything on the status named as a route map that no fitness file
+          // claims: this run's own predecessor, plus anything a previous run
+          // failed to remove. Without the sweep those leftovers are permanent,
+          // because the pointer that identified them has already moved on.
+          const orphanedMapAttachments = await findOrphanRouteMapAttachments({
+            database,
+            statusId
+          })
+
+          if (orphanedMapAttachments.length === 0) return
           if (!actor.account) {
             // Nothing can resolve the media rows without an account, and
             // leaving the attachment in place shows the route twice.
@@ -428,10 +436,10 @@ export const processFitnessFileJob = createJobHandle(
             database,
             accountId: actor.account.id,
             statusId,
-            attachmentIds: previousMapAttachments.map(
+            attachmentIds: orphanedMapAttachments.map(
               (attachment) => attachment.id
             ),
-            mediaIds: getAttachmentMediaIds(previousMapAttachments)
+            mediaIds: getAttachmentMediaIds(orphanedMapAttachments)
           })
         } catch (error) {
           logger.error({
@@ -448,7 +456,7 @@ export const processFitnessFileJob = createJobHandle(
           // this. Contained the same way as the write in the map catch.
           try {
             await database.updateFitnessFileActivityData(fitnessFileId, {
-              mapError: 'Failed to remove the previous route map'
+              mapError: MAP_CLEANUP_ERROR
             })
           } catch (writeError) {
             logger.error({
@@ -514,10 +522,6 @@ export const processFitnessFileJob = createJobHandle(
       // post federated — only the image is missing.
       let mapErrorMessage: string | undefined
 
-      // Whether this run changed what the status shows as its route map, which
-      // is what a federated Update would be about.
-      let mapAttachmentChanged = false
-
       if (filteredCoordinates.length >= 2) {
         try {
           const mapImageBuffer = await generateMapImage({
@@ -573,7 +577,6 @@ export const processFitnessFileJob = createJobHandle(
           // pre-privacy-filter image staying fetchable at its unchanged URL
           // after the owner added a privacy location.
           await dropPreviousMap()
-          mapAttachmentChanged = true
 
           // The WebP is what the post and every web surface use; the email
           // prefers a JPEG copy, because Outlook desktop cannot decode WebP.
@@ -635,7 +638,6 @@ export const processFitnessFileJob = createJobHandle(
           mapImageEmailPath: null
         })
         await dropPreviousMap()
-        mapAttachmentChanged = previousMapAttachments.length > 0
       }
 
       if (
@@ -691,20 +693,15 @@ export const processFitnessFileJob = createJobHandle(
             statusId
           }
         })
-      } else if (publishUpdateNote && mapAttachmentChanged) {
-        // The status is already live on other instances and this run swapped
-        // its route map, deleting the bytes the old attachment pointed at —
-        // so without this every remote copy keeps a dead image URL. Mirrors
-        // what regenerateFitnessMapsJob publishes for the same mutation.
-        await getQueue().publish({
-          id: getHashFromString(`${statusId}:send-update-note:fitness-map`),
-          name: SEND_UPDATE_NOTE_JOB_NAME,
-          data: {
-            actorId,
-            statusId
-          }
-        })
       }
+
+      // A replaced map is deliberately NOT federated from here. Whether the
+      // status was ever federated is not knowable in this job — the file
+      // importer creates local-only statuses, and a first import that failed
+      // never published its Create — so an Update from here would describe an
+      // object half the receivers have never seen. The user-facing path for
+      // re-federating a changed map is Regenerate maps, which knows the status
+      // is live because it only ever runs over existing ones.
 
       // Route heatmaps are intentionally NOT regenerated here. Importing an
       // activity only creates its status and route map; the memory-heavy
@@ -725,6 +722,25 @@ export const processFitnessFileJob = createJobHandle(
         error: errorMessage,
         err: toLoggableError(error)
       })
+
+      // A file that was already `completed` when this run started is a
+      // REprocess — its activity parsed, its post is live, and its stats are
+      // stored. Demoting it to `failed` because a retry hit a storage timeout
+      // would hide a perfectly good activity from the detail dashboard, the
+      // stat grid, the overview, the profile's Fitness tab and every rollup:
+      // the exact harm this change exists to prevent. Record the reason where
+      // a reprocess failure belongs instead, and leave the activity alone.
+      const wasCompleted = entryProcessingStatus === 'completed'
+      if (wasCompleted) {
+        await database.updateFitnessFileActivityData(fitnessFileId, {
+          mapError: errorMessage
+        })
+        await database.updateFitnessFileProcessingStatus(
+          fitnessFileId,
+          'completed'
+        )
+        return
+      }
 
       await database.updateFitnessFileProcessingStatus(
         fitnessFileId,
