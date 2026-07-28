@@ -139,7 +139,7 @@ describe('FitnessStorage config', () => {
     // the process CWD. Whitespace is truthy, so it survived those checks too.
     it.each([
       {
-        description: 'returns null when the fitness fs path is empty',
+        description: 'blank fitness path disables storage',
         env: {
           ACTIVITIES_FITNESS_STORAGE_TYPE: 'fs',
           ACTIVITIES_FITNESS_STORAGE_PATH: ''
@@ -147,7 +147,7 @@ describe('FitnessStorage config', () => {
         warnedVariable: 'ACTIVITIES_FITNESS_STORAGE_PATH'
       },
       {
-        description: 'returns null when the fitness fs path is whitespace only',
+        description: 'whitespace fitness path disables storage',
         env: {
           ACTIVITIES_FITNESS_STORAGE_TYPE: 'fs',
           ACTIVITIES_FITNESS_STORAGE_PATH: '   '
@@ -155,7 +155,7 @@ describe('FitnessStorage config', () => {
         warnedVariable: 'ACTIVITIES_FITNESS_STORAGE_PATH'
       },
       {
-        description: 'returns null when the fitness s3 bucket is empty',
+        description: 'blank fitness bucket disables storage',
         env: {
           ACTIVITIES_FITNESS_STORAGE_TYPE: 's3',
           ACTIVITIES_FITNESS_STORAGE_BUCKET: '',
@@ -164,8 +164,7 @@ describe('FitnessStorage config', () => {
         warnedVariable: 'ACTIVITIES_FITNESS_STORAGE_BUCKET'
       },
       {
-        description:
-          'returns null when the fitness s3 bucket is whitespace only',
+        description: 'whitespace fitness bucket disables storage',
         env: {
           ACTIVITIES_FITNESS_STORAGE_TYPE: 's3',
           ACTIVITIES_FITNESS_STORAGE_BUCKET: '  ',
@@ -174,7 +173,7 @@ describe('FitnessStorage config', () => {
         warnedVariable: 'ACTIVITIES_FITNESS_STORAGE_BUCKET'
       },
       {
-        description: 'returns null when the fitness s3 region is empty',
+        description: 'blank fitness region disables storage',
         env: {
           ACTIVITIES_FITNESS_STORAGE_TYPE: 's3',
           ACTIVITIES_FITNESS_STORAGE_BUCKET: 'fitness-bucket',
@@ -183,8 +182,7 @@ describe('FitnessStorage config', () => {
         warnedVariable: 'ACTIVITIES_FITNESS_STORAGE_REGION'
       },
       {
-        description:
-          'returns null when the fitness object storage region is whitespace only',
+        description: 'whitespace fitness region disables storage',
         env: {
           ACTIVITIES_FITNESS_STORAGE_TYPE: 'object',
           ACTIVITIES_FITNESS_STORAGE_BUCKET: 'fitness-bucket',
@@ -193,7 +191,7 @@ describe('FitnessStorage config', () => {
         warnedVariable: 'ACTIVITIES_FITNESS_STORAGE_REGION'
       },
       {
-        description: 'returns null when the fallback media fs path is empty',
+        description: 'blank fallback path disables storage',
         env: {
           ACTIVITIES_MEDIA_STORAGE_TYPE: 'fs',
           ACTIVITIES_MEDIA_STORAGE_PATH: ''
@@ -201,8 +199,7 @@ describe('FitnessStorage config', () => {
         warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_PATH'
       },
       {
-        description:
-          'returns null when the fallback media fs path is whitespace only',
+        description: 'whitespace fallback path disables storage',
         env: {
           ACTIVITIES_MEDIA_STORAGE_TYPE: 'fs',
           ACTIVITIES_MEDIA_STORAGE_PATH: '   '
@@ -210,7 +207,7 @@ describe('FitnessStorage config', () => {
         warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_PATH'
       },
       {
-        description: 'returns null when the fallback media s3 bucket is empty',
+        description: 'blank fallback bucket disables storage',
         env: {
           ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
           ACTIVITIES_MEDIA_STORAGE_BUCKET: '',
@@ -219,8 +216,7 @@ describe('FitnessStorage config', () => {
         warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_BUCKET'
       },
       {
-        description:
-          'returns null when the fallback media s3 bucket is whitespace only',
+        description: 'whitespace fallback bucket disables storage',
         env: {
           ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
           ACTIVITIES_MEDIA_STORAGE_BUCKET: '  ',
@@ -229,8 +225,7 @@ describe('FitnessStorage config', () => {
         warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_BUCKET'
       },
       {
-        description:
-          'returns null when the fallback media object storage region is empty',
+        description: 'blank fallback region disables storage',
         env: {
           ACTIVITIES_MEDIA_STORAGE_TYPE: 'object',
           ACTIVITIES_MEDIA_STORAGE_BUCKET: 'bucket',
@@ -239,8 +234,7 @@ describe('FitnessStorage config', () => {
         warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_REGION'
       },
       {
-        description:
-          'the fallback media object storage region is whitespace only',
+        description: 'whitespace fallback region disables storage',
         env: {
           ACTIVITIES_MEDIA_STORAGE_TYPE: 'object',
           ACTIVITIES_MEDIA_STORAGE_BUCKET: 'bucket',
@@ -258,19 +252,44 @@ describe('FitnessStorage config', () => {
       expect(mockWarn).toHaveBeenCalledTimes(1)
     })
 
-    it('warns for every blank required value before disabling storage', () => {
-      process.env.ACTIVITIES_FITNESS_STORAGE_TYPE = 'object'
-      process.env.ACTIVITIES_FITNESS_STORAGE_BUCKET = ''
-      process.env.ACTIVITIES_FITNESS_STORAGE_REGION = '  '
+    // Once per branch: the explicit switch and the media fallback each read
+    // both values before checking either, and short-circuiting one of them
+    // still passes every single-blank row above.
+    it.each([
+      {
+        description: 'explicit branch warns for both blank values',
+        env: {
+          ACTIVITIES_FITNESS_STORAGE_TYPE: 'object',
+          ACTIVITIES_FITNESS_STORAGE_BUCKET: '',
+          ACTIVITIES_FITNESS_STORAGE_REGION: '  '
+        },
+        variables: [
+          'ACTIVITIES_FITNESS_STORAGE_BUCKET',
+          'ACTIVITIES_FITNESS_STORAGE_REGION'
+        ]
+      },
+      {
+        description: 'fallback branch warns for both blank values',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+          ACTIVITIES_MEDIA_STORAGE_BUCKET: '',
+          ACTIVITIES_MEDIA_STORAGE_REGION: '  '
+        },
+        variables: [
+          'ACTIVITIES_MEDIA_STORAGE_BUCKET',
+          'ACTIVITIES_MEDIA_STORAGE_REGION'
+        ]
+      }
+    ])('$description', ({ env, variables }) => {
+      Object.assign(process.env, env)
 
       expect(getFitnessStorageConfig()).toBeNull()
       expect(mockWarn).toHaveBeenCalledTimes(2)
-      expect(mockWarn).toHaveBeenCalledWith(
-        'ACTIVITIES_FITNESS_STORAGE_BUCKET is set but empty; fitness storage will be disabled'
-      )
-      expect(mockWarn).toHaveBeenCalledWith(
-        'ACTIVITIES_FITNESS_STORAGE_REGION is set but empty; fitness storage will be disabled'
-      )
+      for (const variable of variables) {
+        expect(mockWarn).toHaveBeenCalledWith(
+          `${variable} is set but empty; fitness storage will be disabled`
+        )
+      }
     })
 
     it('trims a padded fitness path instead of rejecting it', () => {

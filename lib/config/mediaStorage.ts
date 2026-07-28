@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { requiredStorageValue } from '@/lib/config/storageValue'
 import { matcher } from '@/lib/config/utils'
 import { MAX_FILE_SIZE } from '@/lib/services/medias/constants'
+import { logger } from '@/lib/utils/logger'
 
 export enum MediaStorageType {
   LocalFile = 'fs',
@@ -112,6 +113,18 @@ export const getMediaStorageConfig = (): {
       }
     }
     default:
+      // Reached only when some ACTIVITIES_MEDIA_STORAGE_* variable is set, so
+      // the operator meant to configure storage. Disabling it silently is the
+      // same failure mode as a blank required value. Mirrors lib/config/email.ts.
+      if (process.env.ACTIVITIES_MEDIA_STORAGE_TYPE) {
+        logger.warn(
+          `Unknown ACTIVITIES_MEDIA_STORAGE_TYPE value "${process.env.ACTIVITIES_MEDIA_STORAGE_TYPE}"; media storage will be disabled`
+        )
+      } else {
+        logger.warn(
+          'ACTIVITIES_MEDIA_STORAGE_TYPE is not set; media storage will be disabled'
+        )
+      }
       return null
   }
 }

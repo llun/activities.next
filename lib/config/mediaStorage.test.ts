@@ -157,12 +157,34 @@ describe('MediaStorage config', () => {
       )
     })
 
-    it('returns null for unknown storage type', () => {
+    // A type this app does not recognise disables media storage as completely
+    // as a blank path does, so it gets the same audible treatment.
+    it('returns null and warns for unknown storage type', () => {
       process.env.ACTIVITIES_MEDIA_STORAGE_TYPE = 'unknown'
 
       const config = getMediaStorageConfig()
 
       expect(config).toBeNull()
+      expect(mockWarn).toHaveBeenCalledWith(
+        'Unknown ACTIVITIES_MEDIA_STORAGE_TYPE value "unknown"; media storage will be disabled'
+      )
+    })
+
+    it('returns null and warns when other storage vars are set without a type', () => {
+      process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET = 'test-bucket'
+      delete process.env.ACTIVITIES_MEDIA_STORAGE_TYPE
+
+      expect(getMediaStorageConfig()).toBeNull()
+      expect(mockWarn).toHaveBeenCalledWith(
+        'ACTIVITIES_MEDIA_STORAGE_TYPE is not set; media storage will be disabled'
+      )
+    })
+
+    // The resolver returns before the switch when nothing is configured, so an
+    // instance that never wanted media storage stays silent.
+    it('stays silent when no media storage vars are set at all', () => {
+      expect(getMediaStorageConfig()).toBeNull()
+      expect(mockWarn).not.toHaveBeenCalled()
     })
 
     // A set-but-blank required value used to satisfy `z.string()` and boot a
@@ -171,7 +193,7 @@ describe('MediaStorage config', () => {
     // Whitespace is truthy, so it slipped past every existing falsy check.
     it.each([
       {
-        description: 'returns null when the fs path is empty',
+        description: 'blank fs path disables media storage',
         env: {
           ACTIVITIES_MEDIA_STORAGE_TYPE: 'fs',
           ACTIVITIES_MEDIA_STORAGE_PATH: ''
@@ -179,7 +201,7 @@ describe('MediaStorage config', () => {
         warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_PATH'
       },
       {
-        description: 'returns null when the fs path is whitespace only',
+        description: 'whitespace fs path disables media storage',
         env: {
           ACTIVITIES_MEDIA_STORAGE_TYPE: 'fs',
           ACTIVITIES_MEDIA_STORAGE_PATH: '   '
@@ -187,7 +209,7 @@ describe('MediaStorage config', () => {
         warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_PATH'
       },
       {
-        description: 'returns null when the s3 bucket is empty',
+        description: 'blank s3 bucket disables media storage',
         env: {
           ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
           ACTIVITIES_MEDIA_STORAGE_BUCKET: '',
@@ -196,7 +218,7 @@ describe('MediaStorage config', () => {
         warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_BUCKET'
       },
       {
-        description: 'returns null when the s3 bucket is whitespace only',
+        description: 'whitespace s3 bucket disables media storage',
         env: {
           ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
           ACTIVITIES_MEDIA_STORAGE_BUCKET: '  ',
@@ -205,7 +227,7 @@ describe('MediaStorage config', () => {
         warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_BUCKET'
       },
       {
-        description: 'returns null when the s3 region is empty',
+        description: 'blank s3 region disables media storage',
         env: {
           ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
           ACTIVITIES_MEDIA_STORAGE_BUCKET: 'test-bucket',
@@ -214,7 +236,7 @@ describe('MediaStorage config', () => {
         warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_REGION'
       },
       {
-        description: 'returns null when the s3 region is whitespace only',
+        description: 'whitespace s3 region disables media storage',
         env: {
           ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
           ACTIVITIES_MEDIA_STORAGE_BUCKET: 'test-bucket',
@@ -223,7 +245,7 @@ describe('MediaStorage config', () => {
         warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_REGION'
       },
       {
-        description: 'returns null when the object storage bucket is empty',
+        description: 'blank object bucket disables media storage',
         env: {
           ACTIVITIES_MEDIA_STORAGE_TYPE: 'object',
           ACTIVITIES_MEDIA_STORAGE_BUCKET: '',

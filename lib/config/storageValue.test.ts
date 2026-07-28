@@ -31,16 +31,16 @@ describe('requiredStorageValue', () => {
   })
 
   it.each([
-    { description: 'an empty string', value: '' },
-    { description: 'spaces', value: '   ' },
-    { description: 'a tab', value: '\t' },
-    { description: 'a newline', value: '\n' },
-    { description: 'mixed whitespace', value: ' \t \n ' },
+    { description: 'an empty string is null and warns', value: '' },
+    { description: 'spaces are null and warn', value: '   ' },
+    { description: 'a tab is null and warns', value: '\t' },
+    { description: 'a newline is null and warns', value: '\n' },
+    { description: 'mixed whitespace is null and warns', value: ' \t \n ' },
     // `trim()` strips these too, which a hand-rolled /^[ \t\n]*$/ would not —
     // and they are what a value pasted from a web page actually contains.
-    { description: 'a non-breaking space', value: ' ' },
-    { description: 'an ideographic space', value: '　' }
-  ])('returns null and warns when the value is $description', ({ value }) => {
+    { description: 'a non-breaking space is null and warns', value: ' ' },
+    { description: 'an ideographic space is null and warns', value: '　' }
+  ])('$description', ({ value }) => {
     process.env.ACTIVITIES_MEDIA_STORAGE_PATH = value
 
     expect(
@@ -52,10 +52,16 @@ describe('requiredStorageValue', () => {
   })
 
   it.each([
-    { description: 'an unpadded value', value: '/data/uploads' },
-    { description: 'a padded value', value: '  /data/uploads  ' },
-    { description: 'a newline-padded value', value: '/data/uploads\n' }
-  ])('returns the trimmed value for $description', ({ value }) => {
+    {
+      description: 'an unpadded value is returned as is',
+      value: '/data/uploads'
+    },
+    { description: 'a padded value is trimmed', value: '  /data/uploads  ' },
+    {
+      description: 'a newline-padded value is trimmed',
+      value: '/data/uploads\n'
+    }
+  ])('$description', ({ value }) => {
     process.env.ACTIVITIES_MEDIA_STORAGE_PATH = value
 
     expect(
