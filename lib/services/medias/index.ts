@@ -5,6 +5,7 @@ import {
   PresignedUploadValidationError,
   S3FileStorage
 } from '@/lib/services/medias/S3StorageFile'
+import type { ImageOutputFormat } from '@/lib/services/medias/imageOutputFormat'
 import { LocalFileStorage } from '@/lib/services/medias/localFile'
 import { MediaSchema, PresigedMediaInput } from '@/lib/services/medias/types'
 import { Actor } from '@/lib/types/domain/actor'
@@ -56,6 +57,42 @@ export const saveMediaThumbnail = async (
         host,
         database
       ).saveThumbnail(actor, file)
+    }
+    default:
+      return null
+  }
+}
+
+/**
+ * Stores an extra encoding of an image without registering a `medias` row.
+ *
+ * The caller owns the returned path — nothing else references it — so only use
+ * this where the path is recorded somewhere durable. Today that is the fitness
+ * route map's JPEG twin, kept for mail clients with no WebP decoder and
+ * recorded on `fitness_files.mapImageEmailPath`.
+ */
+export const saveMediaImageRendition = async (
+  database: Database,
+  actor: Actor,
+  file: File,
+  format: ImageOutputFormat
+) => {
+  const { mediaStorage, host } = getConfig()
+  switch (mediaStorage?.type) {
+    case MediaStorageType.LocalFile: {
+      return LocalFileStorage.getStorage(
+        mediaStorage,
+        host,
+        database
+      ).saveImageRendition(actor, file, format)
+    }
+    case MediaStorageType.S3Storage:
+    case MediaStorageType.ObjectStorage: {
+      return S3FileStorage.getStorage(
+        mediaStorage,
+        host,
+        database
+      ).saveImageRendition(actor, file, format)
     }
     default:
       return null

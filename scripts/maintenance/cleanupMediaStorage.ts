@@ -12,12 +12,18 @@ import {
   ListObjectsV2Command,
   type S3Client
 } from '@aws-sdk/client-s3'
+import { realpathSync } from 'fs'
 import fs from 'fs/promises'
 import knex from 'knex'
 import path from 'path'
 
 import { getConfig } from '@/lib/config'
-import { MediaStorageType } from '@/lib/config/mediaStorage'
+import { FitnessStorageType } from '@/lib/config/fitnessStorage'
+import {
+  type MediaStorageConfig,
+  MediaStorageType
+} from '@/lib/config/mediaStorage'
+import { getEffectiveFitnessStorageConfig } from '@/lib/services/fitness-files'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 
 async function getAllMediaPathsFromDatabase(
@@ -27,31 +33,156 @@ async function getAllMediaPathsFromDatabase(
   const database = knex(config.database)
 
   try {
+    const paths = new Set<string>()
+    // Stored paths are already relative to the storage root, which is what
+    // listLocalFiles/listS3Files return, so they are comparable as-is. Only an
+    // absolute value needs rebasing — applying path.relative unconditionally
+    // resolved a relative path against the CWD instead, producing a
+    // `../../…` string that matched nothing, so every file in local storage
+    // was reported as orphaned and `--yes` would have deleted all of it.
+    const addPath = (value: unknown) => {
+      if (typeof value !== 'string' || !value) return
+      paths.add(
+        basePath && path.isAbsolute(value)
+          ? path.relative(basePath, value)
+          : value
+      )
+    }
+
     // Get all media paths from the medias table
     const medias = await database('medias').select('original', 'thumbnail')
-
-    const paths = new Set<string>()
     for (const media of medias) {
-      if (media.original) {
-        // For local file storage, normalize to relative paths
-        const originalPath = basePath
-          ? path.relative(basePath, media.original)
-          : media.original
-        paths.add(originalPath)
-      }
-      if (media.thumbnail) {
-        // For local file storage, normalize to relative paths
-        const thumbnailPath = basePath
-          ? path.relative(basePath, media.thumbnail)
-          : media.thumbnail
-        paths.add(thumbnailPath)
-      }
+      addPath(media.original)
+      addPath(media.thumbnail)
+    }
+
+    // Fitness route maps keep a JPEG copy for the activity-import email, which
+    // lives in media storage but deliberately has no `medias` row — the
+    // fitness file is its only reference. Without this it looks orphaned, and
+    // this script would delete a file the database still points at.
+    // Only LIVE rows count as references. A soft-deleted row keeps its column
+    // values, and the delete paths already remove the file, so counting them
+    // would make anything they missed unreclaimable forever.
+    const fitnessFiles = await database('fitness_files')
+      .whereNull('deletedAt')
+      .select('mapImageEmailPath')
+    for (const fitnessFile of fitnessFiles) {
+      addPath(fitnessFile.mapImageEmailPath)
     }
 
     return paths
   } finally {
     await database.destroy()
   }
+}
+
+// macOS and Windows fold case in path lookups, so two spellings can name the
+// same file or directory.
+const isCaseInsensitiveFilesystem = () =>
+  process.platform === 'darwin' || process.platform === 'win32'
+
+const toRealPath = (target: string) => {
+  try {
+    return realpathSync(target)
+  } catch {
+    return target
+  }
+}
+
+/**
+ * `path.relative`, but tolerant of a case-insensitive filesystem.
+ *
+ * macOS and Windows treat `/data/Media` and `/data/media` as one directory, so
+ * a fitness root that differs from the media root only by case really does sit
+ * inside the listing — while plain `path.relative` reports `../media/...` and
+ * would let the caller conclude the two are unrelated. For a tool that deletes
+ * files, guessing "unrelated" is the expensive direction to be wrong in.
+ *
+ * Returns a path relative to `from` when `to` is inside it (`''` when they are
+ * the same directory), and a `..`-prefixed path when it genuinely is not.
+ */
+const getContainedRelativePath = (from: string, to: string) => {
+  // Resolve symlinks first, for the same reason the case comparison below
+  // exists: `/data/media` and a `/data/media-link` pointing at it are one
+  // directory, and comparing the spellings would call them unrelated. Falls
+  // back to the given path when it does not exist yet — realpath throws ENOENT,
+  // and a missing directory simply has nothing in it to skip.
+  const realFrom = toRealPath(from)
+  const realTo = toRealPath(to)
+  const direct = path.relative(realFrom, realTo)
+  if (!direct.startsWith('..') && !path.isAbsolute(direct)) return direct
+  if (!isCaseInsensitiveFilesystem()) return direct
+
+  // Compare segment by segment and rebuild from the real-cased segments. Any
+  // approach that measures one string against the other assumes lowercasing
+  // preserves length, and it does not — 'İ' lowercases to two code units — so
+  // an index taken from either side can cut in the wrong place. Splitting side-
+  // steps the question entirely.
+  const fromSegments = realFrom.split(path.sep)
+  const toSegments = realTo.split(path.sep)
+  if (toSegments.length < fromSegments.length) return direct
+  const isContained = fromSegments.every(
+    (segment, index) =>
+      segment.toLowerCase() === toSegments[index].toLowerCase()
+  )
+  if (!isContained) return direct
+  return toSegments.slice(fromSegments.length).join('/')
+}
+
+/**
+ * Storage-root-relative prefix that fitness files occupy inside MEDIA storage.
+ *
+ * With no fitness storage configured, fitness files fall back to the media
+ * backend under a `fitness/` directory (local) or key prefix (S3) — see
+ * `getEffectiveFitnessStorageConfig`. Those objects are referenced by
+ * `fitness_files.path`, which is relative to the FITNESS root, not this
+ * script's, so they can never match a media reference and every one of them
+ * would be reported as orphaned: running `--yes` would delete every stored
+ * .fit/.gpx/.tcx and every Strava archive, permanently breaking route data,
+ * retries and Regenerate maps.
+ *
+ * This script only manages media, so it skips that namespace outright rather
+ * than trying to translate a second path convention. `scripts/backup/
+ * productionArchive.ts` excludes the same shared prefix from its media plan.
+ *
+ * The bucket comparison is deliberately name-only: if two providers happen to
+ * share a bucket name, over-skipping leaves a few files unreclaimed, which is
+ * the right way for a deletion tool to be wrong.
+ */
+const getSharedFitnessPrefix = (mediaStorage: MediaStorageConfig) => {
+  const fitnessStorage = getEffectiveFitnessStorageConfig()
+  if (!fitnessStorage) return null
+
+  if (
+    mediaStorage.type === MediaStorageType.LocalFile &&
+    fitnessStorage.type === FitnessStorageType.LocalFile
+  ) {
+    const mediaRoot = path.resolve(process.cwd(), mediaStorage.path)
+    const fitnessRoot = path.resolve(process.cwd(), fitnessStorage.path)
+    const relative = getContainedRelativePath(mediaRoot, fitnessRoot)
+    if (relative === '') {
+      // Same directory for both: nothing in the listing distinguishes a fitness
+      // file from a media file, so any orphan set would include every stored
+      // activity. Refuse rather than guess.
+      return 'INDISTINGUISHABLE'
+    }
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      return null
+    }
+    return `${relative.replace(/\\/g, '/').replace(/\/+$/, '')}/`
+  }
+
+  const mediaIsS3 =
+    mediaStorage.type === MediaStorageType.S3Storage ||
+    mediaStorage.type === MediaStorageType.ObjectStorage
+  const fitnessIsS3 =
+    fitnessStorage.type === FitnessStorageType.S3Storage ||
+    fitnessStorage.type === FitnessStorageType.ObjectStorage
+  if (!mediaIsS3 || !fitnessIsS3) return null
+  if (mediaStorage.bucket !== fitnessStorage.bucket) return null
+
+  const prefix = fitnessStorage.prefix || 'fitness/'
+  return prefix.endsWith('/') ? prefix : `${prefix}/`
 }
 
 async function listLocalFiles(basePath: string): Promise<string[]> {
@@ -237,6 +368,20 @@ async function cleanupMediaStorage() {
 
   console.log(`Storage Type: ${config.mediaStorage.type}`)
 
+  const fitnessPrefix = getSharedFitnessPrefix(config.mediaStorage)
+  if (fitnessPrefix === 'INDISTINGUISHABLE') {
+    console.error(
+      '\nError: fitness storage points at the same directory as media storage.'
+    )
+    console.error(
+      'Every stored activity file would be reported as an orphaned media file.'
+    )
+    console.error(
+      'Point ACTIVITIES_FITNESS_STORAGE_PATH at its own directory before running this.'
+    )
+    process.exit(1)
+  }
+
   // Determine base path for local storage normalization
   const basePath =
     config.mediaStorage.type === MediaStorageType.LocalFile
@@ -279,6 +424,27 @@ async function cleanupMediaStorage() {
   }
 
   console.log(`   Found ${storageFiles.length} files in storage`)
+
+  // Fitness files may live inside media storage but are not this script's to
+  // manage, and their references are relative to a different root.
+  if (fitnessPrefix) {
+    const before = storageFiles.length
+    // Match the prefix the same way the filesystem matches names. The prefix
+    // carries the CONFIGURED spelling while the listing carries the on-disk
+    // one, so `ACTIVITIES_FITNESS_STORAGE_PATH=…/Fitness` against a directory
+    // created as `fitness` would skip nothing on a case-insensitive
+    // filesystem — and every stored activity file would be offered for
+    // deletion, which is the whole reason this skip exists.
+    const matchesFitnessPrefix = isCaseInsensitiveFilesystem()
+      ? (file: string) =>
+          file.toLowerCase().startsWith(fitnessPrefix.toLowerCase())
+      : (file: string) => file.startsWith(fitnessPrefix)
+    storageFiles = storageFiles.filter((file) => !matchesFitnessPrefix(file))
+    const skipped = before - storageFiles.length
+    console.log(
+      `   Skipped ${skipped} file(s) under the shared fitness prefix '${fitnessPrefix}' (managed as fitness storage, not media)`
+    )
+  }
 
   // Step 3: Find orphaned files
   console.log('\n🔍 Step 3: Identifying orphaned files...')

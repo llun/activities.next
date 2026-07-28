@@ -7,6 +7,7 @@ import {
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
 import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
+import { deleteMediaFile } from '@/lib/services/medias'
 import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
@@ -32,11 +33,18 @@ vi.mock('@/lib/services/fitness-files/parseFitnessFile', async () => ({
   isParseableFitnessFileType: vi.fn().mockReturnValue(true)
 }))
 
+vi.mock('@/lib/services/medias', () => ({
+  deleteMediaFile: vi.fn()
+}))
+
 const mockGetFitnessFileBuffer = getFitnessFileBuffer as jest.MockedFunction<
   typeof getFitnessFileBuffer
 >
 const mockParseFitnessFile = parseFitnessFile as jest.MockedFunction<
   typeof parseFitnessFile
+>
+const mockDeleteMediaFile = deleteMediaFile as jest.MockedFunction<
+  typeof deleteMediaFile
 >
 
 describe('importFitnessFilesJob', () => {
@@ -62,6 +70,7 @@ describe('importFitnessFilesJob', () => {
     mockGetFitnessFileBuffer.mockResolvedValue(
       Buffer.from('fitness-file-bytes')
     )
+    mockDeleteMediaFile.mockResolvedValue(true)
   })
 
   it('records a reason when status creation rejects with a non-Error', async () => {
@@ -102,6 +111,59 @@ describe('importFitnessFilesJob', () => {
     const updated = await database.getFitnessFile({ id: file!.id })
     expect(updated?.importStatus).toBe('failed')
     expect(updated?.importError).toBe('queue exploded')
+  })
+
+  it('drops a stale route map email copy when a file is re-imported', async () => {
+    const file = await database.createFitnessFile({
+      actorId: actor.id,
+      path: 'fitness/reimport-email-copy.fit',
+      fileName: 'reimport-email-copy.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024,
+      importBatchId: 'batch-reimport-email-copy'
+    })
+    expect(file).toBeDefined()
+
+    // A previous import of this row emailed the owner and stored a JPEG copy of
+    // its map.
+    await database.updateFitnessFileActivityData(file!.id, {
+      hasMapData: true,
+      mapImagePath: 'medias/2026-07-26/old-route-map.webp',
+      mapImageEmailPath: 'medias/2026-07-26/old-route-map.jpg'
+    })
+
+    mockParseFitnessFile.mockResolvedValue({
+      coordinates: [
+        { lat: 51.5007, lng: -0.1246 },
+        { lat: 51.5033, lng: -0.1195 }
+      ],
+      trackPoints: [],
+      totalDistanceMeters: 4_000,
+      totalDurationSeconds: 1_200,
+      activityType: 'running',
+      startTime: new Date('2026-02-01T07:00:00.000Z')
+    })
+
+    await importFitnessFilesJob(database, {
+      id: 'job-reimport-email-copy',
+      name: IMPORT_FITNESS_FILES_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        batchId: 'batch-reimport-email-copy',
+        fitnessFileIds: [file!.id]
+      }
+    })
+
+    // The reset below de-references the copy; a file that ends up non-primary
+    // never reaches processFitnessFileJob to rewrite it, so the object would be
+    // orphaned with nothing able to find it.
+    expect(mockDeleteMediaFile).toHaveBeenCalledWith(
+      database,
+      'medias/2026-07-26/old-route-map.jpg'
+    )
+    const updated = await database.getFitnessFile({ id: file!.id })
+    expect(updated?.mapImageEmailPath).toBeUndefined()
   })
 
   it('creates local-only merged status, marks primary, and queues processing', async () => {

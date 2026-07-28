@@ -5,6 +5,7 @@ import {
   S3Client
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import sharp from 'sharp'
 import { Readable } from 'stream'
 
 import { MediaStorageType } from '@/lib/config/mediaStorage'
@@ -401,5 +402,94 @@ describe('S3FileStorage getFile', () => {
     await expect(storage.getFile('medias/upload.png')).rejects.toThrow(
       StreamByteLimitError
     )
+  })
+})
+
+describe('S3FileStorage image output format', () => {
+  const send = vi.fn()
+  const actor = { id: 'actor-1', account: { id: 'account-1' } } as Actor
+  const database = {
+    createMedia: vi.fn(),
+    getActorFromId: vi.fn(),
+    getStorageUsageForAccount: vi.fn(),
+    getFitnessStorageUsageForAccount: vi.fn()
+  } as unknown as jest.Mocked<Database>
+  const storageConfig = {
+    type: MediaStorageType.ObjectStorage,
+    bucket: 'bucket',
+    region: 'us-east-1',
+    endpoint: 'https://s3.example.com'
+  } as const
+
+  const createPngFile = async () => {
+    const buffer = await sharp({
+      create: {
+        width: 40,
+        height: 30,
+        channels: 3,
+        background: { r: 255, g: 59, b: 48 }
+      }
+    })
+      .png()
+      .toBuffer()
+    return new File([new Uint8Array(buffer)], 'route-map.png', {
+      type: 'image/png'
+    })
+  }
+
+  const putObjectInput = () =>
+    vi.mocked(PutObjectCommand).mock.calls[0][0] as {
+      Key: string
+      ContentType: string
+    }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    ;(S3Client as jest.MockedClass<typeof S3Client>).mockImplementation(
+      function () {
+        return { send } as unknown as S3Client
+      }
+    )
+    send.mockResolvedValue({})
+    database.getActorFromId.mockResolvedValue(actor)
+    database.getStorageUsageForAccount.mockResolvedValue(0)
+    database.getFitnessStorageUsageForAccount.mockResolvedValue(0)
+    database.createMedia.mockImplementation((async (params: unknown) => ({
+      id: 'media-1',
+      actorId: actor.id,
+      ...(params as object)
+    })) as never)
+  })
+
+  it('uploads images as webp by default', async () => {
+    const storage = new S3FileStorage(storageConfig, 'llun.test', database)
+
+    await storage.saveFile(actor, { file: await createPngFile() })
+
+    expect(putObjectInput()).toMatchObject({ ContentType: 'image/webp' })
+    expect(putObjectInput().Key).toMatch(
+      /^medias\/\d{4}-\d{2}-\d{2}\/\w+\.webp$/
+    )
+  })
+
+  it('uploads a jpeg rendition without creating a media row', async () => {
+    const storage = new S3FileStorage(storageConfig, 'llun.test', database)
+
+    const rendition = await storage.saveImageRendition(
+      actor,
+      await createPngFile(),
+      'jpeg'
+    )
+
+    expect(putObjectInput()).toMatchObject({ ContentType: 'image/jpeg' })
+    expect(putObjectInput().Key).toMatch(
+      /^medias\/\d{4}-\d{2}-\d{2}\/\w+\.jpg$/
+    )
+    expect(rendition).toMatchObject({
+      path: putObjectInput().Key,
+      mimeType: 'image/jpeg',
+      url: `https://llun.test/api/v1/files/${putObjectInput().Key}`
+    })
+    expect(database.createMedia).not.toHaveBeenCalled()
   })
 })

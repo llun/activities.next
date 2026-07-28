@@ -4,9 +4,10 @@ import { promises as fs } from 'fs'
 import { getConfig } from '@/lib/config'
 import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
+import { Actor } from '@/lib/types/domain/actor'
 
 import * as S3FileStorage from './S3StorageFile'
-import { deleteMediaFile } from './index'
+import { deleteMediaFile, saveMediaImageRendition } from './index'
 import * as LocalFileStorage from './localFile'
 
 vi.mock('fs', () => ({
@@ -33,13 +34,16 @@ const mockGetConfig = getConfig as jest.MockedFunction<typeof getConfig>
 const mockUnlink = fs.unlink as jest.MockedFunction<typeof fs.unlink>
 const mockS3Send = vi.fn()
 const mockDeleteFile = vi.fn()
+const mockSaveImageRendition = vi.fn()
 
 // Mock the storage getStorage methods
 const mockLocalStorage = {
-  deleteFile: mockDeleteFile
+  deleteFile: mockDeleteFile,
+  saveImageRendition: mockSaveImageRendition
 }
 const mockS3Storage = {
-  deleteFile: mockDeleteFile
+  deleteFile: mockDeleteFile,
+  saveImageRendition: mockSaveImageRendition
 }
 
 vi.spyOn(LocalFileStorage.LocalFileStorage, 'getStorage').mockReturnValue(
@@ -59,6 +63,7 @@ describe('Media Storage Service', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockDeleteFile.mockReset()
+    mockSaveImageRendition.mockReset()
     ;(S3Client as jest.MockedClass<typeof S3Client>).mockImplementation(
       function () {
         return {
@@ -217,6 +222,58 @@ describe('Media Storage Service', () => {
         expect(mockUnlink).not.toHaveBeenCalled()
         expect(mockS3Send).not.toHaveBeenCalled()
       })
+    })
+  })
+
+  describe('saveMediaImageRendition', () => {
+    const actor = { id: 'actor-1' } as Actor
+    const file = new File(['png'], 'route-map.png', { type: 'image/png' })
+
+    it.each([
+      {
+        description: 'delegates to local file storage',
+        mediaStorage: { type: MediaStorageType.LocalFile, path: '/tmp/media' }
+      },
+      {
+        description: 'delegates to s3 storage',
+        mediaStorage: { type: MediaStorageType.S3Storage, bucket: 'bucket' }
+      },
+      {
+        description: 'delegates to object storage',
+        mediaStorage: { type: MediaStorageType.ObjectStorage, bucket: 'bucket' }
+      }
+    ])('$description', async ({ mediaStorage }) => {
+      mockGetConfig.mockReturnValue({
+        mediaStorage,
+        host: 'llun.test'
+      } as unknown as ReturnType<typeof getConfig>)
+      mockSaveImageRendition.mockResolvedValue({ path: 'medias/map.jpg' })
+
+      const result = await saveMediaImageRendition(
+        mockDatabase,
+        actor,
+        file,
+        'jpeg'
+      )
+
+      expect(result).toEqual({ path: 'medias/map.jpg' })
+      expect(mockSaveImageRendition).toHaveBeenCalledWith(actor, file, 'jpeg')
+    })
+
+    it('returns null when no storage is configured', async () => {
+      mockGetConfig.mockReturnValue({
+        host: 'llun.test'
+      } as unknown as ReturnType<typeof getConfig>)
+
+      const result = await saveMediaImageRendition(
+        mockDatabase,
+        actor,
+        file,
+        'jpeg'
+      )
+
+      expect(result).toBeNull()
+      expect(mockSaveImageRendition).not.toHaveBeenCalled()
     })
   })
 })
