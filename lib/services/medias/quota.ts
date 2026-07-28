@@ -3,6 +3,7 @@ import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/domain/actor'
 
 import { DEFAULT_QUOTA_PER_ACCOUNT } from './constants'
+import type { MediaSchema } from './types'
 
 export const getQuotaLimit = (): number => {
   const config = getConfig()
@@ -41,3 +42,12 @@ export const checkQuotaAvailable = async (
   const available = used + requiredBytes <= limit
   return { available, used, limit }
 }
+
+// What one upload should reserve. `createMedia` meters the original's UPLOADED
+// bytes plus the thumbnail's STORED bytes, so this is best-effort rather than
+// exact: a lossy JPEG can re-encode into a near-lossless WebP larger than it
+// arrived as. Reserving nothing for the thumbnail was worse — an upload that
+// fits only without it was accepted and left the account over its quota. The
+// original under-counts the same way, and always has.
+export const getUploadQuotaReservation = (media: MediaSchema) =>
+  media.file.size + (media.thumbnail?.size ?? 0)

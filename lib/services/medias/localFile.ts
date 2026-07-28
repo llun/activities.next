@@ -23,11 +23,10 @@ import {
   getImageOutputFormatDetail
 } from './imageOutputFormat'
 import { getMediaFileUrl } from './mediaFileUrl'
-import { checkQuotaAvailable } from './quota'
+import { checkQuotaAvailable, getUploadQuotaReservation } from './quota'
 import {
-  assertReadableImageBytes,
   assertReadableThumbnail,
-  getUploadQuotaReservation
+  assertThumbnailDecodable
 } from './thumbnailInput'
 import {
   ImageRenditionOutput,
@@ -167,51 +166,55 @@ export class LocalFileStorage implements MediaStorage {
           ? await this._saveImageBuffer(previewImage, { isThumbnail: true })
           : null
     } catch (error) {
-      // The original is already written and no `medias` row will reference it,
-      // so reclaim it before the failure propagates. The error passes through
-      // untouched: the thumbnail's bytes were validated before any of this ran,
-      // so whatever failed here is ours — a storage fault that has to stay a
-      // logged 500, not be relabelled as the caller's bad input.
-      await this.deleteFile(path).catch(() => false)
+      await this._reclaimStored(path)
+      // Tell the caller's bad bytes apart from a fault of ours: an image whose
+      // body is truncated passes the header check up front and only fails once
+      // the encoder reaches the missing bytes. Anything else keeps its own
+      // error and stays a logged 500, not a 422 the client will not retry.
+      if (media.thumbnail) {
+        await assertThumbnailDecodable(media.thumbnail)
+      }
       throw error
     }
-    const storedMedia = await this._database.createMedia({
-      actorId: actor.id,
-      original: {
-        path,
-        bytes: file.size,
-        mimeType: file.type,
-        metaData: {
-          width: metaData.width ?? 0,
-          height: metaData.height ?? 0
+    let storedMedia
+    try {
+      storedMedia = await this._database.createMedia({
+        actorId: actor.id,
+        original: {
+          path,
+          bytes: file.size,
+          mimeType: file.type,
+          metaData: {
+            width: metaData.width ?? 0,
+            height: metaData.height ?? 0
+          },
+          fileName: sanitizeStoredFileName(file.name)
         },
-        fileName: sanitizeStoredFileName(file.name)
-      },
-      ...(thumbnail
-        ? {
-            // Use the resized image's actual size/dimensions (outputInfo), not
-            // the input image's metadata.
-            thumbnail: {
-              path: thumbnail.path,
-              bytes: thumbnail.outputInfo.size,
-              mimeType: thumbnail.contentType,
-              metaData: {
-                width: thumbnail.outputInfo.width,
-                height: thumbnail.outputInfo.height
+        ...(thumbnail
+          ? {
+              // Use the resized image's actual size/dimensions (outputInfo), not
+              // the input image's metadata.
+              thumbnail: {
+                path: thumbnail.path,
+                bytes: thumbnail.outputInfo.size,
+                mimeType: thumbnail.contentType,
+                metaData: {
+                  width: thumbnail.outputInfo.width,
+                  height: thumbnail.outputInfo.height
+                }
               }
             }
-          }
-        : null),
-      ...(media.description ? { description: media.description } : null),
-      ...(media.focus ? { focus: media.focus } : null)
-    })
+          : null),
+        ...(media.description ? { description: media.description } : null),
+        ...(media.focus ? { focus: media.focus } : null)
+      })
+    } catch (error) {
+      await this._reclaimStored(path, thumbnail?.path)
+      throw error
+    }
 
     if (!storedMedia) {
-      // Same reclaim as above — without a row, nothing can find these again.
-      await this.deleteFile(path).catch(() => false)
-      if (thumbnail) {
-        await this.deleteFile(thumbnail.path).catch(() => false)
-      }
+      await this._reclaimStored(path, thumbnail?.path)
       throw new Error('Fail to store media')
     }
 
@@ -223,10 +226,6 @@ export class LocalFileStorage implements MediaStorage {
     file: File
   ): Promise<ThumbnailStorageOutput | null> {
     if (!file.type.startsWith('image')) return null
-    // Same validation saveFile applies, so the dedicated thumbnail endpoint
-    // answers unreadable bytes with the same 422 rather than a 500.
-    await assertReadableImageBytes(file)
-
     // Enforce the account quota like saveFile, so a thumbnail replacement can't
     // push usage past the limit.
     const quotaCheck = await checkQuotaAvailable(
@@ -242,9 +241,17 @@ export class LocalFileStorage implements MediaStorage {
 
     // Use the stored image's actual size/dimensions (outputInfo), not the input
     // image's metadata.
-    const { outputInfo, path, contentType } = await this._saveImageFile(file, {
-      isThumbnail: true
-    })
+    let stored
+    try {
+      stored = await this._saveImageFile(file, { isThumbnail: true })
+    } catch (error) {
+      // The same split saveFile makes: bytes that will not decode are the
+      // caller's 422, anything else is ours and stays a logged 500. Nothing is
+      // stored before this, so there is nothing to reclaim.
+      await assertThumbnailDecodable(file)
+      throw error
+    }
+    const { outputInfo, path, contentType } = stored
     return {
       path,
       bytes: outputInfo.size,
@@ -291,6 +298,16 @@ export class LocalFileStorage implements MediaStorage {
         height: outputInfo.height
       }
     }
+  }
+
+  // A stored path is reachable only through its `medias` row, so anything that
+  // fails before that row exists has to take the files back out.
+  private async _reclaimStored(...paths: (string | undefined)[]) {
+    await Promise.all(
+      paths
+        .filter((path) => path !== undefined)
+        .map((path) => this.deleteFile(path).catch(() => false))
+    )
   }
 
   private async _saveImageFile(

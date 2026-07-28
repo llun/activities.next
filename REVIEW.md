@@ -254,8 +254,11 @@ change doesn't touch.
 - **The two storage drivers must answer the same input identically.**
   `LocalFileStorage` and `S3FileStorage` are edited one at a time and drift
   silently — an uploaded `thumbnail` was stored by one and dropped by the other
-  for as long as both existed, so the same upload federated a different
-  `meta.small` per backend. Shared policy belongs in a module both import
+  for as long as both existed, so the same upload answered with a different
+  `meta.small`/`preview_url` per backend (the upload-response entity only;
+  `getMastodonAttachment` hardcodes `preview_url: null` and the AP `Document`
+  has no thumbnail field, so nothing federated). Shared policy belongs in a
+  module both import
   (`medias/thumbnailInput` validates a supplied thumbnail; `medias/fileName`
   handles supplied names), and a change to one driver's `saveFile` needs the
   matching test in **both** `localFile.test.ts` and `S3StorageFile.test.ts`.

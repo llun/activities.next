@@ -574,6 +574,20 @@ describe('LocalFileStorage.saveFile with a caller-supplied thumbnail', () => {
     })
   }
 
+  // A PNG with an intact header and a missing body: it passes the cheap header
+  // check and only fails once the encoder reaches the bytes that are not there.
+  const createTruncatedPngFile = async (width: number, height: number) => {
+    const file = await createPngFile(width, height)
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    return new File(
+      [bytes.subarray(0, Math.floor(bytes.length * 0.6))],
+      'cut.png',
+      {
+        type: 'image/png'
+      }
+    )
+  }
+
   // The dedicated thumbnail endpoint (PUT /api/v1/media/:id) has to answer the
   // same bytes the same way — it used to reach sharp unguarded and 500.
   it('refuses unreadable bytes on the standalone thumbnail path', async () => {
@@ -643,6 +657,44 @@ describe('LocalFileStorage.saveFile with a caller-supplied thumbnail', () => {
       })
     ).rejects.toThrow(MediaValidationError)
     expect(database.createMedia).not.toHaveBeenCalled()
+    await expect(fs.readdir(mediaRoot)).resolves.toHaveLength(0)
+  })
+
+  // `metadata()` reads the header, so this is the input the up-front check
+  // cannot catch — it reaches the encoder, and without the classifier in the
+  // catch the caller would get a logged 500 for its own corrupt bytes.
+  it('refuses a truncated thumbnail and reclaims the stored original', async () => {
+    await expect(
+      createStorage().saveFile(actor, {
+        file: await createPngFile(800, 600),
+        thumbnail: await createTruncatedPngFile(400, 300)
+      })
+    ).rejects.toThrow(MediaValidationError)
+    expect(database.createMedia).not.toHaveBeenCalled()
+    await expect(fs.readdir(mediaRoot)).resolves.toHaveLength(0)
+  })
+
+  it('refuses truncated bytes on the standalone thumbnail path', async () => {
+    await expect(
+      createStorage().saveThumbnail(
+        actor,
+        await createTruncatedPngFile(400, 300)
+      )
+    ).rejects.toThrow(MediaValidationError)
+    await expect(fs.readdir(mediaRoot)).resolves.toHaveLength(0)
+  })
+
+  // The row is written last, so a database failure leaves both files stored and
+  // unreferenced — the same reclaim as a missing row.
+  it('reclaims both stored files when the media row write fails', async () => {
+    database.createMedia.mockRejectedValue(new Error('deadlock detected'))
+
+    await expect(
+      createStorage().saveFile(actor, {
+        file: await createPngFile(800, 600),
+        thumbnail: await createPngFile(400, 300)
+      })
+    ).rejects.toThrow('deadlock detected')
     await expect(fs.readdir(mediaRoot)).resolves.toHaveLength(0)
   })
 

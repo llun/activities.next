@@ -722,6 +722,20 @@ describe('S3FileStorage saveFile with a caller-supplied thumbnail', () => {
     })
   }
 
+  // A PNG with an intact header and a missing body: it passes the cheap header
+  // check and only fails once the encoder reaches the bytes that are not there.
+  const createTruncatedPngFile = async (width: number, height: number) => {
+    const file = await createPngFile(width, height)
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    return new File(
+      [bytes.subarray(0, Math.floor(bytes.length * 0.6))],
+      'cut.png',
+      {
+        type: 'image/png'
+      }
+    )
+  }
+
   // Thumbnails are uploaded under the same prefix as the original, suffixed
   // `-thumbnail`, so each helper has to pick out the object it means.
   const uploaded = (kind: 'original' | 'thumbnail') => {
@@ -929,6 +943,44 @@ describe('S3FileStorage saveFile with a caller-supplied thumbnail', () => {
     ).rejects.toThrow(failure)
     expect(database.createMedia).not.toHaveBeenCalled()
     expect(deletedKeys).toEqual([uploads[0].key])
+  })
+
+  // `metadata()` reads the header, so this is the input the up-front check
+  // cannot catch — it reaches the encoder, and without the classifier in the
+  // catch the caller would get a logged 500 for its own corrupt bytes.
+  it('refuses a truncated thumbnail and reclaims the stored original', async () => {
+    await expect(
+      createStorage().saveFile(actor, {
+        file: await createPngFile(800, 600),
+        thumbnail: await createTruncatedPngFile(400, 300)
+      })
+    ).rejects.toThrow(MediaValidationError)
+    expect(database.createMedia).not.toHaveBeenCalled()
+    expect(deletedKeys).toEqual([uploaded('original').key])
+  })
+
+  it('refuses truncated bytes on the standalone thumbnail path', async () => {
+    await expect(
+      createStorage().saveThumbnail(
+        actor,
+        await createTruncatedPngFile(400, 300)
+      )
+    ).rejects.toThrow(MediaValidationError)
+  })
+
+  // The row is written last, so a database failure leaves both objects stored
+  // and unreferenced — the same reclaim as a missing row.
+  it('reclaims both stored objects when the media row write fails', async () => {
+    database.createMedia.mockRejectedValue(new Error('deadlock detected'))
+
+    await expect(
+      createStorage().saveFile(actor, {
+        file: await createPngFile(800, 600),
+        thumbnail: await createPngFile(400, 300)
+      })
+    ).rejects.toThrow('deadlock detected')
+    expect(deletedKeys).toEqual(uploads.map((upload) => upload.key))
+    expect(deletedKeys).toHaveLength(2)
   })
 
   // A row is the only handle anything else has on these paths, so without one
