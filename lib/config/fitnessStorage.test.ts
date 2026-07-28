@@ -18,6 +18,51 @@ describe('FitnessStorage config', () => {
   })
 
   describe('getFitnessStorageConfig', () => {
+    // Fitness storage falls back to the SAME ACTIVITIES_MEDIA_STORAGE_*
+    // variables, so it needs the same blank guard. A blank path used to fall
+    // through to `|| 'uploads'` and resolve relative to the process CWD,
+    // rooting .fit/.gpx uploads inside the application directory while the
+    // admin UI reported media storage as not configured; a blank bucket booted
+    // a live-but-broken S3 backend that failed at request time.
+    it.each([
+      {
+        name: 'a blank filesystem path',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 'fs',
+          ACTIVITIES_MEDIA_STORAGE_PATH: ''
+        }
+      },
+      {
+        name: 'a whitespace-only filesystem path',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 'fs',
+          ACTIVITIES_MEDIA_STORAGE_PATH: '   '
+        }
+      },
+      {
+        name: 'a blank bucket',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+          ACTIVITIES_MEDIA_STORAGE_BUCKET: '',
+          ACTIVITIES_MEDIA_STORAGE_REGION: 'eu-central-1'
+        }
+      },
+      {
+        name: 'a blank region',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+          ACTIVITIES_MEDIA_STORAGE_BUCKET: 'media.example.social',
+          ACTIVITIES_MEDIA_STORAGE_REGION: ''
+        }
+      }
+    ])(
+      'refuses to fall back to media storage configured with $name',
+      ({ env }) => {
+        Object.assign(process.env, env)
+        expect(getFitnessStorageConfig()).toBeNull()
+      }
+    )
+
     it('returns null when no fitness or media storage env vars are set', () => {
       const config = getFitnessStorageConfig()
       expect(config).toBeNull()

@@ -1,3 +1,5 @@
+import { logger } from '@/lib/utils/logger'
+
 import {
   MediaStorageFileConfig,
   MediaStorageS3Config,
@@ -107,12 +109,17 @@ describe('MediaStorage config', () => {
         }
       }
     ])('refuses to configure storage from $name', ({ env }) => {
-      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-      Object.assign(process.env, env)
+      const warn = vi.spyOn(logger, 'warn').mockImplementation(() => logger)
+      try {
+        Object.assign(process.env, env)
 
-      expect(getMediaStorageConfig()).toBeNull()
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining('empty'))
-      warn.mockRestore()
+        expect(getMediaStorageConfig()).toBeNull()
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('empty'))
+      } finally {
+        // Restored in a finally so a failing case cannot leak the mock into
+        // every test after it in this file.
+        warn.mockRestore()
+      }
     })
 
     it('trims a padded value rather than rejecting it', () => {

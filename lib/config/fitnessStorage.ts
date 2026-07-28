@@ -1,6 +1,7 @@
 import path from 'path'
 import { z } from 'zod'
 
+import { requiredStorageValue } from '@/lib/config/mediaStorage'
 import { matcher } from '@/lib/config/utils'
 
 export enum FitnessStorageType {
@@ -77,26 +78,45 @@ export const getFitnessStorageConfig = (): {
     if (!hasEnvironmentMediaStorage) return null
 
     switch (process.env.ACTIVITIES_MEDIA_STORAGE_TYPE) {
-      case FitnessStorageType.LocalFile:
+      case FitnessStorageType.LocalFile: {
+        // Same guard as media storage, because this is the same variable. A
+        // blank value used to fall through to `|| 'uploads'` and resolve
+        // relative to the process CWD, rooting fitness uploads inside the
+        // application directory — the exact failure the media resolver rejects.
+        const mediaPath = requiredStorageValue(
+          'ACTIVITIES_MEDIA_STORAGE_PATH',
+          process.env.ACTIVITIES_MEDIA_STORAGE_PATH,
+          'fitness storage'
+        )
+        if (mediaPath === null) return null
         return {
           fitnessStorage: {
             type: process.env.ACTIVITIES_MEDIA_STORAGE_TYPE,
-            path: path.join(
-              process.env.ACTIVITIES_MEDIA_STORAGE_PATH || 'uploads',
-              'fitness'
-            ),
+            path: path.join(mediaPath || 'uploads', 'fitness'),
             maxFileSize: getFitnessMaxFileSize(),
             quotaPerAccount: getMediaQuotaPerAccount(),
             mapboxAccessToken: getMapboxAccessToken()
           }
         }
+      }
       case FitnessStorageType.S3Storage:
       case FitnessStorageType.ObjectStorage: {
+        const mediaBucket = requiredStorageValue(
+          'ACTIVITIES_MEDIA_STORAGE_BUCKET',
+          process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET,
+          'fitness storage'
+        )
+        const mediaRegion = requiredStorageValue(
+          'ACTIVITIES_MEDIA_STORAGE_REGION',
+          process.env.ACTIVITIES_MEDIA_STORAGE_REGION,
+          'fitness storage'
+        )
+        if (mediaBucket === null || mediaRegion === null) return null
         return {
           fitnessStorage: {
             type: process.env.ACTIVITIES_MEDIA_STORAGE_TYPE,
-            bucket: process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET as string,
-            region: process.env.ACTIVITIES_MEDIA_STORAGE_REGION as string,
+            bucket: mediaBucket as string,
+            region: mediaRegion as string,
             hostname:
               process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME || undefined,
             endpoint:

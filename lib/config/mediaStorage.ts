@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { matcher } from '@/lib/config/utils'
 import { MAX_FILE_SIZE } from '@/lib/services/medias/constants'
+import { logger } from '@/lib/utils/logger'
 
 export enum MediaStorageType {
   LocalFile = 'fs',
@@ -44,13 +45,20 @@ export type MediaStorageConfig = z.infer<typeof MediaStorageConfig>
 // satisfies it and boots a live-but-broken backend: an empty `PATH` resolves to
 // the process CWD, so uploads land in the application directory and
 // /api/v1/files serves it. Treat blank as unset, and say so.
-const requiredValue = (name: string, value: string | undefined) => {
+//
+// Shared with getFitnessStorageConfig, which falls back to these same
+// ACTIVITIES_MEDIA_STORAGE_* variables and would otherwise still root a
+// filesystem backend at the CWD from exactly the value rejected here.
+export const requiredStorageValue = (
+  name: string,
+  value: string | undefined,
+  subject: string
+): string | null | undefined => {
   if (value === undefined) return undefined
   const trimmed = value.trim()
   if (trimmed) return trimmed
 
-  // eslint-disable-next-line no-console
-  console.warn(`${name} is set but empty; media storage will be disabled`)
+  logger.warn(`${name} is set but empty; ${subject} will be disabled`)
   return null
 }
 
@@ -62,9 +70,10 @@ export const getMediaStorageConfig = (): {
 
   switch (process.env.ACTIVITIES_MEDIA_STORAGE_TYPE) {
     case MediaStorageType.LocalFile: {
-      const path = requiredValue(
+      const path = requiredStorageValue(
         'ACTIVITIES_MEDIA_STORAGE_PATH',
-        process.env.ACTIVITIES_MEDIA_STORAGE_PATH
+        process.env.ACTIVITIES_MEDIA_STORAGE_PATH,
+        'media storage'
       )
       if (path === null) return null
       return {
@@ -90,13 +99,15 @@ export const getMediaStorageConfig = (): {
     }
     case MediaStorageType.S3Storage:
     case MediaStorageType.ObjectStorage: {
-      const bucket = requiredValue(
+      const bucket = requiredStorageValue(
         'ACTIVITIES_MEDIA_STORAGE_BUCKET',
-        process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET
+        process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET,
+        'media storage'
       )
-      const region = requiredValue(
+      const region = requiredStorageValue(
         'ACTIVITIES_MEDIA_STORAGE_REGION',
-        process.env.ACTIVITIES_MEDIA_STORAGE_REGION
+        process.env.ACTIVITIES_MEDIA_STORAGE_REGION,
+        'media storage'
       )
       if (bucket === null || region === null) return null
       return {

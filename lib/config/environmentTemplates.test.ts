@@ -31,10 +31,33 @@ describe('ENV_TEMPLATE_AREAS', () => {
     expect(field.placeholder.trim()).not.toBe('')
   })
 
+  // `defaultValue` is the one way a value reaches the generated block without
+  // being typed, so it is also the one way a placeholder could be smuggled back
+  // in — the leak invariant in EnvBlockBuilder.test.tsx skips a field whose
+  // default IS its placeholder, which is correct for `./uploads` and would be a
+  // silent hole for anything else. Pin the exact set, and the exact values.
+  //
+  // Adding `defaultValue: 'media.example.social'` to the bucket descriptor
+  // would otherwise ship a copy-pasteable bucket the operator does not own,
+  // with every other test still green.
+  const DEFAULTS_BY_NAME: Record<string, string> = {
+    ACTIVITIES_MEDIA_STORAGE_PATH: './uploads'
+  }
+
+  it('declares a default only where one is expected, with the expected value', () => {
+    const withDefaults = fieldsOf().filter(({ field }) => field.defaultValue)
+
+    expect(
+      Object.fromEntries(
+        withDefaults.map(({ field }) => [field.name, field.defaultValue])
+      )
+    ).toEqual(DEFAULTS_BY_NAME)
+  })
+
   // The filesystem block is the one an operator can paste and run as-is, and
   // that only holds while its required variables carry real defaults. Without
-  // one, `ACTIVITIES_MEDIA_STORAGE_PATH=` disables media storage outright
-  // (getMediaStorageConfig treats blank as unset — before that guard it
+  // one, `ACTIVITIES_MEDIA_STORAGE_PATH=` disables media and fitness storage
+  // outright (both resolvers treat blank as unset — before that guard it
   // resolved to the process CWD and served the application directory).
   it('keeps the filesystem storage block runnable with nothing typed', () => {
     const storage = ENV_TEMPLATE_AREAS.find((area) => area.value === 'storage')
