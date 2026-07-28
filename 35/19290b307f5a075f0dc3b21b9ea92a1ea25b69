@@ -1,0 +1,24 @@
+lib/services/email/inboundPayload.ts
+  s_2f8f98bd1d8b55::t_f9bbf271446e46 1-32
+app/api/v1/webhooks/email/route.test.ts
+  s_2f8f98bd1d8b55::t_3c350d9ba59152 1-258
+app/api/v1/webhooks/email/route.ts
+  s_2f8f98bd1d8b55::t_c76748a7b9fa4a 1-148
+  s_2f8f98bd1d8b55::t_dbef5994653857 149-158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "3519290b307f5a075f0dc3b21b9ea92a1ea25b69",
+  "prompts": {},
+  "sessions": {
+    "s_2f8f98bd1d8b55": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fe73386a-874f-4632-8456-f9a69e911a24",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

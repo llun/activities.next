@@ -1,0 +1,64 @@
+lib/components/settings/NotificationSettings.test.tsx
+  s_2f8f98bd1d8b55::t_150ea8d34da94d 41-42
+  s_2f8f98bd1d8b55::t_738b9ed67de611 72-140
+  s_2f8f98bd1d8b55::t_8d2364c65557b6 5,11,18-20
+app/(timeline)/settings/notifications/page.tsx
+  s_2f8f98bd1d8b55::t_5ee9bc8f46269e 99-106,116-117
+  s_2f8f98bd1d8b55::t_c55cca265086a5 5,8
+lib/types/database/operations.ts
+  s_2f8f98bd1d8b55::t_d39305bc126df3 164-165
+lib/database/sql/actor.ts
+  s_2f8f98bd1d8b55::t_7bebb801ceb124 910
+  s_2f8f98bd1d8b55::t_af73cda58feb25 859
+lib/config/serverSettings.ts
+  s_2f8f98bd1d8b55::t_2c791b23677a82 67-72
+  s_2f8f98bd1d8b55::t_2742378b6c1580 111-113
+  s_2f8f98bd1d8b55::t_d23843a4b63af4 366-380
+app/api/v1/accounts/email-notifications/route.ts
+  s_2f8f98bd1d8b55::t_71c28a080b186e 16-18
+  s_2f8f98bd1d8b55::t_1ab7322de54085 53-57,70-71
+lib/components/settings/NotificationSettings.tsx
+  s_2f8f98bd1d8b55::t_fa2ad7944f7877 83-86
+  s_2f8f98bd1d8b55::t_f41dbe3a3829bf 11-12
+  s_2f8f98bd1d8b55::t_38fc96351875a4 186-204
+  s_2f8f98bd1d8b55::t_28c95b3e2ec2d2 61-63
+  s_2f8f98bd1d8b55::t_ebb4e186a8d478 38-43
+  s_2f8f98bd1d8b55::t_eb0ff88a9b57f1 330-333,335-352
+  s_2f8f98bd1d8b55::t_19ce63c8b236e4 334
+lib/client.ts
+  s_2f8f98bd1d8b55::t_54cb71b1691e0e 2632-2646
+lib/types/database/rows.ts
+  s_2f8f98bd1d8b55::t_1deb721586f64e 72-76
+app/(timeline)/admin/posts/page.tsx
+  s_2f8f98bd1d8b55::t_ee6f45310e63de 24-25,31
+lib/components/admin/settings/PostsMediaSettingsForm.test.tsx
+  s_2f8f98bd1d8b55::t_deac48f9126580 58-59,66
+  s_2f8f98bd1d8b55::t_1701c6fb68cba8 323-343
+  s_2f8f98bd1d8b55::t_60873fcac0479e 41
+lib/components/admin/settings/PostsMediaSettingsForm.tsx
+  s_2f8f98bd1d8b55::t_56f9f445043ee4 7
+  s_2f8f98bd1d8b55::t_b174b0e6bb1140 31-34
+  s_2f8f98bd1d8b55::t_38fb117e687c14 45
+  s_2f8f98bd1d8b55::t_0e0769d6351afd 18
+  s_2f8f98bd1d8b55::t_5e1b5f63bc6930 85-86,96-97
+  s_2f8f98bd1d8b55::t_a3d092340c7d55 111-112
+  s_2f8f98bd1d8b55::t_4d9aa83f679492 353-388
+app/api/v1/accounts/email-notifications/route.test.ts
+  s_2f8f98bd1d8b55::t_9678d420f871fd 174-212
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "f5fd57aed4d366970f0b48399f8ea6be82715894",
+  "prompts": {},
+  "sessions": {
+    "s_2f8f98bd1d8b55": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fe73386a-874f-4632-8456-f9a69e911a24",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
