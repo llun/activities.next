@@ -23,6 +23,8 @@ export interface SQLFitnessFile {
   // Map data flags
   hasMapData?: boolean | null
   mapImagePath?: string | null
+  // JPEG copy of the map above, for mail clients that cannot decode WebP.
+  mapImageEmailPath?: string | null
   processingStatus?: FitnessProcessingStatus | null
   isPrimary?: boolean | null
   importBatchId?: string | null
@@ -59,6 +61,7 @@ export interface FitnessFile {
   description?: string
   hasMapData?: boolean
   mapImagePath?: string
+  mapImageEmailPath?: string
   processingStatus?: FitnessProcessingStatus
   isPrimary?: boolean
   importBatchId?: string

@@ -268,7 +268,7 @@ For fitness activity file uploads (.fit, .gpx, .tcx). Falls back to media storag
 
 ### Fitness map provider
 
-Interactive maps (route detail, heatmaps) and the stored static route-map PNGs are
+Interactive maps (route detail, heatmaps) and the stored static route-map images are
 rendered by one pluggable provider, selected with `ACTIVITIES_FITNESS_MAP_PROVIDER`:
 
 - `apple` — Apple Maps: MapKit JS in the browser (authenticated with a short-lived
@@ -293,7 +293,7 @@ Apple Maps free tier (per Apple Developer Program membership, as published by Ap
 snapshot requests per day. Static route images are generated once per fitness post and
 stored, so snapshot usage tracks new imports rather than page views.
 
-Existing route-map PNGs keep the style of the provider that generated them; run
+Existing route-map images keep the style of the provider that generated them; run
 **Regenerate maps for old statuses** on the fitness privacy page (`/fitness/privacy`,
 backed by `POST /api/v1/fitness/general/regenerate-maps`) after switching providers to
 re-render them.

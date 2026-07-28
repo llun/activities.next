@@ -3358,6 +3358,8 @@ export type PushAlerts = {
   update: boolean
   quote: boolean
   quoted_update: boolean
+  // Ecosystem dialect (Akkoma parity), not a core Mastodon alert key.
+  'pleroma:emoji_reaction': boolean
   'admin.sign_up': boolean
   'admin.report': boolean
 }

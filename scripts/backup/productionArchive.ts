@@ -1144,14 +1144,20 @@ export const getReferencedStoragePaths = async (
     await forEachKeysetRow<{
       id: string
       mapImagePath?: unknown
+      mapImageEmailPath?: unknown
       path?: unknown
     }>({
-      columns: ['path', 'mapImagePath'],
+      columns: ['path', 'mapImagePath', 'mapImageEmailPath'],
       database,
       onRow: (row) => {
         if (typeof row.path === 'string') fitnessFilePaths.push(row.path)
         if (typeof row.mapImagePath === 'string') {
           mediaFilePaths.push(row.mapImagePath)
+        }
+        // The JPEG copy of the map kept for the import email lives in media
+        // storage too, so it has to travel with the archive.
+        if (typeof row.mapImageEmailPath === 'string') {
+          mediaFilePaths.push(row.mapImageEmailPath)
         }
       },
       tableName: 'fitness_files'

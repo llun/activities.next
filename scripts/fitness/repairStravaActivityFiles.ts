@@ -38,6 +38,7 @@ import { getConfig } from '@/lib/config'
 import { FitnessStorageType } from '@/lib/config/fitnessStorage'
 import { getDatabase } from '@/lib/database'
 import { getEffectiveFitnessStorageConfig } from '@/lib/services/fitness-files'
+import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 import {
   buildGpxFromStravaStreams,
@@ -108,6 +109,9 @@ type StravaFitnessFileRow = {
   path: string
   fileType: string
   importBatchId: string
+  // The route map's JPEG copy for the import email, so --delete-missing can
+  // remove it: it has no `medias` row, so this row is its only reference.
+  mapImageEmailPath: string | null
 }
 
 async function repairStravaActivityFiles(args = process.argv.slice(2)) {
@@ -164,7 +168,8 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
         'statusId',
         'path',
         'fileType',
-        'importBatchId'
+        'importBatchId',
+        'mapImageEmailPath'
       ])
 
     if (input.actorId) {
@@ -350,6 +355,18 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
           new DeleteObjectCommand({ Bucket: bucket, Key: s3Key })
         )
         await database.deleteFitnessFile({ id: file.id })
+        // The route map's JPEG copy for the import email has no `medias` row,
+        // so nothing else can discover it once this reference is dropped.
+        await deleteEmailMapImage({
+          database,
+          fitnessFileId: file.id,
+          mapImageEmailPath: file.mapImageEmailPath
+        })
+        if (file.mapImageEmailPath) {
+          await database.updateFitnessFileActivityData(file.id, {
+            mapImageEmailPath: null
+          })
+        }
         if (file.statusId) {
           await database.deleteStatus({ statusId: file.statusId })
         }

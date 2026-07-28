@@ -10,10 +10,12 @@ The `cleanupMediaStorage.ts` script helps you clean up orphaned media files that
 
 The script:
 
-1. Connects to your database and retrieves all media file paths
+1. Connects to your database and retrieves all media file paths — both the `medias` rows (`original` and `thumbnail`) and `fitness_files.mapImageEmailPath`, the JPEG copy of a route map kept for the activity-import email, which lives in media storage without a `medias` row of its own
 2. Lists all files in your configured storage (local filesystem or S3)
 3. Identifies files that exist in storage but are not referenced in the database
 4. Optionally deletes these orphaned files
+
+Stored paths are already relative to the storage root, so they are compared as-is; only an absolute path recorded by an older deployment is rebased onto the configured storage path. Always run `--dry-run` first and check that the list looks like genuine leftovers: if it names every file you have, stop — that is a symptom of a path mismatch, not of a storage full of orphans.
 
 ### Usage
 
@@ -127,10 +129,8 @@ Creates a test user for development/testing:
 
 ### Render Email Previews
 
-Renders email templates to standalone HTML files so a template change can be
-checked visually. Covers the templates listed in `buildPreviews()` — currently
-every email except the fitness activity import, which is not on the shared
-layout yet. Emails are not pages, so there is no dev-server route to open —
+Renders every email template to standalone HTML files so a template change can
+be checked visually. Emails are not pages, so there is no dev-server route to open —
 this is the visual verification step for anything under
 `lib/services/email/templates/`.
 

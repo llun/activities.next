@@ -34,6 +34,23 @@ vi.mock('@/lib/utils/traceApiRoute', () => ({
 // guarded methods (deduped). Kept independent of the route source so a wrong
 // literal is caught.
 const EXPECTED: Array<{ module: string; scopes: string[] }> = [
+  // status emoji reactions (ecosystem dialects, one store)
+  {
+    module: '@/app/api/v1/pleroma/statuses/[id]/reactions/[emoji]/route',
+    scopes: ['read', 'read:statuses', 'write', 'write:favourites']
+  },
+  {
+    module: '@/app/api/v1/pleroma/statuses/[id]/reactions/route',
+    scopes: ['read', 'read:statuses']
+  },
+  {
+    module: '@/app/api/v1/statuses/[id]/react/[name]/route',
+    scopes: ['write', 'write:favourites']
+  },
+  {
+    module: '@/app/api/v1/statuses/[id]/unreact/[name]/route',
+    scopes: ['write', 'write:favourites']
+  },
   // account actions
   {
     module: '@/app/api/v1/accounts/[id]/follow/route',
@@ -235,6 +252,16 @@ const MULTI_METHOD: Array<{
   module: string
   methods: Record<string, string[]>
 }> = [
+  {
+    // Reads and writes on one reaction URL: a GET<->mutation scope swap here
+    // would pass the flattened EXPECTED assertion above.
+    module: '@/app/api/v1/pleroma/statuses/[id]/reactions/[emoji]/route',
+    methods: {
+      GET: ['read', 'read:statuses'],
+      PUT: ['write', 'write:favourites'],
+      DELETE: ['write', 'write:favourites']
+    }
+  },
   {
     module: '@/app/api/v1/notifications/route',
     methods: {

@@ -584,3 +584,24 @@ describe('PushSubscription Database', () => {
     })
   })
 })
+
+describe('pleroma:emoji_reaction alert default', () => {
+  it('resolves to true for a stored row that predates the key', () => {
+    // normalizeAlerts fills a missing key from DEFAULT_PUSH_ALERTS, so a false
+    // default would permanently suppress reaction pushes for every subscription
+    // created before the key existed.
+    const alerts = parseStoredAlerts(
+      JSON.stringify({ mention: true, favourite: false })
+    )
+
+    expect(alerts['pleroma:emoji_reaction']).toBeTrue()
+  })
+
+  it('honours an explicit opt-out', () => {
+    const alerts = parseStoredAlerts(
+      JSON.stringify({ 'pleroma:emoji_reaction': false })
+    )
+
+    expect(alerts['pleroma:emoji_reaction']).toBeFalse()
+  })
+})

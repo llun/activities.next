@@ -7,6 +7,7 @@ import {
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
 import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
+import { deleteMediaFile } from '@/lib/services/medias'
 import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
@@ -32,11 +33,18 @@ vi.mock('@/lib/services/fitness-files/parseFitnessFile', async () => ({
   isParseableFitnessFileType: vi.fn().mockReturnValue(true)
 }))
 
+vi.mock('@/lib/services/medias', () => ({
+  deleteMediaFile: vi.fn()
+}))
+
 const mockGetFitnessFileBuffer = getFitnessFileBuffer as jest.MockedFunction<
   typeof getFitnessFileBuffer
 >
 const mockParseFitnessFile = parseFitnessFile as jest.MockedFunction<
   typeof parseFitnessFile
+>
+const mockDeleteMediaFile = deleteMediaFile as jest.MockedFunction<
+  typeof deleteMediaFile
 >
 
 describe('importFitnessFilesJob', () => {
@@ -62,6 +70,7 @@ describe('importFitnessFilesJob', () => {
     mockGetFitnessFileBuffer.mockResolvedValue(
       Buffer.from('fitness-file-bytes')
     )
+    mockDeleteMediaFile.mockResolvedValue(true)
   })
 
   it('records a reason when status creation rejects with a non-Error', async () => {
@@ -102,6 +111,59 @@ describe('importFitnessFilesJob', () => {
     const updated = await database.getFitnessFile({ id: file!.id })
     expect(updated?.importStatus).toBe('failed')
     expect(updated?.importError).toBe('queue exploded')
+  })
+
+  it('drops a stale route map email copy when a file is re-imported', async () => {
+    const file = await database.createFitnessFile({
+      actorId: actor.id,
+      path: 'fitness/reimport-email-copy.fit',
+      fileName: 'reimport-email-copy.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024,
+      importBatchId: 'batch-reimport-email-copy'
+    })
+    expect(file).toBeDefined()
+
+    // A previous import of this row emailed the owner and stored a JPEG copy of
+    // its map.
+    await database.updateFitnessFileActivityData(file!.id, {
+      hasMapData: true,
+      mapImagePath: 'medias/2026-07-26/old-route-map.webp',
+      mapImageEmailPath: 'medias/2026-07-26/old-route-map.jpg'
+    })
+
+    mockParseFitnessFile.mockResolvedValue({
+      coordinates: [
+        { lat: 51.5007, lng: -0.1246 },
+        { lat: 51.5033, lng: -0.1195 }
+      ],
+      trackPoints: [],
+      totalDistanceMeters: 4_000,
+      totalDurationSeconds: 1_200,
+      activityType: 'running',
+      startTime: new Date('2026-02-01T07:00:00.000Z')
+    })
+
+    await importFitnessFilesJob(database, {
+      id: 'job-reimport-email-copy',
+      name: IMPORT_FITNESS_FILES_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        batchId: 'batch-reimport-email-copy',
+        fitnessFileIds: [file!.id]
+      }
+    })
+
+    // The reset below de-references the copy; a file that ends up non-primary
+    // never reaches processFitnessFileJob to rewrite it, so the object would be
+    // orphaned with nothing able to find it.
+    expect(mockDeleteMediaFile).toHaveBeenCalledWith(
+      database,
+      'medias/2026-07-26/old-route-map.jpg'
+    )
+    const updated = await database.getFitnessFile({ id: file!.id })
+    expect(updated?.mapImageEmailPath).toBeUndefined()
   })
 
   it('creates local-only merged status, marks primary, and queues processing', async () => {
@@ -182,7 +244,10 @@ describe('importFitnessFilesJob', () => {
         actorId: actor.id,
         statusId: updatedFirst!.statusId,
         fitnessFileId: firstFile!.id,
-        publishSendNote: false
+        publishSendNote: false,
+        // The default: this batch's publisher did not opt in, so the import
+        // stays silent even though the status is brand new.
+        notifyOnComplete: false
       }
     })
   })
@@ -277,7 +342,8 @@ describe('importFitnessFilesJob', () => {
         actorId: actor.id,
         statusId,
         fitnessFileId: firstFile!.id,
-        publishSendNote: false
+        publishSendNote: false,
+        notifyOnComplete: false
       }
     })
   })
@@ -720,5 +786,87 @@ describe('importFitnessFilesJob', () => {
     expect(success?.importStatus).toBe('completed')
     expect(success?.statusId).toBeDefined()
     expect(getQueue().publish).toHaveBeenCalledTimes(1)
+  })
+
+  describe('import notification opt-in', () => {
+    const createFile = async (name: string) => {
+      const file = await database.createFitnessFile({
+        actorId: actor.id,
+        path: `fitness/${name}.fit`,
+        fileName: `${name}.fit`,
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1_024,
+        importBatchId: 'batch-notify-optin'
+      })
+      return file!.id
+    }
+
+    const stubParse = (count: number) => {
+      for (let index = 0; index < count; index += 1) {
+        mockParseFitnessFile.mockResolvedValueOnce({
+          coordinates: [],
+          trackPoints: [],
+          totalDistanceMeters: 5_000 + index,
+          totalDurationSeconds: 1_500 + index,
+          // Distinct start times so the files do not merge as one overlapping
+          // activity — the point is several separate imports in one batch.
+          startTime: new Date(Date.UTC(2026, 0, 2 + index))
+        })
+      }
+    }
+
+    it('stays silent for a bulk batch that did not opt in', async () => {
+      // This job is the funnel for every bulk import: the Strava archive
+      // walker, the multi-file upload endpoint, retry-all, the recovery
+      // scripts. Each activity in a batch gets its own brand-new status, so
+      // inferring "notify" from that alone would mail once per activity — a
+      // 500-ride archive import would send 500 emails.
+      const fitnessFileIds = await Promise.all([
+        createFile('bulk-a'),
+        createFile('bulk-b'),
+        createFile('bulk-c')
+      ])
+      stubParse(3)
+
+      await importFitnessFilesJob(database, {
+        id: 'job-bulk-silent',
+        name: IMPORT_FITNESS_FILES_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          batchId: 'batch-notify-optin',
+          fitnessFileIds
+        }
+      })
+
+      const publishes = (getQueue().publish as jest.Mock).mock.calls
+        .map(([message]) => message)
+        .filter((message) => message.name === PROCESS_FITNESS_FILE_JOB_NAME)
+      expect(publishes.length).toBeGreaterThan(0)
+      for (const message of publishes) {
+        expect(message.data.notifyOnComplete).toBe(false)
+      }
+    })
+
+    it('notifies when the publisher opted in and the status is new', async () => {
+      const fitnessFileIds = [await createFile('single-opt-in')]
+      stubParse(1)
+
+      await importFitnessFilesJob(database, {
+        id: 'job-single-notify',
+        name: IMPORT_FITNESS_FILES_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          batchId: 'batch-notify-optin-single',
+          fitnessFileIds,
+          notifyOnComplete: true
+        }
+      })
+
+      const publish = (getQueue().publish as jest.Mock).mock.calls
+        .map(([message]) => message)
+        .find((message) => message.name === PROCESS_FITNESS_FILE_JOB_NAME)
+      expect(publish?.data.notifyOnComplete).toBe(true)
+    })
   })
 })

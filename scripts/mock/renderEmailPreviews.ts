@@ -5,9 +5,7 @@
  * this is how a template change gets a real visual check before it ships.
  *
  * NOTE: covers only the templates listed in buildPreviews() below — currently
- * the four account/security emails and the six notification emails. The fitness
- * activity-import email is not on the shared layout yet; add it here in the PR
- * that migrates it.
+ * every email the server can send.
  *
  * Pure function calls with fixture data — no database is opened, no network
  * request is made, and no mail is sent. Only `getConfig()`/`getBaseURL()` are
@@ -32,6 +30,7 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 
+import { buildActivityImportEmail } from '@/lib/services/email/templates/activityImport'
 import { buildActorDeletedEmail } from '@/lib/services/email/templates/actorDeleted'
 import { buildChangeEmail } from '@/lib/services/email/templates/changeEmail'
 import { buildFollowEmail } from '@/lib/services/email/templates/follow'
@@ -44,6 +43,7 @@ import { buildReplyByEmailFailureEmail } from '@/lib/services/email/templates/re
 import { buildResetPasswordEmail } from '@/lib/services/email/templates/resetPassword'
 import { buildVerifyEmail } from '@/lib/services/email/templates/verifyEmail'
 import { RenderedEmail } from '@/lib/services/email/types'
+import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { EditableStatus, StatusType } from '@/lib/types/domain/status'
 import { escapeHtml } from '@/lib/utils/text/escapeHtml'
@@ -206,6 +206,36 @@ const buildPreviews = (): Preview[] => [
     slug: 'boost',
     group: 'Notifications',
     email: buildBoostEmail({ recipient: anna, actor: ben, status: annaPost })
+  },
+  {
+    slug: 'activity-import',
+    group: 'Fitness',
+    email: buildActivityImportEmail({
+      recipient: anna,
+      status: fixtureStatus(anna, 'Morning run', 'note-fit-88301'),
+      fitness: {
+        id: 'fitness-1',
+        actorId: anna.id,
+        path: 'fitness/morning-run.fit',
+        fileName: 'morning-run.fit',
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 120_000,
+        totalDistanceMeters: 8_210,
+        totalDurationSeconds: 2_538,
+        movingTimeSeconds: 2_538,
+        activityType: 'running',
+        activityStartTime: 1_700_000_000_000,
+        createdAt: 1,
+        updatedAt: 1
+      }
+      // No mapImageUrl on purpose. A real route map is a stored media URL on
+      // the instance, which a fixture cannot fabricate, and any stand-in image
+      // has the wrong aspect ratio — the generated maps are 4:3, so a square
+      // placeholder renders the card a third taller than it ever will be and
+      // makes the preview look broken. This shows the genuine no-GPS
+      // degradation instead; the map slot is covered by blocks.test.ts.
+    })
   }
 ]
 

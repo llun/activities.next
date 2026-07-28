@@ -57,6 +57,24 @@ change doesn't touch.
   status still returns the full `Status` with `bookmarked: false`, not a redacted
   one.
 
+## Uploaded file names
+
+- A supplied file name (`File.name`, the presigned flow's `fileName`) is
+  attacker-controlled: only browser multipart uploads send a bare basename. In
+  the media storage drivers it must never be joined to a path, passed to
+  `extname`, or persisted raw — it goes through `@/lib/services/medias/fileName`
+  first. (`lib/services/fitness-files/` is a known unfixed exception; its paths
+  are safe but its stored names are not sanitized.)
+- Temp paths from a supplied name use `createMediaTempFilePath` (random prefix,
+  explicit separator, parent asserted to be `tmpdir()`), never
+  `join(tmpdir(), prefix + name)` — `path.join` resolves `..`, and prepending a
+  prefix without a separator does not stop it: enough `..` still escapes, and
+  fewer cancel the prefix out into a predictable path.
+- A generated path's extension comes from the validated content type via
+  `getStoredMediaExtension()`, not from the name. Every `ACCEPTED_FILE_TYPES`
+  entry needs a mapping in `EXTENSION_BY_CONTENT_TYPE`, or it falls through to
+  the name.
+
 ## Unique constraints (TOCTOU)
 
 - Pre-checking uniqueness (email/username exists?) before an insert/update is a
@@ -169,14 +187,9 @@ change doesn't touch.
 
 ## Emails
 
-- **Migration in progress — one template left.** Eleven of twelve are on the shared
-  layout; only `activityImport.ts` still uses the old
-  `getSubject`/`getTextContent`/`getHTMLContent` trio, and nothing sends it.
-  Apply the rules below when migrating it; don't copy the old shape into a new
-  template.
-- Every migrated email is built by a `build<Name>Email(params): RenderedEmail`
-  module in `lib/services/email/templates/`. No subject/HTML/text literals at a
-  call site.
+- Every email is built by a `build<Name>Email(params): RenderedEmail` module in
+  `lib/services/email/templates/`. No subject/HTML/text literals at a call site.
+  All twelve templates follow this; there is no legacy shape left to copy.
 - Templates compose blocks from `@/lib/services/email/layout/blocks` and render
   through `renderEmail`; they never write markup. Escaping belongs to the block
   builders, so a template hands in plain strings, and nothing in the layout emits
@@ -197,6 +210,16 @@ change doesn't touch.
 - Outlook-only properties (`mso-padding-alt` on both the button cell and its
   anchor, `mso-hide:all`, the MSO ghost table pinning the column to 600px) are
   load-bearing and invisible in a browser. Don't drop them as dead style.
+- **An email image never points at a stored media path directly.** Stored images
+  are WebP unless the caller asked for another format, and Outlook desktop and
+  Windows Mail cannot decode WebP. An email image needs a stored JPEG copy
+  (`saveMediaImageRendition(…, 'jpeg')`) and a column remembering it — the route
+  map uses `fitness_files.mapImageEmailPath` — with the WebP as a **live**
+  fallback for every case where no copy exists (storage unconfigured, over quota,
+  failed encode, or a row predating the column), not legacy-only dead code. A
+  stored file with no `medias` row is invisible to generic media cleanup, backup
+  and deletion, so check each of those knows about it and that the file is
+  deleted wherever its reference is dropped.
 
 ## Style, imports & tests
 
@@ -221,6 +244,18 @@ change doesn't touch.
   always yields the mock; bare `await import()` returns the real module unless it
   is separately `vi.mock`'d. (Some review bots wrongly flag `vi.importMock` as
   non-existent — it is a valid, documented Vitest API.)
+
+## Stored media
+
+- Stored-image resizes go through `STORED_IMAGE_RESIZE_OPTIONS`
+  (`lib/services/medias/constants.ts`), never an inline `{ fit: 'inside' }`.
+  sharp's `fit: 'inside'` **enlarges** by default, so a bare
+  `MAX_WIDTH`/`MAX_HEIGHT` box is an upscale, not a cap — it inflates every
+  stored image below the cap, silently, with no error and no test failure.
+- `original.metaData`/`original.bytes` describe the **uploaded** file, while
+  `thumbnail.*` describes the **stored** WebP (`outputInfo`). Know which one a
+  change reads: only the latter moves when the encode pipeline changes, and only
+  the latter feeds `meta.small`.
 
 ## Docs hygiene
 

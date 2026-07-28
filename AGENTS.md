@@ -266,15 +266,9 @@ section-navigation patterns; pick by section type.
 
 ## Transactional & Notification Emails
 
-Emails go through one shared skeleton, so a design or copy change lands in one
-place instead of eleven.
-
-> **Migration in progress — one template left.** Eleven of the twelve are on the
-> shared layout. Only `activityImport.ts` still exports the old
-> `getSubject`/`getTextContent`/`getHTMLContent` trio and writes raw markup —
-> and nothing sends it, so it is dead code until the fitness import wiring
-> lands. Apply the rules below when migrating it, and do not copy the old shape
-> into a new template.
+Every email the server sends goes through one shared skeleton, so a design or
+copy change lands in one place instead of twelve. All twelve templates are on
+it; there is no legacy shape left to copy.
 
 - **One module per email** in `lib/services/email/templates/`, exporting a single
   `build<Name>Email(params): RenderedEmail` (`{ subject, text, html }`). **Never
@@ -312,14 +306,36 @@ place instead of eleven.
   (`deleteActorJob.test.ts` and the password-reset route test), in both cases
   hiding that `sendMail` was never reached at all.
 - **Verify a template change by rendering it**:
-  `./scripts/mock/renderEmailPreviews.ts` writes each template it covers to HTML
-  with fixture data, plus an index showing every one beside its plain-text twin
-  (see `docs/maintenance.md`). Emails are not pages, so this is the real-browser
-  check Definition of Done item 6 asks for. **It currently covers only the four
-  account emails** — add a template to `buildPreviews()` in the same PR that
-  migrates it, or the change ships unpreviewable. Keep the fixture values
-  production-shaped: the codes are 43-char base64url, and a short placeholder
-  hides the link-wrapping problems a real one exposes.
+  `./scripts/mock/renderEmailPreviews.ts` writes every template to HTML with
+  fixture data, plus an index showing each one beside its plain-text twin (see
+  `docs/maintenance.md`). Emails are not pages, so this is the real-browser check
+  Definition of Done item 6 asks for. **A new template must be added to
+  `buildPreviews()` in the same PR**, or the change ships unpreviewable. Keep the
+  fixture values production-shaped — the codes are 43-char base64url, and a short
+  placeholder hides the link-wrapping problems a real one exposes — and leave out
+  a fixture the preview cannot represent honestly: the fitness card passes no map
+  URL because the generated maps are 4:3 and any stand-in image renders the card
+  a third taller than it ever will be.
+- **An email must never point an `<img src>` at a stored image path directly.**
+  The media storages write WebP unless the caller asks for another format
+  (`_saveImageBuffer` / `_uploadImageBufferToS3`), and Outlook desktop (Word
+  rendering engine) and Windows Mail have no WebP decoder — those recipients get
+  the `alt` text. So an email image needs a stored JPEG copy
+  (`saveMediaImageRendition(database, actor, file, 'jpeg')`) plus a column to
+  remember it; the route map's lives in `fitness_files.mapImageEmailPath`. Keep
+  the WebP as a **live** fallback for whenever the copy is missing — no media
+  storage configured, over quota, a failed encode — not merely for rows written
+  before the column existed. A stored file with no `medias` row is invisible to
+  every generic media path, so whoever writes one owns its whole lifecycle:
+  delete it wherever the reference is dropped — `deleteEmailMapImage` is the one
+  helper for that, and every site that drops a reference must call it (activity
+  delete, `delete_media` status delete, reprocess, re-import, map regeneration,
+  the Strava repair script) — teach
+  `scripts/maintenance/cleanupMediaStorage.ts` that it is referenced, and add it
+  to `scripts/backup/productionArchive.ts`. An on-demand transcode off
+  `/api/v1/files/:path` is **not** an option: with object storage behind a public
+  hostname that route answers `Response.redirect(url, 308)`, so there are no
+  bytes to convert.
 - A browser is a lower bar than a mail client. For a change to the shared layout,
   also send one to a real inbox and check Gmail, Apple Mail and Outlook —
   Outlook's Word engine is the one that needs `mso-` properties and the ghost
@@ -667,6 +683,16 @@ A full sub-agent review round yields no new actionable comments, or you have run
 - Store secrets and instance settings in environment variables; avoid committing secrets.
 - Review `docs/setup.md` and the database setup guides before changing auth, host, or database settings.
 - The full environment-variable catalog lives in `.env.example` (annotated) and `docs/environment-variables.md` — consult both before adding a new `ACTIVITIES_*` variable in `lib/config/`.
+
+### Uploaded file names are untrusted input
+
+- **In the media storage drivers (`lib/services/medias/`), never join, `extname`, or persist a supplied file name directly — put it through `@/lib/services/medias/fileName` first.** `File.name` and the presigned flow's `fileName` field are plain client-controlled strings: only a browser multipart upload is guaranteed to send a bare basename, and every non-browser Mastodon client (`POST /api/v1/media`, `POST /api/v2/media`, `POST /api/v1/medias/presigned`) puts whatever it likes there. Apply the same treatment to any new code that accepts an uploaded name.
+- `sanitizeStoredFileName` reduces a name to one inert path segment (cuts at the last `/` **or** `\`, drops control, C1, bidi and invisible-spacing characters, rejects `.`/`..`, caps it at 200 bytes so it fits both `varchar(255)` and a filesystem name). Use it for anything persisted or handed to another system — the stored name is federated and becomes the attachment's `name`/alt text on other instances, so bidi overrides there are a display-spoofing vector. It deliberately keeps U+200C/U+200D, which Persian and Indic spelling and emoji sequences need.
+- `createMediaTempFilePath` is the only sanctioned way to build a temp path from a supplied name. `path.join` resolves `..`, so `join(tmpdir(), randomHex + file.name)` escaped `tmpdir()` given three or more `..` (the first is absorbed by the prefix's own segment). With fewer, the name instead cancels the prefix out and lands on a **predictable** `<tmpdir>/<name>`, so one upload can overwrite another's temp file. The helper adds the separator and asserts the result's parent is still `tmpdir()`.
+- `getStoredMediaExtension(contentType, fileName)` derives a generated path's extension from the **validated content type**, not the name. `extname('clip.mp4/../../evil.html')` is `.html`, which on the local driver became the stored filename and made `/api/v1/files/…` serve an mp4/HTML polyglot as `text/html` on the instance origin; a 300-character extension produces a local filename no filesystem accepts. It falls back to the name's extension only for content types outside the map — which the upload routes already reject — and then only for an allowlisted media extension. It also fixes the case-sensitive `endsWith('.mov')` check that stored `MOVIE.MOV` as `.MOV`.
+- **Every entry of `ACCEPTED_FILE_TYPES` must have a mapping in `EXTENSION_BY_CONTENT_TYPE`.** A type without one falls through to the supplied name, which is the hole this module closes; `fileName.test.ts` asserts the map covers the list.
+- Covered by `lib/services/medias/fileName.test.ts` plus entry-point regression tests in `S3StorageFile.test.ts` / `localFile.test.ts`.
+- **Known gap:** `lib/services/fitness-files/` still persists `file.name` raw into `fitness_files.fileName` (`varchar(255) not null`). Its paths are safe — the extension comes from the `getFitnessFileType` allowlist and writes go through `assertFitnessStoragePath` — but the name is unbounded and unsanitized. Route it through `sanitizeStoredFileName` when you next touch that code.
 
 ## Database Backends & Local Setup
 

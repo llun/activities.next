@@ -42,12 +42,12 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **List timelines** — Per-list timelines honoring replies policy, exclusive lists, and block/mute/keyword filtering
 - ✅ **Notifications** — Like, follow, mention, reblog, follow request, quote (someone quoted your post), quote-update (a post you quoted was edited), emoji reaction (someone reacted to your post, served as the Pleroma `pleroma:emoji_reaction` type), and collection (added-to-collection / collection-update) notifications
 - ✅ **Notification grouping** — Group similar notifications together
-- ✅ **Email notifications** — Configurable email alerts for each notification type
+- ✅ **Email notifications** — Configurable email alerts for each notification type, including fitness activity imports
 - ✅ **Reply by email** — Answer a mention or reply notification by replying to the email; see [Reply by email](#reply-by-email) below
 - ✅ **Push notifications** — Web Push subscriptions with VAPID configuration
 - ✅ **Unread count** — Badge showing unread notification count
 
-- 🚧 **Status emoji reactions** — Inbound federation and storage have shipped: a reaction from Pleroma/Akkoma (`EmojiReact`) or the Misskey family (a `Like` carrying `content`/`_misskey_reaction`) is stored as a reaction rather than a favourite and is served on every status as `pleroma.emoji_reactions` and `reactions`. The write API, outbound federation, and the picker UI are still landing
+- 🚧 **Status emoji reactions** — React to a post with a unicode emoji or an instance custom emoji, separately from favouriting it. Reactions federate both ways: inbound from Pleroma/Akkoma (`EmojiReact`) and the Misskey family (a `Like` carrying `content`/`_misskey_reaction`), outbound as a Misskey-style `Like` that vanilla Mastodon shows as a favourite. Served on every status as `pleroma.emoji_reactions` and `reactions`, with `PUT`/`DELETE /api/v1/pleroma/statuses/:id/reactions/:emoji` (plus glitch-soc `react`/`unreact` aliases) to write them. The picker UI is still landing
 
 ### Storage & Media
 
@@ -58,7 +58,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Fitness file storage** — Upload .fit, .gpx, and .tcx activity files
 - ✅ **Fitness activity processing** — Parse GPS tracks and metrics from uploaded .fit, .gpx, and .tcx files
 - ✅ **Fitness activity display** — Show route maps, activity statistics, analysis graphs, and device info in posts
-- ✅ **Pluggable fitness map provider** — Choose `apple` (MapKit JS + Apple Maps Snapshots), `mapbox` (Mapbox GL JS + Static Images API), or `osm` (keyless MapLibre / OpenFreeMap) with `ACTIVITIES_FITNESS_MAP_PROVIDER`; missing or invalid credentials fall back to `osm`. Stored route-map PNGs keep the previous provider's style until the user runs **Regenerate maps** (`POST /api/v1/fitness/general/regenerate-maps`). With the `apple` provider, per-activity route-map images are rendered by Apple Web Snapshots; heatmap embed images with many activity segments exceed Apple's ~5,000-character snapshot URL limit and fall back to the built-in SVG heatmap renderer
+- ✅ **Pluggable fitness map provider** — Choose `apple` (MapKit JS + Apple Maps Snapshots), `mapbox` (Mapbox GL JS + Static Images API), or `osm` (keyless MapLibre / OpenFreeMap) with `ACTIVITIES_FITNESS_MAP_PROVIDER`; missing or invalid credentials fall back to `osm`. Stored route-map images keep the previous provider's style until the user runs **Regenerate maps** (`POST /api/v1/fitness/general/regenerate-maps`). With the `apple` provider, per-activity route-map images are rendered by Apple Web Snapshots; heatmap embed images with many activity segments exceed Apple's ~5,000-character snapshot URL limit and fall back to the built-in SVG heatmap renderer
 - ✅ **Fitness route heatmaps** — Per-region master/detail heatmaps by actor and region (aggregated across all activities and all time), rendered on an interactive map through the configured map provider (Apple MapKit JS, Mapbox GL JS, or keyless MapLibre / OpenFreeMap), with live generation progress, per-heatmap cancel/retry/remove, inline region renaming, and shareable/embeddable views (iframe + image)
 - ✅ **Strava import** — Import activities through Strava OAuth/webhooks and uploaded Strava archive ZIP files
 - ✅ **Fitness import resilience** — Recover stuck/orphaned imports, resumable Strava archive retries, same-ride upload merging, and per-file retry from the UI; repair scripts cover legacy imports

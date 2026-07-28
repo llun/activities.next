@@ -11,6 +11,7 @@ const EmailNotificationSettingsRequest = z.object({
   mention: z.boolean().optional(),
   reply: z.boolean().optional(),
   reblog: z.boolean().optional(),
+  emoji_reaction: z.boolean().optional(),
   activity_import: z.boolean().optional(),
   // Not a notification type: a top-level actor setting that lives on the same
   // form. Pulled out below so it never lands inside `emailNotifications`.

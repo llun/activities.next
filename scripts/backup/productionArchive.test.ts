@@ -614,6 +614,7 @@ describe('production archive scripts', () => {
           table.string('id').primary()
           table.string('path')
           table.string('mapImagePath')
+          table.string('mapImageEmailPath')
         })
 
         await database.batchInsert(
@@ -629,6 +630,8 @@ describe('production archive scripts', () => {
           Array.from({ length: fitnessCount }, (_, index) => ({
             id: `fitness-${String(index).padStart(4, '0')}`,
             mapImagePath: index % 2 === 0 ? `medias/map-${index}.webp` : null,
+            mapImageEmailPath:
+              index % 2 === 0 ? `medias/map-${index}.jpg` : null,
             path: `fitness/${index}.fit`
           })),
           200
@@ -638,11 +641,14 @@ describe('production archive scripts', () => {
 
         expect(paths.fitnessFilePaths).toHaveLength(fitnessCount)
         expect(paths.mediaFilePaths).toHaveLength(
-          mediaCount + Math.ceil(mediaCount / 2) + Math.ceil(fitnessCount / 2)
+          mediaCount +
+            Math.ceil(mediaCount / 2) +
+            Math.ceil(fitnessCount / 2) * 2
         )
         expect(paths.fitnessFilePaths).toContain('fitness/1004.fit')
         expect(paths.mediaFilePaths).toContain('medias/original-1004.webp')
         expect(paths.mediaFilePaths).toContain('medias/map-1004.webp')
+        expect(paths.mediaFilePaths).toContain('medias/map-1004.jpg')
       } finally {
         await database.destroy()
       }

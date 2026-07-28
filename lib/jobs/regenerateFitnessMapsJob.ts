@@ -6,6 +6,7 @@ import {
   SEND_UPDATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { getFitnessFile } from '@/lib/services/fitness-files'
+import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import {
@@ -194,7 +195,13 @@ export const regenerateFitnessMapsJob = createJobHandle(
 
           await database.updateFitnessFileActivityData(fitnessFileId, {
             hasMapData: false,
-            mapImagePath: null
+            mapImagePath: null,
+            mapImageEmailPath: null
+          })
+          await deleteEmailMapImage({
+            database,
+            fitnessFileId,
+            mapImageEmailPath: fitnessFile.mapImageEmailPath
           })
           await database.updateFitnessFileProcessingStatus(
             fitnessFileId,
@@ -268,16 +275,27 @@ export const regenerateFitnessMapsJob = createJobHandle(
 
           await database.updateFitnessFileActivityData(fitnessFileId, {
             hasMapData: true,
-            mapImagePath: getAttachmentMediaPath(storedMap.url)
+            mapImagePath: getAttachmentMediaPath(storedMap.url),
+            mapImageEmailPath: null
           })
           changedMapAttachment = true
         } else {
           await database.updateFitnessFileActivityData(fitnessFileId, {
             hasMapData: false,
-            mapImagePath: null
+            mapImagePath: null,
+            mapImageEmailPath: null
           })
           changedMapAttachment = oldAttachmentIds.length > 0
         }
+
+        // The copy backed an email sent when the activity arrived, so there is
+        // nothing to replace it with — and after a privacy change it may show a
+        // route the owner has since hidden.
+        await deleteEmailMapImage({
+          database,
+          fitnessFileId,
+          mapImageEmailPath: fitnessFile.mapImageEmailPath
+        })
 
         await removeOldMapAttachmentsAndMedia({
           database,

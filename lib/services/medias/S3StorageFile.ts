@@ -11,18 +11,35 @@ import { format } from 'date-fns'
 import fs from 'fs/promises'
 import { IncomingMessage } from 'http'
 import { tmpdir } from 'os'
-import { extname, join } from 'path'
+import { join } from 'path'
 import sharp from 'sharp'
 
 import { MediaStorageS3Config } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
-import { MAX_HEIGHT, MAX_WIDTH } from '@/lib/services/medias/constants'
+import {
+  MAX_HEIGHT,
+  MAX_WIDTH,
+  STORED_IMAGE_RESIZE_OPTIONS
+} from '@/lib/services/medias/constants'
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
 import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
+import {
+  createMediaTempFilePath,
+  getStoredMediaExtension,
+  sanitizeStoredFileName
+} from '@/lib/services/medias/fileName'
 import { getMediaAttachment } from '@/lib/services/medias/getMediaAttachment'
+import {
+  DEFAULT_IMAGE_OUTPUT_FORMAT,
+  type ImageOutputFormat,
+  encodeImageOutput,
+  getImageOutputFormatDetail
+} from '@/lib/services/medias/imageOutputFormat'
+import { getMediaFileUrl } from '@/lib/services/medias/mediaFileUrl'
 import { checkQuotaAvailable } from '@/lib/services/medias/quota'
 import {
+  ImageRenditionOutput,
   MediaSchema,
   MediaStorage,
   MediaStorageGetFileOutput,
@@ -82,6 +99,11 @@ const PRESIGNED_UPLOAD_UNHOISTABLE_HEADERS = new Set([
   'x-amz-checksum-sha1',
   'x-amz-meta-checksumsha1'
 ])
+
+interface UploadImageOptions {
+  isThumbnail?: boolean
+  format?: ImageOutputFormat
+}
 
 export class S3FileStorage implements MediaStorage {
   private static _instance: MediaStorage
@@ -198,13 +220,15 @@ export class S3FileStorage implements MediaStorage {
     }
 
     const { bucket } = this._config
-    const { fileName } = presignedMedia
+    // The client supplies this one directly (there is no multipart part to read
+    // it from), so it is the least trustworthy name of all.
+    const fileName = sanitizeStoredFileName(presignedMedia.fileName)
 
     const currentTime = Date.now()
     const randomPrefix = crypto.randomBytes(8).toString('hex')
     const timeDirectory = format(currentTime, 'yyyy-MM-dd')
 
-    const ext = fileName.endsWith('.mov') ? '.mp4' : extname(fileName)
+    const ext = getStoredMediaExtension(presignedMedia.contentType, fileName)
     const mimeType =
       presignedMedia.contentType === 'video/quicktime'
         ? 'video/mp4'
@@ -403,7 +427,9 @@ export class S3FileStorage implements MediaStorage {
       // Video preview extraction can fail (no decodable frame); only build a
       // thumbnail when we actually have a preview image to avoid sharp(null).
       const thumbnail = previewImage
-        ? await this._uploadImageBufferToS3(currentTime, previewImage, true)
+        ? await this._uploadImageBufferToS3(currentTime, previewImage, {
+            isThumbnail: true
+          })
         : null
       const storedMedia = await this._database.createMedia({
         actorId: actor.id,
@@ -415,15 +441,15 @@ export class S3FileStorage implements MediaStorage {
             width: metaData.width ?? 0,
             height: metaData.height ?? 0
           },
-          fileName: file.name
+          fileName: sanitizeStoredFileName(file.name)
         },
         ...(thumbnail
           ? {
-              // Use the resized WebP's actual size/dimensions (outputInfo).
+              // Use the resized image's actual size/dimensions (outputInfo).
               thumbnail: {
                 path: thumbnail.path,
                 bytes: thumbnail.outputInfo.size,
-                mimeType: 'image/webp',
+                mimeType: thumbnail.contentType,
                 metaData: {
                   width: thumbnail.outputInfo.width,
                   height: thumbnail.outputInfo.height
@@ -451,7 +477,7 @@ export class S3FileStorage implements MediaStorage {
           width: metaData.width ?? 0,
           height: metaData.height ?? 0
         },
-        fileName: file.name
+        fileName: sanitizeStoredFileName(file.name)
       },
       ...(media.description ? { description: media.description } : null),
       ...(media.focus ? { focus: media.focus } : null)
@@ -481,17 +507,56 @@ export class S3FileStorage implements MediaStorage {
       )
     }
 
-    // Use the stored WebP's actual size/dimensions (outputInfo), not the input
+    // Use the stored image's actual size/dimensions (outputInfo), not the input
     // image's metadata.
-    const { outputInfo, path } = await this._uploadImageToS3(
+    const { outputInfo, path, contentType } = await this._uploadImageToS3(
       Date.now(),
       file,
-      true
+      { isThumbnail: true }
     )
     return {
       path,
       bytes: outputInfo.size,
-      mimeType: 'image/webp',
+      mimeType: contentType,
+      metaData: {
+        width: outputInfo.width,
+        height: outputInfo.height
+      }
+    }
+  }
+
+  async saveImageRendition(
+    actor: Actor,
+    file: File,
+    imageFormat: ImageOutputFormat
+  ): Promise<ImageRenditionOutput | null> {
+    if (!file.type.startsWith('image')) return null
+
+    // Refuse the write when the account is already over quota. Note the bytes
+    // are not metered afterwards: usage is counter-based and those counters are
+    // maintained alongside `medias` rows, which a rendition has none of. Keep
+    // renditions few and small.
+    const quotaCheck = await checkQuotaAvailable(
+      this._database,
+      actor,
+      file.size
+    )
+    if (!quotaCheck.available) {
+      throw new MediaValidationError(
+        `Storage quota exceeded. Used: ${quotaCheck.used} bytes, Limit: ${quotaCheck.limit} bytes`
+      )
+    }
+
+    const { outputInfo, path, contentType } = await this._uploadImageToS3(
+      Date.now(),
+      file,
+      { format: imageFormat }
+    )
+    return {
+      path,
+      url: getMediaFileUrl(this._host, path),
+      bytes: outputInfo.size,
+      mimeType: contentType,
       metaData: {
         width: outputInfo.width,
         height: outputInfo.height
@@ -502,44 +567,49 @@ export class S3FileStorage implements MediaStorage {
   private async _uploadImageToS3(
     currentTime: number,
     file: File,
-    isThumbnail = false
+    options: UploadImageOptions = {}
   ) {
     return this._uploadImageBufferToS3(
       currentTime,
       Buffer.from(await file.arrayBuffer()),
-      isThumbnail
+      options
     )
   }
 
   private async _uploadImageBufferToS3(
     currentTime: number,
     buffer: Buffer,
-    isThumbnail = false
+    {
+      isThumbnail = false,
+      format: imageFormat = DEFAULT_IMAGE_OUTPUT_FORMAT
+    }: UploadImageOptions = {}
   ) {
     const { bucket } = this._config
     const randomPrefix = crypto.randomBytes(8).toString('hex')
+    const { extension, contentType } = getImageOutputFormatDetail(imageFormat)
 
-    const resizedImage = sharp(buffer)
-      .resize(MAX_WIDTH, MAX_HEIGHT, { fit: 'inside' })
-      .rotate()
-      .webp({ quality: 95, smartSubsample: true, nearLossless: true })
+    const resizedImage = encodeImageOutput(
+      sharp(buffer)
+        .resize(MAX_WIDTH, MAX_HEIGHT, STORED_IMAGE_RESIZE_OPTIONS)
+        .rotate(),
+      imageFormat
+    )
 
     const tempFilePath = join(
       tmpdir(),
-      `${crypto.randomBytes(8).toString('hex')}.webp`
+      `${crypto.randomBytes(8).toString('hex')}.${extension}`
     )
     // `metadata()` reports the INPUT image; `toFile()` resolves with the OUTPUT
-    // info (post-resize/WebP dimensions and byte size). Read metadata from a
-    // separate sharp instance so the two operations don't run concurrently on
+    // info (post-resize/re-encode dimensions and byte size). Read metadata from
+    // a separate sharp instance so the two operations don't run concurrently on
     // the same pipeline.
     const [metaData, outputInfo] = await Promise.all([
       sharp(buffer).metadata(),
       resizedImage.keepExif().toFile(tempFilePath)
     ])
 
-    const contentType = 'image/webp'
     const timeDirectory = format(currentTime, 'yyyy-MM-dd')
-    const path = `medias/${timeDirectory}/${randomPrefix}${isThumbnail ? '-thumbnail' : ''}.webp`
+    const path = `medias/${timeDirectory}/${randomPrefix}${isThumbnail ? '-thumbnail' : ''}.${extension}`
     const s3client = this._client
 
     // Outer finally guarantees the temp file is removed even if fs.open throws;
@@ -568,16 +638,17 @@ export class S3FileStorage implements MediaStorage {
 
   private async _uploadVideoToS3(currentTime: number, file: File) {
     const buffer = Buffer.from(await file.arrayBuffer())
-    const tmpVideoFile = join(
-      tmpdir(),
-      `${crypto.randomBytes(8).toString('hex')}${file.name}`
-    )
-    await fs.writeFile(tmpVideoFile, buffer)
+    const tmpVideoFile = createMediaTempFilePath(file.name)
+    // `wx` (O_EXCL) so the write fails rather than following a symlink someone
+    // planted at the path, or clobbering an existing file. The 64-bit random
+    // prefix already makes that infeasible to aim at; this makes it impossible.
+    await fs.writeFile(tmpVideoFile, buffer, { flag: 'wx' })
+    // `finally` so a probe/preview failure still removes the temp file instead
+    // of leaking it for the lifetime of the container.
     const [probe, previewImage] = await Promise.all([
       extractVideoMeta(buffer),
       extractVideoImage(tmpVideoFile)
-    ])
-    await fs.unlink(tmpVideoFile)
+    ]).finally(() => fs.unlink(tmpVideoFile).catch(() => undefined))
     const videoStream = probe.streams.find(
       (stream) => stream.codec_type === 'video'
     )
@@ -596,7 +667,7 @@ export class S3FileStorage implements MediaStorage {
     const { bucket } = this._config
     const randomPrefix = crypto.randomBytes(8).toString('hex')
     const timeDirectory = format(currentTime, 'yyyy-MM-dd')
-    const ext = file.name.endsWith('.mov') ? '.mp4' : extname(file.name)
+    const ext = getStoredMediaExtension(file.type, file.name)
     const path = `medias/${timeDirectory}/${randomPrefix}${ext}`
     const s3client = this._client
     const command = new PutObjectCommand({
