@@ -1,0 +1,48 @@
+lib/config/storageValue.test.ts
+  s_bacf13bfd97c8f::t_c264e3d311a89c 38-42
+lib/config/fitnessStorage.ts
+  s_bacf13bfd97c8f::t_36ecb649abf882 6
+  s_bacf13bfd97c8f::t_d842a3638b38d8 72-85
+  s_bacf13bfd97c8f::t_eb567a5158b6cb 196-201
+lib/services/fitness-files/index.test.ts
+  s_bacf13bfd97c8f::t_0a4fb0d1e643d3 3,9,169-214
+  s_bacf13bfd97c8f::t_a914ac174f2432 215
+lib/config/fitnessStorage.test.ts
+  s_bacf13bfd97c8f::t_72dfa48c525158 26-36
+  s_bacf13bfd97c8f::t_f80abae0e8d758 142,150,158,177,196,213
+  s_bacf13bfd97c8f::t_a25a81ad02c18d 167-168,186-187,204-205,222-223,232-233,336-337
+  s_bacf13bfd97c8f::t_4aea7730a6c754 251,258-272
+  s_bacf13bfd97c8f::t_d600ad99a76d63 316-319
+  s_bacf13bfd97c8f::t_3806eb0b1be3fd 273,333-335,338-389,394-396,398-426
+  s_bacf13bfd97c8f::t_6a487165b58779 7-8,10-11
+lib/config/mediaStorage.test.ts
+  s_bacf13bfd97c8f::t_4462c5626a91d1 22-28
+  s_bacf13bfd97c8f::t_0bb16d6206e011 291-295,297-326,331-333,335-342
+  s_bacf13bfd97c8f::t_a25a81ad02c18d 296
+  s_bacf13bfd97c8f::t_5b8c02425a421d 234,241-259
+  s_bacf13bfd97c8f::t_f80abae0e8d758 174,182,190,199,208,217,226
+docs/environment-variables.md
+  s_bacf13bfd97c8f::t_255fae97fdfc88 231-232
+  s_bacf13bfd97c8f::t_c02d38cf155ae8 206-208
+lib/services/fitness-files/index.ts
+  s_bacf13bfd97c8f::t_60369b2475f2ca 26-32
+  s_bacf13bfd97c8f::t_21af4e6f7eb420 5-6
+docs/fitness-file-storage.md
+  s_bacf13bfd97c8f::t_c36905816f20c1 32-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "1d0e018d9c23da6880ff6686edad165a5a67a5aa",
+  "prompts": {},
+  "sessions": {
+    "s_bacf13bfd97c8f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "43d31ca8-b754-400d-86bd-2acdf8bc8319",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
