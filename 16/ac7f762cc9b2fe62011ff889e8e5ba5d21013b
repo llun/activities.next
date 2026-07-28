@@ -1,0 +1,67 @@
+lib/components/posts/useReactionState.ts
+  s_6ce35993accbfa::t_ccd4352530e741 1-186
+lib/components/posts/actions/bookmark-button.tsx
+  s_6ce35993accbfa::t_8f81d7b61ffa5d 2,6,10-11,13,16-17,22-23,29,31
+lib/components/posts/actions/post-menu.tsx
+  s_6ce35993accbfa::t_ce598990607324 259
+lib/components/posts/actions/bookmark-button.test.tsx
+  s_6ce35993accbfa::t_30af9ea5c9380a 6,12
+  s_6ce35993accbfa::t_eaf1273e79e8d8 59-70,77
+  s_6ce35993accbfa::t_673ac90e31eb8a 88,105,125,144
+lib/components/posts/reaction-row.tsx
+  s_6ce35993accbfa::t_dd98a94dd4a23d 3,9,90-97,101-104,108-109,111-113,124-129,135
+lib/components/posts/actions/reaction-button.tsx
+  s_6ce35993accbfa::t_7f6ae98856d2ba 1-31,35-38,63-86
+  s_6ce35993accbfa::t_0de877de6d3f9a 32,39
+  s_6ce35993accbfa::t_bea743bb14ca59 40-62
+  s_6ce35993accbfa::t_5b62efed079829 33-34
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_6ce35993accbfa::t_e38e67b130e58e 1295-1302
+  s_6ce35993accbfa::t_4adf061dac8a82 44,47,53
+  s_6ce35993accbfa::t_0e91a617d1607b 2015-2016
+  s_6ce35993accbfa::t_2cb7d7c196e9f3 1976-1977,1980,1982
+lib/components/posts/actions/useBookmarkState.ts
+  s_6ce35993accbfa::t_361b68830f659d 1-88
+lib/components/posts/reaction-row.test.tsx
+  s_6ce35993accbfa::t_5b62efed079829 263-265
+  s_6ce35993accbfa::t_9ec0de7a9b5017 10-13,247
+  s_6ce35993accbfa::t_671d5585d49c5f 6,8,15,48-70,100,112,143,178,193,211,224,259-262,266,283,299,331,351,377,390,392,411,425
+  s_6ce35993accbfa::t_bec52399cf229c 71-92
+lib/components/posts/post.tsx
+  s_6ce35993accbfa::t_d4f513f15c7b2b 371-374
+  s_6ce35993accbfa::t_43f1764941d1dd 1-2
+  s_6ce35993accbfa::t_7213599d11c85b 103-110
+  s_6ce35993accbfa::t_72ad5059e482e7 47
+lib/components/posts/actions/actions.tsx
+  s_6ce35993accbfa::t_68deb623a312f3 1,4,15,18,21-25,36,51-58,65-78,80,84-91
+  s_6ce35993accbfa::t_cf8c0f064612ed 49-50,82-83
+lib/components/posts/post.test.tsx
+  s_6ce35993accbfa::t_65b4c0ff3d8d7e 679,684,687-694
+  s_6ce35993accbfa::t_b50cb95a2889ee 468-470
+  s_6ce35993accbfa::t_88d337afb5cfc7 722-724,726
+  s_6ce35993accbfa::t_d33a8a4ce53771 432-435
+  s_6ce35993accbfa::t_18e03921944df8 492,497,505-507
+  s_6ce35993accbfa::t_40034ad5e0fe45 493,657,680,746
+lib/components/posts/reaction-picker.tsx
+  s_6ce35993accbfa::t_ccbc8d5f831e4d 22-25
+lib/components/posts/actions/reaction-button.test.tsx
+  s_6ce35993accbfa::t_bea743bb14ca59 52-53,57
+  s_6ce35993accbfa::t_5b62efed079829 97-99
+  s_6ce35993accbfa::t_df8dc35bc77514 1-51,54-56,58-96,100-289
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "16ac7f762cc9b2fe62011ff889e8e5ba5d21013b",
+  "prompts": {},
+  "sessions": {
+    "s_6ce35993accbfa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "809721d1-bdad-4e7e-a56d-fa59cbba38e8",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
