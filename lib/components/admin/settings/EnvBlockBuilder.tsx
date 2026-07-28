@@ -131,19 +131,20 @@ const EnvBlockPreview: FC<{ lines: EnvBlockLine[] }> = ({ lines }) => {
 // they produce. Each area owns its own state so switching areas never discards
 // what the admin has already typed.
 const EnvAreaBuilder: FC<{ area: EnvTemplateArea }> = ({ area }) => {
-  const [choiceValue, setChoiceValue] = useState(area.defaultChoice)
+  const [choiceValue, setChoiceValue] = useState(
+    area.kind === 'choice' ? area.defaultChoice : ''
+  )
   const [values, setValues] = useState<Record<string, string>>({})
 
   const choice =
-    area.choices.find((candidate) => candidate.value === choiceValue) ??
-    area.choices[0]
+    area.kind === 'choice'
+      ? (area.choices.find((candidate) => candidate.value === choiceValue) ??
+        area.choices[0])
+      : null
+  const fields = area.kind === 'choice' ? choice!.fields : area.fields
 
   const lines = useMemo<EnvBlockLine[]>(() => {
-    const selector: EnvBlockLine = {
-      name: area.selectorName,
-      value: choice.value
-    }
-    const fieldLines = choice.fields.flatMap<EnvBlockLine>((field) => {
+    const fieldLines = fields.flatMap<EnvBlockLine>((field) => {
       const value = (values[field.name] ?? '').trim()
       // An optional variable only belongs in the block once it has a value; a
       // required one carries its placeholder as a visible to-do.
@@ -156,43 +157,43 @@ const EnvAreaBuilder: FC<{ area: EnvTemplateArea }> = ({ area }) => {
         }
       ]
     })
-    return [selector, ...fieldLines]
-  }, [area.selectorName, choice, values])
+    // A fields-only area has no selector variable to lead with.
+    if (area.kind !== 'choice') return fieldLines
+    return [{ name: area.selectorName, value: choice!.value }, ...fieldLines]
+  }, [area, choice, fields, values])
 
   const setFieldValue = (name: string, value: string) =>
     setValues((current) => ({ ...current, [name]: value }))
 
   return (
     <>
-      <SettingsField
-        label={area.selectorLabel}
-        htmlFor={`env-${area.value}-choice`}
-        help={
-          <>
-            Sets <EnvVarName name={area.selectorName} />.
-            {choice.note ? ` ${choice.note}` : ''}
-          </>
-        }
-      >
-        <Select
-          id={`env-${area.value}-choice`}
-          value={choice.value}
-          onChange={(event) => setChoiceValue(event.target.value)}
+      {area.kind === 'choice' && (
+        <SettingsField
+          label={area.selectorLabel}
+          htmlFor={`env-${area.value}-choice`}
+          help={
+            <>
+              Sets <EnvVarName name={area.selectorName} />.
+              {choice!.note ? ` ${choice!.note}` : ''}
+            </>
+          }
         >
-          {area.choices.map((candidate) => (
-            <option key={candidate.value} value={candidate.value}>
-              {candidate.label}
-            </option>
-          ))}
-        </Select>
-      </SettingsField>
+          <Select
+            id={`env-${area.value}-choice`}
+            value={choice!.value}
+            onChange={(event) => setChoiceValue(event.target.value)}
+          >
+            {area.choices.map((candidate) => (
+              <option key={candidate.value} value={candidate.value}>
+                {candidate.label}
+              </option>
+            ))}
+          </Select>
+        </SettingsField>
+      )}
 
-      {choice.fields.length > 0 && (
-        <EnvFields
-          fields={choice.fields}
-          values={values}
-          onChange={setFieldValue}
-        />
+      {fields.length > 0 && (
+        <EnvFields fields={fields} values={values} onChange={setFieldValue} />
       )}
 
       <EnvBlockPreview lines={lines} />

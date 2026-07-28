@@ -14,6 +14,7 @@ import { EnvBlockBuilder } from './EnvBlockBuilder'
 
 const STORAGE_AREA = 'Media storage — filesystem or S3'
 const MAPS_AREA = 'Fitness maps — route maps & heatmaps'
+const REPLY_AREA = 'Reply by email — answer notifications by replying'
 
 // Only the selected area is exposed to the accessibility tree, so scoping by
 // group keeps every assertion pointed at what the admin can actually see.
@@ -209,5 +210,40 @@ describe('EnvBlockBuilder', () => {
     expect(activeArea(STORAGE_AREA).getByLabelText('Bucket')).toHaveValue(
       'media.example.social'
     )
+  })
+
+  it('builds the inbound email block for reply by email', () => {
+    render(<EnvBlockBuilder />)
+    selectArea('reply-by-email')
+
+    const area = activeArea(REPLY_AREA)
+    fireEvent.change(area.getByLabelText('Inbound domain'), {
+      target: { value: 'reply.example.social' }
+    })
+    fireEvent.change(area.getByLabelText(/Webhook signing secret/), {
+      target: { value: 'a-signing-secret' }
+    })
+
+    expect(area.getAllByText('ACTIVITIES_EMAIL_INBOUND_DOMAIN')).toHaveLength(2)
+    expect(area.getByText('reply.example.social')).toBeInTheDocument()
+    expect(area.getAllByText('ACTIVITIES_EMAIL_INBOUND_SECRET')).toHaveLength(2)
+    // The secret belongs in the block, but only ever masked.
+    expect(area.queryByText('a-signing-secret')).toBeNull()
+    // Optional and untouched, so it stays out of the block entirely.
+    expect(
+      area.getAllByText('ACTIVITIES_EMAIL_INBOUND_LOCAL_PART_PREFIX')
+    ).toHaveLength(1)
+  })
+
+  // This area has one fixed set of variables rather than alternatives, so a
+  // stray selector would offer a choice that does not exist.
+  it('shows no sub-selector for an area without alternatives', () => {
+    render(<EnvBlockBuilder />)
+    selectArea('reply-by-email')
+
+    const area = activeArea(REPLY_AREA)
+    expect(area.queryByLabelText('Storage type')).toBeNull()
+    expect(area.queryByLabelText('Map provider')).toBeNull()
+    expect(area.queryAllByRole('combobox')).toHaveLength(0)
   })
 })

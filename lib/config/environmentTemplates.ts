@@ -34,7 +34,7 @@ export interface EnvTemplateChoice {
   note?: string
 }
 
-export interface EnvTemplateArea {
+interface EnvTemplateAreaBase {
   value: string
   // Label in the "Environment area" dropdown.
   label: string
@@ -43,16 +43,38 @@ export interface EnvTemplateArea {
   subject: string
   // Help line under the "Environment area" dropdown.
   blurb: string
-  // The variable the choice selector writes, and its label.
-  selectorLabel: string
-  selectorName: string
-  choices: EnvTemplateChoice[]
-  defaultChoice: string
 }
+
+/**
+ * An area is one of two shapes.
+ *
+ * `choice` areas pick a backend and the fields follow from it (storage type,
+ * map provider). `fields` areas have no backend to choose — every variable is
+ * filled in the same way every time — so they render the inputs directly. A
+ * one-option dropdown would be the alternative, and a select the admin can
+ * never change is worse than no select.
+ */
+export type EnvTemplateArea =
+  | (EnvTemplateAreaBase & {
+      kind: 'choice'
+      // The variable the choice selector writes, and its label.
+      selectorLabel: string
+      selectorName: string
+      choices: EnvTemplateChoice[]
+      defaultChoice: string
+    })
+  | (EnvTemplateAreaBase & {
+      kind: 'fields'
+      fields: EnvTemplateField[]
+    })
 
 // The whole media-storage family is environment-only, so the read-only backend
 // field on Posts & media names the family rather than one variable.
 export const MEDIA_STORAGE_ENV_PREFIX = 'ACTIVITIES_MEDIA_STORAGE_*'
+
+// Reply by email is likewise environment-only on the inbound side: the admin
+// switch on Posts & media can only turn OFF something these variables turned on.
+export const EMAIL_INBOUND_ENV_PREFIX = 'ACTIVITIES_EMAIL_INBOUND_*'
 
 const MEDIA_STORAGE_FILESYSTEM_FIELDS: EnvTemplateField[] = [
   {
@@ -139,8 +161,34 @@ const FITNESS_APPLE_MAPS_FIELDS: EnvTemplateField[] = [
   }
 ]
 
+// Reply by email needs no backend choice: the provider is whatever POSTs the
+// webhook, and these three variables describe it the same way whichever one it
+// is. Both the secret and the domain are required — setting only one disables
+// the feature rather than half-enabling it.
+const REPLY_BY_EMAIL_FIELDS: EnvTemplateField[] = [
+  {
+    name: 'ACTIVITIES_EMAIL_INBOUND_DOMAIN',
+    label: 'Inbound domain',
+    placeholder: 'reply.example.social'
+  },
+  {
+    name: 'ACTIVITIES_EMAIL_INBOUND_LOCAL_PART_PREFIX',
+    label: 'Address prefix — optional, defaults to reply',
+    placeholder: 'reply',
+    optional: true
+  },
+  {
+    name: 'ACTIVITIES_EMAIL_INBOUND_SECRET',
+    label: 'Webhook signing secret',
+    placeholder: 'openssl rand -hex 32',
+    secret: true,
+    wide: true
+  }
+]
+
 export const ENV_TEMPLATE_AREAS: EnvTemplateArea[] = [
   {
+    kind: 'choice',
     value: 'storage',
     label: 'Media storage — filesystem or S3',
     subject: 'storage',
@@ -163,6 +211,7 @@ export const ENV_TEMPLATE_AREAS: EnvTemplateArea[] = [
     ]
   },
   {
+    kind: 'choice',
     value: 'maps',
     label: 'Fitness maps — route maps & heatmaps',
     subject: 'fitness maps',
@@ -190,5 +239,14 @@ export const ENV_TEMPLATE_AREAS: EnvTemplateArea[] = [
         note: 'All three values are required; with any of them missing the provider falls back to OpenStreetMap.'
       }
     ]
+  },
+  {
+    kind: 'fields',
+    value: 'reply-by-email',
+    label: 'Reply by email — answer notifications by replying',
+    subject: 'inbound email',
+    blurb:
+      'Lets people answer a mention or reply notification by replying to the email. Needs the outbound ACTIVITIES_EMAIL_* settings too, and an MX record for the domain below pointing at whichever provider posts the webhook.',
+    fields: REPLY_BY_EMAIL_FIELDS
   }
 ]
