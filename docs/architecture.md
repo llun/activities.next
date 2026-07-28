@@ -183,8 +183,10 @@ dimensions (so it is metered against the account's storage usage), and surfaced
 as the attachment's `meta.small` and `preview_url`. For a video it replaces the
 extracted frame — the frame is extracted either way, so it saves no work — while
 without one a video keeps that frame and an image gets no thumbnail at all. A
-thumbnail that is not an image is refused before anything is stored, so an
-unusable one cannot leave an orphaned original behind.
+thumbnail that is not an image is refused before anything is stored; one that
+merely claims to be an image is caught by the encoder instead, and the original
+it arrived with is reclaimed rather than left orphaned. Either way the upload
+answers 422, not 500.
 
 **Presigned direct-to-S3** stores the bytes exactly as uploaded — original
 format, no re-encode, no server-side dimension cap — because the browser PUTs

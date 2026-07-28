@@ -22,6 +22,7 @@ import {
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
 import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
+import { getQuotaLimit } from '@/lib/services/medias/quota'
 import { getMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import { Actor } from '@/lib/types/domain/actor'
 import { StreamByteLimitError } from '@/lib/utils/streamLimit'
@@ -600,9 +601,9 @@ describe('S3FileStorage saveFile with a video', () => {
     )
   })
 
-  // The image and video branches share one `createMedia` call, but only the
-  // image branch reaches it through `_uploadImageToS3`, so it needs its own
-  // coverage.
+  // The image and video branches share one `createMedia` call, but the
+  // original's path and metadata come from a different helper in each, so the
+  // image branch needs its own coverage.
   it('stores a sanitized original file name for an image', async () => {
     database.createMedia.mockResolvedValue({
       id: 'media-2',
@@ -650,21 +651,29 @@ describe('S3FileStorage saveFile with a caller-supplied thumbnail', () => {
   // deletes its temp file as soon as `send` resolves, so an image stream has to
   // be drained inside the mock.
   let uploads: { key: string; body: Buffer }[]
+  let deletedKeys: string[]
 
   beforeEach(() => {
     vi.clearAllMocks()
     uploads = []
+    deletedKeys = []
     ;(S3Client as jest.MockedClass<typeof S3Client>).mockImplementation(
       function () {
         return { send } as unknown as S3Client
       }
     )
     send.mockImplementation(async (command) => {
+      if (command instanceof DeleteObjectCommand) {
+        deletedKeys.push(String(command.input.Key))
+        return {}
+      }
       if (!(command instanceof PutObjectCommand)) {
         throw new Error('Unexpected command')
       }
       const { Key, Body } = command.input
       const chunks: Buffer[] = []
+      // A video is uploaded as a Buffer and an image as a stream. `for await`
+      // over a Buffer walks it byte by byte, so the two need separate handling.
       if (Buffer.isBuffer(Body)) {
         chunks.push(Body)
       } else {
@@ -838,6 +847,47 @@ describe('S3FileStorage saveFile with a caller-supplied thumbnail', () => {
     ).rejects.toThrow(MediaValidationError)
     expect(uploads).toHaveLength(0)
     expect(database.createMedia).not.toHaveBeenCalled()
+  })
+
+  // `createMedia` meters the thumbnail's bytes too, so the pre-check has to
+  // reserve for them — otherwise an upload that fits only without its thumbnail
+  // is accepted and leaves the account over its quota.
+  it('counts the thumbnail against the account quota', async () => {
+    const file = await createPngFile(800, 600)
+    const thumbnail = await createPngFile(400, 300)
+    // Exactly enough room for the original on its own.
+    database.getStorageUsageForAccount.mockResolvedValue(
+      getQuotaLimit() - file.size
+    )
+
+    await expect(
+      createStorage().saveFile(actor, { file, thumbnail })
+    ).rejects.toThrow(MediaValidationError)
+    expect(uploads).toHaveLength(0)
+    // The same upload without the thumbnail still fits, so the thumbnail's
+    // bytes are what tipped it over.
+    await expect(
+      createStorage().saveFile(actor, { file })
+    ).resolves.toBeTruthy()
+  })
+
+  // The declared type is only a claim, and sharp is the real arbiter — so the
+  // guard above cannot be the whole story. By the time sharp rejects, the
+  // original is already in the bucket and no `medias` row will ever reference
+  // it.
+  it('reclaims the stored original when the thumbnail is not a readable image', async () => {
+    const thumbnail = new File([Buffer.from('not-an-image')], 'evil.png', {
+      type: 'image/png'
+    })
+
+    await expect(
+      createStorage().saveFile(actor, {
+        file: await createPngFile(800, 600),
+        thumbnail
+      })
+    ).rejects.toThrow(MediaValidationError)
+    expect(database.createMedia).not.toHaveBeenCalled()
+    expect(deletedKeys).toEqual([uploaded('original').key])
   })
 
   it('stores no thumbnail for an image uploaded without one', async () => {

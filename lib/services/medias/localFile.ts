@@ -133,19 +133,21 @@ export class LocalFileStorage implements MediaStorage {
       return null
     }
     // `MediaSchema.thumbnail` is a `FileSchema`, which accepts every entry of
-    // ACCEPTED_FILE_TYPES — video and audio included. Refuse an unusable one
-    // here, before anything is written: reaching sharp with it rejects with a
-    // plain Error, which is a 500 rather than a 422 and leaves the already
-    // stored original behind with no `medias` row to reclaim it by.
+    // ACCEPTED_FILE_TYPES — video and audio included. Refuse an obviously
+    // unusable one here, before anything is written. The declared type is only
+    // a claim, so this is the cheap half of the check; sharp is the real
+    // arbiter, and the catch below covers what it rejects.
     if (media.thumbnail && !media.thumbnail.type.startsWith('image')) {
       throw new MediaValidationError('Thumbnail must be an image')
     }
 
-    // Check quota before saving
+    // Check quota before saving. `createMedia` meters the thumbnail's stored
+    // bytes too, so reserve for it here — the uploaded file is larger than the
+    // WebP it becomes, which errs on the safe side.
     const quotaCheck = await checkQuotaAvailable(
       this._database,
       actor,
-      file.size
+      file.size + (media.thumbnail?.size ?? 0)
     )
     if (!quotaCheck.available) {
       throw new MediaValidationError(
@@ -156,11 +158,25 @@ export class LocalFileStorage implements MediaStorage {
     const { path, metaData, previewImage } = file.type.startsWith('video')
       ? await this._saveVideoFile(file)
       : await this._saveImageFile(file)
-    const thumbnail = media.thumbnail
-      ? await this._saveImageFile(media.thumbnail, { isThumbnail: true })
-      : previewImage
-        ? await this._saveImageBuffer(previewImage, { isThumbnail: true })
-        : null
+    let thumbnail
+    try {
+      thumbnail = media.thumbnail
+        ? await this._saveImageFile(media.thumbnail, { isThumbnail: true })
+        : previewImage
+          ? await this._saveImageBuffer(previewImage, { isThumbnail: true })
+          : null
+    } catch (error) {
+      // The original is already written and no `medias` row will reference it,
+      // so reclaim it before the failure propagates.
+      await this.deleteFile(path).catch(() => false)
+      // Bytes that merely claim to be an image reach sharp and reject with a
+      // plain Error, which surfaces as a 500; that is invalid input, so report
+      // it as the 422 the rest of the upload path returns.
+      if (media.thumbnail) {
+        throw new MediaValidationError('Thumbnail is not a readable image')
+      }
+      throw error
+    }
     const storedMedia = await this._database.createMedia({
       actorId: actor.id,
       original: {

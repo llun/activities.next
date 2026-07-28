@@ -12,6 +12,7 @@ import { Actor } from '@/lib/types/domain/actor'
 import { MAX_HEIGHT, MAX_WIDTH } from './constants'
 import { MediaValidationError } from './errors'
 import { LocalFileStorage } from './localFile'
+import { getQuotaLimit } from './quota'
 
 vi.mock('@/lib/utils/logger', () => ({
   logger: {
@@ -407,6 +408,24 @@ describe('LocalFileStorage.saveFile with a video', () => {
       database
     )
 
+  const createPngFile = async (width: number, height: number) => {
+    const buffer = await sharp({
+      create: { width, height, channels: 3, background: '#3366cc' }
+    })
+      .png()
+      .toBuffer()
+    return new File([new Uint8Array(buffer)], 'route-map.png', {
+      type: 'image/png'
+    })
+  }
+
+  const readStoredThumbnail = async () => {
+    const files = await fs.readdir(mediaRoot)
+    const match = files.find((file) => file.endsWith('-thumbnail.webp'))
+    if (!match) throw new Error(`No stored thumbnail in [${files.join(', ')}]`)
+    return sharp(await fs.readFile(path.join(mediaRoot, match))).metadata()
+  }
+
   // A guard, not a regression: this driver always built its path from a
   // generated prefix plus an extension, and `path.extname` can never return a
   // separator, so a supplied name never reached the path here. The traversal
@@ -459,55 +478,45 @@ describe('LocalFileStorage.saveFile with a video', () => {
     expect(storedPath).toMatch(/^[0-9a-f]{16}\.mp4$/)
   })
 
-  const createPngFile = async (width: number, height: number) => {
-    const buffer = await sharp({
-      create: { width, height, channels: 3, background: '#3366cc' }
-    })
-      .png()
-      .toBuffer()
-    return new File([new Uint8Array(buffer)], 'route-map.png', {
-      type: 'image/png'
-    })
-  }
-
-  const readStoredThumbnail = async () => {
-    const files = await fs.readdir(mediaRoot)
-    const match = files.find((file) => file.endsWith('-thumbnail.webp'))
-    if (!match) throw new Error(`No stored thumbnail in [${files.join(', ')}]`)
-    return sharp(await fs.readFile(path.join(mediaRoot, match))).metadata()
-  }
-
   // Which of the two thumbnail sources wins was untested on this driver, so the
   // precedence could be inverted here — reintroducing exactly the bug the S3
-  // driver had — with nothing failing.
-  it('prefers a caller-supplied thumbnail over the extracted video frame', async () => {
+  // driver had — with nothing failing. The file count matters as much as the
+  // dimensions: a variant that writes both and then picks one leaves the loser
+  // on disk with no `medias` row to reclaim it by.
+  it.each([
+    {
+      description:
+        'prefers a caller-supplied thumbnail over the extracted video frame',
+      suppliedThumbnail: { width: 400, height: 300 },
+      stored: { width: 400, height: 300 }
+    },
+    {
+      description:
+        'falls back to the extracted video frame when no thumbnail is supplied',
+      suppliedThumbnail: null,
+      // The mocked `extractVideoImage` frame.
+      stored: { width: 1, height: 1 }
+    }
+  ])('$description', async ({ suppliedThumbnail, stored }) => {
     const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {
       type: 'video/mp4'
     })
 
     await createStorage().saveFile(actor, {
       file,
-      thumbnail: await createPngFile(400, 300)
+      ...(suppliedThumbnail
+        ? {
+            thumbnail: await createPngFile(
+              suppliedThumbnail.width,
+              suppliedThumbnail.height
+            )
+          }
+        : null)
     })
 
-    // 400x300 rather than the 1x1 extracted frame.
-    await expect(readStoredThumbnail()).resolves.toMatchObject({
-      width: 400,
-      height: 300
-    })
-  })
-
-  it('falls back to the extracted video frame when no thumbnail is supplied', async () => {
-    const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {
-      type: 'video/mp4'
-    })
-
-    await createStorage().saveFile(actor, { file })
-
-    await expect(readStoredThumbnail()).resolves.toMatchObject({
-      width: 1,
-      height: 1
-    })
+    // The video plus exactly one thumbnail — the losing source is not written.
+    await expect(fs.readdir(mediaRoot)).resolves.toHaveLength(2)
+    await expect(readStoredThumbnail()).resolves.toMatchObject(stored)
   })
 
   // `MediaSchema.thumbnail` accepts every ACCEPTED_FILE_TYPES entry, videos
@@ -527,5 +536,44 @@ describe('LocalFileStorage.saveFile with a video', () => {
     ).rejects.toThrow(MediaValidationError)
     await expect(fs.readdir(mediaRoot)).resolves.toHaveLength(0)
     expect(database.createMedia).not.toHaveBeenCalled()
+  })
+
+  // `createMedia` meters the thumbnail's bytes too, so the pre-check has to
+  // reserve for them — otherwise an upload that fits only without its thumbnail
+  // is accepted and leaves the account over its quota.
+  it('counts the thumbnail against the account quota', async () => {
+    const file = await createPngFile(800, 600)
+    const thumbnail = await createPngFile(400, 300)
+    // Exactly enough room for the original on its own.
+    database.getStorageUsageForAccount.mockResolvedValue(
+      getQuotaLimit() - file.size
+    )
+
+    await expect(
+      createStorage().saveFile(actor, { file, thumbnail })
+    ).rejects.toThrow(MediaValidationError)
+    await expect(fs.readdir(mediaRoot)).resolves.toHaveLength(0)
+    // The same upload without the thumbnail still fits, so the thumbnail's
+    // bytes are what tipped it over.
+    await expect(
+      createStorage().saveFile(actor, { file })
+    ).resolves.toBeTruthy()
+  })
+
+  // The declared type is only a claim, and sharp is the real arbiter — so the
+  // guard above cannot be the whole story.
+  it('reclaims the stored original when the thumbnail is not a readable image', async () => {
+    const thumbnail = new File([Buffer.from('not-an-image')], 'evil.png', {
+      type: 'image/png'
+    })
+
+    await expect(
+      createStorage().saveFile(actor, {
+        file: await createPngFile(800, 600),
+        thumbnail
+      })
+    ).rejects.toThrow(MediaValidationError)
+    expect(database.createMedia).not.toHaveBeenCalled()
+    await expect(fs.readdir(mediaRoot)).resolves.toHaveLength(0)
   })
 })

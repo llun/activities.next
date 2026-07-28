@@ -407,19 +407,21 @@ export class S3FileStorage implements MediaStorage {
       return null
     }
     // `MediaSchema.thumbnail` is a `FileSchema`, which accepts every entry of
-    // ACCEPTED_FILE_TYPES — video and audio included. Refuse an unusable one
-    // here, before anything is uploaded: reaching sharp with it rejects with a
-    // plain Error, which is a 500 rather than a 422 and leaves the already
-    // stored original behind with no `medias` row to reclaim it by.
+    // ACCEPTED_FILE_TYPES — video and audio included. Refuse an obviously
+    // unusable one here, before anything is uploaded. The declared type is only
+    // a claim, so this is the cheap half of the check; sharp is the real
+    // arbiter, and the catch below covers what it rejects.
     if (media.thumbnail && !media.thumbnail.type.startsWith('image')) {
       throw new MediaValidationError('Thumbnail must be an image')
     }
 
-    // Check quota before saving
+    // Check quota before saving. `createMedia` meters the thumbnail's stored
+    // bytes too, so reserve for it here — the uploaded file is larger than the
+    // WebP it becomes, which errs on the safe side.
     const quotaCheck = await checkQuotaAvailable(
       this._database,
       actor,
-      file.size
+      file.size + (media.thumbnail?.size ?? 0)
     )
     if (!quotaCheck.available) {
       throw new MediaValidationError(
@@ -434,15 +436,29 @@ export class S3FileStorage implements MediaStorage {
     // and a video otherwise falls back to the frame extracted from it. The
     // image arm is what makes `previewImage` null here — a video whose frame
     // cannot be decoded rejects rather than resolving null.
-    const thumbnail = media.thumbnail
-      ? await this._uploadImageToS3(currentTime, media.thumbnail, {
-          isThumbnail: true
-        })
-      : previewImage
-        ? await this._uploadImageBufferToS3(currentTime, previewImage, {
+    let thumbnail
+    try {
+      thumbnail = media.thumbnail
+        ? await this._uploadImageToS3(currentTime, media.thumbnail, {
             isThumbnail: true
           })
-        : null
+        : previewImage
+          ? await this._uploadImageBufferToS3(currentTime, previewImage, {
+              isThumbnail: true
+            })
+          : null
+    } catch (error) {
+      // The original is already uploaded and no `medias` row will reference it,
+      // so reclaim it before the failure propagates.
+      await this.deleteFile(path).catch(() => false)
+      // Bytes that merely claim to be an image reach sharp and reject with a
+      // plain Error, which surfaces as a 500; that is invalid input, so report
+      // it as the 422 the rest of the upload path returns.
+      if (media.thumbnail) {
+        throw new MediaValidationError('Thumbnail is not a readable image')
+      }
+      throw error
+    }
     const storedMedia = await this._database.createMedia({
       actorId: actor.id,
       original: {
