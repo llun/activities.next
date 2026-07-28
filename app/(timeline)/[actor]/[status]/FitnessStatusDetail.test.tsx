@@ -658,7 +658,10 @@ describe('FitnessStatusDetail', () => {
     it('renders no chip row on a post nobody has reacted to', () => {
       renderDetail()
 
-      expect(screen.queryByText(/reaction,/)).not.toBeInTheDocument()
+      // The wrapper, not the chips: `ReactionRow` already renders nothing at
+      // zero reactions, so an ungated wrapper leaves a bare `border-t` rule
+      // with its padding under it — which no chip query can see.
+      expect(screen.queryByTestId('reaction-chips')).not.toBeInTheDocument()
       expect(
         screen.getByRole('button', { name: 'Add reaction' })
       ).toBeInTheDocument()

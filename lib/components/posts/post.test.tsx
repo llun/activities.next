@@ -1347,6 +1347,40 @@ describe('Post', () => {
       ])
     })
 
+    it('spans the whole status with its actions evenly distributed', () => {
+      observeWidth(900)
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={{
+            ...status,
+            reactions: [
+              { name: '🔥', count: 2, me: false, url: null, static_url: null }
+            ]
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      const actions = screen.getByRole('group', { name: 'Post actions' })
+      // Pinned because none of it is observable in jsdom and all three are
+      // load-bearing: `-ml-13` is what pulls the row back over the avatar
+      // column, `justify-between` is what spreads it, and an `ml-auto` on the
+      // ⋯ wrapper would silently absorb the free space and re-cluster the row
+      // (the design-system rule the docs now carry).
+      expect(actions).toHaveClass('-ml-13', 'justify-between')
+      expect(
+        screen.getByRole('button', { name: 'More actions' }).parentElement
+      ).not.toHaveClass('ml-auto')
+      // The chips are full-bleed with it, or they line up with nothing.
+      expect(
+        screen.getByLabelText('Add 🔥 reaction, 2').parentElement
+      ).toHaveClass('-ml-13')
+    })
+
     it('hands bookmark and react to the overflow menu when the post is narrow', async () => {
       observeWidth(320)
       render(
@@ -1496,6 +1530,66 @@ describe('Post', () => {
       expect(screen.getByRole('button', { name: 'More actions' })).toHaveFocus()
     })
 
+    it('disables the menu items whose write is already in flight', async () => {
+      observeWidth(320)
+      let settleBookmark: (value: boolean) => void = () => {}
+      ;(bookmarkStatus as jest.Mock).mockReturnValue(
+        new Promise<boolean>((resolve) => {
+          settleBookmark = resolve
+        })
+      )
+      ;(reactToStatus as jest.Mock).mockReturnValue(new Promise(() => {}))
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={{
+            ...status,
+            reactions: [
+              { name: '🔥', count: 2, me: false, url: null, static_url: null }
+            ]
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      fireEvent.click(screen.getByLabelText('Add 🔥 reaction, 2'))
+      fireEvent.click(
+        within(await openMenu()).getByRole('menuitem', {
+          name: 'Bookmark'
+        })
+      )
+      await waitFor(() => expect(bookmarkStatus).toHaveBeenCalledTimes(1))
+
+      // Unlike the buttons they replace, menu items carry no busy styling, so
+      // without this a tap during a pending write is swallowed by the
+      // single-flight guard with nothing on screen to explain it.
+      const menu = await openMenu()
+      expect(
+        within(menu).getByRole('menuitem', { name: 'React to post' })
+      ).toHaveAttribute('data-disabled')
+      expect(
+        within(menu).getByRole('menuitem', { name: 'Bookmark' })
+      ).toHaveAttribute('data-disabled')
+
+      // …and comes back once its own write settles. Asserted on the still-open
+      // menu: Radix `aria-hidden`s the rest of the document while it is up, so
+      // reopening would not find the ⋯ trigger.
+      await act(async () => {
+        settleBookmark(true)
+      })
+      expect(
+        within(menu).getByRole('menuitem', { name: 'Remove bookmark' })
+      ).not.toHaveAttribute('data-disabled')
+      // The reaction write is still in flight, so that one stays disabled —
+      // the two are independent, not one shared busy flag.
+      expect(
+        within(menu).getByRole('menuitem', { name: 'React to post' })
+      ).toHaveAttribute('data-disabled')
+    })
+
     it('stacks a bookmark and a reaction failure instead of overlapping them', async () => {
       observeWidth(320)
       ;(bookmarkStatus as jest.Mock).mockResolvedValue(false)
@@ -1518,16 +1612,20 @@ describe('Post', () => {
 
       const menu = await openMenu()
       fireEvent.click(within(menu).getByRole('menuitem', { name: 'Bookmark' }))
-      await screen.findByTestId('bookmark-error')
+      const bookmarkError = await screen.findByTestId('bookmark-error')
       fireEvent.click(screen.getByLabelText('Add 🔥 reaction, 2'))
       const reactionError = await screen.findByTestId('reaction-error')
 
       // Both writes are independent, so both can fail inside one dismiss
-      // window. Anchored individually they would be two opaque boxes at the
-      // same `right-0 top-full`, one hiding the other; they share one stack.
-      expect(screen.getByTestId('bookmark-error').parentElement).toBe(
-        reactionError.parentElement
-      )
+      // window. Sharing a parent is not the point and would have been true of
+      // the broken version too — what matters is that neither positions
+      // itself: individually anchored they were two opaque boxes at the same
+      // `right-0 top-full`, one hiding the other. They are laid out by one
+      // stack instead.
+      expect(bookmarkError).not.toHaveClass('absolute')
+      expect(reactionError).not.toHaveClass('absolute')
+      expect(bookmarkError.parentElement).toBe(reactionError.parentElement)
+      expect(bookmarkError.parentElement).toHaveClass('absolute', 'flex-col')
     })
 
     it('keeps the bookmark it took while wide when the row turns compact', async () => {

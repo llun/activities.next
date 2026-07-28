@@ -92,18 +92,27 @@ describe('useCompactActionBar', () => {
     expect(layout()).toBe(expected)
   })
 
-  it('ignores a zero width instead of treating it as narrow', () => {
+  it.each([
+    { description: 'a wide row stays wide', width: 900, expected: 'wide' },
+    {
+      description: 'a compact row stays compact',
+      width: 320,
+      expected: 'compact'
+    }
+  ])('ignores a zero width, so $description', ({ width, expected }) => {
     render(<Probe />)
-    act(() => deliver?.(320))
-    expect(layout()).toBe('compact')
+    act(() => deliver?.(width))
+    expect(layout()).toBe(expected)
 
     // A row inside a `display: none` ancestor (or a detached subtree, or
-    // jsdom) measures 0. Reading that as "narrow" would collapse rows that are
-    // simply not laid out yet — including every row in a test that stubs
-    // ResizeObserver for some unrelated component.
+    // jsdom) measures 0. Reading that as "narrow" would collapse rows that
+    // are simply not laid out yet — including every row in a test that stubs
+    // ResizeObserver for some unrelated component. The wide case is the one
+    // that pins the guard: without it, zero is below the threshold and the
+    // row would flip to compact.
     act(() => deliver?.(0))
 
-    expect(layout()).toBe('compact')
+    expect(layout()).toBe(expected)
   })
 
   it('follows the row back to wide when it grows', () => {

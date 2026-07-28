@@ -1978,7 +1978,10 @@ export const FitnessStatusDetail: FC<Props> = ({
             fitness post is the one surface where an existing reaction is
             invisible and no new one can be added. */}
         {reactionState.reactions.length > 0 && (
-          <div className="border-t px-4 pt-2.5">
+          // The gate is on the wrapper, not just on `ReactionRow`: the row
+          // renders nothing of its own on an unreacted post, so an ungated
+          // wrapper would leave a bare rule with 10px of dead space under it.
+          <div data-testid="reaction-chips" className="border-t px-4 pt-2.5">
             <ReactionRow state={reactionState} />
           </div>
         )}
