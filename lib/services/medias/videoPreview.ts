@@ -25,13 +25,25 @@ export const extractVideoPreviewFrame = async (
   extension: string
 ): Promise<Buffer> => {
   const tempFilePath = createMediaTempFilePath(`video${extension}`)
-  // `wx` (O_EXCL) so the write fails rather than following a symlink someone
-  // planted at the path, or clobbering an existing file. The 64-bit random
-  // prefix already makes that infeasible to aim at; this makes it impossible.
-  await fs.writeFile(tempFilePath, buffer, { flag: 'wx' })
-  // `finally` so a failed extraction still removes the temp copy instead of
-  // leaking it for the lifetime of the container.
-  return extractVideoImage(tempFilePath).finally(() =>
-    fs.unlink(tempFilePath).catch(() => undefined)
-  )
+  // `wx` (O_EXCL) so this fails rather than following a symlink someone planted
+  // at the path, or clobbering an existing file. The 64-bit random prefix
+  // already makes that infeasible to aim at; this makes it impossible.
+  const tempFile = await fs.open(tempFilePath, 'wx')
+  // Opening is what creates the file, so everything past it owns the path and
+  // the cleanup below is safe — whereas a `try` that also covered the open
+  // would delete the other file on an EEXIST collision, which is the one case
+  // where the path is not ours. Cleanup has to start here rather than at the
+  // extraction: a write that fails after the file exists (ENOSPC partway
+  // through a 200MB upload) leaks the partial copy for the lifetime of the
+  // container otherwise, and every retry adds another one.
+  try {
+    await tempFile.writeFile(buffer)
+    // Close before handing the path to ffmpeg rather than holding the
+    // descriptor open across the whole decode.
+    await tempFile.close()
+    return await extractVideoImage(tempFilePath)
+  } finally {
+    await tempFile.close().catch(() => undefined)
+    await fs.unlink(tempFilePath).catch(() => undefined)
+  }
 }

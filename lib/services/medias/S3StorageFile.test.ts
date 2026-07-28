@@ -486,8 +486,9 @@ describe('S3FileStorage saveFile with a video', () => {
   // escape, and with fewer it cancelled the prefix out onto a predictable
   // `<tmpdir>/evil.mp4`. ffmpeg also picks its demuxer from the path, and
   // `image2` beats content probing for an image extension paired with a `%0Nd`
-  // pattern, so a good mp4 named `IMG_%04d.jpg` failed to open at all.
-  // Mirrors `localFile.test.ts`.
+  // pattern, so a good mp4 named `IMG_%04d.jpg` failed to open at all. All
+  // three rows exercise the same production path — the name is not read at
+  // all any more — and are kept apart to name each hazard they retire.
   it.each([
     { description: 'for a traversing name', fileName: '../../../../evil.mp4' },
     { description: 'for a parent reference', fileName: '../../evil.mp4' },

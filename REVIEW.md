@@ -75,6 +75,16 @@ change doesn't touch.
   `getStoredMediaExtension()`, not from the name. Every `ACCEPTED_FILE_TYPES`
   entry needs a mapping in `EXTENSION_BY_CONTENT_TYPE`, or it falls through to
   the name.
+- A video's preview frame is extracted through the shared
+  `extractVideoPreviewFrame` (`medias/videoPreview`) **before** the video is
+  stored, never from the stored file: `extractVideoImage` rejects when ffmpeg
+  finds no decodable frame, and a stored file with no `medias` row is
+  unreachable by everything except `scripts/maintenance/cleanupMediaStorage.ts`.
+  Its temp copy is named `video<ext>` and takes nothing from the supplied name —
+  ffmpeg picks its demuxer from the path too, and `image2` beats content probing
+  for an image extension carrying a `%0Nd` or `*` pattern, so `IMG_%04d.jpg` on
+  a valid mp4 turned a storable upload into a 500. Validate the container from
+  the probe first, so an audio-only mp4 stays a 422 that never spawns ffmpeg.
 
 ## Unique constraints (TOCTOU)
 

@@ -77,19 +77,22 @@ describe('extractVideoPreviewFrame', () => {
     )
   })
 
-  // `wx` (O_EXCL): the write must fail rather than follow a symlink planted at
-  // the path or clobber a file already there.
+  // `wx` (O_EXCL): the open must fail rather than follow a symlink planted at
+  // the path or clobber a file already there — and the file it refused to
+  // clobber must survive, since a collision is the one case where the path is
+  // not this call's to remove.
   it('refuses to write over an existing temp path', async () => {
-    const collision = path.join(os.tmpdir(), 'existing-video.mp4')
-    await fs.writeFile(collision, 'someone-elses-bytes')
-    const spy = vi.spyOn(fs, 'writeFile')
+    const scratchDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'video-preview-')
+    )
+    const collision = path.join(scratchDir, 'existing-video.mp4')
+    const spy = vi.spyOn(fs, 'open')
 
     try {
+      await fs.writeFile(collision, 'someone-elses-bytes')
       // The random prefix makes a real collision infeasible to aim at, so the
       // path has to be forced to prove the flag is the thing preventing it.
-      spy.mockImplementationOnce((_target, data, options) =>
-        fs.writeFile(collision, data as Buffer, options as object)
-      )
+      spy.mockImplementationOnce((_target, flags) => fs.open(collision, flags))
 
       await expect(
         extractVideoPreviewFrame(Buffer.from('video-bytes'), '.mp4')
@@ -101,7 +104,37 @@ describe('extractVideoPreviewFrame', () => {
       )
     } finally {
       spy.mockRestore()
-      await fs.unlink(collision).catch(() => undefined)
+      await fs.rm(scratchDir, { recursive: true, force: true })
+    }
+  })
+
+  // The file exists from the moment it is opened, and a write that fails after
+  // that leaves a partial copy: an ENOSPC partway through a 200MB upload used
+  // to leak one per attempt for the lifetime of the container.
+  it('removes the temp copy when the write fails partway', async () => {
+    const spy = vi.spyOn(fs, 'open')
+    let openedPath: string | null = null
+
+    try {
+      spy.mockImplementationOnce(async (target, flags) => {
+        openedPath = String(target)
+        const handle = await fs.open(target, flags)
+        handle.writeFile = async () => {
+          throw Object.assign(new Error('no space left on device'), {
+            code: 'ENOSPC'
+          })
+        }
+        return handle
+      })
+
+      await expect(
+        extractVideoPreviewFrame(Buffer.from('video-bytes'), '.mp4')
+      ).rejects.toThrow('no space left on device')
+
+      expect(extractVideoImage).not.toHaveBeenCalled()
+      await expect(fs.access(openedPath!)).rejects.toThrow()
+    } finally {
+      spy.mockRestore()
     }
   })
 })
