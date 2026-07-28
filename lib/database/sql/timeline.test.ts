@@ -76,6 +76,54 @@ describe('TimelineDatabase', () => {
           }
         }, 15000)
 
+        it('hydrates reaction rollups for the timeline owner', async () => {
+          const sender = 'https://llun.dev/users/timeline-reactor'
+          await database.createFollow({
+            actorId: TEST_ID_MAIN,
+            targetActorId: sender,
+            status: FollowStatus.enum.Accepted,
+            inbox: `${TEST_ID_MAIN}/inbox`,
+            sharedInbox: `${TEST_ID_MAIN}/inbox`
+          })
+
+          const statusId = `${sender}/statuses/reacted-post`
+          const status = await database.createNote({
+            id: statusId,
+            url: statusId,
+            actorId: sender,
+            text: 'Reacted post',
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [TEST_ID_MAIN]
+          })
+          await addStatusToTimelines(database, status)
+          await database.createStatusReaction({
+            statusId,
+            actorId: TEST_ID_MAIN,
+            name: '🔥'
+          })
+
+          try {
+            const statuses = await database.getTimeline({
+              timeline: Timeline.MAIN,
+              actorId: TEST_ID_MAIN
+            })
+            const reacted = statuses.find((item) => item.id === statusId)
+
+            // The home timeline hydrates in one batch keyed on the timeline's
+            // own actor, so the viewer's reaction comes back flagged as theirs
+            // rather than needing a per-status lookup.
+            expect(reacted?.reactions).toEqual([
+              { name: '🔥', count: 1, me: true, url: null, static_url: null }
+            ])
+          } finally {
+            await database.deleteStatusReaction({
+              statusId,
+              actorId: TEST_ID_MAIN,
+              name: '🔥'
+            })
+          }
+        })
+
         it('does not repeat statuses when paginating with out-of-order insertion', async () => {
           const TEST_ID_PAGINATE = `https://${TEST_DOMAIN}/users/timeline-paginate`
           await database.createAccount({

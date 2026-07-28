@@ -352,8 +352,149 @@ describe('StatusDatabase', () => {
           isLocalActor: true,
           totalLikes: 0,
           totalShares: 0,
+          reactions: [],
           attachments: [],
           tags: []
+        })
+      })
+
+      describe('emoji reaction hydration', () => {
+        const reactedStatusId = statuses.primary.post
+
+        afterEach(async () => {
+          await database.deleteStatusReaction({
+            statusId: reactedStatusId,
+            actorId: extraActorId,
+            name: '🔥'
+          })
+          await database.deleteStatusReaction({
+            statusId: reactedStatusId,
+            actorId: replyAuthorId,
+            name: '🔥'
+          })
+        })
+
+        it('hydrates rollups onto a single status with the viewer own flag', async () => {
+          await database.createStatusReaction({
+            statusId: reactedStatusId,
+            actorId: extraActorId,
+            name: '🔥'
+          })
+          await database.createStatusReaction({
+            statusId: reactedStatusId,
+            actorId: replyAuthorId,
+            name: '🔥'
+          })
+
+          const status = (await database.getStatus({
+            statusId: reactedStatusId,
+            withReplies: false,
+            currentActorId: extraActorId
+          })) as StatusNote
+
+          expect(status.reactions).toEqual([
+            { name: '🔥', count: 2, me: true, url: null, static_url: null }
+          ])
+        })
+
+        it('hydrates rollups for every status a list returns', async () => {
+          await database.createStatusReaction({
+            statusId: reactedStatusId,
+            actorId: extraActorId,
+            name: '🔥'
+          })
+
+          // getActorStatuses batches its rollups, so the reacted status carries
+          // them and every other status in the page resolves to an empty array
+          // from the same batch rather than a per-status query.
+          const actorStatuses = await database.getActorStatuses({
+            actorId: primaryActorId,
+            // The hydration viewer, deliberately NOT `visibleToActorId` — that
+            // one is the visibility filter and passing a viewer there would
+            // change which statuses come back.
+            currentActorId: extraActorId
+          })
+          const reacted = actorStatuses.find(
+            (status) => status.id === reactedStatusId
+          ) as StatusNote
+
+          expect(reacted.reactions).toEqual([
+            { name: '🔥', count: 1, me: true, url: null, static_url: null }
+          ])
+          // Every other status in the page resolves to an empty array from the
+          // same batch. `toEqual([])` rather than `toBeDefined()`: the per-status
+          // fallback would also leave these defined, so only the exact value
+          // distinguishes a seeded batch from a fallback query.
+          for (const status of actorStatuses) {
+            if (status.id === reactedStatusId) continue
+            if (status.type === StatusType.enum.Announce) continue
+            expect(status.reactions).toEqual([])
+          }
+        })
+
+        it('resolves the viewer own boost from the batch on a list path', async () => {
+          // actorAnnounceStatusId is the boost button's state. It used to be
+          // looked up per status (fully hydrating an Announce just to read its
+          // id); it now comes from the same batch as likes and bookmarks, so
+          // the list path must still report it correctly.
+          const announceId = await database.createAnnounce({
+            id: `${extraActorId}/statuses/announce-batch-test`,
+            actorId: extraActorId,
+            cc: [],
+            to: [ACTIVITY_STREAM_PUBLIC],
+            originalStatusId: reactedStatusId
+          })
+
+          try {
+            const actorStatuses = await database.getActorStatuses({
+              actorId: primaryActorId,
+              currentActorId: extraActorId
+            })
+            const boosted = actorStatuses.find(
+              (status) => status.id === reactedStatusId
+            ) as StatusNote
+
+            expect(boosted.actorAnnounceStatusId).toEqual(announceId?.id)
+          } finally {
+            await database.deleteStatus({
+              statusId: `${extraActorId}/statuses/announce-batch-test`
+            })
+          }
+        })
+
+        it('hydrates rollups for the replies under a status', async () => {
+          const replies = await database.getStatusReplies({
+            statusId: statuses.primary.post,
+            currentActorId: extraActorId
+          })
+          expect(replies.length).toBeGreaterThan(0)
+
+          const target = replies[0]
+          await database.createStatusReaction({
+            statusId: target.id,
+            actorId: extraActorId,
+            name: '🎯'
+          })
+
+          try {
+            const hydrated = await database.getStatusReplies({
+              statusId: statuses.primary.post,
+              currentActorId: extraActorId
+            })
+            const reacted = hydrated.find(
+              (reply) => reply.id === target.id
+            ) as StatusNote
+
+            expect(reacted.reactions).toEqual([
+              { name: '🎯', count: 1, me: true, url: null, static_url: null }
+            ])
+          } finally {
+            await database.deleteStatusReaction({
+              statusId: target.id,
+              actorId: extraActorId,
+              name: '🎯'
+            })
+          }
         })
       })
 

@@ -121,6 +121,10 @@ const Page = async ({ params }: PageProps) => {
       })
     : ((await database.getPublicCollectionTimeline({
         id,
+        // Hydration only — the public projection still decides which statuses
+        // are here. A signed-in visitor gets interactive chips and buttons, so
+        // they have to reflect that visitor's own state.
+        currentActorId: viewer?.id,
         limit: FEED_PAGE_LIMIT
       })) ?? [])
 

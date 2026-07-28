@@ -72,6 +72,7 @@ import {
   StatusDatabase,
   StatusDetectedLanguageDatabase,
   StatusEditRevision,
+  StatusReactionDatabase,
   UpdateNoteParams,
   UpdateNoteVisibilityParams,
   UpdatePollParams,
@@ -90,6 +91,7 @@ import {
   StatusType
 } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
+import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -137,6 +139,10 @@ const publicRecipientStatusIds = (database: Knex) =>
 type StatusHydrationContext = {
   bookmarkedStatusIds?: Set<string>
   likedStatusIds?: Set<string>
+  // originalStatusId -> the viewer's own Announce id for it. Only the id is
+  // ever consumed, so this batches what would otherwise be a per-status lookup
+  // that fully hydrates an Announce just to read `.id` off it.
+  announcedStatusIds?: Map<string, string>
   // Pre-batched content-detected languages, keyed by statusId. Viewer-
   // independent (unlike the like/bookmark sets above), so callers populate it
   // for any timeline page regardless of whether a viewer is signed in.
@@ -144,6 +150,11 @@ type StatusHydrationContext = {
   // Pre-batched quote edges, keyed by the quoting statusId. Viewer-independent;
   // the viewer-relative downgrades happen later in the Mastodon serializer.
   quoteEdges?: Map<string, StatusQuote>
+  // Pre-batched emoji-reaction rollups, keyed by statusId. Viewer-RELATIVE (the
+  // `me` flag), so it is only populated once per page and reused rather than
+  // re-queried per status. An absent entry means "the batch did not cover this
+  // status", which falls back to a single lookup.
+  reactionRollups?: Map<string, StatusReaction[]>
 }
 
 export const buildPubliclyReadableStatusIdsQuery = ({
@@ -252,7 +263,8 @@ export const StatusSQLDatabaseMixin = (
   likeDatabase: LikeDatabase,
   bookmarkDatabase: BookmarkDatabase,
   mediaDatabase: MediaDatabase,
-  statusDetectedLanguageDatabase: StatusDetectedLanguageDatabase
+  statusDetectedLanguageDatabase: StatusDetectedLanguageDatabase,
+  statusReactionDatabase: StatusReactionDatabase
 ): StatusDatabase => {
   const applyPublicReadableStatusFilter = ({
     query,
@@ -550,6 +562,9 @@ export const StatusSQLDatabaseMixin = (
       tags: [],
       replies: [],
       totalLikes: 0,
+      // A status this instance just created has no reactions yet; declare it so
+      // the freshly-created shape matches the hydrated one.
+      reactions: [],
       isActorLiked: false,
       isActorBookmarked: false,
       actorAnnounceStatusId: null,
@@ -985,6 +1000,9 @@ export const StatusSQLDatabaseMixin = (
       replies: [],
       choices: [],
       totalLikes: 0,
+      // A status this instance just created has no reactions yet; declare it so
+      // the freshly-created shape matches the hydrated one.
+      reactions: [],
       isActorLiked: false,
       isActorBookmarked: false,
       actorAnnounceStatusId: null,
@@ -1201,12 +1219,92 @@ export const StatusSQLDatabaseMixin = (
     })
   }
 
+  // Batched emoji-reaction rollups for a page of statuses, in the shape the
+  // domain Status carries. Every hydration site uses this so none of them falls
+  // back to the per-status lookup — that fallback exists for single-status
+  // routes, not for list paths.
+  async function buildReactionRollupContext(
+    statusIds: string[],
+    currentActorId?: string
+  ): Promise<Map<string, StatusReaction[]>> {
+    const context = new Map<string, StatusReaction[]>(
+      statusIds.map((statusId) => [statusId, []])
+    )
+    if (statusIds.length === 0) return context
+
+    const rollups = await statusReactionDatabase.getStatusReactionRollups({
+      statusIds,
+      currentActorId
+    })
+    for (const rollup of rollups) {
+      context.get(rollup.statusId)?.push({
+        name: rollup.name,
+        count: rollup.count,
+        me: rollup.me,
+        url: rollup.url,
+        static_url: rollup.staticUrl
+      })
+    }
+    return context
+  }
+
+  // The viewer's own like/bookmark state for a page of statuses, batched. Every
+  // list path that hydrates for a viewer uses this: passing a `currentActorId`
+  // into per-status hydration without it turns on a like lookup, a bookmark
+  // lookup and an announce lookup *per row*.
+  async function buildViewerHydration(
+    statusIds: string[],
+    currentActorId?: string
+  ): Promise<Pick<
+    StatusHydrationContext,
+    'likedStatusIds' | 'bookmarkedStatusIds' | 'announcedStatusIds'
+  > | null> {
+    // No viewer means no viewer state to resolve, and the consumer must be left
+    // with the fields UNSET — it reads an unset field as "not batched, look this
+    // status up individually", which is the correct behaviour for anonymous
+    // reads (where the lookup is skipped outright).
+    if (!currentActorId) return null
+
+    // A viewer with nothing to look up still gets empty sets rather than null:
+    // returning null here would mark the page as un-batched and send every row
+    // back to a per-status query.
+    const [bookmarkRows, likeRows, announceRows] =
+      statusIds.length === 0
+        ? [[], [], []]
+        : await Promise.all([
+            database('bookmarks')
+              .where('actorId', currentActorId)
+              .whereIn('statusId', statusIds)
+              .select<{ statusId: string }[]>('statusId'),
+            database('likes')
+              .where('actorId', currentActorId)
+              .whereIn('statusId', statusIds)
+              .select<{ statusId: string }[]>('statusId'),
+            database('statuses')
+              .where('type', StatusType.enum.Announce)
+              .where('actorId', currentActorId)
+              .whereIn('originalStatusId', statusIds)
+              .select<{ id: string; originalStatusId: string }[]>(
+                'id',
+                'originalStatusId'
+              )
+          ])
+    return {
+      bookmarkedStatusIds: new Set(bookmarkRows.map((row) => row.statusId)),
+      likedStatusIds: new Set(likeRows.map((row) => row.statusId)),
+      announcedStatusIds: new Map(
+        announceRows.map((row) => [row.originalStatusId, row.id] as const)
+      )
+    }
+  }
+
   async function getStatusReplies({
     statusId,
     url,
     limit,
     publicOnly = false,
-    visibleToActorId
+    visibleToActorId,
+    currentActorId
   }: GetStatusRepliesParams) {
     let query = database('statuses')
       .where((builder) => {
@@ -1237,26 +1335,31 @@ export const StatusSQLDatabaseMixin = (
     // Batch detected-language and quote-edge hydration so this doesn't N+1 one
     // query per reply (mirroring getStatusesByIds).
     const hydrationStatusIds = await collectHydrationStatusIds(statuses)
-    const [detectedLanguages, quoteEdges] = await Promise.all([
-      hydrationStatusIds.size > 0
-        ? statusDetectedLanguageDatabase.getDetectedLanguages({
-            statusIds: [...hydrationStatusIds]
-          })
-        : Promise.resolve({}),
-      hydrationStatusIds.size > 0
-        ? getStatusQuoteEdges([...hydrationStatusIds])
-        : Promise.resolve(new Map<string, StatusQuote>())
-    ])
+    const [detectedLanguages, quoteEdges, reactionRollups, viewerHydration] =
+      await Promise.all([
+        hydrationStatusIds.size > 0
+          ? statusDetectedLanguageDatabase.getDetectedLanguages({
+              statusIds: [...hydrationStatusIds]
+            })
+          : Promise.resolve({}),
+        hydrationStatusIds.size > 0
+          ? getStatusQuoteEdges([...hydrationStatusIds])
+          : Promise.resolve(new Map<string, StatusQuote>()),
+        buildReactionRollupContext([...hydrationStatusIds], currentActorId),
+        buildViewerHydration([...hydrationStatusIds], currentActorId)
+      ])
     const hydrationContext: StatusHydrationContext = {
       detectedLanguages,
-      quoteEdges
+      quoteEdges,
+      reactionRollups,
+      ...(viewerHydration ?? {})
     }
     const statusesWithAttachments = (
       await Promise.all(
         statuses.map((item) =>
           getStatusWithAttachmentsFromData(
             item,
-            undefined,
+            currentActorId,
             undefined,
             hydrationContext
           )
@@ -1320,6 +1423,7 @@ export const StatusSQLDatabaseMixin = (
 
   async function getActorStatuses({
     actorId,
+    currentActorId,
     minStatusId,
     maxStatusId,
     limit = PER_PAGE_LIMIT,
@@ -1476,26 +1580,31 @@ export const StatusSQLDatabaseMixin = (
     // query per status (mirroring getStatusesByIds) — actor status lists back
     // profile pages and the Mastodon accounts/:id/statuses endpoint.
     const hydrationStatusIds = await collectHydrationStatusIds(statuses)
-    const [detectedLanguages, quoteEdges] = await Promise.all([
-      hydrationStatusIds.size > 0
-        ? statusDetectedLanguageDatabase.getDetectedLanguages({
-            statusIds: [...hydrationStatusIds]
-          })
-        : Promise.resolve({}),
-      hydrationStatusIds.size > 0
-        ? getStatusQuoteEdges([...hydrationStatusIds])
-        : Promise.resolve(new Map<string, StatusQuote>())
-    ])
+    const [detectedLanguages, quoteEdges, reactionRollups, viewerHydration] =
+      await Promise.all([
+        hydrationStatusIds.size > 0
+          ? statusDetectedLanguageDatabase.getDetectedLanguages({
+              statusIds: [...hydrationStatusIds]
+            })
+          : Promise.resolve({}),
+        hydrationStatusIds.size > 0
+          ? getStatusQuoteEdges([...hydrationStatusIds])
+          : Promise.resolve(new Map<string, StatusQuote>()),
+        buildReactionRollupContext([...hydrationStatusIds], currentActorId),
+        buildViewerHydration([...hydrationStatusIds], currentActorId)
+      ])
     const hydrationContext: StatusHydrationContext = {
       detectedLanguages,
-      quoteEdges
+      quoteEdges,
+      reactionRollups,
+      ...(viewerHydration ?? {})
     }
     const statusesWithAttachments = (
       await Promise.all(
         statuses.map((item) =>
           getStatusWithAttachmentsFromData(
             item,
-            undefined,
+            currentActorId,
             undefined,
             hydrationContext
           )
@@ -1612,7 +1721,7 @@ export const StatusSQLDatabaseMixin = (
     // per-status query in getStatusWithAttachmentsFromData. Run it in the
     // same Promise.all as the bookmark/like queries below rather than
     // sequentially, so all three independent batched lookups overlap.
-    const [detectedLanguages, quoteEdges, bookmarkRows, likeRows] =
+    const [detectedLanguages, quoteEdges, reactionRollups, viewerHydration] =
       await Promise.all([
         hasHydrationStatusIds
           ? statusDetectedLanguageDatabase.getDetectedLanguages({
@@ -1625,29 +1734,13 @@ export const StatusSQLDatabaseMixin = (
         hasHydrationStatusIds
           ? getStatusQuoteEdges([...hydrationStatusIds])
           : Promise.resolve(new Map<string, StatusQuote>()),
-        currentActorId && hasHydrationStatusIds
-          ? database('bookmarks')
-              .where('actorId', currentActorId)
-              .whereIn('statusId', [...hydrationStatusIds])
-              .select<{ statusId: string }[]>('statusId')
-          : Promise.resolve([]),
-        currentActorId && hasHydrationStatusIds
-          ? database('likes')
-              .where('actorId', currentActorId)
-              .whereIn('statusId', [...hydrationStatusIds])
-              .select<{ statusId: string }[]>('statusId')
-          : Promise.resolve([])
+        buildReactionRollupContext([...hydrationStatusIds], currentActorId),
+        buildViewerHydration([...hydrationStatusIds], currentActorId)
       ])
     hydrationContext.detectedLanguages = detectedLanguages
     hydrationContext.quoteEdges = quoteEdges
-    if (currentActorId) {
-      hydrationContext.bookmarkedStatusIds = new Set(
-        bookmarkRows.map((row) => row.statusId)
-      )
-      hydrationContext.likedStatusIds = new Set(
-        likeRows.map((row) => row.statusId)
-      )
-    }
+    hydrationContext.reactionRollups = reactionRollups
+    Object.assign(hydrationContext, viewerHydration ?? {})
     const statusMap = new Map(
       statuses.map((statusData) => [statusData.id, statusData] as const)
     )
@@ -2584,6 +2677,7 @@ export const StatusSQLDatabaseMixin = (
 
   async function getStatusesByHashtag({
     hashtag,
+    currentActorId,
     limit = PER_PAGE_LIMIT,
     minStatusId,
     maxStatusId,
@@ -2702,7 +2796,7 @@ export const StatusSQLDatabaseMixin = (
     const rows = await query
     const statusIds = rows.map((row: { id: string }) => row.id)
     if (statusIds.length === 0) return []
-    return getStatusesByIds({ statusIds })
+    return getStatusesByIds({ statusIds, currentActorId })
   }
 
   async function getHashtagCounter({
@@ -2838,11 +2932,12 @@ export const StatusSQLDatabaseMixin = (
       totalShares,
       isActorLikedStatusResult,
       isActorBookmarkedStatusResult,
-      actorAnnounceStatus,
+      actorAnnounceStatusId,
       edits,
       fitnessFile,
       detectedLanguage,
-      quoteEdge
+      quoteEdge,
+      reactions
     ] = await Promise.all([
       mediaDatabase.getAttachments({ statusId: data.id }),
       getTags({ statusId: data.id }),
@@ -2873,10 +2968,12 @@ export const StatusSQLDatabaseMixin = (
             })
         : false,
       currentActorId
-        ? getActorAnnounceStatus({
-            statusId: data.id,
-            actorId: currentActorId
-          })
+        ? hydrationContext.announcedStatusIds
+          ? (hydrationContext.announcedStatusIds.get(data.id) ?? null)
+          : getActorAnnouncedStatusId({
+              originalStatusId: data.id,
+              actorId: currentActorId
+            })
         : null,
       database('status_history').where('statusId', data.id),
       // A status can carry several fitness files (e.g. the same ride merged
@@ -2898,7 +2995,26 @@ export const StatusSQLDatabaseMixin = (
       // status's edge directly (mirrors the detected-language fallback).
       hydrationContext?.quoteEdges
         ? (hydrationContext.quoteEdges.get(data.id) ?? null)
-        : getStatusQuoteEdgeForData(data.id)
+        : getStatusQuoteEdgeForData(data.id),
+      // Reaction rollups: the pre-batched map when the page covered this status,
+      // otherwise a single lookup (single-status routes). `has` rather than a
+      // truthiness check, so a reaction-less status resolves from the batch.
+      hydrationContext?.reactionRollups?.has(data.id)
+        ? (hydrationContext.reactionRollups.get(data.id) ?? [])
+        : statusReactionDatabase
+            .getStatusReactionRollups({
+              statusIds: [data.id],
+              currentActorId
+            })
+            .then((rollups) =>
+              rollups.map((rollup) => ({
+                name: rollup.name,
+                count: rollup.count,
+                me: rollup.me,
+                url: rollup.url,
+                static_url: rollup.staticUrl
+              }))
+            )
     ])
 
     const repliesNote = (
@@ -2945,9 +3061,10 @@ export const StatusSQLDatabaseMixin = (
         : {}),
       totalLikes,
       totalShares,
+      reactions,
       isActorLiked: isActorLikedStatusResult,
       isActorBookmarked: isActorBookmarkedStatusResult,
-      actorAnnounceStatusId: actorAnnounceStatus?.id ?? null,
+      actorAnnounceStatusId,
       isLocalActor: Boolean(actor?.account),
       attachments: orderedAttachments,
       tags,
@@ -3280,14 +3397,17 @@ export const StatusSQLDatabaseMixin = (
       .increment('totalVotes', 1)
   }
 
-  async function getStatusFromUrl({ url }: GetStatusFromUrlParams) {
+  async function getStatusFromUrl({
+    url,
+    currentActorId
+  }: GetStatusFromUrlParams) {
     const status = await database('statuses')
       .where('urlHash', getStatusUrlHash(url))
       .andWhere('url', url)
       .first<{ id: string }>('id')
 
     if (status?.id) {
-      return getStatus({ statusId: status.id })
+      return getStatus({ statusId: status.id, currentActorId })
     }
 
     return null
@@ -3295,7 +3415,8 @@ export const StatusSQLDatabaseMixin = (
 
   async function getStatusFromUrlHash({
     urlHash,
-    actorId
+    actorId,
+    currentActorId
   }: GetStatusFromUrlHashParams) {
     const query = database('statuses').where('urlHash', urlHash)
     if (actorId) {
@@ -3305,7 +3426,7 @@ export const StatusSQLDatabaseMixin = (
     const status = await query.first()
     if (!status) return null
 
-    return getStatusWithAttachmentsFromData(status)
+    return getStatusWithAttachmentsFromData(status, currentActorId)
   }
 
   async function getActorAnnouncedStatusId({

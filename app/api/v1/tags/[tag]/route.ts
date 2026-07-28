@@ -108,6 +108,11 @@ export const GET = traceApiRoute(
         fetchBatch: ({ maxStatusId, limit }) =>
           database.getStatusesByHashtag({
             hashtag: tag,
+            // This is the load-more endpoint behind the web hashtag page, so it
+            // must hydrate for the same viewer the server-rendered first page
+            // did — otherwise the viewer's own reaction, like, bookmark and
+            // boost state flip to false halfway down one scroll.
+            currentActorId: currentActor?.id,
             limit,
             maxStatusId: maxStatusId ?? undefined
           })

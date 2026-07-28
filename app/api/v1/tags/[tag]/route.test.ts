@@ -96,7 +96,9 @@ describe('GET /api/v1/tags/:tag', () => {
     expect(response.status).toBe(200)
     const body = await response.json()
     expect(Array.isArray(body.statuses)).toBe(true)
-    expect(mockDatabase.getStatusesByHashtag).toHaveBeenCalled()
+    expect(mockDatabase.getStatusesByHashtag).toHaveBeenCalledWith(
+      expect.objectContaining({ currentActorId: expect.any(String) })
+    )
   })
 
   it('includes the seven-day usage history in the Tag entity', async () => {

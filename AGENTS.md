@@ -346,7 +346,14 @@ consistency is enforced by keeping the wiring in one place rather than per page.
 - **The action set is owned by `Posts`, not by pages.** `Posts` renders the full
   action row (reply, boost, like, bookmark) plus the `⋯` menu (quote, edit-own,
   change visibility / who-can-quote, delete-own; mute / block / report for other
-  actors; copy link; open original) and wires reply/quote/edit itself. A page
+  actors; copy link; open original) and wires reply/quote/edit itself. `Post`
+  also renders the emoji **reaction row** (chips + picker) as a sibling directly
+  above that action row. It follows the same `showActions` + `currentActor` gate,
+  but degrades rather than disappearing: a reader who cannot react (logged out,
+  `showActions={false}`, or a remote custom emoji this instance cannot react
+  with) still sees the chips as read-only labels, and only the picker and the
+  toggling are withheld. Reactions are **not** favourites and never touch the
+  like button's state. A page
   must **not** pass per-status action callbacks (`onReply`, `onQuote`, `onEdit`)
   and must **not** hide individual actions — that per-page drift is exactly what
   this consolidation removed (profiles used to lack Quote/Edit; six feeds had a
@@ -366,8 +373,10 @@ consistency is enforced by keeping the wiring in one place rather than per page.
 - **Pages supply only optional data-sync callbacks** for their own feed state:
   `onStatusCreated` (a reply/quote was created — prepend it if it belongs in this
   feed, otherwise ignore), `onPostUpdated` (an edit — replace the status in
-  place), `onPostDeleted`, `onLikeChanged`, `onBookmarkChanged`. These mutate the
-  page's own `statuses` copy; they never decide which actions are shown.
+  place), `onPostDeleted`, `onLikeChanged`, `onBookmarkChanged`,
+  `onReactionsChanged` (the emoji-reaction rollups for a status changed). These
+  mutate the page's own `statuses` copy; they never decide which actions are
+  shown.
 - **Read-only or logged-out surfaces** pass `showActions={false}` (optionally
   with `showReadOnlyStats` to show non-interactive engagement counts instead — as
   the logged-out landing feed and logged-out profile do). That is the _only_
@@ -376,7 +385,10 @@ consistency is enforced by keeping the wiring in one place rather than per page.
 - The bespoke fitness activity detail (`FitnessStatusDetail`) and the
   notification snippet (`StatusNotification`) are intentionally separate
   presentations and are outside this contract; everything else goes through
-  `Posts`/`Post`.
+  `Posts`/`Post`. The fitness detail composes its own action row, so it renders
+  `ReactionRow` explicitly — a post's reactions must be visible and addable
+  wherever its action row is, and that page is the one surface that has to opt
+  in by hand.
 
 ## Better-auth Plugin Guidelines
 

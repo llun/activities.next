@@ -24,6 +24,7 @@ import {
 } from '@/lib/types/domain/attachment'
 import { PollChoice } from '@/lib/types/domain/pollChoice'
 import { Tag, getEmojiFromTag, getMentionFromTag } from '@/lib/types/domain/tag'
+import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 export const StatusType = z.enum(['Note', 'Announce', 'Poll'])
@@ -141,6 +142,12 @@ export const StatusNote = StatusBase.extend({
   isActorBookmarked: z.boolean(),
   totalLikes: z.number(),
   totalShares: z.number().default(0),
+  // Emoji-reaction rollups in first-reaction order, with `me` relative to the
+  // viewer. Hydrated alongside the like/bookmark state so the shared Post
+  // components can render chips without a per-post request. Optional rather than
+  // defaulted: a defaulted array is required on the *output* type, which would
+  // force every existing status literal and fixture to declare it.
+  reactions: StatusReaction.array().optional(),
 
   attachments: Attachment.array(),
   tags: Tag.array(),

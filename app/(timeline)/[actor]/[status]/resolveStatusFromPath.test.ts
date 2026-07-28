@@ -59,6 +59,50 @@ describe('resolveStatusFromPath', () => {
     getStatus: vi.fn().mockResolvedValue(null)
   })
 
+  it('hydrates the focused status for the signed-in viewer', async () => {
+    const database = createDatabase()
+    database.getStatus.mockResolvedValueOnce(originalStatus)
+    const viewerId = 'https://remote.example/users/viewer'
+
+    await resolveStatusFromPath({
+      database,
+      actorParam: '@original@remote.example',
+      statusParam: '123',
+      currentActorId: viewerId
+    })
+
+    // Without the viewer id the focused status resolves with no like, bookmark
+    // or reaction state, so the viewer's own emoji reaction renders as "Add" on
+    // the one surface where the chips are interactive.
+    expect(database.getStatus).toHaveBeenCalledWith({
+      statusId: 'https://remote.example/users/original/statuses/123',
+      withReplies: false,
+      currentActorId: viewerId
+    })
+  })
+
+  it('hydrates a hash route for the signed-in viewer too', async () => {
+    const database = createDatabase()
+    database.getStatusFromUrlHash.mockResolvedValueOnce(originalStatus)
+    const viewerId = 'https://remote.example/users/viewer'
+
+    await resolveStatusFromPath({
+      database,
+      actorParam: '@original@remote.example',
+      statusParam: statusHash,
+      currentActorId: viewerId
+    })
+
+    // The hash route lands on the same detail page as the id route, so it has
+    // to hydrate the viewer's own state the same way — otherwise their emoji
+    // reaction renders as "Add" on exactly one of the two URLs for one post.
+    expect(database.getStatusFromUrlHash).toHaveBeenCalledWith({
+      urlHash: statusHash,
+      actorId: originalActorId,
+      currentActorId: viewerId
+    })
+  })
+
   it('resolves a hash route from the scoped actor lookup', async () => {
     const database = createDatabase()
     database.getStatusFromUrlHash.mockResolvedValueOnce(originalStatus)
