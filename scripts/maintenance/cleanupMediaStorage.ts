@@ -110,18 +110,14 @@ const getContainedRelativePath = (from: string, to: string) => {
     return direct
   }
 
-  const insensitive = path.relative(
-    realFrom.toLowerCase(),
-    realTo.toLowerCase()
-  )
-  if (insensitive.startsWith('..') || path.isAbsolute(insensitive)) {
-    return direct
-  }
-  // Same length, differing only by case, so the real-cased tail of `to` is the
-  // relative path as it actually appears in the listing.
-  return insensitive === ''
-    ? ''
-    : realTo.slice(realTo.length - insensitive.length)
+  // Compare on lowercased copies, but measure the tail against the REAL paths:
+  // lowercasing does not always preserve length ('İ' becomes two code units),
+  // so sizing the slice from the lowercased copy could cut in the wrong place.
+  const loweredFrom = realFrom.toLowerCase()
+  const loweredTo = realTo.toLowerCase()
+  if (loweredTo === loweredFrom) return ''
+  if (!loweredTo.startsWith(`${loweredFrom}${path.sep}`)) return direct
+  return realTo.slice(realFrom.length + 1)
 }
 
 /**
