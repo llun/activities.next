@@ -148,10 +148,10 @@ export const Post: FC<PostProps> = (props) => {
   // activity itself is intact — stats, charts, attachments and federation are
   // unaffected — so this is a quiet owner-only retry, not the destructive
   // "Processing failed" banner every viewer sees. The copy differs per kind
-  // because the post looks different in each: no map at all, the previous map
-  // still shown because the new one could not be made, or the new one plus an
-  // older one the run could not remove. Saying "could not be generated" above a
-  // rendered map is how an owner concludes the feature is lying.
+  // because the post looks different in each: no map at all, or the previous
+  // map still shown because the run that should have replaced it failed. Saying
+  // "could not be generated" above a rendered map is how an owner concludes the
+  // feature is lying.
   const fitnessMapFailure = isFitnessCompleted
     ? fitnessFile?.mapFailure
     : undefined

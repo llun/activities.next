@@ -385,8 +385,8 @@ export const processFitnessFileJob = createJobHandle(
       if (fitnessFile.mapImagePath && previousMapAttachments.length === 0) {
         // The file names a map that no attachment on the status matches — the
         // two went out of step somewhere. Not fatal (the run below attaches a
-        // fresh map, and a leftover is swept once a cleanup failure is
-        // recorded), but it is not a state either side should reach.
+        // fresh map), but nothing will clean up whatever the pointer used to
+        // refer to, so it is not a state either side should reach.
         logger.warn({
           message: 'Recorded route map has no matching attachment to replace',
           actorId,
@@ -401,6 +401,11 @@ export const processFitnessFileJob = createJobHandle(
       // uncontained it would be recorded as a map-generation failure on a run
       // that produced a perfectly good map (or, in the no-route branch, fail
       // the whole activity) — the opposite of what the reason column is for.
+      // Returns whether the previous map is really gone. The caller keeps the
+      // file's pointer to it until then: the pointer is the only thing that can
+      // identify the attachment on a later run, and dropping it while the
+      // attachment survives leaves a route the owner asked to hide on a public
+      // post with nothing able to find it again.
       const dropPreviousMap = async () => {
         try {
           await deleteEmailMapImage({
@@ -409,7 +414,7 @@ export const processFitnessFileJob = createJobHandle(
             mapImageEmailPath: fitnessFile.mapImageEmailPath
           })
 
-          if (previousMapAttachments.length === 0) return
+          if (previousMapAttachments.length === 0) return true
           if (!actor.account) {
             // Nothing can resolve the media rows without an account, and
             // leaving the attachment in place shows the route twice.
@@ -420,7 +425,7 @@ export const processFitnessFileJob = createJobHandle(
               statusId,
               fitnessFileId
             })
-            return
+            return false
           }
 
           await removeRouteMapAttachmentsAndMedia({
@@ -432,6 +437,7 @@ export const processFitnessFileJob = createJobHandle(
             ),
             mediaIds: getAttachmentMediaIds(previousMapAttachments)
           })
+          return true
         } catch (error) {
           // Logged, not recorded on the file. The replacement is already
           // stored and attached, so what a failure here leaves behind is a
@@ -447,6 +453,7 @@ export const processFitnessFileJob = createJobHandle(
             fitnessFileId,
             err: toLoggableError(error)
           })
+          return false
         }
       }
 
@@ -611,13 +618,16 @@ export const processFitnessFileJob = createJobHandle(
         }
       } else {
         // No route to draw (indoor activity, or a privacy zone that swallows
-        // the whole route). Any map this file used to have is now wrong.
-        await database.updateFitnessFileActivityData(fitnessFileId, {
-          hasMapData: false,
-          mapImagePath: null,
-          mapImageEmailPath: null
-        })
-        await dropPreviousMap()
+        // the whole route). Any map this file used to have is now wrong — and
+        // in the privacy case it is the very route the owner just hid, so the
+        // pointer to it is kept unless the removal actually succeeded.
+        if (await dropPreviousMap()) {
+          await database.updateFitnessFileActivityData(fitnessFileId, {
+            hasMapData: false,
+            mapImagePath: null,
+            mapImageEmailPath: null
+          })
+        }
       }
 
       if (

@@ -619,6 +619,91 @@ describe('processFitnessFileJob', () => {
       ).toBeNull()
     })
 
+    it('keeps a live activity completed when a map retry fails again', async () => {
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+
+      await processFitnessFileJob(database, {
+        id: 'job-retry-preserve-first',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      // The retry endpoint's shape: the activity is live, only its map failed,
+      // and this run dies before it ever reaches the map — a storage blip.
+      mockGetFitnessFileBuffer.mockRejectedValue(new Error('storage timeout'))
+      await processFitnessFileJob(database, {
+        id: 'job-retry-preserve-second',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          statusId,
+          fitnessFileId,
+          publishSendNote: false,
+          retryingMapFailure: true
+        }
+      })
+
+      // `failed` would hide a fully imported, federated activity behind every
+      // surface gated on `completed` — over a transient storage error.
+      const refreshed = await database.getFitnessFile({ id: fitnessFileId })
+      expect(refreshed).toMatchObject({
+        processingStatus: 'completed',
+        mapError: 'storage timeout'
+      })
+      expect(refreshed?.importError).toBeUndefined()
+    })
+
+    it('keeps the map pointer when a privacy-hidden route cannot be removed', async () => {
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+      mockSaveMedia.mockResolvedValueOnce(
+        await storeMapMedia('medias/privacy-1.webp')
+      )
+
+      await processFitnessFileJob(database, {
+        id: 'job-privacy-pointer-first',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      // The whole route is now hidden, so the existing map has to go — and it
+      // is the one showing the route the owner just hid.
+      mockParseFitnessFile.mockResolvedValue({
+        ...defaultActivityData,
+        coordinates: [],
+        trackPoints: []
+      })
+      vi.spyOn(database, 'deleteAttachmentsByIds').mockRejectedValueOnce(
+        new Error('attachment delete failed')
+      )
+      await processFitnessFileJob(database, {
+        id: 'job-privacy-pointer-second',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      // Nulling the pointer while the attachment survives would leave that
+      // route on a public post with nothing able to find it again.
+      const refreshed = await database.getFitnessFile({ id: fitnessFileId })
+      expect(refreshed?.mapImagePath).toBe('medias/privacy-1.webp')
+
+      // And the next run does remove it.
+      await processFitnessFileJob(database, {
+        id: 'job-privacy-pointer-third',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+      const status = await database.getStatus({ statusId, withReplies: false })
+      if (status?.type !== StatusType.enum.Note) fail('Expected a note status')
+      expect(status.attachments).toHaveLength(0)
+      expect(
+        (await database.getFitnessFile({ id: fitnessFileId }))?.mapImagePath
+      ).toBeUndefined()
+    })
+
     it('keeps the activity intact when the previous map cannot be removed', async () => {
       const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
         text: 'Morning run'

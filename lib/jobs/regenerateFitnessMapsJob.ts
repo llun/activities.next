@@ -188,6 +188,8 @@ export const regenerateFitnessMapsJob = createJobHandle(
         const filteredCoordinates = visibleSegments.flat()
 
         let changedMapAttachment = false
+        // Set when this run's outcome is "this file should have no map".
+        let removeRecordedMap = false
         // A map that cannot be rendered or stored is NOT a failed file. The
         // activity is untouched by this job and still fully usable, while
         // `processingStatus: 'failed'` would hide it from the status detail
@@ -256,12 +258,12 @@ export const regenerateFitnessMapsJob = createJobHandle(
             })
           }
         } else {
-          await database.updateFitnessFileActivityData(fitnessFileId, {
-            hasMapData: false,
-            mapImagePath: null,
-            mapImageEmailPath: null,
-            mapError: null
-          })
+          // Nothing left to draw — the privacy case this job exists for. The
+          // pointer to the map being removed is kept until the removal below
+          // actually succeeds: it is the only thing that can identify that
+          // attachment on a later run, and the route it shows is the one the
+          // owner just hid.
+          removeRecordedMap = true
           changedMapAttachment = oldAttachmentIds.length > 0
         }
 
@@ -269,13 +271,26 @@ export const regenerateFitnessMapsJob = createJobHandle(
           // This run produced no replacement, so the removal below must not
           // run: dropping the old map and its email copy would turn a failed
           // regeneration into data loss. Record the reason and stop here.
-          await database.updateFitnessFileActivityData(fitnessFileId, {
-            mapError: mapErrorMessage
-          })
-          await database.updateFitnessFileProcessingStatus(
-            fitnessFileId,
-            'completed'
-          )
+          //
+          // Contained: letting a write failure reach the catch below would mark
+          // an untouched, fully usable activity `failed` and hide it everywhere
+          // — the outcome this branch exists to avoid.
+          try {
+            await database.updateFitnessFileActivityData(fitnessFileId, {
+              mapError: mapErrorMessage
+            })
+            await database.updateFitnessFileProcessingStatus(
+              fitnessFileId,
+              'completed'
+            )
+          } catch (writeError) {
+            logger.error({
+              message: 'Failed to record the route map regeneration failure',
+              actorId,
+              fitnessFileId,
+              err: toLoggableError(writeError)
+            })
+          }
           continue
         }
 
@@ -301,6 +316,15 @@ export const regenerateFitnessMapsJob = createJobHandle(
             attachmentIds: oldAttachmentIds,
             mediaIds: oldMediaIds
           })
+
+          if (removeRecordedMap) {
+            await database.updateFitnessFileActivityData(fitnessFileId, {
+              hasMapData: false,
+              mapImagePath: null,
+              mapImageEmailPath: null,
+              mapError: null
+            })
+          }
         } catch (error) {
           // Logged, not recorded: the new map is already stored and attached,
           // and a leftover is not something a retry can remove — it would

@@ -211,9 +211,54 @@ describe('POST /api/v1/statuses/[id]/retry-fitness', () => {
     expect(refreshed?.mapError).toBe(
       'Failed to store generated route map image'
     )
+    // The job is told this is a live activity whose map is the only problem,
+    // so a failure in the retry records the reason instead of demoting it.
     expect(getQueue().publish).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ fitnessFileId: file.id })
+        data: expect.objectContaining({
+          fitnessFileId: file.id,
+          retryingMapFailure: true
+        })
+      })
+    )
+  })
+
+  it('keeps a stuck map retry marked as a map failure', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2030-05-01T00:00:00.000Z'))
+
+    const { status, file } = await seedFitnessStatus(database, 'map-stuck')
+    await database.updateFitnessFileActivityData(file.id, {
+      mapError: 'tile server down'
+    })
+    await database.updateFitnessFileProcessingStatus(file.id, 'processing')
+
+    // A map retry parks the file in `processing`; a worker that dies there
+    // leaves it stranded. The follow-up retry has to keep saying "this is a map
+    // failure", or the job's outer catch demotes a live activity to `failed`.
+    vi.setSystemTime(
+      new Date(Date.now() + STUCK_PROCESSING_THRESHOLD_MS + 60_000)
+    )
+
+    const response = await callRetry(status.id)
+    expect(response.status).toBe(200)
+    expect(getQueue().publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ retryingMapFailure: true })
+      })
+    )
+  })
+
+  it('does not mark an ordinary failed retry as a map failure', async () => {
+    const { status, file } = await seedFitnessStatus(database, 'plain-failed')
+    await database.updateFitnessFileProcessingStatus(file.id, 'failed')
+
+    await callRetry(status.id)
+
+    // This one never imported, so a failure in the retry SHOULD keep it failed.
+    expect(getQueue().publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ retryingMapFailure: false })
       })
     )
   })

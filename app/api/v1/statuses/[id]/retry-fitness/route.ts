@@ -137,8 +137,11 @@ export const POST = traceApiRoute(
           // A map-only failure goes back to `completed`: it never failed as an
           // activity, and `failed` would hide it behind every surface gated on
           // `completed`. Its `mapError` is untouched by a status write, so the
-          // post keeps offering the retry.
-          if (isRetriableMapFailure(file)) {
+          // post keeps offering the retry. The WIDE predicate here — a file
+          // stranded in `processing` by a dead map-retry worker is in exactly
+          // the same position, and rolling that one back to `failed` is the
+          // demotion the widening exists to prevent.
+          if (isMapOnlyFailure(file)) {
             await database.updateFitnessFileProcessingStatus(
               file.id,
               'completed'
