@@ -1,3 +1,5 @@
+'use client'
+
 import { formatDistance } from 'date-fns'
 import _ from 'lodash'
 import { Activity, ExternalLink, Repeat2 } from 'lucide-react'
@@ -42,6 +44,7 @@ import { ReadOnlyStats } from './read-only-stats'
 import { RetryFitnessButton } from './retry-fitness-button'
 import { TranslateContent } from './translate-content'
 import { TranslationProvider } from './translation-context'
+import { useReactionState } from './useReactionState'
 
 export interface PostProps {
   host: string
@@ -97,6 +100,14 @@ export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
 export const Post: FC<PostProps> = (props) => {
   const { host, status, onShowAttachment, collapsible, postLineLimit } = props
   const actualStatus = getActualStatus(status)
+  // Held here because the chips and the action-row trigger are two halves of
+  // one control. An Announce wrapper carries no reactions of its own — they
+  // live on the boosted status, which is what `getActualStatus` resolves to.
+  const reactionState = useReactionState({
+    currentActor: props.showActions ? props.currentActor : undefined,
+    status: actualStatus,
+    onReactionsChanged: props.onReactionsChanged
+  })
   const externalStatusUrl = actualStatus.url || actualStatus.id
   const showExternalLink =
     !actualStatus.isLocalActor && Boolean(externalStatusUrl)
@@ -357,15 +368,10 @@ export const Post: FC<PostProps> = (props) => {
           <div>
             {/* Chips sit between the content and the action row: they belong to
                 the post, not to the actions, and a logged-out reader still sees
-                them (read-only) while the action row is hidden. An Announce
-                wrapper carries no reactions of its own — they live on the
-                boosted status, which is what `getActualStatus` resolves to. */}
-            <ReactionRow
-              currentActor={props.showActions ? props.currentActor : undefined}
-              status={actualStatus}
-              onReactionsChanged={props.onReactionsChanged}
-            />
-            <Actions {...props} />
+                them (read-only) while the action row is hidden. Full-bleed like
+                the action row, so both span the whole status. */}
+            <ReactionRow state={reactionState} fullBleed />
+            <Actions {...props} reactionState={reactionState} />
             {props.showReadOnlyStats && !props.showActions && (
               <ReadOnlyStats status={status} />
             )}

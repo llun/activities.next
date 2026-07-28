@@ -1,20 +1,12 @@
 'use client'
 
-import { SmilePlus } from 'lucide-react'
-import { FC, useEffect, useRef, useState } from 'react'
+import { FC } from 'react'
 
-import { reactToStatus, unreactFromStatus } from '@/lib/client'
-import { useDismissingError } from '@/lib/components/posts/actions/actionButtonShared'
 import { isUnicodeEmojiReaction } from '@/lib/services/reactions/reactionName'
-import { ActorProfile } from '@/lib/types/domain/actor'
-import { StatusNote, StatusPoll } from '@/lib/types/domain/status'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import { cn } from '@/lib/utils'
 
-import { ReactionPicker } from './reaction-picker'
-
-// Counts of 100+ collapse to "99+", matching the announcement reaction chips.
-const formatCount = (count: number): string => (count > 99 ? '99+' : `${count}`)
+import { ReactionState, formatReactionCount } from './useReactionState'
 
 // A hot post can accumulate more distinct emoji than a row can usefully show.
 // The rollups arrive in first-reaction order, so the oldest — which is also the
@@ -95,128 +87,30 @@ const ReactionGlyph: FC<{ reaction: StatusReaction }> = ({ reaction }) =>
   )
 
 interface ReactionRowProps {
-  currentActor?: ActorProfile
-  status: StatusNote | StatusPoll
-  onReactionsChanged?: (
-    status: StatusNote | StatusPoll,
-    reactions: StatusReaction[]
-  ) => void
-}
-
-export interface CustomEmojiOption {
-  shortcode: string
-  url: string
+  state: ReactionState
+  /**
+   * Pull the row 52px to the left — the avatar column (40px) plus the gap
+   * (12px) — so it starts at the post's own left edge and spans the full width
+   * of the status, in line with the action row beneath it. Off for surfaces
+   * that render the row outside a post's avatar layout.
+   */
+  fullBleed?: boolean
 }
 
 /**
- * The reaction chips under a post, plus the picker that adds one. Rendered by
- * `Post` for every surface, so a reaction behaves identically everywhere — the
- * same rule the rest of the action row follows.
+ * The reaction chips under a post. Rendered by `Post` for every surface, so a
+ * reaction reads identically everywhere — the same rule the rest of the action
+ * row follows. The control that ADDS one lives in the action row
+ * (`ReactionButton`); both halves share one `ReactionState`.
  *
  * Reactions are NOT favourites: this row never touches the like button's state.
  */
-export const ReactionRow: FC<ReactionRowProps> = ({
-  currentActor,
-  status,
-  onReactionsChanged
-}) => {
-  const [reactions, setReactions] = useState<StatusReaction[]>(
-    status.reactions ?? []
-  )
-  const [pendingName, setPendingName] = useState<string | null>(null)
-  const [isPicking, setIsPicking] = useState(false)
-  const pickerTriggerRef = useRef<HTMLButtonElement>(null)
-  const [error, setError] = useDismissingError()
+export const ReactionRow: FC<ReactionRowProps> = ({ state, fullBleed }) => {
+  const { currentActor, reactions, pendingName, toggle } = state
 
-  // Read inside the resync effect without being one of its dependencies: making
-  // it a dependency would re-run the effect when a write settles and overwrite
-  // the server's rollups with the (still stale) prop.
-  const pendingNameRef = useRef<string | null>(null)
-  pendingNameRef.current = pendingName
-
-  useEffect(() => {
-    // A write in flight owns the local state: resyncing from the prop mid-flight
-    // would discard the optimistic chip, then be overwritten by the server's
-    // rollups a moment later, flickering the count.
-    if (pendingNameRef.current) return
-    setReactions(status.reactions ?? [])
-    setError(null)
-  }, [status.id, status.reactions, setError])
-
-  const toggle = async (name: string, intent: 'toggle' | 'add' = 'toggle') => {
-    // Single-flight: each response carries the status's full authoritative
-    // rollups, so two overlapping writes would race and the loser's chip would
-    // vanish. Every chip is disabled while one is pending, so this guard is a
-    // backstop rather than a silent refusal.
-    if (!currentActor || pendingName) return
-
-    const previous = reactions
-    const existing = previous.find((reaction) => reaction.name === name)
-    // A chip toggles; a pick from the picker only ever adds. Routing a pick
-    // through the toggle would make "React with 🔥" *remove* a 🔥 the viewer had
-    // already added — the opposite of what the item says it does.
-    if (intent === 'add' && existing?.me) return
-    const removing = intent === 'toggle' && Boolean(existing?.me)
-
-    // Optimistic: bump or drop the chip, then reconcile with the server's
-    // authoritative rollups (which also carry the custom-emoji urls).
-    setReactions(
-      removing
-        ? previous
-            .map((reaction) =>
-              reaction.name === name
-                ? { ...reaction, me: false, count: reaction.count - 1 }
-                : reaction
-            )
-            .filter((reaction) => reaction.count > 0)
-        : existing
-          ? previous.map((reaction) =>
-              reaction.name === name
-                ? { ...reaction, me: true, count: reaction.count + 1 }
-                : reaction
-            )
-          : [
-              ...previous,
-              { name, count: 1, me: true, url: null, static_url: null }
-            ]
-    )
-    // Removing the last of a reaction unmounts the chip the user just activated.
-    // That is correct — they deleted it — but a keyboard user would be dropped
-    // on <body>, so move focus to the adjacent picker trigger first.
-    if (removing && existing?.count === 1) {
-      pickerTriggerRef.current?.focus()
-    }
-    setPendingName(name)
-    try {
-      const result = removing
-        ? await unreactFromStatus({ statusId: status.id, name })
-        : await reactToStatus({ statusId: status.id, name })
-      if (!result.ok) {
-        setReactions(previous)
-        // The server's own message when it rejected the request outright (the
-        // per-actor cap, an emoji this instance won't take) — "try again" would
-        // be a lie there, since the same request always fails the same way.
-        setError(
-          result.error ??
-            (removing
-              ? 'Failed to remove reaction. Please try again.'
-              : 'Failed to add reaction. Please try again.')
-        )
-        return
-      }
-      setReactions(result.reactions)
-      onReactionsChanged?.(status, result.reactions)
-    } catch {
-      setReactions(previous)
-      setError('Failed to update reaction. Please try again.')
-    } finally {
-      setPendingName(null)
-    }
-  }
-
-  // Nothing to show and nothing to do: a logged-out reader on an unreacted post
-  // gets no empty row.
-  if (reactions.length === 0 && !currentActor) return null
+  // Nothing to show: the picker trigger no longer lives here, so an unreacted
+  // post gets no empty row (and no stray spacing above the action bar).
+  if (reactions.length === 0) return null
 
   // Rollups arrive oldest-first, so on a post that already has MAX_VISIBLE_CHIPS
   // distinct emoji a brand-new reaction sorts last and would be truncated away —
@@ -227,13 +121,18 @@ export const ReactionRow: FC<ReactionRowProps> = ({
   const hiddenCount = reactions.length - visible.length
 
   return (
-    <div className="relative mt-2 flex flex-wrap items-center gap-1.5">
+    <div
+      className={cn(
+        'mt-2.5 flex flex-wrap items-center gap-1.5',
+        fullBleed && '-ml-[52px]'
+      )}
+    >
       {visible.map((reaction) => {
         const body = (
           <>
             <ReactionGlyph reaction={reaction} />
             <span className="text-xs font-medium tabular-nums">
-              {formatCount(reaction.count)}
+              {formatReactionCount(reaction.count)}
             </span>
           </>
         )
@@ -284,54 +183,6 @@ export const ReactionRow: FC<ReactionRowProps> = ({
       {hiddenCount > 0 && (
         <span className="text-muted-foreground text-xs tabular-nums">
           +{hiddenCount}
-        </span>
-      )}
-      {currentActor && (
-        <button
-          ref={pickerTriggerRef}
-          type="button"
-          aria-disabled={pendingName !== null}
-          aria-label="Add reaction"
-          aria-haspopup="dialog"
-          aria-expanded={isPicking}
-          className={cn(
-            'border-border bg-background text-muted-foreground hover:bg-muted flex h-7 w-7 items-center justify-center rounded-full border transition-colors',
-            pendingName !== null && 'cursor-not-allowed opacity-50'
-          )}
-          onClick={(event) => {
-            event.stopPropagation()
-            if (pendingName) return
-            setIsPicking((value) => !value)
-          }}
-        >
-          <SmilePlus className="size-3.5" />
-        </button>
-      )}
-      {isPicking && (
-        <ReactionPicker
-          anchorRef={pickerTriggerRef}
-          // Focus goes back to the trigger on close, so dismissing the picker
-          // with Escape or an outside click does not dump a keyboard user on
-          // <body>. On a pick the chip that appears is the natural next target,
-          // but the trigger is still the element that was activated.
-          onClose={() => {
-            setIsPicking(false)
-            pickerTriggerRef.current?.focus()
-          }}
-          onPick={(name) => {
-            setIsPicking(false)
-            pickerTriggerRef.current?.focus()
-            void toggle(name, 'add')
-          }}
-        />
-      )}
-      {error && (
-        <span
-          className="text-destructive w-full text-xs"
-          role="alert"
-          data-testid="reaction-error"
-        >
-          {error}
         </span>
       )}
     </div>

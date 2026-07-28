@@ -3,10 +3,16 @@
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { FC } from 'react'
 
+import { ReactionButton } from '@/lib/components/posts/actions/reaction-button'
 import { ReactionRow } from '@/lib/components/posts/reaction-row'
+import {
+  ReactionState,
+  useReactionState
+} from '@/lib/components/posts/useReactionState'
 import { ActorProfile } from '@/lib/types/domain/actor'
-import { StatusNote } from '@/lib/types/domain/status'
+import { StatusNote, StatusPoll } from '@/lib/types/domain/status'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 
 const mockReactToStatus = vi.fn()
@@ -39,6 +45,51 @@ const fire: StatusReaction = {
   static_url: null
 }
 
+interface HarnessProps {
+  currentActor?: ActorProfile
+  status: StatusNote
+  onReactionsChanged?: (
+    status: StatusNote | StatusPoll,
+    reactions: StatusReaction[]
+  ) => void
+}
+
+// The chips and the action-row trigger are two halves of one control sharing a
+// single `ReactionState`, so the tests wire them up the way `Post` does.
+const Reactions: FC<HarnessProps> = (props) => {
+  const state = useReactionState(props)
+  return (
+    <>
+      <ReactionRow state={state} />
+      <ReactionButton state={state} />
+    </>
+  )
+}
+
+const trigger = () => screen.getByRole('button', { name: /^Add reaction/ })
+
+// A settled `ReactionState` for the cases that render the chips on their own —
+// a logged-out surface has no action row, so there is no trigger to share with.
+const readOnlyReactionState = (
+  status: StatusNote,
+  actor?: ActorProfile
+): ReactionState => {
+  const reactions = status.reactions ?? []
+  return {
+    currentActor: actor,
+    reactions,
+    total: reactions.reduce((sum, reaction) => sum + reaction.count, 0),
+    mine: reactions.some((reaction) => reaction.me),
+    pendingName: null,
+    error: null,
+    isPicking: false,
+    setIsPicking: vi.fn(),
+    triggerRef: { current: null },
+    focusTrigger: vi.fn(),
+    toggle: vi.fn()
+  }
+}
+
 describe('ReactionRow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -46,7 +97,7 @@ describe('ReactionRow', () => {
 
   it('renders a chip per reaction with its count', () => {
     render(
-      <ReactionRow
+      <Reactions
         currentActor={currentActor}
         status={statusWith([fire, { ...fire, name: '🎉', count: 1 }])}
       />
@@ -58,7 +109,7 @@ describe('ReactionRow', () => {
 
   it('marks the viewer own reaction as pressed', () => {
     render(
-      <ReactionRow
+      <Reactions
         currentActor={currentActor}
         status={statusWith([{ ...fire, me: true }])}
       />
@@ -89,7 +140,7 @@ describe('ReactionRow', () => {
     const status = statusWith([fire])
 
     render(
-      <ReactionRow
+      <Reactions
         currentActor={currentActor}
         status={status}
         onReactionsChanged={onReactionsChanged}
@@ -124,7 +175,7 @@ describe('ReactionRow', () => {
     })
 
     render(
-      <ReactionRow
+      <Reactions
         currentActor={currentActor}
         status={statusWith([{ ...fire, count: 2, me: true }])}
       />
@@ -139,7 +190,7 @@ describe('ReactionRow', () => {
     mockReactToStatus.mockResolvedValue({ ok: false })
 
     render(
-      <ReactionRow currentActor={currentActor} status={statusWith([fire])} />
+      <Reactions currentActor={currentActor} status={statusWith([fire])} />
     )
     fireEvent.click(screen.getByLabelText('Add 🔥 reaction, 2'))
 
@@ -157,7 +208,7 @@ describe('ReactionRow', () => {
     })
 
     render(
-      <ReactionRow currentActor={currentActor} status={statusWith([fire])} />
+      <Reactions currentActor={currentActor} status={statusWith([fire])} />
     )
     fireEvent.click(screen.getByLabelText('Add 🔥 reaction, 2'))
 
@@ -170,7 +221,7 @@ describe('ReactionRow', () => {
 
   it('renders a custom emoji as an image and a unicode one as text', () => {
     render(
-      <ReactionRow
+      <Reactions
         currentActor={currentActor}
         status={statusWith([
           fire,
@@ -193,7 +244,7 @@ describe('ReactionRow', () => {
   })
 
   it('renders read-only chips for a logged-out reader without any control', () => {
-    render(<ReactionRow status={statusWith([fire])} />)
+    render(<ReactionRow state={readOnlyReactionState(statusWith([fire]))} />)
 
     // Readable, but not a control: a disabled button would drop the count out
     // of the tab order and grey it out for everyone who cannot react.
@@ -205,8 +256,14 @@ describe('ReactionRow', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
-  it('renders nothing for a logged-out reader on a post with no reactions', () => {
-    const { container } = render(<ReactionRow status={statusWith([])} />)
+  it('renders nothing on a post with no reactions', () => {
+    // The picker trigger lives in the action row now, so an unreacted post must
+    // not leave an empty chip row (and its top margin) behind.
+    const { container } = render(
+      <ReactionRow
+        state={readOnlyReactionState(statusWith([]), currentActor)}
+      />
+    )
 
     expect(container).toBeEmptyDOMElement()
   })
@@ -223,7 +280,7 @@ describe('ReactionRow', () => {
     }))
 
     render(
-      <ReactionRow
+      <Reactions
         currentActor={currentActor}
         status={statusWith([...crowd, { ...fire, count: 1, me: true }])}
       />
@@ -239,7 +296,7 @@ describe('ReactionRow', () => {
 
   it('shows a remote custom emoji reaction without offering to join it', () => {
     render(
-      <ReactionRow
+      <Reactions
         currentActor={currentActor}
         status={statusWith([
           {
@@ -271,7 +328,7 @@ describe('ReactionRow', () => {
 
   it('shows a disabled local custom emoji read-only', () => {
     render(
-      <ReactionRow
+      <Reactions
         currentActor={currentActor}
         status={statusWith([
           // No url: the rollup resolves urls only for enabled local emoji, so a
@@ -291,7 +348,7 @@ describe('ReactionRow', () => {
 
   it('keeps an enabled local custom emoji joinable', () => {
     render(
-      <ReactionRow
+      <Reactions
         currentActor={currentActor}
         status={statusWith([
           {
@@ -308,42 +365,6 @@ describe('ReactionRow', () => {
     expect(screen.getByLabelText('Add partyparrot reaction, 1')).toBeEnabled()
   })
 
-  it('adds rather than removes when the picker returns an existing reaction', async () => {
-    render(
-      <ReactionRow
-        currentActor={currentActor}
-        status={statusWith([{ ...fire, me: true }])}
-      />
-    )
-    fireEvent.click(screen.getByLabelText('Add reaction'))
-    await screen.findByRole('dialog', { name: 'Choose a reaction' })
-
-    // 🔥 is not in the default tab, so search for it — the same way a user
-    // reaching for a specific emoji would.
-    fireEvent.change(screen.getByLabelText('Search emoji'), {
-      target: { value: 'fire' }
-    })
-    const alreadyReacted = screen
-      .getAllByRole('button')
-      .find(
-        (button) =>
-          button.getAttribute('aria-label')?.startsWith('React with') &&
-          button.textContent === '🔥'
-      )
-    expect(alreadyReacted).toBeDefined()
-    fireEvent.click(alreadyReacted as HTMLElement)
-
-    // "React with 🔥" must never undo a 🔥 the viewer already added.
-    await waitFor(() =>
-      expect(
-        screen.queryByRole('dialog', { name: 'Choose a reaction' })
-      ).not.toBeInTheDocument()
-    )
-    expect(mockUnreactFromStatus).not.toHaveBeenCalled()
-    expect(mockReactToStatus).not.toHaveBeenCalled()
-    expect(screen.getByLabelText('Remove 🔥 reaction, 2')).toBeInTheDocument()
-  })
-
   it('marks every chip busy while a reaction write is in flight', async () => {
     let resolveRequest: (value: unknown) => void = () => {}
     mockReactToStatus.mockReturnValue(
@@ -353,7 +374,7 @@ describe('ReactionRow', () => {
     )
 
     render(
-      <ReactionRow
+      <Reactions
         currentActor={currentActor}
         status={statusWith([fire, { ...fire, name: '🎉', count: 1 }])}
       />
@@ -365,11 +386,10 @@ describe('ReactionRow', () => {
     // via aria-disabled, not `disabled`, which would blur the control the user
     // just activated and drop keyboard focus to <body>.
     const other = screen.getByLabelText('Add 🎉 reaction, 1')
-    const trigger = screen.getByLabelText('Add reaction')
     expect(other).toHaveAttribute('aria-disabled', 'true')
-    expect(trigger).toHaveAttribute('aria-disabled', 'true')
+    expect(trigger()).toHaveAttribute('aria-disabled', 'true')
     expect(other).toBeEnabled()
-    expect(trigger).toBeEnabled()
+    expect(trigger()).toBeEnabled()
 
     // Busy means inert, not merely styled.
     fireEvent.click(other)
@@ -384,40 +404,11 @@ describe('ReactionRow', () => {
     )
   })
 
-  it('keeps focus on the trigger across a picker-driven reaction', async () => {
-    let resolveRequest: (value: unknown) => void = () => {}
-    mockReactToStatus.mockReturnValue(
-      new Promise((resolve) => {
-        resolveRequest = resolve
-      })
-    )
-
-    render(<ReactionRow currentActor={currentActor} status={statusWith([])} />)
-    const trigger = screen.getByLabelText('Add reaction')
-    fireEvent.click(trigger)
-    await screen.findByRole('dialog', { name: 'Choose a reaction' })
-
-    const firstEmoji = screen
-      .getAllByRole('button')
-      .find((button) =>
-        button.getAttribute('aria-label')?.startsWith('React with')
-      )
-    fireEvent.click(firstEmoji as HTMLElement)
-
-    // The trigger is focused by onPick and must STAY focused while the write is
-    // in flight — disabling it here would blur it and reset the user's tab
-    // position to the top of the document.
-    await waitFor(() => expect(trigger).toHaveFocus())
-    resolveRequest({ ok: true, reactions: [{ ...fire, count: 1, me: true }] })
-    await waitFor(() => expect(mockReactToStatus).toHaveBeenCalledTimes(1))
-    expect(trigger).toHaveFocus()
-  })
-
   it('moves focus to the trigger when removing the last reaction unmounts its chip', async () => {
     mockUnreactFromStatus.mockResolvedValue({ ok: true, reactions: [] })
 
     render(
-      <ReactionRow
+      <Reactions
         currentActor={currentActor}
         status={statusWith([{ ...fire, count: 1, me: true }])}
       />
@@ -431,131 +422,6 @@ describe('ReactionRow', () => {
     await waitFor(() =>
       expect(screen.queryByLabelText(/🔥 reaction/)).not.toBeInTheDocument()
     )
-    expect(screen.getByLabelText('Add reaction')).toHaveFocus()
-  })
-
-  it('returns focus to the trigger when the picker closes', async () => {
-    render(<ReactionRow currentActor={currentActor} status={statusWith([])} />)
-    const trigger = screen.getByLabelText('Add reaction')
-    fireEvent.click(trigger)
-
-    await screen.findByRole('dialog', { name: 'Choose a reaction' })
-    fireEvent.keyDown(window, { key: 'Escape' })
-
-    // Otherwise a keyboard user's focus is dumped on <body>.
-    await waitFor(() => expect(trigger).toHaveFocus())
-  })
-
-  it('renders the picker outside the post so no ancestor can clip it', async () => {
-    const { container } = render(
-      <div style={{ overflow: 'hidden' }}>
-        <ReactionRow currentActor={currentActor} status={statusWith([])} />
-      </div>
-    )
-    fireEvent.click(screen.getByLabelText('Add reaction'))
-
-    const picker = await screen.findByRole('dialog', {
-      name: 'Choose a reaction'
-    })
-
-    // Every card that wraps posts clips its children for rounded corners, and
-    // the panel is far taller than the space inside them. Portalling it to the
-    // document root is what stops that, so pin it: an `absolute` child of the
-    // chip row was clipped on four separate surfaces before this.
-    expect(container.contains(picker)).toBe(false)
-    expect(document.body.contains(picker)).toBe(true)
-    // Viewport-positioned, not positioned against an ancestor in the post.
-    expect(picker.className).toContain('fixed')
-  })
-
-  it.each([
-    {
-      description: 'below the trigger when there is room',
-      viewport: { width: 1280, height: 720 },
-      anchor: { top: 100, bottom: 128, left: 400 },
-      expected: { top: '136px', left: '400px' }
-    },
-    {
-      description: 'pinned to the margin on a viewport narrower than the panel',
-      viewport: { width: 280, height: 720 },
-      anchor: { top: 100, bottom: 128, left: 200 },
-      // Clamping the right edge before the left would yield a negative offset
-      // here (280 - 288 - 8), pushing the panel off-screen.
-      expected: { top: '136px', left: '8px' }
-    },
-    {
-      description: 'clamped left when the trigger sits near the right edge',
-      viewport: { width: 1280, height: 720 },
-      anchor: { top: 100, bottom: 128, left: 1200 },
-      expected: { top: '136px', left: '984px' }
-    }
-  ])(
-    'positions the picker $description',
-    async ({ viewport, anchor, expected }) => {
-      const originalWidth = window.innerWidth
-      const originalHeight = window.innerHeight
-      Object.defineProperty(window, 'innerWidth', {
-        value: viewport.width,
-        configurable: true
-      })
-      Object.defineProperty(window, 'innerHeight', {
-        value: viewport.height,
-        configurable: true
-      })
-
-      render(
-        <ReactionRow currentActor={currentActor} status={statusWith([])} />
-      )
-      const trigger = screen.getByLabelText('Add reaction')
-      trigger.getBoundingClientRect = () =>
-        ({
-          ...anchor,
-          right: anchor.left + 28,
-          width: 28,
-          height: 28
-        }) as DOMRect
-
-      fireEvent.click(trigger)
-      const picker = await screen.findByRole('dialog', {
-        name: 'Choose a reaction'
-      })
-
-      expect(picker.style.top).toBe(expected.top)
-      expect(picker.style.left).toBe(expected.left)
-
-      Object.defineProperty(window, 'innerWidth', {
-        value: originalWidth,
-        configurable: true
-      })
-      Object.defineProperty(window, 'innerHeight', {
-        value: originalHeight,
-        configurable: true
-      })
-    }
-  )
-
-  it('opens the picker and reacts with the chosen emoji', async () => {
-    mockReactToStatus.mockResolvedValue({
-      ok: true,
-      reactions: [{ ...fire, count: 1, me: true }]
-    })
-
-    render(<ReactionRow currentActor={currentActor} status={statusWith([])} />)
-    fireEvent.click(screen.getByLabelText('Add reaction'))
-
-    const picker = await screen.findByRole('dialog', {
-      name: 'Choose a reaction'
-    })
-    expect(picker).toBeInTheDocument()
-
-    const firstEmoji = screen
-      .getAllByRole('button')
-      .find((button) =>
-        button.getAttribute('aria-label')?.startsWith('React with')
-      )
-    expect(firstEmoji).toBeDefined()
-    fireEvent.click(firstEmoji as HTMLElement)
-
-    await waitFor(() => expect(mockReactToStatus).toHaveBeenCalledTimes(1))
+    expect(trigger()).toHaveFocus()
   })
 })

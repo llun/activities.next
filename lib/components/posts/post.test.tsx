@@ -429,7 +429,10 @@ describe('Post', () => {
 
     const chip = screen.getByLabelText('Remove 🔥 reaction, 2')
     expect(chip).toHaveTextContent('2')
-    expect(screen.getByLabelText('Add reaction')).toBeInTheDocument()
+    // The control that adds one lives in the action row, next to like/boost.
+    expect(
+      screen.getByRole('button', { name: 'Add reaction, 2 reactions' })
+    ).toBeInTheDocument()
 
     // Ordering is the point of the name: chips belong to the post, so they sit
     // between the content and the action row, not below it.
@@ -462,7 +465,9 @@ describe('Post', () => {
     expect(
       screen.getByRole('img', { name: '🔥 reaction, 2' })
     ).toBeInTheDocument()
-    expect(screen.queryByLabelText('Add reaction')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /^Add reaction/ })
+    ).not.toBeInTheDocument()
   })
 
   it('renders the primary action row plus an overflow menu, with owner authoring actions consolidated into the menu', () => {
@@ -484,12 +489,12 @@ describe('Post', () => {
       />
     )
 
-    const primaryActions = screen.getByRole('group', {
-      name: 'Post primary actions'
+    const actions = screen.getByRole('group', {
+      name: 'Post actions'
     })
 
     expect(
-      within(primaryActions)
+      within(actions)
         .getAllByRole('button')
         .map((button) => button.getAttribute('aria-label'))
     ).toEqual([
@@ -497,7 +502,9 @@ describe('Post', () => {
       'Repost',
       'Like',
       'Bookmark',
-      'Show edit history, 1 edit'
+      'Add reaction',
+      'Show edit history, 1 edit',
+      'More actions'
     ])
 
     // Secondary actions (visibility / edit / delete) are no longer inline; they
@@ -505,9 +512,6 @@ describe('Post', () => {
     expect(
       screen.queryByRole('group', { name: 'Post secondary actions' })
     ).not.toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'More actions' })
-    ).toBeInTheDocument()
   })
 
   it('keeps edit history panel open when interacting with panel content', () => {
@@ -650,7 +654,7 @@ describe('Post', () => {
     )
 
     expect(
-      screen.getByRole('group', { name: 'Post primary actions' })
+      screen.getByRole('group', { name: 'Post actions' })
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('group', { name: 'Post secondary actions' })
@@ -672,21 +676,25 @@ describe('Post', () => {
       />
     )
 
-    const primaryActions = screen.getByRole('group', {
-      name: 'Post primary actions'
+    const actions = screen.getByRole('group', {
+      name: 'Post actions'
     })
 
     expect(
-      within(primaryActions)
+      within(actions)
         .getAllByRole('button')
         .map((button) => button.getAttribute('aria-label'))
-    ).toEqual(['Reply to post', 'Repost', 'Like', 'Bookmark'])
+    ).toEqual([
+      'Reply to post',
+      'Repost',
+      'Like',
+      'Bookmark',
+      'Add reaction',
+      'More actions'
+    ])
     expect(
       screen.queryByRole('group', { name: 'Post secondary actions' })
     ).not.toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'More actions' })
-    ).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: /Show edit history/ })
     ).not.toBeInTheDocument()
@@ -711,14 +719,11 @@ describe('Post', () => {
       />
     )
 
-    const actionButtons = [
-      ...within(
-        screen.getByRole('group', { name: 'Post primary actions' })
-      ).getAllByRole('button'),
-      screen.getByRole('button', { name: 'More actions' })
-    ]
+    const actionButtons = within(
+      screen.getByRole('group', { name: 'Post actions' })
+    ).getAllByRole('button')
 
-    expect(actionButtons).toHaveLength(6)
+    expect(actionButtons).toHaveLength(7)
     actionButtons.forEach((button) => {
       expect(button).toHaveClass('cursor-pointer')
     })
@@ -738,7 +743,7 @@ describe('Post', () => {
     )
 
     const primaryActions = screen.getByRole('group', {
-      name: 'Post primary actions'
+      name: 'Post actions'
     })
 
     expect(

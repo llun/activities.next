@@ -19,7 +19,10 @@ import {
 import { Input } from '@/lib/components/ui/input'
 import { cn } from '@/lib/utils'
 
-import type { CustomEmojiOption } from './reaction-row'
+export interface CustomEmojiOption {
+  shortcode: string
+  url: string
+}
 
 // A reaction is one emoji, so the picker returns the *name to store* rather than
 // text to insert at a caret: a unicode character as itself, a custom emoji as its
