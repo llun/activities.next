@@ -21,6 +21,12 @@ export const getReactionButtonLabel = (total: number) =>
 
 interface Props {
   state: ReactionState
+  /**
+   * A post too narrow to carry the whole bar hands the trigger to the ⋯ menu
+   * instead. The picker and its error still render from here — they are
+   * portalled and viewport-positioned, so they only need to stay mounted.
+   */
+  hideTrigger?: boolean
 }
 
 /**
@@ -29,37 +35,39 @@ interface Props {
  * with no reactions yet still offers one — and so the chips stay a pure
  * read-out of what people picked.
  */
-export const ReactionButton: FC<Props> = ({ state }) => {
+export const ReactionButton: FC<Props> = ({ state, hideTrigger }) => {
   const { isPicking, setIsPicking, pendingName, total, mine, triggerRef } =
     state
   const isBusy = pendingName !== null
 
   return (
     <span className="relative inline-flex items-center justify-center">
-      <button
-        ref={triggerRef}
-        type="button"
-        // Busy rather than `disabled`, so the control the user just activated
-        // keeps focus instead of being blurred back to <body>.
-        aria-disabled={isBusy}
-        aria-label={getReactionButtonLabel(total)}
-        title={getReactionButtonLabel(total)}
-        aria-haspopup="dialog"
-        aria-expanded={isPicking}
-        className={cn(
-          ACTION_BUTTON_CLASS,
-          mine ? 'text-primary' : 'hover:text-primary',
-          isBusy && 'cursor-not-allowed opacity-50'
-        )}
-        onClick={(event) => {
-          event.stopPropagation()
-          if (isBusy) return
-          setIsPicking((value) => !value)
-        }}
-      >
-        <SmilePlus className="h-4 w-4" />
-        {total > 0 && <span>{formatReactionCount(total)}</span>}
-      </button>
+      {hideTrigger ? null : (
+        <button
+          ref={triggerRef}
+          type="button"
+          // Busy rather than `disabled`, so the control the user just activated
+          // keeps focus instead of being blurred back to <body>.
+          aria-disabled={isBusy}
+          aria-label={getReactionButtonLabel(total)}
+          title={getReactionButtonLabel(total)}
+          aria-haspopup="dialog"
+          aria-expanded={isPicking}
+          className={cn(
+            ACTION_BUTTON_CLASS,
+            mine ? 'text-primary' : 'hover:text-primary',
+            isBusy && 'cursor-not-allowed opacity-50'
+          )}
+          onClick={(event) => {
+            event.stopPropagation()
+            if (isBusy) return
+            setIsPicking((value) => !value)
+          }}
+        >
+          <SmilePlus className="h-4 w-4" />
+          {total > 0 && <span>{formatReactionCount(total)}</span>}
+        </button>
+      )}
       {isPicking && (
         <ReactionPicker
           anchorRef={triggerRef}

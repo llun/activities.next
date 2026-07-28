@@ -13,6 +13,7 @@ import {
 import { ReactNode } from 'react'
 
 import {
+  bookmarkStatus,
   getTranslationCapability,
   getTranslationLanguages,
   likeStatus
@@ -1270,6 +1271,152 @@ describe('Post', () => {
       expect(
         screen.queryByRole('button', { name: /Translate/ })
       ).not.toBeInTheDocument()
+    })
+  })
+
+  describe('narrow action row', () => {
+    // jsdom has no ResizeObserver and lays nothing out, so stand one in that
+    // reports a fixed width — the row measures its own container, not the
+    // viewport, so this is the only thing that decides compact vs. full.
+    const observeWidth = (width: number) => {
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          constructor(
+            private readonly callback: (entries: ResizeObserverEntry[]) => void
+          ) {}
+          observe(target: Element) {
+            this.callback([
+              {
+                target,
+                contentRect: { width } as DOMRectReadOnly
+              } as ResizeObserverEntry
+            ])
+          }
+          unobserve() {}
+          disconnect() {}
+        }
+      )
+    }
+
+    const openMenu = async () => {
+      fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {
+        key: 'ArrowDown'
+      })
+      return screen.findByRole('menu')
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('keeps every action in the row when the post is wide enough', () => {
+      observeWidth(900)
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={status}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(
+        within(screen.getByRole('group', { name: 'Post actions' }))
+          .getAllByRole('button')
+          .map((button) => button.getAttribute('aria-label'))
+      ).toEqual([
+        'Reply to post',
+        'Repost',
+        'Like',
+        'Bookmark',
+        'Add reaction',
+        'More actions'
+      ])
+    })
+
+    it('hands bookmark and react to the overflow menu when the post is narrow', async () => {
+      observeWidth(320)
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={status}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      // Reply / boost / like keep their place; the two that would not fit at a
+      // comfortable hit size move into the menu that is already there.
+      expect(
+        within(screen.getByRole('group', { name: 'Post actions' }))
+          .getAllByRole('button')
+          .map((button) => button.getAttribute('aria-label'))
+      ).toEqual(['Reply to post', 'Repost', 'Like', 'More actions'])
+
+      const menu = await openMenu()
+      expect(
+        within(menu).getByRole('menuitem', { name: 'React to post' })
+      ).toBeInTheDocument()
+      expect(
+        within(menu).getByRole('menuitem', { name: 'Bookmark' })
+      ).toBeInTheDocument()
+    })
+
+    it('opens the reaction picker from the overflow menu', async () => {
+      observeWidth(320)
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={status}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      const menu = await openMenu()
+      fireEvent.click(
+        within(menu).getByRole('menuitem', { name: 'React to post' })
+      )
+
+      expect(
+        await screen.findByRole('dialog', { name: 'Choose a reaction' })
+      ).toBeInTheDocument()
+    })
+
+    it('bookmarks from the overflow menu', async () => {
+      observeWidth(320)
+      ;(bookmarkStatus as jest.Mock).mockResolvedValue(true)
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={status}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      const menu = await openMenu()
+      fireEvent.click(within(menu).getByRole('menuitem', { name: 'Bookmark' }))
+
+      await waitFor(() =>
+        expect(bookmarkStatus).toHaveBeenCalledWith({ statusId: status.id })
+      )
+      // The state lives in the row, so reopening the menu offers the undo —
+      // it is not a second, independent copy of the bookmark.
+      expect(
+        within(await openMenu()).getByRole('menuitem', {
+          name: 'Remove bookmark'
+        })
+      ).toBeInTheDocument()
     })
   })
 })

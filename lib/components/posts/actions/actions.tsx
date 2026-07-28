@@ -1,3 +1,4 @@
+import { Bookmark, SmilePlus } from 'lucide-react'
 import { FC } from 'react'
 
 import { PostProps } from '@/lib/components/posts/post'
@@ -7,15 +8,17 @@ import {
   StatusType,
   getOriginalStatus
 } from '@/lib/types/domain/status'
+import { cn } from '@/lib/utils'
 
 import { BookmarkButton } from './bookmark-button'
 import { EditHistoryButton } from './edit-history-button'
 import { LikeButton } from './like-button'
-import { PostMenu } from './post-menu'
+import { PostMenu, PostMenuExtraItem } from './post-menu'
 import { ReactionButton } from './reaction-button'
 import { ReplyButton } from './reply-button'
 import { RepostButton } from './repost-button'
 import { useBookmarkState } from './useBookmarkState'
+import { useCompactActionBar } from './useCompactActionBar'
 
 interface Props extends PostProps {
   /**
@@ -46,12 +49,13 @@ export const Actions: FC<Props> = ({
     status.type === StatusType.enum.Announce
       ? getOriginalStatus(status)
       : status
-  // Owned here rather than by the button, so the row is the single place that
-  // knows whether this status is bookmarked.
+  // Owned here rather than by the button: on a narrow post the bookmark is a ⋯
+  // menu item instead, and both spellings have to read the same state.
   const bookmark = useBookmarkState({
     status: actualStatus,
     onBookmarkChanged
   })
+  const [barRef, isCompact] = useCompactActionBar()
 
   if (!showActions) return null
   if (!currentActor) return null
@@ -62,8 +66,41 @@ export const Actions: FC<Props> = ({
     currentActor.id === actualStatus.actorId
   const hasEditHistory = actualStatus.edits.length > 0
 
+  // Too narrow to seat every control at a comfortable hit size, so the two
+  // least-used ones move into the menu that is already there.
+  const extraItems: PostMenuExtraItem[] = isCompact
+    ? [
+        ...(reactionState
+          ? [
+              {
+                key: 'react',
+                icon: <SmilePlus className="size-4" />,
+                label: 'React to post',
+                // The picker autofocuses its search field, so it has to open
+                // after the menu has finished handing focus back.
+                deferUntilClosed: true,
+                onSelect: () => reactionState.setIsPicking(true)
+              }
+            ]
+          : []),
+        {
+          key: 'bookmark',
+          icon: (
+            <Bookmark
+              className={cn('size-4', bookmark.isBookmarked && 'fill-current')}
+            />
+          ),
+          label: bookmark.label,
+          onSelect: () => {
+            void bookmark.toggle()
+          }
+        }
+      ]
+    : []
+
   return (
     <div
+      ref={barRef}
       role="group"
       aria-label="Post actions"
       // Pulled 52px left — the avatar column (40px) plus its gap (12px) — so the
@@ -79,8 +116,12 @@ export const Actions: FC<Props> = ({
         status={actualStatus}
         onLikeChanged={onLikeChanged}
       />
-      <BookmarkButton state={bookmark} />
-      {reactionState ? <ReactionButton state={reactionState} /> : null}
+      {isCompact ? null : <BookmarkButton state={bookmark} />}
+      {reactionState ? (
+        // Still mounted when compact: the picker it renders is portalled, and
+        // the menu item that opens it needs somewhere for it to live.
+        <ReactionButton state={reactionState} hideTrigger={isCompact} />
+      ) : null}
       {hasEditHistory ? (
         <EditHistoryButton
           status={actualStatus}
@@ -95,6 +136,8 @@ export const Actions: FC<Props> = ({
         status={actualStatus}
         isOwner={isOwner}
         canEdit={canEdit}
+        triggerRef={isCompact ? reactionState?.triggerRef : undefined}
+        extraItems={extraItems}
         onReply={onReply}
         onEdit={onEdit}
         onQuote={onQuote}

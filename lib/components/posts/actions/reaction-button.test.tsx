@@ -45,16 +45,17 @@ const fire: StatusReaction = {
 interface HarnessProps {
   currentActor?: ActorProfile
   status: StatusNote
+  hideTrigger?: boolean
 }
 
 // The button shares one `ReactionState` with the chip row, exactly as `Actions`
 // and `Post` wire them.
-const Reactions: FC<HarnessProps> = (props) => {
-  const state = useReactionState(props)
+const Reactions: FC<HarnessProps> = ({ hideTrigger, ...params }) => {
+  const state = useReactionState(params)
   return (
     <>
       <ReactionRow state={state} />
-      <ReactionButton state={state} />
+      <ReactionButton state={state} hideTrigger={hideTrigger} />
     </>
   )
 }
@@ -199,6 +200,23 @@ describe('ReactionButton', () => {
 
     // Otherwise a keyboard user's focus is dumped on <body>.
     await waitFor(() => expect(trigger()).toHaveFocus())
+  })
+
+  it('renders no trigger once the row has handed it to the menu', () => {
+    render(
+      <Reactions
+        currentActor={currentActor}
+        status={statusWith([fire])}
+        hideTrigger
+      />
+    )
+
+    // A compact row moves the trigger into the ⋯ menu — but the component stays
+    // mounted, because it is what that menu item opens. The chips are unchanged.
+    expect(
+      screen.queryByRole('button', { name: /^Add reaction/ })
+    ).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Add 🔥 reaction, 2')).toBeInTheDocument()
   })
 
   it('renders the picker outside the post so no ancestor can clip it', async () => {
