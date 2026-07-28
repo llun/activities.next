@@ -89,10 +89,11 @@ const ReactionGlyph: FC<{ reaction: StatusReaction }> = ({ reaction }) =>
 interface ReactionRowProps {
   state: ReactionState
   /**
-   * Pull the row 52px to the left — the avatar column (40px) plus the gap
-   * (12px) — so it starts at the post's own left edge and spans the full width
-   * of the status, in line with the action row beneath it. Off for surfaces
-   * that render the row outside a post's avatar layout.
+   * Pull the row back over the avatar column (`size-10`) and its `gap-3` — 13
+   * spacing steps, so it tracks the root font size the way those two do — and
+   * the row starts at the post's own left edge, spanning the full width of the
+   * status in line with the action row beneath it. Off for surfaces that render
+   * the row outside a post's avatar layout, or with no action row to align to.
    */
   fullBleed?: boolean
 }
@@ -124,7 +125,7 @@ export const ReactionRow: FC<ReactionRowProps> = ({ state, fullBleed }) => {
     <div
       className={cn(
         'mt-2.5 flex flex-wrap items-center gap-1.5',
-        fullBleed && '-ml-[52px]'
+        fullBleed && '-ml-13'
       )}
     >
       {visible.map((reaction) => {

@@ -384,8 +384,15 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   that mode `ReactionButton` stays mounted with `hideTrigger` (it still owns the
   portalled picker), and the picker anchors to the `⋯` trigger, which is why
   `PostMenu` takes a `triggerRef`. A menu item that opens a focus-taking
-  surface sets `deferUntilClosed` so it runs from `onCloseAutoFocus` — otherwise
-  Radix's focus restore lands after the picker's autofocus and steals it.
+  surface sets `deferUntilClosed` so it runs from `onCloseAutoFocus`, which also
+  suppresses Radix's own focus restore — otherwise that restore lands after the
+  panel has taken focus and pulls it straight back to the `⋯` trigger. A menu
+  item also carries `disabled` while its own write is in flight: it has none of
+  the busy styling the button it replaced had, so a tap during a pending write
+  would otherwise be swallowed by the single-flight guard with nothing on screen
+  to explain it. Whatever moves into the menu still has to surface its errors
+  from the row — `ActionButtonError` is `position: absolute`, so it can anchor
+  to the (`relative`) row without putting a flex item back into it.
 - **Reply, quote, and edit open one shared inline composer** rendered beneath the
   post — `InlineStatusComposer`, driven by the `useInlineComposer` hook. Reply
   uses the compact `StatusReplyBox`; quote and edit use `PostBox` in the matching

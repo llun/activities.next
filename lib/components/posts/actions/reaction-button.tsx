@@ -1,7 +1,7 @@
 'use client'
 
 import { SmilePlus } from 'lucide-react'
-import { FC } from 'react'
+import { FC, useEffect } from 'react'
 
 import {
   ACTION_BUTTON_CLASS,
@@ -43,18 +43,24 @@ export const ReactionButton: FC<Props> = ({ state, hideTrigger }) => {
     <ActionButtonError message={state.error} testId="reaction-error" />
   ) : null
 
+  // The element the picker hangs off moves between this button and the ⋯
+  // trigger when the row crosses its width threshold. The panel is placed from
+  // the anchor's rect when it opens and does not re-measure on a ref swap, so
+  // an open picker would be stranded over the button that just unmounted.
+  // Close it and let the viewer reopen it from wherever the trigger now lives.
+  useEffect(() => {
+    setIsPicking(false)
+  }, [hideTrigger, setIsPicking])
+
   return (
     <>
       {hideTrigger ? (
-        // Deliberately NOT an empty wrapper: the row is `justify-between`, so a
-        // zero-width element still claims one of the gaps and skews every other
-        // action's position. Only an error puts a box back in the row, and only
-        // for as long as it is showing.
-        error && (
-          <span className="relative inline-flex items-center justify-center">
-            {error}
-          </span>
-        )
+        // Deliberately NOT a wrapper element: the row is `justify-between`, so
+        // even a zero-width child claims one of the gaps and skews every other
+        // action's position. The error is `position: absolute`, so it is out of
+        // flow and lays nothing out — it anchors to the row, which is
+        // `relative` for exactly this.
+        error
       ) : (
         <span className="relative inline-flex items-center justify-center">
           <button

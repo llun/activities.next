@@ -2005,7 +2005,11 @@ export const FitnessStatusDetail: FC<Props> = ({
             <span />
           )}
           {currentActor ? (
-            <div className="flex items-center gap-0.5 text-muted-foreground">
+            <div
+              // Wraps: the react trigger made this a six-control row, which no
+              // longer fits on one line on a narrow phone.
+              className="flex flex-wrap items-center gap-0.5 text-muted-foreground"
+            >
               <ReplyButton
                 status={status}
                 onReply={() => setActiveSection('comments')}

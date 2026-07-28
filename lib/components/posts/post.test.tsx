@@ -16,7 +16,8 @@ import {
   bookmarkStatus,
   getTranslationCapability,
   getTranslationLanguages,
-  likeStatus
+  likeStatus,
+  reactToStatus
 } from '@/lib/client'
 import {
   StatusAnnounce,
@@ -1276,9 +1277,14 @@ describe('Post', () => {
 
   describe('narrow action row', () => {
     // jsdom has no ResizeObserver and lays nothing out, so stand one in that
-    // reports a fixed width — the row measures its own container, not the
-    // viewport, so this is the only thing that decides compact vs. full.
+    // reports a width the test chooses — the row measures its own container,
+    // not the viewport, so this is the only thing that decides compact vs.
+    // full. `resizeTo` re-delivers, which is what makes a width *change*
+    // (rather than just an initial width) testable.
+    let resizeTo: ((width: number) => void) | null = null
+
     const observeWidth = (width: number) => {
+      resizeTo = null
       vi.stubGlobal(
         'ResizeObserver',
         class {
@@ -1286,12 +1292,16 @@ describe('Post', () => {
             private readonly callback: (entries: ResizeObserverEntry[]) => void
           ) {}
           observe(target: Element) {
-            this.callback([
-              {
-                target,
-                contentRect: { width } as DOMRectReadOnly
-              } as ResizeObserverEntry
-            ])
+            const emit = (next: number) => {
+              this.callback([
+                {
+                  target,
+                  contentRect: { width: next } as DOMRectReadOnly
+                } as ResizeObserverEntry
+              ])
+            }
+            resizeTo = emit
+            emit(width)
           }
           unobserve() {}
           disconnect() {}
@@ -1394,6 +1404,94 @@ describe('Post', () => {
 
       expect(
         await screen.findByRole('dialog', { name: 'Choose a reaction' })
+      ).toBeInTheDocument()
+      // The whole point of `deferUntilClosed`: without it Radix restores focus
+      // to the ⋯ trigger as the menu unmounts, which lands after the panel has
+      // taken it and leaves a keyboard user back at the top of the document.
+      await waitFor(() =>
+        expect(screen.getByLabelText('Search emoji')).toHaveFocus()
+      )
+    })
+
+    it('surfaces a failed reaction even though the trigger is in the menu', async () => {
+      observeWidth(320)
+      ;(reactToStatus as jest.Mock).mockResolvedValue({
+        ok: false,
+        error: 'You can only add 8 reactions to a post.'
+      })
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={{
+            ...status,
+            reactions: [
+              { name: '🔥', count: 2, me: false, url: null, static_url: null }
+            ]
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      fireEvent.click(screen.getByLabelText('Add 🔥 reaction, 2'))
+
+      // The button that normally renders this error is not in the row at this
+      // width, so without an explicit home the refusal would be invisible.
+      expect(await screen.findByTestId('reaction-error')).toHaveTextContent(
+        'You can only add 8 reactions to a post.'
+      )
+    })
+
+    it('surfaces a failed bookmark even though the button is in the menu', async () => {
+      observeWidth(320)
+      ;(bookmarkStatus as jest.Mock).mockResolvedValue(false)
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={status}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      const menu = await openMenu()
+      fireEvent.click(within(menu).getByRole('menuitem', { name: 'Bookmark' }))
+
+      expect(await screen.findByTestId('bookmark-error')).toHaveTextContent(
+        'Failed to bookmark post. Please try again.'
+      )
+    })
+
+    it('keeps the bookmark it took while wide when the row turns compact', async () => {
+      observeWidth(900)
+      ;(bookmarkStatus as jest.Mock).mockResolvedValue(true)
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={status}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Bookmark' }))
+      await screen.findByRole('button', { name: 'Remove bookmark' })
+
+      act(() => resizeTo?.(320))
+
+      // This is the whole reason the bookmark state sits in the row rather than
+      // in the button: the button unmounts here, and a second copy of the state
+      // in the menu item would offer to bookmark a post that already is one.
+      expect(
+        within(await openMenu()).getByRole('menuitem', {
+          name: 'Remove bookmark'
+        })
       ).toBeInTheDocument()
     })
 

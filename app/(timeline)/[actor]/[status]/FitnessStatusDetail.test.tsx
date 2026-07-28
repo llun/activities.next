@@ -586,4 +586,82 @@ describe('FitnessStatusDetail', () => {
       )
     ).toBeInTheDocument()
   })
+  describe('reactions', () => {
+    // This page composes its own action row instead of going through `Posts`,
+    // so both halves of the reaction control have to be wired by hand here —
+    // and a fitness post is the one surface where losing either of them means
+    // an existing reaction is invisible or a new one cannot be added.
+    it('renders the reaction chips above the action row', () => {
+      renderDetail({
+        status: buildStatus({
+          reactions: [
+            {
+              name: '\u{1F525}',
+              count: 3,
+              me: false,
+              url: null,
+              static_url: null
+            }
+          ]
+        } as Partial<StatusNote>)
+      })
+
+      expect(
+        screen.getByLabelText('Add \u{1F525} reaction, 3')
+      ).toHaveTextContent('3')
+    })
+
+    it('offers the picker trigger in its action row', () => {
+      renderDetail({
+        status: buildStatus({
+          reactions: [
+            {
+              name: '\u{1F525}',
+              count: 3,
+              me: false,
+              url: null,
+              static_url: null
+            }
+          ]
+        } as Partial<StatusNote>)
+      })
+
+      expect(
+        screen.getByRole('button', { name: 'Add reaction, 3 reactions' })
+      ).toBeInTheDocument()
+    })
+
+    it('leaves a logged-out reader the chips without a way to react', () => {
+      renderDetail({
+        currentActor: null,
+        status: buildStatus({
+          reactions: [
+            {
+              name: '\u{1F525}',
+              count: 3,
+              me: false,
+              url: null,
+              static_url: null
+            }
+          ]
+        } as Partial<StatusNote>)
+      })
+
+      expect(
+        screen.getByRole('img', { name: '\u{1F525} reaction, 3' })
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /^Add reaction/ })
+      ).not.toBeInTheDocument()
+    })
+
+    it('renders no chip row on a post nobody has reacted to', () => {
+      renderDetail()
+
+      expect(screen.queryByText(/reaction,/)).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Add reaction' })
+      ).toBeInTheDocument()
+    })
+  })
 })

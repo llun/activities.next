@@ -10,6 +10,7 @@ import {
 } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 
+import { ActionButtonError } from './actionButtonShared'
 import { BookmarkButton } from './bookmark-button'
 import { EditHistoryButton } from './edit-history-button'
 import { LikeButton } from './like-button'
@@ -64,14 +65,19 @@ export const Actions: FC<Props> = ({
   const hasEditHistory = actualStatus.edits.length > 0
 
   // Too narrow to seat every control at a comfortable hit size, so the two
-  // least-used ones move into the menu that is already there.
+  // least-used ones move into the menu that is already there. Both are
+  // disabled while their own write is in flight: unlike the buttons they
+  // replace, a menu item has no busy styling, so without this a tap during a
+  // pending write would be swallowed by the state's single-flight guard with
+  // nothing on screen to explain it.
   const extraItems: PostMenuExtraItem[] = isCompact
     ? [
         {
           key: 'react',
           icon: <SmilePlus className="size-4" />,
           label: 'React to post',
-          // The picker autofocuses its search field, so it has to open after
+          disabled: reactionState.pendingName !== null,
+          // The picker takes focus once it is placed, so it has to open after
           // the menu has finished handing focus back.
           deferUntilClosed: true,
           onSelect: () => reactionState.setIsPicking(true)
@@ -84,6 +90,7 @@ export const Actions: FC<Props> = ({
             />
           ),
           label: bookmark.label,
+          disabled: bookmark.isLoading,
           onSelect: () => {
             void bookmark.toggle()
           }
@@ -96,10 +103,13 @@ export const Actions: FC<Props> = ({
       ref={barRef}
       role="group"
       aria-label="Post actions"
-      // Pulled 52px left — the avatar column (40px) plus its gap (12px) — so the
-      // row starts at the post's own left edge, then spread across the whole
-      // width with the ⋯ menu pinned to the far right.
-      className="-ml-[52px] mt-3 flex items-center justify-between gap-1 text-muted-foreground"
+      // Pulled back over the avatar column (`size-10`) and its `gap-3` — 13
+      // spacing steps, so it tracks the root font size the way those two do —
+      // and the row starts at the post's own left edge, then spreads across the
+      // whole width with the ⋯ menu pinned to the far right. `relative` so a
+      // control that has moved into the menu can still anchor its error tooltip
+      // here without putting a flex item back in the row.
+      className="relative -ml-13 mt-3 flex items-center justify-between gap-1 text-muted-foreground"
     >
       <ReplyButton status={actualStatus} onReply={onReply} />
       <RepostButton currentActor={currentActor} status={actualStatus} />
@@ -109,7 +119,15 @@ export const Actions: FC<Props> = ({
         status={actualStatus}
         onLikeChanged={onLikeChanged}
       />
-      {isCompact ? null : <BookmarkButton state={bookmark} />}
+      {isCompact ? (
+        // The button is gone but its failures are not: it is the only thing
+        // that renders the bookmark error, so the row has to show it instead.
+        bookmark.error ? (
+          <ActionButtonError message={bookmark.error} testId="bookmark-error" />
+        ) : null
+      ) : (
+        <BookmarkButton state={bookmark} />
+      )}
       {/* Still mounted when compact: the picker it renders is portalled, and
           the menu item that opens it needs somewhere for it to live. */}
       <ReactionButton state={reactionState} hideTrigger={isCompact} />

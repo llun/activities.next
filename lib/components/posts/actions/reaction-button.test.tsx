@@ -93,23 +93,33 @@ describe('ReactionButton', () => {
   })
 
   it.each([
-    { description: 'no reactions yet', reactions: [], expected: null },
+    {
+      description: 'no reactions yet',
+      reactions: [],
+      expected: '',
+      label: 'Add reaction'
+    },
     {
       description: 'a single reaction',
       reactions: [{ ...fire, count: 1 }],
-      expected: '1'
+      expected: '1',
+      // Singular: the label is assembled, so "1 reactions" is one template
+      // string away and nothing else would catch it.
+      label: 'Add reaction, 1 reaction'
     },
     {
       description: 'a total past the chip cap',
       reactions: [{ ...fire, count: 120 }],
-      expected: '99+'
+      expected: '99+',
+      label: 'Add reaction, 120 reactions'
     }
-  ])('shows $description as $expected', ({ reactions, expected }) => {
+  ])('shows $description as $expected', ({ reactions, expected, label }) => {
     render(
       <Reactions currentActor={currentActor} status={statusWith(reactions)} />
     )
 
-    expect(trigger()).toHaveTextContent(expected ?? '')
+    expect(trigger()).toHaveTextContent(expected)
+    expect(trigger()).toHaveAccessibleName(label)
   })
 
   it('opens the picker and reacts with the chosen emoji', async () => {

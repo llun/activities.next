@@ -96,6 +96,11 @@ export interface PostMenuExtraItem {
   key: string
   icon: ReactNode
   label: string
+  /**
+   * A menu item has none of the busy styling the button it replaces had, so an
+   * action whose own write is in flight has to say so here instead.
+   */
+  disabled?: boolean
   onSelect: () => void
   /**
    * Run the action once the menu has fully closed, and let it keep focus.
@@ -326,6 +331,7 @@ export const PostMenu: FC<Props> = ({
               {extraItems.map((item) => (
                 <DropdownMenuItem
                   key={item.key}
+                  disabled={item.disabled}
                   onSelect={() => {
                     if (!item.deferUntilClosed) {
                       item.onSelect()

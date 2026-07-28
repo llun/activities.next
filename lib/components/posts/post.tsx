@@ -108,6 +108,9 @@ export const Post: FC<PostProps> = (props) => {
     status: actualStatus,
     onReactionsChanged: props.onReactionsChanged
   })
+  // The same gate `Actions` applies to itself, hoisted so the chip row above it
+  // knows whether there will be an action row under it to align with.
+  const showsActionRow = Boolean(props.showActions && props.currentActor)
   const externalStatusUrl = actualStatus.url || actualStatus.id
   const showExternalLink =
     !actualStatus.isLocalActor && Boolean(externalStatusUrl)
@@ -368,9 +371,12 @@ export const Post: FC<PostProps> = (props) => {
           <div>
             {/* Chips sit between the content and the action row: they belong to
                 the post, not to the actions, and a logged-out reader still sees
-                them (read-only) while the action row is hidden. Full-bleed like
-                the action row, so both span the whole status. */}
-            <ReactionRow state={reactionState} fullBleed />
+                them (read-only) while the action row is hidden. They go
+                full-bleed only when that row is there to align with — on a
+                read-only surface the row beneath them is `ReadOnlyStats`, which
+                starts at the text, and chips hanging 52px further left would
+                line up with nothing. */}
+            <ReactionRow state={reactionState} fullBleed={showsActionRow} />
             <Actions {...props} reactionState={reactionState} />
             {props.showReadOnlyStats && !props.showActions && (
               <ReadOnlyStats status={status} />

@@ -32,8 +32,24 @@ export const useCompactActionBar = (
     const element = ref.current
     if (!element || typeof ResizeObserver === 'undefined') return
 
+    // A zero width means the row was never laid out — a `display: none`
+    // ancestor, a detached subtree, jsdom — not that it is narrow. Keeping the
+    // last known answer there is what stops every such environment collapsing
+    // the row; the observer delivers a real width as soon as there is one.
+    const measure = (width: number) => {
+      if (width === 0) return
+      setIsCompact(width < threshold)
+    }
+
+    // Measure here rather than leaving it to the observer's first delivery.
+    // That delivery lands in the browser's rendering step and the state update
+    // it schedules is not discrete, so React runs it after the frame has
+    // painted — which on every narrow post flashes the full row and then drops
+    // two buttons out of it. A layout-effect `setState` is flushed before paint.
+    measure(element.getBoundingClientRect().width)
+
     const observer = new ResizeObserver(([entry]) => {
-      setIsCompact(entry.contentRect.width < threshold)
+      measure(entry.contentRect.width)
     })
     observer.observe(element)
     return () => observer.disconnect()

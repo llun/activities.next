@@ -142,7 +142,10 @@ change doesn't touch.
   share one `useReactionState`; `useBookmarkState` is held by `Actions` for the
   same reason. A row narrower than 400px — measured by `ResizeObserver` on the
   row itself, never a viewport breakpoint — hands bookmark and react to the `⋯`
-  menu, and a menu item opening a focus-taking surface uses `deferUntilClosed`.
+  menu, and a menu item opening a focus-taking surface uses `deferUntilClosed`
+  (which also suppresses Radix's focus restore). A control that moves into the
+  menu keeps a `disabled` state while its write is in flight and still surfaces
+  its error from the row, absolutely positioned so it adds no flex item.
 - Settings/account forms are client components that POST JSON and show inline
   success/error, not HTML `<form method="post">` with server redirects; the route
   returns JSON via `apiResponse()`.
