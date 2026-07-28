@@ -3397,14 +3397,17 @@ export const StatusSQLDatabaseMixin = (
       .increment('totalVotes', 1)
   }
 
-  async function getStatusFromUrl({ url }: GetStatusFromUrlParams) {
+  async function getStatusFromUrl({
+    url,
+    currentActorId
+  }: GetStatusFromUrlParams) {
     const status = await database('statuses')
       .where('urlHash', getStatusUrlHash(url))
       .andWhere('url', url)
       .first<{ id: string }>('id')
 
     if (status?.id) {
-      return getStatus({ statusId: status.id })
+      return getStatus({ statusId: status.id, currentActorId })
     }
 
     return null

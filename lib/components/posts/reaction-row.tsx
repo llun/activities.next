@@ -180,6 +180,12 @@ export const ReactionRow: FC<ReactionRowProps> = ({
               { name, count: 1, me: true, url: null, static_url: null }
             ]
     )
+    // Removing the last of a reaction unmounts the chip the user just activated.
+    // That is correct — they deleted it — but a keyboard user would be dropped
+    // on <body>, so move focus to the adjacent picker trigger first.
+    if (removing && existing?.count === 1) {
+      pickerTriggerRef.current?.focus()
+    }
     setPendingName(name)
     try {
       const result = removing

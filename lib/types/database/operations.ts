@@ -577,6 +577,11 @@ export type DeleteStatusParams = BaseStatusParams & {
 
 export type GetStatusFromUrlParams = {
   url: string
+  // The signed-in viewer, so the resolved status carries their own like,
+  // bookmark and reaction state. A status's `url` is its web permalink, which
+  // is never equal to its `id`, so this lookup — not the id lookup beside it —
+  // is what a pasted link actually resolves through.
+  currentActorId?: string
 }
 export type GetStatusFromUrlHashParams = {
   urlHash: string

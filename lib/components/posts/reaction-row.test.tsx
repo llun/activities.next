@@ -413,6 +413,27 @@ describe('ReactionRow', () => {
     expect(trigger).toHaveFocus()
   })
 
+  it('moves focus to the trigger when removing the last reaction unmounts its chip', async () => {
+    mockUnreactFromStatus.mockResolvedValue({ ok: true, reactions: [] })
+
+    render(
+      <ReactionRow
+        currentActor={currentActor}
+        status={statusWith([{ ...fire, count: 1, me: true }])}
+      />
+    )
+    const chip = screen.getByLabelText('Remove 🔥 reaction, 1')
+    chip.focus()
+    fireEvent.click(chip)
+
+    // The chip is gone because the reaction is gone — but focus has to land
+    // somewhere deliberate rather than on <body>.
+    await waitFor(() =>
+      expect(screen.queryByLabelText(/🔥 reaction/)).not.toBeInTheDocument()
+    )
+    expect(screen.getByLabelText('Add reaction')).toHaveFocus()
+  })
+
   it('returns focus to the trigger when the picker closes', async () => {
     render(<ReactionRow currentActor={currentActor} status={statusWith([])} />)
     const trigger = screen.getByLabelText('Add reaction')
