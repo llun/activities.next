@@ -12,13 +12,8 @@ import { logger } from '@/lib/utils/logger'
 
 import { MAX_HEIGHT, MAX_WIDTH, STORED_IMAGE_RESIZE_OPTIONS } from './constants'
 import { MediaValidationError } from './errors'
-import { extractVideoImage } from './extractVideoImage'
 import { extractVideoMeta } from './extractVideoMeta'
-import {
-  createMediaTempFilePath,
-  getStoredMediaExtension,
-  sanitizeStoredFileName
-} from './fileName'
+import { getStoredMediaExtension, sanitizeStoredFileName } from './fileName'
 import { getMediaAttachment } from './getMediaAttachment'
 import {
   DEFAULT_IMAGE_OUTPUT_FORMAT,
@@ -36,6 +31,7 @@ import {
   MediaStorageGetFileOutput,
   ThumbnailStorageOutput
 } from './types'
+import { extractVideoPreviewFrame } from './videoPreview'
 
 interface SaveImageOptions {
   isThumbnail?: boolean
@@ -357,26 +353,16 @@ export class LocalFileStorage implements MediaStorage {
     }
   }
 
-  // Mirrors `S3FileStorage._uploadVideoToS3`: the probe and the preview frame
-  // both read a temp copy, so nothing reaches the media root until both have
-  // succeeded. Writing the video there first and extracting from it afterwards
-  // left the bytes on disk whenever ffmpeg found no decodable frame, with no
-  // `medias` row — the only handle anything but
-  // `scripts/maintenance/cleanupMediaStorage.ts` has on a stored path.
+  // Mirrors `S3FileStorage._uploadVideoToS3`: probe, validate, extract the
+  // preview frame from a temp copy, and only then store. Writing the video into
+  // the media root first and extracting from it afterwards left the bytes on
+  // disk whenever ffmpeg found no decodable frame, with no `medias` row — the
+  // only handle anything but `scripts/maintenance/cleanupMediaStorage.ts` has
+  // on a stored path.
   private async _saveVideoFile(videoFile: File) {
     const uploadPath = this._config.path
     const buffer = Buffer.from(await videoFile.arrayBuffer())
-    const tmpVideoFile = createMediaTempFilePath(videoFile.name)
-    // `wx` (O_EXCL) so the write fails rather than following a symlink someone
-    // planted at the path, or clobbering an existing file. The 64-bit random
-    // prefix already makes that infeasible to aim at; this makes it impossible.
-    await fs.writeFile(tmpVideoFile, buffer, { flag: 'wx' })
-    // `finally` so a probe/preview failure still removes the temp file instead
-    // of leaking it for the lifetime of the container.
-    const [probe, previewImage] = await Promise.all([
-      extractVideoMeta(buffer),
-      extractVideoImage(tmpVideoFile)
-    ]).finally(() => fs.unlink(tmpVideoFile).catch(() => undefined))
+    const probe = await extractVideoMeta(buffer)
     const videoStream = probe.streams.find(
       (stream) => stream.codec_type === 'video'
     )
@@ -393,6 +379,10 @@ export class LocalFileStorage implements MediaStorage {
       : { width: 0, height: 0 }
 
     const ext = getStoredMediaExtension(videoFile.type, videoFile.name)
+    // Input that is not a video the instance accepts was already rejected
+    // above, without spawning ffmpeg. What can still fail here is the frame
+    // itself, and it fails before the media root is touched.
+    const previewImage = await extractVideoPreviewFrame(buffer, ext)
 
     const randomPrefix = crypto.randomBytes(8).toString('hex')
     const filename = `${randomPrefix}${ext}`

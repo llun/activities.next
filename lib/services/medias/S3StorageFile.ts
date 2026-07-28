@@ -22,10 +22,8 @@ import {
   STORED_IMAGE_RESIZE_OPTIONS
 } from '@/lib/services/medias/constants'
 import { MediaValidationError } from '@/lib/services/medias/errors'
-import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
 import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
 import {
-  createMediaTempFilePath,
   getStoredMediaExtension,
   sanitizeStoredFileName
 } from '@/lib/services/medias/fileName'
@@ -55,6 +53,7 @@ import {
   ThumbnailStorageOutput
 } from '@/lib/services/medias/types'
 import { getMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
+import { extractVideoPreviewFrame } from '@/lib/services/medias/videoPreview'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 import { Media } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
@@ -667,19 +666,11 @@ export class S3FileStorage implements MediaStorage {
     }
   }
 
+  // Mirrors `LocalFileStorage._saveVideoFile`: probe, validate, extract the
+  // preview frame from a temp copy, and only then store.
   private async _uploadVideoToS3(currentTime: number, file: File) {
     const buffer = Buffer.from(await file.arrayBuffer())
-    const tmpVideoFile = createMediaTempFilePath(file.name)
-    // `wx` (O_EXCL) so the write fails rather than following a symlink someone
-    // planted at the path, or clobbering an existing file. The 64-bit random
-    // prefix already makes that infeasible to aim at; this makes it impossible.
-    await fs.writeFile(tmpVideoFile, buffer, { flag: 'wx' })
-    // `finally` so a probe/preview failure still removes the temp file instead
-    // of leaking it for the lifetime of the container.
-    const [probe, previewImage] = await Promise.all([
-      extractVideoMeta(buffer),
-      extractVideoImage(tmpVideoFile)
-    ]).finally(() => fs.unlink(tmpVideoFile).catch(() => undefined))
+    const probe = await extractVideoMeta(buffer)
     const videoStream = probe.streams.find(
       (stream) => stream.codec_type === 'video'
     )
@@ -695,10 +686,15 @@ export class S3FileStorage implements MediaStorage {
       ? { width: videoStream.width, height: videoStream.height }
       : { width: 0, height: 0 }
 
+    const ext = getStoredMediaExtension(file.type, file.name)
+    // Input that is not a video the instance accepts was already rejected
+    // above, without spawning ffmpeg. What can still fail here is the frame
+    // itself, and it fails before anything is uploaded.
+    const previewImage = await extractVideoPreviewFrame(buffer, ext)
+
     const { bucket } = this._config
     const randomPrefix = crypto.randomBytes(8).toString('hex')
     const timeDirectory = format(currentTime, 'yyyy-MM-dd')
-    const ext = getStoredMediaExtension(file.type, file.name)
     const path = `medias/${timeDirectory}/${randomPrefix}${ext}`
     const s3client = this._client
     const command = new PutObjectCommand({
