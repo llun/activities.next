@@ -1,0 +1,54 @@
+lib/jobs/regenerateFitnessMapsJob.test.ts
+  s_8f873201dcfe54::t_a340a386566346 16,335
+  s_8f873201dcfe54::t_8b4aca906e18be 383-393
+  s_8f873201dcfe54::t_f8b77a836b80f2 425-431,461,494-500,520
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_8f873201dcfe54::t_c4dcf0ce94ea16 50
+  s_8f873201dcfe54::t_7ad20f4a1960f2 1336
+  s_8f873201dcfe54::t_b9e24164f85feb 2028-2035
+lib/database/sql/status.test.ts
+  s_8f873201dcfe54::t_a6e4625897ab62 629-693
+lib/jobs/importFitnessFilesJob.ts
+  s_8f873201dcfe54::t_8da50167d6faa9 360-364
+app/api/v1/statuses/[id]/retry-fitness/route.ts
+  s_8f873201dcfe54::t_741ded824bebb5 60-64,66-69,73
+  s_8f873201dcfe54::t_7ba51106a4eb2d 90-98
+  s_8f873201dcfe54::t_2ffef2f2fcff09 120-123,125-132,135
+app/api/v1/statuses/[id]/retry-fitness/route.test.ts
+  s_8f873201dcfe54::t_5be6021ef89838 205-208,210-231
+  s_8f873201dcfe54::t_85291bb4914ddf 247-250
+lib/jobs/processFitnessFileJob.test.ts
+  s_8f873201dcfe54::t_f5a5e60c782f66 618-672
+  s_8f873201dcfe54::t_87ca2aeeea522f 548-584,604,610,614
+  s_8f873201dcfe54::t_7f3eb8e17a3baf 507-542,591,605-609,611-613,615-617
+lib/components/settings/FitnessFileManagement.tsx
+  s_8f873201dcfe54::t_9d17fe2d2b793f 49-52
+  s_8f873201dcfe54::t_c2fde9fc352cab 335-347
+scripts/fitness/fixStuckFitnessProcessing.ts
+  s_8f873201dcfe54::t_f66bbafffee955 107-111,115-116
+  s_8f873201dcfe54::t_41f648218ae387 112-114
+lib/jobs/processFitnessFileJob.ts
+  s_8f873201dcfe54::t_41f648218ae387 388-389
+  s_8f873201dcfe54::t_864206c1a605ca 365-370,376-387,390-396,416-418
+  s_8f873201dcfe54::t_79d10003c93de6 549-565,567-575
+  s_8f873201dcfe54::t_9e22b3ad4d9355 504-505,508-514
+  s_8f873201dcfe54::t_c52f1dbafb727b 515
+app/(timeline)/fitness/files/page.tsx
+  s_8f873201dcfe54::t_60f95be890c2a2 99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "42b4ae19dd227c06ca317a3e2bf0784c332d77ff",
+  "prompts": {},
+  "sessions": {
+    "s_8f873201dcfe54": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c84869c-9e41-4272-84a7-3a2b05263e7b",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
