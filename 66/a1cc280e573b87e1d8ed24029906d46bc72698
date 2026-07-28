@@ -1,0 +1,24 @@
+proxy.test.ts
+  s_5de0d2ab87ffcf::t_75ee877550f493 356-361,374,390-391,393-408,410
+docs/environment-variables.md
+  s_5de0d2ab87ffcf::t_cdd93b19f73a77 281
+  s_5de0d2ab87ffcf::t_791b20cb22da18 122-124
+lib/config/environmentTemplates.ts
+  s_5de0d2ab87ffcf::t_33845f2aca3f1e 27-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "66a1cc280e573b87e1d8ed24029906d46bc72698",
+  "prompts": {},
+  "sessions": {
+    "s_5de0d2ab87ffcf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5ea0b3c1-a9b1-4405-8f70-0ef171540ace",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
