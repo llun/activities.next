@@ -44,20 +44,30 @@ const fire: StatusReaction = {
 
 interface HarnessProps {
   currentActor?: ActorProfile
-  status: StatusNote
+  status?: StatusNote
   hideTrigger?: boolean
 }
 
 // The button shares one `ReactionState` with the chip row, exactly as `Actions`
 // and `Post` wire them.
-const Reactions: FC<HarnessProps> = ({ hideTrigger, ...params }) => {
-  const state = useReactionState(params)
+const Reactions: FC<HarnessProps> = ({ hideTrigger, status, ...params }) => {
+  const state = useReactionState({
+    ...params,
+    status: status ?? statusWith([])
+  })
   return (
     <>
       <ReactionRow state={state} />
       <ReactionButton state={state} hideTrigger={hideTrigger} />
     </>
   )
+}
+
+// The button on its own, for the cases that care about what it contributes to
+// the action row's layout rather than about the chips.
+const ReactionButtonOnly: FC<HarnessProps> = ({ hideTrigger, ...params }) => {
+  const state = useReactionState({ ...params, status: statusWith([]) })
+  return <ReactionButton state={state} hideTrigger={hideTrigger} />
 }
 
 const trigger = () => screen.getByRole('button', { name: /^Add reaction/ })
@@ -202,21 +212,21 @@ describe('ReactionButton', () => {
     await waitFor(() => expect(trigger()).toHaveFocus())
   })
 
-  it('renders no trigger once the row has handed it to the menu', () => {
+  it('lays nothing out in the row once it has handed the trigger to the menu', () => {
     render(
-      <Reactions
-        currentActor={currentActor}
-        status={statusWith([fire])}
-        hideTrigger
-      />
+      <div data-testid="action-row">
+        <ReactionButtonOnly currentActor={currentActor} hideTrigger />
+      </div>
     )
 
     // A compact row moves the trigger into the ⋯ menu — but the component stays
-    // mounted, because it is what that menu item opens. The chips are unchanged.
+    // mounted, because it is what that menu item opens. It must not leave an
+    // empty wrapper behind: the row is `justify-between`, so even a zero-width
+    // element claims one of the gaps and shifts every other action.
     expect(
       screen.queryByRole('button', { name: /^Add reaction/ })
     ).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Add 🔥 reaction, 2')).toBeInTheDocument()
+    expect(screen.getByTestId('action-row')).toBeEmptyDOMElement()
   })
 
   it('renders the picker outside the post so no ancestor can clip it', async () => {

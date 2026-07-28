@@ -1358,6 +1358,13 @@ describe('Post', () => {
           .map((button) => button.getAttribute('aria-label'))
       ).toEqual(['Reply to post', 'Repost', 'Like', 'More actions'])
 
+      // `justify-between` distributes by element, so an empty wrapper left
+      // behind where a control used to be would silently claim one of the gaps
+      // and shift every other action.
+      expect(
+        screen.getByRole('group', { name: 'Post actions' }).children
+      ).toHaveLength(4)
+
       const menu = await openMenu()
       expect(
         within(menu).getByRole('menuitem', { name: 'React to post' })

@@ -39,35 +39,52 @@ export const ReactionButton: FC<Props> = ({ state, hideTrigger }) => {
   const { isPicking, setIsPicking, pendingName, total, mine, triggerRef } =
     state
   const isBusy = pendingName !== null
+  const error = state.error ? (
+    <ActionButtonError message={state.error} testId="reaction-error" />
+  ) : null
 
   return (
-    <span className="relative inline-flex items-center justify-center">
-      {hideTrigger ? null : (
-        <button
-          ref={triggerRef}
-          type="button"
-          // Busy rather than `disabled`, so the control the user just activated
-          // keeps focus instead of being blurred back to <body>.
-          aria-disabled={isBusy}
-          aria-label={getReactionButtonLabel(total)}
-          title={getReactionButtonLabel(total)}
-          aria-haspopup="dialog"
-          aria-expanded={isPicking}
-          className={cn(
-            ACTION_BUTTON_CLASS,
-            mine ? 'text-primary' : 'hover:text-primary',
-            isBusy && 'cursor-not-allowed opacity-50'
-          )}
-          onClick={(event) => {
-            event.stopPropagation()
-            if (isBusy) return
-            setIsPicking((value) => !value)
-          }}
-        >
-          <SmilePlus className="h-4 w-4" />
-          {total > 0 && <span>{formatReactionCount(total)}</span>}
-        </button>
+    <>
+      {hideTrigger ? (
+        // Deliberately NOT an empty wrapper: the row is `justify-between`, so a
+        // zero-width element still claims one of the gaps and skews every other
+        // action's position. Only an error puts a box back in the row, and only
+        // for as long as it is showing.
+        error && (
+          <span className="relative inline-flex items-center justify-center">
+            {error}
+          </span>
+        )
+      ) : (
+        <span className="relative inline-flex items-center justify-center">
+          <button
+            ref={triggerRef}
+            type="button"
+            // Busy rather than `disabled`, so the control the user just
+            // activated keeps focus instead of being blurred back to <body>.
+            aria-disabled={isBusy}
+            aria-label={getReactionButtonLabel(total)}
+            title={getReactionButtonLabel(total)}
+            aria-haspopup="dialog"
+            aria-expanded={isPicking}
+            className={cn(
+              ACTION_BUTTON_CLASS,
+              mine ? 'text-primary' : 'hover:text-primary',
+              isBusy && 'cursor-not-allowed opacity-50'
+            )}
+            onClick={(event) => {
+              event.stopPropagation()
+              if (isBusy) return
+              setIsPicking((value) => !value)
+            }}
+          >
+            <SmilePlus className="h-4 w-4" />
+            {total > 0 && <span>{formatReactionCount(total)}</span>}
+          </button>
+          {error}
+        </span>
       )}
+      {/* Portalled and viewport-positioned, so it lays nothing out here. */}
       {isPicking && (
         <ReactionPicker
           anchorRef={triggerRef}
@@ -86,9 +103,6 @@ export const ReactionButton: FC<Props> = ({ state, hideTrigger }) => {
           }}
         />
       )}
-      {state.error && (
-        <ActionButtonError message={state.error} testId="reaction-error" />
-      )}
-    </span>
+    </>
   )
 }
