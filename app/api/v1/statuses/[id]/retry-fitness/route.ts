@@ -109,7 +109,10 @@ export const POST = traceApiRoute(
             actorId: currentActor.id,
             statusId,
             fitnessFileId: file.id,
-            publishSendNote: false
+            publishSendNote: false,
+            // This file's activity is live and fine; only its map is not. Tells
+            // the job not to demote it if this run fails too.
+            retryingMapFailure: isRetriableMapFailure(file)
           }
         })
         publishedFileIds.push(file.id)

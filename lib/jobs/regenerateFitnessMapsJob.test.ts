@@ -418,6 +418,56 @@ describe('regenerateFitnessMapsJob', () => {
     expect(refreshed?.mapImagePath).toBe('medias/new-route-map.webp')
   })
 
+  it('records a cleanup failure without failing the activity', async () => {
+    const { statusId, fitnessFileId } = await setupStatusWithOldMap()
+    vi.spyOn(database, 'deleteAttachmentsByIds').mockRejectedValueOnce(
+      new Error('attachment delete failed')
+    )
+
+    await regenerateFitnessMapsJob(database, {
+      id: 'job-regenerate-cleanup-failure',
+      name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+      data: { actorId: actor.id, fitnessFileIds: [fitnessFileId] }
+    })
+
+    // This is the run a privacy change triggers, so the map left behind is the
+    // route the owner was trying to hide. The activity is fine — the new map
+    // exists — so the reason is what earns them the retry that repairs it.
+    const refreshed = await database.getFitnessFile({ id: fitnessFileId })
+    expect(refreshed).toMatchObject({
+      processingStatus: 'completed',
+      mapError: 'Failed to remove the previous route map',
+      mapImagePath: 'medias/new-route-map.webp'
+    })
+
+    const status = await database.getStatus({ statusId, withReplies: false })
+    const mapAttachments = status?.attachments.filter(
+      (attachment) => attachment.name === 'Activity route map'
+    )
+    expect(mapAttachments).toHaveLength(2)
+  })
+
+  it('clears a stale map reason when the whole file fails', async () => {
+    const { fitnessFileId } = await setupStatusWithOldMap()
+    await database.updateFitnessFileActivityData(fitnessFileId, {
+      mapError: 'tile server down'
+    })
+    mockParseFitnessFile.mockRejectedValue(new Error('Invalid TCX structure'))
+
+    await regenerateFitnessMapsJob(database, {
+      id: 'job-regenerate-hard-failure',
+      name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+      data: { actorId: actor.id, fitnessFileIds: [fitnessFileId] }
+    })
+
+    // The file's own status now carries the diagnostic; leaving the map reason
+    // set too makes the fitness files page report a missing map instead.
+    const refreshed = await database.getFitnessFile({ id: fitnessFileId })
+    expect(refreshed?.processingStatus).toBe('failed')
+    expect(refreshed?.importError).toBe('Invalid TCX structure')
+    expect(refreshed?.mapError).toBeUndefined()
+  })
+
   it('removes the map and its email copy when no visible coordinates remain', async () => {
     const { statusId, fitnessFileId, oldMediaId, oldEmailMapPath } =
       await setupStatusWithOldMap()

@@ -53,7 +53,15 @@ const JobData = z.object({
   // backfills alike — reusing it would mass-mail on a backfill. Only a genuine
   // first import sets this, and only an unattended importer sets it at all: a
   // direct upload needs no email, because the user is watching the composer.
-  notifyOnComplete: z.boolean().optional().default(false)
+  notifyOnComplete: z.boolean().optional().default(false),
+  // Set only by the per-status retry endpoint, and only for a file whose
+  // activity is fine and whose route map is not. It says: this run is a
+  // reprocess of a LIVE activity, so a failure here must not demote it.
+  //
+  // Deliberately passed in rather than read from the row: every publisher
+  // (including that endpoint) writes `pending`/`processing` before publishing,
+  // so by the time this job reads the file its previous status is already gone.
+  retryingMapFailure: z.boolean().optional().default(false)
 })
 
 const ACTIVITY_LABELS: Record<string, { label: string; emoji: string }> = {
@@ -326,15 +334,9 @@ export const processFitnessFileJob = createJobHandle(
       statusId,
       fitnessFileId,
       publishSendNote,
-      notifyOnComplete
+      notifyOnComplete,
+      retryingMapFailure
     } = JobData.parse(message.data)
-
-    // Read before the status is overwritten: it decides whether a failure in
-    // this run may demote the file (a first import) or must not (a reprocess of
-    // an activity that is already live and usable). See the outer catch.
-    const entryProcessingStatus = (
-      await database.getFitnessFile({ id: fitnessFileId })
-    )?.processingStatus
 
     await database.updateFitnessFileProcessingStatus(
       fitnessFileId,
@@ -371,22 +373,22 @@ export const processFitnessFileJob = createJobHandle(
         buffer: fitnessBuffer
       })
 
-      // What this file already has on the status. Removed only once a
-      // replacement is safely stored — deleting up front means a run that then
-      // fails to render leaves the activity with no map at all, turning a
-      // failed reprocess into data loss. Same guard regenerateFitnessMapsJob
-      // makes. Matched by the file's own recorded path, so a merged same-ride
-      // post never loses the other file's map.
+      // The map this file already has on the status, matched by its own
+      // recorded path so a merged same-ride post never loses the other file's.
+      // Removed only once a replacement is safely stored — deleting up front
+      // means a run that then fails to render leaves the activity with no map
+      // at all, turning a failed reprocess into data loss. Same guard
+      // regenerateFitnessMapsJob makes.
       const previousMapAttachments = await findRouteMapAttachments({
         database,
         statusId,
         mapImagePath: fitnessFile.mapImagePath
       })
       if (fitnessFile.mapImagePath && previousMapAttachments.length === 0) {
-        // The file names a map that no attachment on the status matches, so
-        // nothing will be cleaned up and the run below adds another one. Worth
-        // saying out loud: it is the one way this path can silently leave a
-        // post rendering two routes.
+        // The file names a map that no attachment on the status matches — the
+        // two went out of step somewhere. Not fatal (the run below attaches a
+        // fresh map, and a leftover is swept once a cleanup failure is
+        // recorded), but it is not a state either side should reach.
         logger.warn({
           message: 'Recorded route map has no matching attachment to replace',
           actorId,
@@ -409,16 +411,19 @@ export const processFitnessFileJob = createJobHandle(
             mapImageEmailPath: fitnessFile.mapImageEmailPath
           })
 
-          // Everything on the status named as a route map that no fitness file
-          // claims: this run's own predecessor, plus anything a previous run
-          // failed to remove. Without the sweep those leftovers are permanent,
-          // because the pointer that identified them has already moved on.
-          const orphanedMapAttachments = await findOrphanRouteMapAttachments({
-            database,
-            statusId
-          })
+          // Normally only this file's own recorded map. The wider sweep — every
+          // route map attachment no fitness file claims — runs only when the
+          // file records that a previous run failed to remove one, because the
+          // pointer that identified it has since moved on and nothing else can
+          // find it again. Keeping the sweep to that case matters: the
+          // attachment name is media alt text a user can type themselves, so an
+          // unconditional name match would delete their own attachment.
+          const isRepairingCleanup = fitnessFile.mapError === MAP_CLEANUP_ERROR
+          const removableMapAttachments = isRepairingCleanup
+            ? await findOrphanRouteMapAttachments({ database, statusId })
+            : previousMapAttachments
 
-          if (orphanedMapAttachments.length === 0) return
+          if (removableMapAttachments.length === 0) return
           if (!actor.account) {
             // Nothing can resolve the media rows without an account, and
             // leaving the attachment in place shows the route twice.
@@ -436,10 +441,10 @@ export const processFitnessFileJob = createJobHandle(
             database,
             accountId: actor.account.id,
             statusId,
-            attachmentIds: orphanedMapAttachments.map(
+            attachmentIds: removableMapAttachments.map(
               (attachment) => attachment.id
             ),
-            mediaIds: getAttachmentMediaIds(orphanedMapAttachments)
+            mediaIds: getAttachmentMediaIds(removableMapAttachments)
           })
         } catch (error) {
           logger.error({
@@ -723,15 +728,13 @@ export const processFitnessFileJob = createJobHandle(
         err: toLoggableError(error)
       })
 
-      // A file that was already `completed` when this run started is a
-      // REprocess — its activity parsed, its post is live, and its stats are
-      // stored. Demoting it to `failed` because a retry hit a storage timeout
+      // A map retry runs against an activity that parsed, posted and federated
+      // already. Demoting it to `failed` because this run hit a storage timeout
       // would hide a perfectly good activity from the detail dashboard, the
-      // stat grid, the overview, the profile's Fitness tab and every rollup:
-      // the exact harm this change exists to prevent. Record the reason where
-      // a reprocess failure belongs instead, and leave the activity alone.
-      const wasCompleted = entryProcessingStatus === 'completed'
-      if (wasCompleted) {
+      // stat grid, the overview, the profile's Fitness tab and every rollup —
+      // the exact harm this change exists to prevent. Record the reason as what
+      // it is, a map that is still missing, and leave the activity alone.
+      if (retryingMapFailure) {
         await database.updateFitnessFileActivityData(fitnessFileId, {
           mapError: errorMessage
         })
