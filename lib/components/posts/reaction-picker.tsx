@@ -1,7 +1,15 @@
 'use client'
 
 import { Search, Sticker } from 'lucide-react'
-import { FC, useEffect, useMemo, useState } from 'react'
+import {
+  FC,
+  RefObject,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState
+} from 'react'
+import { createPortal } from 'react-dom'
 
 import { getCustomEmojis } from '@/lib/client'
 import {
@@ -58,6 +66,67 @@ const loadCustomEmojis = (): Promise<CustomEmojiOption[]> => {
 interface ReactionPickerProps {
   onPick: (name: string) => void
   onClose: () => void
+  // The button the picker hangs off. Its viewport rect anchors the panel.
+  anchorRef: RefObject<HTMLButtonElement | null>
+}
+
+const PANEL_WIDTH = 288
+const VIEWPORT_MARGIN = 8
+
+// The panel is rendered in a portal at the document root and positioned from
+// the trigger's viewport rect. It used to be an `absolute` child of the chip
+// row, which meant ANY ancestor with `overflow-hidden` clipped it — and the
+// cards that wrap posts have it for their rounded corners. That was fixed
+// container-by-container three times and kept reappearing somewhere else (the
+// status detail cards, the fitness header card, the search results section,
+// the collection detail card), so the panel now escapes them all by
+// construction.
+const usePanelPosition = (
+  anchorRef: RefObject<HTMLButtonElement | null>,
+  panel: HTMLElement | null
+) => {
+  const [position, setPosition] = useState<{
+    top: number
+    left: number
+  } | null>(null)
+
+  useLayoutEffect(() => {
+    const place = () => {
+      const anchor = anchorRef.current
+      if (!anchor) return
+      const rect = anchor.getBoundingClientRect()
+      const height = panel?.offsetHeight ?? 0
+
+      // Below the trigger by default; above it when there isn't room, which is
+      // reachable either way because the panel is viewport-positioned.
+      const below = rect.bottom + VIEWPORT_MARGIN
+      const fitsBelow = below + height <= window.innerHeight - VIEWPORT_MARGIN
+      const top = fitsBelow
+        ? below
+        : Math.max(VIEWPORT_MARGIN, rect.top - VIEWPORT_MARGIN - height)
+
+      // Clamp right edge first, then left — doing it the other way round lets a
+      // viewport narrower than the panel produce a negative left, pushing the
+      // panel off-screen instead of pinning it to the margin.
+      const left = Math.max(
+        VIEWPORT_MARGIN,
+        Math.min(rect.left, window.innerWidth - PANEL_WIDTH - VIEWPORT_MARGIN)
+      )
+      setPosition({ top, left })
+    }
+
+    place()
+    // Scrolling or resizing moves the trigger, so follow it rather than leaving
+    // the panel stranded. `capture` catches scrolls in any ancestor.
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', place)
+    return () => {
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', place)
+    }
+  }, [anchorRef, panel])
+
+  return position
 }
 
 /**
@@ -68,12 +137,15 @@ interface ReactionPickerProps {
  */
 export const ReactionPicker: FC<ReactionPickerProps> = ({
   onPick,
-  onClose
+  onClose,
+  anchorRef
 }) => {
   const [query, setQuery] = useState('')
   const [customEmojis, setCustomEmojis] = useState<CustomEmojiOption[]>([])
   const [tab, setTab] = useState(EMOJI_GROUPS[0].id)
+  const [panel, setPanel] = useState<HTMLDivElement | null>(null)
   const hasCustom = customEmojis.length > 0
+  const position = usePanelPosition(anchorRef, panel)
 
   useEffect(() => {
     let active = true
@@ -146,21 +218,24 @@ export const ReactionPicker: FC<ReactionPickerProps> = ({
       : []
   }, [query, tab, customEmojis])
 
-  return (
+  const content = (
     <>
       {/* Outside-click overlay. aria-hidden keeps this full-viewport target out
           of the accessibility tree. */}
       <div className="fixed inset-0 z-30" aria-hidden onClick={onClose} />
       <div
+        ref={setPanel}
         role="dialog"
         aria-label="Choose a reaction"
-        // Opens downward (like the composer's emoji picker) rather than upward.
-        // Upward it needs ~330px of clear space above the chip row, which the
-        // status detail page does not have — the focused post sits ~170px from
-        // the top of its card, so the panel's head was clipped away by the
-        // card's overflow, and block-start overflow can never be scrolled back
-        // into view.
-        className="bg-background absolute top-full left-0 z-40 mt-2 w-72 overflow-hidden rounded-xl border shadow-lg"
+        className="bg-background fixed z-40 w-72 overflow-hidden rounded-xl border shadow-lg"
+        style={{
+          top: position?.top ?? 0,
+          left: position?.left ?? 0,
+          // Hidden for the first paint only, while the panel is measured: it
+          // has no height until it is in the DOM, so its placement cannot be
+          // computed any earlier.
+          visibility: position ? 'visible' : 'hidden'
+        }}
       >
         <div className="border-b p-2.5">
           <div className="relative">
@@ -232,4 +307,9 @@ export const ReactionPicker: FC<ReactionPickerProps> = ({
       </div>
     </>
   )
+
+  // Portalled to the document root so no ancestor's overflow can clip it.
+  return typeof document === 'undefined'
+    ? content
+    : createPortal(content, document.body)
 }

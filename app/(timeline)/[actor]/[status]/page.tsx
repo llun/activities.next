@@ -285,10 +285,7 @@ const Page: FC<Props> = async ({ params }) => {
           // which already supplies its own top padding, so only the signed-in
           // surface needs this gap.
           currentActorProfile && 'mt-4',
-          // No `overflow-hidden`: this card contains posts, and a post's
-          // non-portaled overlays (the reaction picker) would be clipped by it —
-          // the same reason `Posts` dropped it.
-          'rounded-2xl border bg-background/80 shadow-sm'
+          'overflow-hidden rounded-2xl border bg-background/80 shadow-sm'
         )}
       >
         {currentActorProfile ? (
@@ -338,7 +335,7 @@ const Page: FC<Props> = async ({ params }) => {
         // No `overflow-hidden`: this card contains posts, and a post's
         // non-portaled overlays (the reaction picker) would be clipped by it —
         // the same reason `Posts` dropped it.
-        'rounded-2xl border bg-background/80 shadow-sm'
+        'overflow-hidden rounded-2xl border bg-background/80 shadow-sm'
       )}
     >
       {currentActorProfile ? (

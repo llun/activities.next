@@ -446,6 +446,94 @@ describe('ReactionRow', () => {
     await waitFor(() => expect(trigger).toHaveFocus())
   })
 
+  it('renders the picker outside the post so no ancestor can clip it', async () => {
+    const { container } = render(
+      <div style={{ overflow: 'hidden' }}>
+        <ReactionRow currentActor={currentActor} status={statusWith([])} />
+      </div>
+    )
+    fireEvent.click(screen.getByLabelText('Add reaction'))
+
+    const picker = await screen.findByRole('dialog', {
+      name: 'Choose a reaction'
+    })
+
+    // Every card that wraps posts clips its children for rounded corners, and
+    // the panel is far taller than the space inside them. Portalling it to the
+    // document root is what stops that, so pin it: an `absolute` child of the
+    // chip row was clipped on four separate surfaces before this.
+    expect(container.contains(picker)).toBe(false)
+    expect(document.body.contains(picker)).toBe(true)
+    // Viewport-positioned, not positioned against an ancestor in the post.
+    expect(picker.className).toContain('fixed')
+  })
+
+  it.each([
+    {
+      description: 'below the trigger when there is room',
+      viewport: { width: 1280, height: 720 },
+      anchor: { top: 100, bottom: 128, left: 400 },
+      expected: { top: '136px', left: '400px' }
+    },
+    {
+      description: 'pinned to the margin on a viewport narrower than the panel',
+      viewport: { width: 280, height: 720 },
+      anchor: { top: 100, bottom: 128, left: 200 },
+      // Clamping the right edge before the left would yield a negative offset
+      // here (280 - 288 - 8), pushing the panel off-screen.
+      expected: { top: '136px', left: '8px' }
+    },
+    {
+      description: 'clamped left when the trigger sits near the right edge',
+      viewport: { width: 1280, height: 720 },
+      anchor: { top: 100, bottom: 128, left: 1200 },
+      expected: { top: '136px', left: '984px' }
+    }
+  ])(
+    'positions the picker $description',
+    async ({ viewport, anchor, expected }) => {
+      const originalWidth = window.innerWidth
+      const originalHeight = window.innerHeight
+      Object.defineProperty(window, 'innerWidth', {
+        value: viewport.width,
+        configurable: true
+      })
+      Object.defineProperty(window, 'innerHeight', {
+        value: viewport.height,
+        configurable: true
+      })
+
+      render(
+        <ReactionRow currentActor={currentActor} status={statusWith([])} />
+      )
+      const trigger = screen.getByLabelText('Add reaction')
+      trigger.getBoundingClientRect = () =>
+        ({
+          ...anchor,
+          right: anchor.left + 28,
+          width: 28,
+          height: 28
+        }) as DOMRect
+
+      fireEvent.click(trigger)
+      const picker = await screen.findByRole('dialog', {
+        name: 'Choose a reaction'
+      })
+
+      expect(picker.style.top).toBe(expected.top)
+      expect(picker.style.left).toBe(expected.left)
+
+      Object.defineProperty(window, 'innerWidth', {
+        value: originalWidth,
+        configurable: true
+      })
+      Object.defineProperty(window, 'innerHeight', {
+        value: originalHeight,
+        configurable: true
+      })
+    }
+  )
+
   it('opens the picker and reacts with the chosen emoji', async () => {
     mockReactToStatus.mockResolvedValue({
       ok: true,

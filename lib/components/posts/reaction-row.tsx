@@ -309,6 +309,7 @@ export const ReactionRow: FC<ReactionRowProps> = ({
       )}
       {isPicking && (
         <ReactionPicker
+          anchorRef={pickerTriggerRef}
           // Focus goes back to the trigger on close, so dismissing the picker
           // with Escape or an outside click does not dump a keyboard user on
           // <body>. On a pick the chip that appears is the natural next target,
