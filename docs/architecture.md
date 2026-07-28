@@ -183,10 +183,11 @@ dimensions (so it is metered against the account's storage usage), and surfaced
 as the attachment's `meta.small` and `preview_url`. For a video it replaces the
 extracted frame — the frame is extracted either way, so it saves no work — while
 without one a video keeps that frame and an image gets no thumbnail at all. A
-thumbnail that is not an image is refused before anything is stored; one that
-merely claims to be an image is caught by the encoder instead, and the original
-it arrived with is reclaimed rather than left orphaned. Either way the upload
-answers 422, not 500.
+supplied thumbnail is client input, so both drivers validate it — declared type
+and actual bytes — through the same module before anything is stored, and
+unusable input is a 422 with nothing written. Should storing it fail after that,
+the original stored alongside it is reclaimed: a `medias` row is the only handle
+anything has on a stored path, so a file written without one is unreachable.
 
 **Presigned direct-to-S3** stores the bytes exactly as uploaded — original
 format, no re-encode, no server-side dimension cap — because the browser PUTs

@@ -849,6 +849,19 @@ describe('S3FileStorage saveFile with a caller-supplied thumbnail', () => {
     expect(database.createMedia).not.toHaveBeenCalled()
   })
 
+  // The dedicated thumbnail endpoint (PUT /api/v1/media/:id) has to answer the
+  // same bytes the same way — it used to reach sharp unguarded and 500.
+  it('refuses unreadable bytes on the standalone thumbnail path', async () => {
+    const thumbnail = new File([Buffer.from('not-an-image')], 'evil.png', {
+      type: 'image/png'
+    })
+
+    await expect(
+      createStorage().saveThumbnail(actor, thumbnail)
+    ).rejects.toThrow(MediaValidationError)
+    expect(uploads).toHaveLength(0)
+  })
+
   // `createMedia` meters the thumbnail's bytes too, so the pre-check has to
   // reserve for them — otherwise an upload that fits only without its thumbnail
   // is accepted and leaves the account over its quota.
@@ -872,10 +885,10 @@ describe('S3FileStorage saveFile with a caller-supplied thumbnail', () => {
   })
 
   // The declared type is only a claim, and sharp is the real arbiter — so the
-  // guard above cannot be the whole story. By the time sharp rejects, the
-  // original is already in the bucket and no `medias` row will ever reference
-  // it.
-  it('reclaims the stored original when the thumbnail is not a readable image', async () => {
+  // type guard above cannot be the whole story. Validating the bytes up front
+  // is what keeps this a 422 with nothing stored, rather than a 500 with an
+  // original in the bucket that no `medias` row will ever reference.
+  it('refuses unreadable thumbnail bytes before storing anything', async () => {
     const thumbnail = new File([Buffer.from('not-an-image')], 'evil.png', {
       type: 'image/png'
     })
@@ -886,8 +899,51 @@ describe('S3FileStorage saveFile with a caller-supplied thumbnail', () => {
         thumbnail
       })
     ).rejects.toThrow(MediaValidationError)
+    expect(uploads).toHaveLength(0)
     expect(database.createMedia).not.toHaveBeenCalled()
-    expect(deletedKeys).toEqual([uploaded('original').key])
+  })
+
+  // What is left after that check is a storage fault, not bad input: it must
+  // keep its own error — a logged 500, not a 422 telling the caller its
+  // perfectly good thumbnail was rejected — while still reclaiming the original.
+  it('reclaims the stored original when the thumbnail upload fails', async () => {
+    const failure = new Error('S3 unavailable')
+    let puts = 0
+    send.mockImplementation(async (command) => {
+      if (command instanceof DeleteObjectCommand) {
+        deletedKeys.push(String(command.input.Key))
+        return {}
+      }
+      puts += 1
+      // The second PutObject is the thumbnail; the original is already stored.
+      if (puts === 2) throw failure
+      uploads.push({ key: String(command.input.Key), body: Buffer.alloc(0) })
+      return {}
+    })
+
+    await expect(
+      createStorage().saveFile(actor, {
+        file: await createPngFile(800, 600),
+        thumbnail: await createPngFile(400, 300)
+      })
+    ).rejects.toThrow(failure)
+    expect(database.createMedia).not.toHaveBeenCalled()
+    expect(deletedKeys).toEqual([uploads[0].key])
+  })
+
+  // A row is the only handle anything else has on these paths, so without one
+  // both stored objects are unreachable.
+  it('reclaims both stored objects when the media row cannot be created', async () => {
+    database.createMedia.mockResolvedValue(null as never)
+
+    await expect(
+      createStorage().saveFile(actor, {
+        file: await createPngFile(800, 600),
+        thumbnail: await createPngFile(400, 300)
+      })
+    ).rejects.toThrow('Fail to store media')
+    expect(deletedKeys).toEqual(uploads.map((upload) => upload.key))
+    expect(deletedKeys).toHaveLength(2)
   })
 
   it('stores no thumbnail for an image uploaded without one', async () => {
@@ -901,33 +957,42 @@ describe('S3FileStorage saveFile with a caller-supplied thumbnail', () => {
     )
   })
 
-  it('prefers a caller-supplied thumbnail over the extracted video frame', async () => {
+  it.each([
+    {
+      description:
+        'prefers a caller-supplied thumbnail over the extracted video frame',
+      suppliedThumbnail: { width: 400, height: 300 },
+      storedThumbnail: { width: 400, height: 300 }
+    },
+    {
+      description:
+        'falls back to the extracted video frame when no thumbnail is supplied',
+      suppliedThumbnail: null,
+      // The mocked `extractVideoImage` frame.
+      storedThumbnail: { width: 1, height: 1 }
+    }
+  ])('$description', async ({ suppliedThumbnail, storedThumbnail }) => {
     const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {
       type: 'video/mp4'
     })
 
     await createStorage().saveFile(actor, {
       file,
-      thumbnail: await createPngFile(400, 300)
+      ...(suppliedThumbnail
+        ? {
+            thumbnail: await createPngFile(
+              suppliedThumbnail.width,
+              suppliedThumbnail.height
+            )
+          }
+        : null)
     })
 
-    // The video plus one thumbnail — the 1x1 preview frame is not uploaded.
+    // The video plus exactly one thumbnail — the losing source is not uploaded.
     expect(uploads).toHaveLength(2)
     await expect(
       sharp(uploaded('thumbnail').body).metadata()
-    ).resolves.toMatchObject({ width: 400, height: 300 })
-  })
-
-  it('falls back to the extracted video frame when no thumbnail is supplied', async () => {
-    const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {
-      type: 'video/mp4'
-    })
-
-    await createStorage().saveFile(actor, { file })
-
-    await expect(
-      sharp(uploaded('thumbnail').body).metadata()
-    ).resolves.toMatchObject({ width: 1, height: 1 })
+    ).resolves.toMatchObject(storedThumbnail)
   })
 })
 

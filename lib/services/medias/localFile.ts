@@ -25,6 +25,11 @@ import {
 import { getMediaFileUrl } from './mediaFileUrl'
 import { checkQuotaAvailable } from './quota'
 import {
+  assertReadableImageBytes,
+  assertReadableThumbnail,
+  getUploadQuotaReservation
+} from './thumbnailInput'
+import {
   ImageRenditionOutput,
   MediaSchema,
   MediaStorage,
@@ -132,22 +137,18 @@ export class LocalFileStorage implements MediaStorage {
     if (!file.type.startsWith('image') && !file.type.startsWith('video')) {
       return null
     }
-    // `MediaSchema.thumbnail` is a `FileSchema`, which accepts every entry of
-    // ACCEPTED_FILE_TYPES — video and audio included. Refuse an obviously
-    // unusable one here, before anything is written. The declared type is only
-    // a claim, so this is the cheap half of the check; sharp is the real
-    // arbiter, and the catch below covers what it rejects.
-    if (media.thumbnail && !media.thumbnail.type.startsWith('image')) {
-      throw new MediaValidationError('Thumbnail must be an image')
+    // Validate the thumbnail before anything is written, so unusable bytes
+    // cannot leave a stored original behind.
+    if (media.thumbnail) {
+      await assertReadableThumbnail(media.thumbnail)
     }
 
-    // Check quota before saving. `createMedia` meters the thumbnail's stored
-    // bytes too, so reserve for it here — the uploaded file is larger than the
-    // WebP it becomes, which errs on the safe side.
+    // Check quota before saving; the reservation covers the thumbnail, whose
+    // stored bytes `createMedia` meters too.
     const quotaCheck = await checkQuotaAvailable(
       this._database,
       actor,
-      file.size + (media.thumbnail?.size ?? 0)
+      getUploadQuotaReservation(media)
     )
     if (!quotaCheck.available) {
       throw new MediaValidationError(
@@ -167,14 +168,11 @@ export class LocalFileStorage implements MediaStorage {
           : null
     } catch (error) {
       // The original is already written and no `medias` row will reference it,
-      // so reclaim it before the failure propagates.
+      // so reclaim it before the failure propagates. The error passes through
+      // untouched: the thumbnail's bytes were validated before any of this ran,
+      // so whatever failed here is ours — a storage fault that has to stay a
+      // logged 500, not be relabelled as the caller's bad input.
       await this.deleteFile(path).catch(() => false)
-      // Bytes that merely claim to be an image reach sharp and reject with a
-      // plain Error, which surfaces as a 500; that is invalid input, so report
-      // it as the 422 the rest of the upload path returns.
-      if (media.thumbnail) {
-        throw new MediaValidationError('Thumbnail is not a readable image')
-      }
       throw error
     }
     const storedMedia = await this._database.createMedia({
@@ -209,6 +207,11 @@ export class LocalFileStorage implements MediaStorage {
     })
 
     if (!storedMedia) {
+      // Same reclaim as above — without a row, nothing can find these again.
+      await this.deleteFile(path).catch(() => false)
+      if (thumbnail) {
+        await this.deleteFile(thumbnail.path).catch(() => false)
+      }
       throw new Error('Fail to store media')
     }
 
@@ -220,6 +223,9 @@ export class LocalFileStorage implements MediaStorage {
     file: File
   ): Promise<ThumbnailStorageOutput | null> {
     if (!file.type.startsWith('image')) return null
+    // Same validation saveFile applies, so the dedicated thumbnail endpoint
+    // answers unreadable bytes with the same 422 rather than a 500.
+    await assertReadableImageBytes(file)
 
     // Enforce the account quota like saveFile, so a thumbnail replacement can't
     // push usage past the limit.

@@ -518,6 +518,74 @@ describe('LocalFileStorage.saveFile with a video', () => {
     await expect(fs.readdir(mediaRoot)).resolves.toHaveLength(2)
     await expect(readStoredThumbnail()).resolves.toMatchObject(stored)
   })
+})
+
+// Mirrors `S3StorageFile.test.ts`'s block of the same name: a thumbnail
+// uploaded beside the file is client input on both drivers, and the two must
+// answer it identically.
+describe('LocalFileStorage.saveFile with a caller-supplied thumbnail', () => {
+  let tempDir: string
+  let mediaRoot: string
+
+  const actor = { id: 'actor-1', account: { id: 'account-1' } } as Actor
+
+  const database = {
+    createMedia: vi.fn(),
+    getActorFromId: vi.fn(),
+    getFitnessStorageUsageForAccount: vi.fn(),
+    getStorageUsageForAccount: vi.fn()
+  } as unknown as jest.Mocked<Database>
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'activities-media-'))
+    mediaRoot = path.join(tempDir, 'media')
+    await fs.mkdir(mediaRoot)
+
+    database.getActorFromId.mockResolvedValue(actor)
+    database.getStorageUsageForAccount.mockResolvedValue(0)
+    database.getFitnessStorageUsageForAccount.mockResolvedValue(0)
+    database.createMedia.mockImplementation((async (params: unknown) => ({
+      id: 'media-1',
+      actorId: actor.id,
+      ...(params as object)
+    })) as never)
+  })
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true })
+  })
+
+  const createStorage = () =>
+    new LocalFileStorage(
+      { type: MediaStorageType.LocalFile, path: mediaRoot },
+      'llun.test',
+      database
+    )
+
+  const createPngFile = async (width: number, height: number) => {
+    const buffer = await sharp({
+      create: { width, height, channels: 3, background: '#3366cc' }
+    })
+      .png()
+      .toBuffer()
+    return new File([new Uint8Array(buffer)], 'route-map.png', {
+      type: 'image/png'
+    })
+  }
+
+  // The dedicated thumbnail endpoint (PUT /api/v1/media/:id) has to answer the
+  // same bytes the same way — it used to reach sharp unguarded and 500.
+  it('refuses unreadable bytes on the standalone thumbnail path', async () => {
+    const thumbnail = new File([Buffer.from('not-an-image')], 'evil.png', {
+      type: 'image/png'
+    })
+
+    await expect(
+      createStorage().saveThumbnail(actor, thumbnail)
+    ).rejects.toThrow(MediaValidationError)
+    await expect(fs.readdir(mediaRoot)).resolves.toHaveLength(0)
+  })
 
   // `MediaSchema.thumbnail` accepts every ACCEPTED_FILE_TYPES entry, videos
   // included. Reaching sharp with one rejects with a plain Error — a 500, not
@@ -561,8 +629,9 @@ describe('LocalFileStorage.saveFile with a video', () => {
   })
 
   // The declared type is only a claim, and sharp is the real arbiter — so the
-  // guard above cannot be the whole story.
-  it('reclaims the stored original when the thumbnail is not a readable image', async () => {
+  // type guard above cannot be the whole story. Validating the bytes up front
+  // is what keeps this a 422 with nothing stored.
+  it('refuses unreadable thumbnail bytes before storing anything', async () => {
     const thumbnail = new File([Buffer.from('not-an-image')], 'evil.png', {
       type: 'image/png'
     })
@@ -574,6 +643,20 @@ describe('LocalFileStorage.saveFile with a video', () => {
       })
     ).rejects.toThrow(MediaValidationError)
     expect(database.createMedia).not.toHaveBeenCalled()
+    await expect(fs.readdir(mediaRoot)).resolves.toHaveLength(0)
+  })
+
+  // A row is the only handle anything else has on these paths, so without one
+  // both stored files are unreachable.
+  it('reclaims both stored files when the media row cannot be created', async () => {
+    database.createMedia.mockResolvedValue(null as never)
+
+    await expect(
+      createStorage().saveFile(actor, {
+        file: await createPngFile(800, 600),
+        thumbnail: await createPngFile(400, 300)
+      })
+    ).rejects.toThrow('Fail to store media')
     await expect(fs.readdir(mediaRoot)).resolves.toHaveLength(0)
   })
 })
