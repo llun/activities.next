@@ -1244,6 +1244,35 @@ export const StatusSQLDatabaseMixin = (
     return context
   }
 
+  // The viewer's own like/bookmark state for a page of statuses, batched. Every
+  // list path that hydrates for a viewer uses this: passing a `currentActorId`
+  // into per-status hydration without it turns on a like lookup, a bookmark
+  // lookup and an announce lookup *per row*.
+  async function buildViewerHydration(
+    statusIds: string[],
+    currentActorId?: string
+  ): Promise<Pick<
+    StatusHydrationContext,
+    'likedStatusIds' | 'bookmarkedStatusIds'
+  > | null> {
+    if (!currentActorId || statusIds.length === 0) return null
+
+    const [bookmarkRows, likeRows] = await Promise.all([
+      database('bookmarks')
+        .where('actorId', currentActorId)
+        .whereIn('statusId', statusIds)
+        .select<{ statusId: string }[]>('statusId'),
+      database('likes')
+        .where('actorId', currentActorId)
+        .whereIn('statusId', statusIds)
+        .select<{ statusId: string }[]>('statusId')
+    ])
+    return {
+      bookmarkedStatusIds: new Set(bookmarkRows.map((row) => row.statusId)),
+      likedStatusIds: new Set(likeRows.map((row) => row.statusId))
+    }
+  }
+
   async function getStatusReplies({
     statusId,
     url,
@@ -1281,21 +1310,24 @@ export const StatusSQLDatabaseMixin = (
     // Batch detected-language and quote-edge hydration so this doesn't N+1 one
     // query per reply (mirroring getStatusesByIds).
     const hydrationStatusIds = await collectHydrationStatusIds(statuses)
-    const [detectedLanguages, quoteEdges, reactionRollups] = await Promise.all([
-      hydrationStatusIds.size > 0
-        ? statusDetectedLanguageDatabase.getDetectedLanguages({
-            statusIds: [...hydrationStatusIds]
-          })
-        : Promise.resolve({}),
-      hydrationStatusIds.size > 0
-        ? getStatusQuoteEdges([...hydrationStatusIds])
-        : Promise.resolve(new Map<string, StatusQuote>()),
-      buildReactionRollupContext([...hydrationStatusIds], currentActorId)
-    ])
+    const [detectedLanguages, quoteEdges, reactionRollups, viewerHydration] =
+      await Promise.all([
+        hydrationStatusIds.size > 0
+          ? statusDetectedLanguageDatabase.getDetectedLanguages({
+              statusIds: [...hydrationStatusIds]
+            })
+          : Promise.resolve({}),
+        hydrationStatusIds.size > 0
+          ? getStatusQuoteEdges([...hydrationStatusIds])
+          : Promise.resolve(new Map<string, StatusQuote>()),
+        buildReactionRollupContext([...hydrationStatusIds], currentActorId),
+        buildViewerHydration([...hydrationStatusIds], currentActorId)
+      ])
     const hydrationContext: StatusHydrationContext = {
       detectedLanguages,
       quoteEdges,
-      reactionRollups
+      reactionRollups,
+      ...(viewerHydration ?? {})
     }
     const statusesWithAttachments = (
       await Promise.all(
@@ -1523,21 +1555,24 @@ export const StatusSQLDatabaseMixin = (
     // query per status (mirroring getStatusesByIds) — actor status lists back
     // profile pages and the Mastodon accounts/:id/statuses endpoint.
     const hydrationStatusIds = await collectHydrationStatusIds(statuses)
-    const [detectedLanguages, quoteEdges, reactionRollups] = await Promise.all([
-      hydrationStatusIds.size > 0
-        ? statusDetectedLanguageDatabase.getDetectedLanguages({
-            statusIds: [...hydrationStatusIds]
-          })
-        : Promise.resolve({}),
-      hydrationStatusIds.size > 0
-        ? getStatusQuoteEdges([...hydrationStatusIds])
-        : Promise.resolve(new Map<string, StatusQuote>()),
-      buildReactionRollupContext([...hydrationStatusIds], currentActorId)
-    ])
+    const [detectedLanguages, quoteEdges, reactionRollups, viewerHydration] =
+      await Promise.all([
+        hydrationStatusIds.size > 0
+          ? statusDetectedLanguageDatabase.getDetectedLanguages({
+              statusIds: [...hydrationStatusIds]
+            })
+          : Promise.resolve({}),
+        hydrationStatusIds.size > 0
+          ? getStatusQuoteEdges([...hydrationStatusIds])
+          : Promise.resolve(new Map<string, StatusQuote>()),
+        buildReactionRollupContext([...hydrationStatusIds], currentActorId),
+        buildViewerHydration([...hydrationStatusIds], currentActorId)
+      ])
     const hydrationContext: StatusHydrationContext = {
       detectedLanguages,
       quoteEdges,
-      reactionRollups
+      reactionRollups,
+      ...(viewerHydration ?? {})
     }
     const statusesWithAttachments = (
       await Promise.all(
@@ -1661,49 +1696,26 @@ export const StatusSQLDatabaseMixin = (
     // per-status query in getStatusWithAttachmentsFromData. Run it in the
     // same Promise.all as the bookmark/like queries below rather than
     // sequentially, so all three independent batched lookups overlap.
-    const [
-      detectedLanguages,
-      quoteEdges,
-      bookmarkRows,
-      likeRows,
-      reactionRollups
-    ] = await Promise.all([
-      hasHydrationStatusIds
-        ? statusDetectedLanguageDatabase.getDetectedLanguages({
-            statusIds: [...hydrationStatusIds]
-          })
-        : Promise.resolve({}),
-      // Quote edges are viewer-independent, so batch them for every fetch (as
-      // with detected languages) rather than falling back to a per-status
-      // query in getStatusWithAttachmentsFromData.
-      hasHydrationStatusIds
-        ? getStatusQuoteEdges([...hydrationStatusIds])
-        : Promise.resolve(new Map<string, StatusQuote>()),
-      currentActorId && hasHydrationStatusIds
-        ? database('bookmarks')
-            .where('actorId', currentActorId)
-            .whereIn('statusId', [...hydrationStatusIds])
-            .select<{ statusId: string }[]>('statusId')
-        : Promise.resolve([]),
-      currentActorId && hasHydrationStatusIds
-        ? database('likes')
-            .where('actorId', currentActorId)
-            .whereIn('statusId', [...hydrationStatusIds])
-            .select<{ statusId: string }[]>('statusId')
-        : Promise.resolve([]),
-      buildReactionRollupContext([...hydrationStatusIds], currentActorId)
-    ])
+    const [detectedLanguages, quoteEdges, reactionRollups, viewerHydration] =
+      await Promise.all([
+        hasHydrationStatusIds
+          ? statusDetectedLanguageDatabase.getDetectedLanguages({
+              statusIds: [...hydrationStatusIds]
+            })
+          : Promise.resolve({}),
+        // Quote edges are viewer-independent, so batch them for every fetch (as
+        // with detected languages) rather than falling back to a per-status
+        // query in getStatusWithAttachmentsFromData.
+        hasHydrationStatusIds
+          ? getStatusQuoteEdges([...hydrationStatusIds])
+          : Promise.resolve(new Map<string, StatusQuote>()),
+        buildReactionRollupContext([...hydrationStatusIds], currentActorId),
+        buildViewerHydration([...hydrationStatusIds], currentActorId)
+      ])
     hydrationContext.detectedLanguages = detectedLanguages
     hydrationContext.quoteEdges = quoteEdges
     hydrationContext.reactionRollups = reactionRollups
-    if (currentActorId) {
-      hydrationContext.bookmarkedStatusIds = new Set(
-        bookmarkRows.map((row) => row.statusId)
-      )
-      hydrationContext.likedStatusIds = new Set(
-        likeRows.map((row) => row.statusId)
-      )
-    }
+    Object.assign(hydrationContext, viewerHydration ?? {})
     const statusMap = new Map(
       statuses.map((statusData) => [statusData.id, statusData] as const)
     )

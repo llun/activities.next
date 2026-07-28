@@ -30,6 +30,35 @@ const MAX_VISIBLE_CHIPS = 12
 //   • local shortcode, disabled/gone → no url, so withheld
 //   • remote `shortcode@domain`      → namespaced, never locally reactable
 // Own reactions stay actionable regardless, so a reaction is always removable.
+// Rollups arrive oldest-first, so on a post that already carries
+// MAX_VISIBLE_CHIPS distinct emoji a brand-new reaction sorts last and would be
+// truncated away — the viewer would add one and see nothing change but the
+// overflow counter. The viewer's own reactions are therefore never truncated;
+// the remaining slots go to the rest, still oldest-first. (The per-actor cap is
+// well below MAX_VISIBLE_CHIPS, so a viewer's own chips can never fill the row.)
+const selectVisibleReactions = (
+  reactions: StatusReaction[]
+): StatusReaction[] => {
+  if (reactions.length <= MAX_VISIBLE_CHIPS) return reactions
+
+  const mineCount = reactions.reduce(
+    (total, reaction) => total + (reaction.me ? 1 : 0),
+    0
+  )
+  let remainingSlots = Math.max(0, MAX_VISIBLE_CHIPS - mineCount)
+  const visible: StatusReaction[] = []
+  for (const reaction of reactions) {
+    if (reaction.me) {
+      visible.push(reaction)
+      continue
+    }
+    if (remainingSlots === 0) continue
+    remainingSlots -= 1
+    visible.push(reaction)
+  }
+  return visible
+}
+
 const canJoinReaction = (reaction: StatusReaction): boolean => {
   if (reaction.me) return true
   if (isUnicodeEmojiReaction(reaction.name)) return true
@@ -178,7 +207,12 @@ export const ReactionRow: FC<ReactionRowProps> = ({
   // gets no empty row.
   if (reactions.length === 0 && !currentActor) return null
 
-  const visible = reactions.slice(0, MAX_VISIBLE_CHIPS)
+  // Rollups arrive oldest-first, so on a post that already has MAX_VISIBLE_CHIPS
+  // distinct emoji a brand-new reaction sorts last and would be truncated away —
+  // the viewer would add one and see nothing change but the overflow counter.
+  // The viewer's own reactions are therefore never truncated; the remaining
+  // slots go to the others, still oldest-first.
+  const visible = selectVisibleReactions(reactions)
   const hiddenCount = reactions.length - visible.length
 
   return (

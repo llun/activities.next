@@ -211,6 +211,32 @@ describe('ReactionRow', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
+  it('never truncates away the viewer own reaction', () => {
+    // 12 older reactions fill the row; the viewer's own is the 13th and, being
+    // newest, sorts last in the rollups.
+    const crowd: StatusReaction[] = Array.from({ length: 12 }, (_, index) => ({
+      name: `e${index}`,
+      count: 1,
+      me: false,
+      url: `https://llun.test/e${index}.gif`,
+      static_url: `https://llun.test/e${index}.png`
+    }))
+
+    render(
+      <ReactionRow
+        currentActor={currentActor}
+        status={statusWith([...crowd, { ...fire, count: 1, me: true }])}
+      />
+    )
+
+    // Visible, and one of the older chips gives up its slot instead.
+    expect(screen.getByLabelText('Remove 🔥 reaction, 1')).toBeInTheDocument()
+    expect(
+      screen.queryByLabelText('Add e11 reaction, 1')
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('+1')).toBeInTheDocument()
+  })
+
   it('shows a remote custom emoji reaction without offering to join it', () => {
     render(
       <ReactionRow
