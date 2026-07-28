@@ -77,11 +77,21 @@ server still only reads those values from the environment at boot, so a change
 needs a restart.
 
 Where a database-backed setting depends on one of those environment-only values,
-the switch is disabled rather than hidden: the **Reply by email** toggle on the
-same tab stays visible, reads _unavailable_, and points at the builder whenever
+the control stays visible and reports the blocker rather than disappearing. The
+**Reply by email** toggle on the same tab reads _unavailable_ whenever either
 `ACTIVITIES_EMAIL_INBOUND_*` or the outbound `ACTIVITIES_EMAIL_*` settings are
-missing. The per-account opt-in under Settings → Notifications is hidden
-outright in that case, since there is nothing for an account to opt in to.
+missing, and its help line names the half that is actually missing — pointing at
+the builder only for the inbound half, which is the half the builder can
+assemble.
+
+That toggle is a database row every instance honours, and it defaults to on, so
+it always shows its **stored** value and locks in one direction only: it cannot
+be switched on where the feature would be inert, but a stored _on_ stays
+readable and writable. Otherwise an instance whose own environment is
+incomplete — a web pod in a split deployment, say — would render the
+cluster-wide kill switch as off and offer no way to turn it off. The per-account
+opt-in under Settings → Notifications is hidden outright when the feature is
+unavailable, since that is per-account state with nothing to opt in to.
 
 ## Core Configuration
 

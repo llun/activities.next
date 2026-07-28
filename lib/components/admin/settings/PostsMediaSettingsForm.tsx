@@ -7,6 +7,7 @@ import { Select } from '@/lib/components/ui/select'
 import { Switch } from '@/lib/components/ui/switch'
 import {
   EMAIL_INBOUND_ENV_PREFIX,
+  EMAIL_OUTBOUND_ENV_PREFIX,
   MEDIA_STORAGE_ENV_PREFIX
 } from '@/lib/config/environmentTemplates'
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
@@ -31,10 +32,11 @@ interface PostsMediaSettingsFormProps {
   // The storage backend is environment-only, so it is reported here rather than
   // edited. Resolved on the server (see describeMediaStorageBackend).
   storageBackend: MediaStorageBackendSummary
-  // Whether ACTIVITIES_EMAIL_INBOUND_* and outbound email are both configured.
-  // The switch stays editable either way — an admin may pre-set it — but the
-  // help line says plainly that nothing happens until the environment is there.
-  replyByEmailConfigured: boolean
+  // Reply by email needs both halves of the email configuration, and the two
+  // are reported separately so the help line can name the one that is missing
+  // rather than sending an admin to fix what is already set.
+  emailConfigured: boolean
+  emailInboundConfigured: boolean
 }
 
 const POSTS_KEYS = ['posts.maxCharacters', 'posts.maxMediaAttachments']
@@ -86,7 +88,8 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
   settings,
   locks,
   storageBackend,
-  replyByEmailConfigured
+  emailConfigured,
+  emailInboundConfigured
 }) => {
   const { values, setValue, isDirty, statusFor, saveSection } =
     useServerSettingsForm({
@@ -113,6 +116,16 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
   const mediaStatus = statusFor('media')
   const replyByEmailStatus = statusFor('replyByEmail')
   const replyByEmailEnabled = values['replyByEmail.enabled'] as boolean
+  const replyByEmailConfigured = emailConfigured && emailInboundConfigured
+  // Naming both families when only one is missing sends an admin to re-check
+  // settings that are already there. Inbound is named first: it is the half the
+  // Configure environment builder below can actually assemble.
+  const missingEmailHalf = !emailInboundConfigured
+    ? 'inbound email'
+    : 'outbound email'
+  const missingEmailEnvPrefix = !emailInboundConfigured
+    ? EMAIL_INBOUND_ENV_PREFIX
+    : EMAIL_OUTBOUND_ENV_PREFIX
 
   const maxCharacters = values['posts.maxCharacters'] as number
   const uploadBytes = values['media.maxFileSize'] as number
@@ -368,36 +381,53 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
       >
         <ControlRow
           label={
-            !replyByEmailConfigured
-              ? 'Reply by email is unavailable'
-              : replyByEmailEnabled
+            replyByEmailEnabled
+              ? replyByEmailConfigured
                 ? 'Reply by email is allowed'
-                : 'Reply by email is off'
+                : 'Reply by email is allowed, but unavailable here'
+              : replyByEmailConfigured
+                ? 'Reply by email is off'
+                : 'Reply by email is unavailable'
           }
           description={
             replyByEmailConfigured ? (
               'Each account still has to opt in under Settings → Notifications; the toggle is off by default. Switching this off stops new reply addresses being issued and refuses replies to the ones already sent.'
             ) : (
               <>
-                This instance cannot receive replies:{' '}
-                <EnvLockLabel envVar={EMAIL_INBOUND_ENV_PREFIX}>
-                  inbound email
+                This instance cannot receive replies —{' '}
+                <EnvLockLabel envVar={missingEmailEnvPrefix}>
+                  {missingEmailHalf}
                 </EnvLockLabel>{' '}
-                and the outbound email settings are read from the environment at
-                boot. Build the block with{' '}
-                <strong>Configure environment</strong> below, then restart.
+                is read from the environment at boot.
+                {emailInboundConfigured ? null : (
+                  <>
+                    {' '}
+                    Build the block with <strong>
+                      Configure environment
+                    </strong>{' '}
+                    below, then restart.
+                  </>
+                )}
+                {replyByEmailEnabled
+                  ? ' The stored setting is still on, and every instance that does have the environment honours it — switch it off here to stop them.'
+                  : null}
               </>
             )
           }
           htmlFor="reply-by-email-enabled"
         >
-          {/* Disabled rather than hidden: an admin looking for the switch
-              should find it and learn why it cannot be used, instead of
-              wondering whether the feature exists at all. */}
+          {/* Shown rather than hidden so an admin looking for the setting finds
+              it and learns why it is inert. The state is the DB row's, never a
+              fabricated `false`: this switch is cluster-wide, defaults to on,
+              and *this* process missing the variables says nothing about the
+              rest of the fleet. So it only locks in the one direction that
+              cannot matter — turning on something inert. While it reads on it
+              stays writable, or the kill switch would be unreachable from the
+              pod the admin happens to be talking to. */}
           <Switch
             id="reply-by-email-enabled"
-            checked={replyByEmailConfigured && replyByEmailEnabled}
-            disabled={!replyByEmailConfigured}
+            checked={replyByEmailEnabled}
+            disabled={!replyByEmailConfigured && !replyByEmailEnabled}
             onCheckedChange={(checked) =>
               setValue('replyByEmail.enabled', checked)
             }

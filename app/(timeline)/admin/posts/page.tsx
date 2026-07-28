@@ -28,7 +28,8 @@ const Page = async () => {
       settings={settings}
       locks={locks}
       storageBackend={storageBackend}
-      replyByEmailConfigured={Boolean(config.email && config.emailInbound)}
+      emailConfigured={Boolean(config.email)}
+      emailInboundConfigured={Boolean(config.emailInbound)}
     />
   )
 }

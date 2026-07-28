@@ -56,16 +56,24 @@ const renderForm = (
   locks: ServerSettingLocks = {},
   settings: ResolvedServerSettings = baseSettings,
   storageBackend: MediaStorageBackendSummary = baseStorageBackend,
-  replyByEmailConfigured = true
+  email: { outbound?: boolean; inbound?: boolean } = {}
 ) =>
   render(
     <PostsMediaSettingsForm
       settings={settings}
       locks={locks}
       storageBackend={storageBackend}
-      replyByEmailConfigured={replyByEmailConfigured}
+      emailConfigured={email.outbound ?? true}
+      emailInboundConfigured={email.inbound ?? true}
     />
   )
+
+const settingsWithReplyByEmail = (
+  enabled: boolean
+): ResolvedServerSettings => ({
+  ...baseSettings,
+  replyByEmail: { ...baseSettings.replyByEmail, enabled }
+})
 
 describe('PostsMediaSettingsForm', () => {
   beforeEach(() => {
@@ -334,11 +342,12 @@ describe('PostsMediaSettingsForm', () => {
     )
   })
 
-  // Disabled rather than hidden: an admin looking for the switch should find
-  // it and learn why it cannot be used. It also must not read as "on" while
-  // the instance cannot receive a single reply.
-  it('disables the reply-by-email switch when inbound email is not configured', () => {
-    renderForm({}, baseSettings, baseStorageBackend, false)
+  // Shown rather than hidden so an admin finds the setting and learns why it is
+  // inert. Locking only ever applies to turning ON something inert.
+  it('disables the reply-by-email switch when it is already off and unavailable', () => {
+    renderForm({}, settingsWithReplyByEmail(false), baseStorageBackend, {
+      inbound: false
+    })
 
     const toggle = screen.getByLabelText(/Reply by email is unavailable/)
     expect(toggle).toBeDisabled()
@@ -348,11 +357,68 @@ describe('PostsMediaSettingsForm', () => {
     ).toBeInTheDocument()
   })
 
-  it('keeps the switch usable once inbound email is configured', () => {
+  // The setting is a cluster-wide DB row that defaults to on, so THIS process
+  // missing the variables says nothing about the rest of the fleet. Reporting a
+  // stored `true` as `false`, or locking it, would put the kill switch out of
+  // reach of the pod the admin happens to be talking to.
+  it('keeps a stored-on switch readable and writable while unavailable', () => {
+    renderForm({}, settingsWithReplyByEmail(true), baseStorageBackend, {
+      inbound: false
+    })
+
+    const toggle = screen.getByLabelText(
+      /Reply by email is allowed, but unavailable here/
+    )
+    expect(toggle).toBeChecked()
+    expect(toggle).not.toBeDisabled()
+    expect(
+      screen.getByText(/switch it off here to stop them/)
+    ).toBeInTheDocument()
+  })
+
+  it('lets the admin turn a stored-on switch off while unavailable', async () => {
+    renderForm({}, settingsWithReplyByEmail(true), baseStorageBackend, {
+      inbound: false
+    })
+
+    fireEvent.click(
+      screen.getByLabelText(/Reply by email is allowed, but unavailable here/)
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'Update' }).at(-1)!)
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalled())
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ 'replyByEmail.enabled': false })
+    )
+  })
+
+  it('keeps the switch usable once both halves of email are configured', () => {
     renderForm()
 
     const toggle = screen.getByLabelText(/Reply by email is allowed/)
     expect(toggle).not.toBeDisabled()
     expect(toggle).toBeChecked()
+  })
+
+  // Naming both halves when only one is missing sends the admin to re-check
+  // what is already set — and the builder below cannot assemble the outbound
+  // half at all, so pointing at it would be a dead end.
+  it('names the outbound half when only outbound email is missing', () => {
+    renderForm({}, settingsWithReplyByEmail(false), baseStorageBackend, {
+      outbound: false
+    })
+
+    expect(screen.getByText('outbound email')).toBeInTheDocument()
+    expect(screen.queryByText('inbound email')).toBeNull()
+    expect(screen.queryByText(/Build the block with/)).toBeNull()
+  })
+
+  it('names the inbound half and points at the builder when inbound is missing', () => {
+    renderForm({}, settingsWithReplyByEmail(false), baseStorageBackend, {
+      inbound: false
+    })
+
+    expect(screen.getByText('inbound email')).toBeInTheDocument()
+    expect(screen.getByText(/Build the block with/)).toBeInTheDocument()
   })
 })
