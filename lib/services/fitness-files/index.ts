@@ -2,7 +2,8 @@ import { getConfig } from '@/lib/config'
 import {
   FitnessStorageConfig,
   FitnessStorageS3Config,
-  FitnessStorageType
+  FitnessStorageType,
+  hasExplicitFitnessStorageType
 } from '@/lib/config/fitnessStorage'
 import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
@@ -21,6 +22,13 @@ export const getEffectiveFitnessStorageConfig =
   (): FitnessStorageConfig | null => {
     const { fitnessStorage, mediaStorage } = getConfig()
     if (fitnessStorage) return fitnessStorage
+
+    // An absent config means one of two things, and only one of them may fall
+    // back: fitness storage was never configured, or it was configured and then
+    // disabled because a required value was blank. Falling back in the second
+    // case would write fitness files into the media bucket immediately after
+    // warning that fitness storage is disabled.
+    if (hasExplicitFitnessStorageType()) return null
 
     if (
       mediaStorage?.type === MediaStorageType.S3Storage ||

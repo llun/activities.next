@@ -1,7 +1,9 @@
 import path from 'path'
 import { z } from 'zod'
 
+import { requiredStorageValue } from '@/lib/config/storageValue'
 import { matcher } from '@/lib/config/utils'
+import { logger } from '@/lib/utils/logger'
 
 export enum FitnessStorageType {
   LocalFile = 'fs',
@@ -67,6 +69,20 @@ const getMapboxAccessToken = (): string | undefined => {
   return trimmed.length > 0 ? trimmed : undefined
 }
 
+/**
+ * Whether the operator configured fitness storage in its own right, rather than
+ * leaving it to inherit media storage.
+ *
+ * `getFitnessStorageConfig` returning `null` is ambiguous on its own: it covers
+ * both "never configured" and "configured, but disabled because a required
+ * value was blank or the type was unrecognised". Only the first may fall back
+ * to media storage — falling back in the second case would quietly write
+ * fitness files into the media bucket right after warning that fitness storage
+ * is disabled. `getEffectiveFitnessStorageConfig` uses this to tell them apart.
+ */
+export const hasExplicitFitnessStorageType = (): boolean =>
+  Boolean(process.env.ACTIVITIES_FITNESS_STORAGE_TYPE)
+
 export const getFitnessStorageConfig = (): {
   fitnessStorage: FitnessStorageConfig
 } | null => {
@@ -77,26 +93,42 @@ export const getFitnessStorageConfig = (): {
     if (!hasEnvironmentMediaStorage) return null
 
     switch (process.env.ACTIVITIES_MEDIA_STORAGE_TYPE) {
-      case FitnessStorageType.LocalFile:
+      case FitnessStorageType.LocalFile: {
+        // The same guard as the media resolver, because this is the same
+        // variable. A blank value used to fall through to `|| 'uploads'` and
+        // resolve against the process CWD, rooting fitness uploads inside the
+        // application directory.
+        const mediaPath = requiredStorageValue(
+          'ACTIVITIES_MEDIA_STORAGE_PATH',
+          'fitness storage'
+        )
+        if (mediaPath === null) return null
         return {
           fitnessStorage: {
             type: process.env.ACTIVITIES_MEDIA_STORAGE_TYPE,
-            path: path.join(
-              process.env.ACTIVITIES_MEDIA_STORAGE_PATH || 'uploads',
-              'fitness'
-            ),
+            path: path.join(mediaPath ?? 'uploads', 'fitness'),
             maxFileSize: getFitnessMaxFileSize(),
             quotaPerAccount: getMediaQuotaPerAccount(),
             mapboxAccessToken: getMapboxAccessToken()
           }
         }
+      }
       case FitnessStorageType.S3Storage:
       case FitnessStorageType.ObjectStorage: {
+        const mediaBucket = requiredStorageValue(
+          'ACTIVITIES_MEDIA_STORAGE_BUCKET',
+          'fitness storage'
+        )
+        const mediaRegion = requiredStorageValue(
+          'ACTIVITIES_MEDIA_STORAGE_REGION',
+          'fitness storage'
+        )
+        if (mediaBucket === null || mediaRegion === null) return null
         return {
           fitnessStorage: {
             type: process.env.ACTIVITIES_MEDIA_STORAGE_TYPE,
-            bucket: process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET as string,
-            region: process.env.ACTIVITIES_MEDIA_STORAGE_REGION as string,
+            bucket: mediaBucket as string,
+            region: mediaRegion as string,
             hostname:
               process.env.ACTIVITIES_MEDIA_STORAGE_HOSTNAME || undefined,
             endpoint:
@@ -113,24 +145,42 @@ export const getFitnessStorageConfig = (): {
     }
   }
 
+  // Fitness's own variables need the same guard as the media ones they replace:
+  // a blank value here reaches the identical `path.resolve('')`.
   switch (fitnessStorageType) {
-    case FitnessStorageType.LocalFile:
+    case FitnessStorageType.LocalFile: {
+      const storagePath = requiredStorageValue(
+        'ACTIVITIES_FITNESS_STORAGE_PATH',
+        'fitness storage'
+      )
+      if (storagePath === null) return null
       return {
         fitnessStorage: {
           type: fitnessStorageType,
-          path: process.env.ACTIVITIES_FITNESS_STORAGE_PATH as string,
+          // Unset stays `undefined` so `Config.parse` still rejects it loudly.
+          path: storagePath as string,
           maxFileSize: getFitnessMaxFileSize(),
           quotaPerAccount: getFitnessQuotaPerAccount(),
           mapboxAccessToken: getMapboxAccessToken()
         }
       }
+    }
     case FitnessStorageType.S3Storage:
     case FitnessStorageType.ObjectStorage: {
+      const bucket = requiredStorageValue(
+        'ACTIVITIES_FITNESS_STORAGE_BUCKET',
+        'fitness storage'
+      )
+      const region = requiredStorageValue(
+        'ACTIVITIES_FITNESS_STORAGE_REGION',
+        'fitness storage'
+      )
+      if (bucket === null || region === null) return null
       return {
         fitnessStorage: {
           type: fitnessStorageType,
-          bucket: process.env.ACTIVITIES_FITNESS_STORAGE_BUCKET as string,
-          region: process.env.ACTIVITIES_FITNESS_STORAGE_REGION as string,
+          bucket: bucket as string,
+          region: region as string,
           hostname:
             process.env.ACTIVITIES_FITNESS_STORAGE_HOSTNAME || undefined,
           endpoint:
@@ -143,6 +193,12 @@ export const getFitnessStorageConfig = (): {
       }
     }
     default:
+      // An explicitly configured type no longer falls back to media storage, so
+      // a typo here disables fitness storage outright. Say so rather than
+      // leaving the operator to notice that uploads stopped.
+      logger.warn(
+        `Unknown ACTIVITIES_FITNESS_STORAGE_TYPE value "${fitnessStorageType}"; fitness storage will be disabled`
+      )
       return null
   }
 }

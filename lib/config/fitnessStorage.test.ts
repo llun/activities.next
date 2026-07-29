@@ -1,16 +1,40 @@
 import path from 'path'
 
+import { logger } from '@/lib/utils/logger'
+
 import {
   DEFAULT_FITNESS_MAX_FILE_SIZE,
+  FitnessStorageFileConfig,
+  FitnessStorageS3Config,
   FitnessStorageType,
-  getFitnessStorageConfig
+  getFitnessStorageConfig,
+  hasExplicitFitnessStorageType
 } from './fitnessStorage'
+
+vi.mock('@/lib/utils/logger', () => ({
+  logger: {
+    warn: vi.fn()
+  }
+}))
 
 describe('FitnessStorage config', () => {
   const originalEnv = process.env
+  const mockWarn = logger.warn as jest.Mock
 
   beforeEach(() => {
     process.env = { ...originalEnv }
+    // Both prefixes decide which branch this resolver takes, and the documented
+    // local workflow exports .env.local into the shell — without this, a
+    // developer's own storage config silently changes what these tests assert.
+    for (const key of Object.keys(process.env)) {
+      if (
+        key.startsWith('ACTIVITIES_MEDIA_STORAGE_') ||
+        key.startsWith('ACTIVITIES_FITNESS_')
+      ) {
+        delete process.env[key]
+      }
+    }
+    mockWarn.mockReset()
   })
 
   afterAll(() => {
@@ -107,6 +131,318 @@ describe('FitnessStorage config', () => {
       const config = getFitnessStorageConfig()
 
       expect(config).toBeNull()
+    })
+
+    // Both branches read required values raw. A blank fitness path hit the same
+    // `path.resolve('')` as the media one, and in the fallback branch a blank
+    // media path slipped through `|| 'uploads'` into `uploads/fitness` under
+    // the process CWD. Whitespace is truthy, so it survived those checks too.
+    it.each([
+      {
+        description: 'blank fitness path disables storage',
+        env: {
+          ACTIVITIES_FITNESS_STORAGE_TYPE: 'fs',
+          ACTIVITIES_FITNESS_STORAGE_PATH: ''
+        },
+        warnedVariable: 'ACTIVITIES_FITNESS_STORAGE_PATH'
+      },
+      {
+        description: 'whitespace fitness path disables storage',
+        env: {
+          ACTIVITIES_FITNESS_STORAGE_TYPE: 'fs',
+          ACTIVITIES_FITNESS_STORAGE_PATH: '   '
+        },
+        warnedVariable: 'ACTIVITIES_FITNESS_STORAGE_PATH'
+      },
+      {
+        description: 'blank fitness bucket disables storage',
+        env: {
+          ACTIVITIES_FITNESS_STORAGE_TYPE: 's3',
+          ACTIVITIES_FITNESS_STORAGE_BUCKET: '',
+          ACTIVITIES_FITNESS_STORAGE_REGION: 'us-east-1'
+        },
+        warnedVariable: 'ACTIVITIES_FITNESS_STORAGE_BUCKET'
+      },
+      {
+        description: 'whitespace fitness bucket disables storage',
+        env: {
+          ACTIVITIES_FITNESS_STORAGE_TYPE: 's3',
+          ACTIVITIES_FITNESS_STORAGE_BUCKET: '  ',
+          ACTIVITIES_FITNESS_STORAGE_REGION: 'us-east-1'
+        },
+        warnedVariable: 'ACTIVITIES_FITNESS_STORAGE_BUCKET'
+      },
+      {
+        description: 'blank fitness region disables storage',
+        env: {
+          ACTIVITIES_FITNESS_STORAGE_TYPE: 's3',
+          ACTIVITIES_FITNESS_STORAGE_BUCKET: 'fitness-bucket',
+          ACTIVITIES_FITNESS_STORAGE_REGION: ''
+        },
+        warnedVariable: 'ACTIVITIES_FITNESS_STORAGE_REGION'
+      },
+      {
+        description: 'whitespace fitness region disables storage',
+        env: {
+          ACTIVITIES_FITNESS_STORAGE_TYPE: 'object',
+          ACTIVITIES_FITNESS_STORAGE_BUCKET: 'fitness-bucket',
+          ACTIVITIES_FITNESS_STORAGE_REGION: '\t'
+        },
+        warnedVariable: 'ACTIVITIES_FITNESS_STORAGE_REGION'
+      },
+      {
+        description: 'blank fallback path disables storage',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 'fs',
+          ACTIVITIES_MEDIA_STORAGE_PATH: ''
+        },
+        warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_PATH'
+      },
+      {
+        description: 'whitespace fallback path disables storage',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 'fs',
+          ACTIVITIES_MEDIA_STORAGE_PATH: '   '
+        },
+        warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_PATH'
+      },
+      {
+        description: 'blank fallback bucket disables storage',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+          ACTIVITIES_MEDIA_STORAGE_BUCKET: '',
+          ACTIVITIES_MEDIA_STORAGE_REGION: 'us-east-1'
+        },
+        warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_BUCKET'
+      },
+      {
+        description: 'whitespace fallback bucket disables storage',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+          ACTIVITIES_MEDIA_STORAGE_BUCKET: '  ',
+          ACTIVITIES_MEDIA_STORAGE_REGION: 'us-east-1'
+        },
+        warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_BUCKET'
+      },
+      {
+        description: 'blank fallback region disables storage',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 'object',
+          ACTIVITIES_MEDIA_STORAGE_BUCKET: 'bucket',
+          ACTIVITIES_MEDIA_STORAGE_REGION: ''
+        },
+        warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_REGION'
+      },
+      {
+        description: 'whitespace fallback region disables storage',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 'object',
+          ACTIVITIES_MEDIA_STORAGE_BUCKET: 'bucket',
+          ACTIVITIES_MEDIA_STORAGE_REGION: '\t'
+        },
+        warnedVariable: 'ACTIVITIES_MEDIA_STORAGE_REGION'
+      }
+    ])('$description', ({ env, warnedVariable }) => {
+      Object.assign(process.env, env)
+
+      expect(getFitnessStorageConfig()).toBeNull()
+      expect(mockWarn).toHaveBeenCalledWith(
+        `${warnedVariable} is set but empty; fitness storage will be disabled`
+      )
+      expect(mockWarn).toHaveBeenCalledTimes(1)
+    })
+
+    // Once per branch: the explicit switch and the media fallback each read
+    // both values before checking either, and short-circuiting one of them
+    // still passes every single-blank row above.
+    it.each([
+      {
+        description: 'explicit branch warns for both blank values',
+        env: {
+          ACTIVITIES_FITNESS_STORAGE_TYPE: 'object',
+          ACTIVITIES_FITNESS_STORAGE_BUCKET: '',
+          ACTIVITIES_FITNESS_STORAGE_REGION: '  '
+        },
+        variables: [
+          'ACTIVITIES_FITNESS_STORAGE_BUCKET',
+          'ACTIVITIES_FITNESS_STORAGE_REGION'
+        ]
+      },
+      {
+        description: 'fallback branch warns for both blank values',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+          ACTIVITIES_MEDIA_STORAGE_BUCKET: '',
+          ACTIVITIES_MEDIA_STORAGE_REGION: '  '
+        },
+        variables: [
+          'ACTIVITIES_MEDIA_STORAGE_BUCKET',
+          'ACTIVITIES_MEDIA_STORAGE_REGION'
+        ]
+      }
+    ])('$description', ({ env, variables }) => {
+      Object.assign(process.env, env)
+
+      expect(getFitnessStorageConfig()).toBeNull()
+      expect(mockWarn).toHaveBeenCalledTimes(2)
+      for (const variable of variables) {
+        expect(mockWarn).toHaveBeenCalledWith(
+          `${variable} is set but empty; fitness storage will be disabled`
+        )
+      }
+    })
+
+    it('trims a padded fitness path instead of rejecting it', () => {
+      process.env.ACTIVITIES_FITNESS_STORAGE_TYPE = 'fs'
+      process.env.ACTIVITIES_FITNESS_STORAGE_PATH = '  /fitness/uploads  '
+
+      const config = getFitnessStorageConfig()
+
+      expect((config?.fitnessStorage as { path: string }).path).toBe(
+        '/fitness/uploads'
+      )
+      expect(mockWarn).not.toHaveBeenCalled()
+    })
+
+    it('trims a padded fitness bucket and region instead of rejecting them', () => {
+      process.env.ACTIVITIES_FITNESS_STORAGE_TYPE = 's3'
+      process.env.ACTIVITIES_FITNESS_STORAGE_BUCKET = ' fitness-bucket '
+      process.env.ACTIVITIES_FITNESS_STORAGE_REGION = '\tus-east-1 '
+
+      const config = getFitnessStorageConfig()
+
+      expect((config?.fitnessStorage as { bucket: string }).bucket).toBe(
+        'fitness-bucket'
+      )
+      expect((config?.fitnessStorage as { region: string }).region).toBe(
+        'us-east-1'
+      )
+      expect(mockWarn).not.toHaveBeenCalled()
+    })
+
+    it('trims the padded fallback media path before appending fitness', () => {
+      process.env.ACTIVITIES_MEDIA_STORAGE_TYPE = 'fs'
+      process.env.ACTIVITIES_MEDIA_STORAGE_PATH = '  /data/uploads  '
+
+      const config = getFitnessStorageConfig()
+
+      expect((config?.fitnessStorage as { path: string }).path).toBe(
+        path.join('/data/uploads', 'fitness')
+      )
+      expect(mockWarn).not.toHaveBeenCalled()
+    })
+
+    // Preserves the historical `uploads` default for an unset media path; only
+    // a blank one is now treated as unconfigured. A booting app cannot reach
+    // this — `getMediaStorageConfig()` yields `{path: undefined}` and
+    // `Config.parse` throws first — so this pins the resolver in isolation.
+    it('keeps the uploads default when the fallback media path is unset', () => {
+      process.env.ACTIVITIES_MEDIA_STORAGE_TYPE = 'fs'
+      delete process.env.ACTIVITIES_MEDIA_STORAGE_PATH
+
+      const config = getFitnessStorageConfig()
+
+      expect((config?.fitnessStorage as { path: string }).path).toBe(
+        path.join('uploads', 'fitness')
+      )
+      expect(mockWarn).not.toHaveBeenCalled()
+    })
+
+    // Unset must keep failing loudly in `Config.parse`, not disable storage.
+    // Without these, relaxing a guard's `=== null` to `== null` passes.
+    it.each([
+      {
+        description:
+          'leaves an unset fitness path undefined for schema validation',
+        env: { ACTIVITIES_FITNESS_STORAGE_TYPE: 'fs' },
+        unset: 'ACTIVITIES_FITNESS_STORAGE_PATH',
+        schema: FitnessStorageFileConfig,
+        field: 'path'
+      },
+      {
+        description:
+          'leaves an unset fitness bucket undefined for schema validation',
+        env: {
+          ACTIVITIES_FITNESS_STORAGE_TYPE: 's3',
+          ACTIVITIES_FITNESS_STORAGE_REGION: 'us-east-1'
+        },
+        unset: 'ACTIVITIES_FITNESS_STORAGE_BUCKET',
+        schema: FitnessStorageS3Config,
+        field: 'bucket'
+      },
+      {
+        description:
+          'leaves an unset fitness region undefined for schema validation',
+        env: {
+          ACTIVITIES_FITNESS_STORAGE_TYPE: 's3',
+          ACTIVITIES_FITNESS_STORAGE_BUCKET: 'fitness-bucket'
+        },
+        unset: 'ACTIVITIES_FITNESS_STORAGE_REGION',
+        schema: FitnessStorageS3Config,
+        field: 'region'
+      },
+      {
+        description:
+          'leaves an unset fallback media bucket undefined for schema validation',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+          ACTIVITIES_MEDIA_STORAGE_REGION: 'us-east-1'
+        },
+        unset: 'ACTIVITIES_MEDIA_STORAGE_BUCKET',
+        schema: FitnessStorageS3Config,
+        field: 'bucket'
+      },
+      {
+        description:
+          'leaves an unset fallback media region undefined for schema validation',
+        env: {
+          ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+          ACTIVITIES_MEDIA_STORAGE_BUCKET: 'bucket'
+        },
+        unset: 'ACTIVITIES_MEDIA_STORAGE_REGION',
+        schema: FitnessStorageS3Config,
+        field: 'region'
+      }
+    ])('$description', ({ env, unset, schema, field }) => {
+      Object.assign(process.env, env)
+      delete process.env[unset]
+
+      const config = getFitnessStorageConfig()
+
+      expect(config).not.toBeNull()
+      expect(
+        (config?.fitnessStorage as Record<string, unknown>)[field]
+      ).toBeUndefined()
+      expect(mockWarn).not.toHaveBeenCalled()
+
+      const result = schema.safeParse(config?.fitnessStorage)
+      expect(result.success).toBe(false)
+      expect(
+        result.error?.issues.map((issue) => issue.path.join('.'))
+      ).toContain(field)
+    })
+
+    // An explicitly configured type that ends up unusable must NOT silently
+    // borrow media storage — `getEffectiveFitnessStorageConfig` may only fall
+    // back when fitness storage was never configured at all.
+    it('reports fitness storage as explicitly configured whenever the type is set', () => {
+      expect(hasExplicitFitnessStorageType()).toBe(false)
+
+      process.env.ACTIVITIES_FITNESS_STORAGE_TYPE = 's3'
+      expect(hasExplicitFitnessStorageType()).toBe(true)
+    })
+
+    it('warns and disables fitness storage for an unknown explicit type', () => {
+      process.env.ACTIVITIES_FITNESS_STORAGE_TYPE = 'bogus'
+      process.env.ACTIVITIES_MEDIA_STORAGE_TYPE = 's3'
+      process.env.ACTIVITIES_MEDIA_STORAGE_BUCKET = 'media-bucket'
+      process.env.ACTIVITIES_MEDIA_STORAGE_REGION = 'us-east-1'
+
+      expect(getFitnessStorageConfig()).toBeNull()
+      expect(hasExplicitFitnessStorageType()).toBe(true)
+      expect(mockWarn).toHaveBeenCalledWith(
+        'Unknown ACTIVITIES_FITNESS_STORAGE_TYPE value "bogus"; fitness storage will be disabled'
+      )
     })
   })
 })
