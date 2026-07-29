@@ -765,7 +765,13 @@ describe('FitnessStatusDetail', () => {
     // 5,272 -> 659), so these are the ratios, not round numbers.
     it.each([
       { description: '5913 samples like the reference ride', raw: 5_913 },
-      { description: '5272 samples like the second ride', raw: 5_272 }
+      { description: '5272 samples like the second ride', raw: 5_272 },
+      // Just above where the 120-point floor stops binding (it binds below 956
+      // samples), so this case pins the RATIO rather than the clamp — the two
+      // rows above would still pass if the ratio were replaced by any cap of
+      // their own value, and the floor case below passes even against the old
+      // flat 120.
+      { description: '1000 samples just past the floor', raw: 1_000 }
     ])('plots $description at Strava density', async ({ raw }) => {
       const ramp = Array.from({ length: raw }, (_, index) => index)
       mockGetFitnessRouteData.mockResolvedValue({
@@ -859,12 +865,16 @@ describe('FitnessStatusDetail', () => {
       const [readout] = screen.getAllByTestId('chart-hover-value')
       expect(readout).toHaveTextContent(/^24m$/)
       // The card header carries the instant, so the value has a time to belong
-      // to without a second readout chip.
-      expect(screen.getByText(/7:30 · 120 m gain/)).toBeInTheDocument()
+      // to without a second readout chip. It REPLACES the gain rather than
+      // prefixing it: at 320px a prefixed "1:18:29 · 455 m gain" outgrows the
+      // heading row and wraps it to two lines, which moves the chart under the
+      // finger that is dragging it.
+      expect(screen.getByText('7:30')).toBeInTheDocument()
+      expect(screen.queryByText(/120 m gain/)).not.toBeInTheDocument()
 
       fireEvent.mouseLeave(plot)
       expect(screen.queryAllByTestId('chart-hover-value')).toHaveLength(0)
-      expect(screen.getByText(/^120 m gain$/)).toBeInTheDocument()
+      expect(screen.getByText('120 m gain')).toBeInTheDocument()
     })
 
     it('scrubs on touch as well as on hover', async () => {

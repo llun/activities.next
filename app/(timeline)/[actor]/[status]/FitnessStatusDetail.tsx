@@ -908,8 +908,8 @@ const ElevationProfileChart: FC<{
     () => getSeriesMinMax(values),
     [values]
   )
-  // Memoized because the series is now plotted at full Strava-like density:
-  // rebuilding a 2,000-point path string on every pointer move would be the one
+  // Memoized because the series is now plotted at Strava's density: rebuilding
+  // a path string of up to 1,200 points on every pointer move would be the one
   // expensive thing a scrub does.
   const line = useMemo(
     () => buildChartPath(values, width, height, minValue, maxValue),
@@ -919,8 +919,16 @@ const ElevationProfileChart: FC<{
     () => `${line} L ${width.toFixed(2)} ${height} L 0 ${height} Z`,
     [line, height]
   )
+  // Four ticks, not the helper's default six. This card is narrower than the
+  // Analysis panel (a `p-5` Card inside the same column, so 212px of content at
+  // the 320px reflow target against that panel's 220px) and `justify-between`
+  // gives a label row no way to wrap: six H:MM:SS labels need 222px and six
+  // HH:MM:SS labels 239px, so anything past ~2h30 rendered as one unbroken run
+  // of digits and anything past ~5h crossed the card's own border, since a Card
+  // has no `overflow-hidden` to clip it the way that panel does. Four labels
+  // are 167px / 195px, which still leaves real gaps at 320px.
   const xLabels = useMemo(
-    () => (durationSeconds ? buildXAxisLabels(durationSeconds) : null),
+    () => (durationSeconds ? buildXAxisLabels(durationSeconds, 4) : null),
     [durationSeconds]
   )
   const scrub = useChartScrub({
@@ -2561,15 +2569,19 @@ export const FitnessStatusDetail: FC<Props> = ({
                 <SectionTitle
                   icon={Mountain}
                   right={
-                    <span className="text-xs tabular-nums text-muted-foreground">
-                      {/* The scrubbed instant replaces nothing — it is added
-                          in front of the gain, so the card keeps reporting the
-                          activity's own headline number while the pointer
-                          reports where on it you are. */}
-                      {highlightedElapsedLabel
-                        ? `${highlightedElapsedLabel} · `
-                        : ''}
-                      {Math.max(0, Math.round(elevationGainMeters))} m gain
+                    <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+                      {/* The scrubbed instant REPLACES the gain rather than
+                          prefixing it, the same way the Analysis card swaps its
+                          hover hint for "Selected time". Prefixing made this
+                          slot grow past the heading row's width at the 320px
+                          reflow target, and `formatFitnessDuration` widens from
+                          M:SS to H:MM:SS at exactly 3600s — so dragging across
+                          the one-hour mark wrapped the row to two lines and
+                          pushed the chart 8px down under the user's own finger,
+                          then snapped back when they lifted it. The gain is the
+                          resting state and returns the moment the scrub ends. */}
+                      {highlightedElapsedLabel ??
+                        `${Math.max(0, Math.round(elevationGainMeters))} m gain`}
                     </span>
                   }
                 >
