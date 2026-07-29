@@ -686,9 +686,15 @@ describe('processFitnessFileJob', () => {
       })
 
       // Nulling the pointer while the attachment survives would leave that
-      // route on a public post with nothing able to find it again.
+      // route on a public post with nothing able to find it again — and unlike
+      // a failed replacement, a retry here re-attempts exactly this removal, so
+      // the owner is offered one.
       const refreshed = await database.getFitnessFile({ id: fitnessFileId })
-      expect(refreshed?.mapImagePath).toBe('medias/privacy-1.webp')
+      expect(refreshed).toMatchObject({
+        processingStatus: 'completed',
+        mapImagePath: 'medias/privacy-1.webp',
+        mapError: 'Failed to remove the route map'
+      })
 
       // And the next run does remove it.
       await processFitnessFileJob(database, {

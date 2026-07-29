@@ -326,6 +326,24 @@ export const regenerateFitnessMapsJob = createJobHandle(
             })
           }
         } catch (error) {
+          if (removeRecordedMap) {
+            // Nothing replaced this map, so a retry re-attempts exactly this
+            // removal — and until it succeeds the post is publicly showing the
+            // route the owner just hid. Recorded so they are offered one.
+            await database
+              .updateFitnessFileActivityData(fitnessFileId, {
+                mapError: 'Failed to remove the route map'
+              })
+              .catch((writeError) => {
+                logger.error({
+                  message: 'Failed to record the route map removal failure',
+                  actorId,
+                  fitnessFileId,
+                  err: toLoggableError(writeError)
+                })
+              })
+          }
+
           // Logged, not recorded: the new map is already stored and attached,
           // and a leftover is not something a retry can remove — it would
           // attach a third. See the same call in processFitnessFileJob.

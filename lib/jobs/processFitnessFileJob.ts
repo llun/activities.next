@@ -627,6 +627,27 @@ export const processFitnessFileJob = createJobHandle(
             mapImagePath: null,
             mapImageEmailPath: null
           })
+        } else {
+          // Recorded here, unlike on the replace path: no replacement was
+          // attached, so a retry re-attempts exactly this removal instead of
+          // adding a third map — and until it succeeds the post is publicly
+          // showing the route the owner just hid. `hasMapData` is still true,
+          // so the owner reads it as "could not be updated", which is what it
+          // is.
+          mapErrorMessage = 'Failed to remove the route map'
+          await database
+            .updateFitnessFileActivityData(fitnessFileId, {
+              mapError: mapErrorMessage
+            })
+            .catch((writeError) => {
+              logger.error({
+                message: 'Failed to record the route map removal failure',
+                actorId,
+                statusId,
+                fitnessFileId,
+                err: toLoggableError(writeError)
+              })
+            })
         }
       }
 

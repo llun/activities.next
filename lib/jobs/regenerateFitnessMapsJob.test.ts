@@ -530,6 +530,46 @@ describe('regenerateFitnessMapsJob', () => {
     expect(mapAttachments).toHaveLength(0)
   })
 
+  it('keeps the map pointer and records a reason when a hidden route cannot be removed', async () => {
+    const { statusId, fitnessFileId } = await setupStatusWithOldMap()
+
+    // The privacy case this job exists for: the whole route is hidden now, so
+    // the existing map — the one showing that route — has to go.
+    mockParseFitnessFile.mockResolvedValueOnce({
+      coordinates: [],
+      trackPoints: [],
+      totalDistanceMeters: 0,
+      totalDurationSeconds: 600,
+      activityType: 'running'
+    })
+    vi.spyOn(database, 'deleteAttachmentsByIds').mockRejectedValueOnce(
+      new Error('attachment delete failed')
+    )
+
+    await regenerateFitnessMapsJob(database, {
+      id: 'job-regenerate-hidden-route-cleanup-failure',
+      name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+      data: { actorId: actor.id, fitnessFileIds: [fitnessFileId] }
+    })
+
+    // Dropping the pointer while the attachment survives would leave that route
+    // on a public post with nothing able to identify it again; the recorded
+    // reason is what offers the owner the retry that re-attempts the removal.
+    const refreshed = await database.getFitnessFile({ id: fitnessFileId })
+    expect(refreshed).toMatchObject({
+      processingStatus: 'completed',
+      mapImagePath: 'medias/old-route-map.webp',
+      mapError: 'Failed to remove the route map'
+    })
+
+    const status = await database.getStatus({ statusId, withReplies: false })
+    expect(
+      status?.attachments.filter(
+        (attachment) => attachment.name === 'Activity route map'
+      )
+    ).toHaveLength(1)
+  })
+
   it('heals a non-primary file by removing its stray map instead of regenerating', async () => {
     const { statusId, entries } = await setupStatusWithMultipleOldMaps()
     const primaryEntry = entries[0]
