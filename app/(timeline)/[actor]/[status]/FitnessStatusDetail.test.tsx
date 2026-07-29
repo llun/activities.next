@@ -628,14 +628,33 @@ describe('FitnessStatusDetail', () => {
       expect(screen.queryAllByTestId('chart-hover-value')).toHaveLength(0)
     })
 
-    it('lets a vertical swipe scroll instead of scrubbing', async () => {
+    it('leaves the browser both page scrolling and pinch zoom', async () => {
       const panel = await openAnalysis()
 
-      // `touch-pan-y` hands vertical gestures back to the browser; claiming
-      // them would trap the page under a stack of four full-width charts.
+      // Only the horizontal drag is claimed. `touch-pan-y` alone compiles to
+      // exactly `touch-action: pan-y`, which silently drops pinch-zoom over a
+      // stack of four charts — so the second class is load-bearing, not
+      // decorative.
       for (const chart of Array.from(panel.querySelectorAll('svg'))) {
         expect(chart).toHaveClass('touch-pan-y')
+        expect(chart).toHaveClass('touch-pinch-zoom')
       }
+    })
+
+    it('suppresses the compatibility mouse events a tap fires afterwards', async () => {
+      const panel = await openAnalysis()
+      const [elevationChart] = Array.from(panel.querySelectorAll('svg'))
+
+      // A tap is followed by a compat `mousemove` at the same point, which
+      // would re-enter the scrub the instant `touchend` clears it and leave the
+      // readout stuck on — no `mouseleave` ever follows a touch. Preventing the
+      // default is what suppresses that sequence, so the event has to come back
+      // cancelled.
+      const notCancelled = fireEvent.touchEnd(elevationChart, {
+        cancelable: true
+      })
+
+      expect(notCancelled).toBe(false)
     })
 
     it('places the dot low at a series minimum and high at its maximum', async () => {

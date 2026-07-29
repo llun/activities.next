@@ -796,10 +796,15 @@ const ChartPanel: FC<{
     typeof highlightedValue === 'number'
       ? getChartYPosition(highlightedValue, height, minValue, maxValue)
       : null
-  // The readout sits beside the dot and flips to its left near the right edge
-  // so it never clips out of the panel, whatever the container is wide.
+  // The readout sits beside the dot and flips to its left near the right edge.
+  // The threshold is a fraction of the viewBox while the chip is a fixed pixel
+  // width, so the two only agree above some container width — at the 320px
+  // reflow target the plot is ~220px and the design kit's 0.72 puts the chip's
+  // right edge 10px past what the merged panel's `overflow-hidden` will show.
+  // 0.62 is the widest round value that still fits there, and it flips a little
+  // sooner on a desktop column, which costs nothing.
   const shouldFlipReadout =
-    typeof highlightedX === 'number' && highlightedX / width > 0.72
+    typeof highlightedX === 'number' && highlightedX / width > 0.62
   const isHighlighted =
     typeof highlightedX === 'number' &&
     typeof highlightedY === 'number' &&
@@ -859,12 +864,13 @@ const ChartPanel: FC<{
           preserveAspectRatio="none"
           className={cn(
             'block h-full w-full',
-            // `touch-pan-y` leaves a vertical swipe scrolling the page while
-            // claiming horizontal drags for scrubbing. Without it the browser
-            // owns the gesture and the readout is unreachable on a phone —
-            // which is most of the audience for a page whose charts carry their
-            // own mobile height.
-            canHoverMapPoint && 'cursor-crosshair touch-pan-y'
+            // A vertical swipe still scrolls the page and a pinch still zooms;
+            // only the horizontal drag is claimed, for scrubbing. Both of the
+            // other two have to be named explicitly — `touch-pan-y` on its own
+            // compiles to exactly `touch-action: pan-y`, which drops
+            // pinch-zoom, and blocking magnification over a stack of charts
+            // takes it away in the one place a low-vision reader most wants it.
+            canHoverMapPoint && 'cursor-crosshair touch-pan-y touch-pinch-zoom'
           )}
           onMouseMove={(event) => {
             scrubToClientX(event.clientX, event.currentTarget)
@@ -876,7 +882,19 @@ const ChartPanel: FC<{
           onTouchMove={(event) => {
             scrubToClientX(event.touches[0]?.clientX, event.currentTarget)
           }}
-          onTouchEnd={clearScrub}
+          onTouchEnd={(event) => {
+            // A tap is followed by compatibility `mousemove`/`mousedown`/…
+            // at the same point, and that `mousemove` would re-enter the scrub
+            // the moment this clears it — leaving the readout stuck on, because
+            // no `mouseleave` follows a touch. Preventing the default suppresses
+            // that whole compat sequence; the chart has no click behaviour to
+            // lose. A drag never gets here with the readout stuck because
+            // movement past the tap slop suppresses the compat events anyway,
+            // and a gesture the browser claims for scrolling fires
+            // `touchcancel` instead.
+            event.preventDefault()
+            clearScrub()
+          }}
           onTouchCancel={clearScrub}
         >
           <path
@@ -926,15 +944,15 @@ const ChartPanel: FC<{
             gesture: the numbers it shows are already in the panel header's
             "Scale …", and a screen reader would otherwise meet a bare figure
             with no context, attached to a control it cannot drive.
-            `max-w-*` because the flip threshold is a fraction of the viewBox
-            while this chip is a fixed pixel width — below about 360px the two
-            stop agreeing and the merged panel's `overflow-hidden` cuts the
-            chip rather than letting it spill. */}
+            Keeping it inside the panel is the flip threshold's job, not a
+            `max-width`'s — the chip is clipped by where it is positioned, and
+            a cap wide enough to never truncate the text is also too wide to
+            ever bind. */}
         {isHighlighted ? (
           <div
             aria-hidden="true"
             data-testid="chart-hover-value"
-            className="pointer-events-none absolute z-20 flex max-w-[calc(100%-1.5rem)] items-baseline gap-1 rounded-md border bg-background px-2 py-1 shadow-sm"
+            className="pointer-events-none absolute z-20 flex items-baseline gap-1 rounded-md border bg-background px-2 py-1 shadow-sm"
             style={{
               left: `${(highlightedX / width) * 100}%`,
               top: `${clampNumber((highlightedY / height) * 100, 8, 92)}%`,
