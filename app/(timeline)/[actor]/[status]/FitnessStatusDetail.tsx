@@ -677,14 +677,23 @@ const ChartHoverMarker: FC<{
 }> = ({ x, y, width, height, value, unit, fractionDigits, dotClassName }) => {
   // The readout sits beside the dot and flips to its left near the right edge.
   // The threshold is a fraction of the viewBox while the chip is a fixed pixel
-  // width, so the two only agree above some container width. At the 320px
-  // reflow target the plot is 220px and the chip is ~77px for the widest value
-  // these series realistically produce ("13.5 km/h"), against a budget of that
-  // 220px PLUS this panel's own 16px right padding — the `overflow-hidden` is
-  // on the merged panel outside it. So the design kit's 0.72 lands 12px past
-  // what will be shown, and anything at or below 0.66 fits. 0.62 keeps a margin
-  // for a longer value or a wider font, at the cost of flipping sooner than the
-  // kit does in a desktop column, where there is still room to the right.
+  // width, so the two only agree above some container width, and the binding
+  // case is the narrowest host at the 320px reflow target.
+  //
+  // Derived for the Analysis stack, where the plot is 220px and the chip is
+  // ~77px for the widest value those series realistically produce
+  // ("13.5 km/h"), against a budget of that 220px plus the panel's own 16px
+  // right padding: the design kit's 0.72 lands 12px past what will be shown,
+  // anything at or below 0.66 fits, and 0.62 keeps a margin for a longer value
+  // or a wider font — at the cost of flipping sooner than the kit does in a
+  // desktop column, where there is still room to the right.
+  //
+  // Re-checked for the Overview elevation card, which is the other host and a
+  // tighter one: a `Card` has no `overflow-hidden` to clip a chip that escapes,
+  // and its plot is 212px rather than 220px. It is still safe, because its chip
+  // is also smaller ("1234 m" is ~67px against that 77px), so the right edge
+  // lands at 0.62 x 212 + 12 + 67 = 210px — inside the 212px plot, before
+  // touching the card's 20px padding. Re-derive BOTH if this moves.
   const shouldFlipReadout = x / width > 0.62
 
   return (
@@ -711,9 +720,13 @@ const ChartHoverMarker: FC<{
           the rendered box; the vertical clamp keeps it inside the plot when
           the sample sits against the top or bottom of the scale.
           `aria-hidden` because it is the running commentary on a pointer
-          gesture: the numbers it shows are already in the panel header's
-          "Scale …", and a screen reader would otherwise meet a bare figure
-          with no context, attached to a control it cannot drive.
+          gesture, which a screen reader would otherwise meet as a bare figure
+          with no context, attached to a control it cannot drive. Note the
+          Analysis panel also prints the same range in its "Scale …" header
+          while the elevation card does not, so on that card the scrubbed
+          value is genuinely pointer-only — the same gap the charts already
+          have for a keyboard user, and a follow-up rather than something this
+          chip should paper over with a live region.
           Keeping it inside the panel is the flip threshold's job, not a
           `max-width`'s — the chip is clipped by where it is positioned, and
           a cap wide enough to never truncate the text is also too wide to
@@ -921,12 +934,19 @@ const ElevationProfileChart: FC<{
   )
   // Four ticks, not the helper's default six. This card is narrower than the
   // Analysis panel (a `p-5` Card inside the same column, so 212px of content at
-  // the 320px reflow target against that panel's 220px) and `justify-between`
-  // gives a label row no way to wrap: six H:MM:SS labels need 222px and six
-  // HH:MM:SS labels 239px, so anything past ~2h30 rendered as one unbroken run
-  // of digits and anything past ~5h crossed the card's own border, since a Card
-  // has no `overflow-hidden` to clip it the way that panel does. Four labels
-  // are 167px / 195px, which still leaves real gaps at 320px.
+  // the 320px reflow target against that panel's 220px), `justify-between`
+  // gives a label row no way to wrap, and a Card has no `overflow-hidden` to
+  // clip a row that outgrows it the way that panel does — so an over-wide row
+  // here runs its labels together into one unbroken string of digits and then
+  // crosses the card's own border.
+  //
+  // Worked at 11px tabular-nums, where "0:00" is ~24px and one "H:MM:SS" label
+  // ~42px (a five-hour ride, the point at which every tick but the first has
+  // taken the wider form): six labels need 24 + 5x42 = 234px against 212px,
+  // while four need 24 + 3x42 = 150px and keep ~20px between each. A ten-hour
+  // ride widens every label again to ~49px, which is 269px at six ticks and a
+  // still-comfortable 171px at four. Pinned by a test, since the failure is
+  // silent — nothing errors, the labels just merge.
   const xLabels = useMemo(
     () => (durationSeconds ? buildXAxisLabels(durationSeconds, 4) : null),
     [durationSeconds]
