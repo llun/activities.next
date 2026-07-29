@@ -146,12 +146,26 @@ const EnvAreaBuilder: FC<{ area: EnvTemplateArea }> = ({ area }) => {
     const fieldLines = choice.fields.flatMap<EnvBlockLine>((field) => {
       const value = (values[field.name] ?? '').trim()
       // An optional variable only belongs in the block once it has a value; a
-      // required one carries its placeholder as a visible to-do.
+      // required one is always listed as a visible to-do, carrying its
+      // `defaultValue` if it has one and otherwise nothing at all.
+      //
+      // Never its placeholder. A placeholder is an example for the input beside
+      // it, and pasting one as a value boots a real configuration out of it:
+      // `ACTIVITIES_MEDIA_STORAGE_BUCKET=media.example.social` would point a
+      // live instance's uploads at a bucket the operator does not own.
+      //
+      // `NAME=` is inert instead: a blank required value is rejected by both
+      // storage resolvers (`requiredStorageValue` in lib/config/storageValue),
+      // which disable that storage and warn, and the map provider falls back to
+      // keyless OpenStreetMap. Note "rejected", not "treated as unset" — an
+      // UNSET required value is passed through to `Config.parse`, where
+      // `z.string()` rejects it and the whole config fails to load. Blank
+      // disables one backend; missing stops the app.
       if (field.optional && !value) return []
       return [
         {
           name: field.name,
-          value: value || field.placeholder,
+          value: value || field.defaultValue || '',
           masked: Boolean(field.secret && value)
         }
       ]

@@ -10,6 +10,8 @@ import {
   within
 } from '@testing-library/react'
 
+import { ENV_TEMPLATE_AREAS } from '@/lib/config/environmentTemplates'
+
 import { EnvBlockBuilder } from './EnvBlockBuilder'
 
 const STORAGE_AREA = 'Media storage — filesystem or S3'
@@ -80,8 +82,8 @@ describe('EnvBlockBuilder', () => {
     const area = activeArea(STORAGE_AREA)
 
     // A variable name appears once as the field's help and once more in the
-    // preview. Required variables carry their placeholder as a visible to-do;
-    // the optional endpoint is absent from the block entirely.
+    // preview. Required variables are listed empty as a visible to-do; the
+    // optional endpoint is absent from the block entirely.
     expect(area.getAllByText('ACTIVITIES_MEDIA_STORAGE_BUCKET')).toHaveLength(2)
     expect(area.getAllByText('ACTIVITIES_MEDIA_STORAGE_ENDPOINT')).toHaveLength(
       1
@@ -210,4 +212,130 @@ describe('EnvBlockBuilder', () => {
       'media.example.social'
     )
   })
+
+  // The invariant that keeps an unfilled block from booting a real
+  // configuration, checked against the string the COPY button actually writes
+  // — the preview's textContent has no newlines, so scraping it cannot see
+  // individual lines at all, and splitting it yields one concatenated blob that
+  // can only ever observe the last value.
+  //
+  // A placeholder is the *input's* example; emitting it as the value produced
+  // lines an operator could paste verbatim and have work.
+  // `ACTIVITIES_MEDIA_STORAGE_BUCKET=media.example.social` would point a live
+  // instance's uploads at a bucket nobody involved owns. A `defaultValue` is
+  // the exception and is emitted, because it is a correct value rather than an
+  // example.
+  describe.each(
+    ENV_TEMPLATE_AREAS.flatMap((area) =>
+      area.choices.map((choice) => ({
+        area: area.value,
+        label: area.label,
+        choice: choice.value,
+        selectorName: area.selectorName,
+        selectorLabel: area.selectorLabel,
+        fields: choice.fields
+      }))
+    )
+  )(
+    '$area/$choice block',
+    ({ area, label, choice, selectorName, selectorLabel, fields }) => {
+      const copiedBlock = async (typed?: Record<string, string>) => {
+        render(<EnvBlockBuilder />)
+        selectArea(area)
+        const scope = activeArea(label)
+        // The descriptor's own label, not a regex guess: a third area, or a field
+        // ever labelled "Endpoint type", would break or double-match a pattern.
+        fireEvent.change(scope.getByLabelText(selectorLabel), {
+          target: { value: choice }
+        })
+        for (const [fieldLabel, value] of Object.entries(typed ?? {})) {
+          fireEvent.change(scope.getByLabelText(fieldLabel), {
+            target: { value }
+          })
+        }
+        fireEvent.click(scope.getByRole('button', { name: 'Copy .env block' }))
+        await waitFor(() => expect(writeText).toHaveBeenCalled())
+        return writeText.mock.calls.at(-1)![0] as string
+      }
+
+      const required = fields.filter((field) => !field.optional)
+
+      it('lists every required variable and no optional one', async () => {
+        const block = await copiedBlock()
+        const names = block.split('\n').map((line) => line.split('=')[0])
+
+        for (const field of required) expect(names).toContain(field.name)
+        for (const field of fields.filter((f) => f.optional)) {
+          expect(names).not.toContain(field.name)
+        }
+        expect(names).toContain(selectorName)
+        // Guards the vacuous pass: an empty block satisfies every "not present"
+        // assertion above on its own.
+        expect(names.filter(Boolean).length).toBe(required.length + 1)
+      })
+
+      // A placeholder may only reach the block when it is *also* the field's
+      // declared default — i.e. a correct value that happens to double as the
+      // example, like `./uploads`. Anything else is someone else's bucket, token
+      // or key. `environmentTemplates.test.ts` pins which fields are allowed that
+      // exemption, by name and value, so this skip cannot be widened silently.
+      it.each(fields.map((field) => ({ field })))(
+        'never emits $field.name as its placeholder',
+        async ({ field }) => {
+          const block = await copiedBlock()
+          const line = block
+            .split('\n')
+            .find((candidate) => candidate.startsWith(`${field.name}=`))
+          if (!line || field.defaultValue === field.placeholder) return
+          expect(line.slice(field.name.length + 1)).not.toBe(field.placeholder)
+        }
+      )
+
+      it('leaves an unfilled required variable empty unless it has a default', async () => {
+        const block = await copiedBlock()
+
+        for (const field of required) {
+          const line = block
+            .split('\n')
+            // The non-null assertion is load-bearing: softening it to `?.` would
+            // make this test pass vacuously for a variable missing from the
+            // block entirely. That case must throw.
+            .find((candidate) => candidate.startsWith(`${field.name}=`))!
+          expect(line.slice(field.name.length + 1)).toBe(
+            field.defaultValue ?? ''
+          )
+        }
+      })
+
+      // The third branch of `value || field.defaultValue || ''`. Without this a
+      // field that HAS a default is never typed into anywhere in the suite, so
+      // reordering to `field.defaultValue || value` — which silently discards
+      // everything the admin types into "Media directory" — stays green.
+      it.each(required.map((field) => ({ field })))(
+        'emits what was typed into $field.name, over any default',
+        async ({ field }) => {
+          const typedValue = `/typed/${field.name.toLowerCase()}`
+          const block = await copiedBlock({ [field.label]: typedValue })
+
+          expect(block).toContain(`${field.name}=${typedValue}`)
+        }
+      )
+
+      // Trimming runs before the `||`, so whitespace is not a value and the
+      // default (or emptiness) must win — never `NAME=   `.
+      it.each(required.map((field) => ({ field })))(
+        'treats a whitespace-only $field.name as unfilled',
+        async ({ field }) => {
+          const block = await copiedBlock({ [field.label]: '   ' })
+          const line = block
+            .split('\n')
+            .find((candidate) => candidate.startsWith(`${field.name}=`))!
+
+          expect(line.slice(field.name.length + 1)).toBe(
+            field.defaultValue ?? ''
+          )
+        }
+      )
+    }
+  )
 })
