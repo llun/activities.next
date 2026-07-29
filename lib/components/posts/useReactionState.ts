@@ -65,8 +65,9 @@ interface UseReactionStateParams {
  * The reaction rollups of one status, shared by the chip row (`ReactionRow`)
  * and the action-bar trigger (`ReactionButton`). They are two pieces of the
  * same control in different places on the post, so the writes, the busy state
- * and the error have to be one state — and the owner (`Post`, or the fitness
- * detail, which composes its own action row) holds it.
+ * and the error have to be one state — and whoever lays out the post holds it:
+ * `Post`, or the fitness activity detail, which builds its own card and so
+ * places the chip row itself and passes this state into `Actions`.
  *
  * Reactions are NOT favourites: nothing here touches the like button's state.
  */

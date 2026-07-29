@@ -140,6 +140,13 @@ const buildStatus = (overrides: Partial<StatusNote> = {}): StatusNote =>
     ...overrides
   }) as unknown as StatusNote
 
+const buildReactedStatus = (): StatusNote =>
+  buildStatus({
+    reactions: [
+      { name: '\u{1F525}', count: 3, me: false, url: null, static_url: null }
+    ]
+  } as Partial<StatusNote>)
+
 const routeData: FitnessRouteDataResponse = {
   samples: [
     { lat: 13.7, lng: 100.5, elapsedSeconds: 0 },
@@ -465,17 +472,32 @@ describe('FitnessStatusDetail', () => {
       return screen.findByTestId('analysis-graphs')
     }
 
+    // jsdom lays nothing out, so every chart reports a zero-size box and the
+    // pointer ratio saturates at 1 wherever you "move" to — which cannot tell a
+    // correct mapping from a handler that always reports the end of the
+    // activity. Give the plot a real box so the offset, the division and the
+    // clamp are all exercised.
+    const hoverChart = (panel: HTMLElement, clientX: number) => {
+      const [elevationChart] = Array.from(panel.querySelectorAll('svg'))
+      elevationChart.getBoundingClientRect = () =>
+        ({ left: 100, width: 400 }) as DOMRect
+      fireEvent.mouseMove(elevationChart, { clientX })
+      return elevationChart
+    }
+
     it('stacks every visible graph into one panel instead of separate cards', async () => {
       const panel = await openAnalysis()
 
-      // One shared panel, four rows — not four independently bordered cards
-      // with gaps between them.
-      expect(screen.getAllByTestId('analysis-graphs')).toHaveLength(1)
       expect(
         within(panel)
           .getAllByRole('heading', { level: 3 })
           .map((heading) => heading.textContent)
       ).toEqual(['Elevation profile', 'Speed', 'Power', 'Heart rate'])
+      // Each row is flush: the border and the rounding belong to the shared
+      // panel. None of this is observable in jsdom, and without it the stack
+      // silently goes back to four separately bordered cards.
+      expect(panel).toHaveClass('overflow-hidden', 'rounded-xl', 'border')
+      expect(panel.querySelectorAll('.rounded-xl')).toHaveLength(0)
     })
 
     it('keeps the single panel when the display is filtered to one graph', async () => {
@@ -496,25 +518,106 @@ describe('FitnessStatusDetail', () => {
 
       expect(screen.queryAllByTestId('chart-hover-value')).toHaveLength(0)
 
-      // jsdom reports a zero-width box, so the pointer ratio collapses to
-      // clientX clamped into 0..1 — clientX 1 is the end of the activity.
-      const [elevationChart] = Array.from(panel.querySelectorAll('svg'))
-      fireEvent.mouseMove(elevationChart, { clientX: 1 })
+      // A quarter of the way across => 450s of a 1800s ride => sample index 1.
+      const elevationChart = hoverChart(panel, 200)
 
       // Hovering one graph highlights the same instant on all of them, so each
       // reports its own value at that time.
       const readouts = screen.getAllByTestId('chart-hover-value')
       expect(readouts).toHaveLength(4)
       expect(readouts.map((readout) => readout.textContent)).toEqual([
-        '30m',
-        '16.0km/h',
-        '60w',
-        '140bpm'
+        '24m',
+        '22.0km/h',
+        '150w',
+        '130bpm'
       ])
-      expect(screen.getByText('Selected time: 30:00')).toBeInTheDocument()
+      expect(screen.getByText('Selected time: 7:30')).toBeInTheDocument()
 
       fireEvent.mouseLeave(elevationChart)
       expect(screen.queryAllByTestId('chart-hover-value')).toHaveLength(0)
+    })
+
+    it('marks the highlighted point in each series own colour', async () => {
+      const panel = await openAnalysis()
+
+      hoverChart(panel, 200)
+
+      // Every crosshair used to share the speed chart's blue, which made a
+      // stacked graph unidentifiable by its own colour.
+      expect(
+        screen
+          .getAllByTestId('chart-hover-dot')
+          .map((dot) => dot.getAttribute('class'))
+      ).toEqual([
+        expect.stringContaining('bg-slate-400'),
+        expect.stringContaining('bg-sky-500'),
+        expect.stringContaining('bg-violet-500'),
+        expect.stringContaining('bg-rose-500')
+      ])
+      // HTML, not an SVG `circle`: under `preserveAspectRatio="none"` a circle
+      // renders as an ellipse whose shape changes with the column width.
+      expect(panel.querySelectorAll('circle')).toHaveLength(0)
+    })
+
+    it('keeps the heart-rate time axis aligned across a sensor dropout', async () => {
+      // The strap picks up only halfway in. Dropping those samples instead of
+      // holding the first real reading would compact the series and slide the
+      // whole heart-rate axis left, so the readout would report an instant the
+      // other three graphs are not showing.
+      mockGetFitnessRouteData.mockResolvedValue({
+        ...routeData,
+        heartRateSeries: [0, 0, 0, 120, 140, 160]
+      })
+
+      const panel = await openAnalysis()
+      hoverChart(panel, 200)
+
+      const readouts = screen.getAllByTestId('chart-hover-value')
+      expect(readouts.map((readout) => readout.textContent)).toEqual([
+        '24m',
+        '22.0km/h',
+        '150w',
+        // Index 1 of the held series [120,120,120,120,140,160] — still the
+        // reading for 7:30, not the second POSITIVE sample (140).
+        '120bpm'
+      ])
+    })
+
+    it('reports a value that rounds to zero without a negative sign', async () => {
+      // A downsampled elevation bin straddling sea level averages just below
+      // zero, and `toFixed` keeps the sign: the readout used to read "-0 m".
+      mockGetFitnessRouteData.mockResolvedValue({
+        ...routeData,
+        altitudeSeries: [10, -0.3, 40, 55, 48, 30]
+      })
+
+      const panel = await openAnalysis()
+      hoverChart(panel, 200)
+
+      expect(screen.getAllByTestId('chart-hover-value')[0]).toHaveTextContent(
+        /^0m$/
+      )
+    })
+
+    it.each([
+      {
+        description: 'right of the dot away from the edge',
+        clientX: 200,
+        transform: 'translate(12px, -50%)'
+      },
+      {
+        description: 'flipped left of the dot near the end',
+        clientX: 480,
+        transform: 'translate(calc(-100% - 12px), -50%)'
+      }
+    ])('places the readout $description', async ({ clientX, transform }) => {
+      const panel = await openAnalysis()
+
+      hoverChart(panel, clientX)
+
+      for (const readout of screen.getAllByTestId('chart-hover-value')) {
+        expect(readout).toHaveStyle({ transform })
+      }
     })
   })
 
@@ -747,6 +850,13 @@ describe('FitnessStatusDetail', () => {
           .getAllByRole('button')
           .map((button) => button.textContent)
       ).toEqual(['Reply', 'Boost', 'Like', 'Bookmark', '', 'More'])
+      // Neither class is observable in jsdom and both are load-bearing: the
+      // card footer's own padding already puts the row at the status's left
+      // edge, so the avatar-column pull would drag it outside the card, and
+      // `justify-between` is what makes the spacing between actions identical
+      // to every other surface.
+      expect(actions).not.toHaveClass('-ml-13')
+      expect(actions).toHaveClass('justify-between')
     })
 
     it('renders no action row for a logged-out reader', () => {
@@ -759,24 +869,13 @@ describe('FitnessStatusDetail', () => {
   })
 
   describe('reactions', () => {
-    // This page composes its own action row instead of going through `Posts`,
-    // so both halves of the reaction control have to be wired by hand here —
-    // and a fitness post is the one surface where losing either of them means
-    // an existing reaction is invisible or a new one cannot be added.
+    // This page lays out its own card instead of going through `Posts`, so it
+    // has to place the chip row itself and hand the same state to the shared
+    // `Actions` row — a fitness post is the one surface where losing either
+    // half means an existing reaction is invisible or a new one cannot be
+    // added.
     it('renders the reaction chips above the action row', () => {
-      renderDetail({
-        status: buildStatus({
-          reactions: [
-            {
-              name: '\u{1F525}',
-              count: 3,
-              me: false,
-              url: null,
-              static_url: null
-            }
-          ]
-        } as Partial<StatusNote>)
-      })
+      renderDetail({ status: buildReactedStatus() })
 
       expect(
         screen.getByLabelText('Add \u{1F525} reaction, 3')
@@ -784,42 +883,20 @@ describe('FitnessStatusDetail', () => {
     })
 
     it('places the chips in the card body under the stats, not in the action strip', () => {
-      renderDetail({
-        status: buildStatus({
-          reactions: [
-            {
-              name: '\u{1F525}',
-              count: 3,
-              me: false,
-              url: null,
-              static_url: null
-            }
-          ]
-        } as Partial<StatusNote>)
-      })
+      renderDetail({ status: buildReactedStatus() })
 
-      const body = screen.getByTestId('reaction-chips')
-        .parentElement as HTMLElement
-      expect(within(body).getByText('Distance')).toBeInTheDocument()
-      expect(
-        within(body).queryByRole('group', { name: 'Post actions' })
-      ).not.toBeInTheDocument()
+      // Anchored on the stat grid's own container rather than the chips'
+      // parent, so wrapping the chips in one more div doesn't fail this.
+      const cardBody = screen.getByText('Distance').closest('div.grid')
+        ?.parentElement as HTMLElement
+      expect(cardBody).toContainElement(screen.getByTestId('reaction-chips'))
+      expect(cardBody).not.toContainElement(
+        screen.getByRole('group', { name: 'Post actions' })
+      )
     })
 
     it('offers the picker trigger in its action row', () => {
-      renderDetail({
-        status: buildStatus({
-          reactions: [
-            {
-              name: '\u{1F525}',
-              count: 3,
-              me: false,
-              url: null,
-              static_url: null
-            }
-          ]
-        } as Partial<StatusNote>)
-      })
+      renderDetail({ status: buildReactedStatus() })
 
       expect(
         screen.getByRole('button', { name: 'Add reaction, 3 reactions' })
@@ -827,20 +904,7 @@ describe('FitnessStatusDetail', () => {
     })
 
     it('leaves a logged-out reader the chips without a way to react', () => {
-      renderDetail({
-        currentActor: null,
-        status: buildStatus({
-          reactions: [
-            {
-              name: '\u{1F525}',
-              count: 3,
-              me: false,
-              url: null,
-              static_url: null
-            }
-          ]
-        } as Partial<StatusNote>)
-      })
+      renderDetail({ currentActor: null, status: buildReactedStatus() })
 
       expect(
         screen.getByRole('img', { name: '\u{1F525} reaction, 3' })

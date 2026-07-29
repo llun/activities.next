@@ -208,13 +208,19 @@ const ANALYSIS_GRAPH_OPTIONS: Array<{
 // every crosshair sharing the speed chart's blue.
 const ANALYSIS_GRAPH_STYLES: Record<
   AnalysisGraphKey,
-  { stroke: string; fill: string }
+  { stroke: string; dot: string }
 > = {
-  elevation: { stroke: 'stroke-slate-400', fill: 'fill-slate-400' },
-  speed: { stroke: 'stroke-sky-500', fill: 'fill-sky-500' },
-  power: { stroke: 'stroke-violet-500', fill: 'fill-violet-500' },
-  'heart-rate': { stroke: 'stroke-rose-500', fill: 'fill-rose-500' }
+  elevation: { stroke: 'stroke-slate-400', dot: 'bg-slate-400' },
+  speed: { stroke: 'stroke-sky-500', dot: 'bg-sky-500' },
+  power: { stroke: 'stroke-violet-500', dot: 'bg-violet-500' },
+  'heart-rate': { stroke: 'stroke-rose-500', dot: 'bg-rose-500' }
 }
+
+// `toFixed` keeps the sign of a value that rounds to zero, so an elevation bin
+// straddling sea level reads "-0 m". Round first, then add zero — `-0 + 0` is
+// `+0` — so the readout can only ever show a plain "0".
+const formatReadoutValue = (value: number, fractionDigits: number) =>
+  (Number(value.toFixed(fractionDigits)) + 0).toFixed(fractionDigits)
 
 const VISIBILITY_META: Record<
   MastodonVisibility,
@@ -710,7 +716,7 @@ const ChartPanel: FC<{
   title: string
   unit: string
   strokeClassName?: string
-  fillClassName?: string
+  dotClassName?: string
   values: number[]
   minLabel?: string
   maxLabel?: string
@@ -734,7 +740,7 @@ const ChartPanel: FC<{
   unit,
   values,
   strokeClassName,
-  fillClassName,
+  dotClassName,
   minLabel,
   maxLabel,
   fractionDigits = 0,
@@ -843,31 +849,38 @@ const ChartPanel: FC<{
             className={cn('stroke-[2]', strokeClassName ?? 'stroke-sky-500')}
           />
           {isHighlighted ? (
-            <>
-              <line
-                x1={highlightedX}
-                y1={0}
-                x2={highlightedX}
-                y2={height}
-                vectorEffect="non-scaling-stroke"
-                className={cn(
-                  'stroke-[1.5] opacity-60',
-                  strokeClassName ?? 'stroke-sky-500'
-                )}
-              />
-              <circle
-                cx={highlightedX}
-                cy={highlightedY}
-                r={4.5}
-                vectorEffect="non-scaling-stroke"
-                className={cn(
-                  'stroke-background stroke-[2]',
-                  fillClassName ?? 'fill-sky-500'
-                )}
-              />
-            </>
+            <line
+              x1={highlightedX}
+              y1={0}
+              x2={highlightedX}
+              y2={height}
+              vectorEffect="non-scaling-stroke"
+              className={cn(
+                'stroke-[1.5] opacity-60',
+                strokeClassName ?? 'stroke-sky-500'
+              )}
+            />
           ) : null}
         </svg>
+        {/* The dot is HTML, not an SVG `circle`: `preserveAspectRatio="none"`
+            scales x and y independently, so a circle renders as an ellipse that
+            is half again as wide as it is tall in a desktop column and nearly
+            twice as tall as wide on a phone. Positioned by the same percentage
+            mapping as the readout — exact under that same `none`. */}
+        {isHighlighted ? (
+          <span
+            aria-hidden="true"
+            data-testid="chart-hover-dot"
+            className={cn(
+              'pointer-events-none absolute z-10 size-[11px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background',
+              dotClassName ?? 'bg-sky-500'
+            )}
+            style={{
+              left: `${(highlightedX / width) * 100}%`,
+              top: `${(highlightedY / height) * 100}%`
+            }}
+          />
+        ) : null}
         {/* Value readout pinned to the hover dot. Percentage positioning works
             because `preserveAspectRatio="none"` maps the viewBox linearly onto
             the rendered box; the vertical clamp keeps it inside the plot when
@@ -885,7 +898,7 @@ const ChartPanel: FC<{
             }}
           >
             <span className="text-sm font-semibold leading-none tabular-nums text-foreground">
-              {highlightedValue.toFixed(fractionDigits)}
+              {formatReadoutValue(highlightedValue, fractionDigits)}
             </span>
             <span className="text-[10px] leading-none text-muted-foreground">
               {unit}
@@ -1656,13 +1669,32 @@ export const FitnessStatusDetail: FC<Props> = ({
     return Math.round((avgPower * durationSeconds) / 1000)
   }, [avgPower, durationSeconds])
 
-  // Heart-rate monitors report 0 bpm during sensor dropouts; exclude those so
-  // the avg/max, the Analysis chart, and the zone buckets all agree (unlike
+  // Heart-rate monitors report 0 bpm during sensor dropouts; exclude those from
+  // the avg/max and the zone buckets, which are order-free tallies (unlike
   // power, 0 bpm is never a real reading). Mirrors computeHeartRateZones.
   const positiveHeartRateSeries = useMemo(
     () => heartRateSeries.filter((bpm) => bpm > 0),
     [heartRateSeries]
   )
+
+  // The Analysis chart cannot use that filtered array: it maps sample INDEX to
+  // elapsed time positionally, so dropping samples slides the whole heart-rate
+  // axis left and the readout reports the wrong instant — a strap that takes
+  // ten minutes of a thirty-minute ride to pick up would put the halfway
+  // crosshair on the reading recorded at 20:00, with the other three graphs
+  // beside it correctly on 15:00 and nothing on screen to say so. Hold the last
+  // good reading across a gap instead (back-filling a leading one), which keeps
+  // the length and still keeps 0 bpm off the plot.
+  const heartRateChartSeries = useMemo(() => {
+    const firstReading = heartRateSeries.find((bpm) => bpm > 0)
+    if (firstReading === undefined) return []
+
+    let lastReading = firstReading
+    return heartRateSeries.map((bpm) => {
+      if (bpm > 0) lastReading = bpm
+      return lastReading
+    })
+  }, [heartRateSeries])
 
   const heartRateStats = useMemo(() => {
     if (positiveHeartRateSeries.length === 0) return null
@@ -1682,15 +1714,15 @@ export const FitnessStatusDetail: FC<Props> = ({
   const activitySeries = useMemo(() => {
     return {
       heartRate:
-        positiveHeartRateSeries.length > 0
-          ? downsampleSeries(positiveHeartRateSeries, 120)
+        heartRateChartSeries.length > 0
+          ? downsampleSeries(heartRateChartSeries, 120)
           : [],
       power: powerSeries.length > 0 ? downsampleSeries(powerSeries, 120) : [],
       speed: speedSeries.length > 0 ? downsampleSeries(speedSeries, 120) : [],
       elevation:
         altitudeSeries.length > 0 ? downsampleSeries(altitudeSeries, 120) : []
     }
-  }, [positiveHeartRateSeries, powerSeries, speedSeries, altitudeSeries])
+  }, [heartRateChartSeries, powerSeries, speedSeries, altitudeSeries])
   const { minValue: elevationMin, maxValue: elevationMax } = useMemo(
     () => getSeriesMinMax(activitySeries.elevation),
     [activitySeries.elevation]
@@ -2349,7 +2381,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                       unit={chart.unit}
                       values={chart.values}
                       strokeClassName={ANALYSIS_GRAPH_STYLES[chart.key].stroke}
-                      fillClassName={ANALYSIS_GRAPH_STYLES[chart.key].fill}
+                      dotClassName={ANALYSIS_GRAPH_STYLES[chart.key].dot}
                       minLabel={chart.minLabel}
                       maxLabel={chart.maxLabel}
                       fractionDigits={chart.fractionDigits}

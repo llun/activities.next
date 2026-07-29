@@ -373,12 +373,15 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   the far right. Do **not** put `ml-auto` back on the `⋯` wrapper: an auto
   margin absorbs all the free space before `justify-content` sees it, which
   collapses the row back to a left-packed cluster.
-  The pull is `Actions`' `fullBleed` prop, on by default and turned **off** only
-  by a surface that has no avatar column to pull back over (the fitness activity
-  detail's card footer, whose own padding already puts the row at the status's
-  left edge). `justify-between` is not optional either way — that is what makes
-  the spacing between actions identical on every surface, so give the row the
-  full width rather than seating it beside something else.
+  Each row owns a separate `fullBleed` prop and the two default **differently**:
+  `Actions` pulls unless a caller opts out, while `ReactionRow` pulls only when
+  asked (`Post` passes `fullBleed={showsActionRow}`, so chips with no action row
+  beneath them line up with the text instead of hanging off it). A surface with
+  no avatar column to pull back over turns both off — the fitness activity
+  detail's card, whose own padding already puts each row at the status's left
+  edge. `justify-between` is not optional either way: that is what makes the
+  spacing between actions identical on every surface, so give the row the full
+  width rather than seating it beside something else.
 - **The picker that ADDS a reaction lives in the action row, not beside the
   chips** (`ReactionButton`, showing `SmilePlus` + the running total). The chips
   are a read-out; a post with no reactions yet renders no chip row at all. Both
