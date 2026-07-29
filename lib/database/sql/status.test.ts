@@ -626,6 +626,104 @@ describe('StatusDatabase', () => {
         })
       })
 
+      it('reports a recorded map failure as a kind, never as the reason', async () => {
+        const statusId = `${emptyActorId}/statuses/fitness-map-failed`
+
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'This activity has no route map'
+        })
+
+        const fitnessFile = await database.createFitnessFile({
+          actorId: emptyActorId,
+          statusId,
+          path: `fitness/${Date.now()}-map-failed.fit`,
+          fileName: 'map-failed.fit',
+          fileType: 'fit',
+          mimeType: 'application/octet-stream',
+          bytes: 4096
+        })
+        await database.updateFitnessFileActivityData(fitnessFile!.id, {
+          mapError: 's3.internal.example: connection refused'
+        })
+        await database.updateFitnessFileProcessingStatus(
+          fitnessFile!.id,
+          'completed'
+        )
+
+        const status = (await database.getStatus({ statusId })) as StatusNote
+        // This payload is served to every viewer of the status, so it carries
+        // the fact and never the reason — a raw error string can name internal
+        // infrastructure. The owner reads the reason on their own files page.
+        expect(status.fitness?.mapFailure).toBe('missing')
+        expect(JSON.stringify(status.fitness)).not.toContain('s3.internal')
+        // The activity itself is fine and must stay usable everywhere.
+        expect(status.fitness?.processingStatus).toBe('completed')
+      })
+
+      it('distinguishes a stale map from a missing one', async () => {
+        const statusId = `${emptyActorId}/statuses/fitness-map-stale`
+
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'This activity still shows its previous route map'
+        })
+
+        const fitnessFile = await database.createFitnessFile({
+          actorId: emptyActorId,
+          statusId,
+          path: `fitness/${Date.now()}-map-stale.fit`,
+          fileName: 'map-stale.fit',
+          fileType: 'fit',
+          mimeType: 'application/octet-stream',
+          bytes: 4096
+        })
+        await database.updateFitnessFileActivityData(fitnessFile!.id, {
+          hasMapData: true,
+          mapImagePath: 'medias/old-route-map.webp',
+          mapError: 'tile server down'
+        })
+
+        // A failed regeneration keeps the map it could not replace, so the copy
+        // the post picks must not claim the activity has none.
+        const status = (await database.getStatus({ statusId })) as StatusNote
+        expect(status.fitness?.mapFailure).toBe('stale')
+      })
+
+      it('leaves mapFailure unset for an activity whose map is fine', async () => {
+        const statusId = `${emptyActorId}/statuses/fitness-map-ok`
+
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'This activity has a route map'
+        })
+
+        await database.createFitnessFile({
+          actorId: emptyActorId,
+          statusId,
+          path: `fitness/${Date.now()}-map-ok.fit`,
+          fileName: 'map-ok.fit',
+          fileType: 'fit',
+          mimeType: 'application/octet-stream',
+          bytes: 4096
+        })
+
+        const status = (await database.getStatus({ statusId })) as StatusNote
+        expect(status.fitness?.mapFailure).toBeUndefined()
+      })
+
       it('serializes movingTimeSeconds when present and omits it otherwise', async () => {
         const withStatusId = `${emptyActorId}/statuses/fitness-moving`
         await database.createNote({

@@ -3089,6 +3089,14 @@ export const StatusSQLDatabaseMixin = (
                 },
                 Date.now()
               ),
+              // The kind of problem, never the reason — see StatusFitnessFile.
+              ...(fitnessFile.mapError
+                ? {
+                    mapFailure: fitnessFile.hasMapData
+                      ? ('stale' as const)
+                      : ('missing' as const)
+                  }
+                : {}),
               ...(typeof fitnessFile.totalDistanceMeters === 'number'
                 ? { totalDistanceMeters: fitnessFile.totalDistanceMeters }
                 : null),

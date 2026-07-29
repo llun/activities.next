@@ -96,6 +96,9 @@ const Page = async ({
           statusId: fitnessFile.statusId ?? undefined,
           importStatus: fitnessFile.importStatus ?? undefined,
           importError: fitnessFile.importError ?? null,
+          mapError: fitnessFile.mapError ?? null,
+          hasMapData: fitnessFile.hasMapData ?? false,
+          isPrimary: fitnessFile.isPrimary ?? true,
           importBatchId: fitnessFile.importBatchId ?? undefined
         }))}
         hasRetriableImport={retriableBatchIds.length > 0}

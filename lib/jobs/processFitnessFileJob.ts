@@ -8,6 +8,12 @@ import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
+import {
+  ROUTE_MAP_ATTACHMENT_NAME,
+  findRouteMapAttachments,
+  getAttachmentMediaIds,
+  removeRouteMapAttachmentsAndMedia
+} from '@/lib/services/fitness-files/mapAttachments'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
 import {
   isParseableFitnessFileType,
@@ -28,6 +34,7 @@ import { EditableStatus, StatusType } from '@/lib/types/domain/status'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { createJobHandle } from './createJobHandle'
 import { PROCESS_FITNESS_FILE_JOB_NAME } from './names'
@@ -44,7 +51,15 @@ const JobData = z.object({
   // backfills alike — reusing it would mass-mail on a backfill. Only a genuine
   // first import sets this, and only an unattended importer sets it at all: a
   // direct upload needs no email, because the user is watching the composer.
-  notifyOnComplete: z.boolean().optional().default(false)
+  notifyOnComplete: z.boolean().optional().default(false),
+  // Set only by the per-status retry endpoint, and only for a file whose
+  // activity is fine and whose route map is not. It says: this run is a
+  // reprocess of a LIVE activity, so a failure here must not demote it.
+  //
+  // Deliberately passed in rather than read from the row: every publisher
+  // (including that endpoint) writes `pending`/`processing` before publishing,
+  // so by the time this job reads the file its previous status is already gone.
+  retryingMapFailure: z.boolean().optional().default(false)
 })
 
 const ACTIVITY_LABELS: Record<string, { label: string; emoji: string }> = {
@@ -162,7 +177,8 @@ const willSendImportEmail = async ({
       message:
         'Could not read email notification settings; storing the route map copy anyway',
       actorId: actor.id,
-      error: toImportErrorMessage(error, 'Unknown settings read error')
+      error: toImportErrorMessage(error, 'Unknown settings read error'),
+      err: toLoggableError(error)
     })
     return true
   }
@@ -226,7 +242,8 @@ const storeEmailMapImage = async ({
       actorId: actor.id,
       statusId,
       fitnessFileId,
-      error: toImportErrorMessage(error, 'Unknown route map copy error')
+      error: toImportErrorMessage(error, 'Unknown route map copy error'),
+      err: toLoggableError(error)
     })
     return undefined
   }
@@ -302,7 +319,7 @@ const notifyActivityImported = async ({
       actorId,
       statusId,
       fitnessFileId,
-      err: error instanceof Error ? error : new Error(String(error))
+      err: toLoggableError(error)
     })
   }
 }
@@ -315,7 +332,8 @@ export const processFitnessFileJob = createJobHandle(
       statusId,
       fitnessFileId,
       publishSendNote,
-      notifyOnComplete
+      notifyOnComplete,
+      retryingMapFailure
     } = JobData.parse(message.data)
 
     await database.updateFitnessFileProcessingStatus(
@@ -353,17 +371,91 @@ export const processFitnessFileJob = createJobHandle(
         buffer: fitnessBuffer
       })
 
-      // The reset below de-references any copy an earlier run stored, so delete
-      // the file too. A retry or a recovery script leaves notifyOnComplete
-      // false, so nothing would rewrite the column: without this the object is
-      // orphaned, and worse, if the owner added a privacy location before
-      // reprocessing, the old UNFILTERED route would stay fetchable at its
-      // unchanged URL.
-      await deleteEmailMapImage({
+      // The map this file already has on the status, matched by its own
+      // recorded path so a merged same-ride post never loses the other file's.
+      // Removed only once a replacement is safely stored — deleting up front
+      // means a run that then fails to render leaves the activity with no map
+      // at all, turning a failed reprocess into data loss. Same guard
+      // regenerateFitnessMapsJob makes.
+      const previousMapAttachments = await findRouteMapAttachments({
         database,
-        fitnessFileId,
-        mapImageEmailPath: fitnessFile.mapImageEmailPath
+        statusId,
+        mapImagePath: fitnessFile.mapImagePath
       })
+      if (fitnessFile.mapImagePath && previousMapAttachments.length === 0) {
+        // The file names a map that no attachment on the status matches — the
+        // two went out of step somewhere. Not fatal (the run below attaches a
+        // fresh map), but nothing will clean up whatever the pointer used to
+        // refer to, so it is not a state either side should reach.
+        logger.warn({
+          message: 'Recorded route map has no matching attachment to replace',
+          actorId,
+          statusId,
+          fitnessFileId,
+          mapImagePath: fitnessFile.mapImagePath
+        })
+      }
+
+      // Contained on purpose: by the time this runs the replacement is already
+      // stored, so a failure here costs a leftover file and nothing else. Left
+      // uncontained it would be recorded as a map-generation failure on a run
+      // that produced a perfectly good map (or, in the no-route branch, fail
+      // the whole activity) — the opposite of what the reason column is for.
+      // Returns whether the previous map is really gone. The caller keeps the
+      // file's pointer to it until then: the pointer is the only thing that can
+      // identify the attachment on a later run, and dropping it while the
+      // attachment survives leaves a route the owner asked to hide on a public
+      // post with nothing able to find it again.
+      const dropPreviousMap = async () => {
+        try {
+          await deleteEmailMapImage({
+            database,
+            fitnessFileId,
+            mapImageEmailPath: fitnessFile.mapImageEmailPath
+          })
+
+          if (previousMapAttachments.length === 0) return true
+          if (!actor.account) {
+            // Nothing can resolve the media rows without an account, and
+            // leaving the attachment in place shows the route twice.
+            logger.warn({
+              message:
+                'Cannot remove the previous route map: actor has no account',
+              actorId,
+              statusId,
+              fitnessFileId
+            })
+            return false
+          }
+
+          await removeRouteMapAttachmentsAndMedia({
+            database,
+            accountId: actor.account.id,
+            statusId,
+            attachmentIds: previousMapAttachments.map(
+              (attachment) => attachment.id
+            ),
+            mediaIds: getAttachmentMediaIds(previousMapAttachments)
+          })
+          return true
+        } catch (error) {
+          // Logged, not recorded on the file. The replacement is already
+          // stored and attached, so what a failure here leaves behind is a
+          // stale attachment — visible, but nothing the owner can act on: a
+          // retry would attach a third map, not remove the second. Recording it
+          // as a map failure needs a repair key that survives every later run,
+          // which a free-text column cannot be. `scripts/maintenance/
+          // cleanupMediaStorage.ts` is what reclaims the bytes.
+          logger.error({
+            message: 'Failed to remove the previous route map',
+            actorId,
+            statusId,
+            fitnessFileId,
+            err: toLoggableError(error)
+          })
+          return false
+        }
+      }
 
       await database.updateFitnessFileActivityData(fitnessFileId, {
         totalDistanceMeters: activityData.totalDistanceMeters,
@@ -372,9 +464,11 @@ export const processFitnessFileJob = createJobHandle(
         elevationGainMeters: activityData.elevationGainMeters,
         activityType: activityData.activityType,
         activityStartTime: activityData.startTime ?? null,
-        hasMapData: false,
-        mapImagePath: null,
-        mapImageEmailPath: null,
+        // Cleared up front so a re-run never shows the previous run's map
+        // failure while it is busy producing a map. The map columns themselves
+        // are NOT reset here: until a replacement exists, the map this file
+        // already has is the best it has.
+        mapError: null,
         // Only overwrite each device field when parsing found a value for it.
         // Preserves device info already set from other sources (e.g. Strava import).
         // Each field is guarded independently so a file with manufacturer-but-no-product-name
@@ -403,6 +497,18 @@ export const processFitnessFileJob = createJobHandle(
       // THIS run, which is exactly when the email is sent — a first import.
       let mapImageUrl: string | undefined
 
+      // Set when the route map could not be produced or stored. Recorded on the
+      // fitness file below rather than passing silently — a persistent map
+      // outage would otherwise produce map-less posts forever with no signal to
+      // the owner or the operator.
+      //
+      // It is deliberately NOT `processingStatus: 'failed'`: that flag means
+      // "this activity is not usable" and gates the status detail dashboard,
+      // the post's stat grid, the fitness overview, the profile's Fitness tab
+      // and every stats/heatmap rollup. The activity here parsed fine and its
+      // post federated — only the image is missing.
+      let mapErrorMessage: string | undefined
+
       if (filteredCoordinates.length >= 2) {
         try {
           const mapImageBuffer = await generateMapImage({
@@ -410,75 +516,138 @@ export const processFitnessFileJob = createJobHandle(
             routeSegments: visibleSegments
           })
 
-          if (mapImageBuffer) {
-            const mapImageBytes = new Uint8Array(mapImageBuffer)
-            const mapImageFile = new File(
-              [mapImageBytes],
-              `${fitnessFileId}-route-map.png`,
-              {
-                type: 'image/png'
-              }
-            )
-            const storedMap = await saveMedia(database, actor, {
-              file: mapImageFile,
-              description: `${fitnessFile.fileName} route map`
-            })
+          // The caller already established there is a route to draw, so an
+          // empty buffer here means the renderer produced nothing — a failure,
+          // not "this activity has no map". Treated as one in both jobs.
+          if (!mapImageBuffer) {
+            throw new Error('Generated map image buffer is empty')
+          }
 
-            if (!storedMap) {
-              logger.warn({
-                message: 'Failed to store generated route map image',
-                actorId,
-                statusId,
-                fitnessFileId
-              })
-            } else {
-              await database.createAttachment({
-                actorId,
-                statusId,
-                mediaType: storedMap.mime_type,
-                url: storedMap.url,
-                width: storedMap.meta.original.width,
-                height: storedMap.meta.original.height,
-                name: 'Activity route map',
-                mediaId: storedMap.id
-              })
+          const mapImageBytes = new Uint8Array(mapImageBuffer)
+          const mapImageFile = new File(
+            [mapImageBytes],
+            `${fitnessFileId}-route-map.png`,
+            {
+              type: 'image/png'
+            }
+          )
+          const storedMap = await saveMedia(database, actor, {
+            file: mapImageFile,
+            description: `${fitnessFile.fileName} route map`
+          })
 
-              await database.updateFitnessFileActivityData(fitnessFileId, {
-                hasMapData: true,
-                mapImagePath: getAttachmentMediaPath(storedMap.url)
-              })
+          if (!storedMap) {
+            throw new Error('Failed to store generated route map image')
+          }
 
-              // The WebP is what the post and every web surface use; the email
-              // prefers a JPEG copy, because Outlook desktop cannot decode
-              // WebP. Only store one when an email is genuinely going out,
-              // otherwise it is storage spent on an image nobody will ever
-              // fetch: a direct upload notifies no one, an instance with no
-              // email configured sends nothing, and the owner may have turned
-              // activity-import emails off.
-              mapImageUrl = (await willSendImportEmail({
+          await database.createAttachment({
+            actorId,
+            statusId,
+            mediaType: storedMap.mime_type,
+            url: storedMap.url,
+            width: storedMap.meta.original.width,
+            height: storedMap.meta.original.height,
+            name: ROUTE_MAP_ATTACHMENT_NAME,
+            mediaId: storedMap.id
+          })
+
+          await database.updateFitnessFileActivityData(fitnessFileId, {
+            hasMapData: true,
+            mapImagePath: getAttachmentMediaPath(storedMap.url),
+            mapImageEmailPath: null
+          })
+
+          // The replacement is stored and attached, so the previous map can go.
+          // Doing it here rather than up front is what keeps a failed reprocess
+          // from costing the activity the map it already had; doing it at all is
+          // what stops the post rendering the same route twice, and what stops a
+          // pre-privacy-filter image staying fetchable at its unchanged URL
+          // after the owner added a privacy location.
+          await dropPreviousMap()
+
+          // The WebP is what the post and every web surface use; the email
+          // prefers a JPEG copy, because Outlook desktop cannot decode WebP.
+          // Only store one when an email is genuinely going out, otherwise it
+          // is storage spent on an image nobody will ever fetch: a direct
+          // upload notifies no one, an instance with no email configured sends
+          // nothing, and the owner may have turned activity-import emails off.
+          mapImageUrl = (await willSendImportEmail({
+            database,
+            actor,
+            notifyOnComplete
+          }))
+            ? ((await storeEmailMapImage({
                 database,
                 actor,
-                notifyOnComplete
-              }))
-                ? ((await storeEmailMapImage({
-                    database,
-                    actor,
-                    statusId,
-                    fitnessFileId,
-                    mapImageFile
-                  })) ?? storedMap.url)
-                : storedMap.url
-            }
-          }
+                statusId,
+                fitnessFileId,
+                mapImageFile
+              })) ?? storedMap.url)
+            : storedMap.url
         } catch (error) {
-          const nodeError = error as Error
-          logger.warn({
-            message: 'Map generation failed; continuing without route map',
+          mapErrorMessage = toImportErrorMessage(
+            error,
+            'Unknown route map generation error'
+          )
+          logger.error({
+            message: 'Failed to generate route map for fitness activity',
             actorId,
             statusId,
             fitnessFileId,
-            error: nodeError.message
+            error: mapErrorMessage,
+            err: toLoggableError(error)
           })
+
+          try {
+            await database.updateFitnessFileActivityData(fitnessFileId, {
+              mapError: mapErrorMessage
+            })
+          } catch (writeError) {
+            // Recording the reason must never cost the import. Letting this
+            // reach the outer catch would mark a parsed activity `failed`, skip
+            // the summary backfill and skip the federation publish — the exact
+            // outcome this whole change exists to prevent, over a DB blip.
+            logger.error({
+              message: 'Failed to record the route map failure reason',
+              actorId,
+              statusId,
+              fitnessFileId,
+              err: toLoggableError(writeError)
+            })
+          }
+        }
+      } else {
+        // No route to draw (indoor activity, or a privacy zone that swallows
+        // the whole route). Any map this file used to have is now wrong — and
+        // in the privacy case it is the very route the owner just hid, so the
+        // pointer to it is kept unless the removal actually succeeded.
+        if (await dropPreviousMap()) {
+          await database.updateFitnessFileActivityData(fitnessFileId, {
+            hasMapData: false,
+            mapImagePath: null,
+            mapImageEmailPath: null
+          })
+        } else {
+          // Recorded here, unlike on the replace path: no replacement was
+          // attached, so a retry re-attempts exactly this removal instead of
+          // adding a third map — and until it succeeds the post is publicly
+          // showing the route the owner just hid. `hasMapData` is still true,
+          // so the owner reads it as "could not be updated", which is what it
+          // is.
+          mapErrorMessage = 'Failed to remove the route map'
+          await database
+            .updateFitnessFileActivityData(fitnessFileId, {
+              mapError: mapErrorMessage
+            })
+            .catch((writeError) => {
+              logger.error({
+                message: 'Failed to record the route map removal failure',
+                actorId,
+                statusId,
+                fitnessFileId,
+                err: toLoggableError(writeError)
+              })
+            })
         }
       }
 
@@ -493,6 +662,11 @@ export const processFitnessFileJob = createJobHandle(
         })
       }
 
+      // `completed` even when the map failed: the file parsed, the stats are
+      // stored and the post is live, so every surface gated on `completed` —
+      // the detail dashboard, the stat grid, the overview, the rollups — should
+      // show it. The missing map travels separately in `mapError`, which the
+      // post surfaces to its owner as a retry.
       await database.updateFitnessFileProcessingStatus(
         fitnessFileId,
         'completed'
@@ -508,7 +682,9 @@ export const processFitnessFileJob = createJobHandle(
       // enqueue-time call produced one as soon as the status existed. That is
       // intended — "your activity arrived" should not fire for an activity that
       // did not finish arriving — and the failure is already surfaced in the
-      // fitness UI with a retry affordance.
+      // fitness UI with a retry affordance. A map-only failure is not such a
+      // case: the activity arrived, so it notifies as usual, and the email
+      // simply carries no map image (`mapImageUrl` stays undefined).
       if (notifyOnComplete) {
         await notifyActivityImported({
           database,
@@ -530,6 +706,14 @@ export const processFitnessFileJob = createJobHandle(
         })
       }
 
+      // A replaced map is deliberately NOT federated from here. Whether the
+      // status was ever federated is not knowable in this job — the file
+      // importer creates local-only statuses, and a first import that failed
+      // never published its Create — so an Update from here would describe an
+      // object half the receivers have never seen. The user-facing path for
+      // re-federating a changed map is Regenerate maps, which knows the status
+      // is live because it only ever runs over existing ones.
+
       // Route heatmaps are intentionally NOT regenerated here. Importing an
       // activity only creates its status and route map; the memory-heavy
       // per-actor heatmap aggregation runs solely on explicit request (the
@@ -546,14 +730,63 @@ export const processFitnessFileJob = createJobHandle(
         actorId,
         statusId,
         fitnessFileId,
-        error: errorMessage
+        error: errorMessage,
+        err: toLoggableError(error)
       })
+
+      // A map retry runs against an activity that parsed, posted and federated
+      // already. Demoting it to `failed` because this run hit a storage timeout
+      // would hide a perfectly good activity from the detail dashboard, the
+      // stat grid, the overview, the profile's Fitness tab and every rollup —
+      // the exact harm this change exists to prevent. Record the reason as what
+      // it is, a map that is still missing, and leave the activity alone.
+      if (retryingMapFailure) {
+        try {
+          await database.updateFitnessFileActivityData(fitnessFileId, {
+            mapError: errorMessage
+          })
+          await database.updateFitnessFileProcessingStatus(
+            fitnessFileId,
+            'completed'
+          )
+          return
+        } catch (writeError) {
+          // Contained like every other reason-write here: rethrowing would
+          // leave the file in `processing` until the staleness window, which is
+          // the state this branch exists to avoid.
+          logger.error({
+            message: 'Failed to restore a retried activity after a failure',
+            actorId,
+            statusId,
+            fitnessFileId,
+            err: toLoggableError(writeError)
+          })
+          return
+        }
+      }
 
       await database.updateFitnessFileProcessingStatus(
         fitnessFileId,
         'failed',
         errorMessage
       )
+
+      // A whole-activity failure supersedes any map reason: the file's own
+      // status now carries the diagnostic, and leaving both set makes the
+      // fitness files page report a missing map instead of a failed import.
+      try {
+        await database.updateFitnessFileActivityData(fitnessFileId, {
+          mapError: null
+        })
+      } catch (writeError) {
+        logger.error({
+          message: 'Failed to clear the route map reason on a failed file',
+          actorId,
+          statusId,
+          fitnessFileId,
+          err: toLoggableError(writeError)
+        })
+      }
     }
   }
 )

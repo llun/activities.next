@@ -357,6 +357,11 @@ export const importFitnessFilesJob = createJobHandle(
           hasMapData: false,
           mapImagePath: null,
           mapImageEmailPath: null,
+          // The map is being redone from scratch, so a reason recorded for the
+          // previous one is stale. Left behind it would keep the status looking
+          // retriable forever — including on a file that ends up non-primary
+          // and is never supposed to own a map at all.
+          mapError: null,
           ...(activityData.deviceManufacturer !== undefined
             ? { deviceManufacturer: activityData.deviceManufacturer }
             : {}),

@@ -412,7 +412,8 @@ CREATE TABLE public.fitness_files (
     "deviceName" character varying(255),
     "sourceUrl" text,
     "movingTimeSeconds" real,
-    "mapImageEmailPath" character varying(255)
+    "mapImageEmailPath" character varying(255),
+    "mapError" text
 );
 
 CREATE TABLE public.fitness_import_locks (

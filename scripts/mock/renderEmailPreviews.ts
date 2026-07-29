@@ -226,6 +226,35 @@ const buildPreviews = (): Preview[] => [
       // makes the preview look broken. This shows the genuine no-GPS
       // degradation instead; the map slot is covered by blocks.test.ts.
     })
+  },
+  {
+    slug: 'activity-import-map-failed',
+    group: 'Fitness',
+    email: buildActivityImportEmail({
+      recipient: anna,
+      status: fixtureStatus(anna, 'Morning run', 'note-fit-88302'),
+      // The activity arrived but its route map did not, so the email still goes
+      // out with different copy — it must not promise a route the post has no
+      // way to show.
+      fitness: {
+        id: 'fitness-2',
+        actorId: anna.id,
+        path: 'fitness/evening-ride.fit',
+        fileName: 'evening-ride.fit',
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 143_000,
+        totalDistanceMeters: 31_334,
+        totalDurationSeconds: 4_614,
+        movingTimeSeconds: 4_374,
+        activityType: 'cycling',
+        activityStartTime: 1_700_000_000_000,
+        hasMapData: false,
+        mapError: 'Failed to store generated route map image',
+        createdAt: 1,
+        updatedAt: 1
+      }
+    })
   }
 ]
 

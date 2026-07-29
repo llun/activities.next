@@ -10,6 +10,12 @@ import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import {
+  ROUTE_MAP_ATTACHMENT_NAME,
+  findRouteMapAttachments,
+  getAttachmentMediaIds,
+  removeRouteMapAttachmentsAndMedia
+} from '@/lib/services/fitness-files/mapAttachments'
+import {
   isParseableFitnessFileType,
   parseFitnessFile
 } from '@/lib/services/fitness-files/parseFitnessFile'
@@ -17,12 +23,13 @@ import {
   getFitnessPrivacyLocations,
   getVisibleSegments
 } from '@/lib/services/fitness-files/privacy'
-import { deleteMediaFile, saveMedia } from '@/lib/services/medias'
+import { saveMedia } from '@/lib/services/medias'
 import { getQueue } from '@/lib/services/queue'
 import { StatusType } from '@/lib/types/domain/status'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { createJobHandle } from './createJobHandle'
 
@@ -52,64 +59,6 @@ const getFitnessFileBuffer = async (
   }
 
   return Buffer.from(await response.arrayBuffer())
-}
-
-const removeOldMapAttachmentsAndMedia = async ({
-  database,
-  accountId,
-  statusId,
-  oldAttachmentIds,
-  oldMediaIds
-}: {
-  database: Database
-  accountId: string
-  statusId: string
-  oldAttachmentIds: string[]
-  oldMediaIds: string[]
-}) => {
-  if (oldAttachmentIds.length > 0) {
-    await database.deleteAttachmentsByIds({
-      attachmentIds: oldAttachmentIds
-    })
-  }
-
-  for (const mediaId of oldMediaIds) {
-    const media = await database.getMediaByIdForAccount({
-      mediaId,
-      accountId
-    })
-
-    if (media) {
-      const filePaths = [
-        media.original.path,
-        ...(media.thumbnail ? [media.thumbnail.path] : [])
-      ]
-
-      const deletionResults = await Promise.allSettled(
-        filePaths.map((path) => deleteMediaFile(database, path))
-      )
-
-      deletionResults.forEach((result, index) => {
-        if (result.status === 'rejected' || !result.value) {
-          logger.warn({
-            message: 'Failed to delete legacy map media file from storage',
-            statusId,
-            mediaId,
-            path: filePaths[index]
-          })
-        }
-      })
-    }
-
-    const deletedMedia = await database.deleteMedia({ mediaId })
-    if (!deletedMedia) {
-      logger.warn({
-        message: 'Failed to delete legacy map media database record',
-        statusId,
-        mediaId
-      })
-    }
-  }
 }
 
 export const regenerateFitnessMapsJob = createJobHandle(
@@ -156,28 +105,13 @@ export const regenerateFitnessMapsJob = createJobHandle(
           throw new Error('Status not found for fitness file')
         }
 
-        const oldMapAttachments = (
-          await database.getAttachmentsWithMedia({ statusId })
-        ).filter((attachment) => {
-          if (attachment.name !== 'Activity route map') {
-            return false
-          }
-
-          if (!fitnessFile.mapImagePath) {
-            return false
-          }
-
-          const attachmentPath = getAttachmentMediaPath(attachment.url)
-          return attachmentPath === fitnessFile.mapImagePath
+        const oldMapAttachments = await findRouteMapAttachments({
+          database,
+          statusId,
+          mapImagePath: fitnessFile.mapImagePath
         })
         const oldAttachmentIds = oldMapAttachments.map((item) => item.id)
-        const oldMediaIds = [
-          ...new Set(
-            oldMapAttachments
-              .map((item) => item.mediaId ?? null)
-              .filter((value): value is string => Boolean(value))
-          )
-        ]
+        const oldMediaIds = getAttachmentMediaIds(oldMapAttachments)
 
         // A status carries at most one route map, owned by its primary fitness
         // file. A non-primary file (e.g. the second device of a merged
@@ -185,18 +119,33 @@ export const regenerateFitnessMapsJob = createJobHandle(
         // renders duplicate images. Heal such a file by removing any stray map
         // it owns and marking it done, without parsing or regenerating.
         if (fitnessFile.isPrimary === false) {
-          await removeOldMapAttachmentsAndMedia({
-            database,
-            accountId: actor.account.id,
-            statusId,
-            oldAttachmentIds,
-            oldMediaIds
-          })
+          // Contained like the other cleanup call: a stray map this file must
+          // not own is worth removing, but failing to remove it is not worth
+          // marking a fully parsed activity `failed` and hiding it everywhere.
+          try {
+            await removeRouteMapAttachmentsAndMedia({
+              database,
+              accountId: actor.account.id,
+              statusId,
+              attachmentIds: oldAttachmentIds,
+              mediaIds: oldMediaIds
+            })
+          } catch (error) {
+            logger.error({
+              message: 'Failed to remove a stray route map from a merged post',
+              actorId,
+              fitnessFileId,
+              err: toLoggableError(error)
+            })
+          }
 
           await database.updateFitnessFileActivityData(fitnessFileId, {
             hasMapData: false,
             mapImagePath: null,
-            mapImageEmailPath: null
+            mapImageEmailPath: null,
+            // This file is not supposed to own a map, so an earlier failure to
+            // produce one is not a pending problem.
+            mapError: null
           })
           await deleteEmailMapImage({
             database,
@@ -239,71 +188,174 @@ export const regenerateFitnessMapsJob = createJobHandle(
         const filteredCoordinates = visibleSegments.flat()
 
         let changedMapAttachment = false
+        // Set when this run's outcome is "this file should have no map".
+        let removeRecordedMap = false
+        // A map that cannot be rendered or stored is NOT a failed file. The
+        // activity is untouched by this job and still fully usable, while
+        // `processingStatus: 'failed'` would hide it from the status detail
+        // dashboard, the post's stat grid, the fitness overview, the profile's
+        // Fitness tab and every stats/heatmap rollup. Record the reason, keep
+        // the map the file already had, and leave the file `completed` — the
+        // same policy processFitnessFileJob applies on the import path.
+        let mapErrorMessage: string | undefined
 
         if (filteredCoordinates.length >= 2) {
-          const mapImageBuffer = await generateMapImage({
-            coordinates: filteredCoordinates,
-            routeSegments: visibleSegments
-          })
+          try {
+            const mapImageBuffer = await generateMapImage({
+              coordinates: filteredCoordinates,
+              routeSegments: visibleSegments
+            })
 
-          if (!mapImageBuffer) {
-            throw new Error('Generated map image buffer is empty')
+            if (!mapImageBuffer) {
+              throw new Error('Generated map image buffer is empty')
+            }
+
+            const mapImageBytes = new Uint8Array(mapImageBuffer)
+            const storedMap = await saveMedia(database, actor, {
+              file: new File(
+                [mapImageBytes],
+                `${fitnessFileId}-route-map.png`,
+                {
+                  type: 'image/png'
+                }
+              ),
+              description: `${fitnessFile.fileName} route map`
+            })
+
+            if (!storedMap) {
+              throw new Error('Failed to store generated route map image')
+            }
+
+            await database.createAttachment({
+              actorId,
+              statusId,
+              mediaType: storedMap.mime_type,
+              url: storedMap.url,
+              width: storedMap.meta.original.width,
+              height: storedMap.meta.original.height,
+              name: ROUTE_MAP_ATTACHMENT_NAME,
+              mediaId: storedMap.id
+            })
+
+            await database.updateFitnessFileActivityData(fitnessFileId, {
+              hasMapData: true,
+              mapImagePath: getAttachmentMediaPath(storedMap.url),
+              mapImageEmailPath: null,
+              mapError: null
+            })
+            changedMapAttachment = true
+          } catch (error) {
+            mapErrorMessage = toImportErrorMessage(
+              error,
+              'Unknown route map generation error'
+            )
+            logger.error({
+              message: 'Failed to regenerate route map for fitness activity',
+              actorId,
+              fitnessFileId,
+              error: mapErrorMessage,
+              err: toLoggableError(error)
+            })
           }
-
-          const mapImageBytes = new Uint8Array(mapImageBuffer)
-          const storedMap = await saveMedia(database, actor, {
-            file: new File([mapImageBytes], `${fitnessFileId}-route-map.png`, {
-              type: 'image/png'
-            }),
-            description: `${fitnessFile.fileName} route map`
-          })
-
-          if (!storedMap) {
-            throw new Error('Failed to store generated route map image')
-          }
-
-          await database.createAttachment({
-            actorId,
-            statusId,
-            mediaType: storedMap.mime_type,
-            url: storedMap.url,
-            width: storedMap.meta.original.width,
-            height: storedMap.meta.original.height,
-            name: 'Activity route map',
-            mediaId: storedMap.id
-          })
-
-          await database.updateFitnessFileActivityData(fitnessFileId, {
-            hasMapData: true,
-            mapImagePath: getAttachmentMediaPath(storedMap.url),
-            mapImageEmailPath: null
-          })
-          changedMapAttachment = true
         } else {
-          await database.updateFitnessFileActivityData(fitnessFileId, {
-            hasMapData: false,
-            mapImagePath: null,
-            mapImageEmailPath: null
-          })
+          // Nothing left to draw — the privacy case this job exists for. The
+          // pointer to the map being removed is kept until the removal below
+          // actually succeeds: it is the only thing that can identify that
+          // attachment on a later run, and the route it shows is the one the
+          // owner just hid.
+          removeRecordedMap = true
           changedMapAttachment = oldAttachmentIds.length > 0
         }
 
-        // The copy backed an email sent when the activity arrived, so there is
-        // nothing to replace it with — and after a privacy change it may show a
-        // route the owner has since hidden.
-        await deleteEmailMapImage({
-          database,
-          fitnessFileId,
-          mapImageEmailPath: fitnessFile.mapImageEmailPath
-        })
+        if (mapErrorMessage) {
+          // This run produced no replacement, so the removal below must not
+          // run: dropping the old map and its email copy would turn a failed
+          // regeneration into data loss. Record the reason and stop here.
+          //
+          // Contained: letting a write failure reach the catch below would mark
+          // an untouched, fully usable activity `failed` and hide it everywhere
+          // — the outcome this branch exists to avoid.
+          try {
+            await database.updateFitnessFileActivityData(fitnessFileId, {
+              mapError: mapErrorMessage
+            })
+            await database.updateFitnessFileProcessingStatus(
+              fitnessFileId,
+              'completed'
+            )
+          } catch (writeError) {
+            logger.error({
+              message: 'Failed to record the route map regeneration failure',
+              actorId,
+              fitnessFileId,
+              err: toLoggableError(writeError)
+            })
+          }
+          continue
+        }
 
-        await removeOldMapAttachmentsAndMedia({
-          database,
-          accountId: actor.account.id,
-          statusId,
-          oldAttachmentIds,
-          oldMediaIds
-        })
+        // Contained: the replacement already exists by now, so a cleanup
+        // failure costs a leftover file. Left uncontained it reaches the catch
+        // below and marks a regenerated, perfectly usable activity `failed` —
+        // hiding it from the detail dashboard, the stat grid, the overview and
+        // every rollup — and skips the federated update note as well.
+        try {
+          // The copy backed an email sent when the activity arrived, so there
+          // is nothing to replace it with — and after a privacy change it may
+          // show a route the owner has since hidden.
+          await deleteEmailMapImage({
+            database,
+            fitnessFileId,
+            mapImageEmailPath: fitnessFile.mapImageEmailPath
+          })
+
+          await removeRouteMapAttachmentsAndMedia({
+            database,
+            accountId: actor.account.id,
+            statusId,
+            attachmentIds: oldAttachmentIds,
+            mediaIds: oldMediaIds
+          })
+
+          if (removeRecordedMap) {
+            await database.updateFitnessFileActivityData(fitnessFileId, {
+              hasMapData: false,
+              mapImagePath: null,
+              mapImageEmailPath: null,
+              mapError: null
+            })
+          }
+        } catch (error) {
+          if (removeRecordedMap) {
+            // Nothing replaced this map, so a retry re-attempts exactly this
+            // removal — and until it succeeds the post is publicly showing the
+            // route the owner just hid. Recorded so they are offered one.
+            await database
+              .updateFitnessFileActivityData(fitnessFileId, {
+                mapError: 'Failed to remove the route map'
+              })
+              .catch((writeError) => {
+                logger.error({
+                  message: 'Failed to record the route map removal failure',
+                  actorId,
+                  fitnessFileId,
+                  err: toLoggableError(writeError)
+                })
+              })
+          }
+
+          // Always logged; additionally recorded just above when the removal
+          // was the point of the run. On the replace path it stays log-only:
+          // the new map is stored and attached, so a leftover is not something
+          // a retry can remove — it would attach a third. Same split in
+          // processFitnessFileJob.
+          logger.error({
+            message: 'Failed to remove the previous route map',
+            actorId,
+            fitnessFileId,
+            err: toLoggableError(error)
+          })
+        }
 
         await database.updateFitnessFileProcessingStatus(
           fitnessFileId,
@@ -322,7 +374,8 @@ export const regenerateFitnessMapsJob = createJobHandle(
           message: 'Failed to regenerate fitness map for old status',
           actorId,
           fitnessFileId,
-          error: errorMessage
+          error: errorMessage,
+          err: toLoggableError(error)
         })
 
         await database.updateFitnessFileProcessingStatus(
@@ -330,6 +383,22 @@ export const regenerateFitnessMapsJob = createJobHandle(
           'failed',
           errorMessage
         )
+
+        // The file's own status now carries the diagnostic; leaving a map
+        // reason set as well makes the fitness files page report a missing map
+        // instead of the failure.
+        try {
+          await database.updateFitnessFileActivityData(fitnessFileId, {
+            mapError: null
+          })
+        } catch (writeError) {
+          logger.error({
+            message: 'Failed to clear the route map reason on a failed file',
+            actorId,
+            fitnessFileId,
+            err: toLoggableError(writeError)
+          })
+        }
       }
     }
 

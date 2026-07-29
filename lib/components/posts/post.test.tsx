@@ -1069,6 +1069,109 @@ describe('Post', () => {
     ).not.toBeInTheDocument()
   })
 
+  describe('fitness route map failure', () => {
+    // A missing route map is a degraded success: the activity parsed, the post
+    // federated, the stats are real. It must not read as a failed post — the
+    // whole reason the failure is recorded in `mapError` and not in
+    // `processingStatus`.
+    const mapFailedStatus = {
+      ...status,
+      summary: null,
+      fitness: {
+        ...fitnessBase,
+        processingStatus: 'completed' as const,
+        totalDistanceMeters: 11400,
+        totalDurationSeconds: 9480,
+        elevationGainMeters: 964,
+        activityType: 'run',
+        mapFailure: 'missing' as const
+      }
+    }
+
+    it('offers the owner a retry that reads as a missing map, not a failed post', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          currentActor={status.actor!}
+          status={mapFailedStatus}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(
+        screen.getByText(/route map image could not be generated/i)
+      ).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument()
+      expect(screen.queryByText(/Processing failed/i)).not.toBeInTheDocument()
+    })
+
+    it('keeps the stats the activity did produce', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          currentActor={status.actor!}
+          status={mapFailedStatus}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      // Reusing `processingStatus: 'failed'` for this would hide all of these.
+      expect(screen.getByText('Distance')).toBeInTheDocument()
+      expect(screen.getByText('Duration')).toBeInTheDocument()
+    })
+
+    it('does not claim there is no map when the previous one is still shown', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          currentActor={status.actor!}
+          status={{
+            ...mapFailedStatus,
+            fitness: {
+              ...mapFailedStatus.fitness,
+              mapFailure: 'stale' as const
+            }
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      // A failed REgeneration keeps the map it could not replace. Saying it
+      // "could not be generated" would read as "you have no map" when the truth
+      // is that the old one — possibly predating a privacy location the owner
+      // just added — is still on the post.
+      expect(
+        screen.getByText(/could not be updated, so this is the previous one/i)
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByText(/could not be generated/i)
+      ).not.toBeInTheDocument()
+    })
+
+    it('says nothing to a viewer who is not the owner', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={mapFailedStatus}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      // Someone else's missing image is not a reader's problem.
+      expect(
+        screen.queryByText(/route map image could not be generated/i)
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /Retry/i })
+      ).not.toBeInTheDocument()
+      expect(screen.getByText('Distance')).toBeInTheDocument()
+    })
+  })
+
   it('renders the labeled stat grid, type pill, and device for a completed fitness file', () => {
     render(
       <Post

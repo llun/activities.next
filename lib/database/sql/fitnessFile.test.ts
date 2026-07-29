@@ -344,6 +344,59 @@ describe('FitnessFileDatabase', () => {
         expect(fetched?.activityStartTime).toBeDefined()
       })
 
+      it('keeps the map failure reason independent of the processing status', async () => {
+        const created = await database.createFitnessFile({
+          actorId: actors.primary.id,
+          path: 'fitness/map-error.fit',
+          fileName: 'map-error.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 2048
+        })
+
+        await database.updateFitnessFileActivityData(created!.id, {
+          mapError: 'Failed to store generated route map image'
+        })
+        await database.updateFitnessFileProcessingStatus(
+          created!.id,
+          'completed'
+        )
+
+        // `completed` nulls `importError` by design; `mapError` must survive it,
+        // or the activity looks finished with no trace of its missing map.
+        const fetched = await database.getFitnessFile({ id: created!.id })
+        expect(fetched).toMatchObject({
+          processingStatus: 'completed',
+          mapError: 'Failed to store generated route map image'
+        })
+        expect(fetched?.importError).toBeUndefined()
+
+        await database.updateFitnessFileActivityData(created!.id, {
+          mapError: null
+        })
+        expect(
+          (await database.getFitnessFile({ id: created!.id }))?.mapError
+        ).toBeUndefined()
+      })
+
+      it('caps an oversized map failure reason like the import reason', async () => {
+        const created = await database.createFitnessFile({
+          actorId: actors.primary.id,
+          path: 'fitness/map-error-long.fit',
+          fileName: 'map-error-long.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 2048
+        })
+
+        await database.updateFitnessFileActivityData(created!.id, {
+          mapError: 'e'.repeat(5_000)
+        })
+
+        const fetched = await database.getFitnessFile({ id: created!.id })
+        expect(fetched?.mapError?.length).toBeLessThanOrEqual(1_000)
+      })
+
       it('persists moving time separately from elapsed duration', async () => {
         const created = await database.createFitnessFile({
           actorId: actors.primary.id,

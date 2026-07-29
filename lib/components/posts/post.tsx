@@ -144,6 +144,20 @@ export const Post: FC<PostProps> = (props) => {
   const fitnessRetryVariant: 'failed' | 'stuck' =
     fitnessProcessingStatus === 'failed' ? 'failed' : 'stuck'
   const isFitnessCompleted = fitnessProcessingStatus === 'completed'
+  // What is wrong with the route map of an otherwise complete activity. The
+  // activity itself is intact — stats, charts, attachments and federation are
+  // unaffected — so this is a quiet owner-only retry, not the destructive
+  // "Processing failed" banner every viewer sees. The copy differs per kind
+  // because the post looks different in each: no map at all, or the previous
+  // map still shown because the run that should have replaced it failed. Saying
+  // "could not be generated" above a rendered map is how an owner concludes the
+  // feature is lying.
+  const fitnessMapFailure = isFitnessCompleted
+    ? fitnessFile?.mapFailure
+    : undefined
+  const fitnessMapRetryVariant = fitnessMapFailure
+    ? (`map-${fitnessMapFailure}` as const)
+    : undefined
   const fitnessDistance = formatFitnessDistance(
     fitnessFile?.totalDistanceMeters
   )
@@ -260,6 +274,13 @@ export const Post: FC<PostProps> = (props) => {
                 </span>
               </div>
             )
+          ) : null}
+
+          {fitnessMapRetryVariant && isOwner ? (
+            <RetryFitnessButton
+              statusId={actualStatus.id}
+              variant={fitnessMapRetryVariant}
+            />
           ) : null}
 
           {isFitnessCompleted && fitnessStats.length > 0 ? (
