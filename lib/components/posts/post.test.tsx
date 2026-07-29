@@ -1474,7 +1474,10 @@ describe('Post', () => {
       // column, `justify-between` is what spreads it, and an `ml-auto` on the
       // ⋯ wrapper would silently absorb the free space and re-cluster the row
       // (the design-system rule the docs now carry).
-      expect(actions).toHaveClass('-ml-13', 'justify-between')
+      // `mt-3` rides along with the pull in `Actions`' `fullBleed` default, so
+      // pin it here too — dropping it silently closes the gap between every
+      // post body and its action row on every surface.
+      expect(actions).toHaveClass('-ml-13', 'mt-3', 'justify-between')
       expect(
         screen.getByRole('button', { name: 'More actions' }).parentElement
       ).not.toHaveClass('ml-auto')

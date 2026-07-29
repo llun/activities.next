@@ -149,7 +149,12 @@ change doesn't touch.
   `isMediaUploadEnabled`. See **Status Posts & Actions** in `AGENTS.md`.
 - The reaction chips and the action row are both full-bleed (`-ml-13`) and
   the row is `justify-between` with no `ml-auto` on the `⋯` wrapper (an auto
-  margin eats the free space and re-clusters the row). The picker trigger lives
+  margin eats the free space and re-clusters the row). Each row carries its own
+  `fullBleed` prop and they default differently — `Actions` pulls unless told
+  not to, `ReactionRow` only when asked — so a surface with no avatar column to
+  pull back over (the fitness activity detail's card) correctly has neither.
+  `justify-between` across the full width is not optional either way: that is
+  what keeps the spacing between actions identical everywhere. The picker trigger lives
   in the action row (`ReactionButton`), not beside the chips, and both halves
   share one `useReactionState`; `useBookmarkState` is held by `Actions` for the
   same reason. A row narrower than 400px — measured by `ResizeObserver` on the

@@ -24,6 +24,15 @@ import { useCompactActionBar } from './useCompactActionBar'
 interface Props extends PostProps {
   /** The post's reaction rollups, shared with the chip row above. */
   reactionState: ReactionState
+  /**
+   * Pull the row back over the avatar column (`size-10`) and its `gap-3` — 13
+   * spacing steps, so it tracks the root font size the way those two do — and
+   * add the gap that separates it from the post body. On by default, because
+   * every surface that renders a post through `Post` has that avatar column.
+   * Off for a surface that composes its own layout and already sits at the
+   * status's left edge, such as the fitness activity detail's card footer.
+   */
+  fullBleed?: boolean
   onShowEdits?: (status: Status) => void
 }
 
@@ -35,6 +44,7 @@ export const Actions: FC<Props> = ({
   editable = false,
   showActions = false,
   reactionState,
+  fullBleed = true,
   onReply,
   onEdit,
   onQuote,
@@ -103,13 +113,17 @@ export const Actions: FC<Props> = ({
       ref={barRef}
       role="group"
       aria-label="Post actions"
-      // Pulled back over the avatar column (`size-10`) and its `gap-3` — 13
-      // spacing steps, so it tracks the root font size the way those two do —
-      // and the row starts at the post's own left edge, then spreads across the
-      // whole width with the ⋯ menu pinned to the far right. `relative` so a
-      // control that has moved into the menu can still anchor its error tooltip
-      // here without putting a flex item back in the row.
-      className="relative -ml-13 mt-3 flex items-center justify-between gap-1 text-muted-foreground"
+      // `fullBleed` pulls the row back over the avatar column (`size-10`) and
+      // its `gap-3` — 13 spacing steps, so it tracks the root font size the way
+      // those two do — so the row starts at the post's own left edge. Either
+      // way it spreads across the whole width with the ⋯ menu pinned to the far
+      // right. `relative` so a control that has moved into the menu can still
+      // anchor its error tooltip here without putting a flex item back in the
+      // row.
+      className={cn(
+        'relative flex items-center justify-between gap-1 text-muted-foreground',
+        fullBleed && '-ml-13 mt-3'
+      )}
     >
       <ReplyButton status={actualStatus} onReply={onReply} />
       <RepostButton currentActor={currentActor} status={actualStatus} />
