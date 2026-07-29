@@ -454,6 +454,70 @@ describe('FitnessStatusDetail', () => {
     expect(screen.getByRole('heading', { name: 'Power' })).toBeInTheDocument()
   })
 
+  describe('analysis graphs', () => {
+    const openAnalysis = async () => {
+      renderDetail()
+      await waitFor(() =>
+        expect(screen.getByText('Avg HR')).toBeInTheDocument()
+      )
+      const menu = await openSectionMenu()
+      fireEvent.click(within(menu).getByRole('menuitem', { name: 'Analysis' }))
+      return screen.findByTestId('analysis-graphs')
+    }
+
+    it('stacks every visible graph into one panel instead of separate cards', async () => {
+      const panel = await openAnalysis()
+
+      // One shared panel, four rows — not four independently bordered cards
+      // with gaps between them.
+      expect(screen.getAllByTestId('analysis-graphs')).toHaveLength(1)
+      expect(
+        within(panel)
+          .getAllByRole('heading', { level: 3 })
+          .map((heading) => heading.textContent)
+      ).toEqual(['Elevation profile', 'Speed', 'Power', 'Heart rate'])
+    })
+
+    it('keeps the single panel when the display is filtered to one graph', async () => {
+      const panel = await openAnalysis()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Speed' }))
+
+      expect(within(panel).getAllByRole('heading', { level: 3 })).toHaveLength(
+        1
+      )
+      expect(
+        within(panel).getByRole('heading', { name: 'Speed' })
+      ).toBeInTheDocument()
+    })
+
+    it('shows a value readout on every graph while one is hovered', async () => {
+      const panel = await openAnalysis()
+
+      expect(screen.queryAllByTestId('chart-hover-value')).toHaveLength(0)
+
+      // jsdom reports a zero-width box, so the pointer ratio collapses to
+      // clientX clamped into 0..1 — clientX 1 is the end of the activity.
+      const [elevationChart] = Array.from(panel.querySelectorAll('svg'))
+      fireEvent.mouseMove(elevationChart, { clientX: 1 })
+
+      // Hovering one graph highlights the same instant on all of them, so each
+      // reports its own value at that time.
+      const readouts = screen.getAllByTestId('chart-hover-value')
+      expect(readouts).toHaveLength(4)
+      expect(readouts.map((readout) => readout.textContent)).toEqual([
+        '30m',
+        '16.0km/h',
+        '60w',
+        '140bpm'
+      ])
+      expect(screen.getByText('Selected time: 30:00')).toBeInTheDocument()
+
+      fireEvent.mouseLeave(elevationChart)
+      expect(screen.queryAllByTestId('chart-hover-value')).toHaveLength(0)
+    })
+  })
+
   it('shows the multi-file activity switcher when several files are aggregated', async () => {
     mockGetFitnessFilesByStatus.mockResolvedValue([
       buildFitnessFile({ id: 'fit-1', fileName: 'ride-morning.fit' }),
@@ -670,6 +734,30 @@ describe('FitnessStatusDetail', () => {
       )
     ).toBeInTheDocument()
   })
+  describe('action row', () => {
+    it('renders the shared post action row rather than a page-specific one', () => {
+      renderDetail()
+
+      // The shared `Actions` row: same controls, same order, same spacing as
+      // every other surface. A hand-rolled row here is how this page drifted
+      // into a right-packed cluster with its own gaps.
+      const actions = screen.getByRole('group', { name: 'Post actions' })
+      expect(
+        within(actions)
+          .getAllByRole('button')
+          .map((button) => button.textContent)
+      ).toEqual(['Reply', 'Boost', 'Like', 'Bookmark', '', 'More'])
+    })
+
+    it('renders no action row for a logged-out reader', () => {
+      renderDetail({ currentActor: null })
+
+      expect(
+        screen.queryByRole('group', { name: 'Post actions' })
+      ).not.toBeInTheDocument()
+    })
+  })
+
   describe('reactions', () => {
     // This page composes its own action row instead of going through `Posts`,
     // so both halves of the reaction control have to be wired by hand here —
@@ -693,6 +781,29 @@ describe('FitnessStatusDetail', () => {
       expect(
         screen.getByLabelText('Add \u{1F525} reaction, 3')
       ).toHaveTextContent('3')
+    })
+
+    it('places the chips in the card body under the stats, not in the action strip', () => {
+      renderDetail({
+        status: buildStatus({
+          reactions: [
+            {
+              name: '\u{1F525}',
+              count: 3,
+              me: false,
+              url: null,
+              static_url: null
+            }
+          ]
+        } as Partial<StatusNote>)
+      })
+
+      const body = screen.getByTestId('reaction-chips')
+        .parentElement as HTMLElement
+      expect(within(body).getByText('Distance')).toBeInTheDocument()
+      expect(
+        within(body).queryByRole('group', { name: 'Post actions' })
+      ).not.toBeInTheDocument()
     })
 
     it('offers the picker trigger in its action row', () => {

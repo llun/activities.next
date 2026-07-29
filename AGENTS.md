@@ -373,13 +373,20 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   the far right. Do **not** put `ml-auto` back on the `⋯` wrapper: an auto
   margin absorbs all the free space before `justify-content` sees it, which
   collapses the row back to a left-packed cluster.
+  The pull is `Actions`' `fullBleed` prop, on by default and turned **off** only
+  by a surface that has no avatar column to pull back over (the fitness activity
+  detail's card footer, whose own padding already puts the row at the status's
+  left edge). `justify-between` is not optional either way — that is what makes
+  the spacing between actions identical on every surface, so give the row the
+  full width rather than seating it beside something else.
 - **The picker that ADDS a reaction lives in the action row, not beside the
   chips** (`ReactionButton`, showing `SmilePlus` + the running total). The chips
   are a read-out; a post with no reactions yet renders no chip row at all. Both
-  halves share one `ReactionState` from `useReactionState`, held by whoever owns
-  the row — `Post`, or `FitnessStatusDetail`, which composes its own action row
-  and therefore calls the hook itself. The same applies to the bookmark:
-  `useBookmarkState` is held by `Actions` and `BookmarkButton` only renders it.
+  halves share one `ReactionState` from `useReactionState`, held by whoever lays
+  out the post — `Post`, or `FitnessStatusDetail`, which builds its own card and
+  therefore calls the hook itself and passes the state into `Actions`. The same
+  applies to the bookmark: `useBookmarkState` is held by `Actions` and
+  `BookmarkButton` only renders it.
 - **A post narrower than 400px moves bookmark and react into the `⋯` menu**
   ("Bookmark" / "React to post", above the menu's own items). The width comes
   from a `ResizeObserver` on the row itself (`useCompactActionBar`), not a
@@ -418,11 +425,14 @@ consistency is enforced by keeping the wiring in one place rather than per page.
 - The bespoke fitness activity detail (`FitnessStatusDetail`) and the
   notification snippet (`StatusNotification`) are intentionally separate
   presentations and are outside this contract; everything else goes through
-  `Posts`/`Post`. The fitness detail composes its own action row, so it renders
-  `ReactionRow` **and** `ReactionButton` explicitly off its own
-  `useReactionState` — a post's reactions must be visible and addable wherever
-  its action row is, and that page is the one surface that has to opt in by
-  hand.
+  `Posts`/`Post`. **That licenses a different page layout, not a different
+  action row.** The fitness detail lays out its own card and therefore places
+  the two halves of the reaction control by hand — `ReactionRow` in the card
+  body under the stats, and the picker trigger in the row below — but the row
+  itself is the shared `<Actions>` (`fullBleed={false}`, its own
+  `useReactionState` passed in), not a local copy. A hand-rolled row is exactly
+  how that page drifted into a right-packed cluster with its own gaps while
+  every other surface spread its actions evenly.
 
 ## Better-auth Plugin Guidelines
 

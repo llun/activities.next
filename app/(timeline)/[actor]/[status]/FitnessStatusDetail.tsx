@@ -46,13 +46,7 @@ import {
   ROUTE_HIGHLIGHT_HIDDEN_CORE_COLOR
 } from '@/lib/components/fitness/routeHighlightMarker'
 import { BrandedDeviceLink } from '@/lib/components/posts/BrandedDeviceLink'
-import { BookmarkButton } from '@/lib/components/posts/actions/bookmark-button'
-import { LikeButton } from '@/lib/components/posts/actions/like-button'
-import { PostMenu } from '@/lib/components/posts/actions/post-menu'
-import { ReactionButton } from '@/lib/components/posts/actions/reaction-button'
-import { ReplyButton } from '@/lib/components/posts/actions/reply-button'
-import { RepostButton } from '@/lib/components/posts/actions/repost-button'
-import { useBookmarkState } from '@/lib/components/posts/actions/useBookmarkState'
+import { Actions } from '@/lib/components/posts/actions/actions'
 import { ActorAvatar } from '@/lib/components/posts/actor'
 import { Media } from '@/lib/components/posts/media'
 import { Post } from '@/lib/components/posts/post'
@@ -208,6 +202,19 @@ const ANALYSIS_GRAPH_OPTIONS: Array<{
   { id: 'power', label: 'Power' },
   { id: 'heart-rate', label: 'Heart rate' }
 ]
+
+// One colour per series, used for the line, the hover crosshair and the hover
+// dot alike — so a stacked graph is identifiable by its own colour rather than
+// every crosshair sharing the speed chart's blue.
+const ANALYSIS_GRAPH_STYLES: Record<
+  AnalysisGraphKey,
+  { stroke: string; fill: string }
+> = {
+  elevation: { stroke: 'stroke-slate-400', fill: 'fill-slate-400' },
+  speed: { stroke: 'stroke-sky-500', fill: 'fill-sky-500' },
+  power: { stroke: 'stroke-violet-500', fill: 'fill-violet-500' },
+  'heart-rate': { stroke: 'stroke-rose-500', fill: 'fill-rose-500' }
+}
 
 const VISIBILITY_META: Record<
   MastodonVisibility,
@@ -702,25 +709,39 @@ const HeartRateZonesPanel: FC<{ zones: HeartRateZone[] }> = ({ zones }) => {
 const ChartPanel: FC<{
   title: string
   unit: string
-  colorClassName?: string
+  strokeClassName?: string
+  fillClassName?: string
   values: number[]
   minLabel?: string
   maxLabel?: string
+  /**
+   * Decimals the hover readout uses, kept the same as the scale labels' own
+   * precision so the value doesn't switch width between integer and fractional
+   * samples as the pointer moves.
+   */
+  fractionDigits?: number
   durationSeconds?: number
   highlightedElapsedSeconds?: number | null
   onHighlightElapsedSeconds?: (elapsedSeconds: number | null) => void
-  showHoverMessage?: boolean
+  /**
+   * Drop the panel's own border and rounding. Set when several charts are
+   * stacked inside one shared bordered panel, which is how the Analysis section
+   * renders "All graphs" — see the merged table there.
+   */
+  flush?: boolean
 }> = ({
   title,
   unit,
   values,
-  colorClassName,
+  strokeClassName,
+  fillClassName,
   minLabel,
   maxLabel,
+  fractionDigits = 0,
   durationSeconds,
   highlightedElapsedSeconds = null,
   onHighlightElapsedSeconds,
-  showHoverMessage = false
+  flush = false
 }) => {
   const width = 760
   const height = GRAPH_VIEW_HEIGHT
@@ -764,93 +785,131 @@ const ChartPanel: FC<{
     typeof highlightedValue === 'number'
       ? getChartYPosition(highlightedValue, height, minValue, maxValue)
       : null
-  const highlightedElapsedLabel =
-    typeof highlightedElapsedSeconds === 'number'
-      ? formatDuration(Math.round(highlightedElapsedSeconds))
-      : null
+  // The readout sits beside the dot and flips to its left near the right edge
+  // so it never clips out of the panel, whatever the container is wide.
+  const shouldFlipReadout =
+    typeof highlightedX === 'number' && highlightedX / width > 0.72
+  const isHighlighted =
+    typeof highlightedX === 'number' &&
+    typeof highlightedY === 'number' &&
+    typeof highlightedValue === 'number'
 
   return (
-    <div className="rounded-xl border bg-background p-4">
-      <div className="mb-2 flex items-end justify-between">
+    <div className={cn('bg-background p-4', !flush && 'rounded-xl border')}>
+      <div className="mb-2 flex items-end justify-between gap-3">
         <h3 className="text-sm font-semibold text-foreground">{title}</h3>
         <p className="text-xs tabular-nums text-muted-foreground">
           Scale {minScale} - {maxScale}
         </p>
       </div>
-      <div className="grid grid-cols-[auto_1fr] items-stretch gap-2">
-        <div
+      {/* The scale labels overlay the plot's top-left and bottom-left corners
+          rather than taking a gutter column, so every stacked chart's plot
+          starts and ends at the same x and the rows read as one table. They are
+          inside the plot box only — the x-axis labels below sit outside it, so
+          the minimum label cannot land on top of the first tick. */}
+      <div className={cn('relative', GRAPH_HEIGHT_CLASSNAME)}>
+        <span className="pointer-events-none absolute left-0 top-0 z-10 text-[11px] tabular-nums text-muted-foreground">
+          {maxScale}
+        </span>
+        <span className="pointer-events-none absolute bottom-0 left-0 z-10 text-[11px] tabular-nums text-muted-foreground">
+          {minScale}
+        </span>
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="none"
           className={cn(
-            'flex flex-col justify-between text-[11px] tabular-nums text-muted-foreground',
-            GRAPH_HEIGHT_CLASSNAME
+            'block h-full w-full',
+            canHoverMapPoint && 'cursor-crosshair'
           )}
+          onMouseMove={(event) => {
+            if (!canHoverMapPoint || !onHighlightElapsedSeconds) return
+            const bounds = event.currentTarget.getBoundingClientRect()
+            const ratio = clampNumber(
+              (event.clientX - bounds.left) / Math.max(bounds.width, 1),
+              0,
+              1
+            )
+            onHighlightElapsedSeconds(ratio * durationSeconds)
+          }}
+          onMouseLeave={() => {
+            if (!canHoverMapPoint || !onHighlightElapsedSeconds) return
+            onHighlightElapsedSeconds(null)
+          }}
         >
-          <span>{maxScale}</span>
-          <span>{minScale}</span>
-        </div>
-        <div>
-          <svg
-            viewBox={`0 0 ${width} ${height}`}
-            preserveAspectRatio="none"
-            className={cn(
-              'w-full',
-              GRAPH_HEIGHT_CLASSNAME,
-              canHoverMapPoint && 'cursor-crosshair'
-            )}
-            onMouseMove={(event) => {
-              if (!canHoverMapPoint || !onHighlightElapsedSeconds) return
-              const bounds = event.currentTarget.getBoundingClientRect()
-              const ratio = clampNumber(
-                (event.clientX - bounds.left) / Math.max(bounds.width, 1),
-                0,
-                1
-              )
-              onHighlightElapsedSeconds(ratio * durationSeconds)
-            }}
-            onMouseLeave={() => {
-              if (!canHoverMapPoint || !onHighlightElapsedSeconds) return
-              onHighlightElapsedSeconds(null)
+          <path
+            d={path}
+            fill="none"
+            vectorEffect="non-scaling-stroke"
+            className={cn('stroke-[2]', strokeClassName ?? 'stroke-sky-500')}
+          />
+          {isHighlighted ? (
+            <>
+              <line
+                x1={highlightedX}
+                y1={0}
+                x2={highlightedX}
+                y2={height}
+                vectorEffect="non-scaling-stroke"
+                className={cn(
+                  'stroke-[1.5] opacity-60',
+                  strokeClassName ?? 'stroke-sky-500'
+                )}
+              />
+              <circle
+                cx={highlightedX}
+                cy={highlightedY}
+                r={4.5}
+                vectorEffect="non-scaling-stroke"
+                className={cn(
+                  'stroke-background stroke-[2]',
+                  fillClassName ?? 'fill-sky-500'
+                )}
+              />
+            </>
+          ) : null}
+        </svg>
+        {/* Value readout pinned to the hover dot. Percentage positioning works
+            because `preserveAspectRatio="none"` maps the viewBox linearly onto
+            the rendered box; the vertical clamp keeps it inside the plot when
+            the sample sits against the top or bottom of the scale. */}
+        {isHighlighted ? (
+          <div
+            data-testid="chart-hover-value"
+            className="pointer-events-none absolute z-20 flex items-baseline gap-1 rounded-md border bg-background px-2 py-1 shadow-sm"
+            style={{
+              left: `${(highlightedX / width) * 100}%`,
+              top: `${clampNumber((highlightedY / height) * 100, 8, 92)}%`,
+              transform: shouldFlipReadout
+                ? 'translate(calc(-100% - 12px), -50%)'
+                : 'translate(12px, -50%)'
             }}
           >
-            <path
-              d={path}
-              fill="none"
-              className={cn('stroke-[2.5]', colorClassName ?? 'stroke-sky-500')}
+            <span className="text-sm font-semibold leading-none tabular-nums text-foreground">
+              {highlightedValue.toFixed(fractionDigits)}
+            </span>
+            <span className="text-[10px] leading-none text-muted-foreground">
+              {unit}
+            </span>
+            <span
+              aria-hidden="true"
+              className={cn(
+                'absolute top-1/2 size-2 bg-background',
+                shouldFlipReadout
+                  ? '-right-[4.5px] border-r border-t'
+                  : '-left-[4.5px] border-b border-l'
+              )}
+              style={{ transform: 'translateY(-50%) rotate(45deg)' }}
             />
-            {typeof highlightedX === 'number' &&
-            typeof highlightedY === 'number' ? (
-              <>
-                <line
-                  x1={highlightedX}
-                  y1={0}
-                  x2={highlightedX}
-                  y2={height}
-                  className="stroke-sky-500 stroke-[1.5] opacity-60"
-                />
-                <circle
-                  cx={highlightedX}
-                  cy={highlightedY}
-                  r={4.5}
-                  className="fill-sky-500 stroke-white stroke-[2]"
-                />
-              </>
-            ) : null}
-          </svg>
-          {xLabels && (
-            <div className="mt-2 flex justify-between text-[11px] tabular-nums text-muted-foreground">
-              {xLabels.map((label, i) => (
-                <span key={i}>{label}</span>
-              ))}
-            </div>
-          )}
-          {showHoverMessage ? (
-            <p className="mt-2 text-xs text-muted-foreground">
-              {highlightedElapsedLabel
-                ? `Selected time: ${highlightedElapsedLabel}`
-                : 'Hover the chart to follow that time point on the map.'}
-            </p>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </div>
+      {xLabels && (
+        <div className="mt-2 flex justify-between text-[11px] tabular-nums text-muted-foreground">
+          {xLabels.map((label, i) => (
+            <span key={i}>{label}</span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -1310,14 +1369,13 @@ export const FitnessStatusDetail: FC<Props> = ({
     useState<AnalysisGraphFilter>('all')
   // Force-resets the always-on comment composer after a cancel or a post.
   const [composerKey, setComposerKey] = useState(0)
-  // This page composes its own action row, so it owns the two states `Actions`
-  // would otherwise hold: the reaction rollups (split across the chip row and
-  // the picker trigger) and the bookmark.
+  // This page lays out its own card, so it holds the reaction rollups the way
+  // `Post` does — the chip row in the card body and the picker trigger in the
+  // shared `Actions` row below both read this one state.
   const reactionState = useReactionState({
     currentActor: currentActor ?? undefined,
     status
   })
-  const bookmarkState = useBookmarkState({ status })
 
   const defaultFitnessFiles = useMemo<StatusFitnessFileItem[]>(() => {
     if (!status.fitness) {
@@ -1654,6 +1712,78 @@ export const FitnessStatusDetail: FC<Props> = ({
       ? formatDuration(Math.round(highlightedElapsedSeconds))
       : null
 
+  // Every chart the Analysis section can draw, in display order. `fractionDigits`
+  // is the precision of that series' scale labels, reused by the hover readout.
+  const analysisCharts = useMemo(
+    (): Array<{
+      key: AnalysisGraphKey
+      title: string
+      unit: string
+      values: number[]
+      minLabel: string
+      maxLabel: string
+      fractionDigits: number
+    }> => [
+      {
+        key: 'elevation',
+        title: 'Elevation profile',
+        unit: 'm',
+        values: activitySeries.elevation,
+        minLabel: elevationMin.toFixed(0),
+        maxLabel: elevationMax.toFixed(0),
+        fractionDigits: 0
+      },
+      {
+        key: 'speed',
+        title: 'Speed',
+        unit: 'km/h',
+        values: activitySeries.speed,
+        minLabel: speedMin.toFixed(1),
+        maxLabel: speedMax.toFixed(1),
+        fractionDigits: 1
+      },
+      {
+        key: 'power',
+        title: 'Power',
+        unit: 'w',
+        values: activitySeries.power,
+        minLabel: powerMin.toFixed(0),
+        maxLabel: powerMax.toFixed(0),
+        fractionDigits: 0
+      },
+      {
+        key: 'heart-rate',
+        title: 'Heart rate',
+        unit: 'bpm',
+        values: activitySeries.heartRate,
+        minLabel: heartRateMin.toFixed(0),
+        maxLabel: heartRateMax.toFixed(0),
+        fractionDigits: 0
+      }
+    ],
+    [
+      activitySeries,
+      elevationMax,
+      elevationMin,
+      heartRateMax,
+      heartRateMin,
+      powerMax,
+      powerMin,
+      speedMax,
+      speedMin
+    ]
+  )
+
+  const visibleAnalysisCharts = useMemo(
+    () =>
+      analysisCharts.filter(
+        (chart) =>
+          chart.values.length > 0 &&
+          (analysisGraphFilter === 'all' || analysisGraphFilter === chart.key)
+      ),
+    [analysisCharts, analysisGraphFilter]
+  )
+
   const histogramMinutes = useMemo(() => {
     if (powerSeries.length === 0) return []
 
@@ -1987,67 +2117,63 @@ export const FitnessStatusDetail: FC<Props> = ({
               />
             )}
           </div>
+
+          {/* Reactions belong to the post, so the chips sit inside the card body
+              directly under the stats, the way `Post` puts them directly under
+              its content. This page lays out its own card rather than going
+              through `Posts`, so both halves — the chips here and the picker
+              trigger in the action row below — have to be placed explicitly;
+              without them a fitness post is the one surface where an existing
+              reaction is invisible and no new one can be added. */}
+          {reactionState.reactions.length > 0 && (
+            // The gate is on the wrapper, not just on `ReactionRow`: the row
+            // renders nothing of its own on an unreacted post, so an ungated
+            // wrapper would leave dead space under the stat grid.
+            <div data-testid="reaction-chips">
+              <ReactionRow state={reactionState} />
+            </div>
+          )}
         </div>
 
-        {/* Reactions belong to the post, so they sit above the action bar here as
-            they do in `Post`. This page composes its own action row instead of
-            using `Posts`, so both halves — the chips here and the picker trigger
-            in the row below — have to be added explicitly; without them a
-            fitness post is the one surface where an existing reaction is
-            invisible and no new one can be added. */}
-        {reactionState.reactions.length > 0 && (
-          // The gate is on the wrapper, not just on `ReactionRow`: the row
-          // renders nothing of its own on an unreacted post, so an ungated
-          // wrapper would leave a bare rule with 10px of dead space under it.
-          <div data-testid="reaction-chips" className="border-t px-4 pt-2.5">
-            <ReactionRow state={reactionState} />
+        {(sourceHref || currentActor) && (
+          <div className="flex flex-col gap-2 border-t px-4 py-2.5">
+            {sourceHref ? (
+              <a
+                href={sourceHref}
+                className="inline-flex min-w-0 items-center gap-2 self-start text-xs text-muted-foreground"
+                title={fitness?.fileName}
+              >
+                <Activity className="size-3.5 shrink-0" />
+                <span className="truncate underline decoration-border underline-offset-2">
+                  {fitness?.fileName}
+                </span>
+                <span className="shrink-0 uppercase">{fitness?.fileType}</span>
+                {fitnessFiles.length > 1 && selectedFileIndex >= 0 ? (
+                  <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium">
+                    file {selectedFileIndex + 1} of {fitnessFiles.length}
+                  </span>
+                ) : null}
+              </a>
+            ) : null}
+            {/* The shared action row, not a local copy of it: a post offers the
+                same actions with the same spacing on every surface, and a
+                hand-rolled row here is exactly how this page previously drifted
+                into a right-packed cluster. `fullBleed` off because the card
+                footer's own padding already puts the row at the status's left
+                edge — there is no avatar column to pull back over. */}
+            <Actions
+              host={host}
+              currentActor={currentActor ?? undefined}
+              currentTime={currentTime}
+              status={status}
+              showActions
+              fullBleed={false}
+              reactionState={reactionState}
+              onReply={() => setActiveSection('comments')}
+              onShowAttachment={onShowAttachment}
+            />
           </div>
         )}
-
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t px-4 py-2.5">
-          {sourceHref ? (
-            <a
-              href={sourceHref}
-              className="inline-flex min-w-0 items-center gap-2 text-xs text-muted-foreground"
-              title={fitness?.fileName}
-            >
-              <Activity className="size-3.5 shrink-0" />
-              <span className="truncate underline decoration-border underline-offset-2">
-                {fitness?.fileName}
-              </span>
-              <span className="shrink-0 uppercase">{fitness?.fileType}</span>
-              {fitnessFiles.length > 1 && selectedFileIndex >= 0 ? (
-                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium">
-                  file {selectedFileIndex + 1} of {fitnessFiles.length}
-                </span>
-              ) : null}
-            </a>
-          ) : (
-            <span />
-          )}
-          {currentActor ? (
-            <div
-              // Wraps: the react trigger made this a six-control row, which no
-              // longer fits on one line on a narrow phone.
-              className="flex flex-wrap items-center gap-0.5 text-muted-foreground"
-            >
-              <ReplyButton
-                status={status}
-                onReply={() => setActiveSection('comments')}
-              />
-              <RepostButton currentActor={currentActor} status={status} />
-              <LikeButton currentActor={currentActor} status={status} />
-              <BookmarkButton state={bookmarkState} />
-              <ReactionButton state={reactionState} />
-              <PostMenu
-                status={status}
-                isOwner={isOwner}
-                canEdit={false}
-                onReply={() => setActiveSection('comments')}
-              />
-            </div>
-          ) : null}
-        </div>
       </div>
 
       {/* Section sub-navigation */}
@@ -2206,73 +2332,35 @@ export const FitnessStatusDetail: FC<Props> = ({
               </Card>
             )}
 
-            {(analysisGraphFilter === 'all' ||
-              analysisGraphFilter === 'elevation') &&
-              activitySeries.elevation.length > 0 && (
-                <ChartPanel
-                  title="Elevation profile"
-                  unit="m"
-                  values={activitySeries.elevation}
-                  colorClassName="stroke-slate-400"
-                  minLabel={elevationMin.toFixed(0)}
-                  maxLabel={elevationMax.toFixed(0)}
-                  durationSeconds={durationSeconds}
-                  highlightedElapsedSeconds={highlightedElapsedSeconds}
-                  onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                  showHoverMessage={false}
-                />
-              )}
-
-            {(analysisGraphFilter === 'all' ||
-              analysisGraphFilter === 'speed') &&
-              activitySeries.speed.length > 0 && (
-                <ChartPanel
-                  title="Speed"
-                  unit="km/h"
-                  values={activitySeries.speed}
-                  colorClassName="stroke-sky-500"
-                  minLabel={speedMin.toFixed(1)}
-                  maxLabel={speedMax.toFixed(1)}
-                  durationSeconds={durationSeconds}
-                  highlightedElapsedSeconds={highlightedElapsedSeconds}
-                  onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                  showHoverMessage={false}
-                />
-              )}
-
-            {(analysisGraphFilter === 'all' ||
-              analysisGraphFilter === 'power') &&
-              activitySeries.power.length > 0 && (
-                <ChartPanel
-                  title="Power"
-                  unit="w"
-                  values={activitySeries.power}
-                  colorClassName="stroke-violet-500"
-                  minLabel={powerMin.toFixed(0)}
-                  maxLabel={powerMax.toFixed(0)}
-                  durationSeconds={durationSeconds}
-                  highlightedElapsedSeconds={highlightedElapsedSeconds}
-                  onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                  showHoverMessage={false}
-                />
-              )}
-
-            {(analysisGraphFilter === 'all' ||
-              analysisGraphFilter === 'heart-rate') &&
-              activitySeries.heartRate.length > 0 && (
-                <ChartPanel
-                  title="Heart rate"
-                  unit="bpm"
-                  values={activitySeries.heartRate}
-                  colorClassName="stroke-rose-500"
-                  minLabel={heartRateMin.toFixed(0)}
-                  maxLabel={heartRateMax.toFixed(0)}
-                  durationSeconds={durationSeconds}
-                  highlightedElapsedSeconds={highlightedElapsedSeconds}
-                  onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                  showHoverMessage={false}
-                />
-              )}
+            {/* Every visible graph shares ONE bordered panel, its rows split by
+                a 1px divider and nothing else — so "All graphs" reads as a
+                single table of time-aligned series rather than four cards with
+                gaps between them. */}
+            {visibleAnalysisCharts.length > 0 && (
+              <div
+                data-testid="analysis-graphs"
+                className="overflow-hidden rounded-xl border bg-background"
+              >
+                {visibleAnalysisCharts.map((chart, index) => (
+                  <div key={chart.key} className={cn(index > 0 && 'border-t')}>
+                    <ChartPanel
+                      flush
+                      title={chart.title}
+                      unit={chart.unit}
+                      values={chart.values}
+                      strokeClassName={ANALYSIS_GRAPH_STYLES[chart.key].stroke}
+                      fillClassName={ANALYSIS_GRAPH_STYLES[chart.key].fill}
+                      minLabel={chart.minLabel}
+                      maxLabel={chart.maxLabel}
+                      fractionDigits={chart.fractionDigits}
+                      durationSeconds={durationSeconds}
+                      highlightedElapsedSeconds={highlightedElapsedSeconds}
+                      onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
