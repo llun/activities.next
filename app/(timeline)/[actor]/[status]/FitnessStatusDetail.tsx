@@ -799,14 +799,13 @@ const ChartPanel: FC<{
   // The readout sits beside the dot and flips to its left near the right edge.
   // The threshold is a fraction of the viewBox while the chip is a fixed pixel
   // width, so the two only agree above some container width. At the 320px
-  // reflow target the plot is 220px and the widest chip the four series can
-  // produce is ~77px ("13.5 km/h"), so the design kit's 0.72 lands 12px past
-  // what the merged panel's `overflow-hidden` will show; anything at or below
-  // 0.66 fits. 0.62 keeps a margin for a font or a unit that measures wider.
-  // The cost is flipping sooner than the kit does in a desktop column, where
-  // there is still room to the right — a pixel-aware threshold measured off the
-  // plot would serve both, and is the better shape if this ever needs a third
-  // adjustment.
+  // reflow target the plot is 220px and the chip is ~77px for the widest value
+  // these series realistically produce ("13.5 km/h"), against a budget of that
+  // 220px PLUS this panel's own 16px right padding — the `overflow-hidden` is
+  // on the merged panel outside it. So the design kit's 0.72 lands 12px past
+  // what will be shown, and anything at or below 0.66 fits. 0.62 keeps a margin
+  // for a longer value or a wider font, at the cost of flipping sooner than the
+  // kit does in a desktop column, where there is still room to the right.
   const shouldFlipReadout =
     typeof highlightedX === 'number' && highlightedX / width > 0.62
   const isHighlighted =
