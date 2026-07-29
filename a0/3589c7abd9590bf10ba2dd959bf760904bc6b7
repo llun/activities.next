@@ -1,0 +1,43 @@
+lib/components/posts/actions/actions.tsx
+  s_2478a094627303::t_2afb95329438ec 47
+  s_2478a094627303::t_1131d6d1909007 27-35
+  s_2478a094627303::t_536932a9b1a8cc 116-122
+  s_2478a094627303::t_42847c2e939bbc 123-126
+AGENTS.md
+  s_2478a094627303::t_0f79b830105e4d 385-389
+  s_2478a094627303::t_947ba9736642d5 376-381
+  s_2478a094627303::t_30dbbbce6af44e 428-435
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_2478a094627303::t_153988ceb91ef1 786-808
+  s_2478a094627303::t_1366c749ad5e50 457-520
+  s_2478a094627303::t_77bb5bd9741687 737-760
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_2478a094627303::t_95b4e06c0a189c 1715-1786
+  s_2478a094627303::t_f3669ea066a775 877
+  s_2478a094627303::t_044083c3c656bd 712-713,717-722,726-731,736-737,740,744
+  s_2478a094627303::t_f48270e9aec955 206-218
+  s_2478a094627303::t_51889ba36b85ac 1372-1374
+  s_2478a094627303::t_12609ec69829be 2340-2343
+  s_2478a094627303::t_fa3077e2a55ebe 2335-2339,2344-2363
+  s_2478a094627303::t_9da432e16ca20d 2120-2135,2138-2174
+  s_2478a094627303::t_88715ca7059444 788-795,798-799,805-819,821-822,824-837,839-876,878-884,887-901,903-904,906-912
+  s_2478a094627303::t_e2328b2805544a 49
+CLAUDE.md
+  s_2478a094627303::t_4ce07811cbff4c 49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "a03589c7abd9590bf10ba2dd959bf760904bc6b7",
+  "prompts": {},
+  "sessions": {
+    "s_2478a094627303": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8c40270-d7ac-451a-93c0-cf76d424cd5c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
