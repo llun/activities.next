@@ -377,9 +377,13 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   `Actions` pulls unless a caller opts out, while `ReactionRow` pulls only when
   asked (`Post` passes `fullBleed={showsActionRow}`, so chips with no action row
   beneath them line up with the text instead of hanging off it). A surface with
-  no avatar column to pull back over turns both off — the fitness activity
-  detail's card, whose own padding already puts each row at the status's left
-  edge. `justify-between` is not optional either way: that is what makes the
+  no avatar column to pull back over ends up with neither — the fitness activity
+  detail's card, where each row already sits at its own container's padding
+  edge: the chips with the title and the stat grid in the card body, the action
+  row with the source-file link in the footer. (Those two containers are padded
+  differently, `p-5` against `px-4`, so the two rows are deliberately aligned to
+  their own content rather than to each other.)
+  `justify-between` is not optional either way: that is what makes the
   spacing between actions identical on every surface, so give the row the full
   width rather than seating it beside something else.
 - **The picker that ADDS a reaction lives in the action row, not beside the

@@ -814,10 +814,17 @@ const ChartPanel: FC<{
           inside the plot box only — the x-axis labels below sit outside it, so
           the minimum label cannot land on top of the first tick. */}
       <div className={cn('relative', GRAPH_HEIGHT_CLASSNAME)}>
-        <span className="pointer-events-none absolute left-0 top-0 z-10 text-[11px] tabular-nums text-muted-foreground">
+        {/* Each label carries its own backdrop: in the gutter column these
+            replaced there was nothing to collide with, but on the plot a series
+            that starts at its minimum — speed, power and heart rate nearly
+            always do — puts the first path point at exactly `y = height`, i.e.
+            straight through the bottom-left label. Above the hover dot
+            (`z-10`), which sits at the plot's left edge at the very first
+            sample; still below the readout, which is the thing being read. */}
+        <span className="pointer-events-none absolute left-0 top-0 z-20 rounded bg-background/85 px-1 text-[11px] tabular-nums text-muted-foreground">
           {maxScale}
         </span>
-        <span className="pointer-events-none absolute bottom-0 left-0 z-10 text-[11px] tabular-nums text-muted-foreground">
+        <span className="pointer-events-none absolute bottom-0 left-0 z-20 rounded bg-background/85 px-1 text-[11px] tabular-nums text-muted-foreground">
           {minScale}
         </span>
         <svg
