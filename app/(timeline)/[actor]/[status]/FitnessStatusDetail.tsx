@@ -376,6 +376,18 @@ const normalizeRouteSegments = ({
   return []
 }
 
+// The one projection from (sample index, sample value) to plot coordinates.
+// `buildChartPath` draws the line with it and the hover crosshair places the
+// dot and the readout with it, and those two have to agree to the pixel or the
+// dot floats off the line it is supposed to sit on. That used to be two copies
+// of the same arithmetic kept in step by hand, which was survivable while both
+// lived in the same SVG — the dot is now an HTML element positioned from these
+// same numbers as a percentage, so the agreement now spans two rendering
+// systems. Change the scale here and everything follows.
+const getChartXPosition = (index: number, count: number, width: number) => {
+  return (index / Math.max(1, count - 1)) * width
+}
+
 const getChartYPosition = (
   value: number,
   height: number,
@@ -447,12 +459,11 @@ const buildChartPath = (
   const defaultMinMax = getSeriesMinMax(values)
   const min = typeof minValue === 'number' ? minValue : defaultMinMax.minValue
   const max = typeof maxValue === 'number' ? maxValue : defaultMinMax.maxValue
-  const range = Math.max(1, max - min)
 
   return values
     .map((value, index) => {
-      const x = (index / Math.max(1, values.length - 1)) * width
-      const y = height - ((value - min) / range) * height
+      const x = getChartXPosition(index, values.length, width)
+      const y = getChartYPosition(value, height, min, max)
       return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`
     })
     .join(' ')
@@ -729,12 +740,6 @@ const ChartPanel: FC<{
   durationSeconds?: number
   highlightedElapsedSeconds?: number | null
   onHighlightElapsedSeconds?: (elapsedSeconds: number | null) => void
-  /**
-   * Drop the panel's own border and rounding. Set when several charts are
-   * stacked inside one shared bordered panel, which is how the Analysis section
-   * renders "All graphs" — see the merged table there.
-   */
-  flush?: boolean
 }> = ({
   title,
   unit,
@@ -746,8 +751,7 @@ const ChartPanel: FC<{
   fractionDigits = 0,
   durationSeconds,
   highlightedElapsedSeconds = null,
-  onHighlightElapsedSeconds,
-  flush = false
+  onHighlightElapsedSeconds
 }) => {
   const width = 760
   const height = GRAPH_VIEW_HEIGHT
@@ -785,7 +789,7 @@ const ChartPanel: FC<{
     typeof highlightedIndex === 'number' ? values[highlightedIndex] : null
   const highlightedX =
     typeof highlightedIndex === 'number'
-      ? (highlightedIndex / Math.max(1, values.length - 1)) * width
+      ? getChartXPosition(highlightedIndex, values.length, width)
       : null
   const highlightedY =
     typeof highlightedValue === 'number'
@@ -800,8 +804,11 @@ const ChartPanel: FC<{
     typeof highlightedY === 'number' &&
     typeof highlightedValue === 'number'
 
+  // No border or rounding of its own: every chart is a row of the one bordered
+  // panel the Analysis section stacks them into, so a border here would draw a
+  // second box inside it.
   return (
-    <div className={cn('bg-background p-4', !flush && 'rounded-xl border')}>
+    <div className="bg-background p-4">
       <div className="mb-2 flex items-end justify-between gap-3">
         <h3 className="text-sm font-semibold text-foreground">{title}</h3>
         <p className="text-xs tabular-nums text-muted-foreground">
@@ -2383,7 +2390,6 @@ export const FitnessStatusDetail: FC<Props> = ({
                 {visibleAnalysisCharts.map((chart, index) => (
                   <div key={chart.key} className={cn(index > 0 && 'border-t')}>
                     <ChartPanel
-                      flush
                       title={chart.title}
                       unit={chart.unit}
                       values={chart.values}
