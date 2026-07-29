@@ -12,6 +12,7 @@ import { Actor } from '@/lib/types/domain/actor'
 import { MAX_HEIGHT, MAX_WIDTH } from './constants'
 import { MediaValidationError } from './errors'
 import { LocalFileStorage } from './localFile'
+import { getQuotaLimit } from './quota'
 
 vi.mock('@/lib/utils/logger', () => ({
   logger: {
@@ -407,6 +408,24 @@ describe('LocalFileStorage.saveFile with a video', () => {
       database
     )
 
+  const createPngFile = async (width: number, height: number) => {
+    const buffer = await sharp({
+      create: { width, height, channels: 3, background: '#3366cc' }
+    })
+      .png()
+      .toBuffer()
+    return new File([new Uint8Array(buffer)], 'route-map.png', {
+      type: 'image/png'
+    })
+  }
+
+  const readStoredThumbnail = async () => {
+    const files = await fs.readdir(mediaRoot)
+    const match = files.find((file) => file.endsWith('-thumbnail.webp'))
+    if (!match) throw new Error(`No stored thumbnail in [${files.join(', ')}]`)
+    return sharp(await fs.readFile(path.join(mediaRoot, match))).metadata()
+  }
+
   // A guard, not a regression: this driver always built its path from a
   // generated prefix plus an extension, and `path.extname` can never return a
   // separator, so a supplied name never reached the path here. The traversal
@@ -457,5 +476,221 @@ describe('LocalFileStorage.saveFile with a video', () => {
     const storedPath = vi.mocked(database.createMedia).mock.calls[0][0].original
       .path
     expect(storedPath).toMatch(/^[0-9a-f]{16}\.mp4$/)
+  })
+
+  // Which of the two thumbnail sources wins was untested on this driver, so the
+  // precedence could be inverted here — reintroducing exactly the bug the S3
+  // driver had — with nothing failing. The file count matters as much as the
+  // dimensions: a variant that writes both and then picks one leaves the loser
+  // on disk with no `medias` row to reclaim it by.
+  it.each([
+    {
+      description:
+        'prefers a caller-supplied thumbnail over the extracted video frame',
+      suppliedThumbnail: { width: 400, height: 300 },
+      stored: { width: 400, height: 300 }
+    },
+    {
+      description:
+        'falls back to the extracted video frame when no thumbnail is supplied',
+      suppliedThumbnail: null,
+      // The mocked `extractVideoImage` frame.
+      stored: { width: 1, height: 1 }
+    }
+  ])('$description', async ({ suppliedThumbnail, stored }) => {
+    const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {
+      type: 'video/mp4'
+    })
+
+    await createStorage().saveFile(actor, {
+      file,
+      ...(suppliedThumbnail
+        ? {
+            thumbnail: await createPngFile(
+              suppliedThumbnail.width,
+              suppliedThumbnail.height
+            )
+          }
+        : null)
+    })
+
+    // The video plus exactly one thumbnail — the losing source is not written.
+    await expect(fs.readdir(mediaRoot)).resolves.toHaveLength(2)
+    await expect(readStoredThumbnail()).resolves.toMatchObject(stored)
+  })
+})
+
+// Mirrors `S3StorageFile.test.ts`'s block of the same name: a thumbnail
+// uploaded beside the file is client input on both drivers, and the two must
+// answer it identically.
+describe('LocalFileStorage.saveFile with a caller-supplied thumbnail', () => {
+  let tempDir: string
+  let mediaRoot: string
+
+  const actor = { id: 'actor-1', account: { id: 'account-1' } } as Actor
+
+  const database = {
+    createMedia: vi.fn(),
+    getActorFromId: vi.fn(),
+    getFitnessStorageUsageForAccount: vi.fn(),
+    getStorageUsageForAccount: vi.fn()
+  } as unknown as jest.Mocked<Database>
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'activities-media-'))
+    mediaRoot = path.join(tempDir, 'media')
+    await fs.mkdir(mediaRoot)
+
+    database.getActorFromId.mockResolvedValue(actor)
+    database.getStorageUsageForAccount.mockResolvedValue(0)
+    database.getFitnessStorageUsageForAccount.mockResolvedValue(0)
+    database.createMedia.mockImplementation((async (params: unknown) => ({
+      id: 'media-1',
+      actorId: actor.id,
+      ...(params as object)
+    })) as never)
+  })
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true })
+  })
+
+  const createStorage = () =>
+    new LocalFileStorage(
+      { type: MediaStorageType.LocalFile, path: mediaRoot },
+      'llun.test',
+      database
+    )
+
+  const createPngFile = async (width: number, height: number) => {
+    const buffer = await sharp({
+      create: { width, height, channels: 3, background: '#3366cc' }
+    })
+      .png()
+      .toBuffer()
+    return new File([new Uint8Array(buffer)], 'route-map.png', {
+      type: 'image/png'
+    })
+  }
+
+  // A PNG with an intact header and a missing body: it passes the cheap header
+  // check and only fails once the encoder reaches the bytes that are not there.
+  const createTruncatedPngFile = async (width: number, height: number) => {
+    const file = await createPngFile(width, height)
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    return new File(
+      [bytes.subarray(0, Math.floor(bytes.length * 0.6))],
+      'cut.png',
+      {
+        type: 'image/png'
+      }
+    )
+  }
+
+  // The dedicated thumbnail endpoint (PUT /api/v1/media/:id) has to answer the
+  // same bytes the same way — it used to reach sharp unguarded and 500.
+  it('refuses unreadable bytes on the standalone thumbnail path', async () => {
+    const thumbnail = new File([Buffer.from('not-an-image')], 'evil.png', {
+      type: 'image/png'
+    })
+
+    await expect(
+      createStorage().saveThumbnail(actor, thumbnail)
+    ).rejects.toThrow(MediaValidationError)
+    await expect(fs.readdir(mediaRoot)).resolves.toHaveLength(0)
+  })
+
+  // `MediaSchema.thumbnail` accepts every ACCEPTED_FILE_TYPES entry, videos
+  // included. Reaching sharp with one rejects with a plain Error — a 500, not
+  // the 422 every other bad upload gets — and by then the original is already
+  // written with no `medias` row to reclaim it by.
+  it('refuses a thumbnail that is not an image before storing anything', async () => {
+    const thumbnail = new File([Buffer.from('video-bytes')], 'clip.mp4', {
+      type: 'video/mp4'
+    })
+
+    await expect(
+      createStorage().saveFile(actor, {
+        file: await createPngFile(800, 600),
+        thumbnail
+      })
+    ).rejects.toThrow(MediaValidationError)
+    await expect(fs.readdir(mediaRoot)).resolves.toHaveLength(0)
+    expect(database.createMedia).not.toHaveBeenCalled()
+  })
+
+  // `createMedia` meters the thumbnail's bytes too, so the pre-check has to
+  // reserve for them — otherwise an upload that fits only without its thumbnail
+  // is accepted and leaves the account over its quota.
+  it('counts the thumbnail against the account quota', async () => {
+    const file = await createPngFile(800, 600)
+    const thumbnail = await createPngFile(400, 300)
+    // Exactly enough room for the original on its own.
+    database.getStorageUsageForAccount.mockResolvedValue(
+      getQuotaLimit() - file.size
+    )
+
+    await expect(
+      createStorage().saveFile(actor, { file, thumbnail })
+    ).rejects.toThrow(MediaValidationError)
+    await expect(fs.readdir(mediaRoot)).resolves.toHaveLength(0)
+    // The same upload without the thumbnail still fits, so the thumbnail's
+    // bytes are what tipped it over.
+    await expect(
+      createStorage().saveFile(actor, { file })
+    ).resolves.toBeTruthy()
+  })
+
+  // The case a header parse would let through: the driver has to decode the
+  // thumbnail fully before it stores the original, or the encoder is the first
+  // thing to notice and the caller gets a 500 for its own corrupt bytes.
+  it('refuses a truncated thumbnail before storing anything', async () => {
+    await expect(
+      createStorage().saveFile(actor, {
+        file: await createPngFile(800, 600),
+        thumbnail: await createTruncatedPngFile(400, 300)
+      })
+    ).rejects.toThrow(MediaValidationError)
+    expect(database.createMedia).not.toHaveBeenCalled()
+    await expect(fs.readdir(mediaRoot)).resolves.toHaveLength(0)
+  })
+
+  it('refuses truncated bytes on the standalone thumbnail path', async () => {
+    await expect(
+      createStorage().saveThumbnail(
+        actor,
+        await createTruncatedPngFile(400, 300)
+      )
+    ).rejects.toThrow(MediaValidationError)
+    await expect(fs.readdir(mediaRoot)).resolves.toHaveLength(0)
+  })
+
+  // The row is written last, so a database failure leaves both files stored and
+  // unreferenced — the same reclaim as a missing row.
+  it('reclaims both stored files when the media row write fails', async () => {
+    database.createMedia.mockRejectedValue(new Error('deadlock detected'))
+
+    await expect(
+      createStorage().saveFile(actor, {
+        file: await createPngFile(800, 600),
+        thumbnail: await createPngFile(400, 300)
+      })
+    ).rejects.toThrow('deadlock detected')
+    await expect(fs.readdir(mediaRoot)).resolves.toHaveLength(0)
+  })
+
+  // A row is the only handle anything else has on these paths, so without one
+  // both stored files are unreachable.
+  it('reclaims both stored files when the media row cannot be created', async () => {
+    database.createMedia.mockResolvedValue(null as never)
+
+    await expect(
+      createStorage().saveFile(actor, {
+        file: await createPngFile(800, 600),
+        thumbnail: await createPngFile(400, 300)
+      })
+    ).rejects.toThrow('Fail to store media')
+    await expect(fs.readdir(mediaRoot)).resolves.toHaveLength(0)
   })
 })

@@ -251,6 +251,23 @@ change doesn't touch.
   `thumbnail.*` describes the **stored** WebP (`outputInfo`). Know which one a
   change reads: only the latter moves when the encode pipeline changes, and only
   the latter feeds `meta.small`.
+- **The two storage drivers must answer the same input identically.**
+  `LocalFileStorage` and `S3FileStorage` are edited one at a time and drift
+  silently — an uploaded `thumbnail` was stored by one and dropped by the other
+  for as long as both existed, so the same upload answered with a different
+  `meta.small`/`preview_url` per backend (the upload-response entity only;
+  `getMastodonAttachment` hardcodes `preview_url: null` and the AP `Document`
+  has no thumbnail field, so nothing federated). Shared policy belongs in a
+  module both import
+  (`medias/thumbnailInput` validates a supplied thumbnail; `medias/fileName`
+  handles supplied names), and a change to one driver's `saveFile` needs the
+  matching test in **both** `localFile.test.ts` and `S3StorageFile.test.ts`.
+- **A stored file with no `medias` row is unreachable**, so whatever fails
+  after a write must reclaim it — only `scripts/maintenance/cleanupMediaStorage.ts`
+  can find it otherwise. Equally, do not report a storage failure as a
+  `MediaValidationError`: that is a 422 the client will not retry, and
+  `handleSyncMediaUpload` deliberately logs nothing for it. Validate input
+  first, then let a genuine fault stay a logged 500.
 
 ## Docs hygiene
 
