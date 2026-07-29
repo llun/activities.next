@@ -440,6 +440,15 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   `useReactionState` passed in), not a local copy. A hand-rolled row is exactly
   how that page drifted into a right-packed cluster with its own gaps while
   every other surface spread its actions evenly.
+  What sharing the row does **not** yet buy that page is the full `⋯` menu: it
+  passes neither `editable` nor `onQuote`, so Edit and Quote are still absent
+  there, and `onPostDeleted`/`onLikeChanged`/`onBookmarkChanged` are unwired so
+  a delete from the menu leaves the page showing a status that no longer
+  exists. Closing that means giving the page the shared `useInlineComposer` /
+  `InlineStatusComposer` the way `Posts` has it — turning `canEdit` on without
+  wiring `onEdit` only renders a menu item that does nothing. Until then this
+  is the one surface with a shorter menu, and that is a known gap rather than a
+  licensed difference.
 
 ## Better-auth Plugin Guidelines
 

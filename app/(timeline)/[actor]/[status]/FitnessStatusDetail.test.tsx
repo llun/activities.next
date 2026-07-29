@@ -599,6 +599,36 @@ describe('FitnessStatusDetail', () => {
       )
     })
 
+    it('scrubs on touch as well as on hover', async () => {
+      const panel = await openAnalysis()
+      const [elevationChart] = Array.from(panel.querySelectorAll('svg'))
+      elevationChart.getBoundingClientRect = () =>
+        ({ left: 100, width: 400 }) as DOMRect
+
+      // A phone has no hover, so without touch handlers the readout is simply
+      // unreachable there — and the charts carry their own mobile height.
+      fireEvent.touchStart(elevationChart, {
+        touches: [{ clientX: 200 }]
+      })
+
+      expect(
+        screen.getAllByTestId('chart-hover-value').map((r) => r.textContent)
+      ).toEqual(['24m', '22.0km/h', '150w', '130bpm'])
+
+      fireEvent.touchEnd(elevationChart)
+      expect(screen.queryAllByTestId('chart-hover-value')).toHaveLength(0)
+    })
+
+    it('lets a vertical swipe scroll instead of scrubbing', async () => {
+      const panel = await openAnalysis()
+
+      // `touch-pan-y` hands vertical gestures back to the browser; claiming
+      // them would trap the page under a stack of four full-width charts.
+      for (const chart of Array.from(panel.querySelectorAll('svg'))) {
+        expect(chart).toHaveClass('touch-pan-y')
+      }
+    })
+
     it('places the dot low at a series minimum and high at its maximum', async () => {
       const panel = await openAnalysis()
 

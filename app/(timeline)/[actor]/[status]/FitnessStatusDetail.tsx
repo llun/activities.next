@@ -469,11 +469,10 @@ const buildChartPath = (
     .join(' ')
 }
 
-const buildXAxisLabels = (
-  sampleCount: number,
-  durationSeconds: number,
-  tickCount = 6
-) => {
+// Ticks are evenly spaced over the duration, so the sample count has no say in
+// them — it used to be the first parameter and was never read, which made the
+// labels look series-dependent when they are not.
+const buildXAxisLabels = (durationSeconds: number, tickCount = 6) => {
   const labels: string[] = []
   for (let i = 0; i < tickCount; i++) {
     const ratio = i / (tickCount - 1)
@@ -766,9 +765,8 @@ const ChartPanel: FC<{
   const minScale = minLabel ? `${minLabel} ${unit}` : `-- ${unit}`
   const maxScale = maxLabel ? `${maxLabel} ${unit}` : `-- ${unit}`
   const xLabels = useMemo(
-    () =>
-      durationSeconds ? buildXAxisLabels(values.length, durationSeconds) : null,
-    [durationSeconds, values.length]
+    () => (durationSeconds ? buildXAxisLabels(durationSeconds) : null),
+    [durationSeconds]
   )
   const canHoverMapPoint =
     typeof onHighlightElapsedSeconds === 'function' &&
@@ -803,6 +801,25 @@ const ChartPanel: FC<{
     typeof highlightedX === 'number' &&
     typeof highlightedY === 'number' &&
     typeof highlightedValue === 'number'
+
+  // One scrub for pointer and touch alike: both report a viewport x, and the
+  // instant it lands on is the same either way.
+  const scrubToClientX = (clientX: number | undefined, plot: SVGSVGElement) => {
+    if (!canHoverMapPoint || !onHighlightElapsedSeconds) return
+    if (typeof clientX !== 'number') return
+    const bounds = plot.getBoundingClientRect()
+    const ratio = clampNumber(
+      (clientX - bounds.left) / Math.max(bounds.width, 1),
+      0,
+      1
+    )
+    onHighlightElapsedSeconds(ratio * durationSeconds)
+  }
+
+  const clearScrub = () => {
+    if (!canHoverMapPoint || !onHighlightElapsedSeconds) return
+    onHighlightElapsedSeconds(null)
+  }
 
   // No border or rounding of its own: every chart is a row of the one bordered
   // panel the Analysis section stacks them into, so a border here would draw a
@@ -839,22 +856,25 @@ const ChartPanel: FC<{
           preserveAspectRatio="none"
           className={cn(
             'block h-full w-full',
-            canHoverMapPoint && 'cursor-crosshair'
+            // `touch-pan-y` leaves a vertical swipe scrolling the page while
+            // claiming horizontal drags for scrubbing. Without it the browser
+            // owns the gesture and the readout is unreachable on a phone —
+            // which is most of the audience for a page whose charts carry their
+            // own mobile height.
+            canHoverMapPoint && 'cursor-crosshair touch-pan-y'
           )}
           onMouseMove={(event) => {
-            if (!canHoverMapPoint || !onHighlightElapsedSeconds) return
-            const bounds = event.currentTarget.getBoundingClientRect()
-            const ratio = clampNumber(
-              (event.clientX - bounds.left) / Math.max(bounds.width, 1),
-              0,
-              1
-            )
-            onHighlightElapsedSeconds(ratio * durationSeconds)
+            scrubToClientX(event.clientX, event.currentTarget)
           }}
-          onMouseLeave={() => {
-            if (!canHoverMapPoint || !onHighlightElapsedSeconds) return
-            onHighlightElapsedSeconds(null)
+          onMouseLeave={clearScrub}
+          onTouchStart={(event) => {
+            scrubToClientX(event.touches[0]?.clientX, event.currentTarget)
           }}
+          onTouchMove={(event) => {
+            scrubToClientX(event.touches[0]?.clientX, event.currentTarget)
+          }}
+          onTouchEnd={clearScrub}
+          onTouchCancel={clearScrub}
         >
           <path
             d={path}
