@@ -75,6 +75,22 @@ inert — nothing typed into it is submitted, stored, or sent anywhere, and the
 server still only reads those values from the environment at boot, so a change
 needs a restart.
 
+A required variable you have not filled in is listed in the block carrying a
+value only when the example is itself a correct one to keep — today that is just
+`ACTIVITIES_MEDIA_STORAGE_PATH=./uploads` — and empty otherwise (`NAME=`), never
+its example. The example belongs to the input beside it: a block that carried
+examples as values could be pasted verbatim and boot a real configuration out of
+them, pointing a live instance's uploads at a bucket the operator does not own.
+Note that `./uploads` is a default of the builder's field, not of the variable:
+none of the storage variables has an app-level default, so omitting a required
+one from your `.env` fails config validation rather than falling back. An
+**optional** variable is left out of the block entirely until you type something
+into it, which is why `ACTIVITIES_MEDIA_STORAGE_ENDPOINT` does not appear by
+default.
+
+An emitted `NAME=` is inert because a blank required value is rejected rather
+than accepted — see [Media Storage](#media-storage) below for that rule.
+
 ## Core Configuration
 
 | Variable                         | Required | Description                                                                                                                                                                                                                                            |
@@ -205,6 +221,15 @@ Required for media uploads (images and video in posts). If no media storage is c
 
 `ACTIVITIES_MEDIA_STORAGE_PATH`, `ACTIVITIES_MEDIA_STORAGE_BUCKET`, and `ACTIVITIES_MEDIA_STORAGE_REGION` are required for their storage type and have no default. Surrounding whitespace is trimmed, and a value that is **set but empty** (or whitespace only) is treated as **not configured**: the app logs a warning and leaves media storage disabled instead of starting a broken backend. An empty `ACTIVITIES_MEDIA_STORAGE_PATH` would otherwise resolve to the application's working directory, and an empty bucket or region would only fail later inside the AWS SDK.
 
+If you have been running with a blank media path, treat it as a **credential exposure**, not merely a misconfiguration. `GET /api/v1/files/<path>` reads straight off the storage root with no database lookup — it only checks that the path stays inside the root and that the extension maps to a known MIME type — so with the root set to the working directory, any file in the application checkout with a recognised extension was readable without authentication. `.env`, `.env.local` and `*.sqlite3` happen not to map to a MIME type and so were not readable, but that is not an all-clear; plenty of secret-bearing files do map, including:
+
+- a legacy root `config.json` (`application/json`), which on older instances held the whole configuration: `secretPhase`, database credentials, and auth and email secrets (S3 credentials were never in it — those come from the AWS SDK chain);
+- `backups/production-archives/*.tar.gz` (`application/gzip`), the default output directory of `scripts/backup/productionArchive.ts` — a full database and media archive;
+- key material such as `.p8` (the Apple Maps signing key), `.pem`, `.crt`, `.p12` and `.pfx`;
+- `.conf`, `.ini`, `.toml` and `.txt`, plus source files (`.ts`, `.js`, `.json`, `.md`, `.yml`, `.sql`).
+
+Audit what was sitting in the application directory and rotate anything reachable from that list, rather than assuming only source code leaked.
+
 Leaving one of them **unset** while its storage type is configured is different, and still a hard startup failure — unless another required variable for the same storage type is blank, which disables storage before validation runs.
 
 The rule covers those three value variables, not `ACTIVITIES_MEDIA_STORAGE_TYPE`, which is neither trimmed nor blank-checked: a padded `' fs '` is simply an unrecognised type. An unrecognised type — and a type left unset while other `ACTIVITIES_MEDIA_STORAGE_*` variables are set — disables media storage with a warning naming the variable.
@@ -223,6 +248,8 @@ The rule covers those three value variables, not `ACTIVITIES_MEDIA_STORAGE_TYPE`
 S3 credentials are not `ACTIVITIES_*` variables: the AWS SDK resolves them from its standard chain, so set `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` (or leave them unset when the host already supplies an IAM role or instance profile).
 
 > Upgrade note: If you previously set `ACTIVITIES_MEDIA_STORAGE_HOSTNAME` or `ACTIVITIES_FITNESS_STORAGE_HOSTNAME` to a MinIO, Cloudflare R2, DigitalOcean Spaces, or other S3-compatible API endpoint, move that value to the matching `*_STORAGE_ENDPOINT` variable. `*_STORAGE_HOSTNAME` is for a public hostname/CDN origin, not for S3 API operations or browser presigned uploads.
+
+> Upgrade note: An instance that was running with a **blank** required storage variable (most likely `ACTIVITIES_MEDIA_STORAGE_TYPE=fs` with an empty `ACTIVITIES_MEDIA_STORAGE_PATH=`) had a working-looking media backend rooted at the process working directory. That configuration now disables media and fitness storage: uploads stop, and every existing media URL serves the "media removed" placeholder. The signal is a pair of boot warnings — `ACTIVITIES_MEDIA_STORAGE_PATH is set but empty; media storage will be disabled` and the matching `… fitness storage will be disabled` — so grep for `is set but empty` after upgrading. To recover, set a real path and move your existing files into it. They are loose in the directory the app was started from, named `<16 hex characters><extension>`: `.webp` for stored images, `-thumbnail.webp` for their thumbnails, `.jpg` for the JPEG renditions generated for email, and `.mp4`/`.webm` for video attachments — so move all of those, not just the `.webp` files. Fitness activity files were not loose in that directory: the fallback defaulted the empty path to `uploads`, so move `./uploads/fitness/` into `<new path>/fitness/` as well, or every `.fit`/`.gpx`/`.tcx` and imported Strava `.zip` archive goes missing. Route maps and their email JPEGs are **not** in there — they go through media storage, so they are among the loose files and the first move already covers them. Set the path even if you do not want media storage: leaving the `ACTIVITIES_MEDIA_STORAGE_*` variables unset entirely is the supported way to turn uploads off.
 
 ## Fitness File Storage
 

@@ -15,9 +15,19 @@ export interface EnvTemplateField {
   // Environment variable this input fills in.
   name: string
   label: string
+  // Example shown *in the input*. Never emitted into the generated block: an
+  // example that reached a `.env` verbatim would be a working configuration
+  // built out of values the operator does not own (see EnvBlockBuilder).
   placeholder: string
+  // A genuinely correct value the operator can keep, emitted into the block
+  // when nothing is typed. Only where the example is itself a correct value —
+  // an illustrative one is not. This is a default of the field, not of the
+  // variable: the resolvers have no app-level defaults, and omitting a required
+  // variable entirely fails config validation.
+  defaultValue?: string
   // Left out of the generated block until the admin types a value. Required
-  // fields always appear, carrying their placeholder as a visible to-do.
+  // fields always appear, carrying their `defaultValue` if they have one and
+  // otherwise empty, as a visible to-do.
   optional?: boolean
   // Masked in the preview, included verbatim when copied.
   secret?: boolean
@@ -59,6 +69,11 @@ const MEDIA_STORAGE_FILESYSTEM_FIELDS: EnvTemplateField[] = [
     name: 'ACTIVITIES_MEDIA_STORAGE_PATH',
     label: 'Media directory',
     placeholder: './uploads',
+    // The one placeholder that is also a correct value, so it is also the one
+    // that belongs in the block untyped: `ACTIVITIES_MEDIA_STORAGE_PATH=` is
+    // rejected by both storage resolvers, which would leave the filesystem
+    // block — the block an operator can otherwise paste and run — inert.
+    defaultValue: './uploads',
     wide: true
   }
 ]
