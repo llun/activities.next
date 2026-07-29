@@ -26,7 +26,16 @@ import {
   X
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { FC, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  FC,
+  type MouseEvent,
+  ReactNode,
+  type TouchEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 
 import {
   type FitnessRouteSample,
@@ -82,6 +91,33 @@ import {
 } from '@/lib/utils/mapProvider'
 import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
+const clampNumber = (value: number, min: number, max: number) => {
+  return Math.max(min, Math.min(max, value))
+}
+
+// How densely a chart series is plotted, as samples-per-drawn-point.
+//
+// The series used to be flattened to a fixed 120 points, which is what made
+// every graph on this page read as a smoothed cartoon of the activity beside
+// the same ride on Strava: a 1h44 recording arrives as 6,123 one-second
+// samples, so each of those 120 bins averaged ~51 seconds — roughly 370 m of a
+// 44 km ride — and every short climb, descent and sprint inside a bin was
+// averaged flat.
+//
+// 8 is Strava's own ratio, read off two of its activity Analysis pages rather
+// than guessed: it ships the whole stream to the browser and draws exactly one
+// point per 8 of them (5,913 samples -> 740 drawn; 5,272 -> 659). A fixed point
+// COUNT would not reproduce that — it is a density, so a longer recording gets
+// proportionally more points rather than being squeezed into the same budget.
+const ANALYSIS_SAMPLES_PER_POINT = 8
+// Floors and ceilings on that ratio. The floor keeps a short activity at least
+// as detailed as it was before this change (a 10-minute 1 Hz recording is 600
+// samples, which Strava's ratio alone would draw as 75 points); the ceiling
+// bounds the path strings — memoized, so a hover never rebuilds them — for a
+// recording long enough that the ratio would otherwise run away.
+const ANALYSIS_SERIES_MIN_POINTS = 120
+const ANALYSIS_SERIES_MAX_POINTS = 1_200
+
 const downsampleSeries = (series: number[], targetCount: number) => {
   if (series.length <= targetCount) return series
   const ratio = series.length / targetCount
@@ -94,6 +130,20 @@ const downsampleSeries = (series: number[], targetCount: number) => {
     result.push(sum / chunk.length)
   }
   return result
+}
+
+// Reduce one raw series to the point count Strava would draw it at. An empty
+// series stays empty — a chart with no data is not rendered at all.
+const plotAtStravaDensity = (series: number[]) => {
+  if (series.length === 0) return []
+  return downsampleSeries(
+    series,
+    clampNumber(
+      Math.round(series.length / ANALYSIS_SAMPLES_PER_POINT),
+      ANALYSIS_SERIES_MIN_POINTS,
+      ANALYSIS_SERIES_MAX_POINTS
+    )
+  )
 }
 
 interface Props {
@@ -332,10 +382,6 @@ const MAP_ACTIVE_POINT_SOURCE_ID = 'activity-active-point'
 // matching RouteHeatmapMap.
 const MAP_LOAD_TIMEOUT_MS = 20_000
 
-const clampNumber = (value: number, min: number, max: number) => {
-  return Math.max(min, Math.min(max, value))
-}
-
 const normalizeRouteSample = (
   sample: FitnessRouteSample
 ): FitnessRouteSample => {
@@ -485,6 +531,226 @@ const buildXAxisLabels = (durationSeconds: number, tickCount = 6) => {
   return labels
 }
 
+interface ChartScrubOptions {
+  values: number[]
+  width: number
+  height: number
+  minValue: number
+  maxValue: number
+  durationSeconds?: number
+  highlightedElapsedSeconds?: number | null
+  onHighlightElapsedSeconds?: (elapsedSeconds: number | null) => void
+}
+
+// Everything a chart needs to follow the pointer: whether it can, where the
+// highlighted sample sits in plot coordinates, and the DOM handlers that turn a
+// pointer or a finger into an elapsed time.
+//
+// This lives in one hook because two visually different charts now share the
+// behaviour — the Analysis stack's line panels and the Overview's filled
+// elevation profile. Keeping the geometry beside the handlers is what stops the
+// dot from drifting off the line: both read the same `getChartXPosition` /
+// `getChartYPosition` projection the path was drawn with.
+const useChartScrub = ({
+  values,
+  width,
+  height,
+  minValue,
+  maxValue,
+  durationSeconds,
+  highlightedElapsedSeconds = null,
+  onHighlightElapsedSeconds
+}: ChartScrubOptions) => {
+  const canScrub =
+    typeof onHighlightElapsedSeconds === 'function' &&
+    typeof durationSeconds === 'number' &&
+    durationSeconds > 0 &&
+    values.length > 0
+
+  // One nullable object rather than three parallel nullable fields plus an
+  // `isHighlighted` boolean: a boolean beside them narrows nothing, so every
+  // consumer had to re-assert that x, y and value were numbers before it could
+  // pass them anywhere typed.
+  const highlightedIndex =
+    canScrub && typeof highlightedElapsedSeconds === 'number'
+      ? clampNumber(
+          Math.round(
+            (highlightedElapsedSeconds / durationSeconds) * (values.length - 1)
+          ),
+          0,
+          values.length - 1
+        )
+      : null
+  const highlight =
+    highlightedIndex === null
+      ? null
+      : {
+          value: values[highlightedIndex],
+          x: getChartXPosition(highlightedIndex, values.length, width),
+          y: getChartYPosition(
+            values[highlightedIndex],
+            height,
+            minValue,
+            maxValue
+          )
+        }
+
+  // One scrub for pointer and touch alike: both report a viewport x, and the
+  // instant it lands on is the same either way.
+  const scrubToClientX = (clientX: number | undefined, plot: SVGSVGElement) => {
+    if (!canScrub || !onHighlightElapsedSeconds) return
+    if (typeof clientX !== 'number') return
+    const bounds = plot.getBoundingClientRect()
+    const ratio = clampNumber(
+      (clientX - bounds.left) / Math.max(bounds.width, 1),
+      0,
+      1
+    )
+    onHighlightElapsedSeconds(ratio * durationSeconds)
+  }
+
+  const clearScrub = () => {
+    if (!canScrub || !onHighlightElapsedSeconds) return
+    onHighlightElapsedSeconds(null)
+  }
+
+  const plotHandlers = {
+    onMouseMove: (event: MouseEvent<SVGSVGElement>) => {
+      scrubToClientX(event.clientX, event.currentTarget)
+    },
+    onMouseLeave: clearScrub,
+    onTouchStart: (event: TouchEvent<SVGSVGElement>) => {
+      scrubToClientX(event.touches[0]?.clientX, event.currentTarget)
+    },
+    onTouchMove: (event: TouchEvent<SVGSVGElement>) => {
+      scrubToClientX(event.touches[0]?.clientX, event.currentTarget)
+    },
+    onTouchEnd: (event: TouchEvent<SVGSVGElement>) => {
+      // A tap is followed by compatibility `mousemove`/`mousedown`/…
+      // at the same point, and that `mousemove` would re-enter the scrub
+      // the moment this clears it — leaving the readout stuck on, because
+      // no `mouseleave` follows a touch. Preventing the default suppresses
+      // that whole compat sequence; the chart has no click behaviour to
+      // lose, and a drag never gets here stuck anyway because movement
+      // past the tap slop suppresses the compat events on its own.
+      // Guarded on `cancelable`: once a scroll is underway Chrome keeps
+      // dispatching `touchend` with `cancelable: false` rather than
+      // switching to `touchcancel`, and calling this on one of those is a
+      // no-op that logs a warning on every vertical swipe that started on
+      // a chart — which is most of them, under four stacked full-width
+      // charts.
+      if (event.cancelable) event.preventDefault()
+      clearScrub()
+    },
+    onTouchCancel: clearScrub
+  }
+
+  // A vertical swipe still scrolls the page and a pinch still zooms; only the
+  // horizontal drag is claimed, for scrubbing. Both of the other two have to be
+  // named explicitly — `touch-pan-y` on its own compiles to exactly
+  // `touch-action: pan-y`, which drops pinch-zoom, and blocking magnification
+  // over a stack of charts takes it away in the one place a low-vision reader
+  // most wants it.
+  const plotClassName = canScrub
+    ? 'cursor-crosshair touch-pan-y touch-pinch-zoom'
+    : undefined
+
+  return {
+    canScrub,
+    highlight,
+    plotClassName,
+    plotHandlers
+  }
+}
+
+// The dot pinned to the highlighted sample plus the value chip beside it,
+// shared by every scrubbable chart so the two never drift apart.
+const ChartHoverMarker: FC<{
+  x: number
+  y: number
+  width: number
+  height: number
+  value: number
+  unit: string
+  fractionDigits: number
+  dotClassName?: string
+}> = ({ x, y, width, height, value, unit, fractionDigits, dotClassName }) => {
+  // The readout sits beside the dot and flips to its left near the right edge.
+  // The threshold is a fraction of the viewBox while the chip is a fixed pixel
+  // width, so the two only agree above some container width. At the 320px
+  // reflow target the plot is 220px and the chip is ~77px for the widest value
+  // these series realistically produce ("13.5 km/h"), against a budget of that
+  // 220px PLUS this panel's own 16px right padding — the `overflow-hidden` is
+  // on the merged panel outside it. So the design kit's 0.72 lands 12px past
+  // what will be shown, and anything at or below 0.66 fits. 0.62 keeps a margin
+  // for a longer value or a wider font, at the cost of flipping sooner than the
+  // kit does in a desktop column, where there is still room to the right.
+  const shouldFlipReadout = x / width > 0.62
+
+  return (
+    <>
+      {/* The dot is HTML, not an SVG `circle`: `preserveAspectRatio="none"`
+          scales x and y independently, so a circle renders as an ellipse that
+          is half again as wide as it is tall in a desktop column and nearly
+          twice as tall as wide on a phone. Positioned by the same percentage
+          mapping as the readout — exact under that same `none`. */}
+      <span
+        aria-hidden="true"
+        data-testid="chart-hover-dot"
+        className={cn(
+          'pointer-events-none absolute z-10 size-[11px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background',
+          dotClassName ?? 'bg-sky-500'
+        )}
+        style={{
+          left: `${(x / width) * 100}%`,
+          top: `${(y / height) * 100}%`
+        }}
+      />
+      {/* Value readout pinned to the hover dot. Percentage positioning works
+          because `preserveAspectRatio="none"` maps the viewBox linearly onto
+          the rendered box; the vertical clamp keeps it inside the plot when
+          the sample sits against the top or bottom of the scale.
+          `aria-hidden` because it is the running commentary on a pointer
+          gesture: the numbers it shows are already in the panel header's
+          "Scale …", and a screen reader would otherwise meet a bare figure
+          with no context, attached to a control it cannot drive.
+          Keeping it inside the panel is the flip threshold's job, not a
+          `max-width`'s — the chip is clipped by where it is positioned, and
+          a cap wide enough to never truncate the text is also too wide to
+          ever bind. */}
+      <div
+        aria-hidden="true"
+        data-testid="chart-hover-value"
+        className="pointer-events-none absolute z-20 flex items-baseline gap-1 rounded-md border bg-background px-2 py-1 shadow-sm"
+        style={{
+          left: `${(x / width) * 100}%`,
+          top: `${clampNumber((y / height) * 100, 8, 92)}%`,
+          transform: shouldFlipReadout
+            ? 'translate(calc(-100% - 12px), -50%)'
+            : 'translate(12px, -50%)'
+        }}
+      >
+        <span className="text-sm font-semibold leading-none tabular-nums text-foreground">
+          {formatChartValue(value, fractionDigits)}
+        </span>
+        <span className="text-[10px] leading-none text-muted-foreground">
+          {unit}
+        </span>
+        <span
+          aria-hidden="true"
+          className={cn(
+            'absolute top-1/2 size-2 bg-background',
+            shouldFlipReadout
+              ? '-right-[4.5px] border-r border-t'
+              : '-left-[4.5px] border-b border-l'
+          )}
+          style={{ transform: 'translateY(-50%) rotate(45deg)' }}
+        />
+      </div>
+    </>
+  )
+}
+
 const Card: FC<{
   className?: string
   children: ReactNode
@@ -619,53 +885,126 @@ const SectionNav: FC<{
   )
 }
 
-const ElevationProfileChart: FC<{ values: number[]; height?: number }> = ({
+// The Overview's filled elevation profile. Visually it is its own thing — the
+// orange area fill under a heavier line, sized for a summary card — but it
+// scrubs exactly like the Analysis stack does, off the same `useChartScrub`
+// hook and the same shared marker, so dragging it reports the elevation under
+// the pointer and moves the highlight on the map above it.
+const ElevationProfileChart: FC<{
+  values: number[]
+  height?: number
+  durationSeconds?: number
+  highlightedElapsedSeconds?: number | null
+  onHighlightElapsedSeconds?: (elapsedSeconds: number | null) => void
+}> = ({
   values,
-  height = 130
+  height = 130,
+  durationSeconds,
+  highlightedElapsedSeconds = null,
+  onHighlightElapsedSeconds
 }) => {
   const width = 800
-  const { minValue, maxValue } = getSeriesMinMax(values)
-  const line = buildChartPath(values, width, height, minValue, maxValue)
-  const area = `${line} L ${width.toFixed(2)} ${height} L 0 ${height} Z`
+  const { minValue, maxValue } = useMemo(
+    () => getSeriesMinMax(values),
+    [values]
+  )
+  // Memoized because the series is now plotted at full Strava-like density:
+  // rebuilding a 2,000-point path string on every pointer move would be the one
+  // expensive thing a scrub does.
+  const line = useMemo(
+    () => buildChartPath(values, width, height, minValue, maxValue),
+    [values, height, minValue, maxValue]
+  )
+  const area = useMemo(
+    () => `${line} L ${width.toFixed(2)} ${height} L 0 ${height} Z`,
+    [line, height]
+  )
+  const xLabels = useMemo(
+    () => (durationSeconds ? buildXAxisLabels(durationSeconds) : null),
+    [durationSeconds]
+  )
+  const scrub = useChartScrub({
+    values,
+    width,
+    height,
+    minValue,
+    maxValue,
+    durationSeconds,
+    highlightedElapsedSeconds,
+    onHighlightElapsedSeconds
+  })
 
   return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      preserveAspectRatio="none"
-      className="block w-full"
-      style={{ height }}
-    >
-      <defs>
-        <linearGradient
-          id="fitness-elevation-gradient"
-          x1="0"
-          y1="0"
-          x2="0"
-          y2="1"
+    <div data-testid="overview-elevation-profile">
+      <div className="relative" style={{ height }}>
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="none"
+          className={cn('block h-full w-full', scrub.plotClassName)}
+          {...scrub.plotHandlers}
         >
-          <stop offset="0" stopColor="hsl(24 95% 46%)" stopOpacity="0.28" />
-          <stop offset="1" stopColor="hsl(24 95% 46%)" stopOpacity="0.02" />
-        </linearGradient>
-      </defs>
-      <line
-        x1={0}
-        y1={height / 2}
-        x2={width}
-        y2={height / 2}
-        className="stroke-border"
-        strokeWidth={1}
-        strokeDasharray="4 4"
-      />
-      <path d={area} fill="url(#fitness-elevation-gradient)" />
-      <path
-        d={line}
-        fill="none"
-        className="stroke-primary"
-        strokeWidth={2.5}
-        strokeLinejoin="round"
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
+          <defs>
+            <linearGradient
+              id="fitness-elevation-gradient"
+              x1="0"
+              y1="0"
+              x2="0"
+              y2="1"
+            >
+              <stop offset="0" stopColor="hsl(24 95% 46%)" stopOpacity="0.28" />
+              <stop offset="1" stopColor="hsl(24 95% 46%)" stopOpacity="0.02" />
+            </linearGradient>
+          </defs>
+          <line
+            x1={0}
+            y1={height / 2}
+            x2={width}
+            y2={height / 2}
+            className="stroke-border"
+            strokeWidth={1}
+            strokeDasharray="4 4"
+          />
+          <path d={area} fill="url(#fitness-elevation-gradient)" />
+          <path
+            d={line}
+            fill="none"
+            className="stroke-primary"
+            strokeWidth={2.5}
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+          {scrub.highlight ? (
+            <line
+              x1={scrub.highlight.x}
+              y1={0}
+              x2={scrub.highlight.x}
+              y2={height}
+              vectorEffect="non-scaling-stroke"
+              className="stroke-primary stroke-[1.5] opacity-60"
+            />
+          ) : null}
+        </svg>
+        {scrub.highlight ? (
+          <ChartHoverMarker
+            x={scrub.highlight.x}
+            y={scrub.highlight.y}
+            width={width}
+            height={height}
+            value={scrub.highlight.value}
+            unit="m"
+            fractionDigits={0}
+            dotClassName="bg-primary"
+          />
+        ) : null}
+      </div>
+      {xLabels && (
+        <div className="mt-2 flex justify-between text-[11px] tabular-nums text-muted-foreground">
+          {xLabels.map((label, index) => (
+            <span key={index}>{label}</span>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -771,66 +1110,16 @@ const ChartPanel: FC<{
     () => (durationSeconds ? buildXAxisLabels(durationSeconds) : null),
     [durationSeconds]
   )
-  const canHoverMapPoint =
-    typeof onHighlightElapsedSeconds === 'function' &&
-    typeof durationSeconds === 'number' &&
-    durationSeconds > 0 &&
-    values.length > 0
-  const highlightedIndex =
-    canHoverMapPoint && typeof highlightedElapsedSeconds === 'number'
-      ? clampNumber(
-          Math.round(
-            (highlightedElapsedSeconds / durationSeconds) * (values.length - 1)
-          ),
-          0,
-          values.length - 1
-        )
-      : null
-  const highlightedValue =
-    typeof highlightedIndex === 'number' ? values[highlightedIndex] : null
-  const highlightedX =
-    typeof highlightedIndex === 'number'
-      ? getChartXPosition(highlightedIndex, values.length, width)
-      : null
-  const highlightedY =
-    typeof highlightedValue === 'number'
-      ? getChartYPosition(highlightedValue, height, minValue, maxValue)
-      : null
-  // The readout sits beside the dot and flips to its left near the right edge.
-  // The threshold is a fraction of the viewBox while the chip is a fixed pixel
-  // width, so the two only agree above some container width. At the 320px
-  // reflow target the plot is 220px and the chip is ~77px for the widest value
-  // these series realistically produce ("13.5 km/h"), against a budget of that
-  // 220px PLUS this panel's own 16px right padding — the `overflow-hidden` is
-  // on the merged panel outside it. So the design kit's 0.72 lands 12px past
-  // what will be shown, and anything at or below 0.66 fits. 0.62 keeps a margin
-  // for a longer value or a wider font, at the cost of flipping sooner than the
-  // kit does in a desktop column, where there is still room to the right.
-  const shouldFlipReadout =
-    typeof highlightedX === 'number' && highlightedX / width > 0.62
-  const isHighlighted =
-    typeof highlightedX === 'number' &&
-    typeof highlightedY === 'number' &&
-    typeof highlightedValue === 'number'
-
-  // One scrub for pointer and touch alike: both report a viewport x, and the
-  // instant it lands on is the same either way.
-  const scrubToClientX = (clientX: number | undefined, plot: SVGSVGElement) => {
-    if (!canHoverMapPoint || !onHighlightElapsedSeconds) return
-    if (typeof clientX !== 'number') return
-    const bounds = plot.getBoundingClientRect()
-    const ratio = clampNumber(
-      (clientX - bounds.left) / Math.max(bounds.width, 1),
-      0,
-      1
-    )
-    onHighlightElapsedSeconds(ratio * durationSeconds)
-  }
-
-  const clearScrub = () => {
-    if (!canHoverMapPoint || !onHighlightElapsedSeconds) return
-    onHighlightElapsedSeconds(null)
-  }
+  const scrub = useChartScrub({
+    values,
+    width,
+    height,
+    minValue,
+    maxValue,
+    durationSeconds,
+    highlightedElapsedSeconds,
+    onHighlightElapsedSeconds
+  })
 
   // No border or rounding of its own: every chart is a row of the one bordered
   // panel the Analysis section stacks them into, so a border here would draw a
@@ -865,44 +1154,8 @@ const ChartPanel: FC<{
         <svg
           viewBox={`0 0 ${width} ${height}`}
           preserveAspectRatio="none"
-          className={cn(
-            'block h-full w-full',
-            // A vertical swipe still scrolls the page and a pinch still zooms;
-            // only the horizontal drag is claimed, for scrubbing. Both of the
-            // other two have to be named explicitly — `touch-pan-y` on its own
-            // compiles to exactly `touch-action: pan-y`, which drops
-            // pinch-zoom, and blocking magnification over a stack of charts
-            // takes it away in the one place a low-vision reader most wants it.
-            canHoverMapPoint && 'cursor-crosshair touch-pan-y touch-pinch-zoom'
-          )}
-          onMouseMove={(event) => {
-            scrubToClientX(event.clientX, event.currentTarget)
-          }}
-          onMouseLeave={clearScrub}
-          onTouchStart={(event) => {
-            scrubToClientX(event.touches[0]?.clientX, event.currentTarget)
-          }}
-          onTouchMove={(event) => {
-            scrubToClientX(event.touches[0]?.clientX, event.currentTarget)
-          }}
-          onTouchEnd={(event) => {
-            // A tap is followed by compatibility `mousemove`/`mousedown`/…
-            // at the same point, and that `mousemove` would re-enter the scrub
-            // the moment this clears it — leaving the readout stuck on, because
-            // no `mouseleave` follows a touch. Preventing the default suppresses
-            // that whole compat sequence; the chart has no click behaviour to
-            // lose, and a drag never gets here stuck anyway because movement
-            // past the tap slop suppresses the compat events on its own.
-            // Guarded on `cancelable`: once a scroll is underway Chrome keeps
-            // dispatching `touchend` with `cancelable: false` rather than
-            // switching to `touchcancel`, and calling this on one of those is a
-            // no-op that logs a warning on every vertical swipe that started on
-            // a chart — which is most of them, under four stacked full-width
-            // charts.
-            if (event.cancelable) event.preventDefault()
-            clearScrub()
-          }}
-          onTouchCancel={clearScrub}
+          className={cn('block h-full w-full', scrub.plotClassName)}
+          {...scrub.plotHandlers}
         >
           <path
             d={path}
@@ -910,11 +1163,11 @@ const ChartPanel: FC<{
             vectorEffect="non-scaling-stroke"
             className={cn('stroke-[2]', strokeClassName ?? 'stroke-sky-500')}
           />
-          {isHighlighted ? (
+          {scrub.highlight ? (
             <line
-              x1={highlightedX}
+              x1={scrub.highlight.x}
               y1={0}
-              x2={highlightedX}
+              x2={scrub.highlight.x}
               y2={height}
               vectorEffect="non-scaling-stroke"
               className={cn(
@@ -924,67 +1177,17 @@ const ChartPanel: FC<{
             />
           ) : null}
         </svg>
-        {/* The dot is HTML, not an SVG `circle`: `preserveAspectRatio="none"`
-            scales x and y independently, so a circle renders as an ellipse that
-            is half again as wide as it is tall in a desktop column and nearly
-            twice as tall as wide on a phone. Positioned by the same percentage
-            mapping as the readout — exact under that same `none`. */}
-        {isHighlighted ? (
-          <span
-            aria-hidden="true"
-            data-testid="chart-hover-dot"
-            className={cn(
-              'pointer-events-none absolute z-10 size-[11px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background',
-              dotClassName ?? 'bg-sky-500'
-            )}
-            style={{
-              left: `${(highlightedX / width) * 100}%`,
-              top: `${(highlightedY / height) * 100}%`
-            }}
+        {scrub.highlight ? (
+          <ChartHoverMarker
+            x={scrub.highlight.x}
+            y={scrub.highlight.y}
+            width={width}
+            height={height}
+            value={scrub.highlight.value}
+            unit={unit}
+            fractionDigits={fractionDigits}
+            dotClassName={dotClassName}
           />
-        ) : null}
-        {/* Value readout pinned to the hover dot. Percentage positioning works
-            because `preserveAspectRatio="none"` maps the viewBox linearly onto
-            the rendered box; the vertical clamp keeps it inside the plot when
-            the sample sits against the top or bottom of the scale.
-            `aria-hidden` because it is the running commentary on a pointer
-            gesture: the numbers it shows are already in the panel header's
-            "Scale …", and a screen reader would otherwise meet a bare figure
-            with no context, attached to a control it cannot drive.
-            Keeping it inside the panel is the flip threshold's job, not a
-            `max-width`'s — the chip is clipped by where it is positioned, and
-            a cap wide enough to never truncate the text is also too wide to
-            ever bind. */}
-        {isHighlighted ? (
-          <div
-            aria-hidden="true"
-            data-testid="chart-hover-value"
-            className="pointer-events-none absolute z-20 flex items-baseline gap-1 rounded-md border bg-background px-2 py-1 shadow-sm"
-            style={{
-              left: `${(highlightedX / width) * 100}%`,
-              top: `${clampNumber((highlightedY / height) * 100, 8, 92)}%`,
-              transform: shouldFlipReadout
-                ? 'translate(calc(-100% - 12px), -50%)'
-                : 'translate(12px, -50%)'
-            }}
-          >
-            <span className="text-sm font-semibold leading-none tabular-nums text-foreground">
-              {formatChartValue(highlightedValue, fractionDigits)}
-            </span>
-            <span className="text-[10px] leading-none text-muted-foreground">
-              {unit}
-            </span>
-            <span
-              aria-hidden="true"
-              className={cn(
-                'absolute top-1/2 size-2 bg-background',
-                shouldFlipReadout
-                  ? '-right-[4.5px] border-r border-t'
-                  : '-left-[4.5px] border-b border-l'
-              )}
-              style={{ transform: 'translateY(-50%) rotate(45deg)' }}
-            />
-          </div>
         ) : null}
       </div>
       {xLabels && (
@@ -1708,10 +1911,12 @@ export const FitnessStatusDetail: FC<Props> = ({
     }
   }, [fitness?.id])
 
+  // Both Overview (its elevation profile) and Analysis (its graph stack) scrub
+  // the same instant onto the same map, so leaving a section always drops the
+  // highlight: the pointer is no longer over any chart, and a crosshair left
+  // standing on a section you have just switched away from reads as a fault.
   useEffect(() => {
-    if (activeSection !== 'analysis') {
-      setHighlightedElapsedSeconds(null)
-    }
+    setHighlightedElapsedSeconds(null)
   }, [activeSection])
 
   const distanceMeters = fitness?.totalDistanceMeters ?? 0
@@ -1784,14 +1989,10 @@ export const FitnessStatusDetail: FC<Props> = ({
 
   const activitySeries = useMemo(() => {
     return {
-      heartRate:
-        heartRateChartSeries.length > 0
-          ? downsampleSeries(heartRateChartSeries, 120)
-          : [],
-      power: powerSeries.length > 0 ? downsampleSeries(powerSeries, 120) : [],
-      speed: speedSeries.length > 0 ? downsampleSeries(speedSeries, 120) : [],
-      elevation:
-        altitudeSeries.length > 0 ? downsampleSeries(altitudeSeries, 120) : []
+      heartRate: plotAtStravaDensity(heartRateChartSeries),
+      power: plotAtStravaDensity(powerSeries),
+      speed: plotAtStravaDensity(speedSeries),
+      elevation: plotAtStravaDensity(altitudeSeries)
     }
   }, [heartRateChartSeries, powerSeries, speedSeries, altitudeSeries])
   const { minValue: elevationMin, maxValue: elevationMax } = useMemo(
@@ -2329,6 +2530,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                 fitnessFileId={fitness?.id ?? null}
                 routeSamples={routeSamples}
                 routeSegments={routeSegments}
+                highlightedElapsedSeconds={highlightedElapsedSeconds}
                 mapProvider={mapProvider}
                 routeDataError={routeDataError}
                 isRouteDataLoading={isRouteDataLoading}
@@ -2359,14 +2561,26 @@ export const FitnessStatusDetail: FC<Props> = ({
                 <SectionTitle
                   icon={Mountain}
                   right={
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {/* The scrubbed instant replaces nothing — it is added
+                          in front of the gain, so the card keeps reporting the
+                          activity's own headline number while the pointer
+                          reports where on it you are. */}
+                      {highlightedElapsedLabel
+                        ? `${highlightedElapsedLabel} · `
+                        : ''}
                       {Math.max(0, Math.round(elevationGainMeters))} m gain
                     </span>
                   }
                 >
                   Elevation
                 </SectionTitle>
-                <ElevationProfileChart values={activitySeries.elevation} />
+                <ElevationProfileChart
+                  values={activitySeries.elevation}
+                  durationSeconds={durationSeconds}
+                  highlightedElapsedSeconds={highlightedElapsedSeconds}
+                  onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                />
               </Card>
             )}
           </div>

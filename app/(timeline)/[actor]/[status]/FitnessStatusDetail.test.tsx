@@ -52,6 +52,26 @@ vi.mock('@/lib/components/posts/media', () => ({
   Media: () => <div data-testid="media" />
 }))
 
+// The MapKit surface is the one map path that is a component rather than an
+// imperative GL handle, so it is where a test can read back the instant the
+// page is asking the map to highlight.
+vi.mock('@/lib/components/fitness/ActivityRouteMapKit', () => ({
+  ActivityRouteMapKit: ({
+    highlightedElapsedSeconds
+  }: {
+    highlightedElapsedSeconds?: number | null
+  }) => (
+    <div
+      data-testid="route-map"
+      data-highlighted-elapsed-seconds={
+        typeof highlightedElapsedSeconds === 'number'
+          ? String(highlightedElapsedSeconds)
+          : ''
+      }
+    />
+  )
+}))
+
 vi.mock('@/lib/components/posts/post', () => ({
   Post: ({ status }: { status: { id: string } }) => (
     <div data-testid="reply-post">{status.id}</div>
@@ -737,6 +757,167 @@ describe('FitnessStatusDetail', () => {
         }
       }
     )
+
+    // A 1 Hz recording arrives as one sample per second, so a plotted point per
+    // ~51s of it — which is what the old flat 120-point cap produced — averages
+    // every short climb and sprint away. Strava draws one point per 8 samples
+    // (measured on two of its own activity Analysis pages: 5,913 -> 740 and
+    // 5,272 -> 659), so these are the ratios, not round numbers.
+    it.each([
+      { description: '5913 samples like the reference ride', raw: 5_913 },
+      { description: '5272 samples like the second ride', raw: 5_272 }
+    ])('plots $description at Strava density', async ({ raw }) => {
+      const ramp = Array.from({ length: raw }, (_, index) => index)
+      mockGetFitnessRouteData.mockResolvedValue({
+        ...routeData,
+        altitudeSeries: ramp,
+        speedSeries: ramp,
+        powerSeries: ramp,
+        heartRateSeries: ramp
+      })
+
+      const panel = await openAnalysis()
+
+      const expected = Math.round(raw / 8)
+      const pointCounts = Array.from(panel.querySelectorAll('path')).map(
+        (path) => (path.getAttribute('d') ?? '').match(/[LM]/g)?.length ?? 0
+      )
+      expect(pointCounts).toEqual([expected, expected, expected, expected])
+    })
+
+    // The ratio is clamped at both ends: a short activity never gets coarser
+    // than it already was, and a very long one never grows an unbounded path.
+    it.each([
+      {
+        description: 'floors a short recording at 120 points',
+        raw: 600,
+        expected: 120
+      },
+      {
+        description: 'caps a very long recording at 1200 points',
+        raw: 40_000,
+        expected: 1_200
+      }
+    ])('$description', async ({ raw, expected }) => {
+      const ramp = Array.from({ length: raw }, (_, index) => index)
+      mockGetFitnessRouteData.mockResolvedValue({
+        ...routeData,
+        altitudeSeries: ramp
+      })
+
+      const panel = await openAnalysis()
+
+      const [elevationPath] = Array.from(panel.querySelectorAll('path'))
+      expect(
+        (elevationPath.getAttribute('d') ?? '').match(/[LM]/g)
+      ).toHaveLength(expected)
+    })
+
+    // Downsampling is a bin average, so a series shorter than the floor has to
+    // survive untouched — otherwise a two-minute activity would be resampled
+    // for no reason and its samples would stop lining up with the map.
+    it('leaves a series shorter than the floor at its own resolution', async () => {
+      const panel = await openAnalysis()
+
+      const [elevationPath] = Array.from(panel.querySelectorAll('path'))
+      expect(
+        (elevationPath.getAttribute('d') ?? '').match(/[LM]/g)
+      ).toHaveLength(routeData.altitudeSeries?.length ?? 0)
+    })
+  })
+
+  describe('overview elevation profile', () => {
+    // Same contract as the analysis stack, on the summary card: drag it and it
+    // reports the elevation under the pointer and moves the highlight on the
+    // map above it. It used to be a static picture.
+    const hoverElevation = (clientX: number) => {
+      const profile = screen.getByTestId('overview-elevation-profile')
+      const [plot] = Array.from(profile.querySelectorAll('svg'))
+      plot.getBoundingClientRect = () => ({ left: 100, width: 400 }) as DOMRect
+      fireEvent.mouseMove(plot, { clientX })
+      return plot
+    }
+
+    const renderOverview = async () => {
+      renderDetail()
+      await waitFor(() =>
+        expect(
+          screen.getByTestId('overview-elevation-profile')
+        ).toBeInTheDocument()
+      )
+    }
+
+    it('reports the elevation under the pointer while it is dragged', async () => {
+      await renderOverview()
+
+      expect(screen.queryAllByTestId('chart-hover-value')).toHaveLength(0)
+
+      // A quarter of the way across => 450s of a 1800s ride => sample index 1
+      // of the [10, 24, 40, 55, 48, 30] fixture.
+      const plot = hoverElevation(200)
+
+      const [readout] = screen.getAllByTestId('chart-hover-value')
+      expect(readout).toHaveTextContent(/^24m$/)
+      // The card header carries the instant, so the value has a time to belong
+      // to without a second readout chip.
+      expect(screen.getByText(/7:30 · 120 m gain/)).toBeInTheDocument()
+
+      fireEvent.mouseLeave(plot)
+      expect(screen.queryAllByTestId('chart-hover-value')).toHaveLength(0)
+      expect(screen.getByText(/^120 m gain$/)).toBeInTheDocument()
+    })
+
+    it('scrubs on touch as well as on hover', async () => {
+      await renderOverview()
+
+      const profile = screen.getByTestId('overview-elevation-profile')
+      const [plot] = Array.from(profile.querySelectorAll('svg'))
+      plot.getBoundingClientRect = () => ({ left: 100, width: 400 }) as DOMRect
+
+      fireEvent.touchStart(plot, { touches: [{ clientX: 200 }] })
+      expect(screen.getAllByTestId('chart-hover-value')[0]).toHaveTextContent(
+        /^24m$/
+      )
+
+      fireEvent.touchEnd(plot)
+      expect(screen.queryAllByTestId('chart-hover-value')).toHaveLength(0)
+    })
+
+    // The whole point of the scrub is the map, and the map only follows a
+    // highlight the Overview's own panel is given — the prop used to be passed
+    // on the Analysis section's panel alone, so the profile could report a
+    // value with nothing moving beside it.
+    it('follows the scrubbed instant on the map above it', async () => {
+      renderDetail({ mapProvider: { type: 'apple' } })
+      await waitFor(() =>
+        expect(screen.getByTestId('route-map')).toBeInTheDocument()
+      )
+
+      expect(screen.getByTestId('route-map')).toHaveAttribute(
+        'data-highlighted-elapsed-seconds',
+        ''
+      )
+
+      hoverElevation(200)
+
+      // A quarter of the way across a 1800s ride.
+      expect(screen.getByTestId('route-map')).toHaveAttribute(
+        'data-highlighted-elapsed-seconds',
+        '450'
+      )
+    })
+
+    it('drops the highlight when the section changes', async () => {
+      await renderOverview()
+
+      hoverElevation(200)
+      expect(screen.getAllByTestId('chart-hover-value')).not.toHaveLength(0)
+
+      const menu = await openSectionMenu()
+      fireEvent.click(within(menu).getByRole('menuitem', { name: 'Analysis' }))
+
+      expect(screen.queryAllByTestId('chart-hover-value')).toHaveLength(0)
+    })
   })
 
   it('shows the multi-file activity switcher when several files are aggregated', async () => {
