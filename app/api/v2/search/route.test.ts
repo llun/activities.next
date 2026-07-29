@@ -110,11 +110,16 @@ vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
     mockGetFederationSigningActor(...args)
 }))
 
-vi.mock('@/lib/utils/logger', () => ({
-  logger: {
-    warn: (...args: unknown[]) => mockLoggerWarn(...args)
+vi.mock('@/lib/utils/logger', () => {
+  const logger = {
+    warn: (...args: unknown[]) => mockLoggerWarn(...args),
+    debug: vi.fn(),
+    // The route pulls in OAuthGuard, which builds the `oauth` child logger at
+    // module load, so the double has to support child loggers too.
+    child: () => logger
   }
-}))
+  return { logger }
+})
 
 const context = { params: Promise.resolve({}) }
 

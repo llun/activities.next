@@ -449,6 +449,25 @@ describe('OAuthGuard', () => {
       expect(response.status).toBe(401)
     })
 
+    test('returns 401 when a token has neither an actor reference nor a user', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      mockStoredTokens.set(hashToken('opaque-app-token'), {
+        token: hashToken('opaque-app-token'),
+        referenceId: null,
+        userId: null,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+
+      const guard = OAuthGuard([Scope.enum.read], mockHandler)
+      const req = createRequest({ Authorization: 'Bearer opaque-app-token' })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+      expect(mockHandler).not.toHaveBeenCalled()
+    })
+
     test('returns 401 when actorId refers to non-existent actor', async () => {
       mockGetServerSession.mockResolvedValue(null)
       const token = jwtToken('bad-actor')
@@ -595,7 +614,7 @@ describe('OAuthGuard', () => {
       expect(mockVerifyAccessToken).not.toHaveBeenCalled()
     })
 
-    test('returns 401 when Better Auth opaque token has account userId but no actor referenceId', async () => {
+    test('acts as the account actor when an opaque token has a userId but no actor referenceId', async () => {
       mockGetServerSession.mockResolvedValue(null)
 
       const primaryActor = await database.getActorFromEmail({
@@ -603,6 +622,11 @@ describe('OAuthGuard', () => {
       })
       if (!primaryActor?.account) throw new Error('Primary actor not found')
 
+      // A grant that resolved no actor reference — an account that never picked
+      // a default actor, consenting through a path that does not show the
+      // consent screen — stores an empty referenceId. The token still belongs
+      // to an account, so it acts as that account's actor rather than failing
+      // closed on every bearer route including /oauth/userinfo.
       mockStoredTokens.set(hashToken('better-auth-opaque-token'), {
         token: hashToken('better-auth-opaque-token'),
         referenceId: '',
@@ -617,8 +641,13 @@ describe('OAuthGuard', () => {
       })
       const response = await guard(req, { params: Promise.resolve({}) })
 
-      expect(response.status).toBe(401)
-      expect(mockHandler).not.toHaveBeenCalled()
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalledWith(
+        req,
+        expect.objectContaining({
+          currentActor: expect.objectContaining({ id: primaryActor.id })
+        })
+      )
       expect(mockVerifyAccessToken).not.toHaveBeenCalled()
     })
 
