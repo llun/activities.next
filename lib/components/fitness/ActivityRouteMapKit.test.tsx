@@ -159,6 +159,43 @@ describe('ActivityRouteMapKit', () => {
     expect(mockLoadMapKitModule).toHaveBeenCalledTimes(1)
   })
 
+  it('draws the hover highlight as a centred dot rather than a pin', async () => {
+    const double = createMapKitTestDouble()
+    mockLoadMapKitModule.mockImplementation((() =>
+      Promise.resolve(double.mapkit)) as never)
+    const markerAnnotation = vi.spyOn(double.mapkit, 'MarkerAnnotation')
+    const hiddenSamples = routeSamples.map((sample) => ({
+      ...sample,
+      isHiddenByPrivacy: true
+    }))
+
+    render(
+      <ActivityRouteMapKit
+        routeSegments={[{ isHiddenByPrivacy: true, samples: hiddenSamples }]}
+        routeSamples={hiddenSamples}
+        highlightedElapsedSeconds={120}
+        onUnavailable={vi.fn()}
+      />
+    )
+
+    await waitFor(() => expect(double.annotations).toHaveLength(1))
+    // Apple's teardrop pin is anchored by its tip, so it covers the map above
+    // the sample instead of marking it — the GL surfaces draw a dot on the point.
+    expect(markerAnnotation).not.toHaveBeenCalled()
+
+    const element = double.annotations[0].element
+    expect(element).not.toBeNull()
+    // Zero-sized anchor: MapKit's bottom-centre anchoring lands on its centre.
+    expect(element?.style.width).toBe('0px')
+    expect(element?.style.height).toBe('0px')
+
+    const [halo, core] = Array.from(element?.children ?? []) as HTMLElement[]
+    expect(halo.style.width).toBe('16px')
+    expect(halo.style.backgroundColor).toBe('rgb(255, 255, 255)')
+    // Green because the hovered sample sits on a privacy-hidden segment.
+    expect(core.style.backgroundColor).toBe('rgb(22, 163, 74)')
+  })
+
   it('rebuilds the route overlays when the route data changes', async () => {
     const double = createMapKitTestDouble()
     mockLoadMapKitModule.mockImplementation((() =>

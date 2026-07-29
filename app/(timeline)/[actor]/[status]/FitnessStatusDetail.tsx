@@ -37,6 +37,14 @@ import {
 } from '@/lib/client'
 import { ActivityRouteMapKit } from '@/lib/components/fitness/ActivityRouteMapKit'
 import { findRouteSampleForElapsed } from '@/lib/components/fitness/mapGeometry'
+import {
+  ROUTE_HIGHLIGHT_CORE_COLOR,
+  ROUTE_HIGHLIGHT_CORE_RADIUS_PX,
+  ROUTE_HIGHLIGHT_HALO_COLOR,
+  ROUTE_HIGHLIGHT_HALO_OPACITY,
+  ROUTE_HIGHLIGHT_HALO_RADIUS_PX,
+  ROUTE_HIGHLIGHT_HIDDEN_CORE_COLOR
+} from '@/lib/components/fitness/routeHighlightMarker'
 import { BrandedDeviceLink } from '@/lib/components/posts/BrandedDeviceLink'
 import { BookmarkButton } from '@/lib/components/posts/actions/bookmark-button'
 import { LikeButton } from '@/lib/components/posts/actions/like-button'
@@ -849,6 +857,8 @@ const ChartPanel: FC<{
 
 const ActivityMapPanel: FC<{
   mapAttachment?: Attachment
+  /** Activity file the route belongs to — the scope of a notice dismissal. */
+  fitnessFileId?: string | null
   routeSamples: FitnessRouteSample[]
   routeSegments: FitnessRouteSegment[]
   highlightedElapsedSeconds?: number | null
@@ -858,6 +868,7 @@ const ActivityMapPanel: FC<{
   onOpenMap?: () => void
 }> = ({
   mapAttachment,
+  fitnessFileId = null,
   routeSamples,
   routeSegments,
   highlightedElapsedSeconds = null,
@@ -871,8 +882,20 @@ const ActivityMapPanel: FC<{
   const [mapLoadError, setMapLoadError] = useState<string | null>(null)
   // The privacy notice is an acknowledgement, not a persistent legend — tapping
   // it clears it so it stops covering the map.
-  const [isPrivacyNoticeDismissed, setIsPrivacyNoticeDismissed] =
-    useState(false)
+  //
+  // The dismissal records WHICH activity file was acknowledged rather than a
+  // bare boolean, because the panel is not keyed per file: switching files in an
+  // aggregated post swaps the route underneath the same instance, and a carried
+  // -over dismissal would leave the next route drawing green segments with no
+  // explanation. Deriving it during render (instead of resetting the flag from
+  // an effect keyed on `routeSegments`) is what makes that safe — a passive
+  // effect runs a task *after* the commit that showed the notice, so it could
+  // land after the user's tap and silently resurrect a notice they just closed.
+  const [dismissedNoticeFileId, setDismissedNoticeFileId] = useState<
+    string | null
+  >(null)
+  const isPrivacyNoticeDismissed =
+    fitnessFileId !== null && dismissedNoticeFileId === fitnessFileId
   const drawableRouteSegments = useMemo(
     () => routeSegments.filter((segment) => segment.samples.length >= 2),
     [routeSegments]
@@ -885,14 +908,6 @@ const ActivityMapPanel: FC<{
     () => drawableRouteSegments.some((segment) => segment.isHiddenByPrivacy),
     [drawableRouteSegments]
   )
-
-  // The panel is not keyed per file, so switching activity files in an
-  // aggregated post swaps `routeSegments` underneath the same instance. Without
-  // this reset a dismissal would carry over and the next file would draw green
-  // segments with no explanation.
-  useEffect(() => {
-    setIsPrivacyNoticeDismissed(false)
-  }, [routeSegments])
 
   // Keyed on the descriptor's fields (not its object identity) so an inline prop
   // literal doesn't tear the map down on every parent render. Apple renders
@@ -1032,14 +1047,16 @@ const ActivityMapPanel: FC<{
             }
           })
 
+          // Geometry and colours come from the shared highlight-marker module so
+          // the Apple MapKit annotation draws the identical dot.
           map.addLayer({
             id: 'activity-active-point-ring',
             type: 'circle',
             source: MAP_ACTIVE_POINT_SOURCE_ID,
             paint: {
-              'circle-radius': 8,
-              'circle-color': '#ffffff',
-              'circle-opacity': 0.95
+              'circle-radius': ROUTE_HIGHLIGHT_HALO_RADIUS_PX,
+              'circle-color': ROUTE_HIGHLIGHT_HALO_COLOR,
+              'circle-opacity': ROUTE_HIGHLIGHT_HALO_OPACITY
             }
           })
 
@@ -1048,12 +1065,12 @@ const ActivityMapPanel: FC<{
             type: 'circle',
             source: MAP_ACTIVE_POINT_SOURCE_ID,
             paint: {
-              'circle-radius': 4.5,
+              'circle-radius': ROUTE_HIGHLIGHT_CORE_RADIUS_PX,
               'circle-color': [
                 'case',
                 ['==', ['get', 'isHiddenByPrivacy'], true],
-                '#16a34a',
-                '#1d4ed8'
+                ROUTE_HIGHLIGHT_HIDDEN_CORE_COLOR,
+                ROUTE_HIGHLIGHT_CORE_COLOR
               ]
             }
           })
@@ -1218,7 +1235,7 @@ const ActivityMapPanel: FC<{
           {hasHiddenPrivacySegments && !isPrivacyNoticeDismissed ? (
             <button
               type="button"
-              onClick={() => setIsPrivacyNoticeDismissed(true)}
+              onClick={() => setDismissedNoticeFileId(fitnessFileId)}
               aria-label="Dismiss notice: green segments are hidden from other viewers"
               className="absolute bottom-3 left-3 inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-green-300 bg-background/95 px-3 py-2 text-xs font-medium text-green-700 shadow-sm hover:bg-muted dark:border-green-900 dark:text-green-400"
             >
@@ -2080,6 +2097,7 @@ export const FitnessStatusDetail: FC<Props> = ({
             {shouldRenderMapPanel && (
               <ActivityMapPanel
                 mapAttachment={mapAttachment}
+                fitnessFileId={fitness?.id ?? null}
                 routeSamples={routeSamples}
                 routeSegments={routeSegments}
                 mapProvider={mapProvider}
@@ -2133,6 +2151,7 @@ export const FitnessStatusDetail: FC<Props> = ({
             {shouldRenderMapPanel && (
               <ActivityMapPanel
                 mapAttachment={mapAttachment}
+                fitnessFileId={fitness?.id ?? null}
                 routeSamples={routeSamples}
                 routeSegments={routeSegments}
                 highlightedElapsedSeconds={highlightedElapsedSeconds}

@@ -15,6 +15,7 @@ import {
   boundsToRegion,
   loadMapKitSurface
 } from '@/lib/components/fitness/mapkitSurface'
+import { createRouteHighlightElement } from '@/lib/components/fitness/routeHighlightMarker'
 
 // Mirrors the GL activity route paint: orange for the shared trace, green for the
 // segments hidden from other viewers by a privacy location.
@@ -28,8 +29,6 @@ const HIDDEN_ROUTE_STYLE = {
   lineWidth: 4,
   strokeOpacity: 0.95
 }
-const ACTIVE_MARKER_COLOR = '#1d4ed8'
-const ACTIVE_HIDDEN_MARKER_COLOR = '#16a34a'
 // MapKit zooms by shrinking/growing the region span; these mirror the GL buttons.
 const ZOOM_IN_FACTOR = 0.5
 const ZOOM_OUT_FACTOR = 2
@@ -85,8 +84,9 @@ export interface ActivityRouteMapKitProps {
 
 /**
  * Apple MapKit JS sibling of the GL `ActivityMapPanel` map: the activity route as
- * `PolylineOverlay`s plus a `MarkerAnnotation` that follows the chart hover. Zoom
- * controls drive `setRegionAnimated` because MapKit has no `zoomIn`/`zoomOut`.
+ * `PolylineOverlay`s plus a custom dot annotation that follows the chart hover.
+ * Zoom controls drive `setRegionAnimated` because MapKit has no
+ * `zoomIn`/`zoomOut`.
  */
 export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
   routeSegments,
@@ -235,13 +235,16 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
     }
     if (!activeSample) return
 
-    const marker = new mapkit.MarkerAnnotation(
+    // A custom annotation, not a `MarkerAnnotation`: Apple's teardrop pin is
+    // anchored by its tip, so it renders above the sample it marks instead of on
+    // it. The shared dot element matches the GL circle layers exactly.
+    const isHiddenByPrivacy = Boolean(activeSample.isHiddenByPrivacy)
+    const marker = new mapkit.Annotation(
       new mapkit.Coordinate(activeSample.lat, activeSample.lng),
-      {
-        color: activeSample.isHiddenByPrivacy
-          ? ACTIVE_HIDDEN_MARKER_COLOR
-          : ACTIVE_MARKER_COLOR
-      }
+      () => createRouteHighlightElement(isHiddenByPrivacy),
+      // The dot is a chart-hover follower: it should neither animate in on every
+      // move nor become selectable.
+      { animates: false, enabled: false }
     )
     map.addAnnotation(marker)
     markerRef.current = marker

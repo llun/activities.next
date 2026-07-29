@@ -551,6 +551,52 @@ describe('FitnessStatusDetail', () => {
     ).toBeInTheDocument()
   })
 
+  it('keeps the privacy notice dismissed when its own file is selected again', async () => {
+    // The dismissal is scoped to the acknowledged file, so reloading that file's
+    // route must not resurrect the notice. Deriving it during render is what
+    // guarantees that: the reset used to live in an effect keyed on the
+    // `routeSegments` identity, and a passive effect runs a task *after* the
+    // commit that revealed the notice — late enough to land after the user's tap
+    // and undo it. That race is what made this suite flake on CI.
+    mockGetFitnessFilesByStatus.mockResolvedValue([
+      buildFitnessFile({ id: 'fit-1', fileName: 'ride-morning.gpx' }),
+      buildFitnessFile({
+        id: 'fit-2',
+        fileName: 'ride-evening.gpx',
+        isPrimary: false,
+        activityStartTime: Date.parse('2026-05-27T18:00:00Z')
+      })
+    ])
+    mockGetFitnessRouteData.mockResolvedValue(routeDataWithHiddenSegments)
+
+    renderDetail()
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Dismiss notice: green segments are hidden from other viewers'
+      })
+    )
+    const select = await screen.findByLabelText('Activity file')
+
+    fireEvent.change(select, { target: { value: 'fit-2' } })
+    expect(
+      await screen.findByText('Green segments are hidden from other viewers')
+    ).toBeInTheDocument()
+
+    fireEvent.change(select, { target: { value: 'fit-1' } })
+    // Wait for fit-1's route to be re-fetched and committed — that commit is
+    // exactly where the old reset fired.
+    await waitFor(() =>
+      expect(mockGetFitnessRouteData).toHaveBeenCalledTimes(3)
+    )
+    await act(async () => {})
+
+    expect(await screen.findByText('file 1 of 2')).toBeInTheDocument()
+    expect(
+      screen.queryByText('Green segments are hidden from other viewers')
+    ).not.toBeInTheDocument()
+  })
+
   it('surfaces an error banner when route data fails to load', async () => {
     mockGetFitnessRouteData.mockRejectedValue(new Error('boom'))
 

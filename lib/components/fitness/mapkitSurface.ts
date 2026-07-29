@@ -95,6 +95,19 @@ export interface MapKitSurfaceModule {
     coordinate: MapKitCoordinate,
     options?: Record<string, unknown>
   ) => MapKitAnnotation
+  /**
+   * Custom annotation: MapKit renders whatever element the factory returns,
+   * anchored by that element's bottom centre — unlike `MarkerAnnotation`, which
+   * always draws Apple's teardrop pin.
+   */
+  Annotation: new (
+    coordinate: MapKitCoordinate,
+    factory: (
+      coordinate: MapKitCoordinate,
+      options: Record<string, unknown>
+    ) => HTMLElement,
+    options?: Record<string, unknown>
+  ) => MapKitAnnotation
   Coordinate: new (latitude: number, longitude: number) => MapKitCoordinate
   CoordinateSpan: new (
     latitudeDelta: number,
