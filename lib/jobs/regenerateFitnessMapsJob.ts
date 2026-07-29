@@ -344,9 +344,11 @@ export const regenerateFitnessMapsJob = createJobHandle(
               })
           }
 
-          // Logged, not recorded: the new map is already stored and attached,
-          // and a leftover is not something a retry can remove — it would
-          // attach a third. See the same call in processFitnessFileJob.
+          // Always logged; additionally recorded just above when the removal
+          // was the point of the run. On the replace path it stays log-only:
+          // the new map is stored and attached, so a leftover is not something
+          // a retry can remove — it would attach a third. Same split in
+          // processFitnessFileJob.
           logger.error({
             message: 'Failed to remove the previous route map',
             actorId,
