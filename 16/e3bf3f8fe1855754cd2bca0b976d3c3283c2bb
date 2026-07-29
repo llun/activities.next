@@ -1,6 +1,8 @@
 .env.example
   s_4db689036d0146::t_87debfdb5cefd0 136,141
   s_4db689036d0146::t_16fa95a8fe14c0 174,183-184
+  s_4db689036d0146::t_0b5664cd90198b 179-182,185-188
+  s_4db689036d0146::t_9acbb39ef6332a 142-152
 ---
 {
   "schema_version": "authorship/3.0.0",
