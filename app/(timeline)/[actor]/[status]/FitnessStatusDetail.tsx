@@ -943,10 +943,11 @@ const ElevationProfileChart: FC<{
   // Worked at 11px tabular-nums, where "0:00" is ~24px and one "H:MM:SS" label
   // ~42px (a five-hour ride, the point at which every tick but the first has
   // taken the wider form): six labels need 24 + 5x42 = 234px against 212px,
-  // while four need 24 + 3x42 = 150px and keep ~20px between each. A ten-hour
-  // ride widens every label again to ~49px, which is 269px at six ticks and a
-  // still-comfortable 171px at four. Pinned by a test, since the failure is
-  // silent — nothing errors, the labels just merge.
+  // while four need 24 + 3x42 = 150px and keep ~20px between each. Going longer
+  // adds little: `formatFitnessDuration` does not zero-pad the hour, so a
+  // ten-hour ride widens only the labels that reach two digits (~49px) — 241px
+  // at six ticks, a still-comfortable 157px at four. Pinned by a test, since
+  // the failure is silent — nothing errors, the labels just merge.
   const xLabels = useMemo(
     () => (durationSeconds ? buildXAxisLabels(durationSeconds, 4) : null),
     [durationSeconds]
