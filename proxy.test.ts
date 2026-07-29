@@ -11,6 +11,18 @@ import { proxy, config as proxyConfig } from './proxy'
 const STATIC_IMPORT_PATTERN =
   /(?:import|export)\s+(?:type\s+)?(?:[^'"]*?\s+from\s+)?['"]([^'"]+)['"]/g
 const FILESYSTEM_MODULES = new Set(['fs', 'node:fs', 'path', 'node:path'])
+// Node-only modules that are not filesystem APIs but must stay out of the
+// middleware bundle all the same. `lib/utils/logger` calls `pino({…})` at
+// module top level and package.json declares no `sideEffects`, so it cannot be
+// tree-shaken away: one import anywhere in this graph drags pino, its
+// serializers and sonic-boom into middleware.js. This has already happened
+// once, from a storage helper parked in lib/config/utils (which proxy.ts
+// reaches via lib/config/host), with a green build and no warning — the only
+// visible trace was 264 extra files in middleware.js.nft.json.
+//
+// lib/config/storageValue.ts states this constraint in prose as its reason for
+// existing; this is what enforces it.
+const NODE_ONLY_MODULES = new Set(['pino', '@/lib/utils/logger'])
 const SOURCE_EXTENSIONS = ['', '.ts', '.tsx', '.js', '.mjs']
 
 const resolveSourcePath = (rawPath: string): string | null => {
@@ -344,7 +356,12 @@ describe('proxy', () => {
     )
   })
 
-  it('keeps the proxy static import graph free of filesystem modules', () => {
+  // Walk proxy.ts's static import graph, reporting every disallowed specifier
+  // reached and the files visited on the way. The visited set is returned so a
+  // caller can prove the walk got somewhere: if module resolution ever breaks,
+  // it collapses to proxy.ts alone and every "no violations" assertion below
+  // passes while guarding nothing.
+  const walkProxyImportGraph = (disallowed: Set<string>) => {
     const rootDirectory = originalCwd
     const visited = new Set<string>()
     const pending = [path.join(rootDirectory, 'proxy.ts')]
@@ -357,7 +374,7 @@ describe('proxy', () => {
 
       const source = fs.readFileSync(currentFile, 'utf-8')
       for (const specifier of getStaticImportSpecifiers(source)) {
-        if (FILESYSTEM_MODULES.has(specifier)) {
+        if (disallowed.has(specifier)) {
           violations.push(
             `${path.relative(rootDirectory, currentFile)} imports ${specifier}`
           )
@@ -373,6 +390,25 @@ describe('proxy', () => {
       }
     }
 
-    expect(violations).toEqual([])
-  })
+    return { violations, visited }
+  }
+
+  // Both guards exist because the middleware bundle must stay free of Node-only
+  // dependencies: filesystem APIs break under the Edge runtime, and the logger
+  // drags pino in wholesale (see NODE_ONLY_MODULES).
+  it.each([
+    { description: 'filesystem modules', disallowed: FILESYSTEM_MODULES },
+    { description: 'the logger', disallowed: NODE_ONLY_MODULES }
+  ])(
+    'keeps the proxy static import graph free of $description',
+    ({ disallowed }) => {
+      const { violations, visited } = walkProxyImportGraph(disallowed)
+
+      // lib/config/utils.ts is where the logger leaked in from once, reached
+      // via lib/config/host. Asserting the walk still gets there is what stops
+      // a resolution failure from turning both guards green and inert.
+      expect(visited).toContain(path.join(originalCwd, 'lib/config/utils.ts'))
+      expect(violations).toEqual([])
+    }
+  )
 })
