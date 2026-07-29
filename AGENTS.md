@@ -373,17 +373,38 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   the far right. Do **not** put `ml-auto` back on the `⋯` wrapper: an auto
   margin absorbs all the free space before `justify-content` sees it, which
   collapses the row back to a left-packed cluster.
+  Each row owns a separate `fullBleed` prop and the two default **differently**:
+  `Actions` pulls unless a caller opts out, while `ReactionRow` pulls only when
+  asked (`Post` passes `fullBleed={showsActionRow}`, so chips with no action row
+  beneath them line up with the text instead of hanging off it). A surface with
+  no avatar column to pull back over ends up with neither — the fitness activity
+  detail's card, where each row already sits at its own container's padding
+  edge: the chips with the title and the stat grid in the card body, the action
+  row with the source-file link in the footer. (Those two containers are padded
+  differently, `p-5` against `px-4`, so the two rows are deliberately aligned to
+  their own content rather than to each other.)
+  `justify-between` is not optional either way: that is what makes the
+  spacing between actions identical on every surface, so give the row the full
+  width rather than seating it beside something else.
 - **The picker that ADDS a reaction lives in the action row, not beside the
   chips** (`ReactionButton`, showing `SmilePlus` + the running total). The chips
   are a read-out; a post with no reactions yet renders no chip row at all. Both
-  halves share one `ReactionState` from `useReactionState`, held by whoever owns
-  the row — `Post`, or `FitnessStatusDetail`, which composes its own action row
-  and therefore calls the hook itself. The same applies to the bookmark:
-  `useBookmarkState` is held by `Actions` and `BookmarkButton` only renders it.
+  halves share one `ReactionState` from `useReactionState`, held by whoever lays
+  out the post — `Post`, or `FitnessStatusDetail`, which builds its own card and
+  therefore calls the hook itself and passes the state into `Actions`. The same
+  applies to the bookmark: `useBookmarkState` is held by `Actions` and
+  `BookmarkButton` only renders it.
 - **A post narrower than 400px moves bookmark and react into the `⋯` menu**
   ("Bookmark" / "React to post", above the menu's own items). The width comes
   from a `ResizeObserver` on the row itself (`useCompactActionBar`), not a
-  viewport breakpoint — a post can sit in a narrow column on a wide window. In
+  viewport breakpoint — a post can sit in a narrow column on a wide window.
+  That is measured on the row's own border box, **including** the `-ml-13`
+  pull, so a surface that turns `fullBleed` off is 52px narrower at the same
+  viewport and collapses a little earlier. That is the rule working, not
+  drifting: the row genuinely has less room, and collapsing on real available
+  width is the whole reason this is not a breakpoint. Expect a band of window
+  widths (roughly 466–499px) where a fitness activity's row is compact while
+  the same status in the timeline is not. In
   that mode `ReactionButton` stays mounted with `hideTrigger` (it still owns the
   portalled picker), and the picker anchors to the `⋯` trigger, which is why
   `PostMenu` takes a `triggerRef`. A menu item that opens a focus-taking
@@ -418,11 +439,23 @@ consistency is enforced by keeping the wiring in one place rather than per page.
 - The bespoke fitness activity detail (`FitnessStatusDetail`) and the
   notification snippet (`StatusNotification`) are intentionally separate
   presentations and are outside this contract; everything else goes through
-  `Posts`/`Post`. The fitness detail composes its own action row, so it renders
-  `ReactionRow` **and** `ReactionButton` explicitly off its own
-  `useReactionState` — a post's reactions must be visible and addable wherever
-  its action row is, and that page is the one surface that has to opt in by
-  hand.
+  `Posts`/`Post`. **That licenses a different page layout, not a different
+  action row.** The fitness detail lays out its own card and therefore places
+  the two halves of the reaction control by hand — `ReactionRow` in the card
+  body under the stats, and the picker trigger in the row below — but the row
+  itself is the shared `<Actions>` (`fullBleed={false}`, its own
+  `useReactionState` passed in), not a local copy. A hand-rolled row is exactly
+  how that page drifted into a right-packed cluster with its own gaps while
+  every other surface spread its actions evenly.
+  What sharing the row does **not** yet buy that page is the full `⋯` menu: it
+  passes neither `editable` nor `onQuote`, so Edit and Quote are still absent
+  there, and `onPostDeleted`/`onLikeChanged`/`onBookmarkChanged` are unwired so
+  a delete from the menu leaves the page showing a status that no longer
+  exists. Closing that means giving the page the shared `useInlineComposer` /
+  `InlineStatusComposer` the way `Posts` has it — turning `canEdit` on without
+  wiring `onEdit` only renders a menu item that does nothing. Until then this
+  is the one surface with a shorter menu, and that is a known gap rather than a
+  licensed difference.
 
 ## Better-auth Plugin Guidelines
 
