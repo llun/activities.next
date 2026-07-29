@@ -877,6 +877,23 @@ describe('FitnessStatusDetail', () => {
       expect(screen.getByText('120 m gain')).toBeInTheDocument()
     })
 
+    // Four ticks, not the helper's default six. `justify-between` gives the
+    // label row no way to wrap, and six H:MM:SS labels are wider than this
+    // card's 212px content box at the 320px reflow target — so they ran
+    // together into one unbroken string of digits and, past ~5h, crossed the
+    // card's own border, which a Card has no `overflow-hidden` to clip. The
+    // 10:00/20:00 pair is what distinguishes this from the six-tick set.
+    it('labels its time axis with four ticks, which fit the card at 320px', async () => {
+      await renderOverview()
+
+      const profile = screen.getByTestId('overview-elevation-profile')
+      const labels = Array.from(profile.lastElementChild?.children ?? []).map(
+        (label) => label.textContent
+      )
+
+      expect(labels).toEqual(['0:00', '10:00', '20:00', '30:00'])
+    })
+
     it('scrubs on touch as well as on hover', async () => {
       await renderOverview()
 
