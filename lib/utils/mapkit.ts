@@ -96,6 +96,11 @@ export interface MapKitModule {
     options?: unknown
   ) => unknown
   MarkerAnnotation: new (coordinate: unknown, options?: unknown) => unknown
+  Annotation: new (
+    coordinate: unknown,
+    factory: (coordinate: never, options: never) => HTMLElement,
+    options?: unknown
+  ) => unknown
   CoordinateRegion: new (center: unknown, span: unknown) => unknown
   CoordinateSpan: new (
     latitudeDelta: number,
