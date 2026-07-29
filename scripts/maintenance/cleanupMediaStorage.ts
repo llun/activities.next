@@ -18,7 +18,10 @@ import knex from 'knex'
 import path from 'path'
 
 import { getConfig } from '@/lib/config'
-import { FitnessStorageType } from '@/lib/config/fitnessStorage'
+import {
+  FitnessStorageType,
+  hasExplicitFitnessStorageType
+} from '@/lib/config/fitnessStorage'
 import {
   type MediaStorageConfig,
   MediaStorageType
@@ -151,7 +154,14 @@ const getContainedRelativePath = (from: string, to: string) => {
  */
 const getSharedFitnessPrefix = (mediaStorage: MediaStorageConfig) => {
   const fitnessStorage = getEffectiveFitnessStorageConfig()
-  if (!fitnessStorage) return null
+  if (!fitnessStorage) {
+    // "Never configured" and "configured but unusable" both resolve to null,
+    // and only the first means there is no fitness namespace to protect. A
+    // deployment that ran on the media fallback and later acquired a blank or
+    // unrecognised ACTIVITIES_FITNESS_STORAGE_TYPE still has every one of those
+    // files sitting under the shared prefix, with nothing here to exclude them.
+    return hasExplicitFitnessStorageType() ? 'UNRESOLVED' : null
+  }
 
   if (
     mediaStorage.type === MediaStorageType.LocalFile &&
@@ -369,6 +379,19 @@ async function cleanupMediaStorage() {
   console.log(`Storage Type: ${config.mediaStorage.type}`)
 
   const fitnessPrefix = getSharedFitnessPrefix(config.mediaStorage)
+  if (fitnessPrefix === 'UNRESOLVED') {
+    console.error(
+      '\nError: ACTIVITIES_FITNESS_STORAGE_TYPE is set but fitness storage could not be resolved.'
+    )
+    console.error(
+      'Files written while fitness storage fell back to the media backend cannot be identified,'
+    )
+    console.error('so they would be reported and deleted as orphaned media.')
+    console.error(
+      'Fix the fitness storage configuration (see the startup warning) before running this.'
+    )
+    process.exit(1)
+  }
   if (fitnessPrefix === 'INDISTINGUISHABLE') {
     console.error(
       '\nError: fitness storage points at the same directory as media storage.'

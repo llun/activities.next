@@ -19,7 +19,7 @@ import {
   VolumeX
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { FC, ReactNode, useEffect, useState } from 'react'
+import { FC, ReactNode, RefObject, useEffect, useRef, useState } from 'react'
 
 import {
   getRelationship,
@@ -88,12 +88,40 @@ const QUOTE_POLICY_OPTIONS: {
 
 type ActiveDialog = 'mute' | 'block' | 'report' | 'delete' | null
 
+/**
+ * An action the row could not fit and handed to the menu (bookmark, react).
+ * They render above the menu's own items, matching the design system.
+ */
+export interface PostMenuExtraItem {
+  key: string
+  icon: ReactNode
+  label: string
+  /**
+   * A menu item has none of the busy styling the button it replaces had, so an
+   * action whose own write is in flight has to say so here instead.
+   */
+  disabled?: boolean
+  onSelect: () => void
+  /**
+   * Run the action once the menu has fully closed, and let it keep focus.
+   * Radix restores focus to the ⋯ trigger as the menu unmounts, which would
+   * otherwise land *after* an overlay's own autofocus and steal it back.
+   */
+  deferUntilClosed?: boolean
+}
+
 interface Props {
   // Always the resolved note/poll (Announce statuses are unwrapped by the
   // caller), so url / to / cc are always present.
   status: StatusNote | StatusPoll
   isOwner: boolean
   canEdit: boolean
+  /**
+   * Lets the caller anchor an overlay to the ⋯ trigger — the reaction picker
+   * uses it when the row is compact and the picker is opened from this menu.
+   */
+  triggerRef?: RefObject<HTMLButtonElement | null>
+  extraItems?: PostMenuExtraItem[]
   onReply?: (status: Status) => void
   onEdit?: (status: EditableStatus) => void
   onQuote?: (status: Status) => void
@@ -111,6 +139,8 @@ export const PostMenu: FC<Props> = ({
   status,
   isOwner,
   canEdit,
+  triggerRef,
+  extraItems,
   onReply,
   onEdit,
   onQuote,
@@ -118,6 +148,7 @@ export const PostMenu: FC<Props> = ({
 }) => {
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
+  const deferredSelectRef = useRef<(() => void) | null>(null)
   const [dialog, setDialog] = useState<ActiveDialog>(null)
   const [relationship, setRelationship] = useState<MastodonRelationship | null>(
     null
@@ -256,7 +287,7 @@ export const PostMenu: FC<Props> = ({
   }
 
   return (
-    <div className="relative ml-auto" onClick={(e) => e.stopPropagation()}>
+    <div className="relative" onClick={(e) => e.stopPropagation()}>
       {actionError ? (
         <span
           className="pointer-events-none absolute right-0 top-full z-10 mt-1 w-max max-w-[min(14rem,calc(100vw-2rem))] break-words rounded-md border bg-background px-2 py-1 text-left text-xs text-destructive shadow-sm"
@@ -274,6 +305,7 @@ export const PostMenu: FC<Props> = ({
       >
         <DropdownMenuTrigger asChild>
           <button
+            ref={triggerRef}
             type="button"
             className="flex size-8 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
             aria-label="More actions"
@@ -281,7 +313,40 @@ export const PostMenu: FC<Props> = ({
             <MoreHorizontal className="size-[18px]" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-60">
+        <DropdownMenuContent
+          align="end"
+          className="w-60"
+          onCloseAutoFocus={(event) => {
+            const deferred = deferredSelectRef.current
+            if (!deferred) return
+            deferredSelectRef.current = null
+            // The action opens its own surface and focuses it; pulling focus
+            // back to the ⋯ trigger here would undo that.
+            event.preventDefault()
+            deferred()
+          }}
+        >
+          {extraItems && extraItems.length > 0 ? (
+            <>
+              {extraItems.map((item) => (
+                <DropdownMenuItem
+                  key={item.key}
+                  disabled={item.disabled}
+                  onSelect={() => {
+                    if (!item.deferUntilClosed) {
+                      item.onSelect()
+                      return
+                    }
+                    deferredSelectRef.current = item.onSelect
+                  }}
+                >
+                  {item.icon}
+                  {item.label}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+            </>
+          ) : null}
           {onQuote ? (
             <>
               <DropdownMenuItem onSelect={() => onQuote(status)}>

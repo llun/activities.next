@@ -29,7 +29,9 @@ With the `apple` provider, per-activity route-map images are rendered by Apple W
 
 See [environment-variables.md](./environment-variables.md) for the full provider reference.
 
-If no fitness-specific storage is configured, the app falls back to the media storage backend with a separate local `fitness` directory or S3 `fitness/` prefix.
+If no fitness-specific storage is configured, the app falls back to the media storage backend with a separate local `fitness` directory or S3 `fitness/` prefix. The fallback needs a usable media storage configuration: if the `ACTIVITIES_MEDIA_STORAGE_*` variable it reads is set but blank, fitness storage is disabled too rather than defaulting to a directory under the application root.
+
+Setting `ACTIVITIES_FITNESS_STORAGE_TYPE` to a non-empty value opts out of that fallback entirely. If it is set but the configuration is unusable — a blank `ACTIVITIES_FITNESS_STORAGE_PATH`/`_BUCKET`/`_REGION`, or an unrecognised type — fitness storage is disabled with a warning naming the variable, rather than silently falling back to the media backend. In that state `scripts/maintenance/cleanupMediaStorage.ts` refuses to run, because it cannot tell which stored objects belong to fitness and would report them all as orphaned media.
 
 ## Storage Implementations
 

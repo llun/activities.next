@@ -1,11 +1,12 @@
 import { getConfig } from '@/lib/config'
 import { FitnessStorageType } from '@/lib/config/fitnessStorage'
+import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
 import { deleteMediaFile } from '@/lib/services/medias'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 
 import { S3FitnessStorage } from './S3StorageFile'
-import { deleteFitnessFile } from './index'
+import { deleteFitnessFile, getEffectiveFitnessStorageConfig } from './index'
 import { LocalFileFitnessStorage } from './localFile'
 
 vi.mock('@/lib/config', () => ({
@@ -163,5 +164,52 @@ describe('deleteFitnessFile', () => {
     expect(deleted).toBe(false)
     expect(database.deleteFitnessFile).not.toHaveBeenCalled()
     expect(mockDeleteMediaFile).not.toHaveBeenCalled()
+  })
+})
+
+describe('getEffectiveFitnessStorageConfig', () => {
+  const originalEnv = process.env
+
+  beforeEach(() => {
+    process.env = { ...originalEnv }
+    delete process.env.ACTIVITIES_FITNESS_STORAGE_TYPE
+    mockGetConfig.mockReset()
+  })
+
+  afterAll(() => {
+    process.env = originalEnv
+  })
+
+  const mediaOnlyConfig = {
+    mediaStorage: {
+      type: MediaStorageType.S3Storage,
+      bucket: 'media-bucket',
+      region: 'us-east-1',
+      hostname: 'media-cdn.example.com'
+    }
+  } as unknown as ReturnType<typeof getConfig>
+
+  it('falls back to media object storage when fitness storage was never configured', () => {
+    mockGetConfig.mockReturnValue(mediaOnlyConfig)
+
+    const config = getEffectiveFitnessStorageConfig()
+
+    expect(config).toMatchObject({
+      type: MediaStorageType.S3Storage,
+      bucket: 'media-bucket',
+      prefix: 'fitness/'
+    })
+  })
+
+  // The resolver returns null both for "never configured" and for "configured
+  // but disabled because a required value was blank". Only the first may
+  // inherit media storage — otherwise a blank ACTIVITIES_FITNESS_STORAGE_BUCKET
+  // writes fitness files into the media bucket right after warning that fitness
+  // storage is disabled.
+  it('does not fall back to media storage when a fitness type is configured', () => {
+    process.env.ACTIVITIES_FITNESS_STORAGE_TYPE = 's3'
+    mockGetConfig.mockReturnValue(mediaOnlyConfig)
+
+    expect(getEffectiveFitnessStorageConfig()).toBeNull()
   })
 })

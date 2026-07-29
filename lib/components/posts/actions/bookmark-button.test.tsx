@@ -3,11 +3,13 @@
  */
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import { FC } from 'react'
 
 import { bookmarkStatus, undoBookmarkStatus } from '@/lib/client'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 
 import { BookmarkButton } from './bookmark-button'
+import { useBookmarkState } from './useBookmarkState'
 
 vi.mock('@/lib/client', () => ({
   bookmarkStatus: vi.fn(),
@@ -54,13 +56,25 @@ const status: StatusNote = {
   tags: []
 }
 
+interface HarnessProps {
+  status: StatusNote
+  onBookmarkChanged?: (status: StatusNote, isBookmarked: boolean) => void
+}
+
+// The action row owns the state and the button only renders it, so the tests
+// wire the two together the same way `Actions` does.
+const BookmarkAction: FC<HarnessProps> = ({ status, onBookmarkChanged }) => {
+  const state = useBookmarkState({ status, onBookmarkChanged })
+  return <BookmarkButton state={state} />
+}
+
 describe('BookmarkButton', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
   it('does not reserve idle error message space in the action grid', () => {
-    render(<BookmarkButton status={status} />)
+    render(<BookmarkAction status={status} />)
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.queryByTestId('bookmark-error')).not.toBeInTheDocument()
@@ -71,7 +85,7 @@ describe('BookmarkButton', () => {
     const onBookmarkChanged = vi.fn()
 
     render(
-      <BookmarkButton status={status} onBookmarkChanged={onBookmarkChanged} />
+      <BookmarkAction status={status} onBookmarkChanged={onBookmarkChanged} />
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Bookmark' }))
@@ -88,7 +102,7 @@ describe('BookmarkButton', () => {
     const onBookmarkChanged = vi.fn()
 
     render(
-      <BookmarkButton
+      <BookmarkAction
         status={{ ...status, isActorBookmarked: true }}
         onBookmarkChanged={onBookmarkChanged}
       />
@@ -108,7 +122,7 @@ describe('BookmarkButton', () => {
   it('shows an error when the bookmark request rejects', async () => {
     ;(bookmarkStatus as jest.Mock).mockRejectedValue(new Error('network down'))
 
-    render(<BookmarkButton status={status} />)
+    render(<BookmarkAction status={status} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Bookmark' }))
 
@@ -127,7 +141,7 @@ describe('BookmarkButton', () => {
     ;(bookmarkStatus as jest.Mock).mockReturnValue(bookmarkPromise)
 
     try {
-      render(<BookmarkButton status={status} />)
+      render(<BookmarkAction status={status} />)
 
       fireEvent.click(screen.getByRole('button', { name: 'Bookmark' }))
 

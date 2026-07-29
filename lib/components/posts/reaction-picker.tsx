@@ -7,6 +7,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState
 } from 'react'
 import { createPortal } from 'react-dom'
@@ -19,7 +20,10 @@ import {
 import { Input } from '@/lib/components/ui/input'
 import { cn } from '@/lib/utils'
 
-import type { CustomEmojiOption } from './reaction-row'
+interface CustomEmojiOption {
+  shortcode: string
+  url: string
+}
 
 // A reaction is one emoji, so the picker returns the *name to store* rather than
 // text to insert at a caret: a unicode character as itself, a custom emoji as its
@@ -144,8 +148,22 @@ export const ReactionPicker: FC<ReactionPickerProps> = ({
   const [customEmojis, setCustomEmojis] = useState<CustomEmojiOption[]>([])
   const [tab, setTab] = useState(EMOJI_GROUPS[0].id)
   const [panel, setPanel] = useState<HTMLDivElement | null>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+  const hasFocusedSearch = useRef(false)
   const hasCustom = customEmojis.length > 0
   const position = usePanelPosition(anchorRef, panel)
+
+  // `autoFocus` is not enough: the panel is `visibility: hidden` until it has
+  // been measured, and a browser will not focus inside a hidden subtree — so
+  // the field silently stayed unfocused and the picker opened with focus on
+  // <body>. (jsdom focuses regardless, which is why only a real browser showed
+  // it.) Focus once the panel is placed, and only once, so a scroll-driven
+  // reposition cannot yank focus back off an emoji the viewer has tabbed to.
+  useEffect(() => {
+    if (!position || hasFocusedSearch.current) return
+    hasFocusedSearch.current = true
+    searchRef.current?.focus()
+  }, [position])
 
   useEffect(() => {
     let active = true
@@ -241,7 +259,7 @@ export const ReactionPicker: FC<ReactionPickerProps> = ({
           <div className="relative">
             <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
             <Input
-              autoFocus
+              ref={searchRef}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search emoji"

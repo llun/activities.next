@@ -1,5 +1,7 @@
 import { FC, useEffect, useState } from 'react'
 
+import { cn } from '@/lib/utils'
+
 // Base styling shared by every post action button (like/bookmark/repost).
 // Callers append a colour variant via cn(ACTION_BUTTON_CLASS, ...).
 export const ACTION_BUTTON_CLASS =
@@ -25,21 +27,52 @@ export const useDismissingError = () => {
   return [error, setError] as const
 }
 
-interface ActionButtonErrorProps {
+const ACTION_ERROR_CLASS =
+  'pointer-events-none w-max max-w-[min(12rem,calc(100vw-2rem))] break-words rounded-md border bg-background px-2 py-1 text-left text-xs text-destructive shadow-sm'
+
+interface ActionErrorProps {
   message: string
   testId: string
 }
 
 /** The transient error tooltip rendered beneath an action button. */
-export const ActionButtonError: FC<ActionButtonErrorProps> = ({
+export const ActionButtonError: FC<ActionErrorProps> = ({
   message,
   testId
 }) => (
   <span
-    className="pointer-events-none absolute right-0 top-full z-10 mt-1 w-max max-w-[min(12rem,calc(100vw-2rem))] break-words rounded-md border bg-background px-2 py-1 text-left text-xs text-destructive shadow-sm"
+    className={cn('absolute right-0 top-full z-10 mt-1', ACTION_ERROR_CLASS)}
     data-testid={testId}
     role="alert"
   >
     {message}
   </span>
 )
+
+/**
+ * The same tooltip for actions whose button is not in the row — on a compact
+ * post the bookmark and the reaction both live in the ⋯ menu, so their failures
+ * have nowhere of their own to hang off and the row shows them instead.
+ *
+ * They stack rather than sharing one anchor: two of these can be live at once
+ * (the writes are independent), and both anchored `right-0 top-full` would
+ * render one opaque box exactly on top of the other. Anchored left, clear of
+ * the ⋯ menu's own error, which is pinned to the row's right edge.
+ */
+export const ActionRowErrors: FC<{ errors: ActionErrorProps[] }> = ({
+  errors
+}) =>
+  errors.length === 0 ? null : (
+    <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 flex flex-col items-start gap-1">
+      {errors.map((error) => (
+        <span
+          key={error.testId}
+          className={ACTION_ERROR_CLASS}
+          data-testid={error.testId}
+          role="alert"
+        >
+          {error.message}
+        </span>
+      ))}
+    </div>
+  )
