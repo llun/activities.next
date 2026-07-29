@@ -4,6 +4,7 @@ import { cache } from 'react'
 import { Database } from '@/lib/database/types'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { isEmailAllowed } from '@/lib/utils/normalizeEmail'
+import { selectAccountActor } from '@/lib/utils/selectAccountActor'
 
 export interface AuthSession {
   user: { email: string }
@@ -60,15 +61,10 @@ export const getActorFromSession = cache(
       if (cookieActor) return cookieActor
     }
 
-    // 2. Check default actor
-    if (account.defaultActorId) {
-      const defaultActor = actors.find(
-        (a) => a.id === account.defaultActorId && !a.deletionStatus
-      )
-      if (defaultActor) return defaultActor
-    }
-
-    // 3. Fall back to first actor without pending deletion
-    return actors.find((a) => !a.deletionStatus) ?? null
+    // 2. Default actor when set and usable, else the first actor without
+    // pending deletion. Shared with OAuth token issuance
+    // (`resolveConsentReferenceId`) so a bearer token and a browser session
+    // resolve the same actor for an account.
+    return selectAccountActor(actors, account.defaultActorId)
   }
 )
