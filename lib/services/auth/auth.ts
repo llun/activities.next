@@ -11,6 +11,7 @@ import { UsableScopes } from '@/lib/types/database/operations'
 import { logger } from '@/lib/utils/logger'
 
 import { canCreateSessionForAccount } from './canCreateSessionForAccount'
+import { ConsentSession, resolveConsentReferenceId } from './consentReferenceId'
 import { AUTH_BASE_PATH } from './constants'
 import { knexAdapter } from './knexAdapter'
 import { buildTrustedOrigins } from './trustedOrigins'
@@ -97,24 +98,11 @@ const buildAuth = (baseURL: string) => {
           page: '/oauth/authorize',
           // Consent is handled at /oauth/authorize; no additional redirect needed
           shouldRedirect: async () => false,
-          consentReferenceId: async ({ session }) => {
-            const actorId = (session as Record<string, unknown>)?.actorId as
-              string | undefined
-            if (actorId) return actorId
-            if (!database || !session?.userId) return undefined
-            try {
-              const account = await database.getAccountFromId({
-                id: session.userId as string
-              })
-              return account?.defaultActorId ?? undefined
-            } catch (e) {
-              logger.error({
-                message: 'Failed to load account in consentReferenceId',
-                error: e
-              })
-              return undefined
-            }
-          }
+          consentReferenceId: async ({ session }) =>
+            resolveConsentReferenceId({
+              database,
+              session: session as ConsentSession | undefined
+            })
         },
         customAccessTokenClaims: async ({ referenceId }) => {
           return { actorId: referenceId ?? null }

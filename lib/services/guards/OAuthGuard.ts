@@ -5,6 +5,7 @@ import { NextRequest } from 'next/server'
 import { getBaseURL } from '@/lib/config'
 import { getDatabase, getKnex } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { oauthLogger } from '@/lib/services/oauth/logging'
 import { Scope } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { Client } from '@/lib/types/oauth2/client'
@@ -18,6 +19,7 @@ import {
   apiResponse,
   codeMap
 } from '@/lib/utils/response'
+import { selectAccountActor } from '@/lib/utils/selectAccountActor'
 
 import { hasSameOriginProof } from './sameOriginProof'
 import { hasGrantedScope } from './scopeHierarchy'
@@ -96,6 +98,19 @@ export const isActorModerationBlocked = (actor: Actor): boolean =>
 
 type ScopeMatchMode = 'all' | 'any'
 
+// Every failed bearer check answers with the same bare 401, which makes an
+// authentication failure impossible to tell apart in production: an expired
+// token, a revoked one, a scope mismatch and a grant with no actor all look
+// identical. Record which check fired — never the token — so raising
+// `LOG_LEVEL` to debug is enough to diagnose one.
+const rejectBearer = (reason: string, statusCode: StatusCode) => {
+  oauthLogger.debug(
+    { endpoint: 'guard', reason, status: statusCode },
+    `Bearer token rejected with ${statusCode}`
+  )
+  return apiErrorResponse(statusCode)
+}
+
 type GuardDatabase = NonNullable<ReturnType<typeof getDatabase>>
 
 type GuardContext<P> = {
@@ -115,6 +130,25 @@ type TokenAuthContext = {
   grantedScopes: string[]
   actorId: string | null
   clientId: string | null
+  // The account the token was issued for. App (client_credentials) tokens have
+  // none; a user token always does, even when the grant recorded no actor.
+  userId: string | null
+}
+
+// The actor an account acts as when a token carries no actor reference of its
+// own. Only reached on that fallback path, so the two extra reads stay off the
+// hot auth path.
+const resolveAccountActorId = async (
+  database: GuardDatabase,
+  accountId: string | null
+): Promise<string | null> => {
+  if (!accountId) return null
+
+  const [account, actors] = await Promise.all([
+    database.getAccountFromId({ id: accountId }),
+    database.getActorsForAccount({ accountId })
+  ])
+  return selectAccountActor(actors, account?.defaultActorId)?.id ?? null
 }
 
 // Validates a bearer token (JWT or opaque): jwks verification, DB existence
@@ -140,7 +174,10 @@ const resolveTokenContext = async ({
 
   const token = getTokenFromHeader(req.headers.get('Authorization'))
   if (!token) {
-    return { valid: false, response: apiErrorResponse(401) }
+    return {
+      valid: false,
+      response: rejectBearer('malformed_authorization_header', 401)
+    }
   }
 
   const baseURL = getBaseURL()
@@ -168,7 +205,10 @@ const resolveTokenContext = async ({
       } catch {
         // JWT verification failed (expired, invalid signature, wrong scope,
         // etc.) — reject immediately, do NOT fall through to opaque lookup
-        return { valid: false, response: apiErrorResponse(401) }
+        return {
+          valid: false,
+          response: rejectBearer('jwt_verification_failed', 401)
+        }
       }
 
       const jwtScope = jwtPayload.scope as string | undefined
@@ -176,7 +216,10 @@ const resolveTokenContext = async ({
       grantedScopes = jwtScopes
 
       if (!hasRequiredScopes({ grantedScopes: jwtScopes, scopes, matchMode })) {
-        return { valid: false, response: apiErrorResponse(401) }
+        return {
+          valid: false,
+          response: rejectBearer('insufficient_scope', 401)
+        }
       }
     }
 
@@ -191,14 +234,14 @@ const resolveTokenContext = async ({
       .where('token', hashToken(token))
       .first()
     if (!storedToken) {
-      return { valid: false, response: apiErrorResponse(401) }
+      return { valid: false, response: rejectBearer('token_not_found', 401) }
     }
 
     // For opaque tokens, check expiration and scopes manually
     // (JWT verification already handles these for JWT tokens)
     if (!jwtPayload) {
       if (new Date(storedToken.expiresAt) < new Date()) {
-        return { valid: false, response: apiErrorResponse(401) }
+        return { valid: false, response: rejectBearer('token_expired', 401) }
       }
       // Fall back to an empty scope string if the column is null/undefined so
       // parseStoredScopes can't throw — a scopeless token then fails the scope
@@ -211,7 +254,10 @@ const resolveTokenContext = async ({
       if (
         !hasRequiredScopes({ grantedScopes: storedScopes, scopes, matchMode })
       ) {
-        return { valid: false, response: apiErrorResponse(401) }
+        return {
+          valid: false,
+          response: rejectBearer('insufficient_scope', 401)
+        }
       }
     }
 
@@ -229,7 +275,12 @@ const resolveTokenContext = async ({
 
     return {
       valid: true,
-      context: { grantedScopes, actorId, clientId },
+      context: {
+        grantedScopes,
+        actorId,
+        clientId,
+        userId: (storedToken.userId as string | null) || null
+      },
       database
     }
   } catch (e) {
@@ -264,19 +315,37 @@ const resolveAuthenticatedContext = async <P>({
       return { authenticated: false, response: tokenResult.response }
     }
 
-    const { actorId, clientId, grantedScopes } = tokenResult.context
-    if (!actorId) {
-      return { authenticated: false, response: apiErrorResponse(401) }
-    }
+    const { actorId, clientId, grantedScopes, userId } = tokenResult.context
 
     try {
-      const actor = await database.getActorFromId({ id: actorId })
+      // A grant that resolved no actor reference (see
+      // `resolveConsentReferenceId`) leaves the token with no actorId, which
+      // would 401 every bearer route it is presented to until the client
+      // re-authorizes. Resolve the account's actor the same way the browser
+      // session does so an already-issued token recovers on its own. App
+      // (client_credentials) tokens carry no user and stay actor-less.
+      const resolvedActorId =
+        actorId ?? (await resolveAccountActorId(database, userId))
+      if (!resolvedActorId) {
+        return {
+          authenticated: false,
+          response: rejectBearer('no_actor_for_token', 401)
+        }
+      }
+
+      const actor = await database.getActorFromId({ id: resolvedActorId })
       if (!actor) {
-        return { authenticated: false, response: apiErrorResponse(401) }
+        return {
+          authenticated: false,
+          response: rejectBearer('actor_not_found', 401)
+        }
       }
       const parsedActor = Actor.parse(actor)
       if (isActorModerationBlocked(parsedActor)) {
-        return { authenticated: false, response: apiErrorResponse(403) }
+        return {
+          authenticated: false,
+          response: rejectBearer('actor_moderation_blocked', 403)
+        }
       }
 
       return {
@@ -395,23 +464,27 @@ export const OAuthAppGuard =
     }
 
     const { database } = tokenResult
-    const { actorId, clientId, grantedScopes } = tokenResult.context
+    const { actorId, clientId, grantedScopes, userId } = tokenResult.context
 
     let currentActor: Actor | null = null
     let client: Client | null = null
     try {
       // A token that delegates an actor must resolve to a live actor. If the
       // actor was deleted, fail safe with 401 rather than silently downgrading
-      // to an actor-less (app-level) context. Genuine app tokens have no
-      // actorId and skip this entirely.
-      if (actorId) {
-        const actor = await database.getActorFromId({ id: actorId })
+      // to an actor-less (app-level) context. A user token whose grant recorded
+      // no actor reference recovers through the account, matching the
+      // user-facing guard. Genuine app (client_credentials) tokens have neither
+      // an actor nor a user and skip this entirely.
+      const resolvedActorId =
+        actorId ?? (await resolveAccountActorId(database, userId))
+      if (resolvedActorId) {
+        const actor = await database.getActorFromId({ id: resolvedActorId })
         if (!actor) {
-          return fail(apiErrorResponse(401))
+          return fail(rejectBearer('actor_not_found', 401))
         }
         currentActor = Actor.parse(actor)
         if (isActorModerationBlocked(currentActor)) {
-          return fail(apiErrorResponse(403))
+          return fail(rejectBearer('actor_moderation_blocked', 403))
         }
       }
 
