@@ -421,6 +421,8 @@ describe('S3FileStorage presigned upload completion', () => {
 describe('S3FileStorage saveFile with a video', () => {
   const send = vi.fn()
   const actor = { id: 'actor-1', account: { id: 'account-1' } } as Actor
+  // The bytes the temp copy held when the extraction was handed its path.
+  let extractedFrom: Buffer | null
 
   const database = {
     createMedia: vi.fn(),
@@ -468,71 +470,76 @@ describe('S3FileStorage saveFile with a video', () => {
       format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2' }
     })
     // `extractVideoImage` resolves a real frame or rejects — it never resolves
-    // null — so the thumbnail branch runs here exactly as it does in production.
-    vi.mocked(extractVideoImage).mockResolvedValue(ONE_PIXEL_PNG)
+    // null — so the thumbnail branch runs here exactly as it does in
+    // production. ffmpeg reads the path it is given, so the mock does too: an
+    // implementation that never wrote the temp copy — or that removed it too
+    // early — fails here instead of passing on a path alone.
+    extractedFrom = null
+    vi.mocked(extractVideoImage).mockImplementation(async (filePath) => {
+      extractedFrom = await fs.readFile(filePath)
+      return ONE_PIXEL_PNG
+    })
   })
 
-  // Regression: the temp path was `join(tmpdir(), randomHex + file.name)`, and
-  // `path.join` resolves `..`. Three `..` are needed to escape: the first is
-  // absorbed by the 16-character random prefix's own segment (which is why
-  // `../../evil.mp4` merely lands back on a predictable `<tmpdir>/evil.mp4`).
-  it('writes the temp video inside the temp directory for a traversing name', async () => {
-    const file = new File(
-      [Buffer.from('video-bytes')],
-      '../../../../etc/cron.d/evil.mp4',
-      { type: 'video/mp4' }
-    )
+  // The temp name is server-derived, so a traversing name cannot reach it —
+  // the earlier `join(tmpdir(), randomHex + file.name)` needed three `..` to
+  // escape, and with fewer it cancelled the prefix out onto a predictable
+  // `<tmpdir>/evil.mp4`. ffmpeg also picks its demuxer from the path, and
+  // `image2` beats content probing for an image extension paired with a `%0Nd`
+  // pattern, so a good mp4 named `IMG_%04d.jpg` failed to open at all. All
+  // three rows exercise the same production path — the name is not read at
+  // all any more — and are kept apart to name each hazard they retire.
+  it.each([
+    { description: 'for a traversing name', fileName: '../../../../evil.mp4' },
+    { description: 'for a parent reference', fileName: '../../evil.mp4' },
+    { description: 'for an image sequence pattern', fileName: 'IMG_%04d.jpg' }
+  ])(
+    'builds the temp video name from the content type $description',
+    async ({ fileName }) => {
+      const file = new File([Buffer.from('video-bytes')], fileName, {
+        type: 'video/mp4'
+      })
+
+      await createStorage().saveFile(actor, { file })
+
+      expect(extractVideoImage).toHaveBeenCalledTimes(1)
+      const tempPath = vi.mocked(extractVideoImage).mock.calls[0][0]
+      expect(resolve(dirname(tempPath))).toBe(resolve(tmpdir()))
+      expect(basename(tempPath)).toMatch(/^[0-9a-f]{16}-video\.mp4$/)
+    }
+  )
+
+  // The temp path only means anything if the bytes are actually there when
+  // ffmpeg opens it — the `beforeEach` mock reads the file it is handed, so
+  // dropping the write fails every video test here rather than passing green.
+  it('hands the extraction a temp copy of the uploaded video', async () => {
+    const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {
+      type: 'video/mp4'
+    })
+
+    await createStorage().saveFile(actor, { file })
+
+    expect(extractedFrom).toEqual(Buffer.from('video-bytes'))
+  })
+
+  it('removes the temp video once the frame is extracted', async () => {
+    const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {
+      type: 'video/mp4'
+    })
 
     await createStorage().saveFile(actor, { file })
 
     expect(extractVideoImage).toHaveBeenCalledTimes(1)
     const tempPath = vi.mocked(extractVideoImage).mock.calls[0][0]
-    expect(resolve(dirname(tempPath))).toBe(resolve(tmpdir()))
-    expect(basename(tempPath)).toMatch(/^[0-9a-f]{16}-evil\.mp4$/)
-  })
-
-  // Regression: without the separator the random prefix is cancelled out, so
-  // every upload of this name resolves to the same `<tmpdir>/evil.mp4` and one
-  // upload can overwrite another's temp file mid-probe.
-  it('keeps the random prefix effective for a name starting with a parent reference', async () => {
-    const file = new File([Buffer.from('video-bytes')], '../../evil.mp4', {
-      type: 'video/mp4'
-    })
-
-    await createStorage().saveFile(actor, { file })
-
-    const tempPath = vi.mocked(extractVideoImage).mock.calls[0][0]
-    expect(basename(tempPath)).toMatch(/^[0-9a-f]{16}-evil\.mp4$/)
-  })
-
-  it('removes the temp video once probing finishes', async () => {
-    const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {
-      type: 'video/mp4'
-    })
-
-    await createStorage().saveFile(actor, { file })
-
-    const tempPath = vi.mocked(extractVideoImage).mock.calls[0][0]
-    await expect(fs.access(tempPath)).rejects.toThrow()
-  })
-
-  it('removes the temp video when probing fails', async () => {
-    vi.mocked(extractVideoMeta).mockRejectedValue(new Error('ffprobe failed'))
-    const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {
-      type: 'video/mp4'
-    })
-
-    await expect(createStorage().saveFile(actor, { file })).rejects.toThrow(
-      'ffprobe failed'
-    )
-
-    const tempPath = vi.mocked(extractVideoImage).mock.calls[0][0]
     await expect(fs.access(tempPath)).rejects.toThrow()
   })
 
   // The realistic failure: ffmpeg finds no decodable frame, so
-  // `extractVideoImage` rejects. The temp file must still go.
-  it('removes the temp video when preview extraction fails', async () => {
+  // `extractVideoImage` rejects. Extraction runs before the
+  // `PutObjectCommand`, so nothing is stored — a stored object with no `medias`
+  // row is unreachable by everything except the cleanup script — and the temp
+  // file must still go. Mirrors `localFile.test.ts`.
+  it('stores nothing when the preview frame cannot be extracted', async () => {
     vi.mocked(extractVideoImage).mockRejectedValue(new Error('ffmpeg failed'))
     const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {
       type: 'video/mp4'
@@ -542,8 +549,49 @@ describe('S3FileStorage saveFile with a video', () => {
       'ffmpeg failed'
     )
 
+    expect(send).not.toHaveBeenCalled()
+    expect(database.createMedia).not.toHaveBeenCalled()
+    expect(extractVideoImage).toHaveBeenCalledTimes(1)
     const tempPath = vi.mocked(extractVideoImage).mock.calls[0][0]
     await expect(fs.access(tempPath)).rejects.toThrow()
+  })
+
+  // An audio-only mp4 — a voice memo, or an mp4 with its video track stripped —
+  // is the systematic case for this branch, and the browser labels it
+  // `video/mp4` from the extension. It is the caller's 422, so it must be
+  // decided from the probe alone, before ffmpeg is ever spawned: extracting
+  // first turned it into a logged 500 the client would retry.
+  it('rejects a container with no video stream without extracting a frame', async () => {
+    vi.mocked(extractVideoMeta).mockResolvedValue({
+      streams: [{ codec_type: 'audio' }],
+      format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2' }
+    })
+    const file = new File([Buffer.from('audio-bytes')], 'memo.mp4', {
+      type: 'video/mp4'
+    })
+
+    await expect(createStorage().saveFile(actor, { file })).rejects.toThrow(
+      MediaValidationError
+    )
+
+    expect(extractVideoImage).not.toHaveBeenCalled()
+    expect(send).not.toHaveBeenCalled()
+    expect(database.createMedia).not.toHaveBeenCalled()
+  })
+
+  it('stores nothing and writes no temp video when probing fails', async () => {
+    vi.mocked(extractVideoMeta).mockRejectedValue(new Error('ffprobe failed'))
+    const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {
+      type: 'video/mp4'
+    })
+
+    await expect(createStorage().saveFile(actor, { file })).rejects.toThrow(
+      'ffprobe failed'
+    )
+
+    expect(extractVideoImage).not.toHaveBeenCalled()
+    expect(send).not.toHaveBeenCalled()
+    expect(database.createMedia).not.toHaveBeenCalled()
   })
 
   it.each([
