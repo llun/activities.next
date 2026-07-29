@@ -599,26 +599,66 @@ describe('FitnessStatusDetail', () => {
       )
     })
 
+    it('places the dot low at a series minimum and high at its maximum', async () => {
+      const panel = await openAnalysis()
+
+      // The elevation fixture is [10, 24, 40, 55, 48, 30]: sample 0 is its
+      // minimum and sample 3 its maximum. This pins the value -> y projection
+      // the line and the dot share, which inverting would swap. The dot is
+      // deliberately unclamped — it marks the actual point, so it goes all the
+      // way to 100%/0% — while the readout beside it is held inside the plot,
+      // which is what 92%/8% is.
+      hoverChart(panel, 100)
+      expect(screen.getAllByTestId('chart-hover-dot')[0]).toHaveStyle({
+        top: '100%'
+      })
+      expect(screen.getAllByTestId('chart-hover-value')[0]).toHaveStyle({
+        top: '92%'
+      })
+
+      hoverChart(panel, 340)
+      expect(screen.getAllByTestId('chart-hover-dot')[0]).toHaveStyle({
+        top: '0%'
+      })
+      expect(screen.getAllByTestId('chart-hover-value')[0]).toHaveStyle({
+        top: '8%'
+      })
+    })
+
+    // `left` pins the index -> x projection the line, the dot and the readout
+    // all share: sample 1 of 6 sits a fifth of the way across, sample 5 at the
+    // end. Without it the scale can be changed and only the flip threshold —
+    // which both cases clear by a wide margin — would notice.
     it.each([
       {
         description: 'right of the dot away from the edge',
         clientX: 200,
+        left: '20%',
         transform: 'translate(12px, -50%)'
       },
       {
         description: 'flipped left of the dot near the end',
         clientX: 480,
+        left: '100%',
         transform: 'translate(calc(-100% - 12px), -50%)'
       }
-    ])('places the readout $description', async ({ clientX, transform }) => {
-      const panel = await openAnalysis()
+    ])(
+      'places the readout $description',
+      async ({ clientX, left, transform }) => {
+        const panel = await openAnalysis()
 
-      hoverChart(panel, clientX)
+        hoverChart(panel, clientX)
 
-      for (const readout of screen.getAllByTestId('chart-hover-value')) {
-        expect(readout).toHaveStyle({ transform })
+        for (const readout of screen.getAllByTestId('chart-hover-value')) {
+          expect(readout).toHaveStyle({ left, transform })
+        }
+        // The dot is placed from the same projection, so no change to the x
+        // scale can move one of the two without the other.
+        for (const dot of screen.getAllByTestId('chart-hover-dot')) {
+          expect(dot).toHaveStyle({ left })
+        }
       }
-    })
+    )
   })
 
   it('shows the multi-file activity switcher when several files are aggregated', async () => {
