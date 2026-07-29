@@ -49,6 +49,7 @@ import { ActorAvatar } from '@/lib/components/posts/actor'
 import { Media } from '@/lib/components/posts/media'
 import { Post } from '@/lib/components/posts/post'
 import { ReactionRow } from '@/lib/components/posts/reaction-row'
+import { RetryFitnessButton } from '@/lib/components/posts/retry-fitness-button'
 import { StatusReplyBox } from '@/lib/components/posts/status-reply-box'
 import { useReactionState } from '@/lib/components/posts/useReactionState'
 import { Button } from '@/lib/components/ui/button'
@@ -2038,6 +2039,23 @@ export const FitnessStatusDetail: FC<Props> = ({
         active={activeSection}
         onChange={setActiveSection}
       />
+
+      {/* This page replaces `Post` for a completed fitness activity, so the
+          retry `Post` offers for a missing route map has to exist here too —
+          otherwise the owner who opens the activity to ask where their map went
+          is the one person who cannot act on it.
+          Read from `status.fitness` (the status's primary file), NOT the
+          file the switcher has selected: the retry endpoint only acts on the
+          primary, so a button driven by a non-primary file's reason would 422
+          on every click. Same `completed` gate `Post` applies. */}
+      {status.fitness?.mapFailure &&
+      status.fitness?.processingStatus === 'completed' &&
+      isOwner ? (
+        <RetryFitnessButton
+          statusId={status.id}
+          variant={`map-${status.fitness.mapFailure}`}
+        />
+      ) : null}
 
       {/* When the route-data load fails and there is no map panel to host the
           banner, surface the error here so the failure is never invisible. */}

@@ -46,6 +46,17 @@ interface FitnessFileItem {
   statusId?: string
   importStatus?: 'pending' | 'completed' | 'failed'
   importError?: string | null
+  // Why this file's route map is missing. Separate from importError: the
+  // activity itself imported fine. This page is the owner's own file list, so
+  // it is the one surface that shows the reason rather than just the fact.
+  mapError?: string | null
+  // Whether a map exists despite `mapError` — a failed REgeneration keeps the
+  // previous one, so the copy must not claim there is none.
+  hasMapData?: boolean
+  // A non-primary file (the second device of a merged same-ride post) never
+  // owns the status's map, so a reason left on one is not actionable: the retry
+  // the post offers deliberately skips it.
+  isPrimary?: boolean
   importBatchId?: string
 }
 
@@ -328,6 +339,25 @@ export function FitnessFileManagement({
                             )}
                           </div>
                         )}
+                        {fitnessFile.mapError &&
+                          !importFailed &&
+                          fitnessFile.isPrimary !== false && (
+                            <div className="space-y-1 pt-1">
+                              {/* Muted, not destructive: the activity imported —
+                                  only its route map is wrong. Retrying is
+                                  offered on the post itself. */}
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                                  {fitnessFile.hasMapData
+                                    ? 'Route map out of date'
+                                    : 'No route map'}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {fitnessFile.mapError}
+                              </p>
+                            </div>
+                          )}
                       </div>
 
                       <div className="flex gap-2">

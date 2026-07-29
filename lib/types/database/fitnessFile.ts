@@ -25,6 +25,9 @@ export interface SQLFitnessFile {
   mapImagePath?: string | null
   // JPEG copy of the map above, for mail clients that cannot decode WebP.
   mapImageEmailPath?: string | null
+  // Why the route map is missing, when one was expected. Never a substitute for
+  // `processingStatus: 'failed'` — the activity itself is fine.
+  mapError?: string | null
   processingStatus?: FitnessProcessingStatus | null
   isPrimary?: boolean | null
   importBatchId?: string | null
@@ -62,6 +65,7 @@ export interface FitnessFile {
   hasMapData?: boolean
   mapImagePath?: string
   mapImageEmailPath?: string
+  mapError?: string
   processingStatus?: FitnessProcessingStatus
   isPrimary?: boolean
   importBatchId?: string

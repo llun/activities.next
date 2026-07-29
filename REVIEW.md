@@ -196,6 +196,18 @@ change doesn't touch.
   code uses `logger` from `@/lib/utils/logger` (`logger.info({ message })`).
   Migrations and `scripts/` may use `console.*`. Do not log from React/client
   code.
+- A caught error is logged as `err: toLoggableError(error)`
+  (`@/lib/utils/toLoggableError`), not only as `error: err.message`. The
+  formatter reads `err.stack` to emit `stack_trace`; a message string alone
+  reports nothing actionable. Keep the human-readable `error: <message>` too
+  when that same string is persisted.
+- A user-visible degradation is not a `logger.warn` and nothing else — persist it
+  where that feature's state lives so it is visible and retryable. But scope the
+  signal to what broke: don't reuse a status flag that already means something
+  bigger (a missing route map records `fitness_files.mapError`; setting
+  `processingStatus: 'failed'` would hide the whole activity from the detail
+  dashboard, the stat grid, the fitness overview and every rollup). Grep for what
+  reads a flag before reusing it.
 
 ## Emails
 

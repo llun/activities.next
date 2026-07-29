@@ -13,6 +13,7 @@ import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { logger } from '@/lib/utils/logger'
 
 vi.mock('@/lib/services/queue', async () => ({
   getQueue: vi.fn().mockReturnValue({
@@ -306,10 +307,33 @@ describe('regenerateFitnessMapsJob', () => {
     })
   })
 
-  it('keeps old map untouched when regeneration fails', async () => {
+  // Every branch records the reason in `mapError` and leaves the file
+  // `completed` — the same policy processFitnessFileJob applies on the import
+  // path. `failed` would hide an activity this job never even touched behind
+  // every surface gated on `completed`.
+  it.each([
+    {
+      description: 'keeps old map untouched when map rendering throws',
+      arrange: () =>
+        mockGenerateMapImage.mockRejectedValue(new Error('map failed')),
+      expectedError: 'map failed'
+    },
+    {
+      description:
+        'keeps old map untouched when the renderer produces no image',
+      arrange: () => mockGenerateMapImage.mockResolvedValue(null),
+      expectedError: 'Generated map image buffer is empty'
+    },
+    {
+      description: 'keeps old map untouched when storing the new map fails',
+      arrange: () => mockSaveMedia.mockResolvedValue(null),
+      expectedError: 'Failed to store generated route map image'
+    }
+  ])('$description', async ({ arrange, expectedError }) => {
     const { statusId, fitnessFileId, oldMediaId, oldEmailMapPath } =
       await setupStatusWithOldMap()
-    mockGenerateMapImage.mockRejectedValueOnce(new Error('map failed'))
+    const loggerError = vi.spyOn(logger, 'error')
+    arrange()
 
     await regenerateFitnessMapsJob(database, {
       id: 'job-regenerate-failed',
@@ -323,7 +347,10 @@ describe('regenerateFitnessMapsJob', () => {
     const refreshedFitnessFile = await database.getFitnessFile({
       id: fitnessFileId
     })
-    expect(refreshedFitnessFile?.processingStatus).toBe('failed')
+    expect(refreshedFitnessFile?.processingStatus).toBe('completed')
+    expect(refreshedFitnessFile?.mapError).toBe(expectedError)
+    // A map failure is not an import failure.
+    expect(refreshedFitnessFile?.importError).toBeUndefined()
     expect(refreshedFitnessFile?.mapImagePath).toBe('medias/old-route-map.webp')
     // The reference must survive a failed regeneration, or the copy is orphaned.
     expect(refreshedFitnessFile?.mapImageEmailPath).toBe(oldEmailMapPath)
@@ -353,11 +380,105 @@ describe('regenerateFitnessMapsJob', () => {
         name: SEND_UPDATE_NOTE_JOB_NAME
       })
     )
+
+    // Reported at error level with the error object itself, so the stack
+    // reaches error reporting instead of a bare message string.
+    expect(loggerError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Failed to regenerate route map for fitness activity',
+        fitnessFileId,
+        error: expectedError,
+        err: expect.any(Error)
+      })
+    )
+  })
+
+  it('clears a recorded map failure once regeneration succeeds', async () => {
+    const { fitnessFileId } = await setupStatusWithOldMap()
+    mockGenerateMapImage.mockRejectedValue(new Error('tile server down'))
+
+    await regenerateFitnessMapsJob(database, {
+      id: 'job-regenerate-clears-first',
+      name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+      data: { actorId: actor.id, fitnessFileIds: [fitnessFileId] }
+    })
+    expect(
+      (await database.getFitnessFile({ id: fitnessFileId }))?.mapError
+    ).toBe('tile server down')
+
+    mockGenerateMapImage.mockResolvedValue(Buffer.from('new-map-image'))
+    await regenerateFitnessMapsJob(database, {
+      id: 'job-regenerate-clears-second',
+      name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+      data: { actorId: actor.id, fitnessFileIds: [fitnessFileId] }
+    })
+
+    const refreshed = await database.getFitnessFile({ id: fitnessFileId })
+    expect(refreshed?.mapError).toBeUndefined()
+    expect(refreshed?.mapImagePath).toBe('medias/new-route-map.webp')
+  })
+
+  it('keeps the regenerated map when the previous one cannot be removed', async () => {
+    const { statusId, fitnessFileId } = await setupStatusWithOldMap()
+    vi.spyOn(database, 'deleteAttachmentsByIds').mockRejectedValueOnce(
+      new Error('attachment delete failed')
+    )
+
+    await regenerateFitnessMapsJob(database, {
+      id: 'job-regenerate-cleanup-failure',
+      name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+      data: { actorId: actor.id, fitnessFileIds: [fitnessFileId] }
+    })
+
+    // The regenerated map is stored and attached by now, so a cleanup failure
+    // must not undo it: the activity stays `completed` with its new map, and
+    // the leftover attachment is logged rather than reported as a map failure
+    // the owner cannot act on.
+    const refreshed = await database.getFitnessFile({ id: fitnessFileId })
+    expect(refreshed).toMatchObject({
+      processingStatus: 'completed',
+      mapImagePath: 'medias/new-route-map.webp'
+    })
+    expect(refreshed?.mapError).toBeUndefined()
+
+    const status = await database.getStatus({ statusId, withReplies: false })
+    const mapAttachments = status?.attachments.filter(
+      (attachment) => attachment.name === 'Activity route map'
+    )
+    expect(mapAttachments).toHaveLength(2)
+  })
+
+  it('clears a stale map reason when the whole file fails', async () => {
+    const { fitnessFileId } = await setupStatusWithOldMap()
+    await database.updateFitnessFileActivityData(fitnessFileId, {
+      mapError: 'tile server down'
+    })
+    mockParseFitnessFile.mockRejectedValue(new Error('Invalid TCX structure'))
+
+    await regenerateFitnessMapsJob(database, {
+      id: 'job-regenerate-hard-failure',
+      name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+      data: { actorId: actor.id, fitnessFileIds: [fitnessFileId] }
+    })
+
+    // The file's own status now carries the diagnostic; leaving the map reason
+    // set too makes the fitness files page report a missing map instead.
+    const refreshed = await database.getFitnessFile({ id: fitnessFileId })
+    expect(refreshed?.processingStatus).toBe('failed')
+    expect(refreshed?.importError).toBe('Invalid TCX structure')
+    expect(refreshed?.mapError).toBeUndefined()
   })
 
   it('removes the map and its email copy when no visible coordinates remain', async () => {
     const { statusId, fitnessFileId, oldMediaId, oldEmailMapPath } =
       await setupStatusWithOldMap()
+
+    // A reason left over from an earlier failed regeneration. There is now no
+    // map to produce at all, so it must not survive — a stale reason keeps the
+    // post offering its owner a retry forever.
+    await database.updateFitnessFileActivityData(fitnessFileId, {
+      mapError: 'tile server down'
+    })
 
     // Nothing left to draw — the same end state a privacy location that
     // swallows the whole route produces — so the map is removed, not
@@ -388,6 +509,7 @@ describe('regenerateFitnessMapsJob', () => {
     expect(refreshedFitnessFile?.processingStatus).toBe('completed')
     expect(refreshedFitnessFile?.hasMapData).toBe(false)
     expect(refreshedFitnessFile?.mapImagePath).toBeUndefined()
+    expect(refreshedFitnessFile?.mapError).toBeUndefined()
     // The copy must not outlive the map: it shows the route the owner just hid.
     expect(refreshedFitnessFile?.mapImageEmailPath).toBeUndefined()
     expect(mockDeleteMediaFile).toHaveBeenCalledWith(database, oldEmailMapPath)
@@ -408,6 +530,46 @@ describe('regenerateFitnessMapsJob', () => {
     expect(mapAttachments).toHaveLength(0)
   })
 
+  it('keeps the map pointer and records a reason when a hidden route cannot be removed', async () => {
+    const { statusId, fitnessFileId } = await setupStatusWithOldMap()
+
+    // The privacy case this job exists for: the whole route is hidden now, so
+    // the existing map — the one showing that route — has to go.
+    mockParseFitnessFile.mockResolvedValueOnce({
+      coordinates: [],
+      trackPoints: [],
+      totalDistanceMeters: 0,
+      totalDurationSeconds: 600,
+      activityType: 'running'
+    })
+    vi.spyOn(database, 'deleteAttachmentsByIds').mockRejectedValueOnce(
+      new Error('attachment delete failed')
+    )
+
+    await regenerateFitnessMapsJob(database, {
+      id: 'job-regenerate-hidden-route-cleanup-failure',
+      name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+      data: { actorId: actor.id, fitnessFileIds: [fitnessFileId] }
+    })
+
+    // Dropping the pointer while the attachment survives would leave that route
+    // on a public post with nothing able to identify it again; the recorded
+    // reason is what offers the owner the retry that re-attempts the removal.
+    const refreshed = await database.getFitnessFile({ id: fitnessFileId })
+    expect(refreshed).toMatchObject({
+      processingStatus: 'completed',
+      mapImagePath: 'medias/old-route-map.webp',
+      mapError: 'Failed to remove the route map'
+    })
+
+    const status = await database.getStatus({ statusId, withReplies: false })
+    expect(
+      status?.attachments.filter(
+        (attachment) => attachment.name === 'Activity route map'
+      )
+    ).toHaveLength(1)
+  })
+
   it('heals a non-primary file by removing its stray map instead of regenerating', async () => {
     const { statusId, entries } = await setupStatusWithMultipleOldMaps()
     const primaryEntry = entries[0]
@@ -419,6 +581,13 @@ describe('regenerateFitnessMapsJob', () => {
     await database.updateFitnessFilePrimary(
       nonPrimaryEntry.fitnessFileId,
       false
+    )
+    // This file is not supposed to own a map, so a reason recorded when it
+    // tried is not a pending problem — left behind it makes the status look
+    // permanently retriable.
+    await database.updateFitnessFileActivityData(
+      nonPrimaryEntry.fitnessFileId,
+      { mapError: 'tile server down' }
     )
 
     await regenerateFitnessMapsJob(database, {
@@ -439,6 +608,7 @@ describe('regenerateFitnessMapsJob', () => {
     expect(refreshedNonPrimary?.hasMapData).toBe(false)
     expect(refreshedNonPrimary?.mapImagePath).toBeUndefined()
     expect(refreshedNonPrimary?.processingStatus).toBe('completed')
+    expect(refreshedNonPrimary?.mapError).toBeUndefined()
 
     // The stray map's email copy goes with it: it has no `medias` row, so the
     // fitness file was its only reference.

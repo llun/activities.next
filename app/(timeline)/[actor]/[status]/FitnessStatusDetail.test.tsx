@@ -563,6 +563,44 @@ describe('FitnessStatusDetail', () => {
     ).toBeInTheDocument()
   })
 
+  describe('route map failure', () => {
+    // This page replaces `Post` for a completed fitness activity, so the retry
+    // `Post` offers has to exist here too — otherwise the owner who opens the
+    // activity to ask where their map went cannot act on it.
+    const mapFailedStatus = () =>
+      buildStatus({
+        fitness: {
+          ...buildStatus().fitness,
+          mapFailure: 'missing' as const
+        }
+      } as Partial<StatusNote>)
+
+    it('offers the owner a retry for a missing route map', () => {
+      renderDetail({ status: mapFailedStatus() })
+
+      expect(
+        screen.getByText(/route map image could not be generated/i)
+      ).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument()
+    })
+
+    it('says nothing to a viewer who is not the owner', () => {
+      renderDetail({ status: mapFailedStatus(), currentActor: null })
+
+      expect(
+        screen.queryByText(/route map image could not be/i)
+      ).not.toBeInTheDocument()
+    })
+
+    it('does not offer a retry when the map is fine', () => {
+      renderDetail()
+
+      expect(
+        screen.queryByText(/route map image could not be/i)
+      ).not.toBeInTheDocument()
+    })
+  })
+
   it('excludes 0 bpm sensor dropouts from the heart-rate average and max', async () => {
     // Without filtering, avg over [0,150,0,150,150] would be 60; the positive
     // samples [150,150,150] give avg 150 / max 150, matching the zone buckets.
