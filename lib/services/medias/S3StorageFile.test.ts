@@ -19,8 +19,10 @@ import {
   MAX_HEIGHT,
   MAX_WIDTH
 } from '@/lib/services/medias/constants'
+import { MediaValidationError } from '@/lib/services/medias/errors'
 import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
 import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
+import { getQuotaLimit } from '@/lib/services/medias/quota'
 import { getMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import { Actor } from '@/lib/types/domain/actor'
 import { StreamByteLimitError } from '@/lib/utils/streamLimit'
@@ -599,8 +601,9 @@ describe('S3FileStorage saveFile with a video', () => {
     )
   })
 
-  // `saveFile`'s image branch is a separate `createMedia` call from the video
-  // branch above, so it needs its own coverage.
+  // The image and video branches share one `createMedia` call, but the
+  // original's path and metadata come from a different helper in each, so the
+  // image branch needs its own coverage.
   it('stores a sanitized original file name for an image', async () => {
     database.createMedia.mockResolvedValue({
       id: 'media-2',
@@ -624,6 +627,405 @@ describe('S3FileStorage saveFile with a video', () => {
         original: expect.objectContaining({ fileName: 'evil.png' })
       })
     )
+  })
+})
+
+// Regression: the image branch called `createMedia` with no `thumbnail` key at
+// all, so a client that uploaded one (MediaSchema accepts it, and
+// handleSyncMediaUpload passes it straight through) got it stored on a
+// filesystem instance and silently dropped on an object-storage one — the same
+// upload produced a different `meta.small`/`preview_url` per backend. The video
+// branch had the matching gap: it always used the extracted frame and ignored a
+// caller-supplied thumbnail. Mirrors `localFile.test.ts`.
+describe('S3FileStorage saveFile with a caller-supplied thumbnail', () => {
+  const send = vi.fn()
+  const actor = { id: 'actor-1', account: { id: 'account-1' } } as Actor
+  const database = {
+    createMedia: vi.fn(),
+    getActorFromId: vi.fn(),
+    getStorageUsageForAccount: vi.fn(),
+    getFitnessStorageUsageForAccount: vi.fn()
+  } as unknown as jest.Mocked<Database>
+
+  // Every PutObjectCommand with the bytes it actually uploaded. The storage
+  // deletes its temp file as soon as `send` resolves, so an image stream has to
+  // be drained inside the mock.
+  let uploads: { key: string; body: Buffer }[]
+  let deletedKeys: string[]
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    uploads = []
+    deletedKeys = []
+    ;(S3Client as jest.MockedClass<typeof S3Client>).mockImplementation(
+      function () {
+        return { send } as unknown as S3Client
+      }
+    )
+    send.mockImplementation(async (command) => {
+      if (command instanceof DeleteObjectCommand) {
+        deletedKeys.push(String(command.input.Key))
+        return {}
+      }
+      if (!(command instanceof PutObjectCommand)) {
+        throw new Error('Unexpected command')
+      }
+      const { Key, Body } = command.input
+      const chunks: Buffer[] = []
+      // A video is uploaded as a Buffer and an image as a stream. `for await`
+      // over a Buffer walks it byte by byte, so the two need separate handling.
+      if (Buffer.isBuffer(Body)) {
+        chunks.push(Body)
+      } else {
+        for await (const chunk of Body as Readable) {
+          chunks.push(Buffer.from(chunk))
+        }
+      }
+      uploads.push({ key: String(Key), body: Buffer.concat(chunks) })
+      return {}
+    })
+    database.getActorFromId.mockResolvedValue(actor)
+    database.getStorageUsageForAccount.mockResolvedValue(0)
+    database.getFitnessStorageUsageForAccount.mockResolvedValue(0)
+    database.createMedia.mockImplementation((async (params: unknown) => ({
+      id: 'media-1',
+      actorId: actor.id,
+      ...(params as object)
+    })) as never)
+    vi.mocked(extractVideoMeta).mockResolvedValue({
+      streams: [{ codec_type: 'video', width: 10, height: 10 }],
+      format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2' }
+    })
+    vi.mocked(extractVideoImage).mockResolvedValue(ONE_PIXEL_PNG)
+  })
+
+  const createStorage = () =>
+    new S3FileStorage(
+      {
+        type: MediaStorageType.ObjectStorage,
+        bucket: 'bucket',
+        region: 'us-east-1',
+        endpoint: 'https://s3.example.com'
+      },
+      'llun.test',
+      database
+    )
+
+  const createPngFile = async (width: number, height: number) => {
+    const buffer = await sharp({
+      create: { width, height, channels: 3, background: '#3366cc' }
+    })
+      .png()
+      .toBuffer()
+    return new File([new Uint8Array(buffer)], 'route-map.png', {
+      type: 'image/png'
+    })
+  }
+
+  // A PNG with an intact header and a missing body: it passes the cheap header
+  // check and only fails once the encoder reaches the bytes that are not there.
+  const createTruncatedPngFile = async (width: number, height: number) => {
+    const file = await createPngFile(width, height)
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    return new File(
+      [bytes.subarray(0, Math.floor(bytes.length * 0.6))],
+      'cut.png',
+      {
+        type: 'image/png'
+      }
+    )
+  }
+
+  // Thumbnails are uploaded under the same prefix as the original, suffixed
+  // `-thumbnail`, so each helper has to pick out the object it means.
+  const uploaded = (kind: 'original' | 'thumbnail') => {
+    const match = uploads.find(
+      (upload) =>
+        upload.key.endsWith('-thumbnail.webp') === (kind === 'thumbnail')
+    )
+    if (!match) {
+      throw new Error(
+        `No uploaded ${kind} in [${uploads.map((upload) => upload.key).join(', ')}]`
+      )
+    }
+    return match
+  }
+
+  it('uploads a caller-supplied thumbnail alongside the image', async () => {
+    await createStorage().saveFile(actor, {
+      file: await createPngFile(800, 600),
+      thumbnail: await createPngFile(400, 300)
+    })
+
+    expect(uploads).toHaveLength(2)
+    await expect(
+      sharp(uploaded('thumbnail').body).metadata()
+    ).resolves.toMatchObject({ width: 400, height: 300, format: 'webp' })
+  })
+
+  // `thumbnail.bytes` is metered: `createMedia` adds it to the account's usage
+  // counter, so it has to describe the stored WebP (`outputInfo`) rather than
+  // the uploaded PNG.
+  it('records the stored thumbnail on the media row', async () => {
+    await createStorage().saveFile(actor, {
+      file: await createPngFile(800, 600),
+      thumbnail: await createPngFile(400, 300)
+    })
+
+    const thumbnail = uploaded('thumbnail')
+    expect(database.createMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        thumbnail: {
+          path: thumbnail.key,
+          bytes: thumbnail.body.length,
+          mimeType: 'image/webp',
+          metaData: { width: 400, height: 300 }
+        }
+      })
+    )
+  })
+
+  // Both fixtures above sit inside the 4000x4000 box, where the input and the
+  // stored file have the same dimensions — so only an above-cap thumbnail
+  // distinguishes `outputInfo` from the input `metaData`. Reporting the input's
+  // dimensions is the bug #1334 fixed on the original's side.
+  it('records an above-cap thumbnail at the dimensions it was stored at', async () => {
+    await createStorage().saveFile(actor, {
+      file: await createPngFile(800, 600),
+      thumbnail: await createPngFile(MAX_WIDTH + 200, (MAX_HEIGHT + 200) / 2)
+    })
+
+    expect(database.createMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        thumbnail: expect.objectContaining({
+          metaData: { width: MAX_WIDTH, height: MAX_HEIGHT / 2 }
+        })
+      })
+    )
+    await expect(
+      sharp(uploaded('thumbnail').body).metadata()
+    ).resolves.toMatchObject({ width: MAX_WIDTH, height: MAX_HEIGHT / 2 })
+    // The original is bounded independently and is well inside the box.
+    await expect(
+      sharp(uploaded('original').body).metadata()
+    ).resolves.toMatchObject({ width: 800, height: 600 })
+  })
+
+  it('reports the stored thumbnail as meta.small on the attachment', async () => {
+    const attachment = await createStorage().saveFile(actor, {
+      file: await createPngFile(800, 600),
+      thumbnail: await createPngFile(400, 300)
+    })
+
+    expect(attachment?.meta.small).toMatchObject({ width: 400, height: 300 })
+    expect(attachment?.preview_url).toBe(
+      `https://llun.test/api/v1/files/${uploaded('thumbnail').key}`
+    )
+  })
+
+  // `description` and `focus` are spread into the same `createMedia` call the
+  // thumbnail is, so the refactor that unified the two branches could have
+  // dropped them without any other test noticing.
+  it('keeps the description and focus alongside the thumbnail', async () => {
+    const attachment = await createStorage().saveFile(actor, {
+      file: await createPngFile(800, 600),
+      thumbnail: await createPngFile(400, 300),
+      description: 'A blue square',
+      focus: { x: 0.5, y: -0.25 }
+    })
+
+    expect(database.createMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: 'A blue square',
+        focus: { x: 0.5, y: -0.25 }
+      })
+    )
+    expect(attachment?.description).toBe('A blue square')
+    expect(attachment?.meta.focus).toEqual({ x: 0.5, y: -0.25 })
+  })
+
+  // `MediaSchema.thumbnail` accepts every ACCEPTED_FILE_TYPES entry, videos
+  // included. Reaching sharp with one rejects with a plain Error — a 500, not
+  // the 422 every other bad upload gets — and by then the original is already
+  // in the bucket with no `medias` row to reclaim it by.
+  it('refuses a thumbnail that is not an image before storing anything', async () => {
+    const thumbnail = new File([Buffer.from('video-bytes')], 'clip.mp4', {
+      type: 'video/mp4'
+    })
+
+    await expect(
+      createStorage().saveFile(actor, {
+        file: await createPngFile(800, 600),
+        thumbnail
+      })
+    ).rejects.toThrow(MediaValidationError)
+    expect(uploads).toHaveLength(0)
+    expect(database.createMedia).not.toHaveBeenCalled()
+  })
+
+  // The dedicated thumbnail endpoint (PUT /api/v1/media/:id) has to answer the
+  // same bytes the same way — it used to reach sharp unguarded and 500.
+  it('refuses unreadable bytes on the standalone thumbnail path', async () => {
+    const thumbnail = new File([Buffer.from('not-an-image')], 'evil.png', {
+      type: 'image/png'
+    })
+
+    await expect(
+      createStorage().saveThumbnail(actor, thumbnail)
+    ).rejects.toThrow(MediaValidationError)
+    expect(uploads).toHaveLength(0)
+  })
+
+  // `createMedia` meters the thumbnail's bytes too, so the pre-check has to
+  // reserve for them — otherwise an upload that fits only without its thumbnail
+  // is accepted and leaves the account over its quota.
+  it('counts the thumbnail against the account quota', async () => {
+    const file = await createPngFile(800, 600)
+    const thumbnail = await createPngFile(400, 300)
+    // Exactly enough room for the original on its own.
+    database.getStorageUsageForAccount.mockResolvedValue(
+      getQuotaLimit() - file.size
+    )
+
+    await expect(
+      createStorage().saveFile(actor, { file, thumbnail })
+    ).rejects.toThrow(MediaValidationError)
+    expect(uploads).toHaveLength(0)
+    // The same upload without the thumbnail still fits, so the thumbnail's
+    // bytes are what tipped it over.
+    await expect(
+      createStorage().saveFile(actor, { file })
+    ).resolves.toBeTruthy()
+  })
+
+  // What is left after that check is a storage fault, not bad input: it must
+  // keep its own error — a logged 500, not a 422 telling the caller its
+  // perfectly good thumbnail was rejected — while still reclaiming the original.
+  it('reclaims the stored original when the thumbnail upload fails', async () => {
+    const failure = new Error('S3 unavailable')
+    let puts = 0
+    send.mockImplementation(async (command) => {
+      if (command instanceof DeleteObjectCommand) {
+        deletedKeys.push(String(command.input.Key))
+        return {}
+      }
+      puts += 1
+      // The second PutObject is the thumbnail; the original is already stored.
+      if (puts === 2) throw failure
+      uploads.push({ key: String(command.input.Key), body: Buffer.alloc(0) })
+      return {}
+    })
+
+    await expect(
+      createStorage().saveFile(actor, {
+        file: await createPngFile(800, 600),
+        thumbnail: await createPngFile(400, 300)
+      })
+    ).rejects.toThrow(failure)
+    expect(database.createMedia).not.toHaveBeenCalled()
+    expect(deletedKeys).toEqual([uploads[0].key])
+  })
+
+  // The case a header parse would let through: the driver has to decode the
+  // thumbnail fully before it stores the original, or the encoder is the first
+  // thing to notice and the caller gets a 500 for its own corrupt bytes.
+  it('refuses a truncated thumbnail before storing anything', async () => {
+    await expect(
+      createStorage().saveFile(actor, {
+        file: await createPngFile(800, 600),
+        thumbnail: await createTruncatedPngFile(400, 300)
+      })
+    ).rejects.toThrow(MediaValidationError)
+    expect(uploads).toHaveLength(0)
+    expect(database.createMedia).not.toHaveBeenCalled()
+  })
+
+  it('refuses truncated bytes on the standalone thumbnail path', async () => {
+    await expect(
+      createStorage().saveThumbnail(
+        actor,
+        await createTruncatedPngFile(400, 300)
+      )
+    ).rejects.toThrow(MediaValidationError)
+  })
+
+  // The row is written last, so a database failure leaves both objects stored
+  // and unreferenced — the same reclaim as a missing row.
+  it('reclaims both stored objects when the media row write fails', async () => {
+    database.createMedia.mockRejectedValue(new Error('deadlock detected'))
+
+    await expect(
+      createStorage().saveFile(actor, {
+        file: await createPngFile(800, 600),
+        thumbnail: await createPngFile(400, 300)
+      })
+    ).rejects.toThrow('deadlock detected')
+    expect(deletedKeys).toEqual(uploads.map((upload) => upload.key))
+    expect(deletedKeys).toHaveLength(2)
+  })
+
+  // A row is the only handle anything else has on these paths, so without one
+  // both stored objects are unreachable.
+  it('reclaims both stored objects when the media row cannot be created', async () => {
+    database.createMedia.mockResolvedValue(null as never)
+
+    await expect(
+      createStorage().saveFile(actor, {
+        file: await createPngFile(800, 600),
+        thumbnail: await createPngFile(400, 300)
+      })
+    ).rejects.toThrow('Fail to store media')
+    expect(deletedKeys).toEqual(uploads.map((upload) => upload.key))
+    expect(deletedKeys).toHaveLength(2)
+  })
+
+  it('stores no thumbnail for an image uploaded without one', async () => {
+    await createStorage().saveFile(actor, {
+      file: await createPngFile(800, 600)
+    })
+
+    expect(uploads).toHaveLength(1)
+    expect(database.createMedia).toHaveBeenCalledWith(
+      expect.not.objectContaining({ thumbnail: expect.anything() })
+    )
+  })
+
+  it.each([
+    {
+      description:
+        'prefers a caller-supplied thumbnail over the extracted video frame',
+      suppliedThumbnail: { width: 400, height: 300 },
+      storedThumbnail: { width: 400, height: 300 }
+    },
+    {
+      description:
+        'falls back to the extracted video frame when no thumbnail is supplied',
+      suppliedThumbnail: null,
+      // The mocked `extractVideoImage` frame.
+      storedThumbnail: { width: 1, height: 1 }
+    }
+  ])('$description', async ({ suppliedThumbnail, storedThumbnail }) => {
+    const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {
+      type: 'video/mp4'
+    })
+
+    await createStorage().saveFile(actor, {
+      file,
+      ...(suppliedThumbnail
+        ? {
+            thumbnail: await createPngFile(
+              suppliedThumbnail.width,
+              suppliedThumbnail.height
+            )
+          }
+        : null)
+    })
+
+    // The video plus exactly one thumbnail — the losing source is not uploaded.
+    expect(uploads).toHaveLength(2)
+    await expect(
+      sharp(uploaded('thumbnail').body).metadata()
+    ).resolves.toMatchObject(storedThumbnail)
   })
 })
 

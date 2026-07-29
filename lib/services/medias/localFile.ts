@@ -23,7 +23,8 @@ import {
   getImageOutputFormatDetail
 } from './imageOutputFormat'
 import { getMediaFileUrl } from './mediaFileUrl'
-import { checkQuotaAvailable } from './quota'
+import { checkQuotaAvailable, getUploadQuotaReservation } from './quota'
+import { readValidThumbnail } from './thumbnailInput'
 import {
   ImageRenditionOutput,
   MediaSchema,
@@ -132,12 +133,18 @@ export class LocalFileStorage implements MediaStorage {
     if (!file.type.startsWith('image') && !file.type.startsWith('video')) {
       return null
     }
+    // Read and validate the thumbnail before anything is written, so unusable
+    // bytes cannot leave a stored original behind.
+    const thumbnailBuffer = media.thumbnail
+      ? await readValidThumbnail(media.thumbnail)
+      : null
 
-    // Check quota before saving
+    // Check quota before saving; see `getUploadQuotaReservation` for why the
+    // thumbnail's share of it is an estimate.
     const quotaCheck = await checkQuotaAvailable(
       this._database,
       actor,
-      file.size
+      getUploadQuotaReservation(media)
     )
     if (!quotaCheck.available) {
       throw new MediaValidationError(
@@ -148,43 +155,60 @@ export class LocalFileStorage implements MediaStorage {
     const { path, metaData, previewImage } = file.type.startsWith('video')
       ? await this._saveVideoFile(file)
       : await this._saveImageFile(file)
-    const thumbnail = media.thumbnail
-      ? await this._saveImageFile(media.thumbnail, { isThumbnail: true })
-      : previewImage
-        ? await this._saveImageBuffer(previewImage, { isThumbnail: true })
+    // A caller-supplied thumbnail wins; a video otherwise falls back to the
+    // frame extracted from it.
+    const thumbnailSource = thumbnailBuffer ?? previewImage
+    let thumbnail
+    try {
+      thumbnail = thumbnailSource
+        ? await this._saveImageBuffer(thumbnailSource, { isThumbnail: true })
         : null
-    const storedMedia = await this._database.createMedia({
-      actorId: actor.id,
-      original: {
-        path,
-        bytes: file.size,
-        mimeType: file.type,
-        metaData: {
-          width: metaData.width ?? 0,
-          height: metaData.height ?? 0
+    } catch (error) {
+      // The thumbnail's bytes were validated above, so this is a storage fault
+      // of ours: keep the error — it has to stay a logged 500, not a 422 the
+      // client will not retry — but put the original back first.
+      await this._reclaimStored(path)
+      throw error
+    }
+    let storedMedia
+    try {
+      storedMedia = await this._database.createMedia({
+        actorId: actor.id,
+        original: {
+          path,
+          bytes: file.size,
+          mimeType: file.type,
+          metaData: {
+            width: metaData.width ?? 0,
+            height: metaData.height ?? 0
+          },
+          fileName: sanitizeStoredFileName(file.name)
         },
-        fileName: sanitizeStoredFileName(file.name)
-      },
-      ...(thumbnail
-        ? {
-            // Use the resized image's actual size/dimensions (outputInfo), not
-            // the input image's metadata.
-            thumbnail: {
-              path: thumbnail.path,
-              bytes: thumbnail.outputInfo.size,
-              mimeType: thumbnail.contentType,
-              metaData: {
-                width: thumbnail.outputInfo.width,
-                height: thumbnail.outputInfo.height
+        ...(thumbnail
+          ? {
+              // Use the resized image's actual size/dimensions (outputInfo), not
+              // the input image's metadata.
+              thumbnail: {
+                path: thumbnail.path,
+                bytes: thumbnail.outputInfo.size,
+                mimeType: thumbnail.contentType,
+                metaData: {
+                  width: thumbnail.outputInfo.width,
+                  height: thumbnail.outputInfo.height
+                }
               }
             }
-          }
-        : null),
-      ...(media.description ? { description: media.description } : null),
-      ...(media.focus ? { focus: media.focus } : null)
-    })
+          : null),
+        ...(media.description ? { description: media.description } : null),
+        ...(media.focus ? { focus: media.focus } : null)
+      })
+    } catch (error) {
+      await this._reclaimStored(path, thumbnail?.path)
+      throw error
+    }
 
     if (!storedMedia) {
+      await this._reclaimStored(path, thumbnail?.path)
       throw new Error('Fail to store media')
     }
 
@@ -196,6 +220,9 @@ export class LocalFileStorage implements MediaStorage {
     file: File
   ): Promise<ThumbnailStorageOutput | null> {
     if (!file.type.startsWith('image')) return null
+    // Same validation saveFile applies, so the dedicated thumbnail endpoint
+    // answers unusable bytes with the same 422 rather than a 500.
+    const buffer = await readValidThumbnail(file)
 
     // Enforce the account quota like saveFile, so a thumbnail replacement can't
     // push usage past the limit.
@@ -212,9 +239,10 @@ export class LocalFileStorage implements MediaStorage {
 
     // Use the stored image's actual size/dimensions (outputInfo), not the input
     // image's metadata.
-    const { outputInfo, path, contentType } = await this._saveImageFile(file, {
-      isThumbnail: true
-    })
+    const { outputInfo, path, contentType } = await this._saveImageBuffer(
+      buffer,
+      { isThumbnail: true }
+    )
     return {
       path,
       bytes: outputInfo.size,
@@ -261,6 +289,16 @@ export class LocalFileStorage implements MediaStorage {
         height: outputInfo.height
       }
     }
+  }
+
+  // A stored path is reachable only through its `medias` row, so anything that
+  // fails before that row exists has to take the files back out.
+  private async _reclaimStored(originalPath: string, thumbnailPath?: string) {
+    await Promise.all(
+      [originalPath, thumbnailPath]
+        .filter((stored) => stored !== undefined)
+        .map((stored) => this.deleteFile(stored).catch(() => false))
+    )
   }
 
   private async _saveImageFile(
