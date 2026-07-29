@@ -13,9 +13,11 @@ import {
 import { ReactNode } from 'react'
 
 import {
+  bookmarkStatus,
   getTranslationCapability,
   getTranslationLanguages,
-  likeStatus
+  likeStatus,
+  reactToStatus
 } from '@/lib/client'
 import {
   StatusAnnounce,
@@ -429,7 +431,10 @@ describe('Post', () => {
 
     const chip = screen.getByLabelText('Remove 🔥 reaction, 2')
     expect(chip).toHaveTextContent('2')
-    expect(screen.getByLabelText('Add reaction')).toBeInTheDocument()
+    // The control that adds one lives in the action row, next to like/boost.
+    expect(
+      screen.getByRole('button', { name: 'Add reaction, 2 reactions' })
+    ).toBeInTheDocument()
 
     // Ordering is the point of the name: chips belong to the post, so they sit
     // between the content and the action row, not below it.
@@ -462,7 +467,9 @@ describe('Post', () => {
     expect(
       screen.getByRole('img', { name: '🔥 reaction, 2' })
     ).toBeInTheDocument()
-    expect(screen.queryByLabelText('Add reaction')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /^Add reaction/ })
+    ).not.toBeInTheDocument()
   })
 
   it('renders the primary action row plus an overflow menu, with owner authoring actions consolidated into the menu', () => {
@@ -484,12 +491,12 @@ describe('Post', () => {
       />
     )
 
-    const primaryActions = screen.getByRole('group', {
-      name: 'Post primary actions'
+    const actions = screen.getByRole('group', {
+      name: 'Post actions'
     })
 
     expect(
-      within(primaryActions)
+      within(actions)
         .getAllByRole('button')
         .map((button) => button.getAttribute('aria-label'))
     ).toEqual([
@@ -497,7 +504,9 @@ describe('Post', () => {
       'Repost',
       'Like',
       'Bookmark',
-      'Show edit history, 1 edit'
+      'Add reaction',
+      'Show edit history, 1 edit',
+      'More actions'
     ])
 
     // Secondary actions (visibility / edit / delete) are no longer inline; they
@@ -505,9 +514,6 @@ describe('Post', () => {
     expect(
       screen.queryByRole('group', { name: 'Post secondary actions' })
     ).not.toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'More actions' })
-    ).toBeInTheDocument()
   })
 
   it('keeps edit history panel open when interacting with panel content', () => {
@@ -650,7 +656,7 @@ describe('Post', () => {
     )
 
     expect(
-      screen.getByRole('group', { name: 'Post primary actions' })
+      screen.getByRole('group', { name: 'Post actions' })
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('group', { name: 'Post secondary actions' })
@@ -672,21 +678,25 @@ describe('Post', () => {
       />
     )
 
-    const primaryActions = screen.getByRole('group', {
-      name: 'Post primary actions'
+    const actions = screen.getByRole('group', {
+      name: 'Post actions'
     })
 
     expect(
-      within(primaryActions)
+      within(actions)
         .getAllByRole('button')
         .map((button) => button.getAttribute('aria-label'))
-    ).toEqual(['Reply to post', 'Repost', 'Like', 'Bookmark'])
+    ).toEqual([
+      'Reply to post',
+      'Repost',
+      'Like',
+      'Bookmark',
+      'Add reaction',
+      'More actions'
+    ])
     expect(
       screen.queryByRole('group', { name: 'Post secondary actions' })
     ).not.toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'More actions' })
-    ).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: /Show edit history/ })
     ).not.toBeInTheDocument()
@@ -711,14 +721,11 @@ describe('Post', () => {
       />
     )
 
-    const actionButtons = [
-      ...within(
-        screen.getByRole('group', { name: 'Post primary actions' })
-      ).getAllByRole('button'),
-      screen.getByRole('button', { name: 'More actions' })
-    ]
+    const actionButtons = within(
+      screen.getByRole('group', { name: 'Post actions' })
+    ).getAllByRole('button')
 
-    expect(actionButtons).toHaveLength(6)
+    expect(actionButtons).toHaveLength(7)
     actionButtons.forEach((button) => {
       expect(button).toHaveClass('cursor-pointer')
     })
@@ -737,18 +744,18 @@ describe('Post', () => {
       />
     )
 
-    const primaryActions = screen.getByRole('group', {
-      name: 'Post primary actions'
+    const actions = screen.getByRole('group', {
+      name: 'Post actions'
     })
 
+    expect(within(actions).getByRole('button', { name: 'Repost' })).toHaveClass(
+      'disabled:opacity-50'
+    )
+    expect(within(actions).getByRole('button', { name: 'Like' })).toHaveClass(
+      'disabled:opacity-50'
+    )
     expect(
-      within(primaryActions).getByRole('button', { name: 'Repost' })
-    ).toHaveClass('disabled:opacity-50')
-    expect(
-      within(primaryActions).getByRole('button', { name: 'Like' })
-    ).toHaveClass('disabled:opacity-50')
-    expect(
-      within(primaryActions).getByRole('button', { name: 'Bookmark' })
+      within(actions).getByRole('button', { name: 'Bookmark' })
     ).toHaveClass('disabled:opacity-50')
   })
 
@@ -1265,6 +1272,418 @@ describe('Post', () => {
       expect(
         screen.queryByRole('button', { name: /Translate/ })
       ).not.toBeInTheDocument()
+    })
+  })
+
+  describe('narrow action row', () => {
+    // jsdom has no ResizeObserver and lays nothing out, so stand one in that
+    // reports a width the test chooses — the row measures its own container,
+    // not the viewport, so this is the only thing that decides compact vs.
+    // full. `resizeTo` re-delivers, which is what makes a width *change*
+    // (rather than just an initial width) testable.
+    let resizeTo: ((width: number) => void) | null = null
+
+    const observeWidth = (width: number) => {
+      resizeTo = null
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          constructor(
+            private readonly callback: (entries: ResizeObserverEntry[]) => void
+          ) {}
+          observe(target: Element) {
+            const emit = (next: number) => {
+              this.callback([
+                {
+                  target,
+                  contentRect: { width: next } as DOMRectReadOnly
+                } as ResizeObserverEntry
+              ])
+            }
+            resizeTo = emit
+            emit(width)
+          }
+          unobserve() {}
+          disconnect() {}
+        }
+      )
+    }
+
+    const openMenu = async () => {
+      fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {
+        key: 'ArrowDown'
+      })
+      return screen.findByRole('menu')
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('keeps every action in the row when the post is wide enough', () => {
+      observeWidth(900)
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={status}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(
+        within(screen.getByRole('group', { name: 'Post actions' }))
+          .getAllByRole('button')
+          .map((button) => button.getAttribute('aria-label'))
+      ).toEqual([
+        'Reply to post',
+        'Repost',
+        'Like',
+        'Bookmark',
+        'Add reaction',
+        'More actions'
+      ])
+    })
+
+    it('spans the whole status with its actions evenly distributed', () => {
+      observeWidth(900)
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={{
+            ...status,
+            reactions: [
+              { name: '🔥', count: 2, me: false, url: null, static_url: null }
+            ]
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      const actions = screen.getByRole('group', { name: 'Post actions' })
+      // Pinned because none of it is observable in jsdom and all three are
+      // load-bearing: `-ml-13` is what pulls the row back over the avatar
+      // column, `justify-between` is what spreads it, and an `ml-auto` on the
+      // ⋯ wrapper would silently absorb the free space and re-cluster the row
+      // (the design-system rule the docs now carry).
+      expect(actions).toHaveClass('-ml-13', 'justify-between')
+      expect(
+        screen.getByRole('button', { name: 'More actions' }).parentElement
+      ).not.toHaveClass('ml-auto')
+      // The chips are full-bleed with it, or they line up with nothing.
+      expect(
+        screen.getByLabelText('Add 🔥 reaction, 2').parentElement
+      ).toHaveClass('-ml-13')
+    })
+
+    it('hands bookmark and react to the overflow menu when the post is narrow', async () => {
+      observeWidth(320)
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={status}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      // Reply / boost / like keep their place; the two that would not fit at a
+      // comfortable hit size move into the menu that is already there.
+      expect(
+        within(screen.getByRole('group', { name: 'Post actions' }))
+          .getAllByRole('button')
+          .map((button) => button.getAttribute('aria-label'))
+      ).toEqual(['Reply to post', 'Repost', 'Like', 'More actions'])
+
+      // `justify-between` distributes by element, so an empty wrapper left
+      // behind where a control used to be would silently claim one of the gaps
+      // and shift every other action.
+      expect(
+        screen.getByRole('group', { name: 'Post actions' }).children
+      ).toHaveLength(4)
+
+      const menu = await openMenu()
+      expect(
+        within(menu).getByRole('menuitem', { name: 'React to post' })
+      ).toBeInTheDocument()
+      expect(
+        within(menu).getByRole('menuitem', { name: 'Bookmark' })
+      ).toBeInTheDocument()
+    })
+
+    it('opens the reaction picker from the overflow menu', async () => {
+      observeWidth(320)
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={status}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      const menu = await openMenu()
+      fireEvent.click(
+        within(menu).getByRole('menuitem', { name: 'React to post' })
+      )
+
+      expect(
+        await screen.findByRole('dialog', { name: 'Choose a reaction' })
+      ).toBeInTheDocument()
+      // The whole point of `deferUntilClosed`: without it Radix restores focus
+      // to the ⋯ trigger as the menu unmounts, which lands after the panel has
+      // taken it and leaves a keyboard user back at the top of the document.
+      await waitFor(() =>
+        expect(screen.getByLabelText('Search emoji')).toHaveFocus()
+      )
+    })
+
+    it('surfaces a failed reaction even though the trigger is in the menu', async () => {
+      observeWidth(320)
+      ;(reactToStatus as jest.Mock).mockResolvedValue({
+        ok: false,
+        error: 'You can only add 8 reactions to a post.'
+      })
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={{
+            ...status,
+            reactions: [
+              { name: '🔥', count: 2, me: false, url: null, static_url: null }
+            ]
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      fireEvent.click(screen.getByLabelText('Add 🔥 reaction, 2'))
+
+      // The button that normally renders this error is not in the row at this
+      // width, so without an explicit home the refusal would be invisible.
+      expect(await screen.findByTestId('reaction-error')).toHaveTextContent(
+        'You can only add 8 reactions to a post.'
+      )
+    })
+
+    it('surfaces a failed bookmark even though the button is in the menu', async () => {
+      observeWidth(320)
+      ;(bookmarkStatus as jest.Mock).mockResolvedValue(false)
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={status}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      const menu = await openMenu()
+      fireEvent.click(within(menu).getByRole('menuitem', { name: 'Bookmark' }))
+
+      expect(await screen.findByTestId('bookmark-error')).toHaveTextContent(
+        'Failed to bookmark post. Please try again.'
+      )
+    })
+
+    it('closes an open picker onto the new trigger when the row turns compact', async () => {
+      observeWidth(900)
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={status}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Add reaction' }))
+      await screen.findByRole('dialog', { name: 'Choose a reaction' })
+
+      act(() => resizeTo?.(320))
+
+      // The panel is placed from its anchor's rect once, and the anchor it was
+      // measured against has just unmounted — so leaving it open would strand
+      // it over empty space. Focus has to follow it somewhere deliberate, not
+      // fall back to <body> with the panel gone.
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('dialog', { name: 'Choose a reaction' })
+        ).not.toBeInTheDocument()
+      )
+      expect(screen.getByRole('button', { name: 'More actions' })).toHaveFocus()
+    })
+
+    it('disables the menu items whose write is already in flight', async () => {
+      observeWidth(320)
+      let settleBookmark: (value: boolean) => void = () => {}
+      ;(bookmarkStatus as jest.Mock).mockReturnValue(
+        new Promise<boolean>((resolve) => {
+          settleBookmark = resolve
+        })
+      )
+      ;(reactToStatus as jest.Mock).mockReturnValue(new Promise(() => {}))
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={{
+            ...status,
+            reactions: [
+              { name: '🔥', count: 2, me: false, url: null, static_url: null }
+            ]
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      fireEvent.click(screen.getByLabelText('Add 🔥 reaction, 2'))
+      fireEvent.click(
+        within(await openMenu()).getByRole('menuitem', {
+          name: 'Bookmark'
+        })
+      )
+      await waitFor(() => expect(bookmarkStatus).toHaveBeenCalledTimes(1))
+
+      // Unlike the buttons they replace, menu items carry no busy styling, so
+      // without this a tap during a pending write is swallowed by the
+      // single-flight guard with nothing on screen to explain it.
+      const menu = await openMenu()
+      expect(
+        within(menu).getByRole('menuitem', { name: 'React to post' })
+      ).toHaveAttribute('data-disabled')
+      expect(
+        within(menu).getByRole('menuitem', { name: 'Bookmark' })
+      ).toHaveAttribute('data-disabled')
+
+      // …and comes back once its own write settles. Asserted on the still-open
+      // menu: Radix `aria-hidden`s the rest of the document while it is up, so
+      // reopening would not find the ⋯ trigger.
+      await act(async () => {
+        settleBookmark(true)
+      })
+      expect(
+        within(menu).getByRole('menuitem', { name: 'Remove bookmark' })
+      ).not.toHaveAttribute('data-disabled')
+      // The reaction write is still in flight, so that one stays disabled —
+      // the two are independent, not one shared busy flag.
+      expect(
+        within(menu).getByRole('menuitem', { name: 'React to post' })
+      ).toHaveAttribute('data-disabled')
+    })
+
+    it('stacks a bookmark and a reaction failure instead of overlapping them', async () => {
+      observeWidth(320)
+      ;(bookmarkStatus as jest.Mock).mockResolvedValue(false)
+      ;(reactToStatus as jest.Mock).mockResolvedValue({ ok: false })
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={{
+            ...status,
+            reactions: [
+              { name: '🔥', count: 2, me: false, url: null, static_url: null }
+            ]
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      const menu = await openMenu()
+      fireEvent.click(within(menu).getByRole('menuitem', { name: 'Bookmark' }))
+      const bookmarkError = await screen.findByTestId('bookmark-error')
+      fireEvent.click(screen.getByLabelText('Add 🔥 reaction, 2'))
+      const reactionError = await screen.findByTestId('reaction-error')
+
+      // Both writes are independent, so both can fail inside one dismiss
+      // window. Sharing a parent is not the point and would have been true of
+      // the broken version too — what matters is that neither positions
+      // itself: individually anchored they were two opaque boxes at the same
+      // `right-0 top-full`, one hiding the other. They are laid out by one
+      // stack instead.
+      expect(bookmarkError).not.toHaveClass('absolute')
+      expect(reactionError).not.toHaveClass('absolute')
+      expect(bookmarkError.parentElement).toBe(reactionError.parentElement)
+      expect(bookmarkError.parentElement).toHaveClass('absolute', 'flex-col')
+    })
+
+    it('keeps the bookmark it took while wide when the row turns compact', async () => {
+      observeWidth(900)
+      ;(bookmarkStatus as jest.Mock).mockResolvedValue(true)
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={status}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Bookmark' }))
+      await screen.findByRole('button', { name: 'Remove bookmark' })
+
+      act(() => resizeTo?.(320))
+
+      // This is the whole reason the bookmark state sits in the row rather than
+      // in the button: the button unmounts here, and a second copy of the state
+      // in the menu item would offer to bookmark a post that already is one.
+      expect(
+        within(await openMenu()).getByRole('menuitem', {
+          name: 'Remove bookmark'
+        })
+      ).toBeInTheDocument()
+    })
+
+    it('bookmarks from the overflow menu', async () => {
+      observeWidth(320)
+      ;(bookmarkStatus as jest.Mock).mockResolvedValue(true)
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={status}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      const menu = await openMenu()
+      fireEvent.click(within(menu).getByRole('menuitem', { name: 'Bookmark' }))
+
+      await waitFor(() =>
+        expect(bookmarkStatus).toHaveBeenCalledWith({ statusId: status.id })
+      )
+      // The state lives in the row, so reopening the menu offers the undo —
+      // it is not a second, independent copy of the bookmark.
+      expect(
+        within(await openMenu()).getByRole('menuitem', {
+          name: 'Remove bookmark'
+        })
+      ).toBeInTheDocument()
     })
   })
 })

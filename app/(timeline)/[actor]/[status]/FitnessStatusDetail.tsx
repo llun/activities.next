@@ -41,13 +41,16 @@ import { BrandedDeviceLink } from '@/lib/components/posts/BrandedDeviceLink'
 import { BookmarkButton } from '@/lib/components/posts/actions/bookmark-button'
 import { LikeButton } from '@/lib/components/posts/actions/like-button'
 import { PostMenu } from '@/lib/components/posts/actions/post-menu'
+import { ReactionButton } from '@/lib/components/posts/actions/reaction-button'
 import { ReplyButton } from '@/lib/components/posts/actions/reply-button'
 import { RepostButton } from '@/lib/components/posts/actions/repost-button'
+import { useBookmarkState } from '@/lib/components/posts/actions/useBookmarkState'
 import { ActorAvatar } from '@/lib/components/posts/actor'
 import { Media } from '@/lib/components/posts/media'
 import { Post } from '@/lib/components/posts/post'
 import { ReactionRow } from '@/lib/components/posts/reaction-row'
 import { StatusReplyBox } from '@/lib/components/posts/status-reply-box'
+import { useReactionState } from '@/lib/components/posts/useReactionState'
 import { Button } from '@/lib/components/ui/button'
 import {
   DropdownMenu,
@@ -1289,6 +1292,14 @@ export const FitnessStatusDetail: FC<Props> = ({
     useState<AnalysisGraphFilter>('all')
   // Force-resets the always-on comment composer after a cancel or a post.
   const [composerKey, setComposerKey] = useState(0)
+  // This page composes its own action row, so it owns the two states `Actions`
+  // would otherwise hold: the reaction rollups (split across the chip row and
+  // the picker trigger) and the bookmark.
+  const reactionState = useReactionState({
+    currentActor: currentActor ?? undefined,
+    status
+  })
+  const bookmarkState = useBookmarkState({ status })
 
   const defaultFitnessFiles = useMemo<StatusFitnessFileItem[]>(() => {
     if (!status.fitness) {
@@ -1962,15 +1973,16 @@ export const FitnessStatusDetail: FC<Props> = ({
 
         {/* Reactions belong to the post, so they sit above the action bar here as
             they do in `Post`. This page composes its own action row instead of
-            using `Posts`, so the row has to be added explicitly — without it a
+            using `Posts`, so both halves — the chips here and the picker trigger
+            in the row below — have to be added explicitly; without them a
             fitness post is the one surface where an existing reaction is
             invisible and no new one can be added. */}
-        {(currentActor || (status.reactions?.length ?? 0) > 0) && (
-          <div className="border-t px-4 pt-2.5">
-            <ReactionRow
-              currentActor={currentActor ?? undefined}
-              status={status}
-            />
+        {reactionState.reactions.length > 0 && (
+          // The gate is on the wrapper, not just on `ReactionRow`: the row
+          // renders nothing of its own on an unreacted post, so an ungated
+          // wrapper would leave a bare rule with 10px of dead space under it.
+          <div data-testid="reaction-chips" className="border-t px-4 pt-2.5">
+            <ReactionRow state={reactionState} />
           </div>
         )}
 
@@ -1996,14 +2008,19 @@ export const FitnessStatusDetail: FC<Props> = ({
             <span />
           )}
           {currentActor ? (
-            <div className="flex items-center gap-0.5 text-muted-foreground">
+            <div
+              // Wraps: the react trigger made this a six-control row, which no
+              // longer fits on one line on a narrow phone.
+              className="flex flex-wrap items-center gap-0.5 text-muted-foreground"
+            >
               <ReplyButton
                 status={status}
                 onReply={() => setActiveSection('comments')}
               />
               <RepostButton currentActor={currentActor} status={status} />
               <LikeButton currentActor={currentActor} status={status} />
-              <BookmarkButton status={status} />
+              <BookmarkButton state={bookmarkState} />
+              <ReactionButton state={reactionState} />
               <PostMenu
                 status={status}
                 isOwner={isOwner}

@@ -344,16 +344,16 @@ action row: a post offers the **same action set everywhere**, and that
 consistency is enforced by keeping the wiring in one place rather than per page.
 
 - **The action set is owned by `Posts`, not by pages.** `Posts` renders the full
-  action row (reply, boost, like, bookmark) plus the `⋯` menu (quote, edit-own,
-  change visibility / who-can-quote, delete-own; mute / block / report for other
-  actors; copy link; open original) and wires reply/quote/edit itself. `Post`
-  also renders the emoji **reaction row** (chips + picker) as a sibling directly
-  above that action row. It follows the same `showActions` + `currentActor` gate,
-  but degrades rather than disappearing: a reader who cannot react (logged out,
-  `showActions={false}`, or a remote custom emoji this instance cannot react
-  with) still sees the chips as read-only labels, and only the picker and the
-  toggling are withheld. Reactions are **not** favourites and never touch the
-  like button's state. A page
+  action row (reply, boost, like, bookmark, react) plus the `⋯` menu (quote,
+  edit-own, change visibility / who-can-quote, delete-own; mute / block / report
+  for other actors; copy link; open original) and wires reply/quote/edit itself.
+  `Post` also renders the emoji **reaction chips** as a sibling directly above
+  that action row. The chips follow the same `showActions` + `currentActor`
+  gate, but degrade rather than disappearing: a reader who cannot react (logged
+  out, `showActions={false}`, or a remote custom emoji this instance cannot
+  react with) still sees them as read-only labels, and only the toggling is
+  withheld. Reactions are **not** favourites and never touch the like button's
+  state. A page
   must **not** pass per-status action callbacks (`onReply`, `onQuote`, `onEdit`)
   and must **not** hide individual actions — that per-page drift is exactly what
   this consolidation removed (profiles used to lack Quote/Edit; six feeds had a
@@ -363,6 +363,37 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   instead of through `Posts`; it drives the same shared `useInlineComposer` /
   `InlineStatusComposer` internally — that is the shared layer doing the wiring,
   not a page opting into per-status callbacks.)
+- **The chip row and the action row both span the whole status.** Each is pulled
+  `-ml-13` — 13 spacing steps, which is the `size-10` avatar column plus its
+  `gap-3`, so the pull tracks the root font size the way those two do — and each
+  starts at the post's own left edge rather than under the text, and the action row is
+  `justify-between` so every action is evenly spaced with the `⋯` menu pinned to
+  the far right. Do **not** put `ml-auto` back on the `⋯` wrapper: an auto
+  margin absorbs all the free space before `justify-content` sees it, which
+  collapses the row back to a left-packed cluster.
+- **The picker that ADDS a reaction lives in the action row, not beside the
+  chips** (`ReactionButton`, showing `SmilePlus` + the running total). The chips
+  are a read-out; a post with no reactions yet renders no chip row at all. Both
+  halves share one `ReactionState` from `useReactionState`, held by whoever owns
+  the row — `Post`, or `FitnessStatusDetail`, which composes its own action row
+  and therefore calls the hook itself. The same applies to the bookmark:
+  `useBookmarkState` is held by `Actions` and `BookmarkButton` only renders it.
+- **A post narrower than 400px moves bookmark and react into the `⋯` menu**
+  ("Bookmark" / "React to post", above the menu's own items). The width comes
+  from a `ResizeObserver` on the row itself (`useCompactActionBar`), not a
+  viewport breakpoint — a post can sit in a narrow column on a wide window. In
+  that mode `ReactionButton` stays mounted with `hideTrigger` (it still owns the
+  portalled picker), and the picker anchors to the `⋯` trigger, which is why
+  `PostMenu` takes a `triggerRef`. A menu item that opens a focus-taking
+  surface sets `deferUntilClosed` so it runs from `onCloseAutoFocus`, which also
+  suppresses Radix's own focus restore — otherwise that restore lands after the
+  panel has taken focus and pulls it straight back to the `⋯` trigger. A menu
+  item also carries `disabled` while its own write is in flight: it has none of
+  the busy styling the button it replaced had, so a tap during a pending write
+  would otherwise be swallowed by the single-flight guard with nothing on screen
+  to explain it. Whatever moves into the menu still has to surface its errors
+  from the row — `ActionButtonError` is `position: absolute`, so it can anchor
+  to the (`relative`) row without putting a flex item back into it.
 - **Reply, quote, and edit open one shared inline composer** rendered beneath the
   post — `InlineStatusComposer`, driven by the `useInlineComposer` hook. Reply
   uses the compact `StatusReplyBox`; quote and edit use `PostBox` in the matching
@@ -386,9 +417,10 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   notification snippet (`StatusNotification`) are intentionally separate
   presentations and are outside this contract; everything else goes through
   `Posts`/`Post`. The fitness detail composes its own action row, so it renders
-  `ReactionRow` explicitly — a post's reactions must be visible and addable
-  wherever its action row is, and that page is the one surface that has to opt
-  in by hand.
+  `ReactionRow` **and** `ReactionButton` explicitly off its own
+  `useReactionState` — a post's reactions must be visible and addable wherever
+  its action row is, and that page is the one surface that has to opt in by
+  hand.
 
 ## Better-auth Plugin Guidelines
 
