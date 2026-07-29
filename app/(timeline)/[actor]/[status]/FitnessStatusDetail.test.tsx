@@ -592,6 +592,15 @@ describe('FitnessStatusDetail', () => {
       })
 
       const panel = await openAnalysis()
+
+      // Every number the chart prints comes off the same bins, so the scale
+      // labels need the guard as much as the readout does — fixing only the
+      // readout left this exact fixture rendering "Scale -0 m - 55 m" beside a
+      // readout that said "0 m".
+      expect(within(panel).getByText(/^Scale 0 m - 55 m$/)).toBeInTheDocument()
+      expect(within(panel).getAllByText('0 m').length).toBeGreaterThan(0)
+      expect(within(panel).queryByText(/-0 m/)).not.toBeInTheDocument()
+
       hoverChart(panel, 200)
 
       expect(screen.getAllByTestId('chart-hover-value')[0]).toHaveTextContent(
@@ -925,7 +934,13 @@ describe('FitnessStatusDetail', () => {
       // edge, so the avatar-column pull would drag it outside the card, and
       // `justify-between` is what makes the spacing between actions identical
       // to every other surface.
+      // `mt-3` rides along with the pull, so pin its absence too — hoisting it
+      // out of the `fullBleed` branch would silently add 12px above this
+      // footer row while `post.test.tsx` stayed green. One assertion each:
+      // `.not.toHaveClass(a, b)` passes when EITHER is missing, so the two
+      // together would still pass with `mt-3` wrongly present.
       expect(actions).not.toHaveClass('-ml-13')
+      expect(actions).not.toHaveClass('mt-3')
       expect(actions).toHaveClass('justify-between')
     })
 

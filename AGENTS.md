@@ -397,7 +397,14 @@ consistency is enforced by keeping the wiring in one place rather than per page.
 - **A post narrower than 400px moves bookmark and react into the `⋯` menu**
   ("Bookmark" / "React to post", above the menu's own items). The width comes
   from a `ResizeObserver` on the row itself (`useCompactActionBar`), not a
-  viewport breakpoint — a post can sit in a narrow column on a wide window. In
+  viewport breakpoint — a post can sit in a narrow column on a wide window.
+  That is measured on the row's own border box, **including** the `-ml-13`
+  pull, so a surface that turns `fullBleed` off is 52px narrower at the same
+  viewport and collapses a little earlier. That is the rule working, not
+  drifting: the row genuinely has less room, and collapsing on real available
+  width is the whole reason this is not a breakpoint. Expect a band of window
+  widths (roughly 466–499px) where a fitness activity's row is compact while
+  the same status in the timeline is not. In
   that mode `ReactionButton` stays mounted with `hideTrigger` (it still owns the
   portalled picker), and the picker anchors to the `⋯` trigger, which is why
   `PostMenu` takes a `triggerRef`. A menu item that opens a focus-taking

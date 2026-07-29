@@ -218,8 +218,11 @@ const ANALYSIS_GRAPH_STYLES: Record<
 
 // `toFixed` keeps the sign of a value that rounds to zero, so an elevation bin
 // straddling sea level reads "-0 m". Round first, then add zero — `-0 + 0` is
-// `+0` — so the readout can only ever show a plain "0".
-const formatReadoutValue = (value: number, fractionDigits: number) =>
+// `+0` — so a chart can only ever show a plain "0". EVERY number a chart prints
+// goes through this, not just the hover readout: the scale labels are derived
+// from the same downsampled bins, so fixing one and not the others left a chart
+// reading "Scale -0 m - 55 m" beside a readout saying "0 m".
+const formatChartValue = (value: number, fractionDigits: number) =>
   (Number(value.toFixed(fractionDigits)) + 0).toFixed(fractionDigits)
 
 const VISIBILITY_META: Record<
@@ -845,10 +848,10 @@ const ChartPanel: FC<{
             straight through the bottom-left label. Above the hover dot
             (`z-10`), which sits at the plot's left edge at the very first
             sample; still below the readout, which is the thing being read. */}
-        <span className="pointer-events-none absolute left-0 top-0 z-20 rounded bg-background/85 px-1 text-[11px] tabular-nums text-muted-foreground">
+        <span className="pointer-events-none absolute left-0 top-0 z-20 rounded bg-background/95 px-1 text-[11px] tabular-nums text-muted-foreground">
           {maxScale}
         </span>
-        <span className="pointer-events-none absolute bottom-0 left-0 z-20 rounded bg-background/85 px-1 text-[11px] tabular-nums text-muted-foreground">
+        <span className="pointer-events-none absolute bottom-0 left-0 z-20 rounded bg-background/95 px-1 text-[11px] tabular-nums text-muted-foreground">
           {minScale}
         </span>
         <svg
@@ -918,11 +921,20 @@ const ChartPanel: FC<{
         {/* Value readout pinned to the hover dot. Percentage positioning works
             because `preserveAspectRatio="none"` maps the viewBox linearly onto
             the rendered box; the vertical clamp keeps it inside the plot when
-            the sample sits against the top or bottom of the scale. */}
+            the sample sits against the top or bottom of the scale.
+            `aria-hidden` because it is the running commentary on a pointer
+            gesture: the numbers it shows are already in the panel header's
+            "Scale …", and a screen reader would otherwise meet a bare figure
+            with no context, attached to a control it cannot drive.
+            `max-w-*` because the flip threshold is a fraction of the viewBox
+            while this chip is a fixed pixel width — below about 360px the two
+            stop agreeing and the merged panel's `overflow-hidden` cuts the
+            chip rather than letting it spill. */}
         {isHighlighted ? (
           <div
+            aria-hidden="true"
             data-testid="chart-hover-value"
-            className="pointer-events-none absolute z-20 flex items-baseline gap-1 rounded-md border bg-background px-2 py-1 shadow-sm"
+            className="pointer-events-none absolute z-20 flex max-w-[calc(100%-1.5rem)] items-baseline gap-1 rounded-md border bg-background px-2 py-1 shadow-sm"
             style={{
               left: `${(highlightedX / width) * 100}%`,
               top: `${clampNumber((highlightedY / height) * 100, 8, 92)}%`,
@@ -932,7 +944,7 @@ const ChartPanel: FC<{
             }}
           >
             <span className="text-sm font-semibold leading-none tabular-nums text-foreground">
-              {formatReadoutValue(highlightedValue, fractionDigits)}
+              {formatChartValue(highlightedValue, fractionDigits)}
             </span>
             <span className="text-[10px] leading-none text-muted-foreground">
               {unit}
@@ -1795,8 +1807,8 @@ export const FitnessStatusDetail: FC<Props> = ({
         title: 'Elevation profile',
         unit: 'm',
         values: activitySeries.elevation,
-        minLabel: elevationMin.toFixed(0),
-        maxLabel: elevationMax.toFixed(0),
+        minLabel: formatChartValue(elevationMin, 0),
+        maxLabel: formatChartValue(elevationMax, 0),
         fractionDigits: 0
       },
       {
@@ -1804,8 +1816,8 @@ export const FitnessStatusDetail: FC<Props> = ({
         title: 'Speed',
         unit: 'km/h',
         values: activitySeries.speed,
-        minLabel: speedMin.toFixed(1),
-        maxLabel: speedMax.toFixed(1),
+        minLabel: formatChartValue(speedMin, 1),
+        maxLabel: formatChartValue(speedMax, 1),
         fractionDigits: 1
       },
       {
@@ -1813,8 +1825,8 @@ export const FitnessStatusDetail: FC<Props> = ({
         title: 'Power',
         unit: 'w',
         values: activitySeries.power,
-        minLabel: powerMin.toFixed(0),
-        maxLabel: powerMax.toFixed(0),
+        minLabel: formatChartValue(powerMin, 0),
+        maxLabel: formatChartValue(powerMax, 0),
         fractionDigits: 0
       },
       {
@@ -1822,8 +1834,8 @@ export const FitnessStatusDetail: FC<Props> = ({
         title: 'Heart rate',
         unit: 'bpm',
         values: activitySeries.heartRate,
-        minLabel: heartRateMin.toFixed(0),
-        maxLabel: heartRateMax.toFixed(0),
+        minLabel: formatChartValue(heartRateMin, 0),
+        maxLabel: formatChartValue(heartRateMax, 0),
         fractionDigits: 0
       }
     ],
