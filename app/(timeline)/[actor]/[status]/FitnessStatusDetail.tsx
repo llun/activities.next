@@ -798,11 +798,15 @@ const ChartPanel: FC<{
       : null
   // The readout sits beside the dot and flips to its left near the right edge.
   // The threshold is a fraction of the viewBox while the chip is a fixed pixel
-  // width, so the two only agree above some container width — at the 320px
-  // reflow target the plot is ~220px and the design kit's 0.72 puts the chip's
-  // right edge 10px past what the merged panel's `overflow-hidden` will show.
-  // 0.62 is the widest round value that still fits there, and it flips a little
-  // sooner on a desktop column, which costs nothing.
+  // width, so the two only agree above some container width. At the 320px
+  // reflow target the plot is 220px and the widest chip the four series can
+  // produce is ~77px ("13.5 km/h"), so the design kit's 0.72 lands 12px past
+  // what the merged panel's `overflow-hidden` will show; anything at or below
+  // 0.66 fits. 0.62 keeps a margin for a font or a unit that measures wider.
+  // The cost is flipping sooner than the kit does in a desktop column, where
+  // there is still room to the right — a pixel-aware threshold measured off the
+  // plot would serve both, and is the better shape if this ever needs a third
+  // adjustment.
   const shouldFlipReadout =
     typeof highlightedX === 'number' && highlightedX / width > 0.62
   const isHighlighted =
@@ -888,11 +892,15 @@ const ChartPanel: FC<{
             // the moment this clears it — leaving the readout stuck on, because
             // no `mouseleave` follows a touch. Preventing the default suppresses
             // that whole compat sequence; the chart has no click behaviour to
-            // lose. A drag never gets here with the readout stuck because
-            // movement past the tap slop suppresses the compat events anyway,
-            // and a gesture the browser claims for scrolling fires
-            // `touchcancel` instead.
-            event.preventDefault()
+            // lose, and a drag never gets here stuck anyway because movement
+            // past the tap slop suppresses the compat events on its own.
+            // Guarded on `cancelable`: once a scroll is underway Chrome keeps
+            // dispatching `touchend` with `cancelable: false` rather than
+            // switching to `touchcancel`, and calling this on one of those is a
+            // no-op that logs a warning on every vertical swipe that started on
+            // a chart — which is most of them, under four stacked full-width
+            // charts.
+            if (event.cancelable) event.preventDefault()
             clearScrub()
           }}
           onTouchCancel={clearScrub}

@@ -648,13 +648,33 @@ describe('FitnessStatusDetail', () => {
       // A tap is followed by a compat `mousemove` at the same point, which
       // would re-enter the scrub the instant `touchend` clears it and leave the
       // readout stuck on — no `mouseleave` ever follows a touch. Preventing the
-      // default is what suppresses that sequence, so the event has to come back
-      // cancelled.
-      const notCancelled = fireEvent.touchEnd(elevationChart, {
-        cancelable: true
+      // default is what suppresses that sequence, and `fireEvent` returns false
+      // exactly when a cancelable event was cancelled. (`touchEnd` is cancelable
+      // by default in @testing-library/dom's event map.)
+      expect(fireEvent.touchEnd(elevationChart)).toBe(false)
+    })
+
+    it('flips the readout before it can overflow a narrow plot', async () => {
+      // Eleven samples put a hover point at exactly 0.7 of the plot, which the
+      // six-sample fixture's 0.2 grid cannot reach. That is the bound that
+      // matters rather than the exact constant: at the 320px reflow target the
+      // plot is 220px and the widest chip ~77px, so a threshold above ~0.66
+      // pushes the chip past the merged panel's `overflow-hidden`. Asserting a
+      // bound leaves the value free to be retuned upward to 0.66 without a
+      // spurious failure, while catching a return to the design kit's 0.72.
+      mockGetFitnessRouteData.mockResolvedValue({
+        ...routeData,
+        altitudeSeries: Array.from({ length: 11 }, (_, index) => 10 + index * 4)
       })
 
-      expect(notCancelled).toBe(false)
+      const panel = await openAnalysis()
+      // Sample 7 of 0..10 — `100 + 0.7 * 400`.
+      hoverChart(panel, 380)
+
+      expect(screen.getAllByTestId('chart-hover-value')[0]).toHaveStyle({
+        left: '70%',
+        transform: 'translate(calc(-100% - 12px), -50%)'
+      })
     })
 
     it('places the dot low at a series minimum and high at its maximum', async () => {
