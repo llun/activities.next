@@ -49,7 +49,13 @@ export class TestOverlay {
 export class TestAnnotation {
   constructor(
     readonly coordinate: MapKitCoordinate,
-    readonly options: ConstructorOptions
+    readonly options: ConstructorOptions,
+    /**
+     * The element a custom `mapkit.Annotation` factory produced. `null` for a
+     * `MarkerAnnotation`, whose teardrop pin MapKit draws itself — so this is
+     * also what distinguishes the two annotation kinds in assertions.
+     */
+    readonly element: HTMLElement | null = null
   ) {}
 }
 
@@ -245,6 +251,24 @@ export const createMapKitTestDouble = (): MapKitTestDouble => {
       annotations.push(annotation)
       return annotation
     } as unknown as MapKitSurfaceModule['MarkerAnnotation'],
+    Annotation: function Annotation(
+      coordinate: MapKitCoordinate,
+      factory: (
+        coordinate: MapKitCoordinate,
+        options: ConstructorOptions
+      ) => HTMLElement,
+      options: ConstructorOptions = {}
+    ) {
+      // MapKit calls the factory itself when it attaches the annotation; calling
+      // it here is what lets a test assert on the rendered marker element.
+      const annotation = new TestAnnotation(
+        coordinate,
+        options,
+        factory(coordinate, options)
+      )
+      annotations.push(annotation)
+      return annotation
+    } as unknown as MapKitSurfaceModule['Annotation'],
     Coordinate: function Coordinate(latitude: number, longitude: number) {
       return { latitude, longitude }
     } as unknown as MapKitSurfaceModule['Coordinate'],

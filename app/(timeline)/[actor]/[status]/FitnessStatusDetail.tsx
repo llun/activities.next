@@ -37,6 +37,14 @@ import {
 } from '@/lib/client'
 import { ActivityRouteMapKit } from '@/lib/components/fitness/ActivityRouteMapKit'
 import { findRouteSampleForElapsed } from '@/lib/components/fitness/mapGeometry'
+import {
+  ROUTE_HIGHLIGHT_CORE_COLOR,
+  ROUTE_HIGHLIGHT_CORE_RADIUS_PX,
+  ROUTE_HIGHLIGHT_HALO_COLOR,
+  ROUTE_HIGHLIGHT_HALO_OPACITY,
+  ROUTE_HIGHLIGHT_HALO_RADIUS_PX,
+  ROUTE_HIGHLIGHT_HIDDEN_CORE_COLOR
+} from '@/lib/components/fitness/routeHighlightMarker'
 import { BrandedDeviceLink } from '@/lib/components/posts/BrandedDeviceLink'
 import { BookmarkButton } from '@/lib/components/posts/actions/bookmark-button'
 import { LikeButton } from '@/lib/components/posts/actions/like-button'
@@ -1032,14 +1040,16 @@ const ActivityMapPanel: FC<{
             }
           })
 
+          // Geometry and colours come from the shared highlight-marker module so
+          // the Apple MapKit annotation draws the identical dot.
           map.addLayer({
             id: 'activity-active-point-ring',
             type: 'circle',
             source: MAP_ACTIVE_POINT_SOURCE_ID,
             paint: {
-              'circle-radius': 8,
-              'circle-color': '#ffffff',
-              'circle-opacity': 0.95
+              'circle-radius': ROUTE_HIGHLIGHT_HALO_RADIUS_PX,
+              'circle-color': ROUTE_HIGHLIGHT_HALO_COLOR,
+              'circle-opacity': ROUTE_HIGHLIGHT_HALO_OPACITY
             }
           })
 
@@ -1048,12 +1058,12 @@ const ActivityMapPanel: FC<{
             type: 'circle',
             source: MAP_ACTIVE_POINT_SOURCE_ID,
             paint: {
-              'circle-radius': 4.5,
+              'circle-radius': ROUTE_HIGHLIGHT_CORE_RADIUS_PX,
               'circle-color': [
                 'case',
                 ['==', ['get', 'isHiddenByPrivacy'], true],
-                '#16a34a',
-                '#1d4ed8'
+                ROUTE_HIGHLIGHT_HIDDEN_CORE_COLOR,
+                ROUTE_HIGHLIGHT_CORE_COLOR
               ]
             }
           })
