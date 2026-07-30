@@ -46,7 +46,42 @@ describe('isReservedFitnessMediaPath', () => {
       description: 'traversal back into the prefix',
       userPath: 'a/../fitness/a1b2c3d4e5f60718.gpx'
     },
-    { description: 'doubled separators', userPath: '//fitness/x.gpx' }
+    { description: 'doubled separators', userPath: '//fitness/x.gpx' },
+    {
+      description: 'a malformed escape elsewhere in the path',
+      // Decoding used to run over the whole joined path, so `decodeURIComponent`
+      // threw on `%zz` and returned everything undecoded — one bad segment
+      // protected every other one, and the URL parser then dropped the `?%zz`.
+      userPath: '%66itness/x.gpx?%zz'
+    },
+    {
+      description: 'a malformed escape in a fragment',
+      userPath: '%66itness/x.gpx#%zz'
+    },
+    {
+      description: 'a malformed escape in its own segment',
+      userPath: '%66itness/%zz/x.gpx'
+    },
+    {
+      description: 'a tab, which the URL parser strips from a path',
+      userPath: 'fit\tness/a1b2c3d4e5f60718.gpx'
+    },
+    {
+      description: 'a newline, which the URL parser strips from a path',
+      userPath: 'fit\nness/a1b2c3d4e5f60718.gpx'
+    },
+    {
+      description: 'a carriage return, which the URL parser strips',
+      userPath: 'fit\rness/a1b2c3d4e5f60718.gpx'
+    },
+    {
+      description: 'an encoded separator hiding the prefix in one segment',
+      userPath: '%2Ffitness/a1b2c3d4e5f60718.gpx'
+    },
+    {
+      description: 'a double-encoded separator',
+      userPath: '%252Ffitness/a1b2c3d4e5f60718.gpx'
+    }
   ])('reserves $description', ({ userPath }: { userPath: string }) => {
     expect(isReservedFitnessMediaPath(userPath)).toBe(true)
   })
@@ -70,7 +105,13 @@ describe('isReservedFitnessMediaPath', () => {
       // treat an undecodable key as reserved either.
       userPath: '%zz/a1b2c3d4e5f60718.webp'
     },
-    { description: 'an empty path', userPath: '' }
+    { description: 'an empty path', userPath: '' },
+    {
+      description: 'a key whose original name carried a percent',
+      // Media keys are server-generated hex, but decoding must not turn a stored
+      // `%25` into a match by over-eagerly folding legitimate escapes.
+      userPath: 'medias/2026-07-30/50%25-off.webp'
+    }
   ])('allows $description', ({ userPath }: { userPath: string }) => {
     expect(isReservedFitnessMediaPath(userPath)).toBe(false)
   })

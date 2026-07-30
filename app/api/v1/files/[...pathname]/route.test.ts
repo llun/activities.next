@@ -86,6 +86,56 @@ describe('GET /api/v1/files/[...pathname]', () => {
       expect(mockGetMedia).not.toHaveBeenCalled()
     })
 
+    // The object-storage deployment redirects to the public CDN hostname, and
+    // the URL parser that builds that `Location` normalises things the request
+    // path did not carry — so the redirect is re-checked on the way out. This
+    // guard is NOT merely belt-and-braces: `%66itness/x.gpx?%zz` reaches
+    // `getMedia` (the query keeps the prefix undecodable in the request path)
+    // and is stopped only here, once `new URL()` has dropped the query.
+    describe('redirect responses', () => {
+      it('refuses a redirect that resolves into fitness storage', async () => {
+        mockGetMedia.mockResolvedValue({
+          type: 'redirect',
+          redirectUrl:
+            'https://cdn.example.test/medias/%2e%2e/fitness/a1b2c3d4e5f60718.gpx'
+        })
+
+        const response = await getFile(['medias', 'x.webp'])
+
+        expect(response.status).toBe(404)
+      })
+
+      it('refuses a redirect whose URL cannot be parsed', async () => {
+        mockGetMedia.mockResolvedValue({
+          type: 'redirect',
+          redirectUrl: 'not-a-url'
+        })
+
+        const response = await getFile(['medias', 'x.webp'])
+
+        expect(response.status).toBe(404)
+      })
+
+      it('still redirects an ordinary media object', async () => {
+        mockGetMedia.mockResolvedValue({
+          type: 'redirect',
+          redirectUrl:
+            'https://cdn.example.test/medias/2026-07-30/a1b2c3d4e5f60718.webp'
+        })
+
+        const response = await getFile([
+          'medias',
+          '2026-07-30',
+          'a1b2c3d4e5f60718.webp'
+        ])
+
+        expect(response.status).toBe(308)
+        expect(response.headers.get('location')).toBe(
+          'https://cdn.example.test/medias/2026-07-30/a1b2c3d4e5f60718.webp'
+        )
+      })
+    })
+
     it.each([
       {
         description: 'still serves an ordinary media object',

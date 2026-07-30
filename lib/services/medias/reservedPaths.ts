@@ -6,16 +6,20 @@ import { getMediaReservedFitnessPathPrefixes } from '@/lib/config/fitnessStorage
 // The loop stops at a fixed point; the cap only bounds a pathological input.
 const MAX_DECODE_PASSES = 5
 
-const decodeToFixedPoint = (value: string): string => {
-  let current = value
+// Decoded PER SEGMENT, not over the whole path: `decodeURIComponent` throws on
+// the first malformed escape anywhere in its input, so decoding the joined path
+// let one bad segment protect every other one. `%66itness/x.gpx?%zz` came back
+// undecoded and sailed past, while the `Location` the URL parser built dropped
+// the `?%zz` and left `/%66itness/x.gpx` for the origin to decode.
+const decodeSegmentToFixedPoint = (segment: string): string => {
+  let current = segment
   for (let pass = 0; pass < MAX_DECODE_PASSES; pass += 1) {
     let decoded: string
     try {
       decoded = decodeURIComponent(current)
     } catch {
-      // A malformed escape (`%zz`, a lone `%`) is not decodable. Whatever it is,
-      // it is not a legitimate media key, and stopping here is safe: the value
-      // compared below is then the most-decoded form we could obtain.
+      // Undecodable on its own; leave it as-is. It cannot match a prefix, and it
+      // no longer stops its neighbours from being decoded.
       return current
     }
     if (decoded === current) return current
@@ -47,19 +51,36 @@ const decodeToFixedPoint = (value: string): string => {
  * point, dot segments are resolved, and leading separators are stripped.
  */
 export const isReservedFitnessMediaPath = (userPath: string): boolean => {
-  const decoded = decodeToFixedPoint(userPath)
-  // Treat both separators the same way the URL parser will, then resolve `.`
-  // and `..` with POSIX rules and drop any leading separators or parent
-  // references so a prefix comparison sees the segment that actually addresses
-  // the object.
+  // Tab, CR and LF are removed outright before anything else: the WHATWG URL
+  // parser strips them from a path, so `fit\tness/x.gpx` reaches the origin as
+  // `fitness/x.gpx` while a naive comparison sees a tab and finds no match.
+  // Backslashes then become separators, because that parser treats them as one
+  // for special schemes.
+  const withUrlSeparators = userPath
+    .replace(/[\t\r\n]/g, '')
+    .replace(/\\/g, '/')
+
+  // Decode each segment on its own, then resolve `.` and `..` with POSIX rules
+  // and drop empties, so a prefix comparison sees the segment that actually
+  // addresses the object.
   const segments: string[] = []
-  for (const segment of decoded.replace(/\\/g, '/').split('/')) {
+  for (const rawSegment of withUrlSeparators.split('/')) {
+    const segment = decodeSegmentToFixedPoint(rawSegment)
     if (!segment || segment === '.') continue
     if (segment === '..') {
       segments.pop()
       continue
     }
-    segments.push(segment)
+    // A decoded segment can itself contain separators (`%2Ffitness`), so fold it
+    // back through the same split rather than trusting it to be one segment.
+    for (const nested of segment.replace(/\\/g, '/').split('/')) {
+      if (!nested || nested === '.') continue
+      if (nested === '..') {
+        segments.pop()
+        continue
+      }
+      segments.push(nested)
+    }
   }
 
   const canonicalPath = segments.join('/').toLowerCase()
