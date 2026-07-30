@@ -170,6 +170,16 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     })
   }
 
+  // Every test here shares one actor and one `general` fitness settings row, so
+  // a zone left behind by one test trims another's default two-point route down
+  // to a single visible point and its assertions fail with nothing to explain
+  // why. That order dependence predates this file's privacy tests — it fails on
+  // `origin/main` under `--sequence.shuffle.tests` too — so reset the row after
+  // every test rather than relying on each one to remember.
+  afterEach(async () => {
+    await clearPrivacyLocation()
+  })
+
   it('serves route samples for public statuses without requiring a session', async () => {
     mockGetServerSession.mockResolvedValue(null)
 

@@ -450,29 +450,36 @@ describe('generateFitnessRouteHeatmapJob', () => {
       privacyHideRadiusMeters: 100
     })
 
-    const firstFileId = await createCompletedFitnessFile(
-      'running',
-      new Date('2025-02-10T07:00:00.000Z')
-    )
-    const secondFileId = await createCompletedFitnessFile(
-      'running',
-      new Date('2025-02-11T07:00:00.000Z')
-    )
-
-    const activityData = (offset: number) => ({
-      coordinates: reentryRoute(offset),
-      trackPoints: reentryRoute(offset),
-      totalDistanceMeters: 5_200,
-      totalDurationSeconds: 1_500,
-      elevationGainMeters: 40,
-      activityType: 'running',
-      startTime: new Date('2025-02-10T07:00:00.000Z')
-    })
-    mockParseFitnessFile
-      .mockResolvedValueOnce(activityData(0))
-      .mockResolvedValueOnce(activityData(0.001))
-
+    // Everything after the create runs inside the try: there can be only one
+    // `general` settings row per actor and every test here shares one actor, so
+    // a throw that leaked this row would fail the next test that wants its own
+    // with "Fitness settings already exist" instead of its own assertion.
+    let firstFileId: string
+    let secondFileId: string
+    let heatmap
     try {
+      firstFileId = await createCompletedFitnessFile(
+        'running',
+        new Date('2025-02-10T07:00:00.000Z')
+      )
+      secondFileId = await createCompletedFitnessFile(
+        'running',
+        new Date('2025-02-11T07:00:00.000Z')
+      )
+
+      const activityData = (offset: number) => ({
+        coordinates: reentryRoute(offset),
+        trackPoints: reentryRoute(offset),
+        totalDistanceMeters: 5_200,
+        totalDurationSeconds: 1_500,
+        elevationGainMeters: 40,
+        activityType: 'running',
+        startTime: new Date('2025-02-10T07:00:00.000Z')
+      })
+      mockParseFitnessFile
+        .mockResolvedValueOnce(activityData(0))
+        .mockResolvedValueOnce(activityData(0.001))
+
       await generateFitnessRouteHeatmapJob(database, {
         id: 'job-route-heatmap-privacy-reentry',
         name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
@@ -483,19 +490,19 @@ describe('generateFitnessRouteHeatmapJob', () => {
           periodKey: '2025-02'
         }
       })
+
+      heatmap = await database.getFitnessRouteHeatmapByKey({
+        actorId: actor.id,
+        activityType: 'running',
+        periodType: 'monthly',
+        periodKey: '2025-02'
+      })
     } finally {
       await database.deleteFitnessSettings({
         actorId: actor.id,
         serviceType: 'general'
       })
     }
-
-    const heatmap = await database.getFitnessRouteHeatmapByKey({
-      actorId: actor.id,
-      activityType: 'running',
-      periodType: 'monthly',
-      periodKey: '2025-02'
-    })
 
     expect(heatmap?.activityCount).toBe(2)
 

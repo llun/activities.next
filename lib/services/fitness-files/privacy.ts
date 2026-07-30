@@ -288,8 +288,15 @@ const getAnchorHideLengthMeters = (
 // Walks inward from one end of the track and returns the first index that has
 // both cleared every zone and travelled the anchor zone's radius from that end.
 // `step` is +1 walking from the first point, -1 walking back from the last.
-// Distance is cumulative along the route rather than straight-line, so looping
-// around the block near home does not buy the trim any credit.
+//
+// Distance is cumulative along the route, not straight-line from the anchor,
+// because the radius is being spent as a LENGTH of route here — that is what the
+// settings copy promises. Note which way that cuts: cumulative distance is
+// always >= the crow-flies distance, so it clears the threshold sooner. A route
+// that winds near home banks metres while staying close to it, and a
+// circumferential route around a large zone clears the length before a radial
+// one does. The zone circle is what stops that becoming an exposure: a point
+// only qualifies once it is outside every zone as well.
 const findFirstUnhiddenIndex = <T extends Coordinate>(
   points: T[],
   privacyLocations: FitnessPrivacyLocation[],
@@ -375,8 +382,12 @@ export const getPrivacyVisibleRange = <T extends Coordinate>(
     return null
   }
 
-  // The two trims met or crossed: everything the route has is within one
-  // radius of an end that has to be hidden.
+  // The two trims crossed: everything the route has is within one radius of an
+  // end that has to be hidden. Trims that meet exactly leave `first === last`,
+  // a one-point window — deliberately not rejected here, because the same
+  // condition arises for a legitimate single-point track that no zone touches.
+  // `getVisibleSegments` reports it as nothing drawable, which is the answer
+  // every caller that renders a line needs.
   if (firstVisibleIndex > lastVisibleIndex) {
     return null
   }
@@ -390,8 +401,8 @@ export const getPrivacyVisibleRange = <T extends Coordinate>(
  * the route's own two ends, so handing it several routes concatenated together
  * would trim only the outermost pair of ends and expose the rest.
  *
- * The three callers all satisfy that: `route-data` maps one file's `trackPoints`,
- * and `generateFitnessRouteHeatmapJob` annotates per file inside its page loop,
+ * Both callers satisfy that: `route-data` maps one file's `trackPoints`, and
+ * `generateFitnessRouteHeatmapJob` annotates per file inside its page loop,
  * before any cross-file accumulation. Its two preprocessing steps
  * (`downsampleRoutePoints`, `simplifyPoints`) both preserve endpoints, so the
  * anchors are still the real start and finish; measuring travel on the decimated

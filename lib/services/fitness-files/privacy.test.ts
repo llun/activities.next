@@ -241,6 +241,19 @@ describe('getPrivacyVisibleRange', () => {
       expected: { firstVisibleIndex: 3, lastVisibleIndex: 3 }
     },
     {
+      description:
+        'measures the hide length along the route, not from the anchor',
+      // The one case that separates the two readings, so the accumulator cannot
+      // be "simplified" into a straight line from the anchor without a failure.
+      // Anchor 90m from a 100m centre; index 1 doubles back to 10m. Cumulative:
+      // 80m at index 1 (inside anyway), then 180m at index 2 whose point is
+      // 110m out, so index 2 qualifies. Crow-flies from the anchor: index 2 is
+      // only 20m away, so it would be skipped and the range would be {3, 3}.
+      offsets: [90, 10, 110, 300],
+      zones: [zoneAtMetersNorth(0, 100)],
+      expected: { firstVisibleIndex: 2, lastVisibleIndex: 3 }
+    },
+    {
       description: 'skips a candidate far enough along but inside another zone',
       offsets: [0, 60, 300, 500, 800],
       zones: [zoneAtMetersNorth(0, 100), zoneAtMetersNorth(300, 100)],
@@ -248,16 +261,22 @@ describe('getPrivacyVisibleRange', () => {
     },
     {
       description: 'uses the largest radius among zones containing the start',
-      // With only the 100m zone the head would clear at index 1.
-      offsets: [0, 200, 400, 700, 1000],
-      zones: [zoneAtMetersNorth(0, 100), zoneAtMetersNorth(0, 500)],
-      expected: { firstVisibleIndex: 3, lastVisibleIndex: 4 }
+      // Radii chosen so largest and summed disagree: max 200 clears at index 2
+      // (250m travelled, point 250m out), summing to 300 would clear at index 3.
+      offsets: [0, 150, 250, 400],
+      zones: [zoneAtMetersNorth(0, 100), zoneAtMetersNorth(0, 200)],
+      expected: { firstVisibleIndex: 2, lastVisibleIndex: 3 }
     },
     {
       description: 'treats a zero-radius zone as no zone at all',
-      offsets: [0, 100, 200],
-      zones: [zoneAtMetersNorth(0, 0)],
-      expected: { firstVisibleIndex: 0, lastVisibleIndex: 2 }
+      // The zero-radius zone is parked on index 2, the first point that would
+      // otherwise clear the 100m zone. Unfiltered it would read as "inside"
+      // (distance 0 <= 0) and index 2 would be skipped for a zone that hides
+      // nothing. Naming it in the anchor position instead proves nothing: there
+      // a zero radius already falls out via `hideLengthMeters <= 0`.
+      offsets: [0, 50, 150, 300],
+      zones: [zoneAtMetersNorth(0, 100), zoneAtMetersNorth(150, 0)],
+      expected: { firstVisibleIndex: 2, lastVisibleIndex: 3 }
     },
     {
       description:
@@ -297,6 +316,17 @@ describe('getPrivacyVisibleRange', () => {
       description: 'returns null for a stationary trace that never accumulates',
       offsets: [0, 0, 0, 0],
       zones: [zoneAtMetersNorth(0, 100)],
+      expected: null
+    },
+    {
+      description: 'returns null when only the tail scan fails to find a point',
+      // The one case that reaches the `lastVisibleIndex === null` guard: every
+      // other null returns because the HEAD scan failed and short-circuited
+      // first. Start is 1100m out so it is outside the 1000m zone, giving
+      // R_start = 0 and firstVisibleIndex = 0; the finish at 500m is inside, so
+      // R_end = 1000, and walking back accumulates only 300m then 600m.
+      offsets: [1100, 800, 500],
+      zones: [zoneAtMetersNorth(0, 1000)],
       expected: null
     }
   ])(
