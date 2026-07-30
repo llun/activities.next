@@ -875,8 +875,8 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
       <CardHeader>
         <CardTitle>Privacy Location</CardTitle>
         <CardDescription>
-          Hide GPS points near your saved privacy locations from shared maps and
-          generated route images.
+          Trim the start and finish of your routes around your saved privacy
+          locations, on shared maps and generated route images.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -984,7 +984,10 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
             <ChevronDown className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           </div>
           <p className="text-xs text-muted-foreground">
-            Any GPS points inside this radius are hidden for other viewers.
+            When a route starts or finishes here, that end is hidden from other
+            viewers until it leaves the area and has covered this distance. The
+            middle of a route is never cut, so a route that later passes back
+            through the area stays visible.
           </p>
         </div>
 

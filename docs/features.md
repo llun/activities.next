@@ -61,7 +61,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Fitness route heatmaps** — Per-region master/detail heatmaps by actor and region (aggregated across all activities and all time), rendered on an interactive map through the configured map provider (Apple MapKit JS, Mapbox GL JS, or keyless MapLibre / OpenFreeMap), with live generation progress, per-heatmap cancel/retry/remove, inline region renaming, and shareable/embeddable views (iframe + image)
 - ✅ **Strava import** — Import activities through Strava OAuth/webhooks and uploaded Strava archive ZIP files
 - ✅ **Fitness import resilience** — Recover stuck/orphaned imports, resumable Strava archive retries, same-ride upload merging, and per-file retry from the UI; repair scripts cover legacy imports
-- ✅ **Fitness privacy locations** — Hide configured location radii from route maps and heatmaps
+- ✅ **Fitness privacy locations** — Trim the start and finish of a route around configured locations on route maps, route data, and heatmaps, keeping the exposed middle as one unbroken line
 - ✅ **Storage quotas** — Per-account file size and storage limits
 
 ### API Compatibility

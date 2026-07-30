@@ -428,6 +428,99 @@ describe('generateFitnessRouteHeatmapJob', () => {
     await database.deleteFitnessFile({ id: fitnessFileId })
   })
 
+  it('trims each activity separately when routes re-enter a privacy zone', async () => {
+    const zoneCentre = { lat: 52.36, lng: 4.88 }
+
+    // A route that starts on the zone centre, heads ~1.3km out, comes back
+    // THROUGH the centre, then heads out again and finishes clear of the zone.
+    const reentryRoute = (lngOffset: number) => [
+      zoneCentre,
+      { lat: 52.3604, lng: 4.8794 },
+      { lat: 52.37, lng: 4.89 + lngOffset },
+      zoneCentre,
+      { lat: 52.365, lng: 4.895 + lngOffset },
+      { lat: 52.375, lng: 4.885 + lngOffset }
+    ]
+
+    await database.createFitnessSettings({
+      actorId: actor.id,
+      serviceType: 'general',
+      privacyHomeLatitude: zoneCentre.lat,
+      privacyHomeLongitude: zoneCentre.lng,
+      privacyHideRadiusMeters: 100
+    })
+
+    const firstFileId = await createCompletedFitnessFile(
+      'running',
+      new Date('2025-02-10T07:00:00.000Z')
+    )
+    const secondFileId = await createCompletedFitnessFile(
+      'running',
+      new Date('2025-02-11T07:00:00.000Z')
+    )
+
+    const activityData = (offset: number) => ({
+      coordinates: reentryRoute(offset),
+      trackPoints: reentryRoute(offset),
+      totalDistanceMeters: 5_200,
+      totalDurationSeconds: 1_500,
+      elevationGainMeters: 40,
+      activityType: 'running',
+      startTime: new Date('2025-02-10T07:00:00.000Z')
+    })
+    mockParseFitnessFile
+      .mockResolvedValueOnce(activityData(0))
+      .mockResolvedValueOnce(activityData(0.001))
+
+    try {
+      await generateFitnessRouteHeatmapJob(database, {
+        id: 'job-route-heatmap-privacy-reentry',
+        name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          activityType: 'running',
+          periodType: 'monthly',
+          periodKey: '2025-02'
+        }
+      })
+    } finally {
+      await database.deleteFitnessSettings({
+        actorId: actor.id,
+        serviceType: 'general'
+      })
+    }
+
+    const heatmap = await database.getFitnessRouteHeatmapByKey({
+      actorId: actor.id,
+      activityType: 'running',
+      periodType: 'monthly',
+      periodKey: '2025-02'
+    })
+
+    expect(heatmap?.activityCount).toBe(2)
+
+    // BOTH activities are trimmed, not just the first and last of the pooled
+    // point list — annotation happens per file, before cross-file accumulation.
+    // A visible segment omits the flag entirely (see `routeHeatmap.ts`).
+    expect(
+      heatmap?.segments.map((segment) => Boolean(segment.isHiddenByPrivacy))
+    ).toEqual([true, false, true, false])
+
+    // Each visible run keeps the mid-route return to the centre rather than
+    // splitting around it.
+    const visibleSegments = (heatmap?.segments ?? []).filter(
+      (segment) => !segment.isHiddenByPrivacy
+    )
+    expect(visibleSegments).toHaveLength(2)
+    for (const segment of visibleSegments) {
+      expect(segment.points).toContainEqual(zoneCentre)
+    }
+
+    await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+    await database.deleteFitnessFile({ id: firstFileId })
+    await database.deleteFitnessFile({ id: secondFileId })
+  })
+
   it('revives a soft-deleted cache row for the same route cache key', async () => {
     const fitnessFileId = await createCompletedFitnessFile(
       'running',

@@ -137,6 +137,52 @@ describe('processFitnessFileJob', () => {
     return { statusId, fitnessFileId: fitnessFile!.id }
   }
 
+  // Every test in this file shares one actor, and there can be only one
+  // `general` fitness settings row per actor — `createFitnessSettings` throws on
+  // the second. Tests that need a privacy zone therefore upsert, and restore the
+  // row in a `finally`: a radius left behind sits on the default route's first
+  // point and trims it to a single visible point, which skips the map block
+  // entirely and makes any later test's map assertions pass vacuously.
+  const setPrivacyZone = async (
+    zone: {
+      privacyHomeLatitude: number | null
+      privacyHomeLongitude: number | null
+      privacyHideRadiusMeters: number | null
+    },
+    settingsId?: string
+  ): Promise<string> => {
+    const id =
+      settingsId ??
+      (
+        await database.getFitnessSettings({
+          actorId: actor.id,
+          serviceType: 'general'
+        })
+      )?.id
+
+    if (id) {
+      await database.updateFitnessSettings({ id, ...zone })
+      return id
+    }
+
+    const created = await database.createFitnessSettings({
+      actorId: actor.id,
+      serviceType: 'general',
+      ...zone
+    })
+    return created.id
+  }
+
+  const clearPrivacyZone = (settingsId: string) =>
+    setPrivacyZone(
+      {
+        privacyHomeLatitude: null,
+        privacyHomeLongitude: null,
+        privacyHideRadiusMeters: null
+      },
+      settingsId
+    )
+
   beforeAll(async () => {
     await database.migrate()
     await seedDatabase(database)
@@ -827,9 +873,7 @@ describe('processFitnessFileJob', () => {
       text: 'Privacy filtered route'
     })
 
-    const settings = await database.createFitnessSettings({
-      actorId: actor.id,
-      serviceType: 'general',
+    const settingsId = await setPrivacyZone({
       privacyHomeLatitude: 37.78,
       privacyHomeLongitude: -122.42,
       privacyHideRadiusMeters: 50
@@ -861,17 +905,7 @@ describe('processFitnessFileJob', () => {
         data: { actorId: actor.id, statusId, fitnessFileId }
       })
     } finally {
-      // These settings live on the actor every test in this file shares, and
-      // the radius sits on the default route's first point — leaving them
-      // behind trims that route to one visible point, so any later test's map
-      // block is skipped and its assertions pass vacuously. It made the file
-      // order-dependent (visible under --sequence.shuffle.tests).
-      await database.updateFitnessSettings({
-        id: settings.id,
-        privacyHomeLatitude: null,
-        privacyHomeLongitude: null,
-        privacyHideRadiusMeters: null
-      })
+      await clearPrivacyZone(settingsId)
     }
 
     expect(mockGenerateMapImage).toHaveBeenCalledWith({
@@ -885,6 +919,62 @@ describe('processFitnessFileJob', () => {
           { lat: 37.7902, lng: -122.4098 }
         ]
       ]
+    })
+  })
+
+  it('draws one unbroken route when the activity re-enters a privacy zone', async () => {
+    const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+      text: 'Loop back past home'
+    })
+
+    const settingsId = await setPrivacyZone({
+      privacyHomeLatitude: 37.78,
+      privacyHomeLongitude: -122.42,
+      privacyHideRadiusMeters: 50
+    })
+
+    // Starts on the zone centre, runs ~1.4km out, comes back THROUGH the centre
+    // at index 3, then runs out again and finishes clear of the zone.
+    const coordinates = [
+      { lat: 37.78, lng: -122.42 },
+      { lat: 37.7802, lng: -122.4202 },
+      { lat: 37.79, lng: -122.41 },
+      { lat: 37.78, lng: -122.42 },
+      { lat: 37.79, lng: -122.41 },
+      { lat: 37.8, lng: -122.4 }
+    ]
+
+    mockParseFitnessFile.mockResolvedValue({
+      coordinates,
+      trackPoints: coordinates,
+      totalDistanceMeters: 6_000,
+      totalDurationSeconds: 1_800,
+      elevationGainMeters: 90,
+      activityType: 'running'
+    })
+
+    try {
+      await processFitnessFileJob(database, {
+        id: 'job-id-privacy-reentry',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+    } finally {
+      await clearPrivacyZone(settingsId)
+    }
+
+    // A single `routeSegments` entry, so the renderer draws one LineString. The
+    // head is trimmed; the mid-route pass through the centre is kept rather than
+    // punching a hole that would localise it.
+    const visibleRoute = [
+      { lat: 37.79, lng: -122.41 },
+      { lat: 37.78, lng: -122.42 },
+      { lat: 37.79, lng: -122.41 },
+      { lat: 37.8, lng: -122.4 }
+    ]
+    expect(mockGenerateMapImage).toHaveBeenCalledWith({
+      coordinates: visibleRoute,
+      routeSegments: [visibleRoute]
     })
   })
 

@@ -488,6 +488,115 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     expect(payload.segments[0].samples).toHaveLength(2)
   })
 
+  // Starts inside the 50m home zone, heads ~1.4km out, returns THROUGH the zone
+  // centre at index 3, then heads out again and finishes ~2.8km away — so only
+  // the head is trimmed and the mid-route pass has to stay inside one segment.
+  const REENTRY_ROUTE_COORDINATES = [
+    { lat: 37.77, lng: -122.42 },
+    { lat: 37.7702, lng: -122.4202 },
+    { lat: 37.78, lng: -122.41 },
+    { lat: 37.77, lng: -122.42 },
+    { lat: 37.78, lng: -122.41 },
+    { lat: 37.79, lng: -122.4 }
+  ]
+
+  const mockReentryRoute = () => {
+    mockParseFitnessFile.mockResolvedValue({
+      coordinates: REENTRY_ROUTE_COORDINATES,
+      trackPoints: REENTRY_ROUTE_COORDINATES.map((coordinate, index) => ({
+        ...coordinate,
+        timestamp: new Date(Date.UTC(2026, 0, 1, 10, index))
+      })),
+      totalDistanceMeters: 6_000,
+      totalDurationSeconds: 300
+    })
+  }
+
+  it('keeps a mid-route privacy zone pass in one segment for other viewers', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor2.email }
+    })
+
+    await savePrivacyLocation()
+    mockReentryRoute()
+
+    const status = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/public-route-data-reentry-zone`,
+      url: `${ACTOR1_ID}/statuses/public-route-data-reentry-zone`,
+      actorId: ACTOR1_ID,
+      text: 'Public route that passes back through the home zone',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [ACTOR1_FOLLOWER_URL]
+    })
+
+    const fitnessFile = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      statusId: status.id,
+      path: 'fitness/reentry-zone-viewer.fit',
+      fileName: 'reentry-zone-viewer.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 2_048
+    })
+
+    const response = await GET(createRequest(), {
+      params: Promise.resolve({ id: fitnessFile!.id })
+    })
+    const payload = (await response.json()) as {
+      samples: Array<{ lat: number; lng: number; isHiddenByPrivacy: boolean }>
+      segments: Array<{
+        isHiddenByPrivacy: boolean
+        samples: Array<{ lat: number; lng: number }>
+      }>
+    }
+
+    expect(response.status).toBe(200)
+    // One unbroken line, not two either side of a hole at the zone centre.
+    expect(payload.segments).toHaveLength(1)
+    expect(payload.segments[0].isHiddenByPrivacy).toBe(false)
+    expect(payload.segments[0].samples).toHaveLength(4)
+    expect(payload.segments[0].samples).toContainEqual(
+      expect.objectContaining({ lat: 37.77, lng: -122.42 })
+    )
+    expect(payload.samples).toHaveLength(4)
+  })
+
+  it('trims only the head when a re-entering route finishes outside every zone', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+
+    await savePrivacyLocation()
+    mockReentryRoute()
+
+    const fitnessFile = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      path: 'fitness/reentry-zone-owner.fit',
+      fileName: 'reentry-zone-owner.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 2_048
+    })
+
+    const response = await GET(createRequest(), {
+      params: Promise.resolve({ id: fitnessFile!.id })
+    })
+    const payload = (await response.json()) as {
+      samples: Array<{ isHiddenByPrivacy: boolean }>
+      segments: Array<{ isHiddenByPrivacy: boolean; samples: unknown[] }>
+    }
+
+    expect(response.status).toBe(200)
+    expect(payload.samples).toHaveLength(6)
+    // Hidden head, then everything else — no trailing hidden segment, because
+    // the activity does not finish inside a zone.
+    expect(
+      payload.segments.map((segment) => segment.isHiddenByPrivacy)
+    ).toEqual([true, false])
+    expect(payload.segments[0].samples).toHaveLength(2)
+    expect(payload.segments[1].samples).toHaveLength(4)
+  })
+
   it('returns hidden points flagged for the owner account', async () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
