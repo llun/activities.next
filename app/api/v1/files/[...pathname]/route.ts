@@ -2,9 +2,9 @@ import { readFile } from 'fs/promises'
 import { NextRequest } from 'next/server'
 import path from 'path'
 
-import { getMediaReservedFitnessPathPrefixes } from '@/lib/config/fitnessStorage'
 import { getDatabase } from '@/lib/database'
 import { getMedia } from '@/lib/services/medias'
+import { isReservedFitnessMediaPath } from '@/lib/services/medias/reservedPaths'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -27,18 +27,14 @@ export const GET = traceApiRoute(
 
     const userPath = normalizedPath.replace(/^(\.\.(\/|\\|$))+/, '')
 
-    // Fitness uploads live under the media root by default (see
-    // `getMediaReservedFitnessPathPrefixes`), and this route has no access
-    // control and redirects to the public CDN hostname when one is set. Without
-    // this it is a way around the owner-only gate on
-    // `GET /api/v1/fitness-files/:id`, which serves the same bytes. Matched on a
-    // path-segment boundary so a legitimate `fitnessed/…` media key is unharmed.
-    const lowerCasePath = userPath.toLowerCase()
-    const isReservedFitnessPath = getMediaReservedFitnessPathPrefixes().some(
-      (prefix) =>
-        lowerCasePath === prefix || lowerCasePath.startsWith(`${prefix}/`)
-    )
-    if (isReservedFitnessPath) {
+    // Fitness uploads live under the media root by default, and this route has
+    // no access control and redirects to the public CDN hostname when one is
+    // set. Without this it is a way around the owner-only gate on
+    // `GET /api/v1/fitness-files/:id`, which serves the same bytes. The match is
+    // on a canonical form and a segment boundary, so a legitimate `fitnessed/…`
+    // media key is unharmed while the encodings that collapse only later — in
+    // the URL parser or at the origin — are caught here.
+    if (isReservedFitnessMediaPath(userPath)) {
       return apiErrorResponse(404)
     }
 
@@ -82,6 +78,21 @@ export const GET = traceApiRoute(
       }
       case 'redirect': {
         const { redirectUrl } = media
+        // Re-check at the egress point, on the URL the client will actually
+        // follow. The guard above canonicalises the request path, but this is
+        // where the WHATWG parser has had its say — so whatever the `Location`
+        // ends up addressing is compared once more, and a redirect that resolves
+        // into fitness storage never leaves the server. Belt and braces on
+        // purpose: the two checks fail independently.
+        let redirectPath: string
+        try {
+          redirectPath = new URL(redirectUrl).pathname
+        } catch {
+          return apiErrorResponse(404)
+        }
+        if (isReservedFitnessMediaPath(redirectPath)) {
+          return apiErrorResponse(404)
+        }
         return Response.redirect(redirectUrl, 308)
       }
       default: {

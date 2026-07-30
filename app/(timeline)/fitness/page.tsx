@@ -117,6 +117,7 @@ const Page: FC = async () => {
       <RecentFitnessActivities
         host={host}
         currentTime={currentTime}
+        currentActor={cleanJson(currentActor)}
         statuses={statuses.map((status) => cleanJson(status))}
       />
     </div>
