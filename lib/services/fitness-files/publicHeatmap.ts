@@ -7,11 +7,11 @@ import {
  * Drops the `isHiddenByPrivacy` flag from every segment so the public embed
  * renders all routes uniformly.
  *
- * Privacy zones in this app only RECOLOR near-home segments in the owner's
- * authenticated view — the real coordinates are still present. For a public
- * embed we deliberately do NOT strip those segments (a missing donut around
- * home would pinpoint the private location) and do NOT render them in a distinct
- * colour (a highlighted segment near home would equally pinpoint it). Flattening
+ * Privacy zones in this app only RECOLOR the trimmed head and tail of each route
+ * in the owner's authenticated view — the real coordinates are still present.
+ * For a public embed we deliberately do NOT strip those segments (a missing end
+ * around home would pinpoint the private location) and do NOT render them in a
+ * distinct colour (a highlighted end near home would equally pinpoint it). Flattening
  * the flag makes hidden and visible segments indistinguishable: no hole, no
  * highlight. Bounds are intentionally left untouched for the same reason.
  *
