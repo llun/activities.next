@@ -445,7 +445,7 @@ describe('FitnessStatusDetail', () => {
     expect(container.querySelectorAll('rect').length).toBeGreaterThan(0)
   })
 
-  it('filters the analysis graphs and syncs the available series', async () => {
+  it('toggles a series off with its picker chip and keeps the rest', async () => {
     renderDetail()
 
     await waitFor(() => expect(screen.getByText('Avg HR')).toBeInTheDocument())
@@ -453,32 +453,35 @@ describe('FitnessStatusDetail', () => {
     const menu = await openSectionMenu()
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Analysis' }))
 
-    // Graph-display pills appear for every available series.
+    // A picker chip appears for every available series, all selected by default.
     await waitFor(() =>
       expect(
         screen.getByRole('button', { name: 'Elevation' })
       ).toBeInTheDocument()
     )
-    expect(screen.getByRole('button', { name: 'Speed' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Power' })).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Heart rate' })
-    ).toBeInTheDocument()
-    // All charts render in the default "All graphs" mode.
+    for (const name of ['Elevation', 'Speed', 'Power', 'Heart rate']) {
+      expect(screen.getByRole('button', { name })).toHaveAttribute(
+        'aria-pressed',
+        'true'
+      )
+    }
+    // Every series is stacked by default.
     expect(
       screen.getByRole('heading', { name: 'Elevation profile' })
     ).toBeInTheDocument()
 
-    // Selecting a single graph filters the rest out.
+    // Toggling a chip off drops that graph and leaves the others in place.
     fireEvent.click(screen.getByRole('button', { name: 'Power' }))
     expect(screen.getByRole('button', { name: 'Power' })).toHaveAttribute(
       'aria-pressed',
-      'true'
+      'false'
     )
     expect(
-      screen.queryByRole('heading', { name: 'Elevation profile' })
+      screen.queryByRole('heading', { name: 'Power' })
     ).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Power' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Elevation profile' })
+    ).toBeInTheDocument()
   })
 
   describe('analysis graphs', () => {
@@ -520,16 +523,93 @@ describe('FitnessStatusDetail', () => {
       expect(panel.querySelectorAll('.rounded-xl')).toHaveLength(0)
     })
 
-    it('keeps the single panel when the display is filtered to one graph', async () => {
+    it('keeps the single panel when only one graph is selected', async () => {
       const panel = await openAnalysis()
 
-      fireEvent.click(screen.getByRole('button', { name: 'Speed' }))
+      // Toggle every series off except Speed.
+      fireEvent.click(screen.getByRole('button', { name: 'Elevation' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Power' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Heart rate' }))
 
       expect(within(panel).getAllByRole('heading', { level: 3 })).toHaveLength(
         1
       )
       expect(
         within(panel).getByRole('heading', { name: 'Speed' })
+      ).toBeInTheDocument()
+    })
+
+    it('overlays the selected series in one chart in combined mode', async () => {
+      await openAnalysis()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Combined' }))
+
+      const combined = await screen.findByTestId('analysis-combined-graph')
+      // The stacked panel is replaced by one overlaid chart titled "Combined".
+      expect(screen.queryByTestId('analysis-graphs')).not.toBeInTheDocument()
+      expect(
+        within(combined).getByRole('heading', { name: 'Combined' })
+      ).toBeInTheDocument()
+      expect(
+        within(combined).getAllByRole('heading', { level: 3 })
+      ).toHaveLength(1)
+      // One line per selected series is drawn in the single plot.
+      expect(combined.querySelectorAll('svg path')).toHaveLength(4)
+      expect(
+        within(combined).getByText('Each graph is scaled to its own range.')
+      ).toBeInTheDocument()
+    })
+
+    it('drops a deselected series from the combined chart', async () => {
+      await openAnalysis()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Combined' }))
+      const combined = await screen.findByTestId('analysis-combined-graph')
+      expect(combined.querySelectorAll('svg path')).toHaveLength(4)
+
+      // Toggling Elevation off removes its overlaid line.
+      fireEvent.click(screen.getByRole('button', { name: 'Elevation' }))
+      expect(combined.querySelectorAll('svg path')).toHaveLength(3)
+    })
+
+    it('reads out every series at once while the combined chart is hovered', async () => {
+      await openAnalysis()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Combined' }))
+      const combined = await screen.findByTestId('analysis-combined-graph')
+
+      expect(
+        screen.queryByTestId('combined-hover-value')
+      ).not.toBeInTheDocument()
+
+      const [plot] = Array.from(combined.querySelectorAll('svg'))
+      plot.getBoundingClientRect = () => ({ left: 100, width: 400 }) as DOMRect
+      // A quarter of the way across => 450s of a 1800s ride.
+      fireEvent.mouseMove(plot, { clientX: 200 })
+
+      const readout = screen.getByTestId('combined-hover-value')
+      // One box, with a value + unit row for every selected series.
+      expect(within(readout).getAllByText(/^(m|km\/h|w|bpm)$/)).toHaveLength(4)
+      expect(screen.getByText('Selected time: 7:30')).toBeInTheDocument()
+      // A dot pinned to each series' own line at that instant.
+      expect(screen.getAllByTestId('combined-hover-dot')).toHaveLength(4)
+
+      fireEvent.mouseLeave(plot)
+      expect(
+        screen.queryByTestId('combined-hover-value')
+      ).not.toBeInTheDocument()
+    })
+
+    it('shows a hint when every graph is toggled off', async () => {
+      await openAnalysis()
+
+      for (const name of ['Elevation', 'Speed', 'Power', 'Heart rate']) {
+        fireEvent.click(screen.getByRole('button', { name }))
+      }
+
+      expect(screen.queryByTestId('analysis-graphs')).not.toBeInTheDocument()
+      expect(
+        screen.getByText('Select at least one graph to display.')
       ).toBeInTheDocument()
     })
 

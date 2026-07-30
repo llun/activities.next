@@ -167,7 +167,15 @@ type SectionKey =
   | 'comments'
 
 type AnalysisGraphKey = 'elevation' | 'speed' | 'power' | 'heart-rate'
-type AnalysisGraphFilter = 'all' | AnalysisGraphKey
+// How the selected graphs are drawn: `separate` stacks each into its own row of
+// one bordered panel (the original behaviour); `combined` overlays them all in a
+// single chart, each series scaled to its own range.
+type GraphDisplayMode = 'separate' | 'combined'
+
+const GRAPH_DISPLAY_MODES: Array<{ id: GraphDisplayMode; label: string }> = [
+  { id: 'separate', label: 'Separate' },
+  { id: 'combined', label: 'Combined' }
+]
 
 interface SectionTab {
   id: SectionKey
@@ -242,11 +250,13 @@ interface MapboxModule {
   ) => MapboxLngLatBounds
 }
 
+// One toggle per series (no "all" pseudo-option): the graphs to show are picked
+// as a multi-select, so "show everything" is simply every chip on — which is the
+// default — rather than a distinct mode.
 const ANALYSIS_GRAPH_OPTIONS: Array<{
-  id: AnalysisGraphFilter
+  id: AnalysisGraphKey
   label: string
 }> = [
-  { id: 'all', label: 'All graphs' },
   { id: 'elevation', label: 'Elevation' },
   { id: 'speed', label: 'Speed' },
   { id: 'power', label: 'Power' },
@@ -255,15 +265,32 @@ const ANALYSIS_GRAPH_OPTIONS: Array<{
 
 // One colour per series, used for the line, the hover crosshair and the hover
 // dot alike — so a stacked graph is identifiable by its own colour rather than
-// every crosshair sharing the speed chart's blue.
+// every crosshair sharing the speed chart's blue. `chipBorder` tints a selected
+// picker chip and the combined-chart legend with that same series colour.
 const ANALYSIS_GRAPH_STYLES: Record<
   AnalysisGraphKey,
-  { stroke: string; dot: string }
+  { stroke: string; dot: string; chipBorder: string }
 > = {
-  elevation: { stroke: 'stroke-slate-400', dot: 'bg-slate-400' },
-  speed: { stroke: 'stroke-sky-500', dot: 'bg-sky-500' },
-  power: { stroke: 'stroke-violet-500', dot: 'bg-violet-500' },
-  'heart-rate': { stroke: 'stroke-rose-500', dot: 'bg-rose-500' }
+  elevation: {
+    stroke: 'stroke-slate-400',
+    dot: 'bg-slate-400',
+    chipBorder: 'border-slate-400'
+  },
+  speed: {
+    stroke: 'stroke-sky-500',
+    dot: 'bg-sky-500',
+    chipBorder: 'border-sky-500'
+  },
+  power: {
+    stroke: 'stroke-violet-500',
+    dot: 'bg-violet-500',
+    chipBorder: 'border-violet-500'
+  },
+  'heart-rate': {
+    stroke: 'stroke-rose-500',
+    dot: 'bg-rose-500',
+    chipBorder: 'border-rose-500'
+  }
 }
 
 // `toFixed` keeps the sign of a value that rounds to zero, so an elevation bin
@@ -1230,6 +1257,234 @@ const ChartPanel: FC<{
   )
 }
 
+interface CombinedChartSeries {
+  key: AnalysisGraphKey
+  label: string
+  unit: string
+  values: number[]
+  fractionDigits: number
+}
+
+// One chart that overlays several series, each scaled to its OWN range so a
+// 0–55 m elevation trace and a 90–190 bpm heart-rate trace can share one plot
+// without either flattening the other. It scrubs like the stacked `ChartPanel`
+// — the same pointer→elapsed handlers move the map highlight above it — but
+// draws one coloured line per series under a shared crosshair, and a single
+// readout lists every series' value at the hovered instant.
+const CombinedChartPanel: FC<{
+  series: CombinedChartSeries[]
+  durationSeconds?: number
+  highlightedElapsedSeconds?: number | null
+  onHighlightElapsedSeconds?: (elapsedSeconds: number | null) => void
+}> = ({
+  series,
+  durationSeconds,
+  highlightedElapsedSeconds = null,
+  onHighlightElapsedSeconds
+}) => {
+  const width = 760
+  const height = GRAPH_VIEW_HEIGHT
+
+  // Each series carries its own min/max and its own path, so a shallow trace is
+  // not squashed by a taller one sharing the plot. Memoized because the paths
+  // run to Strava's density (up to 1,200 points each) and must not rebuild on a
+  // pointer move.
+  const plotted = useMemo(
+    () =>
+      series.map((entry) => {
+        const { minValue, maxValue } = getSeriesMinMax(entry.values)
+        return {
+          ...entry,
+          minValue,
+          maxValue,
+          path: buildChartPath(entry.values, width, height, minValue, maxValue)
+        }
+      }),
+    [series]
+  )
+
+  // The scrub only turns a pointer x into an elapsed time, so drive it off the
+  // longest series — a short or late-starting one would otherwise be the first
+  // to run out of samples. Its own single-series `highlight` is ignored; the
+  // per-series dots below are placed from each series' own projection instead.
+  const scrubDriver = plotted.reduce<(typeof plotted)[number] | null>(
+    (longest, entry) =>
+      longest && longest.values.length >= entry.values.length ? longest : entry,
+    null
+  )
+  const scrub = useChartScrub({
+    values: scrubDriver?.values ?? [],
+    width,
+    height,
+    minValue: scrubDriver?.minValue ?? 0,
+    maxValue: scrubDriver?.maxValue ?? 0,
+    durationSeconds,
+    highlightedElapsedSeconds,
+    onHighlightElapsedSeconds
+  })
+
+  const ratio =
+    scrub.canScrub &&
+    typeof highlightedElapsedSeconds === 'number' &&
+    typeof durationSeconds === 'number' &&
+    durationSeconds > 0
+      ? clampNumber(highlightedElapsedSeconds / durationSeconds, 0, 1)
+      : null
+  // The crosshair marks the shared time; each dot sits on its own line, at that
+  // series' own sample for the instant.
+  const crosshairX = ratio === null ? null : ratio * width
+  const highlights =
+    ratio === null
+      ? []
+      : plotted
+          .map((entry) => {
+            if (entry.values.length === 0) return null
+            const index = clampNumber(
+              Math.round(ratio * (entry.values.length - 1)),
+              0,
+              entry.values.length - 1
+            )
+            return {
+              key: entry.key,
+              unit: entry.unit,
+              fractionDigits: entry.fractionDigits,
+              value: entry.values[index],
+              x: getChartXPosition(index, entry.values.length, width),
+              y: getChartYPosition(
+                entry.values[index],
+                height,
+                entry.minValue,
+                entry.maxValue
+              )
+            }
+          })
+          .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+
+  const xLabels = useMemo(
+    () => (durationSeconds ? buildXAxisLabels(durationSeconds) : null),
+    [durationSeconds]
+  )
+
+  // Flip the readout to the left of the crosshair near the right edge, on the
+  // same fraction the single-series `ChartHoverMarker` uses so both charts agree.
+  const shouldFlipReadout = crosshairX !== null && crosshairX / width > 0.62
+
+  return (
+    <div className="bg-background p-4">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-foreground">Combined</h3>
+        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+          {series.map((entry) => (
+            <span
+              key={entry.key}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground"
+            >
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'size-2 shrink-0 rounded-full',
+                  ANALYSIS_GRAPH_STYLES[entry.key].dot
+                )}
+              />
+              {entry.label}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className={cn('relative', GRAPH_HEIGHT_CLASSNAME)}>
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="none"
+          className={cn('block h-full w-full', scrub.plotClassName)}
+          {...scrub.plotHandlers}
+        >
+          {plotted.map((entry) => (
+            <path
+              key={entry.key}
+              d={entry.path}
+              fill="none"
+              vectorEffect="non-scaling-stroke"
+              className={cn(
+                'stroke-[2]',
+                ANALYSIS_GRAPH_STYLES[entry.key].stroke
+              )}
+            />
+          ))}
+          {crosshairX !== null ? (
+            <line
+              x1={crosshairX}
+              y1={0}
+              x2={crosshairX}
+              y2={height}
+              vectorEffect="non-scaling-stroke"
+              className="stroke-muted-foreground stroke-[1.5] opacity-50"
+            />
+          ) : null}
+        </svg>
+        {highlights.map((entry) => (
+          <span
+            key={entry.key}
+            aria-hidden="true"
+            data-testid="combined-hover-dot"
+            className={cn(
+              'pointer-events-none absolute z-10 size-[11px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background',
+              ANALYSIS_GRAPH_STYLES[entry.key].dot
+            )}
+            style={{
+              left: `${(entry.x / width) * 100}%`,
+              top: `${(entry.y / height) * 100}%`
+            }}
+          />
+        ))}
+        {/* One readout box for the whole chart rather than a chip per line: three
+            overlapping single-value chips would collide. Pinned to the top so it
+            never chases a dot across the other series' lines. */}
+        {crosshairX !== null && highlights.length > 0 ? (
+          <div
+            aria-hidden="true"
+            data-testid="combined-hover-value"
+            className="pointer-events-none absolute top-2 z-20 flex flex-col gap-0.5 rounded-md border bg-background px-2 py-1 shadow-sm"
+            style={{
+              left: `${(crosshairX / width) * 100}%`,
+              transform: shouldFlipReadout
+                ? 'translateX(calc(-100% - 12px))'
+                : 'translateX(12px)'
+            }}
+          >
+            {highlights.map((entry) => (
+              <div key={entry.key} className="flex items-center gap-1.5">
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    'size-2 shrink-0 rounded-full',
+                    ANALYSIS_GRAPH_STYLES[entry.key].dot
+                  )}
+                />
+                <span className="text-xs font-semibold leading-none tabular-nums text-foreground">
+                  {formatChartValue(entry.value, entry.fractionDigits)}
+                </span>
+                <span className="text-[10px] leading-none text-muted-foreground">
+                  {entry.unit}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      {xLabels && (
+        <div className="mt-2 flex justify-between text-[11px] tabular-nums text-muted-foreground">
+          {xLabels.map((label, i) => (
+            <span key={i}>{label}</span>
+          ))}
+        </div>
+      )}
+      <p className="mt-2 text-xs text-muted-foreground">
+        Each graph is scaled to its own range.
+      </p>
+    </div>
+  )
+}
+
 const ActivityMapPanel: FC<{
   mapAttachment?: Attachment
   /** Activity file the route belongs to — the scope of a notice dismissal. */
@@ -1681,8 +1936,24 @@ export const FitnessStatusDetail: FC<Props> = ({
 }) => {
   const router = useRouter()
   const [activeSection, setActiveSection] = useState<SectionKey>('overview')
-  const [analysisGraphFilter, setAnalysisGraphFilter] =
-    useState<AnalysisGraphFilter>('all')
+  // `separate` (the default) stacks each selected graph into its own row; the new
+  // `combined` option overlays them in one chart.
+  const [graphDisplayMode, setGraphDisplayMode] =
+    useState<GraphDisplayMode>('separate')
+  // Which series are drawn, as a multi-select. Every graph starts on, so the
+  // default view is every available series (a key with no data is filtered out
+  // downstream), and the picker chips toggle each on and off. Intersecting this
+  // intent with the series that actually have data is what lets it stay stable
+  // as the selected file changes underneath it.
+  const [selectedGraphKeys, setSelectedGraphKeys] = useState<
+    AnalysisGraphKey[]
+  >(() => ANALYSIS_GRAPH_OPTIONS.map((option) => option.id))
+  const toggleGraphKey = (key: AnalysisGraphKey) =>
+    setSelectedGraphKeys((previous) =>
+      previous.includes(key)
+        ? previous.filter((selected) => selected !== key)
+        : [...previous, key]
+    )
   // Force-resets the always-on comment composer after a cancel or a post.
   const [composerKey, setComposerKey] = useState(0)
   // This page lays out its own card, so it holds the reaction rollups the way
@@ -2050,7 +2321,10 @@ export const FitnessStatusDetail: FC<Props> = ({
   const analysisCharts = useMemo(
     (): Array<{
       key: AnalysisGraphKey
+      /** Long title for the stacked panel row ("Elevation profile"). */
       title: string
+      /** Short label for the picker chip and combined-chart legend. */
+      label: string
       unit: string
       values: number[]
       minLabel: string
@@ -2060,6 +2334,7 @@ export const FitnessStatusDetail: FC<Props> = ({
       {
         key: 'elevation',
         title: 'Elevation profile',
+        label: 'Elevation',
         unit: 'm',
         values: activitySeries.elevation,
         minLabel: formatChartValue(elevationMin, 0),
@@ -2069,6 +2344,7 @@ export const FitnessStatusDetail: FC<Props> = ({
       {
         key: 'speed',
         title: 'Speed',
+        label: 'Speed',
         unit: 'km/h',
         values: activitySeries.speed,
         minLabel: formatChartValue(speedMin, 1),
@@ -2078,6 +2354,7 @@ export const FitnessStatusDetail: FC<Props> = ({
       {
         key: 'power',
         title: 'Power',
+        label: 'Power',
         unit: 'w',
         values: activitySeries.power,
         minLabel: formatChartValue(powerMin, 0),
@@ -2087,6 +2364,7 @@ export const FitnessStatusDetail: FC<Props> = ({
       {
         key: 'heart-rate',
         title: 'Heart rate',
+        label: 'Heart rate',
         unit: 'bpm',
         values: activitySeries.heartRate,
         minLabel: formatChartValue(heartRateMin, 0),
@@ -2107,14 +2385,28 @@ export const FitnessStatusDetail: FC<Props> = ({
     ]
   )
 
+  // The charts to draw: those with data whose chip is on, kept in the fixed
+  // display order of `analysisCharts` regardless of the order they were toggled.
+  // Memoized (independent of the hovered instant) so the combined chart's paths
+  // are not rebuilt on every pointer move.
   const visibleAnalysisCharts = useMemo(
     () =>
       analysisCharts.filter(
         (chart) =>
-          chart.values.length > 0 &&
-          (analysisGraphFilter === 'all' || analysisGraphFilter === chart.key)
+          chart.values.length > 0 && selectedGraphKeys.includes(chart.key)
       ),
-    [analysisCharts, analysisGraphFilter]
+    [analysisCharts, selectedGraphKeys]
+  )
+  const combinedChartSeries = useMemo<CombinedChartSeries[]>(
+    () =>
+      visibleAnalysisCharts.map((chart) => ({
+        key: chart.key,
+        label: chart.label,
+        unit: chart.unit,
+        values: chart.values,
+        fractionDigits: chart.fractionDigits
+      })),
+    [visibleAnalysisCharts]
   )
 
   const histogramMinutes = useMemo(() => {
@@ -2197,6 +2489,10 @@ export const FitnessStatusDetail: FC<Props> = ({
     return `rgb(${r}, ${g}, ${b})`
   }
 
+  // The chips to offer — only series that actually have data. A chip the user
+  // toggled off is simply dropped from `visibleAnalysisCharts`, and one whose
+  // series is absent from the current file never appears here, so the picker
+  // needs no reset effect to recover from an empty selection.
   const analysisGraphOptions = useMemo(() => {
     return ANALYSIS_GRAPH_OPTIONS.filter((option) => {
       if (option.id === 'elevation') return activitySeries.elevation.length > 0
@@ -2206,17 +2502,6 @@ export const FitnessStatusDetail: FC<Props> = ({
       return true
     })
   }, [activitySeries])
-
-  // Reset the graph filter when the selected option no longer has data (e.g.
-  // after switching to a file without that series), so Analysis never gets
-  // stuck on an empty, removed filter. 'all' is always available.
-  useEffect(() => {
-    if (
-      !analysisGraphOptions.some((option) => option.id === analysisGraphFilter)
-    ) {
-      setAnalysisGraphFilter('all')
-    }
-  }, [analysisGraphOptions, analysisGraphFilter])
 
   const hasHeartRate = positiveHeartRateSeries.length > 0
   const hasPower = powerSeries.length > 0
@@ -2653,63 +2938,138 @@ export const FitnessStatusDetail: FC<Props> = ({
               </Card>
             ) : (
               <Card>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Graph display
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {analysisGraphOptions.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      aria-pressed={analysisGraphFilter === option.id}
-                      onClick={() => setAnalysisGraphFilter(option.id)}
-                      className={cn(
-                        'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
-                        analysisGraphFilter === option.id
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-border bg-background text-muted-foreground hover:text-foreground'
-                      )}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Graph display
+                  </p>
+                  {/* Segmented toggle: `separate` stacks each graph, `combined`
+                      overlays them in one chart. */}
+                  <div
+                    role="group"
+                    aria-label="Graph display mode"
+                    className="inline-flex rounded-lg border bg-muted p-0.5 text-xs font-medium"
+                  >
+                    {GRAPH_DISPLAY_MODES.map((mode) => (
+                      <button
+                        key={mode.id}
+                        type="button"
+                        aria-pressed={graphDisplayMode === mode.id}
+                        onClick={() => setGraphDisplayMode(mode.id)}
+                        className={cn(
+                          'rounded-md px-3 py-1 transition-colors',
+                          graphDisplayMode === mode.id
+                            ? 'bg-background text-primary shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        {mode.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {analysisGraphOptions.map((option) => {
+                    const isSelected = selectedGraphKeys.includes(option.id)
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        aria-pressed={isSelected}
+                        onClick={() => toggleGraphKey(option.id)}
+                        className={cn(
+                          'flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
+                          isSelected
+                            ? cn(
+                                ANALYSIS_GRAPH_STYLES[option.id].chipBorder,
+                                'text-foreground'
+                              )
+                            : 'border-border text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={cn(
+                            'size-2 shrink-0 rounded-full',
+                            ANALYSIS_GRAPH_STYLES[option.id].dot,
+                            !isSelected && 'opacity-40'
+                          )}
+                        />
+                        {option.label}
+                      </button>
+                    )
+                  })}
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
                   {highlightedElapsedLabel
                     ? `Selected time: ${highlightedElapsedLabel}`
-                    : 'Hover any graph below to follow that time point on the map.'}
+                    : graphDisplayMode === 'combined'
+                      ? 'Pick the graphs to overlay in one chart. Hover it to follow that time point on the map.'
+                      : 'Pick the graphs to show. Hover any graph to follow that time point on the map.'}
                 </p>
               </Card>
             )}
 
-            {/* Every visible graph shares ONE bordered panel, its rows split by
-                a 1px divider and nothing else — so "All graphs" reads as a
-                single table of time-aligned series rather than four cards with
-                gaps between them. */}
-            {visibleAnalysisCharts.length > 0 && (
-              <div
-                data-testid="analysis-graphs"
-                className="overflow-hidden rounded-xl border bg-background"
-              >
-                {visibleAnalysisCharts.map((chart, index) => (
-                  <div key={chart.key} className={cn(index > 0 && 'border-t')}>
-                    <ChartPanel
-                      title={chart.title}
-                      unit={chart.unit}
-                      values={chart.values}
-                      strokeClassName={ANALYSIS_GRAPH_STYLES[chart.key].stroke}
-                      dotClassName={ANALYSIS_GRAPH_STYLES[chart.key].dot}
-                      minLabel={chart.minLabel}
-                      maxLabel={chart.maxLabel}
-                      fractionDigits={chart.fractionDigits}
-                      durationSeconds={durationSeconds}
-                      highlightedElapsedSeconds={highlightedElapsedSeconds}
-                      onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                    />
-                  </div>
-                ))}
-              </div>
+            {/* No chip is on — every graph was toggled off — so there is
+                nothing to draw in either mode. */}
+            {hasAnalysisSeries && visibleAnalysisCharts.length === 0 && (
+              <Card>
+                <p className="text-sm text-muted-foreground">
+                  Select at least one graph to display.
+                </p>
+              </Card>
             )}
+
+            {/* Combined: every selected series overlaid in one chart, each
+                scaled to its own range. */}
+            {graphDisplayMode === 'combined' &&
+              combinedChartSeries.length > 0 && (
+                <div
+                  data-testid="analysis-combined-graph"
+                  className="overflow-hidden rounded-xl border bg-background"
+                >
+                  <CombinedChartPanel
+                    series={combinedChartSeries}
+                    durationSeconds={durationSeconds}
+                    highlightedElapsedSeconds={highlightedElapsedSeconds}
+                    onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                  />
+                </div>
+              )}
+
+            {/* Separate: every visible graph shares ONE bordered panel, its rows
+                split by a 1px divider and nothing else — so a full selection
+                reads as a single table of time-aligned series rather than four
+                cards with gaps between them. */}
+            {graphDisplayMode === 'separate' &&
+              visibleAnalysisCharts.length > 0 && (
+                <div
+                  data-testid="analysis-graphs"
+                  className="overflow-hidden rounded-xl border bg-background"
+                >
+                  {visibleAnalysisCharts.map((chart, index) => (
+                    <div
+                      key={chart.key}
+                      className={cn(index > 0 && 'border-t')}
+                    >
+                      <ChartPanel
+                        title={chart.title}
+                        unit={chart.unit}
+                        values={chart.values}
+                        strokeClassName={
+                          ANALYSIS_GRAPH_STYLES[chart.key].stroke
+                        }
+                        dotClassName={ANALYSIS_GRAPH_STYLES[chart.key].dot}
+                        minLabel={chart.minLabel}
+                        maxLabel={chart.maxLabel}
+                        fractionDigits={chart.fractionDigits}
+                        durationSeconds={durationSeconds}
+                        highlightedElapsedSeconds={highlightedElapsedSeconds}
+                        onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
           </div>
         )}
 
