@@ -231,9 +231,51 @@ export const getMediaReservedFitnessPathPrefixes = (): string[] => {
 
   return [
     ...new Set(
-      ['fitness', configuredPrefix]
+      ['fitness', configuredPrefix, getLocalFitnessPathUnderMediaRoot()]
         .map((prefix) => prefix.toLowerCase())
         .filter(Boolean)
     )
   ]
+}
+
+/**
+ * The relative path of an explicitly configured LOCAL fitness directory, when it
+ * sits inside the media root — otherwise an empty string.
+ *
+ * `ACTIVITIES_FITNESS_STORAGE_PREFIX` above only covers the S3/object shape. An
+ * operator who sets `ACTIVITIES_FITNESS_STORAGE_TYPE=fs` names the directory
+ * with `ACTIVITIES_FITNESS_STORAGE_PATH` instead, and nothing stops that landing
+ * under `ACTIVITIES_MEDIA_STORAGE_PATH` beside `medias/` under some other name.
+ * `LocalFileStorage.getFile` serves anything below the media root — it requires
+ * no `medias` row — so that directory would be readable through the media route
+ * with no access control, which is the hole this whole reservation exists to
+ * close. It just would not have been called `fitness`.
+ */
+const getLocalFitnessPathUnderMediaRoot = (): string => {
+  if (
+    process.env.ACTIVITIES_FITNESS_STORAGE_TYPE !== FitnessStorageType.LocalFile
+  ) {
+    return ''
+  }
+
+  const fitnessPath = process.env.ACTIVITIES_FITNESS_STORAGE_PATH
+  const mediaPath = process.env.ACTIVITIES_MEDIA_STORAGE_PATH
+  if (!fitnessPath || !mediaPath) return ''
+
+  const resolvedFitnessPath = path.resolve(fitnessPath)
+  const resolvedMediaPath = path.resolve(mediaPath)
+  const relativePath = path.relative(resolvedMediaPath, resolvedFitnessPath)
+
+  // Outside the media root (`..`), or the root itself (''), reserves nothing:
+  // the media route cannot reach the first, and reserving the second would
+  // refuse every media object on the instance.
+  if (
+    !relativePath ||
+    relativePath.startsWith('..') ||
+    path.isAbsolute(relativePath)
+  ) {
+    return ''
+  }
+
+  return relativePath.split(path.sep).join('/')
 }
