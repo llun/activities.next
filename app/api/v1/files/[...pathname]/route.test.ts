@@ -90,12 +90,14 @@ describe('GET /api/v1/files/[...pathname]', () => {
     // the URL parser that builds that `Location` can normalise a path the
     // request did not carry — so the redirect is re-checked on the way out.
     //
-    // This is genuine defence in depth, not the sole guard: the request-path
-    // canonicaliser normalises a strict superset of what the WHATWG parser does,
-    // so everything caught here is already refused before `getMedia`. It exists
-    // because the two derive their answer independently — one from the segments
-    // the router handed over, one from the URL actually about to be emitted — so
-    // a future gap in either is still covered by the other.
+    // NEITHER check subsumes the other; they overlap, which is exactly why both
+    // are here. Next decodes a catch-all segment once, so `%3F` arrives as a
+    // literal `?`: the request path `fitness?x/y.gpx` does not start with
+    // `fitness/` and passes the first check, while `new URL()` splits the query
+    // off and leaves a pathname of `/fitness`, which the second refuses. It runs
+    // the other way too — `medias?/../fitness/y.gpx` is caught on the way in and
+    // would not be on the way out, because the parser stops the pathname at the
+    // `?` before the `..` can resolve.
     describe('redirect responses', () => {
       it('refuses a redirect that resolves into fitness storage', async () => {
         mockGetMedia.mockResolvedValue({
@@ -107,6 +109,23 @@ describe('GET /api/v1/files/[...pathname]', () => {
         const response = await getFile(['medias', 'x.webp'])
 
         expect(response.status).toBe(404)
+      })
+
+      // The concrete case the first check cannot see: a literal `?` in a
+      // segment (Next decodes `%3F` once) keeps the request path off the
+      // `fitness/` prefix, and only the parsed `Location` reveals it.
+      it('refuses a redirect whose query hides the reserved prefix', async () => {
+        mockGetMedia.mockResolvedValue({
+          type: 'redirect',
+          redirectUrl: 'https://cdn.example.test/fitness?x/y.gpx'
+        })
+
+        const response = await getFile(['fitness?x', 'y.gpx'])
+
+        expect(response.status).toBe(404)
+        // Proof this is egress-only: the first check let it through, so the
+        // lookup actually happened.
+        expect(mockGetMedia).toHaveBeenCalled()
       })
 
       it('refuses a redirect whose URL cannot be parsed', async () => {
