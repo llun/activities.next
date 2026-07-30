@@ -876,7 +876,9 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
         <CardTitle>Privacy Location</CardTitle>
         <CardDescription>
           Trim the start and finish of your routes around your saved privacy
-          locations, on shared maps and generated route images.
+          locations, on your activity maps and generated route images. Route
+          heatmaps are not trimmed: hiding the ends there would leave a gap that
+          points at the location just as clearly.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
