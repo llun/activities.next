@@ -87,11 +87,15 @@ describe('GET /api/v1/files/[...pathname]', () => {
     })
 
     // The object-storage deployment redirects to the public CDN hostname, and
-    // the URL parser that builds that `Location` normalises things the request
-    // path did not carry — so the redirect is re-checked on the way out. This
-    // guard is NOT merely belt-and-braces: `%66itness/x.gpx?%zz` reaches
-    // `getMedia` (the query keeps the prefix undecodable in the request path)
-    // and is stopped only here, once `new URL()` has dropped the query.
+    // the URL parser that builds that `Location` can normalise a path the
+    // request did not carry — so the redirect is re-checked on the way out.
+    //
+    // This is genuine defence in depth, not the sole guard: the request-path
+    // canonicaliser normalises a strict superset of what the WHATWG parser does,
+    // so everything caught here is already refused before `getMedia`. It exists
+    // because the two derive their answer independently — one from the segments
+    // the router handed over, one from the URL actually about to be emitted — so
+    // a future gap in either is still covered by the other.
     describe('redirect responses', () => {
       it('refuses a redirect that resolves into fitness storage', async () => {
         mockGetMedia.mockResolvedValue({
