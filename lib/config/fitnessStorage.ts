@@ -202,3 +202,38 @@ export const getFitnessStorageConfig = (): {
       return null
   }
 }
+
+/**
+ * Path segments under the media storage root that belong to fitness files and
+ * must never be served by the media route.
+ *
+ * Fitness storage falls back to media storage when `ACTIVITIES_FITNESS_STORAGE_TYPE`
+ * is unset — which is the default — and both fallbacks land inside the media
+ * root: S3/object storage under a `fitness/` key prefix in the same bucket, and
+ * local storage in a `fitness` directory under `ACTIVITIES_MEDIA_STORAGE_PATH`.
+ * `GET /api/v1/files/<path>` has no access control at all and redirects to the
+ * public CDN hostname when one is configured, so without this reservation it is
+ * a way around the owner-only gate on `GET /api/v1/fitness-files/:id`.
+ *
+ * Media objects are written under `medias/` — including fitness route maps and
+ * their JPEG email copies, which go through `saveMedia` — so reserving these
+ * costs nothing legitimate. The configurable prefix is included as well: an
+ * explicitly configured backend usually points somewhere the media route cannot
+ * reach, but an operator is free to aim both at the same bucket.
+ */
+export const getMediaReservedFitnessPathPrefixes = (): string[] => {
+  // Returned as PREFIXES rather than single segments because the configurable
+  // one is free to be nested (`activities/fitness/`); the caller matches on a
+  // path-segment boundary so `fitnessed/` is not caught by `fitness`.
+  const configuredPrefix = (
+    process.env.ACTIVITIES_FITNESS_STORAGE_PREFIX || ''
+  ).replace(/^\/+|\/+$/g, '')
+
+  return [
+    ...new Set(
+      ['fitness', configuredPrefix]
+        .map((prefix) => prefix.toLowerCase())
+        .filter(Boolean)
+    )
+  ]
+}

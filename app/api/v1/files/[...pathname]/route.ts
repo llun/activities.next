@@ -2,6 +2,7 @@ import { readFile } from 'fs/promises'
 import { NextRequest } from 'next/server'
 import path from 'path'
 
+import { getMediaReservedFitnessPathPrefixes } from '@/lib/config/fitnessStorage'
 import { getDatabase } from '@/lib/database'
 import { getMedia } from '@/lib/services/medias'
 import { apiErrorResponse } from '@/lib/utils/response'
@@ -25,6 +26,22 @@ export const GET = traceApiRoute(
     }
 
     const userPath = normalizedPath.replace(/^(\.\.(\/|\\|$))+/, '')
+
+    // Fitness uploads live under the media root by default (see
+    // `getMediaReservedFitnessPathPrefixes`), and this route has no access
+    // control and redirects to the public CDN hostname when one is set. Without
+    // this it is a way around the owner-only gate on
+    // `GET /api/v1/fitness-files/:id`, which serves the same bytes. Matched on a
+    // path-segment boundary so a legitimate `fitnessed/…` media key is unharmed.
+    const lowerCasePath = userPath.toLowerCase()
+    const isReservedFitnessPath = getMediaReservedFitnessPathPrefixes().some(
+      (prefix) =>
+        lowerCasePath === prefix || lowerCasePath.startsWith(`${prefix}/`)
+    )
+    if (isReservedFitnessPath) {
+      return apiErrorResponse(404)
+    }
+
     const database = getDatabase()
     if (!database) {
       return apiErrorResponse(500)

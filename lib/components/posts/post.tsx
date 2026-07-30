@@ -238,15 +238,29 @@ export const Post: FC<PostProps> = (props) => {
             {/* The visible "Fitness" label was dropped in the redesign; keep the
                 activity semantic for screen readers. */}
             <span className="sr-only">Fitness activity</span>
-            <a
-              href={fitnessFile.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="truncate font-mono text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-              title={fitnessFile.fileName}
-            >
-              {fitnessFile.fileName}
-            </a>
+            {/* The download is owner-only: `fitnessFile.url` serves the ORIGINAL
+                upload, which still holds the ends a privacy location trims off
+                the route map and the route data, so the endpoint 404s for
+                everyone else and a link here would only ever 404. The name stays
+                for every viewer — it is this card's label, not the link's text. */}
+            {isOwner ? (
+              <a
+                href={fitnessFile.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="truncate font-mono text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                title={fitnessFile.fileName}
+              >
+                {fitnessFile.fileName}
+              </a>
+            ) : (
+              <span
+                className="truncate font-mono text-xs text-muted-foreground"
+                title={fitnessFile.fileName}
+              >
+                {fitnessFile.fileName}
+              </span>
+            )}
             <span className="ml-auto shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
               {fitnessFile.fileType}
             </span>

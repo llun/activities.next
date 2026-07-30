@@ -40,6 +40,40 @@ interface MessageBubbleProps {
   onShowAttachment: (attachments: Attachment[], index: number) => void
 }
 
+/**
+ * The fitness attachment card in a DM. Rendered as a link only for the sender,
+ * because `GET /api/v1/fitness-files/:id` serves the original upload and is
+ * owner-only; a recipient gets the identical card without the anchor, so it
+ * keeps its shape and stats and simply cannot be clicked.
+ */
+const FitnessBubbleCard: FC<{
+  href?: string
+  isOwn: boolean
+  children: React.ReactNode
+}> = ({ href, isOwn, children }) => {
+  const className = cn(
+    'flex max-w-full items-center gap-3 rounded-2xl border px-3 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+    isOwn
+      ? 'border-transparent bg-primary text-primary-foreground hover:bg-primary/90'
+      : 'bg-muted text-foreground'
+  )
+
+  if (!href) {
+    return <div className={className}>{children}</div>
+  }
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={className}
+    >
+      {children}
+    </a>
+  )
+}
+
 export const MessageBubble: FC<MessageBubbleProps> = ({
   host,
   status,
@@ -132,17 +166,15 @@ export const MessageBubble: FC<MessageBubbleProps> = ({
           </div>
         ) : null}
 
+        {/* Only the sender may download: the card links the ORIGINAL upload,
+            which still holds the ends a privacy location trims off the route map
+            and the route data, and `GET /api/v1/fitness-files/:id` is owner-only.
+            A recipient keeps the card — name, type and stats — without the link
+            or the download affordance, which would only 404. */}
         {fitnessFile && (
-          <a
-            href={fitnessFile.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={cn(
-              'flex max-w-full items-center gap-3 rounded-2xl border px-3 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
-              isOwn
-                ? 'border-transparent bg-primary text-primary-foreground hover:bg-primary/90'
-                : 'bg-muted text-foreground hover:bg-muted/70'
-            )}
+          <FitnessBubbleCard
+            href={isOwn ? fitnessFile.url : undefined}
+            isOwn={isOwn}
           >
             <span
               className={cn(
@@ -171,13 +203,10 @@ export const MessageBubble: FC<MessageBubbleProps> = ({
                 </span>
               )}
             </span>
-            <Download
-              className={cn(
-                'ml-1 size-4 shrink-0',
-                isOwn ? 'text-primary-foreground/90' : 'text-muted-foreground'
-              )}
-            />
-          </a>
+            {isOwn ? (
+              <Download className="ml-1 size-4 shrink-0 text-primary-foreground/90" />
+            ) : null}
+          </FitnessBubbleCard>
         )}
 
         {otherAttachments.map((attachment) =>

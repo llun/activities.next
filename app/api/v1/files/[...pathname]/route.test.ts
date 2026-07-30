@@ -54,4 +54,70 @@ describe('GET /api/v1/files/[...pathname]', () => {
     expect(response.status).toBe(200)
     expect(mockGetMedia).toHaveBeenCalledWith(mockDatabase, 'secret.png')
   })
+
+  describe('reserved fitness paths', () => {
+    // Fitness uploads land under the media root by default — S3/object storage
+    // under a `fitness/` key prefix in the same bucket, local storage in a
+    // `fitness` directory under ACTIVITIES_MEDIA_STORAGE_PATH. This route has no
+    // access control and redirects to the public CDN hostname when one is set,
+    // so without the guard it serves the bytes that
+    // `GET /api/v1/fitness-files/:id` now restricts to their owner.
+    it.each([
+      {
+        description: 'refuses a fitness object path',
+        pathname: ['fitness', '2026-07-30', 'a1b2c3d4e5f60718.fit']
+      },
+      {
+        description: 'refuses the bare fitness segment',
+        pathname: ['fitness']
+      },
+      {
+        description: 'refuses a differently-cased fitness segment',
+        pathname: ['Fitness', '2026-07-30', 'a1b2c3d4e5f60718.gpx']
+      },
+      {
+        description: 'refuses a fitness path reached by traversal',
+        pathname: ['medias', '..', 'fitness', 'a1b2c3d4e5f60718.tcx']
+      }
+    ])('$description', async ({ pathname }: { pathname: string[] }) => {
+      const response = await getFile(pathname)
+
+      expect(response.status).toBe(404)
+      expect(mockGetMedia).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      {
+        description: 'still serves an ordinary media object',
+        pathname: ['medias', '2026-07-30', 'a1b2c3d4e5f60718.webp'],
+        expectedPath: 'medias/2026-07-30/a1b2c3d4e5f60718.webp'
+      },
+      {
+        description: 'matches on a segment boundary, not a prefix string',
+        // `fitnessed` starts with `fitness` but is a different directory.
+        pathname: ['fitnessed', 'a1b2c3d4e5f60718.webp'],
+        expectedPath: 'fitnessed/a1b2c3d4e5f60718.webp'
+      }
+    ])(
+      '$description',
+      async ({
+        pathname,
+        expectedPath
+      }: {
+        pathname: string[]
+        expectedPath: string
+      }) => {
+        mockGetMedia.mockResolvedValue({
+          type: 'buffer',
+          buffer: Buffer.from('image-data'),
+          contentType: 'image/webp'
+        })
+
+        const response = await getFile(pathname)
+
+        expect(response.status).toBe(200)
+        expect(mockGetMedia).toHaveBeenCalledWith(mockDatabase, expectedPath)
+      }
+    )
+  })
 })
