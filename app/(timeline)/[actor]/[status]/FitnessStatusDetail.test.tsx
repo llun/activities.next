@@ -613,6 +613,72 @@ describe('FitnessStatusDetail', () => {
       ).toBeInTheDocument()
     })
 
+    it('keeps a deselected series out after switching display modes', async () => {
+      await openAnalysis()
+
+      // Deselect Elevation in the default separate mode.
+      fireEvent.click(screen.getByRole('button', { name: 'Elevation' }))
+      expect(
+        screen.queryByRole('heading', { name: 'Elevation profile' })
+      ).not.toBeInTheDocument()
+
+      // The selection is independent of the mode: switching to combined keeps
+      // Elevation out, so only three of the four series overlay.
+      fireEvent.click(screen.getByRole('button', { name: 'Combined' }))
+      const combined = await screen.findByTestId('analysis-combined-graph')
+      expect(screen.getByRole('button', { name: 'Elevation' })).toHaveAttribute(
+        'aria-pressed',
+        'false'
+      )
+      expect(combined.querySelectorAll('svg path')).toHaveLength(3)
+
+      // …and back again: still out in the separate stack.
+      fireEvent.click(screen.getByRole('button', { name: 'Separate' }))
+      const panel = await screen.findByTestId('analysis-graphs')
+      expect(within(panel).getAllByRole('heading', { level: 3 })).toHaveLength(
+        3
+      )
+      expect(
+        within(panel).queryByRole('heading', { name: 'Elevation profile' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('offers no chip for a series that has no data', async () => {
+      // A file with no power stream: the Power chip never appears, and the
+      // combined chart overlays only the three series that do have data. This
+      // guards the availability filter that replaced the removed reset effect —
+      // a selected-but-absent series simply drops out, it never gets stuck.
+      mockGetFitnessRouteData.mockResolvedValue({
+        ...routeData,
+        powerSeries: []
+      })
+
+      await openAnalysis()
+
+      expect(
+        screen.queryByRole('button', { name: 'Power' })
+      ).not.toBeInTheDocument()
+      for (const name of ['Elevation', 'Speed', 'Heart rate']) {
+        expect(screen.getByRole('button', { name })).toBeInTheDocument()
+      }
+
+      fireEvent.click(screen.getByRole('button', { name: 'Combined' }))
+      const combined = await screen.findByTestId('analysis-combined-graph')
+      expect(combined.querySelectorAll('svg path')).toHaveLength(3)
+    })
+
+    it('explains the overlay in combined mode', async () => {
+      await openAnalysis()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Combined' }))
+
+      expect(
+        await screen.findByText(
+          'Pick the graphs to overlay in one chart. Hover it to follow that time point on the map.'
+        )
+      ).toBeInTheDocument()
+    })
+
     it('shows a value readout on every graph while one is hovered', async () => {
       const panel = await openAnalysis()
 
