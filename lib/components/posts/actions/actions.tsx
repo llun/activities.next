@@ -115,13 +115,14 @@ export const Actions: FC<Props> = ({
       aria-label="Post actions"
       // `fullBleed` pulls the row back over the avatar column (`size-10`) and
       // its `gap-3` — 13 spacing steps, so it tracks the root font size the way
-      // those two do — so the row starts at the post's own left edge. Either
-      // way it spreads across the whole width with the ⋯ menu pinned to the far
-      // right. `relative` so a control that has moved into the menu can still
-      // anchor its error tooltip here without putting a flex item back in the
-      // row.
+      // those two do — so the row starts at the post's own left edge. The row
+      // still spans the whole width, but the actions stay packed together at
+      // that left edge and only the ⋯ menu is pushed to the far right (see the
+      // `ml-auto` on it below). `relative` so a control that has moved into the
+      // menu can still anchor its error tooltip here without putting a flex
+      // item back in the row.
       className={cn(
-        'relative flex items-center justify-between gap-1 text-muted-foreground',
+        'relative flex items-center gap-1 text-muted-foreground',
         fullBleed && '-ml-13 mt-3'
       )}
     >
@@ -164,6 +165,10 @@ export const Actions: FC<Props> = ({
 
       <PostMenu
         key={actualStatus.id}
+        // The one action that is not part of the left-hand cluster: the auto
+        // margin eats every pixel of free space in the row, which is what pins
+        // ⋯ to the post's right edge while the rest stay packed on the left.
+        className="ml-auto"
         status={actualStatus}
         isOwner={isOwner}
         canEdit={canEdit}

@@ -551,6 +551,12 @@ describe('Post', () => {
     expect(editHistoryContent).toBeInTheDocument()
     expect(onShowEdits).toHaveBeenCalledTimes(1)
     expect(editHistoryRegion).toBeInTheDocument()
+    // The trigger sits inside the left-hand action cluster, so the 25rem panel
+    // has to open rightward from it. Anchored `right-0` it would run off the
+    // post's left side, where every card that wraps a post clips it — and
+    // jsdom lays out nothing, so only the class can catch that.
+    expect(editHistoryRegion).toHaveClass('left-0')
+    expect(editHistoryRegion).not.toHaveClass('right-0')
     expect(editHistoryButton).toHaveAttribute('aria-expanded', 'true')
     expect(editHistoryButton).toHaveAttribute(
       'aria-controls',
@@ -1505,7 +1511,7 @@ describe('Post', () => {
       ])
     })
 
-    it('spans the whole status with its actions evenly distributed', () => {
+    it('spans the whole status with its actions packed left and ⋯ pinned right', () => {
       observeWidth(900)
       render(
         <Post
@@ -1524,18 +1530,20 @@ describe('Post', () => {
       )
 
       const actions = screen.getByRole('group', { name: 'Post actions' })
-      // Pinned because none of it is observable in jsdom and all three are
+      // Pinned because none of it is observable in jsdom and every part is
       // load-bearing: `-ml-13` is what pulls the row back over the avatar
-      // column, `justify-between` is what spreads it, and an `ml-auto` on the
-      // ⋯ wrapper would silently absorb the free space and re-cluster the row
-      // (the design-system rule the docs now carry).
+      // column, and the `ml-auto` on the ⋯ wrapper is the only thing that
+      // separates it from the left-hand cluster (the design-system rule the
+      // docs carry). A `justify-between` here would spread the whole row back
+      // out and make that auto margin a no-op.
       // `mt-3` rides along with the pull in `Actions`' `fullBleed` default, so
       // pin it here too — dropping it silently closes the gap between every
       // post body and its action row on every surface.
-      expect(actions).toHaveClass('-ml-13', 'mt-3', 'justify-between')
+      expect(actions).toHaveClass('-ml-13', 'mt-3')
+      expect(actions).not.toHaveClass('justify-between')
       expect(
         screen.getByRole('button', { name: 'More actions' }).parentElement
-      ).not.toHaveClass('ml-auto')
+      ).toHaveClass('ml-auto')
       // The chips are full-bleed with it, or they line up with nothing.
       expect(
         screen.getByLabelText('Add 🔥 reaction, 2').parentElement
@@ -1563,9 +1571,9 @@ describe('Post', () => {
           .map((button) => button.getAttribute('aria-label'))
       ).toEqual(['Reply to post', 'Repost', 'Like', 'More actions'])
 
-      // `justify-between` distributes by element, so an empty wrapper left
-      // behind where a control used to be would silently claim one of the gaps
-      // and shift every other action.
+      // The row is a `gap-1` flex, so an empty wrapper left behind where a
+      // control used to be still claims a gap of its own and shifts every
+      // action after it.
       expect(
         screen.getByRole('group', { name: 'Post actions' }).children
       ).toHaveLength(4)

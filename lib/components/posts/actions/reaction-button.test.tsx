@@ -231,8 +231,8 @@ describe('ReactionButton', () => {
 
     // A compact row moves the trigger into the ⋯ menu — but the component stays
     // mounted, because it is what that menu item opens. It must not leave an
-    // empty wrapper behind: the row is `justify-between`, so even a zero-width
-    // element claims one of the gaps and shifts every other action.
+    // empty wrapper behind: the row is a `gap-1` flex, so even a zero-width
+    // element claims a gap of its own and shifts every action after it.
     expect(
       screen.queryByRole('button', { name: /^Add reaction/ })
     ).not.toBeInTheDocument()

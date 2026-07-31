@@ -57,11 +57,13 @@ export const EditHistoryButton: FC<Props> = ({
           id={editHistoryId}
           role="region"
           aria-label="Edit history"
-          // Opens leftward from the trigger: the action row is now
-          // `justify-between`, which puts this button near the right end of the
-          // post, and a 25rem panel anchored `left-0` from there runs past the
-          // post's right edge — where every card that wraps a post clips it.
-          className="absolute bottom-full right-0 z-20 mb-2 w-[25rem] rounded-lg border bg-background shadow-lg max-md:fixed max-md:inset-x-4 max-md:bottom-20 max-md:max-h-[calc(100vh-7rem)] max-md:w-auto"
+          // Opens rightward from the trigger: the actions are packed at the
+          // post's left edge, so this button sits a few controls in from there
+          // and a 25rem panel anchored `right-0` would run off the post's left
+          // side — where every card that wraps a post clips it. Below `md` the
+          // panel is viewport-fixed instead, so the post's own width stops
+          // mattering.
+          className="absolute bottom-full left-0 z-20 mb-2 w-[25rem] rounded-lg border bg-background shadow-lg max-md:fixed max-md:inset-x-4 max-md:bottom-20 max-md:max-h-[calc(100vh-7rem)] max-md:w-auto"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between border-b px-3 py-2">

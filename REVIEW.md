@@ -147,14 +147,18 @@ change doesn't touch.
   data-sync callbacks (`onStatusCreated`/`onPostUpdated`/`onPostDeleted`/
   `onLikeChanged`/`onBookmarkChanged`/`onReactionsChanged`) and
   `isMediaUploadEnabled`. See **Status Posts & Actions** in `AGENTS.md`.
-- The reaction chips and the action row are both full-bleed (`-ml-13`) and
-  the row is `justify-between` with no `ml-auto` on the `⋯` wrapper (an auto
-  margin eats the free space and re-clusters the row). Each row carries its own
+- The reaction chips and the action row are both full-bleed (`-ml-13`), and the
+  action row packs every action into one `gap-1` cluster at the post's left edge
+  with only the `⋯` menu pushed right by an `ml-auto` on its wrapper — no
+  `justify-between` on the row, which would spread the cluster back out and make
+  that margin a no-op. Each row carries its own
   `fullBleed` prop and they default differently — `Actions` pulls unless told
   not to, `ReactionRow` only when asked — so a surface with no avatar column to
   pull back over (the fitness activity detail's card) correctly has neither.
-  `justify-between` across the full width is not optional either way: that is
-  what keeps the spacing between actions identical everywhere. The picker trigger lives
+  That left cluster + `ml-auto` pair is not optional either way: it is
+  what keeps the spacing between actions identical everywhere. The edit-history
+  panel opens `left-0` from its trigger for the same reason — anchored `right-0`
+  from a left-packed row it runs off the post's left side and gets clipped. The picker trigger lives
   in the action row (`ReactionButton`), not beside the chips, and both halves
   share one `useReactionState`; `useBookmarkState` is held by `Actions` for the
   same reason. A row narrower than 400px — measured by `ResizeObserver` on the
