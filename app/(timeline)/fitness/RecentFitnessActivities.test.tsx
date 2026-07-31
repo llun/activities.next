@@ -10,8 +10,18 @@ import { Status, StatusType } from '@/lib/types/domain/status'
 import { RecentFitnessActivities } from './RecentFitnessActivities'
 
 vi.mock('@/lib/components/posts/posts', () => ({
-  Posts: (props: { currentTime: number; statuses: Status[] }) => (
-    <div data-testid="posts" data-current-time={props.currentTime}>
+  Posts: (props: {
+    currentTime: number
+    statuses: Status[]
+    currentActor?: ActorProfile
+    showActions?: boolean
+  }) => (
+    <div
+      data-testid="posts"
+      data-current-time={props.currentTime}
+      data-current-actor={props.currentActor?.id ?? ''}
+      data-show-actions={String(Boolean(props.showActions))}
+    >
       {props.statuses.length} posts
     </div>
   )
@@ -63,6 +73,7 @@ describe('RecentFitnessActivities', () => {
       <RecentFitnessActivities
         host="activities.local"
         currentTime={FIXED_CURRENT_TIME}
+        currentActor={profile}
         statuses={[]}
       />
     )
@@ -78,6 +89,7 @@ describe('RecentFitnessActivities', () => {
       <RecentFitnessActivities
         host="activities.local"
         currentTime={FIXED_CURRENT_TIME}
+        currentActor={profile}
         statuses={[status]}
       />
     )
@@ -93,5 +105,49 @@ describe('RecentFitnessActivities', () => {
       String(FIXED_CURRENT_TIME)
     )
     expect(postsEl).toHaveTextContent('1 posts')
+  })
+
+  // This page lists nothing but the signed-in actor's OWN activities, and
+  // `Post` decides whether to offer the source-file download by comparing
+  // `currentActor` to the status author. Rendering `<Posts>` without a viewer
+  // therefore denied the owner a link the endpoint would have served them —
+  // which is exactly what shipped until a browser check caught it.
+  it('hands Posts the viewer so the owner keeps their own download link', () => {
+    const status = createStatus('https://activities.local/users/llun/s/2')
+
+    render(
+      <RecentFitnessActivities
+        host="activities.local"
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={profile}
+        statuses={[status]}
+      />
+    )
+
+    expect(screen.getByTestId('posts')).toHaveAttribute(
+      'data-current-actor',
+      profile.id
+    )
+  })
+
+  it('keeps the list read-only', () => {
+    // `currentActor` without `showActions`: `Posts` gates the action row on
+    // both, so passing the viewer for the ownership check must not quietly turn
+    // this summary list into an interactive feed.
+    const status = createStatus('https://activities.local/users/llun/s/3')
+
+    render(
+      <RecentFitnessActivities
+        host="activities.local"
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={profile}
+        statuses={[status]}
+      />
+    )
+
+    expect(screen.getByTestId('posts')).toHaveAttribute(
+      'data-show-actions',
+      'false'
+    )
   })
 })

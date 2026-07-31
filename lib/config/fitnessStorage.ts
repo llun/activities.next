@@ -202,3 +202,80 @@ export const getFitnessStorageConfig = (): {
       return null
   }
 }
+
+/**
+ * Path segments under the media storage root that belong to fitness files and
+ * must never be served by the media route.
+ *
+ * Fitness storage falls back to media storage when `ACTIVITIES_FITNESS_STORAGE_TYPE`
+ * is unset — which is the default — and both fallbacks land inside the media
+ * root: S3/object storage under a `fitness/` key prefix in the same bucket, and
+ * local storage in a `fitness` directory under `ACTIVITIES_MEDIA_STORAGE_PATH`.
+ * `GET /api/v1/files/<path>` has no access control at all and redirects to the
+ * public CDN hostname when one is configured, so without this reservation it is
+ * a way around the owner-only gate on `GET /api/v1/fitness-files/:id`.
+ *
+ * Media objects are written under `medias/` — including fitness route maps and
+ * their JPEG email copies, which go through `saveMedia` — so reserving these
+ * costs nothing legitimate. The configurable prefix is included as well: an
+ * explicitly configured backend usually points somewhere the media route cannot
+ * reach, but an operator is free to aim both at the same bucket.
+ */
+export const getMediaReservedFitnessPathPrefixes = (): string[] => {
+  // Returned as PREFIXES rather than single segments because the configurable
+  // one is free to be nested (`activities/fitness/`); the caller matches on a
+  // path-segment boundary so `fitnessed/` is not caught by `fitness`.
+  const configuredPrefix = (
+    process.env.ACTIVITIES_FITNESS_STORAGE_PREFIX || ''
+  ).replace(/^\/+|\/+$/g, '')
+
+  return [
+    ...new Set(
+      ['fitness', configuredPrefix, getLocalFitnessPathUnderMediaRoot()]
+        .map((prefix) => prefix.toLowerCase())
+        .filter(Boolean)
+    )
+  ]
+}
+
+/**
+ * The relative path of an explicitly configured LOCAL fitness directory, when it
+ * sits inside the media root — otherwise an empty string.
+ *
+ * `ACTIVITIES_FITNESS_STORAGE_PREFIX` above only covers the S3/object shape. An
+ * operator who sets `ACTIVITIES_FITNESS_STORAGE_TYPE=fs` names the directory
+ * with `ACTIVITIES_FITNESS_STORAGE_PATH` instead, and nothing stops that landing
+ * under `ACTIVITIES_MEDIA_STORAGE_PATH` beside `medias/` under some other name.
+ * `LocalFileStorage.getFile` serves anything below the media root — it requires
+ * no `medias` row — so that directory would be readable through the media route
+ * with no access control, which is the hole this whole reservation exists to
+ * close. It just would not have been called `fitness`.
+ */
+const getLocalFitnessPathUnderMediaRoot = (): string => {
+  if (
+    process.env.ACTIVITIES_FITNESS_STORAGE_TYPE !== FitnessStorageType.LocalFile
+  ) {
+    return ''
+  }
+
+  const fitnessPath = process.env.ACTIVITIES_FITNESS_STORAGE_PATH
+  const mediaPath = process.env.ACTIVITIES_MEDIA_STORAGE_PATH
+  if (!fitnessPath || !mediaPath) return ''
+
+  const resolvedFitnessPath = path.resolve(fitnessPath)
+  const resolvedMediaPath = path.resolve(mediaPath)
+  const relativePath = path.relative(resolvedMediaPath, resolvedFitnessPath)
+
+  // Outside the media root (`..`), or the root itself (''), reserves nothing:
+  // the media route cannot reach the first, and reserving the second would
+  // refuse every media object on the instance.
+  if (
+    !relativePath ||
+    relativePath.startsWith('..') ||
+    path.isAbsolute(relativePath)
+  ) {
+    return ''
+  }
+
+  return relativePath.split(path.sep).join('/')
+}

@@ -120,6 +120,14 @@ const actor = {
   name: 'Athlete Runner'
 } as unknown as ActorProfile
 
+// A signed-in reader who is not the athlete.
+const notMe = {
+  id: 'https://activities.local/users/spectator',
+  username: 'spectator',
+  domain: 'activities.local',
+  name: 'Spectator'
+} as unknown as ActorProfile
+
 const buildStatus = (overrides: Partial<StatusNote> = {}): StatusNote =>
   ({
     id: 'https://activities.local/users/athlete/statuses/ride-1',
@@ -1401,6 +1409,57 @@ describe('FitnessStatusDetail', () => {
       expect(screen.queryByTestId('reaction-chips')).not.toBeInTheDocument()
       expect(
         screen.getByRole('button', { name: 'Add reaction' })
+      ).toBeInTheDocument()
+    })
+  })
+
+  describe('source file link', () => {
+    // The raw upload carries the whole track, including the ends a privacy
+    // location trims off the map and the route data, so
+    // `GET /api/v1/fitness-files/:id` is owner-only and the link has to match.
+    it('offers the owner a link to the source file', async () => {
+      renderDetail()
+
+      const link = await screen.findByRole('link', { name: /ride\.fit/ })
+      expect(link).toHaveAttribute('href', '/api/v1/fitness-files/fit-1')
+    })
+
+    it.each([
+      {
+        description: 'withholds the download from a signed-in viewer',
+        currentActor: notMe
+      },
+      {
+        description: 'withholds the download from a logged-out reader',
+        currentActor: null
+      }
+    ])(
+      '$description',
+      async ({ currentActor }: { currentActor: ActorProfile | null }) => {
+        renderDetail({ currentActor })
+
+        // The name still shows — it is the label saying which file this panel
+        // describes, and with several attached it is what the selector switches
+        // between. Only the anchor goes, because the endpoint 404s for them.
+        await waitFor(() =>
+          expect(screen.getByText('ride.fit')).toBeInTheDocument()
+        )
+        expect(
+          screen.queryByRole('link', { name: /ride\.fit/ })
+        ).not.toBeInTheDocument()
+      }
+    )
+
+    it('keeps the action row for a logged-out reader', async () => {
+      // The footer that holds the link also holds the shared `<Actions>`, and
+      // its gate used to be `sourceHref || currentActor` — which was always true
+      // because a fitness post always had a source href. Keying that gate on
+      // ownership would have taken the actions away from every logged-out
+      // reader along with the link.
+      renderDetail({ currentActor: null, status: buildReactedStatus() })
+
+      expect(
+        await screen.findByRole('img', { name: '\u{1F525} reaction, 3' })
       ).toBeInTheDocument()
     })
   })

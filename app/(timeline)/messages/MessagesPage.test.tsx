@@ -1132,6 +1132,39 @@ describe('MessagesPage', () => {
     expect(link).toHaveTextContent(/km/)
   })
 
+  it('gives a recipient the fitness card without a download link', async () => {
+    // `fitness.url` serves the ORIGINAL upload, which still holds the ends a
+    // privacy location trims off the route map and route data, and
+    // `GET /api/v1/fitness-files/:id` is owner-only — so a recipient's copy of
+    // the card must not be an anchor. The card itself stays: name, type and
+    // metrics are the message's content.
+    const receivedFitnessStatus: Status = {
+      ...status('fit-2', ''),
+      actorId: 'https://example.com/users/ada',
+      fitness: {
+        id: 'fitness-2',
+        fileName: 'ada-run.gpx',
+        fileType: 'gpx',
+        mimeType: 'application/gpx+xml',
+        bytes: 2048,
+        url: 'https://example.com/files/ada-run.gpx',
+        totalDistanceMeters: 12000,
+        totalDurationSeconds: 3600
+      }
+    }
+    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+      statuses: [receivedFitnessStatus],
+      nextMaxStatusId: null
+    })
+
+    renderMessagesPage([conversation({ id: 'first', participantName: 'Ada' })])
+
+    expect(await screen.findByText('ada-run.gpx')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: /ada-run\.gpx/ })
+    ).not.toBeInTheDocument()
+  })
+
   it('shows "No messages yet" for a selected conversation with no messages', async () => {
     ;(getConversationStatuses as jest.Mock).mockResolvedValue({
       statuses: [],

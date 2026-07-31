@@ -1924,6 +1924,59 @@ const ActivityGallery: FC<{
   )
 }
 
+/**
+ * The source-file row in the card footer. `href` is set only for the owner:
+ * `GET /api/v1/fitness-files/:id` serves the original upload, which still holds
+ * the ends a privacy location trims off the map and the route data, so it is
+ * owner-only and a link shown to anyone else would only 404.
+ *
+ * The row itself is not gated — the file name is the label saying which file the
+ * panel is describing, and with several attached it is what the selector
+ * switches between. Only the download goes.
+ */
+const SourceFileRow: FC<{
+  href?: string
+  fileName: string
+  fileType: string
+  position: string | null
+}> = ({ href, fileName, fileType, position }) => {
+  const content = (
+    <>
+      <Activity className="size-3.5 shrink-0" />
+      <span
+        className={cn(
+          'truncate',
+          href && 'underline decoration-border underline-offset-2'
+        )}
+      >
+        {fileName}
+      </span>
+      <span className="shrink-0 uppercase">{fileType}</span>
+      {position ? (
+        <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium">
+          {position}
+        </span>
+      ) : null}
+    </>
+  )
+  const className =
+    'inline-flex min-w-0 items-center gap-2 self-start text-xs text-muted-foreground'
+
+  if (!href) {
+    return (
+      <div className={className} title={fileName}>
+        {content}
+      </div>
+    )
+  }
+
+  return (
+    <a href={href} className={className} title={fileName}>
+      {content}
+    </a>
+  )
+}
+
 export const FitnessStatusDetail: FC<Props> = ({
   host,
   mapProvider,
@@ -2552,9 +2605,18 @@ export const FitnessStatusDetail: FC<Props> = ({
   const isOwner =
     Boolean(status.isLocalActor) && currentActor?.id === status.actorId
 
-  const sourceHref = fitness?.id
-    ? `/api/v1/fitness-files/${encodeURIComponent(fitness.id)}`
-    : undefined
+  // Owner only, matching the endpoint: the raw upload carries the whole track,
+  // including the ends a privacy location trims off the map and the route data,
+  // so `GET /api/v1/fitness-files/:id` now 404s for everyone else and a link
+  // offered to them would only ever 404.
+  //
+  // The file NAME still shows: it is the label identifying which file this panel
+  // is describing, the same one `Post` puts at the head of its fitness card, and
+  // it is what the multi-file selector switches between. Only the download goes.
+  const sourceHref =
+    isOwner && fitness?.id
+      ? `/api/v1/fitness-files/${encodeURIComponent(fitness.id)}`
+      : undefined
 
   const secondaryStats: Array<{
     icon: LucideIcon
@@ -2753,25 +2815,27 @@ export const FitnessStatusDetail: FC<Props> = ({
           )}
         </div>
 
-        {(sourceHref || currentActor) && (
+        {/* Deliberately keyed on the file EXISTING, not on the owner-gated
+            `sourceHref`: this strip also carries the action row, and on a
+            fitness post `fitness?.id` is always set, so the old
+            `sourceHref || currentActor` was always true. Gating it on ownership
+            instead would take the actions away from every logged-out viewer. */}
+        {(fitness?.id || currentActor) && (
           <div className="flex flex-col gap-2 border-t px-4 py-2.5">
-            {sourceHref ? (
-              <a
+            {/* Same row either way — only the owner gets it as a download. The
+                underline is the affordance, so it goes with the href rather than
+                leaving a non-owner something that looks clickable. */}
+            {fitness?.id ? (
+              <SourceFileRow
                 href={sourceHref}
-                className="inline-flex min-w-0 items-center gap-2 self-start text-xs text-muted-foreground"
-                title={fitness?.fileName}
-              >
-                <Activity className="size-3.5 shrink-0" />
-                <span className="truncate underline decoration-border underline-offset-2">
-                  {fitness?.fileName}
-                </span>
-                <span className="shrink-0 uppercase">{fitness?.fileType}</span>
-                {fitnessFiles.length > 1 && selectedFileIndex >= 0 ? (
-                  <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium">
-                    file {selectedFileIndex + 1} of {fitnessFiles.length}
-                  </span>
-                ) : null}
-              </a>
+                fileName={fitness.fileName}
+                fileType={fitness.fileType}
+                position={
+                  fitnessFiles.length > 1 && selectedFileIndex >= 0
+                    ? `file ${selectedFileIndex + 1} of ${fitnessFiles.length}`
+                    : null
+                }
+              />
             ) : null}
             {/* The shared action row, not a local copy of it: a post offers the
                 same actions with the same spacing on every surface, and a
