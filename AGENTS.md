@@ -373,10 +373,15 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   reply, boost, like, bookmark and react sit in one `gap-1` cluster and only the
   `⋯` menu is pushed to the far right, by an `ml-auto` on its wrapper (`Actions`
   passes it; `PostMenu` merges the class into its root). That grouping is the
-  design system's — see `ui_kits/web/Post.jsx` in the Design System project,
-  whose `PostMenu` carries the same `ml-auto`. Do **not** put `justify-between`
-  back on the row: it spreads the five actions across the full width, which
-  reads as five unrelated controls and makes the `⋯` margin a no-op.
+  design system's — `ui_kits/web/Post.jsx` in the Design System project puts the
+  same `ml-auto` on its `PostMenu`. The **auto margin is what does the work**:
+  flexbox gives positive free space to auto margins _before_ `justify-content`
+  ever sees it, so the kit's leftover `justify-between` on the row is inert and
+  this row simply drops it rather than carrying a class that describes the
+  opposite layout. Re-adding `justify-between` therefore changes nothing while
+  the `ml-auto` is there — and spreads all five actions across the full width
+  the moment it is not, which reads as five unrelated controls. Keep the pair
+  as it is.
   Each row owns a separate `fullBleed` prop and the two default **differently**:
   `Actions` pulls unless a caller opts out, while `ReactionRow` pulls only when
   asked (`Post` passes `fullBleed={showsActionRow}`, so chips with no action row

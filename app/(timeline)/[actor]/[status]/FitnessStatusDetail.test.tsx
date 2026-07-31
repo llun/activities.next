@@ -1458,11 +1458,12 @@ describe('FitnessStatusDetail', () => {
       // together would still pass with `mt-3` wrongly present.
       expect(actions).not.toHaveClass('-ml-13')
       expect(actions).not.toHaveClass('mt-3')
-      // `justify-between` here would spread this row's actions while every
-      // other surface keeps them packed at the left edge. (The `ml-auto` that
-      // pushes ⋯ to the right is pinned in `post.test.tsx`, where `PostMenu`
-      // is the real component rather than the stub above.)
-      expect(actions).not.toHaveClass('justify-between')
+      // `gap-1` is the whole of the spacing between the packed actions — no
+      // `justify-content` distributes them any more — so this surface's row
+      // reads identically to every other one. (The `ml-auto` that pushes ⋯ to
+      // the right is pinned in `post.test.tsx`, where `PostMenu` is the real
+      // component rather than the stub above.)
+      expect(actions).toHaveClass('gap-1')
     })
 
     it('renders no action row for a logged-out reader', () => {

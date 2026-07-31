@@ -149,9 +149,10 @@ change doesn't touch.
   `isMediaUploadEnabled`. See **Status Posts & Actions** in `AGENTS.md`.
 - The reaction chips and the action row are both full-bleed (`-ml-13`), and the
   action row packs every action into one `gap-1` cluster at the post's left edge
-  with only the `⋯` menu pushed right by an `ml-auto` on its wrapper — no
-  `justify-between` on the row, which would spread the cluster back out and make
-  that margin a no-op. Each row carries its own
+  with only the `⋯` menu pushed right by an `ml-auto` on its wrapper. That auto
+  margin is what does the work — flexbox feeds free space to auto margins before
+  `justify-content` sees it — so the row carries no `justify-content` of its own
+  and dropping the margin spreads the cluster back across the full width. Each row carries its own
   `fullBleed` prop and they default differently — `Actions` pulls unless told
   not to, `ReactionRow` only when asked — so a surface with no avatar column to
   pull back over (the fitness activity detail's card) correctly has neither.

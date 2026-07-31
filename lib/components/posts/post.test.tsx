@@ -1538,15 +1538,14 @@ describe('Post', () => {
       const actions = screen.getByRole('group', { name: 'Post actions' })
       // Pinned because none of it is observable in jsdom and every part is
       // load-bearing: `-ml-13` is what pulls the row back over the avatar
-      // column, and the `ml-auto` on the ⋯ wrapper is the only thing that
-      // separates it from the left-hand cluster (the design-system rule the
-      // docs carry). A `justify-between` here would spread the whole row back
-      // out and make that auto margin a no-op.
+      // column, `gap-1` is the whole of the spacing between the packed actions
+      // now that no `justify-content` distributes them, and the `ml-auto` on
+      // the ⋯ wrapper is the only thing that separates it from that cluster
+      // (the design-system rule the docs carry).
       // `mt-3` rides along with the pull in `Actions`' `fullBleed` default, so
       // pin it here too — dropping it silently closes the gap between every
       // post body and its action row on every surface.
-      expect(actions).toHaveClass('-ml-13', 'mt-3')
-      expect(actions).not.toHaveClass('justify-between')
+      expect(actions).toHaveClass('-ml-13', 'mt-3', 'gap-1')
       expect(
         screen.getByRole('button', { name: 'More actions' }).parentElement
       ).toHaveClass('ml-auto')
