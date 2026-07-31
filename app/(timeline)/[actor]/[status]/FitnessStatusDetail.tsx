@@ -22,8 +22,7 @@ import {
   Play,
   Plus,
   Route,
-  Unlock,
-  X
+  Unlock
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import {
@@ -45,6 +44,13 @@ import {
   getFitnessRouteData
 } from '@/lib/client'
 import { ActivityRouteMapKit } from '@/lib/components/fitness/ActivityRouteMapKit'
+import {
+  ROUTE_PRIVACY_HINT_TAP_TIMEOUT_MS,
+  RoutePrivacyDescription,
+  RoutePrivacyHint,
+  type RoutePrivacyHintPoint,
+  isHoverCapablePointer
+} from '@/lib/components/fitness/RoutePrivacyHint'
 import { findRouteSampleForElapsed } from '@/lib/components/fitness/mapGeometry'
 import {
   ROUTE_HIGHLIGHT_CORE_COLOR,
@@ -223,10 +229,32 @@ interface MapboxLngLatBounds {
   extend: (lngLat: [number, number]) => MapboxLngLatBounds
 }
 
+/**
+ * What a layer-scoped `mousemove`/`click` handler receives. Only `point` is
+ * modelled: it is the canvas-relative pixel position, which is all the privacy
+ * hint needs to anchor itself. `features` is deliberately absent — both engines
+ * attach it to the shared map-level event and `delete` it the instant the
+ * listener returns, so it is a trap to hold on to, and a layer-scoped handler
+ * only fires when the pointer really is over that layer anyway.
+ */
+interface MapboxLayerMouseEvent {
+  point: { x: number; y: number }
+}
+
 interface MapboxMap {
   addSource: (id: string, source: Record<string, unknown>) => void
   addLayer: (layer: Record<string, unknown>) => void
   once: (event: 'load', listener: () => void) => void
+  /**
+   * Layer-scoped pointer events. Registration is silently dropped if the layer
+   * does not exist yet, so every `on` must come after its `addLayer`.
+   */
+  on: (
+    event: 'mousemove' | 'mouseleave' | 'click',
+    layerId: string,
+    listener: (event: MapboxLayerMouseEvent) => void
+  ) => void
+  getCanvas: () => HTMLCanvasElement
   getSource: (id: string) => unknown
   getZoom: () => number
   fitBounds: (
@@ -401,6 +429,7 @@ const getActivityLabel = (activityType?: string) => {
 const GRAPH_VIEW_HEIGHT = 250
 const GRAPH_HEIGHT_CLASSNAME = 'h-[190px] lg:h-[250px]'
 const MAP_ROUTE_SOURCE_ID = 'activity-route'
+const MAP_ROUTE_HIDDEN_HIT_LAYER_ID = 'activity-route-line-hidden-hit'
 const MAP_ACTIVE_POINT_SOURCE_ID = 'activity-active-point'
 // The interactive map now renders for every provider, so a style/tile failure
 // (CDN outage, blocked origin, offline) must still surface the pre-generated
@@ -1487,8 +1516,6 @@ const CombinedChartPanel: FC<{
 
 const ActivityMapPanel: FC<{
   mapAttachment?: Attachment
-  /** Activity file the route belongs to — the scope of a notice dismissal. */
-  fitnessFileId?: string | null
   routeSamples: FitnessRouteSample[]
   routeSegments: FitnessRouteSegment[]
   highlightedElapsedSeconds?: number | null
@@ -1498,7 +1525,6 @@ const ActivityMapPanel: FC<{
   onOpenMap?: () => void
 }> = ({
   mapAttachment,
-  fitnessFileId = null,
   routeSamples,
   routeSegments,
   highlightedElapsedSeconds = null,
@@ -1510,22 +1536,14 @@ const ActivityMapPanel: FC<{
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapboxMap | null>(null)
   const [mapLoadError, setMapLoadError] = useState<string | null>(null)
-  // The privacy notice is an acknowledgement, not a persistent legend — tapping
-  // it clears it so it stops covering the map.
-  //
-  // The dismissal records WHICH activity file was acknowledged rather than a
-  // bare boolean, because the panel is not keyed per file: switching files in an
-  // aggregated post swaps the route underneath the same instance, and a carried
-  // -over dismissal would leave the next route drawing green segments with no
-  // explanation. Deriving it during render (instead of resetting the flag from
-  // an effect keyed on `routeSegments`) is what makes that safe — a passive
-  // effect runs a task *after* the commit that showed the notice, so it could
-  // land after the user's tap and silently resurrect a notice they just closed.
-  const [dismissedNoticeFileId, setDismissedNoticeFileId] = useState<
-    string | null
-  >(null)
-  const isPrivacyNoticeDismissed =
-    fitnessFileId !== null && dismissedNoticeFileId === fitnessFileId
+  // Anchor for the "hidden from other viewers" hint, set while the pointer is
+  // over a green segment. The GL engines hit-test their own layers, so this is
+  // just the pixel they report; the Apple renderer does the same thing
+  // geometrically inside ActivityRouteMapKit.
+  const [privacyHintPoint, setPrivacyHintPoint] =
+    useState<RoutePrivacyHintPoint | null>(null)
+  // A tap has no pointer-leave to close the hint, so it retires on a timer.
+  const privacyHintTimeoutRef = useRef<number | undefined>(undefined)
   const drawableRouteSegments = useMemo(
     () => routeSegments.filter((segment) => segment.samples.length >= 2),
     [routeSegments]
@@ -1669,6 +1687,56 @@ const ActivityMapPanel: FC<{
             }
           })
 
+          // Invisible, fat hit target for the privacy hint. A GL line's hit
+          // test is its own `line-width/2` per side, so the 4px green line is a
+          // ±2px target — unhittable in practice. Opacity is not consulted by
+          // the hit test, so a zero-opacity 24px twin is hoverable while
+          // drawing nothing. It must exist before any listener names it:
+          // registration against a missing layer is dropped in silence.
+          map.addLayer({
+            id: MAP_ROUTE_HIDDEN_HIT_LAYER_ID,
+            type: 'line',
+            source: MAP_ROUTE_SOURCE_ID,
+            filter: ['==', ['get', 'isHiddenByPrivacy'], true],
+            paint: {
+              'line-color': '#16a34a',
+              'line-width': 24,
+              'line-opacity': 0
+            }
+          })
+
+          const showPrivacyHint = (event: MapboxLayerMouseEvent) => {
+            window.clearTimeout(privacyHintTimeoutRef.current)
+            privacyHintTimeoutRef.current = undefined
+            setPrivacyHintPoint({ x: event.point.x, y: event.point.y })
+          }
+
+          map.on('mousemove', MAP_ROUTE_HIDDEN_HIT_LAYER_ID, (event) => {
+            showPrivacyHint(event)
+            map.getCanvas().style.cursor = 'help'
+          })
+
+          map.on('mouseleave', MAP_ROUTE_HIDDEN_HIT_LAYER_ID, () => {
+            window.clearTimeout(privacyHintTimeoutRef.current)
+            privacyHintTimeoutRef.current = undefined
+            setPrivacyHintPoint(null)
+            map.getCanvas().style.cursor = ''
+          })
+
+          // Touch: a tap fires `click` but never `mouseleave`, so the hint
+          // closes itself. `click` fires for a mouse press too, though, and
+          // arming the timer there would yank the hint away mid-hover — so
+          // where hover exists, `mouseleave` is left to govern.
+          map.on('click', MAP_ROUTE_HIDDEN_HIT_LAYER_ID, (event) => {
+            setPrivacyHintPoint({ x: event.point.x, y: event.point.y })
+            window.clearTimeout(privacyHintTimeoutRef.current)
+            privacyHintTimeoutRef.current = undefined
+            if (isHoverCapablePointer()) return
+            privacyHintTimeoutRef.current = window.setTimeout(() => {
+              setPrivacyHintPoint(null)
+            }, ROUTE_PRIVACY_HINT_TAP_TIMEOUT_MS)
+          })
+
           map.addSource(MAP_ACTIVE_POINT_SOURCE_ID, {
             type: 'geojson',
             data: {
@@ -1759,6 +1827,12 @@ const ActivityMapPanel: FC<{
       clearLoadWatchdog()
       mapRef.current?.remove()
       mapRef.current = null
+      // `remove()` takes the map's listeners with it, but not React state: the
+      // effect re-runs whenever the route changes, and a hint left standing
+      // would point at geometry that no longer exists.
+      window.clearTimeout(privacyHintTimeoutRef.current)
+      privacyHintTimeoutRef.current = undefined
+      setPrivacyHintPoint(null)
     }
   }, [
     glProvider,
@@ -1816,7 +1890,12 @@ const ActivityMapPanel: FC<{
           }
         />
       ) : shouldRenderInteractiveMap ? (
-        <div ref={mapContainerRef} className="h-full w-full" />
+        <div
+          ref={mapContainerRef}
+          role="img"
+          aria-label="Activity route map"
+          className="h-full w-full"
+        />
       ) : mapAttachment ? (
         <button
           type="button"
@@ -1862,17 +1941,24 @@ const ActivityMapPanel: FC<{
               </button>
             </div>
           ) : null}
-          {hasHiddenPrivacySegments && !isPrivacyNoticeDismissed ? (
-            <button
-              type="button"
-              onClick={() => setDismissedNoticeFileId(fitnessFileId)}
-              aria-label="Dismiss notice: green segments are hidden from other viewers"
-              className="absolute bottom-3 left-3 inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-green-300 bg-background/95 px-3 py-2 text-xs font-medium text-green-700 shadow-sm hover:bg-muted dark:border-green-900 dark:text-green-400"
-            >
-              Green segments are hidden from other viewers
-              <X className="size-3.5 shrink-0" aria-hidden="true" />
-            </button>
+          {/* The Apple renderer positions its own hint (it hit-tests the route
+              geometrically); this one is for the GL branch. */}
+          {glProvider ? (
+            <RoutePrivacyHint
+              point={privacyHintPoint}
+              containerSize={
+                mapContainerRef.current
+                  ? {
+                      width: mapContainerRef.current.clientWidth,
+                      height: mapContainerRef.current.clientHeight
+                    }
+                  : null
+              }
+            />
           ) : null}
+          <RoutePrivacyDescription
+            hasHiddenSegments={hasHiddenPrivacySegments}
+          />
         </>
       ) : onOpenMap && mapAttachment ? (
         <button
@@ -2905,7 +2991,6 @@ export const FitnessStatusDetail: FC<Props> = ({
             {shouldRenderMapPanel && (
               <ActivityMapPanel
                 mapAttachment={mapAttachment}
-                fitnessFileId={fitness?.id ?? null}
                 routeSamples={routeSamples}
                 routeSegments={routeSegments}
                 highlightedElapsedSeconds={highlightedElapsedSeconds}
@@ -2976,7 +3061,6 @@ export const FitnessStatusDetail: FC<Props> = ({
             {shouldRenderMapPanel && (
               <ActivityMapPanel
                 mapAttachment={mapAttachment}
-                fitnessFileId={fitness?.id ?? null}
                 routeSamples={routeSamples}
                 routeSegments={routeSegments}
                 highlightedElapsedSeconds={highlightedElapsedSeconds}
