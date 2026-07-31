@@ -245,6 +245,9 @@ const openSectionMenu = async () => {
 
 describe('FitnessStatusDetail', () => {
   beforeEach(() => {
+    // The privacy notice's dismissal is persisted per browser, so a dismissal
+    // in one test would otherwise hide the notice in every test after it.
+    window.localStorage.clear()
     mockGetFitnessFilesByStatus.mockReset()
     mockGetFitnessRouteData.mockReset()
     mockGetFitnessFilesByStatus.mockResolvedValue(null)
@@ -1162,49 +1165,10 @@ describe('FitnessStatusDetail', () => {
     )
   })
 
-  it('brings the privacy notice back when another activity file is selected', async () => {
-    mockGetFitnessFilesByStatus.mockResolvedValue([
-      buildFitnessFile({ id: 'fit-1', fileName: 'ride-morning.gpx' }),
-      buildFitnessFile({
-        id: 'fit-2',
-        fileName: 'ride-evening.gpx',
-        isPrimary: false,
-        activityStartTime: Date.parse('2026-05-27T18:00:00Z')
-      })
-    ])
-    mockGetFitnessRouteData.mockResolvedValue(routeDataWithHiddenSegments)
-
-    renderDetail()
-
-    fireEvent.click(
-      await screen.findByRole('button', {
-        name: 'Dismiss notice: green segments are hidden from other viewers'
-      })
-    )
-    await waitFor(() =>
-      expect(
-        screen.queryByText('Green segments are hidden from other viewers')
-      ).not.toBeInTheDocument()
-    )
-
-    // The panel is not keyed per file, so a dismissal must not carry over to a
-    // different route that also has hidden segments.
-    fireEvent.change(await screen.findByLabelText('Activity file'), {
-      target: { value: 'fit-2' }
-    })
-
-    expect(
-      await screen.findByText('Green segments are hidden from other viewers')
-    ).toBeInTheDocument()
-  })
-
-  it('keeps the privacy notice dismissed when its own file is selected again', async () => {
-    // The dismissal is scoped to the acknowledged file, so reloading that file's
-    // route must not resurrect the notice. Deriving it during render is what
-    // guarantees that: the reset used to live in an effect keyed on the
-    // `routeSegments` identity, and a passive effect runs a task *after* the
-    // commit that revealed the notice — late enough to land after the user's tap
-    // and undo it. That race is what made this suite flake on CI.
+  it('keeps the privacy notice dismissed for every activity file once it is tapped', async () => {
+    // The notice explains what green means, so one acknowledgement covers every
+    // route this viewer opens — including a different file in the same
+    // aggregated post, which swaps the route underneath the same panel.
     mockGetFitnessFilesByStatus.mockResolvedValue([
       buildFitnessFile({ id: 'fit-1', fileName: 'ride-morning.gpx' }),
       buildFitnessFile({
@@ -1226,19 +1190,42 @@ describe('FitnessStatusDetail', () => {
     const select = await screen.findByLabelText('Activity file')
 
     fireEvent.change(select, { target: { value: 'fit-2' } })
+    expect(await screen.findByText('file 2 of 2')).toBeInTheDocument()
     expect(
-      await screen.findByText('Green segments are hidden from other viewers')
-    ).toBeInTheDocument()
+      screen.queryByText('Green segments are hidden from other viewers')
+    ).not.toBeInTheDocument()
 
     fireEvent.change(select, { target: { value: 'fit-1' } })
-    // Wait for fit-1's route to be re-fetched and committed — that commit is
-    // exactly where the old reset fired.
+    // Wait for fit-1's route to be re-fetched and committed.
     await waitFor(() =>
       expect(mockGetFitnessRouteData).toHaveBeenCalledTimes(3)
     )
     await act(async () => {})
 
     expect(await screen.findByText('file 1 of 2')).toBeInTheDocument()
+    expect(
+      screen.queryByText('Green segments are hidden from other viewers')
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps the privacy notice dismissed on a later visit from the same browser', async () => {
+    mockGetFitnessRouteData.mockResolvedValue(routeDataWithHiddenSegments)
+
+    const { unmount } = renderDetail()
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Dismiss notice: green segments are hidden from other viewers'
+      })
+    )
+    unmount()
+
+    // A fresh mount stands in for the next page load: the acknowledgement
+    // outlives the component, so the notice never comes back.
+    renderDetail()
+
+    expect(await screen.findByLabelText('Zoom in map')).toBeInTheDocument()
+    await act(async () => {})
     expect(
       screen.queryByText('Green segments are hidden from other viewers')
     ).not.toBeInTheDocument()

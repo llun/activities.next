@@ -31,6 +31,7 @@ import {
   type MouseEvent,
   ReactNode,
   type TouchEvent,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -54,6 +55,10 @@ import {
   ROUTE_HIGHLIGHT_HALO_RADIUS_PX,
   ROUTE_HIGHLIGHT_HIDDEN_CORE_COLOR
 } from '@/lib/components/fitness/routeHighlightMarker'
+import {
+  dismissRoutePrivacyNotice,
+  isRoutePrivacyNoticeDismissed
+} from '@/lib/components/fitness/routePrivacyNotice'
 import { BrandedDeviceLink } from '@/lib/components/posts/BrandedDeviceLink'
 import { Actions } from '@/lib/components/posts/actions/actions'
 import { ActorAvatar } from '@/lib/components/posts/actor'
@@ -1487,8 +1492,6 @@ const CombinedChartPanel: FC<{
 
 const ActivityMapPanel: FC<{
   mapAttachment?: Attachment
-  /** Activity file the route belongs to — the scope of a notice dismissal. */
-  fitnessFileId?: string | null
   routeSamples: FitnessRouteSample[]
   routeSegments: FitnessRouteSegment[]
   highlightedElapsedSeconds?: number | null
@@ -1498,7 +1501,6 @@ const ActivityMapPanel: FC<{
   onOpenMap?: () => void
 }> = ({
   mapAttachment,
-  fitnessFileId = null,
   routeSamples,
   routeSegments,
   highlightedElapsedSeconds = null,
@@ -1510,22 +1512,31 @@ const ActivityMapPanel: FC<{
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapboxMap | null>(null)
   const [mapLoadError, setMapLoadError] = useState<string | null>(null)
-  // The privacy notice is an acknowledgement, not a persistent legend — tapping
-  // it clears it so it stops covering the map.
+  // The privacy notice is a one-time explanation of what the green segments
+  // mean, not a persistent legend — tapping it clears it, and the
+  // acknowledgement is remembered for the whole browser (see
+  // `@/lib/components/fitness/routePrivacyNotice`). So it shows once and stays
+  // gone: for the next activity file in an aggregated post, for the panel the
+  // Analysis section mounts, and after a reload.
   //
-  // The dismissal records WHICH activity file was acknowledged rather than a
-  // bare boolean, because the panel is not keyed per file: switching files in an
-  // aggregated post swaps the route underneath the same instance, and a carried
-  // -over dismissal would leave the next route drawing green segments with no
-  // explanation. Deriving it during render (instead of resetting the flag from
-  // an effect keyed on `routeSegments`) is what makes that safe — a passive
-  // effect runs a task *after* the commit that showed the notice, so it could
-  // land after the user's tap and silently resurrect a notice they just closed.
-  const [dismissedNoticeFileId, setDismissedNoticeFileId] = useState<
-    string | null
+  // `null` until the stored acknowledgement resolves on mount. localStorage is
+  // unreadable during render (there is none on the server, and reading it would
+  // desync hydration), and starting at "not dismissed" would flash the notice at
+  // a viewer who already closed it, so the notice renders only once the answer
+  // is known to be `false`.
+  const [isPrivacyNoticeDismissed, setIsPrivacyNoticeDismissed] = useState<
+    boolean | null
   >(null)
-  const isPrivacyNoticeDismissed =
-    fitnessFileId !== null && dismissedNoticeFileId === fitnessFileId
+  useEffect(() => {
+    setIsPrivacyNoticeDismissed(isRoutePrivacyNoticeDismissed())
+  }, [])
+  const dismissPrivacyNotice = useCallback(() => {
+    // Local state closes it now; the write makes that stick. The two are kept
+    // separate so a storage failure (private mode, storage disabled) still
+    // closes the notice for this page view instead of leaving a tap dead.
+    setIsPrivacyNoticeDismissed(true)
+    dismissRoutePrivacyNotice()
+  }, [])
   const drawableRouteSegments = useMemo(
     () => routeSegments.filter((segment) => segment.samples.length >= 2),
     [routeSegments]
@@ -1862,10 +1873,10 @@ const ActivityMapPanel: FC<{
               </button>
             </div>
           ) : null}
-          {hasHiddenPrivacySegments && !isPrivacyNoticeDismissed ? (
+          {hasHiddenPrivacySegments && isPrivacyNoticeDismissed === false ? (
             <button
               type="button"
-              onClick={() => setDismissedNoticeFileId(fitnessFileId)}
+              onClick={dismissPrivacyNotice}
               aria-label="Dismiss notice: green segments are hidden from other viewers"
               className="absolute bottom-3 left-3 inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-green-300 bg-background/95 px-3 py-2 text-xs font-medium text-green-700 shadow-sm hover:bg-muted dark:border-green-900 dark:text-green-400"
             >
@@ -2905,7 +2916,6 @@ export const FitnessStatusDetail: FC<Props> = ({
             {shouldRenderMapPanel && (
               <ActivityMapPanel
                 mapAttachment={mapAttachment}
-                fitnessFileId={fitness?.id ?? null}
                 routeSamples={routeSamples}
                 routeSegments={routeSegments}
                 highlightedElapsedSeconds={highlightedElapsedSeconds}
@@ -2976,7 +2986,6 @@ export const FitnessStatusDetail: FC<Props> = ({
             {shouldRenderMapPanel && (
               <ActivityMapPanel
                 mapAttachment={mapAttachment}
-                fitnessFileId={fitness?.id ?? null}
                 routeSamples={routeSamples}
                 routeSegments={routeSegments}
                 highlightedElapsedSeconds={highlightedElapsedSeconds}
