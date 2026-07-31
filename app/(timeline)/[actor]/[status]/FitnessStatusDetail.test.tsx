@@ -1286,13 +1286,67 @@ describe('FitnessStatusDetail', () => {
     })
 
     it('says nothing when no segment is hidden', async () => {
-      await renderWithGlMap(routeData)
+      const { handlers, layers } = await renderWithGlMap(routeData)
 
       expect(await screen.findByLabelText('Zoom in map')).toBeInTheDocument()
       expect(
         screen.queryByText(/hidden sections are drawn in green/i)
       ).not.toBeInTheDocument()
+
+      // The hit layer filters on `isHiddenByPrivacy`, so with nothing hidden it
+      // matches no feature and the handler never fires. Assert that rather than
+      // asserting an absence nothing could have produced: firing the handler
+      // anyway would only prove the test can skip the filter.
+      expect(layers).toContain(HIT_LAYER)
+      expect(handlers.has(`mousemove:${HIT_LAYER}`)).toBe(true)
       expect(screen.queryByTestId('route-privacy-hint')).not.toBeInTheDocument()
+    })
+
+    it('labels the GL map container the way its MapKit sibling is labelled', async () => {
+      await renderWithGlMap()
+
+      // The Apple branch has always carried this; the GL branch was a bare div
+      // until the hint made the map's contents worth naming.
+      expect(screen.getByLabelText('Activity route map')).toBeInTheDocument()
+    })
+
+    it('keeps the hint out of the accessibility tree', async () => {
+      const { handlers } = await renderWithGlMap()
+
+      await act(async () => {
+        handlers.get(`mousemove:${HIT_LAYER}`)?.({ point: { x: 40, y: 90 } })
+      })
+
+      // RoutePrivacyDescription carries the sentence to assistive technology;
+      // the chip must not announce it a second time.
+      expect(screen.getByTestId('route-privacy-hint')).toHaveAttribute(
+        'aria-hidden',
+        'true'
+      )
+    })
+
+    it('leaves a clicked hint up on a hover-capable device', async () => {
+      // Layer-scoped `click` fires for a mouse press as well as a tap, so
+      // arming the touch retire-timer there would pull the hint away mid-hover.
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: (query: string) => ({ matches: true, media: query })
+      })
+      try {
+        const { handlers } = await renderWithGlMap()
+
+        await act(async () => {
+          handlers.get(`click:${HIT_LAYER}`)?.({ point: { x: 12, y: 20 } })
+        })
+
+        await act(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 4100))
+        })
+
+        expect(screen.getByTestId('route-privacy-hint')).toBeInTheDocument()
+      } finally {
+        Reflect.deleteProperty(window, 'matchMedia')
+      }
     })
   })
 

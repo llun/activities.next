@@ -543,3 +543,35 @@ describe('getDistanceToHiddenSegments', () => {
     ).toBeCloseTo(2, 6)
   })
 })
+
+describe('getDistanceToHiddenSegments degenerate geometry', () => {
+  it('measures a segment whose two samples are identical', () => {
+    // A stationary GPS fix repeats a coordinate; without the zero-length guard
+    // the projection divides 0/0 and every comparison against a tolerance then
+    // fails silently, so the hint would never appear on that stretch.
+    const distance = getDistanceToHiddenSegments(
+      [
+        {
+          isHiddenByPrivacy: true,
+          samples: [
+            { lat: 0, lng: 0 },
+            { lat: 0, lng: 0 }
+          ]
+        }
+      ],
+      { lat: 0, lng: 1 }
+    )
+
+    expect(Number.isNaN(distance)).toBe(false)
+    expect(distance).toBeCloseTo(1, 6)
+  })
+
+  it('ignores a hidden segment with no samples at all', () => {
+    expect(
+      getDistanceToHiddenSegments([{ isHiddenByPrivacy: true, samples: [] }], {
+        lat: 0,
+        lng: 0
+      })
+    ).toBeNull()
+  })
+})

@@ -339,6 +339,116 @@ describe('ActivityRouteMapKit', () => {
       expect(screen.queryByTestId('route-privacy-hint')).not.toBeInTheDocument()
     })
 
+    it('anchors the hint at the pointer, in container pixels', async () => {
+      const { map } = await renderWithMapKit()
+      // The double maps page space onto coordinate space 1:1, and jsdom reports
+      // a zero-origin box, so a page point lands unchanged in container pixels.
+      map.element.getBoundingClientRect = () =>
+        ({ left: 0, top: 0, width: 300, height: 200 }) as DOMRect
+
+      await act(async () => {
+        map.element.dispatchEvent(pointerEvent('pointermove', 5.6, 52))
+      })
+
+      // Pre-measurement fallback (jsdom reports a zero-size chip): anchored on
+      // the pointer itself rather than clamped.
+      expect(screen.getByTestId('route-privacy-hint')).toHaveStyle({
+        left: '5.6px',
+        top: '52px'
+      })
+    })
+
+    it('retires a tap-opened hint on a device that cannot hover', async () => {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: (query: string) => ({ matches: false, media: query })
+      })
+      try {
+        const { map } = await renderWithMapKit()
+
+        await act(async () => {
+          map.emit('single-tap', { pointOnPage: { x: 5.6, y: 52 } })
+        })
+        expect(screen.getByTestId('route-privacy-hint')).toBeInTheDocument()
+
+        await act(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 4100))
+        })
+
+        expect(
+          screen.queryByTestId('route-privacy-hint')
+        ).not.toBeInTheDocument()
+      } finally {
+        Reflect.deleteProperty(window, 'matchMedia')
+      }
+    })
+
+    it('leaves the hint up on a hover-capable device, where leave governs', async () => {
+      // `single-tap` fires for a mouse press too; arming the touch timer there
+      // would pull the hint away four seconds into a hover the user is holding.
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: (query: string) => ({ matches: true, media: query })
+      })
+      try {
+        const { map } = await renderWithMapKit()
+
+        await act(async () => {
+          map.emit('single-tap', { pointOnPage: { x: 5.6, y: 52 } })
+        })
+
+        await act(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 4100))
+        })
+
+        expect(screen.getByTestId('route-privacy-hint')).toBeInTheDocument()
+      } finally {
+        Reflect.deleteProperty(window, 'matchMedia')
+      }
+    })
+
+    it('clears the hint when the route geometry is replaced under it', async () => {
+      const double = createMapKitTestDouble()
+      mockLoadMapKitModule.mockImplementation((() =>
+        Promise.resolve(double.mapkit)) as never)
+
+      const { rerender } = render(
+        <ActivityRouteMapKit
+          routeSegments={hiddenSegments}
+          routeSamples={routeSamples}
+          onUnavailable={vi.fn()}
+        />
+      )
+      await waitFor(() => expect(double.getMap()).not.toBeNull())
+      const map = double.getMap()!
+      await waitFor(() => expect(map.currentOverlays.length).toBeGreaterThan(0))
+
+      await act(async () => {
+        map.element.dispatchEvent(pointerEvent('pointermove', 5.6, 52))
+      })
+      expect(screen.getByTestId('route-privacy-hint')).toBeInTheDocument()
+
+      // Switching activity file in an aggregated post swaps the polylines under
+      // the hint; leaving it up would point at geometry that no longer exists.
+      const otherSamples = [
+        { lat: 40, lng: -3, elapsedSeconds: 0 },
+        { lat: 40.5, lng: -2.5, elapsedSeconds: 120 }
+      ]
+      rerender(
+        <ActivityRouteMapKit
+          routeSegments={[{ isHiddenByPrivacy: true, samples: otherSamples }]}
+          routeSamples={otherSamples}
+          onUnavailable={vi.fn()}
+        />
+      )
+
+      await waitFor(() =>
+        expect(
+          screen.queryByTestId('route-privacy-hint')
+        ).not.toBeInTheDocument()
+      )
+    })
+
     it('detaches its listeners on unmount', async () => {
       const double = createMapKitTestDouble()
       mockLoadMapKitModule.mockImplementation((() =>

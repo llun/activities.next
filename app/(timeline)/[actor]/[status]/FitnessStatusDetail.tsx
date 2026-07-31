@@ -48,7 +48,8 @@ import {
   ROUTE_PRIVACY_HINT_TAP_TIMEOUT_MS,
   RoutePrivacyDescription,
   RoutePrivacyHint,
-  type RoutePrivacyHintPoint
+  type RoutePrivacyHintPoint,
+  isHoverCapablePointer
 } from '@/lib/components/fitness/RoutePrivacyHint'
 import { findRouteSampleForElapsed } from '@/lib/components/fitness/mapGeometry'
 import {
@@ -1723,11 +1724,14 @@ const ActivityMapPanel: FC<{
           })
 
           // Touch: a tap fires `click` but never `mouseleave`, so the hint
-          // closes itself. Registered after mousemove so the timer it arms is
-          // not immediately cancelled by the synthetic move a tap also emits.
+          // closes itself. `click` fires for a mouse press too, though, and
+          // arming the timer there would yank the hint away mid-hover — so
+          // where hover exists, `mouseleave` is left to govern.
           map.on('click', MAP_ROUTE_HIDDEN_HIT_LAYER_ID, (event) => {
             setPrivacyHintPoint({ x: event.point.x, y: event.point.y })
             window.clearTimeout(privacyHintTimeoutRef.current)
+            privacyHintTimeoutRef.current = undefined
+            if (isHoverCapablePointer()) return
             privacyHintTimeoutRef.current = window.setTimeout(() => {
               setPrivacyHintPoint(null)
             }, ROUTE_PRIVACY_HINT_TAP_TIMEOUT_MS)
@@ -1939,7 +1943,19 @@ const ActivityMapPanel: FC<{
           ) : null}
           {/* The Apple renderer positions its own hint (it hit-tests the route
               geometrically); this one is for the GL branch. */}
-          {glProvider ? <RoutePrivacyHint point={privacyHintPoint} /> : null}
+          {glProvider ? (
+            <RoutePrivacyHint
+              point={privacyHintPoint}
+              containerSize={
+                mapContainerRef.current
+                  ? {
+                      width: mapContainerRef.current.clientWidth,
+                      height: mapContainerRef.current.clientHeight
+                    }
+                  : null
+              }
+            />
+          ) : null}
           <RoutePrivacyDescription
             hasHiddenSegments={hasHiddenPrivacySegments}
           />

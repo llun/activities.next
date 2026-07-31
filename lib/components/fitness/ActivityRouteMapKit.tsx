@@ -8,7 +8,9 @@ import {
   ROUTE_PRIVACY_HINT_TAP_TIMEOUT_MS,
   ROUTE_PRIVACY_HINT_TOLERANCE_PX,
   RoutePrivacyHint,
-  type RoutePrivacyHintPoint
+  type RoutePrivacyHintPoint,
+  type RoutePrivacyHintSize,
+  isHoverCapablePointer
 } from '@/lib/components/fitness/RoutePrivacyHint'
 import {
   findRouteSampleForElapsed,
@@ -102,6 +104,7 @@ const attachPrivacyHintListeners = (
   map: MapKitMapSurface,
   segmentsRef: { current: FitnessRouteSegment[] },
   setPoint: (point: RoutePrivacyHintPoint | null) => void,
+  setContainerSize: (size: RoutePrivacyHintSize | null) => void,
   timeoutRef: { current: ReturnType<typeof setTimeout> | undefined }
 ) => {
   const resolvePoint = (pageX: number, pageY: number) => {
@@ -127,6 +130,7 @@ const attachPrivacyHintListeners = (
     if (distance === null || distance > tolerance) return null
 
     const bounds = map.element.getBoundingClientRect()
+    setContainerSize({ width: bounds.width, height: bounds.height })
     return {
       x: pageX - bounds.left - window.scrollX,
       y: pageY - bounds.top - window.scrollY
@@ -147,7 +151,9 @@ const attachPrivacyHintListeners = (
 
   // Touch has no pointer-leave, so a tap-opened hint retires on a timer.
   // MapKit's own `single-tap` is used rather than a synthetic pointerdown/up
-  // pair because MapKit already tells a tap apart from the end of a pan.
+  // pair because MapKit already tells a tap apart from the end of a pan. It
+  // also fires for a mouse press, so on a device that can hover the timer is
+  // left unarmed and `pointerleave` governs instead.
   const onSingleTap = (event: MapKitTapEvent) => {
     const pointOnPage = event.pointOnPage
     if (!pointOnPage) return
@@ -155,10 +161,8 @@ const attachPrivacyHintListeners = (
     const point = resolvePoint(pointOnPage.x, pointOnPage.y)
     setPoint(point)
     clearTimeout(timeoutRef.current)
-    if (!point) {
-      timeoutRef.current = undefined
-      return
-    }
+    timeoutRef.current = undefined
+    if (!point || isHoverCapablePointer()) return
     timeoutRef.current = setTimeout(() => {
       setPoint(null)
     }, ROUTE_PRIVACY_HINT_TAP_TIMEOUT_MS)
@@ -210,6 +214,8 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
   const [privacyHintPoint, setPrivacyHintPoint] =
     useState<RoutePrivacyHintPoint | null>(null)
   const privacyHintTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const [privacyHintContainerSize, setPrivacyHintContainerSize] =
+    useState<RoutePrivacyHintSize | null>(null)
 
   useEffect(() => {
     onUnavailableRef.current = onUnavailable
@@ -280,6 +286,7 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
             map,
             segmentsRef,
             setPrivacyHintPoint,
+            setPrivacyHintContainerSize,
             privacyHintTimeoutRef
           )
 
@@ -440,7 +447,10 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
           {/* The screen-reader equivalent is rendered once by the parent panel,
               which wraps both renderers — not here, or it would be duplicated
               on the Apple branch. */}
-          <RoutePrivacyHint point={privacyHintPoint} />
+          <RoutePrivacyHint
+            point={privacyHintPoint}
+            containerSize={privacyHintContainerSize}
+          />
         </>
       )}
     </>
