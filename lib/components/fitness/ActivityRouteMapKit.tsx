@@ -4,7 +4,17 @@ import { Loader2, Minus, Plus } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { FitnessRouteSample, FitnessRouteSegment } from '@/lib/client'
-import { findRouteSampleForElapsed } from '@/lib/components/fitness/mapGeometry'
+import {
+  ROUTE_PRIVACY_HINT_TAP_TIMEOUT_MS,
+  ROUTE_PRIVACY_HINT_TOLERANCE_PX,
+  RoutePrivacyHint,
+  type RoutePrivacyHintPoint
+} from '@/lib/components/fitness/RoutePrivacyHint'
+import {
+  findRouteSampleForElapsed,
+  getDistanceToHiddenSegments,
+  getScaledCoordinateDistance
+} from '@/lib/components/fitness/mapGeometry'
 import {
   APPLE_MAPS_LABEL,
   MAPKIT_LOAD_TIMEOUT_MS,
@@ -12,8 +22,10 @@ import {
   type MapKitMapSurface,
   type MapKitOverlay,
   type MapKitSurfaceModule,
+  type MapKitTapEvent,
   boundsToRegion,
-  loadMapKitSurface
+  loadMapKitSurface,
+  pageToCoordinate
 } from '@/lib/components/fitness/mapkitSurface'
 import { createRouteHighlightElement } from '@/lib/components/fitness/routeHighlightMarker'
 
@@ -71,6 +83,100 @@ const getRouteSignature = (segments: FitnessRouteSegment[]) =>
     })
     .join('|')
 
+/**
+ * Wire the privacy hint to a MapKit map.
+ *
+ * MapKit exposes no pointer events on overlays and no hover event at all, so
+ * "is the pointer on a green line?" is answered geometrically: convert the page
+ * point to a coordinate, measure it against the hidden segments, and compare
+ * against a tolerance obtained by converting a second point one tolerance-width
+ * away. Deriving the tolerance through the same projection is what keeps it a
+ * true pixel distance at any zoom, without reading the region span or the
+ * element's box.
+ *
+ * Deliberately does NOT touch `isScrollEnabled` / `touchAction` the way
+ * RegionMapKit's draw mode does — this is a passive readout and must leave
+ * panning and pinch-zoom completely alone.
+ */
+const attachPrivacyHintListeners = (
+  map: MapKitMapSurface,
+  segmentsRef: { current: FitnessRouteSegment[] },
+  setPoint: (point: RoutePrivacyHintPoint | null) => void,
+  timeoutRef: { current: ReturnType<typeof setTimeout> | undefined }
+) => {
+  const resolvePoint = (pageX: number, pageY: number) => {
+    // Read through the ref, never a captured array: the create effect runs once
+    // and would otherwise hit-test the first render's geometry forever.
+    const segments = segmentsRef.current
+    if (!segments.some((segment) => segment.isHiddenByPrivacy)) return null
+
+    const coordinate = pageToCoordinate(map, pageX, pageY)
+    const toleranceProbe = pageToCoordinate(
+      map,
+      pageX + ROUTE_PRIVACY_HINT_TOLERANCE_PX,
+      pageY
+    )
+    if (!coordinate || !toleranceProbe) return null
+
+    const target = { lat: coordinate.latitude, lng: coordinate.longitude }
+    const tolerance = getScaledCoordinateDistance(target, {
+      lat: toleranceProbe.latitude,
+      lng: toleranceProbe.longitude
+    })
+    const distance = getDistanceToHiddenSegments(segments, target)
+    if (distance === null || distance > tolerance) return null
+
+    const bounds = map.element.getBoundingClientRect()
+    return {
+      x: pageX - bounds.left - window.scrollX,
+      y: pageY - bounds.top - window.scrollY
+    }
+  }
+
+  const clearHint = () => {
+    clearTimeout(timeoutRef.current)
+    timeoutRef.current = undefined
+    setPoint(null)
+  }
+
+  const onPointerMove = (event: PointerEvent | MouseEvent) => {
+    clearTimeout(timeoutRef.current)
+    timeoutRef.current = undefined
+    setPoint(resolvePoint(event.pageX, event.pageY))
+  }
+
+  // Touch has no pointer-leave, so a tap-opened hint retires on a timer.
+  // MapKit's own `single-tap` is used rather than a synthetic pointerdown/up
+  // pair because MapKit already tells a tap apart from the end of a pan.
+  const onSingleTap = (event: MapKitTapEvent) => {
+    const pointOnPage = event.pointOnPage
+    if (!pointOnPage) return
+
+    const point = resolvePoint(pointOnPage.x, pointOnPage.y)
+    setPoint(point)
+    clearTimeout(timeoutRef.current)
+    if (!point) {
+      timeoutRef.current = undefined
+      return
+    }
+    timeoutRef.current = setTimeout(() => {
+      setPoint(null)
+    }, ROUTE_PRIVACY_HINT_TAP_TIMEOUT_MS)
+  }
+
+  map.element.addEventListener('pointermove', onPointerMove)
+  map.element.addEventListener('pointerleave', clearHint)
+  map.element.addEventListener('pointercancel', clearHint)
+  map.addEventListener('single-tap', onSingleTap)
+
+  return () => {
+    map.element.removeEventListener('pointermove', onPointerMove)
+    map.element.removeEventListener('pointerleave', clearHint)
+    map.element.removeEventListener('pointercancel', clearHint)
+    map.removeEventListener('single-tap', onSingleTap)
+  }
+}
+
 export interface ActivityRouteMapKitProps {
   /** Drawable route segments (each with at least two samples). */
   routeSegments: FitnessRouteSegment[]
@@ -101,6 +207,9 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
   const overlaysRef = useRef<MapKitOverlay[]>([])
   const onUnavailableRef = useRef(onUnavailable)
   const [isMapLoaded, setIsMapLoaded] = useState(false)
+  const [privacyHintPoint, setPrivacyHintPoint] =
+    useState<RoutePrivacyHintPoint | null>(null)
+  const privacyHintTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   useEffect(() => {
     onUnavailableRef.current = onUnavailable
@@ -151,6 +260,11 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
       if (!cancelled) onUnavailableRef.current()
     }, MAPKIT_LOAD_TIMEOUT_MS)
 
+    // Assigned once the map exists — the cleanup below runs whether or not the
+    // load ever resolved, so it cannot reach the map directly. Mirrors
+    // RegionMapKit, the repo's other `map.element` pointer consumer.
+    let detachPrivacyHintListeners: (() => void) | undefined
+
     loadMapKitSurface()
       .then((mapkit) => {
         if (cancelled) return
@@ -161,6 +275,13 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
           })
           mapkitRef.current = mapkit
           mapRef.current = map
+
+          detachPrivacyHintListeners = attachPrivacyHintListeners(
+            map,
+            segmentsRef,
+            setPrivacyHintPoint,
+            privacyHintTimeoutRef
+          )
 
           clearTimeout(loadWatchdog)
           setIsMapLoaded(true)
@@ -180,6 +301,10 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
     return () => {
       cancelled = true
       clearTimeout(loadWatchdog)
+      detachPrivacyHintListeners?.()
+      clearTimeout(privacyHintTimeoutRef.current)
+      privacyHintTimeoutRef.current = undefined
+      setPrivacyHintPoint(null)
       markerRef.current = null
       overlaysRef.current = []
       mapRef.current?.destroy()
@@ -221,6 +346,11 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
     }
 
     map.region = boundsToRegion(mapkit, getRouteBounds(boundsSamples))
+    // The polylines under the hint were just replaced, so an open hint would be
+    // pointing at geometry that no longer exists.
+    clearTimeout(privacyHintTimeoutRef.current)
+    privacyHintTimeoutRef.current = undefined
+    setPrivacyHintPoint(null)
   }, [isMapLoaded, routeSignature])
 
   // Move (or clear) the highlighted-position marker as the chart hover changes.
@@ -307,6 +437,10 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
           <div className="pointer-events-none absolute bottom-3 right-3 rounded bg-background/90 px-2 py-1 text-[10px] font-medium text-muted-foreground shadow-sm">
             {APPLE_MAPS_LABEL}
           </div>
+          {/* The screen-reader equivalent is rendered once by the parent panel,
+              which wraps both renderers — not here, or it would be duplicated
+              on the Apple branch. */}
+          <RoutePrivacyHint point={privacyHintPoint} />
         </>
       )}
     </>
