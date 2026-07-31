@@ -232,7 +232,9 @@ describe('ReactionButton', () => {
     // A compact row moves the trigger into the ⋯ menu — but the component stays
     // mounted, because it is what that menu item opens. It must not leave an
     // empty wrapper behind: the row is a `gap-1` flex, so even a zero-width
-    // element claims a gap of its own and shifts every action after it.
+    // element claims a gap of its own and shifts everything after it — the
+    // edit-history button when the post has edits, and the 4px is dead space
+    // in the cluster regardless.
     expect(
       screen.queryByRole('button', { name: /^Add reaction/ })
     ).not.toBeInTheDocument()

@@ -151,13 +151,16 @@ change doesn't touch.
   action row packs every action into one `gap-1` cluster at the post's left edge
   with only the `⋯` menu pushed right by an `ml-auto` on its wrapper. That auto
   margin is what does the work — flexbox feeds free space to auto margins before
-  `justify-content` sees it — so the row carries no `justify-content` of its own
-  and dropping the margin spreads the cluster back across the full width. Each row carries its own
+  `justify-content` sees it, so it beats any `justify-content` the row might
+  carry — and the row therefore keeps none of its own. Dropping the margin
+  collapses `⋯` into the cluster; a `justify-between` without it spreads all
+  five actions across the full width. Each row carries its own
   `fullBleed` prop and they default differently — `Actions` pulls unless told
   not to, `ReactionRow` only when asked — so a surface with no avatar column to
   pull back over (the fitness activity detail's card) correctly has neither.
-  That left cluster + `ml-auto` pair is not optional either way: it is
-  what keeps the spacing between actions identical everywhere. The edit-history
+  The row still gets the full width of its container — the spacing between
+  actions is a width-independent `gap-1`, but `⋯` needs the post's right edge
+  to sit on. The edit-history
   panel is anchored to the row (its trigger's wrapper is deliberately not
   `relative`) and sits `right-0`, flush with the post's right edge — anchored to
   the trigger, its 25rem width starts wherever the counts push that trigger and

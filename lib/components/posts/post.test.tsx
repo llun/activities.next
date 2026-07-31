@@ -1576,9 +1576,11 @@ describe('Post', () => {
           .map((button) => button.getAttribute('aria-label'))
       ).toEqual(['Reply to post', 'Repost', 'Like', 'More actions'])
 
-      // The row is a `gap-1` flex, so an empty wrapper left behind where a
-      // control used to be still claims a gap of its own and shifts every
-      // action after it.
+      // A control that moves into the menu must leave no wrapper behind. The
+      // row is a `gap-1` flex, so a zero-width leftover still claims a gap of
+      // its own and shifts everything after it — which the `ml-auto` on `⋯`
+      // hides in exactly this render (nothing else follows it) and stops
+      // hiding the moment an edit-history button does.
       expect(
         screen.getByRole('group', { name: 'Post actions' }).children
       ).toHaveLength(4)

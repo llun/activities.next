@@ -392,10 +392,12 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   row with the source-file link in the footer. (Those two containers are padded
   differently, `p-5` against `px-4`, so the two rows are deliberately aligned to
   their own content rather than to each other.)
-  The left-packed cluster plus the `ml-auto` on `⋯` is not optional either way:
-  that pair is what makes the spacing between actions identical on every
-  surface, so give the row the full width rather than seating it beside
-  something else.
+  Still give the row the **full width** of its container rather than seating it
+  beside something else — but note what that now buys and what it does not. The
+  spacing between the actions is a flat `gap-1` and is width-independent, so it
+  is identical everywhere for free; the full width is what puts `⋯` on the
+  post's right edge and gives the edit-history panel's `right-0` the same edge
+  to line up with.
   One overlay does not hang off its own trigger: the edit-history panel is
   anchored to the **row** (its trigger's wrapper is deliberately not
   `relative`, so `Actions`' `relative` root is the containing block) and sits
