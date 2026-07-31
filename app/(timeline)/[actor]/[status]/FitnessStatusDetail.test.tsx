@@ -1448,9 +1448,7 @@ describe('FitnessStatusDetail', () => {
       ).toEqual(['Reply', 'Boost', 'Like', 'Bookmark', '', 'More'])
       // None of this is observable in jsdom and all of it is load-bearing: the
       // card footer's own padding already puts the row at the status's left
-      // edge, so the avatar-column pull would drag it outside the card, and the
-      // left-packed cluster with `ml-auto` on ⋯ is what makes the spacing
-      // between actions identical to every other surface.
+      // edge, so the avatar-column pull would drag it outside the card.
       // `mt-3` rides along with the pull, so pin its absence too — hoisting it
       // out of the `fullBleed` branch would silently add 12px above this
       // footer row while `post.test.tsx` stayed green. One assertion each:

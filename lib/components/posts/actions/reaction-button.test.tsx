@@ -233,8 +233,9 @@ describe('ReactionButton', () => {
     // mounted, because it is what that menu item opens. It must not leave an
     // empty wrapper behind: the row is a `gap-1` flex, so even a zero-width
     // element claims a gap of its own and shifts everything after it — the
-    // edit-history button when the post has edits, and the 4px is dead space
-    // in the cluster regardless.
+    // edit-history button when the post has edits. With nothing after it the
+    // `ml-auto` on ⋯ absorbs the extra gap and hides the leftover entirely,
+    // which is exactly why this has to be asserted rather than looked at.
     expect(
       screen.queryByRole('button', { name: /^Add reaction/ })
     ).not.toBeInTheDocument()
