@@ -147,6 +147,38 @@ export const sanitizeStoredFileName = (fileName: string): string => {
 }
 
 /**
+ * A `Content-Disposition: attachment` value that safely carries `fileName`.
+ *
+ * `sanitizeStoredFileName` reduces a name to one inert path segment, which is
+ * what storage needs, but it deliberately leaves quotes alone — they are legal
+ * in a file name and harmless in a path. In a header they are not: a name
+ * containing `"` closes the quoted-string early and the rest is parsed as
+ * further parameters. So the quoted form here is reduced further, to characters
+ * that cannot terminate or extend it, and the real name rides in the RFC 5987
+ * `filename*` parameter, which every current browser prefers when both are
+ * present. That keeps non-ASCII names intact — the sanitizer keeps U+200C/U+200D
+ * because Persian and Indic spellings need them, and a name that is entirely
+ * non-ASCII would otherwise reduce to the fallback.
+ */
+export const buildAttachmentContentDisposition = (fileName: string): string => {
+  const storedName = sanitizeStoredFileName(fileName)
+  // Anything outside this set is dropped rather than escaped: backslash escaping
+  // inside a quoted-string is legal but inconsistently implemented, and this
+  // parameter is only the fallback for a client that cannot read `filename*`.
+  const quotedName =
+    storedName.replace(/[^\w.\- ]+/g, '_').trim() || FALLBACK_STORED_FILE_NAME
+  // encodeURIComponent leaves !'()* unescaped; they are not valid in RFC 5987's
+  // attr-char set, so percent-encode them too.
+  const encodedName = encodeURIComponent(storedName).replace(
+    /['()!*]/g,
+    (character) =>
+      `%${character.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`
+  )
+
+  return `attachment; filename="${quotedName}"; filename*=UTF-8''${encodedName}`
+}
+
+/**
  * The extension to give a generated storage path for an upload of
  * `contentType`. Falls back to the supplied name's extension only when the
  * content type is unknown — which the upload routes already reject — and then

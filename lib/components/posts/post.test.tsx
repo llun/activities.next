@@ -19,6 +19,7 @@ import {
   likeStatus,
   reactToStatus
 } from '@/lib/client'
+import type { ActorProfile } from '@/lib/types/domain/actor'
 import {
   StatusAnnounce,
   StatusNote,
@@ -971,6 +972,60 @@ describe('Post', () => {
     url: '/api/v1/fitness-files/fitness-1',
     processingStatus: 'completed' as const
   }
+
+  describe('fitness source file', () => {
+    // `fitnessFile.url` serves the ORIGINAL upload, which still holds the ends a
+    // privacy location trims off the route map and the route data, so
+    // `GET /api/v1/fitness-files/:id` is owner-only. The card's file NAME is its
+    // label and stays for every viewer; only the download goes.
+    const fitnessStatus = { ...status, summary: null, fitness: fitnessBase }
+
+    it('links the file for its owner', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          currentActor={status.actor ?? undefined}
+          status={fitnessStatus}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(
+        screen.getByRole('link', { name: 'strava-123.tcx' })
+      ).toHaveAttribute('href', '/api/v1/fitness-files/fitness-1')
+    })
+
+    it.each([
+      {
+        description: 'withholds the download from a signed-in viewer',
+        currentActor: {
+          id: 'https://activities.local/users/someone-else',
+          username: 'someone-else',
+          domain: 'activities.local'
+        } as unknown as ActorProfile
+      },
+      {
+        description: 'withholds the download from a logged-out reader',
+        currentActor: undefined
+      }
+    ])('$description', ({ currentActor }: { currentActor?: ActorProfile }) => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          currentActor={currentActor}
+          status={fitnessStatus}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(screen.getByText('strava-123.tcx')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('link', { name: 'strava-123.tcx' })
+      ).not.toBeInTheDocument()
+    })
+  })
 
   it('renders a "View on Strava" source link from the fitness source URL', () => {
     render(

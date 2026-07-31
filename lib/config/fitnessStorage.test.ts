@@ -8,6 +8,7 @@ import {
   FitnessStorageS3Config,
   FitnessStorageType,
   getFitnessStorageConfig,
+  getMediaReservedFitnessPathPrefixes,
   hasExplicitFitnessStorageType
 } from './fitnessStorage'
 
@@ -444,5 +445,78 @@ describe('FitnessStorage config', () => {
         'Unknown ACTIVITIES_FITNESS_STORAGE_TYPE value "bogus"; fitness storage will be disabled'
       )
     })
+  })
+})
+
+describe('getMediaReservedFitnessPathPrefixes', () => {
+  const originalEnv = { ...process.env }
+
+  afterEach(() => {
+    process.env = { ...originalEnv }
+  })
+
+  it('always reserves the fallback prefix', () => {
+    delete process.env.ACTIVITIES_FITNESS_STORAGE_TYPE
+    delete process.env.ACTIVITIES_FITNESS_STORAGE_PREFIX
+
+    expect(getMediaReservedFitnessPathPrefixes()).toEqual(['fitness'])
+  })
+
+  it('reserves a configured S3 key prefix as well', () => {
+    process.env.ACTIVITIES_FITNESS_STORAGE_PREFIX = '/Activities/Fitness/'
+
+    expect(getMediaReservedFitnessPathPrefixes()).toEqual([
+      'fitness',
+      'activities/fitness'
+    ])
+  })
+
+  // The S3 prefix above is the only thing the reservation used to know about, so
+  // an operator who instead pointed a LOCAL fitness directory inside the media
+  // root under any other name got a directory the media route would serve with
+  // no access control — which is the hole the reservation exists to close.
+  it('reserves a local fitness directory that sits inside the media root', () => {
+    process.env.ACTIVITIES_FITNESS_STORAGE_TYPE = 'fs'
+    process.env.ACTIVITIES_MEDIA_STORAGE_PATH = '/var/uploads'
+    process.env.ACTIVITIES_FITNESS_STORAGE_PATH = '/var/uploads/fit-files'
+
+    expect(getMediaReservedFitnessPathPrefixes()).toContain('fit-files')
+  })
+
+  it.each([
+    {
+      description: 'a local fitness directory outside the media root',
+      mediaPath: '/var/uploads',
+      fitnessPath: '/srv/fitness-files'
+    },
+    {
+      description: 'a local fitness directory equal to the media root',
+      // Reserving '' would refuse every media object on the instance.
+      mediaPath: '/var/uploads',
+      fitnessPath: '/var/uploads'
+    }
+  ])(
+    'reserves nothing extra for $description',
+    ({
+      mediaPath,
+      fitnessPath
+    }: {
+      mediaPath: string
+      fitnessPath: string
+    }) => {
+      process.env.ACTIVITIES_FITNESS_STORAGE_TYPE = 'fs'
+      process.env.ACTIVITIES_MEDIA_STORAGE_PATH = mediaPath
+      process.env.ACTIVITIES_FITNESS_STORAGE_PATH = fitnessPath
+
+      expect(getMediaReservedFitnessPathPrefixes()).toEqual(['fitness'])
+    }
+  )
+
+  it('ignores the local path when storage is not local', () => {
+    process.env.ACTIVITIES_FITNESS_STORAGE_TYPE = 's3'
+    process.env.ACTIVITIES_MEDIA_STORAGE_PATH = '/var/uploads'
+    process.env.ACTIVITIES_FITNESS_STORAGE_PATH = '/var/uploads/fit-files'
+
+    expect(getMediaReservedFitnessPathPrefixes()).toEqual(['fitness'])
   })
 })

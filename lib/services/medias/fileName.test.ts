@@ -8,6 +8,7 @@ import {
   EXTENSION_BY_CONTENT_TYPE,
   FALLBACK_STORED_FILE_NAME,
   assertDirectChildOf,
+  buildAttachmentContentDisposition,
   createMediaTempFilePath,
   getStoredMediaExtension,
   sanitizeStoredFileName
@@ -197,6 +198,56 @@ describe('sanitizeStoredFileName', () => {
     const sanitized = sanitizeStoredFileName(`${'a'.repeat(199)} bbbb.mp4`)
 
     expect(sanitized).toBe('a'.repeat(199))
+  })
+})
+
+describe('buildAttachmentContentDisposition', () => {
+  it.each([
+    {
+      description: 'passes a plain name through both parameters',
+      fileName: 'morning-run.fit',
+      expected: `attachment; filename="morning-run.fit"; filename*=UTF-8''morning-run.fit`
+    },
+    {
+      description: 'cannot be closed early by a quote in the name',
+      fileName: 'a".gpx',
+      expected: `attachment; filename="a_.gpx"; filename*=UTF-8''a%22.gpx`
+    },
+    {
+      description: 'cannot gain a second parameter from a semicolon',
+      fileName: 'a; filename=b.html',
+      expected: `attachment; filename="a_ filename_b.html"; filename*=UTF-8''a%3B%20filename%3Db.html`
+    },
+    {
+      description: 'keeps a non-ASCII name in the encoded parameter',
+      fileName: 'วิ่งเช้า.gpx',
+      expected: `attachment; filename="_.gpx"; filename*=UTF-8''%E0%B8%A7%E0%B8%B4%E0%B9%88%E0%B8%87%E0%B9%80%E0%B8%8A%E0%B9%89%E0%B8%B2.gpx`
+    },
+    {
+      description: 'percent-encodes the characters encodeURIComponent spares',
+      fileName: "a!'()*.gpx",
+      expected: `attachment; filename="a_.gpx"; filename*=UTF-8''a%21%27%28%29%2A.gpx`
+    },
+    {
+      description: 'falls back when the name reduces to nothing storable',
+      fileName: '   ',
+      expected: `attachment; filename="${FALLBACK_STORED_FILE_NAME}"; filename*=UTF-8''${FALLBACK_STORED_FILE_NAME}`
+    }
+  ])(
+    '$description',
+    ({ fileName, expected }: { fileName: string; expected: string }) => {
+      expect(buildAttachmentContentDisposition(fileName)).toBe(expected)
+    }
+  )
+
+  it('never emits a bare quote outside the two parameter values', () => {
+    const header = buildAttachmentContentDisposition('e"vil"; drop="me".fit')
+    const quotedValue = header.match(/filename="([^"]*)"/)?.[1] ?? ''
+
+    // Exactly the two quotes that delimit `filename=`, so nothing after the
+    // closing one can be read as a parameter the caller did not write.
+    expect(header.split('"')).toHaveLength(3)
+    expect(quotedValue).not.toContain('"')
   })
 })
 

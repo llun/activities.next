@@ -3,8 +3,8 @@ import { NextRequest } from 'next/server'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getFitnessFile } from '@/lib/services/fitness-files'
+import { buildAttachmentContentDisposition } from '@/lib/services/medias/fileName'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-import { getVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
 import { HTTP_STATUS, apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -44,37 +44,25 @@ export const GET = traceApiRoute(
       const isOwnerAccount = Boolean(
         currentAccountId && ownerAccountId === currentAccountId
       )
-      let isPubliclyAccessible = false
 
+      // Owner only, whatever the attached status's visibility. This file is the
+      // ORIGINAL upload: privacy locations trim the route map and the route-data
+      // response, but they cannot trim bytes the server merely stores, so
+      // serving it to a viewer handed back the coordinates every other surface
+      // had just hidden. Making a public activity public does not have to mean
+      // handing out the athlete's raw telemetry, and nothing federated ever
+      // carried this URL — it is stripped from every outbound payload.
+      //
+      // 404 rather than 403: a 403 confirms the id resolves to a real file, and
+      // every other rejection on this route already answers 404.
       if (!isOwnerAccount) {
-        if (!fileMetadata.statusId) {
-          logger.warn({
-            message: 'Fitness file not found or not authorized',
-            fileId: id,
-            actorId: currentActor?.id ?? null,
-            accountId: currentAccountId ?? null
-          })
-          return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
-        }
-
-        const status = await database.getStatus({
-          statusId: fileMetadata.statusId,
-          withReplies: false
+        logger.warn({
+          message: 'Fitness file not found or not authorized',
+          fileId: id,
+          actorId: currentActor?.id ?? null,
+          accountId: currentAccountId ?? null
         })
-        const visibility = status ? getVisibility(status.to, status.cc) : null
-        isPubliclyAccessible =
-          visibility === 'public' || visibility === 'unlisted'
-
-        if (!status || !isPubliclyAccessible) {
-          logger.warn({
-            message: 'Fitness file not found or not authorized',
-            fileId: id,
-            actorId: currentActor?.id ?? null,
-            accountId: currentAccountId ?? null,
-            visibility
-          })
-          return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
-        }
+        return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
       }
 
       const result = await getFitnessFile(database, id, fileMetadata)
@@ -93,9 +81,21 @@ export const GET = traceApiRoute(
       return new Response(result.buffer as BodyInit, {
         headers: {
           'Content-Type': result.contentType,
-          'Cache-Control': isPubliclyAccessible
-            ? 'public, max-age=31536000, immutable'
-            : 'private, no-store'
+          // Unconditional now that only the owner gets here. The previous
+          // `public, max-age=31536000, immutable` on public activities pinned raw
+          // GPS in every shared cache for a year, and outlived the visibility
+          // change that was supposed to withdraw it.
+          'Cache-Control': 'private, no-store',
+          // `contentType` comes from the stored object, and on the S3 path that
+          // value originates from the presigned upload's client-supplied field,
+          // which has no allow-list. Owner-only already reduces the worst case
+          // from stored to self-XSS; these two make it inert — the browser may
+          // not re-sniff the bytes into something scriptable, and it may not
+          // render them on this origin at all.
+          'X-Content-Type-Options': 'nosniff',
+          'Content-Disposition': buildAttachmentContentDisposition(
+            fileMetadata.fileName
+          )
         }
       })
     } catch (error) {

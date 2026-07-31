@@ -9,6 +9,7 @@ import { Card } from '@/lib/components/ui/card'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getActorProfile } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -114,9 +115,17 @@ const Page: FC = async () => {
         currentTime={currentTime}
       />
 
+      {/* `getActorProfile`, never the raw `Actor` and never `cleanJson`, which
+          is a JSON round-trip that clones without narrowing. This prop crosses
+          into a Client Component, and React serialises whatever it is handed
+          into the flight payload embedded in the HTML — `Actor` carries
+          `privateKey`, `publicKey` and the whole `account` row (email,
+          passwordHash, reset codes), which is exactly why those fields are kept
+          off `ActorProfile`. Every other page in this group strips the same way. */}
       <RecentFitnessActivities
         host={host}
         currentTime={currentTime}
+        currentActor={getActorProfile(currentActor)}
         statuses={statuses.map((status) => cleanJson(status))}
       />
     </div>
