@@ -4,6 +4,8 @@ import {
   buildRouteGeoJson,
   computeFocusBounds,
   downsampleSegments,
+  getDistanceToHiddenSegments,
+  getScaledCoordinateDistance,
   round2
 } from './mapGeometry'
 
@@ -430,5 +432,146 @@ describe('boxToPolygon', () => {
         ]
       }
     })
+  })
+})
+
+describe('getScaledCoordinateDistance', () => {
+  it('measures a pure latitude difference in degrees', () => {
+    expect(
+      getScaledCoordinateDistance({ lat: 0, lng: 0 }, { lat: 1, lng: 0 })
+    ).toBeCloseTo(1, 10)
+  })
+
+  it('narrows a longitude difference by cos(latitude)', () => {
+    // At 60° a degree of longitude is half as wide as a degree of latitude, so
+    // an isotropic tolerance must not treat the two as equal.
+    expect(
+      getScaledCoordinateDistance({ lat: 60, lng: 0 }, { lat: 60, lng: 1 })
+    ).toBeCloseTo(0.5, 2)
+  })
+
+  it('is symmetric', () => {
+    const a = { lat: 52.1, lng: 4.3 }
+    const b = { lat: 52.4, lng: 4.9 }
+
+    expect(getScaledCoordinateDistance(a, b)).toBeCloseTo(
+      getScaledCoordinateDistance(b, a),
+      12
+    )
+  })
+})
+
+describe('getDistanceToHiddenSegments', () => {
+  // One hidden leg running due east along the equator, where a scaled degree is
+  // a plain degree, plus a visible leg that must never be measured.
+  const segments = [
+    {
+      isHiddenByPrivacy: true,
+      samples: [
+        { lat: 0, lng: 0 },
+        { lat: 0, lng: 1 }
+      ]
+    },
+    {
+      isHiddenByPrivacy: false,
+      samples: [
+        { lat: 10, lng: 10 },
+        { lat: 10, lng: 11 }
+      ]
+    }
+  ]
+
+  it('returns null when no segment is hidden', () => {
+    expect(
+      getDistanceToHiddenSegments(
+        [{ isHiddenByPrivacy: false, samples: [{ lat: 0, lng: 0 }] }],
+        { lat: 0, lng: 0 }
+      )
+    ).toBeNull()
+  })
+
+  it('returns null for an empty route', () => {
+    expect(getDistanceToHiddenSegments([], { lat: 0, lng: 0 })).toBeNull()
+  })
+
+  it.each([
+    {
+      description: 'a point on the segment',
+      point: { lat: 0, lng: 0.5 },
+      expected: 0
+    },
+    {
+      description: 'a point offset perpendicular to it',
+      point: { lat: 0.25, lng: 0.5 },
+      expected: 0.25
+    },
+    {
+      description: 'a point past its end, measured to the end not the line',
+      point: { lat: 0, lng: 3 },
+      expected: 2
+    },
+    {
+      description: 'a point before its start',
+      point: { lat: 0, lng: -1.5 },
+      expected: 1.5
+    }
+  ])('measures $description', ({ point, expected }) => {
+    expect(getDistanceToHiddenSegments(segments, point)).toBeCloseTo(
+      expected,
+      6
+    )
+  })
+
+  it('ignores visible segments even when they are nearer', () => {
+    // Sitting right on the visible leg: the answer must be the distance to the
+    // far-away hidden leg, not zero.
+    const distance = getDistanceToHiddenSegments(segments, {
+      lat: 10,
+      lng: 10.5
+    })
+
+    expect(distance).not.toBeCloseTo(0, 6)
+    expect(distance).toBeGreaterThan(9)
+  })
+
+  it('still measures a hidden stretch reduced to a single sample', () => {
+    expect(
+      getDistanceToHiddenSegments(
+        [{ isHiddenByPrivacy: true, samples: [{ lat: 0, lng: 0 }] }],
+        { lat: 0, lng: 2 }
+      )
+    ).toBeCloseTo(2, 6)
+  })
+})
+
+describe('getDistanceToHiddenSegments degenerate geometry', () => {
+  it('measures a segment whose two samples are identical', () => {
+    // A stationary GPS fix repeats a coordinate; without the zero-length guard
+    // the projection divides 0/0 and every comparison against a tolerance then
+    // fails silently, so the hint would never appear on that stretch.
+    const distance = getDistanceToHiddenSegments(
+      [
+        {
+          isHiddenByPrivacy: true,
+          samples: [
+            { lat: 0, lng: 0 },
+            { lat: 0, lng: 0 }
+          ]
+        }
+      ],
+      { lat: 0, lng: 1 }
+    )
+
+    expect(Number.isNaN(distance)).toBe(false)
+    expect(distance).toBeCloseTo(1, 6)
+  })
+
+  it('ignores a hidden segment with no samples at all', () => {
+    expect(
+      getDistanceToHiddenSegments([{ isHiddenByPrivacy: true, samples: [] }], {
+        lat: 0,
+        lng: 0
+      })
+    ).toBeNull()
   })
 })

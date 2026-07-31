@@ -189,7 +189,7 @@ const routeData: FitnessRouteDataResponse = {
 }
 
 // A route split into a visible leg and a privacy-hidden leg, so the map panel
-// renders the green-segment notice.
+// draws a green stretch for the hint to explain.
 const routeDataWithHiddenSegments: FitnessRouteDataResponse = {
   ...routeData,
   segments: [
@@ -1126,6 +1126,230 @@ describe('FitnessStatusDetail', () => {
     )
   })
 
+  describe('route privacy hint', () => {
+    // A GL map stub that actually runs its `load` callback, so the layers and
+    // the layer-scoped handlers are really registered, and that records every
+    // handler so a test can drive a hover without a browser.
+    const renderWithGlMap = async (
+      routeData: FitnessRouteDataResponse = routeDataWithHiddenSegments
+    ) => {
+      const handlers = new Map<
+        string,
+        (event: { point: { x: number; y: number } }) => void
+      >()
+      const layers: string[] = []
+      const canvas = document.createElement('canvas')
+      const map = {
+        addSource: vi.fn(),
+        addLayer: vi.fn((layer: { id: string }) => {
+          layers.push(layer.id)
+        }),
+        once: vi.fn((event: string, listener: () => void) => {
+          if (event === 'load') listener()
+        }),
+        on: vi.fn(
+          (
+            event: string,
+            layerId: string,
+            listener: (payload: { point: { x: number; y: number } }) => void
+          ) => {
+            // Registration order matters: MapLibre silently drops a listener
+            // whose layer does not exist yet, so record what existed at the
+            // time rather than only the pairing.
+            expect(layers).toContain(layerId)
+            handlers.set(`${event}:${layerId}`, listener)
+          }
+        ),
+        getCanvas: vi.fn(() => canvas),
+        getSource: vi.fn(() => ({ setData: vi.fn() })),
+        getZoom: vi.fn(() => 12),
+        fitBounds: vi.fn(),
+        setMinZoom: vi.fn(),
+        setMaxBounds: vi.fn(),
+        zoomIn: vi.fn(),
+        zoomOut: vi.fn(),
+        remove: vi.fn()
+      }
+      const MapConstructor = vi.fn(function MapStub() {
+        return map
+      })
+      class LngLatBoundsStub {
+        extend() {
+          return this
+        }
+      }
+      vi.mocked(loadMaplibreModule).mockResolvedValue({
+        Map: MapConstructor,
+        LngLatBounds: LngLatBoundsStub
+      } as never)
+      mockGetFitnessRouteData.mockResolvedValue(routeData)
+
+      renderDetail()
+      await waitFor(() => expect(MapConstructor).toHaveBeenCalled())
+      await act(async () => {})
+
+      return { map, canvas, handlers, layers }
+    }
+
+    const HIT_LAYER = 'activity-route-line-hidden-hit'
+
+    it('adds an invisible wide hit layer over the hidden segments', async () => {
+      const { map, layers } = await renderWithGlMap()
+
+      expect(layers).toContain(HIT_LAYER)
+      const hitLayer = map.addLayer.mock.calls
+        .map(([layer]) => layer as Record<string, never>)
+        .find((layer) => layer.id === HIT_LAYER) as unknown as {
+        filter: unknown
+        paint: Record<string, number | string>
+      }
+      // Zero opacity but a wide stroke: GL's line hit test reads line-width and
+      // ignores opacity, so this is hoverable while drawing nothing. The 4px
+      // painted line alone would be a ±2px target.
+      expect(hitLayer.paint['line-opacity']).toBe(0)
+      expect(hitLayer.paint['line-width']).toBeGreaterThan(4)
+      expect(hitLayer.filter).toEqual([
+        '==',
+        ['get', 'isHiddenByPrivacy'],
+        true
+      ])
+    })
+
+    it('shows the hint while the pointer is over a hidden segment', async () => {
+      const { canvas, handlers } = await renderWithGlMap()
+
+      expect(screen.queryByTestId('route-privacy-hint')).not.toBeInTheDocument()
+
+      await act(async () => {
+        handlers.get(`mousemove:${HIT_LAYER}`)?.({ point: { x: 40, y: 90 } })
+      })
+
+      const hint = screen.getByTestId('route-privacy-hint')
+      expect(hint).toHaveTextContent('Hidden from other viewers')
+      expect(hint).toHaveStyle({ left: '40px', top: '90px' })
+      expect(canvas.style.cursor).toBe('help')
+    })
+
+    it('hides the hint again when the pointer leaves the segment', async () => {
+      const { canvas, handlers } = await renderWithGlMap()
+
+      await act(async () => {
+        handlers.get(`mousemove:${HIT_LAYER}`)?.({ point: { x: 40, y: 90 } })
+      })
+      expect(screen.getByTestId('route-privacy-hint')).toBeInTheDocument()
+
+      await act(async () => {
+        handlers.get(`mouseleave:${HIT_LAYER}`)?.({ point: { x: 0, y: 0 } })
+      })
+
+      expect(screen.queryByTestId('route-privacy-hint')).not.toBeInTheDocument()
+      expect(canvas.style.cursor).toBe('')
+    })
+
+    it('retires a tap-opened hint on its own, since touch has no pointer leave', async () => {
+      const { handlers } = await renderWithGlMap()
+
+      await act(async () => {
+        handlers.get(`click:${HIT_LAYER}`)?.({ point: { x: 12, y: 20 } })
+      })
+      expect(screen.getByTestId('route-privacy-hint')).toBeInTheDocument()
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 4100))
+      })
+
+      expect(screen.queryByTestId('route-privacy-hint')).not.toBeInTheDocument()
+    })
+
+    it('never covers the map: the hint takes no pointer events', async () => {
+      const { handlers } = await renderWithGlMap()
+
+      await act(async () => {
+        handlers.get(`mousemove:${HIT_LAYER}`)?.({ point: { x: 40, y: 90 } })
+      })
+
+      // The whole point of replacing the pinned bar: an overlay that could
+      // swallow a drag would make part of the map unpannable.
+      expect(screen.getByTestId('route-privacy-hint')).toHaveClass(
+        'pointer-events-none'
+      )
+    })
+
+    it('explains the hidden segments to assistive technology without a hover', async () => {
+      await renderWithGlMap()
+
+      // The hint itself is aria-hidden and unreachable by keyboard, so the
+      // explanation is also stated outright whenever the route has green.
+      expect(
+        screen.getByText(/hidden sections are drawn in green/i)
+      ).toBeInTheDocument()
+    })
+
+    it('says nothing when no segment is hidden', async () => {
+      const { handlers, layers } = await renderWithGlMap(routeData)
+
+      expect(await screen.findByLabelText('Zoom in map')).toBeInTheDocument()
+      expect(
+        screen.queryByText(/hidden sections are drawn in green/i)
+      ).not.toBeInTheDocument()
+
+      // The hit layer filters on `isHiddenByPrivacy`, so with nothing hidden it
+      // matches no feature and the handler never fires. Assert that rather than
+      // asserting an absence nothing could have produced: firing the handler
+      // anyway would only prove the test can skip the filter.
+      expect(layers).toContain(HIT_LAYER)
+      expect(handlers.has(`mousemove:${HIT_LAYER}`)).toBe(true)
+      expect(screen.queryByTestId('route-privacy-hint')).not.toBeInTheDocument()
+    })
+
+    it('labels the GL map container the way its MapKit sibling is labelled', async () => {
+      await renderWithGlMap()
+
+      // The Apple branch has always carried this; the GL branch was a bare div
+      // until the hint made the map's contents worth naming.
+      expect(screen.getByLabelText('Activity route map')).toBeInTheDocument()
+    })
+
+    it('keeps the hint out of the accessibility tree', async () => {
+      const { handlers } = await renderWithGlMap()
+
+      await act(async () => {
+        handlers.get(`mousemove:${HIT_LAYER}`)?.({ point: { x: 40, y: 90 } })
+      })
+
+      // RoutePrivacyDescription carries the sentence to assistive technology;
+      // the chip must not announce it a second time.
+      expect(screen.getByTestId('route-privacy-hint')).toHaveAttribute(
+        'aria-hidden',
+        'true'
+      )
+    })
+
+    it('leaves a clicked hint up on a hover-capable device', async () => {
+      // Layer-scoped `click` fires for a mouse press as well as a tap, so
+      // arming the touch retire-timer there would pull the hint away mid-hover.
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: (query: string) => ({ matches: true, media: query })
+      })
+      try {
+        const { handlers } = await renderWithGlMap()
+
+        await act(async () => {
+          handlers.get(`click:${HIT_LAYER}`)?.({ point: { x: 12, y: 20 } })
+        })
+
+        await act(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 4100))
+        })
+
+        expect(screen.getByTestId('route-privacy-hint')).toBeInTheDocument()
+      } finally {
+        Reflect.deleteProperty(window, 'matchMedia')
+      }
+    })
+  })
+
   it('renders the route map without a GPS trace badge', async () => {
     renderDetail()
 
@@ -1134,114 +1358,6 @@ describe('FitnessStatusDetail', () => {
     // rendered and the badge assertion below is not vacuous.
     expect(await screen.findByLabelText('Zoom in map')).toBeInTheDocument()
     expect(screen.queryByText('GPS trace')).not.toBeInTheDocument()
-  })
-
-  it('omits the privacy notice when no segment is hidden', async () => {
-    renderDetail()
-
-    expect(await screen.findByLabelText('Zoom in map')).toBeInTheDocument()
-    expect(
-      screen.queryByText('Green segments are hidden from other viewers')
-    ).not.toBeInTheDocument()
-  })
-
-  it('dismisses the hidden-privacy-segment notice when it is tapped', async () => {
-    mockGetFitnessRouteData.mockResolvedValue(routeDataWithHiddenSegments)
-
-    renderDetail()
-
-    const notice = await screen.findByRole('button', {
-      name: 'Dismiss notice: green segments are hidden from other viewers'
-    })
-    fireEvent.click(notice)
-
-    await waitFor(() =>
-      expect(
-        screen.queryByText('Green segments are hidden from other viewers')
-      ).not.toBeInTheDocument()
-    )
-  })
-
-  it('brings the privacy notice back when another activity file is selected', async () => {
-    mockGetFitnessFilesByStatus.mockResolvedValue([
-      buildFitnessFile({ id: 'fit-1', fileName: 'ride-morning.gpx' }),
-      buildFitnessFile({
-        id: 'fit-2',
-        fileName: 'ride-evening.gpx',
-        isPrimary: false,
-        activityStartTime: Date.parse('2026-05-27T18:00:00Z')
-      })
-    ])
-    mockGetFitnessRouteData.mockResolvedValue(routeDataWithHiddenSegments)
-
-    renderDetail()
-
-    fireEvent.click(
-      await screen.findByRole('button', {
-        name: 'Dismiss notice: green segments are hidden from other viewers'
-      })
-    )
-    await waitFor(() =>
-      expect(
-        screen.queryByText('Green segments are hidden from other viewers')
-      ).not.toBeInTheDocument()
-    )
-
-    // The panel is not keyed per file, so a dismissal must not carry over to a
-    // different route that also has hidden segments.
-    fireEvent.change(await screen.findByLabelText('Activity file'), {
-      target: { value: 'fit-2' }
-    })
-
-    expect(
-      await screen.findByText('Green segments are hidden from other viewers')
-    ).toBeInTheDocument()
-  })
-
-  it('keeps the privacy notice dismissed when its own file is selected again', async () => {
-    // The dismissal is scoped to the acknowledged file, so reloading that file's
-    // route must not resurrect the notice. Deriving it during render is what
-    // guarantees that: the reset used to live in an effect keyed on the
-    // `routeSegments` identity, and a passive effect runs a task *after* the
-    // commit that revealed the notice — late enough to land after the user's tap
-    // and undo it. That race is what made this suite flake on CI.
-    mockGetFitnessFilesByStatus.mockResolvedValue([
-      buildFitnessFile({ id: 'fit-1', fileName: 'ride-morning.gpx' }),
-      buildFitnessFile({
-        id: 'fit-2',
-        fileName: 'ride-evening.gpx',
-        isPrimary: false,
-        activityStartTime: Date.parse('2026-05-27T18:00:00Z')
-      })
-    ])
-    mockGetFitnessRouteData.mockResolvedValue(routeDataWithHiddenSegments)
-
-    renderDetail()
-
-    fireEvent.click(
-      await screen.findByRole('button', {
-        name: 'Dismiss notice: green segments are hidden from other viewers'
-      })
-    )
-    const select = await screen.findByLabelText('Activity file')
-
-    fireEvent.change(select, { target: { value: 'fit-2' } })
-    expect(
-      await screen.findByText('Green segments are hidden from other viewers')
-    ).toBeInTheDocument()
-
-    fireEvent.change(select, { target: { value: 'fit-1' } })
-    // Wait for fit-1's route to be re-fetched and committed — that commit is
-    // exactly where the old reset fired.
-    await waitFor(() =>
-      expect(mockGetFitnessRouteData).toHaveBeenCalledTimes(3)
-    )
-    await act(async () => {})
-
-    expect(await screen.findByText('file 1 of 2')).toBeInTheDocument()
-    expect(
-      screen.queryByText('Green segments are hidden from other viewers')
-    ).not.toBeInTheDocument()
   })
 
   it('surfaces an error banner when route data fails to load', async () => {

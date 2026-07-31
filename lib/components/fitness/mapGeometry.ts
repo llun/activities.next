@@ -217,6 +217,89 @@ export const findRouteSampleForElapsed = (
     : candidate
 }
 
+/**
+ * Planar distance between two coordinates, in "scaled degrees": latitude
+ * degrees, with longitude narrowed by cos(latitude) so the measure is isotropic
+ * on screen. A naive `hypot(dLat, dLng)` treats a degree of longitude as a
+ * degree of latitude, which away from the equator makes an east-west tolerance
+ * feel far looser than a north-south one — at 55°N a longitude degree is barely
+ * half as wide. The unit is arbitrary and only ever compared against another
+ * distance produced by this same function, so no metres conversion is needed.
+ *
+ * Equirectangular rather than haversine on purpose: this measures a pointer
+ * against a route inside one map viewport, where the flat-earth error is far
+ * below a pixel, and the caller derives its tolerance through the same
+ * projection.
+ */
+export const getScaledCoordinateDistance = (a: LatLng, b: LatLng): number => {
+  const longitudeScale = Math.cos(((a.lat + b.lat) / 2) * (Math.PI / 180))
+  return Math.hypot(a.lat - b.lat, (a.lng - b.lng) * longitudeScale)
+}
+
+// Distance from `point` to the segment running from `start` to `end`, measured
+// with `getScaledCoordinateDistance`. Standard point-to-line-segment projection,
+// clamped to the segment's ends so a pointer past a segment's tip measures to
+// the tip rather than to the infinite line.
+const getDistanceToSegment = (
+  point: LatLng,
+  start: LatLng,
+  end: LatLng
+): number => {
+  const deltaLat = end.lat - start.lat
+  const deltaLng = end.lng - start.lng
+
+  if (deltaLat === 0 && deltaLng === 0) {
+    return getScaledCoordinateDistance(point, start)
+  }
+
+  const projection =
+    ((point.lat - start.lat) * deltaLat + (point.lng - start.lng) * deltaLng) /
+    (deltaLat * deltaLat + deltaLng * deltaLng)
+  const clamped = Math.min(1, Math.max(0, projection))
+
+  return getScaledCoordinateDistance(point, {
+    lat: start.lat + clamped * deltaLat,
+    lng: start.lng + clamped * deltaLng
+  })
+}
+
+/**
+ * Distance from `point` to the nearest privacy-hidden stretch of the route, or
+ * `null` when the route has none. Backs the Apple MapKit hover hint, which —
+ * unlike the GL renderers, whose layers hit-test themselves — has no pointer
+ * events on its overlays and must decide "is the pointer on a green line?"
+ * geometrically. Callers compare the result against a tolerance obtained from
+ * the same projection, so the shared unit stays internal to this module.
+ */
+export const getDistanceToHiddenSegments = (
+  segments: { isHiddenByPrivacy?: boolean; samples: LatLng[] }[],
+  point: LatLng
+): number | null => {
+  let nearest: number | null = null
+
+  for (const segment of segments) {
+    if (!segment.isHiddenByPrivacy) continue
+
+    for (let index = 1; index < segment.samples.length; index += 1) {
+      const distance = getDistanceToSegment(
+        point,
+        segment.samples[index - 1],
+        segment.samples[index]
+      )
+      if (nearest === null || distance < nearest) nearest = distance
+    }
+
+    // A hidden stretch reduced to a single sample still has a position worth
+    // measuring; without this it would be silently unhoverable.
+    if (segment.samples.length === 1) {
+      const distance = getScaledCoordinateDistance(point, segment.samples[0])
+      if (nearest === null || distance < nearest) nearest = distance
+    }
+  }
+
+  return nearest
+}
+
 export type Box = { nw: LatLng; se: LatLng }
 
 export const round2 = (value: number): number => Number(value.toFixed(2))
