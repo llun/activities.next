@@ -1495,8 +1495,11 @@ const ActivityMapPanel: FC<{
   /**
    * Viewer the privacy-notice acknowledgement is stored against. Hidden segments
    * reach the owning account only, so the notice is always about this viewer's
-   * own route, and a browser-wide key would let one account's dismissal swallow
-   * another account's first look at theirs.
+   * own route, and a browser-wide key would let one person's dismissal swallow
+   * another's first look at theirs on a shared device. The actor is the finest
+   * scope a Client Component can key on — see `routePrivacyNotice` for why that
+   * is a hair coarser than the server's own gate, and why erring this way is
+   * harmless.
    */
   currentActorId?: string | null
   routeSamples: FitnessRouteSample[]

@@ -24,13 +24,19 @@ const STORAGE_KEY_PREFIX = 'fitness:activity-route-privacy-notice-dismissed'
 const DISMISSED_VALUE = 'true'
 
 /**
- * The stored key for one actor. Hidden segments are served to the owning account
- * only (`includeHidden: isOwnerAccount` in the route-data route), so the notice
- * is always about the viewer's OWN route — on a shared browser an unscoped key
- * would let one account's dismissal swallow another account's first look at
- * their own redacted route. Privacy locations are configured per actor, so the
- * actor is the right unit. An actor-less viewer never sees hidden segments in
- * the first place; the bare prefix is just a defined fallback.
+ * The stored key for one actor. Hidden segments are served to the owning
+ * ACCOUNT only (`includeHidden: isOwnerAccount` in the route-data route, which
+ * compares account ids), so the notice always describes the viewer's own route
+ * and a browser-wide key would let one person's dismissal swallow another's
+ * first look at theirs on a shared device.
+ *
+ * The account is therefore the unit the server actually gates on, but
+ * `ActorProfile` — all a Client Component has — carries no account id, so the
+ * actor is the finest scope available here without new plumbing. It errs the
+ * harmless way: an actor key can never hide the notice from someone who should
+ * see it, it can only re-show it, so an account with several actors is told
+ * what green means once per actor rather than once. An actor-less viewer never
+ * receives hidden segments at all; the bare prefix is just a defined fallback.
  */
 export const getRoutePrivacyNoticeStorageKey = (
   actorId?: string | null
