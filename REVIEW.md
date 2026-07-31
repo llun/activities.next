@@ -157,8 +157,10 @@ change doesn't touch.
   pull back over (the fitness activity detail's card) correctly has neither.
   That left cluster + `ml-auto` pair is not optional either way: it is
   what keeps the spacing between actions identical everywhere. The edit-history
-  panel opens `left-0` from its trigger for the same reason — anchored `right-0`
-  from a left-packed row it runs off the post's left side and gets clipped. The picker trigger lives
+  panel is anchored to the row (its trigger's wrapper is deliberately not
+  `relative`) and sits `right-0`, flush with the post's right edge — anchored to
+  the trigger, its 25rem width starts wherever the counts push that trigger and
+  the post's card clips the overhang. The picker trigger lives
   in the action row (`ReactionButton`), not beside the chips, and both halves
   share one `useReactionState`; `useBookmarkState` is held by `Actions` for the
   same reason. A row narrower than 400px — measured by `ResizeObserver` on the

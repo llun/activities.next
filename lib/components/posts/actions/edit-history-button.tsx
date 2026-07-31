@@ -36,7 +36,11 @@ export const EditHistoryButton: FC<Props> = ({
   }
 
   return (
-    <div className="relative inline-flex">
+    // Deliberately NOT `relative`: the panel below is anchored to the action
+    // row (`Actions` owns the only `relative` ancestor) rather than to this
+    // trigger, so it lines up with the post's own edges instead of with
+    // wherever the trigger happens to land in the row.
+    <div className="inline-flex">
       <button
         ref={triggerRef}
         className="flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted"
@@ -57,13 +61,15 @@ export const EditHistoryButton: FC<Props> = ({
           id={editHistoryId}
           role="region"
           aria-label="Edit history"
-          // Opens rightward from the trigger: the actions are packed at the
-          // post's left edge, so this button sits a few controls in from there
-          // and a 25rem panel anchored `right-0` would run off the post's left
-          // side — where every card that wraps a post clips it. Below `md` the
-          // panel is viewport-fixed instead, so the post's own width stops
-          // mattering.
-          className="absolute bottom-full left-0 z-20 mb-2 w-[25rem] rounded-lg border bg-background shadow-lg max-md:fixed max-md:inset-x-4 max-md:bottom-20 max-md:max-h-[calc(100vh-7rem)] max-md:w-auto"
+          // Anchored to the action row, not to the trigger: the row spans the
+          // post exactly, so `right-0` puts this 25rem panel flush with the
+          // post's right edge on every surface. Anchored to the trigger it
+          // would start wherever the trigger sits — which moves with the
+          // engagement counts beside it, now that the actions are packed at the
+          // post's left edge — and a post's card clips whatever hangs outside
+          // it. Below `md` the panel is viewport-fixed instead, so the post's
+          // own width stops mattering.
+          className="absolute bottom-full right-0 z-20 mb-2 w-[25rem] rounded-lg border bg-background shadow-lg max-md:fixed max-md:inset-x-4 max-md:bottom-20 max-md:max-h-[calc(100vh-7rem)] max-md:w-auto"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between border-b px-3 py-2">

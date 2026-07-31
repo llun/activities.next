@@ -391,11 +391,14 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   that pair is what makes the spacing between actions identical on every
   surface, so give the row the full width rather than seating it beside
   something else.
-  One control is positioned off the cluster's location: the edit-history panel
-  opens `left-0` from its trigger. That trigger is a few controls in from the
-  post's left edge, so a 25rem panel anchored `right-0` runs off the post's left
-  side, where every card that wraps a post clips it. (Below `md` the panel is
-  viewport-fixed and the post's width stops mattering.)
+  One overlay does not hang off its own trigger: the edit-history panel is
+  anchored to the **row** (its trigger's wrapper is deliberately not
+  `relative`, so `Actions`' `relative` root is the containing block) and sits
+  `right-0`, flush with the post's right edge. Anchored to the trigger it would
+  start wherever that trigger lands — which moves with the engagement counts
+  beside it now that the actions are packed left — and a 25rem panel from there
+  runs past the post, where every card that wraps a post clips it. (Below `md`
+  the panel is viewport-fixed and the post's width stops mattering.)
 - **The picker that ADDS a reaction lives in the action row, not beside the
   chips** (`ReactionButton`, showing `SmilePlus` + the running total). The chips
   are a read-out; a post with no reactions yet renders no chip row at all. Both

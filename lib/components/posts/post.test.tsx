@@ -551,12 +551,18 @@ describe('Post', () => {
     expect(editHistoryContent).toBeInTheDocument()
     expect(onShowEdits).toHaveBeenCalledTimes(1)
     expect(editHistoryRegion).toBeInTheDocument()
-    // The trigger sits inside the left-hand action cluster, so the 25rem panel
-    // has to open rightward from it. Anchored `right-0` it would run off the
-    // post's left side, where every card that wraps a post clips it — and
-    // jsdom lays out nothing, so only the class can catch that.
-    expect(editHistoryRegion).toHaveClass('left-0')
-    expect(editHistoryRegion).not.toHaveClass('right-0')
+    // The 25rem panel is anchored to the action row, which spans the post
+    // exactly, so it stays flush with the post's right edge whatever the
+    // engagement counts do to the trigger's position in the left-hand cluster.
+    // Two classes make that work and jsdom can observe neither: `right-0` on
+    // the panel, and the absence of `relative` on the trigger's own wrapper —
+    // with it, the panel anchors to the trigger and a card clips whatever
+    // hangs past the post.
+    expect(editHistoryRegion).toHaveClass('absolute', 'right-0')
+    expect(editHistoryRegion.parentElement).not.toHaveClass('relative')
+    expect(editHistoryRegion.parentElement?.parentElement).toHaveClass(
+      'relative'
+    )
     expect(editHistoryButton).toHaveAttribute('aria-expanded', 'true')
     expect(editHistoryButton).toHaveAttribute(
       'aria-controls',
