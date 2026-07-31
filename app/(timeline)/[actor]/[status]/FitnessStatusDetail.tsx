@@ -1492,6 +1492,13 @@ const CombinedChartPanel: FC<{
 
 const ActivityMapPanel: FC<{
   mapAttachment?: Attachment
+  /**
+   * Viewer the privacy-notice acknowledgement is stored against. Hidden segments
+   * reach the owning account only, so the notice is always about this viewer's
+   * own route, and a browser-wide key would let one account's dismissal swallow
+   * another account's first look at theirs.
+   */
+  currentActorId?: string | null
   routeSamples: FitnessRouteSample[]
   routeSegments: FitnessRouteSegment[]
   highlightedElapsedSeconds?: number | null
@@ -1501,6 +1508,7 @@ const ActivityMapPanel: FC<{
   onOpenMap?: () => void
 }> = ({
   mapAttachment,
+  currentActorId = null,
   routeSamples,
   routeSegments,
   highlightedElapsedSeconds = null,
@@ -1514,7 +1522,7 @@ const ActivityMapPanel: FC<{
   const [mapLoadError, setMapLoadError] = useState<string | null>(null)
   // The privacy notice is a one-time explanation of what the green segments
   // mean, not a persistent legend — tapping it clears it, and the
-  // acknowledgement is remembered for the whole browser (see
+  // acknowledgement is remembered for this viewer on this browser (see
   // `@/lib/components/fitness/routePrivacyNotice`). So it shows once and stays
   // gone: for the next activity file in an aggregated post, for the panel the
   // Analysis section mounts, and after a reload.
@@ -1528,15 +1536,15 @@ const ActivityMapPanel: FC<{
     boolean | null
   >(null)
   useEffect(() => {
-    setIsPrivacyNoticeDismissed(isRoutePrivacyNoticeDismissed())
-  }, [])
+    setIsPrivacyNoticeDismissed(isRoutePrivacyNoticeDismissed(currentActorId))
+  }, [currentActorId])
   const dismissPrivacyNotice = useCallback(() => {
     // Local state closes it now; the write makes that stick. The two are kept
     // separate so a storage failure (private mode, storage disabled) still
     // closes the notice for this page view instead of leaving a tap dead.
     setIsPrivacyNoticeDismissed(true)
-    dismissRoutePrivacyNotice()
-  }, [])
+    dismissRoutePrivacyNotice(currentActorId)
+  }, [currentActorId])
   const drawableRouteSegments = useMemo(
     () => routeSegments.filter((segment) => segment.samples.length >= 2),
     [routeSegments]
@@ -1873,6 +1881,16 @@ const ActivityMapPanel: FC<{
               </button>
             </div>
           ) : null}
+          {/* `=== false`, not a truthiness check: `null` means the stored
+              acknowledgement has not resolved yet, and showing the notice in
+              that frame would flash it at a viewer who already closed it. The
+              frame is not reachable today — this panel always mounts before its
+              route data arrives, so the effect has committed a boolean long
+              before `hasHiddenPrivacySegments` can be true — which is exactly
+              why no test can catch a "simplification" back to
+              `!isPrivacyNoticeDismissed`. Keep the strict form: it is what makes
+              the tri-state safe if the panel ever mounts with segments already
+              in hand (server-rendered or cached route data). */}
           {hasHiddenPrivacySegments && isPrivacyNoticeDismissed === false ? (
             <button
               type="button"
@@ -2916,6 +2934,7 @@ export const FitnessStatusDetail: FC<Props> = ({
             {shouldRenderMapPanel && (
               <ActivityMapPanel
                 mapAttachment={mapAttachment}
+                currentActorId={currentActor?.id ?? null}
                 routeSamples={routeSamples}
                 routeSegments={routeSegments}
                 highlightedElapsedSeconds={highlightedElapsedSeconds}
@@ -2986,6 +3005,7 @@ export const FitnessStatusDetail: FC<Props> = ({
             {shouldRenderMapPanel && (
               <ActivityMapPanel
                 mapAttachment={mapAttachment}
+                currentActorId={currentActor?.id ?? null}
                 routeSamples={routeSamples}
                 routeSegments={routeSegments}
                 highlightedElapsedSeconds={highlightedElapsedSeconds}

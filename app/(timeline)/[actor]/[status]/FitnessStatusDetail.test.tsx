@@ -17,6 +17,7 @@ import {
   getFitnessFilesByStatus,
   getFitnessRouteData
 } from '@/lib/client'
+import { getRoutePrivacyNoticeStorageKey } from '@/lib/components/fitness/routePrivacyNotice'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusNote } from '@/lib/types/domain/status'
 import { loadMaplibreModule } from '@/lib/utils/maplibre'
@@ -1229,6 +1230,43 @@ describe('FitnessStatusDetail', () => {
     expect(
       screen.queryByText('Green segments are hidden from other viewers')
     ).not.toBeInTheDocument()
+  })
+
+  it('never renders the privacy notice when this browser already stored the dismissal', async () => {
+    // The component reading a value it did not itself write — the acknowledgement
+    // from an earlier session. This is what the `=== false` render gate is for:
+    // the state is `null` until the mount effect resolves, and treating that as
+    // "not dismissed" would flash the notice at a viewer who already closed it.
+    window.localStorage.setItem(
+      getRoutePrivacyNoticeStorageKey(actor.id),
+      'true'
+    )
+    mockGetFitnessRouteData.mockResolvedValue(routeDataWithHiddenSegments)
+
+    renderDetail()
+
+    expect(await screen.findByLabelText('Zoom in map')).toBeInTheDocument()
+    await act(async () => {})
+    expect(
+      screen.queryByText('Green segments are hidden from other viewers')
+    ).not.toBeInTheDocument()
+  })
+
+  it('still shows the privacy notice to an actor who has not dismissed it on this browser', async () => {
+    // Hidden segments only ever reach the owning account, so the notice is
+    // always about the viewer's own route. On a shared browser one actor's
+    // acknowledgement must not swallow another actor's first look at theirs.
+    window.localStorage.setItem(
+      getRoutePrivacyNoticeStorageKey('https://activities.local/users/sibling'),
+      'true'
+    )
+    mockGetFitnessRouteData.mockResolvedValue(routeDataWithHiddenSegments)
+
+    renderDetail()
+
+    expect(
+      await screen.findByText('Green segments are hidden from other viewers')
+    ).toBeInTheDocument()
   })
 
   it('surfaces an error banner when route data fails to load', async () => {
