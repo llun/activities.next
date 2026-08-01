@@ -343,7 +343,9 @@ const Page: FC<Props> = async ({ params }) => {
         // edits the panel runs past the top edge. A reply pushes it down by up
         // to three ancestor rows, which buys room but does not settle it — a
         // post edited enough times to fill the list still overruns a short
-        // chain.
+        // chain. The panel's *horizontal* fit is its own problem and already
+        // solved — it anchors to the action row so it tracks the post's width
+        // — so this class governs the vertical overrun only.
         // The reaction picker and the ⋯ menu's *popover* are not why — both
         // portal to the document body, so no ancestor's overflow reaches them
         // (`PostMenu`'s own error tooltip is not portalled, but it hangs
