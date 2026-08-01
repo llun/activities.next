@@ -11,6 +11,8 @@ app/(timeline)/[actor]/[status]/page.layout.test.tsx
   s_886c87f4830dac::t_e77167f4ad6f2f 211
 lib/components/posts/actions/reaction-button.test.tsx
   s_886c87f4830dac::t_34ac2f569a424b 257-258,260-263
+lib/components/posts/actions/edit-history-button.tsx
+  s_886c87f4830dac::t_c040f37fd02c7e 69-76
 ---
 {
   "schema_version": "authorship/3.0.0",
