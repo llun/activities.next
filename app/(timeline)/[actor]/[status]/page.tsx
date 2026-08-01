@@ -291,9 +291,9 @@ const Page: FC<Props> = async ({ params }) => {
           // edit-history panel opening upward (`bottom-full`, ~360px) and the
           // action-button error tooltips hanging below it (`top-full`) — and
           // that card dropping its clip only got them out of the *inner* box.
-          // A tooltip anchored under the leftmost actions still starts ~14px
-          // left of this card's edge, which this clip then cut off, so a
-          // failed bookmark stayed unreadable. The reaction picker and the ⋯
+          // The like button's tooltip — the leftmost one that renders — still
+          // starts ~14px left of this card's edge, which this clip then cut
+          // off, so a failed bookmark stayed unreadable. The picker and the ⋯
           // popover are unaffected either way; both portal to the document
           // body.
           'rounded-2xl border bg-background/80 shadow-sm'

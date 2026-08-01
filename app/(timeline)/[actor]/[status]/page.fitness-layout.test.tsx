@@ -187,9 +187,13 @@ describe('Fitness activity card chrome', () => {
     expect(header).toHaveClass('rounded-t-2xl')
     expect(header).toHaveClass('overflow-hidden')
     // The header takes the top corners, so the post block below it takes only
-    // the bottom ones — it is the last child when nobody is signed out.
+    // the bottom ones.
     expect(post).not.toHaveClass('rounded-t-2xl')
     expect(post).toHaveClass('rounded-b-2xl')
+    // …which is only right while it is still the last child. Append another
+    // painted block after it and `rounded-b-2xl` notches a rounded row into
+    // the middle of the card while the new block meets square corners.
+    expect(card.lastElementChild).toBe(post)
   })
 
   it('gives the post block the top corners when logged out, which has no header', async () => {
