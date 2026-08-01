@@ -333,23 +333,34 @@ const Page: FC<Props> = async ({ params }) => {
         // to the signed-in card to keep the spacing consistent across both.
         currentActorProfile && 'mt-4',
         // No `overflow-hidden`: this card contains posts, and a post's
-        // non-portaled overlays (the reaction picker) would be clipped by it —
-        // the same reason `Posts` dropped it.
-        'overflow-hidden rounded-2xl border bg-background/80 shadow-sm'
+        // non-portalled overlays would be clipped by it — the same reason
+        // `Posts` dropped it. The edit-history panel opens upward from the
+        // action row (`bottom-full`, up to 25rem tall) and the focused post
+        // sits close enough to this card's top edge for it to run past; the
+        // action-row error tooltips hang below their row. The reaction picker
+        // and the ⋯ menu are *not* why — both portal to the document body, so
+        // no ancestor's overflow can reach them. The children that meet the
+        // rounded corners round themselves instead.
+        'rounded-2xl border bg-background/80 shadow-sm'
       )}
     >
       {currentActorProfile ? (
-        <Header isFitnessDashboard={false} />
+        <Header isFitnessDashboard={false} className="rounded-t-2xl" />
       ) : (
         // Logged-out view has no back-button chrome (matching the web-public
         // design), but keep a top-level heading for the document outline.
         <h1 className="sr-only">Post</h1>
       )}
 
-      {previouses.reverse().map((item) => (
+      {previouses.reverse().map((item, index) => (
         <div
           key={item.id}
-          className="border-b border-l-4 border-l-primary/20 bg-muted/30"
+          className={cn(
+            'border-b border-l-4 border-l-primary/20 bg-muted/30',
+            // A logged-out view renders no `Header`, so the first ancestor row
+            // is what meets the card's rounded top corners.
+            !currentActorProfile && index === 0 && 'rounded-t-2xl'
+          )}
         >
           <StatusBox
             host={host}
@@ -361,7 +372,14 @@ const Page: FC<Props> = async ({ params }) => {
         </div>
       ))}
 
-      <div className="border-b bg-background">
+      <div
+        className={cn(
+          'border-b bg-background',
+          // …and with neither a `Header` nor an ancestor chain above it, the
+          // focused post is the topmost child instead.
+          !currentActorProfile && previouses.length === 0 && 'rounded-t-2xl'
+        )}
+      >
         <StatusBox
           host={host}
           mapProvider={mapProvider}

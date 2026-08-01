@@ -1,0 +1,206 @@
+/**
+ * @vitest-environment jsdom
+ */
+import '@testing-library/jest-dom'
+import { render } from '@testing-library/react'
+
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { Actor } from '@/lib/types/domain/actor'
+import { Status } from '@/lib/types/domain/status'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+
+import Page from './page'
+import { resolveStatusFromPath } from './resolveStatusFromPath'
+
+vi.mock('next/navigation', async () => ({
+  notFound: vi.fn(() => {
+    throw new Error('NEXT_NOT_FOUND')
+  }),
+  useRouter: vi.fn(() => ({ back: vi.fn(), push: vi.fn(), refresh: vi.fn() }))
+}))
+
+vi.mock('@/lib/config', async () => ({
+  getConfig: vi.fn(() => ({
+    host: 'activities.local',
+    fitnessStorage: undefined,
+    mediaStorage: undefined
+  }))
+}))
+
+const mockGetStatus = vi.fn()
+const mockGetStatusReplies = vi.fn()
+const mockGetAcceptedOrRequestedFollow = vi.fn()
+
+vi.mock('@/lib/database', async () => ({
+  getDatabase: vi.fn(() => ({
+    getStatus: mockGetStatus,
+    getStatusReplies: mockGetStatusReplies,
+    getAcceptedOrRequestedFollow: mockGetAcceptedOrRequestedFollow
+  }))
+}))
+
+vi.mock('@/lib/services/auth/getSession', async () => ({
+  getServerAuthSession: vi.fn()
+}))
+
+vi.mock('@/lib/services/queue', async () => ({
+  getQueue: vi.fn()
+}))
+
+vi.mock('@/lib/utils/getActorFromSession', async () => ({
+  getActorFromSession: vi.fn()
+}))
+
+vi.mock('@/lib/config/mapProvider', async () => ({
+  getMapProviderConfig: vi.fn(() => ({ type: 'osm' })),
+  getPublicMapProvider: vi.fn(() => ({ type: 'osm' }))
+}))
+
+vi.mock('./resolveStatusFromPath', async () => ({
+  ...(await vi.importActual('./resolveStatusFromPath')),
+  resolveStatusFromPath: vi.fn()
+}))
+
+vi.mock('./RemoteStatusLoading', async () => ({
+  RemoteStatusLoading: () => null
+}))
+
+vi.mock('./StatusBox', async () => ({
+  StatusBox: ({ status }: { status: { id: string } }) => (
+    <div data-testid={`status-${status.id}`} />
+  )
+}))
+
+const mockResolveStatusFromPath = vi.mocked(resolveStatusFromPath)
+const mockGetServerAuthSession = vi.mocked(getServerAuthSession)
+const mockGetActorFromSession = vi.mocked(getActorFromSession)
+
+const AUTHOR_ID = 'https://activities.local/users/anna'
+const VIEWER_ID = 'https://activities.local/users/viewer'
+
+const buildNote = (overrides: Partial<Status> = {}): Status =>
+  ({
+    id: 'note-id',
+    type: 'Note',
+    actorId: AUTHOR_ID,
+    actor: null,
+    url: `${AUTHOR_ID}/statuses/note-id`,
+    text: 'body',
+    reply: '',
+    replies: [],
+    to: [ACTIVITY_STREAM_PUBLIC],
+    cc: [],
+    edits: [],
+    isLocalActor: true,
+    isActorLiked: false,
+    isActorBookmarked: false,
+    actorAnnounceStatusId: null,
+    totalLikes: 0,
+    totalShares: 0,
+    attachments: [],
+    tags: [],
+    createdAt: 1,
+    updatedAt: 1,
+    ...overrides
+  }) as unknown as Status
+
+const buildViewer = (): Actor =>
+  ({
+    id: VIEWER_ID,
+    type: 'Person',
+    username: 'viewer',
+    domain: 'activities.local',
+    followersUrl: `${VIEWER_ID}/followers`,
+    inboxUrl: `${VIEWER_ID}/inbox`,
+    sharedInboxUrl: 'https://activities.local/inbox',
+    publicKey: 'public-key',
+    followingCount: 0,
+    followersCount: 0,
+    statusCount: 0,
+    lastStatusAt: null,
+    createdAt: 1,
+    updatedAt: 1
+  }) as unknown as Actor
+
+const renderPage = async () => {
+  const element = await Page({
+    params: Promise.resolve({
+      actor: '@anna@activities.local',
+      status: 'hash'
+    })
+  })
+  const { container } = render(element)
+  return container.firstElementChild as HTMLElement
+}
+
+describe('Conversation card chrome', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetStatus.mockReset()
+    mockGetServerAuthSession.mockResolvedValue(null)
+    mockGetActorFromSession.mockResolvedValue(null)
+    mockGetStatusReplies.mockResolvedValue([])
+
+    const focused = buildNote({ id: 'focused' })
+    mockResolveStatusFromPath.mockResolvedValue({
+      status: focused,
+      statusId: 'focused',
+      fullStatusId: focused.url,
+      isStatusHash: true
+    })
+  })
+
+  // The card wraps posts, and a post's non-portalled overlays have to escape
+  // it: the edit-history panel opens upward from the action row and is taller
+  // than the space above the focused post, and the action-row error tooltips
+  // hang below their row. `Posts` dropped `overflow-hidden` for the same
+  // reason. Clipping here was what a comment on this card wrongly claimed was
+  // already gone, so pin the class off rather than trusting the comment.
+  it('does not clip its children, so post overlays can escape it', async () => {
+    const card = await renderPage()
+
+    expect(card).toHaveClass('rounded-2xl')
+    expect(card).not.toHaveClass('overflow-hidden')
+  })
+
+  // Nothing clips for the rounded corners any more, so the child that meets
+  // them has to round itself or its square background bleeds past the border.
+  it('rounds the header, its topmost child, for a signed-in viewer', async () => {
+    mockGetActorFromSession.mockResolvedValue(buildViewer())
+
+    const card = await renderPage()
+
+    expect(card.firstElementChild).toHaveClass('rounded-t-2xl')
+  })
+
+  it('rounds the focused post instead when logged out, which has no header', async () => {
+    const card = await renderPage()
+
+    // The logged-out branch leads with an `sr-only` heading, which is out of
+    // flow and paints nothing — the post below it is what meets the corners.
+    expect(card.firstElementChild).toHaveClass('sr-only')
+    expect(card.children[1]).toHaveClass('rounded-t-2xl')
+  })
+
+  it('rounds the first ancestor row when logged out and the post is a reply', async () => {
+    const focused = buildNote({ id: 'focused', reply: 'parent' })
+    mockResolveStatusFromPath.mockResolvedValue({
+      status: focused,
+      statusId: 'focused',
+      fullStatusId: focused.url,
+      isStatusHash: true
+    })
+    mockGetStatus.mockResolvedValue(buildNote({ id: 'parent' }))
+
+    const card = await renderPage()
+
+    // The ancestor chain now sits above the focused post, so it takes the
+    // corners and the post must not keep them.
+    expect(card.children[1]).toHaveClass('rounded-t-2xl')
+    expect(card.children[1]).toContainElement(
+      card.querySelector('[data-testid="status-parent"]')
+    )
+    expect(card.children[2]).not.toHaveClass('rounded-t-2xl')
+  })
+})
