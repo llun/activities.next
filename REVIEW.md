@@ -147,14 +147,24 @@ change doesn't touch.
   data-sync callbacks (`onStatusCreated`/`onPostUpdated`/`onPostDeleted`/
   `onLikeChanged`/`onBookmarkChanged`/`onReactionsChanged`) and
   `isMediaUploadEnabled`. See **Status Posts & Actions** in `AGENTS.md`.
-- The reaction chips and the action row are both full-bleed (`-ml-13`) and
-  the row is `justify-between` with no `ml-auto` on the `⋯` wrapper (an auto
-  margin eats the free space and re-clusters the row). Each row carries its own
+- The reaction chips and the action row are both full-bleed (`-ml-13`), and the
+  action row packs every action into one `gap-1` cluster at the post's left edge
+  with only the `⋯` menu pushed right by an `ml-auto` on its wrapper. That auto
+  margin is what does the work — flexbox feeds free space to auto margins before
+  `justify-content` sees it, so it beats any `justify-content` the row might
+  carry — and the row therefore keeps none of its own. Dropping the margin
+  collapses `⋯` into the cluster; a `justify-between` without it spreads all
+  five actions across the full width. Each row carries its own
   `fullBleed` prop and they default differently — `Actions` pulls unless told
   not to, `ReactionRow` only when asked — so a surface with no avatar column to
   pull back over (the fitness activity detail's card) correctly has neither.
-  `justify-between` across the full width is not optional either way: that is
-  what keeps the spacing between actions identical everywhere. The picker trigger lives
+  The row still gets the full width of its container — the spacing between
+  actions is a width-independent `gap-1`, but `⋯` needs the post's right edge
+  to sit on. The edit-history
+  panel is anchored to the row (its trigger's wrapper is deliberately not
+  `relative`) and sits `right-0`, flush with the post's right edge — anchored to
+  the trigger, its 25rem width starts wherever the counts push that trigger and
+  the post's card clips the overhang. The picker trigger lives
   in the action row (`ReactionButton`), not beside the chips, and both halves
   share one `useReactionState`; `useBookmarkState` is held by `Actions` for the
   same reason. A row narrower than 400px — measured by `ResizeObserver` on the
