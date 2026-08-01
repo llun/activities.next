@@ -5,31 +5,16 @@ import { useRouter } from 'next/navigation'
 import { FC } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
-import { cn } from '@/lib/utils'
 
 interface Props {
   isFitnessDashboard?: boolean
-  /**
-   * Extra classes for the header bar. The conversation card no longer clips its
-   * children (post overlays have to escape it), so that card rounds this — its
-   * first child — itself.
-   */
-  className?: string
 }
 
-export const Header: FC<Props> = ({
-  isFitnessDashboard = false,
-  className
-}) => {
+export const Header: FC<Props> = ({ isFitnessDashboard = false }) => {
   const router = useRouter()
 
   return (
-    <div
-      className={cn(
-        'sticky top-0 z-10 flex items-center gap-3 border-b bg-background/90 px-5 py-3 backdrop-blur',
-        className
-      )}
-    >
+    <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-background/90 px-5 py-3 backdrop-blur">
       <Button
         variant="ghost"
         size="icon"

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { Actor } from '@/lib/types/domain/actor'
@@ -166,12 +166,27 @@ describe('Conversation card chrome', () => {
 
   // Nothing clips for the rounded corners any more, so the child that meets
   // them has to round itself or its square background bleeds past the border.
-  it('rounds the header, its topmost child, for a signed-in viewer', async () => {
+  // Exactly one child may do so — a second would notch a rounded row into the
+  // middle of the card.
+  // `StatusBox` is mocked to a bare testid div, so the row that carries the
+  // radius is its parent. Anchoring on the status rather than a child index
+  // keeps the assertion meaningful if the card gains another child.
+  const rowFor = (statusId: string) =>
+    screen.getByTestId(`status-${statusId}`).parentElement
+
+  it('rounds the header wrapper, its topmost child, for a signed-in viewer', async () => {
     mockGetActorFromSession.mockResolvedValue(buildViewer())
 
     const card = await renderPage()
 
+    // The wrapper, not the header itself: `Header` is `sticky top-0`, so it
+    // has to keep a clipping ancestor or it starts detaching mid-scroll and
+    // carries the corners out over the posts.
     expect(card.firstElementChild).toHaveClass('rounded-t-2xl')
+    expect(card.firstElementChild).toHaveClass('overflow-hidden')
+    // The header takes the corners, so the post below it must not — even
+    // though it is the topmost *post* and would take them when logged out.
+    expect(rowFor('focused')).not.toHaveClass('rounded-t-2xl')
   })
 
   it('rounds the focused post instead when logged out, which has no header', async () => {
@@ -180,7 +195,7 @@ describe('Conversation card chrome', () => {
     // The logged-out branch leads with an `sr-only` heading, which is out of
     // flow and paints nothing — the post below it is what meets the corners.
     expect(card.firstElementChild).toHaveClass('sr-only')
-    expect(card.children[1]).toHaveClass('rounded-t-2xl')
+    expect(rowFor('focused')).toHaveClass('rounded-t-2xl')
   })
 
   it('rounds the first ancestor row when logged out and the post is a reply', async () => {
@@ -193,14 +208,33 @@ describe('Conversation card chrome', () => {
     })
     mockGetStatus.mockResolvedValue(buildNote({ id: 'parent' }))
 
-    const card = await renderPage()
+    await renderPage()
 
     // The ancestor chain now sits above the focused post, so it takes the
     // corners and the post must not keep them.
-    expect(card.children[1]).toHaveClass('rounded-t-2xl')
-    expect(card.children[1]).toContainElement(
-      card.querySelector('[data-testid="status-parent"]')
-    )
-    expect(card.children[2]).not.toHaveClass('rounded-t-2xl')
+    expect(rowFor('parent')).toHaveClass('rounded-t-2xl')
+    expect(rowFor('focused')).not.toHaveClass('rounded-t-2xl')
+  })
+
+  // Both rounding rules are guarded on the viewer being logged out, because a
+  // signed-in viewer gets the header above everything. Without this, deleting
+  // either guard leaves the suite green while shipping a rounded row notched
+  // into the middle of the card.
+  it('rounds neither the ancestor row nor the post for a signed-in viewer', async () => {
+    mockGetActorFromSession.mockResolvedValue(buildViewer())
+    const focused = buildNote({ id: 'focused', reply: 'parent' })
+    mockResolveStatusFromPath.mockResolvedValue({
+      status: focused,
+      statusId: 'focused',
+      fullStatusId: focused.url,
+      isStatusHash: true
+    })
+    mockGetStatus.mockResolvedValue(buildNote({ id: 'parent' }))
+
+    const card = await renderPage()
+
+    expect(card.firstElementChild).toHaveClass('rounded-t-2xl')
+    expect(rowFor('parent')).not.toHaveClass('rounded-t-2xl')
+    expect(rowFor('focused')).not.toHaveClass('rounded-t-2xl')
   })
 })

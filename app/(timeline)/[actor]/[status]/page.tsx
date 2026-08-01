@@ -334,18 +334,38 @@ const Page: FC<Props> = async ({ params }) => {
         currentActorProfile && 'mt-4',
         // No `overflow-hidden`: this card contains posts, and a post's
         // non-portalled overlays would be clipped by it — the same reason
-        // `Posts` dropped it. The edit-history panel opens upward from the
-        // action row (`bottom-full`, up to 25rem tall) and the focused post
-        // sits close enough to this card's top edge for it to run past; the
-        // action-row error tooltips hang below their row. The reaction picker
-        // and the ⋯ menu are *not* why — both portal to the document body, so
-        // no ancestor's overflow can reach them. The children that meet the
-        // rounded corners round themselves instead.
+        // `Posts` dropped it. The one that reaches this card's edge is the
+        // edit-history panel: it opens *upward* from the action row
+        // (`bottom-full`, ~360px — a 2.5rem header over a `max-h-80` list),
+        // and the only viewer who gets an action row at all is a signed-in
+        // one, whose focused post sits just below the back-button bar. So the
+        // panel runs past the top edge on any short post with a few edits.
+        // The reaction picker and the ⋯ menu's *popover* are not why — both
+        // portal to the document body, so no ancestor's overflow reaches them
+        // (`PostMenu`'s own error tooltip is not portalled, but it hangs
+        // `top-full` mid-card, nowhere near an edge).
+        //
+        // Only the top corners need compensating: the children that meet them
+        // round themselves. The last child is always the replies wrapper or
+        // the "No replies yet" block, neither of which paints a background —
+        // append a background-painting child last and the bottom corners will
+        // need the same treatment.
         'rounded-2xl border bg-background/80 shadow-sm'
       )}
     >
       {currentActorProfile ? (
-        <Header isFitnessDashboard={false} className="rounded-t-2xl" />
+        // The clip moves onto a wrapper around the header rather than onto the
+        // header itself, and it is deliberately still a clip. Rounding the
+        // header directly would work only while it is at rest: `Header` is
+        // `sticky top-0`, and the card's `overflow-hidden` was the scroll
+        // container pinning it — with that gone the header would start
+        // detaching and would carry two transparent corner notches out over
+        // the posts. Keeping a clipping box here preserves the header's
+        // scrollport, so its behaviour is unchanged by this PR, and clipping
+        // is safe on this subtree alone because the header holds no overlays.
+        <div className="overflow-hidden rounded-t-2xl">
+          <Header isFitnessDashboard={false} />
+        </div>
       ) : (
         // Logged-out view has no back-button chrome (matching the web-public
         // design), but keep a top-level heading for the document outline.

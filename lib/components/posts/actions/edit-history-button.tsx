@@ -66,9 +66,14 @@ export const EditHistoryButton: FC<Props> = ({
           // post's right edge on every surface. Anchored to the trigger it
           // would start wherever the trigger sits — which moves with the
           // engagement counts beside it, now that the actions are packed at the
-          // post's left edge — and a post's card clips whatever hangs outside
-          // it. Below `md` the panel is viewport-fixed instead, so the post's
-          // own width stops mattering.
+          // post's left edge — and a card that clips cuts off whatever hangs
+          // outside it. Not all of them do: `Posts` and the status detail card
+          // dropped `overflow-hidden` so this panel can escape *upward*, which
+          // `bottom-full` needs and which staying inside the post's width
+          // cannot buy. The fitness header card still clips, so the horizontal
+          // fit here cannot lean on the ancestor either way. Below `md` the
+          // panel is viewport-fixed instead, so the post's own width stops
+          // mattering.
           className="absolute bottom-full right-0 z-20 mb-2 w-[25rem] rounded-lg border bg-background shadow-lg max-md:fixed max-md:inset-x-4 max-md:bottom-20 max-md:max-h-[calc(100vh-7rem)] max-md:w-auto"
           onClick={(e) => e.stopPropagation()}
         >
