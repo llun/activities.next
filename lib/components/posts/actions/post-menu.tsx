@@ -48,6 +48,7 @@ import {
   StatusPoll
 } from '@/lib/types/domain/status'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
+import { cn } from '@/lib/utils'
 import { MastodonVisibility, getVisibility } from '@/lib/utils/getVisibility'
 
 import {
@@ -122,6 +123,8 @@ interface Props {
    */
   triggerRef?: RefObject<HTMLButtonElement | null>
   extraItems?: PostMenuExtraItem[]
+  /** Layout classes from the row that owns the menu (e.g. `ml-auto`). */
+  className?: string
   onReply?: (status: Status) => void
   onEdit?: (status: EditableStatus) => void
   onQuote?: (status: Status) => void
@@ -141,6 +144,7 @@ export const PostMenu: FC<Props> = ({
   canEdit,
   triggerRef,
   extraItems,
+  className,
   onReply,
   onEdit,
   onQuote,
@@ -287,7 +291,10 @@ export const PostMenu: FC<Props> = ({
   }
 
   return (
-    <div className="relative" onClick={(e) => e.stopPropagation()}>
+    <div
+      className={cn('relative', className)}
+      onClick={(e) => e.stopPropagation()}
+    >
       {actionError ? (
         <span
           className="pointer-events-none absolute right-0 top-full z-10 mt-1 w-max max-w-[min(14rem,calc(100vw-2rem))] break-words rounded-md border bg-background px-2 py-1 text-left text-xs text-destructive shadow-sm"

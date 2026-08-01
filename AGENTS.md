@@ -368,11 +368,20 @@ consistency is enforced by keeping the wiring in one place rather than per page.
 - **The chip row and the action row both span the whole status.** Each is pulled
   `-ml-13` — 13 spacing steps, which is the `size-10` avatar column plus its
   `gap-3`, so the pull tracks the root font size the way those two do — and each
-  starts at the post's own left edge rather than under the text, and the action row is
-  `justify-between` so every action is evenly spaced with the `⋯` menu pinned to
-  the far right. Do **not** put `ml-auto` back on the `⋯` wrapper: an auto
-  margin absorbs all the free space before `justify-content` sees it, which
-  collapses the row back to a left-packed cluster.
+  starts at the post's own left edge rather than under the text. The row spans
+  the whole status, but its actions are **packed together at that left edge**:
+  reply, boost, like, bookmark and react sit in one `gap-1` cluster and only the
+  `⋯` menu is pushed to the far right, by an `ml-auto` on its wrapper (`Actions`
+  passes it; `PostMenu` merges the class into its root). That grouping is the
+  design system's — `ui_kits/web/Post.jsx` in the Design System project puts the
+  same `ml-auto` on its `PostMenu`. The **auto margin is what does the work**:
+  flexbox gives positive free space to auto margins _before_ `justify-content`
+  ever sees it, so the kit's leftover `justify-between` on the row is inert and
+  this row simply drops it rather than carrying a class that describes the
+  opposite layout. Re-adding `justify-between` therefore changes nothing while
+  the `ml-auto` is there — and spreads all five actions across the full width
+  the moment it is not, which reads as five unrelated controls. Keep the pair
+  as it is.
   Each row owns a separate `fullBleed` prop and the two default **differently**:
   `Actions` pulls unless a caller opts out, while `ReactionRow` pulls only when
   asked (`Post` passes `fullBleed={showsActionRow}`, so chips with no action row
@@ -383,9 +392,20 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   row with the source-file link in the footer. (Those two containers are padded
   differently, `p-5` against `px-4`, so the two rows are deliberately aligned to
   their own content rather than to each other.)
-  `justify-between` is not optional either way: that is what makes the
-  spacing between actions identical on every surface, so give the row the full
-  width rather than seating it beside something else.
+  Still give the row the **full width** of its container rather than seating it
+  beside something else — but note what that now buys and what it does not. The
+  spacing between the actions is a flat `gap-1` and is width-independent, so it
+  is identical everywhere for free; the full width is what puts `⋯` on the
+  post's right edge and gives the edit-history panel's `right-0` the same edge
+  to line up with.
+  One overlay does not hang off its own trigger: the edit-history panel is
+  anchored to the **row** (its trigger's wrapper is deliberately not
+  `relative`, so `Actions`' `relative` root is the containing block) and sits
+  `right-0`, flush with the post's right edge. Anchored to the trigger it would
+  start wherever that trigger lands — which moves with the engagement counts
+  beside it now that the actions are packed left — and a 25rem panel from there
+  runs past the post, where every card that wraps a post clips it. (Below `md`
+  the panel is viewport-fixed and the post's width stops mattering.)
 - **The picker that ADDS a reaction lives in the action row, not beside the
   chips** (`ReactionButton`, showing `SmilePlus` + the running total). The chips
   are a read-out; a post with no reactions yet renders no chip row at all. Both
@@ -446,7 +466,7 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   itself is the shared `<Actions>` (`fullBleed={false}`, its own
   `useReactionState` passed in), not a local copy. A hand-rolled row is exactly
   how that page drifted into a right-packed cluster with its own gaps while
-  every other surface spread its actions evenly.
+  every other surface used the shared spacing.
   What sharing the row does **not** yet buy that page is the full `⋯` menu: it
   passes neither `editable` nor `onQuote`, so Edit and Quote are still absent
   there, and `onPostDeleted`/`onLikeChanged`/`onBookmarkChanged` are unwired so

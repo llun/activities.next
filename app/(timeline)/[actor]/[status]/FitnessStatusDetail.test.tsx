@@ -1446,11 +1446,9 @@ describe('FitnessStatusDetail', () => {
           .getAllByRole('button')
           .map((button) => button.textContent)
       ).toEqual(['Reply', 'Boost', 'Like', 'Bookmark', '', 'More'])
-      // Neither class is observable in jsdom and both are load-bearing: the
+      // None of this is observable in jsdom and all of it is load-bearing: the
       // card footer's own padding already puts the row at the status's left
-      // edge, so the avatar-column pull would drag it outside the card, and
-      // `justify-between` is what makes the spacing between actions identical
-      // to every other surface.
+      // edge, so the avatar-column pull would drag it outside the card.
       // `mt-3` rides along with the pull, so pin its absence too — hoisting it
       // out of the `fullBleed` branch would silently add 12px above this
       // footer row while `post.test.tsx` stayed green. One assertion each:
@@ -1458,7 +1456,12 @@ describe('FitnessStatusDetail', () => {
       // together would still pass with `mt-3` wrongly present.
       expect(actions).not.toHaveClass('-ml-13')
       expect(actions).not.toHaveClass('mt-3')
-      expect(actions).toHaveClass('justify-between')
+      // `gap-1` is the whole of the spacing between the packed actions — no
+      // `justify-content` distributes them any more — so this surface's row
+      // reads identically to every other one. (The `ml-auto` that pushes ⋯ to
+      // the right is pinned in `post.test.tsx`, where `PostMenu` is the real
+      // component rather than the stub above.)
+      expect(actions).toHaveClass('gap-1')
     })
 
     it('renders no action row for a logged-out reader', () => {

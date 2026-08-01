@@ -2924,11 +2924,13 @@ export const FitnessStatusDetail: FC<Props> = ({
               />
             ) : null}
             {/* The shared action row, not a local copy of it: a post offers the
-                same actions with the same spacing on every surface, and a
-                hand-rolled row here is exactly how this page previously drifted
-                into a right-packed cluster. `fullBleed` off because the card
-                footer's own padding already puts the row at the status's left
-                edge — there is no avatar column to pull back over. */}
+                same actions with the same spacing on every surface — packed at
+                the left edge with ⋯ pushed to the right — and a hand-rolled row
+                here is exactly how this page previously drifted into a
+                right-packed cluster with gaps of its own. `fullBleed` off
+                because the card footer's own padding already puts the row at
+                the status's left edge — there is no avatar column to pull back
+                over. */}
             <Actions
               host={host}
               currentActor={currentActor ?? undefined}
