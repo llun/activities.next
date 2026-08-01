@@ -333,23 +333,68 @@ const Page: FC<Props> = async ({ params }) => {
         // to the signed-in card to keep the spacing consistent across both.
         currentActorProfile && 'mt-4',
         // No `overflow-hidden`: this card contains posts, and a post's
-        // non-portaled overlays (the reaction picker) would be clipped by it —
-        // the same reason `Posts` dropped it.
-        'overflow-hidden rounded-2xl border bg-background/80 shadow-sm'
+        // non-portalled overlays would be clipped by it — the same reason
+        // `Posts` dropped it. The one that reaches this card's edge is the
+        // edit-history panel: it opens *upward* from the action row
+        // (`bottom-full`, ~360px — a 2.5rem header over a `max-h-80` list),
+        // and the only viewer who gets an action row at all is a signed-in
+        // one, whose focused post sits directly below the back-button bar
+        // whenever the post is not a reply. So on a short post with a few
+        // edits the panel runs past the top edge. A reply pushes it down by up
+        // to three ancestor rows, which buys room but does not settle it — a
+        // post edited enough times to fill the list still overruns a short
+        // chain. The panel's *horizontal* fit is its own problem and already
+        // solved — it anchors to the action row so it tracks the post's width
+        // — so this class governs the vertical overrun only.
+        // The reaction picker and the ⋯ menu's *popover* are not why — both
+        // portal to the document body, so no ancestor's overflow reaches them
+        // (`PostMenu`'s own error tooltip is not portalled, but it hangs
+        // `top-full` mid-card, nowhere near an edge).
+        //
+        // Only the top corners need compensating: the children that meet them
+        // round themselves. The last child is always the replies wrapper or
+        // the "No replies yet" block, neither of which paints a background —
+        // append a background-painting child last and the bottom corners will
+        // need the same treatment.
+        'rounded-2xl border bg-background/80 shadow-sm'
       )}
     >
       {currentActorProfile ? (
-        <Header isFitnessDashboard={false} />
+        // Rounds the header by clipping a wrapper rather than by putting the
+        // radius on the header itself, because `Header` is `sticky top-0` and
+        // the radius has to survive it.
+        //
+        // That `sticky` has never actually engaged: an ancestor with
+        // `overflow: hidden` is the scrollport for a sticky descendant, and
+        // both of this file's `Header` call sites had one (the fitness card
+        // still does). Dropping this card's clip would have made the viewport
+        // the scrollport and started the bar detaching mid-scroll for the
+        // first time — carrying two transparent corner notches out over the
+        // posts, since `background` and `backdrop-filter` both clip to the
+        // radius. A wrapper exactly the header's height keeps the sticky inert
+        // as it has always been, and clipping is free here because, unlike the
+        // rest of the card, this subtree holds no overlays.
+        //
+        // So the header still does not stick, on either call site. Whether it
+        // should is a live question, but it is not this change's to answer.
+        <div className="overflow-hidden rounded-t-2xl">
+          <Header isFitnessDashboard={false} />
+        </div>
       ) : (
         // Logged-out view has no back-button chrome (matching the web-public
         // design), but keep a top-level heading for the document outline.
         <h1 className="sr-only">Post</h1>
       )}
 
-      {previouses.reverse().map((item) => (
+      {previouses.reverse().map((item, index) => (
         <div
           key={item.id}
-          className="border-b border-l-4 border-l-primary/20 bg-muted/30"
+          className={cn(
+            'border-b border-l-4 border-l-primary/20 bg-muted/30',
+            // A logged-out view renders no `Header`, so the first ancestor row
+            // is what meets the card's rounded top corners.
+            !currentActorProfile && index === 0 && 'rounded-t-2xl'
+          )}
         >
           <StatusBox
             host={host}
@@ -361,7 +406,14 @@ const Page: FC<Props> = async ({ params }) => {
         </div>
       ))}
 
-      <div className="border-b bg-background">
+      <div
+        className={cn(
+          'border-b bg-background',
+          // …and with neither a `Header` nor an ancestor chain above it, the
+          // focused post is the topmost child instead.
+          !currentActorProfile && previouses.length === 0 && 'rounded-t-2xl'
+        )}
+      >
         <StatusBox
           host={host}
           mapProvider={mapProvider}
