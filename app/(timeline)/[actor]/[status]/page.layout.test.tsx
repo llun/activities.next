@@ -154,23 +154,41 @@ describe('Conversation card chrome', () => {
     })
   })
 
+  // Collects every clip between the card and a post, inclusive of both. The
+  // panel opens upward *out of the post*, so a clip anywhere on that path cuts
+  // it off — checking only the card left "move the class down one level" as a
+  // green mutation. Matches on the prefix rather than `overflow-hidden` alone
+  // because `overflow-x-hidden` forces the computed `overflow-y` to `auto`,
+  // which re-clips the panel vertically. `overflow-visible`/`overflow-x-clip`
+  // would be rejected too; neither is needed here, so allowing none is the
+  // simplest honest guard.
+  const clipsBetween = (card: HTMLElement, statusId: string) => {
+    const found: string[] = []
+    let node: HTMLElement | null = screen.getByTestId(`status-${statusId}`)
+    while (node && node !== card.parentElement) {
+      found.push(
+        ...Array.from(node.classList).filter((name) =>
+          name.startsWith('overflow-')
+        )
+      )
+      node = node.parentElement
+    }
+    return found
+  }
+
   // The card wraps posts, and the edit-history panel — which is not portalled
   // — opens upward out of it. `Posts` dropped `overflow-hidden` for the same
   // reason. Clipping here was what a comment on this card wrongly claimed was
   // already gone, so pin it off rather than trusting the comment.
   it('does not clip its children, so post overlays can escape it', async () => {
+    // Signed in on purpose: a logged-out viewer gets no action row at all, so
+    // there is no overlay to clip and the assertion would be vacuous.
+    mockGetActorFromSession.mockResolvedValue(buildViewer())
+
     const card = await renderPage()
 
     expect(card).toHaveClass('rounded-2xl')
-    // Reject every clip, not just `overflow-hidden`: `overflow-x-hidden` would
-    // force the computed `overflow-y` to `auto`, re-clipping the panel
-    // vertically while an assertion naming only `overflow-hidden` passed.
-    // `overflow-x-clip` is the one form that does not clip the other axis, but
-    // it is also not needed here, so the simplest guard is to allow none.
-    const clipping = Array.from(card.classList).filter((name) =>
-      name.startsWith('overflow-')
-    )
-    expect(clipping).toEqual([])
+    expect(clipsBetween(card, 'focused')).toEqual([])
   })
 
   // Nothing clips for the rounded corners any more, so the child that meets

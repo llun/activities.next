@@ -340,9 +340,10 @@ const Page: FC<Props> = async ({ params }) => {
         // and the only viewer who gets an action row at all is a signed-in
         // one, whose focused post sits directly below the back-button bar
         // whenever the post is not a reply. So on a short post with a few
-        // edits the panel runs past the top edge. (A reply pushes it down by
-        // up to three ancestor rows, which is room enough — the no-ancestor
-        // case is the one that clips, and it is the common one.)
+        // edits the panel runs past the top edge. A reply pushes it down by up
+        // to three ancestor rows, which buys room but does not settle it — a
+        // post edited enough times to fill the list still overruns a short
+        // chain.
         // The reaction picker and the ⋯ menu's *popover* are not why — both
         // portal to the document body, so no ancestor's overflow reaches them
         // (`PostMenu`'s own error tooltip is not portalled, but it hangs
