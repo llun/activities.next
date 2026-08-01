@@ -338,8 +338,11 @@ const Page: FC<Props> = async ({ params }) => {
         // edit-history panel: it opens *upward* from the action row
         // (`bottom-full`, ~360px — a 2.5rem header over a `max-h-80` list),
         // and the only viewer who gets an action row at all is a signed-in
-        // one, whose focused post sits just below the back-button bar. So the
-        // panel runs past the top edge on any short post with a few edits.
+        // one, whose focused post sits directly below the back-button bar
+        // whenever the post is not a reply. So on a short post with a few
+        // edits the panel runs past the top edge. (A reply pushes it down by
+        // up to three ancestor rows, which is room enough — the no-ancestor
+        // case is the one that clips, and it is the common one.)
         // The reaction picker and the ⋯ menu's *popover* are not why — both
         // portal to the document body, so no ancestor's overflow reaches them
         // (`PostMenu`'s own error tooltip is not portalled, but it hangs
@@ -354,15 +357,23 @@ const Page: FC<Props> = async ({ params }) => {
       )}
     >
       {currentActorProfile ? (
-        // The clip moves onto a wrapper around the header rather than onto the
-        // header itself, and it is deliberately still a clip. Rounding the
-        // header directly would work only while it is at rest: `Header` is
-        // `sticky top-0`, and the card's `overflow-hidden` was the scroll
-        // container pinning it — with that gone the header would start
-        // detaching and would carry two transparent corner notches out over
-        // the posts. Keeping a clipping box here preserves the header's
-        // scrollport, so its behaviour is unchanged by this PR, and clipping
-        // is safe on this subtree alone because the header holds no overlays.
+        // Rounds the header by clipping a wrapper rather than by putting the
+        // radius on the header itself, because `Header` is `sticky top-0` and
+        // the radius has to survive it.
+        //
+        // That `sticky` has never actually engaged: an ancestor with
+        // `overflow: hidden` is the scrollport for a sticky descendant, and
+        // both of this file's `Header` call sites had one (the fitness card
+        // still does). Dropping this card's clip would have made the viewport
+        // the scrollport and started the bar detaching mid-scroll for the
+        // first time — carrying two transparent corner notches out over the
+        // posts, since `background` and `backdrop-filter` both clip to the
+        // radius. A wrapper exactly the header's height keeps the sticky inert
+        // as it has always been, and clipping is free here because, unlike the
+        // rest of the card, this subtree holds no overlays.
+        //
+        // So the header still does not stick, on either call site. Whether it
+        // should is a live question, but it is not this change's to answer.
         <div className="overflow-hidden rounded-t-2xl">
           <Header isFitnessDashboard={false} />
         </div>

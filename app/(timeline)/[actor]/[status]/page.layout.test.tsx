@@ -36,7 +36,10 @@ vi.mock('@/lib/database', async () => ({
   getDatabase: vi.fn(() => ({
     getStatus: mockGetStatus,
     getStatusReplies: mockGetStatusReplies,
-    getAcceptedOrRequestedFollow: mockGetAcceptedOrRequestedFollow
+    getAcceptedOrRequestedFollow: mockGetAcceptedOrRequestedFollow,
+    // Without this the page's settings read throws and every test logs an
+    // error while quietly exercising the env/default fallback path.
+    getAllServerSettings: vi.fn(async () => [])
   }))
 }))
 
@@ -151,17 +154,23 @@ describe('Conversation card chrome', () => {
     })
   })
 
-  // The card wraps posts, and a post's non-portalled overlays have to escape
-  // it: the edit-history panel opens upward from the action row and is taller
-  // than the space above the focused post, and the action-row error tooltips
-  // hang below their row. `Posts` dropped `overflow-hidden` for the same
+  // The card wraps posts, and the edit-history panel — which is not portalled
+  // — opens upward out of it. `Posts` dropped `overflow-hidden` for the same
   // reason. Clipping here was what a comment on this card wrongly claimed was
-  // already gone, so pin the class off rather than trusting the comment.
+  // already gone, so pin it off rather than trusting the comment.
   it('does not clip its children, so post overlays can escape it', async () => {
     const card = await renderPage()
 
     expect(card).toHaveClass('rounded-2xl')
-    expect(card).not.toHaveClass('overflow-hidden')
+    // Reject every clip, not just `overflow-hidden`: `overflow-x-hidden` would
+    // force the computed `overflow-y` to `auto`, re-clipping the panel
+    // vertically while an assertion naming only `overflow-hidden` passed.
+    // `overflow-x-clip` is the one form that does not clip the other axis, but
+    // it is also not needed here, so the simplest guard is to allow none.
+    const clipping = Array.from(card.classList).filter((name) =>
+      name.startsWith('overflow-')
+    )
+    expect(clipping).toEqual([])
   })
 
   // Nothing clips for the rounded corners any more, so the child that meets
@@ -213,6 +222,31 @@ describe('Conversation card chrome', () => {
     // The ancestor chain now sits above the focused post, so it takes the
     // corners and the post must not keep them.
     expect(rowFor('parent')).toHaveClass('rounded-t-2xl')
+    expect(rowFor('focused')).not.toHaveClass('rounded-t-2xl')
+  })
+
+  // With a single ancestor, `index === 0` and `index === previouses.length - 1`
+  // are the same row, so a chain of two is what distinguishes the topmost
+  // ancestor from the one nearest the focused post. The chain runs up to three.
+  it('rounds only the topmost ancestor when the chain is longer than one', async () => {
+    const focused = buildNote({ id: 'focused', reply: 'parent' })
+    mockResolveStatusFromPath.mockResolvedValue({
+      status: focused,
+      statusId: 'focused',
+      fullStatusId: focused.url,
+      isStatusHash: true
+    })
+    mockGetStatus.mockImplementation(
+      async ({ statusId }: { statusId: string }) =>
+        statusId === 'parent'
+          ? buildNote({ id: 'parent', reply: 'grandparent' })
+          : buildNote({ id: 'grandparent' })
+    )
+
+    await renderPage()
+
+    expect(rowFor('grandparent')).toHaveClass('rounded-t-2xl')
+    expect(rowFor('parent')).not.toHaveClass('rounded-t-2xl')
     expect(rowFor('focused')).not.toHaveClass('rounded-t-2xl')
   })
 
