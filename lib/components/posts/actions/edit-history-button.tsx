@@ -71,8 +71,8 @@ export const EditHistoryButton: FC<Props> = ({
           // and the fitness page's two cards dropped `overflow-hidden` so this
           // panel can escape *upward*, which `bottom-full` needs and which
           // staying inside the post's width cannot buy. The search results
-          // section and the collection detail card still clip, so the
-          // horizontal fit here cannot lean on the ancestor either way. Below
+          // section still clips — the last one that wraps posts and does — so
+          // the horizontal fit here cannot lean on the ancestor either. Below
           // `md` the panel is viewport-fixed instead, so the post's own width
           // stops mattering.
           className="absolute bottom-full right-0 z-20 mb-2 w-[25rem] rounded-lg border bg-background shadow-lg max-md:fixed max-md:inset-x-4 max-md:bottom-20 max-md:max-h-[calc(100vh-7rem)] max-md:w-auto"
