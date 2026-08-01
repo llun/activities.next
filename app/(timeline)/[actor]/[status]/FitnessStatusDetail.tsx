@@ -2749,7 +2749,45 @@ export const FitnessStatusDetail: FC<Props> = ({
   return (
     <div className="space-y-4 p-4 sm:p-5">
       {/* Header card */}
-      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+      {/* No `overflow-hidden`: this card ends with the shared `<Actions>` row,
+          and the row's error tooltips and its edit-history panel are the
+          overlays that do NOT portal, so a clip here is a clip on both.
+
+          The tooltips hang `top-full mt-1` under whatever they are anchored to
+          — each button's own `relative` span for `ActionButtonError`, the ⋯
+          wrapper for `PostMenu`'s error, and the row itself for the compact
+          `ActionRowErrors` — and the row is the last child of the footer's
+          `py-2.5`, so all three land at the same height. Measured on the
+          running page, an anchored tooltip runs y473→515 against a card ending
+          at 484: 11 of 42px survived, which reads as nothing happening at all.
+          Not a *delete* failure, though — that one goes through the portalled
+          confirm dialog. It is the like, bookmark and reaction buttons (reply
+          and repost render no error at all), plus `PostMenu`'s non-dialog
+          actions (copy link, visibility, quote policy, unmute, unblock), and
+          none of those tooltips has a responsive variant, so this half was
+          clipped at every breakpoint.
+
+          The edit-history panel opens *upward* from the same row
+          (`bottom-full`, ~360px — a 2.5rem header over a `max-h-80` list) over
+          a card body only ~230px tall, so the card's top border cut off the
+          panel's own header, its close button and its newest revisions (the
+          list is newest-first). That half is desktop-only: the panel is
+          `max-md:fixed`.
+
+          Only the ⋯ menu's *popover* and the reaction picker are unaffected
+          either way — those two portal to the document body. This is the same
+          defect class #1369 fixed on the sibling conversation card, and the
+          fitness page's own outer card in `page.tsx` had to drop its clip too:
+          the like button's tooltip — the leftmost one that renders — starts
+          left of this card as well as below it.
+
+          Nothing has to round itself in compensation: this card paints the only
+          background in the subtree that reaches its corners — neither the `p-5`
+          body nor the footer strip paints one of its own — so give either of
+          them a background and it will need `rounded-t-xl`/`rounded-b-xl` to
+          stop the square fill bleeding past the border. Nothing inside is
+          `position: sticky` either, so no descendant loses a scrollport here. */}
+      <div className="rounded-xl border bg-card shadow-sm">
         <div className="p-5">
           <div className="flex items-center gap-3">
             <div className="shrink-0">

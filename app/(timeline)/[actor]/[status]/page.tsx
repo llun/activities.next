@@ -285,18 +285,52 @@ const Page: FC<Props> = async ({ params }) => {
           // which already supplies its own top padding, so only the signed-in
           // surface needs this gap.
           currentActorProfile && 'mt-4',
-          'overflow-hidden rounded-2xl border bg-background/80 shadow-sm'
+          // No `overflow-hidden`: this card wraps a post, and a post's
+          // non-portalled overlays have to escape it. They all hang off the
+          // action row inside `FitnessStatusDetail`'s own card — the
+          // edit-history panel opening upward (`bottom-full`, ~360px) and the
+          // action-button error tooltips hanging below it (`top-full`) — and
+          // that card dropping its clip only got them out of the *inner* box.
+          // The like button's tooltip — the leftmost one that renders — still
+          // starts ~14px left of this card's edge, which this clip then cut
+          // off, so a failed bookmark stayed unreadable. The picker and the ⋯
+          // popover are unaffected either way; both portal to the document
+          // body.
+          'rounded-2xl border bg-background/80 shadow-sm'
         )}
       >
         {currentActorProfile ? (
-          <Header isFitnessDashboard />
+          // The clip moves onto a wrapper around the header rather than onto
+          // the header itself, and it stays a clip on purpose. Rounding
+          // `Header` directly would hold only while it is at rest: it is
+          // `sticky top-0`, and this card's `overflow-hidden` was the
+          // scrollport pinning it — without one it detaches mid-scroll and
+          // carries two transparent corner notches out over the post. A
+          // clipping box is safe on this subtree alone because the header
+          // holds no overlays.
+          <div className="overflow-hidden rounded-t-2xl">
+            <Header isFitnessDashboard />
+          </div>
         ) : (
           // Logged-out view has no back-button chrome (matching the web-public
           // design), but keep a top-level heading for the document outline.
           <h1 className="sr-only">Activity</h1>
         )}
 
-        <div className="border-b bg-background">
+        <div
+          className={cn(
+            'border-b bg-background',
+            // Unlike the conversation card below, this one's children paint,
+            // so with the clip gone each corner they reach has to be rounded
+            // here. Logged out there is no `Header` above this — the `sr-only`
+            // heading is out of flow and paints nothing — so it meets the top
+            // corners as well…
+            !currentActorProfile && 'rounded-t-2xl',
+            // …and it is the last child unless the logged-out `SignInCallout`
+            // follows it, in which case that block takes the bottom corners.
+            currentActorProfile && 'rounded-b-2xl'
+          )}
+        >
           <StatusBox
             host={host}
             mapProvider={mapProvider}
@@ -319,7 +353,12 @@ const Page: FC<Props> = async ({ params }) => {
         </div>
 
         {!currentActorProfile ? (
-          <SignInCallout registrationOpen={registrationOpen} />
+          // Paints `bg-primary/5` and is the last child whenever it renders,
+          // so it is what meets the bottom corners on the logged-out view.
+          <SignInCallout
+            registrationOpen={registrationOpen}
+            className="rounded-b-2xl"
+          />
         ) : null}
       </div>
     )
