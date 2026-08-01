@@ -2750,17 +2750,35 @@ export const FitnessStatusDetail: FC<Props> = ({
     <div className="space-y-4 p-4 sm:p-5">
       {/* Header card */}
       {/* No `overflow-hidden`: this card ends with the shared `<Actions>` row,
-          and two of that row's overlays are not portalled, so a clip here is a
-          clip on both of them. The action-button error tooltips hang below the
-          row (`top-full mt-1`) and the row is the last child of the footer's
-          `py-2.5`, so a failed delete or like used to render ~6px of a tooltip
-          against the bottom border and read as nothing happening at all. The
-          edit-history panel opens *upward* from the same row (`bottom-full`,
-          ~360px — a 2.5rem header over a `max-h-80` list) over a card body only
-          ~230px tall, so the oldest revisions were sliced off the top. Both are
-          desktop-only symptoms of the same class the status detail card fixed;
-          the ⋯ menu's popover and the reaction picker are unaffected either way
-          because they portal to the document body.
+          and the row's error tooltips and its edit-history panel are the
+          overlays that do NOT portal, so a clip here is a clip on both.
+
+          The tooltips hang `top-full mt-1` under whatever they are anchored to
+          — each button's own `relative` span for `ActionButtonError`, the row
+          itself for the compact `ActionRowErrors` and for `PostMenu`'s error —
+          and the row is the last child of the footer's `py-2.5`. Measured on
+          the running page, an anchored tooltip runs y473→515 against a card
+          ending at 484: 11 of 42px survived, which reads as nothing happening
+          at all. Not a *delete* failure, though — that one goes through the
+          portalled confirm dialog. It is the bookmark, like, reaction and
+          repost buttons, plus `PostMenu`'s non-dialog actions (copy link,
+          visibility, quote policy, unmute, unblock), and none of those
+          tooltips has a responsive variant, so this half was clipped at every
+          breakpoint.
+
+          The edit-history panel opens *upward* from the same row
+          (`bottom-full`, ~360px — a 2.5rem header over a `max-h-80` list) over
+          a card body only ~230px tall, so the card's top border cut off the
+          panel's own header, its close button and its newest revisions (the
+          list is newest-first). That half is desktop-only: the panel is
+          `max-md:fixed`.
+
+          Only the ⋯ menu's *popover* and the reaction picker are unaffected
+          either way — those two portal to the document body. This is the same
+          defect class #1369 fixes on the sibling conversation card, and the
+          fitness page's own outer card in `page.tsx` had to drop its clip too:
+          a tooltip under the leftmost actions starts left of this card as well
+          as below it.
 
           Nothing has to round itself in compensation: this card paints the only
           background in the subtree that reaches its corners — neither the `p-5`

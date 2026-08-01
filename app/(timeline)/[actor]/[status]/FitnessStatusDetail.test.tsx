@@ -1474,11 +1474,13 @@ describe('FitnessStatusDetail', () => {
   })
 
   // Two bugs, one defect: the header card clipped for its rounded corners, and
-  // two of the action row's overlays are not portalled. The action-button error
-  // tooltips hang below the row (`top-full`), which is ~10px above the card's
-  // bottom border, so a failed delete showed the user nothing at all; the
-  // edit-history panel opens upward from the same row (`bottom-full`, ~360px)
-  // over a card body only ~230px tall, so its oldest revisions were sliced off.
+  // the action row's error tooltips and its edit-history panel are the overlays
+  // that do not portal. The tooltips hang `top-full` a couple of pixels under
+  // the row, which is itself ~10px above the card's bottom border, so a failed
+  // bookmark/like/reaction showed the user an unreadable sliver at every
+  // breakpoint. The edit-history panel opens upward from the same row
+  // (`bottom-full`, ~360px) over a card body only ~230px tall, so its own
+  // header, close button and newest revisions were sliced off on desktop.
   describe('post overlays anchored to the action row', () => {
     const headerCard = () =>
       screen
@@ -1533,8 +1535,10 @@ describe('FitnessStatusDetail', () => {
       // of its own — it stays a descendant of the card and depends entirely on
       // the card not clipping.
       expect(headerCard()).toContainElement(panel)
-      // …and it opens upward, which is what ran it past the card's top edge:
-      // everything above the footer is shorter than the panel is tall.
+      // …and it opens upward, which is the direction that ran it past the
+      // card's top edge. jsdom lays nothing out, so this pins the direction
+      // rather than the overrun: at full height (a `max-h-80` list under a
+      // 2.5rem header) the panel is taller than everything above the footer.
       expect(panel).toHaveClass('bottom-full')
     })
 
@@ -1545,7 +1549,10 @@ describe('FitnessStatusDetail', () => {
       // background and reaches a corner shows a square fill outside the
       // border. Neither child paints one today — both are transparent over the
       // card's own `bg-card` — so this fails the moment one gains a background
-      // without the matching `rounded-t-xl`/`rounded-b-xl`.
+      // at all. That is deliberately stricter than the rule it protects: a
+      // painted child may well be fine once it carries the matching
+      // `rounded-t-xl`/`rounded-b-xl`, and failing here is the prompt to
+      // decide which corners it actually reaches.
       const painted = Array.from(headerCard().children)
         .map((child) => child.getAttribute('class') ?? '')
         .filter((className) => /(?:^|\s)bg-\S+/.test(className))
