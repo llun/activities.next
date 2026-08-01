@@ -84,11 +84,10 @@ const VIEWPORT_MARGIN = 8
 // container-by-container three times and kept reappearing somewhere else (the
 // status detail cards, the fitness header card, the search results section,
 // the collection detail card), so the panel now escapes them all by
-// construction. The fitness page's two cards have since dropped the clip for
-// the sake of the overlays that cannot portal, but the conversation status
-// detail card, the search results section and the collection detail card all
-// still carry it, and any new card may — so this must stay independent of what
-// any ancestor does.
+// construction. The status detail cards have since dropped the clip for the
+// sake of the overlays that cannot portal, but the search results section and
+// the collection detail card still carry it, and any new card may — so this
+// must stay independent of what any ancestor does.
 const usePanelPosition = (
   anchorRef: RefObject<HTMLButtonElement | null>,
   panel: HTMLElement | null

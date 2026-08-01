@@ -1494,7 +1494,12 @@ describe('FitnessStatusDetail', () => {
       // Walk the whole chain rather than only checking the card: the overlays
       // are positioned against the row, so anything from the row up to and
       // including the card cuts them off just as effectively — and collect the
-      // offenders so a failure names the element that clips.
+      // offenders so a failure names the element that clips. Matching on the
+      // `overflow-` prefix rather than `overflow-hidden` alone, the way
+      // `page.layout.test.tsx` does for the card outside this one:
+      // `overflow-x-hidden` forces the computed `overflow-y` to `auto`, which
+      // re-clips the panel vertically. Nothing here needs any of them, so
+      // allowing none is the simplest honest guard.
       const clipping: string[] = []
       for (
         let node: HTMLElement | null = screen.getByRole('group', {
@@ -1503,9 +1508,11 @@ describe('FitnessStatusDetail', () => {
         node && node !== card.parentElement;
         node = node.parentElement
       ) {
-        if (node.classList.contains('overflow-hidden')) {
-          clipping.push(node.className)
-        }
+        clipping.push(
+          ...Array.from(node.classList).filter((name) =>
+            name.startsWith('overflow-')
+          )
+        )
       }
 
       expect(clipping).toEqual([])

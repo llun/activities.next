@@ -260,7 +260,8 @@ describe('ReactionButton', () => {
     // chip row was clipped on four separate surfaces before this. Some of
     // those cards have since dropped `overflow-hidden` for the sake of the
     // non-portalled edit-history panel, but the picker must not depend on
-    // that — the fitness header card still clips, and any new card may.
+    // that — the search results section and the collection detail card still
+    // clip, and any new card may.
     expect(container.contains(picker)).toBe(false)
     expect(document.body.contains(picker)).toBe(true)
     // Viewport-positioned, not positioned against an ancestor in the post.

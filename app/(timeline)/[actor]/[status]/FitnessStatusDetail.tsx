@@ -2776,7 +2776,7 @@ export const FitnessStatusDetail: FC<Props> = ({
 
           Only the ⋯ menu's *popover* and the reaction picker are unaffected
           either way — those two portal to the document body. This is the same
-          defect class #1369 fixes on the sibling conversation card, and the
+          defect class #1369 fixed on the sibling conversation card, and the
           fitness page's own outer card in `page.tsx` had to drop its clip too:
           the like button's tooltip — the leftmost one that renders — starts
           left of this card as well as below it.

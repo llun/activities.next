@@ -108,6 +108,21 @@ const buildNote = (overrides: Partial<Status> = {}): Status =>
     ...overrides
   }) as unknown as Status
 
+// `isFitnessDashboard` keys off a completed fitness file, and that branch is a
+// separate card from the conversation one below — same defect, its own chrome.
+const buildFitnessNote = (): Status =>
+  buildNote({
+    id: 'ride-1',
+    fitness: {
+      id: 'fit-1',
+      fileName: 'ride.fit',
+      fileType: 'fit',
+      processingStatus: 'completed',
+      activityType: 'ride',
+      hasMapData: false
+    }
+  } as Partial<Status>)
+
 const buildViewer = (): Actor =>
   ({
     id: VIEWER_ID,
@@ -137,6 +152,35 @@ const renderPage = async () => {
   return container.firstElementChild as HTMLElement
 }
 
+// Collects every clip between the card and a post, inclusive of both. The
+// panel opens upward *out of the post*, so a clip anywhere on that path cuts
+// it off — checking only the card left "move the class down one level" as a
+// green mutation. Matches on the prefix rather than `overflow-hidden` alone
+// because `overflow-x-hidden` forces the computed `overflow-y` to `auto`,
+// which re-clips the panel vertically. `overflow-visible`/`overflow-x-clip`
+// would be rejected too; neither is needed here, so allowing none is the
+// simplest honest guard.
+// Shared by both cards: each wraps posts, and neither may clip them.
+const clipsBetween = (card: HTMLElement, statusId: string) => {
+  const found: string[] = []
+  let node: HTMLElement | null = screen.getByTestId(`status-${statusId}`)
+  while (node && node !== card.parentElement) {
+    found.push(
+      ...Array.from(node.classList).filter((name) =>
+        name.startsWith('overflow-')
+      )
+    )
+    node = node.parentElement
+  }
+  return found
+}
+
+// `StatusBox` is mocked to a bare testid div, so the row that carries a post's
+// radius is its parent. Anchoring on the status rather than a child index keeps
+// the assertion meaningful if a card gains another child.
+const rowFor = (statusId: string) =>
+  screen.getByTestId(`status-${statusId}`).parentElement
+
 describe('Conversation card chrome', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -153,28 +197,6 @@ describe('Conversation card chrome', () => {
       isStatusHash: true
     })
   })
-
-  // Collects every clip between the card and a post, inclusive of both. The
-  // panel opens upward *out of the post*, so a clip anywhere on that path cuts
-  // it off — checking only the card left "move the class down one level" as a
-  // green mutation. Matches on the prefix rather than `overflow-hidden` alone
-  // because `overflow-x-hidden` forces the computed `overflow-y` to `auto`,
-  // which re-clips the panel vertically. `overflow-visible`/`overflow-x-clip`
-  // would be rejected too; neither is needed here, so allowing none is the
-  // simplest honest guard.
-  const clipsBetween = (card: HTMLElement, statusId: string) => {
-    const found: string[] = []
-    let node: HTMLElement | null = screen.getByTestId(`status-${statusId}`)
-    while (node && node !== card.parentElement) {
-      found.push(
-        ...Array.from(node.classList).filter((name) =>
-          name.startsWith('overflow-')
-        )
-      )
-      node = node.parentElement
-    }
-    return found
-  }
 
   // The card wraps posts, and the edit-history panel — which is not portalled
   // — opens upward out of it. `Posts` dropped `overflow-hidden` for the same
@@ -195,12 +217,6 @@ describe('Conversation card chrome', () => {
   // them has to round itself or its square background bleeds past the border.
   // Exactly one child may do so — a second would notch a rounded row into the
   // middle of the card.
-  // `StatusBox` is mocked to a bare testid div, so the row that carries the
-  // radius is its parent. Anchoring on the status rather than a child index
-  // keeps the assertion meaningful if the card gains another child.
-  const rowFor = (statusId: string) =>
-    screen.getByTestId(`status-${statusId}`).parentElement
-
   it('rounds the header wrapper, its topmost child, for a signed-in viewer', async () => {
     mockGetActorFromSession.mockResolvedValue(buildViewer())
 
@@ -288,5 +304,86 @@ describe('Conversation card chrome', () => {
     expect(card.firstElementChild).toHaveClass('rounded-t-2xl')
     expect(rowFor('parent')).not.toHaveClass('rounded-t-2xl')
     expect(rowFor('focused')).not.toHaveClass('rounded-t-2xl')
+  })
+})
+
+// The other card `page.tsx` can return: a completed fitness file takes the
+// `isFitnessDashboard` branch instead of the conversation one above. It has the
+// same reason to stop clipping — `FitnessStatusDetail` ends its own header card
+// with the shared `<Actions>` row, whose error tooltips and edit-history panel
+// do not portal — and unclipping only that inner card was not enough, because
+// the like button's tooltip starts left of this card as well as below it.
+describe('Fitness activity card chrome', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetStatus.mockReset()
+    mockGetServerAuthSession.mockResolvedValue(null)
+    mockGetActorFromSession.mockResolvedValue(null)
+    mockGetStatusReplies.mockResolvedValue([])
+
+    const focused = buildFitnessNote()
+    mockResolveStatusFromPath.mockResolvedValue({
+      status: focused,
+      statusId: 'ride-1',
+      fullStatusId: focused.url,
+      isStatusHash: true
+    })
+  })
+
+  it('does not clip its children, so post overlays can escape it', async () => {
+    // Signed in on purpose: a logged-out viewer gets no action row at all, so
+    // there is no overlay to clip and the assertion would be vacuous.
+    mockGetActorFromSession.mockResolvedValue(buildViewer())
+
+    const card = await renderPage()
+
+    expect(card).toHaveClass('rounded-2xl')
+    expect(clipsBetween(card, 'ride-1')).toEqual([])
+  })
+
+  // Unlike the conversation card, every child here paints a background, so with
+  // the clip gone each corner a child reaches has to be rounded by that child —
+  // including the bottom ones, which the conversation card never needed.
+  it('rounds the header wrapper and the post block for a signed-in viewer', async () => {
+    mockGetActorFromSession.mockResolvedValue(buildViewer())
+
+    const card = await renderPage()
+
+    // The wrapper, not the header itself: `Header` is `sticky top-0`, so it
+    // has to keep a clipping ancestor or it starts detaching mid-scroll and
+    // carries the corners out over the post.
+    expect(card.firstElementChild).toHaveClass('rounded-t-2xl')
+    expect(card.firstElementChild).toHaveClass('overflow-hidden')
+    // The header takes the top corners, so the post block takes only the
+    // bottom ones…
+    expect(rowFor('ride-1')).not.toHaveClass('rounded-t-2xl')
+    expect(rowFor('ride-1')).toHaveClass('rounded-b-2xl')
+    // …which is only right while it is still the last child. Append another
+    // painted block after it and `rounded-b-2xl` notches a rounded row into
+    // the middle of the card while the new block meets square corners.
+    expect(card.lastElementChild).toBe(rowFor('ride-1'))
+  })
+
+  it('gives the post block the top corners when logged out, which has no header', async () => {
+    const card = await renderPage()
+
+    // The logged-out branch leads with an `sr-only` heading, which is out of
+    // flow and paints nothing — the post block below it meets the corners.
+    expect(card.firstElementChild).toHaveClass('sr-only')
+    expect(rowFor('ride-1')).toHaveClass('rounded-t-2xl')
+    // …but not the bottom ones: the sign-in callout renders below it.
+    expect(rowFor('ride-1')).not.toHaveClass('rounded-b-2xl')
+  })
+
+  it('gives the bottom corners to the sign-in callout when logged out', async () => {
+    const card = await renderPage()
+
+    // Anchored on the callout's own text rather than a child index, so this
+    // keeps meaning the right element if the card gains another block.
+    const callout = screen
+      .getByText('Join the conversation')
+      .closest('div.bg-primary\\/5')
+    expect(callout).toHaveClass('rounded-b-2xl')
+    expect(card.lastElementChild).toBe(callout)
   })
 })
