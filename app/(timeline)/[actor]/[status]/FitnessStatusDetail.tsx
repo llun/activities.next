@@ -2749,7 +2749,26 @@ export const FitnessStatusDetail: FC<Props> = ({
   return (
     <div className="space-y-4 p-4 sm:p-5">
       {/* Header card */}
-      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+      {/* No `overflow-hidden`: this card ends with the shared `<Actions>` row,
+          and two of that row's overlays are not portalled, so a clip here is a
+          clip on both of them. The action-button error tooltips hang below the
+          row (`top-full mt-1`) and the row is the last child of the footer's
+          `py-2.5`, so a failed delete or like used to render ~6px of a tooltip
+          against the bottom border and read as nothing happening at all. The
+          edit-history panel opens *upward* from the same row (`bottom-full`,
+          ~360px — a 2.5rem header over a `max-h-80` list) over a card body only
+          ~230px tall, so the oldest revisions were sliced off the top. Both are
+          desktop-only symptoms of the same class the status detail card fixed;
+          the ⋯ menu's popover and the reaction picker are unaffected either way
+          because they portal to the document body.
+
+          Nothing has to round itself in compensation: this card paints the only
+          background in the subtree that reaches its corners — neither the `p-5`
+          body nor the footer strip paints one of its own — so give either of
+          them a background and it will need `rounded-t-xl`/`rounded-b-xl` to
+          stop the square fill bleeding past the border. Nothing inside is
+          `position: sticky` either, so no descendant loses a scrollport here. */}
+      <div className="rounded-xl border bg-card shadow-sm">
         <div className="p-5">
           <div className="flex items-center gap-3">
             <div className="shrink-0">

@@ -1473,6 +1473,87 @@ describe('FitnessStatusDetail', () => {
     })
   })
 
+  // Two bugs, one defect: the header card clipped for its rounded corners, and
+  // two of the action row's overlays are not portalled. The action-button error
+  // tooltips hang below the row (`top-full`), which is ~10px above the card's
+  // bottom border, so a failed delete showed the user nothing at all; the
+  // edit-history panel opens upward from the same row (`bottom-full`, ~360px)
+  // over a card body only ~230px tall, so its oldest revisions were sliced off.
+  describe('post overlays anchored to the action row', () => {
+    const headerCard = () =>
+      screen
+        .getByRole('group', { name: 'Post actions' })
+        .closest('.bg-card') as HTMLElement
+
+    it('leaves no clipping ancestor between the action row and the card', () => {
+      renderDetail()
+
+      const card = headerCard()
+      // Walk the whole chain rather than only checking the card: the overlays
+      // are positioned against the row, so anything from the row up to and
+      // including the card cuts them off just as effectively — and collect the
+      // offenders so a failure names the element that clips.
+      const clipping: string[] = []
+      for (
+        let node: HTMLElement | null = screen.getByRole('group', {
+          name: 'Post actions'
+        });
+        node && node !== card.parentElement;
+        node = node.parentElement
+      ) {
+        if (node.classList.contains('overflow-hidden')) {
+          clipping.push(node.className)
+        }
+      }
+
+      expect(clipping).toEqual([])
+      // The corners are still the card's own, so this pins a removed clip
+      // rather than a removed radius.
+      expect(card).toHaveClass('rounded-xl')
+    })
+
+    it('renders the edit-history panel inside the card that used to clip it', () => {
+      renderDetail({
+        status: buildStatus({
+          edits: [
+            {
+              text: 'Sunset loop, take one',
+              createdAt: Date.parse('2026-05-27T10:45:00Z')
+            }
+          ]
+        })
+      })
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Show edit history, 1 edit' })
+      )
+
+      const panel = screen.getByRole('region', { name: 'Edit history' })
+      // Unlike the reaction picker and the ⋯ popover, this panel has no portal
+      // of its own — it stays a descendant of the card and depends entirely on
+      // the card not clipping.
+      expect(headerCard()).toContainElement(panel)
+      // …and it opens upward, which is what ran it past the card's top edge:
+      // everything above the footer is shorter than the panel is tall.
+      expect(panel).toHaveClass('bottom-full')
+    })
+
+    it('leaves the card the only surface painting at its rounded corners', () => {
+      renderDetail()
+
+      // Nothing clips for the radius any more, so a child that paints a
+      // background and reaches a corner shows a square fill outside the
+      // border. Neither child paints one today — both are transparent over the
+      // card's own `bg-card` — so this fails the moment one gains a background
+      // without the matching `rounded-t-xl`/`rounded-b-xl`.
+      const painted = Array.from(headerCard().children)
+        .map((child) => child.getAttribute('class') ?? '')
+        .filter((className) => /(?:^|\s)bg-\S+/.test(className))
+
+      expect(painted).toEqual([])
+    })
+  })
+
   describe('reactions', () => {
     // This page lays out its own card instead of going through `Posts`, so it
     // has to place the chip row itself and hand the same state to the shared
