@@ -4340,7 +4340,7 @@ __metadata:
     react: "npm:^19.2.8"
     react-dom: "npm:^19.2.8"
     react-modal: "npm:^3.16.3"
-    resend: "npm:^6.18.0"
+    resend: "npm:^6.18.1"
     sanitize-html: "npm:^2.17.6"
     sharp: "npm:^0.35.3"
     tailwind-merge: "npm:^3.6.0"
@@ -7813,9 +7813,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"resend@npm:^6.18.0":
-  version: 6.18.0
-  resolution: "resend@npm:6.18.0"
+"resend@npm:^6.18.1":
+  version: 6.18.1
+  resolution: "resend@npm:6.18.1"
   dependencies:
     postal-mime: "npm:2.7.5"
     standardwebhooks: "npm:1.0.0"
@@ -7824,7 +7824,7 @@ __metadata:
   peerDependenciesMeta:
     "@react-email/render":
       optional: true
-  checksum: 10c0/40a6147221efe0ac45cc80629b974c25c9c7740d04dfebba52329fb8a6f434b8e7cde356cd5de5d4aea4b1cc640ac19345ad79646ff8c27ac829c895d8448b16
+  checksum: 10c0/6450a9166c12ad5db56fc6f77d01125b8e622ec93fe86ccb9295a498a134c4a446663f23fcacf713bd95b8aa0407fb9d015b8c51aa7d17a2deebbd308e28353d
   languageName: node
   linkType: hard
 
