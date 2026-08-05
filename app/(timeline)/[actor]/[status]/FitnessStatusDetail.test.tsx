@@ -341,6 +341,23 @@ describe('FitnessStatusDetail', () => {
     expect(heading).toHaveAttribute('title', 'Morning run & coffee')
   })
 
+  it('renders each caption <p>/<br> as its own line instead of one run-on line', () => {
+    renderDetail({
+      status: buildStatus({
+        text: '<p>Bennekom to Dieren ride<br>38.7 km in 1:35:23</p><p>Testing new bibs</p>'
+      })
+    })
+
+    const heading = screen.getByRole('heading', { level: 1 })
+    expect(heading).toHaveTextContent(
+      'Bennekom to Dieren ride 38.7 km in 1:35:23 Testing new bibs'
+    )
+    expect(heading.textContent).toBe(
+      'Bennekom to Dieren ride\n38.7 km in 1:35:23\n\nTesting new bibs'
+    )
+    expect(heading).toHaveClass('whitespace-pre-line')
+  })
+
   // These inputs all reduce to empty text, so the heading must fall back to the
   // activity label. The markup cases ('<p></p>', '<br>') are load-bearing: the
   // previous `status.text?.trim()` kept them (truthy) and rendered raw markup,

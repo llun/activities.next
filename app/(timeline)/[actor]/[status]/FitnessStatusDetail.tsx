@@ -2237,9 +2237,14 @@ export const FitnessStatusDetail: FC<Props> = ({
   // heading as decoded, tag-free plain text rather than raw markup. Falls back
   // to the activity label when the caption is empty/whitespace-only. Memoized
   // because `htmlToPlainText` parses + sanitizes the HTML and this component
-  // re-renders frequently (e.g. on chart hover).
+  // re-renders frequently (e.g. on chart hover). `preserveLineBreaks` keeps the
+  // caption's own `<p>`/`<br>` line breaks intact (rendered via
+  // `whitespace-pre-line` below) — the default flattened mode joined every
+  // paragraph onto one run-on line, unlike the same caption in the timeline.
   const statusTitle = useMemo(
-    () => htmlToPlainText(status.text ?? '') || activityLabel,
+    () =>
+      htmlToPlainText(status.text ?? '', { preserveLineBreaks: true }) ||
+      activityLabel,
     [status.text, activityLabel]
   )
   const activityDate = formatUtcDate(
@@ -2811,7 +2816,7 @@ export const FitnessStatusDetail: FC<Props> = ({
           </div>
 
           <h1
-            className="mt-3 text-2xl font-semibold tracking-tight"
+            className="mt-3 whitespace-pre-line text-2xl font-semibold tracking-tight"
             title={statusTitle}
           >
             {statusTitle}
