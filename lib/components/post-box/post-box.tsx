@@ -1088,7 +1088,7 @@ export const PostBox: FC<Props> = ({
           onPollTypeChange={(pollType) => dispatch(setPollType(pollType))}
           onRemove={() => dispatch(setPollVisibility(false))}
         />
-        <div className="mt-3 flex flex-wrap items-center gap-y-2 border-t pt-3">
+        <div className="mt-3 mb-3 flex flex-wrap items-center gap-y-2 border-t pt-3">
           <div className="flex flex-wrap items-center gap-1">
             <UploadMediaButton
               isMediaUploadEnabled={isMediaUploadEnabled}
