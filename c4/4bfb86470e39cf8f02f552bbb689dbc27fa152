@@ -1,0 +1,27 @@
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_cb57b1783ebd1d::t_a7d23caadaf4a6 2237-2247
+  s_cb57b1783ebd1d::t_f046a257355081 2817-2819
+  s_cb57b1783ebd1d::t_a6575aced76e2d 98-99
+lib/utils/text/htmlToPlainText.ts
+  s_cb57b1783ebd1d::t_e0486681b25fe9 35-37,45,55,60-62,66,70,76-77
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_cb57b1783ebd1d::t_792291ca623ea7 318
+  s_cb57b1783ebd1d::t_a230bc7ea1e6a9 358,360
+  s_cb57b1783ebd1d::t_bbb544200b9535 309,316-317,329,336-341,344,351-357,359,362,370,375-377
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "c44bfb86470e39cf8f02f552bbb689dbc27fa152",
+  "prompts": {},
+  "sessions": {
+    "s_cb57b1783ebd1d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8cbe0f1e-946b-4c0d-9f3b-5bcdad4282a1",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
