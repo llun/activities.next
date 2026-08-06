@@ -95,7 +95,8 @@ import {
   type PublicMapProvider,
   buildGlProviderOptions
 } from '@/lib/utils/mapProvider'
-import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
+import { cleanClassName } from '@/lib/utils/text/cleanClassName'
+import { processStatusText } from '@/lib/utils/text/processStatusText'
 
 const clampNumber = (value: number, min: number, max: number) => {
   return Math.max(min, Math.min(max, value))
@@ -2233,14 +2234,17 @@ export const FitnessStatusDetail: FC<Props> = ({
   // there is a fitness file to load it from.
   const shouldLoadInteractiveMap = Boolean(fitness?.id)
   const activityLabel = getActivityLabel(fitness?.activityType ?? undefined)
-  // `status.text` holds the post's processed HTML caption, so render the
-  // heading as decoded, tag-free plain text rather than raw markup. Falls back
-  // to the activity label when the caption is empty/whitespace-only. Memoized
-  // because `htmlToPlainText` parses + sanitizes the HTML and this component
-  // re-renders frequently (e.g. on chart hover).
-  const statusTitle = useMemo(
-    () => htmlToPlainText(status.text ?? '') || activityLabel,
-    [status.text, activityLabel]
+  // Render the caption through the same pipeline `Post` uses (markdown/sanitize
+  // + emoji/mention/hashtag markup, parsed to React nodes), rather than
+  // flattening `status.text` to plain text for a synthetic heading. That
+  // previous plain-text heading dropped every tag from the caption — including
+  // its own `<p>`/`<br>` line breaks, which ran every paragraph onto one line —
+  // so this caption now looks exactly like the same post's caption in the
+  // timeline. Memoized because this re-parses HTML and the component re-renders
+  // frequently (e.g. on chart hover).
+  const caption = useMemo(
+    () => cleanClassName(processStatusText(host, status)),
+    [host, status]
   )
   const activityDate = formatUtcDate(
     fitness?.activityStartTime ?? status.createdAt,
@@ -2810,14 +2814,7 @@ export const FitnessStatusDetail: FC<Props> = ({
             </span>
           </div>
 
-          <h1
-            className="mt-3 text-2xl font-semibold tracking-tight"
-            title={statusTitle}
-          >
-            {statusTitle}
-          </h1>
-
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+          <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <Calendar className="size-3.5" /> {activityDate}
             </span>
@@ -2853,6 +2850,13 @@ export const FitnessStatusDetail: FC<Props> = ({
               </a>
             </div>
           ) : null}
+
+          {/* Design system order: the caption sits after the date/device
+              metadata, right before the file switcher and stat grid — not
+              immediately under the header row. */}
+          <div className="mt-3 text-sm leading-relaxed break-words markdown-content">
+            {caption}
+          </div>
 
           {fitnessFiles.length > 1 && (
             <div className="mt-4">
