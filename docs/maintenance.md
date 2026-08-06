@@ -115,6 +115,70 @@ The script includes several safety features:
 
 **Warning**: Always run with `--dry-run` first to verify the files to be deleted are indeed orphaned.
 
+## Actor Archive Export
+
+The `exportActorArchive.ts` script exports everything belonging to one **local**
+actor into a Mastodon-compatible ActivityPub archive (`.tar.gz`): every status
+regardless of visibility (public, unlisted, followers-only, direct), media
+attachment bytes, fitness activity files and route maps (an extension beyond
+the Mastodon archive format — includes imported activities that were never
+posted), the actor profile, likes, bookmarks, and follow lists. It is
+read-only against the database and storage.
+
+### Usage
+
+```bash
+NODE_ENV=production ./scripts/backup/exportActorArchive.ts --username alice
+NODE_ENV=production ./scripts/backup/exportActorArchive.ts --actor-id https://your-domain.tld/users/alice
+NODE_ENV=production ./scripts/backup/exportActorArchive.ts --email alice@example.com
+
+# Preview the flags without connecting to anything
+./scripts/backup/exportActorArchive.ts --help
+```
+
+Pass exactly one of `--username` (optionally with `--domain`, defaulting to
+the configured host), `--actor-id`, or `--email` to select the actor.
+
+### Options
+
+- `--env-file <path>` — env file to load (default `.env.production`; use
+  `.env.local` for a local export)
+- `--output-dir <path>` — output directory (default `backups/actor-archives`)
+- `--page-size <n>` — pagination batch size for every collection (default 100)
+- `--allow-missing-storage` — warn and continue instead of aborting when a
+  referenced media or fitness file is missing from storage; failures are
+  recorded per-file in the archive's `manifest.json`
+- `--skip-storage` — write only the JSON/CSV files, no media or fitness bytes
+- `--fetch-remote-attachments` — download attachments hosted on other servers
+  into the archive too (by default their absolute URL is kept as-is, since
+  the export only owns the actor's own storage)
+
+### Archive layout
+
+```
+actor.json                    Person profile (avatar/header rewritten to local files)
+outbox.json                   OrderedCollection of Create/Announce activities, every status
+likes.json / bookmarks.json   OrderedCollections of status URIs
+following_accounts.csv        Mastodon-import-compatible CSV
+followers.csv                 Extension: one handle per line
+avatar.* / header.*           Profile images, when present
+media_attachments/files/      Attachment, thumbnail, and route-map bytes
+media_attachments/remote/     Only with --fetch-remote-attachments
+fitness_files/files/          .fit/.gpx/.tcx bytes
+fitness_files/fitness.json    Every fitness activity, including ones with no post
+status_history.json           Edit history for edited statuses
+manifest.json                 Counts, storage results, and warnings
+```
+
+Unlike the ActivityPub outbox route, every attachment on a status is kept
+(the federation format truncates to a handful and drops fitness attachments),
+and every visibility is included — this is an owner's export, not a
+visitor's view. Like `productionArchive.ts`, it prints the resolved database
+connection before doing anything, and `@next/env` loads `.env.local` at
+higher precedence than `.env.production` even under `NODE_ENV=production` —
+verify the printed banner shows the database you intend before trusting the
+output.
+
 ## Other Scripts
 
 ### Create Mock User

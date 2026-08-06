@@ -170,7 +170,7 @@ const RESTORE_USAGE = `Usage: scripts/backup/restoreProductionArchive.ts \\
   [--preserve-files] \\
   [--allow-non-local-database]`
 
-const parseKeyValueArgs = (args: string[]) => {
+export const parseKeyValueArgs = (args: string[]) => {
   const parsed = new Map<string, string | true>()
 
   for (let index = 0; index < args.length; index += 1) {
@@ -198,7 +198,7 @@ const parseKeyValueArgs = (args: string[]) => {
   return parsed
 }
 
-const getStringArg = (
+export const getStringArg = (
   args: Map<string, string | true>,
   key: string,
   defaultValue?: string
@@ -209,7 +209,10 @@ const getStringArg = (
   return value
 }
 
-const getBooleanArg = (args: Map<string, string | true>, key: string) => {
+export const getBooleanArg = (
+  args: Map<string, string | true>,
+  key: string
+) => {
   const value = args.get(key)
   if (value === undefined) return false
   if (value === true) return true
@@ -661,7 +664,7 @@ const isS3FitnessStorage = (
 
 export const parseEnvFile = (envPath: string) => dotenvFlow.parse(envPath)
 
-const loadEnvFile = async (envFile: string) => {
+export const loadEnvFile = async (envFile: string) => {
   const envPath = path.resolve(process.cwd(), envFile)
   const values = parseEnvFile(envPath)
 
@@ -1524,7 +1527,10 @@ const writeManifest = async (stagingDir: string, manifest: ArchiveManifest) => {
   )
 }
 
-const createTarArchive = async (stagingDir: string, archivePath: string) => {
+export const createTarArchive = async (
+  stagingDir: string,
+  archivePath: string
+) => {
   await fs.mkdir(path.dirname(archivePath), { recursive: true })
   await execFileAsync('tar', ['-czf', archivePath, '-C', stagingDir, '.'])
 }
