@@ -225,6 +225,7 @@ If you have been running with a blank media path, treat it as a **credential exp
 
 - a legacy root `config.json` (`application/json`), which on older instances held the whole configuration: `secretPhase`, database credentials, and auth and email secrets (S3 credentials were never in it — those come from the AWS SDK chain);
 - `backups/production-archives/*.tar.gz` (`application/gzip`), the default output directory of `scripts/backup/productionArchive.ts` — a full database and media archive;
+- `backups/actor-archives/*.tar.gz` (`application/gzip`), the default output directory of `scripts/backup/exportActorArchive.ts` — one account's full ActivityPub archive (every status regardless of visibility, media, fitness files, likes, bookmarks, and follows);
 - key material such as `.p8` (the Apple Maps signing key), `.pem`, `.crt`, `.p12` and `.pfx`;
 - `.conf`, `.ini`, `.toml` and `.txt`, plus source files (`.ts`, `.js`, `.json`, `.md`, `.yml`, `.sql`).
 
