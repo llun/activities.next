@@ -4,8 +4,14 @@
 # (Lint and Prettier, Build, All Tests) are posted by this pipeline itself,
 # via .buildkite/hooks + .buildkite/scripts/github-status.sh, so merging
 # still works the same way it did under GitHub Actions. This needs a
-# GITHUB_TOKEN (repo:status scope) configured as a secret on this Buildkite
-# pipeline — see AGENTS.md's CI section for the full setup checklist.
+# GITHUB_TOKEN with commit-status write access configured as a secret on this
+# Buildkite pipeline — see AGENTS.md's CI section for the full setup checklist,
+# including the fork-builds warning.
+#
+# Every `$$` below is intentional: `buildkite-agent pipeline upload` interpolates
+# `$VAR` / `${VAR}` at upload time, and these are runtime shell variables that
+# are unset then, so a bare `$VAR` would silently become an empty string before
+# the shell ever runs. Do not "clean up" `$$` into `$`.
 
 env:
   GITHUB_REPO_SLUG: 'llun/activities.next'
@@ -18,9 +24,9 @@ steps:
     plugins:
       - docker#v5.14.0:
           image: 'node:24'
-          propagate-environment: true
     command: |
       set -euo pipefail
+      bash .buildkite/scripts/github-status.test.sh
       corepack enable
       yarn install --immutable
       yarn lint
@@ -33,7 +39,6 @@ steps:
     plugins:
       - docker#v5.14.0:
           image: 'node:24'
-          propagate-environment: true
     command: |
       set -euo pipefail
       corepack enable
@@ -47,14 +52,21 @@ steps:
       TEST_DATABASE_TYPE: 'sqlite'
       NODE_OPTIONS: '--max-old-space-size=8192'
     plugins:
+      # The docker plugin only forwards a handful of BUILDKITE_* variables by
+      # default, so the two parallelism variables have to be listed explicitly
+      # alongside this step's own env.
       - docker#v5.14.0:
           image: 'node:24'
-          propagate-environment: true
+          environment:
+            - TEST_DATABASE_TYPE
+            - NODE_OPTIONS
+            - BUILDKITE_PARALLEL_JOB
+            - BUILDKITE_PARALLEL_JOB_COUNT
     command: |
       set -euo pipefail
       corepack enable
       yarn install --immutable
-      yarn test --shard=$((BUILDKITE_PARALLEL_JOB + 1))/${BUILDKITE_PARALLEL_JOB_COUNT}
+      yarn test --shard=$$(($${BUILDKITE_PARALLEL_JOB} + 1))/$${BUILDKITE_PARALLEL_JOB_COUNT}
 
   - label: 'All Tests'
     key: 'all-tests'
@@ -64,10 +76,10 @@ steps:
       GITHUB_STATUS_CONTEXT: 'All Tests'
     command: |
       set -euo pipefail
-      outcome=$(buildkite-agent step get outcome --step "test-shards")
-      echo "Test shards outcome: $outcome"
-      if [ "$outcome" != "passed" ]; then
-        echo "One or more test shards did not succeed (got: $outcome)" >&2
+      outcome=$$(buildkite-agent step get outcome --step "test-shards")
+      echo "Test shards outcome: $$outcome"
+      if [ "$$outcome" != "passed" ]; then
+        echo "One or more test shards did not succeed (got: $$outcome)" >&2
         exit 1
       fi
       echo "All test shards succeeded."
@@ -77,7 +89,6 @@ steps:
     plugins:
       - docker#v5.14.0:
           image: 'node:24'
-          propagate-environment: true
     command: |
       set -euo pipefail
       apt-get update && apt-get install -y --no-install-recommends sqlite3
@@ -86,11 +97,11 @@ steps:
       ACTIVITIES_DATABASE_CLIENT=better-sqlite3 \
       ACTIVITIES_DATABASE_SQLITE_FILENAME=/tmp/schema-check.sqlite3 \
         yarn migrate
-      applied=$(sqlite3 /tmp/schema-check.sqlite3 'SELECT count(*) FROM knex_migrations;')
-      files=$(ls migrations/*.js | wc -l)
-      echo "applied=$applied files=$files"
-      if [ "$applied" -ne "$files" ]; then
-        echo "knex_migrations has $applied rows but migrations/ has $files files" >&2
+      applied=$$(sqlite3 /tmp/schema-check.sqlite3 'SELECT count(*) FROM knex_migrations;')
+      files=$$(ls migrations/*.js | wc -l)
+      echo "applied=$$applied files=$$files"
+      if [ "$$applied" -ne "$$files" ]; then
+        echo "knex_migrations has $$applied rows but migrations/ has $$files files" >&2
         exit 1
       fi
       sqlite3 /tmp/schema-check.sqlite3 '.schema' \
