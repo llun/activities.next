@@ -32,7 +32,10 @@ post_github_status() {
     "$state_escaped" "$context_escaped" "$description_escaped" "$url_escaped")
 
   local response status body
+  # Retry transient GitHub API failures: pre-command runs under `set -e`, so a
+  # single 5xx or dropped connection would abort the step before any real work.
   response=$(curl -sS -w '\n%{http_code}' \
+    --retry 3 --retry-connrefused --retry-all-errors --max-time 30 \
     -X POST \
     -H "Authorization: token ${GITHUB_TOKEN}" \
     -H "Accept: application/vnd.github+json" \

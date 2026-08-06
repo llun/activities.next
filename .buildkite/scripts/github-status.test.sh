@@ -3,6 +3,11 @@
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Scratch files go in a temp directory so a crash mid-test can never leave
+# untracked files behind in the repo. (Bash resets traps in subshells, so the
+# ( ... ) test cases below do not fire this EXIT trap.)
+TEST_TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TEST_TMP_DIR"' EXIT
 FAILURES=0
 
 assert_eq() {
@@ -25,10 +30,9 @@ assert_eq() {
   # shellcheck source=./github-status.sh
   source "$DIR/github-status.sh"
   post_github_status "success" "Passed"
-  echo "$CURL_CALLED" > "$DIR/.test-curl-called"
+  echo "$CURL_CALLED" > "$TEST_TMP_DIR/curl-called"
 )
-assert_eq "no-op when GITHUB_STATUS_CONTEXT unset" "0" "$(cat "$DIR/.test-curl-called")"
-rm -f "$DIR/.test-curl-called"
+assert_eq "no-op when GITHUB_STATUS_CONTEXT unset" "0" "$(cat "$TEST_TMP_DIR/curl-called")"
 
 # --- case 2: context set, token missing -> aborts the (sub)shell loudly ---
 (
@@ -49,7 +53,7 @@ assert_eq "aborts when GITHUB_TOKEN missing" "1" "$?"
   export BUILDKITE_BUILD_URL="https://buildkite.example/builds/1"
   curl() {
     # Save arguments for inspection
-    echo "$*" > "$DIR/.test-curl-args"
+    echo "$*" > "$TEST_TMP_DIR/curl-args"
     # Output success response (200)
     printf '{"state":"success"}
 200'
@@ -58,8 +62,7 @@ assert_eq "aborts when GITHUB_TOKEN missing" "1" "$?"
   source "$DIR/github-status.sh"
   post_github_status "success" 'Test passed with "quotes"'
 )
-CURL_ARGS=$(cat "$DIR/.test-curl-args" 2>/dev/null || echo "")
-rm -f "$DIR/.test-curl-args"
+CURL_ARGS=$(cat "$TEST_TMP_DIR/curl-args" 2>/dev/null || echo "")
 # Verify all four JSON fields are present and properly escaped
 if printf '%s' "$CURL_ARGS" | grep -q 'https://api.github.com/repos/llun/activities.next/statuses/abc123' && \
    printf '%s' "$CURL_ARGS" | grep -q '"state":"success"' && \
@@ -87,12 +90,11 @@ fi
   }
   # shellcheck source=./github-status.sh
   source "$DIR/github-status.sh"
-  post_github_status "failure" "Build failed" 2>"$DIR/.test-failure-stderr"
-  echo "$?" > "$DIR/.test-failure-exit-code"
+  post_github_status "failure" "Build failed" 2>"$TEST_TMP_DIR/failure-stderr"
+  echo "$?" > "$TEST_TMP_DIR/failure-exit-code"
 )
-EXIT_CODE=$(cat "$DIR/.test-failure-exit-code" 2>/dev/null || echo "0")
-STDERR=$(cat "$DIR/.test-failure-stderr" 2>/dev/null || echo "")
-rm -f "$DIR/.test-failure-exit-code" "$DIR/.test-failure-stderr"
+EXIT_CODE=$(cat "$TEST_TMP_DIR/failure-exit-code" 2>/dev/null || echo "0")
+STDERR=$(cat "$TEST_TMP_DIR/failure-stderr" 2>/dev/null || echo "")
 assert_eq "non-2xx response returns exit code 1" "1" "$EXIT_CODE"
 if printf '%s' "$STDERR" | grep -q 'error: GitHub status POST failed with 401' && \
    printf '%s' "$STDERR" | grep -q 'context: Build' && \
