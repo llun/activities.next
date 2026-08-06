@@ -306,17 +306,16 @@ describe('FitnessStatusDetail', () => {
     }
   })
 
-  it('renders the activity header with the type badge, title and primary stats', async () => {
+  it('renders the activity header with the type badge and primary stats', async () => {
     renderDetail()
 
     expect(screen.getByText('Athlete Runner')).toBeInTheDocument()
     expect(screen.getByText('@athlete@activities.local')).toBeInTheDocument()
     // Type badge derived from the activity type.
     expect(screen.getByText('Ride')).toBeInTheDocument()
-    // Status caption becomes the activity title.
-    expect(
-      screen.getByRole('heading', { level: 1, name: 'Sunset loop' })
-    ).toBeInTheDocument()
+    // The caption renders as normal post content, not a page heading.
+    expect(screen.getByText('Sunset loop')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument()
     // Primary stat strip.
     expect(screen.getByText('Distance')).toBeInTheDocument()
     expect(screen.getByText('5.00')).toBeInTheDocument()
@@ -327,36 +326,55 @@ describe('FitnessStatusDetail', () => {
     await waitFor(() => expect(screen.getByText('Avg HR')).toBeInTheDocument())
   })
 
-  it('renders the caption as plain text, stripping HTML tags and decoding entities', () => {
+  it('renders the caption through the same markup pipeline as the timeline, not flattened to plain text', () => {
     renderDetail({
       status: buildStatus({
         text: '<p>Morning <strong>run</strong> &amp; coffee</p>'
       })
     })
 
-    const heading = screen.getByRole('heading', { level: 1 })
-    expect(heading).toHaveTextContent('Morning run & coffee')
-    // No raw markup leaks into the heading text or its title attribute.
-    expect(heading.textContent).toBe('Morning run & coffee')
-    expect(heading).toHaveAttribute('title', 'Morning run & coffee')
+    // A real <strong> element, not a stripped/escaped string — matching how
+    // `Post` renders the same caption in the timeline.
+    const strong = screen.getByText('run', { selector: 'strong' })
+    expect(strong).toBeInTheDocument()
+    expect(strong.closest('p')).toHaveTextContent('Morning run & coffee')
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument()
   })
 
-  // These inputs all reduce to empty text, so the heading must fall back to the
-  // activity label. The markup cases ('<p></p>', '<br>') are load-bearing: the
-  // previous `status.text?.trim()` kept them (truthy) and rendered raw markup,
-  // whereas `htmlToPlainText` collapses them to '' and triggers the fallback.
+  it('renders each caption <p>/<br> as real elements instead of one run-on line', () => {
+    renderDetail({
+      status: buildStatus({
+        text: '<p>Bennekom to Dieren ride<br>38.7 km in 1:35:23</p><p>Testing new bibs</p>'
+      })
+    })
+
+    const paragraphs = screen
+      .getByText('Testing new bibs')
+      .closest('.markdown-content')?.children
+
+    expect(paragraphs).toHaveLength(2)
+    expect(paragraphs?.[0].tagName).toBe('P')
+    expect(paragraphs?.[0].querySelector('br')).not.toBeNull()
+    // No space between the lines: `<br>` is a real line break, not a text node.
+    expect(paragraphs?.[0]).toHaveTextContent(
+      'Bennekom to Dieren ride38.7 km in 1:35:23'
+    )
+    expect(paragraphs?.[1]).toHaveTextContent('Testing new bibs')
+  })
+
   it.each([
     { description: 'whitespace-only caption', text: '   ' },
     { description: 'caption that is empty markup', text: '<p></p>' },
     { description: 'caption that is only a line break', text: '<br>' }
   ])(
-    'falls back to the activity label when the caption has no text ($description)',
+    'renders no caption content, and no fallback heading, for an empty caption ($description)',
     ({ text }) => {
       renderDetail({ status: buildStatus({ text }) })
 
       expect(
-        screen.getByRole('heading', { level: 1, name: 'Ride' })
-      ).toBeInTheDocument()
+        screen.queryByRole('heading', { level: 1 })
+      ).not.toBeInTheDocument()
+      expect(screen.queryByText('Ride')).toBeInTheDocument()
     }
   )
 
