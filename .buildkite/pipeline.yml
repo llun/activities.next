@@ -39,3 +39,35 @@ steps:
       corepack enable
       yarn install --immutable
       yarn build
+
+  - label: 'Test Shard'
+    key: 'test-shards'
+    parallelism: 4
+    env:
+      TEST_DATABASE_TYPE: 'sqlite'
+      NODE_OPTIONS: '--max-old-space-size=8192'
+    plugins:
+      - docker#v5.14.0:
+          image: 'node:24'
+          propagate-environment: true
+    command: |
+      set -euo pipefail
+      corepack enable
+      yarn install --immutable
+      yarn test --shard=$((BUILDKITE_PARALLEL_JOB + 1))/${BUILDKITE_PARALLEL_JOB_COUNT}
+
+  - label: 'All Tests'
+    key: 'all-tests'
+    depends_on: 'test-shards'
+    allow_dependency_failure: true
+    env:
+      GITHUB_STATUS_CONTEXT: 'All Tests'
+    command: |
+      set -euo pipefail
+      outcome=$(buildkite-agent step get outcome --step "test-shards")
+      echo "Test shards outcome: $outcome"
+      if [ "$outcome" != "passed" ]; then
+        echo "One or more test shards did not succeed (got: $outcome)" >&2
+        exit 1
+      fi
+      echo "All test shards succeeded."
