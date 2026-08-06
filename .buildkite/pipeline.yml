@@ -71,3 +71,33 @@ steps:
         exit 1
       fi
       echo "All test shards succeeded."
+
+  - label: 'Schema Dump Sync'
+    key: 'schema-dump-check'
+    plugins:
+      - docker#v5.14.0:
+          image: 'node:24'
+          propagate-environment: true
+    command: |
+      set -euo pipefail
+      apt-get update && apt-get install -y --no-install-recommends sqlite3
+      corepack enable
+      yarn install --immutable
+      ACTIVITIES_DATABASE_CLIENT=better-sqlite3 \
+      ACTIVITIES_DATABASE_SQLITE_FILENAME=/tmp/schema-check.sqlite3 \
+        yarn migrate
+      applied=$(sqlite3 /tmp/schema-check.sqlite3 'SELECT count(*) FROM knex_migrations;')
+      files=$(ls migrations/*.js | wc -l)
+      echo "applied=$applied files=$files"
+      if [ "$applied" -ne "$files" ]; then
+        echo "knex_migrations has $applied rows but migrations/ has $files files" >&2
+        exit 1
+      fi
+      sqlite3 /tmp/schema-check.sqlite3 '.schema' \
+        | grep -vE "^CREATE TABLE sqlite_sequence" \
+        | grep -vE "^CREATE TABLE IF NOT EXISTS '[A-Za-z_]+_fts_(data|idx|docsize|config|content)'" \
+        > /tmp/schema-regenerated.sql
+      if ! diff -u migrations/schema.sqlite.sql /tmp/schema-regenerated.sql; then
+        echo "migrations/schema.sqlite.sql is out of sync with the migrations. Regenerate BOTH schema dumps in this PR -- see AGENTS.md -> 'Keeping the reference schema dumps in sync'." >&2
+        exit 1
+      fi
