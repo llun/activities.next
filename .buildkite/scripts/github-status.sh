@@ -4,6 +4,11 @@
 # any shell options (-e/-u/pipefail) here — those would silently change the
 # behavior of whatever script sources this one.
 
+# Helper to escape a string for JSON (backslash, double-quote, newline).
+json_escape() {
+  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/$/\\n/g' | tr -d '\n' | sed 's/\\n$//'
+}
+
 post_github_status() {
   local state="$1"
   local description="${2:-}"
@@ -16,14 +21,32 @@ post_github_status() {
   : "${GITHUB_REPO_SLUG:?GITHUB_REPO_SLUG must be set (e.g. llun/activities.next)}"
   : "${BUILDKITE_COMMIT:?BUILDKITE_COMMIT must be set}"
 
+  local state_escaped context_escaped description_escaped url_escaped
+  state_escaped=$(json_escape "$state")
+  context_escaped=$(json_escape "$GITHUB_STATUS_CONTEXT")
+  description_escaped=$(json_escape "$description")
+  url_escaped=$(json_escape "${BUILDKITE_BUILD_URL:-}")
+
   local payload
   payload=$(printf '{"state":"%s","context":"%s","description":"%s","target_url":"%s"}' \
-    "$state" "$GITHUB_STATUS_CONTEXT" "$description" "${BUILDKITE_BUILD_URL:-}")
+    "$state_escaped" "$context_escaped" "$description_escaped" "$url_escaped")
 
-  curl -sS -o /dev/null \
+  local response status body
+  response=$(curl -sS -w '\n%{http_code}' \
     -X POST \
     -H "Authorization: token ${GITHUB_TOKEN}" \
     -H "Accept: application/vnd.github+json" \
     "https://api.github.com/repos/${GITHUB_REPO_SLUG}/statuses/${BUILDKITE_COMMIT}" \
-    -d "$payload"
+    -d "$payload")
+
+  # Extract status code (last 3 digits after newline) and body (everything before)
+  status=$(printf '%s' "$response" | tail -1)
+  body=$(printf '%s' "$response" | sed '$d')
+
+  if [ "${status%${status#?}}" != "2" ]; then
+    printf 'error: GitHub status POST failed with %s\n' "$status" >&2
+    printf 'context: %s\n' "$GITHUB_STATUS_CONTEXT" >&2
+    printf 'response body:\n%s\n' "$body" >&2
+    return 1
+  fi
 }
