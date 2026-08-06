@@ -526,12 +526,22 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   stack size exceeded" when a menu closes as a dialog opens. Real focus flows
   never nest that deep, so normal `focus()` / `document.activeElement` behavior
   is unchanged.
-- CI (`.github/workflows/ci.yml`) runs lint + prettier-check, build, test, and
-  Schema Dump Sync (regenerates the SQLite schema dump from the migrations and
-  fails on drift) as four parallel jobs on every push and PR; the single
-  required branch-protection check is the aggregate `CI / CI Success` job. The
-  test job pins `TEST_DATABASE_TYPE: sqlite`; `lib/database/testUtils.ts` also
-  supports `TEST_DATABASE_TYPE=pg` (with `TEST_DATABASE_HOST` /
+- CI runs on **Buildkite** (`.buildkite/pipeline.yml`): lint + prettier-check,
+  build, four parallel test shards aggregated into an `All Tests` step, and
+  Schema Dump Sync (regenerates the SQLite schema dump from the migrations
+  and fails on drift) on every push and PR. Branch protection on `main`
+  requires exactly three GitHub status contexts — `Lint and Prettier`,
+  `Build`, `All Tests` — which the Buildkite pipeline posts itself via
+  `.buildkite/hooks/{pre-command,pre-exit}` and
+  `.buildkite/scripts/github-status.sh`, so branch protection didn't need to
+  change. `Schema Dump Sync` is not a required check. This needs a
+  `GITHUB_TOKEN` (repo:status scope) configured as a secret on the Buildkite
+  pipeline, plus the pipeline itself created and connected to this repo's
+  GitHub webhook in the Buildkite dashboard — neither is version-controlled.
+  `.github/workflows/ci.yml` still exists for reference/rollback but should
+  be treated as disabled; it is not the active CI. The test job pins
+  `TEST_DATABASE_TYPE: sqlite`; `lib/database/testUtils.ts` also supports
+  `TEST_DATABASE_TYPE=pg` (with `TEST_DATABASE_HOST` /
   `TEST_DATABASE_USERNAME` / `TEST_DATABASE_PASSWORD`) for running the suite
   against a throwaway **local** PostgreSQL.
 - **To grab a mocked module and configure it, use `vi.importMock<T>('@/path')`,
