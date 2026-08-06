@@ -1,0 +1,24 @@
+.buildkite/scripts/github-status.test.sh
+  s_1120152b86a65b::t_c7915666e62d80 43,59,75-81,83,87-89,91,93-96
+  s_1120152b86a65b::t_cd5568d9760722 63-74,82,84-86,90,92,97-105
+  s_1120152b86a65b::t_f708bbadcfc20d 50-56
+.buildkite/scripts/github-status.sh
+  s_1120152b86a65b::t_b62d6393600751 34,42-46,49
+  s_1120152b86a65b::t_e00e48cdcf7780 7-11,24-29,32,35,40-41,47-48,50-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "3398ca2294694f05f4b399b223825e78e326dce0",
+  "prompts": {},
+  "sessions": {
+    "s_1120152b86a65b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e74657a5-d824-414a-a492-8b3b090e65ec",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
