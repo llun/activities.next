@@ -1,0 +1,19 @@
+.buildkite/pipeline.yml
+  s_1120152b86a65b::t_6a0e4b87ebefc7 1-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "60b09915a1f151ed9d2cf93bcafe8440b4d3862a",
+  "prompts": {},
+  "sessions": {
+    "s_1120152b86a65b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e74657a5-d824-414a-a492-8b3b090e65ec",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
