@@ -1,0 +1,37 @@
+scripts/backup/actorArchive.ts
+  s_bbb4d790e332a1::t_49ce3e19e87b58 1-26,32,38-50,52-264,266-365,367-905,911-1017
+  s_bbb4d790e332a1::t_174862574f08ba 51,265,366,906-910
+  s_bbb4d790e332a1::t_ab596665b7d0e6 27-31,33-37
+scripts/backup/exportActorArchive.ts
+  s_bbb4d790e332a1::t_83653b28d42cdb 1-23
+docs/environment-variables.md
+  s_bbb4d790e332a1::t_8d2c45beb5a2d3 228
+scripts/backup/productionArchive.ts
+  s_bbb4d790e332a1::t_3b28731914a16f 667
+  s_bbb4d790e332a1::t_a6068629c7664e 173
+  s_bbb4d790e332a1::t_72bbfeabb6f000 201
+  s_bbb4d790e332a1::t_174862574f08ba 212-215
+  s_bbb4d790e332a1::t_1fd802f62a70a5 1530-1533
+docs/maintenance.md
+  s_bbb4d790e332a1::t_1ed09aef74f7ce 118-181
+scripts/backup/actorArchive.test.ts
+  s_bbb4d790e332a1::t_143df8d1f84185 1-134,140-168,181-190,192-316,331-509
+  s_bbb4d790e332a1::t_174862574f08ba 135-139,169-180,191
+  s_bbb4d790e332a1::t_0716b896d7574f 317-330
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "64315cb9fbea395cf3def6a49cf662ebea53292f",
+  "prompts": {},
+  "sessions": {
+    "s_bbb4d790e332a1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fa83835e-3f60-460b-b890-d96158957fd5",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
