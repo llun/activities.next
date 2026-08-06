@@ -1,0 +1,41 @@
+# CI pipeline (Buildkite) — mirrors .github/workflows/ci.yml.
+#
+# The three GitHub status contexts required by main's branch protection
+# (Lint and Prettier, Build, All Tests) are posted by this pipeline itself,
+# via .buildkite/hooks + .buildkite/scripts/github-status.sh, so merging
+# still works the same way it did under GitHub Actions. This needs a
+# GITHUB_TOKEN (repo:status scope) configured as a secret on this Buildkite
+# pipeline — see AGENTS.md's CI section for the full setup checklist.
+
+env:
+  GITHUB_REPO_SLUG: 'llun/activities.next'
+
+steps:
+  - label: 'Lint and Prettier'
+    key: 'lint-prettier'
+    env:
+      GITHUB_STATUS_CONTEXT: 'Lint and Prettier'
+    plugins:
+      - docker#v5.14.0:
+          image: 'node:24'
+          propagate-environment: true
+    command: |
+      set -euo pipefail
+      corepack enable
+      yarn install --immutable
+      yarn lint
+      yarn prettier:check
+
+  - label: 'Build'
+    key: 'build'
+    env:
+      GITHUB_STATUS_CONTEXT: 'Build'
+    plugins:
+      - docker#v5.14.0:
+          image: 'node:24'
+          propagate-environment: true
+    command: |
+      set -euo pipefail
+      corepack enable
+      yarn install --immutable
+      yarn build
