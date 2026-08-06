@@ -8,6 +8,16 @@ import { getStaticSecurityHeaders } from '@/lib/utils/http-headers/static'
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: process.env.BUILD_STANDALONE ? 'standalone' : undefined,
+  experimental: {
+    // Next 16.3 defaults to running the project-local `tsc` CLI for type
+    // checking, which type-checks every file `tsconfig.json` includes —
+    // `*.test.ts(x)` included. This project deliberately never type-checks
+    // test files in CI (see AGENTS.md Testing Guidelines), so the CLI
+    // checker surfaces a large backlog of pre-existing test-file type
+    // errors unrelated to any real change. Keep the previous (JS compiler
+    // API-based) checker, which only checks the app's own module graph.
+    useTypeScriptCli: false
+  },
   // sharp's native *.node binary dlopen's its libvips shared library via a
   // native RPATH, which the standalone tracer (@vercel/nft) cannot follow.
   // Since sharp 0.35 the runtime @img/sharp-libvips-* package is no longer
