@@ -528,31 +528,23 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   never nest that deep, so normal `focus()` / `document.activeElement` behavior
   is unchanged.
 - CI runs on **Buildkite** (`.buildkite/pipeline.yml`): lint + prettier-check,
-  build, four parallel test shards aggregated into an `All Tests` step, and
-  Schema Dump Sync (regenerates the SQLite schema dump from the migrations
-  and fails on drift) on every push and PR. Branch protection on `main`
-  requires exactly three GitHub status contexts — `Lint and Prettier`,
-  `Build`, `All Tests` — which the Buildkite pipeline posts itself via
-  `.buildkite/hooks/{pre-command,pre-exit}` and
-  `.buildkite/scripts/github-status.sh`, so branch protection didn't need to
-  change. `Schema Dump Sync` is not a required check. This needs a
-  `GITHUB_TOKEN` configured as a secret on the Buildkite pipeline, plus the
-  pipeline itself created and connected to this repo's GitHub webhook in the
-  Buildkite dashboard — neither is version-controlled. Prefer a **fine-grained**
-  PAT scoped to just this repo with `Commit statuses: Read and write` over a
-  classic PAT, whose `repo:status` scope reaches every repo the token owner can
-  see. Leave Buildkite's **"Allow builds from third-party forked repositories"
-  setting OFF**: this repo is public, and `.buildkite/hooks/` plus
-  `.buildkite/pipeline.yml` are repo-controlled code that runs on the agent
-  host — the hooks run outside any container — with the agent's full
-  environment, including `GITHUB_TOKEN`; enabling fork builds would let any
-  fork PR author exfiltrate that token and run arbitrary code on the agent
-  host. `.github/workflows/ci.yml` is not deleted and still triggers on every
-  push and PR, posting check-runs under the same three context names, so until
-  `gh workflow disable ci.yml` is run both systems report the same required
-  contexts on every commit; disable GitHub Actions promptly once Buildkite is
-  verified working rather than leaving both running indefinitely. The test job
-  pins `TEST_DATABASE_TYPE: sqlite`; `lib/database/testUtils.ts` also supports
+  build, and four parallel test shards, on every push and PR. Deliberately
+  simple — no GitHub status posting and no `GITHUB_TOKEN`/secret dependency;
+  Buildkite's own build page shows pass/fail for the whole pipeline
+  (including the parallel shards) natively. It still needs the pipeline
+  itself created and connected to this repo's GitHub webhook in the
+  Buildkite dashboard (not version-controlled) before it runs at all.
+  Hooking this up to GitHub's required-check / branch-protection flow (so a
+  Buildkite result gates merges the way `.github/workflows/ci.yml` did) is
+  **not done yet** — that needs a `GITHUB_TOKEN`-based status-posting
+  mechanism again, deliberately left out for now to keep the pipeline
+  simple; branch protection's three required contexts (`Lint and Prettier`,
+  `Build`, `All Tests`) currently still come only from
+  `.github/workflows/ci.yml`, which is untouched and keeps running as
+  before. `Schema Dump Sync` (regenerates the SQLite schema dump from the
+  migrations and fails on drift) is **not** part of the Buildkite pipeline —
+  it only runs in `ci.yml` for now. The test job pins
+  `TEST_DATABASE_TYPE: sqlite`; `lib/database/testUtils.ts` also supports
   `TEST_DATABASE_TYPE=pg` (with `TEST_DATABASE_HOST` /
   `TEST_DATABASE_USERNAME` / `TEST_DATABASE_PASSWORD`) for running the suite
   against a throwaway **local** PostgreSQL.
