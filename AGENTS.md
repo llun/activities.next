@@ -527,25 +527,14 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   stack size exceeded" when a menu closes as a dialog opens. Real focus flows
   never nest that deep, so normal `focus()` / `document.activeElement` behavior
   is unchanged.
-- CI runs on **Buildkite** (`.buildkite/pipeline.yml`): lint + prettier-check,
-  build, and four parallel test shards, on every push and PR. Deliberately
-  simple — no GitHub status posting and no `GITHUB_TOKEN`/secret dependency;
-  Buildkite's own build page shows pass/fail for the whole pipeline
-  (including the parallel shards) natively. It still needs the pipeline
-  itself created and connected to this repo's GitHub webhook in the
-  Buildkite dashboard (not version-controlled) before it runs at all.
-  Hooking this up to GitHub's required-check / branch-protection flow (so a
-  Buildkite result gates merges the way `.github/workflows/ci.yml` did) is
-  **not done yet** — that needs a `GITHUB_TOKEN`-based status-posting
-  mechanism again, deliberately left out for now to keep the pipeline
-  simple; branch protection's three required contexts (`Lint and Prettier`,
-  `Build`, `All Tests`) currently still come only from
-  `.github/workflows/ci.yml`, which is untouched and keeps running as
-  before. `Schema Dump Sync` (regenerates the SQLite schema dump from the
-  migrations and fails on drift) is **not** part of the Buildkite pipeline —
-  it only runs in `ci.yml` for now. The test job pins
-  `TEST_DATABASE_TYPE: sqlite`; `lib/database/testUtils.ts` also supports
-  `TEST_DATABASE_TYPE=pg` (with `TEST_DATABASE_HOST` /
+- CI (`.github/workflows/ci.yml`) runs lint + prettier-check, build, four
+  parallel test shards aggregated into an `All Tests` step, and Schema Dump
+  Sync (regenerates the SQLite schema dump from the migrations and fails on
+  drift) on every push and PR. Branch protection on `main` requires exactly
+  three status checks — `Lint and Prettier`, `Build`, `All Tests` — not the
+  `CI Success` aggregate job; `Schema Dump Sync` is not a required check.
+  The test job pins `TEST_DATABASE_TYPE: sqlite`; `lib/database/testUtils.ts`
+  also supports `TEST_DATABASE_TYPE=pg` (with `TEST_DATABASE_HOST` /
   `TEST_DATABASE_USERNAME` / `TEST_DATABASE_PASSWORD`) for running the suite
   against a throwaway **local** PostgreSQL.
 - **To grab a mocked module and configure it, use `vi.importMock<T>('@/path')`,
