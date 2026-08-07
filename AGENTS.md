@@ -34,7 +34,8 @@ For the most common task shapes, follow the step-by-step **Task Recipes** sectio
 - `yarn build` builds the production app; `yarn start` serves it.
 - `yarn lint` runs ESLint over the app and lib code. `eslint.config.mjs` ignores `scripts/**`, `migrations/**`, `plans/**`, and `*.config.*` files. Several AGENTS.md conventions are **lint-enforced**: no `console.*`, no `../` imports, no `Response.json()`/`NextResponse.json()` or Zod `.parse()` in `app/api` routes, and no direct `fetch()` in component files (a frozen legacy-offender list lives in `eslint.config.mjs` — never add a file to it; shrink it by migrating callers to `lib/client.ts`). The no-env-reads-outside-`lib/config/` rule is enforced by `lib/config/envAccess.test.ts`; every `ACTIVITIES_*`/`OTEL_*` variable read in `lib/config/` must have a row in `docs/environment-variables.md` (`lib/config/envDocumentation.test.ts` fails otherwise); and server-only trees must not import a runtime value from a `'use client'` module (`lib/clientModuleBoundary.test.ts` — see **Server/Client Module Boundary**). Three more repo-wide guards live as tests: `next.config.test.ts` (the build config must not consume runtime deployment values), `app/globals.contrast.test.ts` (the WCAG contrast floor), and `lib/components/tailwindCssVariableSyntax.test.ts` (see **Tailwind CSS variables** below). The remaining conventions in this file are review-enforced.
 - `yarn test` runs the full Vitest suite (all tests run in parallel with SQLite in-memory databases).
-- There is no standalone typecheck script: `yarn build` is the only real TypeScript gate, and `*.test.ts(x)` files are never type-checked by CI. A bare `yarn tsc --noEmit` aborts on TS5101 (deprecated `baseUrl`) having checked nothing — add `--ignoreDeprecations 6.0` if you need a manual check.
+- There is no standalone typecheck script: `yarn build` is the only real TypeScript gate, and `*.test.ts(x)` files are never type-checked by CI. This is enforced by `next.config.ts` setting `experimental.useTypeScriptCli: false`: Next.js 16.3 defaults that flag to `true`, which runs the project-local `tsc` CLI directly against every file `tsconfig.json` includes (test files included) instead of Next's own build-scoped checker, surfacing a large backlog of pre-existing test-file type errors unrelated to any real change — see the comment in `next.config.ts` before touching this flag. A bare `yarn tsc --noEmit` type-checks that same full project (including test files), so expect it to report that backlog too; it is not a reliable signal of whether your change broke anything.
+- **TypeScript stays on the `6.x` line; do not bump the `typescript` devDependency to `7.x`.** TypeScript 7 (the native Go-ported compiler) ships with no JavaScript Compiler API — only a CLI — and the stable API is not expected until 7.1. `@typescript-eslint/eslint-plugin`/`parser` (the `yarn lint` gate) and `@swc-node/register` (the `.ts` script bootstrap used by `scripts/run.cjs`, see **Local Manual / Browser Testing**) both peer-depend on the classic Compiler API and crash on load under `typescript@7` — confirmed by actually installing it in this repo, not just reading changelogs. Revisit once those two packages ship TS7 support ([typescript-eslint#10940](https://github.com/typescript-eslint/typescript-eslint/issues/10940), `@swc-node/register`'s peer range). The same `experimental.useTypeScriptCli` flag above is also the only mechanism that lets `next build` use TypeScript 7 (since TS7 has no API for Next's default checker to call), so this flag and the TypeScript version are linked: revisit both together.
 - `yarn migrate` applies Knex migrations; `yarn migrate:make <name>` creates a new migration. Migrations are ESM `.js` files with named `up`/`down` exports generated from `migration.stub` — always create them with `yarn migrate:make`; do not hand-write `.ts` or CommonJS migrations.
 - **Local database is local-only.** For development and tests, use either **SQLite** on `localhost` (`ACTIVITIES_DATABASE_CLIENT=better-sqlite3` with a local `*.sqlite3` file, or the `ACTIVITIES_DATABASE` JSON equivalent) or the **PostgreSQL in the docker-compose stack at `activities.local`**. **Never run the dev server, migrations, or tests against a remote/shared/production database** (e.g. a non-local `ACTIVITIES_DATABASE_PG_HOST` such as `34.79.77.243`). Verify the resolved database target is local before migrating or starting the app. When working in a git worktree, do not copy a main-checkout `.env.local` that points at a remote DB; create a worktree-local SQLite config instead.
 - **Creating test/mock users is allowed** for local verification (for example, to log in and check UI changes), but only against a local database as defined above — never against a remote/shared/production database.
@@ -526,12 +527,33 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   stack size exceeded" when a menu closes as a dialog opens. Real focus flows
   never nest that deep, so normal `focus()` / `document.activeElement` behavior
   is unchanged.
-- CI (`.github/workflows/ci.yml`) runs lint + prettier-check, build, test, and
-  Schema Dump Sync (regenerates the SQLite schema dump from the migrations and
-  fails on drift) as four parallel jobs on every push and PR; the single
-  required branch-protection check is the aggregate `CI / CI Success` job. The
-  test job pins `TEST_DATABASE_TYPE: sqlite`; `lib/database/testUtils.ts` also
-  supports `TEST_DATABASE_TYPE=pg` (with `TEST_DATABASE_HOST` /
+- CI runs on **Buildkite** (`.buildkite/pipeline.yml`): lint + prettier-check,
+  build, four parallel test shards aggregated into an `All Tests` step, and
+  Schema Dump Sync (regenerates the SQLite schema dump from the migrations
+  and fails on drift) on every push and PR. Branch protection on `main`
+  requires exactly three GitHub status contexts — `Lint and Prettier`,
+  `Build`, `All Tests` — which the Buildkite pipeline posts itself via
+  `.buildkite/hooks/{pre-command,pre-exit}` and
+  `.buildkite/scripts/github-status.sh`, so branch protection didn't need to
+  change. `Schema Dump Sync` is not a required check. This needs a
+  `GITHUB_TOKEN` configured as a secret on the Buildkite pipeline, plus the
+  pipeline itself created and connected to this repo's GitHub webhook in the
+  Buildkite dashboard — neither is version-controlled. Prefer a **fine-grained**
+  PAT scoped to just this repo with `Commit statuses: Read and write` over a
+  classic PAT, whose `repo:status` scope reaches every repo the token owner can
+  see. Leave Buildkite's **"Allow builds from third-party forked repositories"
+  setting OFF**: this repo is public, and `.buildkite/hooks/` plus
+  `.buildkite/pipeline.yml` are repo-controlled code that runs on the agent
+  host — the hooks run outside any container — with the agent's full
+  environment, including `GITHUB_TOKEN`; enabling fork builds would let any
+  fork PR author exfiltrate that token and run arbitrary code on the agent
+  host. `.github/workflows/ci.yml` is not deleted and still triggers on every
+  push and PR, posting check-runs under the same three context names, so until
+  `gh workflow disable ci.yml` is run both systems report the same required
+  contexts on every commit; disable GitHub Actions promptly once Buildkite is
+  verified working rather than leaving both running indefinitely. The test job
+  pins `TEST_DATABASE_TYPE: sqlite`; `lib/database/testUtils.ts` also supports
+  `TEST_DATABASE_TYPE=pg` (with `TEST_DATABASE_HOST` /
   `TEST_DATABASE_USERNAME` / `TEST_DATABASE_PASSWORD`) for running the suite
   against a throwaway **local** PostgreSQL.
 - **To grab a mocked module and configure it, use `vi.importMock<T>('@/path')`,
