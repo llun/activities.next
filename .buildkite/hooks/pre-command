@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=../scripts/github-status.sh
+source "$DIR/scripts/github-status.sh"
+
+post_github_status "pending" "Buildkite build in progress"
