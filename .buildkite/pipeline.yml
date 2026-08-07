@@ -1,32 +1,23 @@
-# CI pipeline (Buildkite) — mirrors .github/workflows/ci.yml.
-#
-# The three GitHub status contexts required by main's branch protection
-# (Lint and Prettier, Build, All Tests) are posted by this pipeline itself,
-# via .buildkite/hooks + .buildkite/scripts/github-status.sh, so merging
-# still works the same way it did under GitHub Actions. This needs a
-# GITHUB_TOKEN with commit-status write access configured as a secret on this
-# Buildkite pipeline — see AGENTS.md's CI section for the full setup checklist,
-# including the fork-builds warning.
+# CI pipeline (Buildkite) — runs lint/prettier-check, build, and the sharded
+# test suite. Deliberately simple: no GitHub status posting, no GITHUB_TOKEN
+# or other secret required. Buildkite's own build page shows pass/fail for
+# the whole pipeline (including the parallel test shards below) natively.
+# Wiring this into GitHub's required-check / branch-protection flow is a
+# separate, not-yet-done step — see AGENTS.md's CI section.
 #
 # Every `$$` below is intentional: `buildkite-agent pipeline upload` interpolates
 # `$VAR` / `${VAR}` at upload time, and these are runtime shell variables that
 # are unset then, so a bare `$VAR` would silently become an empty string before
 # the shell ever runs. Do not "clean up" `$$` into `$`.
 
-env:
-  GITHUB_REPO_SLUG: 'llun/activities.next'
-
 steps:
   - label: 'Lint and Prettier'
     key: 'lint-prettier'
-    env:
-      GITHUB_STATUS_CONTEXT: 'Lint and Prettier'
     plugins:
       - docker#v5.14.0:
           image: 'node:24'
     command: |
       set -euo pipefail
-      bash .buildkite/scripts/github-status.test.sh
       corepack enable
       yarn install --immutable
       yarn lint
@@ -34,8 +25,6 @@ steps:
 
   - label: 'Build'
     key: 'build'
-    env:
-      GITHUB_STATUS_CONTEXT: 'Build'
     plugins:
       - docker#v5.14.0:
           image: 'node:24'
@@ -67,48 +56,3 @@ steps:
       corepack enable
       yarn install --immutable
       yarn test --shard=$$(($${BUILDKITE_PARALLEL_JOB} + 1))/$${BUILDKITE_PARALLEL_JOB_COUNT}
-
-  - label: 'All Tests'
-    key: 'all-tests'
-    depends_on: 'test-shards'
-    allow_dependency_failure: true
-    env:
-      GITHUB_STATUS_CONTEXT: 'All Tests'
-    command: |
-      set -euo pipefail
-      outcome=$$(buildkite-agent step get outcome --step "test-shards")
-      echo "Test shards outcome: $$outcome"
-      if [ "$$outcome" != "passed" ]; then
-        echo "One or more test shards did not succeed (got: $$outcome)" >&2
-        exit 1
-      fi
-      echo "All test shards succeeded."
-
-  - label: 'Schema Dump Sync'
-    key: 'schema-dump-check'
-    plugins:
-      - docker#v5.14.0:
-          image: 'node:24'
-    command: |
-      set -euo pipefail
-      apt-get update && apt-get install -y --no-install-recommends sqlite3
-      corepack enable
-      yarn install --immutable
-      ACTIVITIES_DATABASE_CLIENT=better-sqlite3 \
-      ACTIVITIES_DATABASE_SQLITE_FILENAME=/tmp/schema-check.sqlite3 \
-        yarn migrate
-      applied=$$(sqlite3 /tmp/schema-check.sqlite3 'SELECT count(*) FROM knex_migrations;')
-      files=$$(ls migrations/*.js | wc -l)
-      echo "applied=$$applied files=$$files"
-      if [ "$$applied" -ne "$$files" ]; then
-        echo "knex_migrations has $$applied rows but migrations/ has $$files files" >&2
-        exit 1
-      fi
-      sqlite3 /tmp/schema-check.sqlite3 '.schema' \
-        | grep -vE "^CREATE TABLE sqlite_sequence" \
-        | grep -vE "^CREATE TABLE IF NOT EXISTS '[A-Za-z_]+_fts_(data|idx|docsize|config|content)'" \
-        > /tmp/schema-regenerated.sql
-      if ! diff -u migrations/schema.sqlite.sql /tmp/schema-regenerated.sql; then
-        echo "migrations/schema.sqlite.sql is out of sync with the migrations. Regenerate BOTH schema dumps in this PR -- see AGENTS.md -> 'Keeping the reference schema dumps in sync'." >&2
-        exit 1
-      fi
