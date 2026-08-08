@@ -665,6 +665,20 @@ describe('importStravaActivityJob', () => {
         reply: ''
       })
     )
+
+    // Deliberate exception (Task 1.5): the fallback note keeps its
+    // deterministic sha256 URI tail for get-or-create idempotency, so unlike
+    // the other status-minting sites it never passes an explicit `publicId` -
+    // the row still gets a real v7 `publicId` column value, just minted by
+    // the DB layer (covered by lib/database/sql/status.test.ts) rather than
+    // pinned to the URI tail.
+    expect(database.createNote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: `actor-1/statuses/${getHashFromString('actor-1:strava-note:126')}`
+      })
+    )
+    const [fallbackCallArgs] = database.createNote.mock.calls[0]
+    expect(fallbackCallArgs).not.toHaveProperty('publicId')
   })
 
   it('reuses the existing fallback note when a no-export activity is replayed', async () => {

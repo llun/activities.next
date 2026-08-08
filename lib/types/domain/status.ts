@@ -102,6 +102,7 @@ export type StatusQuote = z.infer<typeof StatusQuote>
 
 const StatusBase = z.object({
   id: z.string(),
+  publicId: z.string().nullable().optional(),
   actorId: z.string(),
   actor: ActorProfile.nullable(),
 

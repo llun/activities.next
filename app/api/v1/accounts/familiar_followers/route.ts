@@ -2,11 +2,12 @@ import {
   OAuthGuardAnyScope,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
+import { resolveActorIdParams } from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl, urlToId } from '@/lib/utils/urlToId'
+import { urlToId } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -47,12 +48,16 @@ export const GET = traceApiRoute(
         return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
       }
 
+      // One batched publicId lookup for the whole list, not one per id. The
+      // result is index-aligned with encodedIds.
+      const resolvedIds = await resolveActorIdParams(database, encodedIds)
+
       // First resolve each target's familiar-follower ids (the accounts the
       // current user follows that also follow the target). Per-target scans run
       // in parallel and are bounded by the dedupe+cap above.
       const perTarget = await Promise.all(
-        encodedIds.map(async (encodedId) => {
-          const targetActorId = idToUrl(encodedId)
+        encodedIds.map(async (encodedId, index) => {
+          const targetActorId = resolvedIds[index]
           const target = await database.getActorFromId({ id: targetActorId })
           if (!target) return { id: encodedId, familiarIds: [] as string[] }
 

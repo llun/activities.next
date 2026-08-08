@@ -57,6 +57,7 @@ import {
   getLocalActorSharedInboxId
 } from '@/lib/utils/activitypubId'
 import { normalizeEmail } from '@/lib/utils/normalizeEmail'
+import { generatePublicId } from '@/lib/utils/publicId'
 
 // Emails are normalized (trimmed + lowercased) inside every method that stores
 // or looks up by email so storage and lookup can never disagree on casing. This
@@ -102,6 +103,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     }
     const actor = {
       id: actorId,
+      publicId: generatePublicId(),
       type: 'Person' as const,
       accountId,
       username,
@@ -415,6 +417,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     }
     const actor = {
       id: actorId,
+      publicId: generatePublicId(),
       type: 'Person' as const,
       accountId,
       username,
@@ -473,6 +476,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
 
       const actor = Actor.parse({
         id: sqlActor.id,
+        publicId: sqlActor.publicId ?? null,
         type: sqlActor.type ?? 'Person',
         username: sqlActor.username,
         domain: sqlActor.domain,

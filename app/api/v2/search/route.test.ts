@@ -24,6 +24,8 @@ const mockRecordActorIfNeeded = vi.fn()
 const mockGetRemoteStatus = vi.fn()
 const mockGetFederationSigningActor = vi.fn()
 const mockLoggerWarn = vi.fn()
+const mockGetActorIdByPublicId = vi.fn()
+const mockGetStatusIdByPublicId = vi.fn()
 
 // The dedicated headless federation signer. It is intentionally a different
 // actor from `oauthActor` (the requesting viewer) so the signing assertions
@@ -59,7 +61,9 @@ vi.mock('@/lib/database', () => ({
     getActorFromUsername: mockGetActorFromUsername,
     isCurrentActorFollowing: mockIsCurrentActorFollowing,
     getStatus: mockGetStatus,
-    getStatusFromUrl: mockGetStatusFromUrl
+    getStatusFromUrl: mockGetStatusFromUrl,
+    getActorIdByPublicId: mockGetActorIdByPublicId,
+    getStatusIdByPublicId: mockGetStatusIdByPublicId
   }),
   getKnex: () => () => ({
     where: () => ({
@@ -292,6 +296,53 @@ describe('GET /api/v2/search', () => {
     )
 
     expect(response.status).toBe(200)
+    expect(mockSearchStatusIds).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId: 'https://remote.test/users/alice',
+        maxId: 'https://remote.test/users/alice/statuses/9',
+        minId: 'https://remote.test/users/alice/statuses/1'
+      })
+    )
+  })
+
+  it('resolves account_id/max_id/min_id given in publicId form before database search', async () => {
+    const accountPublicId = '0198a000-0000-7000-8000-000000000001'
+    const maxPublicId = '0198a000-0000-7000-8000-000000000002'
+    const minPublicId = '0198a000-0000-7000-8000-000000000003'
+    mockGetActorIdByPublicId.mockImplementation(({ publicId }) =>
+      Promise.resolve(
+        publicId === accountPublicId ? 'https://remote.test/users/alice' : null
+      )
+    )
+    mockGetStatusIdByPublicId.mockImplementation(({ publicId }) =>
+      Promise.resolve(
+        publicId === maxPublicId
+          ? 'https://remote.test/users/alice/statuses/9'
+          : publicId === minPublicId
+            ? 'https://remote.test/users/alice/statuses/1'
+            : null
+      )
+    )
+    mockSearchStatusIds.mockResolvedValue([])
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=trail&type=statuses&account_id=${accountPublicId}&max_id=${maxPublicId}&min_id=${minPublicId}`,
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetActorIdByPublicId).toHaveBeenCalledWith({
+      publicId: accountPublicId
+    })
+    expect(mockGetStatusIdByPublicId).toHaveBeenCalledWith({
+      publicId: maxPublicId
+    })
+    expect(mockGetStatusIdByPublicId).toHaveBeenCalledWith({
+      publicId: minPublicId
+    })
     expect(mockSearchStatusIds).toHaveBeenCalledWith(
       expect.objectContaining({
         accountId: 'https://remote.test/users/alice',

@@ -517,8 +517,8 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   `@/lib/config` barrel (host `test.llun.dev`, in-memory SQLite — a new barrel
   export must also be added to the setup-file factory and
   `lib/config/__mocks__/index.ts`, or every test that hits it fails with
-  "x is not a function"), `uuid` (deterministic `test-uuid-…` ids), `got`,
-  `node:dns/promises`, and `fetch` via jest-fetch-mock's global `fetchMock`
+  "x is not a function"), `got`, `node:dns/promises`, and `fetch` via
+  jest-fetch-mock's global `fetchMock`
   (passthrough by default — call `fetchMock.doMock()` / `mockResponse…` to
   stub). It also installs a jsdom-only guard on `HTMLElement`/`SVGElement`
   `focus()` that caps synchronous re-entry depth: jsdom fires focus events

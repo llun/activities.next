@@ -88,7 +88,8 @@ CREATE TABLE public.actors (
     "lastStatusAt" timestamp with time zone,
     "suspendedAt" timestamp with time zone,
     "silencedAt" timestamp with time zone,
-    "sensitizedAt" timestamp with time zone
+    "sensitizedAt" timestamp with time zone,
+    "publicId" character varying(36)
 );
 
 CREATE TABLE public.announcement_reactions (
@@ -996,7 +997,8 @@ CREATE TABLE public.statuses (
     "originalStatusId" character varying(255),
     "replyHash" character varying(64),
     "applicationName" character varying(255),
-    "applicationWebsite" character varying(255)
+    "applicationWebsite" character varying(255),
+    "publicId" character varying(36)
 );
 
 CREATE TABLE public.strava_archive_imports (
@@ -1150,6 +1152,9 @@ ALTER TABLE ONLY public.actor_domain_blocks
 
 ALTER TABLE ONLY public.actors
     ADD CONSTRAINT actors_id_unique UNIQUE (id);
+
+ALTER TABLE ONLY public.actors
+    ADD CONSTRAINT actors_publicid_unique UNIQUE ("publicId");
 
 ALTER TABLE ONLY public.actors
     ADD CONSTRAINT actors_username_domain_unique UNIQUE (username, domain);
@@ -1453,6 +1458,9 @@ ALTER TABLE ONLY public.status_reactions
 
 ALTER TABLE ONLY public.statuses
     ADD CONSTRAINT statuses_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.statuses
+    ADD CONSTRAINT statuses_publicid_unique UNIQUE ("publicId");
 
 ALTER TABLE ONLY public.strava_archive_imports
     ADD CONSTRAINT strava_archive_imports_archiveid_unique UNIQUE ("archiveId");

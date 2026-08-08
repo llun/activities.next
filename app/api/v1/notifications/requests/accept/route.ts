@@ -1,7 +1,7 @@
-import { z } from 'zod'
-
 import { getDatabase } from '@/lib/database'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
+import { resolveActorIdParams } from '@/lib/services/mastodon/resolveClientId'
+import { BulkNotificationRequestIdsBody } from '@/lib/services/notifications/bulkRequestIds'
 import { addAcceptedSenders } from '@/lib/services/notifications/evaluateNotificationPolicy'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -12,22 +12,10 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
-
-// Mastodon sends ids under `id[]` (array) or `id` (single string or array).
-const normalizeIds = (v: string | string[] | undefined) =>
-  v === undefined ? [] : Array.isArray(v) ? v : [v]
-
-const BulkBody = z
-  .object({
-    id: z.union([z.string(), z.array(z.string())]).optional(),
-    'id[]': z.union([z.string(), z.array(z.string())]).optional()
-  })
-  .transform((value) => normalizeIds(value.id ?? value['id[]']))
 
 export const POST = traceApiRoute(
   'acceptNotificationRequests',
@@ -62,7 +50,7 @@ export const POST = traceApiRoute(
       } else {
         rawBody = await req.json().catch(() => ({}))
       }
-      const parsed = BulkBody.safeParse(rawBody)
+      const parsed = BulkNotificationRequestIdsBody.safeParse(rawBody)
       if (!parsed.success) {
         return apiResponse({
           req,
@@ -72,7 +60,11 @@ export const POST = traceApiRoute(
         })
       }
 
-      const allSourceActorIds = parsed.data.map((id) => idToUrl(id))
+      // One batched publicId lookup for the whole list, not one per id.
+      const allSourceActorIds = await resolveActorIdParams(
+        database,
+        parsed.data
+      )
       // Only add senders that have an actual pending request to prevent arbitrary
       // allowlisting of accounts the user never intentionally accepted.
       const pendingRequests = await Promise.all(

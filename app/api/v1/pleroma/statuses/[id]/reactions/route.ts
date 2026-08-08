@@ -2,12 +2,12 @@ import {
   OptionalOAuthGuard,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
+import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getStatusReactionList } from '@/lib/services/reactions/getStatusReactionList'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_404, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 // Pleroma/Akkoma dialect, auth optional — an anonymous reader sees the same
 // rollups with `me: false`. Not core Mastodon API.
@@ -24,7 +24,7 @@ export const GET = traceApiRoute(
   OptionalOAuthGuard<Params>(
     [Scope.enum.read, Scope.enum['read:statuses']],
     async (req, { database, currentActor, params }) => {
-      const statusId = idToUrl((await params).id)
+      const statusId = await resolveStatusIdParam(database, (await params).id)
       const reactions = await getStatusReactionList({
         database,
         currentActor,

@@ -3,6 +3,7 @@ import {
   OptionalOAuthGuard,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
+import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getStatusReactionList } from '@/lib/services/reactions/getStatusReactionList'
 import {
   reactionRouteAttributes,
@@ -12,7 +13,6 @@ import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_404, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 // Pleroma/Akkoma dialect — the primary reaction surface, and the one with real
 // deployed client support (Husky, the Megalodon family). Not core Mastodon API.
@@ -42,7 +42,7 @@ export const GET = traceApiRoute(
       const reactions = await getStatusReactionList({
         database,
         currentActor,
-        statusId: idToUrl(id),
+        statusId: await resolveStatusIdParam(database, id),
         name: emoji
       })
       if (!reactions) {

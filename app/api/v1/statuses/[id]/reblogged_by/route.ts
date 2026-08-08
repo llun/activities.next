@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { buildAccountCursorLinkHeader } from '@/lib/services/mastodon/accountCursorLinkHeader'
+import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { clampedLimit } from '@/lib/utils/clampedLimit'
@@ -56,7 +57,7 @@ export const GET = traceApiRoute(
         min_id: minId,
         since_id: sinceId
       } = parsedParams.data
-      const statusId = idToUrl(encodedStatusId)
+      const statusId = await resolveStatusIdParam(database, encodedStatusId)
       const status = await getReadableStatus({
         database,
         statusId,
@@ -65,12 +66,22 @@ export const GET = traceApiRoute(
       })
       if (!status) return apiCorsError(req, CORS_HEADERS, 404)
 
+      const resolvedMaxId = maxId
+        ? await resolveStatusIdParam(database, maxId)
+        : undefined
+      const resolvedMinId = minId
+        ? await resolveStatusIdParam(database, minId)
+        : undefined
+      const resolvedSinceId = sinceId
+        ? await resolveStatusIdParam(database, sinceId)
+        : undefined
+
       const reblogsPage = await database.getRebloggedBy({
         statusId,
         limit: limit + 1,
-        maxStatusId: maxId ? idToUrl(maxId) : undefined,
-        minStatusId: minId ? idToUrl(minId) : undefined,
-        sinceStatusId: sinceId ? idToUrl(sinceId) : undefined,
+        maxStatusId: resolvedMaxId,
+        minStatusId: resolvedMinId,
+        sinceStatusId: resolvedSinceId,
         visibleToActorId: currentActor?.id ?? null
       })
       const hasOverflow = reblogsPage.length > limit

@@ -6,7 +6,6 @@ import {
   Notification,
   NotificationType
 } from '@/lib/types/database/operations'
-import { urlToId } from '@/lib/utils/urlToId'
 
 // Per-fetch batch size and the hard cap on raw rows scanned. The cap bounds the
 // number of DB round-trips so a pathological burst can't make a request scan the
@@ -25,7 +24,11 @@ interface CollectParams {
   limit: number
   // Rows fetched per DB call.
   batchSize: number
-  // Optional source-actor filter (Mastodon account_id), applied per batch.
+  // Optional source-actor filter, applied per batch. Callers resolve the
+  // client-supplied account_id (raw URI, publicId, or legacy colon/apurl_
+  // form) to the actor's stored URI via resolveActorIdParam BEFORE calling
+  // in — this compares directly against the stored sourceActorId URI, it
+  // does not decode anything itself.
   accountId?: string
   // Types eligible for grouping (others stay individual).
   groupedTypes?: Set<NotificationType>
@@ -91,7 +94,7 @@ export const collectNotificationGroups = async ({
     }
 
     const filteredBatch = accountId
-      ? batch.filter((n) => urlToId(n.sourceActorId) === accountId)
+      ? batch.filter((n) => n.sourceActorId === accountId)
       : batch
     accumulated.push(...filteredBatch)
 

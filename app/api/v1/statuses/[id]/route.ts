@@ -20,6 +20,7 @@ import {
   POLL_OPTION_CHARS_CEILING
 } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { deleteMediaFile } from '@/lib/services/medias'
 import { FocusSchema } from '@/lib/services/medias/types'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
@@ -42,7 +43,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 import { Booleanish } from '@/lib/utils/zodBooleanish'
 
 interface Params {
@@ -66,7 +66,7 @@ export const GET = traceApiRoute(
       const { database, currentActor, params } = context
       const encodedStatusId = (await params).id
       if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
-      const statusId = idToUrl(encodedStatusId)
+      const statusId = await resolveStatusIdParam(database, encodedStatusId)
 
       const status = await database.getStatus({
         statusId,
@@ -174,7 +174,7 @@ export const PUT = traceApiRoute(
       if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
 
       const { database, currentActor } = context
-      const statusId = idToUrl(encodedStatusId)
+      const statusId = await resolveStatusIdParam(database, encodedStatusId)
       try {
         const parsed = EditNoteSchema.safeParse(
           await parseStatusRequestBody(req)
@@ -541,7 +541,7 @@ export const DELETE = traceApiRoute(
       const encodedStatusId = (await params).id
       if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
 
-      const statusId = idToUrl(encodedStatusId)
+      const statusId = await resolveStatusIdParam(database, encodedStatusId)
       const status = await database.getStatus({ statusId, withReplies: false })
       if (!status) return apiCorsError(req, CORS_HEADERS, 404)
 

@@ -21,6 +21,7 @@ import {
   getWhereInBatchSize
 } from '@/lib/database/sql/utils/knex'
 import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
+import { resolveIdsByPublicIds } from '@/lib/database/sql/utils/publicIdLookup'
 import {
   StatusHashtagTagRow,
   selectHashtagTagsByStatusIds
@@ -47,6 +48,7 @@ import {
   FavouritedByAccount,
   GetActorPollVotesForStatusesParams,
   GetActorPollVotesParams,
+  GetActorStatusFromPathSegmentParams,
   GetActorStatusesCountParams,
   GetActorStatusesParams,
   GetFavouritedByParams,
@@ -55,9 +57,13 @@ import {
   GetRebloggedByParams,
   GetStatusCountsParams,
   GetStatusEditHistoryParams,
+  GetStatusFromPublicIdParams,
   GetStatusFromUrlHashParams,
   GetStatusFromUrlParams,
+  GetStatusIdByPublicIdParams,
+  GetStatusIdsByPublicIdsParams,
   GetStatusParams,
+  GetStatusPublicIdsParams,
   GetStatusReblogsCountParams,
   GetStatusRepliesCountParams,
   GetStatusRepliesParams,
@@ -93,9 +99,15 @@ import {
 import { Tag } from '@/lib/types/domain/tag'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import { normalizeActorId } from '@/lib/utils/activitypub'
+import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
+import {
+  generatePublicId,
+  isPublicId,
+  toPublicIdLookupKey
+} from '@/lib/utils/publicId'
 
 import {
   deleteStatusSearchDocumentsByStatusIds,
@@ -455,10 +467,13 @@ export const StatusSQLDatabaseMixin = (
     quoteApprovalPolicy,
     applicationName = null,
     applicationWebsite = null,
-    createdAt
+    createdAt,
+    publicId
   }: CreateNoteParams) {
     const currentTime = new Date()
     const statusCreatedAt = createdAt ? new Date(createdAt) : currentTime
+    const statusPublicId =
+      publicId ?? generatePublicId(statusCreatedAt.getTime())
     const statusUpdatedAt = currentTime
     const content = {
       url,
@@ -482,6 +497,7 @@ export const StatusSQLDatabaseMixin = (
     await database.transaction(async (trx) => {
       await trx('statuses').insert({
         id,
+        publicId: statusPublicId,
         url,
         urlHash: getStatusUrlHash(url),
         actorId,
@@ -538,6 +554,7 @@ export const StatusSQLDatabaseMixin = (
     const actor = await actorDatabase.getActorFromId({ id: actorId })
     return StatusNote.parse({
       id,
+      publicId: statusPublicId,
       url,
       actorId,
       actor: actor ? getActorProfile(actor) : null,
@@ -786,15 +803,19 @@ export const StatusSQLDatabaseMixin = (
     to,
     cc,
     originalStatusId,
-    createdAt
+    createdAt,
+    publicId
   }: CreateAnnounceParams) {
     const currentTime = new Date()
     const statusCreatedAt = createdAt ? new Date(createdAt) : currentTime
+    const statusPublicId =
+      publicId ?? generatePublicId(statusCreatedAt.getTime())
     const statusUpdatedAt = currentTime
 
     await database.transaction(async (trx) => {
       await trx('statuses').insert({
         id,
+        publicId: statusPublicId,
         url: null,
         urlHash: null,
         actorId,
@@ -851,6 +872,7 @@ export const StatusSQLDatabaseMixin = (
     ])
     return StatusAnnounce.parse({
       id,
+      publicId: statusPublicId,
       actorId,
       actor: actor ? getActorProfile(actor) : null,
       to,
@@ -882,10 +904,13 @@ export const StatusSQLDatabaseMixin = (
     language = null,
     applicationName = null,
     applicationWebsite = null,
-    createdAt
+    createdAt,
+    publicId
   }: CreatePollParams) {
     const currentTime = new Date()
     const statusCreatedAt = createdAt ? new Date(createdAt) : currentTime
+    const statusPublicId =
+      publicId ?? generatePublicId(statusCreatedAt.getTime())
     const statusUpdatedAt = currentTime
     const content = {
       url,
@@ -909,6 +934,7 @@ export const StatusSQLDatabaseMixin = (
     await database.transaction(async (trx) => {
       await trx('statuses').insert({
         id,
+        publicId: statusPublicId,
         url,
         urlHash: getStatusUrlHash(url),
         actorId,
@@ -976,6 +1002,7 @@ export const StatusSQLDatabaseMixin = (
     const actor = await actorDatabase.getActorFromId({ id: actorId })
     return StatusPoll.parse({
       id,
+      publicId: statusPublicId,
       url,
       actorId,
       actor: actor ? getActorProfile(actor) : null,
@@ -2910,6 +2937,7 @@ export const StatusSQLDatabaseMixin = (
       if (!originalStatus) return null
       return StatusAnnounce.parse({
         id: data.id,
+        publicId: data.publicId ?? null,
         actorId: data.actorId,
         actor: actor ? getActorProfile(actor) : null,
         type: StatusType.enum.Announce,
@@ -3037,6 +3065,7 @@ export const StatusSQLDatabaseMixin = (
     const content = getCompatibleJSON(data.content)
     const base = {
       id: data.id,
+      publicId: data.publicId ?? null,
       url: content.url ?? data.url,
       to: to.map((item) => item.actorId),
       cc: cc.map((item) => item.actorId),
@@ -3437,6 +3466,87 @@ export const StatusSQLDatabaseMixin = (
     return getStatusWithAttachmentsFromData(status, currentActorId)
   }
 
+  // The lookup parameter is normalized here, at the single choke point every
+  // resolution site goes through, rather than in each caller — see
+  // toPublicIdLookupKey.
+  async function getStatusIdByPublicId({
+    publicId
+  }: GetStatusIdByPublicIdParams) {
+    const row = await database('statuses')
+      .where('publicId', toPublicIdLookupKey(publicId))
+      .first<{ id: string }>('id')
+    return row?.id ?? null
+  }
+
+  // Batch counterpart of getStatusIdByPublicId, so a request carrying an array
+  // of ids costs one query instead of one per id. The returned map is keyed by
+  // the publicIds as REQUESTED, so callers can zip it back against their input.
+  async function getStatusIdsByPublicIds({
+    publicIds
+  }: GetStatusIdsByPublicIdsParams) {
+    return resolveIdsByPublicIds({
+      publicIds,
+      batchSize: getWhereInBatchSize(database),
+      selectChunk: (lookupKeys) =>
+        database('statuses')
+          .whereIn('publicId', lookupKeys)
+          .select('id', 'publicId')
+    })
+  }
+
+  async function getStatusFromPublicId({
+    publicId,
+    currentActorId
+  }: GetStatusFromPublicIdParams) {
+    const status = await database('statuses')
+      .where('publicId', toPublicIdLookupKey(publicId))
+      .first()
+    if (!status) return null
+    return getStatusWithAttachmentsFromData(status, currentActorId)
+  }
+
+  async function getStatusPublicIds({ statusIds }: GetStatusPublicIdsParams) {
+    const uniqueStatusIds = [...new Set(statusIds)].filter(Boolean)
+    if (uniqueStatusIds.length === 0) return new Map<string, string>()
+    const rows = await database('statuses')
+      .whereIn('id', uniqueStatusIds)
+      .whereNotNull('publicId')
+      .select('id', 'publicId')
+    return new Map<string, string>(
+      rows.map((row: { id: string; publicId: string }) => [
+        row.id,
+        row.publicId
+      ])
+    )
+  }
+
+  async function getActorStatusFromPathSegment({
+    actorId,
+    pathSegment,
+    withReplies
+  }: GetActorStatusFromPathSegmentParams) {
+    const status = await getStatus({
+      statusId: getLocalStatusId({ actorId, statusId: pathSegment }),
+      withReplies
+    })
+    if (status) return status
+    if (!isPublicId(pathSegment)) return null
+
+    const uriFromPublicId = await getStatusIdByPublicId({
+      publicId: pathSegment
+    })
+    if (!uriFromPublicId) return null
+
+    const candidate = await getStatus({
+      statusId: uriFromPublicId,
+      withReplies
+    })
+    // Serve only this actor's own statuses — a publicId belonging to another
+    // actor must not resolve under this actor's URL space.
+    if (candidate?.actorId !== actorId) return null
+    return candidate
+  }
+
   async function getActorAnnouncedStatusId({
     actorId,
     originalStatusId
@@ -3567,6 +3677,11 @@ export const StatusSQLDatabaseMixin = (
     getStatusEditHistory,
     getStatusFromUrl,
     getStatusFromUrlHash,
+    getStatusIdByPublicId,
+    getStatusIdsByPublicIds,
+    getStatusFromPublicId,
+    getStatusPublicIds,
+    getActorStatusFromPathSegment,
     getActorAnnouncedStatusId,
     hasActorAnnouncedStatus,
     getActorAnnounceStatus,

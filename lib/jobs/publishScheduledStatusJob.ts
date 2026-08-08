@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
+import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getQueue } from '@/lib/services/queue'
 import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
 import { scheduledDelaySeconds } from '@/lib/services/statuses/scheduledStatusSerializer'
@@ -112,12 +113,22 @@ export const publishScheduledStatusJob = createJobHandle(
       ? { name: client.name, website: client.website ?? null }
       : undefined
 
+    // The stored params carry whatever id form the client originally posted
+    // (raw URI, publicId, or legacy colon/apurl_ form) — resolve it to the
+    // parent status's stored URI now, at publish time, the same way the POST
+    // route resolves it immediately. createNoteFromUserInput /
+    // createPollFromUserInput do an exact `where('id', …)` lookup with no
+    // decoding of their own.
+    const replyStatusId = params.in_reply_to_id
+      ? await resolveStatusIdParam(database, params.in_reply_to_id)
+      : undefined
+
     let status
     if (params.poll) {
       status = await createPollFromUserInput({
         text: params.text,
         summary: params.spoiler_text ?? undefined,
-        replyStatusId: params.in_reply_to_id ?? undefined,
+        replyStatusId,
         currentActor: actor,
         choices: params.poll.options,
         endAt: Date.now() + params.poll.expires_in * 1000,
@@ -153,7 +164,7 @@ export const publishScheduledStatusJob = createJobHandle(
         currentActor: actor,
         text: params.text,
         summary: params.spoiler_text ?? undefined,
-        replyNoteId: params.in_reply_to_id ?? undefined,
+        replyNoteId: replyStatusId,
         visibility: params.visibility,
         attachments,
         sensitive: params.sensitive ?? false,

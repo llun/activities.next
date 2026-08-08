@@ -6,7 +6,8 @@ import { encodeFavouritedByCursor } from '@/lib/database/sql/utils/favouritedByC
 import { SQLITE_MAX_BINDINGS } from '@/lib/database/sql/utils/knex'
 import {
   databaseBeforeAll,
-  getTestDatabaseTable
+  getTestDatabaseTable,
+  getTestSQLDatabaseWithInstance
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import { STUCK_PROCESSING_THRESHOLD_MS } from '@/lib/services/fitness-files/processingState'
@@ -29,6 +30,11 @@ import {
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import {
+  generatePublicId,
+  getPublicIdTimestamp,
+  isPublicId
+} from '@/lib/utils/publicId'
 import { waitFor } from '@/lib/utils/waitFor'
 
 import { buildPubliclyReadableStatusIdsQuery } from './status'
@@ -314,9 +320,11 @@ describe('StatusDatabase', () => {
         })
         expect(status).toEqual({
           id: statuses.primary.post,
+          publicId: expect.toBeString(),
           actorId: primaryActorId,
           actor: {
             id: primaryActorId,
+            publicId: expect.toBeString(),
             username: actors.primary.username,
             domain: actors.primary.domain,
             type: 'Person',
@@ -963,6 +971,325 @@ describe('StatusDatabase', () => {
           actorId: replyAuthorId
         })
         expect(status).toBeNull()
+      })
+    })
+
+    describe('publicId', () => {
+      // A dedicated actor, isolated from the shared seed fixtures, so these
+      // notes never bump a status count another describe block asserts on.
+      const publicIdActorId = 'https://public-id-status.test/users/author'
+
+      beforeAll(async () => {
+        await database.createActor({
+          actorId: publicIdActorId,
+          username: 'author',
+          domain: 'public-id-status.test',
+          followersUrl: `${publicIdActorId}/followers`,
+          inboxUrl: `${publicIdActorId}/inbox`,
+          sharedInboxUrl: 'https://public-id-status.test/inbox',
+          publicKey: 'public-id-status-public-key',
+          createdAt: Date.now()
+        })
+      })
+
+      it('mints a v7 publicId at createNote whose timestamp matches a backdated createdAt', async () => {
+        const backdatedAt = Date.UTC(2024, 0, 2, 3, 4, 5, 0)
+        const statusId = `${publicIdActorId}/statuses/public-id-backdated`
+        const status = (await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: publicIdActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Backdated post',
+          createdAt: backdatedAt
+        })) as StatusNote
+
+        expect(status.publicId).toBeTruthy()
+        expect(isPublicId(status.publicId as string)).toBe(true)
+        expect(getPublicIdTimestamp(status.publicId as string)).toBe(
+          backdatedAt
+        )
+      })
+
+      it('stores an explicitly passed publicId verbatim', async () => {
+        const statusId = `${publicIdActorId}/statuses/public-id-explicit`
+        const explicitPublicId = generatePublicId()
+        const status = (await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: publicIdActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Explicit publicId post',
+          publicId: explicitPublicId
+        })) as StatusNote
+
+        expect(status.publicId).toBe(explicitPublicId)
+      })
+
+      it('round-trips getStatusIdByPublicId and returns null for an id that was never stored', async () => {
+        const statusId = `${publicIdActorId}/statuses/public-id-roundtrip`
+        const status = (await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: publicIdActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Round trip post'
+        })) as StatusNote
+
+        expect(
+          await database.getStatusIdByPublicId({
+            publicId: status.publicId as string
+          })
+        ).toBe(statusId)
+        expect(
+          await database.getStatusIdByPublicId({
+            publicId: generatePublicId()
+          })
+        ).toBeNull()
+      })
+
+      it('getStatusIdsByPublicIds maps every known publicId back and omits unknown ones', async () => {
+        const firstId = `${publicIdActorId}/statuses/public-ids-batch-1`
+        const secondId = `${publicIdActorId}/statuses/public-ids-batch-2`
+        const first = (await database.createNote({
+          id: firstId,
+          url: firstId,
+          actorId: publicIdActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Batch post one'
+        })) as StatusNote
+        const second = (await database.createNote({
+          id: secondId,
+          url: secondId,
+          actorId: publicIdActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Batch post two'
+        })) as StatusNote
+        const unknownPublicId = generatePublicId()
+
+        const map = await database.getStatusIdsByPublicIds({
+          publicIds: [
+            first.publicId as string,
+            second.publicId as string,
+            unknownPublicId
+          ]
+        })
+
+        expect(map.size).toBe(2)
+        expect(map.get(first.publicId as string)).toBe(firstId)
+        expect(map.get(second.publicId as string)).toBe(secondId)
+        expect(map.has(unknownPublicId)).toBe(false)
+      })
+
+      it('getStatusIdsByPublicIds returns an empty map for an empty request', async () => {
+        const map = await database.getStatusIdsByPublicIds({ publicIds: [] })
+        expect(map.size).toBe(0)
+      })
+
+      it('resolves an uppercased publicId and keys the batch map by the requested form', async () => {
+        // publicIds are stored lowercase and SQLite/PostgreSQL compare them case
+        // sensitively, so the case fold has to happen on the lookup PARAMETER —
+        // in the database layer, where every resolution site shares it. The
+        // batch map is keyed by what the caller asked with, not by what the row
+        // holds, so a caller can zip it back against its own input.
+        const statusId = `${publicIdActorId}/statuses/public-id-uppercase`
+        const status = (await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: publicIdActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Uppercase lookup post'
+        })) as StatusNote
+        const uppercasePublicId = (status.publicId as string).toUpperCase()
+
+        expect(
+          await database.getStatusIdByPublicId({ publicId: uppercasePublicId })
+        ).toBe(statusId)
+
+        const map = await database.getStatusIdsByPublicIds({
+          publicIds: [uppercasePublicId]
+        })
+        expect(map.get(uppercasePublicId)).toBe(statusId)
+      })
+
+      it('getStatusFromPublicId hydrates the same status as getStatus', async () => {
+        const statusId = `${publicIdActorId}/statuses/public-id-hydrate`
+        const created = (await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: publicIdActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Hydrate post'
+        })) as StatusNote
+
+        const [byPublicId, byId] = await Promise.all([
+          database.getStatusFromPublicId({
+            publicId: created.publicId as string
+          }),
+          database.getStatus({ statusId })
+        ])
+
+        expect(byPublicId).toEqual(byId)
+      })
+
+      it('getStatusPublicIds returns a map covering only requested ids that have publicIds', async () => {
+        const { database: freshDatabase, instance } =
+          getTestSQLDatabaseWithInstance()
+        await freshDatabase.migrate()
+        try {
+          await freshDatabase.createAccount({
+            email: `public-id-map@${TEST_DOMAIN}`,
+            username: 'public-id-map-actor',
+            passwordHash: TEST_PASSWORD_HASH,
+            domain: TEST_DOMAIN,
+            privateKey: 'private-public-id-map',
+            publicKey: 'public-public-id-map'
+          })
+          const actor = await freshDatabase.getActorFromEmail({
+            email: `public-id-map@${TEST_DOMAIN}`
+          })
+          if (!actor) throw new Error('failed to seed actor')
+          const localActorId = actor.id
+
+          const withId = `${localActorId}/statuses/with-public-id`
+          const withoutId = `${localActorId}/statuses/legacy-without-public-id`
+
+          const created = (await freshDatabase.createNote({
+            id: withId,
+            url: withId,
+            actorId: localActorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Has a publicId'
+          })) as StatusNote
+
+          await freshDatabase.createNote({
+            id: withoutId,
+            url: withoutId,
+            actorId: localActorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Simulated pre-backfill legacy status'
+          })
+          // Simulate a legacy row that predates the backfill migration.
+          await instance('statuses')
+            .where('id', withoutId)
+            .update({ publicId: null })
+
+          const map = await freshDatabase.getStatusPublicIds({
+            statusIds: [withId, withoutId, `${localActorId}/statuses/missing`]
+          })
+
+          expect(map.size).toBe(1)
+          expect(map.get(withId)).toBe(created.publicId)
+          expect(map.has(withoutId)).toBe(false)
+        } finally {
+          await freshDatabase.destroy()
+        }
+      })
+    })
+
+    describe('getActorStatusFromPathSegment', () => {
+      // Dedicated actors, isolated from the shared seed fixtures, so these
+      // notes never bump a status count another describe block asserts on.
+      const authorId = 'https://path-segment-status.test/users/author'
+      const otherAuthorId = 'https://path-segment-status.test/users/other'
+      // A status created before publicIds existed keeps its original URI tail
+      // and only gained a publicId in the backfill, so the two differ.
+      const legacyTail = 'path-segment-legacy-tail'
+      const legacyStatusId = `${authorId}/statuses/${legacyTail}`
+      const otherAuthorStatusId = `${otherAuthorId}/statuses/${legacyTail}`
+      let legacyStatus: StatusNote
+      let otherAuthorStatus: StatusNote
+
+      const createAuthor = (actorId: string, username: string) =>
+        database.createActor({
+          actorId,
+          username,
+          domain: 'path-segment-status.test',
+          followersUrl: `${actorId}/followers`,
+          inboxUrl: `${actorId}/inbox`,
+          sharedInboxUrl: 'https://path-segment-status.test/inbox',
+          publicKey: `${username}-public-key`,
+          createdAt: Date.now()
+        })
+
+      beforeAll(async () => {
+        await createAuthor(authorId, 'path-segment-author')
+        await createAuthor(otherAuthorId, 'path-segment-other')
+        legacyStatus = (await database.createNote({
+          id: legacyStatusId,
+          url: legacyStatusId,
+          actorId: authorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Legacy tail post'
+        })) as StatusNote
+        otherAuthorStatus = (await database.createNote({
+          id: otherAuthorStatusId,
+          url: otherAuthorStatusId,
+          actorId: otherAuthorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Another actor post'
+        })) as StatusNote
+      })
+
+      it('resolves a status from its URI tail', async () => {
+        const status = await database.getActorStatusFromPathSegment({
+          actorId: authorId,
+          pathSegment: legacyTail
+        })
+        expect(status?.id).toBe(legacyStatusId)
+      })
+
+      it('resolves a backfilled status from its publicId when the URI tail differs', async () => {
+        const publicId = legacyStatus.publicId as string
+        expect(publicId).not.toBe(legacyTail)
+
+        const status = await database.getActorStatusFromPathSegment({
+          actorId: authorId,
+          pathSegment: publicId
+        })
+        expect(status?.id).toBe(legacyStatusId)
+      })
+
+      it('returns null for a publicId that belongs to another actor', async () => {
+        const publicId = otherAuthorStatus.publicId as string
+        const underOwnActor = await database.getActorStatusFromPathSegment({
+          actorId: otherAuthorId,
+          pathSegment: publicId
+        })
+        expect(underOwnActor?.id).toBe(otherAuthorStatusId)
+
+        expect(
+          await database.getActorStatusFromPathSegment({
+            actorId: authorId,
+            pathSegment: publicId
+          })
+        ).toBeNull()
+      })
+
+      it.each([
+        {
+          description: 'an unknown URI tail',
+          pathSegment: 'path-segment-never-created'
+        },
+        { description: 'an unknown publicId', pathSegment: generatePublicId() }
+      ])('returns null for $description', async ({ pathSegment }) => {
+        expect(
+          await database.getActorStatusFromPathSegment({
+            actorId: authorId,
+            pathSegment
+          })
+        ).toBeNull()
       })
     })
 

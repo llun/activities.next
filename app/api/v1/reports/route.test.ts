@@ -1,13 +1,15 @@
 import { NextRequest } from 'next/server'
 
 import { SEND_FLAG_JOB_NAME } from '@/lib/jobs/names'
+import { generatePublicId } from '@/lib/utils/publicId'
 import { idToUrl } from '@/lib/utils/urlToId'
 
-import { POST } from './route'
+import { MAX_REPORT_STATUS_IDS, POST } from './route'
 
 const mockDatabase = {
   getMastodonActorFromId: vi.fn(),
-  createReport: vi.fn()
+  createReport: vi.fn(),
+  getStatusIdsByPublicIds: vi.fn()
 }
 const mockCurrentActor = {
   id: 'https://local.test/users/me',
@@ -61,6 +63,9 @@ describe('POST /api/v1/reports', () => {
       id: 'acc1',
       username: 'target'
     })
+    mockDatabase.getStatusIdsByPublicIds.mockResolvedValue(
+      new Map<string, string>()
+    )
     mockDatabase.createReport.mockImplementation(async (input) => ({
       id: 'report-1',
       actionTaken: false,
@@ -188,6 +193,37 @@ describe('POST /api/v1/reports', () => {
     expect(mockDatabase.createReport).toHaveBeenCalledWith(
       expect.objectContaining({ forward: false })
     )
+  })
+
+  it('returns 422 for an over-cap status_ids list without touching the database', async () => {
+    const response = await POST(
+      createJsonRequest({
+        account_id: 'acc1',
+        status_ids: Array.from(
+          { length: MAX_REPORT_STATUS_IDS + 1 },
+          (_, index) => `status-${index}`
+        )
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(422)
+    expect(mockDatabase.createReport).not.toHaveBeenCalled()
+    expect(mockDatabase.getStatusIdsByPublicIds).not.toHaveBeenCalled()
+  })
+
+  it('resolves a whole batch of status publicIds with a single database lookup', async () => {
+    const publicIds = Array.from({ length: 20 }, () => generatePublicId())
+
+    await POST(
+      createJsonRequest({ account_id: 'acc1', status_ids: publicIds }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(mockDatabase.getStatusIdsByPublicIds).toHaveBeenCalledTimes(1)
+    expect(mockDatabase.getStatusIdsByPublicIds).toHaveBeenCalledWith({
+      publicIds
+    })
   })
 
   it('returns 404 when the target account does not exist', async () => {

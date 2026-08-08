@@ -11,6 +11,7 @@ import {
 } from '@/lib/types/domain/filter'
 import * as Mastodon from '@/lib/types/mastodon'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { urlToId } from '@/lib/utils/urlToId'
 
 export const getMastodonFilterKeyword = (
   keyword: DomainFilterKeyword
@@ -20,11 +21,32 @@ export const getMastodonFilterKeyword = (
   whole_word: keyword.wholeWord
 })
 
+// `filter_statuses.statusId` usually holds the RESOLVED status URI — POST
+// /api/v2/filters/:id/statuses resolves whatever id form the client sent so
+// matching can work — but the API emits the legacy colon-form id everywhere
+// else, so a stored URI is converted here at the emission boundary. Without it a
+// client that posted the id it read off the timeline gets a raw
+// `https://…/statuses/…` back, cannot compare it to the status id it holds, and
+// breaks if it interpolates the value into a URL; a list would also mix both
+// forms depending on when each row was written.
+//
+// Only URIs are converted, because a URI is not the only thing the column can
+// hold and `urlToId` is not identity on the rest: it leaves a colon-form or
+// `apurl_` id alone (for a status URI the invalid `:users` "port" makes
+// `new URL` throw and the input comes back unchanged) but turns a BARE publicId
+// into `<uuid>:`. The route stores an unresolvable publicId unchanged and the
+// table has no foreign key, so such rows exist — and a spurious trailing colon
+// on an id the client never wrote is exactly the mismatch this normalisation is
+// meant to prevent. Testing for a URL rather than relying on idempotence keeps
+// every other stored form byte-identical by construction.
+export const toEmittedFilterStatusId = (statusId: string): string =>
+  /^https?:\/\//.test(statusId) ? urlToId(statusId) : statusId
+
 export const getMastodonFilterStatus = (
   status: DomainFilterStatus
 ): Mastodon.FilterStatus => ({
   id: status.id,
-  status_id: status.statusId
+  status_id: toEmittedFilterStatusId(status.statusId)
 })
 
 const buildMastodonFilter = (record: ActiveFilterRecord): Mastodon.Filter => ({

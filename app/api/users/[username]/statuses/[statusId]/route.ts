@@ -1,9 +1,11 @@
+import { buildBaseURL } from '@/lib/config'
 import {
   OnlyLocalUserGuard,
   OnlyLocalUserGuardHandle
 } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { isStatusPubliclyReadable } from '@/lib/services/statusAccess'
+import { getMention } from '@/lib/types/domain/actor'
 import {
   StatusNote,
   StatusPoll,
@@ -15,8 +17,8 @@ import {
   activityPubResponse,
   negotiateActivityPubContentType
 } from '@/lib/utils/activityPubContentNegotiation'
-import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
+import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -30,9 +32,9 @@ export const GET = traceApiRoute(
   'getActorStatus',
   OnlyLocalUserGuard(async (database, actor, req, query: unknown) => {
     const { statusId } = await (query as AppRouterParams<StatusParams>).params
-    const id = getLocalStatusId({ actorId: actor.id, statusId })
-    const status = await database.getStatus({
-      statusId: id,
+    const status = await database.getActorStatusFromPathSegment({
+      actorId: actor.id,
+      pathSegment: statusId,
       withReplies: false
     })
     if (!status) return apiErrorResponse(404)
@@ -71,8 +73,27 @@ export const GET = traceApiRoute(
       })
     }
 
+    // Build the HTML location with the same helper the web UI links with, so
+    // it is byte-identical to the href a reader would have clicked and is
+    // guaranteed to resolve through `resolveStatusFromPath`. Neither the raw
+    // path segment nor `status.url` works: the segment can be a publicId while
+    // the status URI's tail is something else (every status created before
+    // publicIds existed, every Strava fallback note), and `status.url` for a
+    // local status is `https://host/@user/<tail>` — a SINGLE-@ actor segment,
+    // which the web page rejects because it splits the actor on `@` and
+    // requires a `username`/`domain` pair. Both 404 a status this route just
+    // resolved.
+    //
+    // The base URL comes from the actor's own domain rather than `getBaseURL()`
+    // so a multi-domain deployment keeps the reader on the host they requested
+    // — `OnlyLocalUserGuard` resolved this actor from that host's header.
+    const detailPath =
+      getStatusDetailPath(status) ??
+      // Only reachable when the status carries no actor profile; the full
+      // status URI is the one status segment that resolves without one.
+      `/${getMention(actor, true)}/${encodeURIComponent(status.id)}`
     return activityPubRedirectResponse(
-      `https://${status.actor?.domain}/@${actor.username}/${statusId}`
+      `${buildBaseURL(actor.domain)}${detailPath}`
     )
   })
 )

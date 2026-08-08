@@ -16,6 +16,7 @@ export type ActorType = z.infer<typeof ActorType>
 
 export const ActorProfile = z.object({
   id: z.string(),
+  publicId: z.string().nullable().optional(),
   type: ActorType.optional(),
   username: z.string(),
   domain: z.string(),

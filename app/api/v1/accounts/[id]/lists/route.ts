@@ -1,10 +1,10 @@
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonList } from '@/lib/services/mastodon/getMastodonList'
+import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -23,7 +23,7 @@ export const GET = traceApiRoute(
       const { id } = await params
       const lists = await database.getListsWithAccount({
         actorId: currentActor.id,
-        targetActorId: idToUrl(id)
+        targetActorId: await resolveActorIdParam(database, id)
       })
       return apiResponse({
         req,

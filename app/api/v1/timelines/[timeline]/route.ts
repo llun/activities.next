@@ -12,6 +12,7 @@ import { TimelineFormat } from '@/lib/services/timelines/const'
 import { getFilteredTimelinePage } from '@/lib/services/timelines/getFilteredTimelinePage'
 import {
   parseTimelineQuery,
+  resolveTimelineCursors,
   timelineErrorBoundary
 } from '@/lib/services/timelines/request'
 import { Timeline } from '@/lib/services/timelines/types'
@@ -94,9 +95,8 @@ export const GET = traceApiRoute(
       // immediately adjacent to the cursor (ascending seek then reversed),
       // since_id the newest slice above it. min_id wins when both are present.
       const pageLimit = parsedQuery.query.limit
-      const maxStatusId = parsedQuery.query.maxStatusId
-      const minStatusId = parsedQuery.query.minStatusId
-      const sinceStatusId = parsedQuery.query.sinceStatusId
+      const { maxStatusId, minStatusId, sinceStatusId } =
+        await resolveTimelineCursors(database, parsedQuery.query)
 
       const { statuses, nextMaxStatusId, prevMinStatusId, filterRecords } =
         await getFilteredTimelinePage({

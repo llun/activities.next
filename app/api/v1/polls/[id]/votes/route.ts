@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { sendPollVotes } from '@/lib/activities'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { StatusType } from '@/lib/types/domain/status'
@@ -16,7 +17,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 const MAX_POLL_CHOICES_PER_VOTE = 20
@@ -93,7 +93,7 @@ export const POST = traceApiRoute(
       }
 
       const encodedPollId = (await params).id
-      const statusId = idToUrl(encodedPollId)
+      const statusId = await resolveStatusIdParam(database, encodedPollId)
       const status = await database.getStatus({
         statusId,
         currentActorId: currentActor.id,

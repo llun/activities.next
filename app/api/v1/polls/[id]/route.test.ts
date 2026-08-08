@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { StatusType } from '@/lib/types/domain/status'
+import { generatePublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { GET } from './route'
@@ -11,6 +12,7 @@ const mockSendPollVotes = vi.fn()
 const mockCanActorReadStatus = vi.fn()
 const mockDatabase = {
   getStatus: vi.fn(),
+  getStatusIdByPublicId: vi.fn(),
   createPollAnswer: vi.fn(),
   incrementPollChoiceVotes: vi.fn(),
   recordPollVotes: vi.fn()
@@ -140,6 +142,27 @@ describe('Mastodon poll routes', () => {
     expect(await response.json()).toEqual(mastodonPoll)
   })
 
+  it('returns a Mastodon poll entity when the id is a publicId', async () => {
+    const publicId = generatePublicId()
+    mockDatabase.getStatusIdByPublicId.mockResolvedValue(pollStatusId)
+
+    const response = await GET(
+      new NextRequest(`https://local.test/api/v1/polls/${publicId}`),
+      { params: Promise.resolve({ id: publicId }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.getStatusIdByPublicId).toHaveBeenCalledWith({
+      publicId
+    })
+    expect(mockDatabase.getStatus).toHaveBeenCalledWith({
+      statusId: pollStatusId,
+      currentActorId: mockCurrentActor.id,
+      withReplies: false
+    })
+    expect(await response.json()).toEqual(mastodonPoll)
+  })
+
   it('accepts form-encoded Mastodon poll votes', async () => {
     mockDatabase.getStatus.mockResolvedValue({
       ...pollStatus,
@@ -241,6 +264,36 @@ describe('Mastodon poll routes', () => {
     )
 
     expect(response.status).toBe(200)
+    expect(mockDatabase.recordPollVotes).toHaveBeenCalledWith({
+      statusId: pollStatusId,
+      actorId: mockCurrentActor.id,
+      choices: [0]
+    })
+    expect(mockSendPollVotes).toHaveBeenCalledWith({
+      currentActor: mockCurrentActor,
+      status: pollStatus,
+      choices: [0]
+    })
+    expect(await response.json()).toEqual(mastodonPoll)
+  })
+
+  it('records poll votes when the id is a publicId', async () => {
+    const publicId = generatePublicId()
+    mockDatabase.getStatusIdByPublicId.mockResolvedValue(pollStatusId)
+
+    const response = await POST(
+      new NextRequest(`https://local.test/api/v1/polls/${publicId}/votes`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ choices: [0] })
+      }),
+      { params: Promise.resolve({ id: publicId }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.getStatusIdByPublicId).toHaveBeenCalledWith({
+      publicId
+    })
     expect(mockDatabase.recordPollVotes).toHaveBeenCalledWith({
       statusId: pollStatusId,
       actorId: mockCurrentActor.id,

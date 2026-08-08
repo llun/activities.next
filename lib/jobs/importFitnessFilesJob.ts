@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import { z } from 'zod'
 
 import {
@@ -20,9 +19,11 @@ import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Mention } from '@/lib/types/activitypub'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { Actor, getMention } from '@/lib/types/domain/actor'
+import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
+import { generatePublicId } from '@/lib/utils/publicId'
 
 import { createJobHandle } from './createJobHandle'
 import { IMPORT_FITNESS_FILES_JOB_NAME } from './names'
@@ -208,12 +209,15 @@ const createLocalOnlyFitnessStatus = async ({
   const mentions: Mention[] = []
   const to = statusRecipientsTo(actor, mentions, null, visibility)
   const cc = statusRecipientsCC(actor, mentions, null, visibility)
-  const postId = crypto.randomUUID()
-  const statusId = `${actor.id}/statuses/${postId}`
+  // Backdated to the activity's start time so the URI tail sorts with the
+  // activity, matching the createdAt passed to database.createNote below.
+  const postId = generatePublicId(createdAt)
+  const statusId = getLocalStatusId({ actorId: actor.id, statusId: postId })
 
   const createdStatus = await database.createNote({
     id: statusId,
     url: `https://${actor.domain}/${getMention(actor)}/${postId}`,
+    publicId: postId,
     actorId: actor.id,
     text: '',
     summary: null,

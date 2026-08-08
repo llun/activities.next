@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
+import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { mastodonTypesToInternal } from '@/lib/services/notifications/notificationTypeMapping'
 import { Scope } from '@/lib/types/database/operations'
 import { clampedLimit } from '@/lib/utils/clampedLimit'
@@ -13,7 +14,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { urlToId } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 const DEFAULT_LIMIT = 100
@@ -88,12 +88,15 @@ export const GET = traceApiRoute(
       const internalTypes = mastodonTypesToInternal(types)
       const internalExcludeTypes = mastodonTypesToInternal(excludeTypes)
 
-      // account_id is the Mastodon short id of the source actor; sourceActorId is
-      // stored as a full URL, so (like the list route) it is matched post-fetch
-      // via urlToId rather than in SQL. Fetch up to MAX_LIMIT rows so that
-      // matching notifications are not missed if the target account's items fall
-      // beyond the first `limit` unread entries; cap the returned count at `limit`.
+      // account_id is a client-supplied id (raw URI, publicId, or legacy
+      // colon/apurl_ form) for the source actor; sourceActorId is stored as a
+      // full URL, so (like the list route) it is matched post-fetch against
+      // the resolved URI rather than in SQL. Fetch up to MAX_LIMIT rows so
+      // that matching notifications are not missed if the target account's
+      // items fall beyond the first `limit` unread entries; cap the returned
+      // count at `limit`.
       if (accountId) {
+        const resolvedAccountId = await resolveActorIdParam(database, accountId)
         const notifications = await database.getNotifications({
           actorId: currentActor.id,
           limit: MAX_LIMIT,
@@ -102,7 +105,7 @@ export const GET = traceApiRoute(
           excludeTypes: internalExcludeTypes
         })
         const count = Math.min(
-          notifications.filter((n) => urlToId(n.sourceActorId) === accountId)
+          notifications.filter((n) => n.sourceActorId === resolvedAccountId)
             .length,
           limit
         )

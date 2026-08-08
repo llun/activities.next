@@ -18,6 +18,7 @@ import {
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 import { logger } from '@/lib/utils/logger'
+import { isPublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
 describe('AccountDatabase', () => {
@@ -498,6 +499,15 @@ describe('AccountDatabase', () => {
         expect(actor.suspendedAt).toBeTruthy()
         expect(actor.silencedAt).toBeTruthy()
         expect(actor.sensitizedAt).toBeTruthy()
+      })
+
+      it('returns actors with a v7 publicId threaded from the row', async () => {
+        const { accountId } = await createTestAccount()
+
+        const [actor] = await database.getActorsForAccount({ accountId })
+
+        expect(actor.publicId).toBeTruthy()
+        expect(isPublicId(actor.publicId as string)).toBe(true)
       })
     })
 

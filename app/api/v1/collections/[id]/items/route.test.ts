@@ -4,6 +4,8 @@ import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
+import { generatePublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { POST } from './route'
@@ -106,5 +108,42 @@ describe('/api/v1/collections/[id]/items', () => {
   it('rejects a body with neither account_id nor account_ids', async () => {
     const response = await POST(postRequest({}), context())
     expect(response.status).toBe(422)
+  })
+
+  it('answers 422 for an unknown publicId account id without writing a member row', async () => {
+    const unknownPublicId = generatePublicId()
+    const response = await POST(
+      postRequest({ account_id: unknownPublicId }),
+      context()
+    )
+    expect(response.status).toBe(422)
+    expect(
+      await database.getCollectionItemByAccount({
+        collectionId,
+        targetActorId: unknownPublicId
+      })
+    ).toBeNull()
+  })
+
+  it('ignores unknown publicId account ids in the bulk form and adds the rest', async () => {
+    const unknownPublicId = generatePublicId()
+    const response = await POST(
+      postRequest({ account_ids: [unknownPublicId, urlToId(ACTOR3_ID)] }),
+      context()
+    )
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({})
+    expect(
+      await database.getCollectionItemByAccount({
+        collectionId,
+        targetActorId: unknownPublicId
+      })
+    ).toBeNull()
+    expect(
+      await database.getCollectionItemByAccount({
+        collectionId,
+        targetActorId: ACTOR3_ID
+      })
+    ).toMatchObject({ targetActorId: ACTOR3_ID })
   })
 })

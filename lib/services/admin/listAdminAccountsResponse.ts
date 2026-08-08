@@ -12,7 +12,9 @@ import { urlToId } from '@/lib/utils/urlToId'
 // Shared list responder for both the v1 and v2 admin accounts routes: run the
 // keyset query, serialize, and attach the Mastodon Link header. The cursor ids
 // are Mastodon ids (urlToId(actor.id)); the client sends them back and the
-// route decodes them with safeIdToUrl.
+// route resolves them with resolveActorIdParam (accepting a UUIDv7 publicId
+// too) before they reach getAdminAccounts, which exact-matches them against
+// the actor URI.
 export const listAdminAccountsResponse = async ({
   req,
   database,

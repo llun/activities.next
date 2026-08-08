@@ -12,6 +12,7 @@ import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { TimelineFormat } from '@/lib/services/timelines/const'
 import {
   parseTimelineQuery,
+  resolveTimelineCursors,
   timelineErrorBoundary
 } from '@/lib/services/timelines/request'
 import { Scope } from '@/lib/types/database/operations'
@@ -72,9 +73,13 @@ export const GET = traceApiRoute(
           })
         }
         const limit = parsedQuery.query.limit
-        const maxStatusId = parsedQuery.query.maxStatusId
+        const resolvedCursors = await resolveTimelineCursors(
+          database,
+          parsedQuery.query
+        )
+        const maxStatusId = resolvedCursors.maxStatusId
         const minStatusId =
-          parsedQuery.query.minStatusId ?? parsedQuery.query.sinceStatusId
+          resolvedCursors.minStatusId ?? resolvedCursors.sinceStatusId
 
         const statuses = await database.getCollectionTimeline({
           id,
