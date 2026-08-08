@@ -132,6 +132,90 @@ describe('public ids migration', () => {
     ).rejects.toThrow()
   })
 
+  it('backfills rows inserted behind the cursor while the backfill is running', async () => {
+    // The forward keyset walk only ever moves forward, but production runs
+    // this migration online: the still-deployed app keeps inserting rows whose
+    // uuid-tailed ids sort uniformly, so some land BEHIND the cursor mid-run.
+    // A SQLite trigger reproduces that deterministically by inserting a
+    // lower-sorting row the moment the last walked row is updated.
+    const straggler = {
+      id: 'https://llun.test/users/a/statuses/a-inserted-mid-run',
+      createdAt: Date.UTC(2024, 6, 2)
+    }
+    const walked = [
+      {
+        id: 'https://llun.test/users/a/statuses/b',
+        createdAt: Date.UTC(2024, 6, 1)
+      },
+      {
+        id: 'https://llun.test/users/a/statuses/c',
+        createdAt: Date.UTC(2024, 6, 1)
+      }
+    ]
+    const lastWalkedId = walked[walked.length - 1].id
+    expect(straggler.id < lastWalkedId).toBe(true)
+
+    await database('statuses').insert(walked)
+    // The column has to exist before a trigger can reference it; up() then
+    // skips the column add and still creates the index and backfills.
+    await database.schema.alterTable('statuses', (table) => {
+      table.string('publicId', 36).nullable()
+    })
+    await database.raw(`
+      CREATE TRIGGER simulate_concurrent_insert
+      AFTER UPDATE OF "publicId" ON "statuses"
+      WHEN NEW."id" = '${lastWalkedId}'
+      BEGIN
+        INSERT INTO "statuses" ("id", "createdAt")
+        VALUES ('${straggler.id}', ${straggler.createdAt});
+      END;
+    `)
+
+    await migration.up(database)
+
+    const [row] = await database('statuses')
+      .select('publicId', 'createdAt')
+      .where('id', straggler.id)
+    expect(isPublicId(row.publicId)).toBe(true)
+    expect(getPublicIdTimestamp(row.publicId)).toBe(row.createdAt)
+
+    const missing = await database('statuses').whereNull('publicId').count({
+      cnt: '*'
+    })
+    expect(Number(missing[0].cnt)).toBe(0)
+  })
+
+  it('backfills stragglers left with a null publicId on a re-run', async () => {
+    await database('statuses').insert([
+      {
+        id: 'https://llun.test/users/a/statuses/m',
+        createdAt: Date.UTC(2024, 0, 1)
+      }
+    ])
+    await migration.up(database)
+    const [walked] = await database('statuses').select('id', 'publicId')
+
+    const stragglerCreatedAt = Date.UTC(2024, 0, 2)
+    const stragglerId = 'https://llun.test/users/a/statuses/a'
+    expect(stragglerId < walked.id).toBe(true)
+    await database('statuses').insert([
+      { id: stragglerId, createdAt: stragglerCreatedAt }
+    ])
+
+    await migration.up(database)
+
+    const [straggler] = await database('statuses')
+      .select('publicId')
+      .where('id', stragglerId)
+    expect(isPublicId(straggler.publicId)).toBe(true)
+    expect(getPublicIdTimestamp(straggler.publicId)).toBe(stragglerCreatedAt)
+
+    const [unchanged] = await database('statuses')
+      .select('publicId')
+      .where('id', walked.id)
+    expect(unchanged.publicId).toBe(walked.publicId)
+  })
+
   it('rolls back cleanly', async () => {
     await migration.up(database)
     await migration.down(database)

@@ -80,12 +80,82 @@ const addPublicIdColumn = async (knex, tableName, indexName) => {
   }
 }
 
+const BATCH_SIZE = 500
+
+// Upper bound on sweepMissingPublicIds() passes, so a silently ineffective
+// UPDATE can never spin forever. At BATCH_SIZE rows per pass this covers far
+// more stragglers than an online migration can realistically accumulate; if it
+// ever trips, the run logs it and the next `yarn migrate` picks up where this
+// one stopped.
+const MAX_SWEEP_PASSES = 10000
+
+// Terminating self-healing sweep, run after the forward keyset walk.
+//
+// The walk below is O(N) and resumable, but it only ever moves forward. The
+// production flow runs `yarn migrate` against the live database while the
+// currently deployed app keeps serving traffic, and that app mints ids with
+// uniformly distributed uuid tails — so on a large table roughly half of the
+// rows inserted during the (many-minute) walk land BEHIND the cursor and are
+// never revisited by `where('id', '>', lastId)`.
+//
+// This pass is predicated on the condition being repaired (publicId IS NULL)
+// rather than on a cursor position, so it converges regardless of insert
+// order, and it also makes a plain re-run of the migration repair any
+// stragglers left behind by an earlier run. The unique index added above
+// covers NULLs on both SQLite and PostgreSQL, so the predicate stays cheap.
+const sweepMissingPublicIds = async (knex, tableName) => {
+  let swept = 0
+  let pass = 0
+
+  while (pass < MAX_SWEEP_PASSES) {
+    pass += 1
+    // Deliberately unordered: an ORDER BY would force a sort and defeat the
+    // index scan that makes this predicate cheap on a large table.
+    const rows = await knex(tableName)
+      .select('id', 'createdAt')
+      .whereNull('publicId')
+      .limit(BATCH_SIZE)
+    if (rows.length === 0) break
+
+    const results = await Promise.all(
+      rows.map((row) =>
+        knex(tableName)
+          .where('id', row.id)
+          .whereNull('publicId')
+          .update({ publicId: mintPublicId(row.createdAt) })
+      )
+    )
+    const filled = results.reduce((sum, count) => sum + Number(count ?? 0), 0)
+    swept += filled
+    console.log(
+      `  ${tableName}: sweep pass ${pass} - ${filled}/${rows.length} filled (${swept} total)`
+    )
+
+    // Nothing in this migration ever clears publicId, so a pass that selects
+    // NULL rows and changes none of them means the UPDATE is not taking
+    // effect. Stop instead of re-selecting the same rows forever.
+    if (filled === 0) {
+      console.log(
+        `  ${tableName}: sweep made no progress on ${rows.length} row(s), stopping`
+      )
+      break
+    }
+  }
+
+  if (pass >= MAX_SWEEP_PASSES) {
+    console.log(
+      `  ${tableName}: sweep hit the ${MAX_SWEEP_PASSES}-pass safety bound; re-run the migration to continue`
+    )
+  }
+
+  console.log(`Sweep done. ${tableName}: ${swept} straggler(s) backfilled.`)
+}
+
 const backfillPublicIds = async (knex, tableName) => {
   const totalResult = await knex(tableName).count('* as cnt').first()
   const total = Number(totalResult.cnt)
   console.log(`Backfilling publicId for ${total} ${tableName} rows...`)
 
-  const BATCH_SIZE = 500
   let lastId = ''
   let processed = 0
   let updated = 0
@@ -123,6 +193,8 @@ const backfillPublicIds = async (knex, tableName) => {
   }
 
   console.log(`Done. ${tableName}: processed ${processed}, updated ${updated}.`)
+
+  await sweepMissingPublicIds(knex, tableName)
 }
 
 /**
