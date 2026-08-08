@@ -133,6 +133,13 @@ const getStatusContents = (status: Status): string[] => {
   return contents
 }
 
+// Every id form `filter_statuses.statusId` can hold for this status, so a
+// stored row matches whichever encoding was current when it was written: the
+// ActivityPub URI (what the write route resolves to today), the legacy
+// colon/`apurl_` form (pre-resolution rows), and the publicId (a post-flip
+// client id the write route could not resolve, which it then stores verbatim).
+// An Announce contributes both its own ids and the reblogged original's, so
+// filtering either one hides the reblog.
 const getCandidateStatusIds = (status: Status): string[] => {
   const target =
     status.type === StatusType.enum.Announce ? status.originalStatus : status
@@ -140,10 +147,12 @@ const getCandidateStatusIds = (status: Status): string[] => {
   if (target) {
     ids.add(target.id)
     ids.add(urlToId(target.id))
+    if (target.publicId) ids.add(target.publicId)
   }
   if (status.type === StatusType.enum.Announce) {
     ids.add(status.id)
     ids.add(urlToId(status.id))
+    if (status.publicId) ids.add(status.publicId)
   }
   return [...ids].filter(Boolean)
 }
@@ -278,6 +287,12 @@ export const annotateMastodonStatusesWithFilters = (
     if (matches.length > 0) {
       filteredByStatusId.set(status.id, matches)
       filteredByStatusId.set(urlToId(status.id), matches)
+      // The serialized entity is keyed by its EMITTED id, which is the
+      // publicId whenever the row has one — `urlToId` cannot produce that, so
+      // without this key every annotation silently disappears post-flip. The
+      // two keys above still cover a row that predates the backfill (its
+      // emitted id is the colon form) and lookups made by URI.
+      if (status.publicId) filteredByStatusId.set(status.publicId, matches)
     }
   }
   return mastodonStatuses.map((status) => {
