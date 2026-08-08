@@ -9,6 +9,8 @@ import { ActiveFilterRecord } from '@/lib/types/database/operations'
 import { Filter, FilterKeyword } from '@/lib/types/domain/filter'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import * as Mastodon from '@/lib/types/mastodon'
+import { generatePublicId } from '@/lib/utils/publicId'
+import { urlToId } from '@/lib/utils/urlToId'
 
 const TEST_ACTOR = 'https://llun.test/users/test1'
 
@@ -111,28 +113,60 @@ describe('applyFiltersToStatus', () => {
     expect(results[0].status_matches).toBeNull()
   })
 
-  it('returns status_matches when the status id is in the filter list', () => {
-    const filter = buildFilter({ id: 'f2' })
-    const statusId = 'https://llun.test/users/test1/statuses/2'
-    const records: ActiveFilterRecord[] = [
-      {
-        filter,
-        keywords: [],
-        statuses: [
-          {
-            id: 'fs1',
-            filterId: filter.id,
-            statusId,
-            createdAt: 0
-          }
-        ]
-      }
-    ]
-    const status = buildStatusNote(statusId, 'no keywords here')
-    const results = applyFiltersToStatus(status, records)
-    expect(results).toHaveLength(1)
-    expect(results[0].status_matches).toEqual([statusId])
-  })
+  // A filter status row can hold the resolved status URI (written by the route
+  // today), the legacy colon-form id (written before the route resolved client
+  // ids), or a publicId the route could not resolve and stored unchanged. A URI
+  // is emitted in the colon form the rest of the API uses so a client can
+  // compare `status_matches` against the status ids it holds; anything else is
+  // emitted exactly as stored, since running urlToId over a bare publicId would
+  // append a `:` the client never wrote.
+  //
+  // The publicId case takes a status whose own id is that publicId: the match is
+  // driven by getCandidateStatusIds, which reads the status id, so that is the
+  // only way such a row reaches the emission at all.
+  it.each([
+    {
+      description: 'the resolved status uri',
+      statusId: 'https://llun.test/users/test1/statuses/2',
+      stored: (id: string) => id,
+      emitted: (id: string) => urlToId(id)
+    },
+    {
+      description: 'the legacy colon form',
+      statusId: 'https://llun.test/users/test1/statuses/2',
+      stored: (id: string) => urlToId(id),
+      emitted: (id: string) => urlToId(id)
+    },
+    {
+      description: 'an unresolvable bare publicId',
+      statusId: generatePublicId(),
+      stored: (id: string) => id,
+      emitted: (id: string) => id
+    }
+  ])(
+    'returns status_matches for a row stored as $description',
+    ({ statusId, stored, emitted }) => {
+      const filter = buildFilter({ id: 'f2' })
+      const records: ActiveFilterRecord[] = [
+        {
+          filter,
+          keywords: [],
+          statuses: [
+            {
+              id: 'fs1',
+              filterId: filter.id,
+              statusId: stored(statusId),
+              createdAt: 0
+            }
+          ]
+        }
+      ]
+      const status = buildStatusNote(statusId, 'no keywords here')
+      const results = applyFiltersToStatus(status, records)
+      expect(results).toHaveLength(1)
+      expect(results[0].status_matches).toEqual([emitted(statusId)])
+    }
+  )
 
   it('returns no matches when none of the keywords or status ids hit', () => {
     const filter = buildFilter({ id: 'f3' })

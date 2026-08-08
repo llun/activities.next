@@ -42,6 +42,7 @@ const toDomainActor = (row: SQLActor): Actor => {
   const settings = getCompatibleJSON<ActorSettings>(row.settings)
   return Actor.parse({
     id: row.id,
+    publicId: row.publicId ?? null,
     username: row.username,
     domain: row.domain,
     name: row.name ?? undefined,
@@ -270,6 +271,7 @@ export const AdminSQLDatabaseMixin = (database: Knex): AdminDatabase => ({
     const actorRows = await database<SQLActor>('actors')
       .select(
         'id',
+        'publicId',
         'username',
         'domain',
         'name',

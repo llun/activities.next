@@ -5,6 +5,7 @@ import {
 } from '@/lib/services/filters/applyFilters'
 import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
+import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import {
   filterReadableStatuses,
   getReadableStatus
@@ -20,7 +21,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -142,7 +142,7 @@ export const GET = traceApiRoute(
       if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
 
       const { database, currentActor } = context
-      const statusId = idToUrl(encodedStatusId)
+      const statusId = await resolveStatusIdParam(database, encodedStatusId)
 
       const status = await getReadableStatus({
         database,

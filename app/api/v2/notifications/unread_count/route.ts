@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { getDatabase } from '@/lib/database'
 import { getActiveFilters } from '@/lib/services/filters/applyFilters'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
+import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { collectNotificationGroups } from '@/lib/services/notifications/collectNotificationGroups'
 import { getNotificationGroupsEnvelope } from '@/lib/services/notifications/getNotificationGroupsEnvelope'
 import {
@@ -90,8 +91,14 @@ export const GET = traceApiRoute(
         types,
         exclude_types: excludeTypes,
         grouped_types: groupedTypesMastodon,
-        account_id: accountId
+        account_id: rawAccountId
       } = parsed.data
+      // collectNotificationGroups compares its accountId filter directly
+      // against the stored sourceActorId URI, so resolve the client-supplied
+      // account_id (raw URI, publicId, or legacy colon/apurl_ form) here.
+      const accountId = rawAccountId
+        ? await resolveActorIdParam(database, rawAccountId)
+        : undefined
 
       // Default to Mastodon's groupable types so mentions/replies are counted
       // individually when grouped_types is omitted (matches the list endpoint).

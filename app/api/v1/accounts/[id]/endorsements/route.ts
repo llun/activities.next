@@ -5,6 +5,7 @@ import {
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
 import { clampedLimit } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -15,7 +16,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -44,7 +44,7 @@ export const GET = traceApiRoute(
       const encodedAccountId = (await params).id
       if (!encodedAccountId) return apiCorsError(req, CORS_HEADERS, 400)
 
-      const id = idToUrl(encodedAccountId)
+      const id = await resolveActorIdParam(database, encodedAccountId)
       const actor = await database.getActorFromId({ id })
       if (!actor) return apiCorsError(req, CORS_HEADERS, 404)
 
@@ -90,7 +90,10 @@ export const GET = traceApiRoute(
       const host = headerHost(req.headers)
       const links: string[] = []
       if (host && ordered.length > 0) {
-        const pathBase = `/api/v1/accounts/${encodedAccountId}/endorsements`
+        // Percent-encoded: the router hands the id over already decoded, and
+        // the resolver accepts a raw http(s) URI as an id form, so the raw
+        // value would emit a Link URL that does not route back here.
+        const pathBase = `/api/v1/accounts/${encodeURIComponent(encodedAccountId)}/endorsements`
         const buildLink = (cursorName: 'max_id' | 'min_id', value: string) => {
           const linkParams = new URLSearchParams()
           linkParams.set('limit', `${limit}`)

@@ -1,16 +1,21 @@
 import { NextRequest } from 'next/server'
 
+import { generatePublicId } from '@/lib/utils/publicId'
 import { idToUrl } from '@/lib/utils/urlToId'
 
-import { DELETE, GET, POST } from './route'
+import { DELETE, GET, MAX_LIST_ACCOUNT_IDS, POST } from './route'
 
 const mockDatabase = {
   getList: vi.fn(),
   getListAccounts: vi.fn(),
   addListAccounts: vi.fn(),
   removeListAccounts: vi.fn(),
-  isCurrentActorFollowing: vi.fn()
+  isCurrentActorFollowing: vi.fn(),
+  getActorIdsByPublicIds: vi.fn()
 }
+
+const overCapAccountIds = () =>
+  Array.from({ length: MAX_LIST_ACCOUNT_IDS + 1 }, (_, index) => `acc${index}`)
 const mockCurrentActor = {
   id: 'https://local.test/users/me',
   domain: 'local.test'
@@ -229,6 +234,38 @@ describe('POST /api/v1/lists/:id/accounts', () => {
     expect(response.status).toBe(422)
     expect(mockDatabase.addListAccounts).not.toHaveBeenCalled()
   })
+
+  it.each([
+    {
+      description: 'a JSON body',
+      body: JSON.stringify({
+        account_ids: overCapAccountIds()
+      }),
+      contentType: 'application/json'
+    },
+    {
+      description: 'a urlencoded bracket-array body',
+      body: overCapAccountIds()
+        .map((accountId) => `account_ids[]=${accountId}`)
+        .join('&'),
+      contentType: 'application/x-www-form-urlencoded'
+    }
+  ])(
+    'returns 422 for an over-cap account_ids list in $description',
+    async ({ body, contentType }) => {
+      const request = new NextRequest(URL_BASE, {
+        method: 'POST',
+        body,
+        headers: { 'content-type': contentType }
+      })
+
+      const response = await POST(request, params())
+
+      expect(response.status).toBe(422)
+      expect(mockDatabase.addListAccounts).not.toHaveBeenCalled()
+      expect(mockDatabase.getActorIdsByPublicIds).not.toHaveBeenCalled()
+    }
+  )
 })
 
 describe('DELETE /api/v1/lists/:id/accounts', () => {
@@ -274,6 +311,41 @@ describe('DELETE /api/v1/lists/:id/accounts', () => {
 
   it('returns 422 when no account ids are supplied', async () => {
     const request = new NextRequest(URL_BASE, { method: 'DELETE' })
+
+    const response = await DELETE(request, params())
+
+    expect(response.status).toBe(422)
+    expect(mockDatabase.removeListAccounts).not.toHaveBeenCalled()
+  })
+
+  it('resolves a whole batch of publicIds with a single database lookup', async () => {
+    mockDatabase.getActorIdsByPublicIds.mockResolvedValue(
+      new Map<string, string>()
+    )
+    const publicIds = Array.from({ length: 20 }, () => generatePublicId())
+    const request = new NextRequest(
+      `${URL_BASE}?${publicIds
+        .map((publicId) => `account_ids[]=${publicId}`)
+        .join('&')}`,
+      { method: 'DELETE' }
+    )
+
+    const response = await DELETE(request, params())
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.getActorIdsByPublicIds).toHaveBeenCalledTimes(1)
+    expect(mockDatabase.getActorIdsByPublicIds).toHaveBeenCalledWith({
+      publicIds
+    })
+  })
+
+  it('returns 422 for an over-cap account_ids query list', async () => {
+    const request = new NextRequest(
+      `${URL_BASE}?${overCapAccountIds()
+        .map((accountId) => `account_ids[]=${accountId}`)
+        .join('&')}`,
+      { method: 'DELETE' }
+    )
 
     const response = await DELETE(request, params())
 

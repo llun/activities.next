@@ -111,7 +111,10 @@ describe('collectNotificationGroups', () => {
       baseQuery: { actorId: 'https://llun.test/users/me' },
       limit: 1,
       batchSize: 3,
-      accountId: 'other.test:users:alice'
+      // Callers resolve the client-supplied id to the stored sourceActorId
+      // URI before calling in — collectNotificationGroups only compares, it
+      // does not decode.
+      accountId: ALICE
     })
 
     expect(getNotifications).toHaveBeenCalledTimes(2)
@@ -175,7 +178,10 @@ describe('collectNotificationGroups', () => {
       baseQuery: { actorId: 'https://llun.test/users/me' },
       limit: 1,
       batchSize: 2,
-      accountId: 'other.test:users:alice',
+      // Callers resolve the client-supplied id to the stored sourceActorId
+      // URI before calling in — collectNotificationGroups only compares, it
+      // does not decode.
+      accountId: 'https://other.test/users/alice',
       maxIterations: 2
     })
 

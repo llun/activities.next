@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { buildAccountCursorLinkHeader } from '@/lib/services/mastodon/accountCursorLinkHeader'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
+import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import {
   filterReadableStatuses,
   getReadableStatus
@@ -12,7 +13,7 @@ import { clampedLimit } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiCorsError, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl, urlToId } from '@/lib/utils/urlToId'
+import { urlToId } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -40,7 +41,7 @@ export const GET = traceApiRoute(
       const { database, currentActor, params } = context
       const encodedStatusId = (await params).id
       if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
-      const statusId = idToUrl(encodedStatusId)
+      const statusId = await resolveStatusIdParam(database, encodedStatusId)
 
       const status = await getReadableStatus({
         database,
@@ -62,14 +63,20 @@ export const GET = traceApiRoute(
         })
       }
       const { limit, max_id: maxId, since_id: sinceId } = query.data
+      const resolvedMaxId = maxId
+        ? await resolveStatusIdParam(database, maxId)
+        : undefined
+      const resolvedSinceId = sinceId
+        ? await resolveStatusIdParam(database, sinceId)
+        : undefined
 
       // Fetch one extra to detect an older page for the `next` link.
       const quotingIds = await database.getQuotingStatusIds({
         quotedStatusId: statusId,
         state: 'accepted',
         limit: limit + 1,
-        maxId: maxId ? idToUrl(maxId) : undefined,
-        sinceId: sinceId ? idToUrl(sinceId) : undefined
+        maxId: resolvedMaxId,
+        sinceId: resolvedSinceId
       })
       const hasOverflow = quotingIds.length > limit
       const pageIds = quotingIds.slice(0, limit)

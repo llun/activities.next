@@ -160,6 +160,30 @@ describe('GET /api/v1/statuses/[id]', () => {
       })
     })
 
+    it('returns the same body for a publicId-form id as for the colon-form id', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/post-1`
+      const status = await database.getStatus({ statusId })
+      if (!status?.publicId) {
+        throw new Error('seeded status is missing a publicId')
+      }
+
+      const colonFormResponse = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      const publicIdResponse = await GET(
+        new NextRequest(`https://llun.test/api/v1/statuses/${status.publicId}`),
+        { params: Promise.resolve({ id: status.publicId }) }
+      )
+
+      expect(publicIdResponse.status).toBe(200)
+      expect(await publicIdResponse.json()).toEqual(
+        await colonFormResponse.json()
+      )
+    })
+
     it('returns not found for anonymous reads of followers-only statuses', async () => {
       mockGetServerSession.mockResolvedValue(null)
 

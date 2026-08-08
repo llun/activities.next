@@ -1,8 +1,10 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
+import { Database } from '@/lib/database/types'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
+import { isPublicId } from '@/lib/utils/publicId'
 import { ERROR_500, apiResponse } from '@/lib/utils/response'
 import { safeIdToUrl } from '@/lib/utils/urlToId'
 
@@ -54,8 +56,47 @@ export type ParseTimelineQueryResult =
 // with the same rule.
 export const decodeCursor = (
   raw: string | undefined
-): string | null | undefined =>
-  raw === undefined ? undefined : safeIdToUrl(raw)
+): string | null | undefined => {
+  if (raw === undefined) return undefined
+  // A UUIDv7 public id must not go through safeIdToUrl (which would mangle it
+  // into https://<uuid>/); it is resolved to the stored URI asynchronously by
+  // resolveStatusCursor before reaching the database layer.
+  if (isPublicId(raw)) return raw
+  return safeIdToUrl(raw)
+}
+
+// Resolves a decodeCursor result that turned out to be a publicId into the
+// stored status URI, so only URIs (never publicIds) ever reach the SQL layer.
+// A publicId unknown to the DB is returned unchanged — it matches no row, so
+// the SQL layer's missing-cursor behavior (empty page) applies, same as an
+// unknown legacy id.
+export const resolveStatusCursor = async (
+  database: Pick<Database, 'getStatusIdByPublicId'>,
+  decoded: string | null | undefined
+): Promise<string | null | undefined> => {
+  if (!decoded || !isPublicId(decoded)) return decoded
+  return (
+    (await database.getStatusIdByPublicId({ publicId: decoded })) ?? decoded
+  )
+}
+
+// Resolves all three timeline cursors from a parsed query in one call — the
+// shape parseTimelineQuery's consumers pass through to the DB layer.
+export const resolveTimelineCursors = async (
+  database: Pick<Database, 'getStatusIdByPublicId'>,
+  parsed: {
+    maxStatusId: string | null
+    minStatusId: string | null
+    sinceStatusId: string | null
+  }
+) => ({
+  maxStatusId:
+    (await resolveStatusCursor(database, parsed.maxStatusId)) ?? null,
+  minStatusId:
+    (await resolveStatusCursor(database, parsed.minStatusId)) ?? null,
+  sinceStatusId:
+    (await resolveStatusCursor(database, parsed.sinceStatusId)) ?? null
+})
 
 /**
  * Parse and validate the shared timeline query params. Returns `ok: false` only

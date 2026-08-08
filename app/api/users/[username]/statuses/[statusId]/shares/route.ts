@@ -6,7 +6,6 @@ import { AppRouterParams } from '@/lib/services/guards/types'
 import { isStatusPubliclyReadable } from '@/lib/services/statusAccess'
 import { StatusType } from '@/lib/types/domain/status'
 import { activityPubResponse } from '@/lib/utils/activityPubContentNegotiation'
-import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -20,9 +19,9 @@ export const GET = traceApiRoute(
   OnlyLocalUserGuard(async (database, actor, req, query: unknown) => {
     const { statusId } = await (query as AppRouterParams<StatusSharesParams>)
       .params
-    const id = getLocalStatusId({ actorId: actor.id, statusId })
-    const status = await database.getStatus({
-      statusId: id,
+    const status = await database.getActorStatusFromPathSegment({
+      actorId: actor.id,
+      pathSegment: statusId,
       withReplies: false
     })
     if (!status) return apiErrorResponse(404)

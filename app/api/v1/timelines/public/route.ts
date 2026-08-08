@@ -8,6 +8,7 @@ import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { getFilteredStatusPage } from '@/lib/services/timelines/getFilteredTimelinePage'
 import {
   parseTimelineQuery,
+  resolveTimelineCursors,
   timelineErrorBoundary
 } from '@/lib/services/timelines/request'
 import { Timeline } from '@/lib/services/timelines/types'
@@ -62,13 +63,18 @@ export const GET = traceApiRoute(
         })
       }
       const pageLimit = parsedQuery.query.limit
-      const { local, remote, onlyMedia, maxStatusId } = parsedQuery.query
+      const { local, remote, onlyMedia } = parsedQuery.query
+      const resolvedCursors = await resolveTimelineCursors(
+        database,
+        parsedQuery.query
+      )
+      const maxStatusId = resolvedCursors.maxStatusId
       // `min_id` and `since_id` both express a lower-bound cursor; the timeline
       // query takes a single min cursor, so collapse them with `min_id`-wins
       // precedence (matching the list/collection timelines). Both return the
       // newest page above the bound, like every other timeline route here.
       const minStatusId =
-        parsedQuery.query.minStatusId ?? parsedQuery.query.sinceStatusId
+        resolvedCursors.minStatusId ?? resolvedCursors.sinceStatusId
 
       const queryTimeline =
         (timeline: Timeline) =>

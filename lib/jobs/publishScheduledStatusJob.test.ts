@@ -10,6 +10,8 @@ import { Actor } from '@/lib/types/domain/actor'
 import { StatusPoll } from '@/lib/types/domain/status'
 import { ScheduledStatusParams } from '@/lib/types/mastodon/scheduledStatus'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { generatePublicId } from '@/lib/utils/publicId'
+import { urlToId } from '@/lib/utils/urlToId'
 
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from './names'
 
@@ -125,6 +127,62 @@ describe('publishScheduledStatusJob', () => {
 
     const row = await database.getScheduledStatusById({ id: scheduled.id })
     expect(row).toBeNull()
+  })
+
+  describe('in_reply_to_id resolution', () => {
+    // Regression coverage for the pre-existing bug: the stored params carry
+    // whatever id form the client originally posted, and
+    // createNoteFromUserInput does an exact `where('id', …)` lookup with no
+    // decoding of its own — so an unresolved colon-form/publicId
+    // in_reply_to_id would silently publish as a non-reply.
+    it.each([
+      {
+        description: 'colon form',
+        toParam: (parentId: string) => urlToId(parentId)
+      },
+      {
+        description: 'publicId form',
+        toParam: async (parentId: string) => {
+          const parent = await database.getStatus({ statusId: parentId })
+          if (!parent?.publicId) {
+            throw new Error('seeded parent status is missing a publicId')
+          }
+          return parent.publicId
+        }
+      }
+    ])(
+      'publishes as a reply when in_reply_to_id is stored in $description',
+      async ({ toParam }) => {
+        const parent = await database.createNote({
+          id: `${actor1.id}/statuses/scheduled-reply-parent-${generatePublicId()}`,
+          url: `${actor1.id}/statuses/scheduled-reply-parent-${generatePublicId()}`,
+          actorId: actor1.id,
+          text: 'parent post',
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: []
+        })
+        const inReplyToId = await toParam(parent.id)
+        const text = `Scheduled reply ${Date.now()}`
+        const scheduled = await database.createScheduledStatus({
+          actorId: actor1.id,
+          scheduledAt: Date.now() - 1_000,
+          params: baseParams({ text, in_reply_to_id: inReplyToId })
+        })
+
+        await publishScheduledStatusJob(database, {
+          id: `job-reply-${generatePublicId()}`,
+          name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+          data: { scheduledStatusId: scheduled.id }
+        })
+
+        const statuses = await database.getActorStatuses({
+          actorId: actor1.id
+        })
+        const published = statuses.find((status) => status.text.includes(text))
+        expect(published).toBeDefined()
+        expect((published as { reply: string }).reply).toBe(parent.id)
+      }
+    )
   })
 
   it('carries poll hide_totals through to the published poll', async () => {

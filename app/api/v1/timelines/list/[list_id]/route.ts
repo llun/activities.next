@@ -12,6 +12,7 @@ import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { TimelineFormat } from '@/lib/services/timelines/const'
 import {
   parseTimelineQuery,
+  resolveTimelineCursors,
   timelineErrorBoundary
 } from '@/lib/services/timelines/request'
 import { Scope } from '@/lib/types/database/operations'
@@ -70,7 +71,8 @@ export const GET = traceApiRoute(
           })
         }
         const limit = parsedQuery.query.limit
-        const maxStatusId = parsedQuery.query.maxStatusId
+        const { maxStatusId, minStatusId, sinceStatusId } =
+          await resolveTimelineCursors(database, parsedQuery.query)
         // Pass min_id and since_id through separately: min_id returns the page
         // immediately adjacent to the cursor (ascending seek then reversed),
         // since_id the newest slice above it.
@@ -79,8 +81,8 @@ export const GET = traceApiRoute(
           actorId: currentActor.id,
           limit,
           maxStatusId,
-          minStatusId: parsedQuery.query.minStatusId,
-          sinceStatusId: parsedQuery.query.sinceStatusId
+          minStatusId,
+          sinceStatusId
         })
 
         // The list timeline query returns domain statuses newest-first, so the

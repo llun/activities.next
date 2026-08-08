@@ -2,6 +2,10 @@ import { z } from 'zod'
 
 import { SEND_FLAG_JOB_NAME } from '@/lib/jobs/names'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import {
+  resolveActorIdParam,
+  resolveStatusIdParams
+} from '@/lib/services/mastodon/resolveClientId'
 import { getQueue } from '@/lib/services/queue'
 import { serializeReportEntity } from '@/lib/services/reports/serializeReportEntity'
 import { ReportCategory, Scope } from '@/lib/types/database/operations'
@@ -15,17 +19,26 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 import { Booleanish } from '@/lib/utils/zodBooleanish'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
+// Upper bound on how many statuses a single report may cite. Mastodon does not
+// document a cap; this matches the other batch ceilings in the API surface
+// (MAX_BATCH_STATUSES, MAX_COLLECTION_ACCOUNT_IDS). An over-cap body fails
+// safeParse, which this route already answers with a 422. Exported so the
+// route test can exercise the cap.
+export const MAX_REPORT_STATUS_IDS = 100
+
 const CreateReportBody = z.object({
   account_id: z.string().min(1),
   status_ids: z
-    .union([z.array(z.string().min(1)), z.string().min(1)])
+    .union([
+      z.array(z.string().min(1)).max(MAX_REPORT_STATUS_IDS),
+      z.string().min(1)
+    ])
     .optional(),
   comment: z.string().max(1000).optional(),
   forward: Booleanish.optional(),
@@ -109,7 +122,10 @@ export const POST = traceApiRoute(
         })
       }
 
-      const targetActorId = idToUrl(parsed.data.account_id)
+      const targetActorId = await resolveActorIdParam(
+        database,
+        parsed.data.account_id
+      )
       const targetAccount = await database.getMastodonActorFromId({
         id: targetActorId
       })
@@ -122,7 +138,11 @@ export const POST = traceApiRoute(
         })
       }
 
-      const statusIds = toArray(parsed.data.status_ids).map((id) => idToUrl(id))
+      // One batched publicId lookup for the whole list, not one per id.
+      const statusIds = await resolveStatusIdParams(
+        database,
+        toArray(parsed.data.status_ids)
+      )
       const ruleIds = toArray(parsed.data.rule_ids)
       const collectionIds = toArray(parsed.data.collection_ids)
 

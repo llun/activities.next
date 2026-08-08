@@ -331,6 +331,12 @@ const getOrCreateStravaFallbackNote = async ({
   stravaActivityId: string
   visibility: z.infer<typeof Visibility>
 }): Promise<{ status: Status; created: boolean }> => {
+  // Deliberate exception to the publicId-tail convention (see Task 1.5 of the
+  // UUIDv7 publicId plan): this id must stay a DETERMINISTIC sha256 of the
+  // Strava activity so re-running the import finds the same status
+  // (get-or-create idempotency) instead of minting a duplicate fallback note.
+  // The row still gets a random v7 publicId from database.createNote below —
+  // it just never equals this URI's tail, same as any remote status.
   const postId = getStravaFallbackPostId({
     actorId: actor.id,
     stravaActivityId

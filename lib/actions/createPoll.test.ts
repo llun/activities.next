@@ -9,6 +9,7 @@ import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { isPublicId } from '@/lib/utils/publicId'
 
 enableFetchMocks()
 
@@ -67,6 +68,22 @@ describe('Create poll action', () => {
       expect(createdPoll?.id).toBe(poll?.id)
       expect(poll?.to).toContain(ACTIVITY_STREAM_PUBLIC)
       expect(poll?.cc).toContain(`${actor1.id}/followers`)
+    })
+
+    it('mints the new status URI tail from a v7 publicId', async () => {
+      const createdPoll = await createPollFromUserInput({
+        text: 'New poll URI tail',
+        currentActor: actor1,
+        choices: ['Yes', 'No'],
+        database,
+        endAt: Date.now() + 24 * 60 * 60 * 1000
+      })
+
+      expect(createdPoll?.publicId).toBeTruthy()
+      expect(isPublicId(createdPoll?.publicId as string)).toBe(true)
+      expect(createdPoll?.id).toBe(
+        `${actor1.id}/statuses/${createdPoll?.publicId}`
+      )
     })
 
     it('forces sensitive to true when the creating actor is sensitized', async () => {

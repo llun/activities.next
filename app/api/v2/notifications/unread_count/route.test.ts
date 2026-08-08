@@ -10,7 +10,8 @@ const mockDatabase = {
   getActiveFiltersForActor: vi.fn().mockResolvedValue([]),
   getActiveServerFilters: vi.fn().mockResolvedValue([]),
   getStatusesByIds: vi.fn(),
-  getMastodonActorsFromIds: vi.fn()
+  getMastodonActorsFromIds: vi.fn(),
+  getActorIdByPublicId: vi.fn()
 }
 
 const mockCurrentActor = { id: 'https://llun.test/users/llun' }
@@ -199,6 +200,50 @@ describe('GET /api/v2/notifications/unread_count', () => {
     const response = await GET(request, { params: Promise.resolve({}) })
     const data = await response.json()
 
+    expect(response.status).toBe(200)
+    expect(data.count).toBe(1)
+  })
+
+  it('resolves a publicId-form account_id before filtering', async () => {
+    mockDatabase.getNotifications.mockResolvedValueOnce([
+      {
+        id: 'n1',
+        type: 'like',
+        sourceActorId: 'https://other.test/users/alice',
+        statusId: 'https://other.test/statuses/1',
+        groupKey: 'like:s1',
+        isRead: false,
+        filtered: false,
+        createdAt: 2000,
+        updatedAt: 2000
+      },
+      {
+        id: 'n2',
+        type: 'like',
+        sourceActorId: 'https://other.test/users/bob',
+        statusId: 'https://other.test/statuses/2',
+        groupKey: 'like:s2',
+        isRead: false,
+        filtered: false,
+        createdAt: 1000,
+        updatedAt: 1000
+      }
+    ])
+    const alicePublicId = '0198a000-0000-7000-8000-000000000001'
+    mockDatabase.getActorIdByPublicId.mockResolvedValue(
+      'https://other.test/users/alice'
+    )
+
+    const request = new NextRequest(
+      `https://llun.test/api/v2/notifications/unread_count?account_id=${alicePublicId}`,
+      { method: 'GET' }
+    )
+    const response = await GET(request, { params: Promise.resolve({}) })
+    const data = await response.json()
+
+    expect(mockDatabase.getActorIdByPublicId).toHaveBeenCalledWith({
+      publicId: alicePublicId
+    })
     expect(response.status).toBe(200)
     expect(data.count).toBe(1)
   })

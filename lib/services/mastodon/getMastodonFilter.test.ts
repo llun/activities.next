@@ -4,12 +4,15 @@ import { getSQLDatabase } from '@/lib/database/sql'
 import { Database } from '@/lib/database/types'
 import {
   getMastodonFilter,
+  getMastodonFilterStatus,
   getMastodonFilters,
   getV1Filter
 } from '@/lib/services/mastodon/getMastodonFilter'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { V1Filter } from '@/lib/types/mastodon'
+import { generatePublicId } from '@/lib/utils/publicId'
+import { urlToId } from '@/lib/utils/urlToId'
 
 describe('getMastodonFilter', () => {
   let knexDatabase: Knex
@@ -61,8 +64,10 @@ describe('getMastodonFilter', () => {
       whole_word: true
     })
     expect(result.statuses).toHaveLength(1)
+    // Stored resolved, emitted in the legacy colon form the rest of the API
+    // uses.
     expect(result.statuses[0].status_id).toBe(
-      'https://llun.test/users/test1/statuses/100'
+      urlToId('https://llun.test/users/test1/statuses/100')
     )
   })
 
@@ -88,6 +93,47 @@ describe('getMastodonFilter', () => {
     expect(result[0].expires_at).toBeNull()
     expect(result[0].filter_action).toBe('hide')
   })
+})
+
+describe('getMastodonFilterStatus', () => {
+  const statusUri = 'https://llun.test/users/test1/statuses/100'
+  const publicId = generatePublicId()
+
+  // Rows written before the route resolved client ids hold the colon form;
+  // rows written today hold the resolved URI. Both must reach the client as the
+  // same id, or a single filter list mixes two id forms. A row that is neither —
+  // the route stores a publicId it could not resolve unchanged, and the table
+  // has no foreign key — is emitted byte-identical: running urlToId over a bare
+  // publicId would append a spurious `:` to an id the client never wrote.
+  it.each([
+    {
+      description: 'the resolved status uri',
+      stored: statusUri,
+      emitted: urlToId(statusUri)
+    },
+    {
+      description: 'the legacy colon form',
+      stored: urlToId(statusUri),
+      emitted: urlToId(statusUri)
+    },
+    {
+      description: 'an unresolvable bare publicId',
+      stored: publicId,
+      emitted: publicId
+    }
+  ])(
+    'emits the client id for a row stored as $description',
+    ({ stored, emitted }) => {
+      expect(
+        getMastodonFilterStatus({
+          id: 'filter-status-1',
+          filterId: 'filter-1',
+          statusId: stored,
+          createdAt: 0
+        })
+      ).toEqual({ id: 'filter-status-1', status_id: emitted })
+    }
+  )
 })
 
 describe('getV1Filter', () => {

@@ -1,5 +1,6 @@
 import { getDatabase } from '@/lib/database'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
+import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { addAcceptedSender } from '@/lib/services/notifications/evaluateNotificationPolicy'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -10,7 +11,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
@@ -35,7 +35,10 @@ export const POST = traceApiRoute(
         })
       }
 
-      const sourceActorId = idToUrl((await params).id)
+      const sourceActorId = await resolveActorIdParam(
+        database,
+        (await params).id
+      )
       const request = await database.getNotificationRequest({
         actorId: currentActor.id,
         sourceActorId

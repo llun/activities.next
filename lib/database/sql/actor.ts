@@ -28,6 +28,7 @@ import {
   isPostgresClient
 } from '@/lib/database/sql/utils/knex'
 import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
+import { resolveIdsByPublicIds } from '@/lib/database/sql/utils/publicIdLookup'
 import { selectHashtagTagsByStatusIds } from '@/lib/database/sql/utils/status'
 import {
   FEDERATION_SIGNING_ACTOR_TYPE,
@@ -50,6 +51,9 @@ import {
   GetActorFromEmailParams,
   GetActorFromIdParams,
   GetActorFromUsernameParams,
+  GetActorIdByPublicIdParams,
+  GetActorIdsByPublicIdsParams,
+  GetActorPublicIdsParams,
   GetActorSettingsParams,
   GetActorsFromIdsParams,
   GetActorsScheduledForDeletionParams,
@@ -70,6 +74,7 @@ import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { logger } from '@/lib/utils/logger'
+import { generatePublicId, toPublicIdLookupKey } from '@/lib/utils/publicId'
 import { generateKeyPair } from '@/lib/utils/signature'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -142,6 +147,7 @@ const insertActorWithSearchIndex = async (
   }
   const actor = {
     id: actorId,
+    publicId: generatePublicId(createdAt),
     type,
     username,
     domain,
@@ -492,6 +498,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       try {
         await database<SQLActor>('actors').insert({
           id: signingActorId,
+          publicId: generatePublicId(),
           type: FEDERATION_SIGNING_ACTOR_TYPE,
           username,
           domain,
@@ -626,6 +633,47 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .filter((actor): actor is Actor => actor !== null)
   },
 
+  // The lookup parameter is normalized here, at the single choke point every
+  // resolution site goes through, rather than in each caller — see
+  // toPublicIdLookupKey.
+  async getActorIdByPublicId({ publicId }: GetActorIdByPublicIdParams) {
+    const row = await database<SQLActor>('actors')
+      .where('publicId', toPublicIdLookupKey(publicId))
+      .first('id')
+    return row?.id ?? null
+  },
+
+  // Batch counterpart of getActorIdByPublicId, so a request carrying an array
+  // of ids costs one query instead of one per id. The returned map is keyed by
+  // the publicIds as REQUESTED, so callers can zip it back against their input.
+  async getActorIdsByPublicIds({ publicIds }: GetActorIdsByPublicIdsParams) {
+    return resolveIdsByPublicIds({
+      publicIds,
+      batchSize: getWhereInBatchSize(database),
+      selectChunk: async (lookupKeys) => {
+        const rows = await database<SQLActor>('actors')
+          .whereIn('publicId', lookupKeys)
+          .select('id', 'publicId')
+        return rows.map((row) => ({
+          id: row.id,
+          publicId: row.publicId as string
+        }))
+      }
+    })
+  },
+
+  async getActorPublicIds({ actorIds }: GetActorPublicIdsParams) {
+    const uniqueActorIds = [...new Set(actorIds)].filter(Boolean)
+    if (uniqueActorIds.length === 0) return new Map<string, string>()
+    const rows = await database<SQLActor>('actors')
+      .whereIn('id', uniqueActorIds)
+      .whereNotNull('publicId')
+      .select('id', 'publicId')
+    return new Map<string, string>(
+      rows.map((row) => [row.id, row.publicId as string])
+    )
+  },
+
   async getMastodonActorFromId({ id }: GetActorFromIdParams) {
     return this.getMastodonActor(id)
   },
@@ -686,6 +734,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       : null
     return Actor.parse({
       id: sqlActor.id,
+      publicId: sqlActor.publicId ?? null,
       type: ActorType.catch(ActorType.enum.Person).parse(sqlActor.type),
       username: sqlActor.username,
       domain: sqlActor.domain,

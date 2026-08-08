@@ -1,6 +1,7 @@
 import { PROCESS_FITNESS_FILE_JOB_NAME } from '@/lib/jobs/names'
 import { isFitnessProcessingStuck } from '@/lib/services/fitness-files/processingState'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getQueue } from '@/lib/services/queue'
 import { Scope } from '@/lib/types/database/operations'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -16,7 +17,6 @@ import {
 } from '@/lib/utils/response'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
@@ -33,7 +33,7 @@ export const POST = traceApiRoute(
     const encodedStatusId = (await params).id
     if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
 
-    const statusId = idToUrl(encodedStatusId)
+    const statusId = await resolveStatusIdParam(database, encodedStatusId)
     const status = await database.getStatus({ statusId, withReplies: false })
     if (!status) return apiCorsError(req, CORS_HEADERS, 404)
 

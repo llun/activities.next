@@ -1,11 +1,13 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
+import { Database } from '@/lib/database/types'
 import { serializeAdminReports } from '@/lib/services/admin/serializeAdminReports'
 import { AdminApiGuard } from '@/lib/services/guards/AdminApiGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { buildPaginationLinkHeader } from '@/lib/utils/paginationLinkHeader'
+import { isPublicId } from '@/lib/utils/publicId'
 import {
   ERROR_400,
   HTTP_STATUS,
@@ -17,6 +19,20 @@ import { safeIdToUrl } from '@/lib/utils/urlToId'
 import { Booleanish } from '@/lib/utils/zodBooleanish'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
+
+// Accept-old resolution for the account filters. A value that resolves to no
+// stored actor is returned UNCHANGED — the same contract resolveActorIdParam
+// keeps — so it matches no report. It must never collapse to `undefined`:
+// getAdminReports skips its WHERE entirely for an absent filter, so an unknown
+// account id would answer a filtered query with EVERY report while the
+// moderator believes the list is scoped to one account.
+const resolveActorIdFilter = async (
+  database: Pick<Database, 'getActorIdByPublicId'>,
+  value: string
+): Promise<string> =>
+  isPublicId(value)
+    ? ((await database.getActorIdByPublicId({ publicId: value })) ?? value)
+    : (safeIdToUrl(value) ?? value)
 
 const QueryParams = z.object({
   resolved: Booleanish.optional(),
@@ -53,10 +69,10 @@ export const GET = traceApiRoute(
         resolved: q.resolved,
         // account_id/target_account_id are Mastodon account (actor) ids.
         accountId: q.account_id
-          ? (safeIdToUrl(q.account_id) ?? undefined)
+          ? await resolveActorIdFilter(database, q.account_id)
           : undefined,
         targetActorId: q.target_account_id
-          ? (safeIdToUrl(q.target_account_id) ?? undefined)
+          ? await resolveActorIdFilter(database, q.target_account_id)
           : undefined,
         byTargetDomain: q.by_target_domain,
         limit: q.limit,

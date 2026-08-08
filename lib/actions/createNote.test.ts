@@ -20,6 +20,7 @@ import { StatusNote } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
+import { isPublicId } from '@/lib/utils/publicId'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
 enableFetchMocks()
@@ -102,6 +103,18 @@ describe('Create note action', () => {
         database,
         status
       )
+    })
+
+    it('mints the new status URI tail from a v7 publicId', async () => {
+      const status = (await createNoteFromUserInput({
+        text: 'New status URI tail',
+        currentActor: actor1,
+        database
+      })) as StatusNote
+
+      expect(status.publicId).toBeTruthy()
+      expect(isPublicId(status.publicId as string)).toBe(true)
+      expect(status.id).toBe(`${actor1.id}/statuses/${status.publicId}`)
     })
 
     it('forces sensitive to true when the creating actor is sensitized', async () => {

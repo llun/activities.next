@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { generatePublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
 const { database, instance } = getTestSQLDatabaseWithInstance()
@@ -137,6 +138,49 @@ describe('admin reports API', () => {
     ])
     expect(entity.assigned_account).toBeNull()
   })
+
+  it('filters by account_id and target_account_id in publicId form', async () => {
+    const adminActor = await database.getActorFromId({ id: ADMIN_ACTOR_ID })
+    const targetActor = await database.getActorFromId({ id: TARGET_ACTOR_ID })
+    if (!adminActor?.publicId || !targetActor?.publicId) {
+      throw new Error('seeded actors are missing a publicId')
+    }
+
+    const byAccountId = await listRoute.GET(
+      adminRequest(`/api/v1/admin/reports?account_id=${adminActor.publicId}`),
+      { params: Promise.resolve({}) }
+    )
+    expect(byAccountId.status).toBe(200)
+    expect(
+      (await byAccountId.json()).map((r: { id: string }) => r.id)
+    ).toContain(reportId)
+
+    const byTargetAccountId = await listRoute.GET(
+      adminRequest(
+        `/api/v1/admin/reports?target_account_id=${targetActor.publicId}`
+      ),
+      { params: Promise.resolve({}) }
+    )
+    expect(byTargetAccountId.status).toBe(200)
+    expect(
+      (await byTargetAccountId.json()).map((r: { id: string }) => r.id)
+    ).toContain(reportId)
+  })
+
+  it.each([
+    { description: 'account_id', param: 'account_id' },
+    { description: 'target_account_id', param: 'target_account_id' }
+  ])(
+    'returns no reports when $description is an unknown publicId',
+    async ({ param }) => {
+      const response = await listRoute.GET(
+        adminRequest(`/api/v1/admin/reports?${param}=${generatePublicId()}`),
+        { params: Promise.resolve({}) }
+      )
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual([])
+    }
+  )
 
   it('updates category and 422s unknown rule_ids', async () => {
     const ok = await idRoute.PUT(

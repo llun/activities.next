@@ -84,6 +84,15 @@ export type GetActorFromEmailParams = { email: string }
 export type GetActorFromUsernameParams = { username: string; domain: string }
 export type GetActorFromIdParams = { id: string }
 export type GetActorsFromIdsParams = { ids: string[] }
+export interface GetActorIdByPublicIdParams {
+  publicId: string
+}
+export interface GetActorIdsByPublicIdsParams {
+  publicIds: string[]
+}
+export interface GetActorPublicIdsParams {
+  actorIds: string[]
+}
 export type GetLocalActorsParams = {
   localDomain: string
   limit?: number
@@ -214,6 +223,17 @@ export interface ActorDatabase {
   ): Promise<Mastodon.Account | null>
   getActorFromId(params: GetActorFromIdParams): Promise<Actor | null>
   getActorsFromIds(params: GetActorsFromIdsParams): Promise<Actor[]>
+  getActorIdByPublicId(
+    params: GetActorIdByPublicIdParams
+  ): Promise<string | null>
+  // publicId -> actor URI, for the batch id resolver. One query per request
+  // instead of one per id.
+  getActorIdsByPublicIds(
+    params: GetActorIdsByPublicIdsParams
+  ): Promise<Map<string, string>>
+  getActorPublicIds(
+    params: GetActorPublicIdsParams
+  ): Promise<Map<string, string>>
   getActorFromEmail(params: GetActorFromEmailParams): Promise<Actor | null>
   getActorFromUsername(
     params: GetActorFromUsernameParams
@@ -490,6 +510,10 @@ interface BaseCreateStatusParams {
   applicationWebsite?: string | null
 
   createdAt?: number
+  // The client-facing UUIDv7 id. Omit to mint one from createdAt (or now).
+  // Callers that already generated the id for the status URI tail (Task 1.5)
+  // pass it here so the URI tail, web-url tail, and stored publicId agree.
+  publicId?: string
 }
 
 export type CreateNoteParams = BaseCreateStatusParams
@@ -517,7 +541,7 @@ export type UpdateNoteVisibilityParams = BaseStatusParams & {
 
 export type CreateAnnounceParams = Pick<
   BaseCreateStatusParams,
-  'id' | 'actorId' | 'to' | 'cc' | 'createdAt'
+  'id' | 'actorId' | 'to' | 'cc' | 'createdAt' | 'publicId'
 > & {
   originalStatusId: string
 }
@@ -590,6 +614,29 @@ export type GetStatusFromUrlHashParams = {
   // bookmark and reaction state — the hash route lands on the same status
   // detail page as the id route and must hydrate it the same way.
   currentActorId?: string
+}
+
+export interface GetStatusIdByPublicIdParams {
+  publicId: string
+}
+export interface GetStatusIdsByPublicIdsParams {
+  publicIds: string[]
+}
+export interface GetStatusFromPublicIdParams {
+  publicId: string
+  currentActorId?: string
+}
+export interface GetStatusPublicIdsParams {
+  statusIds: string[]
+}
+export interface GetActorStatusFromPathSegmentParams {
+  actorId: string
+  // The `[statusId]` segment of `/users/:username/statuses/:statusId`. It is
+  // either the tail of the status URI or the status publicId — a status created
+  // before publicIds existed keeps its original tail and only gained a publicId
+  // in the backfill, so both forms address the same row.
+  pathSegment: string
+  withReplies?: boolean
 }
 
 export type GetActorAnnouncedStatusIdParams = {
@@ -817,6 +864,27 @@ export interface StatusDatabase {
   getStatusFromUrl(params: GetStatusFromUrlParams): Promise<Status | null>
   getStatusFromUrlHash(
     params: GetStatusFromUrlHashParams
+  ): Promise<Status | null>
+  getStatusIdByPublicId(
+    params: GetStatusIdByPublicIdParams
+  ): Promise<string | null>
+  // publicId -> status URI, for the batch id resolver. One query per request
+  // instead of one per id.
+  getStatusIdsByPublicIds(
+    params: GetStatusIdsByPublicIdsParams
+  ): Promise<Map<string, string>>
+  getStatusFromPublicId(
+    params: GetStatusFromPublicIdParams
+  ): Promise<Status | null>
+  getStatusPublicIds(
+    params: GetStatusPublicIdsParams
+  ): Promise<Map<string, string>>
+  // Resolves the `[statusId]` path segment of the ActivityPub status routes,
+  // accepting either the status URI tail or the status publicId. Scoped to
+  // `actorId`: a publicId belonging to another actor resolves to null instead
+  // of surfacing under this actor's URL space.
+  getActorStatusFromPathSegment(
+    params: GetActorStatusFromPathSegmentParams
   ): Promise<Status | null>
   getActorAnnouncedStatusId(
     params: GetActorAnnouncedStatusIdParams

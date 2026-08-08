@@ -221,6 +221,56 @@ describe('admin accounts API', () => {
     expect(await byRole.json()).toEqual([])
   })
 
+  // Pre-existing bug: listAdminAccountsResponse emits urlToId(actor.id)
+  // cursors, but nothing ever decoded max_id/since_id/min_id back before
+  // getAdminAccounts' exact `where('id', ...)` cursor lookup — so a page 2
+  // request with the emitted cursor silently ignored it and returned page 1
+  // again. This fails without the fix.
+  it.each([
+    {
+      description: 'v1',
+      get: () => listRoute.GET,
+      path: '/api/v1/admin/accounts'
+    },
+    {
+      description: 'v2',
+      get: () => listRouteV2.GET,
+      path: '/api/v2/admin/accounts'
+    }
+  ])(
+    'paginates past page 1 using the emitted Link-header max_id cursor ($description)',
+    async ({ get, path }) => {
+      await makeLocalAccount()
+      await makeLocalAccount()
+      await makeLocalAccount()
+
+      const page1 = await get()(adminRequest(`${path}?limit=1`), {
+        params: Promise.resolve({})
+      })
+      expect(page1.status).toBe(200)
+      const page1Accounts = await page1.json()
+      expect(page1Accounts).toHaveLength(1)
+
+      const link = page1.headers.get('link') ?? ''
+      const nextMatch = /<([^>]+)>;\s*rel="next"/.exec(link)
+      expect(nextMatch).not.toBeNull()
+      const nextUrl = new URL(nextMatch![1])
+      const maxId = nextUrl.searchParams.get('max_id')
+      expect(maxId).toBeTruthy()
+
+      const page2 = await get()(
+        adminRequest(`${path}?limit=1&max_id=${maxId}`),
+        { params: Promise.resolve({}) }
+      )
+      expect(page2.status).toBe(200)
+      const page2Accounts = await page2.json()
+      expect(page2Accounts).toHaveLength(1)
+      // The cursor must have advanced past page 1's account, not returned it
+      // again.
+      expect(page2Accounts[0].id).not.toBe(page1Accounts[0].id)
+    }
+  )
+
   it.each([
     { description: 'approve on a remote account 422s', route: 'approve' },
     { description: 'reject on a remote account 422s', route: 'reject' },

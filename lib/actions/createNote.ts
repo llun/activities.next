@@ -1,5 +1,3 @@
-import crypto from 'crypto'
-
 import { Database } from '@/lib/database/types'
 import {
   PROCESS_FITNESS_FILE_JOB_NAME,
@@ -27,12 +25,14 @@ import {
   StatusNote,
   getOriginalStatus
 } from '@/lib/types/domain/status'
+import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
+import { generatePublicId } from '@/lib/utils/publicId'
 import { MENTION_GLOBAL_REGEX } from '@/lib/utils/text/convertMarkdownText'
 import { getEmojiTags } from '@/lib/utils/text/getEmojiTags'
 import { getHashtags } from '@/lib/utils/text/getHashtags'
@@ -366,8 +366,11 @@ export const createNoteFromUserInput = async ({
     ? await database.getStatus({ statusId: replyNoteId, withReplies: false })
     : null
 
-  const postId = crypto.randomUUID()
-  const statusId = `${currentActor.id}/statuses/${postId}`
+  const postId = generatePublicId()
+  const statusId = getLocalStatusId({
+    actorId: currentActor.id,
+    statusId: postId
+  })
   const mentions = await getMentions({ text, currentActor, replyStatus })
   const explicitMentions = getExplicitMentions(text, mentions)
 
@@ -425,6 +428,7 @@ export const createNoteFromUserInput = async ({
   const createdStatus = await database.createNote({
     id: statusId,
     url: `https://${currentActor.domain}/${getMention(currentActor)}/${postId}`,
+    publicId: postId,
 
     actorId: currentActor.id,
 

@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { listAdminAccountsResponse } from '@/lib/services/admin/listAdminAccountsResponse'
 import { AdminApiGuard } from '@/lib/services/guards/AdminApiGuard'
+import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { GetAdminAccountsParams } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -71,6 +72,17 @@ export const GET = traceApiRoute(
         return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
       }
 
+      // The cursors listAdminAccountsResponse emits are urlToId(actor.id); a
+      // client sends one back as max_id/since_id/min_id, so resolve it (also
+      // accepting a UUIDv7 publicId) to the actor URI getAdminAccounts
+      // exact-matches against — pre-existing bug: nothing ever decoded these,
+      // so pagination past page 1 never matched a row.
+      const [maxId, sinceId, minId] = await Promise.all([
+        q.max_id ? resolveActorIdParam(database, q.max_id) : undefined,
+        q.since_id ? resolveActorIdParam(database, q.since_id) : undefined,
+        q.min_id ? resolveActorIdParam(database, q.min_id) : undefined
+      ])
+
       const params: GetAdminAccountsParams = {
         limit: q.limit,
         local: q.origin === 'local' ? true : undefined,
@@ -86,9 +98,9 @@ export const GET = traceApiRoute(
         byDomain: q.by_domain,
         email: q.email,
         ip: q.ip,
-        maxId: q.max_id,
-        sinceId: q.since_id,
-        minId: q.min_id
+        maxId,
+        sinceId,
+        minId
       }
 
       return listAdminAccountsResponse({

@@ -6,7 +6,8 @@ import { GET } from './route'
 
 const mockDatabase = {
   getNotificationsCount: vi.fn(),
-  getNotifications: vi.fn()
+  getNotifications: vi.fn(),
+  getActorIdByPublicId: vi.fn()
 }
 
 const mockCurrentActor = {
@@ -197,5 +198,31 @@ describe('GET /api/v1/notifications/unread_count', () => {
       })
     )
     expect(mockDatabase.getNotificationsCount).not.toHaveBeenCalled()
+  })
+
+  it('resolves a publicId-form account_id before the post-fetch filter', async () => {
+    const aliceId = 'https://other.test/users/alice'
+    const bobId = 'https://other.test/users/bob'
+    mockDatabase.getNotifications.mockResolvedValueOnce([
+      { id: 'n1', sourceActorId: aliceId },
+      { id: 'n2', sourceActorId: bobId },
+      { id: 'n3', sourceActorId: aliceId }
+    ])
+    const alicePublicId = '0198a000-0000-7000-8000-000000000001'
+    mockDatabase.getActorIdByPublicId.mockResolvedValue(aliceId)
+
+    const request = new NextRequest(
+      `https://llun.test/api/v1/notifications/unread_count?account_id=${alicePublicId}`,
+      { method: 'GET' }
+    )
+
+    const response = await GET(request, { params: Promise.resolve({}) })
+    const data = await response.json()
+
+    expect(mockDatabase.getActorIdByPublicId).toHaveBeenCalledWith({
+      publicId: alicePublicId
+    })
+    expect(response.status).toBe(200)
+    expect(data).toEqual({ count: 2 })
   })
 })
