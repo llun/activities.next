@@ -98,7 +98,10 @@ export const GET = traceApiRoute(
 
       const additionalHeaders = buildPaginationLinkHeader({
         host: headerHost(req.headers),
-        path: `/api/v1/accounts/${encodedAccountId}/followers`,
+        // Percent-encoded: the router hands the id over already decoded, and
+        // the resolver accepts a raw http(s) URI as an id form, so the raw
+        // value would emit a Link URL that does not route back here.
+        path: `/api/v1/accounts/${encodeURIComponent(encodedAccountId)}/followers`,
         limit,
         nextMaxId:
           orderedFollows.length > 0

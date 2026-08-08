@@ -139,8 +139,10 @@ describe('/api/v1/accounts/[id]/in_collections', () => {
     )
     expect(response.status).toBe(200)
     const link = response.headers.get('Link') ?? ''
+    // The account id is percent-encoded in the emitted path so a raw-URI id
+    // form cannot split into extra path segments.
     expect(link).toContain(
-      `/api/v1/accounts/${targetAccountId}/in_collections?limit=1&offset=2>; rel="next"`
+      `/api/v1/accounts/${encodeURIComponent(targetAccountId)}/in_collections?limit=1&offset=2>; rel="next"`
     )
     expect(link).toContain('limit=1&offset=0>; rel="prev"')
   })

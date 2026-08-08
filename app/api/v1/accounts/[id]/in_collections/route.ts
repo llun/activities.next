@@ -67,7 +67,10 @@ export const GET = traceApiRoute(
         data: { collections: entities },
         additionalHeaders: buildOffsetPaginationLinkHeader({
           host: headerHost(req.headers),
-          path: `/api/v1/accounts/${id}/in_collections`,
+          // Percent-encoded: the router hands the id over already decoded, and
+          // the resolver accepts a raw http(s) URI as an id form, so the raw
+          // value would emit a Link URL that does not route back here.
+          path: `/api/v1/accounts/${encodeURIComponent(id)}/in_collections`,
           limit,
           offset,
           hasNext: entities.length === limit

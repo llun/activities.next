@@ -285,7 +285,10 @@ export const GET = traceApiRoute(
       )
 
       const host = headerHost(req.headers)
-      const pathBase = `/api/v1/accounts/${encodedAccountId}/statuses`
+      // Percent-encode the id: the router hands it over already decoded, and
+      // the resolver accepts a raw http(s) URI as an id form, so interpolating
+      // it verbatim emits a Link URL whose path does not route back here.
+      const pathBase = `/api/v1/accounts/${encodeURIComponent(encodedAccountId)}/statuses`
 
       const linkBaseParams = new URLSearchParams()
       linkBaseParams.set('limit', `${limit}`)
