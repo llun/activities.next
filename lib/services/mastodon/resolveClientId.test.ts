@@ -1,4 +1,5 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
@@ -11,6 +12,43 @@ import {
   resolveStatusIdParam,
   resolveStatusIdParams
 } from './resolveClientId'
+
+// SQLite (what this suite runs on) and PostgreSQL compare `publicId` case
+// SENSITIVELY; MySQL's default utf8mb4_0900_ai_ci collation does not, and the
+// row it matches comes back carrying the publicId as STORED rather than as
+// requested. The two stubs below simulate that collation and nothing else — they
+// are not a second database implementation, only the one behavior a real test
+// database cannot produce.
+const matchesIgnoringCase = (requested: string, stored: string) =>
+  requested.toLowerCase() === stored.toLowerCase()
+
+const createCaseInsensitiveStatusDatabase = (
+  storedPublicId: string,
+  statusId: string
+): Pick<Database, 'getStatusIdByPublicId' | 'getStatusIdsByPublicIds'> => ({
+  getStatusIdByPublicId: async ({ publicId }) =>
+    matchesIgnoringCase(publicId, storedPublicId) ? statusId : null,
+  getStatusIdsByPublicIds: async ({ publicIds }) =>
+    new Map<string, string>(
+      publicIds
+        .filter((publicId) => matchesIgnoringCase(publicId, storedPublicId))
+        .map((): [string, string] => [storedPublicId, statusId])
+    )
+})
+
+const createCaseInsensitiveActorDatabase = (
+  storedPublicId: string,
+  actorId: string
+): Pick<Database, 'getActorIdByPublicId' | 'getActorIdsByPublicIds'> => ({
+  getActorIdByPublicId: async ({ publicId }) =>
+    matchesIgnoringCase(publicId, storedPublicId) ? actorId : null,
+  getActorIdsByPublicIds: async ({ publicIds }) =>
+    new Map<string, string>(
+      publicIds
+        .filter((publicId) => matchesIgnoringCase(publicId, storedPublicId))
+        .map((): [string, string] => [storedPublicId, actorId])
+    )
+})
 
 describe('resolveStatusIdParam', () => {
   const database = getTestSQLDatabase()
@@ -47,6 +85,12 @@ describe('resolveStatusIdParam', () => {
     await expect(resolveStatusIdParam(database, statusPublicId)).resolves.toBe(
       statusUrl
     )
+  })
+
+  it('resolves an uppercased publicId to the same URI as its stored lowercase form', async () => {
+    await expect(
+      resolveStatusIdParam(database, statusPublicId.toUpperCase())
+    ).resolves.toBe(statusUrl)
   })
 
   it('returns a fresh publicId that was never stored unchanged', async () => {
@@ -95,6 +139,12 @@ describe('resolveActorIdParam', () => {
     await expect(resolveActorIdParam(database, actorPublicId)).resolves.toBe(
       ACTOR1_ID
     )
+  })
+
+  it('resolves an uppercased publicId to the same URI as its stored lowercase form', async () => {
+    await expect(
+      resolveActorIdParam(database, actorPublicId.toUpperCase())
+    ).resolves.toBe(ACTOR1_ID)
   })
 
   it('returns a fresh publicId that was never stored unchanged', async () => {
@@ -186,6 +236,7 @@ describe('resolveStatusIdParams', () => {
       firstPublicId,
       urlToId(secondStatusUrl),
       generatePublicId(),
+      firstPublicId.toUpperCase(),
       ''
     ]
     await expect(resolveStatusIdParams(database, params)).resolves.toEqual(
@@ -194,6 +245,35 @@ describe('resolveStatusIdParams', () => {
       )
     )
   })
+
+  // The stored/requested casings are thunks because the seeded publicIds only
+  // exist once beforeAll has run, while the table is built at collection time.
+  it.each([
+    {
+      description: 'the request is uppercased',
+      storedPublicId: () => firstPublicId,
+      requestedPublicId: () => firstPublicId.toUpperCase()
+    },
+    {
+      description: 'the stored id is uppercased',
+      storedPublicId: () => firstPublicId.toUpperCase(),
+      requestedPublicId: () => firstPublicId
+    }
+  ])(
+    'matches the single-id resolver when $description and the collation ignores case',
+    async ({ storedPublicId, requestedPublicId }) => {
+      const caseInsensitiveDatabase = createCaseInsensitiveStatusDatabase(
+        storedPublicId(),
+        firstStatusUrl
+      )
+      const param = requestedPublicId()
+      const single = await resolveStatusIdParam(caseInsensitiveDatabase, param)
+      expect(single).toBe(firstStatusUrl)
+      await expect(
+        resolveStatusIdParams(caseInsensitiveDatabase, [param])
+      ).resolves.toEqual([single])
+    }
+  )
 })
 
 describe('resolveActorIdParams', () => {
@@ -266,6 +346,7 @@ describe('resolveActorIdParams', () => {
       actor1PublicId,
       urlToId(ACTOR2_ID),
       generatePublicId(),
+      actor1PublicId.toUpperCase(),
       ''
     ]
     await expect(resolveActorIdParams(database, params)).resolves.toEqual(
@@ -274,4 +355,33 @@ describe('resolveActorIdParams', () => {
       )
     )
   })
+
+  // The stored/requested casings are thunks because the seeded publicIds only
+  // exist once beforeAll has run, while the table is built at collection time.
+  it.each([
+    {
+      description: 'the request is uppercased',
+      storedPublicId: () => actor1PublicId,
+      requestedPublicId: () => actor1PublicId.toUpperCase()
+    },
+    {
+      description: 'the stored id is uppercased',
+      storedPublicId: () => actor1PublicId.toUpperCase(),
+      requestedPublicId: () => actor1PublicId
+    }
+  ])(
+    'matches the single-id resolver when $description and the collation ignores case',
+    async ({ storedPublicId, requestedPublicId }) => {
+      const caseInsensitiveDatabase = createCaseInsensitiveActorDatabase(
+        storedPublicId(),
+        ACTOR1_ID
+      )
+      const param = requestedPublicId()
+      const single = await resolveActorIdParam(caseInsensitiveDatabase, param)
+      expect(single).toBe(ACTOR1_ID)
+      await expect(
+        resolveActorIdParams(caseInsensitiveDatabase, [param])
+      ).resolves.toEqual([single])
+    }
+  )
 })
