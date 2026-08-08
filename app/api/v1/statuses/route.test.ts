@@ -19,6 +19,7 @@ import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { Status, StatusPoll } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
+import { generatePublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { GET, POST } from './route'
@@ -161,6 +162,69 @@ describe('POST /api/v1/statuses', () => {
       })
     ])
     expect(getQueue().publish).toHaveBeenCalledTimes(1)
+  })
+
+  describe('in_reply_to_id resolution', () => {
+    // Regression coverage for the pre-existing bug: in_reply_to_id was never
+    // decoded, so a colon-form (or publicId-form) reply target silently
+    // created a non-reply because createNoteFromUserInput does an exact
+    // `where('id', …)` lookup with no decoding of its own.
+    it.each([
+      {
+        description: 'colon form',
+        toParam: (parentId: string) => urlToId(parentId)
+      },
+      {
+        description: 'publicId form',
+        toParam: async (parentId: string) => {
+          const parent = await database.getStatus({ statusId: parentId })
+          if (!parent?.publicId) {
+            throw new Error('seeded parent status is missing a publicId')
+          }
+          return parent.publicId
+        }
+      },
+      {
+        description: 'raw URI form',
+        toParam: (parentId: string) => parentId
+      }
+    ])(
+      'creates a reply when in_reply_to_id is given in $description',
+      async ({ toParam }) => {
+        const parent = await database.createNote({
+          id: `${ACTOR1_ID}/statuses/route-reply-parent-${generatePublicId()}`,
+          url: `${ACTOR1_ID}/statuses/route-reply-parent-${generatePublicId()}`,
+          actorId: ACTOR1_ID,
+          text: 'parent post',
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: []
+        })
+        const inReplyToId = await toParam(parent.id)
+
+        const response = await POST(
+          new NextRequest('https://llun.test/api/v1/statuses', {
+            method: 'POST',
+            body: JSON.stringify({
+              status: 'a reply',
+              in_reply_to_id: inReplyToId
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }),
+          { params: Promise.resolve({}) }
+        )
+
+        expect(response.status).toBe(200)
+        const mastodonStatus = await response.json()
+        const created = (await database.getStatus({
+          statusId: mastodonStatus.uri,
+          withReplies: false
+        })) as Status
+        expect(created.reply).toBe(parent.id)
+      }
+    )
   })
 
   it('creates a status quoting the authors own public status', async () => {

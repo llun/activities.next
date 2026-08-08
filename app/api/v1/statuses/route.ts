@@ -347,12 +347,21 @@ export const POST = traceApiRoute(
           ? { name: client.name, website: client.website ?? null }
           : undefined
 
+        // Resolve in_reply_to_id (raw URI, publicId, or legacy colon/apurl_
+        // form) to the parent status's stored URI before it reaches the exact
+        // `where('id', …)` lookup inside createNoteFromUserInput /
+        // createPollFromUserInput — those do no decoding of their own, so an
+        // unresolved colon-form id would silently create a non-reply.
+        const replyStatusId = note.in_reply_to_id
+          ? await resolveStatusIdParam(database, note.in_reply_to_id)
+          : undefined
+
         let status
         if (note.poll) {
           status = await createPollFromUserInput({
             text: note.status,
             summary: note.spoiler_text,
-            replyStatusId: note.in_reply_to_id,
+            replyStatusId,
             currentActor,
             choices: note.poll.options,
             endAt: Date.now() + note.poll.expires_in * 1000,
@@ -435,7 +444,7 @@ export const POST = traceApiRoute(
             currentActor,
             text: note.status,
             summary: note.spoiler_text,
-            replyNoteId: note.in_reply_to_id,
+            replyNoteId: replyStatusId,
             quotedStatusId,
             quoteApprovalPolicy,
             visibility: note.visibility,
