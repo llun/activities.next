@@ -1,0 +1,42 @@
+app/api/v2/notifications/route.ts
+  s_4f4812f16bd65a::t_0c2ec33b17b776 7
+  s_4f4812f16bd65a::t_08573a41400dba 119,123-128
+lib/services/notifications/collectNotificationGroups.ts
+  s_4f4812f16bd65a::t_96b9b437fec459 27-31
+  s_4f4812f16bd65a::t_677fbfdd691ea7 97
+app/api/v2/notifications/unread_count/route.test.ts
+  s_4f4812f16bd65a::t_8d2cea3c4ce9d0 13-14
+  s_4f4812f16bd65a::t_37431607e4d710 206-249
+app/api/v1/notifications/unread_count/route.ts
+  s_4f4812f16bd65a::t_304bdefe71af6b 99
+  s_4f4812f16bd65a::t_eb02c54958d3e0 91-97,108
+  s_4f4812f16bd65a::t_fac045e639af14 5
+app/api/v1/notifications/unread_count/route.test.ts
+  s_4f4812f16bd65a::t_17da3fef48f48d 202-227
+  s_4f4812f16bd65a::t_5cb08822f36be1 9-10
+lib/services/notifications/collectNotificationGroups.test.ts
+  s_4f4812f16bd65a::t_7887382978d148 114-117
+  s_4f4812f16bd65a::t_aed7642e6f62af 181-184
+app/api/v2/notifications/route.test.ts
+  s_4f4812f16bd65a::t_a528c4634999e0 11-12
+  s_4f4812f16bd65a::t_3069c6e8fcb88e 126-171
+app/api/v2/notifications/unread_count/route.ts
+  s_4f4812f16bd65a::t_7e829b13acc853 6
+  s_4f4812f16bd65a::t_5709365b4d02e7 94,96-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "5f9add6368b9644393ad12c5fde22d72384e0759",
+  "prompts": {},
+  "sessions": {
+    "s_4f4812f16bd65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef4966e6-a801-42ad-bea7-0a298c41d397",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
