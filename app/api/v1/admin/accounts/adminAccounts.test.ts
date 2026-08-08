@@ -60,6 +60,13 @@ const makeLocalAccount = async () => {
   }
 }
 
+// The id the Admin::Account entity emits: the actor's UUIDv7 publicId, with
+// the legacy colon form as the permanent fallback for pre-backfill rows.
+const emittedId = async (actorId: string) => {
+  const publicIds = await database.getActorPublicIds({ actorIds: [actorId] })
+  return publicIds.get(actorId) ?? urlToId(actorId)
+}
+
 const adminRequest = (
   path: string,
   init: { method?: string; body?: unknown } = {}
@@ -130,9 +137,11 @@ describe('admin accounts API', () => {
     expect(listResponse.status).toBe(200)
     const list = await listResponse.json()
     const ids = list.map((account: { id: string }) => account.id)
-    expect(ids).toContain(urlToId(TARGET_ACTOR_ID))
-    expect(ids).toContain(urlToId(EXTERNAL_ACTOR1))
+    expect(ids).toContain(await emittedId(TARGET_ACTOR_ID))
+    expect(ids).toContain(await emittedId(EXTERNAL_ACTOR1))
 
+    // The legacy colon id is still accepted as the path param even though the
+    // entity now emits the publicId.
     const id = urlToId(TARGET_ACTOR_ID)
     const getResponse = await idRoute.GET(
       adminRequest(`/api/v1/admin/accounts/${id}`),
@@ -140,7 +149,7 @@ describe('admin accounts API', () => {
     )
     expect(getResponse.status).toBe(200)
     const entity = await getResponse.json()
-    expect(entity.id).toBe(id)
+    expect(entity.id).toBe(await emittedId(TARGET_ACTOR_ID))
     expect(entity.username).toBe('target')
     expect(entity.domain).toBeNull()
   })
@@ -209,8 +218,8 @@ describe('admin accounts API', () => {
     expect(remoteOnly.status).toBe(200)
     const remoteList = await remoteOnly.json()
     const remoteIds = remoteList.map((account: { id: string }) => account.id)
-    expect(remoteIds).toContain(urlToId(EXTERNAL_ACTOR1))
-    expect(remoteIds).not.toContain(urlToId(TARGET_ACTOR_ID))
+    expect(remoteIds).toContain(await emittedId(EXTERNAL_ACTOR1))
+    expect(remoteIds).not.toContain(await emittedId(TARGET_ACTOR_ID))
 
     // No roles subsystem: a role_ids[] filter can never match — empty page.
     const byRole = await listRouteV2.GET(

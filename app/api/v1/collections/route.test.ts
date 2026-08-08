@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
-import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -41,6 +41,13 @@ vi.mock('@/lib/config', () => ({
 
 describe('/api/v1/collections', () => {
   const database = getTestSQLDatabase()
+
+  // publicIds are minted at insert and random per run: read the emitted id back
+  // off the stored row rather than hard-coding one.
+  const emittedActorId = async (actorId: string) => {
+    const publicIds = await database.getActorPublicIds({ actorIds: [actorId] })
+    return publicIds.get(actorId) ?? urlToId(actorId)
+  }
 
   beforeAll(async () => {
     await database.migrate()
@@ -88,7 +95,7 @@ describe('/api/v1/collections', () => {
     expect(data.collection.items).toEqual([])
     expect(data.collection.local).toBe(true)
     expect(typeof data.collection.id).toBe('string')
-    expect(data.collection.account_id).toBe('llun.test:users:test1')
+    expect(data.collection.account_id).toBe(await emittedActorId(ACTOR1_ID))
     expect(data.collection.uri).toBe(
       `https://llun.test/users/test1/collections/featured-collections/${data.collection.id}`
     )
@@ -169,7 +176,7 @@ describe('/api/v1/collections', () => {
     expect(collection.item_count).toBe(1)
     expect(collection.items).toHaveLength(1)
     expect(collection.items[0]).toMatchObject({
-      account_id: urlToId(ACTOR2_ID),
+      account_id: await emittedActorId(ACTOR2_ID),
       state: 'pending'
     })
     expect(typeof collection.items[0].id).toBe('string')

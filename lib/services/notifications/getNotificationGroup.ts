@@ -55,6 +55,11 @@ export const notificationGroupKey = (
  * Builds a Mastodon NotificationGroup from a grouped notification. Pure and
  * synchronous; the caller resolves sampleActorIds/statusId into the envelope's
  * deduped accounts/statuses arrays.
+ *
+ * The emitted ids start out in the legacy encoding and the envelope rewrites
+ * them to publicIds from the raw ids returned alongside — staying async-free
+ * here keeps the sampling in one place instead of duplicating it just to know
+ * which ids to prefetch.
  */
 export const getNotificationGroup = (
   notification: GroupedNotification

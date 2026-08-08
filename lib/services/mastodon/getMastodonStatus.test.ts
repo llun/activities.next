@@ -757,7 +757,7 @@ describe('getMastodonStatus', () => {
       id: status.publicId,
       uri: `${ACTOR1_ID}/statuses/post-1`,
       account: {
-        id: urlToId(ACTOR1_ID),
+        id: await getActorPublicId(ACTOR1_ID),
         username: getMentionFromActorID(ACTOR1_ID).slice(1),
         acct: getMentionFromActorID(ACTOR1_ID, true).slice(1),
         url: ACTOR1_ID,
@@ -999,7 +999,7 @@ describe('getMastodonStatus', () => {
         id: originalStatus.publicId,
         uri: `${ACTOR2_ID}/statuses/post-2`,
         account: {
-          id: urlToId(ACTOR2_ID),
+          id: await getActorPublicId(ACTOR2_ID),
           username: getMentionFromActorID(ACTOR2_ID).slice(1),
           acct: getMentionFromActorID(ACTOR2_ID, true).slice(1),
           created_at: expect.toBeString(),

@@ -11,7 +11,9 @@ const mockDatabase = {
   getActiveServerFilters: vi.fn().mockResolvedValue([]),
   getStatusesByIds: vi.fn(),
   getMastodonActorsFromIds: vi.fn(),
-  getActorIdByPublicId: vi.fn()
+  getActorIdByPublicId: vi.fn(),
+  getActorPublicIds: vi.fn(),
+  getStatusPublicIds: vi.fn()
 }
 
 const mockCurrentActor = { id: 'https://llun.test/users/llun' }
@@ -58,6 +60,10 @@ vi.mock('@/lib/services/guards/OAuthGuard', () => ({
 describe('GET /api/v2/notifications/unread_count', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // No publicIds seeded: the envelope keeps the legacy encoding on both
+    // the group ids and the account/status entities, so they still join.
+    mockDatabase.getActorPublicIds.mockResolvedValue(new Map<string, string>())
+    mockDatabase.getStatusPublicIds.mockResolvedValue(new Map<string, string>())
     mockDatabase.getNotifications.mockResolvedValue([])
     mockDatabase.getStatusesByIds.mockImplementation(
       ({ statusIds }: { statusIds: string[] }) =>

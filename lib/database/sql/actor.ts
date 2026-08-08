@@ -77,9 +77,12 @@ import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { logger } from '@/lib/utils/logger'
-import { generatePublicId, toPublicIdLookupKey } from '@/lib/utils/publicId'
+import {
+  generatePublicId,
+  getClientActorId,
+  toPublicIdLookupKey
+} from '@/lib/utils/publicId'
 import { generateKeyPair } from '@/lib/utils/signature'
-import { urlToId } from '@/lib/utils/urlToId'
 
 export interface SQLActorDatabase extends ActorDatabase {
   getActor: (
@@ -283,7 +286,10 @@ const getMastodonAccountFromSQLActor = ({
   const note = sqlActor.summary ?? ''
 
   return Mastodon.Account.parse({
-    id: urlToId(sqlActor.id),
+    // The single Account emission point: every embedded `account` (statuses,
+    // notifications, search, reactions, favourited_by, …) flips through here.
+    // A row that predates the backfill keeps emitting the legacy encoding.
+    id: getClientActorId(sqlActor),
     username: sqlActor.username,
     acct: isLocalActor ? sqlActor.username : qualifiedAcct,
     url: sqlActor.id,

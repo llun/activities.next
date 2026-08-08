@@ -9,6 +9,7 @@ import {
   OAuthGuard,
   OptionalOAuthGuard
 } from '@/lib/services/guards/OAuthGuard'
+import { resolveActorIdParams } from '@/lib/services/mastodon/resolveClientId'
 import { notifyCollectionUpdated } from '@/lib/services/notifications/collectionNotifications'
 import { Scope } from '@/lib/types/database/operations'
 import { CollectionVisibility } from '@/lib/types/domain/collection'
@@ -21,7 +22,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [
   HttpMethod.enum.OPTIONS,
@@ -63,8 +63,13 @@ export const GET = traceApiRoute(
         [collection],
         isOwner ? 'owner' : 'public'
       )
+      // The item account_ids were just serialized, so decode them back with the
+      // accept-side resolver: idToUrl would mangle a publicId into a fake URL.
       const accounts = await database.getMastodonActorsFromIds({
-        ids: entity.items.map((item) => idToUrl(item.account_id))
+        ids: await resolveActorIdParams(
+          database,
+          entity.items.map((item) => item.account_id)
+        )
       })
       return apiResponse({
         req,

@@ -68,21 +68,18 @@ export const getStatusReactionList = async ({
   const accounts = await database.getMastodonActorsFromIds({
     ids: requestedActorIds
   })
-  // Key by the actor URI decoded from the opaque `account.id`, falling back to
-  // `account.url` — for some actors `url` is a profile URL (`/@name`) rather
-  // than the actor URI, and keying on it alone drops them. Mirrors how
-  // getMastodonStatuses builds its account cache.
+  // Key by `uri`, the ActivityPub actor id — the same value the lookup was made
+  // with. `url` is a profile URL (`/@name`) on some actors and `id` is an
+  // opaque publicId that cannot be decoded back to a URI, so both are only
+  // fallbacks. Mirrors how getMastodonStatuses builds its account cache.
   const accountByActorId = new Map<string, Mastodon.Account>()
   for (const account of accounts) {
-    const decodedActorId =
+    const actorId = [
+      account.uri,
+      account.url,
       typeof account.id === 'string' ? idToUrl(account.id) : ''
-    if (requestedActorIdSet.has(decodedActorId)) {
-      accountByActorId.set(decodedActorId, account)
-      continue
-    }
-    if (requestedActorIdSet.has(account.url)) {
-      accountByActorId.set(account.url, account)
-    }
+    ].find((candidate) => requestedActorIdSet.has(candidate))
+    if (actorId) accountByActorId.set(actorId, account)
   }
 
   return selected.map((rollup) => ({

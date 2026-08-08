@@ -38,6 +38,9 @@ export const getFallbackMutedAccount = (mute: Mute): MutedAccount => {
       : `${username}@${mute.targetActorHost}`
 
   return {
+    // Deliberately still the legacy encoding after the publicId emission
+    // flip: this fallback runs precisely when the actor row is GONE, so no
+    // publicId can exist for it and urlToId is the permanent correct answer.
     id: urlToId(mute.targetActorId),
     username,
     acct,

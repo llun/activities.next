@@ -36,6 +36,10 @@ const item = (
   ...overrides
 })
 
+const TARGET_ACTOR_ID = 'https://llun.test/users/test2'
+const TARGET_PUBLIC_ID = '019a0000-0000-7000-8000-000000000002'
+const OWNER_PUBLIC_ID = '019a0000-0000-7000-8000-000000000001'
+
 describe('serializeCollectionItem', () => {
   it.each([
     { featureState: 'pending' as const, state: 'pending' },
@@ -44,15 +48,23 @@ describe('serializeCollectionItem', () => {
   ])(
     'maps featureState $featureState to state $state',
     ({ featureState, state }) => {
-      const serialized = serializeCollectionItem(item({ featureState }))
+      const serialized = serializeCollectionItem(
+        item({ featureState }),
+        new Map([[TARGET_ACTOR_ID, TARGET_PUBLIC_ID]])
+      )
       expect(serialized).toEqual({
         id: 'item-1',
-        account_id: 'llun.test:users:test2',
+        account_id: TARGET_PUBLIC_ID,
         state,
         created_at: '2024-07-03T09:46:40.000Z'
       })
     }
   )
+
+  it('falls back to the legacy account id when the actor has no publicId', () => {
+    const serialized = serializeCollectionItem(item({}))
+    expect(serialized.account_id).toBe('llun.test:users:test2')
+  })
 })
 
 describe('serializeCollection', () => {
@@ -61,11 +73,15 @@ describe('serializeCollection', () => {
       collection,
       items: [item({})],
       itemCount: 1,
-      approvedCount: 0
+      approvedCount: 0,
+      actorPublicIds: new Map([
+        [OWNER_ACTOR_ID, OWNER_PUBLIC_ID],
+        [TARGET_ACTOR_ID, TARGET_PUBLIC_ID]
+      ])
     })
     expect(entity).toMatchObject({
       id: 'col-1',
-      account_id: 'llun.test:users:test1',
+      account_id: OWNER_PUBLIC_ID,
       uri: `${OWNER_ACTOR_ID}/collections/featured-collections/col-1`,
       url: 'https://llun.test/collections/col-1',
       name: 'Excellent people',
@@ -157,11 +173,20 @@ describe('getCollectionEntities', () => {
   const buildDatabase = () => {
     const getCollectionItems = vi.fn().mockResolvedValue({ 'col-1': [] })
     const countCollectionItems = vi.fn().mockResolvedValue({ 'col-1': 0 })
+    const getActorPublicIds = vi
+      .fn()
+      .mockResolvedValue(new Map([[OWNER_ACTOR_ID, OWNER_PUBLIC_ID]]))
     const database = {
       getCollectionItems,
-      countCollectionItems
+      countCollectionItems,
+      getActorPublicIds
     } as unknown as Database
-    return { database, getCollectionItems, countCollectionItems }
+    return {
+      database,
+      getCollectionItems,
+      countCollectionItems,
+      getActorPublicIds
+    }
   }
 
   it('skips the redundant all-states count query in the public projection', async () => {
@@ -179,6 +204,25 @@ describe('getCollectionEntities', () => {
       collectionIds: ['col-1'],
       approvedOnly: true
     })
+  })
+
+  it('resolves owner and previewed member ids in one batched lookup', async () => {
+    const { database, getActorPublicIds, getCollectionItems } = buildDatabase()
+    getCollectionItems.mockResolvedValue({ 'col-1': [item({})] })
+
+    const [entity] = await getCollectionEntities(
+      database,
+      [collection],
+      'owner'
+    )
+
+    expect(getActorPublicIds).toHaveBeenCalledTimes(1)
+    expect(getActorPublicIds).toHaveBeenCalledWith({
+      actorIds: [OWNER_ACTOR_ID, TARGET_ACTOR_ID]
+    })
+    expect(entity.account_id).toBe(OWNER_PUBLIC_ID)
+    // The member has no publicId in the map, so it keeps the legacy encoding.
+    expect(entity.items[0].account_id).toBe('llun.test:users:test2')
   })
 
   it('runs both count queries in the owner projection', async () => {

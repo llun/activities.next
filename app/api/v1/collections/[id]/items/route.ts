@@ -194,10 +194,15 @@ export const POST = traceApiRoute(
             responseStatusCode: 422
           })
         }
+        const actorPublicIds = await database.getActorPublicIds({
+          actorIds: [item.targetActorId]
+        })
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: wrapCollectionItem(serializeCollectionItem(item))
+          data: wrapCollectionItem(
+            serializeCollectionItem(item, actorPublicIds)
+          )
         })
       }
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })

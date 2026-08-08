@@ -231,9 +231,13 @@ describe('getMastodonNotification', () => {
         notification
       )
 
+      const publicIds = await database.getActorPublicIds({
+        actorIds: [actor2Id]
+      })
+
       expect(mastodonNotification).not.toBeNull()
       expect(mastodonNotification?.account).toBeDefined()
-      expect(mastodonNotification?.account.id).toBe('example.com:users:actor2')
+      expect(mastodonNotification?.account.id).toBe(publicIds.get(actor2Id))
       expect(mastodonNotification?.account.username).toBe('actor2')
     })
 

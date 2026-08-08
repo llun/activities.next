@@ -36,6 +36,9 @@ export const getFallbackBlockedAccount = (block: Block): MastodonAccount => {
       : `${username}@${block.targetActorHost}`
 
   return {
+    // Deliberately still the legacy encoding after the publicId emission
+    // flip: this fallback runs precisely when the actor row is GONE, so no
+    // publicId can exist for it and urlToId is the permanent correct answer.
     id: urlToId(block.targetActorId),
     username,
     acct,
