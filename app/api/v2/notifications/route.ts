@@ -4,6 +4,7 @@ import { getDatabase } from '@/lib/database'
 import { getActiveFilters } from '@/lib/services/filters/applyFilters'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { collectNotificationGroups } from '@/lib/services/notifications/collectNotificationGroups'
 import {
   NotificationGroupsEnvelope,
@@ -115,10 +116,16 @@ export const GET = traceApiRoute(
         types,
         exclude_types: excludeTypes,
         grouped_types: groupedTypesMastodon,
-        account_id: accountId,
+        account_id: rawAccountId,
         expand_accounts: expandAccounts = 'full',
         include_filtered: includeFiltered = false
       } = parsed.data
+      // collectNotificationGroups compares its accountId filter directly
+      // against the stored sourceActorId URI, so resolve the client-supplied
+      // account_id (raw URI, publicId, or legacy colon/apurl_ form) here.
+      const accountId = rawAccountId
+        ? await resolveActorIdParam(database, rawAccountId)
+        : undefined
 
       // When grouped_types is omitted, fall back to Mastodon's default groupable
       // types (favourite/reblog/follow) so mentions/replies are not collapsed.

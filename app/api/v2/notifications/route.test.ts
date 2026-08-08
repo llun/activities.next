@@ -8,7 +8,8 @@ const mockDatabase = {
   getStatus: vi.fn(),
   getStatusesByIds: vi.fn(),
   getActiveFiltersForActor: vi.fn().mockResolvedValue([]),
-  getActiveServerFilters: vi.fn().mockResolvedValue([])
+  getActiveServerFilters: vi.fn().mockResolvedValue([]),
+  getActorIdByPublicId: vi.fn()
 }
 
 const mockCurrentActor = { id: 'https://llun.test/users/llun' }
@@ -120,6 +121,52 @@ describe('GET /api/v2/notifications', () => {
     expect(mockDatabase.getNotifications).toHaveBeenCalledWith(
       expect.objectContaining({ includeFiltered: false })
     )
+  })
+
+  it('resolves a publicId-form account_id before filtering the grouped scan', async () => {
+    mockDatabase.getNotifications.mockResolvedValueOnce([
+      {
+        id: 'n1',
+        type: 'like',
+        sourceActorId: 'https://other.test/users/alice',
+        statusId: 'https://other.test/statuses/1',
+        groupKey: 'like:https://other.test/statuses/1',
+        isRead: false,
+        filtered: false,
+        createdAt: 2000,
+        updatedAt: 2000
+      },
+      {
+        id: 'n2',
+        type: 'like',
+        sourceActorId: 'https://other.test/users/bob',
+        statusId: 'https://other.test/statuses/2',
+        groupKey: 'like:https://other.test/statuses/2',
+        isRead: false,
+        filtered: false,
+        createdAt: 1000,
+        updatedAt: 1000
+      }
+    ])
+    const alicePublicId = '0198a000-0000-7000-8000-000000000001'
+    mockDatabase.getActorIdByPublicId.mockResolvedValue(
+      'https://other.test/users/alice'
+    )
+
+    const request = new NextRequest(
+      `https://llun.test/api/v2/notifications?account_id=${alicePublicId}`,
+      { method: 'GET' }
+    )
+    const response = await GET(request, { params: Promise.resolve({}) })
+    const data = await response.json()
+
+    expect(mockDatabase.getActorIdByPublicId).toHaveBeenCalledWith({
+      publicId: alicePublicId
+    })
+    expect(response.status).toBe(200)
+    // Only alice's group survives the account_id filter.
+    expect(data.notification_groups).toHaveLength(1)
+    expect(data.accounts).toHaveLength(1)
   })
 
   it.each([
