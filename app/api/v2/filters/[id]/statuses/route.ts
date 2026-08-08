@@ -9,6 +9,7 @@ import {
   OAuthGuardAnyScope
 } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonFilterStatus } from '@/lib/services/mastodon/getMastodonFilter'
+import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -75,14 +76,23 @@ export const POST = traceApiRoute(
           responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
         })
       }
-      const statusId = parseStatusCreateInput(rawBody)
-      if (!statusId)
+      const suppliedStatusId = parseStatusCreateInput(rawBody)
+      if (!suppliedStatusId)
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
           data: ERROR_422,
           responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
         })
+
+      // parseStatusCreateInput validates the shape only, so resolve the client
+      // id form here like every other status-id-accepting write route. Matching
+      // compares a stored filter status against the status URI and its
+      // urlToId() form, so a publicId persisted verbatim would silently never
+      // match and the filter would appear to do nothing. Legacy colon-form and
+      // raw-URI input both resolve to that same URI, and rows already stored in
+      // either form keep matching untouched.
+      const statusId = await resolveStatusIdParam(database, suppliedStatusId)
 
       const filterStatus = await database.addFilterStatus({
         actorId: currentActor.id,
