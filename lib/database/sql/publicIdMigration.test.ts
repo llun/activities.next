@@ -85,6 +85,53 @@ describe('public ids migration', () => {
     )
   })
 
+  it('creates the missing unique index on a re-run after an interrupted first run', async () => {
+    // Simulates a process interruption between the column-add and index-add
+    // statements: the column exists (with a value already backfilled by the
+    // interrupted run) but the unique index does not.
+    await database('statuses').insert([
+      {
+        id: 'https://llun.test/users/a/statuses/1',
+        createdAt: Date.UTC(2022, 3, 1)
+      }
+    ])
+    await database.schema.alterTable('statuses', (table) => {
+      table.string('publicId', 36).nullable()
+    })
+    const partialPublicId = 'not-yet-backfilled-marker'
+    await database('statuses').update({ publicId: partialPublicId })
+
+    await expect(
+      database.raw("PRAGMA index_list('statuses')")
+    ).resolves.not.toContainEqual(
+      expect.objectContaining({ name: 'statuses_publicid_unique' })
+    )
+
+    await migration.up(database)
+
+    const indexes = await database.raw("PRAGMA index_list('statuses')")
+    expect(indexes).toContainEqual(
+      expect.objectContaining({ name: 'statuses_publicid_unique' })
+    )
+    // Re-running up() must not touch a row that already has a (non-v7, in
+    // this test) publicId value — only the missing schema object is added.
+    const [row] = await database('statuses').select('publicId')
+    expect(row.publicId).toBe(partialPublicId)
+
+    // The unique index is now actually enforced.
+    await database('statuses').insert([
+      {
+        id: 'https://llun.test/users/a/statuses/2',
+        createdAt: Date.UTC(2022, 3, 2)
+      }
+    ])
+    await expect(
+      database('statuses')
+        .where('id', 'https://llun.test/users/a/statuses/2')
+        .update({ publicId: partialPublicId })
+    ).rejects.toThrow()
+  })
+
   it('rolls back cleanly', async () => {
     await migration.up(database)
     await migration.down(database)

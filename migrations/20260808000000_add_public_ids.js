@@ -23,17 +23,61 @@ const mintPublicId = (createdAt) => {
   return v7({ msecs })
 }
 
+const hasIndex = async (knex, tableName, indexName) => {
+  const client = knex.client.config.client
+
+  if (client === 'better-sqlite3' || client === 'sqlite3') {
+    const indexes = await knex.raw(`PRAGMA index_list('${tableName}')`)
+    return indexes.some(({ name }) => name === indexName)
+  }
+
+  if (client === 'pg' || client === 'postgres' || client === 'postgresql') {
+    const result = await knex
+      .select('indexname')
+      .from('pg_indexes')
+      .where({ tablename: tableName, indexname: indexName })
+      .first()
+    return Boolean(result)
+  }
+
+  if (client === 'mysql' || client === 'mysql2') {
+    const [rows] = await knex.raw('SHOW INDEX FROM ?? WHERE Key_name = ?', [
+      tableName,
+      indexName
+    ])
+    return rows.length > 0
+  }
+
+  return false
+}
+
+// The column add and the unique index/constraint add are checked and applied
+// as two INDEPENDENTLY idempotent steps. A single alterTable() doing both
+// compiles to two separate, non-atomic SQL statements on every dialect here —
+// with config.transaction = false below (required for the batched backfill
+// to commit progressively), a process interruption between the two
+// statements would otherwise leave the column present but the index missing,
+// and a hasColumn-only idempotency check would then silently skip creating
+// the index forever on every subsequent run.
 const addPublicIdColumn = async (knex, tableName, indexName) => {
   const hasColumn = await knex.schema.hasColumn(tableName, 'publicId')
-  if (hasColumn) {
-    console.log(`${tableName}.publicId already exists, skipping schema change`)
-    return
+  if (!hasColumn) {
+    console.log(`Adding ${tableName}.publicId...`)
+    await knex.schema.alterTable(tableName, (table) => {
+      table.string('publicId', 36).nullable()
+    })
+  } else {
+    console.log(`${tableName}.publicId already exists, skipping column add`)
   }
-  console.log(`Adding publicId to ${tableName}...`)
-  await knex.schema.alterTable(tableName, (table) => {
-    table.string('publicId', 36).nullable()
-    table.unique(['publicId'], { indexName })
-  })
+
+  if (!(await hasIndex(knex, tableName, indexName))) {
+    console.log(`Adding ${indexName}...`)
+    await knex.schema.alterTable(tableName, (table) => {
+      table.unique(['publicId'], { indexName })
+    })
+  } else {
+    console.log(`${indexName} already exists, skipping index add`)
+  }
 }
 
 const backfillPublicIds = async (knex, tableName) => {
@@ -101,10 +145,17 @@ export const down = async function down(knex) {
     ['statuses', 'statuses_publicid_unique'],
     ['actors', 'actors_publicid_unique']
   ]) {
+    // Checked independently, matching up()'s two-step idempotency: a prior
+    // interrupted run may have left the column without the index.
+    if (await hasIndex(knex, tableName, indexName)) {
+      await knex.schema.alterTable(tableName, (table) => {
+        table.dropUnique(['publicId'], indexName)
+      })
+    }
+
     const hasColumn = await knex.schema.hasColumn(tableName, 'publicId')
     if (hasColumn) {
       await knex.schema.alterTable(tableName, (table) => {
-        table.dropUnique(['publicId'], indexName)
         table.dropColumn('publicId')
       })
     }
