@@ -265,6 +265,58 @@ describe('ActorDatabase', () => {
           expect(actor).not.toBeNull()
         })
       })
+
+      it('getActorFromId returns an actor with a v7 publicId threaded from the row', async () => {
+        await withFreshDatabase(async (freshDatabase) => {
+          const actorId = `https://${TEST_DOMAIN}/users/public-id-threaded`
+          await freshDatabase.createActor({
+            actorId,
+            username: 'public-id-threaded',
+            domain: TEST_DOMAIN,
+            followersUrl: `${actorId}/followers`,
+            inboxUrl: `${actorId}/inbox`,
+            sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
+            publicKey: 'public-key',
+            createdAt: Date.now()
+          })
+
+          const actor = await freshDatabase.getActorFromId({ id: actorId })
+
+          expect(actor?.publicId).toBeTruthy()
+          expect(isPublicId(actor?.publicId as string)).toBe(true)
+        })
+      })
+
+      it('a status fetched with getStatus embeds the actor publicId', async () => {
+        await withFreshDatabase(async (freshDatabase) => {
+          const actorId = `https://${TEST_DOMAIN}/users/public-id-status-actor`
+          await freshDatabase.createActor({
+            actorId,
+            username: 'public-id-status-actor',
+            domain: TEST_DOMAIN,
+            followersUrl: `${actorId}/followers`,
+            inboxUrl: `${actorId}/inbox`,
+            sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
+            publicKey: 'public-key',
+            createdAt: Date.now()
+          })
+
+          const statusId = `${actorId}/statuses/public-id-status`
+          await freshDatabase.createNote({
+            id: statusId,
+            url: statusId,
+            actorId,
+            text: 'hello',
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: []
+          })
+
+          const status = await freshDatabase.getStatus({ statusId })
+
+          expect(status?.actor?.publicId).toBeTruthy()
+          expect(isPublicId(status?.actor?.publicId as string)).toBe(true)
+        })
+      })
     })
 
     describe('setActorCounters and hasActorCounters', () => {

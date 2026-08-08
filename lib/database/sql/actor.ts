@@ -710,6 +710,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       : null
     return Actor.parse({
       id: sqlActor.id,
+      publicId: sqlActor.publicId ?? null,
       type: ActorType.catch(ActorType.enum.Person).parse(sqlActor.type),
       username: sqlActor.username,
       domain: sqlActor.domain,

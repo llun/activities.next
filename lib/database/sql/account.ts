@@ -476,6 +476,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
 
       const actor = Actor.parse({
         id: sqlActor.id,
+        publicId: sqlActor.publicId ?? null,
         type: sqlActor.type ?? 'Person',
         username: sqlActor.username,
         domain: sqlActor.domain,

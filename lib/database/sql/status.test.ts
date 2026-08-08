@@ -324,6 +324,7 @@ describe('StatusDatabase', () => {
           actorId: primaryActorId,
           actor: {
             id: primaryActorId,
+            publicId: expect.toBeString(),
             username: actors.primary.username,
             domain: actors.primary.domain,
             type: 'Person',
