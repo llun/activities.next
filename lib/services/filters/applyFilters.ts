@@ -1,5 +1,8 @@
 import { Database } from '@/lib/database/types'
-import { getMastodonFilterFromRecord } from '@/lib/services/mastodon/getMastodonFilter'
+import {
+  getMastodonFilterFromRecord,
+  toEmittedFilterStatusId
+} from '@/lib/services/mastodon/getMastodonFilter'
 import { Timeline } from '@/lib/services/timelines/types'
 import {
   ActiveFilterRecord,
@@ -196,12 +199,13 @@ const matchFilter = (
       candidateIdSet.has(filterStatus.statusId) ||
       candidateIdSet.has(urlToId(filterStatus.statusId))
     ) {
-      // Match on either stored form, but emit only the legacy colon-form id:
-      // `status_matches` rides on every timeline and notification status that
-      // carries `filtered[]`, so a raw `https://…/statuses/…` here would be an
-      // id form the rest of the API never emits. Rows stored in colon form are
-      // unaffected — `urlToId` returns them unchanged.
-      statusMatches.push(urlToId(filterStatus.statusId))
+      // Match on either stored form, but emit a stored URI as the legacy
+      // colon-form id: `status_matches` rides on every timeline and notification
+      // status that carries `filtered[]`, so a raw `https://…/statuses/…` here
+      // would be an id form the rest of the API never emits. Every other stored
+      // form is emitted exactly as stored — see toEmittedFilterStatusId for why
+      // that is a URL test rather than an unconditional urlToId call.
+      statusMatches.push(toEmittedFilterStatusId(filterStatus.statusId))
     }
   }
 
