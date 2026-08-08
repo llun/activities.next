@@ -8,6 +8,7 @@ import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { generatePublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { GET } from './route'
@@ -699,6 +700,63 @@ describe('GET /api/v1/timelines/[timeline]', () => {
       // it as min_id.
       expect(call.minStatusId).toBeUndefined()
       spy.mockRestore()
+    })
+  })
+
+  describe('publicId pagination cursors', () => {
+    test('max_id as a publicId returns the identical page as max_id as the legacy colon-form id', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const actorId = await createIsolatedActor()
+      mockCookieValue.value = actorId
+
+      const older = await createTimelineNote({
+        actorId,
+        timelineActorId: actorId,
+        name: 'publicid-cursor-older'
+      })
+      const anchor = await createTimelineNote({
+        actorId,
+        timelineActorId: actorId,
+        name: 'publicid-cursor-anchor'
+      })
+      if (!anchor.publicId)
+        throw new Error('anchor status is missing a publicId')
+
+      const [legacyResponse, publicIdResponse] = await Promise.all([
+        GET(createRequest({ max_id: urlToId(anchor.id) }), {
+          params: Promise.resolve({ timeline: 'main' })
+        }),
+        GET(createRequest({ max_id: anchor.publicId }), {
+          params: Promise.resolve({ timeline: 'main' })
+        })
+      ])
+
+      expect(legacyResponse.status).toBe(200)
+      expect(publicIdResponse.status).toBe(200)
+      const legacyData = await legacyResponse.json()
+      const publicIdData = await publicIdResponse.json()
+      const legacyIds = legacyData.statuses.map((s: { id: string }) => s.id)
+      const publicIdIds = publicIdData.statuses.map((s: { id: string }) => s.id)
+      expect(publicIdIds).toEqual(legacyIds)
+      expect(publicIdIds).toEqual([older.id])
+    })
+
+    test('an unknown publicId cursor returns an empty page, not a 400', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      mockCookieValue.value = undefined
+
+      const response = await GET(
+        createRequest({ max_id: generatePublicId() }),
+        { params: Promise.resolve({ timeline: 'main' }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.statuses).toEqual([])
     })
   })
 

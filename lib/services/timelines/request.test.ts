@@ -1,11 +1,19 @@
 import { NextRequest } from 'next/server'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
+import { Database } from '@/lib/database/types'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { generatePublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { MAX_TIMELINE_LIMIT } from './getFilteredTimelinePage'
-import { parseTimelineQuery, timelineErrorBoundary } from './request'
+import {
+  decodeCursor,
+  parseTimelineQuery,
+  resolveStatusCursor,
+  resolveTimelineCursors,
+  timelineErrorBoundary
+} from './request'
 
 const params = (query: Record<string, string>) => new URLSearchParams(query)
 
@@ -184,6 +192,100 @@ describe('parseTimelineQuery', () => {
     { description: 'unknown colon-form id', value: 'llun.test:x:1', ok: true }
   ])('handles fuzz cursor max_id=$description', ({ value, ok }) => {
     expect(parseTimelineQuery(params({ max_id: value })).ok).toBe(ok)
+  })
+})
+
+describe('decodeCursor', () => {
+  it('passes a UUIDv7 publicId through unchanged (never mangled into a URL)', () => {
+    const publicId = generatePublicId()
+    expect(decodeCursor(publicId)).toBe(publicId)
+  })
+
+  it('still decodes a legacy colon-form cursor into its status URL', () => {
+    expect(decodeCursor(validCursor)).toBe(realStatusUrl)
+  })
+
+  it('still nulls an undecodable cursor', () => {
+    expect(decodeCursor('apurl_@@@@')).toBeNull()
+  })
+
+  it('returns undefined for an absent cursor', () => {
+    expect(decodeCursor(undefined)).toBeUndefined()
+  })
+})
+
+describe('resolveStatusCursor', () => {
+  const makeDatabase = (
+    getStatusIdByPublicId: (params: {
+      publicId: string
+    }) => Promise<string | null>
+  ): Pick<Database, 'getStatusIdByPublicId'> => ({
+    getStatusIdByPublicId: vi.fn(getStatusIdByPublicId)
+  })
+
+  it('resolves a known publicId to the stored status URL', async () => {
+    const publicId = generatePublicId()
+    const database = makeDatabase(async ({ publicId: id }) =>
+      id === publicId ? realStatusUrl : null
+    )
+    await expect(resolveStatusCursor(database, publicId)).resolves.toBe(
+      realStatusUrl
+    )
+  })
+
+  it('passes an unknown publicId through unchanged', async () => {
+    const publicId = generatePublicId()
+    const database = makeDatabase(async () => null)
+    await expect(resolveStatusCursor(database, publicId)).resolves.toBe(
+      publicId
+    )
+  })
+
+  it('leaves a non-publicId decoded value untouched (never queries the DB)', async () => {
+    const lookup = vi.fn()
+    const database: Pick<Database, 'getStatusIdByPublicId'> = {
+      getStatusIdByPublicId: lookup
+    }
+    await expect(resolveStatusCursor(database, realStatusUrl)).resolves.toBe(
+      realStatusUrl
+    )
+    expect(lookup).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { description: 'null', value: null },
+    { description: 'undefined', value: undefined }
+  ])('passes $description through unchanged', async ({ value }) => {
+    const lookup = vi.fn()
+    const database: Pick<Database, 'getStatusIdByPublicId'> = {
+      getStatusIdByPublicId: lookup
+    }
+    await expect(resolveStatusCursor(database, value)).resolves.toBe(value)
+    expect(lookup).not.toHaveBeenCalled()
+  })
+})
+
+describe('resolveTimelineCursors', () => {
+  it('resolves publicId cursors and passes legacy-decoded ones through', async () => {
+    const maxPublicId = generatePublicId()
+    const maxStatusUrl = 'https://llun.test/users/alice/statuses/max'
+    const database: Pick<Database, 'getStatusIdByPublicId'> = {
+      getStatusIdByPublicId: vi.fn(async ({ publicId }) =>
+        publicId === maxPublicId ? maxStatusUrl : null
+      )
+    }
+
+    const resolved = await resolveTimelineCursors(database, {
+      maxStatusId: maxPublicId,
+      minStatusId: realStatusUrl,
+      sinceStatusId: null
+    })
+
+    expect(resolved).toEqual({
+      maxStatusId: maxStatusUrl,
+      minStatusId: realStatusUrl,
+      sinceStatusId: null
+    })
   })
 })
 

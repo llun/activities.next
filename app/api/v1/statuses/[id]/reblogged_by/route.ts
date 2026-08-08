@@ -66,12 +66,22 @@ export const GET = traceApiRoute(
       })
       if (!status) return apiCorsError(req, CORS_HEADERS, 404)
 
+      const resolvedMaxId = maxId
+        ? await resolveStatusIdParam(database, maxId)
+        : undefined
+      const resolvedMinId = minId
+        ? await resolveStatusIdParam(database, minId)
+        : undefined
+      const resolvedSinceId = sinceId
+        ? await resolveStatusIdParam(database, sinceId)
+        : undefined
+
       const reblogsPage = await database.getRebloggedBy({
         statusId,
         limit: limit + 1,
-        maxStatusId: maxId ? idToUrl(maxId) : undefined,
-        minStatusId: minId ? idToUrl(minId) : undefined,
-        sinceStatusId: sinceId ? idToUrl(sinceId) : undefined,
+        maxStatusId: resolvedMaxId,
+        minStatusId: resolvedMinId,
+        sinceStatusId: resolvedSinceId,
         visibleToActorId: currentActor?.id ?? null
       })
       const hasOverflow = reblogsPage.length > limit

@@ -9,7 +9,10 @@ import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { getRemoteActorStatuses } from '@/lib/services/mastodon/getRemoteActorStatuses'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
-import { decodeCursor } from '@/lib/services/timelines/request'
+import {
+  decodeCursor,
+  resolveStatusCursor
+} from '@/lib/services/timelines/request'
 import { Scope } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { type Status, StatusType } from '@/lib/types/domain/status'
@@ -90,15 +93,21 @@ export const GET = traceApiRoute(
       } = parsedParams
 
       // Clients echo back the opaque ids this endpoint emits (urlToId-encoded
-      // status URLs), so decode the cursors before querying — the database
-      // stores raw status URLs and silently ignores an unknown cursor, which
-      // would serve the same first page over and over. An undecodable cursor
-      // is a deliberate 400, using the same decodeCursor rule as the timeline
-      // endpoints; an empty cursor param means "no cursor" there too.
-      const maxId = decodeCursor(encodedMaxId || undefined)
-      const minId = decodeCursor(encodedMinId || undefined)
-      const sinceId = decodeCursor(encodedSinceId || undefined)
-      if (maxId === null || minId === null || sinceId === null) {
+      // status URLs, or a status publicId), so decode the cursors before
+      // querying — the database stores raw status URLs and silently ignores
+      // an unknown cursor, which would serve the same first page over and
+      // over. An undecodable cursor is a deliberate 400, using the same
+      // decodeCursor rule as the timeline endpoints; an empty cursor param
+      // means "no cursor" there too. A decoded publicId is then resolved to
+      // its stored status URL — the SQL layer must never see a raw publicId.
+      const decodedMaxId = decodeCursor(encodedMaxId || undefined)
+      const decodedMinId = decodeCursor(encodedMinId || undefined)
+      const decodedSinceId = decodeCursor(encodedSinceId || undefined)
+      if (
+        decodedMaxId === null ||
+        decodedMinId === null ||
+        decodedSinceId === null
+      ) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
@@ -106,6 +115,9 @@ export const GET = traceApiRoute(
           responseStatusCode: 400
         })
       }
+      const maxId = await resolveStatusCursor(database, decodedMaxId)
+      const minId = await resolveStatusCursor(database, decodedMinId)
+      const sinceId = await resolveStatusCursor(database, decodedSinceId)
 
       const follow =
         currentActor && currentActor.id !== id

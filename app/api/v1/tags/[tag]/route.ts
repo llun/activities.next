@@ -6,6 +6,7 @@ import {
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonTag } from '@/lib/services/mastodon/getMastodonTag'
+import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { TimelineFormat } from '@/lib/services/timelines/const'
 import {
   getFilteredStatusPage,
@@ -21,7 +22,6 @@ import {
   normalizeHashtagParam
 } from '@/lib/utils/text/mastodonHashtag'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -97,11 +97,14 @@ export const GET = traceApiRoute(
       const limitParam = url.searchParams.get('limit')
       const parsedLimit = limitParam ? parseInt(limitParam, 10) : PER_PAGE_LIMIT
       const effectiveLimit = normalizeTimelineLimit(parsedLimit)
+      const maxStatusId = maxStatusIdParam
+        ? await resolveStatusIdParam(database, maxStatusIdParam)
+        : null
 
       const { statuses, nextMaxStatusId } = await getFilteredStatusPage({
         database,
         actorId: currentActor?.id,
-        maxStatusId: maxStatusIdParam ? idToUrl(maxStatusIdParam) : null,
+        maxStatusId,
         limit: effectiveLimit,
         // Public surface: hide silenced authors (and suspended, always).
         surface: 'public',
