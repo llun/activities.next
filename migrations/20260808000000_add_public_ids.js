@@ -121,9 +121,17 @@ const countMissingPublicIds = async (knex, tableName, addressable) => {
 // `knex migrate:latest` then skips it forever — so an exit that only logged
 // "re-run the migration" would be a lie: the re-run reports "Already up to
 // date" and repairs nothing. The completeness check at the end therefore
-// THROWS while addressable rows remain. knex records nothing on a failed
-// migration, and up() is idempotent, so the next `yarn migrate` genuinely
-// re-runs this migration and resumes the backfill.
+// THROWS on those two exits while addressable rows remain. knex records nothing
+// on a failed migration, and up() is idempotent, so the next `yarn migrate`
+// genuinely re-runs this migration and resumes the backfill.
+//
+// It does NOT throw on the converged exit. Converging proves the opposite of a
+// stuck backfill: the last SELECT saw zero addressable NULL rows, so anything
+// the completeness count finds afterwards was written after that SELECT, by the
+// app running alongside this migration rather than by the backfill. Failing
+// there would break a healthy online migration on a single concurrent insert —
+// and the retry would pay another full O(N) forward walk only to race the same
+// way — with a message that reads like corruption.
 const sweepMissingPublicIds = async (knex, tableName) => {
   let swept = 0
   let pass = 0
@@ -188,13 +196,16 @@ const sweepMissingPublicIds = async (knex, tableName) => {
   }
 
   const remaining = await countMissingPublicIds(knex, tableName, true)
-  if (remaining > 0) {
-    const reason =
-      stopReason === 'converged'
-        ? 'they were inserted after the sweep converged'
-        : `the sweep ${stopReason}`
+  if (remaining > 0 && stopReason === 'converged') {
+    // Not a failure: rows written after the sweep's last (empty) SELECT are the
+    // concurrently running app's, not this backfill's. The deployed code mints
+    // a publicId at insert time, so they need no repair here.
+    console.log(
+      `  ${tableName}: ${remaining} row(s) were inserted after the sweep converged and have no publicId yet; they belong to the app writing alongside this migration, which mints publicId on insert`
+    )
+  } else if (remaining > 0) {
     throw new Error(
-      `${tableName}: ${remaining} row(s) still have a NULL publicId after ${pass} sweep pass(es) - ${reason}. Failing so this migration is not recorded as applied; up() is idempotent, so re-run \`yarn migrate\` to resume the backfill.`
+      `${tableName}: ${remaining} row(s) still have a NULL publicId after ${pass} sweep pass(es) - the sweep ${stopReason}. Failing so this migration is not recorded as applied; up() is idempotent, so re-run \`yarn migrate\` to resume the backfill.`
     )
   }
 }

@@ -1,4 +1,8 @@
+import BetterSqlite3 from 'better-sqlite3'
 import knex from 'knex'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import { getPublicIdTimestamp, isPublicId } from '@/lib/utils/publicId'
 import * as migration from '@/migrations/20260808000000_add_public_ids'
@@ -6,12 +10,16 @@ import * as migration from '@/migrations/20260808000000_add_public_ids'
 describe('public ids migration', () => {
   let database: knex.Knex
   let logMessages: string[]
+  let onLogMessage: ((message: string) => void) | null
   let restoreConsoleLog: () => void
 
   beforeEach(async () => {
     logMessages = []
+    onLogMessage = null
     const logSpy = vi.spyOn(console, 'log').mockImplementation((...args) => {
-      logMessages.push(args.map(String).join(' '))
+      const message = args.map(String).join(' ')
+      logMessages.push(message)
+      onLogMessage?.(message)
     })
     restoreConsoleLog = () => logSpy.mockRestore()
 
@@ -374,6 +382,81 @@ describe('public ids migration', () => {
     const [row] = await database('statuses').select('publicId', 'createdAt')
     expect(isPublicId(row.publicId)).toBe(true)
     expect(getPublicIdTimestamp(row.publicId)).toBe(row.createdAt)
+  })
+
+  it('completes when a concurrent insert lands after the sweep converged', async () => {
+    // The production flow runs `yarn migrate` against a live database while an
+    // app keeps inserting. Once the sweep's SELECT comes back empty the backfill
+    // is done: any row counted afterwards was written after that SELECT, by the
+    // running app rather than by this migration. Failing on it would break a
+    // perfectly healthy deploy — and a retry pays another O(N) forward walk only
+    // to race the same way — so the converged exit reports the count instead.
+    //
+    // A file-backed database plus a SECOND better-sqlite3 connection reproduces
+    // a genuinely concurrent writer (an in-memory database is private to its own
+    // connection). The write is fired from the "Sweep done." log line, which the
+    // migration emits between the sweep's last empty SELECT and the completeness
+    // count.
+    const directory = await mkdtemp(join(tmpdir(), 'public-ids-migration-'))
+    const filename = join(directory, 'concurrent.sqlite3')
+    const fileDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: { filename }
+    })
+    const concurrentWriter = new BetterSqlite3(filename)
+
+    try {
+      await fileDatabase.schema.createTable('statuses', (table) => {
+        table.string('id').primary()
+        table.datetime('createdAt')
+      })
+      await fileDatabase.schema.createTable('actors', (table) => {
+        table.string('id')
+        table.datetime('createdAt')
+      })
+      await fileDatabase('statuses').insert([
+        {
+          id: 'https://llun.test/users/a/statuses/1',
+          createdAt: Date.UTC(2024, 10, 1)
+        }
+      ])
+
+      const concurrentInsert = {
+        id: 'https://llun.test/users/a/statuses/inserted-after-convergence',
+        createdAt: Date.UTC(2024, 10, 2)
+      }
+      onLogMessage = (message) => {
+        if (!message.startsWith('Sweep done. statuses:')) return
+        onLogMessage = null
+        concurrentWriter
+          .prepare('INSERT INTO "statuses" ("id", "createdAt") VALUES (?, ?)')
+          .run(concurrentInsert.id, concurrentInsert.createdAt)
+      }
+
+      await expect(migration.up(fileDatabase)).resolves.toBeUndefined()
+
+      expect(logMessages).toContainEqual(
+        expect.stringContaining(
+          'statuses: 1 row(s) were inserted after the sweep converged'
+        )
+      )
+      // The row is left exactly as the concurrent writer wrote it: this
+      // migration does not own it.
+      const [row] = await fileDatabase('statuses')
+        .select('publicId')
+        .where('id', concurrentInsert.id)
+      expect(row.publicId).toBeNull()
+      // Every row the migration DID own was still backfilled.
+      const [backfilled] = await fileDatabase('statuses')
+        .select('publicId')
+        .where('id', 'https://llun.test/users/a/statuses/1')
+      expect(isPublicId(backfilled.publicId)).toBe(true)
+    } finally {
+      concurrentWriter.close()
+      await fileDatabase.destroy()
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 
   it('skips rows with a null id instead of aborting on the unique index', async () => {
