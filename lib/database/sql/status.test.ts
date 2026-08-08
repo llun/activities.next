@@ -1051,6 +1051,46 @@ describe('StatusDatabase', () => {
         ).toBeNull()
       })
 
+      it('getStatusIdsByPublicIds maps every known publicId back and omits unknown ones', async () => {
+        const firstId = `${publicIdActorId}/statuses/public-ids-batch-1`
+        const secondId = `${publicIdActorId}/statuses/public-ids-batch-2`
+        const first = (await database.createNote({
+          id: firstId,
+          url: firstId,
+          actorId: publicIdActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Batch post one'
+        })) as StatusNote
+        const second = (await database.createNote({
+          id: secondId,
+          url: secondId,
+          actorId: publicIdActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Batch post two'
+        })) as StatusNote
+        const unknownPublicId = generatePublicId()
+
+        const map = await database.getStatusIdsByPublicIds({
+          publicIds: [
+            first.publicId as string,
+            second.publicId as string,
+            unknownPublicId
+          ]
+        })
+
+        expect(map.size).toBe(2)
+        expect(map.get(first.publicId as string)).toBe(firstId)
+        expect(map.get(second.publicId as string)).toBe(secondId)
+        expect(map.has(unknownPublicId)).toBe(false)
+      })
+
+      it('getStatusIdsByPublicIds returns an empty map for an empty request', async () => {
+        const map = await database.getStatusIdsByPublicIds({ publicIds: [] })
+        expect(map.size).toBe(0)
+      })
+
       it('getStatusFromPublicId hydrates the same status as getStatus', async () => {
         const statusId = `${publicIdActorId}/statuses/public-id-hydrate`
         const created = (await database.createNote({

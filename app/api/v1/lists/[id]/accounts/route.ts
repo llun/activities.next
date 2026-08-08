@@ -5,7 +5,7 @@ import {
   OAuthGuardAnyScope
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
-import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
+import { resolveActorIdParams } from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -24,6 +24,13 @@ const CORS_HEADERS = [
 ]
 const MAX_LIMIT = 80
 const DEFAULT_LIMIT = 40
+// Upper bound on how many accounts a single add/remove may name. Mastodon does
+// not document a cap; this matches the other batch ceilings in the API surface
+// (MAX_COLLECTION_ACCOUNT_IDS, MAX_BATCH_STATUSES). Every id costs a follow
+// check on add, so an unbounded list is unbounded work. Over-cap requests are
+// rejected with the route's existing 422. Exported so the route test can
+// exercise the cap.
+export const MAX_LIST_ACCOUNT_IDS = 100
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -109,7 +116,7 @@ export const GET = traceApiRoute(
 )
 
 const AccountIdsBody = z.object({
-  account_ids: z.array(z.string().min(1)).min(1)
+  account_ids: z.array(z.string().min(1)).min(1).max(MAX_LIST_ACCOUNT_IDS)
 })
 
 // Collect account_ids from a repeated-param source, preferring the bracket
@@ -148,7 +155,13 @@ const parseAccountIds = async (req: Request): Promise<string[] | null> => {
     accountIds = collectAccountIds((name) => query.getAll(name))
   }
 
-  return accountIds.length > 0 ? accountIds : null
+  // The form/multipart/query sources bypass AccountIdsBody, so the cap is
+  // re-applied here rather than only in the JSON schema. null is the route's
+  // 422 signal.
+  if (accountIds.length === 0 || accountIds.length > MAX_LIST_ACCOUNT_IDS) {
+    return null
+  }
+  return accountIds
 }
 
 // https://docs.joinmastodon.org/methods/lists/#accounts-add
@@ -178,9 +191,8 @@ export const POST = traceApiRoute(
         })
       }
 
-      const targetActorIds = await Promise.all(
-        accountIds.map((accountId) => resolveActorIdParam(database, accountId))
-      )
+      // One batched publicId lookup for the whole list, not one per id.
+      const targetActorIds = await resolveActorIdParams(database, accountIds)
       // Mastodon only allows adding accounts the requester follows; anything
       // else (including bogus ids) is a 404 so no dangling membership rows
       // are created for actors that don't resolve.
@@ -241,11 +253,8 @@ export const DELETE = traceApiRoute(
       await database.removeListAccounts({
         listId: id,
         actorId: currentActor.id,
-        targetActorIds: await Promise.all(
-          accountIds.map((accountId) =>
-            resolveActorIdParam(database, accountId)
-          )
-        )
+        // One batched publicId lookup for the whole list, not one per id.
+        targetActorIds: await resolveActorIdParams(database, accountIds)
       })
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
     }

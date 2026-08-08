@@ -18,7 +18,10 @@ import {
   SCHEDULED_AT_TOO_SOON_ERROR
 } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
-import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
+import {
+  resolveStatusIdParam,
+  resolveStatusIdParams
+} from '@/lib/services/mastodon/resolveClientId'
 import { getQueue } from '@/lib/services/queue'
 import { canQuoteStatus } from '@/lib/services/quotes/canQuoteStatus'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
@@ -56,8 +59,8 @@ const CORS_HEADERS = [
 ]
 
 // Mastodon does not document a cap; bound the batch to keep per-request work
-// predictable.
-const MAX_BATCH_STATUSES = 100
+// predictable. Exported so the route test can exercise the truncation.
+export const MAX_BATCH_STATUSES = 100
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -131,9 +134,8 @@ export const GET = traceApiRoute(
       // calling getStatus per id, which would fan out into a large N+1 of
       // recipient/attachment/like/bookmark queries for a 100-id batch.
       const statusesData = await database.getStatusesByIds({
-        statusIds: await Promise.all(
-          uniqueIds.map((id) => resolveStatusIdParam(database, id))
-        ),
+        // One batched publicId lookup for the whole list, not one per id.
+        statusIds: await resolveStatusIdParams(database, uniqueIds),
         currentActorId: currentActor?.id
       })
       const resolved = await Promise.all(

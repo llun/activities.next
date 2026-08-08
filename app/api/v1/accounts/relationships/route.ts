@@ -3,7 +3,7 @@ import {
   OAuthGuardAnyScope,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
-import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
+import { resolveActorIdParams } from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -38,12 +38,17 @@ export const GET = traceApiRoute(
         return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
       }
 
+      // One batched publicId lookup for the whole list, not one per id. The
+      // result is index-aligned with accountIds.
+      const resolvedIds = await resolveActorIdParams(database, accountIds)
+
       // Resolve in the requested order; drop ids that don't resolve.
       const relationships = await Promise.all(
-        accountIds.map(async (encodedAccountId) => {
+        accountIds.map(async (encodedAccountId, index) => {
           try {
-            const id = await resolveActorIdParam(database, encodedAccountId)
-            const actor = await database.getActorFromId({ id })
+            const actor = await database.getActorFromId({
+              id: resolvedIds[index]
+            })
             if (!actor) return null
             return getRelationship({
               database,

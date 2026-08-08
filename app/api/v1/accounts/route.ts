@@ -11,7 +11,7 @@ import {
 } from '@/lib/services/guards/OAuthGuard'
 import { getRedirectUrl } from '@/lib/services/guards/getRedirectUrl'
 import { headerHost } from '@/lib/services/guards/headerHost'
-import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
+import { resolveActorIdParams } from '@/lib/services/mastodon/resolveClientId'
 import { issueAccessToken } from '@/lib/services/oauth/issueAccessToken'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { Scope } from '@/lib/types/database/operations'
@@ -29,6 +29,13 @@ const CORS_HEADERS = [
   HttpMethod.enum.GET,
   HttpMethod.enum.POST
 ]
+
+// Upper bound on how many accounts a single batch request may ask about.
+// Mastodon does not document a cap, and this endpoint is intentionally
+// unauthenticated, so dedupe + truncate the way familiar_followers does rather
+// than letting a header-sized id list drive the per-request work. Exported so
+// the route test can exercise the truncation.
+export const MAX_BATCH_ACCOUNTS = 100
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -56,10 +63,17 @@ export const GET = traceApiRoute(
     }
 
     const url = new URL(request.url)
-    const encodedIds = [
-      ...url.searchParams.getAll('id[]'),
-      ...url.searchParams.getAll('id')
-    ].filter(Boolean)
+    // Deduplicate and bound the requested ids: this endpoint is public, and an
+    // id list that fits in a request header would otherwise drive an unbounded
+    // number of lookups.
+    const encodedIds = Array.from(
+      new Set(
+        [
+          ...url.searchParams.getAll('id[]'),
+          ...url.searchParams.getAll('id')
+        ].filter(Boolean)
+      )
+    ).slice(0, MAX_BATCH_ACCOUNTS)
 
     if (encodedIds.length === 0) {
       return apiResponse({
@@ -69,9 +83,8 @@ export const GET = traceApiRoute(
       })
     }
 
-    const ids = await Promise.all(
-      encodedIds.map((encoded) => resolveActorIdParam(database, encoded))
-    )
+    // One batched publicId lookup for the whole list, not one per id.
+    const ids = await resolveActorIdParams(database, encodedIds)
     const accounts = await database.getMastodonActorsFromIds({ ids })
 
     return apiResponse({

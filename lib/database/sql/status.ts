@@ -59,6 +59,7 @@ import {
   GetStatusFromUrlHashParams,
   GetStatusFromUrlParams,
   GetStatusIdByPublicIdParams,
+  GetStatusIdsByPublicIdsParams,
   GetStatusParams,
   GetStatusPublicIdsParams,
   GetStatusReblogsCountParams,
@@ -3467,6 +3468,26 @@ export const StatusSQLDatabaseMixin = (
     return row?.id ?? null
   }
 
+  // Batch counterpart of getStatusIdByPublicId, so a request carrying an array
+  // of ids costs one query instead of one per id. Chunked because SQLite caps
+  // a statement at SQLITE_MAX_BINDINGS parameters.
+  async function getStatusIdsByPublicIds({
+    publicIds
+  }: GetStatusIdsByPublicIdsParams) {
+    const uniquePublicIds = [...new Set(publicIds)].filter(Boolean)
+    if (uniquePublicIds.length === 0) return new Map<string, string>()
+    const rowChunks = await Promise.all(
+      chunkArray(uniquePublicIds, getWhereInBatchSize(database)).map((chunk) =>
+        database('statuses').whereIn('publicId', chunk).select('id', 'publicId')
+      )
+    )
+    return new Map<string, string>(
+      rowChunks
+        .flat()
+        .map((row: { id: string; publicId: string }) => [row.publicId, row.id])
+    )
+  }
+
   async function getStatusFromPublicId({
     publicId,
     currentActorId
@@ -3624,6 +3645,7 @@ export const StatusSQLDatabaseMixin = (
     getStatusFromUrl,
     getStatusFromUrlHash,
     getStatusIdByPublicId,
+    getStatusIdsByPublicIds,
     getStatusFromPublicId,
     getStatusPublicIds,
     getActorAnnouncedStatusId,

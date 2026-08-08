@@ -203,6 +203,55 @@ describe('ActorDatabase', () => {
         })
       })
 
+      it('getActorIdsByPublicIds maps every known publicId back and omits unknown ones', async () => {
+        await withFreshDatabase(async (freshDatabase) => {
+          const firstId = `https://${TEST_DOMAIN}/users/public-ids-batch-1`
+          const secondId = `https://${TEST_DOMAIN}/users/public-ids-batch-2`
+          for (const [actorId, username] of [
+            [firstId, 'public-ids-batch-1'],
+            [secondId, 'public-ids-batch-2']
+          ]) {
+            await freshDatabase.createActor({
+              actorId,
+              username,
+              domain: TEST_DOMAIN,
+              followersUrl: `${actorId}/followers`,
+              inboxUrl: `${actorId}/inbox`,
+              sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
+              publicKey: 'public-key',
+              createdAt: Date.now()
+            })
+          }
+
+          const publicIds = await freshDatabase.getActorPublicIds({
+            actorIds: [firstId, secondId]
+          })
+          const unknownPublicId = generatePublicId()
+
+          const map = await freshDatabase.getActorIdsByPublicIds({
+            publicIds: [
+              publicIds.get(firstId) as string,
+              publicIds.get(secondId) as string,
+              unknownPublicId
+            ]
+          })
+
+          expect(map.size).toBe(2)
+          expect(map.get(publicIds.get(firstId) as string)).toBe(firstId)
+          expect(map.get(publicIds.get(secondId) as string)).toBe(secondId)
+          expect(map.has(unknownPublicId)).toBe(false)
+        })
+      })
+
+      it('getActorIdsByPublicIds returns an empty map for an empty request', async () => {
+        await withFreshDatabase(async (freshDatabase) => {
+          const map = await freshDatabase.getActorIdsByPublicIds({
+            publicIds: []
+          })
+          expect(map.size).toBe(0)
+        })
+      })
+
       it('getActorPublicIds returns a map covering only requested ids that have publicIds', async () => {
         await withFreshDatabase(async (freshDatabase, instance) => {
           const withId = `https://${TEST_DOMAIN}/users/public-id-with`

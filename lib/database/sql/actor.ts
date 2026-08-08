@@ -51,6 +51,7 @@ import {
   GetActorFromIdParams,
   GetActorFromUsernameParams,
   GetActorIdByPublicIdParams,
+  GetActorIdsByPublicIdsParams,
   GetActorPublicIdsParams,
   GetActorSettingsParams,
   GetActorsFromIdsParams,
@@ -636,6 +637,24 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .where('publicId', publicId)
       .first('id')
     return row?.id ?? null
+  },
+
+  // Batch counterpart of getActorIdByPublicId, so a request carrying an array
+  // of ids costs one query instead of one per id. Chunked because SQLite caps
+  // a statement at SQLITE_MAX_BINDINGS parameters.
+  async getActorIdsByPublicIds({ publicIds }: GetActorIdsByPublicIdsParams) {
+    const uniquePublicIds = [...new Set(publicIds)].filter(Boolean)
+    if (uniquePublicIds.length === 0) return new Map<string, string>()
+    const rowChunks = await Promise.all(
+      chunkArray(uniquePublicIds, getWhereInBatchSize(database)).map((chunk) =>
+        database<SQLActor>('actors')
+          .whereIn('publicId', chunk)
+          .select('id', 'publicId')
+      )
+    )
+    return new Map<string, string>(
+      rowChunks.flat().map((row) => [row.publicId as string, row.id])
+    )
   },
 
   async getActorPublicIds({ actorIds }: GetActorPublicIdsParams) {

@@ -23,7 +23,7 @@ import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { generatePublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
-import { GET, POST } from './route'
+import { GET, MAX_BATCH_STATUSES, POST } from './route'
 
 // better-auth stores tokens hashed as SHA-256 base64url; the guard re-hashes the
 // presented bearer token to look it up, so seeded tokens must match.
@@ -1333,6 +1333,40 @@ describe('GET /api/v1/statuses', () => {
       urlToId(firstId),
       urlToId(secondId)
     ])
+  })
+
+  it('resolves a whole batch of publicIds with a single database lookup', async () => {
+    const spy = vi.spyOn(database, 'getStatusIdsByPublicIds')
+    const publicIds = Array.from({ length: 25 }, () => generatePublicId())
+    const req = new NextRequest(
+      `https://llun.test/api/v1/statuses?${publicIds
+        .map((publicId) => `id[]=${publicId}`)
+        .join('&')}`
+    )
+    const response = await GET(req, { params: Promise.resolve({}) })
+    expect(response.status).toBe(200)
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy).toHaveBeenCalledWith({ publicIds })
+    spy.mockRestore()
+  })
+
+  it('truncates an over-cap id list to MAX_BATCH_STATUSES instead of failing', async () => {
+    const spy = vi.spyOn(database, 'getStatusIdsByPublicIds')
+    const publicIds = Array.from({ length: MAX_BATCH_STATUSES + 20 }, () =>
+      generatePublicId()
+    )
+    const req = new NextRequest(
+      `https://llun.test/api/v1/statuses?${publicIds
+        .map((publicId) => `id[]=${publicId}`)
+        .join('&')}`
+    )
+    const response = await GET(req, { params: Promise.resolve({}) })
+    expect(response.status).toBe(200)
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy).toHaveBeenCalledWith({
+      publicIds: publicIds.slice(0, MAX_BATCH_STATUSES)
+    })
+    spy.mockRestore()
   })
 
   it('excludes a direct status by another actor that the authenticated actor cannot read', async () => {

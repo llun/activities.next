@@ -14,7 +14,10 @@ import {
   OAuthGuardAnyScope
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
-import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
+import {
+  resolveActorIdParam,
+  resolveActorIdParams
+} from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -234,11 +237,8 @@ export const DELETE = traceApiRoute(
       await database.removeCollectionMembers({
         id,
         actorId: currentActor.id,
-        targetActorIds: await Promise.all(
-          accountIds.map((accountId) =>
-            resolveActorIdParam(database, accountId)
-          )
-        )
+        // One batched publicId lookup for the whole list, not one per id.
+        targetActorIds: await resolveActorIdParams(database, accountIds)
       })
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
     }

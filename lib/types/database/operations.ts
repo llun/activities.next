@@ -87,6 +87,9 @@ export type GetActorsFromIdsParams = { ids: string[] }
 export interface GetActorIdByPublicIdParams {
   publicId: string
 }
+export interface GetActorIdsByPublicIdsParams {
+  publicIds: string[]
+}
 export interface GetActorPublicIdsParams {
   actorIds: string[]
 }
@@ -223,6 +226,11 @@ export interface ActorDatabase {
   getActorIdByPublicId(
     params: GetActorIdByPublicIdParams
   ): Promise<string | null>
+  // publicId -> actor URI, for the batch id resolver. One query per request
+  // instead of one per id.
+  getActorIdsByPublicIds(
+    params: GetActorIdsByPublicIdsParams
+  ): Promise<Map<string, string>>
   getActorPublicIds(
     params: GetActorPublicIdsParams
   ): Promise<Map<string, string>>
@@ -611,6 +619,9 @@ export type GetStatusFromUrlHashParams = {
 export interface GetStatusIdByPublicIdParams {
   publicId: string
 }
+export interface GetStatusIdsByPublicIdsParams {
+  publicIds: string[]
+}
 export interface GetStatusFromPublicIdParams {
   publicId: string
   currentActorId?: string
@@ -848,6 +859,11 @@ export interface StatusDatabase {
   getStatusIdByPublicId(
     params: GetStatusIdByPublicIdParams
   ): Promise<string | null>
+  // publicId -> status URI, for the batch id resolver. One query per request
+  // instead of one per id.
+  getStatusIdsByPublicIds(
+    params: GetStatusIdsByPublicIdsParams
+  ): Promise<Map<string, string>>
   getStatusFromPublicId(
     params: GetStatusFromPublicIdParams
   ): Promise<Status | null>
