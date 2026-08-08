@@ -5,8 +5,16 @@ import * as migration from '@/migrations/20260808000000_add_public_ids'
 
 describe('public ids migration', () => {
   let database: knex.Knex
+  let logMessages: string[]
+  let restoreConsoleLog: () => void
 
   beforeEach(async () => {
+    logMessages = []
+    const logSpy = vi.spyOn(console, 'log').mockImplementation((...args) => {
+      logMessages.push(args.map(String).join(' '))
+    })
+    restoreConsoleLog = () => logSpy.mockRestore()
+
     database = knex({
       client: 'better-sqlite3',
       useNullAsDefault: true,
@@ -24,6 +32,7 @@ describe('public ids migration', () => {
 
   afterEach(async () => {
     await database.destroy()
+    restoreConsoleLog()
   })
 
   it('runs without a wrapping transaction', () => {
@@ -185,35 +194,213 @@ describe('public ids migration', () => {
     expect(Number(missing[0].cnt)).toBe(0)
   })
 
-  it('backfills stragglers left with a null publicId on a re-run', async () => {
-    await database('statuses').insert([
+  it('backfills a straggler inserted after the forward walk has finished', async () => {
+    // The deployed app keeps inserting for the whole migration, including after
+    // the forward walk has run out of rows. Such a row is invisible to the walk
+    // wherever its id sorts: this one sorts AFTER every walked row, so reaching
+    // it cannot be credited to the walk (a straggler that already exists when a
+    // run starts is always walked, because the walk restarts its cursor at '').
+    // Only the sweep, which keeps re-selecting on `publicId IS NULL` until a
+    // pass comes back empty, converges on it.
+    //
+    // Two triggers reproduce that deterministically: the first inserts a row
+    // behind the walk cursor — the only kind of row the sweep, and nothing
+    // else, fills — and the second fires on that sweep UPDATE, i.e. strictly
+    // after the walk has finished, to insert the high-sorting straggler.
+    const walked = [
       {
-        id: 'https://llun.test/users/a/statuses/m',
-        createdAt: Date.UTC(2024, 0, 1)
+        id: 'https://llun.test/users/a/statuses/b',
+        createdAt: Date.UTC(2024, 6, 1)
+      },
+      {
+        id: 'https://llun.test/users/a/statuses/c',
+        createdAt: Date.UTC(2024, 6, 2)
       }
-    ])
+    ]
+    const lastWalkedId = walked[walked.length - 1].id
+    const behindCursor = {
+      id: 'https://llun.test/users/a/statuses/a-behind-cursor',
+      createdAt: Date.UTC(2024, 6, 3)
+    }
+    const afterWalk = {
+      id: 'https://llun.test/users/a/statuses/z-after-walk',
+      createdAt: Date.UTC(2024, 6, 4)
+    }
+    expect(behindCursor.id < lastWalkedId).toBe(true)
+    expect(afterWalk.id > lastWalkedId).toBe(true)
+
+    await database('statuses').insert(walked)
+    await database.schema.alterTable('statuses', (table) => {
+      table.string('publicId', 36).nullable()
+    })
+    await database.raw(`
+      CREATE TRIGGER insert_behind_cursor
+      AFTER UPDATE OF "publicId" ON "statuses"
+      WHEN NEW."id" = '${lastWalkedId}'
+      BEGIN
+        INSERT INTO "statuses" ("id", "createdAt")
+        VALUES ('${behindCursor.id}', ${behindCursor.createdAt});
+      END;
+    `)
+    await database.raw(`
+      CREATE TRIGGER insert_after_walk
+      AFTER UPDATE OF "publicId" ON "statuses"
+      WHEN NEW."id" = '${behindCursor.id}'
+      BEGIN
+        INSERT INTO "statuses" ("id", "createdAt")
+        VALUES ('${afterWalk.id}', ${afterWalk.createdAt});
+      END;
+    `)
+
     await migration.up(database)
-    const [walked] = await database('statuses').select('id', 'publicId')
 
-    const stragglerCreatedAt = Date.UTC(2024, 0, 2)
-    const stragglerId = 'https://llun.test/users/a/statuses/a'
-    expect(stragglerId < walked.id).toBe(true)
-    await database('statuses').insert([
-      { id: stragglerId, createdAt: stragglerCreatedAt }
-    ])
-
-    await migration.up(database)
-
-    const [straggler] = await database('statuses')
-      .select('publicId')
-      .where('id', stragglerId)
+    const straggler = await database('statuses')
+      .select('publicId', 'createdAt')
+      .where('id', afterWalk.id)
+      .first()
+    expect(straggler).toBeDefined()
     expect(isPublicId(straggler.publicId)).toBe(true)
-    expect(getPublicIdTimestamp(straggler.publicId)).toBe(stragglerCreatedAt)
+    expect(getPublicIdTimestamp(straggler.publicId)).toBe(straggler.createdAt)
 
-    const [unchanged] = await database('statuses')
+    const missing = await database('statuses').whereNull('publicId').count({
+      cnt: '*'
+    })
+    expect(Number(missing[0].cnt)).toBe(0)
+  })
+
+  it('stops sweeping when a selected row disappears before its update', async () => {
+    // Models a row deleted between the sweep's SELECT and its UPDATE: the row
+    // comes back from the SELECT, the UPDATE then matches nothing, and the
+    // sweep has to stop instead of re-selecting for another pass. SQLite
+    // reproduces it exactly — an update whose row a BEFORE UPDATE trigger
+    // deletes is abandoned and reports zero changed rows.
+    const walked = [
+      {
+        id: 'https://llun.test/users/a/statuses/b',
+        createdAt: Date.UTC(2024, 7, 1)
+      },
+      {
+        id: 'https://llun.test/users/a/statuses/c',
+        createdAt: Date.UTC(2024, 7, 2)
+      }
+    ]
+    const lastWalkedId = walked[walked.length - 1].id
+    const vanishing = {
+      id: 'https://llun.test/users/a/statuses/a-vanishing',
+      createdAt: Date.UTC(2024, 7, 3)
+    }
+    expect(vanishing.id < lastWalkedId).toBe(true)
+
+    await database('statuses').insert(walked)
+    await database.schema.alterTable('statuses', (table) => {
+      table.string('publicId', 36).nullable()
+    })
+    // Only the sweep ever selects this row: it is inserted behind the walk
+    // cursor while the walk is updating its last row.
+    await database.raw(`
+      CREATE TRIGGER insert_behind_cursor
+      AFTER UPDATE OF "publicId" ON "statuses"
+      WHEN NEW."id" = '${lastWalkedId}'
+      BEGIN
+        INSERT INTO "statuses" ("id", "createdAt")
+        VALUES ('${vanishing.id}', ${vanishing.createdAt});
+      END;
+    `)
+    await database.raw(`
+      CREATE TRIGGER delete_before_update
+      BEFORE UPDATE OF "publicId" ON "statuses"
+      WHEN OLD."id" = '${vanishing.id}'
+      BEGIN
+        DELETE FROM "statuses" WHERE "id" = OLD."id";
+      END;
+    `)
+
+    await expect(migration.up(database)).resolves.toBeUndefined()
+
+    await expect(
+      database('statuses').where('id', vanishing.id).first()
+    ).resolves.toBeUndefined()
+    expect(logMessages).toContainEqual(
+      expect.stringContaining(
+        'statuses: sweep made no progress on 1 row(s), stopping'
+      )
+    )
+    // The sweep stopped on that pass rather than running another one.
+    expect(logMessages).toContainEqual(
+      expect.stringContaining('statuses: 0 straggler(s) backfilled over 1 pass')
+    )
+  })
+
+  it('fails the migration instead of leaving rows permanently unbackfilled', async () => {
+    // RAISE(IGNORE) in a BEFORE UPDATE trigger models an UPDATE that silently
+    // takes no effect: the row keeps its NULL publicId and stays selectable, so
+    // the sweep stops making progress with work left to do. up() must reject —
+    // resolving would let knex record the migration, `knex migrate:latest`
+    // would skip it on every later run, and the rows would stay NULL forever
+    // with no way for an operator to repair them.
+    const stubborn = {
+      id: 'https://llun.test/users/a/statuses/stubborn',
+      createdAt: Date.UTC(2024, 8, 1)
+    }
+    await database('statuses').insert([stubborn])
+    await database.schema.alterTable('statuses', (table) => {
+      table.string('publicId', 36).nullable()
+    })
+    await database.raw(`
+      CREATE TRIGGER ignore_public_id_writes
+      BEFORE UPDATE OF "publicId" ON "statuses"
+      WHEN OLD."id" = '${stubborn.id}'
+      BEGIN
+        SELECT RAISE(IGNORE);
+      END;
+    `)
+
+    const failure = await migration.up(database).then(
+      () => null,
+      (error: unknown) => error as Error
+    )
+    expect(failure?.message).toContain(
+      'statuses: 1 row(s) still have a NULL publicId after 1 sweep pass(es)'
+    )
+    expect(failure?.message).toContain('the sweep made no progress on 1 row(s)')
+    expect(failure?.message).toContain('re-run `yarn migrate`')
+
+    // The remedy the message promises: up() is idempotent, so once the cause is
+    // gone a re-run resumes the backfill.
+    await database.raw('DROP TRIGGER ignore_public_id_writes')
+
+    await expect(migration.up(database)).resolves.toBeUndefined()
+
+    const [row] = await database('statuses').select('publicId', 'createdAt')
+    expect(isPublicId(row.publicId)).toBe(true)
+    expect(getPublicIdTimestamp(row.publicId)).toBe(row.createdAt)
+  })
+
+  it('skips rows with a null id instead of aborting on the unique index', async () => {
+    // actors.id is nullable in both schema dumps — it carries a unique index
+    // rather than a primary key, and that index permits multiple NULLs. knex
+    // compiles `.where('id', null)` to `id IS NULL`, so addressing such a row
+    // by id matches every null-id row at once and writes one publicId to all of
+    // them, which the new unique index rejects and the migration dies on.
+    await database('actors').insert([
+      { id: null, createdAt: Date.UTC(2024, 9, 1) },
+      { id: null, createdAt: Date.UTC(2024, 9, 2) },
+      { id: 'https://llun.test/users/a', createdAt: Date.UTC(2024, 9, 3) }
+    ])
+
+    await expect(migration.up(database)).resolves.toBeUndefined()
+
+    const [addressable] = await database('actors')
       .select('publicId')
-      .where('id', walked.id)
-    expect(unchanged.publicId).toBe(walked.publicId)
+      .whereNotNull('id')
+    expect(isPublicId(addressable.publicId)).toBe(true)
+
+    const skipped = await database('actors').select('publicId').whereNull('id')
+    expect(skipped).toHaveLength(2)
+    expect(skipped.every((row) => row.publicId === null)).toBe(true)
+    expect(logMessages).toContainEqual(
+      expect.stringContaining('actors: 2 row(s) with a NULL id were skipped')
+    )
   })
 
   it('rolls back cleanly', async () => {

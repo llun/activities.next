@@ -85,9 +85,22 @@ const BATCH_SIZE = 500
 // Upper bound on sweepMissingPublicIds() passes, so a silently ineffective
 // UPDATE can never spin forever. At BATCH_SIZE rows per pass this covers far
 // more stragglers than an online migration can realistically accumulate; if it
-// ever trips, the run logs it and the next `yarn migrate` picks up where this
-// one stopped.
+// ever trips, the sweep stops and the completeness check below fails the
+// migration so `yarn migrate` resumes it.
 const MAX_SWEEP_PASSES = 10000
+
+// Rows still missing a publicId, split by whether the sweep's per-row UPDATE
+// can address them at all. `addressable: false` counts rows with a NULL id —
+// see the whereNotNull('id') note in the sweep.
+const countMissingPublicIds = async (knex, tableName, addressable) => {
+  const query = knex(tableName).whereNull('publicId')
+  const result = await (
+    addressable ? query.whereNotNull('id') : query.whereNull('id')
+  )
+    .count('* as cnt')
+    .first()
+  return Number(result.cnt)
+}
 
 // Terminating self-healing sweep, run after the forward keyset walk.
 //
@@ -100,20 +113,42 @@ const MAX_SWEEP_PASSES = 10000
 //
 // This pass is predicated on the condition being repaired (publicId IS NULL)
 // rather than on a cursor position, so it converges regardless of insert
-// order, and it also makes a plain re-run of the migration repair any
-// stragglers left behind by an earlier run. The unique index added above
-// covers NULLs on both SQLite and PostgreSQL, so the predicate stays cheap.
+// order. The unique index added above covers NULLs on both SQLite and
+// PostgreSQL, so the predicate stays cheap.
+//
+// Both early exits (no progress, pass bound) leave addressable rows behind. A
+// migration whose up() RESOLVES is recorded in knex_migrations, and
+// `knex migrate:latest` then skips it forever — so an exit that only logged
+// "re-run the migration" would be a lie: the re-run reports "Already up to
+// date" and repairs nothing. The completeness check at the end therefore
+// THROWS while addressable rows remain. knex records nothing on a failed
+// migration, and up() is idempotent, so the next `yarn migrate` genuinely
+// re-runs this migration and resumes the backfill.
 const sweepMissingPublicIds = async (knex, tableName) => {
   let swept = 0
   let pass = 0
+  let stopReason = 'converged'
 
-  while (pass < MAX_SWEEP_PASSES) {
+  while (true) {
+    if (pass >= MAX_SWEEP_PASSES) {
+      stopReason = `hit the ${MAX_SWEEP_PASSES}-pass safety bound`
+      console.log(`  ${tableName}: sweep ${stopReason}, stopping`)
+      break
+    }
     pass += 1
+
     // Deliberately unordered: an ORDER BY would force a sort and defeat the
     // index scan that makes this predicate cheap on a large table.
     const rows = await knex(tableName)
       .select('id', 'createdAt')
       .whereNull('publicId')
+      // A NULL id cannot be addressed by the per-row UPDATE below: knex
+      // compiles `.where('id', null)` to `id IS NULL`, which matches EVERY
+      // null-id row at once, so a single publicId would be written to all of
+      // them and the unique index would abort the migration. actors.id is
+      // nullable in both schema dumps, so such rows can exist; they are
+      // skipped here and reported at the end instead.
+      .whereNotNull('id')
       .limit(BATCH_SIZE)
     if (rows.length === 0) break
 
@@ -135,20 +170,33 @@ const sweepMissingPublicIds = async (knex, tableName) => {
     // NULL rows and changes none of them means the UPDATE is not taking
     // effect. Stop instead of re-selecting the same rows forever.
     if (filled === 0) {
-      console.log(
-        `  ${tableName}: sweep made no progress on ${rows.length} row(s), stopping`
-      )
+      stopReason = `made no progress on ${rows.length} row(s)`
+      console.log(`  ${tableName}: sweep ${stopReason}, stopping`)
       break
     }
   }
 
-  if (pass >= MAX_SWEEP_PASSES) {
+  console.log(
+    `Sweep done. ${tableName}: ${swept} straggler(s) backfilled over ${pass} pass(es).`
+  )
+
+  const unaddressable = await countMissingPublicIds(knex, tableName, false)
+  if (unaddressable > 0) {
     console.log(
-      `  ${tableName}: sweep hit the ${MAX_SWEEP_PASSES}-pass safety bound; re-run the migration to continue`
+      `  ${tableName}: ${unaddressable} row(s) with a NULL id were skipped and still have a NULL publicId; repair their id before they can be backfilled`
     )
   }
 
-  console.log(`Sweep done. ${tableName}: ${swept} straggler(s) backfilled.`)
+  const remaining = await countMissingPublicIds(knex, tableName, true)
+  if (remaining > 0) {
+    const reason =
+      stopReason === 'converged'
+        ? 'they were inserted after the sweep converged'
+        : `the sweep ${stopReason}`
+    throw new Error(
+      `${tableName}: ${remaining} row(s) still have a NULL publicId after ${pass} sweep pass(es) - ${reason}. Failing so this migration is not recorded as applied; up() is idempotent, so re-run \`yarn migrate\` to resume the backfill.`
+    )
+  }
 }
 
 const backfillPublicIds = async (knex, tableName) => {
