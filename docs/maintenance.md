@@ -179,6 +179,99 @@ higher precedence than `.env.production` even under `NODE_ENV=production` —
 verify the printed banner shows the database you intend before trusting the
 output.
 
+## Public ID Backfill
+
+The `backfillPublicIds.ts` script fills `publicId` for `statuses` and `actors`
+rows that still have `NULL` after the `20260808000000_add_public_ids` migration,
+minting a UUIDv7 from each row's `createdAt` so the ids stay time-ordered
+exactly as the migration produced them.
+
+### Why it is needed
+
+The migration cannot finish the job by itself, and this is inherent to the
+deploy order rather than a gap in it:
+
+- `yarn migrate` runs **first**, from a checkout against the live database,
+  while the **previous** image keeps serving traffic — the runtime image ships
+  no Knex CLI (see [PostgreSQL Setup](postgresql-setup.md)).
+- The new build cannot start any earlier: its `INSERT`s write a `publicId`
+  value, so it needs the column the migration adds.
+- That concurrent writer is therefore the **pre-publicId** build, and every row
+  it inserts leaves `publicId` `NULL`. Rows written after the migration's sweep
+  converges — right through to the end of the rollout — are beyond anything the
+  migration could catch, which is why it logs them instead of failing.
+- Nothing repairs them later on its own: `publicId` is only ever minted on
+  insert, there is no lazy mint, and `yarn migrate` is a **no-op** once knex has
+  recorded the migration.
+
+### When to Use
+
+Run this once **after the new build is fully rolled out** — when no pre-publicId
+pod is still serving — and **before** the follow-up change that starts emitting
+`publicId`s ships. An exit code of `0` ("No NULL publicId rows remain") is the
+deploy gate for that follow-up.
+
+Also run it any time the migration's final output reported rows inserted after
+the sweep converged, or after restoring a backup taken mid-rollout.
+
+### Usage
+
+```bash
+# Preview what would be backfilled (recommended first step)
+NODE_ENV=production ./scripts/maintenance/backfillPublicIds.ts --dry-run
+
+# Backfill
+NODE_ENV=production ./scripts/maintenance/backfillPublicIds.ts
+
+# Smaller passes on a busy database
+NODE_ENV=production ./scripts/maintenance/backfillPublicIds.ts --batch-size 100
+
+# Show help
+./scripts/maintenance/backfillPublicIds.ts --help
+```
+
+### Options
+
+- `--dry-run [true|false]` - Report what would be backfilled without writing anything
+- `--batch-size <n>` - Rows per pass (default 500)
+- `--help` - Display help message
+
+### Output
+
+Each table reports how many rows were backfilled, how many were skipped, and how
+many still have a `NULL` publicId, followed by a total:
+
+```
+Summary
+  statuses: 2 backfilled, 0 skipped (NULL id), 0 still NULL
+  actors: 1 backfilled, 0 skipped (NULL id), 0 still NULL
+  total: 3 backfilled, 0 skipped (NULL id), 0 still NULL
+
+No NULL publicId rows remain. The publicId deploy gate is satisfied.
+```
+
+**Exit code `0` means no `NULL` publicId remains anywhere** — read it as the
+gate. `1` means some remain, including in `--dry-run`, where nothing was written
+so the gate is unmet by definition. If a live run still exits `1`, a
+pre-publicId pod is probably still serving: finish the rollout and run it again.
+
+Rows counted as **skipped (NULL id)** have a `NULL` `id` and cannot be addressed
+by a per-row `UPDATE` at all (`actors.id` is nullable in both schema dumps).
+They keep a `NULL` publicId until their `id` is repaired, and they hold the exit
+code at `1`.
+
+### Safety
+
+- Idempotent and safe to run repeatedly against a live production database.
+- Every `UPDATE` keeps a `publicId IS NULL` guard, so a value written
+  concurrently by the app is never clobbered.
+- A row that already has a `publicId` is never rewritten, so ids stay stable.
+- Prints the resolved database target before doing anything — verify it is
+  production, since `.env.local` shadows `.env.production` even under
+  `NODE_ENV=production`.
+- Stops instead of looping when a pass selects rows but changes none of them
+  (its `UPDATE`s are not taking effect), and says so.
+
 ## Other Scripts
 
 ### Create Mock User
