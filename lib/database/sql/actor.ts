@@ -28,6 +28,7 @@ import {
   isPostgresClient
 } from '@/lib/database/sql/utils/knex'
 import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
+import { resolveIdsByPublicIds } from '@/lib/database/sql/utils/publicIdLookup'
 import { selectHashtagTagsByStatusIds } from '@/lib/database/sql/utils/status'
 import {
   FEDERATION_SIGNING_ACTOR_TYPE,
@@ -73,7 +74,7 @@ import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { logger } from '@/lib/utils/logger'
-import { generatePublicId } from '@/lib/utils/publicId'
+import { generatePublicId, toPublicIdLookupKey } from '@/lib/utils/publicId'
 import { generateKeyPair } from '@/lib/utils/signature'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -632,29 +633,33 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .filter((actor): actor is Actor => actor !== null)
   },
 
+  // The lookup parameter is normalized here, at the single choke point every
+  // resolution site goes through, rather than in each caller — see
+  // toPublicIdLookupKey.
   async getActorIdByPublicId({ publicId }: GetActorIdByPublicIdParams) {
     const row = await database<SQLActor>('actors')
-      .where('publicId', publicId)
+      .where('publicId', toPublicIdLookupKey(publicId))
       .first('id')
     return row?.id ?? null
   },
 
   // Batch counterpart of getActorIdByPublicId, so a request carrying an array
-  // of ids costs one query instead of one per id. Chunked because SQLite caps
-  // a statement at SQLITE_MAX_BINDINGS parameters.
+  // of ids costs one query instead of one per id. The returned map is keyed by
+  // the publicIds as REQUESTED, so callers can zip it back against their input.
   async getActorIdsByPublicIds({ publicIds }: GetActorIdsByPublicIdsParams) {
-    const uniquePublicIds = [...new Set(publicIds)].filter(Boolean)
-    if (uniquePublicIds.length === 0) return new Map<string, string>()
-    const rowChunks = await Promise.all(
-      chunkArray(uniquePublicIds, getWhereInBatchSize(database)).map((chunk) =>
-        database<SQLActor>('actors')
-          .whereIn('publicId', chunk)
+    return resolveIdsByPublicIds({
+      publicIds,
+      batchSize: getWhereInBatchSize(database),
+      selectChunk: async (lookupKeys) => {
+        const rows = await database<SQLActor>('actors')
+          .whereIn('publicId', lookupKeys)
           .select('id', 'publicId')
-      )
-    )
-    return new Map<string, string>(
-      rowChunks.flat().map((row) => [row.publicId as string, row.id])
-    )
+        return rows.map((row) => ({
+          id: row.id,
+          publicId: row.publicId as string
+        }))
+      }
+    })
   },
 
   async getActorPublicIds({ actorIds }: GetActorPublicIdsParams) {

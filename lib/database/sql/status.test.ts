@@ -1091,6 +1091,33 @@ describe('StatusDatabase', () => {
         expect(map.size).toBe(0)
       })
 
+      it('resolves an uppercased publicId and keys the batch map by the requested form', async () => {
+        // publicIds are stored lowercase and SQLite/PostgreSQL compare them case
+        // sensitively, so the case fold has to happen on the lookup PARAMETER —
+        // in the database layer, where every resolution site shares it. The
+        // batch map is keyed by what the caller asked with, not by what the row
+        // holds, so a caller can zip it back against its own input.
+        const statusId = `${publicIdActorId}/statuses/public-id-uppercase`
+        const status = (await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: publicIdActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Uppercase lookup post'
+        })) as StatusNote
+        const uppercasePublicId = (status.publicId as string).toUpperCase()
+
+        expect(
+          await database.getStatusIdByPublicId({ publicId: uppercasePublicId })
+        ).toBe(statusId)
+
+        const map = await database.getStatusIdsByPublicIds({
+          publicIds: [uppercasePublicId]
+        })
+        expect(map.get(uppercasePublicId)).toBe(statusId)
+      })
+
       it('getStatusFromPublicId hydrates the same status as getStatus', async () => {
         const statusId = `${publicIdActorId}/statuses/public-id-hydrate`
         const created = (await database.createNote({

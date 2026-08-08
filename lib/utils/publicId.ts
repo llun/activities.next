@@ -18,6 +18,16 @@ export const generatePublicId = (timestamp?: number): string => {
 export const isPublicId = (value: string): boolean =>
   PUBLIC_ID_PATTERN.test(value)
 
+// isPublicId accepts either case and generatePublicId only ever mints lowercase,
+// so an uppercased publicId is the SAME id — but whether the DATABASE agrees is
+// a collation question: SQLite and PostgreSQL compare `publicId = ?` case
+// sensitively, MySQL's default utf8mb4_0900_ai_ci does not. Every publicId
+// lookup therefore normalizes the PARAMETER through this — never the column,
+// which would defeat the unique index — so the same id resolves the same way on
+// every backend and at every resolution site.
+export const toPublicIdLookupKey = (publicId: string): string =>
+  publicId.toLowerCase()
+
 export const getPublicIdTimestamp = (publicId: string): number =>
   parseInt(publicId.slice(0, 8) + publicId.slice(9, 13), 16)
 

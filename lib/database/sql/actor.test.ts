@@ -252,6 +252,44 @@ describe('ActorDatabase', () => {
         })
       })
 
+      it('resolves an uppercased publicId and keys the batch map by the requested form', async () => {
+        // publicIds are stored lowercase and SQLite/PostgreSQL compare them case
+        // sensitively, so the case fold has to happen on the lookup PARAMETER —
+        // in the database layer, where every resolution site shares it. The
+        // batch map is keyed by what the caller asked with, not by what the row
+        // holds, so a caller can zip it back against its own input.
+        await withFreshDatabase(async (freshDatabase) => {
+          const actorId = `https://${TEST_DOMAIN}/users/public-id-uppercase`
+          await freshDatabase.createActor({
+            actorId,
+            username: 'public-id-uppercase',
+            domain: TEST_DOMAIN,
+            followersUrl: `${actorId}/followers`,
+            inboxUrl: `${actorId}/inbox`,
+            sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
+            publicKey: 'public-key',
+            createdAt: Date.now()
+          })
+          const publicIds = await freshDatabase.getActorPublicIds({
+            actorIds: [actorId]
+          })
+          const uppercasePublicId = (
+            publicIds.get(actorId) as string
+          ).toUpperCase()
+
+          expect(
+            await freshDatabase.getActorIdByPublicId({
+              publicId: uppercasePublicId
+            })
+          ).toBe(actorId)
+
+          const map = await freshDatabase.getActorIdsByPublicIds({
+            publicIds: [uppercasePublicId]
+          })
+          expect(map.get(uppercasePublicId)).toBe(actorId)
+        })
+      })
+
       it('getActorPublicIds returns a map covering only requested ids that have publicIds', async () => {
         await withFreshDatabase(async (freshDatabase, instance) => {
           const withId = `https://${TEST_DOMAIN}/users/public-id-with`

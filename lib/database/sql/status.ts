@@ -21,6 +21,7 @@ import {
   getWhereInBatchSize
 } from '@/lib/database/sql/utils/knex'
 import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
+import { resolveIdsByPublicIds } from '@/lib/database/sql/utils/publicIdLookup'
 import {
   StatusHashtagTagRow,
   selectHashtagTagsByStatusIds
@@ -102,7 +103,11 @@ import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
-import { generatePublicId, isPublicId } from '@/lib/utils/publicId'
+import {
+  generatePublicId,
+  isPublicId,
+  toPublicIdLookupKey
+} from '@/lib/utils/publicId'
 
 import {
   deleteStatusSearchDocumentsByStatusIds,
@@ -3461,33 +3466,32 @@ export const StatusSQLDatabaseMixin = (
     return getStatusWithAttachmentsFromData(status, currentActorId)
   }
 
+  // The lookup parameter is normalized here, at the single choke point every
+  // resolution site goes through, rather than in each caller — see
+  // toPublicIdLookupKey.
   async function getStatusIdByPublicId({
     publicId
   }: GetStatusIdByPublicIdParams) {
     const row = await database('statuses')
-      .where('publicId', publicId)
+      .where('publicId', toPublicIdLookupKey(publicId))
       .first<{ id: string }>('id')
     return row?.id ?? null
   }
 
   // Batch counterpart of getStatusIdByPublicId, so a request carrying an array
-  // of ids costs one query instead of one per id. Chunked because SQLite caps
-  // a statement at SQLITE_MAX_BINDINGS parameters.
+  // of ids costs one query instead of one per id. The returned map is keyed by
+  // the publicIds as REQUESTED, so callers can zip it back against their input.
   async function getStatusIdsByPublicIds({
     publicIds
   }: GetStatusIdsByPublicIdsParams) {
-    const uniquePublicIds = [...new Set(publicIds)].filter(Boolean)
-    if (uniquePublicIds.length === 0) return new Map<string, string>()
-    const rowChunks = await Promise.all(
-      chunkArray(uniquePublicIds, getWhereInBatchSize(database)).map((chunk) =>
-        database('statuses').whereIn('publicId', chunk).select('id', 'publicId')
-      )
-    )
-    return new Map<string, string>(
-      rowChunks
-        .flat()
-        .map((row: { id: string; publicId: string }) => [row.publicId, row.id])
-    )
+    return resolveIdsByPublicIds({
+      publicIds,
+      batchSize: getWhereInBatchSize(database),
+      selectChunk: (lookupKeys) =>
+        database('statuses')
+          .whereIn('publicId', lookupKeys)
+          .select('id', 'publicId')
+    })
   }
 
   async function getStatusFromPublicId({
@@ -3495,7 +3499,7 @@ export const StatusSQLDatabaseMixin = (
     currentActorId
   }: GetStatusFromPublicIdParams) {
     const status = await database('statuses')
-      .where('publicId', publicId)
+      .where('publicId', toPublicIdLookupKey(publicId))
       .first()
     if (!status) return null
     return getStatusWithAttachmentsFromData(status, currentActorId)

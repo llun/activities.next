@@ -1,0 +1,55 @@
+import { toPublicIdLookupKey } from '@/lib/utils/publicId'
+
+import { chunkArray } from './knex'
+
+interface PublicIdRow {
+  id: string
+  publicId: string
+}
+
+interface ResolveIdsByPublicIdsParams {
+  publicIds: string[]
+  batchSize: number
+  selectChunk: (lookupKeys: string[]) => Promise<PublicIdRow[]>
+}
+
+/**
+ * Shared body of the batch publicId → stored-id lookups (statuses and actors).
+ *
+ * Queries with NORMALIZED lookup keys — the parameter only, never the column, so
+ * the unique index on `publicId` is still used — and returns a map keyed by the
+ * publicId strings the CALLER asked with, not by the ones the database happened
+ * to return. Those differ under a case-insensitive collation (MySQL answers a
+ * lowercase request with the stored uppercase value), and a caller zipping the
+ * map back against its own input would silently miss the row. Chunked because
+ * SQLite caps a statement at SQLITE_MAX_BINDINGS parameters.
+ */
+export const resolveIdsByPublicIds = async ({
+  publicIds,
+  batchSize,
+  selectChunk
+}: ResolveIdsByPublicIdsParams): Promise<Map<string, string>> => {
+  const requestedByLookupKey = new Map<string, string[]>()
+  for (const publicId of publicIds) {
+    if (!publicId) continue
+    const lookupKey = toPublicIdLookupKey(publicId)
+    const requested = requestedByLookupKey.get(lookupKey)
+    if (!requested) requestedByLookupKey.set(lookupKey, [publicId])
+    else if (!requested.includes(publicId)) requested.push(publicId)
+  }
+
+  const resolved = new Map<string, string>()
+  if (requestedByLookupKey.size === 0) return resolved
+
+  const rowChunks = await Promise.all(
+    chunkArray([...requestedByLookupKey.keys()], batchSize).map(selectChunk)
+  )
+  for (const row of rowChunks.flat()) {
+    const requested =
+      requestedByLookupKey.get(toPublicIdLookupKey(row.publicId)) ?? []
+    for (const publicId of requested) {
+      resolved.set(publicId, row.id)
+    }
+  }
+  return resolved
+}

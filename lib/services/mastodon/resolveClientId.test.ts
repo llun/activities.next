@@ -13,12 +13,14 @@ import {
   resolveStatusIdParams
 } from './resolveClientId'
 
-// SQLite (what this suite runs on) and PostgreSQL compare `publicId` case
-// SENSITIVELY; MySQL's default utf8mb4_0900_ai_ci collation does not, and the
-// row it matches comes back carrying the publicId as STORED rather than as
-// requested. The two stubs below simulate that collation and nothing else — they
-// are not a second database implementation, only the one behavior a real test
-// database cannot produce.
+// The database layer owns publicId case handling: it normalizes the lookup
+// parameter and keys the batch map by the publicIds as REQUESTED. SQLite (what
+// this suite runs on) and PostgreSQL compare `publicId` case SENSITIVELY, so a
+// real test database can only hold a lowercase stored id; MySQL's default
+// utf8mb4_0900_ai_ci collation also matches a row whose STORED value is cased
+// differently. The two stubs below implement that contract over a stored id of
+// either casing — they are not a second database implementation, only the one
+// behavior a real test database cannot produce.
 const matchesIgnoringCase = (requested: string, stored: string) =>
   requested.toLowerCase() === stored.toLowerCase()
 
@@ -32,7 +34,7 @@ const createCaseInsensitiveStatusDatabase = (
     new Map<string, string>(
       publicIds
         .filter((publicId) => matchesIgnoringCase(publicId, storedPublicId))
-        .map((): [string, string] => [storedPublicId, statusId])
+        .map((publicId): [string, string] => [publicId, statusId])
     )
 })
 
@@ -46,7 +48,7 @@ const createCaseInsensitiveActorDatabase = (
     new Map<string, string>(
       publicIds
         .filter((publicId) => matchesIgnoringCase(publicId, storedPublicId))
-        .map((): [string, string] => [storedPublicId, actorId])
+        .map((publicId): [string, string] => [publicId, actorId])
     )
 })
 
