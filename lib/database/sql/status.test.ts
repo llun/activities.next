@@ -1169,6 +1169,103 @@ describe('StatusDatabase', () => {
       })
     })
 
+    describe('getActorStatusFromPathSegment', () => {
+      // Dedicated actors, isolated from the shared seed fixtures, so these
+      // notes never bump a status count another describe block asserts on.
+      const authorId = 'https://path-segment-status.test/users/author'
+      const otherAuthorId = 'https://path-segment-status.test/users/other'
+      // A status created before publicIds existed keeps its original URI tail
+      // and only gained a publicId in the backfill, so the two differ.
+      const legacyTail = 'path-segment-legacy-tail'
+      const legacyStatusId = `${authorId}/statuses/${legacyTail}`
+      const otherAuthorStatusId = `${otherAuthorId}/statuses/${legacyTail}`
+      let legacyStatus: StatusNote
+      let otherAuthorStatus: StatusNote
+
+      const createAuthor = (actorId: string, username: string) =>
+        database.createActor({
+          actorId,
+          username,
+          domain: 'path-segment-status.test',
+          followersUrl: `${actorId}/followers`,
+          inboxUrl: `${actorId}/inbox`,
+          sharedInboxUrl: 'https://path-segment-status.test/inbox',
+          publicKey: `${username}-public-key`,
+          createdAt: Date.now()
+        })
+
+      beforeAll(async () => {
+        await createAuthor(authorId, 'path-segment-author')
+        await createAuthor(otherAuthorId, 'path-segment-other')
+        legacyStatus = (await database.createNote({
+          id: legacyStatusId,
+          url: legacyStatusId,
+          actorId: authorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Legacy tail post'
+        })) as StatusNote
+        otherAuthorStatus = (await database.createNote({
+          id: otherAuthorStatusId,
+          url: otherAuthorStatusId,
+          actorId: otherAuthorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Another actor post'
+        })) as StatusNote
+      })
+
+      it('resolves a status from its URI tail', async () => {
+        const status = await database.getActorStatusFromPathSegment({
+          actorId: authorId,
+          pathSegment: legacyTail
+        })
+        expect(status?.id).toBe(legacyStatusId)
+      })
+
+      it('resolves a backfilled status from its publicId when the URI tail differs', async () => {
+        const publicId = legacyStatus.publicId as string
+        expect(publicId).not.toBe(legacyTail)
+
+        const status = await database.getActorStatusFromPathSegment({
+          actorId: authorId,
+          pathSegment: publicId
+        })
+        expect(status?.id).toBe(legacyStatusId)
+      })
+
+      it('returns null for a publicId that belongs to another actor', async () => {
+        const publicId = otherAuthorStatus.publicId as string
+        const underOwnActor = await database.getActorStatusFromPathSegment({
+          actorId: otherAuthorId,
+          pathSegment: publicId
+        })
+        expect(underOwnActor?.id).toBe(otherAuthorStatusId)
+
+        expect(
+          await database.getActorStatusFromPathSegment({
+            actorId: authorId,
+            pathSegment: publicId
+          })
+        ).toBeNull()
+      })
+
+      it.each([
+        {
+          description: 'an unknown URI tail',
+          pathSegment: 'path-segment-never-created'
+        },
+        { description: 'an unknown publicId', pathSegment: generatePublicId() }
+      ])('returns null for $description', async ({ pathSegment }) => {
+        expect(
+          await database.getActorStatusFromPathSegment({
+            actorId: authorId,
+            pathSegment
+          })
+        ).toBeNull()
+      })
+    })
+
     describe('getStatusesByIds', () => {
       const createVisibilityActor = async ({
         name,

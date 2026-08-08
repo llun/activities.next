@@ -8,8 +8,7 @@ import { generatePublicId } from '@/lib/utils/publicId'
 import { GET } from './route'
 
 const mockDatabase = {
-  getStatus: vi.fn(),
-  getStatusIdByPublicId: vi.fn(),
+  getActorStatusFromPathSegment: vi.fn(),
   getStatusReblogsCount: vi.fn()
 }
 const mockActor: Actor = {
@@ -40,7 +39,7 @@ vi.mock('@/lib/services/guards/OnlyLocalUserGuard', () => ({
 describe('GET /api/users/[username]/statuses/[statusId]/shares', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDatabase.getStatus.mockResolvedValue({
+    mockDatabase.getActorStatusFromPathSegment.mockResolvedValue({
       id: 'https://example.com/users/test/statuses/123',
       url: 'https://example.com/users/test/statuses/123',
       type: StatusType.enum.Note,
@@ -65,6 +64,11 @@ describe('GET /api/users/[username]/statuses/[statusId]/shares', () => {
     )
 
     expect(response.status).toBe(200)
+    expect(mockDatabase.getActorStatusFromPathSegment).toHaveBeenCalledWith({
+      actorId: mockActor.id,
+      pathSegment: '123',
+      withReplies: false
+    })
     expect(mockDatabase.getStatusReblogsCount).toHaveBeenCalledWith({
       statusId: 'https://example.com/users/test/statuses/123'
     })
@@ -79,27 +83,13 @@ describe('GET /api/users/[username]/statuses/[statusId]/shares', () => {
     })
   })
 
-  describe('publicId fallback for backfilled statuses', () => {
+  describe('publicId path segment', () => {
+    // The route hands the raw path segment to the database, which resolves it
+    // as either a status URI tail or a publicId and scopes it to this actor.
     const legacyUri = 'https://example.com/users/test/statuses/legacy-tail'
 
-    it('resolves a backfilled status whose URI tail differs from its publicId', async () => {
-      const publicId = generatePublicId()
-      mockDatabase.getStatus.mockImplementation(
-        async ({ statusId }: { statusId: string }) =>
-          statusId === legacyUri
-            ? {
-                id: legacyUri,
-                url: legacyUri,
-                actorId: mockActor.id,
-                type: StatusType.enum.Note,
-                to: [ACTIVITY_STREAM_PUBLIC],
-                cc: []
-              }
-            : null
-      )
-      mockDatabase.getStatusIdByPublicId.mockResolvedValue(legacyUri)
-
-      const response = await GET(
+    const requestShares = (publicId: string) =>
+      GET(
         new NextRequest(
           `https://example.com/api/users/test/statuses/${publicId}/shares`,
           {
@@ -112,9 +102,24 @@ describe('GET /api/users/[username]/statuses/[statusId]/shares', () => {
         { params: Promise.resolve({ username: 'test', statusId: publicId }) }
       )
 
+    it('counts shares on the status the database resolved from a publicId segment', async () => {
+      const publicId = generatePublicId()
+      mockDatabase.getActorStatusFromPathSegment.mockResolvedValue({
+        id: legacyUri,
+        url: legacyUri,
+        actorId: mockActor.id,
+        type: StatusType.enum.Note,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await requestShares(publicId)
+
       expect(response.status).toBe(200)
-      expect(mockDatabase.getStatusIdByPublicId).toHaveBeenCalledWith({
-        publicId
+      expect(mockDatabase.getActorStatusFromPathSegment).toHaveBeenCalledWith({
+        actorId: mockActor.id,
+        pathSegment: publicId,
+        withReplies: false
       })
       expect(mockDatabase.getStatusReblogsCount).toHaveBeenCalledWith({
         statusId: legacyUri
@@ -124,71 +129,26 @@ describe('GET /api/users/[username]/statuses/[statusId]/shares', () => {
       expect(data.id).toBe(`${legacyUri}/shares`)
     })
 
-    it('returns not found when the publicId belongs to a different actor', async () => {
-      const publicId = generatePublicId()
-      const otherActorUri =
-        'https://example.com/users/other/statuses/legacy-tail'
-      mockDatabase.getStatus.mockImplementation(
-        async ({ statusId }: { statusId: string }) =>
-          statusId === otherActorUri
-            ? {
-                id: otherActorUri,
-                url: otherActorUri,
-                actorId: 'https://example.com/users/other',
-                type: StatusType.enum.Note,
-                to: [ACTIVITY_STREAM_PUBLIC],
-                cc: []
-              }
-            : null
-      )
-      mockDatabase.getStatusIdByPublicId.mockResolvedValue(otherActorUri)
+    it('returns not found when the database resolves the segment to nothing', async () => {
+      mockDatabase.getActorStatusFromPathSegment.mockResolvedValue(null)
 
-      const response = await GET(
-        new NextRequest(
-          `https://example.com/api/users/test/statuses/${publicId}/shares`,
-          {
-            headers: {
-              accept:
-                'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
-            }
-          }
-        ),
-        { params: Promise.resolve({ username: 'test', statusId: publicId }) }
-      )
+      const response = await requestShares(generatePublicId())
 
       expect(response.status).toBe(404)
       expect(mockDatabase.getStatusReblogsCount).not.toHaveBeenCalled()
     })
 
-    it('returns not found for a non-public status resolved via publicId fallback', async () => {
-      const publicId = generatePublicId()
-      mockDatabase.getStatus.mockImplementation(
-        async ({ statusId }: { statusId: string }) =>
-          statusId === legacyUri
-            ? {
-                id: legacyUri,
-                url: legacyUri,
-                actorId: mockActor.id,
-                type: StatusType.enum.Note,
-                to: ['https://example.com/users/test/followers'],
-                cc: []
-              }
-            : null
-      )
-      mockDatabase.getStatusIdByPublicId.mockResolvedValue(legacyUri)
+    it('returns not found for a non-public status resolved from a publicId segment', async () => {
+      mockDatabase.getActorStatusFromPathSegment.mockResolvedValue({
+        id: legacyUri,
+        url: legacyUri,
+        actorId: mockActor.id,
+        type: StatusType.enum.Note,
+        to: ['https://example.com/users/test/followers'],
+        cc: []
+      })
 
-      const response = await GET(
-        new NextRequest(
-          `https://example.com/api/users/test/statuses/${publicId}/shares`,
-          {
-            headers: {
-              accept:
-                'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
-            }
-          }
-        ),
-        { params: Promise.resolve({ username: 'test', statusId: publicId }) }
-      )
+      const response = await requestShares(generatePublicId())
 
       expect(response.status).toBe(404)
       expect(mockDatabase.getStatusReblogsCount).not.toHaveBeenCalled()

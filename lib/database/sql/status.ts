@@ -47,6 +47,7 @@ import {
   FavouritedByAccount,
   GetActorPollVotesForStatusesParams,
   GetActorPollVotesParams,
+  GetActorStatusFromPathSegmentParams,
   GetActorStatusesCountParams,
   GetActorStatusesParams,
   GetFavouritedByParams,
@@ -97,10 +98,11 @@ import {
 import { Tag } from '@/lib/types/domain/tag'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import { normalizeActorId } from '@/lib/utils/activitypub'
+import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
-import { generatePublicId } from '@/lib/utils/publicId'
+import { generatePublicId, isPublicId } from '@/lib/utils/publicId'
 
 import {
   deleteStatusSearchDocumentsByStatusIds,
@@ -3514,6 +3516,33 @@ export const StatusSQLDatabaseMixin = (
     )
   }
 
+  async function getActorStatusFromPathSegment({
+    actorId,
+    pathSegment,
+    withReplies
+  }: GetActorStatusFromPathSegmentParams) {
+    const status = await getStatus({
+      statusId: getLocalStatusId({ actorId, statusId: pathSegment }),
+      withReplies
+    })
+    if (status) return status
+    if (!isPublicId(pathSegment)) return null
+
+    const uriFromPublicId = await getStatusIdByPublicId({
+      publicId: pathSegment
+    })
+    if (!uriFromPublicId) return null
+
+    const candidate = await getStatus({
+      statusId: uriFromPublicId,
+      withReplies
+    })
+    // Serve only this actor's own statuses — a publicId belonging to another
+    // actor must not resolve under this actor's URL space.
+    if (candidate?.actorId !== actorId) return null
+    return candidate
+  }
+
   async function getActorAnnouncedStatusId({
     actorId,
     originalStatusId
@@ -3648,6 +3677,7 @@ export const StatusSQLDatabaseMixin = (
     getStatusIdsByPublicIds,
     getStatusFromPublicId,
     getStatusPublicIds,
+    getActorStatusFromPathSegment,
     getActorAnnouncedStatusId,
     hasActorAnnouncedStatus,
     getActorAnnounceStatus,

@@ -629,6 +629,15 @@ export interface GetStatusFromPublicIdParams {
 export interface GetStatusPublicIdsParams {
   statusIds: string[]
 }
+export interface GetActorStatusFromPathSegmentParams {
+  actorId: string
+  // The `[statusId]` segment of `/users/:username/statuses/:statusId`. It is
+  // either the tail of the status URI or the status publicId — a status created
+  // before publicIds existed keeps its original tail and only gained a publicId
+  // in the backfill, so both forms address the same row.
+  pathSegment: string
+  withReplies?: boolean
+}
 
 export type GetActorAnnouncedStatusIdParams = {
   actorId: string
@@ -870,6 +879,13 @@ export interface StatusDatabase {
   getStatusPublicIds(
     params: GetStatusPublicIdsParams
   ): Promise<Map<string, string>>
+  // Resolves the `[statusId]` path segment of the ActivityPub status routes,
+  // accepting either the status URI tail or the status publicId. Scoped to
+  // `actorId`: a publicId belonging to another actor resolves to null instead
+  // of surfacing under this actor's URL space.
+  getActorStatusFromPathSegment(
+    params: GetActorStatusFromPathSegmentParams
+  ): Promise<Status | null>
   getActorAnnouncedStatusId(
     params: GetActorAnnouncedStatusIdParams
   ): Promise<string | null>

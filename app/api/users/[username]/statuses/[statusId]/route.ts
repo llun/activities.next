@@ -15,9 +15,7 @@ import {
   activityPubResponse,
   negotiateActivityPubContentType
 } from '@/lib/utils/activityPubContentNegotiation'
-import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
-import { isPublicId } from '@/lib/utils/publicId'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -31,25 +29,11 @@ export const GET = traceApiRoute(
   'getActorStatus',
   OnlyLocalUserGuard(async (database, actor, req, query: unknown) => {
     const { statusId } = await (query as AppRouterParams<StatusParams>).params
-    const id = getLocalStatusId({ actorId: actor.id, statusId })
-    let status = await database.getStatus({
-      statusId: id,
+    const status = await database.getActorStatusFromPathSegment({
+      actorId: actor.id,
+      pathSegment: statusId,
       withReplies: false
     })
-    if (!status && isPublicId(statusId)) {
-      const uriFromPublicId = await database.getStatusIdByPublicId({
-        publicId: statusId
-      })
-      if (uriFromPublicId) {
-        const candidate = await database.getStatus({
-          statusId: uriFromPublicId,
-          withReplies: false
-        })
-        // Serve only this path-actor's own statuses — a publicId belonging to
-        // another actor must not resolve under this username's URL space.
-        if (candidate?.actorId === actor.id) status = candidate
-      }
-    }
     if (!status) return apiErrorResponse(404)
     if (!isStatusPubliclyReadable(status)) return apiErrorResponse(404)
 
