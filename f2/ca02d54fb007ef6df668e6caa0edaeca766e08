@@ -1,0 +1,105 @@
+app/api/v1/statuses/[id]/unpin/route.ts
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 3
+  s_4f4812f16bd65a::t_8e35a607fabac1 33
+app/api/v1/statuses/[id]/reblogged_by/route.ts
+  s_4f4812f16bd65a::t_cd57c9b10e64ae 60
+  s_4f4812f16bd65a::t_ce5f8aa2395647 5
+app/api/v1/statuses/[id]/unmute/route.ts
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 4
+  s_4f4812f16bd65a::t_8e35a607fabac1 33
+app/api/v1/statuses/route.ts
+  s_4f4812f16bd65a::t_e722c7b4d34c5e 386-388
+  s_4f4812f16bd65a::t_40eebf0bf39a04 134-136
+  s_4f4812f16bd65a::t_d4ea6e38f6a94b 21
+  s_4f4812f16bd65a::t_f1ddfcf2da600d 389
+app/api/v1/polls/[id]/votes/route.ts
+  s_4f4812f16bd65a::t_a6b6a1fe657a66 6
+  s_4f4812f16bd65a::t_b17c40fe735a39 96
+app/api/v1/statuses/[id]/route.ts
+  s_4f4812f16bd65a::t_7725d04f7ad706 544
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 23
+  s_4f4812f16bd65a::t_e044be3dd01e76 177
+  s_4f4812f16bd65a::t_3339c6e4971874 69
+app/api/v1/statuses/[id]/translate/route.ts
+  s_4f4812f16bd65a::t_8e35a607fabac1 73
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 4
+app/api/v1/statuses/[id]/bookmark/route.ts
+  s_4f4812f16bd65a::t_595e3b430a195a 27
+  s_4f4812f16bd65a::t_73c195baafc89b 2
+app/api/v1/statuses/[id]/unbookmark/route.ts
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 2
+  s_4f4812f16bd65a::t_8e35a607fabac1 30
+app/api/v1/statuses/[id]/favourited_by/route.ts
+  s_4f4812f16bd65a::t_fb7cedadc599ba 61
+  s_4f4812f16bd65a::t_ee4b6db2a65661 6
+app/api/v1/statuses/[id]/quotes/route.ts
+  s_4f4812f16bd65a::t_90bd41fcf23f01 6
+  s_4f4812f16bd65a::t_cac484106b36b0 44
+app/api/v1/statuses/[id]/unfavourite/route.ts
+  s_4f4812f16bd65a::t_8e35a607fabac1 28
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 3
+lib/services/reactions/reactionRouteHandlers.ts
+  s_4f4812f16bd65a::t_de710769ce10d9 5
+  s_4f4812f16bd65a::t_a8f3c8fa1b93cf 53
+app/api/v1/polls/[id]/route.ts
+  s_4f4812f16bd65a::t_f20e0da02d4087 3
+  s_4f4812f16bd65a::t_93f605e9c77d8b 31
+app/api/v1/statuses/[id]/retry-fitness/route.ts
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 4
+  s_4f4812f16bd65a::t_8e35a607fabac1 36
+app/api/v1/statuses/[id]/reblog/route.ts
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 5
+  s_4f4812f16bd65a::t_8e35a607fabac1 66
+app/api/v1/statuses/[id]/unreblog/route.ts
+  s_4f4812f16bd65a::t_8e35a607fabac1 35
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 3
+app/api/v1/statuses/[id]/source/route.ts
+  s_4f4812f16bd65a::t_295baac3fe1d23 2,13
+  s_4f4812f16bd65a::t_4500576177935a 32
+app/api/v1/statuses/[id]/context/route.ts
+  s_4f4812f16bd65a::t_8e35a607fabac1 145
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 8
+app/api/v1/statuses/[id]/mute/route.ts
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 4
+  s_4f4812f16bd65a::t_8e35a607fabac1 33
+app/api/v1/statuses/[id]/pin/route.ts
+  s_4f4812f16bd65a::t_8e35a607fabac1 37
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 4
+app/api/v1/reports/route.ts
+  s_4f4812f16bd65a::t_71e629dac1694a 115-118,131-135
+  s_4f4812f16bd65a::t_b268701b53fb58 5-8
+app/api/v1/statuses/[id]/favourite/route.ts
+  s_4f4812f16bd65a::t_8e35a607fabac1 28
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 3
+app/api/v1/statuses/[id]/interaction_policy/route.ts
+  s_4f4812f16bd65a::t_8e35a607fabac1 45
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 6
+app/api/v1/pleroma/statuses/[id]/reactions/[emoji]/route.ts
+  s_4f4812f16bd65a::t_e5295bd15205c4 45
+  s_4f4812f16bd65a::t_33c424f2d6ed0e 6
+app/api/v1/statuses/[id]/quotes/[quoting_status_id]/revoke/route.ts
+  s_4f4812f16bd65a::t_5e1d02786a1bef 4
+  s_4f4812f16bd65a::t_3f46d746fcf6dd 38-42
+app/api/v1/statuses/[id]/history/route.ts
+  s_4f4812f16bd65a::t_8e35a607fabac1 33
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 3
+app/api/v1/pleroma/statuses/[id]/reactions/route.ts
+  s_4f4812f16bd65a::t_877d9fa8f183d3 5
+  s_4f4812f16bd65a::t_0292f5fef7ba4b 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "f2ca02d54fb007ef6df668e6caa0edaeca766e08",
+  "prompts": {},
+  "sessions": {
+    "s_4f4812f16bd65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef4966e6-a801-42ad-bea7-0a298c41d397",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
