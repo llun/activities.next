@@ -391,6 +391,9 @@ describe('public ids migration', () => {
     // running app rather than by this migration. Failing on it would break a
     // perfectly healthy deploy — and a retry pays another O(N) forward walk only
     // to race the same way — so the converged exit reports the count instead.
+    // It must say so honestly, though: migrate runs first, so that concurrent
+    // writer is the pre-publicId build and its rows stay NULL until the
+    // post-rollout repair script is run.
     //
     // A file-backed database plus a SECOND better-sqlite3 connection reproduces
     // a genuinely concurrent writer (an in-memory database is private to its own
@@ -438,8 +441,13 @@ describe('public ids migration', () => {
 
       expect(logMessages).toContainEqual(
         expect.stringContaining(
-          'statuses: 1 row(s) were inserted after the sweep converged'
+          'statuses: 1 row(s) were inserted after the sweep converged and have a NULL publicId; this migration does NOT backfill them.'
         )
+      )
+      // Leaving the row NULL is only defensible if the operator is told where
+      // the remedy lives — `yarn migrate` will not run this again.
+      expect(logMessages).toContainEqual(
+        expect.stringContaining('scripts/maintenance/backfillPublicIds.ts')
       )
       // The row is left exactly as the concurrent writer wrote it: this
       // migration does not own it.

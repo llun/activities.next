@@ -106,10 +106,11 @@ const countMissingPublicIds = async (knex, tableName, addressable) => {
 //
 // The walk below is O(N) and resumable, but it only ever moves forward. The
 // production flow runs `yarn migrate` against the live database while the
-// currently deployed app keeps serving traffic, and that app mints ids with
-// uniformly distributed uuid tails — so on a large table roughly half of the
-// rows inserted during the (many-minute) walk land BEHIND the cursor and are
-// never revisited by `where('id', '>', lastId)`.
+// currently deployed app — the PRE-publicId build, since migrate runs first —
+// keeps serving traffic, and that app mints row ids with uniformly distributed
+// uuid tails, so on a large table roughly half of the rows inserted during the
+// (many-minute) walk land BEHIND the cursor and are never revisited by
+// `where('id', '>', lastId)`.
 //
 // This pass is predicated on the condition being repaired (publicId IS NULL)
 // rather than on a cursor position, so it converges regardless of insert
@@ -132,6 +133,20 @@ const countMissingPublicIds = async (knex, tableName, addressable) => {
 // there would break a healthy online migration on a single concurrent insert —
 // and the retry would pay another full O(N) forward walk only to race the same
 // way — with a message that reads like corruption.
+//
+// What it must NOT claim is that those rows are fine. This migration does not
+// backfill them, and in this project's deploy order most of them are written by
+// a build that mints nothing: `yarn migrate` runs from a checkout against the
+// live database while the PREVIOUS image serves traffic (the runtime image
+// ships no Knex CLI — see docs/postgresql-setup.md), and that image predates
+// publicId. The new build cannot go first either, since its INSERTs write a
+// publicId value and need this column. So the residue keeps growing from the
+// moment the sweep converges until the rollout finishes — no version of this
+// migration could catch it — and nothing fills it in afterwards: publicId is
+// only ever minted on insert, there is no lazy mint, and knex skips a recorded
+// migration forever. The remedy is a POST-ROLLOUT pass with
+// `scripts/maintenance/backfillPublicIds.ts` (see docs/maintenance.md), which is
+// what the converged-exit message points the operator at.
 const sweepMissingPublicIds = async (knex, tableName) => {
   let swept = 0
   let pass = 0
@@ -191,17 +206,23 @@ const sweepMissingPublicIds = async (knex, tableName) => {
   const unaddressable = await countMissingPublicIds(knex, tableName, false)
   if (unaddressable > 0) {
     console.log(
-      `  ${tableName}: ${unaddressable} row(s) with a NULL id were skipped and still have a NULL publicId; repair their id before they can be backfilled`
+      `  ${tableName}: ${unaddressable} row(s) with a NULL id were skipped and still have a NULL publicId; repair their id, then fill them with \`scripts/maintenance/backfillPublicIds.ts\` (see docs/maintenance.md) - re-running \`yarn migrate\` will not, since this migration is already recorded`
     )
   }
 
   const remaining = await countMissingPublicIds(knex, tableName, true)
   if (remaining > 0 && stopReason === 'converged') {
-    // Not a failure: rows written after the sweep's last (empty) SELECT are the
-    // concurrently running app's, not this backfill's. The deployed code mints
-    // a publicId at insert time, so they need no repair here.
+    // Not a failure, but not repaired either: rows written after the sweep's
+    // last (empty) SELECT belong to the app writing alongside this migration,
+    // and whether they carry a publicId depends on which build wrote them.
     console.log(
-      `  ${tableName}: ${remaining} row(s) were inserted after the sweep converged and have no publicId yet; they belong to the app writing alongside this migration, which mints publicId on insert`
+      `  ${tableName}: ${remaining} row(s) were inserted after the sweep converged and have a NULL publicId; this migration does NOT backfill them.`
+    )
+    console.log(
+      `  ${tableName}: rows written by the still-deployed pre-publicId build stay NULL for good; only once the new build (which mints publicId on insert) is fully rolled out do new rows get one.`
+    )
+    console.log(
+      `  ${tableName}: after the rollout completes, re-check and repair with \`scripts/maintenance/backfillPublicIds.ts\` (see docs/maintenance.md) - re-running \`yarn migrate\` will NOT, since this migration is already recorded.`
     )
   } else if (remaining > 0) {
     throw new Error(
