@@ -1,0 +1,46 @@
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_4f4812f16bd65a::t_3c0cdc33953520 74,100,135-136,530-533,552,556,757,990-992,995,999,1037-1039,1042-1043,1069-1070,1128,1244,1844,1918,1934,1965,1993,2000
+  s_4f4812f16bd65a::t_7fd5cf1715b839 1250-1400
+  s_4f4812f16bd65a::t_8956a391e1f163 27-33
+lib/services/mastodon/getMastodonStatus.ts
+  s_4f4812f16bd65a::t_6df9d65c98eadf 165,227-230,237-244
+  s_4f4812f16bd65a::t_c810aad90a24a0 120-128,140-142,150-156,158-161,163-164
+  s_4f4812f16bd65a::t_35a91a35146530 622-625
+  s_4f4812f16bd65a::t_288c8548bf7e0a 641-649
+  s_4f4812f16bd65a::t_d6fb6c55209655 986-996
+  s_4f4812f16bd65a::t_42fb4ab298a41c 810
+  s_4f4812f16bd65a::t_3bd76eeeef4a65 543
+  s_4f4812f16bd65a::t_0ef45e1504580b 1008
+  s_4f4812f16bd65a::t_34c8c4030b1477 699-700
+  s_4f4812f16bd65a::t_c6f0db1781f1d1 92-98
+  s_4f4812f16bd65a::t_14ca6f21ec5b62 231-236
+  s_4f4812f16bd65a::t_01152f01089141 825
+  s_4f4812f16bd65a::t_277604db67828f 23
+  s_4f4812f16bd65a::t_e4a20a633235a5 767-769
+  s_4f4812f16bd65a::t_4b13d9af9f9146 157,162
+  s_03c23a8974bbf4::t_30b1fd2acd71dc 166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "4c5388ff0fc8bb2c49307f1cfede5ca63049094d",
+  "prompts": {},
+  "sessions": {
+    "s_03c23a8974bbf4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a167a7d7-7639-41e0-8658-ab688b2cf7f0",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_4f4812f16bd65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef4966e6-a801-42ad-bea7-0a298c41d397",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
