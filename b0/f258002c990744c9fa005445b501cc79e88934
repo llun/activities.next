@@ -1,0 +1,103 @@
+app/api/v1/notifications/requests/accept/route.ts
+  s_4f4812f16bd65a::t_34ac16392b0549 3-4
+  s_4f4812f16bd65a::t_08be34e0eb1d4d 53
+  s_4f4812f16bd65a::t_5897c61fe8b4a8 63-66
+app/api/v1/lists/[id]/accounts/route.test.ts
+  s_4f4812f16bd65a::t_236e7fa13311fc 3,6,13-14,16-18
+  s_4f4812f16bd65a::t_098c5749b90636 237-268
+  s_4f4812f16bd65a::t_303df2562172da 320-354
+lib/services/collections/addMembers.ts
+  s_4f4812f16bd65a::t_0d6d8dac912678 20
+  s_4f4812f16bd65a::t_2df30991ed43f9 5
+  s_4f4812f16bd65a::t_07d34a3614f884 36-37
+lib/database/sql/actor.test.ts
+  s_4f4812f16bd65a::t_37916b21e1cfeb 206-254
+app/api/v1/notifications/requests/dismiss/route.ts
+  s_4f4812f16bd65a::t_3d474dd8316cfc 52
+  s_4f4812f16bd65a::t_1ad00de06003c6 3-4
+  s_4f4812f16bd65a::t_e493084c41dddd 64-65
+app/api/v1/statuses/route.ts
+  s_4f4812f16bd65a::t_8b3e4956cf86f0 137-138
+  s_4f4812f16bd65a::t_28243f3ad6cbfb 21-24
+  s_4f4812f16bd65a::t_a348c142ddb88b 62-63
+app/api/v1/accounts/familiar_followers/route.ts
+  s_4f4812f16bd65a::t_bec359e2c7a91e 51-54,59-60
+  s_4f4812f16bd65a::t_fbbe659e912dbf 5
+app/api/v1/reports/route.test.ts
+  s_4f4812f16bd65a::t_aa35d1de703361 4,7,11-12
+  s_4f4812f16bd65a::t_c0072775c91954 66-68
+  s_4f4812f16bd65a::t_40d0552945dcb0 198-228
+app/api/v1/accounts/relationships/route.ts
+  s_4f4812f16bd65a::t_134384a44964ee 41-44,47,49-51
+  s_4f4812f16bd65a::t_d92fa71ab497e7 6
+lib/services/notifications/bulkRequestIds.ts
+  s_4f4812f16bd65a::t_f16bf17f933106 1-26
+app/api/v1/accounts/route.test.ts
+  s_4f4812f16bd65a::t_37f6046016e723 14
+  s_4f4812f16bd65a::t_65110d803aa013 76-77,80,82-83
+  s_4f4812f16bd65a::t_70b1d4952cf408 12
+  s_4f4812f16bd65a::t_64a2e389aab2f1 121-171
+lib/services/notifications/bulkRequestIds.test.ts
+  s_4f4812f16bd65a::t_7acc429fa0e0ed 1-56
+lib/database/sql/actor.ts
+  s_4f4812f16bd65a::t_7c743a4166df53 642-659
+  s_4f4812f16bd65a::t_94052d7f4134b6 54
+lib/services/mastodon/resolveClientId.ts
+  s_4f4812f16bd65a::t_01f3c2a9030954 35-82
+lib/database/sql/status.test.ts
+  s_4f4812f16bd65a::t_e70f3423dc7eff 1054-1093
+lib/types/database/operations.ts
+  s_4f4812f16bd65a::t_03f19902dc9fda 229-233
+  s_4f4812f16bd65a::t_5c643898c5ccb3 862-866
+  s_4f4812f16bd65a::t_784a6b83554999 622-624
+  s_4f4812f16bd65a::t_239a61826d3199 90-92
+app/api/v1/collections/[id]/items/route.ts
+  s_4f4812f16bd65a::t_5add8d1a262e86 17-20
+  s_4f4812f16bd65a::t_176f1eab9babff 240-241
+app/api/v1/statuses/route.test.ts
+  s_4f4812f16bd65a::t_37f6046016e723 26
+  s_4f4812f16bd65a::t_93a50d6fcb6be4 1338-1371
+app/api/v1/reports/route.ts
+  s_4f4812f16bd65a::t_6ed05c56059838 7
+  s_4f4812f16bd65a::t_9fd53cac4dbfb0 141-144
+  s_4f4812f16bd65a::t_78eafd2a0ac9b7 31-33
+  s_4f4812f16bd65a::t_3f10165c3af954 28-30,34,38-41
+lib/services/mastodon/resolveClientId.test.ts
+  s_4f4812f16bd65a::t_c5fb83ea52361b 4
+  s_4f4812f16bd65a::t_38a60bcf278997 8-13
+  s_4f4812f16bd65a::t_c39045abb093fc 111-277
+app/api/v1/lists/[id]/accounts/route.ts
+  s_4f4812f16bd65a::t_e9bc950877d608 27-30
+  s_4f4812f16bd65a::t_6c849e6cc8a242 8
+  s_4f4812f16bd65a::t_69b76721793654 119
+  s_4f4812f16bd65a::t_75aa96d80bd38b 31-33
+  s_4f4812f16bd65a::t_698d65593c8f5c 158-164
+  s_4f4812f16bd65a::t_2c0781f414db65 194-195
+  s_4f4812f16bd65a::t_ed56564b87571c 256-257
+app/api/v1/accounts/route.ts
+  s_4f4812f16bd65a::t_6673667eff4381 36-38
+  s_4f4812f16bd65a::t_2d34de91ff5ebc 33-35,39
+  s_4f4812f16bd65a::t_bef85bb431f923 66-76,86-87
+  s_4f4812f16bd65a::t_068689254cf592 14
+lib/database/sql/status.ts
+  s_4f4812f16bd65a::t_309b0ab440ea97 62
+  s_4f4812f16bd65a::t_47dd1436a0bb89 3648
+  s_4f4812f16bd65a::t_d29cf1737bfcc9 3480-3481,3485-3487
+  s_4f4812f16bd65a::t_5d402c7caaabca 3471-3479,3482-3484,3488-3490
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "b0f258002c990744c9fa005445b501cc79e88934",
+  "prompts": {},
+  "sessions": {
+    "s_4f4812f16bd65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef4966e6-a801-42ad-bea7-0a298c41d397",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
