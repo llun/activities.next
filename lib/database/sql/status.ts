@@ -55,9 +55,12 @@ import {
   GetRebloggedByParams,
   GetStatusCountsParams,
   GetStatusEditHistoryParams,
+  GetStatusFromPublicIdParams,
   GetStatusFromUrlHashParams,
   GetStatusFromUrlParams,
+  GetStatusIdByPublicIdParams,
   GetStatusParams,
+  GetStatusPublicIdsParams,
   GetStatusReblogsCountParams,
   GetStatusRepliesCountParams,
   GetStatusRepliesParams,
@@ -96,6 +99,7 @@ import { normalizeActorId } from '@/lib/utils/activitypub'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
+import { generatePublicId } from '@/lib/utils/publicId'
 
 import {
   deleteStatusSearchDocumentsByStatusIds,
@@ -455,10 +459,13 @@ export const StatusSQLDatabaseMixin = (
     quoteApprovalPolicy,
     applicationName = null,
     applicationWebsite = null,
-    createdAt
+    createdAt,
+    publicId
   }: CreateNoteParams) {
     const currentTime = new Date()
     const statusCreatedAt = createdAt ? new Date(createdAt) : currentTime
+    const statusPublicId =
+      publicId ?? generatePublicId(statusCreatedAt.getTime())
     const statusUpdatedAt = currentTime
     const content = {
       url,
@@ -482,6 +489,7 @@ export const StatusSQLDatabaseMixin = (
     await database.transaction(async (trx) => {
       await trx('statuses').insert({
         id,
+        publicId: statusPublicId,
         url,
         urlHash: getStatusUrlHash(url),
         actorId,
@@ -538,6 +546,7 @@ export const StatusSQLDatabaseMixin = (
     const actor = await actorDatabase.getActorFromId({ id: actorId })
     return StatusNote.parse({
       id,
+      publicId: statusPublicId,
       url,
       actorId,
       actor: actor ? getActorProfile(actor) : null,
@@ -786,15 +795,19 @@ export const StatusSQLDatabaseMixin = (
     to,
     cc,
     originalStatusId,
-    createdAt
+    createdAt,
+    publicId
   }: CreateAnnounceParams) {
     const currentTime = new Date()
     const statusCreatedAt = createdAt ? new Date(createdAt) : currentTime
+    const statusPublicId =
+      publicId ?? generatePublicId(statusCreatedAt.getTime())
     const statusUpdatedAt = currentTime
 
     await database.transaction(async (trx) => {
       await trx('statuses').insert({
         id,
+        publicId: statusPublicId,
         url: null,
         urlHash: null,
         actorId,
@@ -851,6 +864,7 @@ export const StatusSQLDatabaseMixin = (
     ])
     return StatusAnnounce.parse({
       id,
+      publicId: statusPublicId,
       actorId,
       actor: actor ? getActorProfile(actor) : null,
       to,
@@ -882,10 +896,13 @@ export const StatusSQLDatabaseMixin = (
     language = null,
     applicationName = null,
     applicationWebsite = null,
-    createdAt
+    createdAt,
+    publicId
   }: CreatePollParams) {
     const currentTime = new Date()
     const statusCreatedAt = createdAt ? new Date(createdAt) : currentTime
+    const statusPublicId =
+      publicId ?? generatePublicId(statusCreatedAt.getTime())
     const statusUpdatedAt = currentTime
     const content = {
       url,
@@ -909,6 +926,7 @@ export const StatusSQLDatabaseMixin = (
     await database.transaction(async (trx) => {
       await trx('statuses').insert({
         id,
+        publicId: statusPublicId,
         url,
         urlHash: getStatusUrlHash(url),
         actorId,
@@ -976,6 +994,7 @@ export const StatusSQLDatabaseMixin = (
     const actor = await actorDatabase.getActorFromId({ id: actorId })
     return StatusPoll.parse({
       id,
+      publicId: statusPublicId,
       url,
       actorId,
       actor: actor ? getActorProfile(actor) : null,
@@ -2910,6 +2929,7 @@ export const StatusSQLDatabaseMixin = (
       if (!originalStatus) return null
       return StatusAnnounce.parse({
         id: data.id,
+        publicId: data.publicId ?? null,
         actorId: data.actorId,
         actor: actor ? getActorProfile(actor) : null,
         type: StatusType.enum.Announce,
@@ -3037,6 +3057,7 @@ export const StatusSQLDatabaseMixin = (
     const content = getCompatibleJSON(data.content)
     const base = {
       id: data.id,
+      publicId: data.publicId ?? null,
       url: content.url ?? data.url,
       to: to.map((item) => item.actorId),
       cc: cc.map((item) => item.actorId),
@@ -3437,6 +3458,41 @@ export const StatusSQLDatabaseMixin = (
     return getStatusWithAttachmentsFromData(status, currentActorId)
   }
 
+  async function getStatusIdByPublicId({
+    publicId
+  }: GetStatusIdByPublicIdParams) {
+    const row = await database('statuses')
+      .where('publicId', publicId)
+      .first<{ id: string }>('id')
+    return row?.id ?? null
+  }
+
+  async function getStatusFromPublicId({
+    publicId,
+    currentActorId
+  }: GetStatusFromPublicIdParams) {
+    const status = await database('statuses')
+      .where('publicId', publicId)
+      .first()
+    if (!status) return null
+    return getStatusWithAttachmentsFromData(status, currentActorId)
+  }
+
+  async function getStatusPublicIds({ statusIds }: GetStatusPublicIdsParams) {
+    const uniqueStatusIds = [...new Set(statusIds)].filter(Boolean)
+    if (uniqueStatusIds.length === 0) return new Map<string, string>()
+    const rows = await database('statuses')
+      .whereIn('id', uniqueStatusIds)
+      .whereNotNull('publicId')
+      .select('id', 'publicId')
+    return new Map<string, string>(
+      rows.map((row: { id: string; publicId: string }) => [
+        row.id,
+        row.publicId
+      ])
+    )
+  }
+
   async function getActorAnnouncedStatusId({
     actorId,
     originalStatusId
@@ -3567,6 +3623,9 @@ export const StatusSQLDatabaseMixin = (
     getStatusEditHistory,
     getStatusFromUrl,
     getStatusFromUrlHash,
+    getStatusIdByPublicId,
+    getStatusFromPublicId,
+    getStatusPublicIds,
     getActorAnnouncedStatusId,
     hasActorAnnouncedStatus,
     getActorAnnounceStatus,

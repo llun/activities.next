@@ -6,7 +6,8 @@ import { encodeFavouritedByCursor } from '@/lib/database/sql/utils/favouritedByC
 import { SQLITE_MAX_BINDINGS } from '@/lib/database/sql/utils/knex'
 import {
   databaseBeforeAll,
-  getTestDatabaseTable
+  getTestDatabaseTable,
+  getTestSQLDatabaseWithInstance
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import { STUCK_PROCESSING_THRESHOLD_MS } from '@/lib/services/fitness-files/processingState'
@@ -29,6 +30,11 @@ import {
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import {
+  generatePublicId,
+  getPublicIdTimestamp,
+  isPublicId
+} from '@/lib/utils/publicId'
 import { waitFor } from '@/lib/utils/waitFor'
 
 import { buildPubliclyReadableStatusIdsQuery } from './status'
@@ -314,6 +320,7 @@ describe('StatusDatabase', () => {
         })
         expect(status).toEqual({
           id: statuses.primary.post,
+          publicId: expect.toBeString(),
           actorId: primaryActorId,
           actor: {
             id: primaryActorId,
@@ -963,6 +970,161 @@ describe('StatusDatabase', () => {
           actorId: replyAuthorId
         })
         expect(status).toBeNull()
+      })
+    })
+
+    describe('publicId', () => {
+      // A dedicated actor, isolated from the shared seed fixtures, so these
+      // notes never bump a status count another describe block asserts on.
+      const publicIdActorId = 'https://public-id-status.test/users/author'
+
+      beforeAll(async () => {
+        await database.createActor({
+          actorId: publicIdActorId,
+          username: 'author',
+          domain: 'public-id-status.test',
+          followersUrl: `${publicIdActorId}/followers`,
+          inboxUrl: `${publicIdActorId}/inbox`,
+          sharedInboxUrl: 'https://public-id-status.test/inbox',
+          publicKey: 'public-id-status-public-key',
+          createdAt: Date.now()
+        })
+      })
+
+      it('mints a v7 publicId at createNote whose timestamp matches a backdated createdAt', async () => {
+        const backdatedAt = Date.UTC(2024, 0, 2, 3, 4, 5, 0)
+        const statusId = `${publicIdActorId}/statuses/public-id-backdated`
+        const status = (await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: publicIdActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Backdated post',
+          createdAt: backdatedAt
+        })) as StatusNote
+
+        expect(status.publicId).toBeTruthy()
+        expect(isPublicId(status.publicId as string)).toBe(true)
+        expect(getPublicIdTimestamp(status.publicId as string)).toBe(
+          backdatedAt
+        )
+      })
+
+      it('stores an explicitly passed publicId verbatim', async () => {
+        const statusId = `${publicIdActorId}/statuses/public-id-explicit`
+        const explicitPublicId = generatePublicId()
+        const status = (await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: publicIdActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Explicit publicId post',
+          publicId: explicitPublicId
+        })) as StatusNote
+
+        expect(status.publicId).toBe(explicitPublicId)
+      })
+
+      it('round-trips getStatusIdByPublicId and returns null for an id that was never stored', async () => {
+        const statusId = `${publicIdActorId}/statuses/public-id-roundtrip`
+        const status = (await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: publicIdActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Round trip post'
+        })) as StatusNote
+
+        expect(
+          await database.getStatusIdByPublicId({
+            publicId: status.publicId as string
+          })
+        ).toBe(statusId)
+        expect(
+          await database.getStatusIdByPublicId({
+            publicId: generatePublicId()
+          })
+        ).toBeNull()
+      })
+
+      it('getStatusFromPublicId hydrates the same status as getStatus', async () => {
+        const statusId = `${publicIdActorId}/statuses/public-id-hydrate`
+        const created = (await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: publicIdActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Hydrate post'
+        })) as StatusNote
+
+        const [byPublicId, byId] = await Promise.all([
+          database.getStatusFromPublicId({
+            publicId: created.publicId as string
+          }),
+          database.getStatus({ statusId })
+        ])
+
+        expect(byPublicId).toEqual(byId)
+      })
+
+      it('getStatusPublicIds returns a map covering only requested ids that have publicIds', async () => {
+        const { database: freshDatabase, instance } =
+          getTestSQLDatabaseWithInstance()
+        await freshDatabase.migrate()
+        try {
+          await freshDatabase.createAccount({
+            email: `public-id-map@${TEST_DOMAIN}`,
+            username: 'public-id-map-actor',
+            passwordHash: TEST_PASSWORD_HASH,
+            domain: TEST_DOMAIN,
+            privateKey: 'private-public-id-map',
+            publicKey: 'public-public-id-map'
+          })
+          const actor = await freshDatabase.getActorFromEmail({
+            email: `public-id-map@${TEST_DOMAIN}`
+          })
+          if (!actor) throw new Error('failed to seed actor')
+          const localActorId = actor.id
+
+          const withId = `${localActorId}/statuses/with-public-id`
+          const withoutId = `${localActorId}/statuses/legacy-without-public-id`
+
+          const created = (await freshDatabase.createNote({
+            id: withId,
+            url: withId,
+            actorId: localActorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Has a publicId'
+          })) as StatusNote
+
+          await freshDatabase.createNote({
+            id: withoutId,
+            url: withoutId,
+            actorId: localActorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Simulated pre-backfill legacy status'
+          })
+          // Simulate a legacy row that predates the backfill migration.
+          await instance('statuses')
+            .where('id', withoutId)
+            .update({ publicId: null })
+
+          const map = await freshDatabase.getStatusPublicIds({
+            statusIds: [withId, withoutId, `${localActorId}/statuses/missing`]
+          })
+
+          expect(map.size).toBe(1)
+          expect(map.get(withId)).toBe(created.publicId)
+          expect(map.has(withoutId)).toBe(false)
+        } finally {
+          await freshDatabase.destroy()
+        }
       })
     })
 

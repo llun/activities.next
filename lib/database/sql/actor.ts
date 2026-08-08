@@ -50,6 +50,8 @@ import {
   GetActorFromEmailParams,
   GetActorFromIdParams,
   GetActorFromUsernameParams,
+  GetActorIdByPublicIdParams,
+  GetActorPublicIdsParams,
   GetActorSettingsParams,
   GetActorsFromIdsParams,
   GetActorsScheduledForDeletionParams,
@@ -70,6 +72,7 @@ import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { logger } from '@/lib/utils/logger'
+import { generatePublicId } from '@/lib/utils/publicId'
 import { generateKeyPair } from '@/lib/utils/signature'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -142,6 +145,7 @@ const insertActorWithSearchIndex = async (
   }
   const actor = {
     id: actorId,
+    publicId: generatePublicId(createdAt),
     type,
     username,
     domain,
@@ -492,6 +496,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       try {
         await database<SQLActor>('actors').insert({
           id: signingActorId,
+          publicId: generatePublicId(),
           type: FEDERATION_SIGNING_ACTOR_TYPE,
           username,
           domain,
@@ -624,6 +629,25 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         )
       })
       .filter((actor): actor is Actor => actor !== null)
+  },
+
+  async getActorIdByPublicId({ publicId }: GetActorIdByPublicIdParams) {
+    const row = await database<SQLActor>('actors')
+      .where('publicId', publicId)
+      .first('id')
+    return row?.id ?? null
+  },
+
+  async getActorPublicIds({ actorIds }: GetActorPublicIdsParams) {
+    const uniqueActorIds = [...new Set(actorIds)].filter(Boolean)
+    if (uniqueActorIds.length === 0) return new Map<string, string>()
+    const rows = await database<SQLActor>('actors')
+      .whereIn('id', uniqueActorIds)
+      .whereNotNull('publicId')
+      .select('id', 'publicId')
+    return new Map<string, string>(
+      rows.map((row) => [row.id, row.publicId as string])
+    )
   },
 
   async getMastodonActorFromId({ id }: GetActorFromIdParams) {
