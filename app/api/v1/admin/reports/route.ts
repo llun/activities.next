@@ -1,11 +1,13 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
+import { Database } from '@/lib/database/types'
 import { serializeAdminReports } from '@/lib/services/admin/serializeAdminReports'
 import { AdminApiGuard } from '@/lib/services/guards/AdminApiGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { buildPaginationLinkHeader } from '@/lib/utils/paginationLinkHeader'
+import { isPublicId } from '@/lib/utils/publicId'
 import {
   ERROR_400,
   HTTP_STATUS,
@@ -17,6 +19,17 @@ import { safeIdToUrl } from '@/lib/utils/urlToId'
 import { Booleanish } from '@/lib/utils/zodBooleanish'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
+
+// Accept-old resolution that keeps safeIdToUrl's null contract: an unknown
+// publicId or an undecodable legacy id both yield null, flowing into the
+// route's existing `?? undefined` handling exactly like today.
+const resolveActorIdOrNull = async (
+  database: Pick<Database, 'getActorIdByPublicId'>,
+  value: string
+): Promise<string | null> =>
+  isPublicId(value)
+    ? await database.getActorIdByPublicId({ publicId: value })
+    : safeIdToUrl(value)
 
 const QueryParams = z.object({
   resolved: Booleanish.optional(),
@@ -53,10 +66,11 @@ export const GET = traceApiRoute(
         resolved: q.resolved,
         // account_id/target_account_id are Mastodon account (actor) ids.
         accountId: q.account_id
-          ? (safeIdToUrl(q.account_id) ?? undefined)
+          ? ((await resolveActorIdOrNull(database, q.account_id)) ?? undefined)
           : undefined,
         targetActorId: q.target_account_id
-          ? (safeIdToUrl(q.target_account_id) ?? undefined)
+          ? ((await resolveActorIdOrNull(database, q.target_account_id)) ??
+            undefined)
           : undefined,
         byTargetDomain: q.by_target_domain,
         limit: q.limit,

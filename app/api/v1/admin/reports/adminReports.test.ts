@@ -138,6 +138,34 @@ describe('admin reports API', () => {
     expect(entity.assigned_account).toBeNull()
   })
 
+  it('filters by account_id and target_account_id in publicId form', async () => {
+    const adminActor = await database.getActorFromId({ id: ADMIN_ACTOR_ID })
+    const targetActor = await database.getActorFromId({ id: TARGET_ACTOR_ID })
+    if (!adminActor?.publicId || !targetActor?.publicId) {
+      throw new Error('seeded actors are missing a publicId')
+    }
+
+    const byAccountId = await listRoute.GET(
+      adminRequest(`/api/v1/admin/reports?account_id=${adminActor.publicId}`),
+      { params: Promise.resolve({}) }
+    )
+    expect(byAccountId.status).toBe(200)
+    expect(
+      (await byAccountId.json()).map((r: { id: string }) => r.id)
+    ).toContain(reportId)
+
+    const byTargetAccountId = await listRoute.GET(
+      adminRequest(
+        `/api/v1/admin/reports?target_account_id=${targetActor.publicId}`
+      ),
+      { params: Promise.resolve({}) }
+    )
+    expect(byTargetAccountId.status).toBe(200)
+    expect(
+      (await byTargetAccountId.json()).map((r: { id: string }) => r.id)
+    ).toContain(reportId)
+  })
+
   it('updates category and 422s unknown rule_ids', async () => {
     const ok = await idRoute.PUT(
       adminRequest(`/api/v1/admin/reports/${reportId}`, {

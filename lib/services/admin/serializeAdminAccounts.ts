@@ -8,6 +8,7 @@ import {
   AdminAccountRecord
 } from '@/lib/types/database/operations'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { isPublicId } from '@/lib/utils/publicId'
 import { safeIdToUrl, urlToId } from '@/lib/utils/urlToId'
 
 // This server has no roles system, so an account marked `role = 'admin'` is
@@ -111,13 +112,17 @@ export const hydrateAdminAccounts = async (
   return serializeAdminAccounts({ records, sessionIps, publicAccountById })
 }
 
-// Resolve the `[id]` path param (a Mastodon id, i.e. urlToId(actor.id)) to its
-// AdminAccountRecord, or null when the id is undecodable or unknown.
+// Resolve the `[id]` path param — a Mastodon id (urlToId(actor.id)) or a
+// UUIDv7 publicId — to its AdminAccountRecord, or null when the id is
+// undecodable or unknown (an unresolvable publicId keeps the same null
+// contract as an undecodable legacy id).
 export const resolveAdminAccountRecord = async (
   database: Database,
   id: string
 ): Promise<AdminAccountRecord | null> => {
-  const actorId = safeIdToUrl(id)
+  const actorId = isPublicId(id)
+    ? await database.getActorIdByPublicId({ publicId: id })
+    : safeIdToUrl(id)
   if (!actorId) return null
   return database.getAdminAccount({ actorId })
 }

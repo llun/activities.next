@@ -1,9 +1,13 @@
 import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
-import { hydrateAdminAccounts } from '@/lib/services/admin/serializeAdminAccounts'
+import {
+  hydrateAdminAccounts,
+  resolveAdminAccountRecord
+} from '@/lib/services/admin/serializeAdminAccounts'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { EXTERNAL_ACTOR1, seedExternal1 } from '@/lib/stub/seed/external1'
 import { Mastodon } from '@/lib/types/activitypub'
+import { generatePublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
 const LOCAL_USERNAME = 'adminuser'
@@ -80,5 +84,53 @@ describe('hydrateAdminAccounts', () => {
       expect(entity?.approved).toBe(true)
       expect(entity?.suspended).toBe(false)
     })
+  })
+})
+
+describe('resolveAdminAccountRecord', () => {
+  const { database } = getTestSQLDatabaseWithInstance()
+
+  beforeAll(async () => {
+    await database.migrate()
+    await database.createAccount({
+      email: `${LOCAL_USERNAME}@${TEST_DOMAIN}`,
+      username: LOCAL_USERNAME,
+      passwordHash: 'hash',
+      domain: TEST_DOMAIN,
+      privateKey: 'private',
+      publicKey: 'public'
+    })
+  })
+
+  afterAll(async () => {
+    await database.destroy()
+  })
+
+  it('resolves the colon-form id to its AdminAccountRecord', async () => {
+    const record = await resolveAdminAccountRecord(
+      database,
+      urlToId(LOCAL_ACTOR_ID)
+    )
+    expect(record?.actor.id).toBe(LOCAL_ACTOR_ID)
+  })
+
+  it('resolves the publicId form to its AdminAccountRecord', async () => {
+    const actor = await database.getActorFromId({ id: LOCAL_ACTOR_ID })
+    if (!actor?.publicId) {
+      throw new Error('seeded actor is missing a publicId')
+    }
+
+    const record = await resolveAdminAccountRecord(database, actor.publicId)
+    expect(record?.actor.id).toBe(LOCAL_ACTOR_ID)
+  })
+
+  it('returns null for an unknown publicId', async () => {
+    const record = await resolveAdminAccountRecord(database, generatePublicId())
+    expect(record).toBeNull()
+  })
+
+  it('returns null for an undecodable legacy id', async () => {
+    const record = await resolveAdminAccountRecord(database, 'apurl_%%%')
+    expect(record).toBeNull()
   })
 })
