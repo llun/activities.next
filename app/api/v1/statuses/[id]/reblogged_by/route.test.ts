@@ -43,6 +43,13 @@ vi.mock('@/lib/config', () => ({
 describe('GET /api/v1/statuses/[id]/reblogged_by', () => {
   const database = getTestSQLDatabase()
 
+  // publicIds are minted at insert and random per run, so read the emitted id
+  // back off the stored row rather than hard-coding one.
+  const emittedActorId = async (actorId: string) => {
+    const publicIds = await database.getActorPublicIds({ actorIds: [actorId] })
+    return publicIds.get(actorId) ?? urlToId(actorId)
+  }
+
   beforeAll(async () => {
     await database.migrate()
     await seedDatabase(database)
@@ -114,6 +121,50 @@ describe('GET /api/v1/statuses/[id]/reblogged_by', () => {
     expect(response.status).toBe(200)
     const accounts = (await response.json()) as { id: string }[]
     expect(accounts).toHaveLength(1)
-    expect(accounts[0].id).toBe(urlToId(ACTOR3_ID))
+    expect(accounts[0].id).toBe(await emittedActorId(ACTOR3_ID))
+  })
+
+  it('resolves reblogging accounts whose url is a profile url rather than the actor uri', async () => {
+    // The account entity id is a publicId that cannot be decoded back to an
+    // actor URI, so an actor serving `/@name` as its `url` must still be
+    // matched — through `uri` — or the reblogger silently disappears.
+    const statusId = `${ACTOR1_ID}/statuses/reblogged-by-profile-url-test`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: ACTOR1_ID,
+      text: 'Status for reblogged_by profile url test',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+    await database.createAnnounce({
+      id: `${ACTOR2_ID}/statuses/reblogged-by-profile-url-announce`,
+      actorId: ACTOR2_ID,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      originalStatusId: statusId
+    })
+
+    const storedAccounts = await database.getMastodonActorsFromIds({
+      ids: [ACTOR2_ID]
+    })
+    vi.spyOn(database, 'getMastodonActorsFromIds').mockResolvedValueOnce(
+      storedAccounts.map((account) => ({
+        ...account,
+        url: 'https://llun.test/@test2'
+      }))
+    )
+
+    const req = new NextRequest(
+      `https://llun.test/api/v1/statuses/${urlToId(statusId)}/reblogged_by`
+    )
+    const response = await GET(req, {
+      params: Promise.resolve({ id: urlToId(statusId) })
+    })
+    expect(response.status).toBe(200)
+    const accounts = (await response.json()) as { id: string }[]
+    expect(accounts.map((account) => account.id)).toEqual([
+      await emittedActorId(ACTOR2_ID)
+    ])
   })
 })

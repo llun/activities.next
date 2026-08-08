@@ -3394,9 +3394,16 @@ const isReplyParticipant = (
   account: MastodonAccount,
   replyParticipantIds: Set<string>
 ) => {
-  const accountActorId = normalizeActorId(idToUrl(account.id))
-  if (!accountActorId) return false
-  return replyParticipantIds.has(accountActorId)
+  // The participant set holds ActivityPub actor URIs, so `uri` is the only
+  // encoding-independent key. `url` is a profile URL (`/@name`) on some
+  // accounts, and `id` is a publicId that cannot be decoded back to a URI at
+  // all, so both stay as fallbacks for entities built before the id flip.
+  for (const candidate of [account.uri, account.url, idToUrl(account.id)]) {
+    if (!candidate) continue
+    const accountActorId = normalizeActorId(candidate)
+    if (accountActorId && replyParticipantIds.has(accountActorId)) return true
+  }
+  return false
 }
 
 export interface CreateDirectMessageResult {
@@ -3642,8 +3649,9 @@ const mutateListAccounts = async (
     {
       method,
       headers: { 'Content-Type': 'application/json' },
-      // accountIds are already Mastodon Account ids (the `urlToId`-encoded
-      // form); the route decodes them with `idToUrl`, so pass them through.
+      // accountIds are already Mastodon Account ids (a publicId, or the legacy
+      // `urlToId` form on a pre-backfill row); the route resolves either back
+      // to an actor URI, so pass them through unchanged.
       body: JSON.stringify({ account_ids: accountIds })
     }
   )
@@ -3702,8 +3710,9 @@ export const getListTimeline = async ({
 // Collections (Mastodon 4.6 Collections API + activities.next feed extension).
 // A collection is a shareable, consent-gated feed of accounts the owner
 // highlights. Like list ids, collection ids are opaque UUIDs (not url/id
-// encoded). Account ids are Mastodon Account ids (the `urlToId`-encoded actor
-// id); the routes decode them with `idToUrl`, so pass them through unchanged.
+// encoded). Account ids are Mastodon Account ids (a publicId, or the legacy
+// `urlToId` form on a pre-backfill row); the routes resolve either back to an
+// actor URI, so pass them through unchanged.
 
 export interface CollectionParams {
   title?: string

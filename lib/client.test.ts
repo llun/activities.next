@@ -2,6 +2,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import type { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
+import { generatePublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import {
@@ -320,6 +321,42 @@ describe('client createDirectMessage', () => {
       expect.objectContaining({
         body: JSON.stringify({
           status: '@bea@remote.example hello',
+          visibility: 'direct',
+          in_reply_to_id: urlToId(replyStatus.id)
+        })
+      })
+    )
+  })
+
+  it('recognizes an existing participant whose account id is a public id', async () => {
+    // Post id flip an Account `id` is an opaque publicId, so the participant
+    // check must join on `uri`. Getting it wrong re-mentions everyone who is
+    // already on the thread.
+    const replyStatus = {
+      id: 'https://local.example/users/me/statuses/root',
+      actorId: 'https://local.example/users/me',
+      to: ['https://local.example/users/ada'],
+      cc: ['https://local.example/users/me']
+    } as Status
+    const existingRecipient = {
+      id: generatePublicId(),
+      uri: 'https://local.example/users/ada',
+      url: 'https://local.example/@ada',
+      username: 'ada',
+      acct: 'ada@local.example'
+    } as MastodonAccount
+
+    await createDirectMessage({
+      message: 'hello',
+      recipients: [existingRecipient],
+      replyStatus
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/statuses',
+      expect.objectContaining({
+        body: JSON.stringify({
+          status: 'hello',
           visibility: 'direct',
           in_reply_to_id: urlToId(replyStatus.id)
         })
