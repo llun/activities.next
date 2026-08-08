@@ -1,9 +1,11 @@
+import { buildBaseURL } from '@/lib/config'
 import {
   OnlyLocalUserGuard,
   OnlyLocalUserGuardHandle
 } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { isStatusPubliclyReadable } from '@/lib/services/statusAccess'
+import { getMention } from '@/lib/types/domain/actor'
 import {
   StatusNote,
   StatusPoll,
@@ -16,6 +18,7 @@ import {
   negotiateActivityPubContentType
 } from '@/lib/utils/activityPubContentNegotiation'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
+import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -70,19 +73,27 @@ export const GET = traceApiRoute(
       })
     }
 
-    // Redirect to the status that was actually RESOLVED, never to the raw path
-    // segment. The segment can be a publicId while the status URI's tail is
-    // something else — every status created before publicIds existed (legacy
-    // v4 tail, publicId backfilled) and every Strava fallback note
-    // (deterministic sha256 tail) — and the web detail page rebuilds the status
-    // id from that tail, so `/@user/<publicId>` would 404 a status this route
-    // just resolved. Announce rows store `url: null`, so fall back to their own
-    // URI tail, which is the form the web page can rebuild.
-    const announceTail = status.id.slice(status.id.lastIndexOf('/') + 1)
+    // Build the HTML location with the same helper the web UI links with, so
+    // it is byte-identical to the href a reader would have clicked and is
+    // guaranteed to resolve through `resolveStatusFromPath`. Neither the raw
+    // path segment nor `status.url` works: the segment can be a publicId while
+    // the status URI's tail is something else (every status created before
+    // publicIds existed, every Strava fallback note), and `status.url` for a
+    // local status is `https://host/@user/<tail>` — a SINGLE-@ actor segment,
+    // which the web page rejects because it splits the actor on `@` and
+    // requires a `username`/`domain` pair. Both 404 a status this route just
+    // resolved.
+    //
+    // The base URL comes from the actor's own domain rather than `getBaseURL()`
+    // so a multi-domain deployment keeps the reader on the host they requested
+    // — `OnlyLocalUserGuard` resolved this actor from that host's header.
+    const detailPath =
+      getStatusDetailPath(status) ??
+      // Only reachable when the status carries no actor profile; the full
+      // status URI is the one status segment that resolves without one.
+      `/${getMention(actor, true)}/${encodeURIComponent(status.id)}`
     return activityPubRedirectResponse(
-      status.type === StatusType.enum.Announce
-        ? `https://${actor.domain}/@${actor.username}/${announceTail}`
-        : status.url
+      `${buildBaseURL(actor.domain)}${detailPath}`
     )
   })
 )
