@@ -1,0 +1,155 @@
+app/api/v1/accounts/[id]/route.ts
+  s_4f4812f16bd65a::t_18c740d01b1133 36
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 8
+app/api/v1/accounts/[id]/fitness-route-heatmap/share/route.ts
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 10
+  s_4f4812f16bd65a::t_18c740d01b1133 111,276
+lib/services/collections/addMembers.ts
+  s_4f4812f16bd65a::t_1a9532a93f4b6f 5
+  s_4f4812f16bd65a::t_0478680e48102a 36-38
+  s_4f4812f16bd65a::t_4335add83bfc2e 20-21
+app/api/v1/lists/[id]/accounts/route.ts
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 245-247
+  s_4f4812f16bd65a::t_5a1e460b30f131 181-183
+  s_4f4812f16bd65a::t_7a9e62a6ff456b 244,248
+  s_4f4812f16bd65a::t_adb1b0083af24a 8
+app/api/v1/accounts/[id]/unfollow/route.ts
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 6,30-33
+app/api/v1/accounts/[id]/following/route.ts
+  s_4f4812f16bd65a::t_18c740d01b1133 51
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 8
+app/api/v1/notifications/requests/[id]/route.ts
+  s_4f4812f16bd65a::t_f319cc5c8ad8bf 3
+  s_4f4812f16bd65a::t_4810e4192d6271 38-41
+app/api/v1/accounts/[id]/collections/route.ts
+  s_4f4812f16bd65a::t_4a36f52e53fd70 5
+  s_4f4812f16bd65a::t_a51e61f19c8293 29
+app/api/v1/accounts/[id]/remove_from_followers/route.ts
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 8,39-42
+app/api/v1/accounts/[id]/follow/route.ts
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 10,84-87
+app/api/v1/accounts/[id]/block/route.ts
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 11,42-45
+app/api/v1/accounts/route.ts
+  s_4f4812f16bd65a::t_8930f531451918 14
+  s_4f4812f16bd65a::t_baec8d7b0d3f90 72-74
+app/api/v1/suggestions/[account_id]/route.ts
+  s_4f4812f16bd65a::t_6cc011ed5496a7 31
+  s_4f4812f16bd65a::t_d364e484921a5e 2
+app/api/v1/follow_requests/[id]/authorize/route.test.ts
+  s_4f4812f16bd65a::t_8dad95b4143326 108-125
+  s_4f4812f16bd65a::t_a1a48e7b5cc966 3,15
+app/api/v1/accounts/[id]/featured_tags/route.ts
+  s_4f4812f16bd65a::t_18c740d01b1133 36
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 7
+app/api/v1/accounts/[id]/followers/route.ts
+  s_4f4812f16bd65a::t_18c740d01b1133 51
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 8
+app/api/v1/accounts/relationships/route.ts
+  s_4f4812f16bd65a::t_b7d85753b9b936 6
+  s_4f4812f16bd65a::t_95682467126b72 45
+app/api/v1/collections/[id]/items/route.ts
+  s_4f4812f16bd65a::t_46b1958260347d 17
+  s_4f4812f16bd65a::t_765c743359aabf 181-184
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 238-240
+  s_4f4812f16bd65a::t_833f7a570263a3 237,241
+lib/services/accounts/endorsementHandlers.ts
+  s_4f4812f16bd65a::t_eda35fdfb62052 35,81
+  s_4f4812f16bd65a::t_56d113a698dfac 6
+app/api/v1/follow_requests/[id]/reject/route.ts
+  s_4f4812f16bd65a::t_24a10fcdd4ca76 25-29,31
+  s_4f4812f16bd65a::t_9fafcc9624b87d 8
+app/api/v1/accounts/[id]/endorsements/route.ts
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 8
+  s_4f4812f16bd65a::t_18c740d01b1133 47
+app/api/v1/accounts/[id]/route.test.ts
+  s_4f4812f16bd65a::t_c568deda4f8c72 84-105
+app/api/v1/notifications/requests/route.ts
+  s_4f4812f16bd65a::t_f274ff5cbe6035 4
+  s_4f4812f16bd65a::t_ffac1b00bdba8e 61
+  s_4f4812f16bd65a::t_d379168aa005fb 49
+app/api/v1/accounts/[id]/note/route.ts
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 5,63-66
+app/api/v1/accounts/[id]/unblock/route.ts
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 5,31-34
+app/api/v1/notifications/requests/dismiss/route.ts
+  s_4f4812f16bd65a::t_268e4875458b34 76-78
+  s_4f4812f16bd65a::t_1eb3917253d765 5
+app/api/v1/accounts/[id]/remote-statuses/route.ts
+  s_4f4812f16bd65a::t_18c740d01b1133 53
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 9
+app/api/v1/accounts/[id]/fitness-calendar/route.ts
+  s_4f4812f16bd65a::t_18c740d01b1133 76
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 7
+app/api/v1/accounts/[id]/fitness-summary/route.ts
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 7
+  s_4f4812f16bd65a::t_18c740d01b1133 77
+app/api/v1/accounts/familiar_followers/route.ts
+  s_4f4812f16bd65a::t_b8670f63f1cc3b 5,10
+  s_4f4812f16bd65a::t_45540e12c3bec8 56
+app/api/v1/notifications/requests/[id]/dismiss/route.ts
+  s_4f4812f16bd65a::t_32e9b56465acbe 37-40
+  s_4f4812f16bd65a::t_e0e9652a5682a4 3
+app/api/v1/accounts/[id]/in_collections/route.ts
+  s_4f4812f16bd65a::t_3c1230cb37b2e3 5
+  s_4f4812f16bd65a::t_f53ab20928a10a 35,38
+app/api/v1/accounts/[id]/fitness-route-heatmaps/route.ts
+  s_4f4812f16bd65a::t_18c740d01b1133 81,157
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 5
+app/api/v1/statuses/[id]/route.test.ts
+  s_4f4812f16bd65a::t_5316b63d4bf0cb 177
+  s_4f4812f16bd65a::t_5d94b4f1af6241 163-176,178-186
+app/api/v1/follow_requests/[id]/reject/route.test.ts
+  s_4f4812f16bd65a::t_89e56ee2d8cfec 3,15
+  s_4f4812f16bd65a::t_1ca1c264c4ad4b 121-139
+app/api/v1/follow_requests/[id]/authorize/route.ts
+  s_4f4812f16bd65a::t_06f309583c76bb 25-29,31
+  s_4f4812f16bd65a::t_0095f290cad9b3 8
+app/api/v1/accounts/[id]/lists/route.ts
+  s_4f4812f16bd65a::t_39df72ab614cc0 3
+  s_4f4812f16bd65a::t_d65a5ec4f4d826 26
+app/api/v1/accounts/[id]/fitness-activity-types/route.ts
+  s_4f4812f16bd65a::t_18c740d01b1133 69
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 6
+app/api/v1/accounts/[id]/mute/route.ts
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 6,56-59
+app/api/v1/accounts/[id]/media/route.ts
+  s_4f4812f16bd65a::t_18c740d01b1133 55
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 7
+app/api/v1/accounts/[id]/fitness-route-heatmap-region-names/route.ts
+  s_4f4812f16bd65a::t_18c740d01b1133 90,164
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 9
+app/api/v1/accounts/[id]/unmute/route.ts
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 4,27-30
+app/api/v1/notifications/requests/[id]/accept/route.ts
+  s_4f4812f16bd65a::t_4b3a6076f58957 3
+  s_4f4812f16bd65a::t_c77c48cd477fae 38-41
+app/api/v1/notifications/route.ts
+  s_4f4812f16bd65a::t_9ecffe0087c8bb 7
+  s_4f4812f16bd65a::t_4abf60752c06a5 131-133
+app/api/v1/accounts/[id]/fitness-route-heatmap/route.ts
+  s_4f4812f16bd65a::t_18c740d01b1133 132,247,442
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 10
+app/api/v1/accounts/[id]/statuses/route.ts
+  s_4f4812f16bd65a::t_e53300c5ca1aa8 10
+  s_4f4812f16bd65a::t_18c740d01b1133 67
+app/api/v1/notifications/requests/accept/route.ts
+  s_4f4812f16bd65a::t_ee90f9d83a8572 75-77
+  s_4f4812f16bd65a::t_8af26f9fb7cec2 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "e39e9727979a475f61871fedf81691921e1f9aa2",
+  "prompts": {},
+  "sessions": {
+    "s_4f4812f16bd65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef4966e6-a801-42ad-bea7-0a298c41d397",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
