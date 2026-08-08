@@ -45,6 +45,13 @@ const createRequest = (query: string) =>
 describe('GET /api/v1/accounts/relationships', () => {
   const database = getTestSQLDatabase()
 
+  // publicIds are minted at insert and random per run: read the emitted id back
+  // off the stored row rather than hard-coding one.
+  const emittedActorId = async (actorId: string) => {
+    const publicIds = await database.getActorPublicIds({ actorIds: [actorId] })
+    return publicIds.get(actorId) ?? urlToId(actorId)
+  }
+
   beforeAll(async () => {
     await database.migrate()
     await seedDatabase(database)
@@ -72,8 +79,14 @@ describe('GET /api/v1/accounts/relationships', () => {
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data).toHaveLength(2)
-    expect(data[0].id).toBe(urlToId(ACTOR2_ID))
-    expect(data[1].id).toBe(urlToId(ACTOR3_ID))
+    // Requested in the legacy form, answered with the publicId — and the same
+    // value the Account entity emits for that actor.
+    const [account2] = await database.getMastodonActorsFromIds({
+      ids: [ACTOR2_ID]
+    })
+    expect(data[0].id).toBe(await emittedActorId(ACTOR2_ID))
+    expect(data[0].id).toBe(account2.id)
+    expect(data[1].id).toBe(await emittedActorId(ACTOR3_ID))
     expect(data[0]).toHaveProperty('following')
     expect(data[0]).toHaveProperty('muting_expires_at')
   })
@@ -87,7 +100,7 @@ describe('GET /api/v1/accounts/relationships', () => {
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data).toHaveLength(1)
-    expect(data[0].id).toBe(urlToId(ACTOR3_ID))
+    expect(data[0].id).toBe(await emittedActorId(ACTOR3_ID))
   })
 
   it('returns an empty array when no ids are provided', async () => {
