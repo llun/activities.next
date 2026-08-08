@@ -21,7 +21,10 @@ import {
   getWhereInBatchSize
 } from '@/lib/database/sql/utils/knex'
 import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
-import { resolveIdsByPublicIds } from '@/lib/database/sql/utils/publicIdLookup'
+import {
+  resolveIdsByPublicIds,
+  resolvePublicIdsByIds
+} from '@/lib/database/sql/utils/publicIdLookup'
 import {
   StatusHashtagTagRow,
   selectHashtagTagsByStatusIds
@@ -3506,18 +3509,15 @@ export const StatusSQLDatabaseMixin = (
   }
 
   async function getStatusPublicIds({ statusIds }: GetStatusPublicIdsParams) {
-    const uniqueStatusIds = [...new Set(statusIds)].filter(Boolean)
-    if (uniqueStatusIds.length === 0) return new Map<string, string>()
-    const rows = await database('statuses')
-      .whereIn('id', uniqueStatusIds)
-      .whereNotNull('publicId')
-      .select('id', 'publicId')
-    return new Map<string, string>(
-      rows.map((row: { id: string; publicId: string }) => [
-        row.id,
-        row.publicId
-      ])
-    )
+    return resolvePublicIdsByIds({
+      ids: statusIds,
+      batchSize: getWhereInBatchSize(database),
+      selectChunk: (ids) =>
+        database('statuses')
+          .whereIn('id', ids)
+          .whereNotNull('publicId')
+          .select<{ id: string; publicId: string }[]>('id', 'publicId')
+    })
   }
 
   async function getActorStatusFromPathSegment({

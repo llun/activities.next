@@ -28,7 +28,10 @@ import {
   isPostgresClient
 } from '@/lib/database/sql/utils/knex'
 import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
-import { resolveIdsByPublicIds } from '@/lib/database/sql/utils/publicIdLookup'
+import {
+  resolveIdsByPublicIds,
+  resolvePublicIdsByIds
+} from '@/lib/database/sql/utils/publicIdLookup'
 import { selectHashtagTagsByStatusIds } from '@/lib/database/sql/utils/status'
 import {
   FEDERATION_SIGNING_ACTOR_TYPE,
@@ -663,15 +666,20 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
   },
 
   async getActorPublicIds({ actorIds }: GetActorPublicIdsParams) {
-    const uniqueActorIds = [...new Set(actorIds)].filter(Boolean)
-    if (uniqueActorIds.length === 0) return new Map<string, string>()
-    const rows = await database<SQLActor>('actors')
-      .whereIn('id', uniqueActorIds)
-      .whereNotNull('publicId')
-      .select('id', 'publicId')
-    return new Map<string, string>(
-      rows.map((row) => [row.id, row.publicId as string])
-    )
+    return resolvePublicIdsByIds({
+      ids: actorIds,
+      batchSize: getWhereInBatchSize(database),
+      selectChunk: async (ids) => {
+        const rows = await database<SQLActor>('actors')
+          .whereIn('id', ids)
+          .whereNotNull('publicId')
+          .select('id', 'publicId')
+        return rows.map((row) => ({
+          id: row.id,
+          publicId: row.publicId as string
+        }))
+      }
+    })
   },
 
   async getMastodonActorFromId({ id }: GetActorFromIdParams) {
