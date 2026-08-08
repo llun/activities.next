@@ -194,7 +194,3 @@ vi.mock('@/lib/config', async () => {
     })
   }
 })
-
-vi.mock('uuid', () => ({
-  v4: vi.fn(() => 'test-uuid-' + Math.random().toString(36).substring(7))
-}))
