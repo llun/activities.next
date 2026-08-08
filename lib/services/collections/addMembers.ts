@@ -2,10 +2,10 @@ import { randomUUID } from 'crypto'
 
 import { Database } from '@/lib/database/types'
 import { INGEST_COLLECTION_MEMBER_JOB_NAME } from '@/lib/jobs/names'
+import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { notifyAddedToCollection } from '@/lib/services/notifications/collectionNotifications'
 import { getQueue } from '@/lib/services/queue'
 import { logger } from '@/lib/utils/logger'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 // Cap the per-request batch of account ids to bound worst-case DB load on a
 // single add/remove (collections are curated; clients can page large changes).
@@ -17,7 +17,8 @@ export const MAX_COLLECTION_ACCOUNT_IDS = 100
 // band so federation never blocks the response. Extracted from the items route
 // so collection create (spec `account_ids`) shares the same path. Notification
 // failures are best-effort and must not fail the membership change; member ids
-// are stored actor URLs (built via idToUrl), so `new URL` is safe.
+// are stored actor URLs (resolved via resolveActorIdParam from a raw URI,
+// publicId, or legacy colon/apurl_ form), so `new URL` is safe.
 export const addMembersToCollection = async ({
   database,
   collectionId,
@@ -32,7 +33,9 @@ export const addMembersToCollection = async ({
   const addedActorIds = await database.addCollectionMembers({
     id: collectionId,
     actorId: ownerActorId,
-    targetActorIds: accountIds.map((accountId) => idToUrl(accountId))
+    targetActorIds: await Promise.all(
+      accountIds.map((accountId) => resolveActorIdParam(database, accountId))
+    )
   })
   await notifyAddedToCollection(database, {
     collectionId,

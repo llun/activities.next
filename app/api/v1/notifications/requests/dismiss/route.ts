@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
+import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -11,7 +12,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
@@ -73,7 +73,9 @@ export const POST = traceApiRoute(
 
       await database.dismissNotificationRequests({
         actorId: currentActor.id,
-        sourceActorIds: parsed.data.map((id) => idToUrl(id))
+        sourceActorIds: await Promise.all(
+          parsed.data.map((id) => resolveActorIdParam(database, id))
+        )
       })
 
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })

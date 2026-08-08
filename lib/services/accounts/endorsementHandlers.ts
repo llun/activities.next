@@ -3,10 +3,10 @@ import {
   OAuthGuardAnyScope,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
+import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiCorsError, apiResponse } from '@/lib/utils/response'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 export const ENDORSEMENT_CORS_HEADERS = [
   HttpMethod.enum.OPTIONS,
@@ -32,7 +32,7 @@ export const endorseAccountHandler = OAuthGuardAnyScope<Params>(
     if (!encodedAccountId)
       return apiCorsError(req, ENDORSEMENT_CORS_HEADERS, 400)
 
-    const targetActorId = idToUrl(encodedAccountId)
+    const targetActorId = await resolveActorIdParam(database, encodedAccountId)
     const target = await database.getActorFromId({ id: targetActorId })
     if (!target) return apiCorsError(req, ENDORSEMENT_CORS_HEADERS, 404)
 
@@ -78,7 +78,7 @@ export const unendorseAccountHandler = OAuthGuardAnyScope<Params>(
     if (!encodedAccountId)
       return apiCorsError(req, ENDORSEMENT_CORS_HEADERS, 400)
 
-    const targetActorId = idToUrl(encodedAccountId)
+    const targetActorId = await resolveActorIdParam(database, encodedAccountId)
     const target = await database.getActorFromId({ id: targetActorId })
     if (!target) return apiCorsError(req, ENDORSEMENT_CORS_HEADERS, 404)
 

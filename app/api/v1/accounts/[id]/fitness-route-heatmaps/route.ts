@@ -2,6 +2,7 @@ import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
 import { AppRouterParams } from '@/lib/services/guards/types'
+import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { FitnessRouteHeatmapSummary } from '@/lib/types/database/fitnessRouteHeatmap'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -13,7 +14,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [
   HttpMethod.enum.OPTIONS,
@@ -78,7 +78,7 @@ export const GET = traceApiRoute(
     }
 
     const { id: encodedAccountId } = await params.params
-    const id = idToUrl(encodedAccountId)
+    const id = await resolveActorIdParam(database, encodedAccountId)
 
     if (currentActor.id !== id) {
       return apiResponse({
@@ -154,7 +154,7 @@ export const DELETE = traceApiRoute(
     }
 
     const { id: encodedAccountId } = await params.params
-    const id = idToUrl(encodedAccountId)
+    const id = await resolveActorIdParam(database, encodedAccountId)
 
     if (currentActor.id !== id) {
       return apiResponse({

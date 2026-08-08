@@ -2,12 +2,12 @@ import { parseAccountCollectionsPaging } from '@/lib/services/collections/accoun
 import { getCollectionEntities } from '@/lib/services/collections/serializers'
 import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { buildOffsetPaginationLinkHeader } from '@/lib/utils/paginationLinkHeader'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -26,7 +26,7 @@ export const GET = traceApiRoute(
     [Scope.enum.read, Scope.enum['read:collections']],
     async (req, { database, currentActor, params }) => {
       const { id } = await params
-      const ownerActorId = idToUrl(id)
+      const ownerActorId = await resolveActorIdParam(database, id)
       const url = new URL(req.url)
       const { limit, offset } = parseAccountCollectionsPaging(url)
       const isOwner = currentActor?.id === ownerActorId

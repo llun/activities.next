@@ -11,6 +11,7 @@ import {
 } from '@/lib/services/guards/OAuthGuard'
 import { getRedirectUrl } from '@/lib/services/guards/getRedirectUrl'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { issueAccessToken } from '@/lib/services/oauth/issueAccessToken'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { Scope } from '@/lib/types/database/operations'
@@ -18,7 +19,6 @@ import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 import { Booleanish } from '@/lib/utils/zodBooleanish'
 
 import { CreateAccountRequest } from './types'
@@ -69,7 +69,9 @@ export const GET = traceApiRoute(
       })
     }
 
-    const ids = encodedIds.map((encoded) => idToUrl(encoded))
+    const ids = await Promise.all(
+      encodedIds.map((encoded) => resolveActorIdParam(database, encoded))
+    )
     const accounts = await database.getMastodonActorsFromIds({ ids })
 
     return apiResponse({

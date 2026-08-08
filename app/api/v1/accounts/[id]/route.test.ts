@@ -81,6 +81,28 @@ describe('GET /api/v1/accounts/:id', () => {
     expect(data).toHaveProperty('followers_count')
   })
 
+  it('returns the same body for a publicId-form id as for the colon-form id', async () => {
+    const actor = await database.getActorFromId({ id: ACTOR1_ID })
+    if (!actor?.publicId) {
+      throw new Error('seeded actor is missing a publicId')
+    }
+
+    const colonFormResponse = await GET(createRequest(ACTOR1_ID), {
+      params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
+    })
+    const publicIdResponse = await GET(
+      new NextRequest(`https://llun.test/api/v1/accounts/${actor.publicId}`, {
+        method: 'GET'
+      }),
+      { params: Promise.resolve({ id: actor.publicId }) }
+    )
+
+    expect(publicIdResponse.status).toBe(200)
+    expect(await publicIdResponse.json()).toEqual(
+      await colonFormResponse.json()
+    )
+  })
+
   it('includes modern account fields on the public account', async () => {
     const response = await GET(createRequest(ACTOR1_ID), {
       params: Promise.resolve({ id: urlToId(ACTOR1_ID) })

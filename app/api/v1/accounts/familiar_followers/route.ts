@@ -2,11 +2,12 @@ import {
   OAuthGuardAnyScope,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
+import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl, urlToId } from '@/lib/utils/urlToId'
+import { urlToId } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -52,7 +53,7 @@ export const GET = traceApiRoute(
       // in parallel and are bounded by the dedupe+cap above.
       const perTarget = await Promise.all(
         encodedIds.map(async (encodedId) => {
-          const targetActorId = idToUrl(encodedId)
+          const targetActorId = await resolveActorIdParam(database, encodedId)
           const target = await database.getActorFromId({ id: targetActorId })
           if (!target) return { id: encodedId, familiarIds: [] as string[] }
 

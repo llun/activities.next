@@ -7,6 +7,7 @@ import {
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { getRemoteActorStatuses } from '@/lib/services/mastodon/getRemoteActorStatuses'
+import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { decodeCursor } from '@/lib/services/timelines/request'
 import { Scope } from '@/lib/types/database/operations'
@@ -21,7 +22,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 const MAX_STATUS_SCAN_BATCHES = 10
@@ -64,7 +64,7 @@ export const GET = traceApiRoute(
       const { database, currentActor, params } = context
       const encodedAccountId = (await params).id
       if (!encodedAccountId) return apiCorsError(req, CORS_HEADERS, 400)
-      const id = idToUrl(encodedAccountId)
+      const id = await resolveActorIdParam(database, encodedAccountId)
 
       const actor = await database.getActorFromId({ id })
       if (!actor) return apiCorsError(req, CORS_HEADERS, 404)

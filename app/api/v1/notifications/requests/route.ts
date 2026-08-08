@@ -1,12 +1,12 @@
 import { getDatabase } from '@/lib/database'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getMastodonNotificationRequest } from '@/lib/services/notifications/getMastodonNotificationRequest'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 const DEFAULT_LIMIT = 40
@@ -46,7 +46,7 @@ export const GET = traceApiRoute(
       let sinceCursor: { updatedAt: number; sourceActorId: string } | undefined
 
       if (maxIdParam) {
-        const sourceActorId = idToUrl(maxIdParam)
+        const sourceActorId = await resolveActorIdParam(database, maxIdParam)
         const cursor = await database.getNotificationRequest({
           actorId: currentActor.id,
           sourceActorId
@@ -58,7 +58,7 @@ export const GET = traceApiRoute(
         }
         maxCursor = { updatedAt: cursor.updatedAt, sourceActorId }
       } else if (sinceIdParam) {
-        const sourceActorId = idToUrl(sinceIdParam)
+        const sourceActorId = await resolveActorIdParam(database, sinceIdParam)
         const cursor = await database.getNotificationRequest({
           actorId: currentActor.id,
           sourceActorId

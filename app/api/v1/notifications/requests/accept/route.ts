@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
+import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { addAcceptedSenders } from '@/lib/services/notifications/evaluateNotificationPolicy'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -12,7 +13,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
@@ -72,7 +72,9 @@ export const POST = traceApiRoute(
         })
       }
 
-      const allSourceActorIds = parsed.data.map((id) => idToUrl(id))
+      const allSourceActorIds = await Promise.all(
+        parsed.data.map((id) => resolveActorIdParam(database, id))
+      )
       // Only add senders that have an actual pending request to prevent arbitrary
       // allowlisting of accounts the user never intentionally accepted.
       const pendingRequests = await Promise.all(

@@ -5,6 +5,7 @@ import {
   OAuthGuardAnyScope
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -14,7 +15,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [
   HttpMethod.enum.OPTIONS,
@@ -178,7 +178,9 @@ export const POST = traceApiRoute(
         })
       }
 
-      const targetActorIds = accountIds.map((accountId) => idToUrl(accountId))
+      const targetActorIds = await Promise.all(
+        accountIds.map((accountId) => resolveActorIdParam(database, accountId))
+      )
       // Mastodon only allows adding accounts the requester follows; anything
       // else (including bogus ids) is a 404 so no dangling membership rows
       // are created for actors that don't resolve.
@@ -239,7 +241,11 @@ export const DELETE = traceApiRoute(
       await database.removeListAccounts({
         listId: id,
         actorId: currentActor.id,
-        targetActorIds: accountIds.map((accountId) => idToUrl(accountId))
+        targetActorIds: await Promise.all(
+          accountIds.map((accountId) =>
+            resolveActorIdParam(database, accountId)
+          )
+        )
       })
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
     }

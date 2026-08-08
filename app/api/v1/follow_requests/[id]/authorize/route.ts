@@ -5,12 +5,12 @@ import {
   OAuthGuardAnyScope,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
+import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_404, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
@@ -22,13 +22,13 @@ export const POST = traceApiRoute(
     [Scope.enum.write, Scope.enum['write:follows']],
     async (req, { currentActor, database, params }) => {
       const { id } = await params
-      // Accept both the urlToId-format id every GET endpoint emits (what
-      // Mastodon clients send) and a raw actor URL (the first-party UI's
-      // historical shape) so the UI migration is non-breaking. Match http(s)
-      // so a local/dev http:// actor URL passes through instead of being
-      // mangled by idToUrl (which would split the scheme colon).
+      // Accept the urlToId-format id every GET endpoint emits (what Mastodon
+      // clients send), a UUIDv7 publicId, and a raw actor URL (the
+      // first-party UI's historical shape) so the UI migration is
+      // non-breaking. resolveActorIdParam's raw-URL fast path absorbs the
+      // http(s) case instead of letting idToUrl mangle the scheme colon.
       const rawId = decodeURIComponent(id)
-      const accountId = /^https?:\/\//.test(rawId) ? rawId : idToUrl(rawId)
+      const accountId = await resolveActorIdParam(database, rawId)
 
       // Find the follow request from this account to current actor
       const follow = await database.getAcceptedOrRequestedFollow({

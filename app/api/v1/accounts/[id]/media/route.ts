@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { getDatabase } from '@/lib/database'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { AppRouterParams } from '@/lib/services/guards/types'
+import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { clampedLimit } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -15,7 +16,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -52,7 +52,7 @@ export const GET = traceApiRoute(
         responseStatusCode: 400
       })
     }
-    const id = idToUrl(encodedAccountId)
+    const id = await resolveActorIdParam(database, encodedAccountId)
 
     const actor = await database.getActorFromId({ id })
     if (!actor) {
