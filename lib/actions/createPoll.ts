@@ -1,5 +1,3 @@
-import crypto from 'crypto'
-
 import {
   getExplicitMentions,
   getMentionTagsForStatus,
@@ -13,7 +11,9 @@ import { Database } from '@/lib/database/types'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Actor, getMention } from '@/lib/types/domain/actor'
+import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
+import { generatePublicId } from '@/lib/utils/publicId'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 import { getMentions } from '@/lib/utils/text/getMentions'
 import { getSpan } from '@/lib/utils/trace'
@@ -59,8 +59,11 @@ export const createPollFromUserInput = async ({
     ? await database.getStatus({ statusId: replyStatusId, withReplies: false })
     : null
 
-  const postId = crypto.randomUUID()
-  const statusId = `${currentActor.id}/statuses/${postId}`
+  const postId = generatePublicId()
+  const statusId = getLocalStatusId({
+    actorId: currentActor.id,
+    statusId: postId
+  })
   const mentions = await getMentions({ text, currentActor, replyStatus })
   const explicitMentions = getExplicitMentions(text, mentions)
 
@@ -111,6 +114,7 @@ export const createPollFromUserInput = async ({
   const createdPoll = await database.createPoll({
     id: statusId,
     url: `https://${currentActor.domain}/${getMention(currentActor)}/${postId}`,
+    publicId: postId,
     actorId: currentActor.id,
     text: convertMarkdownText(config.host)(text),
     summary: summary?.trim() || null,
