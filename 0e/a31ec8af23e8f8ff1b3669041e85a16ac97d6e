@@ -1,0 +1,23 @@
+app/api/v1/admin/reports/adminReports.test.ts
+  s_4f4812f16bd65a::t_a86ab36dde4d89 6
+  s_4f4812f16bd65a::t_917ef4fd6ec368 170-184
+app/api/v1/admin/reports/route.ts
+  s_4f4812f16bd65a::t_b1ff40ac19f6ef 23-29,32,34-35
+  s_4f4812f16bd65a::t_d81affeabb9b1e 72,75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "0ea31ec8af23e8f8ff1b3669041e85a16ac97d6e",
+  "prompts": {},
+  "sessions": {
+    "s_4f4812f16bd65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef4966e6-a801-42ad-bea7-0a298c41d397",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
