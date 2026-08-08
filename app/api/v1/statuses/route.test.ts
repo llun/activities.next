@@ -1,6 +1,7 @@
 import knex, { Knex } from 'knex'
 import { NextRequest } from 'next/server'
 
+import { GET as getStatusById } from '@/app/api/v1/statuses/[id]/route'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
@@ -227,6 +228,55 @@ describe('POST /api/v1/statuses', () => {
     )
   })
 
+  it('creates a status via POST, still emits the legacy colon-form id, and reads back identically via GET by publicId', async () => {
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'a fresh status for the publicId round-trip'
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const created = await response.json()
+    // PR 1 is accept-old, emit-old: the POST response id is still the legacy
+    // colon form, never the new publicId.
+    expect(created.id).toBe(urlToId(created.uri))
+
+    const storedStatus = (await database.getStatus({
+      statusId: created.uri,
+      withReplies: false
+    })) as Status
+    if (!storedStatus.publicId) {
+      throw new Error('newly created status is missing a publicId')
+    }
+
+    const [colonFormResponse, publicIdResponse] = await Promise.all([
+      getStatusById(
+        new NextRequest(`https://llun.test/api/v1/statuses/${created.id}`),
+        { params: Promise.resolve({ id: created.id }) }
+      ),
+      getStatusById(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${storedStatus.publicId}`
+        ),
+        { params: Promise.resolve({ id: storedStatus.publicId }) }
+      )
+    ])
+
+    expect(colonFormResponse.status).toBe(200)
+    expect(publicIdResponse.status).toBe(200)
+    expect(await publicIdResponse.json()).toEqual(
+      await colonFormResponse.json()
+    )
+  })
+
   it('creates a status quoting the authors own public status', async () => {
     const quoted = await database.createNote({
       id: `${ACTOR1_ID}/statuses/route-quote-self`,
@@ -255,6 +305,42 @@ describe('POST /api/v1/statuses', () => {
     expect(response.status).toBe(200)
     const mastodonStatus = await response.json()
     expect(mastodonStatus.quote?.state).toBe('accepted')
+    expect(mastodonStatus.quote?.quoted_status?.id).toBe(urlToId(quoted.id))
+  })
+
+  it('creates a status quoting another status via a publicId quoted_status_id', async () => {
+    const quoted = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/route-quote-publicid`,
+      url: `${ACTOR1_ID}/statuses/route-quote-publicid`,
+      actorId: ACTOR1_ID,
+      text: 'quoted via publicId',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: []
+    })
+    if (!quoted.publicId) {
+      throw new Error('seeded quoted status is missing a publicId')
+    }
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'quoting by publicId',
+          quoted_status_id: quoted.publicId
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const mastodonStatus = await response.json()
+    expect(mastodonStatus.quote?.state).toBe('accepted')
+    // PR 1 is accept-old, emit-old: the quoted status is still surfaced with
+    // its legacy colon-form id, even though it was resolved from a publicId.
     expect(mastodonStatus.quote?.quoted_status?.id).toBe(urlToId(quoted.id))
   })
 

@@ -758,6 +758,77 @@ describe('GET /api/v1/timelines/[timeline]', () => {
       const data = await response.json()
       expect(data.statuses).toEqual([])
     })
+
+    test('a publicId max_id keeps the same page and the legacy colon-form Link header as the colon-form cursor', async () => {
+      // Uses the plain Mastodon-array format (no format=activities_next) since
+      // that is the only response shape that carries a Link header.
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const actorId = await createIsolatedActor()
+      mockCookieValue.value = actorId
+
+      const oldest = await createTimelineNote({
+        actorId,
+        timelineActorId: actorId,
+        name: 'publicid-link-oldest'
+      })
+      const middle = await createTimelineNote({
+        actorId,
+        timelineActorId: actorId,
+        name: 'publicid-link-middle'
+      })
+      const anchor = await createTimelineNote({
+        actorId,
+        timelineActorId: actorId,
+        name: 'publicid-link-anchor'
+      })
+      if (!oldest.publicId)
+        throw new Error('oldest status is missing a publicId')
+      if (!middle.publicId)
+        throw new Error('middle status is missing a publicId')
+      if (!anchor.publicId)
+        throw new Error('anchor status is missing a publicId')
+
+      const buildUrl = (maxId: string) => {
+        const url = new URL('https://llun.test/api/v1/timelines/main')
+        url.searchParams.set('limit', '1')
+        url.searchParams.set('max_id', maxId)
+        return url
+      }
+
+      const [legacyResponse, publicIdResponse] = await Promise.all([
+        GET(new NextRequest(buildUrl(urlToId(anchor.id)).toString()), {
+          params: Promise.resolve({ timeline: 'main' })
+        }),
+        GET(new NextRequest(buildUrl(anchor.publicId).toString()), {
+          params: Promise.resolve({ timeline: 'main' })
+        })
+      ])
+
+      expect(legacyResponse.status).toBe(200)
+      expect(publicIdResponse.status).toBe(200)
+
+      const legacyIds = (await legacyResponse.json()).map(
+        (s: { id: string }) => s.id
+      )
+      const publicIdIds = (await publicIdResponse.json()).map(
+        (s: { id: string }) => s.id
+      )
+      expect(publicIdIds).toEqual(legacyIds)
+      expect(publicIdIds).toEqual([urlToId(middle.id)])
+
+      // PR 1 does not change emission: the Link header still carries the
+      // legacy colon-form cursor even when the request came in with a
+      // publicId cursor.
+      const legacyLink = legacyResponse.headers.get('Link') || ''
+      const publicIdLink = publicIdResponse.headers.get('Link') || ''
+      expect(publicIdLink).toEqual(legacyLink)
+      expect(legacyLink).toContain(`max_id=${urlToId(middle.id)}`)
+      expect(legacyLink).not.toContain(anchor.publicId)
+      expect(legacyLink).not.toContain(middle.publicId)
+      expect(legacyLink).not.toContain(oldest.publicId)
+    })
   })
 
   describe('hydration resilience', () => {
