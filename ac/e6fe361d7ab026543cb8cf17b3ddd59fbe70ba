@@ -1,0 +1,31 @@
+app/api/v1/statuses/route.ts
+  s_4f4812f16bd65a::t_554e3f9d8f9936 447
+  s_4f4812f16bd65a::t_1502d0ecad966e 350-358,364
+app/api/v1/statuses/route.test.ts
+  s_4f4812f16bd65a::t_fc1900a8ef5e2c 167-229
+  s_4f4812f16bd65a::t_4fd57d034d3588 22
+lib/jobs/publishScheduledStatusJob.ts
+  s_4f4812f16bd65a::t_61810d6024983c 116-125,131
+  s_4f4812f16bd65a::t_df8e5d98ec7701 5
+  s_4f4812f16bd65a::t_65d04b0aa894b4 167
+lib/jobs/publishScheduledStatusJob.test.ts
+  s_4f4812f16bd65a::t_f66a7b456fa35a 13-14
+  s_4f4812f16bd65a::t_58cb66bbb9c708 132-180,182-187
+  s_4f4812f16bd65a::t_f340830d3aca68 181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "ace6fe361d7ab026543cb8cf17b3ddd59fbe70ba",
+  "prompts": {},
+  "sessions": {
+    "s_4f4812f16bd65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef4966e6-a801-42ad-bea7-0a298c41d397",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
