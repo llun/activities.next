@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { Database } from '@/lib/database/types'
+import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { refetchedStatusResponse } from '@/lib/services/mastodon/statusActionResponse'
 import {
   reactStatus,
@@ -14,7 +15,6 @@ import {
 import { Actor } from '@/lib/types/domain/actor'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiCorsError, apiResponse } from '@/lib/utils/response'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 // Next's App Router already percent-decodes a dynamic segment, so this is the
 // emoji/shortcode itself — do not decode it again.
@@ -50,7 +50,7 @@ export const reactionWriteHandler =
     const segment = ReactionSegment.safeParse(emoji ?? name)
     if (!segment.success) return apiCorsError(req, corsHeaders, 422)
 
-    const statusId = idToUrl(id)
+    const statusId = await resolveStatusIdParam(database, id)
     const act = mode === 'react' ? reactStatus : unreactStatus
     const result = await act({
       database,

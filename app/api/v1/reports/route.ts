@@ -2,6 +2,10 @@ import { z } from 'zod'
 
 import { SEND_FLAG_JOB_NAME } from '@/lib/jobs/names'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import {
+  resolveActorIdParam,
+  resolveStatusIdParam
+} from '@/lib/services/mastodon/resolveClientId'
 import { getQueue } from '@/lib/services/queue'
 import { serializeReportEntity } from '@/lib/services/reports/serializeReportEntity'
 import { ReportCategory, Scope } from '@/lib/types/database/operations'
@@ -15,7 +19,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 import { Booleanish } from '@/lib/utils/zodBooleanish'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
@@ -109,7 +112,10 @@ export const POST = traceApiRoute(
         })
       }
 
-      const targetActorId = idToUrl(parsed.data.account_id)
+      const targetActorId = await resolveActorIdParam(
+        database,
+        parsed.data.account_id
+      )
       const targetAccount = await database.getMastodonActorFromId({
         id: targetActorId
       })
@@ -122,7 +128,11 @@ export const POST = traceApiRoute(
         })
       }
 
-      const statusIds = toArray(parsed.data.status_ids).map((id) => idToUrl(id))
+      const statusIds = await Promise.all(
+        toArray(parsed.data.status_ids).map((id) =>
+          resolveStatusIdParam(database, id)
+        )
+      )
       const ruleIds = toArray(parsed.data.rule_ids)
       const collectionIds = toArray(parsed.data.collection_ids)
 

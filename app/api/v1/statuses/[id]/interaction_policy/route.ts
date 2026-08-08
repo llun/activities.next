@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { updateStatusInteractionPolicyFromUserInput } from '@/lib/actions/updateStatusInteractionPolicy'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
 import { Scope } from '@/lib/types/database/operations'
 import { QuoteApprovalPolicy } from '@/lib/types/domain/status'
@@ -16,7 +17,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.PUT]
 
@@ -42,7 +42,7 @@ export const PUT = traceApiRoute(
       const { database, currentActor, params } = context
       const encodedStatusId = (await params).id
       if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
-      const statusId = idToUrl(encodedStatusId)
+      const statusId = await resolveStatusIdParam(database, encodedStatusId)
 
       let parsed: z.infer<typeof BodySchema>
       try {

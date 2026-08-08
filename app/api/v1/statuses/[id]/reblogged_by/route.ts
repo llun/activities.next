@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { buildAccountCursorLinkHeader } from '@/lib/services/mastodon/accountCursorLinkHeader'
+import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { clampedLimit } from '@/lib/utils/clampedLimit'
@@ -56,7 +57,7 @@ export const GET = traceApiRoute(
         min_id: minId,
         since_id: sinceId
       } = parsedParams.data
-      const statusId = idToUrl(encodedStatusId)
+      const statusId = await resolveStatusIdParam(database, encodedStatusId)
       const status = await getReadableStatus({
         database,
         statusId,
