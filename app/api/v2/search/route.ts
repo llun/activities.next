@@ -18,6 +18,10 @@ import {
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
+import {
+  resolveActorIdParam,
+  resolveStatusIdParam
+} from '@/lib/services/mastodon/resolveClientId'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
@@ -36,7 +40,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -109,14 +112,44 @@ const isUrl = (value: string) => {
   }
 }
 
-const normalizeUrlId = (value?: string | null) => {
+// account_id-shaped lookup ids (account.id, account.url, the account_id
+// search param) resolve through the actor id space: raw URI, UUIDv7
+// publicId, or legacy colon/apurl_ form. The isUrl fast path mirrors
+// resolveActorIdParam's own raw-URL passthrough so a plain URL never
+// round-trips through the resolver.
+const resolveSearchAccountId = async (
+  database: Pick<Database, 'getActorIdByPublicId'>,
+  value?: string | null
+): Promise<string | null> => {
   if (!value) return null
-  return normalizeActorId(isUrl(value) ? value : idToUrl(value))
+  return normalizeActorId(
+    isUrl(value) ? value : await resolveActorIdParam(database, value)
+  )
+}
+
+// status_id-shaped lookup ids (status.id, status.url, the resolved status,
+// max_id/min_id cursors) resolve through the status id space.
+const resolveSearchStatusId = async (
+  database: Pick<Database, 'getStatusIdByPublicId'>,
+  value?: string | null
+): Promise<string | null> => {
+  if (!value) return null
+  return normalizeActorId(
+    isUrl(value) ? value : await resolveStatusIdParam(database, value)
+  )
 }
 
 const dedupeStrings = (values: string[]) => [...new Set(values)]
 
-const normalizeLookupId = (value?: string | null) => normalizeUrlId(value) ?? ''
+const normalizeAccountLookupId = async (
+  database: Pick<Database, 'getActorIdByPublicId'>,
+  value?: string | null
+) => (await resolveSearchAccountId(database, value)) ?? ''
+
+const normalizeStatusLookupId = async (
+  database: Pick<Database, 'getStatusIdByPublicId'>,
+  value?: string | null
+) => (await resolveSearchStatusId(database, value)) ?? ''
 
 const getProfileUrlAccountHandle = (query: string) => {
   try {
@@ -157,10 +190,12 @@ const getCanonicalAccountActorId = async ({
   )
 }
 
-const orderAccountsByIds = ({
+const orderAccountsByIds = async ({
+  database,
   accounts,
   ids
 }: {
+  database: Pick<Database, 'getActorIdByPublicId'>
   accounts: MastodonAccount[]
   ids: string[]
 }) => {
@@ -168,13 +203,16 @@ const orderAccountsByIds = ({
 
   for (const account of accounts) {
     for (const key of [account.id, account.url]) {
-      const lookupId = normalizeLookupId(key)
+      const lookupId = await normalizeAccountLookupId(database, key)
       if (lookupId) accountsByLookupId.set(lookupId, account)
     }
   }
 
-  return ids
-    .map((id) => accountsByLookupId.get(normalizeLookupId(id)))
+  const lookupIds = await Promise.all(
+    ids.map((id) => normalizeAccountLookupId(database, id))
+  )
+  return lookupIds
+    .map((lookupId) => accountsByLookupId.get(lookupId))
     .filter((account): account is MastodonAccount => Boolean(account))
 }
 
@@ -184,10 +222,12 @@ const getStatusLookupIds = (status: Status) => {
   return ids
 }
 
-const orderStatusesByIds = ({
+const orderStatusesByIds = async ({
+  database,
   statuses,
   ids
 }: {
+  database: Pick<Database, 'getStatusIdByPublicId'>
   statuses: Status[]
   ids: string[]
 }) => {
@@ -195,13 +235,16 @@ const orderStatusesByIds = ({
 
   for (const status of statuses) {
     for (const key of getStatusLookupIds(status)) {
-      const lookupId = normalizeLookupId(key)
+      const lookupId = await normalizeStatusLookupId(database, key)
       if (lookupId) statusesByLookupId.set(lookupId, status)
     }
   }
 
-  return ids
-    .map((id) => statusesByLookupId.get(normalizeLookupId(id)))
+  const lookupIds = await Promise.all(
+    ids.map((id) => normalizeStatusLookupId(database, id))
+  )
+  return lookupIds
+    .map((lookupId) => statusesByLookupId.get(lookupId))
     .filter((status): status is Status => Boolean(status))
 }
 
@@ -424,7 +467,7 @@ const searchAccounts = async ({
   ).slice(0, limit)
 
   const accounts = await database.getMastodonActorsFromIds({ ids })
-  return orderAccountsByIds({ accounts, ids })
+  return orderAccountsByIds({ database, accounts, ids })
 }
 
 const searchHashtags = async ({
@@ -471,6 +514,15 @@ const searchStatuses = async ({
   signingActor?: Actor
 }) => {
   const indexedLimit = limit * 2
+  // account_id/max_id/min_id must be resolved to real ids before they reach
+  // database.searchStatusIds (a raw client-supplied publicId or colon-form id
+  // means nothing to the SQL layer), so resolve them ahead of the
+  // Promise.all below rather than inline in the searchStatusIds call.
+  const [accountId, maxId, minId] = await Promise.all([
+    resolveSearchAccountId(database, params.account_id),
+    resolveSearchStatusId(database, params.max_id),
+    resolveSearchStatusId(database, params.min_id)
+  ])
   const [resolvedStatus, indexedIds] = await Promise.all([
     offset === 0
       ? getResolvedStatus({
@@ -488,17 +540,24 @@ const searchStatuses = async ({
       currentActorId: currentActor.id,
       currentActorUsername: currentActor.username,
       currentActorDomain: currentActor.domain,
-      accountId: normalizeUrlId(params.account_id),
-      maxId: normalizeUrlId(params.max_id),
-      minId: normalizeUrlId(params.min_id)
+      accountId,
+      maxId,
+      minId
     })
   ])
 
-  const resolvedStatusId = normalizeLookupId(resolvedStatus?.id)
-  const ids = dedupeStrings(
+  const resolvedStatusId = await normalizeStatusLookupId(
+    database,
+    resolvedStatus?.id
+  )
+  const dedupedIds = dedupeStrings(
     indexedIds.filter((id): id is string => typeof id === 'string')
   )
-    .filter((id) => normalizeLookupId(id) !== resolvedStatusId)
+  const dedupedLookupIds = await Promise.all(
+    dedupedIds.map((id) => normalizeStatusLookupId(database, id))
+  )
+  const ids = dedupedIds
+    .filter((_, index) => dedupedLookupIds[index] !== resolvedStatusId)
     .slice(0, resolvedStatus ? indexedLimit - 1 : indexedLimit)
 
   if (ids.length === 0) {
@@ -510,7 +569,8 @@ const searchStatuses = async ({
     currentActorId: currentActor.id,
     visibleToActorId: currentActor.id
   })
-  const orderedStatuses = orderStatusesByIds({
+  const orderedStatuses = await orderStatusesByIds({
+    database,
     statuses,
     ids
   })
