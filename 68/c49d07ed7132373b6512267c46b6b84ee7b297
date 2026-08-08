@@ -1,0 +1,61 @@
+app/api/v1/collections/[id]/feed/route.ts
+  s_4f4812f16bd65a::t_344e97657e8abe 61-65,67
+  s_4f4812f16bd65a::t_b6bed1bd7f1ac7 10
+app/api/v1/conversations/[id]/statuses/route.ts
+  s_4f4812f16bd65a::t_975fbf42f5ffa0 10,18
+  s_4f4812f16bd65a::t_8a07a44ca8271d 45-50
+lib/services/timelines/request.test.ts
+  s_4f4812f16bd65a::t_eacd7eb97a9f26 4,6,10-16
+  s_4f4812f16bd65a::t_5d4020b2b035ef 249-251
+  s_4f4812f16bd65a::t_5397ce62752b56 198-248,252-291
+app/api/v1/timelines/[timeline]/route.ts
+  s_4f4812f16bd65a::t_8d774557788dbe 15
+  s_4f4812f16bd65a::t_da714dd3fcb21f 98-99
+app/api/v1/accounts/[id]/statuses/route.ts
+  s_4f4812f16bd65a::t_55aaf310eddbfd 96-110,118-120
+  s_4f4812f16bd65a::t_9a2b4b7f19e020 12-15
+lib/services/timelines/request.ts
+  s_4f4812f16bd65a::t_adde96456976c5 59-77,81-92,97-99
+  s_4f4812f16bd65a::t_d26c59bc546c64 78-80,93-96
+  s_4f4812f16bd65a::t_255d850a1bfc27 4,7
+app/api/v1/statuses/[id]/reblogged_by/route.ts
+  s_4f4812f16bd65a::t_6d4f773716129f 69-78,82-84
+app/api/v1/timelines/[timeline]/route.test.ts
+  s_4f4812f16bd65a::t_7dea5fbbe29738 706-723,726-740,742-762
+  s_4f4812f16bd65a::t_3e9481149916f5 11
+  s_4f4812f16bd65a::t_cbc13a1dd15eea 724-725,741
+app/api/v1/timelines/public/route.ts
+  s_4f4812f16bd65a::t_0afea7d286cbf3 11
+  s_4f4812f16bd65a::t_33ea18098b2646 66-71,77
+app/api/v1/timelines/tag/[hashtag]/route.ts
+  s_4f4812f16bd65a::t_dfb42d045733a3 122-127,131
+  s_4f4812f16bd65a::t_79583c0b8990b2 13
+app/api/v1/statuses/[id]/quotes/route.ts
+  s_4f4812f16bd65a::t_5b9db51d2015e4 66-71,78-79
+  s_4f4812f16bd65a::t_a856b9a079bd66 16
+app/api/v1/timelines/list/[list_id]/route.ts
+  s_4f4812f16bd65a::t_7544c2e7608be8 74-75,84-85
+  s_4f4812f16bd65a::t_ec8455d0b34347 15
+app/api/v1/timelines/collection/[id]/route.ts
+  s_4f4812f16bd65a::t_fe963fb616a04d 15
+  s_4f4812f16bd65a::t_a7ee495693fed2 76-80,82
+app/api/v1/tags/[tag]/route.ts
+  s_4f4812f16bd65a::t_85bd44e9d6af6e 9
+  s_4f4812f16bd65a::t_3db39b571a26a6 100-102,107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "68c49d07ed7132373b6512267c46b6b84ee7b297",
+  "prompts": {},
+  "sessions": {
+    "s_4f4812f16bd65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef4966e6-a801-42ad-bea7-0a298c41d397",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
