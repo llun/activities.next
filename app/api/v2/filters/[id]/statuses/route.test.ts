@@ -11,7 +11,7 @@ import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { urlToId } from '@/lib/utils/urlToId'
 
-import { POST } from './route'
+import { GET, POST } from './route'
 
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -118,11 +118,17 @@ describe('/api/v2/filters/[id]/statuses', () => {
       )
       expect(response.status).toBe(200)
 
+      // Stored resolved so matching works, emitted in the legacy colon form the
+      // rest of the API uses — the write side resolves, the read side
+      // normalises.
       const stored = await database.getFilterStatuses({
         actorId: ACTOR1_ID,
         filterId: filter.id
       })
       expect(stored?.map((entry) => entry.statusId)).toEqual([status.id])
+      expect(await response.json()).toMatchObject({
+        status_id: urlToId(status.id)
+      })
 
       const activeFilters = await getActiveFilters(database, ACTOR1_ID, 'home')
       const results = applyFiltersToStatus(
@@ -130,7 +136,7 @@ describe('/api/v2/filters/[id]/statuses', () => {
         activeFilters.filter((record) => record.filter.id === filter.id)
       )
       expect(results).toHaveLength(1)
-      expect(results[0].status_matches).toEqual([status.id])
+      expect(results[0].status_matches).toEqual([urlToId(status.id)])
     }
   )
 
@@ -149,6 +155,56 @@ describe('/api/v2/filters/[id]/statuses', () => {
     )
     expect(results).toHaveLength(1)
     expect(results[0].status_matches).toEqual([urlToId(status.id)])
+  })
+
+  it('emits one id form for a filter holding both a pre-existing and a newly written row', async () => {
+    const filter = await createFilter('Mixed storage forms')
+    // A row written before the write side resolved client ids: colon form.
+    await database.addFilterStatus({
+      actorId: ACTOR1_ID,
+      filterId: filter.id,
+      statusId: urlToId(status.id)
+    })
+    // A row written through the route today: the resolved status URI.
+    const postResponse = await POST(
+      postRequest(filter.id, { status_id: publicId }),
+      { params: Promise.resolve({ id: filter.id }) }
+    )
+    expect(postResponse.status).toBe(200)
+
+    const stored = await database.getFilterStatuses({
+      actorId: ACTOR1_ID,
+      filterId: filter.id
+    })
+    // The two rows genuinely differ on disk, so this is not a vacuous check.
+    expect(new Set(stored?.map((entry) => entry.statusId))).toEqual(
+      new Set([urlToId(status.id), status.id])
+    )
+
+    const listResponse = await GET(
+      new NextRequest(
+        `https://llun.test/api/v2/filters/${filter.id}/statuses`,
+        { headers: { Origin: 'https://llun.test' } }
+      ),
+      { params: Promise.resolve({ id: filter.id }) }
+    )
+    expect(listResponse.status).toBe(200)
+    const listed = (await listResponse.json()) as { status_id: string }[]
+    expect(listed).toHaveLength(2)
+    expect(new Set(listed.map((entry) => entry.status_id))).toEqual(
+      new Set([urlToId(status.id)])
+    )
+
+    const activeFilters = await getActiveFilters(database, ACTOR1_ID, 'home')
+    const results = applyFiltersToStatus(
+      status,
+      activeFilters.filter((record) => record.filter.id === filter.id)
+    )
+    expect(results).toHaveLength(1)
+    expect(results[0].status_matches).toEqual([
+      urlToId(status.id),
+      urlToId(status.id)
+    ])
   })
 
   it('returns 422 when status_id is missing', async () => {

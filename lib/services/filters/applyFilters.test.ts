@@ -9,6 +9,7 @@ import { ActiveFilterRecord } from '@/lib/types/database/operations'
 import { Filter, FilterKeyword } from '@/lib/types/domain/filter'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import * as Mastodon from '@/lib/types/mastodon'
+import { urlToId } from '@/lib/utils/urlToId'
 
 const TEST_ACTOR = 'https://llun.test/users/test1'
 
@@ -111,28 +112,42 @@ describe('applyFiltersToStatus', () => {
     expect(results[0].status_matches).toBeNull()
   })
 
-  it('returns status_matches when the status id is in the filter list', () => {
-    const filter = buildFilter({ id: 'f2' })
-    const statusId = 'https://llun.test/users/test1/statuses/2'
-    const records: ActiveFilterRecord[] = [
-      {
-        filter,
-        keywords: [],
-        statuses: [
-          {
-            id: 'fs1',
-            filterId: filter.id,
-            statusId,
-            createdAt: 0
-          }
-        ]
-      }
-    ]
-    const status = buildStatusNote(statusId, 'no keywords here')
-    const results = applyFiltersToStatus(status, records)
-    expect(results).toHaveLength(1)
-    expect(results[0].status_matches).toEqual([statusId])
-  })
+  // A filter status row can hold either the resolved status URI (written by the
+  // route today) or the legacy colon-form id (written before the route resolved
+  // client ids). Both match, and both are emitted in the colon form the rest of
+  // the API uses, so a client can compare `status_matches` against the status
+  // ids it holds.
+  it.each([
+    { description: 'the resolved status uri', stored: (uri: string) => uri },
+    {
+      description: 'the legacy colon form',
+      stored: (uri: string) => urlToId(uri)
+    }
+  ])(
+    'returns colon-form status_matches for a row stored as $description',
+    ({ stored }) => {
+      const filter = buildFilter({ id: 'f2' })
+      const statusId = 'https://llun.test/users/test1/statuses/2'
+      const records: ActiveFilterRecord[] = [
+        {
+          filter,
+          keywords: [],
+          statuses: [
+            {
+              id: 'fs1',
+              filterId: filter.id,
+              statusId: stored(statusId),
+              createdAt: 0
+            }
+          ]
+        }
+      ]
+      const status = buildStatusNote(statusId, 'no keywords here')
+      const results = applyFiltersToStatus(status, records)
+      expect(results).toHaveLength(1)
+      expect(results[0].status_matches).toEqual([urlToId(statusId)])
+    }
+  )
 
   it('returns no matches when none of the keywords or status ids hit', () => {
     const filter = buildFilter({ id: 'f3' })

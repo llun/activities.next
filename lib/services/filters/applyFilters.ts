@@ -196,7 +196,12 @@ const matchFilter = (
       candidateIdSet.has(filterStatus.statusId) ||
       candidateIdSet.has(urlToId(filterStatus.statusId))
     ) {
-      statusMatches.push(filterStatus.statusId)
+      // Match on either stored form, but emit only the legacy colon-form id:
+      // `status_matches` rides on every timeline and notification status that
+      // carries `filtered[]`, so a raw `https://…/statuses/…` here would be an
+      // id form the rest of the API never emits. Rows stored in colon form are
+      // unaffected — `urlToId` returns them unchanged.
+      statusMatches.push(urlToId(filterStatus.statusId))
     }
   }
 

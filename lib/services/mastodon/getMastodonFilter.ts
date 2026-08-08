@@ -11,6 +11,7 @@ import {
 } from '@/lib/types/domain/filter'
 import * as Mastodon from '@/lib/types/mastodon'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { urlToId } from '@/lib/utils/urlToId'
 
 export const getMastodonFilterKeyword = (
   keyword: DomainFilterKeyword
@@ -24,7 +25,18 @@ export const getMastodonFilterStatus = (
   status: DomainFilterStatus
 ): Mastodon.FilterStatus => ({
   id: status.id,
-  status_id: status.statusId
+  // `filter_statuses.statusId` holds the RESOLVED status URI — POST
+  // /api/v2/filters/:id/statuses resolves whatever id form the client sent so
+  // matching can work — but the API still emits the legacy colon-form id
+  // everywhere else, so normalise here at the emission boundary. Without it a
+  // client that posted the id it read off the timeline gets a raw
+  // `https://…/statuses/…` back, cannot compare it to the status id it holds,
+  // and breaks if it interpolates the value into a URL; a list would also mix
+  // both forms depending on when each row was written. `urlToId` is identity on
+  // a value already in colon form (the invalid `:users` "port" makes `new URL`
+  // throw and the input is returned unchanged), so rows stored before the
+  // resolver landed keep emitting exactly what they always did.
+  status_id: urlToId(status.statusId)
 })
 
 const buildMastodonFilter = (record: ActiveFilterRecord): Mastodon.Filter => ({
