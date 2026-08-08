@@ -1,0 +1,26 @@
+lib/database/sql/publicIdMigration.test.ts
+  s_4f4812f16bd65a::t_17d019ec52842c 1-3,5-61,66-75,80-93,97-98
+  s_4f4812f16bd65a::t_74052bdd15cc5d 4,62-65,76-79,94-96
+migrations/20260808000000_add_public_ids.js
+  s_4f4812f16bd65a::t_6787bd5e77a2a6 1-112
+migrations/schema.sqlite.sql
+  s_4f4812f16bd65a::t_4ed23e9832efcd 12,34,252-253
+migrations/schema.sql
+  s_4f4812f16bd65a::t_b32504f5255d51 91-92,1000-1001,1156-1158,1462-1464
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "52debea12b0e5e24b4727a4ccec133f73831b559",
+  "prompts": {},
+  "sessions": {
+    "s_4f4812f16bd65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef4966e6-a801-42ad-bea7-0a298c41d397",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
