@@ -1,0 +1,22 @@
+lib/services/mastodon/resolveClientId.test.ts
+  s_4f4812f16bd65a::t_86d17ebb6b6b38 41-43,48-50,89-91,96-98
+  s_4f4812f16bd65a::t_3459f09892dac6 1-40,44-47,51-88,92-95,99-104
+lib/services/mastodon/resolveClientId.ts
+  s_4f4812f16bd65a::t_fc614d16325022 1-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "822fc02b4bc523602bc89e0014ab58bb17ba6aba",
+  "prompts": {},
+  "sessions": {
+    "s_4f4812f16bd65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef4966e6-a801-42ad-bea7-0a298c41d397",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
