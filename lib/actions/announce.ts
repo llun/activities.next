@@ -1,5 +1,3 @@
-import crypto from 'crypto'
-
 import { Database } from '@/lib/database/types'
 import { SEND_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { buildBoostEmail } from '@/lib/services/email/templates/reblog'
@@ -11,9 +9,11 @@ import { addStatusToTimelines } from '@/lib/services/timelines'
 import { NotificationType } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { getOriginalStatus } from '@/lib/types/domain/status'
+import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
+import { generatePublicId } from '@/lib/utils/publicId'
 import { getTracer } from '@/lib/utils/trace'
 
 interface UserAnnounceParams {
@@ -73,10 +73,12 @@ export const userAnnounce = async ({
       return null
     }
 
-    const id = `${currentActor.id}/statuses/${crypto.randomUUID()}`
+    const postId = generatePublicId()
+    const id = getLocalStatusId({ actorId: currentActor.id, statusId: postId })
     const { to, cc } = getAnnounceRecipients(currentActor, visibility)
     const status = await database.createAnnounce({
       id,
+      publicId: postId,
       actorId: currentActor.id,
       to,
       cc,

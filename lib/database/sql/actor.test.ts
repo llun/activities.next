@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-import knex from 'knex'
+import knex, { Knex } from 'knex'
 
 import { getSQLDatabase } from '@/lib/database/sql'
 import { type SQLActorDatabase } from '@/lib/database/sql/actor'
@@ -7,7 +7,8 @@ import { CounterKey } from '@/lib/database/sql/utils/counter'
 import {
   databaseBeforeAll,
   getTestDatabaseTable,
-  getTestSQLDatabase
+  getTestSQLDatabase,
+  getTestSQLDatabaseWithInstance
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import {
@@ -28,6 +29,11 @@ import { FollowStatus } from '@/lib/types/domain/follow'
 import { type StatusPoll } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import {
+  generatePublicId,
+  getPublicIdTimestamp,
+  isPublicId
+} from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
 const withFreshDatabase = async (
@@ -124,6 +130,241 @@ describe('ActorDatabase', () => {
         )
 
         expect(actor.type).toBe('Person')
+      })
+    })
+
+    describe('publicId', () => {
+      const withFreshDatabase = async (
+        test: (database: Database, instance: Knex) => Promise<void>
+      ) => {
+        const { database: freshDatabase, instance } =
+          getTestSQLDatabaseWithInstance()
+        await freshDatabase.migrate()
+        try {
+          await test(freshDatabase, instance)
+        } finally {
+          await freshDatabase.destroy()
+        }
+      }
+
+      it('mints a v7 publicId at createActor whose timestamp matches createdAt', async () => {
+        await withFreshDatabase(async (freshDatabase) => {
+          const actorId = `https://${TEST_DOMAIN}/users/public-id-create-actor`
+          const createdAt = Date.UTC(2024, 0, 2, 3, 4, 5, 0)
+          await freshDatabase.createActor({
+            actorId,
+            username: 'public-id-create-actor',
+            domain: TEST_DOMAIN,
+            followersUrl: `${actorId}/followers`,
+            inboxUrl: `${actorId}/inbox`,
+            sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
+            publicKey: 'public-key',
+            createdAt
+          })
+
+          const publicIds = await freshDatabase.getActorPublicIds({
+            actorIds: [actorId]
+          })
+          const publicId = publicIds.get(actorId)
+
+          expect(publicId).toBeTruthy()
+          expect(isPublicId(publicId as string)).toBe(true)
+          expect(getPublicIdTimestamp(publicId as string)).toBe(createdAt)
+        })
+      })
+
+      it('round-trips getActorIdByPublicId and returns null for an id that was never stored', async () => {
+        await withFreshDatabase(async (freshDatabase) => {
+          const actorId = `https://${TEST_DOMAIN}/users/public-id-roundtrip`
+          await freshDatabase.createActor({
+            actorId,
+            username: 'public-id-roundtrip',
+            domain: TEST_DOMAIN,
+            followersUrl: `${actorId}/followers`,
+            inboxUrl: `${actorId}/inbox`,
+            sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
+            publicKey: 'public-key',
+            createdAt: Date.now()
+          })
+
+          const publicIds = await freshDatabase.getActorPublicIds({
+            actorIds: [actorId]
+          })
+          const publicId = publicIds.get(actorId) as string
+
+          expect(await freshDatabase.getActorIdByPublicId({ publicId })).toBe(
+            actorId
+          )
+          expect(
+            await freshDatabase.getActorIdByPublicId({
+              publicId: generatePublicId()
+            })
+          ).toBeNull()
+        })
+      })
+
+      it('getActorIdsByPublicIds maps every known publicId back and omits unknown ones', async () => {
+        await withFreshDatabase(async (freshDatabase) => {
+          const firstId = `https://${TEST_DOMAIN}/users/public-ids-batch-1`
+          const secondId = `https://${TEST_DOMAIN}/users/public-ids-batch-2`
+          for (const [actorId, username] of [
+            [firstId, 'public-ids-batch-1'],
+            [secondId, 'public-ids-batch-2']
+          ]) {
+            await freshDatabase.createActor({
+              actorId,
+              username,
+              domain: TEST_DOMAIN,
+              followersUrl: `${actorId}/followers`,
+              inboxUrl: `${actorId}/inbox`,
+              sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
+              publicKey: 'public-key',
+              createdAt: Date.now()
+            })
+          }
+
+          const publicIds = await freshDatabase.getActorPublicIds({
+            actorIds: [firstId, secondId]
+          })
+          const unknownPublicId = generatePublicId()
+
+          const map = await freshDatabase.getActorIdsByPublicIds({
+            publicIds: [
+              publicIds.get(firstId) as string,
+              publicIds.get(secondId) as string,
+              unknownPublicId
+            ]
+          })
+
+          expect(map.size).toBe(2)
+          expect(map.get(publicIds.get(firstId) as string)).toBe(firstId)
+          expect(map.get(publicIds.get(secondId) as string)).toBe(secondId)
+          expect(map.has(unknownPublicId)).toBe(false)
+        })
+      })
+
+      it('getActorIdsByPublicIds returns an empty map for an empty request', async () => {
+        await withFreshDatabase(async (freshDatabase) => {
+          const map = await freshDatabase.getActorIdsByPublicIds({
+            publicIds: []
+          })
+          expect(map.size).toBe(0)
+        })
+      })
+
+      it('getActorPublicIds returns a map covering only requested ids that have publicIds', async () => {
+        await withFreshDatabase(async (freshDatabase, instance) => {
+          const withId = `https://${TEST_DOMAIN}/users/public-id-with`
+          const withoutId = `https://${TEST_DOMAIN}/users/public-id-legacy-without`
+
+          await freshDatabase.createActor({
+            actorId: withId,
+            username: 'public-id-with',
+            domain: TEST_DOMAIN,
+            followersUrl: `${withId}/followers`,
+            inboxUrl: `${withId}/inbox`,
+            sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
+            publicKey: 'public-key',
+            createdAt: Date.now()
+          })
+          await freshDatabase.createActor({
+            actorId: withoutId,
+            username: 'public-id-legacy-without',
+            domain: TEST_DOMAIN,
+            followersUrl: `${withoutId}/followers`,
+            inboxUrl: `${withoutId}/inbox`,
+            sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
+            publicKey: 'public-key',
+            createdAt: Date.now()
+          })
+          // Simulate a legacy row that predates the backfill migration.
+          await instance('actors')
+            .where('id', withoutId)
+            .update({ publicId: null })
+
+          const map = await freshDatabase.getActorPublicIds({
+            actorIds: [
+              withId,
+              withoutId,
+              `https://${TEST_DOMAIN}/users/public-id-missing`
+            ]
+          })
+
+          expect(map.size).toBe(1)
+          expect(map.has(withoutId)).toBe(false)
+          expect(map.get(withId)).toBeTruthy()
+        })
+      })
+
+      it('getActorFromId still parses with the publicId field added to ActorProfile', async () => {
+        await withFreshDatabase(async (freshDatabase) => {
+          const actorId = `https://${TEST_DOMAIN}/users/public-id-parses`
+          await freshDatabase.createActor({
+            actorId,
+            username: 'public-id-parses',
+            domain: TEST_DOMAIN,
+            followersUrl: `${actorId}/followers`,
+            inboxUrl: `${actorId}/inbox`,
+            sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
+            publicKey: 'public-key',
+            createdAt: Date.now()
+          })
+
+          const actor = await freshDatabase.getActorFromId({ id: actorId })
+          expect(actor).not.toBeNull()
+        })
+      })
+
+      it('getActorFromId returns an actor with a v7 publicId threaded from the row', async () => {
+        await withFreshDatabase(async (freshDatabase) => {
+          const actorId = `https://${TEST_DOMAIN}/users/public-id-threaded`
+          await freshDatabase.createActor({
+            actorId,
+            username: 'public-id-threaded',
+            domain: TEST_DOMAIN,
+            followersUrl: `${actorId}/followers`,
+            inboxUrl: `${actorId}/inbox`,
+            sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
+            publicKey: 'public-key',
+            createdAt: Date.now()
+          })
+
+          const actor = await freshDatabase.getActorFromId({ id: actorId })
+
+          expect(actor?.publicId).toBeTruthy()
+          expect(isPublicId(actor?.publicId as string)).toBe(true)
+        })
+      })
+
+      it('a status fetched with getStatus embeds the actor publicId', async () => {
+        await withFreshDatabase(async (freshDatabase) => {
+          const actorId = `https://${TEST_DOMAIN}/users/public-id-status-actor`
+          await freshDatabase.createActor({
+            actorId,
+            username: 'public-id-status-actor',
+            domain: TEST_DOMAIN,
+            followersUrl: `${actorId}/followers`,
+            inboxUrl: `${actorId}/inbox`,
+            sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
+            publicKey: 'public-key',
+            createdAt: Date.now()
+          })
+
+          const statusId = `${actorId}/statuses/public-id-status`
+          await freshDatabase.createNote({
+            id: statusId,
+            url: statusId,
+            actorId,
+            text: 'hello',
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: []
+          })
+
+          const status = await freshDatabase.getStatus({ statusId })
+
+          expect(status?.actor?.publicId).toBeTruthy()
+          expect(isPublicId(status?.actor?.publicId as string)).toBe(true)
+        })
       })
     })
 

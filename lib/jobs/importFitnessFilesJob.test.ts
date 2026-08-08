@@ -13,6 +13,7 @@ import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { getPublicIdTimestamp, isPublicId } from '@/lib/utils/publicId'
 
 vi.mock('@/lib/services/queue', async () => ({
   getQueue: vi.fn().mockReturnValue({
@@ -235,6 +236,16 @@ describe('importFitnessFilesJob', () => {
       withReplies: false
     })
     expect(status?.to).toContain(ACTIVITY_STREAM_PUBLIC)
+
+    // The status URI tail is a v7 publicId minted from the (earliest,
+    // backdated) activity start time, not `now` — so it sorts with the
+    // activity rather than with the moment the import ran.
+    expect(status?.publicId).toBeTruthy()
+    expect(isPublicId(status?.publicId as string)).toBe(true)
+    expect(status?.id).toBe(`${actor.id}/statuses/${status?.publicId}`)
+    expect(getPublicIdTimestamp(status?.publicId as string)).toBe(
+      firstActivity.startTime!.getTime()
+    )
 
     expect(getQueue().publish).toHaveBeenCalledTimes(1)
     expect(getQueue().publish).toHaveBeenCalledWith({

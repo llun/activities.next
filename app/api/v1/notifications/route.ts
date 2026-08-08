@@ -4,6 +4,7 @@ import { getDatabase } from '@/lib/database'
 import { getActiveFilters } from '@/lib/services/filters/applyFilters'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getMastodonNotification } from '@/lib/services/notifications/getMastodonNotification'
 import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
 import { mastodonTypesToInternal } from '@/lib/services/notifications/notificationTypeMapping'
@@ -17,7 +18,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [
   HttpMethod.enum.OPTIONS,
@@ -128,7 +128,9 @@ export const GET = traceApiRoute(
         maxNotificationId: maxId,
         minNotificationId: minId,
         sinceNotificationId: sinceId,
-        sourceActorId: accountId ? idToUrl(accountId) : undefined,
+        sourceActorId: accountId
+          ? await resolveActorIdParam(database, accountId)
+          : undefined,
         types: internalTypes,
         excludeTypes: internalExcludeTypes,
         includeFiltered

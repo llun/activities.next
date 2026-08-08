@@ -14,6 +14,10 @@ import {
   OAuthGuardAnyScope
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import {
+  resolveActorIdParam,
+  resolveActorIdParams
+} from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -23,7 +27,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [
   HttpMethod.enum.OPTIONS,
@@ -178,7 +181,10 @@ export const POST = traceApiRoute(
       if ('account_id' in parsed.data) {
         const item = await database.getCollectionItemByAccount({
           collectionId: id,
-          targetActorId: idToUrl(parsed.data.account_id)
+          targetActorId: await resolveActorIdParam(
+            database,
+            parsed.data.account_id
+          )
         })
         if (!item) {
           return apiResponse({
@@ -231,7 +237,8 @@ export const DELETE = traceApiRoute(
       await database.removeCollectionMembers({
         id,
         actorId: currentActor.id,
-        targetActorIds: accountIds.map((accountId) => idToUrl(accountId))
+        // One batched publicId lookup for the whole list, not one per id.
+        targetActorIds: await resolveActorIdParams(database, accountIds)
       })
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
     }

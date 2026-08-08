@@ -1,6 +1,7 @@
 import knex, { Knex } from 'knex'
 import { NextRequest } from 'next/server'
 
+import { GET as getStatusById } from '@/app/api/v1/statuses/[id]/route'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
@@ -19,9 +20,10 @@ import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { Status, StatusPoll } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
+import { generatePublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
-import { GET, POST } from './route'
+import { GET, MAX_BATCH_STATUSES, POST } from './route'
 
 // better-auth stores tokens hashed as SHA-256 base64url; the guard re-hashes the
 // presented bearer token to look it up, so seeded tokens must match.
@@ -163,6 +165,118 @@ describe('POST /api/v1/statuses', () => {
     expect(getQueue().publish).toHaveBeenCalledTimes(1)
   })
 
+  describe('in_reply_to_id resolution', () => {
+    // Regression coverage for the pre-existing bug: in_reply_to_id was never
+    // decoded, so a colon-form (or publicId-form) reply target silently
+    // created a non-reply because createNoteFromUserInput does an exact
+    // `where('id', …)` lookup with no decoding of its own.
+    it.each([
+      {
+        description: 'colon form',
+        toParam: (parentId: string) => urlToId(parentId)
+      },
+      {
+        description: 'publicId form',
+        toParam: async (parentId: string) => {
+          const parent = await database.getStatus({ statusId: parentId })
+          if (!parent?.publicId) {
+            throw new Error('seeded parent status is missing a publicId')
+          }
+          return parent.publicId
+        }
+      },
+      {
+        description: 'raw URI form',
+        toParam: (parentId: string) => parentId
+      }
+    ])(
+      'creates a reply when in_reply_to_id is given in $description',
+      async ({ toParam }) => {
+        const parent = await database.createNote({
+          id: `${ACTOR1_ID}/statuses/route-reply-parent-${generatePublicId()}`,
+          url: `${ACTOR1_ID}/statuses/route-reply-parent-${generatePublicId()}`,
+          actorId: ACTOR1_ID,
+          text: 'parent post',
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: []
+        })
+        const inReplyToId = await toParam(parent.id)
+
+        const response = await POST(
+          new NextRequest('https://llun.test/api/v1/statuses', {
+            method: 'POST',
+            body: JSON.stringify({
+              status: 'a reply',
+              in_reply_to_id: inReplyToId
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }),
+          { params: Promise.resolve({}) }
+        )
+
+        expect(response.status).toBe(200)
+        const mastodonStatus = await response.json()
+        const created = (await database.getStatus({
+          statusId: mastodonStatus.uri,
+          withReplies: false
+        })) as Status
+        expect(created.reply).toBe(parent.id)
+      }
+    )
+  })
+
+  it('creates a status via POST, still emits the legacy colon-form id, and reads back identically via GET by publicId', async () => {
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'a fresh status for the publicId round-trip'
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const created = await response.json()
+    // PR 1 is accept-old, emit-old: the POST response id is still the legacy
+    // colon form, never the new publicId.
+    expect(created.id).toBe(urlToId(created.uri))
+
+    const storedStatus = (await database.getStatus({
+      statusId: created.uri,
+      withReplies: false
+    })) as Status
+    if (!storedStatus.publicId) {
+      throw new Error('newly created status is missing a publicId')
+    }
+
+    const [colonFormResponse, publicIdResponse] = await Promise.all([
+      getStatusById(
+        new NextRequest(`https://llun.test/api/v1/statuses/${created.id}`),
+        { params: Promise.resolve({ id: created.id }) }
+      ),
+      getStatusById(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${storedStatus.publicId}`
+        ),
+        { params: Promise.resolve({ id: storedStatus.publicId }) }
+      )
+    ])
+
+    expect(colonFormResponse.status).toBe(200)
+    expect(publicIdResponse.status).toBe(200)
+    expect(await publicIdResponse.json()).toEqual(
+      await colonFormResponse.json()
+    )
+  })
+
   it('creates a status quoting the authors own public status', async () => {
     const quoted = await database.createNote({
       id: `${ACTOR1_ID}/statuses/route-quote-self`,
@@ -191,6 +305,42 @@ describe('POST /api/v1/statuses', () => {
     expect(response.status).toBe(200)
     const mastodonStatus = await response.json()
     expect(mastodonStatus.quote?.state).toBe('accepted')
+    expect(mastodonStatus.quote?.quoted_status?.id).toBe(urlToId(quoted.id))
+  })
+
+  it('creates a status quoting another status via a publicId quoted_status_id', async () => {
+    const quoted = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/route-quote-publicid`,
+      url: `${ACTOR1_ID}/statuses/route-quote-publicid`,
+      actorId: ACTOR1_ID,
+      text: 'quoted via publicId',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: []
+    })
+    if (!quoted.publicId) {
+      throw new Error('seeded quoted status is missing a publicId')
+    }
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'quoting by publicId',
+          quoted_status_id: quoted.publicId
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const mastodonStatus = await response.json()
+    expect(mastodonStatus.quote?.state).toBe('accepted')
+    // PR 1 is accept-old, emit-old: the quoted status is still surfaced with
+    // its legacy colon-form id, even though it was resolved from a publicId.
     expect(mastodonStatus.quote?.quoted_status?.id).toBe(urlToId(quoted.id))
   })
 
@@ -1183,6 +1333,40 @@ describe('GET /api/v1/statuses', () => {
       urlToId(firstId),
       urlToId(secondId)
     ])
+  })
+
+  it('resolves a whole batch of publicIds with a single database lookup', async () => {
+    const spy = vi.spyOn(database, 'getStatusIdsByPublicIds')
+    const publicIds = Array.from({ length: 25 }, () => generatePublicId())
+    const req = new NextRequest(
+      `https://llun.test/api/v1/statuses?${publicIds
+        .map((publicId) => `id[]=${publicId}`)
+        .join('&')}`
+    )
+    const response = await GET(req, { params: Promise.resolve({}) })
+    expect(response.status).toBe(200)
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy).toHaveBeenCalledWith({ publicIds })
+    spy.mockRestore()
+  })
+
+  it('truncates an over-cap id list to MAX_BATCH_STATUSES instead of failing', async () => {
+    const spy = vi.spyOn(database, 'getStatusIdsByPublicIds')
+    const publicIds = Array.from({ length: MAX_BATCH_STATUSES + 20 }, () =>
+      generatePublicId()
+    )
+    const req = new NextRequest(
+      `https://llun.test/api/v1/statuses?${publicIds
+        .map((publicId) => `id[]=${publicId}`)
+        .join('&')}`
+    )
+    const response = await GET(req, { params: Promise.resolve({}) })
+    expect(response.status).toBe(200)
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy).toHaveBeenCalledWith({
+      publicIds: publicIds.slice(0, MAX_BATCH_STATUSES)
+    })
+    spy.mockRestore()
   })
 
   it('excludes a direct status by another actor that the authenticated actor cannot read', async () => {

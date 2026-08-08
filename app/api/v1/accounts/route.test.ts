@@ -9,8 +9,9 @@ import { registerAccount } from '@/lib/services/accounts/registerAccount'
 import { hashToken } from '@/lib/services/guards/OAuthGuard'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { Scope } from '@/lib/types/database/operations'
+import { generatePublicId } from '@/lib/utils/publicId'
 
-import { GET, POST } from './route'
+import { GET, MAX_BATCH_ACCOUNTS, POST } from './route'
 
 vi.mock('@/lib/config', () => ({
   getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
@@ -72,10 +73,14 @@ beforeEach(() => {
 })
 
 describe('GET /api/v1/accounts', () => {
+  const getActorIdsByPublicIds = vi.fn()
+
   beforeEach(() => {
     mockKnex = undefined
+    getActorIdsByPublicIds.mockResolvedValue(new Map<string, string>())
     mockDatabase = {
-      getMastodonActorsFromIds: vi.fn().mockResolvedValue([mastodonAccount])
+      getMastodonActorsFromIds: vi.fn().mockResolvedValue([mastodonAccount]),
+      getActorIdsByPublicIds
     }
   })
 
@@ -112,6 +117,57 @@ describe('GET /api/v1/accounts', () => {
     const res = await GET(req, { params: Promise.resolve({}) })
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual([mastodonAccount])
+  })
+
+  it('resolves a whole batch of publicIds with a single database lookup', async () => {
+    const publicIds = Array.from({ length: 25 }, () => generatePublicId())
+    const req = new NextRequest(
+      `http://localhost/api/v1/accounts?${publicIds
+        .map((publicId) => `id[]=${publicId}`)
+        .join('&')}`
+    )
+    const res = await GET(req, { params: Promise.resolve({}) })
+    expect(res.status).toBe(200)
+    expect(getActorIdsByPublicIds).toHaveBeenCalledTimes(1)
+    expect(getActorIdsByPublicIds).toHaveBeenCalledWith({ publicIds })
+  })
+
+  it('dedupes repeated ids so each one is only looked up once', async () => {
+    const publicId = generatePublicId()
+    const req = new NextRequest(
+      `http://localhost/api/v1/accounts?id[]=${publicId}&id[]=${publicId}&id[]=${publicId}`
+    )
+    const res = await GET(req, { params: Promise.resolve({}) })
+    expect(res.status).toBe(200)
+    expect(getActorIdsByPublicIds).toHaveBeenCalledWith({
+      publicIds: [publicId]
+    })
+    expect(
+      (mockDatabase as { getMastodonActorsFromIds: jest.Mock })
+        .getMastodonActorsFromIds
+    ).toHaveBeenCalledWith({ ids: [publicId] })
+  })
+
+  it('truncates an over-cap id list to MAX_BATCH_ACCOUNTS instead of failing', async () => {
+    const publicIds = Array.from({ length: MAX_BATCH_ACCOUNTS + 20 }, () =>
+      generatePublicId()
+    )
+    const req = new NextRequest(
+      `http://localhost/api/v1/accounts?${publicIds
+        .map((publicId) => `id[]=${publicId}`)
+        .join('&')}`
+    )
+    const res = await GET(req, { params: Promise.resolve({}) })
+    expect(res.status).toBe(200)
+    expect(getActorIdsByPublicIds).toHaveBeenCalledWith({
+      publicIds: publicIds.slice(0, MAX_BATCH_ACCOUNTS)
+    })
+    expect(
+      (
+        (mockDatabase as { getMastodonActorsFromIds: jest.Mock })
+          .getMastodonActorsFromIds.mock.calls[0][0] as { ids: string[] }
+      ).ids
+    ).toHaveLength(MAX_BATCH_ACCOUNTS)
   })
 })
 

@@ -6,6 +6,7 @@ import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -16,7 +17,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -50,7 +50,7 @@ export const GET = traceApiRoute(
       })
     }
 
-    const actorId = idToUrl(encodedAccountId)
+    const actorId = await resolveActorIdParam(database, encodedAccountId)
 
     // Server-to-server federation fetches must be signed by the dedicated
     // headless instance actor, never the viewer's user actor. Authorized-fetch

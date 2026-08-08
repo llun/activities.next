@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { generatePublicId } from '@/lib/utils/publicId'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
 import { POST } from './route'
@@ -11,6 +12,7 @@ const mockCurrentActor = {
 const mockDatabase = {
   getAcceptedOrRequestedFollow: vi.fn(),
   getActorFromId: vi.fn(),
+  getActorIdByPublicId: vi.fn(),
   updateFollowStatus: vi.fn()
 }
 
@@ -99,6 +101,24 @@ describe('POST /api/v1/follow_requests/:id/authorize', () => {
     // route must pass it through unchanged like it does an https:// URL.
     expect(mockDatabase.getAcceptedOrRequestedFollow).toHaveBeenCalledWith({
       actorId: httpUrl,
+      targetActorId: mockCurrentActor.id
+    })
+  })
+
+  it('resolves an account id in publicId format via getActorIdByPublicId', async () => {
+    const publicId = generatePublicId()
+    mockDatabase.getActorIdByPublicId.mockResolvedValue(followerUrl)
+
+    const response = await POST(request(publicId), {
+      params: Promise.resolve({ id: publicId })
+    })
+
+    expect(mockDatabase.getActorIdByPublicId).toHaveBeenCalledWith({
+      publicId
+    })
+    expect(response.status).toBe(200)
+    expect(mockDatabase.getAcceptedOrRequestedFollow).toHaveBeenCalledWith({
+      actorId: followerUrl,
       targetActorId: mockCurrentActor.id
     })
   })

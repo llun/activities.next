@@ -97,6 +97,7 @@ export type ActorDeletionStatus = 'scheduled' | 'deleting' | null
 
 export interface SQLActor {
   id: string
+  publicId?: string | null
   type?: ActorType
   username: string
   domain: string

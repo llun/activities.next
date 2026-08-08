@@ -7,6 +7,7 @@ import {
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
+import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { TimelineFormat } from '@/lib/services/timelines/const'
 import { normalizeTimelineLimit } from '@/lib/services/timelines/getFilteredTimelinePage'
 import { Scope } from '@/lib/types/database/operations'
@@ -14,7 +15,7 @@ import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl, urlToId } from '@/lib/utils/urlToId'
+import { urlToId } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -41,8 +42,12 @@ export const GET = traceApiRoute(
       const minStatusIdParam =
         url.searchParams.get('since_id') || url.searchParams.get('min_id')
       const maxStatusIdParam = url.searchParams.get('max_id')
-      const minStatusId = minStatusIdParam ? idToUrl(minStatusIdParam) : null
-      const maxStatusId = maxStatusIdParam ? idToUrl(maxStatusIdParam) : null
+      const minStatusId = minStatusIdParam
+        ? await resolveStatusIdParam(database, minStatusIdParam)
+        : null
+      const maxStatusId = maxStatusIdParam
+        ? await resolveStatusIdParam(database, maxStatusIdParam)
+        : null
       const filterRecords = await getActiveFilters(
         database,
         currentActor.id,

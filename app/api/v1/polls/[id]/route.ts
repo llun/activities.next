@@ -1,5 +1,6 @@
 import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { StatusType } from '@/lib/types/domain/status'
@@ -11,7 +12,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -28,7 +28,7 @@ export const GET = traceApiRoute(
     async (req, context) => {
       const { database, currentActor, params } = context
       const encodedPollId = (await params).id
-      const statusId = idToUrl(encodedPollId)
+      const statusId = await resolveStatusIdParam(database, encodedPollId)
       const status = await database.getStatus({
         statusId,
         currentActorId: currentActor?.id,

@@ -6,9 +6,11 @@ import {
   getTestSQLDatabase
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
+import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { isPublicId } from '@/lib/utils/publicId'
 
 describe('AdminDatabase', () => {
   const { actors } = DatabaseSeed
@@ -201,6 +203,26 @@ describe('AdminDatabase', () => {
           expect(h.latestPostAt).not.toBeNull()
           expect(typeof h.latestPostAt).toBe('number')
         })
+      })
+    })
+
+    describe('getAccountWithActors', () => {
+      it('returns actors with a v7 publicId threaded from the row', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `admin-actor-${suffix}`
+        const accountId = await database.createAccount({
+          email: `${username}@${TEST_DOMAIN}`,
+          username,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+
+        const result = await database.getAccountWithActors({ accountId })
+
+        expect(result?.actors[0]?.publicId).toBeTruthy()
+        expect(isPublicId(result?.actors[0]?.publicId as string)).toBe(true)
       })
     })
 

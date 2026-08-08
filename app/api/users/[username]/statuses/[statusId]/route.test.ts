@@ -2,11 +2,12 @@ import { NextRequest } from 'next/server'
 
 import { type Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { generatePublicId } from '@/lib/utils/publicId'
 
 import { GET } from './route'
 
 const mockDatabase = {
-  getStatus: vi.fn(),
+  getActorStatusFromPathSegment: vi.fn(),
   getStatusReplies: vi.fn()
 }
 const mockActor: Actor = {
@@ -52,9 +53,10 @@ const createRequest = (accept: string) =>
 describe('GET /api/users/[username]/statuses/[statusId]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDatabase.getStatus.mockResolvedValue({
+    mockDatabase.getActorStatusFromPathSegment.mockResolvedValue({
       id: 'https://example.com/users/test/statuses/123',
-      url: 'https://example.com/users/test/statuses/123',
+      // A local status stores the web detail page as its url, not its AP URI.
+      url: 'https://example.com/@test/123',
       type: 'Note',
       to: [ACTIVITY_STREAM_PUBLIC],
       cc: [],
@@ -76,8 +78,9 @@ describe('GET /api/users/[username]/statuses/[statusId]', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toBe('application/json')
-    expect(mockDatabase.getStatus).toHaveBeenCalledWith({
-      statusId: 'https://example.com/users/test/statuses/123',
+    expect(mockDatabase.getActorStatusFromPathSegment).toHaveBeenCalledWith({
+      actorId: mockActor.id,
+      pathSegment: '123',
       withReplies: false
     })
 
@@ -102,8 +105,43 @@ describe('GET /api/users/[username]/statuses/[statusId]', () => {
     expect(response.headers.get('vary')).toBe('Accept')
   })
 
+  it('redirects an announce to its own uri tail because it stores no url', async () => {
+    const announceUri = 'https://example.com/users/test/statuses/announce-tail'
+    mockDatabase.getActorStatusFromPathSegment.mockResolvedValue({
+      id: announceUri,
+      url: null,
+      type: 'Announce',
+      actorId: mockActor.id,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      actor: { domain: 'example.com' },
+      originalStatus: {
+        id: 'https://example.com/users/other/statuses/original',
+        url: 'https://example.com/@other/original',
+        type: 'Note',
+        actorId: 'https://example.com/users/other',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        actor: { domain: 'example.com' }
+      }
+    })
+    mockToActivityPubObject.mockReturnValue({
+      id: `${announceUri}/activity`,
+      type: 'Announce'
+    })
+
+    const response = await GET(createRequest('text/html, */*;q=0.8'), {
+      params: Promise.resolve({ username: 'test', statusId: 'announce-tail' })
+    })
+
+    expect(response.status).toBe(302)
+    expect(response.headers.get('location')).toBe(
+      'https://example.com/@test/announce-tail'
+    )
+  })
+
   it('returns not found for a non-public ActivityPub object request', async () => {
-    mockDatabase.getStatus.mockResolvedValue({
+    mockDatabase.getActorStatusFromPathSegment.mockResolvedValue({
       id: 'https://example.com/users/test/statuses/123',
       url: 'https://example.com/users/test/statuses/123',
       type: 'Note',
@@ -140,7 +178,7 @@ describe('GET /api/users/[username]/statuses/[statusId]', () => {
 
     expect(mockDatabase.getStatusReplies).toHaveBeenCalledWith({
       statusId: 'https://example.com/users/test/statuses/123',
-      url: 'https://example.com/users/test/statuses/123',
+      url: 'https://example.com/@test/123',
       publicOnly: true,
       limit: 100
     })
@@ -149,5 +187,102 @@ describe('GET /api/users/[username]/statuses/[statusId]', () => {
         replies: [publicReply]
       })
     )
+  })
+
+  describe('publicId path segment', () => {
+    // The route hands the raw path segment to the database, which resolves it
+    // as either a status URI tail or a publicId and scopes it to this actor.
+    const legacyUri = 'https://example.com/users/test/statuses/legacy-tail'
+
+    it('serves the status the database resolved from a publicId segment', async () => {
+      const publicId = generatePublicId()
+      mockDatabase.getActorStatusFromPathSegment.mockResolvedValue({
+        id: legacyUri,
+        url: legacyUri,
+        actorId: mockActor.id,
+        type: 'Note',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        actor: { domain: 'example.com' }
+      })
+      mockToActivityPubObject.mockReturnValue({
+        id: legacyUri,
+        type: 'Note',
+        attributedTo: mockActor.id
+      })
+
+      const response = await GET(createRequest('application/activity+json'), {
+        params: Promise.resolve({ username: 'test', statusId: publicId })
+      })
+
+      expect(response.status).toBe(200)
+      expect(mockDatabase.getActorStatusFromPathSegment).toHaveBeenCalledWith({
+        actorId: mockActor.id,
+        pathSegment: publicId,
+        withReplies: false
+      })
+
+      const data = await response.json()
+      expect(data.id).toBe(legacyUri)
+    })
+
+    it('redirects an HTML request to the resolved status url, not the publicId path', async () => {
+      const publicId = generatePublicId()
+      const legacyWebUrl = 'https://example.com/@test/legacy-tail'
+      mockDatabase.getActorStatusFromPathSegment.mockResolvedValue({
+        id: legacyUri,
+        url: legacyWebUrl,
+        actorId: mockActor.id,
+        type: 'Note',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        actor: { domain: 'example.com' }
+      })
+      mockToActivityPubObject.mockReturnValue({
+        id: legacyUri,
+        type: 'Note',
+        attributedTo: mockActor.id
+      })
+
+      const response = await GET(createRequest('text/html, */*;q=0.8'), {
+        params: Promise.resolve({ username: 'test', statusId: publicId })
+      })
+
+      expect(response.status).toBe(302)
+      expect(response.headers.get('location')).toBe(legacyWebUrl)
+      expect(response.headers.get('location')).not.toContain(publicId)
+    })
+
+    it('returns not found when the database resolves the segment to nothing', async () => {
+      const publicId = generatePublicId()
+      mockDatabase.getActorStatusFromPathSegment.mockResolvedValue(null)
+
+      const response = await GET(createRequest('application/activity+json'), {
+        params: Promise.resolve({ username: 'test', statusId: publicId })
+      })
+
+      expect(response.status).toBe(404)
+      expect(mockToActivityPubObject).not.toHaveBeenCalled()
+    })
+
+    it('returns not found for a non-public status resolved from a publicId segment', async () => {
+      const publicId = generatePublicId()
+      mockDatabase.getActorStatusFromPathSegment.mockResolvedValue({
+        id: legacyUri,
+        url: legacyUri,
+        actorId: mockActor.id,
+        type: 'Note',
+        to: ['https://example.com/users/test/followers'],
+        cc: [],
+        actor: { domain: 'example.com' }
+      })
+
+      const response = await GET(createRequest('application/activity+json'), {
+        params: Promise.resolve({ username: 'test', statusId: publicId })
+      })
+
+      expect(response.status).toBe(404)
+      expect(mockToActivityPubObject).not.toHaveBeenCalled()
+    })
   })
 })

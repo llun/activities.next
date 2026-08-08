@@ -18,6 +18,10 @@ import {
   SCHEDULED_AT_TOO_SOON_ERROR
 } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import {
+  resolveStatusIdParam,
+  resolveStatusIdParams
+} from '@/lib/services/mastodon/resolveClientId'
 import { getQueue } from '@/lib/services/queue'
 import { canQuoteStatus } from '@/lib/services/quotes/canQuoteStatus'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
@@ -46,7 +50,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { idToUrl } from '@/lib/utils/urlToId'
 import { Booleanish } from '@/lib/utils/zodBooleanish'
 
 const CORS_HEADERS = [
@@ -56,8 +59,8 @@ const CORS_HEADERS = [
 ]
 
 // Mastodon does not document a cap; bound the batch to keep per-request work
-// predictable.
-const MAX_BATCH_STATUSES = 100
+// predictable. Exported so the route test can exercise the truncation.
+export const MAX_BATCH_STATUSES = 100
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -131,7 +134,8 @@ export const GET = traceApiRoute(
       // calling getStatus per id, which would fan out into a large N+1 of
       // recipient/attachment/like/bookmark queries for a 100-id batch.
       const statusesData = await database.getStatusesByIds({
-        statusIds: uniqueIds.map(idToUrl),
+        // One batched publicId lookup for the whole list, not one per id.
+        statusIds: await resolveStatusIdParams(database, uniqueIds),
         currentActorId: currentActor?.id
       })
       const resolved = await Promise.all(
@@ -345,12 +349,21 @@ export const POST = traceApiRoute(
           ? { name: client.name, website: client.website ?? null }
           : undefined
 
+        // Resolve in_reply_to_id (raw URI, publicId, or legacy colon/apurl_
+        // form) to the parent status's stored URI before it reaches the exact
+        // `where('id', …)` lookup inside createNoteFromUserInput /
+        // createPollFromUserInput — those do no decoding of their own, so an
+        // unresolved colon-form id would silently create a non-reply.
+        const replyStatusId = note.in_reply_to_id
+          ? await resolveStatusIdParam(database, note.in_reply_to_id)
+          : undefined
+
         let status
         if (note.poll) {
           status = await createPollFromUserInput({
             text: note.status,
             summary: note.spoiler_text,
-            replyStatusId: note.in_reply_to_id,
+            replyStatusId,
             currentActor,
             choices: note.poll.options,
             endAt: Date.now() + note.poll.expires_in * 1000,
@@ -381,7 +394,10 @@ export const POST = traceApiRoute(
           // invisible to the caller; 422 when the quoted author's policy denies.
           let quotedStatusId: string | undefined
           if (note.quoted_status_id) {
-            const quotedUrl = idToUrl(note.quoted_status_id)
+            const quotedUrl = await resolveStatusIdParam(
+              database,
+              note.quoted_status_id
+            )
             const quotedStatus = await database.getStatus({
               statusId: quotedUrl,
               withReplies: false
@@ -430,7 +446,7 @@ export const POST = traceApiRoute(
             currentActor,
             text: note.status,
             summary: note.spoiler_text,
-            replyNoteId: note.in_reply_to_id,
+            replyNoteId: replyStatusId,
             quotedStatusId,
             quoteApprovalPolicy,
             visibility: note.visibility,

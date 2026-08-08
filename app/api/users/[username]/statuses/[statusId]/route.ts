@@ -15,7 +15,6 @@ import {
   activityPubResponse,
   negotiateActivityPubContentType
 } from '@/lib/utils/activityPubContentNegotiation'
-import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -30,9 +29,9 @@ export const GET = traceApiRoute(
   'getActorStatus',
   OnlyLocalUserGuard(async (database, actor, req, query: unknown) => {
     const { statusId } = await (query as AppRouterParams<StatusParams>).params
-    const id = getLocalStatusId({ actorId: actor.id, statusId })
-    const status = await database.getStatus({
-      statusId: id,
+    const status = await database.getActorStatusFromPathSegment({
+      actorId: actor.id,
+      pathSegment: statusId,
       withReplies: false
     })
     if (!status) return apiErrorResponse(404)
@@ -71,8 +70,19 @@ export const GET = traceApiRoute(
       })
     }
 
+    // Redirect to the status that was actually RESOLVED, never to the raw path
+    // segment. The segment can be a publicId while the status URI's tail is
+    // something else — every status created before publicIds existed (legacy
+    // v4 tail, publicId backfilled) and every Strava fallback note
+    // (deterministic sha256 tail) — and the web detail page rebuilds the status
+    // id from that tail, so `/@user/<publicId>` would 404 a status this route
+    // just resolved. Announce rows store `url: null`, so fall back to their own
+    // URI tail, which is the form the web page can rebuild.
+    const announceTail = status.id.slice(status.id.lastIndexOf('/') + 1)
     return activityPubRedirectResponse(
-      `https://${status.actor?.domain}/@${actor.username}/${statusId}`
+      status.type === StatusType.enum.Announce
+        ? `https://${actor.domain}/@${actor.username}/${announceTail}`
+        : status.url
     )
   })
 )

@@ -1070,4 +1070,43 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
     const secondData = (await secondPage.json()) as Array<{ uri: string }>
     expect(secondData.map((status) => status.uri)).toEqual([olderStatusId])
   })
+
+  it.each([
+    { description: 'legacy colon form', accountId: urlToId(ACTOR1_ID) },
+    { description: 'raw uri', accountId: ACTOR1_ID }
+  ])(
+    'emits a Link header that routes back to this endpoint for a $description id',
+    async ({ accountId }) => {
+      await database.createNote({
+        id: `${ACTOR1_ID}/statuses/link-roundtrip-${encodeURIComponent(accountId)}`,
+        url: `${ACTOR1_ID}/statuses/link-roundtrip`,
+        actorId: ACTOR1_ID,
+        text: 'Link round trip',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/accounts/${encodeURIComponent(accountId)}/statuses?limit=1`
+        ),
+        { params: Promise.resolve({ id: accountId }) }
+      )
+      expect(response.status).toBe(200)
+
+      const nextUrl = (response.headers.get('Link') ?? '').match(
+        /<([^>]+)>; rel="next"/
+      )?.[1]
+      expect(nextUrl).toBeString()
+
+      const parsed = new URL(nextUrl as string)
+      expect(parsed.host).toBe('llun.test')
+      // Four fixed segments plus the id and the sub-resource: an unencoded raw
+      // URI id would split into extra path segments and stop routing here.
+      const segments = parsed.pathname.split('/').slice(1)
+      expect(segments).toHaveLength(5)
+      expect(segments[4]).toBe('statuses')
+      expect(decodeURIComponent(segments[3])).toBe(accountId)
+    }
+  )
 })

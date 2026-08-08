@@ -11,6 +11,7 @@ import { NotificationType } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { isPublicId } from '@/lib/utils/publicId'
 
 vi.mock('@/lib/services/queue', () => ({
   getQueue: vi.fn().mockReturnValue({
@@ -82,6 +83,18 @@ describe('Announce action', () => {
         database,
         status
       )
+    })
+
+    it('mints the new status URI tail from a v7 publicId', async () => {
+      const status = await userAnnounce({
+        currentActor: actor1,
+        statusId: `${actor1.id}/statuses/post-3`,
+        database
+      })
+
+      expect(status?.publicId).toBeTruthy()
+      expect(isPublicId(status?.publicId as string)).toBe(true)
+      expect(status?.id).toBe(`${actor1.id}/statuses/${status?.publicId}`)
     })
 
     it('does not create duplicate announce', async () => {
