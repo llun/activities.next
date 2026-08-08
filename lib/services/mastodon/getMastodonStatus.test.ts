@@ -24,6 +24,13 @@ vi.mock('@/lib/config', () => ({
 describe('getMastodonStatus', () => {
   const database = getTestSQLDatabase()
 
+  // publicIds are minted at insert and are random per run, so every expectation
+  // reads the id back off the stored row instead of hard-coding a literal.
+  const getActorPublicId = async (actorId: string) => {
+    const publicIds = await database.getActorPublicIds({ actorIds: [actorId] })
+    return publicIds.get(actorId)
+  }
+
   beforeAll(async () => {
     await database.migrate()
     await seedDatabase(database)
@@ -64,7 +71,7 @@ describe('getMastodonStatus', () => {
       ])
 
       expect(result).toHaveLength(1)
-      expect(result[0].id).toEqual(urlToId(goodStatus.id))
+      expect(result[0].id).toEqual(goodStatus.publicId)
       expect(logger.warn).toHaveBeenCalled()
     })
 
@@ -90,7 +97,7 @@ describe('getMastodonStatus', () => {
       ])
 
       expect(result).toHaveLength(1)
-      expect(result[0].id).toEqual(urlToId(goodStatus.id))
+      expect(result[0].id).toEqual(goodStatus.publicId)
       expect(logger.warn).toHaveBeenCalled()
     })
   })
@@ -125,8 +132,8 @@ describe('getMastodonStatus', () => {
 
       expect(mastodonStatuses).toHaveLength(2)
       expect(mastodonStatuses.map((status) => status.id)).toEqual([
-        urlToId(firstStatus.id),
-        urlToId(secondStatus.id)
+        firstStatus.publicId,
+        secondStatus.publicId
       ])
       expect(getMastodonActorsFromIds).toHaveBeenCalledTimes(1)
       expect(getMastodonActorsFromIds).toHaveBeenCalledWith({
@@ -520,6 +527,10 @@ describe('getMastodonStatus', () => {
 
     it('hydrates reply parents in bulk while serializing status lists', async () => {
       const parentId = `${ACTOR1_ID}/statuses/post-1`
+      const parent = (await database.getStatus({
+        statusId: parentId
+      })) as Status
+      const parentActorPublicId = await getActorPublicId(ACTOR1_ID)
       const replyOne = (await database.getStatus({
         statusId: `${ACTOR2_ID}/statuses/post-2`
       })) as Status
@@ -538,11 +549,11 @@ describe('getMastodonStatus', () => {
 
         expect(mastodonStatuses).toHaveLength(2)
         expect(mastodonStatuses.map((status) => status.in_reply_to_id)).toEqual(
-          [urlToId(parentId), urlToId(parentId)]
+          [parent.publicId, parent.publicId]
         )
         expect(
           mastodonStatuses.map((status) => status.in_reply_to_account_id)
-        ).toEqual([urlToId(ACTOR1_ID), urlToId(ACTOR1_ID)])
+        ).toEqual([parentActorPublicId, parentActorPublicId])
         expect(getStatusesByIds).toHaveBeenCalledWith({
           statusIds: [parentId],
           currentActorId: ACTOR1_ID
@@ -743,7 +754,7 @@ describe('getMastodonStatus', () => {
     })) as Status
     const mastodonStatus = await getMastodonStatus(database, status)
     expect(mastodonStatus).toMatchObject({
-      id: urlToId(`${ACTOR1_ID}/statuses/post-1`),
+      id: status.publicId,
       uri: `${ACTOR1_ID}/statuses/post-1`,
       account: {
         id: urlToId(ACTOR1_ID),
@@ -976,13 +987,16 @@ describe('getMastodonStatus', () => {
     const status = (await database.getStatus({
       statusId: `${ACTOR2_ID}/statuses/post-3`
     })) as Status
+    const originalStatus = (await database.getStatus({
+      statusId: `${ACTOR2_ID}/statuses/post-2`
+    })) as Status
     const mastodonStatus = await getMastodonStatus(database, status)
     expect(mastodonStatus).toMatchObject({
-      id: urlToId(`${ACTOR2_ID}/statuses/post-3`),
+      id: status.publicId,
       uri: `${ACTOR2_ID}/statuses/post-3`,
       content: '',
       reblog: {
-        id: urlToId(`${ACTOR2_ID}/statuses/post-2`),
+        id: originalStatus.publicId,
         uri: `${ACTOR2_ID}/statuses/post-2`,
         account: {
           id: urlToId(ACTOR2_ID),
@@ -1020,10 +1034,13 @@ describe('getMastodonStatus', () => {
     const status = (await database.getStatus({
       statusId: `${ACTOR2_ID}/statuses/reply-1`
     })) as Status
+    const parentStatus = (await database.getStatus({
+      statusId: `${ACTOR1_ID}/statuses/post-1`
+    })) as Status
     const mastodonStatus = await getMastodonStatus(database, status)
     expect(mastodonStatus).toMatchObject({
-      in_reply_to_id: urlToId(`${ACTOR1_ID}/statuses/post-1`),
-      in_reply_to_account_id: urlToId(ACTOR1_ID)
+      in_reply_to_id: parentStatus.publicId,
+      in_reply_to_account_id: await getActorPublicId(ACTOR1_ID)
     })
   })
 
@@ -1049,8 +1066,8 @@ describe('getMastodonStatus', () => {
     const mastodonStatus = await getMastodonStatus(database, replyStatus)
 
     expect(mastodonStatus).toMatchObject({
-      in_reply_to_id: urlToId(parentStatus.id),
-      in_reply_to_account_id: urlToId(ACTOR2_ID),
+      in_reply_to_id: parentStatus.publicId,
+      in_reply_to_account_id: await getActorPublicId(ACTOR2_ID),
       edited_at: null
     })
     expect(mastodonStatus?.content).toContain('class="u-url mention"')
@@ -1108,7 +1125,7 @@ describe('getMastodonStatus', () => {
 
     expect(mastodonStatus).not.toBeNull()
     expect(mastodonStatus?.poll).toMatchObject({
-      id: urlToId(`${ACTOR1_ID}/statuses/poll-1`),
+      id: pollStatus.publicId,
       options: [
         {
           title: 'Option 1',
@@ -1224,11 +1241,162 @@ describe('getMastodonStatus', () => {
 
       expect(mastodonStatus?.mentions).toHaveLength(1)
       expect(mastodonStatus?.mentions[0]).toMatchObject({
-        id: urlToId(ACTOR2_ID),
+        id: await getActorPublicId(ACTOR2_ID),
         username: 'test2',
         acct: 'test2@llun.test',
         url: ACTOR2_ID
       })
+    })
+
+    it('falls back to the legacy id for a mention whose actor is not stored', async () => {
+      const unknownActorId = 'https://unknown.test/users/stranger'
+      const statusWithMention = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/mention-unknown-actor`,
+        url: `${ACTOR1_ID}/statuses/mention-unknown-actor`,
+        actorId: ACTOR1_ID,
+        text: '@stranger@unknown.test Hello!',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createTag({
+        statusId: statusWithMention.id,
+        type: 'mention',
+        name: '@stranger@unknown.test',
+        value: unknownActorId
+      })
+      const statusWithTags = (await database.getStatus({
+        statusId: statusWithMention.id,
+        withReplies: false
+      })) as Status
+
+      const mastodonStatus = await getMastodonStatus(database, statusWithTags)
+
+      expect(mastodonStatus?.mentions[0]).toMatchObject({
+        id: urlToId(unknownActorId),
+        url: unknownActorId
+      })
+    })
+
+    it('resolves every mention on a page with a single batch lookup', async () => {
+      const first = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/mention-batch-1`,
+        url: `${ACTOR1_ID}/statuses/mention-batch-1`,
+        actorId: ACTOR1_ID,
+        text: '@test2@llun.test Hello!',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const second = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/mention-batch-2`,
+        url: `${ACTOR1_ID}/statuses/mention-batch-2`,
+        actorId: ACTOR1_ID,
+        text: '@test3@llun.test Hello!',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createTag({
+        statusId: first.id,
+        type: 'mention',
+        name: '@test2@llun.test',
+        value: ACTOR2_ID
+      })
+      await database.createTag({
+        statusId: second.id,
+        type: 'mention',
+        name: '@test3@llun.test',
+        value: ACTOR3_ID
+      })
+      const statuses = (await Promise.all([
+        database.getStatus({ statusId: first.id, withReplies: false }),
+        database.getStatus({ statusId: second.id, withReplies: false })
+      ])) as Status[]
+      const getActorPublicIds = vi.spyOn(database, 'getActorPublicIds')
+
+      try {
+        const mastodonStatuses = await getMastodonStatuses(database, statuses)
+
+        expect(getActorPublicIds).toHaveBeenCalledTimes(1)
+        expect(getActorPublicIds).toHaveBeenCalledWith({
+          actorIds: [ACTOR2_ID, ACTOR3_ID]
+        })
+        expect(mastodonStatuses.map(({ mentions }) => mentions[0].id)).toEqual([
+          await getActorPublicId(ACTOR2_ID),
+          await getActorPublicId(ACTOR3_ID)
+        ])
+      } finally {
+        getActorPublicIds.mockRestore()
+      }
+    })
+  })
+
+  describe('public id emission fallbacks', () => {
+    // Rolling deploys and AP-derived domain objects can carry a null publicId,
+    // so the legacy colon encoding stays the permanent fallback at every
+    // emission site.
+    it('emits the legacy colon id for a status with no publicId', async () => {
+      const status = (await database.getStatus({
+        statusId: `${ACTOR1_ID}/statuses/post-1`
+      })) as Status
+      const legacyStatus = { ...status, publicId: null } as Status
+
+      const mastodonStatus = await getMastodonStatus(database, legacyStatus)
+
+      expect(mastodonStatus?.id).toBe(urlToId(status.id))
+      expect(mastodonStatus?.uri).toBe(status.id)
+    })
+
+    it('emits the legacy colon poll id for a poll with no publicId', async () => {
+      const pollStatus = await database.createPoll({
+        id: `${ACTOR1_ID}/statuses/legacy-poll`,
+        url: `${ACTOR1_ID}/statuses/legacy-poll`,
+        actorId: ACTOR1_ID,
+        text: 'Legacy poll',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        choices: ['Option 1', 'Option 2'],
+        endAt: Date.now() + 24 * 60 * 60 * 1000
+      })
+      const legacyPoll = { ...pollStatus, publicId: null } as Status
+
+      const mastodonStatus = await getMastodonStatus(database, legacyPoll)
+
+      expect(mastodonStatus?.poll?.id).toBe(urlToId(pollStatus.id))
+    })
+
+    it.each([
+      {
+        description: 'a reply parent whose author row could not be hydrated',
+        hydrateAuthor: false
+      },
+      {
+        description: 'a reply parent whose author predates the backfill',
+        hydrateAuthor: true
+      }
+    ])('emits legacy reply ids for $description', async ({ hydrateAuthor }) => {
+      const parent = (await database.getStatus({
+        statusId: `${ACTOR1_ID}/statuses/post-1`
+      })) as Status
+      const reply = (await database.getStatus({
+        statusId: `${ACTOR2_ID}/statuses/reply-1`
+      })) as Status
+      const legacyParent = {
+        ...parent,
+        publicId: null,
+        actor:
+          hydrateAuthor && parent.actor
+            ? { ...parent.actor, publicId: null }
+            : null
+      } as Status
+
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        reply,
+        undefined,
+        { replyStatusCache: new Map([[parent.id, legacyParent]]) }
+      )
+
+      expect(mastodonStatus?.in_reply_to_id).toBe(urlToId(parent.id))
+      expect(mastodonStatus?.in_reply_to_account_id).toBe(urlToId(ACTOR1_ID))
     })
   })
 
@@ -1673,7 +1841,7 @@ describe('getMastodonStatus', () => {
         quoted_status: { id: string } | null
       }
       expect(quote.state).toBe('accepted')
-      expect(quote.quoted_status?.id).toBe(urlToId(quoted.id))
+      expect(quote.quoted_status?.id).toBe(quoted.publicId)
     })
 
     it.each([
@@ -1747,7 +1915,7 @@ describe('getMastodonStatus', () => {
         quoted_status: { id: string } | null
       }
       expect(quote.state).toBe('accepted')
-      expect(quote.quoted_status?.id).toBe(urlToId(quoted.id))
+      expect(quote.quoted_status?.id).toBe(quoted.publicId)
     })
 
     it('embeds an accepted quote when the authenticated viewer authored the followers-only quoted status', async () => {
@@ -1763,7 +1931,7 @@ describe('getMastodonStatus', () => {
         quoted_status: { id: string } | null
       }
       expect(quote.state).toBe('accepted')
-      expect(quote.quoted_status?.id).toBe(urlToId(quoted.id))
+      expect(quote.quoted_status?.id).toBe(quoted.publicId)
     })
 
     it('resolves the viewer once per batch and embeds readable accepted quotes', async () => {
@@ -1794,7 +1962,7 @@ describe('getMastodonStatus', () => {
         quoted_status: { id: string } | null
       }
       expect(quote.state).toBe('accepted')
-      expect(quote.quoted_status?.id).toBe(urlToId(quoted.id))
+      expect(quote.quoted_status?.id).toBe(quoted.publicId)
     })
 
     it('emits a shallow quote at depth 1 and stops recursing', async () => {
@@ -1822,14 +1990,14 @@ describe('getMastodonStatus', () => {
           quote?: { state: string; quoted_status_id?: string }
         }
       }
-      expect(outerQuote.quoted_status.id).toBe(urlToId(b.id))
+      expect(outerQuote.quoted_status.id).toBe(b.publicId)
       // The inner quote (B -> C) is shallow: id only, no embedded status.
       const innerQuote = outerQuote.quoted_status.quote as {
         state: string
         quoted_status_id?: string
         quoted_status?: unknown
       }
-      expect(innerQuote.quoted_status_id).toBe(urlToId(c.id))
+      expect(innerQuote.quoted_status_id).toBe(c.publicId)
       expect(innerQuote.quoted_status).toBeUndefined()
     })
 

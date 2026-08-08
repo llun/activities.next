@@ -20,6 +20,7 @@ import { Tag, TagType } from '@/lib/types/domain/tag'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
+import { getClientActorId, getClientStatusId } from '@/lib/utils/publicId'
 import { processStatusText } from '@/lib/utils/text/processStatusText'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
@@ -88,6 +89,13 @@ interface GetMastodonStatusOptions {
   // Mirrors getFollowerStateByActorId in statusRouteAccess. A missing entry
   // falls back to a single per-status follow lookup.
   quoteFollowerStateByActorId?: ReadonlyMap<string, boolean>
+  // Mentioned-actor URI → publicId for the whole page, resolved once in
+  // getMastodonStatuses. A mention tag carries only the actor URI (no hydrated
+  // actor), so this is the only way to emit a mention id without a query per
+  // mention. Absent means "not batched": the single-status path resolves its own
+  // status's mentions, and a mention with no entry falls back to the legacy
+  // colon form (an actor we do not store has no publicId).
+  mentionActorPublicIds?: ReadonlyMap<string, string>
 }
 
 const getMastodonAccount = (
@@ -109,7 +117,15 @@ const getMastodonAccount = (
   return account
 }
 
-const getMentionsFromTags = (tags: Tag[]): MastodonMention[] => {
+const getMentionActorIdsFromTags = (tags: Tag[]): string[] =>
+  tags
+    .filter((tag) => tag.type === TagType.enum.mention && Boolean(tag.value))
+    .map((tag) => tag.value)
+
+const getMentionsFromTags = (
+  tags: Tag[],
+  actorPublicIds?: ReadonlyMap<string, string>
+): MastodonMention[] => {
   return tags
     .filter((tag) => tag.type === TagType.enum.mention)
     .map((tag) => {
@@ -121,12 +137,31 @@ const getMentionsFromTags = (tags: Tag[]): MastodonMention[] => {
       const acct = parts.length > 1 ? mentionName : username
 
       return {
-        id: urlToId(tag.value),
+        // A mention of an actor we do not store (or a pre-backfill row) has no
+        // publicId, so the legacy encoding stays the permanent fallback.
+        id: actorPublicIds?.get(tag.value) ?? urlToId(tag.value),
         username,
         url: tag.value,
         acct
       }
     })
+}
+
+// The mention publicIds for one status: the page-wide map when
+// getMastodonStatuses batched one, otherwise a single lookup for this status's
+// own mentions (the single-status routes). Recursion into a reblog original or
+// an embedded quote reuses whichever the caller had, so a nested status without
+// a batched map resolves its own mentions the same way.
+const getMentionActorPublicIds = async (
+  database: Database,
+  tags: Tag[],
+  options?: GetMastodonStatusOptions
+): Promise<ReadonlyMap<string, string> | undefined> => {
+  if (options?.mentionActorPublicIds) return options.mentionActorPublicIds
+
+  const actorIds = getMentionActorIdsFromTags(tags)
+  if (actorIds.length === 0) return undefined
+  return database.getActorPublicIds({ actorIds })
 }
 
 const getEmojisFromTags = (tags: Tag[]): MastodonCustomEmoji[] => {
@@ -187,6 +222,24 @@ const addStatusReplyIds = (status: Status, statusIds: Set<string>) => {
   }
 
   if (status.reply) statusIds.add(status.reply)
+}
+
+// Mentioned actors are referenced by bare URI on the tag, so the whole page's
+// mention ids are collected here and resolved to publicIds in one query.
+const addStatusMentionActorIds = (status: Status, actorIds: Set<string>) => {
+  if (status.type === StatusType.enum.Announce) {
+    // Unlike its siblings this also runs over the prefetched quoted statuses,
+    // outside the collector's try/catch, so a boost whose original is gone is
+    // skipped here rather than thrown.
+    if (status.originalStatus) {
+      addStatusMentionActorIds(status.originalStatus, actorIds)
+    }
+    return
+  }
+
+  for (const actorId of getMentionActorIdsFromTags(status.tags)) {
+    actorIds.add(actorId)
+  }
 }
 
 const addStatusPollIds = (status: Status, statusIds: Set<string>) => {
@@ -487,7 +540,7 @@ export const getMastodonStatus = async (
   )
 
   const baseData = {
-    id: urlToId(status.id),
+    id: getClientStatusId(status),
     created_at: getISOTimeUTC(status.createdAt),
     edited_at:
       status.type !== StatusType.enum.Announce && hasStatusBeenEdited(status)
@@ -566,7 +619,10 @@ export const getMastodonStatus = async (
   const reactions = toMastodonReactions(
     await getStatusReactions(database, status.id, currentActorId, options)
   )
-  const mentions = getMentionsFromTags(status.tags)
+  const mentions = getMentionsFromTags(
+    status.tags,
+    await getMentionActorPublicIds(database, status.tags, options)
+  )
   const emojis = getEmojisFromTags(status.tags)
   const hashtags = getHashtagsFromTags(status.tags, host)
 
@@ -582,8 +638,15 @@ export const getMastodonStatus = async (
     language: status.language ?? null,
     url: status.url,
 
-    in_reply_to_id: replyStatus ? urlToId(replyStatus.id) : null,
-    in_reply_to_account_id: replyStatus ? urlToId(replyStatus.actorId) : null,
+    in_reply_to_id: replyStatus ? getClientStatusId(replyStatus) : null,
+    // The hydrated reply carries its author as an ActorProfile (which holds the
+    // publicId); `actorId` is a bare URI, so it can only fall back to the legacy
+    // encoding when the author row could not be hydrated.
+    in_reply_to_account_id: replyStatus
+      ? replyStatus.actor
+        ? getClientActorId(replyStatus.actor)
+        : urlToId(replyStatus.actorId)
+      : null,
 
     replies_count: repliesCount,
 
@@ -633,7 +696,8 @@ export const getMastodonStatus = async (
       !(status.hideTotals ?? false) || Date.now() > status.endAt
 
     pollData = Mastodon.Poll.parse({
-      id: urlToId(status.id),
+      // A poll's id IS its status id, so it flips with the status.
+      id: getClientStatusId(status),
       expires_at: getISOTimeUTC(status.endAt),
       expired: Date.now() > status.endAt,
       multiple: status.pollType === 'anyOf',
@@ -700,7 +764,9 @@ export const getMastodonStatus = async (
       // still accepted (target exists and is readable). Stops recursion.
       quote = {
         state: effectiveState,
-        quoted_status_id: readableQuoted ? urlToId(readableQuoted.id) : null
+        quoted_status_id: readableQuoted
+          ? getClientStatusId(readableQuoted)
+          : null
       }
     } else if (!readableQuoted) {
       // Placeholder: no embedded quoted status for non-accepted / deleted /
@@ -741,6 +807,7 @@ export const getMastodonStatuses = async (
   const pollStatusIds = new Set<string>()
   const pinnedLookupStatusIds = new Set<string>()
   const quoteStatusIds = new Set<string>()
+  const mentionActorIds = new Set<string>()
 
   // Collect lookup ids per status, dropping any whose shape throws here (for
   // example a reblog whose original was deleted, leaving a null originalStatus).
@@ -755,6 +822,7 @@ export const getMastodonStatuses = async (
       addStatusPollIds(status, pollStatusIds)
       addStatusPinnedLookupIds(status, pinnedLookupStatusIds, currentActorId)
       addStatusQuoteIds(status, quoteStatusIds)
+      addStatusMentionActorIds(status, mentionActorIds)
       safeStatuses.push(status)
     } catch (error) {
       logger.warn({
@@ -915,6 +983,17 @@ export const getMastodonStatuses = async (
     )
   )
 
+  // Mention ids for the whole page in one query — the top-level statuses (and
+  // their reblog originals) plus the quoted statuses embedded in them, which are
+  // only known once the prefetch above resolved.
+  for (const quotedStatus of quotedStatuses) {
+    addStatusMentionActorIds(quotedStatus, mentionActorIds)
+  }
+  const mentionActorPublicIds =
+    mentionActorIds.size > 0
+      ? await database.getActorPublicIds({ actorIds: [...mentionActorIds] })
+      : new Map<string, string>()
+
   const options: GetMastodonStatusOptions = {
     ...inputOptions,
     quoteFollowerStateByActorId,
@@ -926,6 +1005,7 @@ export const getMastodonStatuses = async (
     conversationRootCache:
       inputOptions.conversationRootCache ?? new Map<string, string>(),
     accountCache,
+    mentionActorPublicIds,
     reactionsCache,
     statusMetricsCache: {
       reblogs: new Map(
