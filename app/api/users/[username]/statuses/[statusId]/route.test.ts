@@ -2,11 +2,13 @@ import { NextRequest } from 'next/server'
 
 import { type Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { generatePublicId } from '@/lib/utils/publicId'
 
 import { GET } from './route'
 
 const mockDatabase = {
   getStatus: vi.fn(),
+  getStatusIdByPublicId: vi.fn(),
   getStatusReplies: vi.fn()
 }
 const mockActor: Actor = {
@@ -149,5 +151,103 @@ describe('GET /api/users/[username]/statuses/[statusId]', () => {
         replies: [publicReply]
       })
     )
+  })
+
+  describe('publicId fallback for backfilled statuses', () => {
+    const legacyUri = 'https://example.com/users/test/statuses/legacy-tail'
+
+    it('resolves a backfilled status whose URI tail differs from its publicId', async () => {
+      const publicId = generatePublicId()
+      mockDatabase.getStatus.mockImplementation(
+        async ({ statusId }: { statusId: string }) =>
+          statusId === legacyUri
+            ? {
+                id: legacyUri,
+                url: legacyUri,
+                actorId: mockActor.id,
+                type: 'Note',
+                to: [ACTIVITY_STREAM_PUBLIC],
+                cc: [],
+                actor: { domain: 'example.com' }
+              }
+            : null
+      )
+      mockDatabase.getStatusIdByPublicId.mockResolvedValue(legacyUri)
+      mockToActivityPubObject.mockReturnValue({
+        id: legacyUri,
+        type: 'Note',
+        attributedTo: mockActor.id
+      })
+
+      const response = await GET(createRequest('application/activity+json'), {
+        params: Promise.resolve({ username: 'test', statusId: publicId })
+      })
+
+      expect(response.status).toBe(200)
+      expect(mockDatabase.getStatusIdByPublicId).toHaveBeenCalledWith({
+        publicId
+      })
+      expect(mockDatabase.getStatus).toHaveBeenLastCalledWith({
+        statusId: legacyUri,
+        withReplies: false
+      })
+
+      const data = await response.json()
+      expect(data.id).toBe(legacyUri)
+    })
+
+    it('returns not found when the publicId belongs to a different actor', async () => {
+      const publicId = generatePublicId()
+      const otherActorUri =
+        'https://example.com/users/other/statuses/legacy-tail'
+      mockDatabase.getStatus.mockImplementation(
+        async ({ statusId }: { statusId: string }) =>
+          statusId === otherActorUri
+            ? {
+                id: otherActorUri,
+                url: otherActorUri,
+                actorId: 'https://example.com/users/other',
+                type: 'Note',
+                to: [ACTIVITY_STREAM_PUBLIC],
+                cc: [],
+                actor: { domain: 'example.com' }
+              }
+            : null
+      )
+      mockDatabase.getStatusIdByPublicId.mockResolvedValue(otherActorUri)
+
+      const response = await GET(createRequest('application/activity+json'), {
+        params: Promise.resolve({ username: 'test', statusId: publicId })
+      })
+
+      expect(response.status).toBe(404)
+      expect(mockToActivityPubObject).not.toHaveBeenCalled()
+    })
+
+    it('returns not found for a non-public status resolved via publicId fallback', async () => {
+      const publicId = generatePublicId()
+      mockDatabase.getStatus.mockImplementation(
+        async ({ statusId }: { statusId: string }) =>
+          statusId === legacyUri
+            ? {
+                id: legacyUri,
+                url: legacyUri,
+                actorId: mockActor.id,
+                type: 'Note',
+                to: ['https://example.com/users/test/followers'],
+                cc: [],
+                actor: { domain: 'example.com' }
+              }
+            : null
+      )
+      mockDatabase.getStatusIdByPublicId.mockResolvedValue(legacyUri)
+
+      const response = await GET(createRequest('application/activity+json'), {
+        params: Promise.resolve({ username: 'test', statusId: publicId })
+      })
+
+      expect(response.status).toBe(404)
+      expect(mockToActivityPubObject).not.toHaveBeenCalled()
+    })
   })
 })
