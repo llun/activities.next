@@ -44,8 +44,12 @@ product or security decision, not a gap to be closed.
   or a remote actor this instance does not store, such as a mention of an
   unknown account — keeps emitting the legacy colon form, so a client can still
   encounter both shapes. Notification, report, filter, and media ids are their
-  own UUIDs and are unaffected. Nothing about federation changed: what is sent
-  to and received from remote servers is still the ActivityPub URI.
+  own UUIDs and are unaffected — but a status or account these entities
+  _reference_ is still a status or account id, and carries the `publicId` like
+  any other: a filter's `status_id`, a `FilterResult`'s `status_matches`, a
+  report's `status_ids`, a notification group's `status_id`. Nothing about
+  federation changed: what is sent to and received from remote servers is still
+  the ActivityPub URI.
 
 - **OAuth access tokens expire after 7 days.** Mastodon access tokens do not
   expire by default. Activity.next issues short-lived access tokens (7 days)

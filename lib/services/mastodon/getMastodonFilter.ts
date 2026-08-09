@@ -11,7 +11,8 @@ import {
 } from '@/lib/types/domain/filter'
 import * as Mastodon from '@/lib/types/mastodon'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
-import { urlToId } from '@/lib/utils/urlToId'
+import { isPublicId } from '@/lib/utils/publicId'
+import { safeIdToUrl, urlToId } from '@/lib/utils/urlToId'
 
 export const getMastodonFilterKeyword = (
   keyword: DomainFilterKeyword
@@ -21,35 +22,135 @@ export const getMastodonFilterKeyword = (
   whole_word: keyword.wholeWord
 })
 
+// LAST-RESORT emission for a `filter_statuses` row whose status has no publicId
+// to emit: a row written before the backfill, or one pointing at a status this
+// instance does not have (the column has no foreign key). Everything else emits
+// the publicId every other status reference in the API now carries — see
+// hydrateFilterStatusPublicIds — so this only decides what a row that cannot
+// reach one looks like, and there the pre-flip legacy colon form is the answer
+// the accept side still resolves.
+//
 // `filter_statuses.statusId` usually holds the RESOLVED status URI — POST
 // /api/v2/filters/:id/statuses resolves whatever id form the client sent so
-// matching can work — but the API emits the legacy colon-form id everywhere
-// else, so a stored URI is converted here at the emission boundary. Without it a
-// client that posted the id it read off the timeline gets a raw
-// `https://…/statuses/…` back, cannot compare it to the status id it holds, and
-// breaks if it interpolates the value into a URL; a list would also mix both
-// forms depending on when each row was written.
+// matching can work — and a raw `https://…/statuses/…` is an id form the API
+// never emits: a client cannot compare it against the status ids it holds and
+// breaks if it interpolates the value into a URL.
 //
 // Only URIs are converted, because a URI is not the only thing the column can
 // hold and `urlToId` is not identity on the rest: it leaves a colon-form or
 // `apurl_` id alone (for a status URI the invalid `:users` "port" makes
 // `new URL` throw and the input comes back unchanged) but turns a BARE publicId
-// into `<uuid>:`. The route stores an unresolvable publicId unchanged and the
-// table has no foreign key, so such rows exist — and a spurious trailing colon
-// on an id the client never wrote is exactly the mismatch this normalisation is
-// meant to prevent. Testing for a URL rather than relying on idempotence keeps
-// every other stored form byte-identical by construction.
+// into `<uuid>:`. The route stores an unresolvable publicId unchanged, so such
+// rows exist — and a spurious trailing colon on an id the client never wrote is
+// exactly the mismatch this normalisation is meant to prevent. Testing for a URL
+// rather than relying on idempotence keeps every other stored form
+// byte-identical by construction.
 export const toEmittedFilterStatusId = (statusId: string): string =>
   /^https?:\/\//.test(statusId) ? urlToId(statusId) : statusId
 
+// A `filter_statuses` row hydrated with the publicId of the status it points at,
+// or null when there is none to emit. The stored `statusId` is deliberately left
+// exactly as written: matching compares against it, and it is the only value
+// that can still identify a row stored in a legacy form.
+export type FilterStatusWithPublicId = DomainFilterStatus & {
+  statusPublicId: string | null
+}
+
+// A filter record whose `filter_statuses` rows have been through
+// hydrateFilterRecordStatusPublicIds. The property is REQUIRED rather than
+// optional so an un-hydrated record cannot be handed to an emission or matching
+// entry point: a filter that reports an id no other part of the response uses is
+// invisible in normal use, so the compiler is the only thing that reliably
+// catches it.
+export type FilterRecordWithStatusPublicIds = Omit<
+  ActiveFilterRecord,
+  'statuses'
+> & { statuses: FilterStatusWithPublicId[] }
+
+// The ActivityPub URI a stored value names — the key `statuses.id` is indexed by
+// — or null when the row cannot name one. A bare publicId is skipped on purpose:
+// `idToUrl` would turn it into the junk lookup key `https://<uuid>/`, and such a
+// row already holds the emitted form, so toEmittedFilterStatusId returns it
+// unchanged.
+const toStoredStatusUri = (statusId: string): string | null =>
+  isPublicId(statusId) ? null : safeIdToUrl(statusId)
+
+// Resolves the publicId of every `filter_statuses` row in ONE query, so a filter
+// list costs one lookup instead of one per row — and so the emission stays
+// synchronous downstream, where the matching pipeline runs.
+export const hydrateFilterStatusPublicIds = async (
+  database: Pick<Database, 'getStatusPublicIds'>,
+  filterStatuses: DomainFilterStatus[]
+): Promise<FilterStatusWithPublicId[]> => {
+  const uriByStoredId = new Map<string, string>()
+  for (const { statusId } of filterStatuses) {
+    if (uriByStoredId.has(statusId)) continue
+    const uri = toStoredStatusUri(statusId)
+    if (uri) uriByStoredId.set(statusId, uri)
+  }
+  if (uriByStoredId.size === 0) {
+    return filterStatuses.map((status) => ({ ...status, statusPublicId: null }))
+  }
+
+  const publicIdByUri = await database.getStatusPublicIds({
+    statusIds: [...new Set(uriByStoredId.values())]
+  })
+  return filterStatuses.map((status) => {
+    const uri = uriByStoredId.get(status.statusId)
+    return {
+      ...status,
+      statusPublicId: (uri && publicIdByUri.get(uri)) ?? null
+    }
+  })
+}
+
+// Record-level form of hydrateFilterStatusPublicIds: every row across every
+// record resolves in the same single query.
+export const hydrateFilterRecordStatusPublicIds = async (
+  database: Pick<Database, 'getStatusPublicIds'>,
+  records: ActiveFilterRecord[]
+): Promise<FilterRecordWithStatusPublicIds[]> => {
+  const hydratedStatuses = await hydrateFilterStatusPublicIds(
+    database,
+    records.flatMap((record) => record.statuses)
+  )
+  let offset = 0
+  return records.map((record) => {
+    const statuses = hydratedStatuses.slice(
+      offset,
+      offset + record.statuses.length
+    )
+    offset += record.statuses.length
+    return { ...record, statuses }
+  })
+}
+
 export const getMastodonFilterStatus = (
-  status: DomainFilterStatus
+  status: FilterStatusWithPublicId
 ): Mastodon.FilterStatus => ({
   id: status.id,
-  status_id: toEmittedFilterStatusId(status.statusId)
+  status_id: status.statusPublicId ?? toEmittedFilterStatusId(status.statusId)
 })
 
-const buildMastodonFilter = (record: ActiveFilterRecord): Mastodon.Filter => ({
+export const getMastodonFilterStatuses = async (
+  database: Pick<Database, 'getStatusPublicIds'>,
+  statuses: DomainFilterStatus[]
+): Promise<Mastodon.FilterStatus[]> => {
+  const hydrated = await hydrateFilterStatusPublicIds(database, statuses)
+  return hydrated.map(getMastodonFilterStatus)
+}
+
+export const getMastodonFilterStatusWithPublicId = async (
+  database: Pick<Database, 'getStatusPublicIds'>,
+  status: DomainFilterStatus
+): Promise<Mastodon.FilterStatus> => {
+  const [hydrated] = await hydrateFilterStatusPublicIds(database, [status])
+  return getMastodonFilterStatus(hydrated)
+}
+
+const buildMastodonFilter = (
+  record: FilterRecordWithStatusPublicIds
+): Mastodon.Filter => ({
   id: record.filter.id,
   title: record.filter.title,
   context: record.filter.context,
@@ -88,7 +189,10 @@ export const getMastodonFilter = async (
   filter: DomainFilter
 ): Promise<Mastodon.Filter> => {
   const record = await loadFilterRecord(database, filter)
-  return buildMastodonFilter(record)
+  const [hydrated] = await hydrateFilterRecordStatusPublicIds(database, [
+    record
+  ])
+  return buildMastodonFilter(hydrated)
 }
 
 export const getMastodonFilters = async (
@@ -99,11 +203,12 @@ export const getMastodonFilters = async (
   const records = await Promise.all(
     filters.map((filter) => loadFilterRecord(database, filter))
   )
-  return records.map(buildMastodonFilter)
+  const hydrated = await hydrateFilterRecordStatusPublicIds(database, records)
+  return hydrated.map(buildMastodonFilter)
 }
 
 export const getMastodonFilterFromRecord = (
-  record: ActiveFilterRecord
+  record: FilterRecordWithStatusPublicIds
 ): Mastodon.Filter => buildMastodonFilter(record)
 
 // ----------------------------------------------------------------------------

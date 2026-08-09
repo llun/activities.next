@@ -1,14 +1,11 @@
 import { Database } from '@/lib/database/types'
 import { applyFiltersToStatus } from '@/lib/services/filters/applyFilters'
+import { FilterRecordWithStatusPublicIds } from '@/lib/services/mastodon/getMastodonFilter'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 import { DEFAULT_GROUPABLE_TYPES } from '@/lib/services/notifications/notificationTypeMapping'
 import { Mastodon } from '@/lib/types/activitypub'
-import {
-  ActiveFilterRecord,
-  Notification,
-  NotificationType
-} from '@/lib/types/database/operations'
+import { Notification, NotificationType } from '@/lib/types/database/operations'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 // Mastodon notification type mapping
@@ -95,7 +92,7 @@ export const getMastodonNotification = async (
   options?: {
     includeGrouping?: boolean
     currentActorId?: string
-    filterRecords?: ActiveFilterRecord[]
+    filterRecords?: FilterRecordWithStatusPublicIds[]
   }
 ): Promise<MastodonNotification | null> => {
   const {

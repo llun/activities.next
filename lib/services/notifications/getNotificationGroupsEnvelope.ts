@@ -1,5 +1,6 @@
 import { Database } from '@/lib/database/types'
 import { applyFiltersToStatus } from '@/lib/services/filters/applyFilters'
+import { FilterRecordWithStatusPublicIds } from '@/lib/services/mastodon/getMastodonFilter'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import {
   MastodonNotificationGroup,
@@ -11,11 +12,7 @@ import {
   groupNotifications
 } from '@/lib/services/notifications/groupNotifications'
 import { Mastodon } from '@/lib/types/activitypub'
-import {
-  ActiveFilterRecord,
-  Notification,
-  NotificationType
-} from '@/lib/types/database/operations'
+import { Notification, NotificationType } from '@/lib/types/database/operations'
 import { urlToId } from '@/lib/utils/urlToId'
 
 // Mastodon's dehydrated grouped-notifications response: groups reference shared
@@ -69,7 +66,7 @@ const resolveStatuses = async (
   database: Database,
   statusIds: string[],
   currentActorId?: string,
-  filterRecords?: ActiveFilterRecord[]
+  filterRecords?: FilterRecordWithStatusPublicIds[]
 ): Promise<Mastodon.Status[]> => {
   if (statusIds.length === 0) return []
   const domainStatuses = await database.getStatusesByIds({
@@ -157,7 +154,7 @@ export const getNotificationGroupsEnvelope = async (
   database: Database,
   grouped: GroupedNotification[],
   currentActorId?: string,
-  filterRecords?: ActiveFilterRecord[]
+  filterRecords?: FilterRecordWithStatusPublicIds[]
 ): Promise<NotificationGroupsEnvelope> => {
   const results = grouped.map(getNotificationGroup)
   await applyPublicIdsToGroups(database, results)

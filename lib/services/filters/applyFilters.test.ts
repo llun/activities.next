@@ -5,7 +5,7 @@ import {
   dropHideMatchesFromStatuses,
   partitionStatusesByFilters
 } from '@/lib/services/filters/applyFilters'
-import { ActiveFilterRecord } from '@/lib/types/database/operations'
+import { FilterRecordWithStatusPublicIds } from '@/lib/services/mastodon/getMastodonFilter'
 import { Filter, FilterKeyword } from '@/lib/types/domain/filter'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import * as Mastodon from '@/lib/types/mastodon'
@@ -94,17 +94,34 @@ const buildStatusAnnounce = (
 // the resolved ActivityPub URI (what the write route stores today), the legacy
 // colon form (rows written before the route resolved client ids), and a bare
 // publicId (a post-flip client id the route could not resolve, stored as sent).
+//
+// `statusPublicId` is what hydrateFilterStatusPublicIds would have put on the
+// row: the URI and colon forms both name a status it can look up, while a bare
+// publicId is skipped because it already holds the emitted form.
 const buildStoredStatusIdCases = (status: Status) => [
-  { description: 'the resolved status uri', stored: status.id },
-  { description: 'the legacy colon form', stored: urlToId(status.id) },
-  { description: 'a bare publicId', stored: status.publicId as string }
+  {
+    description: 'the resolved status uri',
+    stored: status.id,
+    statusPublicId: status.publicId ?? null
+  },
+  {
+    description: 'the legacy colon form',
+    stored: urlToId(status.id),
+    statusPublicId: status.publicId ?? null
+  },
+  {
+    description: 'a bare publicId',
+    stored: status.publicId as string,
+    statusPublicId: null
+  }
 ]
 
 const buildStatusIdFilterRecord = (
   filterId: string,
   storedStatusId: string,
+  statusPublicId: string | null = null,
   overrides: Partial<Filter> = {}
-): ActiveFilterRecord => {
+): FilterRecordWithStatusPublicIds => {
   const filter = buildFilter({ id: filterId, ...overrides })
   return {
     filter,
@@ -114,6 +131,7 @@ const buildStatusIdFilterRecord = (
         id: `${filterId}:fs`,
         filterId: filter.id,
         statusId: storedStatusId,
+        statusPublicId,
         createdAt: 0
       }
     ]
@@ -150,7 +168,7 @@ describe('buildKeywordMatcher', () => {
 describe('applyFiltersToStatus', () => {
   it('returns a FilterResult with keyword_matches for a content match', () => {
     const filter = buildFilter({ id: 'f1' })
-    const records: ActiveFilterRecord[] = [
+    const records: FilterRecordWithStatusPublicIds[] = [
       {
         filter,
         keywords: [buildKeyword(filter.id, 'spoiler', true)],
@@ -174,32 +192,47 @@ describe('applyFiltersToStatus', () => {
   // three must keep matching the same status, or a filter silently stops
   // working with nothing to show for it.
   //
-  // A URI is emitted in the colon form so a client can compare `status_matches`
-  // against the status ids it holds; anything else is emitted exactly as
-  // stored, since running urlToId over a bare publicId would append a `:` the
-  // client never wrote.
+  // Whatever the row holds, `status_matches` names the MATCHED STATUS by the id
+  // the client was given for it — its publicId — because the result rides on a
+  // serialized status the client compares it against. `filter.statuses[]` is
+  // emitted beside it from the stored value, so both are asserted together: a
+  // document that reports one id in one field and another in the other names a
+  // post the client cannot resolve.
   const matchTarget = buildStatusNote(
     'https://llun.test/users/test1/statuses/2',
     'no keywords here',
     generatePublicId()
   )
-  it.each(
-    buildStoredStatusIdCases(matchTarget).map((testCase) => ({
-      ...testCase,
-      emitted:
-        testCase.stored === matchTarget.id
-          ? urlToId(matchTarget.id)
-          : testCase.stored
-    }))
-  )(
+  it.each(buildStoredStatusIdCases(matchTarget))(
     'returns status_matches for a row stored as $description',
-    ({ stored, emitted }) => {
-      const records = [buildStatusIdFilterRecord('f2', stored)]
+    ({ stored, statusPublicId }) => {
+      const records = [buildStatusIdFilterRecord('f2', stored, statusPublicId)]
       const results = applyFiltersToStatus(matchTarget, records)
       expect(results).toHaveLength(1)
-      expect(results[0].status_matches).toEqual([emitted])
+      expect(results[0].status_matches).toEqual([matchTarget.publicId])
+      expect(
+        results[0].filter.statuses.map((entry) => entry.status_id)
+      ).toEqual(results[0].status_matches)
     }
   )
+
+  // A status written before the publicId backfill has none to emit, so both
+  // halves fall back to the legacy colon form — and still agree.
+  it('emits the legacy colon form for a status with no public id', () => {
+    const preBackfill = buildStatusNote(
+      'https://llun.test/users/test1/statuses/pre-backfill',
+      'no keywords here'
+    )
+    const records = [
+      buildStatusIdFilterRecord('f2-pre-backfill', preBackfill.id, null)
+    ]
+    const results = applyFiltersToStatus(preBackfill, records)
+    expect(results).toHaveLength(1)
+    expect(results[0].status_matches).toEqual([urlToId(preBackfill.id)])
+    expect(results[0].filter.statuses.map((entry) => entry.status_id)).toEqual(
+      results[0].status_matches
+    )
+  })
 
   const announceOriginal = buildStatusNote(
     'https://llun.test/users/test1/statuses/original',
@@ -208,14 +241,23 @@ describe('applyFiltersToStatus', () => {
   )
   it.each(buildStoredStatusIdCases(announceOriginal))(
     'matches an announce through the reblogged original stored as $description',
-    ({ stored }) => {
+    ({ stored, statusPublicId }) => {
       const announce = buildStatusAnnounce(
         'https://llun.test/users/test2/statuses/announce',
         announceOriginal,
         generatePublicId()
       )
-      const records = [buildStatusIdFilterRecord('f-announce', stored)]
-      expect(applyFiltersToStatus(announce, records)).toHaveLength(1)
+      const records = [
+        buildStatusIdFilterRecord('f-announce', stored, statusPublicId)
+      ]
+      const results = applyFiltersToStatus(announce, records)
+      expect(results).toHaveLength(1)
+      // The reblogged original matched, so the result names the original — the
+      // id the client reads as `reblog.id` on this entity.
+      expect(results[0].status_matches).toEqual([announceOriginal.publicId])
+      expect(
+        results[0].filter.statuses.map((entry) => entry.status_id)
+      ).toEqual(results[0].status_matches)
     }
   )
 
@@ -233,7 +275,11 @@ describe('applyFiltersToStatus', () => {
     const records = [
       buildStatusIdFilterRecord('f-wrapper', announce.publicId as string)
     ]
-    expect(applyFiltersToStatus(announce, records)).toHaveLength(1)
+    const results = applyFiltersToStatus(announce, records)
+    expect(results).toHaveLength(1)
+    // The wrapper matched, so the result names the wrapper — the entity's own
+    // `id` — and not the original it reblogs.
+    expect(results[0].status_matches).toEqual([announce.publicId])
   })
 
   it('does not match a status whose public id belongs to another status', () => {
@@ -248,7 +294,7 @@ describe('applyFiltersToStatus', () => {
 
   it('returns no matches when none of the keywords or status ids hit', () => {
     const filter = buildFilter({ id: 'f3' })
-    const records: ActiveFilterRecord[] = [
+    const records: FilterRecordWithStatusPublicIds[] = [
       {
         filter,
         keywords: [buildKeyword(filter.id, 'banana')],
@@ -269,7 +315,7 @@ describe('partitionStatusesByFilters', () => {
       id: 'hide',
       filterAction: 'hide'
     })
-    const records: ActiveFilterRecord[] = [
+    const records: FilterRecordWithStatusPublicIds[] = [
       {
         filter: hideFilter,
         keywords: [buildKeyword(hideFilter.id, 'taboo')],
@@ -297,14 +343,14 @@ describe('partitionStatusesByFilters', () => {
   )
   it.each(buildStoredStatusIdCases(hideTarget))(
     'drops a status hidden by a row stored as $description',
-    ({ stored }) => {
+    ({ stored, statusPublicId }) => {
       const keep = buildStatusNote(
         'https://llun.test/users/test1/statuses/hide-by-id-keep',
         'no keywords here',
         generatePublicId()
       )
       const records = [
-        buildStatusIdFilterRecord('f-hide-by-id', stored, {
+        buildStatusIdFilterRecord('f-hide-by-id', stored, statusPublicId, {
           filterAction: 'hide'
         })
       ]
@@ -317,7 +363,7 @@ describe('partitionStatusesByFilters', () => {
 
   it('keeps statuses that only have warn matches and attaches filter results', () => {
     const warnFilter = buildFilter({ id: 'warn' })
-    const records: ActiveFilterRecord[] = [
+    const records: FilterRecordWithStatusPublicIds[] = [
       {
         filter: warnFilter,
         keywords: [buildKeyword(warnFilter.id, 'spoiler')],
@@ -340,7 +386,7 @@ describe('dropHideMatchesFromStatuses', () => {
   it('removes only statuses matched by hide filters', () => {
     const hideFilter = buildFilter({ id: 'h', filterAction: 'hide' })
     const warnFilter = buildFilter({ id: 'w' })
-    const records: ActiveFilterRecord[] = [
+    const records: FilterRecordWithStatusPublicIds[] = [
       {
         filter: hideFilter,
         keywords: [buildKeyword(hideFilter.id, 'gone')],
@@ -373,7 +419,7 @@ describe('dropHideMatchesFromStatuses', () => {
 describe('annotateMastodonStatusesWithFilters', () => {
   it('attaches filtered results to corresponding Mastodon statuses', () => {
     const filter = buildFilter({ id: 'annotate' })
-    const records: ActiveFilterRecord[] = [
+    const records: FilterRecordWithStatusPublicIds[] = [
       {
         filter,
         keywords: [buildKeyword(filter.id, 'soon')],
@@ -412,7 +458,7 @@ describe('annotateMastodonStatusesWithFilters', () => {
     'annotates a serialized status whose id is $description',
     ({ publicId, emittedId }) => {
       const filter = buildFilter({ id: 'annotate-public-id' })
-      const records: ActiveFilterRecord[] = [
+      const records: FilterRecordWithStatusPublicIds[] = [
         {
           filter,
           keywords: [buildKeyword(filter.id, 'soon')],
@@ -437,7 +483,7 @@ describe('annotateMastodonStatusesWithFilters', () => {
 
   it('annotates a reblog on its inner status when the entity id is a public id', () => {
     const filter = buildFilter({ id: 'annotate-reblog' })
-    const records: ActiveFilterRecord[] = [
+    const records: FilterRecordWithStatusPublicIds[] = [
       {
         filter,
         keywords: [buildKeyword(filter.id, 'soon')],

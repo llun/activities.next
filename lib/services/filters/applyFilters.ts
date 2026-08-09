@@ -1,19 +1,18 @@
 import { Database } from '@/lib/database/types'
 import {
+  FilterRecordWithStatusPublicIds,
   getMastodonFilterFromRecord,
-  toEmittedFilterStatusId
+  hydrateFilterRecordStatusPublicIds
 } from '@/lib/services/mastodon/getMastodonFilter'
 import { Timeline } from '@/lib/services/timelines/types'
-import {
-  ActiveFilterRecord,
-  ActiveServerFilterRecord
-} from '@/lib/types/database/operations'
+import { ActiveServerFilterRecord } from '@/lib/types/database/operations'
 import {
   FilterKeyword as DomainFilterKeyword,
   FilterContext
 } from '@/lib/types/domain/filter'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import * as Mastodon from '@/lib/types/mastodon'
+import { getClientStatusId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
 export const getFilterContextForTimeline = (
@@ -133,36 +132,46 @@ const getStatusContents = (status: Status): string[] => {
   return contents
 }
 
-// Every id form `filter_statuses.statusId` can hold for this status, so a
-// stored row matches whichever encoding was current when it was written: the
-// ActivityPub URI (what the write route resolves to today), the legacy
-// colon/`apurl_` form (pre-resolution rows), and the publicId (a post-flip
-// client id the write route could not resolve, which it then stores verbatim).
+// Every id form `filter_statuses.statusId` can hold for this status, mapped to
+// the status the match should be REPORTED as. A stored row matches whichever
+// encoding was current when it was written: the ActivityPub URI (what the write
+// route resolves to today), the legacy colon/`apurl_` form (pre-resolution
+// rows), and the publicId (a post-flip client id the write route could not
+// resolve, which it then stores verbatim).
+//
 // An Announce contributes both its own ids and the reblogged original's, so
-// filtering either one hides the reblog.
-const getCandidateStatusIds = (status: Status): string[] => {
+// filtering either one hides the reblog — and each set points at ITS OWN status,
+// because `status_matches` names the status that matched. Both ids are in the
+// serialized entity a client reads them next to (the wrapper as `id`, the
+// original as `reblog.id`), so either one resolves.
+const getCandidateStatusSources = (status: Status): Map<string, Status> => {
   const target =
     status.type === StatusType.enum.Announce ? status.originalStatus : status
-  const ids = new Set<string>()
+  const sources = new Map<string, Status>()
+  const addCandidate = (id: string | null | undefined, source: Status) => {
+    if (!id || sources.has(id)) return
+    sources.set(id, source)
+  }
   if (target) {
-    ids.add(target.id)
-    ids.add(urlToId(target.id))
-    if (target.publicId) ids.add(target.publicId)
+    addCandidate(target.id, target)
+    addCandidate(urlToId(target.id), target)
+    addCandidate(target.publicId, target)
   }
   if (status.type === StatusType.enum.Announce) {
-    ids.add(status.id)
-    ids.add(urlToId(status.id))
-    if (status.publicId) ids.add(status.publicId)
+    addCandidate(status.id, status)
+    addCandidate(urlToId(status.id), status)
+    addCandidate(status.publicId, status)
   }
-  return [...ids].filter(Boolean)
+  return sources
 }
 
 // Instance-wide server filters carry no owning actor. Adapt them to the
-// per-actor ActiveFilterRecord shape so the matching pipeline can treat both
-// kinds uniformly; the synthetic empty actorId is never read during matching.
+// per-actor record shape so the matching pipeline can treat both kinds
+// uniformly; the synthetic empty actorId is never read during matching. Server
+// filters are keyword-only, so there is nothing to hydrate.
 const serverRecordToActiveFilterRecord = (
   record: ActiveServerFilterRecord
-): ActiveFilterRecord => ({
+): FilterRecordWithStatusPublicIds => ({
   filter: { ...record.filter, actorId: '' },
   keywords: record.keywords,
   statuses: []
@@ -172,26 +181,32 @@ export const getActiveFilters = async (
   database: Database,
   actorId: string | undefined,
   context: FilterContext
-): Promise<ActiveFilterRecord[]> => {
+): Promise<FilterRecordWithStatusPublicIds[]> => {
   // Server filters apply to everyone — including signed-out viewers — so they
   // are fetched regardless of `actorId`.
   const [accountRecords, serverRecords] = await Promise.all([
     actorId
       ? database.getActiveFiltersForActor({ actorId, context })
-      : Promise.resolve([] as ActiveFilterRecord[]),
+      : Promise.resolve([]),
     database.getActiveServerFilters({ context })
   ])
+  // The matching pipeline below is synchronous and runs per status, so the rows'
+  // publicIds are resolved once here — in a single query for the whole set, and
+  // in none at all for the common keyword-only filter.
+  const hydratedAccountRecords = await hydrateFilterRecordStatusPublicIds(
+    database,
+    accountRecords
+  )
   return [
-    ...accountRecords,
+    ...hydratedAccountRecords,
     ...serverRecords.map(serverRecordToActiveFilterRecord)
   ]
 }
 
 const matchFilter = (
-  status: Status,
   contents: string[],
-  candidateIds: string[],
-  record: ActiveFilterRecord
+  candidateSources: Map<string, Status>,
+  record: FilterRecordWithStatusPublicIds
 ): Mastodon.FilterResult | null => {
   const keywordMatches: string[] = []
   for (const keyword of record.keywords) {
@@ -201,21 +216,19 @@ const matchFilter = (
     }
   }
 
-  const candidateIdSet = new Set(candidateIds)
   const statusMatches: string[] = []
   for (const filterStatus of record.statuses) {
-    if (
-      candidateIdSet.has(filterStatus.statusId) ||
-      candidateIdSet.has(urlToId(filterStatus.statusId))
-    ) {
-      // Match on either stored form, but emit a stored URI as the legacy
-      // colon-form id: `status_matches` rides on every timeline and notification
-      // status that carries `filtered[]`, so a raw `https://…/statuses/…` here
-      // would be an id form the rest of the API never emits. Every other stored
-      // form is emitted exactly as stored — see toEmittedFilterStatusId for why
-      // that is a URL test rather than an unconditional urlToId call.
-      statusMatches.push(toEmittedFilterStatusId(filterStatus.statusId))
-    }
+    // Match on any stored form, but emit the id of the status that matched, in
+    // the same form the entity carrying this result does: `status_matches` rides
+    // on every timeline and notification status that has `filtered[]`, so a
+    // client compares it against ids the response already gave it. The matched
+    // status is in hand, so this needs no lookup — and it agrees by construction
+    // with the `filter.statuses[]` emitted beside it, which resolves the same
+    // publicId from the stored value (see hydrateFilterStatusPublicIds).
+    const matched =
+      candidateSources.get(filterStatus.statusId) ??
+      candidateSources.get(urlToId(filterStatus.statusId))
+    if (matched) statusMatches.push(getClientStatusId(matched))
   }
 
   if (keywordMatches.length === 0 && statusMatches.length === 0) return null
@@ -228,14 +241,14 @@ const matchFilter = (
 
 export const applyFiltersToStatus = (
   status: Status,
-  filters: ActiveFilterRecord[]
+  filters: FilterRecordWithStatusPublicIds[]
 ): Mastodon.FilterResult[] => {
   if (filters.length === 0) return []
   const contents = getStatusContents(status)
-  const candidateIds = getCandidateStatusIds(status)
+  const candidateSources = getCandidateStatusSources(status)
   const results: Mastodon.FilterResult[] = []
   for (const record of filters) {
-    const match = matchFilter(status, contents, candidateIds, record)
+    const match = matchFilter(contents, candidateSources, record)
     if (match) results.push(match)
   }
   return results
@@ -248,7 +261,7 @@ export interface PartitionResult<T extends Status> {
 
 export const partitionStatusesByFilters = <T extends Status>(
   statuses: T[],
-  filters: ActiveFilterRecord[]
+  filters: FilterRecordWithStatusPublicIds[]
 ): PartitionResult<T> => {
   if (filters.length === 0) {
     return {
@@ -278,7 +291,7 @@ export const partitionStatusesByFilters = <T extends Status>(
 export const annotateMastodonStatusesWithFilters = (
   mastodonStatuses: Mastodon.Status[],
   domainStatuses: Status[],
-  filters: ActiveFilterRecord[]
+  filters: FilterRecordWithStatusPublicIds[]
 ): Mastodon.Status[] => {
   if (filters.length === 0) return mastodonStatuses
   const filteredByStatusId = new Map<string, Mastodon.FilterResult[]>()
@@ -310,7 +323,7 @@ export const annotateMastodonStatusesWithFilters = (
 
 export const dropHideMatchesFromStatuses = <T extends Status>(
   statuses: T[],
-  filters: ActiveFilterRecord[]
+  filters: FilterRecordWithStatusPublicIds[]
 ): T[] => {
   if (filters.length === 0) return statuses
   const hideFilters = filters.filter(

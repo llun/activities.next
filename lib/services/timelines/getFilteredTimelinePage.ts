@@ -4,8 +4,8 @@ import {
   dropHideMatchesFromStatuses,
   getActiveFilters
 } from '@/lib/services/filters/applyFilters'
+import { FilterRecordWithStatusPublicIds } from '@/lib/services/mastodon/getMastodonFilter'
 import { Timeline } from '@/lib/services/timelines/types'
-import { ActiveFilterRecord } from '@/lib/types/database/operations'
 import { FilterContext } from '@/lib/types/domain/filter'
 import { Status } from '@/lib/types/domain/status'
 
@@ -27,7 +27,7 @@ export interface FilteredTimelinePage {
   statuses: Status[]
   nextMaxStatusId: string | null
   prevMinStatusId: string | null
-  filterRecords?: ActiveFilterRecord[]
+  filterRecords?: FilterRecordWithStatusPublicIds[]
 }
 
 export const normalizeTimelineLimit = (limit?: number | null) =>
