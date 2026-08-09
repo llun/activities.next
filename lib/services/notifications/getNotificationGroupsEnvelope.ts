@@ -1,7 +1,7 @@
 import { Database } from '@/lib/database/types'
 import { applyFiltersToStatus } from '@/lib/services/filters/applyFilters'
 import { FilterRecordWithStatusPublicIds } from '@/lib/services/mastodon/getMastodonFilter'
-import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import {
   MastodonNotificationGroup,
   NotificationGroupResult,
@@ -75,13 +75,24 @@ const resolveStatuses = async (
     visibleToActorId: currentActorId,
     withReplies: false
   })
+  // Serialize the page in one pass rather than a status at a time: the batch
+  // path resolves the whole page's mention publicIds — and its reblog/reply
+  // counts, reaction rollups, pinned state and quoted statuses — in one query
+  // each, where a per-status call issues one of each per status, sequentially.
+  const mastodonStatuses = await getMastodonStatuses(
+    database,
+    domainStatuses,
+    currentActorId
+  )
+  // Pair each serialized status back to the domain row the filters read. `uri`
+  // is the ActivityPub id the domain row was fetched by; `id` is a publicId and
+  // would not join.
+  const mastodonStatusByUri = new Map(
+    mastodonStatuses.map((status) => [status.uri, status] as const)
+  )
   const results: Mastodon.Status[] = []
   for (const domainStatus of domainStatuses) {
-    const mastodonStatus = await getMastodonStatus(
-      database,
-      domainStatus,
-      currentActorId
-    )
+    const mastodonStatus = mastodonStatusByUri.get(domainStatus.id)
     if (!mastodonStatus) continue
     if (filterRecords && filterRecords.length > 0) {
       const matches = applyFiltersToStatus(domainStatus, filterRecords)

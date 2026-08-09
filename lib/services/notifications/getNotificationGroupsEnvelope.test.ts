@@ -2,10 +2,18 @@ import { Database } from '@/lib/database/types'
 import { getNotificationGroupsEnvelope } from '@/lib/services/notifications/getNotificationGroupsEnvelope'
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 
-const mockGetMastodonStatus = vi.fn()
+const mockGetMastodonStatuses = vi.fn()
 vi.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
-  getMastodonStatus: (...args: unknown[]) => mockGetMastodonStatus(...args)
+  getMastodonStatuses: (...args: unknown[]) => mockGetMastodonStatuses(...args)
 }))
+
+// The serialized status carries the domain row's ActivityPub id as `uri`, which
+// is what the envelope pairs the two on; `id` is the flipped client-facing id.
+const mockSerializedStatusesWithId = (id: string) =>
+  mockGetMastodonStatuses.mockImplementation(
+    (_database: unknown, statuses: { id: string }[]) =>
+      Promise.resolve(statuses.map((status) => ({ id, uri: status.id })))
+  )
 
 const ALICE = 'https://other.test/users/alice'
 const BOB = 'https://other.test/users/bob'
@@ -56,7 +64,7 @@ describe('getNotificationGroupsEnvelope', () => {
     // Return id in urlToId format so the hide-filter check in resolveStatuses
     // can match it against the group's status_id field.
     // urlToId('https://other.test/statuses/1') = 'other.test:statuses:1'
-    mockGetMastodonStatus.mockResolvedValue({ id: 'other.test:statuses:1' })
+    mockSerializedStatusesWithId('other.test:statuses:1')
 
     // Two like groups on the same status from alice and bob (status referenced
     // twice), plus a follow group from alice (alice referenced again).
@@ -125,7 +133,7 @@ describe('getNotificationGroupsEnvelope', () => {
         .fn()
         .mockResolvedValue(new Map([[STATUS, STATUS_PUBLIC_ID]]))
     } as unknown as Database
-    mockGetMastodonStatus.mockResolvedValue({ id: STATUS_PUBLIC_ID })
+    mockSerializedStatusesWithId(STATUS_PUBLIC_ID)
 
     const envelope = await getNotificationGroupsEnvelope(
       mockDatabase,

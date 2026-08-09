@@ -5,7 +5,7 @@ import { getActiveFilters } from '@/lib/services/filters/applyFilters'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
-import { getMastodonNotification } from '@/lib/services/notifications/getMastodonNotification'
+import { getMastodonNotifications } from '@/lib/services/notifications/getMastodonNotification'
 import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
 import { mastodonTypesToInternal } from '@/lib/services/notifications/notificationTypeMapping'
 import { Scope } from '@/lib/types/database/operations'
@@ -148,18 +148,17 @@ export const GET = traceApiRoute(
         'notifications'
       )
 
-      // Transform to Mastodon-compatible format
-      const mastodonNotifications = (
-        await Promise.all(
-          processedNotifications.map((notification) =>
-            getMastodonNotification(database, notification, {
-              includeGrouping: grouped,
-              currentActorId: currentActor.id,
-              filterRecords
-            })
-          )
-        )
-      ).filter((n) => n !== null)
+      // Transform to Mastodon-compatible format. The batch entry point hydrates
+      // the page's statuses once instead of once per notification.
+      const mastodonNotifications = await getMastodonNotifications(
+        database,
+        processedNotifications,
+        {
+          includeGrouping: grouped,
+          currentActorId: currentActor.id,
+          filterRecords
+        }
+      )
 
       // Generate Link headers for pagination
       const host = headerHost(req.headers)

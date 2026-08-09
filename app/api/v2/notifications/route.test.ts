@@ -20,15 +20,25 @@ vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-const { mockGetMastodonStatus, toColonFormId } = vi.hoisted(() => ({
-  mockGetMastodonStatus: vi.fn(),
+const { mockGetMastodonStatuses, toColonFormId } = vi.hoisted(() => ({
+  mockGetMastodonStatuses: vi.fn(),
   toColonFormId: (id: string) =>
     id.replace(/https?:\/\//, '').replaceAll('/', ':')
 }))
 
 vi.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
-  getMastodonStatus: mockGetMastodonStatus
+  getMastodonStatuses: mockGetMastodonStatuses
 }))
+
+// The serialized status carries the domain row's ActivityPub id as `uri`, which
+// is what the envelope pairs the two on; `id` is the flipped client-facing id.
+const mockSerializedStatusesWithId = (id: string) =>
+  mockGetMastodonStatuses.mockImplementation(
+    (_db: unknown, domainStatuses: { id: string }[]) =>
+      Promise.resolve(
+        domainStatuses.map((domainStatus) => ({ id, uri: domainStatus.id }))
+      )
+  )
 
 vi.mock('@/lib/services/guards/OAuthGuard', () => ({
   OAuthGuard:
@@ -72,9 +82,14 @@ describe('GET /api/v2/notifications', () => {
       ({ ids }: { ids: string[] }) =>
         Promise.resolve(ids.map((id) => ({ id: toColonFormId(id) })))
     )
-    mockGetMastodonStatus.mockImplementation(
-      (_db: unknown, domainStatus: { id: string }) =>
-        Promise.resolve({ id: toColonFormId(domainStatus.id) })
+    mockGetMastodonStatuses.mockImplementation(
+      (_db: unknown, domainStatuses: { id: string }[]) =>
+        Promise.resolve(
+          domainStatuses.map((domainStatus) => ({
+            id: toColonFormId(domainStatus.id),
+            uri: domainStatus.id
+          }))
+        )
     )
     mockDatabase.getStatus.mockResolvedValue({ id: 'status-url' })
     mockDatabase.getStatusesByIds.mockImplementation(
@@ -143,7 +158,7 @@ describe('GET /api/v2/notifications', () => {
     mockDatabase.getMastodonActorsFromIds.mockResolvedValue([
       { id: ALICE_PUBLIC_ID }
     ])
-    mockGetMastodonStatus.mockResolvedValue({ id: STATUS_PUBLIC_ID })
+    mockSerializedStatusesWithId(STATUS_PUBLIC_ID)
     mockDatabase.getNotifications.mockResolvedValueOnce([
       {
         id: 'n1',

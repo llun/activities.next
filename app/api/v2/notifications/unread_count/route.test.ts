@@ -25,12 +25,17 @@ vi.mock('@/lib/database', () => ({
 // Resolve statuses/accounts so the envelope keeps (does not suppress) the groups
 // — the count then reflects visible unread groups.
 vi.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
-  getMastodonStatus: vi
+  getMastodonStatuses: vi
     .fn()
-    .mockImplementation((_db: unknown, domainStatus: { id: string }) =>
-      Promise.resolve({
-        id: domainStatus.id.replace(/https?:\/\//, '').replaceAll('/', ':')
-      })
+    .mockImplementation((_db: unknown, domainStatuses: { id: string }[]) =>
+      Promise.resolve(
+        domainStatuses.map((domainStatus) => ({
+          id: domainStatus.id.replace(/https?:\/\//, '').replaceAll('/', ':'),
+          // The envelope pairs the serialized status back to its domain row on
+          // the ActivityPub `uri`, not on the flipped `id`.
+          uri: domainStatus.id
+        }))
+      )
     )
 }))
 
