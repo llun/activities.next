@@ -1,0 +1,83 @@
+app/api/v1/timelines/tag/[hashtag]/route.test.ts
+  s_4f4812f16bd65a::t_27557450dadcb8 4
+  s_4f4812f16bd65a::t_1e719aa0baa4d1 17-18
+  s_4f4812f16bd65a::t_d319e890f68493 520-521
+  s_4f4812f16bd65a::t_65e3b6c1746714 530-550
+app/api/v1/statuses/[id]/reblogged_by/route.ts
+  s_4f4812f16bd65a::t_815b342b285e14 108-114,121-122
+app/api/v1/timelines/list/[list_id]/route.ts
+  s_4f4812f16bd65a::t_2764041c511042 11,147-153,155-156
+app/api/v1/accounts/familiar_followers/route.test.ts
+  s_4f4812f16bd65a::t_7357ee8ceed1fd 78-82,93-95,97,99,112
+app/api/v1/statuses/[id]/route.test.ts
+  s_4f4812f16bd65a::t_d9a72f9eebc3fb 3495-3556
+  s_4f4812f16bd65a::t_686ec55614584d 3435,3443,3468,3490,3625,3688
+  s_4f4812f16bd65a::t_8844c8de3d6480 3590,3668
+app/api/v1/timelines/tag/[hashtag]/route.ts
+  s_4f4812f16bd65a::t_179d8393ec071c 9,181,185-191
+lib/services/mastodon/clientCursor.test.ts
+  s_4f4812f16bd65a::t_01f528e6d61de7 32-36,69-73,75-79,81-83
+  s_4f4812f16bd65a::t_aa33aea2f0f782 1-31,37-68,74,80,84-99
+app/api/v1/timelines/collection/[id]/route.ts
+  s_4f4812f16bd65a::t_2764041c511042 11,133-139,141-142
+app/api/v1/accounts/familiar_followers/route.ts
+  s_4f4812f16bd65a::t_8689e5499ebfbe 8,82
+lib/services/mastodon/clientCursor.ts
+  s_4f4812f16bd65a::t_786220a60889d7 1-32,37-49
+  s_4f4812f16bd65a::t_fd29572308137e 33-36
+app/api/v1/timelines/public/route.ts
+  s_4f4812f16bd65a::t_449547f3ce7e10 7,151,155-161
+app/api/v1/conversations/[id]/statuses/route.ts
+  s_4f4812f16bd65a::t_e64b6f1b4840b7 9,120-129,131-132
+app/api/v1/timelines/[timeline]/route.test.ts
+  s_4f4812f16bd65a::t_2a8959ae5f806c 819,821-823,827-878
+  s_4f4812f16bd65a::t_e0a02ebbdada01 762
+app/api/v1/timelines/public/route.test.ts
+  s_4f4812f16bd65a::t_f321b7d293eb1f 280-305
+app/api/v1/timelines/[timeline]/route.ts
+  s_4f4812f16bd65a::t_827ac5d6deb238 10
+  s_4f4812f16bd65a::t_7e52ef6f5883d5 132-137,140
+  s_4f4812f16bd65a::t_4b6d91ad5018fe 138,141
+app/api/v1/statuses/[id]/source/route.test.ts
+  s_4f4812f16bd65a::t_d727bad67b7b61 64,83-84,86,94,114
+app/api/v1/timelines/list/[list_id]/route.test.ts
+  s_4f4812f16bd65a::t_6125597663229d 105-113,117-135
+  s_4f4812f16bd65a::t_01f528e6d61de7 114-116
+app/api/v1/collections/[id]/feed/route.ts
+  s_4f4812f16bd65a::t_8ef2a1664894c7 6,110-116,118-119
+app/api/v1/statuses/[id]/source/route.ts
+  s_4f4812f16bd65a::t_8689e5499ebfbe 6,55
+app/api/v2/admin/accounts/route.ts
+  s_4f4812f16bd65a::t_4aa93180881cba 75-80
+app/api/v1/statuses/[id]/quotes/route.test.ts
+  s_4f4812f16bd65a::t_3b1f1c69f3116a 112-121,126,128-129,131-135,137-139,141,161-162
+  s_4f4812f16bd65a::t_4d03e6d9cf657a 122-125,127,130,136,140,142,145
+  s_4f4812f16bd65a::t_2f3f21297915a3 143-144,146-160
+app/api/v1/conversations/[id]/statuses/route.test.ts
+  s_4f4812f16bd65a::t_9a0b1afc758fff 56-58,61-68
+  s_4f4812f16bd65a::t_2368fd66784796 141-167,177-179,181-211
+  s_4f4812f16bd65a::t_20b03789d47ab4 12-13
+  s_4f4812f16bd65a::t_dea2cea7dfc395 168-176,180
+  s_4f4812f16bd65a::t_0df3d610558313 69
+app/api/v1/statuses/[id]/quotes/route.ts
+  s_4f4812f16bd65a::t_802b70fc100632 14
+  s_4f4812f16bd65a::t_417cc8c8d9066b 111
+app/api/v1/admin/accounts/route.ts
+  s_4f4812f16bd65a::t_4aa93180881cba 60-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "4721cd5e6c7b94618afa532b72e46dc6472d704d",
+  "prompts": {},
+  "sessions": {
+    "s_4f4812f16bd65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef4966e6-a801-42ad-bea7-0a298c41d397",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
