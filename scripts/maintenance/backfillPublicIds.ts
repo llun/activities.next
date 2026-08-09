@@ -20,11 +20,13 @@
  * the `publicId IS NULL` guard, so a value written concurrently by the app is
  * never clobbered, and a second run over a clean database is a no-op.
  *
- * Rows with a NULL `id` cannot be addressed by a per-row UPDATE (knex compiles
- * `.where('id', null)` to `id IS NULL`, which would match every null-id row at
- * once and write one publicId to all of them, and the unique index would reject
- * it). `actors.id` is nullable in both schema dumps, so they can exist; they are
- * skipped and reported instead.
+ * Rows with a NULL `id` cannot be addressed at all: the bulk UPDATE matches on
+ * `id IN (...)`, and SQL never matches NULL with IN. (Addressing them one row at
+ * a time would be worse than useless — knex compiles `.where('id', null)` to
+ * `id IS NULL`, which matches every null-id row at once and would write one
+ * publicId to all of them, which the unique index rejects.) `actors.id` is
+ * nullable in both schema dumps, so such rows can exist; they are skipped and
+ * reported instead.
  *
  * EXIT CODE. 0 only when no NULL publicId remains anywhere — that is the deploy
  * gate for the follow-up "emit publicIds" change. 1 when any row still has one,
@@ -150,6 +152,75 @@ export const parseArgs = (args: string[]) => {
   return CliArgs.parse({ dryRun, batchSize })
 }
 
+// Rows folded into a single bulk UPDATE, matching the migration's constant of
+// the same name. Each row contributes three bind parameters (the CASE match,
+// the CASE value, and the id in the IN list), so 200 rows is 600 parameters —
+// under the 999-parameter floor of the most conservatively built SQLite, and
+// nowhere near PostgreSQL's 65535.
+const UPDATE_CHUNK_SIZE = 200
+
+interface PublicIdUpdate {
+  id: string
+  publicId: string
+}
+
+// One UPDATE per chunk, awaited one chunk at a time.
+//
+// This used to be a per-row UPDATE fanned out with Promise.all over the whole
+// --batch-size (500 by default). The pool this script runs on is the APP's
+// (`getDatabaseConfig()`), which caps at ACTIVITIES_DATABASE_PG_POOL_MAX — 5 in
+// production and 1 if unset — so the other 495 queries sat in tarn's acquire
+// queue and the whole batch had to drain inside a single 60s
+// acquireConnectionTimeout. That is the same failure that killed the migration
+// mid-backfill ("Timeout acquiring a connection. The pool is probably full."),
+// only on a tighter pool; see the matching bulkUpdatePublicIds() in
+// migrations/20260808000000_add_public_ids.js.
+//
+// Awaiting sequentially means the backfill holds exactly ONE pooled connection
+// at any moment: it cannot starve its own pool, and it leaves the rest of the
+// connection budget to the app serving traffic — which matters here precisely
+// because this script is meant to run against a live production database.
+const bulkUpdatePublicIds = async (
+  database: knex.Knex,
+  tableName: TableName,
+  updates: PublicIdUpdate[]
+) => {
+  let updated = 0
+
+  for (let offset = 0; offset < updates.length; offset += UPDATE_CHUNK_SIZE) {
+    const chunk = updates.slice(offset, offset + UPDATE_CHUNK_SIZE)
+
+    // `else ??` is unreachable — the IN list restricts the statement to exactly
+    // the ids the CASE enumerates — but it keeps the expression total, so a row
+    // can never be blanked, and it gives PostgreSQL a typed branch to resolve
+    // the otherwise-unknown parameters against.
+    const caseSql = `case ?? ${chunk.map(() => 'when ? then ?').join(' ')} else ?? end`
+    const caseBindings = [
+      'id',
+      ...chunk.flatMap(({ id, publicId }) => [id, publicId]),
+      'publicId'
+    ]
+
+    // Built through the query builder rather than database.raw so the return
+    // value is knex's normalised affected-row count on every dialect (a raw
+    // UPDATE hands back the driver's own result shape instead).
+    const affected = await database(tableName)
+      .whereIn(
+        'id',
+        chunk.map(({ id }) => id)
+      )
+      // The same guard the migration uses: a publicId written by the app
+      // between the SELECT and this UPDATE wins, and re-running the script
+      // never rewrites a row that already has one.
+      .whereNull('publicId')
+      .update({ publicId: database.raw(caseSql, caseBindings) })
+
+    updated += Number(affected ?? 0)
+  }
+
+  return updated
+}
+
 interface TableReport {
   table: TableName
   backfilled: number
@@ -158,8 +229,9 @@ interface TableReport {
   stopReason: string | null
 }
 
-// Rows still missing a publicId, split by whether a per-row UPDATE can address
-// them at all. `addressable: false` counts the NULL-id rows described above.
+// Rows still missing a publicId, split by whether an id-based UPDATE can
+// address them at all. `addressable: false` counts the NULL-id rows described
+// above — `id IN (...)` never matches NULL.
 const countMissingPublicIds = async (
   database: knex.Knex,
   tableName: TableName,
@@ -174,7 +246,7 @@ const countMissingPublicIds = async (
   return Number(result?.cnt ?? 0)
 }
 
-const backfillTable = async (
+export const backfillTable = async (
   database: knex.Knex,
   tableName: TableName,
   { dryRun, batchSize }: { dryRun: boolean; batchSize: number }
@@ -204,20 +276,13 @@ const backfillTable = async (
         .limit(batchSize)
       if (rows.length === 0) break
 
-      const results = await Promise.all(
-        rows.map((row: { id: string; createdAt: unknown }) =>
-          database(tableName)
-            // The same guard the migration uses: a publicId written by the app
-            // between this SELECT and this UPDATE wins, and re-running the
-            // script never rewrites a row that already has one.
-            .where('id', row.id)
-            .whereNull('publicId')
-            .update({ publicId: mintPublicId(row.createdAt) })
-        )
-      )
-      const filled = results.reduce(
-        (sum: number, count) => sum + Number(count ?? 0),
-        0
+      const filled = await bulkUpdatePublicIds(
+        database,
+        tableName,
+        rows.map((row: { id: string; createdAt: unknown }) => ({
+          id: row.id,
+          publicId: mintPublicId(row.createdAt)
+        }))
       )
       backfilled += filled
       console.log(
@@ -306,7 +371,7 @@ async function backfillPublicIds(args = process.argv.slice(2)) {
 
     if (totals.unaddressable > 0) {
       console.log(
-        `\n${totals.unaddressable} row(s) have a NULL id and cannot be addressed by a per-row UPDATE.\n` +
+        `\n${totals.unaddressable} row(s) have a NULL id and cannot be addressed by an id-based UPDATE.\n` +
           'Repair their id first — until then they can never carry a publicId.'
       )
     }
