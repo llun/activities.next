@@ -759,7 +759,7 @@ describe('GET /api/v1/timelines/[timeline]', () => {
       expect(data.statuses).toEqual([])
     })
 
-    test('a publicId max_id keeps the same page and the legacy colon-form Link header as the colon-form cursor', async () => {
+    test('a publicId max_id keeps the same page and the same publicId Link header as the colon-form cursor', async () => {
       // Uses the plain Mastodon-array format (no format=activities_next) since
       // that is the only response shape that carries a Link header.
       mockGetServerSession.mockResolvedValue({
@@ -816,18 +816,66 @@ describe('GET /api/v1/timelines/[timeline]', () => {
         (s: { id: string }) => s.id
       )
       expect(publicIdIds).toEqual(legacyIds)
-      expect(publicIdIds).toEqual([urlToId(middle.id)])
+      expect(publicIdIds).toEqual([middle.publicId])
 
-      // PR 1 does not change emission: the Link header still carries the
-      // legacy colon-form cursor even when the request came in with a
-      // publicId cursor.
+      // Emission is cursor-form independent: whichever id form the client sent,
+      // the Link header carries the boundary status's publicId, never the
+      // legacy colon form.
       const legacyLink = legacyResponse.headers.get('Link') || ''
       const publicIdLink = publicIdResponse.headers.get('Link') || ''
       expect(publicIdLink).toEqual(legacyLink)
-      expect(legacyLink).toContain(`max_id=${urlToId(middle.id)}`)
-      expect(legacyLink).not.toContain(anchor.publicId)
-      expect(legacyLink).not.toContain(middle.publicId)
-      expect(legacyLink).not.toContain(oldest.publicId)
+      expect(legacyLink).toContain(`max_id=${middle.publicId}`)
+      expect(legacyLink).not.toContain(urlToId(middle.id))
+      expect(legacyLink).not.toContain(urlToId(anchor.id))
+      expect(legacyLink).not.toContain(urlToId(oldest.id))
+    })
+
+    test('the emitted max_id Link cursor pages to the next older status', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const actorId = await createIsolatedActor()
+      mockCookieValue.value = actorId
+
+      const older = await createTimelineNote({
+        actorId,
+        timelineActorId: actorId,
+        name: 'roundtrip-older'
+      })
+      const newer = await createTimelineNote({
+        actorId,
+        timelineActorId: actorId,
+        name: 'roundtrip-newer'
+      })
+
+      const firstPage = await GET(
+        new NextRequest('https://llun.test/api/v1/timelines/main?limit=1'),
+        { params: Promise.resolve({ timeline: 'main' }) }
+      )
+      expect(firstPage.status).toBe(200)
+      expect((await firstPage.json()).map((s: { id: string }) => s.id)).toEqual(
+        [newer.publicId]
+      )
+
+      const nextCursor = new URL(
+        firstPage.headers
+          .get('Link')!
+          .split(', ')
+          .find((part) => part.includes('rel="next"'))!
+          .match(/<([^>]+)>/)![1]
+      ).searchParams.get('max_id')
+      expect(nextCursor).toBe(newer.publicId)
+
+      const secondPage = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/timelines/main?limit=1&max_id=${nextCursor}`
+        ),
+        { params: Promise.resolve({ timeline: 'main' }) }
+      )
+      expect(secondPage.status).toBe(200)
+      expect(
+        (await secondPage.json()).map((s: { id: string }) => s.id)
+      ).toEqual([older.publicId])
     })
   })
 

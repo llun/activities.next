@@ -109,6 +109,57 @@ describe('GET /api/v1/statuses/[id]/quotes', () => {
     ])
   })
 
+  it('emits the quoting statuses publicIds as the Link cursors', async () => {
+    const quotedId = `${ACTOR1_ID}/statuses/quotes-cursor-target`
+    await database.createNote({
+      id: quotedId,
+      url: quotedId,
+      actorId: ACTOR1_ID,
+      text: 'quote me for the cursor',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+    const firstQuotingId = `${ACTOR2_ID}/statuses/quotes-cursor-1`
+    await createQuotingStatus(firstQuotingId, ACTOR2_ID, quotedId, 'accepted')
+    const secondQuotingId = `${ACTOR3_ID}/statuses/quotes-cursor-2`
+    await createQuotingStatus(secondQuotingId, ACTOR3_ID, quotedId, 'accepted')
+
+    // limit=1 leaves an overflow row, so the route advertises a next cursor.
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v1/statuses/${urlToId(quotedId)}/quotes?limit=1`
+      ),
+      { params: Promise.resolve({ id: urlToId(quotedId) }) }
+    )
+
+    expect(response.status).toBe(200)
+    const nextMaxId = new URL(
+      response.headers
+        .get('Link')!
+        .split(', ')
+        .find((part) => part.includes('rel="next"'))!
+        .match(/<([^>]+)>/)![1]
+    ).searchParams.get('max_id')
+    // Newest-first: page 1 holds the second quote, so it is the next cursor.
+    const boundary = await database.getStatus({ statusId: secondQuotingId })
+    expect(nextMaxId).toBe(boundary!.publicId)
+
+    // The advertised publicId cursor pages to the older quote.
+    const nextResponse = await GET(
+      new NextRequest(
+        `https://llun.test/api/v1/statuses/${urlToId(
+          quotedId
+        )}/quotes?limit=1&max_id=${nextMaxId}`
+      ),
+      { params: Promise.resolve({ id: urlToId(quotedId) }) }
+    )
+    expect(nextResponse.status).toBe(200)
+    const older = await database.getStatus({ statusId: firstQuotingId })
+    expect(
+      ((await nextResponse.json()) as { id: string }[]).map(({ id }) => id)
+    ).toEqual([older!.publicId])
+  })
+
   it('excludes quoting statuses the viewer cannot read (no visibility leak)', async () => {
     const quotedId = `${ACTOR1_ID}/statuses/quotes-visibility-target`
     await database.createNote({

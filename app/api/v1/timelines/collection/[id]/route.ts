@@ -8,6 +8,7 @@ import {
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { getClientStatusCursors } from '@/lib/services/mastodon/clientCursor'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { TimelineFormat } from '@/lib/services/timelines/const'
 import {
@@ -25,7 +26,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { urlToId } from '@/lib/utils/urlToId'
 
 export const dynamic = 'force-dynamic'
 
@@ -130,11 +130,16 @@ export const GET = traceApiRoute(
         const host = headerHost(req.headers)
         const firstStatus = statuses[0]
         const lastStatus = statuses[statuses.length - 1]
-        const nextLink = lastStatus
-          ? `<https://${host}/api/v1/timelines/collection/${id}?limit=${limit}&max_id=${urlToId(lastStatus.id)}>; rel="next"`
+        const [nextCursor, prevCursor] = await getClientStatusCursors(
+          database,
+          statuses,
+          [lastStatus?.id ?? null, firstStatus?.id ?? null]
+        )
+        const nextLink = nextCursor
+          ? `<https://${host}/api/v1/timelines/collection/${id}?limit=${limit}&max_id=${nextCursor}>; rel="next"`
           : null
-        const prevLink = firstStatus
-          ? `<https://${host}/api/v1/timelines/collection/${id}?limit=${limit}&min_id=${urlToId(firstStatus.id)}>; rel="prev"`
+        const prevLink = prevCursor
+          ? `<https://${host}/api/v1/timelines/collection/${id}?limit=${limit}&min_id=${prevCursor}>; rel="prev"`
           : null
         const links = [nextLink, prevLink].filter(Boolean).join(', ')
 

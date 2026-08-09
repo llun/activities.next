@@ -3432,7 +3432,7 @@ describe('GET /api/v1/statuses/[id]', () => {
 
       const olderAnnounceId = `${ACTOR2_ID}/statuses/api-reblogged-by-older`
       const newerAnnounceId = `${ACTOR3_ID}/statuses/api-reblogged-by-newer`
-      await database.createAnnounce({
+      const olderAnnounce = await database.createAnnounce({
         id: olderAnnounceId,
         actorId: ACTOR2_ID,
         to: [ACTIVITY_STREAM_PUBLIC],
@@ -3440,7 +3440,7 @@ describe('GET /api/v1/statuses/[id]', () => {
         originalStatusId: statusId,
         createdAt: Date.parse('2024-01-01T00:00:00.000Z')
       })
-      await database.createAnnounce({
+      const newerAnnounce = await database.createAnnounce({
         id: newerAnnounceId,
         actorId: ACTOR3_ID,
         to: [ACTIVITY_STREAM_PUBLIC],
@@ -3465,7 +3465,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       ])
       expect(firstResponse.headers.get('Link')).toEqual(
         expect.stringContaining(
-          `max_id=${encodeURIComponent(urlToId(newerAnnounceId))}`
+          `max_id=${encodeURIComponent(newerAnnounce!.publicId!)}`
         )
       )
 
@@ -3487,9 +3487,71 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(nextLinkHeader).not.toEqual(expect.stringContaining('rel="next"'))
       expect(nextLinkHeader).toEqual(
         expect.stringContaining(
-          `since_id=${encodeURIComponent(urlToId(olderAnnounceId))}`
+          `since_id=${encodeURIComponent(olderAnnounce!.publicId!)}`
         )
       )
+    })
+
+    it('pages with the publicId max_id cursor it advertised', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const statusId = `${ACTOR1_ID}/statuses/api-reblogged-by-roundtrip`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Public status with reblogs to page over',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createAnnounce({
+        id: `${ACTOR2_ID}/statuses/api-reblogged-by-roundtrip-older`,
+        actorId: ACTOR2_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: statusId,
+        createdAt: Date.parse('2024-08-01T00:00:00.000Z')
+      })
+      const newerAnnounce = await database.createAnnounce({
+        id: `${ACTOR3_ID}/statuses/api-reblogged-by-roundtrip-newer`,
+        actorId: ACTOR3_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: statusId,
+        createdAt: Date.parse('2024-08-02T00:00:00.000Z')
+      })
+
+      const firstResponse = await getStatusRebloggedBy(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(
+            statusId
+          )}/reblogged_by?limit=1`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      expect(firstResponse.status).toBe(200)
+      const advertisedMaxId = new URL(
+        firstResponse.headers
+          .get('Link')!
+          .split(', ')
+          .find((part) => part.includes('rel="next"'))!
+          .match(/<([^>]+)>/)![1]
+      ).searchParams.get('max_id')
+      expect(advertisedMaxId).toBe(newerAnnounce!.publicId)
+
+      // Feed the advertised publicId cursor straight back in.
+      const nextResponse = await getStatusRebloggedBy(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(
+            statusId
+          )}/reblogged_by?limit=1&max_id=${advertisedMaxId}`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      expect(nextResponse.status).toBe(200)
+      const nextPage = (await nextResponse.json()) as { id: string }[]
+      const actor2 = await database.getActorFromId({ id: ACTOR2_ID })
+      expect(nextPage.map((account) => account.id)).toEqual([actor2!.publicId])
     })
 
     it('deduplicates boosting accounts before applying cursor pagination', async () => {
@@ -3525,7 +3587,7 @@ describe('GET /api/v1/statuses/[id]', () => {
         originalStatusId: statusId,
         createdAt: Date.parse('2024-03-02T00:00:00.000Z')
       })
-      await database.createAnnounce({
+      const newerDuplicateAnnounce = await database.createAnnounce({
         id: newerDuplicateAnnounceId,
         actorId: ACTOR2_ID,
         to: [ACTIVITY_STREAM_PUBLIC],
@@ -3560,7 +3622,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(firstResponse.status).toBe(200)
       expect(firstResponse.headers.get('Link')).toEqual(
         expect.stringContaining(
-          `max_id=${encodeURIComponent(urlToId(newerDuplicateAnnounceId))}`
+          `max_id=${encodeURIComponent(newerDuplicateAnnounce!.publicId!)}`
         )
       )
 
@@ -3603,7 +3665,7 @@ describe('GET /api/v1/statuses/[id]', () => {
         originalStatusId: statusId,
         createdAt: Date.parse('2024-06-01T00:00:00.000Z')
       })
-      await database.createAnnounce({
+      const cursorAnnounce = await database.createAnnounce({
         id: cursorAnnounceId,
         actorId: ACTOR2_ID,
         to: [ACTIVITY_STREAM_PUBLIC],
@@ -3623,7 +3685,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(firstResponse.status).toBe(200)
       expect(firstResponse.headers.get('Link')).toEqual(
         expect.stringContaining(
-          `max_id=${encodeURIComponent(urlToId(cursorAnnounceId))}`
+          `max_id=${encodeURIComponent(cursorAnnounce!.publicId!)}`
         )
       )
 

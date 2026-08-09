@@ -105,13 +105,21 @@ export const GET = traceApiRoute(
       const hasNext = minId ? true : hasOverflow
       const hasPrev = minId ? hasOverflow : true
 
+      // Reblog rows carry only the announce URI, so resolve the page's public
+      // ids in one batched query instead of one lookup per cursor. A row with no
+      // publicId falls back to the legacy colon form, which the accept side
+      // still resolves.
+      const reblogPublicIds = await database.getStatusPublicIds({
+        statusIds: reblogs.map((reblog) => reblog.statusId)
+      })
       const paginationLink = buildAccountCursorLinkHeader({
         req,
         limit,
         items: reblogs,
         hasNext,
         hasPrev,
-        toCursor: (reblog) => urlToId(reblog.statusId)
+        toCursor: (reblog) =>
+          reblogPublicIds.get(reblog.statusId) ?? urlToId(reblog.statusId)
       })
 
       const requestedActorIds = reblogs.map(({ actorId }) => actorId)

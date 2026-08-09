@@ -102,6 +102,37 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
     expect(link).toContain('rel="prev"')
   })
 
+  it('emits publicId Link cursors that page back to the same boundary status', async () => {
+    vi.spyOn(database, 'getListTimeline').mockResolvedValue([listStatus])
+
+    const response = await GET(request(), {
+      params: Promise.resolve({ list_id: listId })
+    })
+    const parts = response.headers.get('Link')!.split(', ')
+    const cursorOf = (rel: string, param: string) =>
+      new URL(
+        parts
+          .find((part) => part.includes(`rel="${rel}"`))!
+          .match(/<([^>]+)>/)![1]
+      ).searchParams.get(param)
+
+    expect(cursorOf('next', 'max_id')).toBe(listStatus.publicId)
+    expect(cursorOf('prev', 'min_id')).toBe(listStatus.publicId)
+
+    // Feed the advertised cursor back in: it resolves to the stored URI before
+    // it reaches the list query.
+    const spy = vi.spyOn(database, 'getListTimeline').mockResolvedValue([])
+    const secondPage = await GET(
+      request({ max_id: cursorOf('next', 'max_id')! }),
+      { params: Promise.resolve({ list_id: listId }) }
+    )
+
+    expect(secondPage.status).toBe(200)
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ maxStatusId: listStatus.id })
+    )
+  })
+
   it('returns the activities_next domain shape when format=activities_next', async () => {
     vi.spyOn(database, 'getListTimeline').mockResolvedValue([listStatus])
 

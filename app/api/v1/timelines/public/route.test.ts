@@ -277,7 +277,32 @@ describe('GET /api/v1/timelines/public', () => {
         .split(', ')
         .find((part) => part.includes('rel="prev"'))
       const prevUrl = new URL(prevPart!.match(/<([^>]+)>/)![1])
-      expect(prevUrl.searchParams.get('min_id')).toBe(urlToId(publicStatus.id))
+      expect(prevUrl.searchParams.get('min_id')).toBe(publicStatus.publicId)
+    })
+
+    it('resolves its own emitted min_id cursor back to the boundary status', async () => {
+      vi.spyOn(database, 'getTimeline').mockResolvedValue([publicStatus])
+      const firstPage = await GET(request(), { params: Promise.resolve({}) })
+      const prevUrl = new URL(
+        firstPage.headers
+          .get('Link')!
+          .split(', ')
+          .find((part) => part.includes('rel="prev"'))!
+          .match(/<([^>]+)>/)![1]
+      )
+      const emittedMinId = prevUrl.searchParams.get('min_id')!
+
+      const spy = vi.spyOn(database, 'getTimeline').mockResolvedValue([])
+      const response = await GET(request({ min_id: emittedMinId }), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(200)
+      // The publicId cursor the header advertised resolves to the stored URI
+      // before it reaches the timeline query.
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({ minStatusId: publicStatus.id })
+      )
     })
   })
 

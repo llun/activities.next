@@ -11,9 +11,9 @@ import {
 import { Scope } from '@/lib/types/database/operations'
 import { clampedLimit } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { getClientStatusId } from '@/lib/utils/publicId'
 import { apiCorsError, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { urlToId } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -108,7 +108,7 @@ export const GET = traceApiRoute(
         items: statuses,
         hasNext: hasOverflow,
         hasPrev: Boolean(maxId || sinceId),
-        toCursor: (status) => urlToId(status.id)
+        toCursor: (status) => getClientStatusId(status)
       })
 
       return apiResponse({

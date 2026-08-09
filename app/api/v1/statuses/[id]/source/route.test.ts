@@ -61,7 +61,7 @@ describe('GET /api/v1/statuses/[id]/source', () => {
 
   it('returns the StatusSource shape { id, text, spoiler_text }', async () => {
     const statusId = `${ACTOR1_ID}/statuses/api-source-shape`
-    await database.createNote({
+    const status = await database.createNote({
       id: statusId,
       url: statusId,
       actorId: ACTOR1_ID,
@@ -80,8 +80,10 @@ describe('GET /api/v1/statuses/[id]/source', () => {
 
     expect(response.status).toBe(200)
     const data = await response.json()
+    // The request still used the legacy colon-form id; the response echoes the
+    // publicId the status entity carries everywhere else.
     expect(data).toEqual({
-      id: urlToId(statusId),
+      id: status.publicId,
       text: 'The plain-text source of the status',
       spoiler_text: 'A content warning'
     })
@@ -89,7 +91,7 @@ describe('GET /api/v1/statuses/[id]/source', () => {
 
   it('returns an empty spoiler_text when the status has no content warning', async () => {
     const statusId = `${ACTOR1_ID}/statuses/api-source-no-cw`
-    await database.createNote({
+    const status = await database.createNote({
       id: statusId,
       url: statusId,
       actorId: ACTOR1_ID,
@@ -109,7 +111,7 @@ describe('GET /api/v1/statuses/[id]/source', () => {
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data).toEqual({
-      id: urlToId(statusId),
+      id: status.publicId,
       text: 'No content warning here',
       spoiler_text: ''
     })
