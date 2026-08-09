@@ -21,8 +21,9 @@ import { Switch } from '@/lib/components/ui/switch'
 import { ListEntity } from '@/lib/types/mastodon/list'
 
 export interface ListMember {
-  // The Mastodon Account `id` (the `urlToId`-encoded actor id, not the raw
-  // URI — that lives in `account.url`). Sent as-is to the list accounts API.
+  // The Mastodon Account `id` (a publicId, or the legacy `urlToId` form on a
+  // pre-backfill row — the raw URI lives in `account.uri`/`account.url`). Sent
+  // as-is to the list accounts API, which resolves either form.
   id: string
   name: string
   handle: string

@@ -1,4 +1,10 @@
-import { idToUrl, safeIdToUrl, urlToId } from '@/lib/utils/urlToId'
+import { generatePublicId, isPublicId } from '@/lib/utils/publicId'
+import {
+  idToUrl,
+  safeIdToUrl,
+  toIdPathSegment,
+  urlToId
+} from '@/lib/utils/urlToId'
 
 describe('urlToId', () => {
   it('converts all / to :', () => {
@@ -201,5 +207,52 @@ describe('safeIdToUrl', () => {
     { description: 'spaces in value', value: 'a b c' }
   ])('returns null for malformed cursor ($description)', ({ value }) => {
     expect(safeIdToUrl(value)).toBeNull()
+  })
+})
+
+describe('toIdPathSegment', () => {
+  it('leaves a UUIDv7 public id untouched', () => {
+    // The bug this guards: urlToId parses a bare uuid as a URL host and hands
+    // back `<uuid>:`, which is neither a public id nor a decodable legacy id,
+    // so no accept-side resolver can reach the stored row.
+    const publicId = generatePublicId()
+
+    expect(toIdPathSegment(publicId)).toEqual(publicId)
+    expect(isPublicId(toIdPathSegment(publicId))).toBe(true)
+    expect(urlToId(publicId)).toEqual(`${publicId}:`)
+  })
+
+  // Everything that is already an encoded id form travels verbatim: the route
+  // resolvers accept all of them, so re-encoding can only corrupt them.
+  it.each([
+    { description: 'colon form', id: 'llun.test:users:test1' },
+    {
+      description: 'opaque apurl_ id',
+      id: urlToId('https://llun.test:8443/u')
+    },
+    { description: 'numeric Mastodon id', id: '12345' },
+    { description: 'empty string', id: '' }
+  ])('passes $description through unchanged', ({ id }) => {
+    expect(toIdPathSegment(id)).toEqual(id)
+  })
+
+  // A raw AP URI is the one form that must still be encoded — its slashes would
+  // otherwise split the route path — and the accept side decodes it back.
+  it.each([
+    {
+      description: 'https URI',
+      id: 'https://llun.test/users/test1/statuses/2'
+    },
+    {
+      description: 'URI with a port',
+      id: 'https://llun.test:8443/users/test1'
+    },
+    { description: 'http URI', id: 'http://llun.test/users/test1' }
+  ])('encodes a raw AP URI ($description) into a slash-free id', ({ id }) => {
+    const segment = toIdPathSegment(id)
+
+    expect(segment).toEqual(urlToId(id))
+    expect(segment).not.toContain('/')
+    expect(safeIdToUrl(segment)).not.toBeNull()
   })
 })

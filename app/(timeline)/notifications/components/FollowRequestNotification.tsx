@@ -54,8 +54,9 @@ export const FollowRequestNotification: FC<Props> = ({
     setIsLoading(true)
     setError(null)
     try {
-      // Send the account id (the urlToId format the API resolves), matching
-      // what a Mastodon client would send; the route still accepts a raw URL.
+      // Send the Mastodon Account id verbatim (a publicId, or the legacy
+      // `urlToId` form on a pre-backfill row), matching what a Mastodon client
+      // would send; the route resolves either, and still accepts a raw URL.
       const ok =
         action === 'accept'
           ? await acceptFollowRequest({ id: account.id })

@@ -153,6 +153,14 @@ The accept side has to stay permanent because emission is not universal either:
 a row written before the publicId backfill, and a remote actor this instance
 does not store, have no `publicId` and fall back to emitting the legacy form.
 
+Because every form is accepted, the first-party web client (`lib/client.ts`)
+sends ids back exactly as it received them — re-encoding is not merely
+redundant, it is destructive: `urlToId` reads a bare UUIDv7 as a URL host and
+returns it with a trailing colon, which neither resolution boundary can decode.
+The one transformation left is `toIdPathSegment` (`lib/utils/urlToId.ts`), used
+for an id interpolated into a URL **path** segment; it encodes only a raw
+ActivityPub URI, whose slashes would otherwise split the route.
+
 `publicId` is only ever minted on insert — there is no lazy mint — so existing
 rows are filled in by the `backfillPublicIds.ts` maintenance script; see
 [Maintenance](./maintenance.md#public-id-backfill).
