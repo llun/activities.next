@@ -4,7 +4,7 @@ import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { Mastodon } from '@/lib/types/activitypub'
 import { Report } from '@/lib/types/database/operations'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
-import { urlToId } from '@/lib/utils/urlToId'
+import { getClientActorId } from '@/lib/utils/publicId'
 
 // Hydrate a batch of reports into Admin::Report entities: the four embedded
 // Admin::Accounts (reporter, target, assigned, action-taken-by), the reported
@@ -38,7 +38,7 @@ export const serializeAdminReports = async (
     records
       .map((record): [string, Mastodon.AdminAccount | undefined] => [
         record.actor.id,
-        accountByMastodonId.get(urlToId(record.actor.id))
+        accountByMastodonId.get(getClientActorId(record.actor))
       ])
       .filter((entry): entry is [string, Mastodon.AdminAccount] =>
         Boolean(entry[1])
@@ -55,8 +55,11 @@ export const serializeAdminReports = async (
     domainStatuses,
     moderatorActorId
   )
-  const statusByMastodonId = new Map(
-    mastodonStatuses.map((status) => [status.id, status])
+  // Keyed by the AP URI rather than the emitted id: `uri` is always the status
+  // URI, which is what report.statusIds holds, so the join needs no knowledge of
+  // how ids are encoded on the wire.
+  const statusByUri = new Map(
+    mastodonStatuses.map((status) => [status.uri, status])
   )
 
   // 3. Instance rules.
@@ -92,7 +95,7 @@ export const serializeAdminReports = async (
           ? (accountByActorId.get(report.actionTakenByActorId) ?? null)
           : null,
         statuses: report.statusIds
-          .map((statusId) => statusByMastodonId.get(urlToId(statusId)))
+          .map((statusId) => statusByUri.get(statusId))
           .filter((status): status is Mastodon.Status => Boolean(status)),
         rules: report.ruleIds
           .map((ruleId) => ruleById.get(ruleId))

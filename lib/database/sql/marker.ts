@@ -39,9 +39,11 @@ export const MarkerSQLDatabaseMixin = (database: Knex): MarkerDatabase => ({
 
   async upsertMarker({ actorId, timeline, lastReadId }: UpsertMarkerParams) {
     // Marker ids in this system are opaque strings / UUIDs (crypto.randomUUID(),
-    // urlToId base64url/colon encoding) — they are NOT numeric snowflakes and NOT
-    // chronologically ordered. Id-comparison monotonicity is therefore unsound
-    // and can wrongly freeze the read position. This is unconditional last-write-wins;
+    // a UUIDv7 publicId, or the legacy urlToId base64url/colon encoding) — a MIX
+    // of forms, never numeric snowflakes, so a stored value cannot be compared
+    // for ordering against the next one even when one of those forms happens to
+    // sort by time. Id-comparison monotonicity is therefore unsound and can
+    // wrongly freeze the read position. This is unconditional last-write-wins;
     // `version` still increments atomically so clients can detect concurrent updates.
     const updatedAt = new Date()
 

@@ -1,14 +1,12 @@
 import { Database } from '@/lib/database/types'
 import { applyFiltersToStatus } from '@/lib/services/filters/applyFilters'
-import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { FilterRecordWithStatusPublicIds } from '@/lib/services/mastodon/getMastodonFilter'
+import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 import { DEFAULT_GROUPABLE_TYPES } from '@/lib/services/notifications/notificationTypeMapping'
 import { Mastodon } from '@/lib/types/activitypub'
-import {
-  ActiveFilterRecord,
-  Notification,
-  NotificationType
-} from '@/lib/types/database/operations'
+import { Notification, NotificationType } from '@/lib/types/database/operations'
+import { Status } from '@/lib/types/domain/status'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 // Mastodon notification type mapping
@@ -50,6 +48,69 @@ export interface MastodonNotification {
   grouped_accounts?: Mastodon.Account[]
 }
 
+export interface GetMastodonNotificationOptions {
+  includeGrouping?: boolean
+  currentActorId?: string
+  filterRecords?: FilterRecordWithStatusPublicIds[]
+}
+
+// A notification's status: the serialized entity plus the domain row the
+// filters are applied to.
+interface ResolvedNotificationStatus {
+  domainStatus: Status
+  mastodonStatus: Mastodon.Status
+}
+
+/**
+ * Hydrates every status a page of notifications references in one fetch and one
+ * batched serialization.
+ *
+ * getMastodonStatuses resolves the whole page's mention publicIds — plus its
+ * reblog/reply counts, reaction rollups, pinned state and quoted statuses — in
+ * one query each. A notification-at-a-time call issues one of each per status,
+ * and the mention lookup in particular is a query that did not exist before ids
+ * became publicIds.
+ */
+const resolveNotificationStatuses = async (
+  database: Database,
+  notifications: (Notification | GroupedNotification)[],
+  currentActorId?: string
+): Promise<Map<string, ResolvedNotificationStatus>> => {
+  const resolved = new Map<string, ResolvedNotificationStatus>()
+  const statusIds = [
+    ...new Set(
+      notifications
+        .map((notification) => notification.statusId)
+        .filter((statusId): statusId is string => Boolean(statusId))
+    )
+  ]
+  if (statusIds.length === 0) return resolved
+
+  // Deliberately fetched without a viewer, exactly as the per-notification path
+  // did: the v1 notification entity has never carried the viewer's own action
+  // state on its status.
+  const domainStatuses = await database.getStatusesByIds({
+    statusIds,
+    withReplies: false
+  })
+  const mastodonStatuses = await getMastodonStatuses(
+    database,
+    domainStatuses,
+    currentActorId
+  )
+  // Join on the ActivityPub URI: a serialized status's `id` is a publicId,
+  // while the notification and the domain row both carry the stored URI.
+  const mastodonStatusByUri = new Map(
+    mastodonStatuses.map((status) => [status.uri, status] as const)
+  )
+  for (const domainStatus of domainStatuses) {
+    const mastodonStatus = mastodonStatusByUri.get(domainStatus.id)
+    if (!mastodonStatus) continue
+    resolved.set(domainStatus.id, { domainStatus, mastodonStatus })
+  }
+  return resolved
+}
+
 /**
  * Map internal notification type to Mastodon API type
  */
@@ -89,20 +150,13 @@ const mapNotificationType = (
 /**
  * Transform internal notification to Mastodon-compatible format
  */
-export const getMastodonNotification = async (
+const serializeNotification = async (
   database: Database,
   notification: Notification | GroupedNotification,
-  options?: {
-    includeGrouping?: boolean
-    currentActorId?: string
-    filterRecords?: ActiveFilterRecord[]
-  }
+  resolvedStatuses: ReadonlyMap<string, ResolvedNotificationStatus>,
+  options?: GetMastodonNotificationOptions
 ): Promise<MastodonNotification | null> => {
-  const {
-    includeGrouping = false,
-    currentActorId,
-    filterRecords
-  } = options || {}
+  const { includeGrouping = false, filterRecords } = options || {}
 
   // Fetch account
   const account = await database.getMastodonActorFromId({
@@ -113,41 +167,32 @@ export const getMastodonNotification = async (
     return null
   }
 
-  // Fetch status if present
+  // Attach the status if present, from the page-wide hydration above
   let status: Mastodon.Status | undefined
-  if (notification.statusId) {
-    const statusData = await database.getStatus({
-      statusId: notification.statusId,
-      withReplies: false
-    })
-    if (statusData) {
-      const mastodonStatus = await getMastodonStatus(
-        database,
-        statusData,
-        currentActorId
-      )
-      if (mastodonStatus) {
-        if (filterRecords && filterRecords.length > 0) {
-          const matches = applyFiltersToStatus(statusData, filterRecords)
-          if (matches.some((match) => match.filter.filter_action === 'hide')) {
-            return null
-          }
-          if (matches.length > 0) {
-            if (mastodonStatus.reblog) {
-              status = {
-                ...mastodonStatus,
-                reblog: { ...mastodonStatus.reblog, filtered: matches }
-              }
-            } else {
-              status = { ...mastodonStatus, filtered: matches }
-            }
-          } else {
-            status = mastodonStatus
+  const resolvedStatus = notification.statusId
+    ? resolvedStatuses.get(notification.statusId)
+    : undefined
+  if (resolvedStatus) {
+    const { domainStatus, mastodonStatus } = resolvedStatus
+    if (filterRecords && filterRecords.length > 0) {
+      const matches = applyFiltersToStatus(domainStatus, filterRecords)
+      if (matches.some((match) => match.filter.filter_action === 'hide')) {
+        return null
+      }
+      if (matches.length > 0) {
+        if (mastodonStatus.reblog) {
+          status = {
+            ...mastodonStatus,
+            reblog: { ...mastodonStatus.reblog, filtered: matches }
           }
         } else {
-          status = mastodonStatus
+          status = { ...mastodonStatus, filtered: matches }
         }
+      } else {
+        status = mastodonStatus
       }
+    } else {
+      status = mastodonStatus
     }
   }
 
@@ -197,3 +242,36 @@ export const getMastodonNotification = async (
 
   return mastodonNotification
 }
+
+/**
+ * Serializes a page of notifications, hydrating every status they reference
+ * once. Prefer this over mapping getMastodonNotification across a page — that
+ * repeats the whole per-status lookup set for each notification.
+ */
+export const getMastodonNotifications = async (
+  database: Database,
+  notifications: (Notification | GroupedNotification)[],
+  options?: GetMastodonNotificationOptions
+): Promise<MastodonNotification[]> => {
+  const resolvedStatuses = await resolveNotificationStatuses(
+    database,
+    notifications,
+    options?.currentActorId
+  )
+  const serialized = await Promise.all(
+    notifications.map((notification) =>
+      serializeNotification(database, notification, resolvedStatuses, options)
+    )
+  )
+  return serialized.filter(
+    (notification): notification is MastodonNotification =>
+      notification !== null
+  )
+}
+
+export const getMastodonNotification = async (
+  database: Database,
+  notification: Notification | GroupedNotification,
+  options?: GetMastodonNotificationOptions
+): Promise<MastodonNotification | null> =>
+  (await getMastodonNotifications(database, [notification], options))[0] ?? null

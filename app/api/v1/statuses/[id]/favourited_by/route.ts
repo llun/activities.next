@@ -108,16 +108,25 @@ export const GET = traceApiRoute(
           })
       })
 
+      const requestedActorIds = favourites.map(({ actorId }) => actorId)
+      const requestedActorIdSet = new Set(requestedActorIds)
       const accounts = await database.getMastodonActorsFromIds({
-        ids: favourites.map(({ actorId }) => actorId)
+        ids: requestedActorIds
       })
       // Preserve the favourite order: getMastodonActorsFromIds does not guarantee
       // it, and Mastodon returns accounts newest-favourite-first.
+      // `uri` is the ActivityPub actor id — the value the lookup was made with —
+      // so it is the only encoding-independent key. `url` is a profile URL
+      // (`/@name`) on some actors and `id` is a publicId that cannot be decoded
+      // back to a URI, so both are only fallbacks.
       const accountById = new Map<string, (typeof accounts)[number]>()
       for (const account of accounts) {
-        if (typeof account.id === 'string')
-          accountById.set(idToUrl(account.id), account)
-        if (account.url) accountById.set(account.url, account)
+        const actorId = [
+          account.uri,
+          account.url,
+          typeof account.id === 'string' ? idToUrl(account.id) : ''
+        ].find((candidate) => requestedActorIdSet.has(candidate))
+        if (actorId) accountById.set(actorId, account)
       }
       const orderedAccounts = favourites
         .map(({ actorId }) => accountById.get(actorId))

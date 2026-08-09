@@ -37,6 +37,13 @@ let unassignRoute: typeof import('./[id]/unassign/route')
 let resolveRoute: typeof import('./[id]/resolve/route')
 let reopenRoute: typeof import('./[id]/reopen/route')
 
+// The id the embedded Admin::Account entities emit: the actor's UUIDv7
+// publicId, with the legacy colon form as the pre-backfill fallback.
+const emittedId = async (actorId: string) => {
+  const publicIds = await database.getActorPublicIds({ actorIds: [actorId] })
+  return publicIds.get(actorId) ?? urlToId(actorId)
+}
+
 const adminRequest = (
   path: string,
   init: { method?: string; body?: unknown } = {}
@@ -130,8 +137,8 @@ describe('admin reports API', () => {
     expect(detail.status).toBe(200)
     const entity = await detail.json()
     expect(entity.id).toBe(reportId)
-    expect(entity.account.id).toBe(urlToId(ADMIN_ACTOR_ID))
-    expect(entity.target_account.id).toBe(urlToId(TARGET_ACTOR_ID))
+    expect(entity.account.id).toBe(await emittedId(ADMIN_ACTOR_ID))
+    expect(entity.target_account.id).toBe(await emittedId(TARGET_ACTOR_ID))
     expect(entity.statuses).toHaveLength(1)
     expect(entity.rules.map((rule: { id: string }) => rule.id)).toEqual([
       ruleId
@@ -212,7 +219,7 @@ describe('admin reports API', () => {
     )
     expect(assigned.status).toBe(200)
     expect((await assigned.json()).assigned_account.id).toBe(
-      urlToId(ADMIN_ACTOR_ID)
+      await emittedId(ADMIN_ACTOR_ID)
     )
 
     const resolved = await resolveRoute.POST(
@@ -225,7 +232,7 @@ describe('admin reports API', () => {
     expect(resolvedEntity.action_taken).toBe(true)
     expect(resolvedEntity.action_taken_at).not.toBeNull()
     expect(resolvedEntity.action_taken_by_account.id).toBe(
-      urlToId(ADMIN_ACTOR_ID)
+      await emittedId(ADMIN_ACTOR_ID)
     )
 
     const reopened = await reopenRoute.POST(

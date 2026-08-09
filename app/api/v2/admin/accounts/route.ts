@@ -72,11 +72,12 @@ export const GET = traceApiRoute(
         return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
       }
 
-      // The cursors listAdminAccountsResponse emits are urlToId(actor.id); a
-      // client sends one back as max_id/since_id/min_id, so resolve it (also
-      // accepting a UUIDv7 publicId) to the actor URI getAdminAccounts
-      // exact-matches against — pre-existing bug: nothing ever decoded these,
-      // so pagination past page 1 never matched a row.
+      // The cursors listAdminAccountsResponse emits are the account entity ids
+      // (a UUIDv7 publicId, or the legacy urlToId form for a publicId-less
+      // actor); a client sends one back as max_id/since_id/min_id, so resolve it
+      // to the actor URI getAdminAccounts exact-matches against — pre-existing
+      // bug: nothing ever decoded these, so pagination past page 1 never
+      // matched a row.
       const [maxId, sinceId, minId] = await Promise.all([
         q.max_id ? resolveActorIdParam(database, q.max_id) : undefined,
         q.since_id ? resolveActorIdParam(database, q.since_id) : undefined,

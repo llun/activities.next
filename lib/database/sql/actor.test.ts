@@ -4,6 +4,7 @@ import knex, { Knex } from 'knex'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { type SQLActorDatabase } from '@/lib/database/sql/actor'
 import { CounterKey } from '@/lib/database/sql/utils/counter'
+import { SQLITE_MAX_BINDINGS } from '@/lib/database/sql/utils/knex'
 import {
   databaseBeforeAll,
   getTestDatabaseTable,
@@ -48,6 +49,18 @@ const withFreshDatabase = async (
   }
 }
 
+const withFreshDatabaseAndInstance = async (
+  test: (database: Database, instance: Knex) => Promise<void>
+) => {
+  const { database, instance } = getTestSQLDatabaseWithInstance()
+  await database.migrate()
+  try {
+    await test(database, instance)
+  } finally {
+    await database.destroy()
+  }
+}
+
 const createSigningAccount = async (
   database: Database,
   username: string,
@@ -82,6 +95,15 @@ describe('ActorDatabase', () => {
   })
 
   describe.each(table)('%s', (_, database) => {
+    // publicIds are minted at insert and random per run, so expectations read
+    // them back off the stored row instead of hard-coding a literal.
+    const getActorPublicId = async (actorId: string) => {
+      const publicIds = await database.getActorPublicIds({
+        actorIds: [actorId]
+      })
+      return publicIds.get(actorId)
+    }
+
     beforeAll(async () => {
       await database.createAccount({
         email: TEST_EMAIL,
@@ -331,6 +353,60 @@ describe('ActorDatabase', () => {
           expect(map.size).toBe(1)
           expect(map.has(withoutId)).toBe(false)
           expect(map.get(withId)).toBeTruthy()
+        })
+      })
+
+      it('getActorPublicIds chunks a request wider than the SQLite bind limit', async () => {
+        // A full timeline page can mention more actors than
+        // SQLITE_MAX_BINDINGS allows in one statement, so the lookup has to
+        // chunk like its getActorIdsByPublicIds counterpart does.
+        await withFreshDatabase(async (freshDatabase, instance) => {
+          const actorId = `https://${TEST_DOMAIN}/users/public-ids-chunked`
+          await freshDatabase.createActor({
+            actorId,
+            username: 'public-ids-chunked',
+            domain: TEST_DOMAIN,
+            followersUrl: `${actorId}/followers`,
+            inboxUrl: `${actorId}/inbox`,
+            sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
+            publicKey: 'public-key',
+            createdAt: Date.now()
+          })
+          const actorIds = [
+            ...Array.from(
+              { length: SQLITE_MAX_BINDINGS + 10 },
+              (_unused, index) =>
+                `https://${TEST_DOMAIN}/users/public-ids-chunk-missing-${index}`
+            ),
+            actorId
+          ]
+          const queries: { bindings: unknown[]; sql: string }[] = []
+          const handleQuery = ({
+            bindings,
+            sql
+          }: {
+            bindings?: unknown[]
+            sql: string
+          }) => {
+            queries.push({ bindings: bindings ?? [], sql: sql.toLowerCase() })
+          }
+
+          instance.on('query', handleQuery)
+          const map = await freshDatabase.getActorPublicIds({ actorIds })
+          instance.off('query', handleQuery)
+
+          const bindingCounts = queries
+            .filter(
+              ({ sql }) =>
+                sql.includes('from `actors`') && sql.includes('`id` in')
+            )
+            .map(({ bindings }) => bindings.length)
+          expect(bindingCounts.length).toBeGreaterThan(1)
+          expect(Math.max(...bindingCounts)).toBeLessThanOrEqual(
+            SQLITE_MAX_BINDINGS
+          )
+          expect(map.size).toBe(1)
+          expect(map.get(actorId)).toBeTruthy()
         })
       })
 
@@ -681,7 +757,9 @@ describe('ActorDatabase', () => {
         })
 
         expect(actor).toMatchObject({
-          id: urlToId(`https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`),
+          id: await getActorPublicId(
+            `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+          ),
           username: TEST_USERNAME3,
           acct: TEST_USERNAME3,
           url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
@@ -913,6 +991,32 @@ describe('ActorDatabase', () => {
         })
       })
 
+      it('falls back to the legacy id for an actor that predates the backfill', async () => {
+        await withFreshDatabaseAndInstance(async (freshDatabase, instance) => {
+          const actorId = `https://${TEST_DOMAIN}/users/legacy-account-id`
+          await freshDatabase.createActor({
+            actorId,
+            username: 'legacy-account-id',
+            domain: TEST_DOMAIN,
+            followersUrl: `${actorId}/followers`,
+            inboxUrl: `${actorId}/inbox`,
+            sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
+            publicKey: 'public-key',
+            createdAt: Date.now()
+          })
+          await instance('actors').where('id', actorId).update({
+            publicId: null
+          })
+
+          const actor = await freshDatabase.getMastodonActorFromId({
+            id: actorId
+          })
+
+          expect(actor?.id).toBe(urlToId(actorId))
+          expect(actor?.url).toBe(actorId)
+        })
+      })
+
       it('returns mastodon actor from username', async () => {
         const actor = await database.getMastodonActorFromUsername({
           username: TEST_USERNAME3,
@@ -920,7 +1024,9 @@ describe('ActorDatabase', () => {
         })
 
         expect(actor).toMatchObject({
-          id: urlToId(`https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`),
+          id: await getActorPublicId(
+            `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+          ),
           username: TEST_USERNAME3,
           acct: TEST_USERNAME3,
           url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
@@ -951,7 +1057,9 @@ describe('ActorDatabase', () => {
         })
 
         expect(actor).toMatchObject({
-          id: urlToId(`https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`),
+          id: await getActorPublicId(
+            `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+          ),
           username: TEST_USERNAME3,
           acct: TEST_USERNAME3,
           url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
@@ -1182,7 +1290,7 @@ describe('ActorDatabase', () => {
           createdAt: currentTime
         })
         expect(actor).toEqual({
-          id: urlToId(EXTERNAL_ACTORS[1].id),
+          id: await getActorPublicId(EXTERNAL_ACTORS[1].id),
           username: EXTERNAL_ACTORS[1].username,
           acct: `${EXTERNAL_ACTORS[1].username}@${EXTERNAL_ACTORS[1].domain}`,
           url: EXTERNAL_ACTORS[1].id,
@@ -1285,7 +1393,9 @@ describe('ActorDatabase', () => {
         })
 
         expect(actor).toMatchObject({
-          id: urlToId(`https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`),
+          id: await getActorPublicId(
+            `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+          ),
           username: TEST_USERNAME3,
           acct: TEST_USERNAME3,
           url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,

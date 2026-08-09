@@ -43,6 +43,13 @@ vi.mock('@/lib/config', () => ({
 
 describe('/api/v1/collections/[id]/items', () => {
   const database = getTestSQLDatabase()
+
+  // publicIds are minted at insert and random per run: read the emitted id back
+  // off the stored row rather than hard-coding one.
+  const emittedActorId = async (actorId: string) => {
+    const publicIds = await database.getActorPublicIds({ actorIds: [actorId] })
+    return publicIds.get(actorId) ?? urlToId(actorId)
+  }
   let collectionId: string
 
   beforeAll(async () => {
@@ -89,7 +96,7 @@ describe('/api/v1/collections/[id]/items', () => {
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data.collection_item).toMatchObject({
-      account_id: urlToId(ACTOR2_ID),
+      account_id: await emittedActorId(ACTOR2_ID),
       state: 'pending'
     })
     expect(typeof data.collection_item.id).toBe('string')

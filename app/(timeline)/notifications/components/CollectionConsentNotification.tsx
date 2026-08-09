@@ -15,8 +15,9 @@ interface Props {
   // The collection the member was added to.
   collectionId: string
   collectionTitle: string
-  // The member's own Mastodon Account id (the `urlToId`-encoded actor id). The
-  // approve/revoke routes require it to resolve to the authenticated caller.
+  // The member's own Mastodon Account id (a publicId, or the legacy `urlToId`
+  // form on a pre-backfill row). The approve/revoke routes require it to
+  // resolve to the authenticated caller.
   accountId: string
 }
 

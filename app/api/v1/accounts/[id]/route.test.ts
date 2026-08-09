@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { resetRefreshRemoteActorStateForTesting } from '@/lib/services/actors/refreshRemoteActor'
 import { seedDatabase } from '@/lib/stub/database'
+import { actorPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { urlToId } from '@/lib/utils/urlToId'
@@ -76,7 +77,7 @@ describe('GET /api/v1/accounts/:id', () => {
     })
     expect(response.status).toBe(200)
     const data = await response.json()
-    expect(data.id).toBe(urlToId(ACTOR1_ID))
+    expect(data.id).toBe(await actorPublicId(database, ACTOR1_ID))
     expect(data).toHaveProperty('acct')
     expect(data).toHaveProperty('followers_count')
   })
@@ -174,6 +175,6 @@ describe('GET /api/v1/accounts/:id', () => {
 
     expect(response.status).toBe(200)
     const data = await response.json()
-    expect(data.id).toBe(urlToId(EXTERNAL_ACTOR1))
+    expect(data.id).toBe(await actorPublicId(database, EXTERNAL_ACTOR1))
   })
 })

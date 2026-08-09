@@ -41,9 +41,15 @@ export const getMastodonConversationAccountMap = async (
   const accountMap: MastodonConversationAccountMap = new Map()
 
   for (const account of accounts) {
-    const decodedActorId =
+    // `uri` is by definition the ActivityPub actor id — the same value the
+    // lookup was made with — so it is the only encoding-independent candidate.
+    // `url` is a profile URL (`/@name`) on some actors, and `id` is a publicId
+    // that cannot be decoded back to a URI at all; both stay as fallbacks.
+    const candidates = [
+      account.uri,
+      account.url,
       typeof account.id === 'string' ? idToUrl(account.id) : ''
-    const candidates = [decodedActorId, account.url].filter(Boolean)
+    ].filter(Boolean)
     for (const candidate of candidates) {
       const normalized = normalizeActorId(candidate)
       if (!normalized) continue

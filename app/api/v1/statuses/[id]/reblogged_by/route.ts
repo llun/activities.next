@@ -105,25 +105,42 @@ export const GET = traceApiRoute(
       const hasNext = minId ? true : hasOverflow
       const hasPrev = minId ? hasOverflow : true
 
+      // Reblog rows carry only the announce URI, so resolve the page's public
+      // ids in one batched query instead of one lookup per cursor. A row with no
+      // publicId falls back to the legacy colon form, which the accept side
+      // still resolves.
+      const reblogPublicIds = await database.getStatusPublicIds({
+        statusIds: reblogs.map((reblog) => reblog.statusId)
+      })
       const paginationLink = buildAccountCursorLinkHeader({
         req,
         limit,
         items: reblogs,
         hasNext,
         hasPrev,
-        toCursor: (reblog) => urlToId(reblog.statusId)
+        toCursor: (reblog) =>
+          reblogPublicIds.get(reblog.statusId) ?? urlToId(reblog.statusId)
       })
 
+      const requestedActorIds = reblogs.map(({ actorId }) => actorId)
+      const requestedActorIdSet = new Set(requestedActorIds)
       const accounts = await database.getMastodonActorsFromIds({
-        ids: reblogs.map(({ actorId }) => actorId)
+        ids: requestedActorIds
       })
       // Preserve the reblog order: getMastodonActorsFromIds does not guarantee
       // it, and Mastodon returns accounts newest-reblog-first.
+      // `uri` is the ActivityPub actor id — the value the lookup was made with —
+      // so it is the only encoding-independent key. `url` is a profile URL
+      // (`/@name`) on some actors and `id` is a publicId that cannot be decoded
+      // back to a URI, so both are only fallbacks.
       const accountById = new Map<string, (typeof accounts)[number]>()
       for (const account of accounts) {
-        if (typeof account.id === 'string')
-          accountById.set(idToUrl(account.id), account)
-        if (account.url) accountById.set(account.url, account)
+        const actorId = [
+          account.uri,
+          account.url,
+          typeof account.id === 'string' ? idToUrl(account.id) : ''
+        ].find((candidate) => requestedActorIdSet.has(candidate))
+        if (actorId) accountById.set(actorId, account)
       }
       const orderedAccounts = reblogs
         .map(({ actorId }) => accountById.get(actorId))

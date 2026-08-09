@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
-import { urlToId } from '@/lib/utils/urlToId'
 
 import { GET } from './route'
 
@@ -161,7 +161,7 @@ describe('GET /api/v1/trends/statuses', () => {
       FIRST_STATUS_ID
     ])
     expect(data[0]).toMatchObject({
-      id: urlToId(SECOND_STATUS_ID),
+      id: await statusPublicId(database, SECOND_STATUS_ID),
       uri: SECOND_STATUS_ID,
       visibility: 'public',
       favourites_count: 2,
@@ -172,7 +172,7 @@ describe('GET /api/v1/trends/statuses', () => {
       account: expect.objectContaining({ username: 'second' })
     })
     expect(data[1]).toMatchObject({
-      id: urlToId(FIRST_STATUS_ID),
+      id: await statusPublicId(database, FIRST_STATUS_ID),
       favourites_count: 1,
       reblogs_count: 0,
       account: expect.objectContaining({ username: 'first' })
@@ -236,9 +236,9 @@ describe('GET /api/v1/trends/statuses', () => {
     expect(response.status).toBe(200)
     const data = await response.json()
     // An unrecognized format is ignored, so the default Mastodon serialization
-    // (urlToId ids + snake_case counts) is returned.
+    // (publicId ids + snake_case counts) is returned.
     expect(data[0]).toMatchObject({
-      id: urlToId(SECOND_STATUS_ID),
+      id: await statusPublicId(database, SECOND_STATUS_ID),
       uri: SECOND_STATUS_ID,
       favourites_count: 2
     })

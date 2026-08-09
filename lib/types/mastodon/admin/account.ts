@@ -12,8 +12,9 @@ export const AdminIp = z.object({
 export type AdminIp = z.infer<typeof AdminIp>
 
 export const AdminAccount = z.object({
-  // The Mastodon id space here is `urlToId(actor.id)` — the same id every other
-  // account-shaped endpoint emits — never the internal accounts UUID.
+  // The Mastodon id space here is the emitted account id
+  // (`getClientActorId(actor)`) — the same id every other account-shaped
+  // endpoint emits — never the internal accounts UUID.
   id: z.string(),
   username: z.string(),
   // null for actors on the instance's own configured host; the qualified domain

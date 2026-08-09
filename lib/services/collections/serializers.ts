@@ -29,11 +29,16 @@ const ITEM_STATE: Record<CollectionFeatureState, CollectionItemState> = {
 // the full membership through the items endpoint.
 export const COLLECTION_ITEMS_PREVIEW_LIMIT = 40
 
+// `actorPublicIds` maps actor URI -> publicId for the batch being serialized;
+// an actor with no entry (a row that predates the backfill) keeps the legacy
+// encoding, which is what the accept side still resolves.
 export const serializeCollectionItem = (
-  row: CollectionItemRow
+  row: CollectionItemRow,
+  actorPublicIds?: ReadonlyMap<string, string>
 ): CollectionItemEntity => ({
   id: row.id,
-  account_id: urlToId(row.targetActorId),
+  account_id:
+    actorPublicIds?.get(row.targetActorId) ?? urlToId(row.targetActorId),
   state: ITEM_STATE[row.featureState],
   created_at: getISOTimeUTC(row.createdAt)
 })
@@ -48,17 +53,21 @@ export const serializeCollection = ({
   collection,
   items,
   itemCount,
-  approvedCount
+  approvedCount,
+  actorPublicIds
 }: {
   collection: Collection
   items: CollectionItemRow[]
   itemCount: number
   approvedCount: number
+  actorPublicIds?: ReadonlyMap<string, string>
 }): MastodonCollectionEntity => {
   const host = new URL(collection.ownerActorId).host
   return {
     id: collection.id,
-    account_id: urlToId(collection.ownerActorId),
+    account_id:
+      actorPublicIds?.get(collection.ownerActorId) ??
+      urlToId(collection.ownerActorId),
     uri: getLocalFeaturedCollectionId(collection.ownerActorId, collection.id),
     url: `https://${host}/collections/${collection.id}`,
     name: collection.title,
@@ -78,7 +87,7 @@ export const serializeCollection = ({
     item_count: itemCount,
     items: items
       .slice(0, COLLECTION_ITEMS_PREVIEW_LIMIT)
-      .map(serializeCollectionItem),
+      .map((item) => serializeCollectionItem(item, actorPublicIds)),
     created_at: getISOTimeUTC(collection.createdAt),
     updated_at: getISOTimeUTC(collection.updatedAt),
     title: collection.title,
@@ -119,6 +128,18 @@ export const getCollectionEntities = async (
       : database.countCollectionItems({ collectionIds }),
     database.countCollectionItems({ collectionIds, approvedOnly: true })
   ])
+  // One batched lookup for every actor the page emits an id for: each
+  // collection's owner plus the members inside its embedded preview.
+  const previewItems = collections.map((collection) =>
+    (itemsMap[collection.id] ?? []).slice(0, COLLECTION_ITEMS_PREVIEW_LIMIT)
+  )
+  const actorPublicIds = await database.getActorPublicIds({
+    actorIds: [
+      ...collections.map((collection) => collection.ownerActorId),
+      ...previewItems.flat().map((item) => item.targetActorId)
+    ]
+  })
+
   return collections.map((collection) =>
     serializeCollection({
       collection,
@@ -126,7 +147,8 @@ export const getCollectionEntities = async (
       itemCount: approvedOnly
         ? (approvedCounts[collection.id] ?? 0)
         : (totalCounts[collection.id] ?? 0),
-      approvedCount: approvedCounts[collection.id] ?? 0
+      approvedCount: approvedCounts[collection.id] ?? 0,
+      actorPublicIds
     })
   )
 }

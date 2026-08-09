@@ -28,7 +28,10 @@ import {
   isPostgresClient
 } from '@/lib/database/sql/utils/knex'
 import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
-import { resolveIdsByPublicIds } from '@/lib/database/sql/utils/publicIdLookup'
+import {
+  resolveIdsByPublicIds,
+  resolvePublicIdsByIds
+} from '@/lib/database/sql/utils/publicIdLookup'
 import { selectHashtagTagsByStatusIds } from '@/lib/database/sql/utils/status'
 import {
   FEDERATION_SIGNING_ACTOR_TYPE,
@@ -74,9 +77,12 @@ import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { logger } from '@/lib/utils/logger'
-import { generatePublicId, toPublicIdLookupKey } from '@/lib/utils/publicId'
+import {
+  generatePublicId,
+  getClientActorId,
+  toPublicIdLookupKey
+} from '@/lib/utils/publicId'
 import { generateKeyPair } from '@/lib/utils/signature'
-import { urlToId } from '@/lib/utils/urlToId'
 
 export interface SQLActorDatabase extends ActorDatabase {
   getActor: (
@@ -280,7 +286,10 @@ const getMastodonAccountFromSQLActor = ({
   const note = sqlActor.summary ?? ''
 
   return Mastodon.Account.parse({
-    id: urlToId(sqlActor.id),
+    // The single Account emission point: every embedded `account` (statuses,
+    // notifications, search, reactions, favourited_by, …) flips through here.
+    // A row that predates the backfill keeps emitting the legacy encoding.
+    id: getClientActorId(sqlActor),
     username: sqlActor.username,
     acct: isLocalActor ? sqlActor.username : qualifiedAcct,
     url: sqlActor.id,
@@ -663,15 +672,20 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
   },
 
   async getActorPublicIds({ actorIds }: GetActorPublicIdsParams) {
-    const uniqueActorIds = [...new Set(actorIds)].filter(Boolean)
-    if (uniqueActorIds.length === 0) return new Map<string, string>()
-    const rows = await database<SQLActor>('actors')
-      .whereIn('id', uniqueActorIds)
-      .whereNotNull('publicId')
-      .select('id', 'publicId')
-    return new Map<string, string>(
-      rows.map((row) => [row.id, row.publicId as string])
-    )
+    return resolvePublicIdsByIds({
+      ids: actorIds,
+      batchSize: getWhereInBatchSize(database),
+      selectChunk: async (ids) => {
+        const rows = await database<SQLActor>('actors')
+          .whereIn('id', ids)
+          .whereNotNull('publicId')
+          .select('id', 'publicId')
+        return rows.map((row) => ({
+          id: row.id,
+          publicId: row.publicId as string
+        }))
+      }
+    })
   },
 
   async getMastodonActorFromId({ id }: GetActorFromIdParams) {

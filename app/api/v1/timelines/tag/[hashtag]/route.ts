@@ -6,6 +6,7 @@ import {
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { getClientStatusCursors } from '@/lib/services/mastodon/clientCursor'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { getFilteredStatusPage } from '@/lib/services/timelines/getFilteredTimelinePage'
 import {
@@ -22,7 +23,6 @@ import {
   normalizeHashtagParam
 } from '@/lib/utils/text/mastodonHashtag'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { urlToId } from '@/lib/utils/urlToId'
 
 export const dynamic = 'force-dynamic'
 
@@ -178,16 +178,17 @@ export const GET = traceApiRoute(
         cursorValue: string
       ) => {
         const linkParams = new URLSearchParams(linkBaseParams)
-        linkParams.set(cursorName, urlToId(cursorValue))
+        linkParams.set(cursorName, cursorValue)
         const rel = cursorName === 'max_id' ? 'next' : 'prev'
         return `<https://${host}/api/v1/timelines/tag/${encodedTag}?${linkParams.toString()}>; rel="${rel}"`
       }
-      const nextLink = nextMaxStatusId
-        ? buildLink('max_id', nextMaxStatusId)
-        : null
-      const prevLink = prevMinStatusId
-        ? buildLink('min_id', prevMinStatusId)
-        : null
+      const [nextCursor, prevCursor] = await getClientStatusCursors(
+        database,
+        statuses,
+        [nextMaxStatusId, prevMinStatusId]
+      )
+      const nextLink = nextCursor ? buildLink('max_id', nextCursor) : null
+      const prevLink = prevCursor ? buildLink('min_id', prevCursor) : null
       const links = [nextLink, prevLink].filter(Boolean).join(', ')
       const mastodonStatuses = await getMastodonStatuses(
         database,

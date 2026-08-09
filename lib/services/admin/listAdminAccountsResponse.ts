@@ -6,15 +6,15 @@ import { headerHost } from '@/lib/services/guards/headerHost'
 import { GetAdminAccountsParams } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { buildPaginationLinkHeader } from '@/lib/utils/paginationLinkHeader'
+import { getClientActorId } from '@/lib/utils/publicId'
 import { apiResponse } from '@/lib/utils/response'
-import { urlToId } from '@/lib/utils/urlToId'
 
 // Shared list responder for both the v1 and v2 admin accounts routes: run the
 // keyset query, serialize, and attach the Mastodon Link header. The cursor ids
-// are Mastodon ids (urlToId(actor.id)); the client sends them back and the
-// route resolves them with resolveActorIdParam (accepting a UUIDv7 publicId
-// too) before they reach getAdminAccounts, which exact-matches them against
-// the actor URI.
+// are the same ids the entities emit (getClientActorId(actor)); the client sends
+// them back and the route resolves them with resolveActorIdParam (accepting the
+// legacy encoding too) before they reach getAdminAccounts, which exact-matches
+// them against the actor URI.
 export const listAdminAccountsResponse = async ({
   req,
   database,
@@ -34,9 +34,10 @@ export const listAdminAccountsResponse = async ({
 
   const nextMaxId =
     records.length === limit
-      ? urlToId(records[records.length - 1].actor.id)
+      ? getClientActorId(records[records.length - 1].actor)
       : null
-  const prevMinId = records.length > 0 ? urlToId(records[0].actor.id) : null
+  const prevMinId =
+    records.length > 0 ? getClientActorId(records[0].actor) : null
 
   return apiResponse({
     req,

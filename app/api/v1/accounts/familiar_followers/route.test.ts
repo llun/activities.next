@@ -75,6 +75,11 @@ describe('GET /api/v1/accounts/familiar_followers', () => {
     })
   })
 
+  // publicIds are minted per run, so read them off the seeded actors rather
+  // than asserting a literal.
+  const actorPublicId = async (id: string) =>
+    (await database.getActorFromId({ id }))?.publicId
+
   it('returns the mutual followers the current user follows', async () => {
     // Actor3 follows Actor2 and Actor1 follows Actor3, so Actor3 is a familiar
     // follower of Actor2 from Actor1's perspective.
@@ -85,11 +90,13 @@ describe('GET /api/v1/accounts/familiar_followers', () => {
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data).toHaveLength(1)
-    expect(data[0].id).toBe(urlToId(ACTOR2_ID))
+    // The request used the legacy colon-form id; the response echoes the same
+    // publicId the account entities carry.
+    expect(data[0].id).toBe(await actorPublicId(ACTOR2_ID))
     const accountIds = data[0].accounts.map((a: { id: string }) => a.id)
-    expect(accountIds).toContain(urlToId(ACTOR3_ID))
+    expect(accountIds).toContain(await actorPublicId(ACTOR3_ID))
     // The current user is never listed as their own familiar follower.
-    expect(accountIds).not.toContain(urlToId(ACTOR1_ID))
+    expect(accountIds).not.toContain(await actorPublicId(ACTOR1_ID))
   })
 
   it('returns an entry with empty accounts when there are no mutuals', async () => {
@@ -102,7 +109,7 @@ describe('GET /api/v1/accounts/familiar_followers', () => {
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data).toHaveLength(1)
-    expect(data[0].id).toBe(urlToId(ACTOR3_ID))
+    expect(data[0].id).toBe(await actorPublicId(ACTOR3_ID))
     expect(data[0].accounts).toEqual([])
   })
 

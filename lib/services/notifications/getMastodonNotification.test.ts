@@ -1,8 +1,12 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
 import { NotificationType } from '@/lib/types/database/operations'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
-import { getMastodonNotification } from './getMastodonNotification'
+import {
+  getMastodonNotification,
+  getMastodonNotifications
+} from './getMastodonNotification'
 
 describe('getMastodonNotification', () => {
   const database = getTestSQLDatabase()
@@ -231,9 +235,13 @@ describe('getMastodonNotification', () => {
         notification
       )
 
+      const publicIds = await database.getActorPublicIds({
+        actorIds: [actor2Id]
+      })
+
       expect(mastodonNotification).not.toBeNull()
       expect(mastodonNotification?.account).toBeDefined()
-      expect(mastodonNotification?.account.id).toBe('example.com:users:actor2')
+      expect(mastodonNotification?.account.id).toBe(publicIds.get(actor2Id))
       expect(mastodonNotification?.account.username).toBe('actor2')
     })
 
@@ -285,6 +293,81 @@ describe('getMastodonNotification', () => {
 
       expect(mastodonNotification).not.toBeNull()
       expect(mastodonNotification?.status).toBeUndefined()
+    })
+
+    // A real status row, so the page-wide hydration actually runs: it serializes
+    // the whole page in one batch and joins the results back to the
+    // notifications by ActivityPub URI, because a serialized status carries the
+    // stored URI in `uri` while its `id` is the publicId. Joining on `id`
+    // instead matches nothing post-flip and every notification ships without its
+    // post — a Mastodon client renders a bare account row. Every other status
+    // case in this suite points at an id that was never inserted, so the join is
+    // only exercised here.
+    const createStatus = async (slug: string, text: string) => {
+      const id = `${actor2Id}/statuses/${slug}`
+      await database.createNote({
+        id,
+        url: `https://example.com/@actor2/${slug}`,
+        actorId: actor2Id,
+        text,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const publicId = (
+        await database.getStatusPublicIds({ statusIds: [id] })
+      ).get(id)
+      if (!publicId) throw new Error('created status has no publicId')
+      return { id, publicId }
+    }
+
+    it('attaches the status a notification references', async () => {
+      const status = await createStatus('hydrated', 'hydrated status body')
+      const notification = await database.createNotification({
+        actorId: actor1Id,
+        type: NotificationType.enum.like,
+        sourceActorId: actor2Id,
+        statusId: status.id
+      })
+
+      const mastodonNotification = await getMastodonNotification(
+        database,
+        notification
+      )
+
+      expect(mastodonNotification?.status).toBeDefined()
+      // The entity keeps the ActivityPub URI in `uri` and emits the publicId as
+      // the client-facing `id`.
+      expect(mastodonNotification?.status?.uri).toBe(status.id)
+      expect(mastodonNotification?.status?.id).toBe(status.publicId)
+      expect(mastodonNotification?.status?.content).toContain(
+        'hydrated status body'
+      )
+    })
+
+    it('gives each notification in a page its own status', async () => {
+      const first = await createStatus('page-first', 'first page body')
+      const second = await createStatus('page-second', 'second page body')
+      const notifications = await Promise.all(
+        [first, second].map((status) =>
+          database.createNotification({
+            actorId: actor1Id,
+            type: NotificationType.enum.like,
+            sourceActorId: actor2Id,
+            statusId: status.id
+          })
+        )
+      )
+
+      const serialized = await getMastodonNotifications(database, notifications)
+
+      expect(serialized.map((entry) => entry.status?.uri)).toEqual([
+        first.id,
+        second.id
+      ])
+      expect(serialized.map((entry) => entry.status?.id)).toEqual([
+        first.publicId,
+        second.publicId
+      ])
     })
   })
 

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
+import { actorPublicId } from '@/lib/stub/publicIds'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
 import { urlToId } from '@/lib/utils/urlToId'
@@ -73,7 +74,7 @@ describe('GET /api/v1/accounts/:id/endorsements', () => {
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data).toHaveLength(1)
-    expect(data[0].id).toBe(urlToId(ACTOR4_ID))
+    expect(data[0].id).toBe(await actorPublicId(database, ACTOR4_ID))
     const link = response.headers.get('Link')
     expect(link).toContain('rel="next"')
     expect(link).toContain('max_id=')

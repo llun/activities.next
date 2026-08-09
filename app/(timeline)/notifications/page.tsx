@@ -10,7 +10,7 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
 import type { NotificationType } from '@/lib/types/database/operations'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-import { urlToId } from '@/lib/utils/urlToId'
+import { getClientActorId } from '@/lib/utils/publicId'
 
 import { NotificationsList } from './NotificationsList'
 import { MarkAllReadButton } from './components/MarkAllReadButton'
@@ -194,7 +194,7 @@ const Page = async ({ searchParams }: Props) => {
               notifications={notificationsWithData}
               host={host}
               currentTime={Date.now()}
-              currentAccountId={urlToId(actor.id)}
+              currentAccountId={getClientActorId(actor)}
             />
 
             {totalPages > 1 && (

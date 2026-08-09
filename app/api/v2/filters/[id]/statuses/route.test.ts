@@ -118,17 +118,15 @@ describe('/api/v2/filters/[id]/statuses', () => {
       )
       expect(response.status).toBe(200)
 
-      // Stored resolved so matching works, emitted in the legacy colon form the
-      // rest of the API uses — the write side resolves, the read side
+      // Stored resolved so matching works, emitted as the publicId the rest of
+      // the API addresses the status by — the write side resolves, the read side
       // normalises.
       const stored = await database.getFilterStatuses({
         actorId: ACTOR1_ID,
         filterId: filter.id
       })
       expect(stored?.map((entry) => entry.statusId)).toEqual([status.id])
-      expect(await response.json()).toMatchObject({
-        status_id: urlToId(status.id)
-      })
+      expect(await response.json()).toMatchObject({ status_id: publicId })
 
       const activeFilters = await getActiveFilters(database, ACTOR1_ID, 'home')
       const results = applyFiltersToStatus(
@@ -136,7 +134,12 @@ describe('/api/v2/filters/[id]/statuses', () => {
         activeFilters.filter((record) => record.filter.id === filter.id)
       )
       expect(results).toHaveLength(1)
-      expect(results[0].status_matches).toEqual([urlToId(status.id)])
+      expect(results[0].status_matches).toEqual([publicId])
+      // The filter carried alongside the match must name the same status, or
+      // the one document disagrees with itself.
+      expect(
+        results[0].filter.statuses.map((entry) => entry.status_id)
+      ).toEqual([publicId])
     }
   )
 
@@ -154,7 +157,10 @@ describe('/api/v2/filters/[id]/statuses', () => {
       activeFilters.filter((record) => record.filter.id === filter.id)
     )
     expect(results).toHaveLength(1)
-    expect(results[0].status_matches).toEqual([urlToId(status.id)])
+    expect(results[0].status_matches).toEqual([publicId])
+    expect(results[0].filter.statuses.map((entry) => entry.status_id)).toEqual([
+      publicId
+    ])
   })
 
   it('emits one id form for a filter holding both a pre-existing and a newly written row', async () => {
@@ -192,7 +198,7 @@ describe('/api/v2/filters/[id]/statuses', () => {
     const listed = (await listResponse.json()) as { status_id: string }[]
     expect(listed).toHaveLength(2)
     expect(new Set(listed.map((entry) => entry.status_id))).toEqual(
-      new Set([urlToId(status.id)])
+      new Set([publicId])
     )
 
     const activeFilters = await getActiveFilters(database, ACTOR1_ID, 'home')
@@ -201,9 +207,10 @@ describe('/api/v2/filters/[id]/statuses', () => {
       activeFilters.filter((record) => record.filter.id === filter.id)
     )
     expect(results).toHaveLength(1)
-    expect(results[0].status_matches).toEqual([
-      urlToId(status.id),
-      urlToId(status.id)
+    expect(results[0].status_matches).toEqual([publicId, publicId])
+    expect(results[0].filter.statuses.map((entry) => entry.status_id)).toEqual([
+      publicId,
+      publicId
     ])
   })
 

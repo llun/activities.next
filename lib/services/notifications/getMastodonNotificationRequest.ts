@@ -3,7 +3,6 @@ import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { Mastodon } from '@/lib/types/activitypub'
 import { NotificationRequest } from '@/lib/types/database/operations'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
-import { urlToId } from '@/lib/utils/urlToId'
 
 // Mastodon NotificationRequest entity. `notifications_count` is serialized as a
 // string by Mastodon; `id` and `account.id` are the source actor's account id.
@@ -40,7 +39,10 @@ export const getMastodonNotificationRequest = async (
   }
 
   return {
-    id: urlToId(request.sourceActorId),
+    // The request id IS the source actor's account id, so it is taken straight
+    // off the already-serialized account entity — that keeps the two identical
+    // by construction rather than by re-deriving the same encoding twice.
+    id: account.id,
     created_at: getISOTimeUTC(request.createdAt),
     updated_at: getISOTimeUTC(request.updatedAt),
     notifications_count: request.notificationsCount.toString(),

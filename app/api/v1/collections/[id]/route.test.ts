@@ -41,6 +41,13 @@ vi.mock('@/lib/config', () => ({
 
 describe('/api/v1/collections/[id]', () => {
   const database = getTestSQLDatabase()
+
+  // publicIds are minted at insert and random per run: read the emitted id back
+  // off the stored row rather than hard-coding one.
+  const emittedActorId = async (actorId: string) => {
+    const publicIds = await database.getActorPublicIds({ actorIds: [actorId] })
+    return publicIds.get(actorId) ?? urlToId(actorId)
+  }
   let publicCollectionId: string
   let unlistedCollectionId: string
   let privateCollectionId: string
@@ -152,12 +159,13 @@ describe('/api/v1/collections/[id]', () => {
     // leaks to anonymous viewers.
     expect(data.collection.items).toHaveLength(1)
     expect(data.collection.items[0]).toMatchObject({
-      account_id: urlToId(ACTOR2_ID),
+      account_id: await emittedActorId(ACTOR2_ID),
       state: 'accepted'
     })
     expect(data.collection.item_count).toBe(1)
     expect(data.accounts).toHaveLength(1)
-    expect(data.accounts[0].id).toBe(urlToId(ACTOR2_ID))
+    // The item's account_id and the embedded Account entity agree post-flip.
+    expect(data.accounts[0].id).toBe(await emittedActorId(ACTOR2_ID))
   })
 
   it('serves an unlisted collection to an anonymous viewer in the approved-only projection', async () => {
@@ -175,7 +183,7 @@ describe('/api/v1/collections/[id]', () => {
     // Public projection: only the approved member; pending consent never leaks.
     expect(data.collection.items).toHaveLength(1)
     expect(data.collection.items[0]).toMatchObject({
-      account_id: urlToId(ACTOR2_ID),
+      account_id: await emittedActorId(ACTOR2_ID),
       state: 'accepted'
     })
     expect(data.collection.item_count).toBe(1)

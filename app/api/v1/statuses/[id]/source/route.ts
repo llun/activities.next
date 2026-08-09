@@ -3,6 +3,7 @@ import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { getClientStatusId } from '@/lib/utils/publicId'
 import {
   ERROR_404,
   apiCorsError,
@@ -10,7 +11,6 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { urlToId } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -52,7 +52,7 @@ export const GET = traceApiRoute(
         req,
         allowedMethods: CORS_HEADERS,
         data: {
-          id: urlToId(status.id),
+          id: getClientStatusId(status),
           text: status.text ?? '',
           spoiler_text: status.summary ?? ''
         }

@@ -451,7 +451,12 @@ describe('GET /api/users/[username]/statuses/[statusId]', () => {
 
         expect(response.status).toBe(302)
         const location = response.headers.get('location')
-        expect(location).not.toContain(segment())
+        // The Location is built from the resolved status, never echoed from the
+        // requested segment: it always carries the publicId of the status the
+        // reader lands on (for an announce, the status it boosted).
+        expect(new URL(location as string).pathname).toBe(
+          `/@test1@llun.test/${publicIds.get(expectedUri())}`
+        )
 
         const resolved = await followRedirect(location)
         expect(resolved?.status?.id).toBe(expectedUri())

@@ -9,7 +9,9 @@ const mockDatabase = {
   getStatusesByIds: vi.fn(),
   getActiveFiltersForActor: vi.fn().mockResolvedValue([]),
   getActiveServerFilters: vi.fn().mockResolvedValue([]),
-  getActorIdByPublicId: vi.fn()
+  getActorIdByPublicId: vi.fn(),
+  getActorPublicIds: vi.fn(),
+  getStatusPublicIds: vi.fn()
 }
 
 const mockCurrentActor = { id: 'https://llun.test/users/llun' }
@@ -18,16 +20,25 @@ vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
-vi.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
-  // Return id matching urlToId(domainStatus.id) so the hide-filter check works.
-  getMastodonStatus: vi
-    .fn()
-    .mockImplementation((_db: unknown, domainStatus: { id: string }) =>
-      Promise.resolve({
-        id: domainStatus.id.replace(/https?:\/\//, '').replaceAll('/', ':')
-      })
-    )
+const { mockGetMastodonStatuses, toColonFormId } = vi.hoisted(() => ({
+  mockGetMastodonStatuses: vi.fn(),
+  toColonFormId: (id: string) =>
+    id.replace(/https?:\/\//, '').replaceAll('/', ':')
 }))
+
+vi.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
+  getMastodonStatuses: mockGetMastodonStatuses
+}))
+
+// The serialized status carries the domain row's ActivityPub id as `uri`, which
+// is what the envelope pairs the two on; `id` is the flipped client-facing id.
+const mockSerializedStatusesWithId = (id: string) =>
+  mockGetMastodonStatuses.mockImplementation(
+    (_db: unknown, domainStatuses: { id: string }[]) =>
+      Promise.resolve(
+        domainStatuses.map((domainStatus) => ({ id, uri: domainStatus.id }))
+      )
+  )
 
 vi.mock('@/lib/services/guards/OAuthGuard', () => ({
   OAuthGuard:
@@ -61,12 +72,22 @@ vi.mock('@/lib/services/guards/OAuthGuard', () => ({
 describe('GET /api/v2/notifications', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    // Return id in urlToId format so sample_account_ids filtering works.
+    // No publicIds seeded: the envelope keeps the legacy encoding on both
+    // the group ids and the account/status entities, so they still join.
+    mockDatabase.getActorPublicIds.mockResolvedValue(new Map<string, string>())
+    mockDatabase.getStatusPublicIds.mockResolvedValue(new Map<string, string>())
+    // Return ids in the legacy colon form so sample_account_ids filtering
+    // works, and keep the status serializer emitting the matching form.
     mockDatabase.getMastodonActorsFromIds.mockImplementation(
       ({ ids }: { ids: string[] }) =>
+        Promise.resolve(ids.map((id) => ({ id: toColonFormId(id) })))
+    )
+    mockGetMastodonStatuses.mockImplementation(
+      (_db: unknown, domainStatuses: { id: string }[]) =>
         Promise.resolve(
-          ids.map((id) => ({
-            id: id.replace(/https?:\/\//, '').replaceAll('/', ':')
+          domainStatuses.map((domainStatus) => ({
+            id: toColonFormId(domainStatus.id),
+            uri: domainStatus.id
           }))
         )
     )
@@ -120,6 +141,54 @@ describe('GET /api/v2/notifications', () => {
     expect(data.statuses).toHaveLength(1)
     expect(mockDatabase.getNotifications).toHaveBeenCalledWith(
       expect.objectContaining({ includeFiltered: false })
+    )
+  })
+
+  it('emits publicId group ids that join against the envelope arrays', async () => {
+    const ALICE_ID = 'https://other.test/users/alice'
+    const STATUS_ID = 'https://other.test/statuses/1'
+    const ALICE_PUBLIC_ID = '019a0000-0000-7000-8000-00000000000a'
+    const STATUS_PUBLIC_ID = '019a0000-0000-7000-8000-00000000000b'
+    mockDatabase.getActorPublicIds.mockResolvedValue(
+      new Map([[ALICE_ID, ALICE_PUBLIC_ID]])
+    )
+    mockDatabase.getStatusPublicIds.mockResolvedValue(
+      new Map([[STATUS_ID, STATUS_PUBLIC_ID]])
+    )
+    mockDatabase.getMastodonActorsFromIds.mockResolvedValue([
+      { id: ALICE_PUBLIC_ID }
+    ])
+    mockSerializedStatusesWithId(STATUS_PUBLIC_ID)
+    mockDatabase.getNotifications.mockResolvedValueOnce([
+      {
+        id: 'n1',
+        type: 'like',
+        sourceActorId: ALICE_ID,
+        statusId: STATUS_ID,
+        groupKey: `like:${STATUS_ID}`,
+        isRead: false,
+        filtered: false,
+        createdAt: 2000,
+        updatedAt: 2000
+      }
+    ])
+
+    const request = new NextRequest('https://llun.test/api/v2/notifications', {
+      method: 'GET'
+    })
+    const response = await GET(request, { params: Promise.resolve({}) })
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    const [group] = data.notification_groups
+    expect(group.sample_account_ids).toEqual([ALICE_PUBLIC_ID])
+    expect(group.status_id).toBe(STATUS_PUBLIC_ID)
+    // The ids the group references must exist in the envelope's own arrays.
+    expect(
+      data.accounts.map((account: { id: string }) => account.id)
+    ).toContain(ALICE_PUBLIC_ID)
+    expect(data.statuses.map((status: { id: string }) => status.id)).toContain(
+      STATUS_PUBLIC_ID
     )
   })
 

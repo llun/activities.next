@@ -19,7 +19,6 @@ import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 import { logger } from '@/lib/utils/logger'
 import { isPublicId } from '@/lib/utils/publicId'
-import { urlToId } from '@/lib/utils/urlToId'
 
 describe('AccountDatabase', () => {
   const { actors } = DatabaseSeed
@@ -76,9 +75,13 @@ describe('AccountDatabase', () => {
         privateKey: 'privateKey2',
         publicKey: 'publicKey2'
       })
+      const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME2}`
       const actor = await database.getMastodonActorFromUsername({
         username: TEST_USERNAME2,
         domain: TEST_DOMAIN
+      })
+      const publicIds = await database.getActorPublicIds({
+        actorIds: [actorId]
       })
 
       expect(await database.isAccountExists({ email: TEST_EMAIL2 })).toBeTrue()
@@ -89,7 +92,7 @@ describe('AccountDatabase', () => {
         })
       ).toBeTrue()
       expect(actor).toMatchObject({
-        id: urlToId(`https://${TEST_DOMAIN}/users/${TEST_USERNAME2}`),
+        id: publicIds.get(actorId),
         username: TEST_USERNAME2,
         acct: TEST_USERNAME2,
         url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME2}`,
@@ -134,8 +137,11 @@ describe('AccountDatabase', () => {
       const actor = await database.getMastodonActorFromId({
         id: actors.primary.id
       })
+      const publicIds = await database.getActorPublicIds({
+        actorIds: [actors.primary.id]
+      })
       expect(actor).toMatchObject({
-        id: urlToId(actors.primary.id),
+        id: publicIds.get(actors.primary.id),
         username: actors.primary.username,
         acct: `${actors.primary.username}@${actors.primary.domain}`,
         url: `https://${actors.primary.domain}/users/${actors.primary.username}`,
