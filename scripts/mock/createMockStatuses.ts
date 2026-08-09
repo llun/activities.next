@@ -2,7 +2,10 @@
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { Timeline } from '@/lib/services/timelines/types'
+import { getMention } from '@/lib/types/domain/actor'
+import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { generatePublicId } from '@/lib/utils/publicId'
 
 async function createMockStatuses() {
   const database = getDatabase()
@@ -107,16 +110,29 @@ async function createMockStatuses() {
     imageSize: { width: number; height: number }
     attachmentName: (index: number) => string
   }) => {
-    const uuid = crypto.randomUUID()
-    const statusUrl = `https://${author.domain}/users/${author.username}/statuses/${uuid}`
-    // Local statuses use a bare UUID as the id (the local convention); remote
-    // ones use their canonical URL as the id (the federation convention).
-    const id = local ? uuid : statusUrl
     const createdAt = Date.now() + timeOffset // Future/recent so it sorts to the top
+    // Local statuses follow `lib/actions/createNote.ts`: the id is the full
+    // ActivityPub URI whose tail is the client-facing publicId, and the url is
+    // the `@username` web form. Remote ones keep their origin's canonical URI
+    // as both, the way federation delivers them, and let the database mint
+    // their publicId.
+    //
+    // Storing a bare uuid as a local id (which this script used to do) makes
+    // seeded posts behave unlike real ones: `urlToId` parses a bare uuid as a
+    // hostname, so client calls such as `/api/v1/statuses/<id>/favourited_by`
+    // resolve to no status and 404.
+    const publicId = local ? generatePublicId(createdAt) : undefined
+    const id = publicId
+      ? getLocalStatusId({ actorId: author.id, statusId: publicId })
+      : `https://${author.domain}/users/${author.username}/statuses/${crypto.randomUUID()}`
+    const statusUrl = publicId
+      ? `https://${author.domain}/${getMention(author)}/${publicId}`
+      : id
     const body = local ? `${text} (${imageCount} images)` : text
 
     const status = await database.createNote({
       id,
+      publicId,
       actorId: author.id,
       to: [ACTIVITY_STREAM_PUBLIC],
       cc: [author.followersUrl],
