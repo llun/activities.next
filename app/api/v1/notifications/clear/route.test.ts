@@ -54,12 +54,17 @@ describe('Notification Endpoints', () => {
     })
 
     it('returns notification with correct Mastodon format', async () => {
-      // Create a notification
+      // A seeded status, so the serializer's page-wide hydration has something
+      // to attach and the status half of the entity is asserted too.
+      const statusId = `${ACTOR2_ID}/statuses/post-2`
+      const statusPublicId = (
+        await database.getStatusPublicIds({ statusIds: [statusId] })
+      ).get(statusId)
       const notification = await database.createNotification({
         actorId: ACTOR1_ID,
         type: 'mention',
         sourceActorId: ACTOR2_ID,
-        statusId: `${ACTOR2_ID}/statuses/post-2`,
+        statusId,
         createdAt: Date.now()
       })
 
@@ -76,6 +81,12 @@ describe('Notification Endpoints', () => {
         account: expect.objectContaining({
           id: expect.toBeString(),
           username: expect.toBeString()
+        }),
+        // `uri` stays the ActivityPub URI the notification stores; `id` is the
+        // publicId the client is given.
+        status: expect.objectContaining({
+          uri: statusId,
+          id: statusPublicId
         })
       })
     })
