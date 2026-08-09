@@ -14,7 +14,10 @@ import crypto from 'crypto'
 
 import { getConfig } from '@/lib/config'
 import { getDatabase, getKnex } from '@/lib/database'
+import { getMention } from '@/lib/types/domain/actor'
+import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { generatePublicId } from '@/lib/utils/publicId'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -127,14 +130,22 @@ async function createMockFitnessData() {
     // "Recent activities" feed has content.
     let statusId: string | null = null
     if (index < 3) {
-      const id = crypto.randomUUID()
-      const url = `https://${domain}/users/${username}/statuses/${id}`
+      // Mirror `createLocalOnlyFitnessStatus` in
+      // `lib/jobs/importFitnessFilesJob.ts`: the id is the full ActivityPub URI
+      // whose tail is the client-facing publicId (backdated to the activity
+      // start so it sorts with it), and the url is the `@username` web form. A
+      // bare uuid here would make seeded posts behave unlike real ones —
+      // `urlToId` parses it as a hostname, so client calls such as
+      // `/api/v1/statuses/<id>/favourited_by` resolve to no status and 404.
+      const publicId = generatePublicId(startedAtMs)
+      const id = getLocalStatusId({ actorId: actor.id, statusId: publicId })
       await database.createNote({
         id,
+        publicId,
         actorId: actor.id,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [actor.followersUrl],
-        url,
+        url: `https://${actor.domain}/${getMention(actor)}/${publicId}`,
         text: `<p>${template.text}</p>`,
         createdAt: startedAtMs
       })
