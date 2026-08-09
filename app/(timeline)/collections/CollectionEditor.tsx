@@ -30,8 +30,9 @@ import { Textarea } from '@/lib/components/ui/textarea'
 import { CollectionEntity } from '@/lib/types/mastodon/collection'
 
 export interface CollectionMember {
-  // The Mastodon Account `id` (the `urlToId`-encoded actor id). Sent as-is to
-  // the collection items API, which decodes it with `idToUrl`.
+  // The Mastodon Account `id` (a publicId, or the legacy `urlToId` form on a
+  // pre-backfill row). Sent as-is to the collection items API, which resolves
+  // either back to an actor URI.
   id: string
   name: string
   handle: string

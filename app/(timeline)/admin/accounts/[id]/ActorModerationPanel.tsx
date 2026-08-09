@@ -16,7 +16,8 @@ import {
 import { AdminAccount } from '@/lib/types/mastodon/admin/account'
 
 interface Props {
-  // The Mastodon account id (urlToId(actor.id)).
+  // The Mastodon account id — the same id the account entities carry
+  // (getClientActorId(actor)).
   actorId: string
   username: string
 }

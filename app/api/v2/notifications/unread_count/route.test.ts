@@ -11,7 +11,9 @@ const mockDatabase = {
   getActiveServerFilters: vi.fn().mockResolvedValue([]),
   getStatusesByIds: vi.fn(),
   getMastodonActorsFromIds: vi.fn(),
-  getActorIdByPublicId: vi.fn()
+  getActorIdByPublicId: vi.fn(),
+  getActorPublicIds: vi.fn(),
+  getStatusPublicIds: vi.fn()
 }
 
 const mockCurrentActor = { id: 'https://llun.test/users/llun' }
@@ -23,12 +25,17 @@ vi.mock('@/lib/database', () => ({
 // Resolve statuses/accounts so the envelope keeps (does not suppress) the groups
 // — the count then reflects visible unread groups.
 vi.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
-  getMastodonStatus: vi
+  getMastodonStatuses: vi
     .fn()
-    .mockImplementation((_db: unknown, domainStatus: { id: string }) =>
-      Promise.resolve({
-        id: domainStatus.id.replace(/https?:\/\//, '').replaceAll('/', ':')
-      })
+    .mockImplementation((_db: unknown, domainStatuses: { id: string }[]) =>
+      Promise.resolve(
+        domainStatuses.map((domainStatus) => ({
+          id: domainStatus.id.replace(/https?:\/\//, '').replaceAll('/', ':'),
+          // The envelope pairs the serialized status back to its domain row on
+          // the ActivityPub `uri`, not on the flipped `id`.
+          uri: domainStatus.id
+        }))
+      )
     )
 }))
 
@@ -58,6 +65,10 @@ vi.mock('@/lib/services/guards/OAuthGuard', () => ({
 describe('GET /api/v2/notifications/unread_count', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // No publicIds seeded: the envelope keeps the legacy encoding on both
+    // the group ids and the account/status entities, so they still join.
+    mockDatabase.getActorPublicIds.mockResolvedValue(new Map<string, string>())
+    mockDatabase.getStatusPublicIds.mockResolvedValue(new Map<string, string>())
     mockDatabase.getNotifications.mockResolvedValue([])
     mockDatabase.getStatusesByIds.mockImplementation(
       ({ statusIds }: { statusIds: string[] }) =>

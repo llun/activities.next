@@ -5,9 +5,9 @@ import {
 import { resolveActorIdParams } from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { getClientActorId } from '@/lib/utils/publicId'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { urlToId } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -79,7 +79,7 @@ export const GET = traceApiRoute(
                 })
               : []
 
-          return { id: urlToId(target.id), familiarIds }
+          return { id: getClientActorId(target), familiarIds }
         })
       )
 

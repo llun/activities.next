@@ -11,7 +11,8 @@ import {
 import {
   getMastodonFilter,
   getMastodonFilterFromRecord,
-  getMastodonServerFilterFromRecord
+  getMastodonServerFilterFromRecord,
+  hydrateFilterRecordStatusPublicIds
 } from '@/lib/services/mastodon/getMastodonFilter'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -44,8 +45,15 @@ export const GET = traceApiRoute(
         // apply them natively (server filters never expose expired entries).
         database.getActiveServerFilters()
       ])
+      // One batched lookup for every `filter_statuses` row on the page, so each
+      // `statuses[].status_id` reaches the client as the same publicId the
+      // status itself is addressed by everywhere else.
+      const hydratedOwnRecords = await hydrateFilterRecordStatusPublicIds(
+        database,
+        ownRecords
+      )
       const data = [
-        ...ownRecords.map(getMastodonFilterFromRecord),
+        ...hydratedOwnRecords.map(getMastodonFilterFromRecord),
         ...serverRecords.map(getMastodonServerFilterFromRecord)
       ]
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data })

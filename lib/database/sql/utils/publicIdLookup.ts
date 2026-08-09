@@ -7,6 +7,40 @@ interface PublicIdRow {
   publicId: string
 }
 
+interface ResolvePublicIdsByIdsParams {
+  ids: string[]
+  batchSize: number
+  selectChunk: (ids: string[]) => Promise<PublicIdRow[]>
+}
+
+/**
+ * Shared body of the batch stored-id → publicId lookups (statuses and actors) —
+ * the emission-side counterpart of resolveIdsByPublicIds.
+ *
+ * Stored ids are ActivityPub URIs, compared verbatim (no case folding: URIs are
+ * the join key everywhere and are never normalized), so the returned map is
+ * simply keyed by the stored id. Chunked for the same reason as its sibling: a
+ * timeline page can carry more ids than SQLITE_MAX_BINDINGS allows in a single
+ * statement, and every emission site now feeds these with full pages.
+ */
+export const resolvePublicIdsByIds = async ({
+  ids,
+  batchSize,
+  selectChunk
+}: ResolvePublicIdsByIdsParams): Promise<Map<string, string>> => {
+  const uniqueIds = [...new Set(ids)].filter(Boolean)
+  const resolved = new Map<string, string>()
+  if (uniqueIds.length === 0) return resolved
+
+  const rowChunks = await Promise.all(
+    chunkArray(uniqueIds, batchSize).map(selectChunk)
+  )
+  for (const row of rowChunks.flat()) {
+    resolved.set(row.id, row.publicId)
+  }
+  return resolved
+}
+
 interface ResolveIdsByPublicIdsParams {
   publicIds: string[]
   batchSize: number

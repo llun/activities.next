@@ -28,7 +28,8 @@ interface PageProps {
 }
 
 const toListMember = (account: Mastodon.Account, host: string): ListMember => ({
-  // Mastodon Account `id` (the `urlToId`-encoded actor id, not the raw URI).
+  // Mastodon Account `id` (a publicId, or the legacy `urlToId` form on a
+  // pre-backfill row) — not the raw URI.
   id: account.id,
   name: account.display_name || account.username,
   // `acct` is bare username for local accounts; qualify it with the instance

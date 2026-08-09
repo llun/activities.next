@@ -34,7 +34,13 @@ import { normalizeActorId } from '@/lib/utils/activitypub'
 import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { parseFetchResponseData } from '@/lib/utils/parseFetchResponseData'
-import { idToUrl, urlToId } from '@/lib/utils/urlToId'
+// `toIdPathSegment` is the ONLY id transformation this module performs, and it
+// only ever fires for a raw AP URI headed into a URL path segment. Every
+// id-accepting route resolves a publicId, a legacy colon/`apurl_` id, or a raw
+// URI, so re-encoding a client id here can only corrupt it — `urlToId` reads a
+// UUIDv7 publicId as a bare host and hands back `<uuid>:`, which nothing can
+// resolve. Ids in query params and JSON bodies go out verbatim.
+import { idToUrl, toIdPathSegment } from '@/lib/utils/urlToId'
 import { waitFor } from '@/lib/utils/waitFor'
 
 // API errors use Mastodon's `{ error: 'message' }` shape (AGENTS.md -> API
@@ -148,22 +154,24 @@ export const updateNote = async ({
     throw new Error('Message, content warning, or attachments must be provided')
   }
 
-  const encodedStatusId = statusId.startsWith('http')
-    ? urlToId(statusId)
-    : statusId
-  const response = await fetch(`/api/v1/statuses/${encodedStatusId}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      ...(hasMessageChange ? { status: message } : {}),
-      ...(contentWarning !== undefined ? { spoiler_text: contentWarning } : {}),
-      ...(attachments !== undefined
-        ? { media_ids: attachments.map((attachment) => attachment.id) }
-        : {})
-    })
-  })
+  const response = await fetch(
+    `/api/v1/statuses/${toIdPathSegment(statusId)}`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        ...(hasMessageChange ? { status: message } : {}),
+        ...(contentWarning !== undefined
+          ? { spoiler_text: contentWarning }
+          : {}),
+        ...(attachments !== undefined
+          ? { media_ids: attachments.map((attachment) => attachment.id) }
+          : {})
+      })
+    }
+  )
   if (response.status !== 200) {
     await throwApiError(response, 'Fail to update the note')
   }
@@ -198,13 +206,16 @@ export const updateStatusVisibility = async ({
   visibility
 }: UpdateStatusVisibilityParams): Promise<boolean> => {
   try {
-    const response = await fetch(`/api/v1/statuses/${urlToId(statusId)}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ visibility })
-    })
+    const response = await fetch(
+      `/api/v1/statuses/${toIdPathSegment(statusId)}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ visibility })
+      }
+    )
     return response.status === 200
   } catch {
     return false
@@ -270,12 +281,15 @@ export interface DefaultStatusParams {
  * @see https://docs.joinmastodon.org/methods/statuses/#delete
  */
 export const deleteStatus = async ({ statusId }: DefaultStatusParams) => {
-  const response = await fetch(`/api/v1/statuses/${urlToId(statusId)}`, {
-    method: 'DELETE',
-    headers: {
-      'Content-Type': 'application/json'
+  const response = await fetch(
+    `/api/v1/statuses/${toIdPathSegment(statusId)}`,
+    {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      }
     }
-  })
+  )
   if (response.status !== 200) {
     return false
   }
@@ -308,9 +322,13 @@ export const createReport = async ({
     headers: {
       'Content-Type': 'application/json'
     },
+    // Ids in a JSON body are never re-encoded: /api/v1/reports resolves
+    // `account_id`/`status_ids` through resolveActorIdParam /
+    // resolveStatusIdParams, which take a publicId, a legacy colon/`apurl_`
+    // id, or a raw AP URI as-is.
     body: JSON.stringify({
-      account_id: urlToId(targetActorId),
-      ...(statusId ? { status_ids: [urlToId(statusId)] } : {}),
+      account_id: targetActorId,
+      ...(statusId ? { status_ids: [statusId] } : {}),
       ...(category ? { category } : {}),
       ...(comment ? { comment } : {})
     })
@@ -323,12 +341,15 @@ export const createReport = async ({
  * @see https://docs.joinmastodon.org/methods/statuses/#boost
  */
 export const repostStatus = async ({ statusId }: DefaultStatusParams) => {
-  const response = await fetch(`/api/v1/statuses/${urlToId(statusId)}/reblog`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
+  const response = await fetch(
+    `/api/v1/statuses/${toIdPathSegment(statusId)}/reblog`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
     }
-  })
+  )
   if (response.status !== 200) return null
   const mastodonStatus = await response.json()
   return { statusId: mastodonStatus.id }
@@ -340,7 +361,7 @@ export const repostStatus = async ({ statusId }: DefaultStatusParams) => {
  */
 export const undoRepostStatus = async ({ statusId }: DefaultStatusParams) => {
   const response = await fetch(
-    `/api/v1/statuses/${urlToId(statusId)}/unreblog`,
+    `/api/v1/statuses/${toIdPathSegment(statusId)}/unreblog`,
     {
       method: 'POST',
       headers: {
@@ -370,7 +391,7 @@ export const translateStatus = async ({
   language
 }: TranslateStatusParams): Promise<Translation | null> => {
   const response = await fetch(
-    `/api/v1/statuses/${urlToId(statusId)}/translate`,
+    `/api/v1/statuses/${toIdPathSegment(statusId)}/translate`,
     {
       method: 'POST',
       headers: {
@@ -456,7 +477,7 @@ export const getTranslationLanguages = (): Promise<TranslationLanguages> => {
  */
 export const likeStatus = async ({ statusId }: DefaultStatusParams) => {
   const response = await fetch(
-    `/api/v1/statuses/${urlToId(statusId)}/favourite`,
+    `/api/v1/statuses/${toIdPathSegment(statusId)}/favourite`,
     {
       method: 'POST',
       headers: {
@@ -522,7 +543,7 @@ export const reactToStatus = async ({
   name
 }: DefaultStatusParams & { name: string }): Promise<ReactionUpdateResult> => {
   const response = await fetch(
-    `/api/v1/pleroma/statuses/${urlToId(statusId)}/reactions/${encodeURIComponent(name)}`,
+    `/api/v1/pleroma/statuses/${toIdPathSegment(statusId)}/reactions/${encodeURIComponent(name)}`,
     {
       method: 'PUT',
       headers: {
@@ -542,7 +563,7 @@ export const unreactFromStatus = async ({
   name
 }: DefaultStatusParams & { name: string }): Promise<ReactionUpdateResult> => {
   const response = await fetch(
-    `/api/v1/pleroma/statuses/${urlToId(statusId)}/reactions/${encodeURIComponent(name)}`,
+    `/api/v1/pleroma/statuses/${toIdPathSegment(statusId)}/reactions/${encodeURIComponent(name)}`,
     {
       method: 'DELETE',
       headers: {
@@ -555,7 +576,7 @@ export const unreactFromStatus = async ({
 
 export const bookmarkStatus = async ({ statusId }: DefaultStatusParams) => {
   const response = await fetch(
-    `/api/v1/statuses/${urlToId(statusId)}/bookmark`,
+    `/api/v1/statuses/${toIdPathSegment(statusId)}/bookmark`,
     {
       method: 'POST',
       headers: {
@@ -590,7 +611,7 @@ export const getStatusFavouritedBy = async ({
   if (offset > 0) {
     query.append('offset', `${offset}`)
   }
-  const path = `/api/v1/statuses/${urlToId(statusId)}/favourited_by${
+  const path = `/api/v1/statuses/${toIdPathSegment(statusId)}/favourited_by${
     query.toString().length > 0 ? `?${query.toString()}` : ''
   }`
 
@@ -642,7 +663,7 @@ export const getStatusFavouritedBy = async ({
  */
 export const undoLikeStatus = async ({ statusId }: DefaultStatusParams) => {
   const response = await fetch(
-    `/api/v1/statuses/${urlToId(statusId)}/unfavourite`,
+    `/api/v1/statuses/${toIdPathSegment(statusId)}/unfavourite`,
     {
       method: 'POST',
       headers: {
@@ -655,7 +676,7 @@ export const undoLikeStatus = async ({ statusId }: DefaultStatusParams) => {
 
 export const undoBookmarkStatus = async ({ statusId }: DefaultStatusParams) => {
   const response = await fetch(
-    `/api/v1/statuses/${urlToId(statusId)}/unbookmark`,
+    `/api/v1/statuses/${toIdPathSegment(statusId)}/unbookmark`,
     {
       method: 'POST',
       headers: {
@@ -699,9 +720,8 @@ export type FollowStatusType = 'not_following' | 'requested' | 'following'
 export const getFollowStatus = async ({
   targetActorId
 }: FollowParams): Promise<FollowStatusType> => {
-  const encodedId = urlToId(targetActorId)
   const response = await fetch(
-    `/api/v1/accounts/relationships?id[]=${encodedId}`,
+    `/api/v1/accounts/relationships?id[]=${encodeURIComponent(targetActorId)}`,
     {
       method: 'GET',
       headers: {
@@ -741,7 +761,7 @@ export const isFollowing = async ({ targetActorId }: FollowParams) => {
  * @see https://docs.joinmastodon.org/methods/accounts/#follow
  */
 export const follow = async ({ targetActorId }: FollowParams) => {
-  const encodedId = urlToId(targetActorId)
+  const encodedId = toIdPathSegment(targetActorId)
   const response = await fetch(`/api/v1/accounts/${encodedId}/follow`, {
     method: 'POST',
     headers: {
@@ -757,7 +777,7 @@ export const follow = async ({ targetActorId }: FollowParams) => {
  * @see https://docs.joinmastodon.org/methods/accounts/#unfollow
  */
 export const unfollow = async ({ targetActorId }: FollowParams) => {
-  const encodedId = urlToId(targetActorId)
+  const encodedId = toIdPathSegment(targetActorId)
   const response = await fetch(`/api/v1/accounts/${encodedId}/unfollow`, {
     method: 'POST',
     headers: {
@@ -840,9 +860,8 @@ export const markNotificationsRead = async ({
 export const getRelationship = async ({
   targetActorId
 }: FollowParams): Promise<MastodonRelationship | null> => {
-  const encodedId = urlToId(targetActorId)
   const response = await fetch(
-    `/api/v1/accounts/relationships?id[]=${encodedId}`,
+    `/api/v1/accounts/relationships?id[]=${encodeURIComponent(targetActorId)}`,
     {
       method: 'GET',
       headers: {
@@ -859,7 +878,7 @@ export const getRelationship = async ({
 export const block = async ({
   targetActorId
 }: FollowParams): Promise<MastodonRelationship | null> => {
-  const encodedId = urlToId(targetActorId)
+  const encodedId = toIdPathSegment(targetActorId)
   const response = await fetch(`/api/v1/accounts/${encodedId}/block`, {
     method: 'POST',
     headers: {
@@ -873,7 +892,7 @@ export const block = async ({
 export const unblock = async ({
   targetActorId
 }: FollowParams): Promise<MastodonRelationship | null> => {
-  const encodedId = urlToId(targetActorId)
+  const encodedId = toIdPathSegment(targetActorId)
   const response = await fetch(`/api/v1/accounts/${encodedId}/unblock`, {
     method: 'POST',
     headers: {
@@ -970,7 +989,7 @@ export const getStatusQuotes = async ({
   sinceId
 }: GetStatusQuotesParams): Promise<GetStatusQuotesResult> => {
   const url = new URL(
-    `${window.origin}/api/v1/statuses/${urlToId(statusId)}/quotes`
+    `${window.origin}/api/v1/statuses/${toIdPathSegment(statusId)}/quotes`
   )
   if (limit) url.searchParams.set('limit', `${limit}`)
   if (maxId) url.searchParams.set('max_id', maxId)
@@ -998,10 +1017,13 @@ export const getStatusQuotes = async ({
 export const getStatusById = async (
   statusId: string
 ): Promise<MastodonStatus | null> => {
-  const response = await fetch(`/api/v1/statuses/${urlToId(statusId)}`, {
-    method: 'GET',
-    headers: { Accept: 'application/json' }
-  })
+  const response = await fetch(
+    `/api/v1/statuses/${toIdPathSegment(statusId)}`,
+    {
+      method: 'GET',
+      headers: { Accept: 'application/json' }
+    }
+  )
   if (response.status !== 200) return null
   return (await response.json()) as MastodonStatus
 }
@@ -1014,7 +1036,7 @@ export const revokeStatusQuote = async ({
   quotingStatusId: string
 }): Promise<MastodonStatus | null> => {
   const response = await fetch(
-    `/api/v1/statuses/${urlToId(quotedStatusId)}/quotes/${urlToId(quotingStatusId)}/revoke`,
+    `/api/v1/statuses/${toIdPathSegment(quotedStatusId)}/quotes/${toIdPathSegment(quotingStatusId)}/revoke`,
     { method: 'POST', headers: { 'Content-Type': 'application/json' } }
   )
   if (response.status !== 200) return null
@@ -1029,7 +1051,7 @@ export const updateStatusInteractionPolicy = async ({
   quoteApprovalPolicy: QuoteApprovalPolicy
 }): Promise<MastodonStatus | null> => {
   const response = await fetch(
-    `/api/v1/statuses/${urlToId(statusId)}/interaction_policy`,
+    `/api/v1/statuses/${toIdPathSegment(statusId)}/interaction_policy`,
     {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -1068,7 +1090,7 @@ export const mute = async ({
   targetActorId,
   notifications
 }: MuteParams): Promise<MastodonRelationship | null> => {
-  const encodedId = urlToId(targetActorId)
+  const encodedId = toIdPathSegment(targetActorId)
   const response = await fetch(`/api/v1/accounts/${encodedId}/mute`, {
     method: 'POST',
     headers: {
@@ -1083,7 +1105,7 @@ export const mute = async ({
 export const unmute = async ({
   targetActorId
 }: FollowParams): Promise<MastodonRelationship | null> => {
-  const encodedId = urlToId(targetActorId)
+  const encodedId = toIdPathSegment(targetActorId)
   const response = await fetch(`/api/v1/accounts/${encodedId}/unmute`, {
     method: 'POST',
     headers: {
@@ -1248,10 +1270,10 @@ const getTimelinePage = async ({
   const path = `/api/v1/timelines/${timeline}?format=${TimelineFormat.enum.activities_next}`
   const url = new URL(`${window.origin}${path}`)
   if (minStatusId) {
-    url.searchParams.append('min_id', urlToId(minStatusId))
+    url.searchParams.append('min_id', minStatusId)
   }
   if (maxStatusId) {
-    url.searchParams.append('max_id', urlToId(maxStatusId))
+    url.searchParams.append('max_id', maxStatusId)
   }
   if (limit) {
     url.searchParams.append('limit', `${limit}`)
@@ -1323,7 +1345,7 @@ const getHashtagTimelinePage = async ({
   const path = `/api/v1/tags/${encodeURIComponent(tag)}?format=${TimelineFormat.enum.activities_next}`
   const url = new URL(`${window.origin}${path}`)
   if (maxStatusId) {
-    url.searchParams.append('max_id', urlToId(maxStatusId))
+    url.searchParams.append('max_id', maxStatusId)
   }
   const response = await fetch(url.toString(), {
     method: 'GET',
@@ -1381,7 +1403,7 @@ export const getActorStatuses = async ({
   actorId,
   pageUrl
 }: GetActorStatusesParams): Promise<GetActorStatusesResult> => {
-  const path = `/api/v1/accounts/${urlToId(actorId)}/remote-statuses`
+  const path = `/api/v1/accounts/${toIdPathSegment(actorId)}/remote-statuses`
   const url = new URL(`${window.origin}${path}`)
   if (pageUrl) {
     url.searchParams.append('page_url', pageUrl)
@@ -1826,7 +1848,7 @@ export const getActorMedia = async ({
   maxCreatedAt,
   limit = 25
 }: GetActorMediaParams): Promise<Attachment[]> => {
-  const encodedId = urlToId(actorId)
+  const encodedId = toIdPathSegment(actorId)
   const url = new URL(`${window.origin}/api/v1/accounts/${encodedId}/media`)
   if (maxCreatedAt) {
     url.searchParams.append('max_created_at', `${maxCreatedAt}`)
@@ -2440,7 +2462,7 @@ export const retryFitnessProcessing = async (
   statusId: string
 ): Promise<{ statusId: string; retried: number }> => {
   const response = await fetch(
-    `/api/v1/statuses/${urlToId(statusId)}/retry-fitness`,
+    `/api/v1/statuses/${toIdPathSegment(statusId)}/retry-fitness`,
     { method: 'POST' }
   )
 
@@ -2474,7 +2496,7 @@ export const getFitnessSummary = async ({
   startDate,
   endDate
 }: GetFitnessSummaryParams): Promise<FitnessActivitySummary[]> => {
-  const encodedId = urlToId(actorId)
+  const encodedId = toIdPathSegment(actorId)
   const url = new URL(
     `${window.origin}/api/v1/accounts/${encodedId}/fitness-summary`
   )
@@ -2818,7 +2840,7 @@ export const getFitnessRouteHeatmap = async ({
   /** Serialized region scope (sorted `rect:` tokens). Omit/empty for world-wide. */
   region?: string | null
 }): Promise<FitnessRouteHeatmapData | null> => {
-  const encodedId = urlToId(actorId)
+  const encodedId = toIdPathSegment(actorId)
   const url = new URL(
     `${window.origin}/api/v1/accounts/${encodedId}/fitness-route-heatmap`
   )
@@ -2865,7 +2887,7 @@ export const triggerFitnessRouteHeatmap = async ({
   region?: string | null
   retry?: boolean
 }): Promise<boolean> => {
-  const encodedId = urlToId(actorId)
+  const encodedId = toIdPathSegment(actorId)
   const response = await fetch(
     `${window.origin}/api/v1/accounts/${encodedId}/fitness-route-heatmap`,
     {
@@ -2900,7 +2922,7 @@ export const cancelFitnessRouteHeatmap = async ({
   periodKey: string
   region?: string | null
 }): Promise<boolean> => {
-  const encodedId = urlToId(actorId)
+  const encodedId = toIdPathSegment(actorId)
   const response = await fetch(
     `${window.origin}/api/v1/accounts/${encodedId}/fitness-route-heatmap`,
     {
@@ -2942,7 +2964,7 @@ export const shareFitnessRouteHeatmap = async ({
   periodKey: string
   region?: string | null
 }): Promise<string> => {
-  const encodedId = urlToId(actorId)
+  const encodedId = toIdPathSegment(actorId)
   const response = await fetch(
     `${window.origin}/api/v1/accounts/${encodedId}/fitness-route-heatmap/share`,
     {
@@ -2981,7 +3003,7 @@ export const unshareFitnessRouteHeatmap = async ({
   periodKey: string
   region?: string | null
 }): Promise<void> => {
-  const encodedId = urlToId(actorId)
+  const encodedId = toIdPathSegment(actorId)
   const url = new URL(
     `${window.origin}/api/v1/accounts/${encodedId}/fitness-route-heatmap/share`
   )
@@ -3022,7 +3044,7 @@ export const deleteFitnessRouteHeatmap = async ({
   periodKey: string
   region?: string | null
 }): Promise<boolean> => {
-  const encodedId = urlToId(actorId)
+  const encodedId = toIdPathSegment(actorId)
   const url = new URL(
     `${window.origin}/api/v1/accounts/${encodedId}/fitness-route-heatmap`
   )
@@ -3052,7 +3074,7 @@ export const getFitnessRouteHeatmaps = async ({
 }: {
   actorId: string
 }): Promise<FitnessRouteHeatmapSummaryData[]> => {
-  const encodedId = urlToId(actorId)
+  const encodedId = toIdPathSegment(actorId)
   const response = await fetch(
     `${window.origin}/api/v1/accounts/${encodedId}/fitness-route-heatmaps`,
     {
@@ -3074,7 +3096,7 @@ export const clearFitnessRouteHeatmaps = async ({
 }: {
   actorId: string
 }): Promise<number> => {
-  const encodedId = urlToId(actorId)
+  const encodedId = toIdPathSegment(actorId)
   const response = await fetch(
     `${window.origin}/api/v1/accounts/${encodedId}/fitness-route-heatmaps`,
     {
@@ -3103,7 +3125,7 @@ export const getFitnessRouteHeatmapRegionNames = async ({
 }: {
   actorId: string
 }): Promise<FitnessRouteHeatmapRegionNameData[]> => {
-  const encodedId = urlToId(actorId)
+  const encodedId = toIdPathSegment(actorId)
   const response = await fetch(
     `${window.origin}/api/v1/accounts/${encodedId}/fitness-route-heatmap-region-names`,
     {
@@ -3135,7 +3157,7 @@ export const setFitnessRouteHeatmapRegionName = async ({
   region: string
   name: string | null
 }): Promise<boolean> => {
-  const encodedId = urlToId(actorId)
+  const encodedId = toIdPathSegment(actorId)
   const response = await fetch(
     `${window.origin}/api/v1/accounts/${encodedId}/fitness-route-heatmap-region-names`,
     {
@@ -3158,7 +3180,7 @@ export const getFitnessCalendarData = async ({
   endDate: number
   activityType?: string
 }): Promise<FitnessCalendarDay[]> => {
-  const encodedId = urlToId(actorId)
+  const encodedId = toIdPathSegment(actorId)
   const url = new URL(
     `${window.origin}/api/v1/accounts/${encodedId}/fitness-calendar`
   )
@@ -3228,8 +3250,8 @@ export const getConversationStatuses = async ({
     `${window.origin}/api/v1/conversations/${conversationId}/statuses`
   )
   url.searchParams.set('format', TimelineFormat.enum.activities_next)
-  if (maxStatusId) url.searchParams.set('max_id', urlToId(maxStatusId))
-  if (minStatusId) url.searchParams.set('min_id', urlToId(minStatusId))
+  if (maxStatusId) url.searchParams.set('max_id', maxStatusId)
+  if (minStatusId) url.searchParams.set('min_id', minStatusId)
   if (limit) url.searchParams.set('limit', `${limit}`)
 
   const response = await fetch(url.toString(), {
@@ -3394,9 +3416,16 @@ const isReplyParticipant = (
   account: MastodonAccount,
   replyParticipantIds: Set<string>
 ) => {
-  const accountActorId = normalizeActorId(idToUrl(account.id))
-  if (!accountActorId) return false
-  return replyParticipantIds.has(accountActorId)
+  // The participant set holds ActivityPub actor URIs, so `uri` is the only
+  // encoding-independent key. `url` is a profile URL (`/@name`) on some
+  // accounts, and `id` is a publicId that cannot be decoded back to a URI at
+  // all, so both stay as fallbacks for entities built before the id flip.
+  for (const candidate of [account.uri, account.url, idToUrl(account.id)]) {
+    if (!candidate) continue
+    const accountActorId = normalizeActorId(candidate)
+    if (accountActorId && replyParticipantIds.has(accountActorId)) return true
+  }
+  return false
 }
 
 export interface CreateDirectMessageResult {
@@ -3437,10 +3466,13 @@ export const createDirectMessage = async ({
       'Content-Type': 'application/json',
       Accept: 'application/json'
     },
+    // `replyStatus.id` is the raw AP URI of the status being replied to; POST
+    // /api/v1/statuses resolves `in_reply_to_id` through resolveStatusIdParam,
+    // which passes a raw URI straight through, so send it unencoded.
     body: JSON.stringify({
       status,
       visibility: 'direct',
-      ...(replyStatus ? { in_reply_to_id: urlToId(replyStatus.id) } : {})
+      ...(replyStatus ? { in_reply_to_id: replyStatus.id } : {})
     })
   })
   if (!response.ok) {
@@ -3642,8 +3674,9 @@ const mutateListAccounts = async (
     {
       method,
       headers: { 'Content-Type': 'application/json' },
-      // accountIds are already Mastodon Account ids (the `urlToId`-encoded
-      // form); the route decodes them with `idToUrl`, so pass them through.
+      // accountIds are already Mastodon Account ids (a publicId, or the legacy
+      // `urlToId` form on a pre-backfill row); the route resolves either back
+      // to an actor URI, so pass them through unchanged.
       body: JSON.stringify({ account_ids: accountIds })
     }
   )
@@ -3680,8 +3713,8 @@ export const getListTimeline = async ({
       listId
     )}?format=${TimelineFormat.enum.activities_next}`
   )
-  if (minStatusId) url.searchParams.set('min_id', urlToId(minStatusId))
-  if (maxStatusId) url.searchParams.set('max_id', urlToId(maxStatusId))
+  if (minStatusId) url.searchParams.set('min_id', minStatusId)
+  if (maxStatusId) url.searchParams.set('max_id', maxStatusId)
   if (limit) url.searchParams.set('limit', `${limit}`)
 
   const response = await fetch(url.toString(), {
@@ -3702,8 +3735,9 @@ export const getListTimeline = async ({
 // Collections (Mastodon 4.6 Collections API + activities.next feed extension).
 // A collection is a shareable, consent-gated feed of accounts the owner
 // highlights. Like list ids, collection ids are opaque UUIDs (not url/id
-// encoded). Account ids are Mastodon Account ids (the `urlToId`-encoded actor
-// id); the routes decode them with `idToUrl`, so pass them through unchanged.
+// encoded). Account ids are Mastodon Account ids (a publicId, or the legacy
+// `urlToId` form on a pre-backfill row); the routes resolve either back to an
+// actor URI, so pass them through unchanged.
 
 export interface CollectionParams {
   title?: string
@@ -3814,10 +3848,10 @@ export const removeCollectionAccounts = (
 
 export interface CollectionMembershipParams {
   collectionId: string
-  // The acting member's own Mastodon Account id (the `urlToId`-encoded actor
-  // id). The approve/revoke routes accept it as an extension alongside the
-  // Mastodon 4.6 CollectionItem id and require it to resolve to the
-  // authenticated caller.
+  // The acting member's own Mastodon Account id (a publicId, or the legacy
+  // `urlToId` form on a pre-backfill row). The approve/revoke routes accept it
+  // as an extension alongside the Mastodon 4.6 CollectionItem id and require it
+  // to resolve to the authenticated caller.
   accountId: string
 }
 
@@ -3864,8 +3898,8 @@ export const getCollectionTimeline = async ({
       collectionId
     )}?format=${TimelineFormat.enum.activities_next}`
   )
-  if (minStatusId) url.searchParams.set('min_id', urlToId(minStatusId))
-  if (maxStatusId) url.searchParams.set('max_id', urlToId(maxStatusId))
+  if (minStatusId) url.searchParams.set('min_id', minStatusId)
+  if (maxStatusId) url.searchParams.set('max_id', maxStatusId)
   if (limit) url.searchParams.set('limit', `${limit}`)
 
   const response = await fetch(url.toString(), {
@@ -3898,8 +3932,8 @@ export const getCollectionFeed = async ({
       collectionId
     )}/feed?format=${TimelineFormat.enum.activities_next}`
   )
-  if (minStatusId) url.searchParams.set('min_id', urlToId(minStatusId))
-  if (maxStatusId) url.searchParams.set('max_id', urlToId(maxStatusId))
+  if (minStatusId) url.searchParams.set('min_id', minStatusId)
+  if (maxStatusId) url.searchParams.set('max_id', maxStatusId)
   if (limit) url.searchParams.set('limit', `${limit}`)
 
   const response = await fetch(url.toString(), {
@@ -3922,7 +3956,7 @@ export const getCollectionFeed = async ({
 // scope (/api/v2/admin/filters). Server filters are returned merged into the
 // account list flagged read-only via the non-standard `server` field. Filter
 // ids are opaque UUIDs (not ActivityPub URLs), so unlike status/account ids
-// they are not transformed with urlToId — they are still escaped with
+// they never go through toIdPathSegment — they are still escaped with
 // encodeURIComponent when placed in a request path.
 
 export interface ClientFilter extends MastodonFilter {

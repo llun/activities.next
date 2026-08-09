@@ -20,6 +20,37 @@ the feature-level status.
 These behaviors differ from stock Mastodon on purpose. Each is a deliberate
 product or security decision, not a gap to be closed.
 
+- **Status and account ids are UUIDv7 strings, not numeric snowflakes.**
+  Mastodon serializes `Status.id` and `Account.id` as decimal snowflake strings
+  that happen to sort chronologically when parsed as numbers. Activity.next
+  emits a UUIDv7 `publicId` — still time-ordered, but a UUID — on the `Status`
+  and `Account` entities and on every field that references one:
+  `in_reply_to_id`, `in_reply_to_account_id`, `mentions[].id`, the embedded
+  `reblog` / `quote` statuses, `Relationship.id`, `Report.status_ids`,
+  collection `account_id`s, the admin entities, and the `max_id` / `min_id` /
+  `since_id` pagination cursors in both the query parameters and the `Link`
+  header (a cursor is just the id of an entity on the page). Treat them as
+  opaque strings: do not parse, sort, or compare them numerically, and use the
+  server's cursors for ordering. `uri` and `url` are unchanged and still carry
+  ActivityPub URIs — an id is not a URL, and neither can be derived from the
+  other.
+
+  Every id form the instance has ever handed out stays accepted on **input**,
+  indefinitely: a UUIDv7 `publicId`, the colon-encoded form
+  (`domain:users:username`), the `apurl_` opaque form, and a raw ActivityPub
+  URI all resolve to the same entity, so ids a client cached before the switch
+  keep working. In the other direction, a row that has no `publicId` — one
+  written before the [Public ID Backfill](./maintenance.md#public-id-backfill),
+  or a remote actor this instance does not store, such as a mention of an
+  unknown account — keeps emitting the legacy colon form, so a client can still
+  encounter both shapes. Notification, report, filter, and media ids are their
+  own UUIDs and are unaffected — but a status or account these entities
+  _reference_ is still a status or account id, and carries the `publicId` like
+  any other: a filter's `status_id`, a `FilterResult`'s `status_matches`, a
+  report's `status_ids`, a notification group's `status_id`. Nothing about
+  federation changed: what is sent to and received from remote servers is still
+  the ActivityPub URI.
+
 - **OAuth access tokens expire after 7 days.** Mastodon access tokens do not
   expire by default. Activity.next issues short-lived access tokens (7 days)
   and offers the standard `refresh_token` grant (refresh tokens last 30 days) so
@@ -63,12 +94,15 @@ product or security decision, not a gap to be closed.
 
 - **Admin account ids are the actor id space, not numeric snowflakes.**
   `Admin::Account.id` (and the `account`/`target_account`/`assigned_account`/
-  `action_taken_by_account` ids embedded in `Admin::Report`) is
-  `urlToId(actor.id)` — the same base64url/colon-encoded actor id every other
-  account-shaped endpoint uses — never the internal login-account UUID. Admin
-  report ids are the raw report UUIDs. Admin tooling that assumes numeric ids
-  must treat these as opaque strings. Because one login account can own several
-  actors across domains, `suspend`/`silence`/`sensitize` act per actor and apply
+  `action_taken_by_account` ids embedded in `Admin::Report`) is exactly the id
+  the public `Account` entity emits for that actor — its UUIDv7 `publicId`, or
+  the legacy colon-encoded actor id for an actor that has none — never the
+  internal login-account UUID. The two id spaces move together by construction,
+  so an admin account id is always usable against the ordinary account
+  endpoints. Admin report ids are the raw report UUIDs. Admin tooling that
+  assumes numeric ids must treat these as opaque strings. Because one login
+  account can own several actors across domains,
+  `suspend`/`silence`/`sensitize` act per actor and apply
   to remote actors too, while `disable`/`enable`/`approve`/`reject` are
   local-account-only (a remote target returns `422`); a full Mastodon-style
   "suspend freezes login" needs both `suspend` and `disable`. Registration

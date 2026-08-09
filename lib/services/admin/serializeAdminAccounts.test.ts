@@ -53,9 +53,13 @@ describe('hydrateAdminAccounts', () => {
         suspended: true
       })
 
+      const publicIds = await database.getActorPublicIds({
+        actorIds: [LOCAL_ACTOR_ID]
+      })
+      const publicId = publicIds.get(LOCAL_ACTOR_ID) as string
       const records = await database.getAdminAccounts({ limit: 100 })
       const entities = await hydrateAdminAccounts(database, records)
-      const entity = byId(entities, urlToId(LOCAL_ACTOR_ID))
+      const entity = byId(entities, publicId)
 
       expect(entity).toBeDefined()
       expect(entity?.domain).toBeNull()
@@ -64,6 +68,31 @@ describe('hydrateAdminAccounts', () => {
       expect(entity?.approved).toBe(true)
       expect(entity?.confirmed).toBe(true)
       expect(entity?.role?.name).toBe('Admin')
+      // The admin entity id and the embedded public Account id are the same
+      // value, which is what keeps the publicAccountById join working.
+      expect(entity?.account.id).toBe(publicId)
+    })
+  })
+
+  it('falls back to the legacy id for an actor that predates the backfill', async () => {
+    await withDatabase(async ({ database, instance }) => {
+      await database.createAccount({
+        email: `${LOCAL_USERNAME}@${TEST_DOMAIN}`,
+        username: LOCAL_USERNAME,
+        passwordHash: 'hash',
+        domain: TEST_DOMAIN,
+        privateKey: 'private',
+        publicKey: 'public'
+      })
+      await instance('actors')
+        .where('id', LOCAL_ACTOR_ID)
+        .update({ publicId: null })
+
+      const records = await database.getAdminAccounts({ limit: 100 })
+      const entities = await hydrateAdminAccounts(database, records)
+      const entity = byId(entities, urlToId(LOCAL_ACTOR_ID))
+
+      expect(entity).toBeDefined()
       expect(entity?.account.id).toBe(urlToId(LOCAL_ACTOR_ID))
     })
   })
@@ -72,9 +101,12 @@ describe('hydrateAdminAccounts', () => {
     await withDatabase(async ({ database }) => {
       await database.createActor(seedExternal1)
 
+      const publicIds = await database.getActorPublicIds({
+        actorIds: [EXTERNAL_ACTOR1]
+      })
       const records = await database.getAdminAccounts({ limit: 100 })
       const entities = await hydrateAdminAccounts(database, records)
-      const entity = byId(entities, urlToId(EXTERNAL_ACTOR1))
+      const entity = byId(entities, publicIds.get(EXTERNAL_ACTOR1) as string)
 
       expect(entity).toBeDefined()
       expect(entity?.domain).toBe('llun.dev')

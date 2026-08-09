@@ -8,7 +8,10 @@ import {
   OAuthGuard,
   OAuthGuardAnyScope
 } from '@/lib/services/guards/OAuthGuard'
-import { getMastodonFilterStatus } from '@/lib/services/mastodon/getMastodonFilter'
+import {
+  getMastodonFilterStatusWithPublicId,
+  getMastodonFilterStatuses
+} from '@/lib/services/mastodon/getMastodonFilter'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -53,7 +56,7 @@ export const GET = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: statuses.map(getMastodonFilterStatus)
+        data: await getMastodonFilterStatuses(database, statuses)
       })
     }
   )
@@ -87,11 +90,11 @@ export const POST = traceApiRoute(
 
       // parseStatusCreateInput validates the shape only, so resolve the client
       // id form here like every other status-id-accepting write route. Matching
-      // compares a stored filter status against the status URI and its
-      // urlToId() form, so a publicId persisted verbatim would silently never
-      // match and the filter would appear to do nothing. Legacy colon-form and
-      // raw-URI input both resolve to that same URI, and rows already stored in
-      // either form keep matching untouched.
+      // covers a bare publicId too, but only the resolved URI is stable: it is
+      // the key the emission side resolves a publicId back FROM, so a row stored
+      // in any other form can only be echoed in the form it was written in.
+      // Legacy colon-form and raw-URI input both resolve to that same URI, and
+      // rows already stored in either form keep matching untouched.
       const statusId = await resolveStatusIdParam(database, suppliedStatusId)
 
       const filterStatus = await database.addFilterStatus({
@@ -109,7 +112,7 @@ export const POST = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: getMastodonFilterStatus(filterStatus)
+        data: await getMastodonFilterStatusWithPublicId(database, filterStatus)
       })
     }
   )

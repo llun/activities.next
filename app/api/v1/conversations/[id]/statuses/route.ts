@@ -6,6 +6,7 @@ import {
 } from '@/lib/services/filters/applyFilters'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { getClientStatusCursors } from '@/lib/services/mastodon/clientCursor'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { TimelineFormat } from '@/lib/services/timelines/const'
@@ -15,7 +16,6 @@ import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { urlToId } from '@/lib/utils/urlToId'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -117,11 +117,19 @@ export const GET = traceApiRoute(
       }
 
       const host = headerHost(req.headers)
-      const nextLink = nextMaxStatusId
-        ? `<https://${host}/api/v1/conversations/${id}/statuses?limit=${limit}&max_id=${urlToId(nextMaxStatusId)}>; rel="next"`
+      // nextMaxStatusId can be `lastScannedStatusId` — a status the scan walked
+      // past but filtered out of the page — so the boundary is not always on the
+      // page; getClientStatusCursors falls back to a single batched lookup.
+      const [nextCursor, prevCursor] = await getClientStatusCursors(
+        database,
+        statuses,
+        [nextMaxStatusId, prevMinStatusId]
+      )
+      const nextLink = nextCursor
+        ? `<https://${host}/api/v1/conversations/${id}/statuses?limit=${limit}&max_id=${nextCursor}>; rel="next"`
         : null
-      const prevLink = prevMinStatusId
-        ? `<https://${host}/api/v1/conversations/${id}/statuses?limit=${limit}&min_id=${urlToId(prevMinStatusId)}>; rel="prev"`
+      const prevLink = prevCursor
+        ? `<https://${host}/api/v1/conversations/${id}/statuses?limit=${limit}&min_id=${prevCursor}>; rel="prev"`
         : null
       const links = [nextLink, prevLink].filter(Boolean).join(', ')
       const mastodonStatuses = await getMastodonStatuses(

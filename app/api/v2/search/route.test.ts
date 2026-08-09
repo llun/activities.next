@@ -127,6 +127,13 @@ vi.mock('@/lib/utils/logger', () => {
 
 const context = { params: Promise.resolve({}) }
 
+// getMastodonActorsFromIds emits the row's publicId as `id` and the ActivityPub
+// actor id as `uri`, so search-result ordering joins on `uri` — decoding a
+// publicId back to an actor id is a database round trip per result. These
+// fixture publicIds are deliberately opaque so an `id`-keyed join finds nothing.
+const accountPublicId = (actorId: string) =>
+  `publicid-${actorId.split('/').at(-1) ?? actorId}`
+
 describe('GET /api/v2/search', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -146,7 +153,8 @@ describe('GET /api/v2/search', () => {
     mockGetMastodonActorsFromIds.mockImplementation(({ ids }) =>
       Promise.resolve(
         ids.map((id: string) => ({
-          id,
+          id: accountPublicId(id),
+          uri: id,
           username: id.split('/').at(-1) ?? id
         }))
       )
@@ -212,7 +220,8 @@ describe('GET /api/v2/search', () => {
     expect(data).toEqual({
       accounts: [
         {
-          id: 'https://remote.test/users/alice',
+          id: accountPublicId('https://remote.test/users/alice'),
+          uri: 'https://remote.test/users/alice',
           username: 'alice'
         }
       ],
@@ -796,12 +805,14 @@ describe('GET /api/v2/search', () => {
     ])
     mockGetMastodonActorsFromIds.mockResolvedValue([
       {
-        id: 'https://remote.test/users/indexed',
+        id: accountPublicId('https://remote.test/users/indexed'),
+        uri: 'https://remote.test/users/indexed',
         url: 'https://remote.test/@indexed',
         username: 'indexed'
       },
       {
-        id: 'https://remote.test/users/resolved',
+        id: accountPublicId('https://remote.test/users/resolved'),
+        uri: 'https://remote.test/users/resolved',
         url: accountUrl,
         username: 'resolved'
       }
@@ -825,13 +836,15 @@ describe('GET /api/v2/search', () => {
     })
     expect(data.accounts).toEqual([
       {
-        id: 'https://remote.test/users/resolved',
+        id: accountPublicId('https://remote.test/users/resolved'),
+        uri: 'https://remote.test/users/resolved',
         url: accountUrl,
         username: 'resolved',
         acct: 'resolved@remote.test'
       },
       {
-        id: 'https://remote.test/users/indexed',
+        id: accountPublicId('https://remote.test/users/indexed'),
+        uri: 'https://remote.test/users/indexed',
         url: 'https://remote.test/@indexed',
         username: 'indexed',
         acct: 'indexed@remote.test'
@@ -851,7 +864,8 @@ describe('GET /api/v2/search', () => {
     })
     mockGetMastodonActorsFromIds.mockResolvedValue([
       {
-        id: canonicalActorId,
+        id: accountPublicId(canonicalActorId),
+        uri: canonicalActorId,
         url: accountUrl,
         username: 'remote-resolved'
       }
@@ -880,7 +894,8 @@ describe('GET /api/v2/search', () => {
     })
     expect(data.accounts).toEqual([
       {
-        id: 'https://remote.test/users/remote-resolved',
+        id: accountPublicId(canonicalActorId),
+        uri: canonicalActorId,
         url: accountUrl,
         username: 'remote-resolved',
         acct: 'remote-resolved@remote.test'
@@ -898,7 +913,8 @@ describe('GET /api/v2/search', () => {
     })
     mockGetMastodonActorsFromIds.mockResolvedValue([
       {
-        id: canonicalActorId,
+        id: accountPublicId(canonicalActorId),
+        uri: canonicalActorId,
         url: accountUrl,
         username: 'remote-resolved'
       }
@@ -924,7 +940,8 @@ describe('GET /api/v2/search', () => {
     })
     expect(data.accounts).toEqual([
       {
-        id: canonicalActorId,
+        id: accountPublicId(canonicalActorId),
+        uri: canonicalActorId,
         url: accountUrl,
         username: 'remote-resolved',
         acct: 'remote-resolved@remote.test'
@@ -953,7 +970,8 @@ describe('GET /api/v2/search', () => {
     })
     mockGetMastodonActorsFromIds.mockResolvedValue([
       {
-        id: canonicalActorId,
+        id: accountPublicId(canonicalActorId),
+        uri: canonicalActorId,
         url: accountUrl,
         username: 'remote-resolved'
       }

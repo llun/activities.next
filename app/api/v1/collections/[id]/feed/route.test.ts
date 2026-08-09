@@ -125,8 +125,11 @@ describe('GET /api/v1/collections/[id]/feed', () => {
     })
     expect(response.status).toBe(200)
     const data = await response.json()
+    const publicIds = await database.getStatusPublicIds({
+      statusIds: [publicPostId]
+    })
     expect(data.map((status: { id: string }) => status.id)).toContain(
-      urlToId(publicPostId)
+      publicIds.get(publicPostId) ?? urlToId(publicPostId)
     )
   })
 

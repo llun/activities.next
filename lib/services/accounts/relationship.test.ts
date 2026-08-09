@@ -13,8 +13,12 @@ describe('getRelationship', () => {
     isDomainBlockedByActor: vi.fn(),
     getMute: vi.fn(),
     getAccountNote: vi.fn(),
-    getEndorsement: vi.fn()
+    getEndorsement: vi.fn(),
+    getActorPublicIds: vi.fn()
   }
+
+  const TARGET_ACTOR_ID = 'https://example.com/users/target'
+  const TARGET_PUBLIC_ID = '019a0000-0000-7000-8000-00000000000a'
 
   const mockCurrentActor = {
     id: 'https://example.com/users/current',
@@ -33,6 +37,39 @@ describe('getRelationship', () => {
     mockDatabase.getMute.mockResolvedValue(null)
     mockDatabase.getAccountNote.mockResolvedValue('')
     mockDatabase.getEndorsement.mockResolvedValue(null)
+    mockDatabase.getActorPublicIds.mockResolvedValue(
+      new Map([[TARGET_ACTOR_ID, TARGET_PUBLIC_ID]])
+    )
+  })
+
+  it('emits the target publicId as the relationship id', async () => {
+    mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
+    mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
+
+    const relationship = await getRelationship({
+      database: mockDatabase as unknown as Database,
+      currentActor: mockCurrentActor as unknown as Actor,
+      targetActorId: TARGET_ACTOR_ID
+    })
+
+    expect(mockDatabase.getActorPublicIds).toHaveBeenCalledWith({
+      actorIds: [TARGET_ACTOR_ID]
+    })
+    expect(relationship.id).toBe(TARGET_PUBLIC_ID)
+  })
+
+  it('falls back to the legacy id when the target has no publicId', async () => {
+    mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
+    mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
+    mockDatabase.getActorPublicIds.mockResolvedValue(new Map())
+
+    const relationship = await getRelationship({
+      database: mockDatabase as unknown as Database,
+      currentActor: mockCurrentActor as unknown as Actor,
+      targetActorId: TARGET_ACTOR_ID
+    })
+
+    expect(relationship.id).toBe('example.com:users:target')
   })
 
   it('returns relationship with following=true when following', async () => {

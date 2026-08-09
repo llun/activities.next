@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
+import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
@@ -105,8 +106,59 @@ describe('GET /api/v1/statuses/[id]/quotes', () => {
     expect(response.status).toBe(200)
     const statuses = (await response.json()) as { id: string }[]
     expect(statuses.map((status) => status.id)).toEqual([
-      urlToId(acceptedQuoteId)
+      await statusPublicId(database, acceptedQuoteId)
     ])
+  })
+
+  it('emits the quoting statuses publicIds as the Link cursors', async () => {
+    const quotedId = `${ACTOR1_ID}/statuses/quotes-cursor-target`
+    await database.createNote({
+      id: quotedId,
+      url: quotedId,
+      actorId: ACTOR1_ID,
+      text: 'quote me for the cursor',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+    const firstQuotingId = `${ACTOR2_ID}/statuses/quotes-cursor-1`
+    await createQuotingStatus(firstQuotingId, ACTOR2_ID, quotedId, 'accepted')
+    const secondQuotingId = `${ACTOR3_ID}/statuses/quotes-cursor-2`
+    await createQuotingStatus(secondQuotingId, ACTOR3_ID, quotedId, 'accepted')
+
+    // limit=1 leaves an overflow row, so the route advertises a next cursor.
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v1/statuses/${urlToId(quotedId)}/quotes?limit=1`
+      ),
+      { params: Promise.resolve({ id: urlToId(quotedId) }) }
+    )
+
+    expect(response.status).toBe(200)
+    const nextMaxId = new URL(
+      response.headers
+        .get('Link')!
+        .split(', ')
+        .find((part) => part.includes('rel="next"'))!
+        .match(/<([^>]+)>/)![1]
+    ).searchParams.get('max_id')
+    // Newest-first: page 1 holds the second quote, so it is the next cursor.
+    const boundary = await database.getStatus({ statusId: secondQuotingId })
+    expect(nextMaxId).toBe(boundary!.publicId)
+
+    // The advertised publicId cursor pages to the older quote.
+    const nextResponse = await GET(
+      new NextRequest(
+        `https://llun.test/api/v1/statuses/${urlToId(
+          quotedId
+        )}/quotes?limit=1&max_id=${nextMaxId}`
+      ),
+      { params: Promise.resolve({ id: urlToId(quotedId) }) }
+    )
+    expect(nextResponse.status).toBe(200)
+    const older = await database.getStatus({ statusId: firstQuotingId })
+    expect(
+      ((await nextResponse.json()) as { id: string }[]).map(({ id }) => id)
+    ).toEqual([older!.publicId])
   })
 
   it('excludes quoting statuses the viewer cannot read (no visibility leak)', async () => {
@@ -148,8 +200,8 @@ describe('GET /api/v1/statuses/[id]/quotes', () => {
     expect(response.status).toBe(200)
     const statuses = (await response.json()) as { id: string }[]
     const ids = statuses.map((status) => status.id)
-    expect(ids).toContain(urlToId(publicQuoteId))
-    expect(ids).not.toContain(urlToId(privateQuoteId))
+    expect(ids).toContain(await statusPublicId(database, publicQuoteId))
+    expect(ids).not.toContain(await statusPublicId(database, privateQuoteId))
   })
 
   it('404s when the quoted status does not exist', async () => {

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
+import { actorPublicId } from '@/lib/stub/publicIds'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -107,7 +108,7 @@ describe('GET /api/v1/accounts/:id/followers', () => {
     const data = await response.json()
     // Only the rows newer than the oldest cursor, presented newest-first.
     expect(data.length).toBe(allFollows.length - 1)
-    expect(data[0].id).toBe(urlToId(newestActorId))
+    expect(data[0].id).toBe(await actorPublicId(database, newestActorId))
     const link = response.headers.get('Link')
     expect(link).toContain('rel="next"')
     expect(link).toContain('rel="prev"')

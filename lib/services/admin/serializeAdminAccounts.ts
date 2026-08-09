@@ -8,8 +8,8 @@ import {
   AdminAccountRecord
 } from '@/lib/types/database/operations'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
-import { isPublicId } from '@/lib/utils/publicId'
-import { safeIdToUrl, urlToId } from '@/lib/utils/urlToId'
+import { getClientActorId, isPublicId } from '@/lib/utils/publicId'
+import { safeIdToUrl } from '@/lib/utils/urlToId'
 
 // This server has no roles system, so an account marked `role = 'admin'` is
 // reported with a minimal admin Role object; everyone else gets the default
@@ -31,7 +31,8 @@ export type SerializeAdminAccountsParams = {
   records: AdminAccountRecord[]
   // Latest-first session IPs keyed by account id (local accounts only).
   sessionIps: Map<string, AdminAccountIp[]>
-  // The public Account entity keyed by its Mastodon id (urlToId(actor.id)).
+  // The public Account entity keyed by its emitted Mastodon id
+  // (getClientActorId(actor)).
   publicAccountById: Map<string, Mastodon.Account>
 }
 
@@ -43,7 +44,9 @@ export const serializeAdminAccounts = ({
   const host = configuredHost()
 
   return records.flatMap(({ actor, account }) => {
-    const id = urlToId(actor.id)
+    // Doubles as the join key into publicAccountById, which is keyed by the
+    // public Account entity's emitted id — both sides flip together.
+    const id = getClientActorId(actor)
     const publicAccount = publicAccountById.get(id)
     // A record with no serializable public account (e.g. a headless actor that
     // slipped through) is dropped rather than emitting a malformed entity.
@@ -112,10 +115,10 @@ export const hydrateAdminAccounts = async (
   return serializeAdminAccounts({ records, sessionIps, publicAccountById })
 }
 
-// Resolve the `[id]` path param — a Mastodon id (urlToId(actor.id)) or a
-// UUIDv7 publicId — to its AdminAccountRecord, or null when the id is
-// undecodable or unknown (an unresolvable publicId keeps the same null
-// contract as an undecodable legacy id).
+// Resolve the `[id]` path param — a UUIDv7 publicId, or the legacy
+// `urlToId(actor.id)` form for a publicId-less row — to its AdminAccountRecord,
+// or null when the id is undecodable or unknown (an unresolvable publicId keeps
+// the same null contract as an undecodable legacy id).
 export const resolveAdminAccountRecord = async (
   database: Database,
   id: string

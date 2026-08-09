@@ -22,8 +22,9 @@ export const POST = traceApiRoute(
     [Scope.enum.write, Scope.enum['write:follows']],
     async (req, { currentActor, database, params }) => {
       const { id } = await params
-      // Accept the urlToId-format id every GET endpoint emits (what Mastodon
-      // clients send), a UUIDv7 publicId, and a raw actor URL (the
+      // Accept every id form a GET endpoint has handed out: a UUIDv7 publicId
+      // (what they emit now), the legacy urlToId form (what a Mastodon client
+      // cached before the flip still sends), and a raw actor URL (the
       // first-party UI's historical shape) so the UI migration is
       // non-breaking. resolveActorIdParam's raw-URL fast path absorbs the
       // http(s) case instead of letting idToUrl mangle the scheme colon.
@@ -75,7 +76,8 @@ export const POST = traceApiRoute(
 
       // Return the real relationship (the request is no longer pending) rather
       // than a hardcoded all-false literal, matching the authorize route and
-      // every other relationship response (id in urlToId format, languages null).
+      // every other relationship response (id in the same form the account
+      // entities carry, languages null).
       const relationship = await getRelationship({
         database,
         currentActor,

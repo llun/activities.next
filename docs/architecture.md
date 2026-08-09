@@ -123,6 +123,48 @@ All database operations go through the `lib/database/` layer using [Knex.js](htt
 
 The `/api/v1/` and `/api/v2/` routes implement a subset of the [Mastodon API](https://docs.joinmastodon.org/api/), allowing users to connect with Mastodon-compatible client applications (Ivory, Ice Cubes, Tusky, etc.).
 
+### Public Identifiers
+
+Internally an actor or a status is addressed by its ActivityPub URI (`actors.id`,
+`statuses.id`). That URI is the join key throughout `lib/` and the value that
+federates, but it is not what clients are given as an id. Both tables also carry
+a `publicId` — a UUIDv7 minted from the row's `createdAt`, so ids stay
+time-ordered — and that is the identifier the server hands out:
+
+- The Mastodon API serializes `Status.id` and `Account.id` (and every id that
+  references one, including the `max_id` / `min_id` / `since_id` pagination
+  cursors) as the `publicId`.
+- Web status detail pages are `/@username@domain/<publicId>`.
+- `uri` and `url` still carry the ActivityPub URI. An id is not a URL, and
+  neither can be computed from the other.
+
+Resolution is deliberately asymmetric: only the `publicId` is emitted, but every
+form the instance has ever handed out is still accepted on input, permanently.
+There are two resolution boundaries:
+
+- `lib/services/mastodon/resolveClientId.ts` — the API. Accepts a `publicId`,
+  the colon-encoded form (`domain:users:username`), the `apurl_` opaque form,
+  and a raw ActivityPub URI.
+- `app/(timeline)/[actor]/[status]/resolveStatusFromPath.ts` — the web status
+  page. Accepts a `publicId`, the sha256 hash of a local status URL, a
+  percent-encoded remote status URI, and a bare local status-id tail.
+
+The accept side has to stay permanent because emission is not universal either:
+a row written before the publicId backfill, and a remote actor this instance
+does not store, have no `publicId` and fall back to emitting the legacy form.
+
+Because every form is accepted, the first-party web client (`lib/client.ts`)
+sends ids back exactly as it received them — re-encoding is not merely
+redundant, it is destructive: `urlToId` reads a bare UUIDv7 as a URL host and
+returns it with a trailing colon, which neither resolution boundary can decode.
+The one transformation left is `toIdPathSegment` (`lib/utils/urlToId.ts`), used
+for an id interpolated into a URL **path** segment; it encodes only a raw
+ActivityPub URI, whose slashes would otherwise split the route.
+
+`publicId` is only ever minted on insert — there is no lazy mint — so existing
+rows are filled in by the `backfillPublicIds.ts` maintenance script; see
+[Maintenance](./maintenance.md#public-id-backfill).
+
 ### Authentication
 
 Authentication is handled by [better-auth](https://www.better-auth.com/), which provides:
@@ -216,13 +258,14 @@ until the affected attachments are deleted.
 
 ```
 ┌──────────────┐     ┌──────────────┐     ┌──────────────────┐
-│   accounts   │────▶│    actors     │────▶│    statuses      │
+│   accounts   │────▶│    actors    │────▶│     statuses     │
 │              │     │              │     │                  │
 │ id           │     │ id           │     │ id               │
-│ email        │     │ accountId    │     │ actorId          │
-│ passwordHash │     │ username     │     │ type (Note/Poll) │
-│ createdAt    │     │ domain       │     │ content          │
-└──────────────┘     │ name         │     │ reply            │
+│ email        │     │ publicId     │     │ publicId         │
+│ passwordHash │     │ accountId    │     │ actorId          │
+│ createdAt    │     │ username     │     │ type (Note/Poll) │
+└──────────────┘     │ domain       │     │ content          │
+                     │ name         │     │ reply            │
                      │ settings     │     │ createdAt        │
                      │ publicKey    │     └────────┬─────────┘
                      │ privateKey   │              │

@@ -1,10 +1,14 @@
 import { Database } from '@/lib/database/types'
 import { Status, StatusType } from '@/lib/types/domain/status'
+import { isPublicId } from '@/lib/utils/publicId'
 
 interface ResolveStatusFromPathParams {
   database: Pick<
     Database,
-    'getActorFromUsername' | 'getStatus' | 'getStatusFromUrlHash'
+    | 'getActorFromUsername'
+    | 'getStatus'
+    | 'getStatusFromUrlHash'
+    | 'getStatusFromPublicId'
   >
   actorParam: string
   statusParam: string
@@ -74,6 +78,23 @@ export const resolveStatusFromPath = async ({
       : `${protocol}://${domain}/users/${username}/statuses/${decodedStatusParam}`
 
   let status: Status | null = null
+
+  // publicId paths come first: the lookup is a single unique-index hit and it
+  // is the only branch that resolves a BACKFILLED status, whose URI tail is not
+  // its publicId. (A status created after the flip has the publicId as its URI
+  // tail, so the fullStatusId synthesis below would find it too.) The lookup is
+  // not actor-scoped, so validate the path actor exactly as the unscoped hash
+  // fallback does — a publicId under the wrong actor must not resolve.
+  if (isPublicId(decodedStatusParam)) {
+    const statusFromPublicId = await database.getStatusFromPublicId({
+      publicId: decodedStatusParam,
+      currentActorId
+    })
+
+    if (statusFromPublicId && actorIdFromPath) {
+      status = getStatusForPathActor(statusFromPublicId, actorIdFromPath)
+    }
+  }
 
   if (isStatusHash) {
     status = await database.getStatusFromUrlHash({

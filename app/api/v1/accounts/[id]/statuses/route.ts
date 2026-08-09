@@ -92,14 +92,15 @@ export const GET = traceApiRoute(
         since_id: encodedSinceId
       } = parsedParams
 
-      // Clients echo back the opaque ids this endpoint emits (urlToId-encoded
-      // status URLs, or a status publicId), so decode the cursors before
-      // querying — the database stores raw status URLs and silently ignores
-      // an unknown cursor, which would serve the same first page over and
-      // over. An undecodable cursor is a deliberate 400, using the same
-      // decodeCursor rule as the timeline endpoints; an empty cursor param
-      // means "no cursor" there too. A decoded publicId is then resolved to
-      // its stored status URL — the SQL layer must never see a raw publicId.
+      // Clients echo back the ids this endpoint has handed out (a status
+      // publicId, or the legacy urlToId-encoded status URL for a row that has
+      // none — and for anything a client cached before the flip), so decode
+      // the cursors before querying — the database stores raw status URLs and
+      // silently ignores an unknown cursor, which would serve the same first
+      // page over and over. An undecodable cursor is a deliberate 400, using
+      // the same decodeCursor rule as the timeline endpoints; an empty cursor
+      // param means "no cursor" there too. A decoded publicId is then resolved
+      // to its stored status URL — the SQL layer must never see a raw publicId.
       const decodedMaxId = decodeCursor(encodedMaxId || undefined)
       const decodedMinId = decodeCursor(encodedMinId || undefined)
       const decodedSinceId = decodeCursor(encodedSinceId || undefined)

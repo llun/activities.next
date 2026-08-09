@@ -2,7 +2,7 @@ import {
   OAuthGuard,
   OAuthGuardAnyScope
 } from '@/lib/services/guards/OAuthGuard'
-import { getMastodonFilterStatus } from '@/lib/services/mastodon/getMastodonFilter'
+import { getMastodonFilterStatusWithPublicId } from '@/lib/services/mastodon/getMastodonFilter'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -45,7 +45,7 @@ export const GET = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: getMastodonFilterStatus(status)
+        data: await getMastodonFilterStatusWithPublicId(database, status)
       })
     }
   )

@@ -39,7 +39,8 @@ export const getRelationship = async ({
     muteRecord,
     note,
     endorsement,
-    isDomainBlocking
+    isDomainBlocking,
+    targetPublicIds
   ] = await Promise.all([
     database.isCurrentActorFollowing({
       currentActorId: currentActor.id,
@@ -84,7 +85,11 @@ export const getRelationship = async ({
           actorId: currentActor.id,
           domain: targetDomain
         })
-      : false
+      : false,
+    // The relationship id must be the same value the Account entity emits for
+    // this actor, so it is resolved the same way — one indexed lookup alongside
+    // the relationship queries rather than a separate round trip.
+    database.getActorPublicIds({ actorIds: [targetActorId] })
   ])
 
   const isRequested = Boolean(
@@ -95,7 +100,7 @@ export const getRelationship = async ({
   )
 
   return Mastodon.Relationship.parse({
-    id: urlToId(targetActorId),
+    id: targetPublicIds.get(targetActorId) ?? urlToId(targetActorId),
     following: isFollowing,
     // Fall back to the follow column defaults (reblogs=true, notify=false) when
     // a follow exists but predates these preferences.

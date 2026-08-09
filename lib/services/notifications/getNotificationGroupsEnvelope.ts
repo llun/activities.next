@@ -1,8 +1,10 @@
 import { Database } from '@/lib/database/types'
 import { applyFiltersToStatus } from '@/lib/services/filters/applyFilters'
-import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
+import { FilterRecordWithStatusPublicIds } from '@/lib/services/mastodon/getMastodonFilter'
+import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import {
   MastodonNotificationGroup,
+  NotificationGroupResult,
   getNotificationGroup
 } from '@/lib/services/notifications/getNotificationGroup'
 import {
@@ -10,11 +12,8 @@ import {
   groupNotifications
 } from '@/lib/services/notifications/groupNotifications'
 import { Mastodon } from '@/lib/types/activitypub'
-import {
-  ActiveFilterRecord,
-  Notification,
-  NotificationType
-} from '@/lib/types/database/operations'
+import { Notification, NotificationType } from '@/lib/types/database/operations'
+import { urlToId } from '@/lib/utils/urlToId'
 
 // Mastodon's dehydrated grouped-notifications response: groups reference shared
 // accounts and statuses by id, deduped into top-level arrays.
@@ -67,7 +66,7 @@ const resolveStatuses = async (
   database: Database,
   statusIds: string[],
   currentActorId?: string,
-  filterRecords?: ActiveFilterRecord[]
+  filterRecords?: FilterRecordWithStatusPublicIds[]
 ): Promise<Mastodon.Status[]> => {
   if (statusIds.length === 0) return []
   const domainStatuses = await database.getStatusesByIds({
@@ -76,13 +75,24 @@ const resolveStatuses = async (
     visibleToActorId: currentActorId,
     withReplies: false
   })
+  // Serialize the page in one pass rather than a status at a time: the batch
+  // path resolves the whole page's mention publicIds — and its reblog/reply
+  // counts, reaction rollups, pinned state and quoted statuses — in one query
+  // each, where a per-status call issues one of each per status, sequentially.
+  const mastodonStatuses = await getMastodonStatuses(
+    database,
+    domainStatuses,
+    currentActorId
+  )
+  // Pair each serialized status back to the domain row the filters read. `uri`
+  // is the ActivityPub id the domain row was fetched by; `id` is a publicId and
+  // would not join.
+  const mastodonStatusByUri = new Map(
+    mastodonStatuses.map((status) => [status.uri, status] as const)
+  )
   const results: Mastodon.Status[] = []
   for (const domainStatus of domainStatuses) {
-    const mastodonStatus = await getMastodonStatus(
-      database,
-      domainStatus,
-      currentActorId
-    )
+    const mastodonStatus = mastodonStatusByUri.get(domainStatus.id)
     if (!mastodonStatus) continue
     if (filterRecords && filterRecords.length > 0) {
       const matches = applyFiltersToStatus(domainStatus, filterRecords)
@@ -106,6 +116,47 @@ const resolveStatuses = async (
 }
 
 /**
+ * Rewrites the ids a group references (sample_account_ids / status_id) into
+ * their public forms.
+ *
+ * getNotificationGroup is pure and does the sampling itself, so the ids are only
+ * known once it has run — but each result also carries the RAW actor/status ids
+ * next to the emitted group, which is what this reads. It must run BEFORE the
+ * reconciliation below: those steps match the group ids against the `accounts`
+ * and `statuses` arrays, which serialize through the flipped Account/Status
+ * serializers, so leaving the group ids in the legacy form would drop every
+ * group. An id with no publicId (a pre-backfill row) keeps the legacy encoding
+ * on both sides, so the join holds either way.
+ */
+const applyPublicIdsToGroups = async (
+  database: Database,
+  results: NotificationGroupResult[]
+): Promise<void> => {
+  if (results.length === 0) return
+
+  const [actorPublicIds, statusPublicIds] = await Promise.all([
+    database.getActorPublicIds({
+      actorIds: results.flatMap((result) => result.sampleActorIds)
+    }),
+    database.getStatusPublicIds({
+      statusIds: results
+        .map((result) => result.statusId)
+        .filter((statusId): statusId is string => Boolean(statusId))
+    })
+  ])
+
+  for (const result of results) {
+    result.group.sample_account_ids = result.sampleActorIds.map(
+      (actorId) => actorPublicIds.get(actorId) ?? urlToId(actorId)
+    )
+    if (result.statusId) {
+      result.group.status_id =
+        statusPublicIds.get(result.statusId) ?? urlToId(result.statusId)
+    }
+  }
+}
+
+/**
  * Builds the Mastodon grouped-notifications envelope from already-grouped
  * notifications: one NotificationGroup per group, plus the deduped accounts and
  * statuses they reference.
@@ -114,9 +165,10 @@ export const getNotificationGroupsEnvelope = async (
   database: Database,
   grouped: GroupedNotification[],
   currentActorId?: string,
-  filterRecords?: ActiveFilterRecord[]
+  filterRecords?: FilterRecordWithStatusPublicIds[]
 ): Promise<NotificationGroupsEnvelope> => {
   const results = grouped.map(getNotificationGroup)
+  await applyPublicIdsToGroups(database, results)
 
   // Resolve statuses first so we can filter groups by hide-filter results.
   const statusIds = Array.from(

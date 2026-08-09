@@ -2,6 +2,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import type { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
+import { generatePublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import {
@@ -13,23 +14,29 @@ import {
   createCollection,
   createDirectMessage,
   createPoll,
+  createReport,
   deleteCollection,
   deleteFitnessRouteHeatmap,
+  deleteStatus,
+  follow,
   getActorStatuses,
   getBookmarks,
   getCollectionFeed,
   getCollectionTimeline,
   getFitnessRouteHeatmap,
   getFitnessRouteHeatmaps,
+  getFollowStatus,
   getTrendingLinks,
   getTrendingStatuses,
   getTrendingTags,
+  likeStatus,
   removeCollectionAccounts,
   revokeCollectionMembership,
   search,
   startStravaArchiveImport,
   triggerFitnessRouteHeatmap,
   undoBookmarkStatus,
+  unfollow,
   updateCollection,
   updateNote,
   uploadAttachment
@@ -321,7 +328,43 @@ describe('client createDirectMessage', () => {
         body: JSON.stringify({
           status: '@bea@remote.example hello',
           visibility: 'direct',
-          in_reply_to_id: urlToId(replyStatus.id)
+          in_reply_to_id: replyStatus.id
+        })
+      })
+    )
+  })
+
+  it('recognizes an existing participant whose account id is a public id', async () => {
+    // Post id flip an Account `id` is an opaque publicId, so the participant
+    // check must join on `uri`. Getting it wrong re-mentions everyone who is
+    // already on the thread.
+    const replyStatus = {
+      id: 'https://local.example/users/me/statuses/root',
+      actorId: 'https://local.example/users/me',
+      to: ['https://local.example/users/ada'],
+      cc: ['https://local.example/users/me']
+    } as Status
+    const existingRecipient = {
+      id: generatePublicId(),
+      uri: 'https://local.example/users/ada',
+      url: 'https://local.example/@ada',
+      username: 'ada',
+      acct: 'ada@local.example'
+    } as MastodonAccount
+
+    await createDirectMessage({
+      message: 'hello',
+      recipients: [existingRecipient],
+      replyStatus
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/statuses',
+      expect.objectContaining({
+        body: JSON.stringify({
+          status: 'hello',
+          visibility: 'direct',
+          in_reply_to_id: replyStatus.id
         })
       })
     )
@@ -423,6 +466,136 @@ describe('client bookmark helpers', () => {
       expect.objectContaining({
         method: 'GET',
         headers: { Accept: 'application/json' }
+      })
+    )
+  })
+})
+
+// Every id-accepting route resolves all three client-facing forms — a UUIDv7
+// publicId, the legacy colon/`apurl_` encoding, and a raw AP URI — so the
+// client must hand back whatever id it was given. Re-encoding is not merely
+// redundant: `urlToId` parses a bare uuid as a URL host and returns it with a
+// trailing colon, an id no resolver can decode. That silently broke the
+// "Follow back" button once Account ids flipped to publicIds.
+const PUBLIC_ID = generatePublicId()
+const RAW_ACTOR_URI = 'https://remote.example/users/actor'
+const RAW_STATUS_URI = 'https://remote.example/users/actor/statuses/post-1'
+
+const ACTOR_ID_FORMS = [
+  { description: 'public id', actorId: PUBLIC_ID, expected: PUBLIC_ID },
+  {
+    description: 'colon form',
+    actorId: 'remote.example:users:actor',
+    expected: 'remote.example:users:actor'
+  },
+  {
+    description: 'raw AP URI',
+    actorId: RAW_ACTOR_URI,
+    expected: urlToId(RAW_ACTOR_URI)
+  }
+]
+
+describe('client follow helpers', () => {
+  beforeEach(() => {
+    fetchMock.resetMocks()
+    fetchMock.mockResponse('[]', { status: 200 })
+  })
+
+  it.each(ACTOR_ID_FORMS)(
+    'follows and unfollows an account given a $description',
+    async ({ actorId, expected }) => {
+      await follow({ targetActorId: actorId })
+      await unfollow({ targetActorId: actorId })
+
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        1,
+        `/api/v1/accounts/${expected}/follow`,
+        expect.objectContaining({ method: 'POST' })
+      )
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        2,
+        `/api/v1/accounts/${expected}/unfollow`,
+        expect.objectContaining({ method: 'POST' })
+      )
+    }
+  )
+
+  it.each(ACTOR_ID_FORMS)(
+    'reads the relationship of an account given a $description',
+    async ({ actorId }) => {
+      await getFollowStatus({ targetActorId: actorId })
+
+      // The relationships route reads `id[]` and resolves each entry itself, so
+      // the id is only percent-escaped for the query string, never re-encoded.
+      const requestUrl = new URL(
+        fetchMock.mock.calls[0][0] as string,
+        'https://local.example'
+      )
+      expect(requestUrl.pathname).toBe('/api/v1/accounts/relationships')
+      expect(requestUrl.searchParams.get('id[]')).toBe(actorId)
+    }
+  )
+
+  it('resolves a public id follow to true without mangling the id', async () => {
+    fetchMock.mockResponseOnce('{}', { status: 200 })
+
+    await expect(follow({ targetActorId: PUBLIC_ID })).resolves.toBe(true)
+    expect(fetchMock.mock.calls[0][0]).not.toContain(`${PUBLIC_ID}:`)
+  })
+})
+
+describe('client status id encoding', () => {
+  beforeEach(() => {
+    fetchMock.resetMocks()
+    fetchMock.mockResponse('{}', { status: 200 })
+  })
+
+  it.each([
+    { description: 'public id', statusId: PUBLIC_ID, expected: PUBLIC_ID },
+    {
+      description: 'colon form',
+      statusId: 'remote.example:users:actor:statuses:post-1',
+      expected: 'remote.example:users:actor:statuses:post-1'
+    },
+    {
+      description: 'raw AP URI',
+      statusId: RAW_STATUS_URI,
+      expected: urlToId(RAW_STATUS_URI)
+    }
+  ])(
+    'likes and deletes a status given a $description',
+    async ({ statusId, expected }) => {
+      await likeStatus({ statusId })
+      await deleteStatus({ statusId })
+
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        1,
+        `/api/v1/statuses/${expected}/favourite`,
+        expect.objectContaining({ method: 'POST' })
+      )
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        2,
+        `/api/v1/statuses/${expected}`,
+        expect.objectContaining({ method: 'DELETE' })
+      )
+    }
+  )
+
+  it('sends report ids in the body without re-encoding them', async () => {
+    await createReport({
+      targetActorId: PUBLIC_ID,
+      statusId: RAW_STATUS_URI,
+      category: 'spam'
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/reports',
+      expect.objectContaining({
+        body: JSON.stringify({
+          account_id: PUBLIC_ID,
+          status_ids: [RAW_STATUS_URI],
+          category: 'spam'
+        })
       })
     )
   })
@@ -1130,39 +1303,60 @@ describe('client collection helpers', () => {
     )
   })
 
-  it('encodes the cursor params with urlToId for the timeline and feed helpers', async () => {
-    fetchMock.mockResponse(
-      JSON.stringify({
-        statuses: [],
-        nextMaxStatusId: null,
-        prevMinStatusId: null
-      }),
-      { status: 200 }
-    )
-    const maxStatusId = 'https://remote.example/users/a/statuses/older'
-    const minStatusId = 'https://remote.example/users/a/statuses/newer'
-
-    // Parse the requested URL so the assertion is decoding-agnostic (the `:` in
-    // an encoded id is %3A-escaped in the query string) and order-agnostic.
-    const lastRequestUrl = () =>
-      new URL(
-        fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0] as string
+  // Cursors travel in a query param, where the accept side (decodeCursor →
+  // safeIdToUrl, or the publicId fast path) takes every client-facing id form
+  // verbatim. Re-encoding here would turn a publicId cursor into `<uuid>:`,
+  // which resolves to nothing and silently ends pagination.
+  it.each([
+    {
+      description: 'a raw ActivityPub URI',
+      maxStatusId: 'https://remote.example/users/a/statuses/older',
+      minStatusId: 'https://remote.example/users/a/statuses/newer'
+    },
+    {
+      description: 'a UUIDv7 public id',
+      maxStatusId: generatePublicId(),
+      minStatusId: generatePublicId()
+    },
+    {
+      description: 'a legacy colon-form id',
+      maxStatusId: 'remote.example:users:a:statuses:older',
+      minStatusId: 'remote.example:users:a:statuses:newer'
+    }
+  ])(
+    'sends $description cursor unchanged for the timeline and feed helpers',
+    async ({ maxStatusId, minStatusId }) => {
+      fetchMock.mockResponse(
+        JSON.stringify({
+          statuses: [],
+          nextMaxStatusId: null,
+          prevMinStatusId: null
+        }),
+        { status: 200 }
       )
 
-    await getCollectionTimeline({
-      collectionId: 'c1',
-      maxStatusId,
-      minStatusId
-    })
-    const timelineUrl = lastRequestUrl()
-    expect(timelineUrl.pathname).toBe('/api/v1/timelines/collection/c1')
-    expect(timelineUrl.searchParams.get('max_id')).toBe(urlToId(maxStatusId))
-    expect(timelineUrl.searchParams.get('min_id')).toBe(urlToId(minStatusId))
+      // Parse the requested URL so the assertion is decoding-agnostic (`:` and
+      // `/` are percent-escaped in the query string) and order-agnostic.
+      const lastRequestUrl = () =>
+        new URL(
+          fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0] as string
+        )
 
-    await getCollectionFeed({ collectionId: 'c1', maxStatusId, minStatusId })
-    const feedUrl = lastRequestUrl()
-    expect(feedUrl.pathname).toBe('/api/v1/collections/c1/feed')
-    expect(feedUrl.searchParams.get('max_id')).toBe(urlToId(maxStatusId))
-    expect(feedUrl.searchParams.get('min_id')).toBe(urlToId(minStatusId))
-  })
+      await getCollectionTimeline({
+        collectionId: 'c1',
+        maxStatusId,
+        minStatusId
+      })
+      const timelineUrl = lastRequestUrl()
+      expect(timelineUrl.pathname).toBe('/api/v1/timelines/collection/c1')
+      expect(timelineUrl.searchParams.get('max_id')).toBe(maxStatusId)
+      expect(timelineUrl.searchParams.get('min_id')).toBe(minStatusId)
+
+      await getCollectionFeed({ collectionId: 'c1', maxStatusId, minStatusId })
+      const feedUrl = lastRequestUrl()
+      expect(feedUrl.pathname).toBe('/api/v1/collections/c1/feed')
+      expect(feedUrl.searchParams.get('max_id')).toBe(maxStatusId)
+      expect(feedUrl.searchParams.get('min_id')).toBe(minStatusId)
+    }
+  )
 })

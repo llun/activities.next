@@ -183,10 +183,13 @@ export const POST = traceApiRoute(
           })
       }
 
+      const statusPublicIds = await database.getStatusPublicIds({
+        statusIds: report.statusIds
+      })
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: serializeReportEntity({ report, targetAccount })
+        data: serializeReportEntity({ report, targetAccount, statusPublicIds })
       })
     }
   )

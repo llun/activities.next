@@ -1194,6 +1194,75 @@ describe('StatusDatabase', () => {
           await freshDatabase.destroy()
         }
       })
+
+      it('getStatusPublicIds chunks a request wider than the SQLite bind limit', async () => {
+        // A full timeline page can carry more ids than SQLITE_MAX_BINDINGS
+        // allows in one statement, so the lookup has to chunk like its
+        // getStatusIdsByPublicIds counterpart does.
+        const { database: freshDatabase, instance } =
+          getTestSQLDatabaseWithInstance()
+        await freshDatabase.migrate()
+        const queries: { bindings: unknown[]; sql: string }[] = []
+        const handleQuery = ({
+          bindings,
+          sql
+        }: {
+          bindings?: unknown[]
+          sql: string
+        }) => {
+          queries.push({ bindings: bindings ?? [], sql: sql.toLowerCase() })
+        }
+        try {
+          const actorId = 'https://public-id-chunk.test/users/author'
+          await freshDatabase.createActor({
+            actorId,
+            username: 'author',
+            domain: 'public-id-chunk.test',
+            followersUrl: `${actorId}/followers`,
+            inboxUrl: `${actorId}/inbox`,
+            sharedInboxUrl: 'https://public-id-chunk.test/inbox',
+            publicKey: 'public-id-chunk-public-key',
+            createdAt: Date.now()
+          })
+          const statusId = `${actorId}/statuses/public-ids-chunked`
+          const status = (await freshDatabase.createNote({
+            id: statusId,
+            url: statusId,
+            actorId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Chunked lookup post'
+          })) as StatusNote
+          const statusIds = [
+            ...Array.from(
+              { length: SQLITE_MAX_BINDINGS + 10 },
+              (_unused, index) =>
+                `${actorId}/statuses/public-ids-chunk-missing-${index}`
+            ),
+            statusId
+          ]
+
+          instance.on('query', handleQuery)
+          const map = await freshDatabase.getStatusPublicIds({ statusIds })
+          instance.off('query', handleQuery)
+
+          const bindingCounts = queries
+            .filter(
+              ({ sql }) =>
+                sql.includes('from `statuses`') && sql.includes('`id` in')
+            )
+            .map(({ bindings }) => bindings.length)
+          expect(bindingCounts.length).toBeGreaterThan(1)
+          expect(Math.max(...bindingCounts)).toBeLessThanOrEqual(
+            SQLITE_MAX_BINDINGS
+          )
+          expect(map.size).toBe(1)
+          expect(map.get(statusId)).toBe(status.publicId)
+        } finally {
+          instance.off('query', handleQuery)
+          await freshDatabase.destroy()
+        }
+      })
     })
 
     describe('getActorStatusFromPathSegment', () => {

@@ -1,5 +1,10 @@
 const OPAQUE_URL_ID_PREFIX = 'apurl_'
 
+// A raw ActivityPub URI, as opposed to any of the encoded id forms (a UUIDv7
+// publicId, the `host:path:segments` colon form, or an `apurl_` opaque id) —
+// none of which can start with a scheme.
+const RAW_URL_PATTERN = /^https?:\/\//
+
 const toBase64Url = (value: string) =>
   value.replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')
 
@@ -111,6 +116,31 @@ export const idToUrl = (id: string) => {
 }
 
 /**
+ * Encode a client-supplied id for use as a URL PATH segment of an id-accepting
+ * API route.
+ *
+ * Those routes resolve their `[id]` through `resolveStatusIdParam` /
+ * `resolveActorIdParam`, which accept ALL THREE client-facing forms: a UUIDv7
+ * publicId, the legacy colon/`apurl_` encoding, and a raw ActivityPub URI. So
+ * re-encoding on the client buys nothing for the last two — and it actively
+ * CORRUPTS a publicId: `urlToId` parses a bare uuid as a URL host, so
+ * `urlToId('0199a1b2-c3d4-7e5f-8a9b-0123456789ab')` returns it with a trailing
+ * colon appended, a value that is neither a publicId nor a decodable legacy id.
+ * No resolver can get back to the stored URI from it, and the request 404s.
+ *
+ * The one form that must still be transformed is a raw AP URI, whose slashes
+ * would otherwise split the route path into extra segments. Those (and only
+ * those) keep the legacy `urlToId` encoding, which the accept side reverses
+ * with `idToUrl`.
+ *
+ * Ids that travel in a QUERY PARAM or a JSON body need no transformation at
+ * all: pass them through unchanged and let `URLSearchParams`/`JSON.stringify`
+ * escape them.
+ */
+export const toIdPathSegment = (id: string): string =>
+  RAW_URL_PATTERN.test(id) ? urlToId(id) : id
+
+/**
  * Decode a client-supplied pagination cursor (an opaque id produced by
  * `urlToId`) back into a status URL, returning `null` when the value is not a
  * decodable id rather than silently yielding an empty/garbage string.
@@ -132,7 +162,7 @@ export const safeIdToUrl = (value: string): string | null => {
   // A raw status URL is already the stored id — pass it through instead of
   // letting idToUrl mangle the double slash after the scheme (encoded ids
   // never start with a scheme, so there is no ambiguity).
-  if (/^https?:\/\//.test(value)) {
+  if (RAW_URL_PATTERN.test(value)) {
     try {
       const { protocol } = new URL(value)
       return protocol === 'http:' || protocol === 'https:' ? value : null

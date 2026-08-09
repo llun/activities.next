@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
+import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -95,11 +96,42 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data.map((status: { id: string }) => status.id)).toEqual([
-      urlToId(listStatus.id)
+      await statusPublicId(database, listStatus.id)
     ])
     const link = response.headers.get('Link') || ''
     expect(link).toContain('rel="next"')
     expect(link).toContain('rel="prev"')
+  })
+
+  it('emits publicId Link cursors that page back to the same boundary status', async () => {
+    vi.spyOn(database, 'getListTimeline').mockResolvedValue([listStatus])
+
+    const response = await GET(request(), {
+      params: Promise.resolve({ list_id: listId })
+    })
+    const parts = response.headers.get('Link')!.split(', ')
+    const cursorOf = (rel: string, param: string) =>
+      new URL(
+        parts
+          .find((part) => part.includes(`rel="${rel}"`))!
+          .match(/<([^>]+)>/)![1]
+      ).searchParams.get(param)
+
+    expect(cursorOf('next', 'max_id')).toBe(listStatus.publicId)
+    expect(cursorOf('prev', 'min_id')).toBe(listStatus.publicId)
+
+    // Feed the advertised cursor back in: it resolves to the stored URI before
+    // it reaches the list query.
+    const spy = vi.spyOn(database, 'getListTimeline').mockResolvedValue([])
+    const secondPage = await GET(
+      request({ max_id: cursorOf('next', 'max_id')! }),
+      { params: Promise.resolve({ list_id: listId }) }
+    )
+
+    expect(secondPage.status).toBe(200)
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ maxStatusId: listStatus.id })
+    )
   })
 
   it('returns the activities_next domain shape when format=activities_next', async () => {
@@ -202,7 +234,7 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data.map((status: { id: string }) => status.id)).toEqual([
-      urlToId(listStatus.id)
+      await statusPublicId(database, listStatus.id)
     ])
   })
 
@@ -269,8 +301,10 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
 
       expect(response.status).toBe(200)
       const ids = (await response.json()).map((s: { id: string }) => s.id)
-      expect(ids).toContain(urlToId(listStatus.id))
-      expect(ids).not.toContain(urlToId(spoilerStatus.id))
+      expect(ids).toContain(await statusPublicId(database, listStatus.id))
+      expect(ids).not.toContain(
+        await statusPublicId(database, spoilerStatus.id)
+      )
     })
 
     it('drops hide-filtered statuses from the activities_next format', async () => {
@@ -320,8 +354,9 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
         params: Promise.resolve({ list_id: listId })
       })
       const mastodonBody = await mastodon.json()
+      const warnStatusPublicId = await statusPublicId(database, warnStatus.id)
       const warnEntity = mastodonBody.find(
-        (s: { id: string }) => s.id === urlToId(warnStatus.id)
+        (s: { id: string }) => s.id === warnStatusPublicId
       )
       expect(warnEntity).toBeDefined()
       expect(warnEntity.filtered?.length ?? 0).toBeGreaterThan(0)

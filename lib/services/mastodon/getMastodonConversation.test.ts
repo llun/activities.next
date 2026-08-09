@@ -9,6 +9,7 @@ import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { Mastodon } from '@/lib/types/activitypub'
 import { DirectConversation } from '@/lib/types/database/operations'
 import { Status, StatusType } from '@/lib/types/domain/status'
+import { generatePublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
 vi.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
@@ -199,6 +200,33 @@ describe('getMastodonConversation', () => {
 
     expect(accountsByActorId.get(actorId)).toBe(account)
     expect(accountsByActorId.get(profileUrl)).toBeUndefined()
+  })
+
+  it('keys hydrated accounts by actor uri when the account id is a public id', async () => {
+    // A publicId cannot be decoded back to an actor URI, so an actor serving
+    // `/@name` as its `url` is only matchable through `uri`.
+    const actorId = 'https://remote.example/users/bea'
+    const account = {
+      ...mastodonAccount(actorId),
+      id: generatePublicId(),
+      url: 'https://remote.example/@bea'
+    }
+    const database = {
+      getMastodonActorsFromIds: vi.fn().mockResolvedValue([account])
+    } as unknown as Database
+    const conversations = [
+      {
+        participantActorIds: ['https://llun.test/users/me', actorId]
+      }
+    ] as DirectConversation[]
+
+    const accountsByActorId = await getMastodonConversationAccountMap(
+      database,
+      conversations,
+      'https://llun.test/users/me'
+    )
+
+    expect(accountsByActorId.get(actorId)).toBe(account)
   })
 
   it('keeps participant account order from the conversation when using a hydrated map', () => {

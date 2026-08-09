@@ -2,10 +2,10 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
+import { actorPublicId } from '@/lib/stub/publicIds'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID, seedActor3 } from '@/lib/stub/seed/actor3'
 import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
-import { urlToId } from '@/lib/utils/urlToId'
 
 import { GET } from './route'
 
@@ -78,8 +78,8 @@ describe('GET /api/v1/endorsements', () => {
     const data = await response.json()
     expect(data.length).toBeGreaterThanOrEqual(2)
     const ids = data.map((account: { id: string }) => account.id)
-    expect(ids).toContain(urlToId(ACTOR4_ID))
-    expect(ids).toContain(urlToId(ACTOR2_ID))
+    expect(ids).toContain(await actorPublicId(database, ACTOR4_ID))
+    expect(ids).toContain(await actorPublicId(database, ACTOR2_ID))
   })
 
   it('emits Link pagination headers when limiting', async () => {

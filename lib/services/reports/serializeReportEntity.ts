@@ -8,10 +8,14 @@ import { urlToId } from '@/lib/utils/urlToId'
 // reflect the real workflow columns instead of being hardcoded null.
 export const serializeReportEntity = ({
   report,
-  targetAccount
+  targetAccount,
+  statusPublicIds
 }: {
   report: Report
   targetAccount: Mastodon.Account
+  // Status URI -> publicId for the reported statuses; a status with no entry
+  // (a row that predates the backfill) keeps the legacy encoding.
+  statusPublicIds?: ReadonlyMap<string, string>
 }) => ({
   id: report.id,
   action_taken: report.actionTaken,
@@ -22,9 +26,11 @@ export const serializeReportEntity = ({
   comment: report.comment,
   forwarded: report.forward,
   created_at: getISOTimeUTC(report.createdAt),
-  // Echo ids back in the Mastodon short form clients sent, not the internal
-  // URL form we persist.
-  status_ids: report.statusIds.map((id) => urlToId(id)),
+  // Echo ids back in the client-facing form, not the internal URL form we
+  // persist.
+  status_ids: report.statusIds.map(
+    (id) => statusPublicIds?.get(id) ?? urlToId(id)
+  ),
   rule_ids: report.ruleIds,
   collection_ids: report.collectionIds,
   target_account: targetAccount

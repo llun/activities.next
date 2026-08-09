@@ -202,8 +202,15 @@ const orderAccountsByIds = async ({
   const accountsByLookupId = new Map<string, MastodonAccount>()
 
   for (const account of accounts) {
-    for (const key of [account.id, account.url]) {
-      const lookupId = await normalizeAccountLookupId(database, key)
+    // Key on the fields that are already ActivityPub URIs. `uri` IS the stored
+    // actor id these results were looked up by, and `url` is the profile URL,
+    // so both normalize without touching the database. `account.id` is NOT a
+    // candidate: it is a publicId now, and only a point query decodes one — a
+    // sequential round trip per result on an abortable typeahead search, where
+    // it used to be a synchronous decode. Same reason getMastodonStatuses keys
+    // its account cache on `uri`.
+    for (const key of [account.uri, account.url]) {
+      const lookupId = normalizeActorId(key)
       if (lookupId) accountsByLookupId.set(lookupId, account)
     }
   }

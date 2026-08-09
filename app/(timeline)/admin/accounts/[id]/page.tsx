@@ -7,7 +7,7 @@ import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getMention } from '@/lib/types/domain/actor'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
-import { urlToId } from '@/lib/utils/urlToId'
+import { getClientActorId } from '@/lib/utils/publicId'
 
 import { ActorModerationPanel } from './ActorModerationPanel'
 
@@ -113,7 +113,7 @@ const Page = async ({ params }: Props) => {
                 </div>
                 <div className="mt-4 basis-full border-t pt-4">
                   <ActorModerationPanel
-                    actorId={urlToId(actor.id)}
+                    actorId={getClientActorId(actor)}
                     username={actor.username}
                   />
                 </div>

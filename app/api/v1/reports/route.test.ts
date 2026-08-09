@@ -2,14 +2,15 @@ import { NextRequest } from 'next/server'
 
 import { SEND_FLAG_JOB_NAME } from '@/lib/jobs/names'
 import { generatePublicId } from '@/lib/utils/publicId'
-import { idToUrl } from '@/lib/utils/urlToId'
+import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
 import { MAX_REPORT_STATUS_IDS, POST } from './route'
 
 const mockDatabase = {
   getMastodonActorFromId: vi.fn(),
   createReport: vi.fn(),
-  getStatusIdsByPublicIds: vi.fn()
+  getStatusIdsByPublicIds: vi.fn(),
+  getStatusPublicIds: vi.fn()
 }
 const mockCurrentActor = {
   id: 'https://local.test/users/me',
@@ -66,6 +67,7 @@ describe('POST /api/v1/reports', () => {
     mockDatabase.getStatusIdsByPublicIds.mockResolvedValue(
       new Map<string, string>()
     )
+    mockDatabase.getStatusPublicIds.mockResolvedValue(new Map<string, string>())
     mockDatabase.createReport.mockImplementation(async (input) => ({
       id: 'report-1',
       actionTaken: false,
@@ -224,6 +226,26 @@ describe('POST /api/v1/reports', () => {
     expect(mockDatabase.getStatusIdsByPublicIds).toHaveBeenCalledWith({
       publicIds
     })
+  })
+
+  it('echoes status_ids as publicIds, falling back to the legacy form', async () => {
+    const legacyStatusId = idToUrl('s1')
+    const publicStatusId = generatePublicId()
+    const flippedStatusId = idToUrl('s2')
+    mockDatabase.getStatusPublicIds.mockResolvedValue(
+      new Map([[flippedStatusId, publicStatusId]])
+    )
+
+    const response = await POST(
+      createJsonRequest({ account_id: 'acc1', status_ids: ['s1', 's2'] }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(mockDatabase.getStatusPublicIds).toHaveBeenCalledWith({
+      statusIds: [legacyStatusId, flippedStatusId]
+    })
+    const body = await response.json()
+    expect(body.status_ids).toEqual([urlToId(legacyStatusId), publicStatusId])
   })
 
   it('returns 404 when the target account does not exist', async () => {

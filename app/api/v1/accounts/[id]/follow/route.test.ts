@@ -4,6 +4,7 @@ import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import { seedDatabase } from '@/lib/stub/database'
+import { actorPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { FollowStatus } from '@/lib/types/domain/follow'
@@ -398,7 +399,7 @@ describe('Account Action Endpoints', () => {
       })
 
       expect(relationship).toMatchObject({
-        id: urlToId(ACTOR2_ID),
+        id: await actorPublicId(database, ACTOR2_ID),
         following: true,
         followed_by: expect.toBeBoolean(),
         blocking: false,

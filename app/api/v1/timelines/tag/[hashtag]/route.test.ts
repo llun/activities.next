@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { Status, StatusType } from '@/lib/types/domain/status'
+import { generatePublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { GET } from './route'
@@ -13,7 +14,8 @@ const mockDatabase = {
   getActiveFiltersForActor: vi.fn(),
   getActiveServerFilters: vi.fn(),
   getActorDomainBlocks: vi.fn(async () => []),
-  getModerationStatesForActors: vi.fn(async () => new Map())
+  getModerationStatesForActors: vi.fn(async () => new Map()),
+  getStatusPublicIds: vi.fn(async () => new Map<string, string>())
 }
 const mockCurrentActor = {
   id: 'https://local.test/users/me'
@@ -515,12 +517,35 @@ describe('GET /api/v1/timelines/tag/:hashtag', () => {
         .split(', ')
         .find((part) => part.includes('rel="prev"'))
       const prevUrl = new URL(prevPart!.match(/<([^>]+)>/)![1])
+      // `status` has no publicId (an ActivityPub-derived object never gets
+      // one), so the cursor falls back to the legacy colon form.
       expect(prevUrl.searchParams.get('min_id')).toBe(urlToId(status.id))
       expect(prevUrl.searchParams.getAll('any[]')).toEqual(['cycling'])
       expect(prevUrl.searchParams.getAll('all[]')).toEqual(['fitness'])
       expect(prevUrl.searchParams.getAll('none[]')).toEqual(['walking'])
       expect(prevUrl.searchParams.get('only_media')).toBe('true')
       expect(prevUrl.searchParams.get('local')).toBe('true')
+    })
+
+    it('emits the boundary status publicId as the prev Link min_id cursor', async () => {
+      const publicId = generatePublicId()
+      mockDatabase.getStatusesByHashtag.mockResolvedValue([
+        { ...status, publicId }
+      ])
+
+      const response = await GET(
+        new NextRequest('https://local.test/api/v1/timelines/tag/running'),
+        { params: Promise.resolve({ hashtag: 'running' }) }
+      )
+
+      const prevPart = response.headers
+        .get('Link')!
+        .split(', ')
+        .find((part) => part.includes('rel="prev"'))
+      const prevUrl = new URL(prevPart!.match(/<([^>]+)>/)![1])
+      expect(prevUrl.searchParams.get('min_id')).toBe(publicId)
+      // The page answered for its own boundary — no lookup query needed.
+      expect(mockDatabase.getStatusPublicIds).not.toHaveBeenCalled()
     })
 
     it('carries the remote scope (not local) into the prev Link', async () => {

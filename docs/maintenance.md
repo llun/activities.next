@@ -207,9 +207,20 @@ deploy order rather than a gap in it:
 ### When to Use
 
 Run this once **after the new build is fully rolled out** — when no pre-publicId
-pod is still serving — and **before** the follow-up change that starts emitting
-`publicId`s ships. An exit code of `0` ("No NULL publicId rows remain") is the
-deploy gate for that follow-up.
+pod is still serving — and **before deploying the emitting build**: the change
+that makes the Mastodon API return `publicId`s as `Status.id` / `Account.id`
+(and as pagination cursors) and moves web status pages to
+`/@username@domain/<publicId>`. This script must exit `0` ("No NULL publicId
+rows remain") **before** that build ships, not after — that exit code is the
+deploy gate.
+
+Missing the gate is degrading, not fatal, which is exactly why it is easy to
+miss. Every legacy id form stays resolvable on input forever, and a row with no
+`publicId` simply keeps emitting the legacy colon-encoded id — so the instance
+serves two id shapes for the same kind of entity instead of failing loudly. It
+does not heal on its own either: `publicId` is only minted on insert, so those
+rows keep the old shape until this script is run. If the emitting build is
+already live and rows are still `NULL`, run it now — it is safe at any point.
 
 Also run it any time the migration's final output reported rows inserted after
 the sweep converged, or after restoring a backup taken mid-rollout.

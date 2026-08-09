@@ -2,10 +2,10 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
+import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
-import { urlToId } from '@/lib/utils/urlToId'
 
 import { GET } from './route'
 
@@ -97,7 +97,7 @@ describe('GET /api/v1/bookmarks', () => {
     const data = await response.json()
     expect(data).toContainEqual(
       expect.objectContaining({
-        id: urlToId(statusId),
+        id: await statusPublicId(database, statusId),
         bookmarked: true
       })
     )
@@ -166,8 +166,8 @@ describe('GET /api/v1/bookmarks', () => {
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data.map((status: { id: string }) => status.id)).toEqual([
-      urlToId(newerStatusId),
-      urlToId(olderStatusId)
+      await statusPublicId(database, newerStatusId),
+      await statusPublicId(database, olderStatusId)
     ])
   })
 
