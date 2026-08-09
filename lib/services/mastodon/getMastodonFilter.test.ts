@@ -2,6 +2,7 @@ import knex, { Knex } from 'knex'
 
 import { getSQLDatabase } from '@/lib/database/sql'
 import { Database } from '@/lib/database/types'
+import { applyFiltersToStatus } from '@/lib/services/filters/applyFilters'
 import {
   getMastodonFilter,
   getMastodonFilterStatus,
@@ -16,7 +17,7 @@ import { Status } from '@/lib/types/domain/status'
 import { V1Filter } from '@/lib/types/mastodon'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { generatePublicId } from '@/lib/utils/publicId'
-import { urlToId } from '@/lib/utils/urlToId'
+import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
 let knexDatabase: Knex
 let database: Database
@@ -39,9 +40,9 @@ afterAll(async () => {
 // A real status row, so its publicId is the one the database minted rather than
 // a literal this test made up.
 const createStatus = async (
-  slug: string
+  slug: string,
+  id = `${ACTOR1_ID}/statuses/${slug}`
 ): Promise<{ status: Status; publicId: string }> => {
-  const id = `${ACTOR1_ID}/statuses/${slug}`
   const status = await database.createNote({
     id,
     url: `https://llun.test/@test1/${slug}`,
@@ -220,6 +221,59 @@ describe('hydrateFilterStatusPublicIds', () => {
     expect(
       hydrated.map((record) => record.statuses.map((row) => row.statusPublicId))
     ).toEqual([[first.publicId], [], [second.publicId, null]])
+  })
+})
+
+describe('filter status id emission', () => {
+  // One response names the same status twice — in `filtered[].status_matches`
+  // and in the `filter.statuses[]` beside it — so the two must agree. The
+  // agreement cannot rest on `idToUrl(urlToId(id))` being the identity, because
+  // it is not: urlToId normalizes the host, and a remote note delivered to the
+  // inbox keeps whatever `note.id` the sender wrote (createNoteJob stores it
+  // verbatim). A row holding the colon form of such an id rebuilds a lookup key
+  // `statuses.id` is not keyed by, the hydration resolves nothing, and both
+  // halves have to fall back TOGETHER.
+  it('emits one id form when the stored row cannot rebuild the status uri', async () => {
+    const { status, publicId } = await createStatus(
+      'uppercase-host',
+      'https://Remote.Example/users/alice/statuses/1'
+    )
+    const filter = await database.createFilter({
+      actorId: ACTOR1_ID,
+      title: 'Uppercase host',
+      context: ['home'],
+      filterAction: 'warn',
+      expiresAt: null
+    })
+    // The legacy colon form, as a row written before the route resolved client
+    // ids holds it.
+    const storedStatusId = urlToId(status.id)
+    await database.addFilterStatus({
+      actorId: ACTOR1_ID,
+      filterId: filter.id,
+      statusId: storedStatusId
+    })
+    const statuses = await database.getFilterStatuses({
+      actorId: ACTOR1_ID,
+      filterId: filter.id
+    })
+    const [record] = await hydrateFilterRecordStatusPublicIds(database, [
+      { filter, keywords: [], statuses: statuses ?? [] }
+    ])
+
+    // The lossy round trip, spelled out: the rebuilt key is not the id the
+    // status is stored under, so the batched lookup cannot find the row.
+    expect(idToUrl(storedStatusId)).not.toBe(status.id)
+    expect(record.statuses[0].statusPublicId).toBeNull()
+
+    const [result] = applyFiltersToStatus(status, [record])
+    expect(result.status_matches).toEqual([storedStatusId])
+    expect(result.filter.statuses.map((entry) => entry.status_id)).toEqual(
+      result.status_matches
+    )
+    // The status does have a publicId — it is simply unreachable from this row,
+    // and the response says so in one voice instead of two.
+    expect(result.status_matches).not.toContain(publicId)
   })
 })
 

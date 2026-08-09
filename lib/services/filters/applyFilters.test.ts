@@ -192,12 +192,12 @@ describe('applyFiltersToStatus', () => {
   // three must keep matching the same status, or a filter silently stops
   // working with nothing to show for it.
   //
-  // Whatever the row holds, `status_matches` names the MATCHED STATUS by the id
-  // the client was given for it — its publicId — because the result rides on a
-  // serialized status the client compares it against. `filter.statuses[]` is
-  // emitted beside it from the stored value, so both are asserted together: a
-  // document that reports one id in one field and another in the other names a
-  // post the client cannot resolve.
+  // Whatever the row holds, `status_matches` names the status the ROW points at
+  // with the id the client was given for it — its publicId — because the result
+  // rides on a serialized status the client compares it against.
+  // `filter.statuses[]` is emitted from that same hydrated row, so both are
+  // asserted together: a document that reports one id in one field and another
+  // in the other names a post the client cannot resolve.
   const matchTarget = buildStatusNote(
     'https://llun.test/users/test1/statuses/2',
     'no keywords here',
@@ -229,6 +229,33 @@ describe('applyFiltersToStatus', () => {
     const results = applyFiltersToStatus(preBackfill, records)
     expect(results).toHaveLength(1)
     expect(results[0].status_matches).toEqual([urlToId(preBackfill.id)])
+    expect(results[0].filter.statuses.map((entry) => entry.status_id)).toEqual(
+      results[0].status_matches
+    )
+  })
+
+  // A row's publicId is resolved through the URI hydrateFilterStatusPublicIds
+  // rebuilds from the stored value, and `urlToId` is LOSSY — it normalizes the
+  // host — so a remote status whose id carries an uppercase host is not a fixed
+  // point of `idToUrl(urlToId(id))` and that lookup misses. (The miss is proved
+  // against a real database in getMastodonFilter.test.ts; here the row arrives
+  // already un-hydrated, which is all this side sees.) The status in hand still
+  // has a publicId, so this is exactly the case where reconstructing the id
+  // separately would make the two halves disagree — they must fall back
+  // together instead. A document naming the status a uuid in `status_matches`
+  // and a colon form in `filter.statuses[]` names a post no client can resolve.
+  it('emits one id form when the stored row resolved no public id', () => {
+    const nonCanonical = buildStatusNote(
+      'https://Remote.Example/users/alice/statuses/1',
+      'no keywords here',
+      generatePublicId()
+    )
+    const records = [
+      buildStatusIdFilterRecord('f-unresolved', urlToId(nonCanonical.id), null)
+    ]
+    const results = applyFiltersToStatus(nonCanonical, records)
+    expect(results).toHaveLength(1)
+    expect(results[0].status_matches).toEqual([urlToId(nonCanonical.id)])
     expect(results[0].filter.statuses.map((entry) => entry.status_id)).toEqual(
       results[0].status_matches
     )

@@ -1,6 +1,7 @@
 import { Database } from '@/lib/database/types'
 import {
   FilterRecordWithStatusPublicIds,
+  getEmittedFilterStatusId,
   getMastodonFilterFromRecord,
   hydrateFilterRecordStatusPublicIds
 } from '@/lib/services/mastodon/getMastodonFilter'
@@ -12,7 +13,6 @@ import {
 } from '@/lib/types/domain/filter'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import * as Mastodon from '@/lib/types/mastodon'
-import { getClientStatusId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
 export const getFilterContextForTimeline = (
@@ -132,37 +132,38 @@ const getStatusContents = (status: Status): string[] => {
   return contents
 }
 
-// Every id form `filter_statuses.statusId` can hold for this status, mapped to
-// the status the match should be REPORTED as. A stored row matches whichever
-// encoding was current when it was written: the ActivityPub URI (what the write
-// route resolves to today), the legacy colon/`apurl_` form (pre-resolution
-// rows), and the publicId (a post-flip client id the write route could not
-// resolve, which it then stores verbatim).
+// Every id form `filter_statuses.statusId` can hold for this status. A stored
+// row matches whichever encoding was current when it was written: the
+// ActivityPub URI (what the write route resolves to today), the legacy
+// colon/`apurl_` form (pre-resolution rows), and the publicId (a post-flip
+// client id the write route could not resolve, which it then stores verbatim).
 //
 // An Announce contributes both its own ids and the reblogged original's, so
-// filtering either one hides the reblog — and each set points at ITS OWN status,
-// because `status_matches` names the status that matched. Both ids are in the
-// serialized entity a client reads them next to (the wrapper as `id`, the
-// original as `reblog.id`), so either one resolves.
-const getCandidateStatusSources = (status: Status): Map<string, Status> => {
+// filtering either one hides the reblog. Both ids are in the serialized entity a
+// client reads the result next to (the wrapper as `id`, the original as
+// `reblog.id`), so whichever one the row named resolves.
+//
+// Deliberately a Set of ids and not a map back to the matched Status: what the
+// match is REPORTED as comes from the hydrated row, never from the status in
+// hand — see matchFilter.
+const getCandidateStatusIds = (status: Status): Set<string> => {
   const target =
     status.type === StatusType.enum.Announce ? status.originalStatus : status
-  const sources = new Map<string, Status>()
-  const addCandidate = (id: string | null | undefined, source: Status) => {
-    if (!id || sources.has(id)) return
-    sources.set(id, source)
+  const candidates = new Set<string>()
+  const addCandidate = (id: string | null | undefined) => {
+    if (id) candidates.add(id)
   }
   if (target) {
-    addCandidate(target.id, target)
-    addCandidate(urlToId(target.id), target)
-    addCandidate(target.publicId, target)
+    addCandidate(target.id)
+    addCandidate(urlToId(target.id))
+    addCandidate(target.publicId)
   }
   if (status.type === StatusType.enum.Announce) {
-    addCandidate(status.id, status)
-    addCandidate(urlToId(status.id), status)
-    addCandidate(status.publicId, status)
+    addCandidate(status.id)
+    addCandidate(urlToId(status.id))
+    addCandidate(status.publicId)
   }
-  return sources
+  return candidates
 }
 
 // Instance-wide server filters carry no owning actor. Adapt them to the
@@ -205,7 +206,7 @@ export const getActiveFilters = async (
 
 const matchFilter = (
   contents: string[],
-  candidateSources: Map<string, Status>,
+  candidateStatusIds: ReadonlySet<string>,
   record: FilterRecordWithStatusPublicIds
 ): Mastodon.FilterResult | null => {
   const keywordMatches: string[] = []
@@ -218,17 +219,19 @@ const matchFilter = (
 
   const statusMatches: string[] = []
   for (const filterStatus of record.statuses) {
-    // Match on any stored form, but emit the id of the status that matched, in
-    // the same form the entity carrying this result does: `status_matches` rides
-    // on every timeline and notification status that has `filtered[]`, so a
-    // client compares it against ids the response already gave it. The matched
-    // status is in hand, so this needs no lookup — and it agrees by construction
-    // with the `filter.statuses[]` emitted beside it, which resolves the same
-    // publicId from the stored value (see hydrateFilterStatusPublicIds).
+    // Match on any stored form, but name the match with getEmittedFilterStatusId
+    // — the SAME function, reading the SAME hydrated row, that produces the
+    // `filter.statuses[]` entry emitted beside it in this very object. That is
+    // what makes the two agree: not that each independently reconstructs the
+    // same id, but that there is only one id and one place it comes from. It
+    // matters because `status_matches` rides on every timeline and notification
+    // status carrying `filtered[]`, where a client compares it against ids the
+    // response already gave it — and a document naming one status two ways is
+    // unresolvable.
     const matched =
-      candidateSources.get(filterStatus.statusId) ??
-      candidateSources.get(urlToId(filterStatus.statusId))
-    if (matched) statusMatches.push(getClientStatusId(matched))
+      candidateStatusIds.has(filterStatus.statusId) ||
+      candidateStatusIds.has(urlToId(filterStatus.statusId))
+    if (matched) statusMatches.push(getEmittedFilterStatusId(filterStatus))
   }
 
   if (keywordMatches.length === 0 && statusMatches.length === 0) return null
@@ -245,10 +248,10 @@ export const applyFiltersToStatus = (
 ): Mastodon.FilterResult[] => {
   if (filters.length === 0) return []
   const contents = getStatusContents(status)
-  const candidateSources = getCandidateStatusSources(status)
+  const candidateStatusIds = getCandidateStatusIds(status)
   const results: Mastodon.FilterResult[] = []
   for (const record of filters) {
-    const match = matchFilter(contents, candidateSources, record)
+    const match = matchFilter(contents, candidateStatusIds, record)
     if (match) results.push(match)
   }
   return results

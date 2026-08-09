@@ -67,11 +67,21 @@ export type FilterRecordWithStatusPublicIds = Omit<
   'statuses'
 > & { statuses: FilterStatusWithPublicId[] }
 
-// The ActivityPub URI a stored value names — the key `statuses.id` is indexed by
-// — or null when the row cannot name one. A bare publicId is skipped on purpose:
-// `idToUrl` would turn it into the junk lookup key `https://<uuid>/`, and such a
-// row already holds the emitted form, so toEmittedFilterStatusId returns it
-// unchanged.
+// Best-effort lookup key: the ActivityPub URI a stored value names — the key
+// `statuses.id` is indexed by — or null when the row cannot name one. A bare
+// publicId is skipped on purpose: `idToUrl` would turn it into the junk lookup
+// key `https://<uuid>/`, and such a row already holds the emitted form, so
+// toEmittedFilterStatusId returns it unchanged.
+//
+// This is best-effort because `urlToId` is LOSSY — it drops the scheme and
+// normalizes the host — so `idToUrl(urlToId(id))` is not the identity for every
+// `statuses.id`. A remote note delivered to the inbox keeps whatever `note.id`
+// the sender wrote (createNoteJob stores it verbatim), so an uppercase host or
+// an explicit `:443` survives, and a row holding the colon form of one rebuilds
+// a URI no row is keyed by. The lookup then misses and the row emits the legacy
+// colon form. That is a WORSE id, not an inconsistent one: every emission point
+// reads the same hydrated value through getEmittedFilterStatusId, so a miss
+// makes them fall back together.
 const toStoredStatusUri = (statusId: string): string | null =>
   isPublicId(statusId) ? null : safeIdToUrl(statusId)
 
@@ -125,11 +135,22 @@ export const hydrateFilterRecordStatusPublicIds = async (
   })
 }
 
+// THE single rule for naming the status a `filter_statuses` row points at, and
+// the reason a response cannot name one status two ways. Both places a filter's
+// status id leaves the API go through this, keyed on the same hydrated row:
+// `filter.statuses[].status_id` here, and the `status_matches` of a
+// FilterResult (see matchFilter in lib/services/filters/applyFilters). Neither
+// reconstructs the id from anything else, so they resolve together and — when
+// the hydration found nothing to resolve — fall back together.
+export const getEmittedFilterStatusId = (
+  status: FilterStatusWithPublicId
+): string => status.statusPublicId ?? toEmittedFilterStatusId(status.statusId)
+
 export const getMastodonFilterStatus = (
   status: FilterStatusWithPublicId
 ): Mastodon.FilterStatus => ({
   id: status.id,
-  status_id: status.statusPublicId ?? toEmittedFilterStatusId(status.statusId)
+  status_id: getEmittedFilterStatusId(status)
 })
 
 export const getMastodonFilterStatuses = async (
