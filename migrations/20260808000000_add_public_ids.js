@@ -82,6 +82,60 @@ const addPublicIdColumn = async (knex, tableName, indexName) => {
 
 const BATCH_SIZE = 500
 
+// Rows folded into a single bulk UPDATE. Each row contributes three bind
+// parameters (the CASE match, the CASE value, and the id in the IN list), so
+// 200 rows is 600 parameters — under the 999-parameter floor of the most
+// conservatively built SQLite, and nowhere near PostgreSQL's 65535.
+const UPDATE_CHUNK_SIZE = 200
+
+// One UPDATE per chunk, awaited one chunk at a time.
+//
+// This used to be a per-row UPDATE fanned out with Promise.all over the whole
+// BATCH_SIZE. knex's pool defaults to 10 connections, so 490 of those 500
+// queries sat in tarn's acquire queue and the entire batch had to drain within
+// a single 60s acquireConnectionTimeout. On a large table against a remote
+// database that is also serving traffic, the queue eventually outlives that
+// timeout and the migration dies mid-backfill with "Timeout acquiring a
+// connection. The pool is probably full."
+//
+// Awaiting sequentially means the backfill holds exactly ONE pooled connection
+// at any moment: it cannot starve its own pool, and it leaves the database's
+// connection budget to the app running alongside it. It is also far faster —
+// 174k rows go from 174k round trips to ~900.
+const bulkUpdatePublicIds = async (knex, tableName, updates) => {
+  let updated = 0
+
+  for (let offset = 0; offset < updates.length; offset += UPDATE_CHUNK_SIZE) {
+    const chunk = updates.slice(offset, offset + UPDATE_CHUNK_SIZE)
+
+    // `else ??` is unreachable — the IN list below restricts the statement to
+    // exactly the ids the CASE enumerates — but it keeps the expression total,
+    // so a row can never be blanked, and it gives PostgreSQL a typed branch to
+    // resolve the otherwise-unknown parameters against.
+    const caseSql = `case ?? ${chunk.map(() => 'when ? then ?').join(' ')} else ?? end`
+    const caseBindings = [
+      'id',
+      ...chunk.flatMap(({ id, publicId }) => [id, publicId]),
+      'publicId'
+    ]
+
+    // Built through the query builder rather than knex.raw so the return value
+    // is knex's normalised affected-row count on every dialect (a raw UPDATE
+    // hands back the driver's own result shape instead).
+    const affected = await knex(tableName)
+      .whereIn(
+        'id',
+        chunk.map(({ id }) => id)
+      )
+      .whereNull('publicId')
+      .update({ publicId: knex.raw(caseSql, caseBindings) })
+
+    updated += Number(affected ?? 0)
+  }
+
+  return updated
+}
+
 // Upper bound on sweepMissingPublicIds() passes, so a silently ineffective
 // UPDATE can never spin forever. At BATCH_SIZE rows per pass this covers far
 // more stragglers than an online migration can realistically accumulate; if it
@@ -175,15 +229,14 @@ const sweepMissingPublicIds = async (knex, tableName) => {
       .limit(BATCH_SIZE)
     if (rows.length === 0) break
 
-    const results = await Promise.all(
-      rows.map((row) =>
-        knex(tableName)
-          .where('id', row.id)
-          .whereNull('publicId')
-          .update({ publicId: mintPublicId(row.createdAt) })
-      )
+    const filled = await bulkUpdatePublicIds(
+      knex,
+      tableName,
+      rows.map((row) => ({
+        id: row.id,
+        publicId: mintPublicId(row.createdAt)
+      }))
     )
-    const filled = results.reduce((sum, count) => sum + Number(count ?? 0), 0)
     swept += filled
     console.log(
       `  ${tableName}: sweep pass ${pass} - ${filled}/${rows.length} filled (${swept} total)`
@@ -250,21 +303,16 @@ const backfillPublicIds = async (knex, tableName) => {
 
     lastId = rows[rows.length - 1].id
 
-    const updatePromises = []
-    for (const row of rows) {
-      if (row.publicId) continue
-      updatePromises.push(
-        knex(tableName)
-          .where('id', row.id)
-          .whereNull('publicId')
-          .update({ publicId: mintPublicId(row.createdAt) })
-      )
-    }
-
-    if (updatePromises.length > 0) {
-      await Promise.all(updatePromises)
-      updated += updatePromises.length
-    }
+    updated += await bulkUpdatePublicIds(
+      knex,
+      tableName,
+      rows
+        .filter((row) => !row.publicId)
+        .map((row) => ({
+          id: row.id,
+          publicId: mintPublicId(row.createdAt)
+        }))
+    )
 
     processed += rows.length
     console.log(

@@ -494,6 +494,61 @@ describe('public ids migration', () => {
     )
   })
 
+  it('backfills in bulk statements instead of one query per row', async () => {
+    // The backfill used to issue one UPDATE per row and fan the whole batch out
+    // with Promise.all. knex's pool defaults to 10 connections, so the rest
+    // queued in tarn and the batch had to drain inside a single 60s
+    // acquireConnectionTimeout — against a large table on a remote database
+    // that eventually times out and kills the migration mid-run with "Timeout
+    // acquiring a connection. The pool is probably full."
+    const rowCount = 450
+    await database('statuses').insert(
+      Array.from({ length: rowCount }, (_, index) => ({
+        id: `https://llun.test/users/a/statuses/${String(index).padStart(4, '0')}`,
+        createdAt: Date.UTC(2024, 10, 1) + index * 60_000
+      }))
+    )
+
+    let updateStatements = 0
+    let inFlight = 0
+    let maxConcurrentQueries = 0
+    const onQuery = ({ sql }: { sql: string }) => {
+      if (/^update /i.test(sql)) updateStatements += 1
+      inFlight += 1
+      maxConcurrentQueries = Math.max(maxConcurrentQueries, inFlight)
+    }
+    const onSettled = () => {
+      inFlight -= 1
+    }
+    database.on('query', onQuery)
+    database.on('query-response', onSettled)
+    database.on('query-error', onSettled)
+
+    try {
+      await migration.up(database)
+    } finally {
+      database.off('query', onQuery)
+      database.off('query-response', onSettled)
+      database.off('query-error', onSettled)
+    }
+
+    const missing = await database('statuses')
+      .whereNull('publicId')
+      .count({ cnt: '*' })
+    expect(Number(missing[0].cnt)).toBe(0)
+    const distinct = await database('statuses').countDistinct({
+      cnt: 'publicId'
+    })
+    expect(Number(distinct[0].cnt)).toBe(rowCount)
+
+    // 450 rows fold into three 200-row chunks, so anything near one statement
+    // per row means the fan-out is back.
+    expect(updateStatements).toBeLessThanOrEqual(5)
+    // And nothing is fanned out concurrently: the backfill holds one pooled
+    // connection at a time, leaving the rest of the budget to the live app.
+    expect(maxConcurrentQueries).toBe(1)
+  })
+
   it('rolls back cleanly', async () => {
     await migration.up(database)
     await migration.down(database)
