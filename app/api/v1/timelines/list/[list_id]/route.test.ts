@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
+import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -95,7 +96,7 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data.map((status: { id: string }) => status.id)).toEqual([
-      urlToId(listStatus.id)
+      await statusPublicId(database, listStatus.id)
     ])
     const link = response.headers.get('Link') || ''
     expect(link).toContain('rel="next"')
@@ -233,7 +234,7 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data.map((status: { id: string }) => status.id)).toEqual([
-      urlToId(listStatus.id)
+      await statusPublicId(database, listStatus.id)
     ])
   })
 
@@ -300,8 +301,10 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
 
       expect(response.status).toBe(200)
       const ids = (await response.json()).map((s: { id: string }) => s.id)
-      expect(ids).toContain(urlToId(listStatus.id))
-      expect(ids).not.toContain(urlToId(spoilerStatus.id))
+      expect(ids).toContain(await statusPublicId(database, listStatus.id))
+      expect(ids).not.toContain(
+        await statusPublicId(database, spoilerStatus.id)
+      )
     })
 
     it('drops hide-filtered statuses from the activities_next format', async () => {
@@ -351,8 +354,9 @@ describe('GET /api/v1/timelines/list/[list_id]', () => {
         params: Promise.resolve({ list_id: listId })
       })
       const mastodonBody = await mastodon.json()
+      const warnStatusPublicId = await statusPublicId(database, warnStatus.id)
       const warnEntity = mastodonBody.find(
-        (s: { id: string }) => s.id === urlToId(warnStatus.id)
+        (s: { id: string }) => s.id === warnStatusPublicId
       )
       expect(warnEntity).toBeDefined()
       expect(warnEntity.filtered?.length ?? 0).toBeGreaterThan(0)

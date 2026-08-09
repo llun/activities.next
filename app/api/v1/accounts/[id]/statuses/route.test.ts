@@ -4,6 +4,7 @@ import { POST as pinStatus } from '@/app/api/v1/statuses/[id]/pin/route'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
+import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { seedActor3 } from '@/lib/stub/seed/actor3'
@@ -657,7 +658,7 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
 
     expect(pinResponse.status).toBe(200)
     await expect(pinResponse.json()).resolves.toMatchObject({
-      id: urlToId(pinnedStatusId),
+      id: await statusPublicId(database, pinnedStatusId),
       pinned: true
     })
     getPinnedStatusIds.mockClear()

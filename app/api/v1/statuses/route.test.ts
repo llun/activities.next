@@ -14,6 +14,7 @@ import {
 import { getQueue } from '@/lib/services/queue'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
+import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
@@ -228,7 +229,7 @@ describe('POST /api/v1/statuses', () => {
     )
   })
 
-  it('creates a status via POST, still emits the legacy colon-form id, and reads back identically via GET by publicId', async () => {
+  it('creates a status via POST, emits its publicId, and reads back identically via the legacy colon-form id', async () => {
     const response = await POST(
       new NextRequest('https://llun.test/api/v1/statuses', {
         method: 'POST',
@@ -245,9 +246,6 @@ describe('POST /api/v1/statuses', () => {
 
     expect(response.status).toBe(200)
     const created = await response.json()
-    // PR 1 is accept-old, emit-old: the POST response id is still the legacy
-    // colon form, never the new publicId.
-    expect(created.id).toBe(urlToId(created.uri))
 
     const storedStatus = (await database.getStatus({
       statusId: created.uri,
@@ -256,17 +254,19 @@ describe('POST /api/v1/statuses', () => {
     if (!storedStatus.publicId) {
       throw new Error('newly created status is missing a publicId')
     }
+    // PR 2 flips emission: the POST response id is the minted publicId, while
+    // `uri` keeps carrying the ActivityPub URI.
+    expect(created.id).toBe(storedStatus.publicId)
 
+    const colonFormId = urlToId(created.uri)
     const [colonFormResponse, publicIdResponse] = await Promise.all([
+      getStatusById(
+        new NextRequest(`https://llun.test/api/v1/statuses/${colonFormId}`),
+        { params: Promise.resolve({ id: colonFormId }) }
+      ),
       getStatusById(
         new NextRequest(`https://llun.test/api/v1/statuses/${created.id}`),
         { params: Promise.resolve({ id: created.id }) }
-      ),
-      getStatusById(
-        new NextRequest(
-          `https://llun.test/api/v1/statuses/${storedStatus.publicId}`
-        ),
-        { params: Promise.resolve({ id: storedStatus.publicId }) }
       )
     ])
 
@@ -305,7 +305,7 @@ describe('POST /api/v1/statuses', () => {
     expect(response.status).toBe(200)
     const mastodonStatus = await response.json()
     expect(mastodonStatus.quote?.state).toBe('accepted')
-    expect(mastodonStatus.quote?.quoted_status?.id).toBe(urlToId(quoted.id))
+    expect(mastodonStatus.quote?.quoted_status?.id).toBe(quoted.publicId)
   })
 
   it('creates a status quoting another status via a publicId quoted_status_id', async () => {
@@ -339,9 +339,7 @@ describe('POST /api/v1/statuses', () => {
     expect(response.status).toBe(200)
     const mastodonStatus = await response.json()
     expect(mastodonStatus.quote?.state).toBe('accepted')
-    // PR 1 is accept-old, emit-old: the quoted status is still surfaced with
-    // its legacy colon-form id, even though it was resolved from a publicId.
-    expect(mastodonStatus.quote?.quoted_status?.id).toBe(urlToId(quoted.id))
+    expect(mastodonStatus.quote?.quoted_status?.id).toBe(quoted.publicId)
   })
 
   it('rejects a quote the policy denies with 422', async () => {
@@ -1330,8 +1328,8 @@ describe('GET /api/v1/statuses', () => {
     expect(response.status).toBe(200)
     const body = await response.json()
     expect(body.map((s: { id: string }) => s.id)).toEqual([
-      urlToId(firstId),
-      urlToId(secondId)
+      await statusPublicId(database, firstId),
+      await statusPublicId(database, secondId)
     ])
   })
 

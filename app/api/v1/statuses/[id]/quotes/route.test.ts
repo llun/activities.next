@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
+import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
@@ -105,7 +106,7 @@ describe('GET /api/v1/statuses/[id]/quotes', () => {
     expect(response.status).toBe(200)
     const statuses = (await response.json()) as { id: string }[]
     expect(statuses.map((status) => status.id)).toEqual([
-      urlToId(acceptedQuoteId)
+      await statusPublicId(database, acceptedQuoteId)
     ])
   })
 
@@ -199,8 +200,8 @@ describe('GET /api/v1/statuses/[id]/quotes', () => {
     expect(response.status).toBe(200)
     const statuses = (await response.json()) as { id: string }[]
     const ids = statuses.map((status) => status.id)
-    expect(ids).toContain(urlToId(publicQuoteId))
-    expect(ids).not.toContain(urlToId(privateQuoteId))
+    expect(ids).toContain(await statusPublicId(database, publicQuoteId))
+    expect(ids).not.toContain(await statusPublicId(database, privateQuoteId))
   })
 
   it('404s when the quoted status does not exist', async () => {

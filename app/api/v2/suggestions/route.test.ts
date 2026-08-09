@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { DELETE } from '@/app/api/v1/suggestions/[account_id]/route'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
+import { actorPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
@@ -104,7 +105,7 @@ describe('/api/v2/suggestions', () => {
         source: 'past_interactions',
         sources: ['friends_of_friends'],
         account: expect.objectContaining({
-          id: urlToId(ACTOR4_ID),
+          id: await actorPublicId(database, ACTOR4_ID),
           url: ACTOR4_ID
         })
       },
@@ -112,7 +113,7 @@ describe('/api/v2/suggestions', () => {
         source: 'past_interactions',
         sources: ['friends_of_friends'],
         account: expect.objectContaining({
-          id: urlToId(ACTOR5_ID),
+          id: await actorPublicId(database, ACTOR5_ID),
           url: ACTOR5_ID
         })
       }
@@ -123,14 +124,14 @@ describe('/api/v2/suggestions', () => {
     {
       description: 'returns only the top ranked suggestion when limit is 1',
       query: '?limit=1',
-      expectedAccountIds: [urlToId(ACTOR4_ID)]
+      expectedActorIds: [ACTOR4_ID]
     },
     {
       description: 'falls back to the default limit for a non-integer limit',
       query: '?limit=garbage',
-      expectedAccountIds: [urlToId(ACTOR4_ID), urlToId(ACTOR5_ID)]
+      expectedActorIds: [ACTOR4_ID, ACTOR5_ID]
     }
-  ])('$description', async ({ query, expectedAccountIds }) => {
+  ])('$description', async ({ query, expectedActorIds }) => {
     const response = await GET(createRequest(query), {
       params: Promise.resolve({})
     })
@@ -138,7 +139,11 @@ describe('/api/v2/suggestions', () => {
     const data = await response.json()
     expect(
       data.map((item: { account: { id: string } }) => item.account.id)
-    ).toEqual(expectedAccountIds)
+    ).toEqual(
+      await Promise.all(
+        expectedActorIds.map((actorId) => actorPublicId(database, actorId))
+      )
+    )
   })
 
   it.each([
@@ -166,7 +171,7 @@ describe('/api/v2/suggestions', () => {
       const data = await response.json()
       expect(
         data.map((item: { account: { id: string } }) => item.account.id)
-      ).toEqual([urlToId(ACTOR5_ID)])
+      ).toEqual([await actorPublicId(database, ACTOR5_ID)])
     } finally {
       await database.deleteBlock({
         actorId: blockActorId,
@@ -190,7 +195,7 @@ describe('/api/v2/suggestions', () => {
       const data = await response.json()
       expect(
         data.map((item: { account: { id: string } }) => item.account.id)
-      ).toEqual([urlToId(ACTOR4_ID)])
+      ).toEqual([await actorPublicId(database, ACTOR4_ID)])
     } finally {
       await database.deleteMute({
         actorId: ACTOR1_ID,
@@ -218,6 +223,6 @@ describe('/api/v2/suggestions', () => {
     const data = await response.json()
     expect(
       data.map((item: { account: { id: string } }) => item.account.id)
-    ).toEqual([urlToId(ACTOR5_ID)])
+    ).toEqual([await actorPublicId(database, ACTOR5_ID)])
   })
 })

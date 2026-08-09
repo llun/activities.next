@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
+import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -86,7 +87,7 @@ describe('GET /api/v1/timelines/public', () => {
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data.map((status: { id: string }) => status.id)).toEqual([
-      urlToId(publicStatus.id)
+      await statusPublicId(database, publicStatus.id)
     ])
   })
 
@@ -117,8 +118,8 @@ describe('GET /api/v1/timelines/public', () => {
     const ids = (await response.json()).map((s: { id: string }) => s.id)
     // The server-wide hide filter drops the matching status even for a
     // signed-out (anonymous) viewer; the non-matching status survives.
-    expect(ids).not.toContain(urlToId(hiddenStatus.id))
-    expect(ids).toContain(urlToId(publicStatus.id))
+    expect(ids).not.toContain(await statusPublicId(database, hiddenStatus.id))
+    expect(ids).toContain(await statusPublicId(database, publicStatus.id))
   })
 
   it('omits statuses from suspended actors', async () => {
@@ -130,7 +131,7 @@ describe('GET /api/v1/timelines/public', () => {
 
       expect(response.status).toBe(200)
       const ids = (await response.json()).map((s: { id: string }) => s.id)
-      expect(ids).not.toContain(urlToId(publicStatus.id))
+      expect(ids).not.toContain(await statusPublicId(database, publicStatus.id))
     } finally {
       await database.setActorSuspended({ actorId: ACTOR1_ID, suspended: false })
     }
@@ -145,7 +146,7 @@ describe('GET /api/v1/timelines/public', () => {
 
       expect(response.status).toBe(200)
       const ids = (await response.json()).map((s: { id: string }) => s.id)
-      expect(ids).not.toContain(urlToId(publicStatus.id))
+      expect(ids).not.toContain(await statusPublicId(database, publicStatus.id))
     } finally {
       await database.setActorSilenced({ actorId: ACTOR1_ID, silenced: false })
     }
@@ -188,7 +189,7 @@ describe('GET /api/v1/timelines/public', () => {
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data.map((status: { id: string }) => status.id)).toEqual([
-      urlToId(publicStatus.id)
+      await statusPublicId(database, publicStatus.id)
     ])
   })
 
@@ -368,9 +369,9 @@ describe('GET /api/v1/timelines/public', () => {
         (status: { id: string }) => status.id
       )
       // Both sources present; the federated post (seeded last) is newest-first.
-      expect(ids).toContain(urlToId(federated.id))
-      expect(ids).toContain(urlToId(publicStatus.id))
-      expect(ids[0]).toBe(urlToId(federated.id))
+      expect(ids).toContain(await statusPublicId(database, federated.id))
+      expect(ids).toContain(await statusPublicId(database, publicStatus.id))
+      expect(ids[0]).toBe(await statusPublicId(database, federated.id))
     })
 
     it('carries the remote scope into the next Link when paginating', async () => {

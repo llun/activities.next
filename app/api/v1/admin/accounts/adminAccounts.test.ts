@@ -230,11 +230,12 @@ describe('admin accounts API', () => {
     expect(await byRole.json()).toEqual([])
   })
 
-  // Pre-existing bug: listAdminAccountsResponse emits urlToId(actor.id)
-  // cursors, but nothing ever decoded max_id/since_id/min_id back before
-  // getAdminAccounts' exact `where('id', ...)` cursor lookup — so a page 2
-  // request with the emitted cursor silently ignored it and returned page 1
-  // again. This fails without the fix.
+  // listAdminAccountsResponse emits the same id the Admin::Account entity
+  // carries (now the actor's publicId), and nothing ever decoded
+  // max_id/since_id/min_id back before getAdminAccounts' exact
+  // `where('id', ...)` cursor lookup — so a page 2 request with the emitted
+  // cursor silently ignored it and returned page 1 again. This round-trips the
+  // emitted cursor through the accept side, whatever encoding it carries.
   it.each([
     {
       description: 'v1',

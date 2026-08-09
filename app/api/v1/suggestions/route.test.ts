@@ -2,13 +2,13 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
+import { actorPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
 import { ACTOR5_ID } from '@/lib/stub/seed/actor5'
 import { FollowStatus } from '@/lib/types/domain/follow'
-import { urlToId } from '@/lib/utils/urlToId'
 
 import { GET } from './route'
 
@@ -99,8 +99,8 @@ describe('/api/v1/suggestions', () => {
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data.map((account: { id: string }) => account.id)).toEqual([
-      urlToId(ACTOR4_ID),
-      urlToId(ACTOR5_ID)
+      await actorPublicId(database, ACTOR4_ID),
+      await actorPublicId(database, ACTOR5_ID)
     ])
     for (const account of data) {
       // Not wrapped in a Suggestion entity: no `sources` array and no nested

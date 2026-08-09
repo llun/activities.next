@@ -912,7 +912,7 @@ describe('GET /api/v1/timelines/[timeline]', () => {
       expect(response.status).toBe(200)
       const data = await response.json()
       expect(data.map((status: { id: string }) => status.id)).toEqual([
-        urlToId(goodStatus.id)
+        goodStatus.publicId
       ])
     })
   })

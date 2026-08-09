@@ -15,6 +15,7 @@ import { getQueue } from '@/lib/services/queue'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
+import { actorPublicId, statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID, seedActor3 } from '@/lib/stub/seed/actor3'
@@ -154,7 +155,7 @@ describe('GET /api/v1/statuses/[id]', () => {
 
       const data = await response.json()
       expect(data).toMatchObject({
-        id: urlToId(statusId),
+        id: await statusPublicId(database, statusId),
         uri: statusId,
         visibility: 'public'
       })
@@ -352,7 +353,7 @@ describe('GET /api/v1/statuses/[id]', () => {
 
       expect(mastodonStatus).not.toBeNull()
       expect(mastodonStatus).toMatchObject({
-        id: urlToId(statusId),
+        id: await statusPublicId(database, statusId),
         uri: statusId,
         url: expect.toBeString(),
         content: expect.toBeString(),
@@ -361,7 +362,7 @@ describe('GET /api/v1/statuses/[id]', () => {
         spoiler_text: '',
         created_at: expect.toBeString(),
         account: expect.objectContaining({
-          id: urlToId(ACTOR1_ID),
+          id: await actorPublicId(database, ACTOR1_ID),
           username: expect.toBeString(),
           acct: expect.toBeString(),
           url: ACTOR1_ID
@@ -836,7 +837,7 @@ describe('GET /api/v1/statuses/[id]', () => {
         database.isActorBookmarkedStatus({ actorId: ACTOR2_ID, statusId })
       ).resolves.toBe(true)
       await expect(response.json()).resolves.toMatchObject({
-        id: urlToId(statusId),
+        id: await statusPublicId(database, statusId),
         bookmarked: true
       })
     })
@@ -911,7 +912,7 @@ describe('GET /api/v1/statuses/[id]', () => {
         database.isActorBookmarkedStatus({ actorId: ACTOR2_ID, statusId })
       ).resolves.toBe(false)
       await expect(response.json()).resolves.toMatchObject({
-        id: urlToId(statusId),
+        id: await statusPublicId(database, statusId),
         bookmarked: false
       })
     })
@@ -950,7 +951,7 @@ describe('GET /api/v1/statuses/[id]', () => {
         })
       ).resolves.toEqual([statusId])
       await expect(response.json()).resolves.toMatchObject({
-        id: urlToId(statusId),
+        id: await statusPublicId(database, statusId),
         pinned: true
       })
 
@@ -967,7 +968,7 @@ describe('GET /api/v1/statuses/[id]', () => {
 
       expect(getResponse.status).toBe(200)
       await expect(getResponse.json()).resolves.toMatchObject({
-        id: urlToId(statusId),
+        id: await statusPublicId(database, statusId),
         pinned: true
       })
     })
@@ -1059,7 +1060,7 @@ describe('GET /api/v1/statuses/[id]', () => {
 
       expect(response.status).toBe(200)
       await expect(response.json()).resolves.toMatchObject({
-        id: urlToId(neverPinnedStatusId),
+        id: await statusPublicId(database, neverPinnedStatusId),
         pinned: false
       })
     })
@@ -1213,7 +1214,7 @@ describe('GET /api/v1/statuses/[id]', () => {
 
       expect(existingPinResponse.status).toBe(200)
       await expect(existingPinResponse.json()).resolves.toMatchObject({
-        id: urlToId(pinnedStatusIds[0]),
+        id: await statusPublicId(database, pinnedStatusIds[0]),
         pinned: true
       })
     })
@@ -1296,7 +1297,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       // local bookmark state, even though the post is no longer visible.
       expect(response.status).toBe(200)
       await expect(response.json()).resolves.toMatchObject({
-        id: urlToId(statusId),
+        id: await statusPublicId(database, statusId),
         bookmarked: false
       })
       await expect(
@@ -1441,7 +1442,7 @@ describe('GET /api/v1/statuses/[id]', () => {
 
       expect(mastodonStatus?.mentions).toHaveLength(1)
       expect(mastodonStatus?.mentions[0]).toMatchObject({
-        id: urlToId(ACTOR2_ID),
+        id: await actorPublicId(database, ACTOR2_ID),
         username: 'test2',
         acct: 'test2@llun.test',
         url: ACTOR2_ID
@@ -3355,9 +3356,11 @@ describe('GET /api/v1/statuses/[id]', () => {
       const mastodonStatus = await getMastodonStatus(database, status)
 
       expect(mastodonStatus?.in_reply_to_id).toBe(
-        urlToId(`${ACTOR1_ID}/statuses/post-1`)
+        await statusPublicId(database, `${ACTOR1_ID}/statuses/post-1`)
       )
-      expect(mastodonStatus?.in_reply_to_account_id).toBe(urlToId(ACTOR1_ID))
+      expect(mastodonStatus?.in_reply_to_account_id).toBe(
+        await actorPublicId(database, ACTOR1_ID)
+      )
     })
   })
 
@@ -3371,7 +3374,7 @@ describe('GET /api/v1/statuses/[id]', () => {
 
       expect(mastodonStatus?.reblog).not.toBeNull()
       expect(mastodonStatus?.reblog?.id).toBe(
-        urlToId(`${ACTOR2_ID}/statuses/post-2`)
+        await statusPublicId(database, `${ACTOR2_ID}/statuses/post-2`)
       )
       expect(mastodonStatus?.content).toBe('')
     })
@@ -3461,7 +3464,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(firstResponse.status).toBe(200)
       const firstPage = (await firstResponse.json()) as { id: string }[]
       expect(firstPage.map((account) => account.id)).toEqual([
-        urlToId(ACTOR3_ID)
+        await actorPublicId(database, ACTOR3_ID)
       ])
       expect(firstResponse.headers.get('Link')).toEqual(
         expect.stringContaining(
@@ -3481,7 +3484,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(nextResponse.status).toBe(200)
       const nextPage = (await nextResponse.json()) as { id: string }[]
       expect(nextPage.map((account) => account.id)).toEqual([
-        urlToId(ACTOR2_ID)
+        await actorPublicId(database, ACTOR2_ID)
       ])
       const nextLinkHeader = nextResponse.headers.get('Link')
       expect(nextLinkHeader).not.toEqual(expect.stringContaining('rel="next"'))
@@ -3606,8 +3609,8 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(fullResponse.status).toBe(200)
       const fullPage = (await fullResponse.json()) as { id: string }[]
       expect(fullPage.map((account) => account.id)).toEqual([
-        urlToId(ACTOR2_ID),
-        urlToId(ACTOR3_ID)
+        await actorPublicId(database, ACTOR2_ID),
+        await actorPublicId(database, ACTOR3_ID)
       ])
 
       const firstResponse = await getStatusRebloggedBy(
@@ -3638,7 +3641,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(nextResponse.status).toBe(200)
       const nextPage = (await nextResponse.json()) as { id: string }[]
       expect(nextPage.map((account) => account.id)).toEqual([
-        urlToId(ACTOR3_ID)
+        await actorPublicId(database, ACTOR3_ID)
       ])
     })
 
@@ -3710,7 +3713,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(nextResponse.status).toBe(200)
       const nextPage = (await nextResponse.json()) as { id: string }[]
       expect(nextPage.map((account) => account.id)).toEqual([
-        urlToId(ACTOR3_ID)
+        await actorPublicId(database, ACTOR3_ID)
       ])
     })
 
@@ -3758,7 +3761,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(response.status).toBe(200)
       const accounts = (await response.json()) as { id: string }[]
       expect(accounts.map((account) => account.id)).toEqual([
-        urlToId(ACTOR2_ID)
+        await actorPublicId(database, ACTOR2_ID)
       ])
     })
 
@@ -3800,7 +3803,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(response.status).toBe(200)
       const accounts = (await response.json()) as { id: string }[]
       expect(accounts.map((account) => account.id)).toEqual([
-        urlToId(ACTOR2_ID)
+        await actorPublicId(database, ACTOR2_ID)
       ])
     })
 
@@ -3865,7 +3868,7 @@ describe('GET /api/v1/statuses/[id]', () => {
         expect(response.status).toBe(200)
         const accounts = (await response.json()) as { id: string }[]
         expect(accounts.map((account) => account.id)).toEqual([
-          urlToId(ACTOR2_ID)
+          await actorPublicId(sqlDatabase, ACTOR2_ID)
         ])
       } finally {
         mockDatabase = previousDatabase
@@ -3916,7 +3919,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(authenticatedResponse.status).toBe(200)
       const accounts = (await authenticatedResponse.json()) as { id: string }[]
       expect(accounts.map((account) => account.id)).toEqual([
-        urlToId(ACTOR3_ID)
+        await actorPublicId(database, ACTOR3_ID)
       ])
     })
 
@@ -4050,7 +4053,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(response.status).toBe(200)
       const accounts = (await response.json()) as { id: string }[]
       expect(accounts.map((account) => account.id)).toEqual([
-        urlToId(ACTOR2_ID)
+        await actorPublicId(database, ACTOR2_ID)
       ])
 
       const linkHeader = response.headers.get('Link')
@@ -4111,7 +4114,7 @@ describe('GET /api/v1/statuses/[id]', () => {
         expect(response.status).toBe(200)
         const accounts = (await response.json()) as { id: string }[]
         expect(accounts.map((account) => account.id)).toEqual([
-          urlToId(ACTOR3_ID)
+          await actorPublicId(database, ACTOR3_ID)
         ])
         expect(response.headers.get('Link')).toBeNull()
       } finally {
@@ -4205,7 +4208,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       )
       expect(muteResponse.status).toBe(200)
       await expect(muteResponse.json()).resolves.toMatchObject({
-        id: urlToId(statusId),
+        id: await statusPublicId(database, statusId),
         muted: true
       })
 
@@ -4218,7 +4221,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       )
       expect(unmuteResponse.status).toBe(200)
       await expect(unmuteResponse.json()).resolves.toMatchObject({
-        id: urlToId(statusId),
+        id: await statusPublicId(database, statusId),
         muted: false
       })
     })
@@ -4307,10 +4310,10 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(response.status).toBe(200)
       const context = await response.json()
       expect(context.ancestors.map((s: { id: string }) => s.id)).toEqual([
-        urlToId(rootId)
+        await statusPublicId(database, rootId)
       ])
       expect(context.descendants.map((s: { id: string }) => s.id)).toEqual([
-        urlToId(grandchildId)
+        await statusPublicId(database, grandchildId)
       ])
     })
   })
@@ -4353,7 +4356,9 @@ describe('GET /api/v1/statuses/[id]', () => {
           spoiler_text: expect.any(String),
           sensitive: expect.any(Boolean),
           created_at: expect.any(String),
-          account: expect.objectContaining({ id: urlToId(ACTOR1_ID) }),
+          account: expect.objectContaining({
+            id: await actorPublicId(database, ACTOR1_ID)
+          }),
           media_attachments: expect.any(Array),
           emojis: expect.any(Array)
         })
@@ -4454,7 +4459,9 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(page.status).toBe(200)
       const accounts = await page.json()
       expect(accounts).toHaveLength(1)
-      expect(accounts[0].id).toBe(urlToId(secondOldest.actorId))
+      expect(accounts[0].id).toBe(
+        await actorPublicId(database, secondOldest.actorId)
+      )
     })
 
     it('emits rel=next (older) but omits rel=prev at the newest edge of a min_id page', async () => {
@@ -4490,7 +4497,9 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(page.status).toBe(200)
       const accounts = await page.json()
       expect(accounts).toHaveLength(1)
-      expect(accounts[0].id).toBe(urlToId(ordered[0].actorId))
+      expect(accounts[0].id).toBe(
+        await actorPublicId(database, ordered[0].actorId)
+      )
 
       const linkHeader = page.headers.get('Link') ?? ''
       // Older favourites still exist (the cursor and below), so next must be
@@ -4651,12 +4660,20 @@ describe('GET /api/v1/statuses/[id]', () => {
 
       // The private mid ancestor is excluded, but the public root above it
       // remains (the chain is not cut short).
-      expect(ancestorIds).toContain(urlToId(publicRootId))
-      expect(ancestorIds).not.toContain(urlToId(privateMidId))
+      expect(ancestorIds).toContain(
+        await statusPublicId(database, publicRootId)
+      )
+      expect(ancestorIds).not.toContain(
+        await statusPublicId(database, privateMidId)
+      )
 
       // The private descendant is excluded; the public sibling remains.
-      expect(descendantIds).toContain(urlToId(publicDescId))
-      expect(descendantIds).not.toContain(urlToId(privateDescId))
+      expect(descendantIds).toContain(
+        await statusPublicId(database, publicDescId)
+      )
+      expect(descendantIds).not.toContain(
+        await statusPublicId(database, privateDescId)
+      )
     })
   })
 
@@ -4798,14 +4815,16 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(response.status).toBe(200)
       const context = await response.json()
 
+      const rootPublicId = await statusPublicId(database, rootId)
       const ancestor = context.ancestors.find(
-        (s: { id: string }) => s.id === urlToId(rootId)
+        (s: { id: string }) => s.id === rootPublicId
       )
       expect(ancestor.filtered).toHaveLength(1)
       expect(ancestor.filtered[0].filter.title).toBe('Spoilers')
 
+      const descPublicId = await statusPublicId(database, descId)
       const descendant = context.descendants.find(
-        (s: { id: string }) => s.id === urlToId(descId)
+        (s: { id: string }) => s.id === descPublicId
       )
       expect(descendant.filtered).toHaveLength(1)
       expect(descendant.filtered[0].filter.title).toBe('Spoilers')
@@ -4844,8 +4863,9 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(response.status).toBe(200)
       const context = await response.json()
 
+      const rootPublicId = await statusPublicId(database, rootId)
       const ancestor = context.ancestors.find(
-        (s: { id: string }) => s.id === urlToId(rootId)
+        (s: { id: string }) => s.id === rootPublicId
       )
       expect(ancestor.filtered ?? []).toHaveLength(0)
     })
