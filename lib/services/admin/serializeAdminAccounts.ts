@@ -115,10 +115,10 @@ export const hydrateAdminAccounts = async (
   return serializeAdminAccounts({ records, sessionIps, publicAccountById })
 }
 
-// Resolve the `[id]` path param — a Mastodon id (urlToId(actor.id)) or a
-// UUIDv7 publicId — to its AdminAccountRecord, or null when the id is
-// undecodable or unknown (an unresolvable publicId keeps the same null
-// contract as an undecodable legacy id).
+// Resolve the `[id]` path param — a UUIDv7 publicId, or the legacy
+// `urlToId(actor.id)` form for a publicId-less row — to its AdminAccountRecord,
+// or null when the id is undecodable or unknown (an unresolvable publicId keeps
+// the same null contract as an undecodable legacy id).
 export const resolveAdminAccountRecord = async (
   database: Database,
   id: string

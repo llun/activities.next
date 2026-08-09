@@ -3850,9 +3850,8 @@ export interface CollectionMembershipParams {
   collectionId: string
   // The acting member's own Mastodon Account id (a publicId, or the legacy
   // `urlToId` form on a pre-backfill row). The approve/revoke routes accept it
-  // as an extension alongside the
-  // Mastodon 4.6 CollectionItem id and require it to resolve to the
-  // authenticated caller.
+  // as an extension alongside the Mastodon 4.6 CollectionItem id and require it
+  // to resolve to the authenticated caller.
   accountId: string
 }
 

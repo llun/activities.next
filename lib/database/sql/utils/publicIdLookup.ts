@@ -7,23 +7,6 @@ interface PublicIdRow {
   publicId: string
 }
 
-interface ResolveIdsByPublicIdsParams {
-  publicIds: string[]
-  batchSize: number
-  selectChunk: (lookupKeys: string[]) => Promise<PublicIdRow[]>
-}
-
-/**
- * Shared body of the batch publicId → stored-id lookups (statuses and actors).
- *
- * Queries with NORMALIZED lookup keys — the parameter only, never the column, so
- * the unique index on `publicId` is still used — and returns a map keyed by the
- * publicId strings the CALLER asked with, not by the ones the database happened
- * to return. Those differ under a case-insensitive collation (MySQL answers a
- * lowercase request with the stored uppercase value), and a caller zipping the
- * map back against its own input would silently miss the row. Chunked because
- * SQLite caps a statement at SQLITE_MAX_BINDINGS parameters.
- */
 interface ResolvePublicIdsByIdsParams {
   ids: string[]
   batchSize: number
@@ -58,6 +41,23 @@ export const resolvePublicIdsByIds = async ({
   return resolved
 }
 
+interface ResolveIdsByPublicIdsParams {
+  publicIds: string[]
+  batchSize: number
+  selectChunk: (lookupKeys: string[]) => Promise<PublicIdRow[]>
+}
+
+/**
+ * Shared body of the batch publicId → stored-id lookups (statuses and actors).
+ *
+ * Queries with NORMALIZED lookup keys — the parameter only, never the column, so
+ * the unique index on `publicId` is still used — and returns a map keyed by the
+ * publicId strings the CALLER asked with, not by the ones the database happened
+ * to return. Those differ under a case-insensitive collation (MySQL answers a
+ * lowercase request with the stored uppercase value), and a caller zipping the
+ * map back against its own input would silently miss the row. Chunked because
+ * SQLite caps a statement at SQLITE_MAX_BINDINGS parameters.
+ */
 export const resolveIdsByPublicIds = async ({
   publicIds,
   batchSize,
