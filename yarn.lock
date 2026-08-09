@@ -443,17 +443,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/s3-request-presigner@npm:^3.1094.0":
-  version: 3.1094.0
-  resolution: "@aws-sdk/s3-request-presigner@npm:3.1094.0"
+"@aws-sdk/s3-request-presigner@npm:^3.1102.0":
+  version: 3.1106.0
+  resolution: "@aws-sdk/s3-request-presigner@npm:3.1106.0"
   dependencies:
-    "@aws-sdk/core": "npm:^3.976.0"
-    "@aws-sdk/signature-v4-multi-region": "npm:^3.996.41"
+    "@aws-sdk/core": "npm:^3.977.6"
+    "@aws-sdk/signature-v4-multi-region": "npm:^3.996.43"
     "@aws-sdk/types": "npm:^3.974.2"
-    "@smithy/core": "npm:^3.29.4"
+    "@smithy/core": "npm:^3.31.1"
     "@smithy/types": "npm:^4.16.1"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/7b0af260a86c78b46aa77a29541e758528a6876f19c4c370df0ad0df900821c0ddc538602957b297a5c18cce0b13bfb4ff6eeef2322f50684e285a53e650f291
+  checksum: 10c0/d4de814756b63798f37c483ecdc44a4709bc9782264edbe31bcd06dda9cdb6d0fe67fa9cef3b8d1d7459d33c536a4675ca1c6d46091267a3414150c280cf307b
   languageName: node
   linkType: hard
 
@@ -4484,7 +4484,7 @@ __metadata:
     "@aws-sdk/client-lambda": "npm:^3.1094.0"
     "@aws-sdk/client-s3": "npm:^3.1102.0"
     "@aws-sdk/client-ses": "npm:^3.1094.0"
-    "@aws-sdk/s3-request-presigner": "npm:^3.1094.0"
+    "@aws-sdk/s3-request-presigner": "npm:^3.1102.0"
     "@aws-sdk/util-utf8-node": "npm:^3.259.0"
     "@better-auth/core": "npm:1.6.25"
     "@better-auth/oauth-provider": "npm:^1.6.25"
