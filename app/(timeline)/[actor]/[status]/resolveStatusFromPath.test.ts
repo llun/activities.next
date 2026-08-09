@@ -1,5 +1,6 @@
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { generatePublicId } from '@/lib/utils/publicId'
 
 import { resolveStatusFromPath } from './resolveStatusFromPath'
 
@@ -56,8 +57,11 @@ describe('resolveStatusFromPath', () => {
   const createDatabase = () => ({
     getActorFromUsername: vi.fn().mockResolvedValue({ id: originalActorId }),
     getStatusFromUrlHash: vi.fn().mockResolvedValue(null),
+    getStatusFromPublicId: vi.fn().mockResolvedValue(null),
     getStatus: vi.fn().mockResolvedValue(null)
   })
+
+  const publicId = generatePublicId()
 
   it('hydrates the focused status for the signed-in viewer', async () => {
     const database = createDatabase()
@@ -287,6 +291,119 @@ describe('resolveStatusFromPath', () => {
     expect(database.getStatus).toHaveBeenNthCalledWith(2, {
       statusId: '123',
       withReplies: false
+    })
+  })
+
+  describe('publicId status params', () => {
+    it('resolves a publicId param through the publicId lookup', async () => {
+      const database = createDatabase()
+      const status = { ...originalStatus, publicId }
+      database.getStatusFromPublicId.mockResolvedValueOnce(status)
+      const viewerId = 'https://remote.example/users/viewer'
+
+      await expect(
+        resolveStatusFromPath({
+          database,
+          actorParam: '@original@remote.example',
+          statusParam: publicId,
+          currentActorId: viewerId
+        })
+      ).resolves.toEqual({
+        // The synthesized URI is still returned so a miss can queue a remote
+        // fetch; it just is not what resolved this status.
+        fullStatusId: `https://remote.example/users/original/statuses/${publicId}`,
+        isStatusHash: false,
+        status,
+        statusId: status.id
+      })
+
+      expect(database.getStatusFromPublicId).toHaveBeenCalledWith({
+        publicId,
+        currentActorId: viewerId
+      })
+      expect(database.getStatusFromUrlHash).not.toHaveBeenCalled()
+      expect(database.getStatus).not.toHaveBeenCalled()
+    })
+
+    it('resolves a boosted publicId param to the original status the path actor owns', async () => {
+      const database = createDatabase()
+      database.getStatusFromPublicId.mockResolvedValueOnce({
+        ...createAnnounce(),
+        publicId
+      })
+
+      const result = await resolveStatusFromPath({
+        database,
+        actorParam: '@original@remote.example',
+        statusParam: publicId
+      })
+
+      expect(result?.status).toEqual(originalStatus)
+      expect(database.getStatus).not.toHaveBeenCalled()
+    })
+
+    it('does not resolve a publicId that belongs to a different actor', async () => {
+      const database = createDatabase()
+      database.getStatusFromPublicId.mockResolvedValueOnce({
+        ...originalStatus,
+        actorId: 'https://other.example/users/someone',
+        publicId
+      })
+
+      await expect(
+        resolveStatusFromPath({
+          database,
+          actorParam: '@original@remote.example',
+          statusParam: publicId
+        })
+      ).resolves.toEqual({
+        fullStatusId: `https://remote.example/users/original/statuses/${publicId}`,
+        isStatusHash: false,
+        status: null,
+        statusId: ''
+      })
+    })
+
+    it('keeps the synthesized fullStatusId for a publicId that resolves nothing', async () => {
+      const database = createDatabase()
+
+      await expect(
+        resolveStatusFromPath({
+          database,
+          actorParam: '@original@remote.example',
+          statusParam: publicId
+        })
+      ).resolves.toEqual({
+        fullStatusId: `https://remote.example/users/original/statuses/${publicId}`,
+        isStatusHash: false,
+        status: null,
+        statusId: ''
+      })
+
+      // The remote-fetch fallback still has the URI to work with, and the two
+      // legacy id lookups still ran.
+      expect(database.getStatus).toHaveBeenNthCalledWith(1, {
+        statusId: `https://remote.example/users/original/statuses/${publicId}`,
+        withReplies: false
+      })
+      expect(database.getStatus).toHaveBeenNthCalledWith(2, {
+        statusId: publicId,
+        withReplies: false
+      })
+    })
+
+    it('does not run the publicId lookup for a hash param', async () => {
+      const database = createDatabase()
+      database.getStatusFromUrlHash.mockResolvedValueOnce(originalStatus)
+
+      await resolveStatusFromPath({
+        database,
+        actorParam: '@original@remote.example',
+        statusParam: statusHash
+      })
+
+      expect(database.getStatusFromPublicId).not.toHaveBeenCalled()
+      expect(database.getStatusFromUrlHash).toHaveBeenCalledTimes(1)
     })
   })
 
