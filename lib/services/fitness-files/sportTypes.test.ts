@@ -113,7 +113,14 @@ describe('normalizeActivityTypeToSportKey', () => {
     { description: 'swimming, which has no gear kind', raw: 'swimming' },
     { description: 'a gym workout', raw: 'WeightTraining' },
     { description: "Garmin's ambiguous Other", raw: 'Other' },
-    { description: 'an unrecognised sport', raw: 'Kayaking' }
+    { description: 'an unrecognised sport', raw: 'Kayaking' },
+    // The lookup table is an object literal, so a bare index would find
+    // `Object.prototype`'s members. `activityType` is free-form GPX text, so
+    // these are reachable input, and `constructor` used to come back as the
+    // `Object` constructor function typed as a SportKey.
+    { description: 'the inherited constructor property', raw: 'constructor' },
+    { description: 'the inherited toString property', raw: 'toString' },
+    { description: 'a __proto__ probe', raw: '__proto__' }
   ])('returns null for $description', ({ raw }) => {
     expect(normalizeActivityTypeToSportKey(raw)).toBeNull()
   })
@@ -135,6 +142,10 @@ describe('getGearKindForActivityType', () => {
 
   it('returns null when the activity type is unrecognised', () => {
     expect(getGearKindForActivityType('Kayaking')).toBeNull()
+  })
+
+  it('returns null for an inherited Object property name', () => {
+    expect(getGearKindForActivityType('constructor')).toBeNull()
   })
 })
 

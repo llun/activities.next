@@ -213,6 +213,74 @@ describe('GearDetailView', () => {
     )
   })
 
+  it('surfaces a retire failure', async () => {
+    mockSetFitnessGearRetired.mockRejectedValue(new Error('Gear is locked'))
+    render(<GearDetailView gearId="gear-1" />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Retire' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Gear is locked')
+    // A failed retire never refetches, so the page still shows the live gear.
+    expect(mockGetFitnessGearList).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'Retire' })).toBeEnabled()
+  })
+
+  it('disables the retire button while the change is in flight', async () => {
+    let resolveRetire: (gear: GearEntity) => void = () => {}
+    mockSetFitnessGearRetired.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRetire = resolve
+        })
+    )
+    render(<GearDetailView gearId="gear-1" />)
+
+    const retire = await screen.findByRole('button', { name: 'Retire' })
+    fireEvent.click(retire)
+
+    await waitFor(() => expect(retire).toBeDisabled())
+
+    resolveRetire(createGear({ retiredAt: Date.UTC(2026, 0, 1) }))
+    await waitFor(() => expect(mockGetFitnessGearList).toHaveBeenCalledTimes(2))
+  })
+
+  it('keeps the components card mounted while a refetch is in flight', async () => {
+    mockGetFitnessGearComponents.mockResolvedValue([
+      createComponent(),
+      createComponent({
+        id: 'component-old',
+        componentType: 'Cassette',
+        removedAt: Date.UTC(2025, 5, 1)
+      })
+    ])
+    let resolveRefetch: (gears: GearEntity[]) => void = () => {}
+    mockGetFitnessGearList
+      .mockResolvedValueOnce([createGear()])
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveRefetch = resolve
+          })
+      )
+    render(<GearDetailView gearId="gear-1" />)
+
+    // Expand the replaced rows: the child's own state is what a remount loses.
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Show 1 replaced component' })
+    )
+    expect(screen.getByText('Cassette')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retire' }))
+    await waitFor(() => expect(mockGetFitnessGearList).toHaveBeenCalledTimes(2))
+
+    expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
+    expect(screen.getByText('Chain')).toBeInTheDocument()
+    expect(screen.getByText('Cassette')).toBeInTheDocument()
+
+    resolveRefetch([createGear({ retiredAt: Date.UTC(2026, 0, 1) })])
+    await screen.findByRole('button', { name: 'Unretire' })
+  })
+
   it('opens the edit dialog seeded with the gear', async () => {
     render(<GearDetailView gearId="gear-1" />)
 

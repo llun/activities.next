@@ -2,7 +2,7 @@
 
 import { Archive, ArrowLeft, History, Pencil } from 'lucide-react'
 import Link from 'next/link'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 
 import { GearFormDialog } from '@/app/(timeline)/fitness/gear/GearFormDialog'
 import {
@@ -25,6 +25,7 @@ import type {
   GearComponentEntity,
   GearEntity
 } from '@/lib/services/fitness-gears/gearEntities'
+import { cn } from '@/lib/utils'
 
 import { GearComponentsCard } from './GearComponentsCard'
 
@@ -57,7 +58,12 @@ const getMetaLine = (gear: GearEntity): string =>
 export const GearDetailView: FC<Props> = ({ gearId }) => {
   const [gear, setGear] = useState<GearEntity | null>(null)
   const [components, setComponents] = useState<GearComponentEntity[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  // Only the first load blanks the page. A refetch keeps the gear and its
+  // components card mounted and merely marks them busy — tearing the card down
+  // would close its add form and collapse its "Show N replaced" toggle on
+  // every replace.
+  const [isInitialLoading, setIsInitialLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [reloadToken, setReloadToken] = useState(0)
   const [isEditOpen, setIsEditOpen] = useState(false)
@@ -65,7 +71,7 @@ export const GearDetailView: FC<Props> = ({ gearId }) => {
 
   useEffect(() => {
     let cancelled = false
-    setIsLoading(true)
+    setIsRefreshing(true)
 
     // There is no single-gear endpoint: the list is small, so one round trip
     // and a find is cheaper than adding one.
@@ -91,7 +97,9 @@ export const GearDetailView: FC<Props> = ({ gearId }) => {
         )
       })
       .finally(() => {
-        if (!cancelled) setIsLoading(false)
+        if (cancelled) return
+        setIsInitialLoading(false)
+        setIsRefreshing(false)
       })
 
     return () => {
@@ -101,7 +109,7 @@ export const GearDetailView: FC<Props> = ({ gearId }) => {
 
   // Refetch after every mutation: distances, activity counts and the
   // one-gear-per-sport defaults are all derived server-side.
-  const reload = useCallback(() => setReloadToken((token) => token + 1), [])
+  const reload = () => setReloadToken((token) => token + 1)
 
   const handleToggleRetired = async () => {
     if (!gear) return
@@ -130,7 +138,7 @@ export const GearDetailView: FC<Props> = ({ gearId }) => {
     </Link>
   )
 
-  if (isLoading) {
+  if (isInitialLoading) {
     return (
       <div className="space-y-4">
         {backLink}
@@ -156,7 +164,12 @@ export const GearDetailView: FC<Props> = ({ gearId }) => {
   ).length
 
   return (
-    <div className="space-y-6">
+    // A refetch dims the page instead of replacing it, the same way the gear
+    // list does — the data on screen is still the data the server had.
+    <div
+      className={cn('space-y-6', isRefreshing && 'opacity-60')}
+      aria-busy={isRefreshing}
+    >
       {backLink}
 
       <PageHeader
@@ -204,7 +217,13 @@ export const GearDetailView: FC<Props> = ({ gearId }) => {
         }
       />
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {/* This copy of the error is the one a retire/unretire failure lands in,
+          so it announces itself rather than waiting to be noticed. */}
+      {error && (
+        <p className="text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      )}
 
       <div
         className={

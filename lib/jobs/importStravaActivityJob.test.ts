@@ -1305,6 +1305,7 @@ describe('importStravaActivityJob', () => {
       )
       expect(database.assignFitnessFileGearIfUnset).toHaveBeenCalledWith({
         fitnessFileId: 'new-file',
+        actorId: 'actor-1',
         gearId: 'gear-new'
       })
     })
@@ -1332,11 +1333,16 @@ describe('importStravaActivityJob', () => {
       expect(database.createFitnessGear).not.toHaveBeenCalled()
       expect(database.assignFitnessFileGearIfUnset).toHaveBeenCalledWith({
         fitnessFileId: 'new-file',
+        actorId: 'actor-1',
         gearId: 'gear-existing'
       })
     })
 
-    it('still attributes the ride with a placeholder name when the gear fetch fails', async () => {
+    it('still attributes the ride with a placeholder name when the gear no longer exists', async () => {
+      // A null return is SETTLED input — the athlete deleted the gear, or the
+      // token cannot read the shed — so a placeholder-named row is right: it
+      // keeps the activity attributable. (A thrown error is the opposite case
+      // and deliberately leaves the ride unattributed; see the test below.)
       mockGetStravaActivity.mockResolvedValue({
         id: 123,
         name: 'Morning Ride',
@@ -1345,7 +1351,7 @@ describe('importStravaActivityJob', () => {
         visibility: 'everyone',
         gear_id: 'b1234567'
       })
-      mockGetStravaGear.mockRejectedValue(new Error('Strava is down'))
+      mockGetStravaGear.mockResolvedValue(null)
 
       await importStravaActivityJob(database as unknown as Database, {
         id: 'job-gear-fetch-failed',
@@ -1357,6 +1363,34 @@ describe('importStravaActivityJob', () => {
         expect.objectContaining({ name: 'Strava gear b1234567' })
       )
       expect(database.assignFitnessFileGearIfUnset).toHaveBeenCalled()
+    })
+
+    it('leaves the ride unattributed when the gear detail fetch throws', async () => {
+      // A throw means Strava is rate-limiting or erroring and we know nothing
+      // about this gear yet. Minting a placeholder here would be permanent —
+      // the id lookup short-circuits from the next activity onwards and the
+      // kind can never be corrected — so the ride is left unattributed and a
+      // later import resolves it properly.
+      mockGetStravaActivity.mockResolvedValue({
+        id: 123,
+        name: 'Morning Ride',
+        start_date: '2026-01-01T00:00:00.000Z',
+        sport_type: 'Ride',
+        visibility: 'everyone',
+        gear_id: 'b1234567'
+      })
+      mockGetStravaGear.mockRejectedValue(new Error('Strava is rate limiting'))
+
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-gear-fetch-threw',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: { actorId: 'actor-1', stravaActivityId: '123' }
+      })
+
+      expect(database.createFitnessGear).not.toHaveBeenCalled()
+      expect(database.assignFitnessFileGearIfUnset).not.toHaveBeenCalled()
+      // The ride itself still imported.
+      expect(mockSaveFitnessFile).toHaveBeenCalled()
     })
 
     it('imports the activity unattributed when gear resolution fails outright', async () => {
@@ -1430,6 +1464,7 @@ describe('importStravaActivityJob', () => {
 
       expect(database.assignFitnessFileGearIfUnset).toHaveBeenCalledWith({
         fitnessFileId: 'existing-file',
+        actorId: 'actor-1',
         gearId: 'gear-new'
       })
     })

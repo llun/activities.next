@@ -502,6 +502,7 @@ export const processFitnessFileJob = createJobHandle(
             if (defaultGear) {
               await database.assignFitnessFileGearIfUnset({
                 fitnessFileId,
+                actorId,
                 gearId: defaultGear.id
               })
             }
@@ -515,25 +516,6 @@ export const processFitnessFileJob = createJobHandle(
             err: toLoggableError(error)
           })
         }
-      }
-      // This activity's distance has just landed on whatever gear it belongs
-      // to, so it may have pushed a pair of shoes or a component past its
-      // service threshold. Re-read the row rather than reusing the pre-update
-      // copy: the gear may have been attributed a moment ago, either by the
-      // auto-assign above or by the import that created the file.
-      //
-      // Evaluated here because there is no scheduler to evaluate it on — the
-      // queue can delay a message but not repeat one. `evaluateGearServiceReminders`
-      // contains its own failures.
-      const attributedFile = await database.getFitnessFile({
-        id: fitnessFileId
-      })
-      if (attributedFile?.gearId) {
-        await evaluateGearServiceReminders({
-          database,
-          actorId,
-          gearIds: [attributedFile.gearId]
-        })
       }
 
       const privacySettings = await database.getFitnessSettings({
@@ -726,6 +708,32 @@ export const processFitnessFileJob = createJobHandle(
         fitnessFileId,
         'completed'
       )
+
+      // This activity's distance has just landed on whatever gear it belongs
+      // to, so it may have pushed a pair of shoes or a component past its
+      // service threshold.
+      //
+      // Deliberately AFTER the `completed` write, not next to the gear
+      // assignment above: the rollups only count completed activities, so
+      // evaluating any earlier reads the total from BEFORE this ride and the
+      // reminder is systematically one activity late — never firing at all if
+      // this was the last ride on that gear.
+      //
+      // Re-read the row rather than reusing the pre-update copy: the gear may
+      // have been attributed a moment ago, by the auto-assign above or by the
+      // import that created the file. Evaluated here because there is no
+      // scheduler to evaluate it on — the queue can delay a message but not
+      // repeat one. `evaluateGearServiceReminders` contains its own failures.
+      const attributedFile = await database.getFitnessFile({
+        id: fitnessFileId
+      })
+      if (attributedFile?.gearId) {
+        await evaluateGearServiceReminders({
+          database,
+          actorId,
+          gearIds: [attributedFile.gearId]
+        })
+      }
 
       // Notify only here, at the end of processing. Doing it where the import
       // is enqueued looks correct locally — NoQueue runs this job inline — but

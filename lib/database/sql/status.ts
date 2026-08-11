@@ -3015,7 +3015,22 @@ export const StatusSQLDatabaseMixin = (
       // N+1 across a whole timeline page. Every clause below is table-qualified
       // because both tables carry `deletedAt`/`createdAt`.
       database<SQLFitnessFile>('fitness_files')
-        .leftJoin('fitness_gears', 'fitness_files.gearId', 'fitness_gears.id')
+        // `deletedAt` belongs in the JOIN's ON clause, never the WHERE: as a
+        // WHERE it is false for a soft-deleted gear and would drop the whole
+        // fitness_files row, taking the entire activity off the status. Here it
+        // only withholds the name.
+        //
+        // Today `deleteFitnessGear` nulls `fitness_files.gearId` in the same
+        // transaction, so this never matches a deleted gear anyway — but that
+        // coupling is invisible from here, and the sibling reader
+        // (`getFitnessGearNamesByIds`) filters too. A future cleanup path that
+        // soft-deletes gear without nulling would otherwise leak the name onto
+        // every public post that used it.
+        .leftJoin('fitness_gears', function () {
+          this.on('fitness_files.gearId', '=', 'fitness_gears.id').andOnNull(
+            'fitness_gears.deletedAt'
+          )
+        })
         .where('fitness_files.statusId', data.id)
         .whereNull('fitness_files.deletedAt')
         .orderBy('fitness_files.isPrimary', 'desc')

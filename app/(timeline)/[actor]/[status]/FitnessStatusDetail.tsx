@@ -2173,6 +2173,7 @@ export const FitnessStatusDetail: FC<Props> = ({
   )
   const [gearOptions, setGearOptions] = useState<GearEntity[]>([])
   const [gearUpdateError, setGearUpdateError] = useState<string | null>(null)
+  const [isSavingGear, setIsSavingGear] = useState(false)
   const [routeSamples, setRouteSamples] = useState<FitnessRouteSample[]>([])
   const [routeSegments, setRouteSegments] = useState<FitnessRouteSegment[]>([])
   const [powerSeries, setPowerSeries] = useState<number[]>([])
@@ -2311,9 +2312,15 @@ export const FitnessStatusDetail: FC<Props> = ({
     const nextGearName = nextGearId
       ? (gearSelectOptions.find((item) => item.id === nextGearId)?.name ?? null)
       : null
-    const previousFitnessFiles = fitnessFiles
+    // Only this file's assignment is rolled back, and only through an updater:
+    // restoring a whole array captured from this render would also discard
+    // anything the `getFitnessFilesByStatus` effect (or a sibling file's own
+    // change) wrote while the PATCH was in flight.
+    const previousGearId = fitness?.gearId ?? null
+    const previousGearName = fitness?.gearName ?? null
 
     setGearUpdateError(null)
+    setIsSavingGear(true)
     setFitnessFiles((files) =>
       files.map((file) =>
         file.id === fitnessFileId
@@ -2327,10 +2334,18 @@ export const FitnessStatusDetail: FC<Props> = ({
     } catch (error) {
       // Put the previous assignment back rather than leaving the select showing
       // a value the server never accepted.
-      setFitnessFiles(previousFitnessFiles)
+      setFitnessFiles((files) =>
+        files.map((file) =>
+          file.id === fitnessFileId
+            ? { ...file, gearId: previousGearId, gearName: previousGearName }
+            : file
+        )
+      )
       setGearUpdateError(
         error instanceof Error ? error.message : 'Failed to update gear.'
       )
+    } finally {
+      setIsSavingGear(false)
     }
   }
   // Every provider renders an interactive map, so route data is loaded whenever
@@ -2952,13 +2967,20 @@ export const FitnessStatusDetail: FC<Props> = ({
                 Gear
               </label>
               <div className="mt-1.5">
+                {/* Disabled while the PATCH is in flight: two quick changes
+                    otherwise race, and the loser's rollback would put back a
+                    value the server has since replaced. */}
                 <select
                   id="activity-gear-select"
                   value={selectedGearId ?? ''}
                   onChange={(event) =>
                     void handleGearChange(event.target.value)
                   }
-                  className="h-8 rounded-lg border bg-background px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  disabled={isSavingGear}
+                  aria-describedby={
+                    gearUpdateError ? 'activity-gear-error' : undefined
+                  }
+                  className="h-8 rounded-lg border bg-background px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <option value="">No gear</option>
                   {gearSelectOptions.map((option) => (
@@ -2969,7 +2991,11 @@ export const FitnessStatusDetail: FC<Props> = ({
                 </select>
               </div>
               {gearUpdateError ? (
-                <p className="mt-1 text-xs text-destructive" role="alert">
+                <p
+                  id="activity-gear-error"
+                  className="mt-1 text-xs text-destructive"
+                  role="alert"
+                >
                   {gearUpdateError}
                 </p>
               ) : null}

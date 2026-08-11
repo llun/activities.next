@@ -65,6 +65,7 @@ describe('FitnessGearDatabase', () => {
       if (gearId) {
         await db.assignFitnessFileGearIfUnset({
           fitnessFileId: file!.id,
+          actorId,
           gearId
         })
       }
@@ -653,6 +654,55 @@ describe('FitnessGearDatabase', () => {
         })
       })
 
+      it('gives an undated activity only to components whose window is open on that side', async () => {
+        // An activity with no timestamp cannot be placed inside a dated window,
+        // so a part fitted on a date must not claim it — even though the gear
+        // total does count it. A gear total legitimately exceeding the sum of
+        // its components is the documented consequence, not a bug.
+        const bike = await database.createFitnessGear({
+          actorId: actors.followRequester.id,
+          kind: 'bike',
+          name: 'Undated window bike'
+        })
+        await createActivity(database, {
+          actorId: actors.followRequester.id,
+          pathSuffix: 'undated-window',
+          distanceMeters: 12_000,
+          gearId: bike.id
+        })
+
+        const sinceBeginning = await database.createFitnessGearComponent({
+          gearId: bike.id,
+          actorId: actors.followRequester.id,
+          componentType: 'Frame'
+        })
+        const fittedOnADate = await database.createFitnessGearComponent({
+          gearId: bike.id,
+          actorId: actors.followRequester.id,
+          componentType: 'Chain',
+          addedAt: new Date('2026-01-01T00:00:00.000Z')
+        })
+
+        const rollups = await database.getFitnessGearComponentDistanceRollups({
+          actorId: actors.followRequester.id,
+          gearIds: [bike.id]
+        })
+        expect(rollups[sinceBeginning!.id]).toEqual({
+          distanceMeters: 12_000,
+          activityCount: 1
+        })
+        expect(rollups[fittedOnADate!.id]).toEqual({
+          distanceMeters: 0,
+          activityCount: 0
+        })
+
+        const gearRollups = await database.getFitnessGearDistanceRollups({
+          actorId: actors.followRequester.id,
+          gearIds: [bike.id]
+        })
+        expect(gearRollups[bike.id].distanceMeters).toBe(12_000)
+      })
+
       it('treats the window as half-open: the added instant counts, the removed instant does not', async () => {
         const bike = await database.createFitnessGear({
           actorId: actors.empty.id,
@@ -1139,6 +1189,7 @@ describe('FitnessGearDatabase', () => {
         expect(
           await database.assignFitnessFileGearIfUnset({
             fitnessFileId: activity.id,
+            actorId: actors.empty.id,
             gearId: gear.id
           })
         ).toBe(true)
@@ -1168,12 +1219,288 @@ describe('FitnessGearDatabase', () => {
         expect(
           await database.assignFitnessFileGearIfUnset({
             fitnessFileId: activity.id,
+            actorId: actors.empty.id,
             gearId: auto.id
           })
         ).toBe(false)
         expect(
           (await database.getFitnessFile({ id: activity.id }))?.gearId
         ).toBe(manual.id)
+      })
+    })
+
+    describe('deleting gear releases its Strava id', () => {
+      it('lets a later import re-create gear for the same Strava id', async () => {
+        const original = await database.createFitnessGear({
+          actorId: actors.extra.id,
+          kind: 'bike',
+          name: 'Strava bike',
+          stravaGearId: 'b7654321'
+        })
+        await database.deleteFitnessGear({
+          id: original.id,
+          actorId: actors.extra.id
+        })
+
+        // The unique index on (actorId, stravaGearId) covers soft-deleted rows,
+        // so a deleted gear that kept its id would make this insert fail
+        // forever and leave every future activity on that bike unattributed.
+        const reimported = await database.createFitnessGear({
+          actorId: actors.extra.id,
+          kind: 'bike',
+          name: 'Strava bike',
+          stravaGearId: 'b7654321'
+        })
+        expect(reimported.id).not.toBe(original.id)
+        expect(
+          (
+            await database.findFitnessGearByStravaGearId({
+              actorId: actors.extra.id,
+              stravaGearId: 'b7654321'
+            })
+          )?.id
+        ).toBe(reimported.id)
+      })
+    })
+
+    describe('component rollup activity filter', () => {
+      // The window logic has its own tests above; this covers the predicate the
+      // component rollup shares with the gear rollup, which was otherwise
+      // unguarded — removing any of the three filters left the suite green.
+      it.each([
+        {
+          description: 'is still processing',
+          processingStatus: 'pending' as const,
+          isPrimary: true,
+          deleted: false
+        },
+        {
+          description: 'failed to process',
+          processingStatus: 'failed' as const,
+          isPrimary: true,
+          deleted: false
+        },
+        {
+          description: 'is a non-primary duplicate',
+          processingStatus: 'completed' as const,
+          isPrimary: false,
+          deleted: false
+        },
+        {
+          description: 'has been deleted',
+          processingStatus: 'completed' as const,
+          isPrimary: true,
+          deleted: true
+        }
+      ])(
+        'excludes an activity that $description',
+        async ({ processingStatus, isPrimary, deleted, description }) => {
+          const suffix = description.replace(/[^a-z]/gi, '')
+          const bike = await database.createFitnessGear({
+            actorId: actors.replyAuthor.id,
+            kind: 'bike',
+            name: `Component filter ${suffix}`
+          })
+          const component = await database.createFitnessGearComponent({
+            gearId: bike.id,
+            actorId: actors.replyAuthor.id,
+            componentType: 'Chain'
+          })
+          const activity = await createActivity(database, {
+            actorId: actors.replyAuthor.id,
+            pathSuffix: `component-filter-${suffix}`,
+            distanceMeters: 25_000,
+            activityStartTime: new Date('2026-08-01T08:00:00.000Z'),
+            gearId: bike.id,
+            processingStatus,
+            isPrimary
+          })
+          if (deleted) {
+            await database.deleteFitnessFile({ id: activity.id })
+          }
+
+          const rollups = await database.getFitnessGearComponentDistanceRollups(
+            {
+              actorId: actors.replyAuthor.id,
+              gearIds: [bike.id]
+            }
+          )
+          expect(rollups[component!.id]).toEqual({
+            distanceMeters: 0,
+            activityCount: 0
+          })
+        }
+      )
+
+      it('excludes a soft-deleted component from the map entirely', async () => {
+        const bike = await database.createFitnessGear({
+          actorId: actors.replyAuthor.id,
+          kind: 'bike',
+          name: 'Component filter deleted component'
+        })
+        const component = await database.createFitnessGearComponent({
+          gearId: bike.id,
+          actorId: actors.replyAuthor.id,
+          componentType: 'Chain'
+        })
+        await database.deleteFitnessGearComponent({
+          id: component!.id,
+          gearId: bike.id,
+          actorId: actors.replyAuthor.id
+        })
+
+        const rollups = await database.getFitnessGearComponentDistanceRollups({
+          actorId: actors.replyAuthor.id,
+          gearIds: [bike.id]
+        })
+        expect(component!.id in rollups).toBe(false)
+      })
+
+      it('returns nothing for another actor’s gear', async () => {
+        const bike = await database.createFitnessGear({
+          actorId: actors.replyAuthor.id,
+          kind: 'bike',
+          name: 'Component filter foreign'
+        })
+        await database.createFitnessGearComponent({
+          gearId: bike.id,
+          actorId: actors.replyAuthor.id,
+          componentType: 'Chain'
+        })
+
+        const rollups = await database.getFitnessGearComponentDistanceRollups({
+          actorId: actors.primary.id,
+          gearIds: [bike.id]
+        })
+        expect(rollups).toEqual({})
+      })
+    })
+
+    describe('updateFitnessGearComponent', () => {
+      it('updates only the fields given and leaves the rest alone', async () => {
+        const bike = await database.createFitnessGear({
+          actorId: actors.pollAuthor.id,
+          kind: 'bike',
+          name: 'Component update bike'
+        })
+        const component = await database.createFitnessGearComponent({
+          gearId: bike.id,
+          actorId: actors.pollAuthor.id,
+          componentType: 'Chain',
+          brand: 'KMC',
+          serviceDistanceMeters: 5_000_000
+        })
+
+        const updated = await database.updateFitnessGearComponent({
+          id: component!.id,
+          gearId: bike.id,
+          actorId: actors.pollAuthor.id,
+          model: 'X11EL'
+        })
+        expect(updated).toMatchObject({
+          componentType: 'Chain',
+          brand: 'KMC',
+          model: 'X11EL',
+          serviceDistanceMeters: 5_000_000
+        })
+      })
+
+      it('re-arms the reminder when the service interval changes', async () => {
+        const bike = await database.createFitnessGear({
+          actorId: actors.pollAuthor.id,
+          kind: 'bike',
+          name: 'Component re-arm bike'
+        })
+        const component = await database.createFitnessGearComponent({
+          gearId: bike.id,
+          actorId: actors.pollAuthor.id,
+          componentType: 'Cassette',
+          serviceDistanceMeters: 5_000_000
+        })
+        await database.setFitnessGearComponentLastAlertedDistance({
+          id: component!.id,
+          lastAlertedDistanceMeters: 5_100_000
+        })
+
+        const updated = await database.updateFitnessGearComponent({
+          id: component!.id,
+          gearId: bike.id,
+          actorId: actors.pollAuthor.id,
+          serviceDistanceMeters: 8_000_000
+        })
+        expect(updated?.lastAlertedDistanceMeters).toBeUndefined()
+      })
+
+      it('returns null for another actor’s component', async () => {
+        const bike = await database.createFitnessGear({
+          actorId: actors.pollAuthor.id,
+          kind: 'bike',
+          name: 'Component update foreign'
+        })
+        const component = await database.createFitnessGearComponent({
+          gearId: bike.id,
+          actorId: actors.pollAuthor.id,
+          componentType: 'Fork'
+        })
+
+        expect(
+          await database.updateFitnessGearComponent({
+            id: component!.id,
+            gearId: bike.id,
+            actorId: actors.primary.id,
+            brand: 'Hijacked'
+          })
+        ).toBeNull()
+      })
+    })
+
+    describe('conditional alert claims', () => {
+      it('lets only the first of two concurrent claims through', async () => {
+        const shoes = await database.createFitnessGear({
+          actorId: actors.pollAuthor.id,
+          kind: 'shoes',
+          name: 'Claim race shoes',
+          alertDistanceMeters: 650_000
+        })
+
+        expect(
+          await database.setFitnessGearLastAlertedDistance({
+            id: shoes.id,
+            lastAlertedDistanceMeters: 651_000,
+            onlyIfBelowThresholdMeters: 650_000
+          })
+        ).toBe(true)
+        // The second evaluation read the same stale null, but the write itself
+        // now sees the recorded distance and declines.
+        expect(
+          await database.setFitnessGearLastAlertedDistance({
+            id: shoes.id,
+            lastAlertedDistanceMeters: 652_000,
+            onlyIfBelowThresholdMeters: 650_000
+          })
+        ).toBe(false)
+      })
+
+      it('claims again once the threshold is raised past the recorded distance', async () => {
+        const shoes = await database.createFitnessGear({
+          actorId: actors.pollAuthor.id,
+          kind: 'shoes',
+          name: 'Claim re-arm shoes',
+          alertDistanceMeters: 650_000
+        })
+        await database.setFitnessGearLastAlertedDistance({
+          id: shoes.id,
+          lastAlertedDistanceMeters: 651_000,
+          onlyIfBelowThresholdMeters: 650_000
+        })
+
+        expect(
+          await database.setFitnessGearLastAlertedDistance({
+            id: shoes.id,
+            lastAlertedDistanceMeters: 810_000,
+            onlyIfBelowThresholdMeters: 800_000
+          })
+        ).toBe(true)
       })
     })
 

@@ -40,7 +40,26 @@ const optionalText = (max: number) =>
 const optionalPositiveNumber = (max: number) =>
   z.number().positive().max(max).nullish()
 
-const optionalEpochMilliseconds = z.number().int().positive().nullish()
+/**
+ * The largest instant `new Date()` can represent: the ECMA-262 time value range
+ * is ±100,000,000 days around the epoch (§21.4.1.1).
+ *
+ * `.int()` only caps at `Number.MAX_SAFE_INTEGER`, which is a thousand times
+ * larger, and everything in between becomes an `Invalid Date` — which
+ * PostgreSQL rejects with a throw the route never catches (a 500 for what is
+ * plainly bad input), while SQLite stores it as NULL. The NULL is the worse
+ * outcome of the two: a null `addedAt` means "installed since the gear's
+ * beginning", so the component silently claims every activity ever ridden on
+ * that bike.
+ */
+const MAX_EPOCH_MILLISECONDS = 8_640_000_000_000_000
+
+const optionalEpochMilliseconds = z
+  .number()
+  .int()
+  .positive()
+  .max(MAX_EPOCH_MILLISECONDS)
+  .nullish()
 
 export const GearKindSchema = z.enum(['bike', 'shoes'])
 
@@ -106,8 +125,26 @@ export const ReplaceGearComponentRequest = z.object({
   model: optionalText(VARCHAR_MAX)
 })
 
+/**
+ * `null` clears an activity's gear attribution, and an empty or whitespace-only
+ * string means the same thing — the normalization is the server's job, not the
+ * picker's.
+ *
+ * Without it, `''` is neither null nor a gear id: `setFitnessFileGear`'s
+ * `if (gearId)` ownership lookup does not run, so the empty string is written
+ * straight into `fitness_files.gearId` with no check at all, and
+ * `assignFitnessFileGearIfUnset`'s `whereNull('gearId')` guard then means the
+ * activity can never be auto-assigned again while no rollup ever matches it.
+ * The shipped UI happens to send `value || null`; that is a client detail this
+ * schema must not depend on.
+ */
 export const UpdateFitnessFileGearRequest = z.object({
-  gearId: z.string().max(VARCHAR_MAX).nullable()
+  gearId: z
+    .string()
+    .trim()
+    .max(VARCHAR_MAX)
+    .transform((value) => value || null)
+    .nullable()
 })
 
 /**

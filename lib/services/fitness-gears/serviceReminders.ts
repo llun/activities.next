@@ -2,7 +2,10 @@ import { Database } from '@/lib/database/types'
 import { buildGearServiceDueEmail } from '@/lib/services/email/templates/gearServiceDue'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
-import { FitnessGear } from '@/lib/types/database/fitnessGear'
+import {
+  FitnessGear,
+  FitnessGearComponent
+} from '@/lib/types/database/fitnessGear'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
@@ -49,7 +52,16 @@ const notifyGearServiceDue = async (
   reminder: DueReminder
 ) => {
   const actor = await database.getActorFromId({ id: actorId })
-  if (!actor) return
+  if (!actor) {
+    // The crossing was computed and is about to be dropped; say so rather than
+    // returning into silence.
+    logger.warn({
+      message: 'Cannot deliver a gear service reminder: actor not found',
+      actorId,
+      gearId: reminder.gear.id
+    })
+    return
+  }
 
   const notification = await createNotificationWithPolicy(database, {
     actorId,
@@ -118,6 +130,34 @@ export const evaluateGearServiceReminders = async ({
     if (gears.length === 0) return
 
     const activeGearIds = gears.map((gear) => gear.id)
+
+    // Nothing to evaluate unless a threshold exists somewhere. This runs once
+    // per processed activity, so an archive import of a few thousand rides
+    // would otherwise issue several queries each to re-derive totals that
+    // cannot produce a reminder. The component read is the cheap way to know,
+    // and it is the same query the loop below would run anyway.
+    const componentsByGearId = new Map<string, FitnessGearComponent[]>()
+    for (const gear of gears) {
+      componentsByGearId.set(
+        gear.id,
+        await database.getFitnessGearComponents({
+          gearId: gear.id,
+          actorId
+        })
+      )
+    }
+    const hasAnyThreshold = gears.some(
+      (gear) =>
+        gear.alertDistanceMeters ||
+        componentsByGearId
+          .get(gear.id)
+          ?.some(
+            (component) =>
+              !component.removedAt && component.serviceDistanceMeters
+          )
+    )
+    if (!hasAnyThreshold) return
+
     const [gearRollups, componentRollups] = await Promise.all([
       database.getFitnessGearDistanceRollups({
         actorId,
@@ -147,11 +187,7 @@ export const evaluateGearServiceReminders = async ({
         })
       }
 
-      const components = await database.getFitnessGearComponents({
-        gearId: gear.id,
-        actorId
-      })
-      for (const component of components) {
+      for (const component of componentsByGearId.get(gear.id) ?? []) {
         // A part that has been replaced is history; only what is fitted now can
         // become due.
         if (component.removedAt) continue
@@ -177,21 +213,38 @@ export const evaluateGearServiceReminders = async ({
     }
 
     for (const reminder of due) {
-      // Record the crossing BEFORE notifying: a delivery failure must not leave
-      // the reminder armed to fire again on the next activity.
-      if (reminder.componentId) {
-        await database.setFitnessGearComponentLastAlertedDistance({
-          id: reminder.componentId,
-          lastAlertedDistanceMeters: reminder.totalDistanceMeters
-        })
-      } else {
-        await database.setFitnessGearLastAlertedDistance({
-          id: reminder.gear.id,
-          lastAlertedDistanceMeters: reminder.totalDistanceMeters
+      // Claim the crossing before notifying, and let the WRITE decide whether
+      // this evaluation owns it. Two evaluations racing on the same gear both
+      // read `lastAlerted` as null, so a read-based check would send two
+      // identical emails; the conditional update lets exactly one through.
+      const claimed = reminder.componentId
+        ? await database.setFitnessGearComponentLastAlertedDistance({
+            id: reminder.componentId,
+            lastAlertedDistanceMeters: reminder.totalDistanceMeters,
+            onlyIfBelowThresholdMeters: reminder.thresholdMeters
+          })
+        : await database.setFitnessGearLastAlertedDistance({
+            id: reminder.gear.id,
+            lastAlertedDistanceMeters: reminder.totalDistanceMeters,
+            onlyIfBelowThresholdMeters: reminder.thresholdMeters
+          })
+      if (!claimed) continue
+
+      // Contained per reminder: a delivery failure on one must not skip the
+      // rest of the batch. The claim above is deliberately not rolled back — a
+      // duplicate reminder is worse than a missed one, and the next threshold
+      // (or a replacement part) re-arms it.
+      try {
+        await notifyGearServiceDue(database, actorId, reminder)
+      } catch (error) {
+        logger.error({
+          message: 'Failed to deliver a gear service reminder',
+          actorId,
+          gearId: reminder.gear.id,
+          componentId: reminder.componentId,
+          err: toLoggableError(error)
         })
       }
-
-      await notifyGearServiceDue(database, actorId, reminder)
     }
   } catch (error) {
     // A reminder is a courtesy on top of whatever the caller was doing —

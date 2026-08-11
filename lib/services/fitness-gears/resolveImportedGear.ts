@@ -22,10 +22,17 @@ import { toLoggableError } from '@/lib/utils/toLoggableError'
 // insert failure on PostgreSQL rather than a truncated row.
 const MAX_GEAR_NAME_LENGTH = 255
 
+// Trim AFTER the cut, not only before it: a 255-character slice can land in the
+// middle of a space, and storing the trailing whitespace would leave the name
+// we insert different from the name we look up by. `findFitnessGearByName`
+// trims both sides today so the two still meet, but that is its choice to make,
+// not an invariant this module should lean on — and a stored name with a
+// trailing space renders as one everywhere it is shown.
 const truncateGearName = (name: string): string =>
-  name.length > MAX_GEAR_NAME_LENGTH
+  (name.length > MAX_GEAR_NAME_LENGTH
     ? name.slice(0, MAX_GEAR_NAME_LENGTH)
     : name
+  ).trim()
 
 /**
  * The kind a Strava gear belongs to.
@@ -40,8 +47,13 @@ const truncateGearName = (name: string): string =>
  *
  * ASSUMPTION: the `b`/`g` prefixes are observed Strava behaviour, not a
  * documented guarantee, and have not been verified against a live account here.
- * Getting it wrong only narrows the gear picker's default filter — nothing
- * refuses to import — and the owner can retype the kind on the gear page.
+ * Getting it wrong is NOT recoverable by the owner: `kind` is deliberately
+ * immutable (there is no such field on `UpdateFitnessGearParams`, and
+ * `gearRequests.ts` says why), so a bike created as `shoes` shows no components
+ * card at all and its service-reminder email offers shoe advice — "Most shoes
+ * wear out between 500 and 800 km". The only way out is to delete the gear and
+ * recreate it, losing the components and re-attributing the activities. That is
+ * the cost of a wrong guess here; keep the signals ordered most-reliable-first.
  */
 export const inferStravaGearKind = ({
   stravaGearId,
@@ -109,9 +121,26 @@ export const resolveStravaGear = async ({
   })
   if (existing) return { id: existing.id }
 
-  // A gear the athlete deleted, or a token that cannot read the shed, still
-  // leaves an attributable activity — create the gear from what we know.
-  let details: StravaGear | null = null
+  // A gear the athlete deleted, or a token that cannot read the shed, answers
+  // null — that is settled input, and a placeholder-named row still leaves the
+  // activity attributable.
+  //
+  // A THROW is the opposite: Strava is rate-limiting (100 requests / 15 min,
+  // routinely hit during the bulk webhook catch-up that is exactly when a gear
+  // id is first seen) or erroring, and we know nothing about this gear yet.
+  // Creating the row anyway would be permanent — the id lookup above
+  // short-circuits from the next activity onwards, and this module never
+  // mutates an existing gear row on purpose.
+  //
+  // Healing it on a later successful fetch was the alternative and is rejected:
+  // it would cost an extra `GET /gear/{id}` per activity precisely while the
+  // API is rate-limiting, and it could only ever repair the NAME. `kind` is
+  // immutable by design (see `inferStravaGearKind`), so a gear guessed with no
+  // `frame_type` to go on would stay mis-filed forever — the expensive half of
+  // the mistake. Leaving the activity unattributed instead keeps
+  // `fitness_files.gearId` NULL, which is precisely the state a later import's
+  // `assignFitnessFileGearIfUnset` is allowed to fill in.
+  let details: StravaGear | null
   try {
     details = await getStravaGear({
       gearId: normalizedGearId,
@@ -119,11 +148,13 @@ export const resolveStravaGear = async ({
     })
   } catch (error) {
     logger.warn({
-      message: 'Failed to fetch Strava gear details, using a placeholder name',
+      message:
+        'Failed to fetch Strava gear details, leaving the activity unattributed',
       actorId,
       stravaGearId: normalizedGearId,
       err: toLoggableError(error)
     })
+    return null
   }
 
   try {

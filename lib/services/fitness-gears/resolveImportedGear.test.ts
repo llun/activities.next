@@ -119,6 +119,19 @@ describe('getStravaGearName', () => {
     })
     expect(name).toHaveLength(255)
   })
+
+  it('leaves no trailing space when the cut lands mid-word', () => {
+    // 254 characters, then a space, then more: the 255-character slice ends on
+    // the space. Storing that space makes the stored name differ from the one
+    // the next activity looks up by.
+    const name = getStravaGearName('b1', {
+      id: 'b1',
+      brand_name: `${'M'.repeat(254)} Routt 45`
+    })
+
+    expect(name).toBe('M'.repeat(254))
+    expect(name).toBe(name.trim())
+  })
 })
 
 describe('resolveStravaGear', () => {
@@ -175,9 +188,11 @@ describe('resolveStravaGear', () => {
     })
   })
 
-  it('creates gear with a placeholder name when the detail fetch fails', async () => {
+  // A 404/401 is settled input — the gear is gone or unreadable and never
+  // coming back, so a placeholder is the right permanent answer.
+  it('creates gear with a placeholder name when Strava does not know the gear', async () => {
     const database = createDatabase()
-    mockGetStravaGear.mockRejectedValue(new Error('Strava is down'))
+    mockGetStravaGear.mockResolvedValue(null)
     database.createFitnessGear.mockResolvedValue({ id: 'gear-new' } as never)
 
     const resolved = await resolveStravaGear({
@@ -196,6 +211,24 @@ describe('resolveStravaGear', () => {
         model: null
       })
     )
+  })
+
+  // A throw is a rate limit or an outage, not a missing gear. Creating the
+  // placeholder here would be permanent: the id lookup short-circuits from the
+  // next activity onwards and nothing ever mutates an existing gear row.
+  it('leaves the activity unattributed when the detail fetch throws', async () => {
+    const database = createDatabase()
+    mockGetStravaGear.mockRejectedValue(new Error('Too Many Requests'))
+
+    const resolved = await resolveStravaGear({
+      database: asDatabase(database),
+      actorId: 'actor-1',
+      stravaGearId: 'g7654321',
+      accessToken: 'token'
+    })
+
+    expect(resolved).toBeNull()
+    expect(database.createFitnessGear).not.toHaveBeenCalled()
   })
 
   it('returns the winner of a unique-index race instead of failing', async () => {
@@ -283,6 +316,27 @@ describe('resolveArchiveGearByName', () => {
       kind: 'shoes',
       name: 'Nimbus 25'
     })
+  })
+
+  // The truncated name is both what we look up by and what we store, so it has
+  // to be identical on both sides — a 255-character cut that lands on a space
+  // must not leave one behind.
+  it('looks up and stores the same truncated name for an over-long one', async () => {
+    const database = createDatabase()
+    database.createFitnessGear.mockResolvedValue({ id: 'gear-new' } as never)
+
+    await resolveArchiveGearByName({
+      database: asDatabase(database),
+      actorId: 'actor-1',
+      name: `${'M'.repeat(254)} Routt 45`,
+      kind: 'bike'
+    })
+
+    const lookedUpName = database.findFitnessGearByName.mock.calls[0][0].name
+    const storedName = database.createFitnessGear.mock.calls[0][0].name
+
+    expect(storedName).toBe(lookedUpName)
+    expect(storedName).toBe('M'.repeat(254))
   })
 
   it('returns null for a blank name without touching the database', async () => {

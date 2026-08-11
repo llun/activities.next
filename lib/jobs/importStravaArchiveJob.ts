@@ -705,11 +705,19 @@ export const importStravaArchiveJob = createJobHandle(
       })
       const archiveActivities = await archiveReader.getActivities()
 
-      // The archive's gear CSVs are optional and never load-bearing: they only
-      // tell us whether a gear NAME is a bike or a pair of shoes. A missing or
-      // unreadable file leaves the map empty and the importer falls back to the
-      // shoes default, which is a wrong picker filter at worst — not a failed
-      // import.
+      // The archive's gear CSVs are optional: they only tell us whether a gear
+      // NAME is a bike or a pair of shoes. A missing or unreadable file leaves
+      // the map empty and every gear falls back to the `shoes` default below —
+      // the import still succeeds, which is the point of the try/catch.
+      //
+      // That fallback is not free, though, and the cost is worth stating: gear
+      // `kind` is immutable (there is no `kind` on `UpdateFitnessGearParams`),
+      // so a bike filed as shoes stays that way. It shows no components card at
+      // all, rejects a frame type and a weight, and any reminder it sends says
+      // "Most shoes wear out between 500 and 800 km". The only remedy is to
+      // delete the gear and re-create it, which detaches every activity that
+      // was attributed to it. An export without `bikes.csv` therefore degrades
+      // more than the word "fallback" suggests.
       const gearKindByName = new Map<string, FitnessGearKind>()
       try {
         for (const gear of await archiveReader.getGear()) {
@@ -724,10 +732,16 @@ export const importStravaArchiveJob = createJobHandle(
         })
       }
 
-      // Name → local gear id for this run. `null` is cached too, so a name that
-      // could not be resolved is not retried once per activity across an
-      // archive with thousands of them.
-      const gearIdByName = new Map<string, string | null>()
+      // Name → local gear id for this run, so a name shared by hundreds of
+      // activities is resolved once.
+      //
+      // Only SUCCESSES are cached. `resolveArchiveGearByName` returns null only
+      // when the create threw and the re-read found no winner — i.e. a
+      // transient database failure — so caching that would let one blip leave
+      // every remaining activity with the same gear name unattributed, silently
+      // and with a single log line for thousands of rides. Retrying on the next
+      // activity costs nothing in the happy path.
+      const gearIdByName = new Map<string, string>()
       const resolveArchiveActivityGearId = async (
         gearName: string
       ): Promise<string | null> => {
@@ -735,7 +749,7 @@ export const importStravaArchiveJob = createJobHandle(
         if (!key) return null
 
         const cached = gearIdByName.get(key)
-        if (cached !== undefined) return cached
+        if (cached) return cached
 
         const resolved = await resolveArchiveGearByName({
           database,
@@ -743,9 +757,10 @@ export const importStravaArchiveJob = createJobHandle(
           name: gearName.trim(),
           kind: gearKindByName.get(key) ?? 'shoes'
         })
-        const gearId = resolved?.id ?? null
-        gearIdByName.set(key, gearId)
-        return gearId
+        if (!resolved) return null
+
+        gearIdByName.set(key, resolved.id)
+        return resolved.id
       }
 
       const targetTotalActivities =
@@ -842,6 +857,7 @@ export const importStravaArchiveJob = createJobHandle(
               if (gearId) {
                 await database.assignFitnessFileGearIfUnset({
                   fitnessFileId: savedFitnessFile.id,
+                  actorId,
                   gearId
                 })
               }

@@ -25,6 +25,7 @@ type MockDatabase = Pick<
   Database,
   | 'updateFitnessGearComponent'
   | 'deleteFitnessGearComponent'
+  | 'getFitnessGearComponents'
   | 'getFitnessGearComponentDistanceRollups'
   | 'getAccountFromEmail'
   | 'getActorsForAccount'
@@ -55,6 +56,7 @@ describe('Fitness gear component item API', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
     updateFitnessGearComponent: vi.fn(),
     deleteFitnessGearComponent: vi.fn(),
+    getFitnessGearComponents: vi.fn(),
     getFitnessGearComponentDistanceRollups: vi.fn(),
     getAccountFromEmail: vi.fn(),
     getActorsForAccount: vi.fn(),
@@ -80,6 +82,7 @@ describe('Fitness gear component item API', () => {
     ])
     mockDb.getActorFromId.mockResolvedValue({ ...seedActor1, id: ACTOR1_ID })
     mockDb.getFitnessGearComponentDistanceRollups.mockResolvedValue({})
+    mockDb.getFitnessGearComponents.mockResolvedValue([component()])
   })
 
   const params = {
@@ -117,6 +120,8 @@ describe('Fitness gear component item API', () => {
       // Absent keys must not be forwarded, or the mixin would clear them.
       expect('addedAt' in callArgs).toBe(false)
       expect('serviceDistanceMeters' in callArgs).toBe(false)
+      // A body that cannot move the install window needs no extra read.
+      expect(mockDb.getFitnessGearComponents).not.toHaveBeenCalled()
     })
 
     it('answers 404 for a component the actor does not own', async () => {
@@ -146,6 +151,111 @@ describe('Fitness gear component item API', () => {
         params
       )
       expect(response.status).toBe(422)
+      expect(mockDb.updateFitnessGearComponent).not.toHaveBeenCalled()
+    })
+
+    // The schema's refine only sees the request body, so a one-sided PATCH has
+    // to be checked against the stored row. Left unchecked it writes a window
+    // no activity can fall inside: the part reads 0 km everywhere and its
+    // service reminder can never fire.
+    it('rejects a removal date that precedes the stored added date', async () => {
+      mockDb.getFitnessGearComponents.mockResolvedValue([
+        component({ addedAt: 1_700_000_000_000 })
+      ])
+
+      const response = await PATCH(
+        new NextRequest(url, {
+          method: 'PATCH',
+          headers: { Origin: 'https://llun.test' },
+          body: JSON.stringify({ removedAt: 1_600_000_000_000 })
+        }),
+        params
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(422)
+      expect(data).toEqual({ error: 'removedAt must be after addedAt' })
+      expect(mockDb.updateFitnessGearComponent).not.toHaveBeenCalled()
+    })
+
+    it('rejects an added date that follows the stored removal date', async () => {
+      mockDb.getFitnessGearComponents.mockResolvedValue([
+        component({ removedAt: 1_600_000_000_000 })
+      ])
+
+      const response = await PATCH(
+        new NextRequest(url, {
+          method: 'PATCH',
+          headers: { Origin: 'https://llun.test' },
+          body: JSON.stringify({ addedAt: 1_700_000_000_000 })
+        }),
+        params
+      )
+
+      expect(response.status).toBe(422)
+      expect(mockDb.updateFitnessGearComponent).not.toHaveBeenCalled()
+    })
+
+    it('accepts a removal date after the stored added date', async () => {
+      mockDb.getFitnessGearComponents.mockResolvedValue([
+        component({ addedAt: 1_600_000_000_000 })
+      ])
+      mockDb.updateFitnessGearComponent.mockResolvedValue(
+        component({
+          addedAt: 1_600_000_000_000,
+          removedAt: 1_700_000_000_000
+        })
+      )
+
+      const response = await PATCH(
+        new NextRequest(url, {
+          method: 'PATCH',
+          headers: { Origin: 'https://llun.test' },
+          body: JSON.stringify({ removedAt: 1_700_000_000_000 })
+        }),
+        params
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockDb.updateFitnessGearComponent).toHaveBeenCalled()
+    })
+
+    it('accepts clearing the removal date on a component with an added date', async () => {
+      mockDb.getFitnessGearComponents.mockResolvedValue([
+        component({
+          addedAt: 1_600_000_000_000,
+          removedAt: 1_700_000_000_000
+        })
+      ])
+      mockDb.updateFitnessGearComponent.mockResolvedValue(
+        component({ addedAt: 1_600_000_000_000 })
+      )
+
+      const response = await PATCH(
+        new NextRequest(url, {
+          method: 'PATCH',
+          headers: { Origin: 'https://llun.test' },
+          body: JSON.stringify({ removedAt: null })
+        }),
+        params
+      )
+
+      expect(response.status).toBe(200)
+    })
+
+    it('answers 404 when the window check cannot find the component', async () => {
+      mockDb.getFitnessGearComponents.mockResolvedValue([])
+
+      const response = await PATCH(
+        new NextRequest(url, {
+          method: 'PATCH',
+          headers: { Origin: 'https://llun.test' },
+          body: JSON.stringify({ removedAt: 1_700_000_000_000 })
+        }),
+        params
+      )
+
+      expect(response.status).toBe(404)
       expect(mockDb.updateFitnessGearComponent).not.toHaveBeenCalled()
     })
   })

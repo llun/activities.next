@@ -164,6 +164,18 @@ export const NotificationItem = ({
           ) : null
       }
       // collection_update is informational — the verb on line 1 is the whole row.
+    } else if (cfg.kind === 'plain') {
+      // A notice about the account's own data. It carries no status by design,
+      // so it must not go through the 'system' branch below — that one reads a
+      // missing status as a DELETED one and would tell every gear reminder that
+      // "This imported activity is no longer available."
+      //
+      // The row links to the gear list rather than the specific gear: the
+      // notification record has no room for the gear id. The email that
+      // accompanies it does deep-link to the gear.
+      line1 = <span className="font-semibold text-foreground">{cfg.verb}</span>
+      statusPath = '/fitness/gear'
+      overlayAccessible = true
     } else {
       line1 = <span className="font-semibold text-foreground">{cfg.verb}</span>
       const withStatus = hasStatusActor(withAccount) ? withAccount : null

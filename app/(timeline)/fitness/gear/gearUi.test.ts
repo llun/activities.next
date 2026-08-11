@@ -71,6 +71,17 @@ describe('formatGearDate', () => {
   it('renders a medium US date', () => {
     expect(formatGearDate(Date.UTC(2018, 10, 27, 12))).toEqual('Nov 27, 2018')
   })
+
+  it('renders every instant of a UTC day as that day, whatever the runner zone', () => {
+    // `<input type="date">` yields "2024-03-01", which the spec parses as UTC
+    // midnight: formatted in local time that is "Feb 29, 2024" in Los Angeles.
+    // The end of the same UTC day is the mirror failure in Tokyo.
+    const startOfDay = Date.parse('2024-03-01T00:00:00Z')
+    const endOfDay = startOfDay + 24 * 60 * 60 * 1000 - 1
+
+    expect(formatGearDate(startOfDay)).toEqual('Mar 1, 2024')
+    expect(formatGearDate(endOfDay)).toEqual('Mar 1, 2024')
+  })
 })
 
 describe('getGearDisplayName', () => {
@@ -209,12 +220,15 @@ describe('getWearState', () => {
   it('caps the bar width at 100% while reporting the real percentage', () => {
     const state = getWearState(9000000, 5000000)
     expect(state?.barWidth).toEqual('100%')
+    // `barPercent` is what `aria-valuenow` reports, so it is capped too.
+    expect(state?.barPercent).toEqual(100)
     expect(state?.percent).toEqual(180)
   })
 
   it('reports the uncapped bar width below the interval', () => {
     const state = getWearState(2500000, 5000000)
     expect(state?.barWidth).toEqual('50%')
+    expect(state?.barPercent).toEqual(50)
     expect(state?.percent).toEqual(50)
   })
 })

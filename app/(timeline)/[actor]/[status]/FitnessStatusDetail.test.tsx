@@ -1876,6 +1876,121 @@ describe('FitnessStatusDetail', () => {
       await waitFor(() => expect(select.value).toBe(''))
     })
 
+    it('points the select at its own error message', async () => {
+      mockGetFitnessGearList.mockResolvedValue([
+        buildGear({ id: 'gear-bike', name: 'Moots' })
+      ])
+      mockUpdateFitnessFileGear.mockRejectedValue(new Error('Gear is retired.'))
+
+      renderDetail()
+
+      const select = (await screen.findByLabelText('Gear')) as HTMLSelectElement
+      expect(select).not.toHaveAttribute('aria-describedby')
+
+      fireEvent.change(select, { target: { value: 'gear-bike' } })
+
+      const alert = await screen.findByRole('alert')
+      await waitFor(() =>
+        expect(select).toHaveAttribute('aria-describedby', alert.id)
+      )
+      expect(alert.id).toBe('activity-gear-error')
+    })
+
+    it('disables the select while the change is in flight', async () => {
+      mockGetFitnessGearList.mockResolvedValue([
+        buildGear({ id: 'gear-bike', name: 'Moots' })
+      ])
+      let resolveUpdate: (file: {
+        id: string
+        gearId: string | null
+      }) => void = () => {}
+      mockUpdateFitnessFileGear.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveUpdate = resolve
+          })
+      )
+
+      renderDetail()
+
+      const select = (await screen.findByLabelText('Gear')) as HTMLSelectElement
+      await waitFor(() =>
+        expect(
+          within(select).getByRole('option', { name: 'Moots' })
+        ).toBeInTheDocument()
+      )
+
+      fireEvent.change(select, { target: { value: 'gear-bike' } })
+
+      // Two fast changes would otherwise race, and the loser's rollback would
+      // restore an assignment the server has already replaced.
+      await waitFor(() => expect(select).toBeDisabled())
+
+      resolveUpdate({ id: 'fit-1', gearId: 'gear-bike' })
+      await waitFor(() => expect(select).toBeEnabled())
+    })
+
+    it('rolls back only this file, keeping a file list that landed mid-flight', async () => {
+      // The status payload's single file is what renders first; the real list
+      // arrives from `getFitnessFilesByStatus`, and here it lands while the
+      // gear PATCH is still open.
+      let resolveFiles: (files: StatusFitnessFileItem[]) => void = () => {}
+      mockGetFitnessFilesByStatus.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveFiles = resolve
+          })
+      )
+      mockGetFitnessGearList.mockResolvedValue([
+        buildGear({ id: 'gear-bike', name: 'Moots' })
+      ])
+      let rejectUpdate: (error: Error) => void = () => {}
+      mockUpdateFitnessFileGear.mockImplementation(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectUpdate = reject
+          })
+      )
+
+      renderDetail()
+
+      const select = (await screen.findByLabelText('Gear')) as HTMLSelectElement
+      await waitFor(() =>
+        expect(
+          within(select).getByRole('option', { name: 'Moots' })
+        ).toBeInTheDocument()
+      )
+
+      fireEvent.change(select, { target: { value: 'gear-bike' } })
+      await waitFor(() => expect(select.value).toBe('gear-bike'))
+
+      await act(async () => {
+        resolveFiles([
+          buildFitnessFile(),
+          buildFitnessFile({
+            id: 'fit-2',
+            fileName: 'second.fit',
+            isPrimary: false,
+            activityStartTime: Date.parse('2026-05-27T18:00:00Z')
+          })
+        ])
+      })
+      expect(await screen.findByLabelText('Activity file')).toBeInTheDocument()
+
+      await act(async () => {
+        rejectUpdate(new Error('Failed to update gear.'))
+      })
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Failed to update gear.'
+      )
+      // Only this file's assignment went back. Restoring the array captured
+      // before the PATCH would have dropped the second file with it.
+      await waitFor(() => expect(select.value).toBe(''))
+      expect(screen.getByLabelText('Activity file')).toBeInTheDocument()
+      expect(screen.getByText('file 1 of 2')).toBeInTheDocument()
+    })
+
     it('sends null when the owner clears the assignment', async () => {
       mockGetFitnessFilesByStatus.mockResolvedValue([
         buildFitnessFile({ gearId: 'gear-bike', gearName: 'Moots' })

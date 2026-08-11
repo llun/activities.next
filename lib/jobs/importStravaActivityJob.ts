@@ -473,6 +473,7 @@ export const importStravaActivityJob = createJobHandle(
       try {
         return await database.assignFitnessFileGearIfUnset({
           fitnessFileId,
+          actorId,
           gearId: importedGearId
         })
       } catch (error) {

@@ -1174,6 +1174,7 @@ describe('importStravaArchiveJob', () => {
       })
       expect(database.assignFitnessFileGearIfUnset).toHaveBeenCalledWith({
         fitnessFileId: 'activity-file-1',
+        actorId: 'actor-1',
         gearId: 'gear-new'
       })
     })

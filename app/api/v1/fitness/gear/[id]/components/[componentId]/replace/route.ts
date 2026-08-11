@@ -33,9 +33,22 @@ export const POST = traceApiRoute(
     if (!id || !componentId) return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
 
     // The body is optional: the design's Replace button sends nothing and the
-    // owner fills in the new part's brand and model afterwards.
-    const body: unknown = await req.json().catch(() => ({}))
-    const parsed = ReplaceGearComponentRequest.safeParse(body ?? {})
+    // owner fills in the new part's brand and model afterwards. "Sent nothing"
+    // and "sent something broken" are not the same request, though — coercing a
+    // truncated or non-JSON payload to `{}` would retire the fitted part while
+    // silently discarding whatever the client meant to say, so only an empty
+    // body is treated as the no-body case and everything else must parse.
+    let body: unknown = {}
+    try {
+      const rawBody = await req.text()
+      if (rawBody.trim().length > 0) {
+        body = JSON.parse(rawBody)
+      }
+    } catch (_error) {
+      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+    }
+
+    const parsed = ReplaceGearComponentRequest.safeParse(body)
     if (!parsed.success) {
       return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
     }

@@ -3,7 +3,7 @@
 import { Bike, Footprints, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 
 import { getFitnessGearList } from '@/lib/client'
 import { Badge } from '@/lib/components/ui/badge'
@@ -176,14 +176,18 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd }) => {
 
 export const GearListView: FC = () => {
   const [gears, setGears] = useState<GearEntity[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  // Only the first load blanks the page. A refetch keeps the sections mounted
+  // and merely marks them busy — swapping them for "Loading..." would collapse
+  // each section's "Show N retired" toggle every time a dialog saves.
+  const [isInitialLoading, setIsInitialLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [reloadToken, setReloadToken] = useState(0)
   const [dialogKind, setDialogKind] = useState<FitnessGearKind | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    setIsLoading(true)
+    setIsRefreshing(true)
 
     getFitnessGearList()
       .then((list) => {
@@ -200,7 +204,9 @@ export const GearListView: FC = () => {
         )
       })
       .finally(() => {
-        if (!cancelled) setIsLoading(false)
+        if (cancelled) return
+        setIsInitialLoading(false)
+        setIsRefreshing(false)
       })
 
     return () => {
@@ -211,17 +217,20 @@ export const GearListView: FC = () => {
   // Every mutation refetches instead of patching local state: distances are
   // derived server-side and the one-gear-per-sport rule can move a default
   // sport off a row this mutation never touched.
-  const reload = useCallback(() => setReloadToken((token) => token + 1), [])
+  const reload = () => setReloadToken((token) => token + 1)
 
   return (
     <div className="space-y-4">
       {error && <p className="text-sm text-destructive">{error}</p>}
-      {isLoading ? (
+      {isInitialLoading ? (
         <p className="py-8 text-center text-sm text-muted-foreground">
           Loading...
         </p>
       ) : (
-        <>
+        <div
+          className={cn('space-y-4', isRefreshing && 'opacity-60')}
+          aria-busy={isRefreshing}
+        >
           <GearSection
             kind="bike"
             gears={gears.filter((gear) => gear.kind === 'bike')}
@@ -232,7 +241,7 @@ export const GearListView: FC = () => {
             gears={gears.filter((gear) => gear.kind === 'shoes')}
             onAdd={setDialogKind}
           />
-        </>
+        </div>
       )}
 
       {dialogKind && (

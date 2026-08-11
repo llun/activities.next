@@ -13,8 +13,14 @@ describe('mastodonTypeToInternal', () => {
     expect(mastodonTypeToInternal('reblog')).toEqual(['reblog'])
   })
 
-  it('maps status to activity_import', () => {
-    expect(mastodonTypeToInternal('status')).toEqual(['activity_import'])
+  it('maps status to every internal type that serializes as status', () => {
+    // Both come back so `types[]=status` and `exclude_types[]=status` agree
+    // with what the serializer emits — a one-way mapping meant a client that
+    // excluded `status` still received gear reminders.
+    expect(mastodonTypeToInternal('status')).toEqual([
+      'activity_import',
+      'gear_service_due'
+    ])
   })
 
   it('maps mention to both mention and reply', () => {

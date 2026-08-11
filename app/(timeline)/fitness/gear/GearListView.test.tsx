@@ -10,7 +10,7 @@ import {
   within
 } from '@testing-library/react'
 
-import { getFitnessGearList } from '@/lib/client'
+import { createFitnessGear, getFitnessGearList } from '@/lib/client'
 import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
 
 import { GearListView } from './GearListView'
@@ -35,6 +35,9 @@ class ResizeObserverStub {
   disconnect() {}
 }
 
+const mockCreateFitnessGear = createFitnessGear as jest.MockedFunction<
+  typeof createFitnessGear
+>
 const mockGetFitnessGearList = getFitnessGearList as jest.MockedFunction<
   typeof getFitnessGearList
 >
@@ -234,6 +237,66 @@ describe('GearListView', () => {
     // Shoes carry an alert distance, never a frame type.
     expect(screen.getByText('Distance alert')).toBeInTheDocument()
     expect(screen.queryByLabelText('Weight (kg)')).not.toBeInTheDocument()
+  })
+
+  it('refetches the list after a new bike is saved', async () => {
+    mockCreateFitnessGear.mockResolvedValue(createGear())
+    render(<GearListView />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add bike' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Save bike' }))
+
+    await waitFor(() => expect(mockCreateFitnessGear).toHaveBeenCalledTimes(1))
+    // Distances and the one-gear-per-sport defaults are derived server-side,
+    // so the saved gear is read back rather than patched in locally.
+    await waitFor(() => expect(mockGetFitnessGearList).toHaveBeenCalledTimes(2))
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('heading', { name: 'Add a bike' })
+      ).not.toBeInTheDocument()
+    )
+  })
+
+  it('keeps the sections rendered while a refetch is in flight', async () => {
+    mockCreateFitnessGear.mockResolvedValue(createGear())
+    let resolveRefetch: (gears: GearEntity[]) => void = () => {}
+    mockGetFitnessGearList
+      .mockResolvedValueOnce([
+        createGear(),
+        createGear({
+          id: 'gear-retired',
+          name: 'Old racer',
+          retiredAt: Date.UTC(2023, 4, 1)
+        })
+      ])
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveRefetch = resolve
+          })
+      )
+    render(<GearListView />)
+
+    // The expanded retired list is the state a "Loading..." swap would lose.
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Show 1 retired bike' })
+    )
+    expect(screen.getByRole('link', { name: 'Old racer' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add bike' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Save bike' }))
+
+    await waitFor(() => expect(mockGetFitnessGearList).toHaveBeenCalledTimes(2))
+    expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Rocket' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Old racer' })).toBeInTheDocument()
+
+    resolveRefetch([createGear()])
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('link', { name: 'Old racer' })
+      ).not.toBeInTheDocument()
+    )
   })
 
   it('surfaces a load failure', async () => {

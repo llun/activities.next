@@ -308,11 +308,18 @@ export const Post: FC<PostProps> = (props) => {
           {isFitnessCompleted && fitnessStats.length > 0 ? (
             <div className="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
               {fitnessStats.map((stat) => (
-                <div key={stat.label} className="flex flex-col gap-0.5">
+                // `min-w-0` + `truncate`: the Distance cell carries the gear
+                // name too, and `fitness_gears.name` is a varchar(255) whose
+                // one unbroken token would otherwise push this quarter-width
+                // grid column past the card. The full text stays in `title`.
+                <div key={stat.label} className="flex min-w-0 flex-col gap-0.5">
                   <span className="text-[11px] text-muted-foreground">
                     {stat.label}
                   </span>
-                  <span className="text-sm font-semibold text-foreground">
+                  <span
+                    className="truncate text-sm font-semibold text-foreground"
+                    title={stat.value}
+                  >
                     {stat.value}
                   </span>
                 </div>

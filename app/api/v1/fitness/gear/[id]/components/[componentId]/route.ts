@@ -35,6 +35,42 @@ export const PATCH = traceApiRoute(
       return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
     }
 
+    // The schema's own `removedAt > addedAt` rule can only see this request, so
+    // a partial PATCH that moves one end of the install window has to be
+    // checked against the stored other end — the same way the gear PATCH one
+    // directory up validates its kind-scoped fields against the stored gear.
+    // Left to the schema alone, `PATCH { removedAt }` earlier than the stored
+    // `addedAt` writes a window no activity can ever fall inside: the component
+    // reads 0 km on every surface and its service reminder can never fire.
+    if ('addedAt' in parsed.data || 'removedAt' in parsed.data) {
+      const components = await database.getFitnessGearComponents({
+        gearId: id,
+        actorId: currentActor.id
+      })
+      const existing = components.find(
+        (candidate) => candidate.id === componentId
+      )
+      if (!existing) return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+
+      const addedAt =
+        'addedAt' in parsed.data
+          ? (parsed.data.addedAt ?? null)
+          : (existing.addedAt ?? null)
+      const removedAt =
+        'removedAt' in parsed.data
+          ? (parsed.data.removedAt ?? null)
+          : (existing.removedAt ?? null)
+
+      if (addedAt !== null && removedAt !== null && removedAt <= addedAt) {
+        return apiResponse({
+          req,
+          allowedMethods: [],
+          data: { error: 'removedAt must be after addedAt' },
+          responseStatusCode: 422
+        })
+      }
+    }
+
     const component = await database.updateFitnessGearComponent({
       id: componentId,
       gearId: id,

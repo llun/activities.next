@@ -410,13 +410,9 @@ export const getStravaGear = async ({
     return null
   }
 
+  // Throw only — no warn beside it. `getStravaUpload`, which this mirrors, does
+  // the same, and the caller already logs the failure with a stack.
   const detail = await getStravaErrorDetail(response)
-  logger.warn({
-    message: 'Failed to fetch Strava gear',
-    gearId,
-    status: response.status,
-    error: detail
-  })
   throw new Error(`Failed to fetch Strava gear (${response.status}): ${detail}`)
 }
 

@@ -1426,6 +1426,66 @@ describe('processFitnessFileJob', () => {
     beforeEach(clearGear)
     afterAll(clearGear)
 
+    it('fires the service reminder for the very activity that crosses the threshold', async () => {
+      // The parsed fixture is a 5.2 km run, and the shoes are set to remind at
+      // 5 km — so the crossing is caused by THIS activity and nothing else.
+      //
+      // This is the regression guard for evaluating reminders too early: the
+      // rollups only count `completed` activities, so while the job still has
+      // the file marked `processing` the total reads 0 and no reminder fires.
+      // The bug is invisible in isolation — the reminder simply arrives one
+      // activity late, or never, if this was the last ride on that gear.
+      const shoes = await database.createFitnessGear({
+        actorId: actor.id,
+        kind: 'shoes',
+        name: 'Reminder shoes',
+        defaultSports: ['run'],
+        alertDistanceMeters: 5_000
+      })
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+
+      await processFitnessFileJob(database, {
+        id: 'job-gear-reminder',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      const reloaded = await database.getFitnessGear({
+        id: shoes.id,
+        actorId: actor.id
+      })
+      // Recorded at the distance the crossing was detected at, which must
+      // include this run rather than the 0 km that precedes it.
+      expect(reloaded?.lastAlertedDistanceMeters).toBe(5_200)
+    })
+
+    it('does not fire a reminder while the gear is below its threshold', async () => {
+      const shoes = await database.createFitnessGear({
+        actorId: actor.id,
+        kind: 'shoes',
+        name: 'Under threshold shoes',
+        defaultSports: ['run'],
+        alertDistanceMeters: 500_000
+      })
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+
+      await processFitnessFileJob(database, {
+        id: 'job-gear-reminder-under',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      const reloaded = await database.getFitnessGear({
+        id: shoes.id,
+        actorId: actor.id
+      })
+      expect(reloaded?.lastAlertedDistanceMeters).toBeUndefined()
+    })
+
     it('assigns the gear whose default sport matches the parsed activity', async () => {
       const gear = await database.createFitnessGear({
         actorId: actor.id,

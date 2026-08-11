@@ -4,6 +4,7 @@ import {
   buildTcxFromStravaStreams,
   getStravaActivityStreams,
   getStravaActivityUrl,
+  getStravaGear,
   getStravaUpload
 } from './activity'
 
@@ -86,6 +87,89 @@ describe('getStravaUpload', () => {
     await expect(
       getStravaUpload({ uploadId: 67890, accessToken: 'access-token' })
     ).rejects.toThrow('500')
+  })
+})
+
+describe('getStravaGear', () => {
+  beforeEach(() => {
+    mockFetch.mockReset()
+  })
+
+  it('returns the gear summary when Strava returns 200', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          id: 'b1234567',
+          name: 'Winter bike',
+          brand_name: 'Moots',
+          model_name: 'Routt 45',
+          frame_type: 3,
+          distance: 12_345
+        })
+    })
+
+    const result = await getStravaGear({
+      gearId: 'b1234567',
+      accessToken: 'access-token'
+    })
+
+    expect(result).toMatchObject({ id: 'b1234567', brand_name: 'Moots' })
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/gear/b1234567'),
+      expect.objectContaining({ method: 'GET' })
+    )
+  })
+
+  // A gear the athlete deleted still appears on their old activities, and a
+  // token that cannot read the shed is the same shape of answer: both are
+  // normal input the caller turns into a placeholder, not a failure.
+  it.each([
+    { description: 'the gear is unknown (404)', status: 404 },
+    { description: 'the token cannot read it (401)', status: 401 }
+  ])('returns null when $description', async ({ status }) => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status,
+      text: () => Promise.resolve('Not Found')
+    })
+
+    await expect(
+      getStravaGear({ gearId: 'b1234567', accessToken: 'access-token' })
+    ).resolves.toBeNull()
+  })
+
+  it.each([
+    { description: 'rate limited', status: 429 },
+    { description: 'a server error', status: 500 }
+  ])('throws when Strava answers $description', async ({ status }) => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status,
+      text: () => Promise.resolve('Rate Limit Exceeded')
+    })
+
+    await expect(
+      getStravaGear({ gearId: 'b1234567', accessToken: 'access-token' })
+    ).rejects.toThrow(String(status))
+  })
+
+  it('escapes the gear id in the request path', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      text: () => Promise.resolve('Not Found')
+    })
+
+    await getStravaGear({
+      gearId: 'b1/../athlete',
+      accessToken: 'access-token'
+    })
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/gear/b1%2F..%2Fathlete'),
+      expect.anything()
+    )
   })
 })
 

@@ -1,10 +1,14 @@
 import {
   CreateGearComponentRequest,
   CreateGearRequest,
+  UpdateFitnessFileGearRequest,
   UpdateGearComponentRequest,
   UpdateGearRequest,
   getGearKindFieldError
 } from '@/lib/services/fitness-gears/gearRequests'
+
+// The end of the range `new Date()` can represent.
+const MAX_EPOCH_MILLISECONDS = 8_640_000_000_000_000
 
 describe('UpdateGearRequest', () => {
   // The update paths decide what to write from key PRESENCE, so a schema that
@@ -67,6 +71,80 @@ describe('UpdateGearComponentRequest', () => {
       removedAt: 1_700_000_000_000
     })
     expect(parsed.success).toBe(true)
+  })
+})
+
+describe('epoch-millisecond fields', () => {
+  // `new Date(n)` is Invalid beyond ±8.64e15, and `.int()` alone allows values
+  // a thousand times larger. An Invalid Date throws on PostgreSQL (a 500 for
+  // what is plainly bad input) and stores as NULL on SQLite, where a null
+  // `addedAt` means "installed since the gear's beginning".
+  it.each([
+    {
+      description: 'a timestamp past the end of the Date range',
+      value: MAX_EPOCH_MILLISECONDS + 1
+    },
+    {
+      description: 'Number.MAX_SAFE_INTEGER',
+      value: Number.MAX_SAFE_INTEGER
+    }
+  ])('rejects $description', ({ value }) => {
+    expect(
+      CreateGearComponentRequest.safeParse({
+        componentType: 'Chain',
+        addedAt: value
+      }).success
+    ).toBe(false)
+    expect(
+      UpdateGearComponentRequest.safeParse({ removedAt: value }).success
+    ).toBe(false)
+  })
+
+  it('accepts the last instant a Date can hold', () => {
+    const parsed = CreateGearComponentRequest.safeParse({
+      componentType: 'Chain',
+      addedAt: MAX_EPOCH_MILLISECONDS
+    })
+
+    expect(parsed.success).toBe(true)
+    expect(new Date(parsed.data?.addedAt as number).getTime()).not.toBeNaN()
+  })
+})
+
+describe('UpdateFitnessFileGearRequest', () => {
+  // `setFitnessFileGear` skips its "is this gear mine?" lookup for a falsy
+  // gearId, so an empty string that reached it would be written unchecked —
+  // and `assignFitnessFileGearIfUnset`'s `whereNull('gearId')` guard means the
+  // activity could then never be auto-assigned again.
+  it.each([
+    { description: 'an explicit null', input: null },
+    { description: 'an empty string', input: '' },
+    { description: 'a whitespace-only string', input: '   ' }
+  ])('normalizes $description to a cleared attribution', ({ input }) => {
+    const parsed = UpdateFitnessFileGearRequest.safeParse({ gearId: input })
+
+    expect(parsed.success).toBe(true)
+    expect(parsed.data?.gearId).toBeNull()
+  })
+
+  it('keeps a supplied gear id, trimmed', () => {
+    const parsed = UpdateFitnessFileGearRequest.safeParse({
+      gearId: '  gear-1  '
+    })
+
+    expect(parsed.success).toBe(true)
+    expect(parsed.data?.gearId).toBe('gear-1')
+  })
+
+  it.each([
+    { description: 'a missing key', input: {} },
+    {
+      description: 'an id longer than the column',
+      input: { gearId: 'x'.repeat(256) }
+    },
+    { description: 'a non-string id', input: { gearId: 42 } }
+  ])('rejects $description', ({ input }) => {
+    expect(UpdateFitnessFileGearRequest.safeParse(input).success).toBe(false)
   })
 })
 

@@ -32,8 +32,14 @@ export const mastodonTypeToInternal = (type: string): NotificationType[] => {
       return [NotificationType.enum.like]
     case 'reblog':
       return [NotificationType.enum.reblog]
+    // Both internal types serialize as Mastodon `status`, so both have to come
+    // back — otherwise `exclude_types[]=status` fails to exclude gear reminders
+    // that `types[]=status` also fails to include.
     case 'status':
-      return [NotificationType.enum.activity_import]
+      return [
+        NotificationType.enum.activity_import,
+        NotificationType.enum.gear_service_due
+      ]
     case 'mention':
       return [NotificationType.enum.mention, NotificationType.enum.reply]
     case 'quote':

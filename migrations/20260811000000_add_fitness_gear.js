@@ -111,7 +111,9 @@ export const down = async function (knex) {
   const hasGearIdColumn = await knex.schema.hasColumn('fitness_files', 'gearId')
   if (hasGearIdColumn) {
     await knex.schema.alterTable('fitness_files', function (table) {
-      table.dropIndex(['gearId'], 'fitness_files_gear_id_idx')
+      // No explicit dropIndex: both backends drop a column's indexes with it,
+      // and dropping one that a partially-applied `up` never created would make
+      // the rollback throw.
       table.dropColumn('gearId')
     })
   }

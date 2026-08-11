@@ -360,9 +360,20 @@ it; there is no legacy shape left to copy.
   totals always agree with the calendar.
 - **Both rollups reuse the stats predicate**
   (`deletedAt IS NULL` + `processingStatus = 'completed'` + `isPrimary`) that
-  `getFitnessActivitySummary` uses, so gear numbers reconcile with the fitness
+  `getFitnessActivitySummary` uses, so gear numbers line up with the fitness
   overview. A new rollup that filters differently will quietly disagree with
-  every other surface.
+  every other surface. Two deliberate asymmetries: the summary additionally
+  requires a non-null `activityType`/`activityStartTime` because it groups by
+  them, so a timestamp-less GPX counts toward a gear total and is invisible
+  there; and an activity with no `activityStartTime` counts only for a
+  component whose window is open on that side, since it cannot be placed inside
+  `[addedAt, removedAt)`. A gear total may therefore exceed the sum of its
+  components.
+- **Evaluate service reminders only after the activity is `completed`.** The
+  rollups count completed activities, so a reminder computed while the file is
+  still `processing` reads the total from before the ride that caused the
+  crossing — the notification then arrives one activity late, or never if that
+  was the last ride on that gear.
 - **Batch, don't loop.** `getFitnessGearDistanceRollups` and
   `getFitnessGearComponentDistanceRollups` each answer a whole page in one
   grouped query; the component one puts the install window in the JOIN condition
@@ -386,7 +397,11 @@ it; there is no legacy shape left to copy.
 - **A sport belongs to at most one of an actor's gears**, retired ones included
   — scoping the invariant to active gear only would let unretiring produce two
   holders and make auto-assign arbitrary. Claiming a sport takes it off whoever
-  had it, inside the create/update transaction.
+  had it, inside the create/update transaction. It is enforced by that
+  read-then-write rather than by a constraint (`defaultSports` is a JSON text
+  column), so two genuinely concurrent creates can both end up holding a sport;
+  auto-assign stays deterministic regardless, because
+  `findFitnessGearByDefaultSport` resolves oldest-first.
 - **Retiring is not deleting and not un-assignable.** Retired gear is out of the
   pickers and out of auto-assign, but stays explicitly assignable so old
   activities can still be attributed to a bike that has since been sold.
@@ -571,6 +586,15 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   must not be relied on in first-party tests.) The `jest.Mock` /
   `jest.MockedFunction` / `jest.Mocked` **type** names still work via a
   compatibility shim in `vitest.d.ts`.
+- **The suite's clock is pinned to `TZ=UTC`** (`vitest.config.ts` → `test.env`).
+  CI already runs in UTC, so before the pin a date assertion that only held
+  there passed review and then failed on the first developer machine set to
+  anything else. The pin is a backstop, not a licence: a formatter whose output
+  must not depend on the viewer's zone still has to say `timeZone: 'UTC'`
+  itself, because production is not running under the pin. The bug that
+  prompted it — an `<input type="date">` value (parsed as UTC midnight) read
+  back through a local-time `Intl.DateTimeFormat` — rendered a day early in
+  `America/Los_Angeles` and a day late in `Asia/Tokyo`.
 - The Vitest default environment is `node`. Any test that renders React or
   touches the DOM must start with a `/** @vitest-environment jsdom */` docblock
   (Vitest 4 removed `environmentMatchGlobs`, so there is no glob-based opt-in);

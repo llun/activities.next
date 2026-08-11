@@ -1372,6 +1372,37 @@ describe('Post', () => {
       }
     )
 
+    it('truncates a long gear name inside its stat cell', () => {
+      // fitness_gears.name is a varchar(255): one unbroken token would push
+      // this quarter-width grid column past the card without a truncate, and
+      // the cell needs min-w-0 for the truncate to have anything to work with.
+      const longName = 'M'.repeat(200)
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{
+            ...status,
+            summary: null,
+            fitness: {
+              ...fitnessBase,
+              totalDistanceMeters: 42600,
+              activityType: 'ride',
+              gearId: 'gear-1',
+              gearName: longName
+            }
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      const value = screen.getByText(`42.6 km · ${longName}`)
+      expect(value).toHaveClass('truncate')
+      // The full text stays reachable on hover.
+      expect(value).toHaveAttribute('title', `42.6 km · ${longName}`)
+      expect(value.parentElement).toHaveClass('min-w-0')
+    })
+
     it('shows no gear when the activity has no distance to append it to', () => {
       render(
         <Post

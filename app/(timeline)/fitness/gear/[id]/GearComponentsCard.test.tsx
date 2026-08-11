@@ -136,6 +136,36 @@ describe('GearComponentsCard', () => {
 
     expect(screen.queryByText(/^of /)).not.toBeInTheDocument()
     expect(screen.queryByText('due soon')).not.toBeInTheDocument()
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+  })
+
+  it('exposes the wear bar as a labelled progressbar', () => {
+    renderCard([
+      createComponent({
+        distanceMeters: 2500000,
+        serviceDistanceMeters: 5000000
+      })
+    ])
+
+    const bar = screen.getByRole('progressbar', { name: 'Chain wear' })
+    expect(bar).toHaveAttribute('aria-valuenow', '50')
+    expect(bar).toHaveAttribute('aria-valuemin', '0')
+    expect(bar).toHaveAttribute('aria-valuemax', '100')
+    expect(bar).toHaveAttribute('aria-valuetext', '50% of service interval')
+  })
+
+  it('caps an overdue progressbar at its maximum and reports the real wear', () => {
+    renderCard([
+      createComponent({
+        distanceMeters: 9000000,
+        serviceDistanceMeters: 5000000
+      })
+    ])
+
+    const bar = screen.getByRole('progressbar', { name: 'Chain wear' })
+    // aria-valuenow has to stay within min/max; the real number is the text.
+    expect(bar).toHaveAttribute('aria-valuenow', '100')
+    expect(bar).toHaveAttribute('aria-valuetext', '180% of service interval')
   })
 
   it('replaces an installed component and refetches', async () => {
@@ -209,6 +239,91 @@ describe('GearComponentsCard', () => {
     expect(onChanged).toHaveBeenCalled()
   })
 
+  it('disarms a pending delete when the replaced rows are hidden and shown again', async () => {
+    renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show 1 replaced component' })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(
+      screen.getByRole('button', { name: 'Confirm delete' })
+    ).toBeInTheDocument()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Hide replaced components' })
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show 1 replaced component' })
+    )
+
+    // The row comes back unarmed, so the next click confirms nothing.
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(mockDeleteFitnessGearComponent).not.toHaveBeenCalled()
+  })
+
+  it('arms only one row at a time', () => {
+    renderCard([
+      createComponent({ id: 'component-a', removedAt: Date.UTC(2025, 5, 1) }),
+      createComponent({
+        id: 'component-b',
+        componentType: 'Cassette',
+        removedAt: Date.UTC(2025, 5, 2)
+      })
+    ])
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show 2 replaced components' })
+    )
+    const [rowA, rowB] = screen.getAllByRole('button', { name: 'Delete' })
+
+    fireEvent.click(rowA)
+    expect(
+      screen.getAllByRole('button', { name: 'Confirm delete' })
+    ).toHaveLength(1)
+
+    fireEvent.click(rowB)
+    const confirming = screen.getAllByRole('button', { name: 'Confirm delete' })
+    expect(confirming).toHaveLength(1)
+    expect(confirming[0]).toBe(rowB)
+    expect(mockDeleteFitnessGearComponent).not.toHaveBeenCalled()
+  })
+
+  it('surfaces a replace failure', async () => {
+    mockReplaceFitnessGearComponent.mockRejectedValue(
+      new Error('Component already replaced')
+    )
+    const onChanged = renderCard([createComponent()])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Replace' }))
+
+    expect(
+      await screen.findByText('Component already replaced')
+    ).toBeInTheDocument()
+    expect(onChanged).not.toHaveBeenCalled()
+    // The row's own action comes back so the failure can be retried.
+    expect(screen.getByRole('button', { name: 'Replace' })).toBeEnabled()
+  })
+
+  it('surfaces a delete failure', async () => {
+    mockDeleteFitnessGearComponent.mockRejectedValue(
+      new Error('Component not found')
+    )
+    const onChanged = renderCard([
+      createComponent({ removedAt: Date.UTC(2025, 5, 1) })
+    ])
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show 1 replaced component' })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }))
+
+    expect(await screen.findByText('Component not found')).toBeInTheDocument()
+    expect(onChanged).not.toHaveBeenCalled()
+  })
+
   it('adds a component with no added date and no reminder', async () => {
     const onChanged = renderCard([])
 
@@ -258,6 +373,25 @@ describe('GearComponentsCard', () => {
     expect(mockCreateFitnessGearComponent.mock.calls[0][1]).toMatchObject({
       addedAt: Date.UTC(2024, 2, 1),
       serviceDistanceMeters: 5000000
+    })
+  })
+
+  it('saves when the add panel is submitted from a text field', async () => {
+    renderCard([])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add component' }))
+    fireEvent.change(screen.getByLabelText('Brand'), {
+      target: { value: 'SRAM' }
+    })
+    // Enter in an input submits the form it belongs to; the panel used to be a
+    // plain div, where the same key press did nothing at all.
+    fireEvent.submit(screen.getByRole('form', { name: 'Add component' }))
+
+    await waitFor(() =>
+      expect(mockCreateFitnessGearComponent).toHaveBeenCalledTimes(1)
+    )
+    expect(mockCreateFitnessGearComponent.mock.calls[0][1]).toMatchObject({
+      brand: 'SRAM'
     })
   })
 

@@ -21,7 +21,13 @@ const integerFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 0
 })
 
+// Rendered in UTC, like every other instant in the fitness area (see
+// `formatUtcDate` on the activity detail page). A gear or component date is a
+// calendar day, not a moment: `<input type="date">` hands over "2024-03-01",
+// which the spec parses as UTC midnight, so formatting it in the reader's local
+// zone renders "Feb 29, 2024" for everyone west of UTC.
 const dateFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'UTC',
   month: 'short',
   day: 'numeric',
   year: 'numeric'
@@ -65,6 +71,12 @@ export interface GearWearState {
   level: GearWearLevel
   /** Uncapped percentage — a 150%-worn chain still reports 150. */
   percent: number
+  /**
+   * `percent` capped to 0–100. `aria-valuenow` has to sit inside
+   * `aria-valuemin`/`aria-valuemax`, so the progressbar reports this and puts
+   * the real number in `aria-valuetext`.
+   */
+  barPercent: number
   /** Capped at 100% so the fill never overflows its track. */
   barWidth: string
   barClassName: string
@@ -84,12 +96,14 @@ export const getWearState = (
   if (!serviceDistanceMeters || serviceDistanceMeters <= 0) return null
 
   const percent = (distanceMeters / serviceDistanceMeters) * 100
-  const barWidth = `${Math.min(100, Math.max(0, percent))}%`
+  const barPercent = Math.min(100, Math.max(0, percent))
+  const barWidth = `${barPercent}%`
 
   if (percent >= 100) {
     return {
       level: 'overdue',
       percent,
+      barPercent,
       barWidth,
       barClassName: 'bg-destructive',
       caption: 'replace due',
@@ -101,6 +115,7 @@ export const getWearState = (
     return {
       level: 'due-soon',
       percent,
+      barPercent,
       barWidth,
       barClassName: 'bg-amber-500',
       caption: 'due soon',
@@ -111,6 +126,7 @@ export const getWearState = (
   return {
     level: 'ok',
     percent,
+    barPercent,
     barWidth,
     barClassName: 'bg-primary',
     caption: `of ${formatKmInt(serviceDistanceMeters)}`,

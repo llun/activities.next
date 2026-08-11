@@ -208,7 +208,13 @@ export const normalizeActivityTypeToSportKey = (
   const token = toComparableToken(rawActivityType)
   if (!token) return null
 
-  const exact = EXACT_SPORT_KEYS[token]
+  // `Object.hasOwn`, not a bare index: `EXACT_SPORT_KEYS` is an object literal,
+  // so it inherits `Object.prototype`'s members. `activityType` is free-form
+  // text out of a GPX file, and `constructor` would otherwise "normalize" to
+  // the `Object` constructor function, returned as a `SportKey`.
+  const exact = Object.hasOwn(EXACT_SPORT_KEYS, token)
+    ? EXACT_SPORT_KEYS[token]
+    : undefined
   if (exact) return exact
 
   const rule = SUBSTRING_SPORT_RULES.find(({ matches }) => matches(token))

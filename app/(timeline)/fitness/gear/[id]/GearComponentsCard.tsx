@@ -1,7 +1,7 @@
 'use client'
 
 import { Plus, Wrench } from 'lucide-react'
-import { FC, useState } from 'react'
+import { FC, FormEvent, useState } from 'react'
 
 import {
   COMPONENT_TYPE_OPTIONS,
@@ -43,7 +43,17 @@ const WearBar: FC<{ component: GearComponentEntity }> = ({ component }) => {
 
   return (
     <>
-      <div className="mt-1 h-1 w-20 overflow-hidden rounded-full bg-muted">
+      {/* `aria-valuenow` has to stay inside the min/max, so an overdue
+          component reports 100 there and its real wear in `aria-valuetext`. */}
+      <div
+        role="progressbar"
+        aria-label={`${component.componentType} wear`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(wear.barPercent)}
+        aria-valuetext={`${Math.round(wear.percent)}% of service interval`}
+        className="mt-1 h-1 w-20 overflow-hidden rounded-full bg-muted"
+      >
         <div
           className={cn('h-full', wear.barClassName)}
           style={{ width: wear.barWidth }}
@@ -99,7 +109,10 @@ export const GearComponentsCard: FC<Props> = ({
     resetForm()
   }
 
-  const handleSave = async () => {
+  // A real form submit, so Enter in Brand or Model saves the component the way
+  // it does in `GearFormDialog`.
+  const handleSave = async (event: FormEvent) => {
+    event.preventDefault()
     setError(null)
     setIsSaving(true)
     const addedAtMs =
@@ -190,7 +203,11 @@ export const GearComponentsCard: FC<Props> = ({
       {error && <p className="px-4 text-sm text-destructive">{error}</p>}
 
       {isFormOpen && (
-        <div className="mx-4 space-y-3 rounded-md border bg-muted/50 p-3">
+        <form
+          onSubmit={handleSave}
+          aria-label="Add component"
+          className="mx-4 space-y-3 rounded-md border bg-muted/50 p-3"
+        >
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1.5">
               <Label htmlFor="component-type">Component type</Label>
@@ -276,11 +293,12 @@ export const GearComponentsCard: FC<Props> = ({
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" onClick={handleSave} disabled={isSaving}>
+            <Button size="sm" type="submit" disabled={isSaving}>
               Save component
             </Button>
             <Button
               size="sm"
+              type="button"
               variant="outline"
               onClick={closeForm}
               disabled={isSaving}
@@ -288,7 +306,7 @@ export const GearComponentsCard: FC<Props> = ({
               Cancel
             </Button>
           </div>
-        </div>
+        </form>
       )}
 
       {visible.length === 0 ? (
@@ -351,10 +369,19 @@ export const GearComponentsCard: FC<Props> = ({
                       {isReplaced ? (
                         <Button
                           size="sm"
+                          type="button"
                           variant="ghost"
                           className="text-destructive"
                           disabled={isPending}
                           onClick={() => handleDelete(component.id)}
+                          // Leaving the button disarms it: an armed row that
+                          // stays armed is a destructive single click waiting
+                          // for whoever comes back to this table.
+                          onBlur={() => {
+                            if (confirmingDeleteId === component.id) {
+                              setConfirmingDeleteId(null)
+                            }
+                          }}
                         >
                           {confirmingDeleteId === component.id
                             ? 'Confirm delete'
@@ -363,6 +390,7 @@ export const GearComponentsCard: FC<Props> = ({
                       ) : (
                         <Button
                           size="sm"
+                          type="button"
                           variant="ghost"
                           className="text-primary"
                           disabled={isPending}
@@ -385,7 +413,13 @@ export const GearComponentsCard: FC<Props> = ({
           <button
             type="button"
             className="cursor-pointer text-sm text-muted-foreground hover:text-foreground"
-            onClick={() => setShowReplaced((current) => !current)}
+            // Hiding the replaced rows must disarm any pending confirmation
+            // with them: the armed row would otherwise come back armed and
+            // delete on the first click after the next "Show ...".
+            onClick={() => {
+              setShowReplaced((current) => !current)
+              setConfirmingDeleteId(null)
+            }}
           >
             {showReplaced
               ? 'Hide replaced components'

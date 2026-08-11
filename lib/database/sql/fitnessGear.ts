@@ -102,6 +102,10 @@ export interface FitnessGearDatabase {
   setFitnessGearLastAlertedDistance(params: {
     id: string
     lastAlertedDistanceMeters: number | null
+    // When set, the write only lands if no alert has been recorded at or above
+    // this threshold — so the database, not a prior read, decides which of two
+    // concurrent evaluations owns the crossing. Returns false when it loses.
+    onlyIfBelowThresholdMeters?: number
   }): Promise<boolean>
 
   createFitnessGearComponent(
@@ -136,6 +140,10 @@ export interface FitnessGearDatabase {
   setFitnessGearComponentLastAlertedDistance(params: {
     id: string
     lastAlertedDistanceMeters: number | null
+    // When set, the write only lands if no alert has been recorded at or above
+    // this threshold — so the database, not a prior read, decides which of two
+    // concurrent evaluations owns the crossing. Returns false when it loses.
+    onlyIfBelowThresholdMeters?: number
   }): Promise<boolean>
 
   setFitnessFileGear(params: {
@@ -145,6 +153,7 @@ export interface FitnessGearDatabase {
   }): Promise<{ id: string; gearId: string | null } | null>
   assignFitnessFileGearIfUnset(params: {
     fitnessFileId: string
+    actorId: string
     gearId: string
   }): Promise<boolean>
 }
@@ -223,9 +232,14 @@ const parseSQLFitnessGearComponent = (
 })
 
 /**
- * The predicate every gear rollup shares with `getFitnessActivitySummary` and
- * the fitness overview. Gear distance has to reconcile with the numbers those
- * surfaces already show, so the filter set is copied rather than re-derived.
+ * The activity filter both gear rollups share, copied from
+ * `getFitnessActivitySummary` rather than re-derived so the totals line up with
+ * the fitness overview.
+ *
+ * Not quite identical to that query, deliberately: the summary additionally
+ * requires a non-null `activityType` and `activityStartTime` because it groups
+ * and buckets by them. Gear totals count an activity whatever it is and whenever
+ * it happened, so a timestamp-less GPX contributes here and is invisible there.
  */
 const applyCountableActivityFilter = (
   query: Knex.QueryBuilder,
@@ -419,7 +433,15 @@ export const FitnessGearSQLDatabaseMixin = (
   },
 
   async setFitnessGearRetired({ id, actorId, retired }) {
+    const existing = await getOwnedGearRow(database, id, actorId)
+    if (!existing) return null
+
     const currentTime = new Date()
+    // Only a real state change re-arms the reminder. Writing null on a no-op
+    // toggle (a double click, an idempotent client retry) would clear an alert
+    // that has already fired and make the next activity notify again at the
+    // same threshold.
+    const changesRetirement = Boolean(existing.retiredAt) !== retired
     const updated = await database('fitness_gears')
       .where('id', id)
       .where('actorId', actorId)
@@ -428,7 +450,7 @@ export const FitnessGearSQLDatabaseMixin = (
         retiredAt: retired ? currentTime : null,
         // Retiring freezes the total and unretiring resumes it; either way the
         // next crossing is a fresh one.
-        lastAlertedDistanceMeters: null,
+        ...(changesRetirement ? { lastAlertedDistanceMeters: null } : {}),
         updatedAt: currentTime
       })
     if (updated === 0) return null
@@ -444,7 +466,18 @@ export const FitnessGearSQLDatabaseMixin = (
         .where('id', id)
         .where('actorId', actorId)
         .whereNull('deletedAt')
-        .update({ deletedAt: currentTime, updatedAt: currentTime })
+        .update({
+          deletedAt: currentTime,
+          updatedAt: currentTime,
+          // Release the Strava id along with the row. The unique index on
+          // (actorId, stravaGearId) covers soft-deleted rows, so a deleted gear
+          // that kept its id would block the re-import forever: the lookup
+          // filters on `deletedAt IS NULL` and finds nothing, the create then
+          // violates the index, and the recovery re-read finds nothing either —
+          // leaving every future activity on that bike silently unattributed
+          // with no way for the owner to repair it.
+          stravaGearId: null
+        })
       if (deleted === 0) return false
 
       // Activities outlive their gear: they keep their own distance and simply
@@ -468,7 +501,7 @@ export const FitnessGearSQLDatabaseMixin = (
 
     for (const chunk of chunkArray(
       uniqueIds,
-      getWhereInBatchSize(database, 1)
+      getWhereInBatchSize(database, 3)
     )) {
       const rows = await applyCountableActivityFilter(
         database('fitness_files'),
@@ -545,14 +578,30 @@ export const FitnessGearSQLDatabaseMixin = (
     return match ? parseSQLFitnessGear(match) : null
   },
 
-  async setFitnessGearLastAlertedDistance({ id, lastAlertedDistanceMeters }) {
-    const updated = await database('fitness_gears')
+  async setFitnessGearLastAlertedDistance({
+    id,
+    lastAlertedDistanceMeters,
+    onlyIfBelowThresholdMeters
+  }) {
+    // With `onlyIfBelowThresholdMeters` the UPDATE itself decides whether this
+    // caller won the crossing, so two evaluations racing on the same gear (two
+    // queued imports, a same-ride two-device upload) produce one notification
+    // instead of two. Without it, both would read the same stale null.
+    const query = database('fitness_gears')
       .where('id', id)
       .whereNull('deletedAt')
-      .update({
-        lastAlertedDistanceMeters,
-        updatedAt: new Date()
-      })
+    if (onlyIfBelowThresholdMeters !== undefined) {
+      query.where((builder) =>
+        builder
+          .whereNull('lastAlertedDistanceMeters')
+          .orWhere('lastAlertedDistanceMeters', '<', onlyIfBelowThresholdMeters)
+      )
+    }
+
+    const updated = await query.update({
+      lastAlertedDistanceMeters,
+      updatedAt: new Date()
+    })
     return updated > 0
   },
 
@@ -590,16 +639,22 @@ export const FitnessGearSQLDatabaseMixin = (
       .whereNull('c.deletedAt')
       .whereNull('g.deletedAt')
       .select('c.*')
-      .orderBy('c.removedAt', 'asc')
+      // Only gives the installed group a stable oldest-first order; where the
+      // removed ones land is decided below.
       .orderBy('c.createdAt', 'asc')
 
-    // Installed parts first, then the replaced ones newest-first. Ordering
-    // "nulls first" differs between backends, so it is settled here.
+    // Installed parts first, then the replaced ones newest-first. Split here
+    // rather than with an `ORDER BY removedAt` because the backends disagree on
+    // whether NULLs sort first or last, and "still fitted" has to come first.
     const parsed = rows.map(parseSQLFitnessGearComponent)
     const installed = parsed.filter((component) => !component.removedAt)
     const replaced = parsed
       .filter((component) => component.removedAt)
-      .sort((first, second) => (second.removedAt ?? 0) - (first.removedAt ?? 0))
+      // Both are non-null: the array was just filtered on `removedAt`.
+      .sort(
+        (first, second) =>
+          (second.removedAt as number) - (first.removedAt as number)
+      )
     return [...installed, ...replaced]
   },
 
@@ -709,7 +764,7 @@ export const FitnessGearSQLDatabaseMixin = (
 
     for (const chunk of chunkArray(
       uniqueIds,
-      getWhereInBatchSize(database, 1)
+      getWhereInBatchSize(database, 3)
     )) {
       // One grouped query covers every component of every gear in the chunk.
       // The install window lives in the JOIN condition rather than the WHERE
@@ -720,10 +775,24 @@ export const FitnessGearSQLDatabaseMixin = (
       // bounds, which is safe on both backends because knex writes all three
       // columns in the same representation. Never introduce raw date
       // arithmetic here without an isSQLiteClient branch.
+      //
+      // An activity with a NULL `activityStartTime` (a GPX carrying no
+      // timestamps) therefore counts only for a component whose window is open
+      // on that side. That is intended: an activity that cannot be placed in
+      // time cannot be placed inside `[addedAt, removedAt)` either, so a part
+      // fitted on a date must not claim it. The consequence is that a gear
+      // total can legitimately exceed the sum of its components' totals.
       const rows = await database('fitness_gear_components as c')
         .innerJoin('fitness_gears as g', 'g.id', 'c.gearId')
         .leftJoin('fitness_files as f', function () {
           this.on('f.gearId', '=', 'c.gearId')
+            // Same actor scope the gear rollup applies. Not reachable today —
+            // every caller resolves gear for the file's own actor — but without
+            // it the two rollups disagree the moment one does not, and a
+            // component total silently absorbing another actor's distance while
+            // the gear total stays right is not a discrepancy anyone would
+            // manage to reproduce.
+            .andOn('f.actorId', '=', 'g.actorId')
             .andOnNull('f.deletedAt')
             .andOnVal('f.processingStatus', '=', 'completed')
             .andOnVal('f.isPrimary', '=', true)
@@ -769,15 +838,26 @@ export const FitnessGearSQLDatabaseMixin = (
 
   async setFitnessGearComponentLastAlertedDistance({
     id,
-    lastAlertedDistanceMeters
+    lastAlertedDistanceMeters,
+    onlyIfBelowThresholdMeters
   }) {
-    const updated = await database('fitness_gear_components')
+    // See the gear-level twin: the conditional write is what makes concurrent
+    // evaluations fire one reminder rather than one each.
+    const query = database('fitness_gear_components')
       .where('id', id)
       .whereNull('deletedAt')
-      .update({
-        lastAlertedDistanceMeters,
-        updatedAt: new Date()
-      })
+    if (onlyIfBelowThresholdMeters !== undefined) {
+      query.where((builder) =>
+        builder
+          .whereNull('lastAlertedDistanceMeters')
+          .orWhere('lastAlertedDistanceMeters', '<', onlyIfBelowThresholdMeters)
+      )
+    }
+
+    const updated = await query.update({
+      lastAlertedDistanceMeters,
+      updatedAt: new Date()
+    })
     return updated > 0
   },
 
@@ -807,12 +887,20 @@ export const FitnessGearSQLDatabaseMixin = (
     })
   },
 
-  async assignFitnessFileGearIfUnset({ fitnessFileId, gearId }) {
-    // The `whereNull` is the correctness guarantee, not an optimisation: import
-    // jobs re-run, and a manual assignment made between a caller's read and
-    // this write must survive.
+  async assignFitnessFileGearIfUnset({ fitnessFileId, actorId, gearId }) {
+    // Scoped to the actor on both sides even though every caller resolves gear
+    // for the file's own actor: this is the one assignment path with no
+    // ownership check of its own, and a file carrying another actor's gearId
+    // would corrupt both rollups.
+    const gear = await getOwnedGearRow(database, gearId, actorId)
+    if (!gear) return false
+
+    // The `whereNull('gearId')` is the correctness guarantee, not an
+    // optimisation: import jobs re-run, and a manual assignment made between a
+    // caller's read and this write must survive.
     const updated = await database('fitness_files')
       .where('id', fitnessFileId)
+      .where('actorId', actorId)
       .whereNull('gearId')
       .whereNull('deletedAt')
       .update({ gearId, updatedAt: new Date() })

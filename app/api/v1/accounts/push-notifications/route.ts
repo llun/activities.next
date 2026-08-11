@@ -13,6 +13,7 @@ const PushNotificationSettingsRequest = z.object({
   reblog: z.boolean().optional(),
   emoji_reaction: z.boolean().optional(),
   activity_import: z.boolean().optional(),
+  gear_service_due: z.boolean().optional(),
   actorId: z.string().optional()
 })
 

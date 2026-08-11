@@ -66,6 +66,7 @@ describe('evaluateGearServiceReminders', () => {
       await db.updateFitnessFileProcessingStatus(file!.id, 'completed')
       await db.assignFitnessFileGearIfUnset({
         fitnessFileId: file!.id,
+        actorId,
         gearId
       })
       return file!

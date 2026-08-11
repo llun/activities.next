@@ -135,6 +135,43 @@ describe('Fitness gear component replace API', () => {
     )
   })
 
+  // An empty body means "replace with a blank part"; a body that fails to parse
+  // means the client sent something it expected us to read. Treating the second
+  // as the first would retire the fitted part and drop the payload silently.
+  it.each([
+    { description: 'a truncated JSON payload', body: '{"brand": "Shim' },
+    { description: 'a non-JSON payload', body: 'brand=Shimano' }
+  ])(
+    'answers 400 for $description without replacing anything',
+    async ({ body }) => {
+      const response = await POST(
+        new NextRequest(url, {
+          method: 'POST',
+          headers: { Origin: 'https://llun.test' },
+          body
+        }),
+        params
+      )
+
+      expect(response.status).toBe(400)
+      expect(mockDb.replaceFitnessGearComponent).not.toHaveBeenCalled()
+    }
+  )
+
+  it('answers 422 for a JSON body that is not an object', async () => {
+    const response = await POST(
+      new NextRequest(url, {
+        method: 'POST',
+        headers: { Origin: 'https://llun.test' },
+        body: '"Shimano"'
+      }),
+      params
+    )
+
+    expect(response.status).toBe(422)
+    expect(mockDb.replaceFitnessGearComponent).not.toHaveBeenCalled()
+  })
+
   it.each([
     { description: 'the component was already replaced' },
     { description: 'the gear belongs to someone else' }
