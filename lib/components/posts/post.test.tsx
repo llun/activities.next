@@ -1308,6 +1308,94 @@ describe('Post', () => {
     expect(screen.queryByText('Pace')).not.toBeInTheDocument()
   })
 
+  describe('fitness gear', () => {
+    it('appends the gear name to the distance value', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{
+            ...status,
+            summary: null,
+            fitness: {
+              ...fitnessBase,
+              totalDistanceMeters: 42600,
+              totalDurationSeconds: 3822,
+              activityType: 'ride',
+              gearId: 'gear-1',
+              gearName: 'Moots'
+            }
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      // Gear rides along with the distance rather than adding a cell or a row.
+      expect(screen.getByText('42.6 km · Moots')).toBeInTheDocument()
+      expect(screen.queryByText('Gear')).not.toBeInTheDocument()
+    })
+
+    it.each([
+      {
+        description: 'no gear is attributed',
+        gearId: null,
+        gearName: null
+      },
+      {
+        description: 'the gear name is blank',
+        gearId: 'gear-1',
+        gearName: '   '
+      }
+    ])(
+      'leaves the distance untouched when $description',
+      ({ gearId, gearName }) => {
+        render(
+          <Post
+            host="activities.local"
+            currentTime={currentTime}
+            status={{
+              ...status,
+              summary: null,
+              fitness: {
+                ...fitnessBase,
+                totalDistanceMeters: 42600,
+                activityType: 'ride',
+                gearId,
+                gearName
+              }
+            }}
+            onShowAttachment={vi.fn()}
+          />
+        )
+
+        expect(screen.getByText('42.6 km')).toBeInTheDocument()
+      }
+    )
+
+    it('shows no gear when the activity has no distance to append it to', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{
+            ...status,
+            summary: null,
+            fitness: {
+              ...fitnessBase,
+              totalDurationSeconds: 3822,
+              gearId: 'gear-1',
+              gearName: 'Moots'
+            }
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(screen.queryByText(/Moots/)).not.toBeInTheDocument()
+      expect(screen.queryByText('Distance')).not.toBeInTheDocument()
+    })
+  })
+
   it('drops stat cells whose metric the file does not provide', () => {
     render(
       <Post

@@ -325,6 +325,7 @@ const parseSQLFitnessFile = (row: SQLFitnessFile): FitnessFile => ({
   deviceManufacturer: row.deviceManufacturer ?? undefined,
   deviceName: row.deviceName ?? undefined,
   sourceUrl: row.sourceUrl ?? undefined,
+  gearId: row.gearId ?? undefined,
   activityStartTime: row.activityStartTime
     ? getCompatibleTime(row.activityStartTime)
     : undefined,
@@ -372,6 +373,9 @@ export const FitnessFileSQLDatabaseMixin = (
         activityType: null,
         activityStartTime: null,
         sourceUrl: params.sourceUrl ?? null,
+        // Attribution happens after parsing (auto-assign by default sport) or
+        // on import from Strava's own gear id — never at upload time.
+        gearId: null,
         createdAt: currentTime,
         updatedAt: currentTime
       }

@@ -46,6 +46,25 @@ export interface StravaActivity {
   visibility?: StravaActivityVisibility | null
   photos?: StravaActivityPhotos | null
   device_name?: string | null
+  // Strava's own gear id ("b1234567" for a bike, "g1234567" for shoes). Absent
+  // when the athlete attributed the activity to no gear.
+  gear_id?: string | null
+}
+
+/**
+ * Strava's gear summary, as returned by `GET /gear/{id}`. Every field except
+ * `id` is optional: the summary representation of an athlete's gear omits most
+ * of them, and a deleted or inaccessible gear id answers 404.
+ */
+export interface StravaGear {
+  id: string
+  name?: string | null
+  brand_name?: string | null
+  model_name?: string | null
+  // Bike-only, and the most reliable kind signal Strava gives us apart from the
+  // id prefix: shoes have no frame type.
+  frame_type?: number | null
+  distance?: number | null
 }
 
 export interface StravaUpload {
@@ -356,6 +375,49 @@ export const getStravaUpload = async ({
   throw new Error(
     `Failed to fetch Strava upload (${response.status}): ${detail}`
   )
+}
+
+/**
+ * Fetches one gear's details. Returns null when Strava does not know the id
+ * (404) or the token cannot read it (401) — a gear the athlete deleted still
+ * appears on their old activities, so a missing gear is normal input, not a
+ * failure. Every other status throws, the same way `getStravaUpload` does.
+ */
+export const getStravaGear = async ({
+  gearId,
+  accessToken
+}: {
+  gearId: string
+  accessToken: string
+}): Promise<StravaGear | null> => {
+  const response = await fetch(
+    `${STRAVA_API_BASE}/gear/${encodeURIComponent(gearId)}`,
+    {
+      method: 'GET',
+      headers: getStravaAuthHeaders(accessToken)
+    }
+  )
+
+  if (response.ok) {
+    return (await response.json()) as StravaGear
+  }
+
+  if (response.status === 404) {
+    return null
+  }
+
+  if (response.status === 401) {
+    return null
+  }
+
+  const detail = await getStravaErrorDetail(response)
+  logger.warn({
+    message: 'Failed to fetch Strava gear',
+    gearId,
+    status: response.status,
+    error: detail
+  })
+  throw new Error(`Failed to fetch Strava gear (${response.status}): ${detail}`)
 }
 
 export const getStravaActivity = async ({

@@ -3,6 +3,7 @@ import { gzipSync } from 'zlib'
 import {
   getArchiveMediaMimeType,
   parseStravaArchiveCsvRows,
+  parseStravaGearCsvRows,
   toStravaArchiveFitnessFilePayload
 } from '@/lib/services/strava/archiveReader'
 
@@ -81,6 +82,64 @@ describe('archiveReader helpers', () => {
       expect(() => parseStravaArchiveCsvRows(csv, { maxRows: 2 })).toThrow(
         'exceeds CSV row limit'
       )
+    })
+  })
+
+  describe('parseStravaGearCsvRows', () => {
+    it('reads the named gear out of a bikes export', () => {
+      const csv = [
+        'Bike ID,Bike Name,Bike Brand',
+        'b1234567,Moots Routt 45,Moots',
+        'b7654321,Winter bike,Surly'
+      ].join('\n')
+
+      expect(parseStravaGearCsvRows(csv, 'bike')).toEqual([
+        { name: 'Moots Routt 45', kind: 'bike' },
+        { name: 'Winter bike', kind: 'bike' }
+      ])
+    })
+
+    it('takes the kind from the caller, never from the CSV', () => {
+      // The same rows read as `shoes` when they came out of shoes.csv — the
+      // file decides, so a renamed or translated column cannot mis-file gear.
+      const csv = ['Bike ID,Bike Name', 'b1234567,Moots Routt 45'].join('\n')
+
+      expect(parseStravaGearCsvRows(csv, 'shoes')).toEqual([
+        { name: 'Moots Routt 45', kind: 'shoes' }
+      ])
+    })
+
+    it('falls back to the first column when no header mentions a name', () => {
+      const csv = ['Gear,Marque', 'Moots Routt 45,Moots'].join('\n')
+
+      expect(parseStravaGearCsvRows(csv, 'bike')).toEqual([
+        { name: 'Moots Routt 45', kind: 'bike' }
+      ])
+    })
+
+    it('strips the byte-order mark from the first header', () => {
+      const csv = ['﻿Name,Brand', 'Nimbus 25,Hoka'].join('\n')
+
+      expect(parseStravaGearCsvRows(csv, 'shoes')).toEqual([
+        { name: 'Nimbus 25', kind: 'shoes' }
+      ])
+    })
+
+    it('drops empty names and collapses duplicates', () => {
+      const csv = [
+        'Bike ID,Bike Name',
+        'b1,Moots Routt 45',
+        'b2,',
+        'b3,  moots routt 45  '
+      ].join('\n')
+
+      expect(parseStravaGearCsvRows(csv, 'bike')).toEqual([
+        { name: 'Moots Routt 45', kind: 'bike' }
+      ])
+    })
+
+    it('returns no gear for an empty file', () => {
+      expect(parseStravaGearCsvRows('', 'bike')).toEqual([])
     })
   })
 })

@@ -18,6 +18,8 @@ import {
 } from '@/lib/services/fitness-files'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import { assertFitnessStoragePath } from '@/lib/services/fitness-files/path'
+import { FitnessGearKind } from '@/lib/services/fitness-files/sportTypes'
+import { resolveArchiveGearByName } from '@/lib/services/fitness-gears/resolveImportedGear'
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
 import { getQueue } from '@/lib/services/queue'
@@ -38,6 +40,7 @@ import {
   createByteLimitTransform,
   readAsyncIterableToBufferWithLimit
 } from '@/lib/utils/streamLimit'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { waitFor } from '@/lib/utils/waitFor'
 
 import { createJobHandle } from './createJobHandle'
@@ -701,6 +704,50 @@ export const importStravaArchiveJob = createJobHandle(
         }
       })
       const archiveActivities = await archiveReader.getActivities()
+
+      // The archive's gear CSVs are optional and never load-bearing: they only
+      // tell us whether a gear NAME is a bike or a pair of shoes. A missing or
+      // unreadable file leaves the map empty and the importer falls back to the
+      // shoes default, which is a wrong picker filter at worst — not a failed
+      // import.
+      const gearKindByName = new Map<string, FitnessGearKind>()
+      try {
+        for (const gear of await archiveReader.getGear()) {
+          gearKindByName.set(gear.name.trim().toLowerCase(), gear.kind)
+        }
+      } catch (error) {
+        logger.warn({
+          message: 'Failed to read gear from Strava archive',
+          importId,
+          actorId,
+          err: toLoggableError(error)
+        })
+      }
+
+      // Name → local gear id for this run. `null` is cached too, so a name that
+      // could not be resolved is not retried once per activity across an
+      // archive with thousands of them.
+      const gearIdByName = new Map<string, string | null>()
+      const resolveArchiveActivityGearId = async (
+        gearName: string
+      ): Promise<string | null> => {
+        const key = gearName.trim().toLowerCase()
+        if (!key) return null
+
+        const cached = gearIdByName.get(key)
+        if (cached !== undefined) return cached
+
+        const resolved = await resolveArchiveGearByName({
+          database,
+          actorId,
+          name: gearName.trim(),
+          kind: gearKindByName.get(key) ?? 'shoes'
+        })
+        const gearId = resolved?.id ?? null
+        gearIdByName.set(key, gearId)
+        return gearId
+      }
+
       const targetTotalActivities =
         checkpoint.totalActivitiesCount ?? archiveActivities.length
       setCheckpoint({
@@ -782,6 +829,32 @@ export const importStravaArchiveJob = createJobHandle(
             activity: archiveActivity,
             fitnessFileId: savedFitnessFile.id
           })
+
+          // Gear is an attribution on top of an already-imported activity, so
+          // it gets its own catch: the surrounding one marks the activity
+          // failed (and rolls the whole batch back on a limit error), which a
+          // missing bike must never trigger.
+          if (archiveActivity.activityGear) {
+            try {
+              const gearId = await resolveArchiveActivityGearId(
+                archiveActivity.activityGear
+              )
+              if (gearId) {
+                await database.assignFitnessFileGearIfUnset({
+                  fitnessFileId: savedFitnessFile.id,
+                  gearId
+                })
+              }
+            } catch (gearError) {
+              logger.warn({
+                message: 'Failed to attribute gear to archive activity',
+                importId,
+                actorId,
+                activityId: archiveActivity.activityId,
+                err: toLoggableError(gearError)
+              })
+            }
+          }
         } catch (error) {
           const nodeError = error as Error
           if (nodeError instanceof StravaArchiveLimitError) {

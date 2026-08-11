@@ -1,5 +1,10 @@
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
 import type { AdminAnnouncement } from '@/lib/services/announcements/adminAnnouncement'
+import type { FitnessGearKind } from '@/lib/services/fitness-files/sportTypes'
+import type {
+  GearComponentEntity,
+  GearEntity
+} from '@/lib/services/fitness-gears/gearEntities'
 import { PresignedUrlOutput } from '@/lib/services/medias/types'
 import type { AdminRule } from '@/lib/services/rules/adminRule'
 import { Duration } from '@/lib/services/statuses/pollDurations'
@@ -2319,6 +2324,8 @@ export interface StatusFitnessFileItem {
   deviceManufacturer: string | null
   deviceName: string | null
   sourceUrl: string | null
+  gearId: string | null
+  gearName: string | null
 }
 
 export interface FitnessRouteSample {
@@ -2526,6 +2533,223 @@ export const deleteFitnessFile = async (id: string): Promise<void> => {
     )
     throw new Error(errorDetails)
   }
+}
+
+// --- Fitness gear ---
+
+export interface CreateFitnessGearInput {
+  kind: FitnessGearKind
+  name: string
+  brand?: string | null
+  model?: string | null
+  bikeType?: string | null
+  weightKilograms?: number | null
+  defaultSports?: string[]
+  alertDistanceMeters?: number | null
+  notes?: string | null
+}
+
+export type UpdateFitnessGearInput = Omit<CreateFitnessGearInput, 'kind'>
+
+export interface CreateFitnessGearComponentInput {
+  componentType: string
+  brand?: string | null
+  model?: string | null
+  addedAt?: number | null
+  removedAt?: number | null
+  serviceDistanceMeters?: number | null
+}
+
+export const getFitnessGearList = async (): Promise<GearEntity[]> => {
+  const response = await fetch('/api/v1/fitness/gear', {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  })
+  if (!response.ok) {
+    throw new Error(await parseApiError(response, 'Failed to load gear.'))
+  }
+  const data = (await response.json()) as { gear: GearEntity[] }
+  return data.gear
+}
+
+export const createFitnessGear = async (
+  params: CreateFitnessGearInput
+): Promise<GearEntity> => {
+  const response = await fetch('/api/v1/fitness/gear', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params)
+  })
+  if (!response.ok) {
+    throw new Error(await parseApiError(response, 'Failed to save gear.'))
+  }
+  const data = (await response.json()) as { gear: GearEntity }
+  return data.gear
+}
+
+export const updateFitnessGear = async (
+  gearId: string,
+  params: UpdateFitnessGearInput
+): Promise<GearEntity> => {
+  const response = await fetch(
+    `/api/v1/fitness/gear/${encodeURIComponent(gearId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params)
+    }
+  )
+  if (!response.ok) {
+    throw new Error(await parseApiError(response, 'Failed to save gear.'))
+  }
+  const data = (await response.json()) as { gear: GearEntity }
+  return data.gear
+}
+
+export const deleteFitnessGear = async (gearId: string): Promise<void> => {
+  const response = await fetch(
+    `/api/v1/fitness/gear/${encodeURIComponent(gearId)}`,
+    { method: 'DELETE' }
+  )
+  if (!response.ok) {
+    throw new Error(await parseApiError(response, 'Failed to delete gear.'))
+  }
+}
+
+export const setFitnessGearRetired = async (
+  gearId: string,
+  retired: boolean
+): Promise<GearEntity> => {
+  const response = await fetch(
+    `/api/v1/fitness/gear/${encodeURIComponent(gearId)}/retire`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ retired })
+    }
+  )
+  if (!response.ok) {
+    throw new Error(
+      await parseApiError(
+        response,
+        retired ? 'Failed to retire gear.' : 'Failed to unretire gear.'
+      )
+    )
+  }
+  const data = (await response.json()) as { gear: GearEntity }
+  return data.gear
+}
+
+export const getFitnessGearComponents = async (
+  gearId: string
+): Promise<GearComponentEntity[]> => {
+  const response = await fetch(
+    `/api/v1/fitness/gear/${encodeURIComponent(gearId)}/components`,
+    { method: 'GET', headers: { Accept: 'application/json' } }
+  )
+  if (!response.ok) {
+    throw new Error(await parseApiError(response, 'Failed to load components.'))
+  }
+  const data = (await response.json()) as { components: GearComponentEntity[] }
+  return data.components
+}
+
+export const createFitnessGearComponent = async (
+  gearId: string,
+  params: CreateFitnessGearComponentInput
+): Promise<GearComponentEntity> => {
+  const response = await fetch(
+    `/api/v1/fitness/gear/${encodeURIComponent(gearId)}/components`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params)
+    }
+  )
+  if (!response.ok) {
+    throw new Error(await parseApiError(response, 'Failed to save component.'))
+  }
+  const data = (await response.json()) as { component: GearComponentEntity }
+  return data.component
+}
+
+export const updateFitnessGearComponent = async (
+  gearId: string,
+  componentId: string,
+  params: Partial<CreateFitnessGearComponentInput>
+): Promise<GearComponentEntity> => {
+  const response = await fetch(
+    `/api/v1/fitness/gear/${encodeURIComponent(gearId)}/components/${encodeURIComponent(componentId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params)
+    }
+  )
+  if (!response.ok) {
+    throw new Error(await parseApiError(response, 'Failed to save component.'))
+  }
+  const data = (await response.json()) as { component: GearComponentEntity }
+  return data.component
+}
+
+export const deleteFitnessGearComponent = async (
+  gearId: string,
+  componentId: string
+): Promise<void> => {
+  const response = await fetch(
+    `/api/v1/fitness/gear/${encodeURIComponent(gearId)}/components/${encodeURIComponent(componentId)}`,
+    { method: 'DELETE' }
+  )
+  if (!response.ok) {
+    throw new Error(
+      await parseApiError(response, 'Failed to delete component.')
+    )
+  }
+}
+
+export const replaceFitnessGearComponent = async (
+  gearId: string,
+  componentId: string
+): Promise<{
+  retired: GearComponentEntity
+  replacement: GearComponentEntity
+}> => {
+  const response = await fetch(
+    `/api/v1/fitness/gear/${encodeURIComponent(gearId)}/components/${encodeURIComponent(componentId)}/replace`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    }
+  )
+  if (!response.ok) {
+    throw new Error(
+      await parseApiError(response, 'Failed to replace component.')
+    )
+  }
+  return (await response.json()) as {
+    retired: GearComponentEntity
+    replacement: GearComponentEntity
+  }
+}
+
+export const updateFitnessFileGear = async (
+  fitnessFileId: string,
+  gearId: string | null
+): Promise<{ id: string; gearId: string | null }> => {
+  const response = await fetch(
+    `/api/v1/fitness-files/${encodeURIComponent(fitnessFileId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gearId })
+    }
+  )
+  if (!response.ok) {
+    throw new Error(await parseApiError(response, 'Failed to update gear.'))
+  }
+  return (await response.json()) as { id: string; gearId: string | null }
 }
 
 // --- Fitness general (privacy location) settings ---

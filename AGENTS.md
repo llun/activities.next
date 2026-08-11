@@ -347,6 +347,60 @@ it; there is no legacy shape left to copy.
   Outlook's Word engine is the one that needs `mso-` properties and the ghost
   table, and none of that is observable in a browser.
 
+## Fitness Gear
+
+- **A gear total is derived, never stored.** `fitness_gears` and
+  `fitness_gear_components` carry no distance column: a gear's lifetime distance
+  is `SUM(fitness_files.totalDistanceMeters) WHERE gearId = ?`, and a
+  component's is the same sum restricted to activities whose `activityStartTime`
+  falls in its `[addedAt, removedAt)` install window (null `addedAt` = since the
+  gear's beginning, null `removedAt` = still fitted). Do not add a cached total
+  "for performance" — it would have to be reconciled on every back-dated upload,
+  archive re-import, edit and delete, and the whole point of the model is that
+  totals always agree with the calendar.
+- **Both rollups reuse the stats predicate**
+  (`deletedAt IS NULL` + `processingStatus = 'completed'` + `isPrimary`) that
+  `getFitnessActivitySummary` uses, so gear numbers reconcile with the fitness
+  overview. A new rollup that filters differently will quietly disagree with
+  every other surface.
+- **Batch, don't loop.** `getFitnessGearDistanceRollups` and
+  `getFitnessGearComponentDistanceRollups` each answer a whole page in one
+  grouped query; the component one puts the install window in the JOIN condition
+  (not the WHERE clause) so a component with no matching activity still returns
+  a row and counts 0. The window compares `activityStartTime` column-to-column
+  against the bounds, which is safe because knex writes all three in the same
+  representation per backend — never add raw date arithmetic there without an
+  `isSQLiteClient` branch.
+- **`fitness_files.gearId` has no database-level foreign key**, because adding
+  one via `alterTable` needs a table rebuild on SQLite. Ownership is enforced in
+  `lib/database/sql/fitnessGear.ts`, and `deleteFitnessGear` nulls the column in
+  the same transaction that soft-deletes the gear.
+- **Match sports through `normalizeActivityTypeToSportKey`**
+  (`@/lib/services/fitness-files/sportTypes`), never against the raw
+  `activityType`. That column holds whatever the source file said, and four
+  vocabularies reach it (FIT `cycling`, TCX `Biking`, Strava `GravelRide`,
+  free-form GPX). Gear stores canonical keys; the normalizer maps the dialects
+  onto them and returns null rather than guessing, so an unrecognised type
+  simply does not auto-assign. Prefer null over a plausible guess: a wrong
+  mapping silently attributes activities to the wrong bike.
+- **A sport belongs to at most one of an actor's gears**, retired ones included
+  — scoping the invariant to active gear only would let unretiring produce two
+  holders and make auto-assign arbitrary. Claiming a sport takes it off whoever
+  had it, inside the create/update transaction.
+- **Retiring is not deleting and not un-assignable.** Retired gear is out of the
+  pickers and out of auto-assign, but stays explicitly assignable so old
+  activities can still be attributed to a bike that has since been sold.
+- **Import jobs assign with `assignFitnessFileGearIfUnset`**, whose
+  `whereNull('gearId')` guard is the correctness guarantee rather than an
+  optimisation: those jobs re-run, and a manual assignment made between a read
+  and the write must survive. Only the owner's own PATCH uses
+  `setFitnessFileGear`, which overwrites.
+- **Service reminders are evaluated on write, not on a schedule** — this
+  instance has no recurring job infrastructure (the queue can delay a message
+  but not repeat one). `evaluateGearServiceReminders` runs where a total can
+  change and records the distance it fired at in `lastAlertedDistanceMeters`, so
+  each crossing notifies once and a raised threshold re-arms on its own.
+
 ## Status Posts & Actions
 
 Every surface that renders a status post — the home timeline, profiles, lists,

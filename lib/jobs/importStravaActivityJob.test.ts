@@ -18,6 +18,7 @@ import {
   getStravaActivity,
   getStravaActivityPhotos,
   getStravaActivityStreams,
+  getStravaGear,
   getValidStravaAccessToken
 } from '@/lib/services/strava/activity'
 import { addStatusToTimelines } from '@/lib/services/timelines'
@@ -48,6 +49,7 @@ vi.mock('@/lib/services/strava/activity', async () => {
     getStravaActivity: vi.fn(),
     getStravaActivityPhotos: vi.fn(),
     getStravaActivityStreams: vi.fn(),
+    getStravaGear: vi.fn(),
     getValidStravaAccessToken: vi.fn()
   }
 })
@@ -96,6 +98,9 @@ const mockGetValidStravaAccessToken =
   getValidStravaAccessToken as jest.MockedFunction<
     typeof getValidStravaAccessToken
   >
+const mockGetStravaGear = getStravaGear as jest.MockedFunction<
+  typeof getStravaGear
+>
 const mockGetQueue = getQueue as jest.MockedFunction<typeof getQueue>
 const mockAddStatusToTimelines = addStatusToTimelines as jest.MockedFunction<
   typeof addStatusToTimelines
@@ -120,6 +125,9 @@ type MockDatabase = Pick<
   | 'getActorMutedConversationRootIds'
   | 'acquireImportLock'
   | 'releaseImportLock'
+  | 'findFitnessGearByStravaGearId'
+  | 'createFitnessGear'
+  | 'assignFitnessFileGearIfUnset'
 >
 
 describe('importStravaActivityJob', () => {
@@ -143,7 +151,10 @@ describe('importStravaActivityJob', () => {
     // The per-actor import lock serializes concurrent same-ride imports; in
     // tests it is always immediately granted so the critical section runs.
     acquireImportLock: vi.fn().mockResolvedValue({ token: 'lock-token' }),
-    releaseImportLock: vi.fn().mockResolvedValue(true)
+    releaseImportLock: vi.fn().mockResolvedValue(true),
+    findFitnessGearByStravaGearId: vi.fn(),
+    createFitnessGear: vi.fn(),
+    assignFitnessFileGearIfUnset: vi.fn()
   }
 
   beforeEach(() => {
@@ -226,7 +237,12 @@ describe('importStravaActivityJob', () => {
     } as never)
     mockLookup.mockResolvedValue([{ address: '8.8.8.8', family: 4 }] as never)
 
+    database.findFitnessGearByStravaGearId.mockResolvedValue(null)
+    database.createFitnessGear.mockResolvedValue({ id: 'gear-new' } as never)
+    database.assignFitnessFileGearIfUnset.mockResolvedValue(true)
+
     mockGetValidStravaAccessToken.mockResolvedValue('access-token')
+    mockGetStravaGear.mockResolvedValue(null)
     mockBuildTcxFromStravaStreams.mockReturnValue(null)
     mockGetStravaActivity.mockResolvedValue({
       id: 123,
@@ -1252,5 +1268,209 @@ describe('importStravaActivityJob', () => {
     expect(publishMock).not.toHaveBeenCalledWith(
       expect.objectContaining({ name: REGENERATE_FITNESS_MAPS_JOB_NAME })
     )
+  })
+  describe('gear attribution', () => {
+    it('creates and assigns the gear the first time an id is seen', async () => {
+      mockGetStravaActivity.mockResolvedValue({
+        id: 123,
+        name: 'Morning Ride',
+        start_date: '2026-01-01T00:00:00.000Z',
+        sport_type: 'Ride',
+        visibility: 'everyone',
+        gear_id: 'b1234567'
+      })
+      mockGetStravaGear.mockResolvedValue({
+        id: 'b1234567',
+        brand_name: 'Moots',
+        model_name: 'Routt 45'
+      })
+
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-gear-new',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: { actorId: 'actor-1', stravaActivityId: '123' }
+      })
+
+      expect(mockGetStravaGear).toHaveBeenCalledWith({
+        gearId: 'b1234567',
+        accessToken: 'access-token'
+      })
+      expect(database.createFitnessGear).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: 'actor-1',
+          kind: 'bike',
+          name: 'Moots Routt 45',
+          stravaGearId: 'b1234567'
+        })
+      )
+      expect(database.assignFitnessFileGearIfUnset).toHaveBeenCalledWith({
+        fitnessFileId: 'new-file',
+        gearId: 'gear-new'
+      })
+    })
+
+    it('reuses the stored gear the second time the same id arrives', async () => {
+      mockGetStravaActivity.mockResolvedValue({
+        id: 123,
+        name: 'Morning Ride',
+        start_date: '2026-01-01T00:00:00.000Z',
+        sport_type: 'Ride',
+        visibility: 'everyone',
+        gear_id: 'b1234567'
+      })
+      database.findFitnessGearByStravaGearId.mockResolvedValue({
+        id: 'gear-existing'
+      } as never)
+
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-gear-reuse',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: { actorId: 'actor-1', stravaActivityId: '123' }
+      })
+
+      expect(mockGetStravaGear).not.toHaveBeenCalled()
+      expect(database.createFitnessGear).not.toHaveBeenCalled()
+      expect(database.assignFitnessFileGearIfUnset).toHaveBeenCalledWith({
+        fitnessFileId: 'new-file',
+        gearId: 'gear-existing'
+      })
+    })
+
+    it('still attributes the ride with a placeholder name when the gear fetch fails', async () => {
+      mockGetStravaActivity.mockResolvedValue({
+        id: 123,
+        name: 'Morning Ride',
+        start_date: '2026-01-01T00:00:00.000Z',
+        sport_type: 'Ride',
+        visibility: 'everyone',
+        gear_id: 'b1234567'
+      })
+      mockGetStravaGear.mockRejectedValue(new Error('Strava is down'))
+
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-gear-fetch-failed',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: { actorId: 'actor-1', stravaActivityId: '123' }
+      })
+
+      expect(database.createFitnessGear).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Strava gear b1234567' })
+      )
+      expect(database.assignFitnessFileGearIfUnset).toHaveBeenCalled()
+    })
+
+    it('imports the activity unattributed when gear resolution fails outright', async () => {
+      mockGetStravaActivity.mockResolvedValue({
+        id: 123,
+        name: 'Morning Ride',
+        start_date: '2026-01-01T00:00:00.000Z',
+        sport_type: 'Ride',
+        visibility: 'everyone',
+        gear_id: 'b1234567'
+      })
+      database.findFitnessGearByStravaGearId.mockRejectedValue(
+        new Error('database is down')
+      )
+
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-gear-resolve-failed',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: { actorId: 'actor-1', stravaActivityId: '123' }
+      })
+
+      expect(database.assignFitnessFileGearIfUnset).not.toHaveBeenCalled()
+      // The ride itself still imported.
+      expect(mockSaveFitnessFile).toHaveBeenCalled()
+    })
+
+    it('assigns nothing when the activity carries no gear id', async () => {
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-gear-none',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: { actorId: 'actor-1', stravaActivityId: '123' }
+      })
+
+      expect(mockGetStravaGear).not.toHaveBeenCalled()
+      expect(database.assignFitnessFileGearIfUnset).not.toHaveBeenCalled()
+    })
+
+    it('backfills a re-imported file that has no gear yet', async () => {
+      mockGetStravaActivity.mockResolvedValue({
+        id: 123,
+        name: 'Morning Ride',
+        start_date: '2026-01-01T00:00:00.000Z',
+        sport_type: 'Ride',
+        visibility: 'everyone',
+        gear_id: 'b1234567'
+      })
+      database.getFitnessFilesByBatchId.mockResolvedValueOnce([
+        {
+          id: 'existing-file',
+          actorId: 'actor-1',
+          statusId: 'status-existing'
+        }
+      ] as never)
+      database.getFitnessFile.mockReset()
+      database.getFitnessFile.mockResolvedValue({
+        id: 'existing-file',
+        actorId: 'actor-1',
+        statusId: 'status-existing'
+      } as never)
+      database.getStatus.mockResolvedValueOnce({
+        id: 'status-existing',
+        type: 'Note',
+        text: 'Already imported'
+      } as never)
+
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-gear-backfill',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: { actorId: 'actor-1', stravaActivityId: '123' }
+      })
+
+      expect(database.assignFitnessFileGearIfUnset).toHaveBeenCalledWith({
+        fitnessFileId: 'existing-file',
+        gearId: 'gear-new'
+      })
+    })
+
+    it('leaves a re-imported file that already has gear alone', async () => {
+      mockGetStravaActivity.mockResolvedValue({
+        id: 123,
+        name: 'Morning Ride',
+        start_date: '2026-01-01T00:00:00.000Z',
+        sport_type: 'Ride',
+        visibility: 'everyone',
+        gear_id: 'b1234567'
+      })
+      database.getFitnessFilesByBatchId.mockResolvedValueOnce([
+        {
+          id: 'existing-file',
+          actorId: 'actor-1',
+          statusId: 'status-existing',
+          gearId: 'gear-chosen-by-hand'
+        }
+      ] as never)
+      database.getFitnessFile.mockReset()
+      database.getFitnessFile.mockResolvedValue({
+        id: 'existing-file',
+        actorId: 'actor-1',
+        statusId: 'status-existing',
+        gearId: 'gear-chosen-by-hand'
+      } as never)
+      database.getStatus.mockResolvedValueOnce({
+        id: 'status-existing',
+        type: 'Note',
+        text: 'Already imported'
+      } as never)
+
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-gear-no-clobber',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: { actorId: 'actor-1', stravaActivityId: '123' }
+      })
+
+      expect(database.assignFitnessFileGearIfUnset).not.toHaveBeenCalled()
+    })
   })
 })

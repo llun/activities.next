@@ -178,10 +178,18 @@ export const Post: FC<PostProps> = (props) => {
     fitnessFile?.deviceName,
     fitnessFile?.deviceManufacturer
   )
+  // Gear rides along with the distance rather than taking a cell or a row of
+  // its own: the design shows "42.6 km · Moots". With no distance there is
+  // nothing to append it to, so it is simply not shown.
+  const fitnessGearName = fitnessFile?.gearName?.trim()
+  const fitnessDistanceWithGear =
+    fitnessDistance && fitnessGearName
+      ? `${fitnessDistance} · ${fitnessGearName}`
+      : fitnessDistance
   // Labeled stat cells for the 4-up grid, in the design's order, dropping any
   // metric the file doesn't provide.
   const fitnessStats = [
-    { label: 'Distance', value: fitnessDistance },
+    { label: 'Distance', value: fitnessDistanceWithGear },
     { label: 'Duration', value: fitnessDuration },
     fitnessPaceOrSpeed
       ? { label: fitnessPaceOrSpeed.label, value: fitnessPaceOrSpeed.value }

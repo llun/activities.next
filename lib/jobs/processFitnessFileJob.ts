@@ -23,6 +23,8 @@ import {
   getFitnessPrivacyLocations,
   getVisibleSegments
 } from '@/lib/services/fitness-files/privacy'
+import { normalizeActivityTypeToSportKey } from '@/lib/services/fitness-files/sportTypes'
+import { evaluateGearServiceReminders } from '@/lib/services/fitness-gears/serviceReminders'
 import { saveMedia, saveMediaImageRendition } from '@/lib/services/medias'
 import { getActivityImportGroupKey } from '@/lib/services/notifications/activityImportGroupKey'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
@@ -480,6 +482,59 @@ export const processFitnessFileJob = createJobHandle(
           ? { deviceName: activityData.deviceName }
           : {})
       })
+
+      // Auto-assign gear from the owner's default-sport mapping, now that the
+      // parsed `activityType` is known. Only ever fills a hole: an import that
+      // already attributed the activity (Strava's own `gear_id`) and a manual
+      // assignment both win, which `assignFitnessFileGearIfUnset` enforces with
+      // its guarded UPDATE. Attribution is metadata — the whole block is
+      // best-effort so it can never fail a file that parsed fine.
+      if (!fitnessFile.gearId) {
+        try {
+          const sportKey = normalizeActivityTypeToSportKey(
+            activityData.activityType
+          )
+          if (sportKey) {
+            const defaultGear = await database.findFitnessGearByDefaultSport({
+              actorId,
+              sportKey
+            })
+            if (defaultGear) {
+              await database.assignFitnessFileGearIfUnset({
+                fitnessFileId,
+                gearId: defaultGear.id
+              })
+            }
+          }
+        } catch (error) {
+          logger.warn({
+            message: 'Failed to auto-assign gear for fitness file',
+            actorId,
+            statusId,
+            fitnessFileId,
+            err: toLoggableError(error)
+          })
+        }
+      }
+      // This activity's distance has just landed on whatever gear it belongs
+      // to, so it may have pushed a pair of shoes or a component past its
+      // service threshold. Re-read the row rather than reusing the pre-update
+      // copy: the gear may have been attributed a moment ago, either by the
+      // auto-assign above or by the import that created the file.
+      //
+      // Evaluated here because there is no scheduler to evaluate it on — the
+      // queue can delay a message but not repeat one. `evaluateGearServiceReminders`
+      // contains its own failures.
+      const attributedFile = await database.getFitnessFile({
+        id: fitnessFileId
+      })
+      if (attributedFile?.gearId) {
+        await evaluateGearServiceReminders({
+          database,
+          actorId,
+          gearIds: [attributedFile.gearId]
+        })
+      }
 
       const privacySettings = await database.getFitnessSettings({
         actorId,

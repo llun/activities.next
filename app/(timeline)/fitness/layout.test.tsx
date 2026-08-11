@@ -28,7 +28,9 @@ describe('Fitness Layout', () => {
     ['/fitness/files', 'Files'],
     ['/fitness/privacy', 'Privacy'],
     ['/fitness/strava', 'Strava'],
-    ['/fitness/files/abc123', 'Files']
+    ['/fitness/gear', 'Gear'],
+    ['/fitness/files/abc123', 'Files'],
+    ['/fitness/gear/abc123', 'Gear']
   ])('reflects the active tab in the dropdown trigger on %s', (path, label) => {
     ;(usePathname as jest.Mock).mockReturnValue(path)
     renderLayout()
@@ -71,7 +73,8 @@ describe('Fitness Layout', () => {
       'Heatmaps',
       'Files',
       'Privacy',
-      'Strava'
+      'Strava',
+      'Gear'
     ]) {
       expect(
         within(menu).getByRole('menuitem', { name: label })

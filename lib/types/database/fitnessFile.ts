@@ -42,6 +42,9 @@ export interface SQLFitnessFile {
   deviceManufacturer?: string | null
   deviceName?: string | null
   sourceUrl?: string | null
+  // The bike or shoes this activity is attributed to. Plain column, no FK — see
+  // the 20260811000000_add_fitness_gear migration.
+  gearId?: string | null
 
   // Timestamps
   createdAt: number | Date
@@ -80,6 +83,7 @@ export interface FitnessFile {
   deviceManufacturer?: string
   deviceName?: string
   sourceUrl?: string
+  gearId?: string
 
   createdAt: number
   updatedAt: number

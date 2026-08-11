@@ -10,7 +10,8 @@ import {
   Reply,
   Smile,
   UserPlus,
-  Users
+  Users,
+  Wrench
 } from 'lucide-react'
 
 import type { NotificationType } from '@/lib/types/database/operations'
@@ -109,6 +110,12 @@ export const NOTIFICATION_TYPE_CONFIG: Record<
     icon: Activity,
     badgeClassName: PRIMARY_BADGE,
     verb: 'Your fitness activity is ready',
+    kind: 'system'
+  },
+  gear_service_due: {
+    icon: Wrench,
+    badgeClassName: PRIMARY_BADGE,
+    verb: 'Your gear is due for service',
     kind: 'system'
   },
   added_to_collection: {

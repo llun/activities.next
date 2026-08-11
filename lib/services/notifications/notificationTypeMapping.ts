@@ -100,6 +100,7 @@ export const internalTypeToMastodon = (
     case 'mention':
       return 'mention'
     case 'activity_import':
+    case 'gear_service_due':
       return 'status'
     case 'added_to_collection':
       return 'added_to_collection'

@@ -3010,13 +3010,19 @@ export const StatusSQLDatabaseMixin = (
       // A status can carry several fitness files (e.g. the same ride merged
       // from two devices). Surface the primary one — matching
       // getFitnessFileByStatus — instead of an arbitrary `.first()`.
+      // The gear name comes along on this same query rather than a follow-up
+      // lookup — `getStatus` runs per status, so a second round trip here is an
+      // N+1 across a whole timeline page. Every clause below is table-qualified
+      // because both tables carry `deletedAt`/`createdAt`.
       database<SQLFitnessFile>('fitness_files')
-        .where('statusId', data.id)
-        .whereNull('deletedAt')
-        .orderBy('isPrimary', 'desc')
-        .orderBy('activityStartTime', 'asc')
-        .orderBy('createdAt', 'asc')
-        .first(),
+        .leftJoin('fitness_gears', 'fitness_files.gearId', 'fitness_gears.id')
+        .where('fitness_files.statusId', data.id)
+        .whereNull('fitness_files.deletedAt')
+        .orderBy('fitness_files.isPrimary', 'desc')
+        .orderBy('fitness_files.activityStartTime', 'asc')
+        .orderBy('fitness_files.createdAt', 'asc')
+        .select('fitness_files.*', 'fitness_gears.name as gearName')
+        .first<(SQLFitnessFile & { gearName?: string | null }) | undefined>(),
       hydrationContext?.detectedLanguages
         ? (hydrationContext.detectedLanguages[data.id] ?? null)
         : statusDetectedLanguageDatabase.getDetectedLanguage({
@@ -3156,7 +3162,9 @@ export const StatusSQLDatabaseMixin = (
                 : null),
               ...(fitnessFile.sourceUrl
                 ? { sourceUrl: fitnessFile.sourceUrl }
-                : null)
+                : null),
+              gearId: fitnessFile.gearId ?? null,
+              gearName: fitnessFile.gearName ?? null
             }
           }
         : null),

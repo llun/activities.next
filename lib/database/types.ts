@@ -1,4 +1,5 @@
 import { FitnessFileDatabase } from '@/lib/database/sql/fitnessFile'
+import { FitnessGearDatabase } from '@/lib/database/sql/fitnessGear'
 import { FitnessRouteHeatmapDatabase } from '@/lib/database/sql/fitnessRouteHeatmap'
 import { FitnessSettingsDatabase } from '@/lib/database/sql/fitnessSettings'
 import { ImportLockDatabase } from '@/lib/database/sql/importLock'
@@ -60,6 +61,7 @@ export type Database = AccountDatabase &
   InstanceActivityDatabase &
   InstanceRuleDatabase &
   FitnessFileDatabase &
+  FitnessGearDatabase &
   FitnessRouteHeatmapDatabase &
   FitnessSettingsDatabase &
   ImportLockDatabase &

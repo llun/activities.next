@@ -97,6 +97,9 @@ type MockDatabase = Pick<
   | 'createAttachment'
   | 'updateFitnessFileProcessingStatus'
   | 'updateFitnessFileImportStatus'
+  | 'findFitnessGearByName'
+  | 'createFitnessGear'
+  | 'assignFitnessFileGearIfUnset'
 >
 
 describe('importStravaArchiveJob', () => {
@@ -110,7 +113,10 @@ describe('importStravaArchiveJob', () => {
     getAttachments: vi.fn(),
     createAttachment: vi.fn(),
     updateFitnessFileProcessingStatus: vi.fn(),
-    updateFitnessFileImportStatus: vi.fn()
+    updateFitnessFileImportStatus: vi.fn(),
+    findFitnessGearByName: vi.fn(),
+    createFitnessGear: vi.fn(),
+    assignFitnessFileGearIfUnset: vi.fn()
   }
 
   beforeEach(() => {
@@ -198,6 +204,9 @@ describe('importStravaArchiveJob', () => {
     database.createAttachment.mockResolvedValue({} as never)
     database.updateFitnessFileProcessingStatus.mockResolvedValue(true)
     database.updateFitnessFileImportStatus.mockResolvedValue(true)
+    database.findFitnessGearByName.mockResolvedValue(null)
+    database.createFitnessGear.mockResolvedValue({ id: 'gear-new' } as never)
+    database.assignFitnessFileGearIfUnset.mockResolvedValue(true)
     mockQueuePublish.mockResolvedValue(undefined)
 
     mockSaveFitnessFile.mockResolvedValue({
@@ -238,6 +247,7 @@ describe('importStravaArchiveJob', () => {
     mockArchiveReaderOpen.mockResolvedValue({
       close: vi.fn(),
       hasEntry: vi.fn().mockReturnValue(true),
+      getGear: vi.fn().mockResolvedValue([]),
       getActivities: vi.fn().mockResolvedValue([
         {
           activityId: 'activity-1',
@@ -302,6 +312,7 @@ describe('importStravaArchiveJob', () => {
     mockArchiveReaderOpen.mockResolvedValueOnce({
       close: vi.fn(),
       hasEntry: vi.fn().mockReturnValue(true),
+      getGear: vi.fn().mockResolvedValue([]),
       getActivities: vi.fn().mockResolvedValue([
         {
           activityId: '987654321',
@@ -428,6 +439,7 @@ describe('importStravaArchiveJob', () => {
     mockArchiveReaderOpen.mockResolvedValueOnce({
       close: vi.fn(),
       hasEntry: vi.fn().mockReturnValue(true),
+      getGear: vi.fn().mockResolvedValue([]),
       getActivities: vi.fn().mockResolvedValue([
         {
           activityId: 'activity-1',
@@ -520,6 +532,7 @@ describe('importStravaArchiveJob', () => {
         .mockImplementation(
           (entryPath: string) => entryPath !== 'media/missing.jpg'
         ),
+      getGear: vi.fn().mockResolvedValue([]),
       getActivities: vi.fn().mockResolvedValue([
         {
           activityId: 'activity-1',
@@ -780,6 +793,7 @@ describe('importStravaArchiveJob', () => {
     mockArchiveReaderOpen.mockResolvedValueOnce({
       close: vi.fn(),
       hasEntry: vi.fn().mockReturnValue(true),
+      getGear: vi.fn().mockResolvedValue([]),
       getActivities: vi.fn().mockResolvedValue([
         {
           activityId: 'activity-1',
@@ -855,6 +869,7 @@ describe('importStravaArchiveJob', () => {
     mockArchiveReaderOpen.mockResolvedValueOnce({
       close: vi.fn(),
       hasEntry: vi.fn().mockReturnValue(true),
+      getGear: vi.fn().mockResolvedValue([]),
       getActivities: vi.fn().mockResolvedValue([
         {
           activityId: 'activity-1',
@@ -1105,5 +1120,112 @@ describe('importStravaArchiveJob', () => {
           'Timed out waiting for imported statuses to attach archive media'
       })
     )
+  })
+  describe('gear attribution', () => {
+    const mockArchiveWithGear = ({
+      gear = [{ name: 'Moots Routt 45', kind: 'bike' as const }],
+      activityGear = 'Moots Routt 45',
+      getGear
+    }: {
+      gear?: Array<{ name: string; kind: 'bike' | 'shoes' }>
+      activityGear?: string
+      getGear?: ReturnType<typeof vi.fn>
+    } = {}) => {
+      mockArchiveReaderOpen.mockResolvedValue({
+        close: vi.fn(),
+        hasEntry: vi.fn().mockReturnValue(true),
+        getGear: getGear ?? vi.fn().mockResolvedValue(gear),
+        getActivities: vi.fn().mockResolvedValue([
+          {
+            activityId: 'activity-1',
+            activityName: 'Morning Ride',
+            activityGear,
+            fitnessFilePath: 'activities/activity-1.fit',
+            mediaPaths: []
+          }
+        ]),
+        readEntryBuffer: vi.fn().mockResolvedValue(Buffer.from('fitness-file'))
+      } as never)
+    }
+
+    const runImport = (id: string) =>
+      importStravaArchiveJob(database as unknown as Database, {
+        id,
+        name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+        data: {
+          importId: 'import-1',
+          actorId: 'actor-1',
+          archiveId: 'archive-1',
+          archiveFitnessFileId: 'archive-file-1',
+          batchId: 'strava-archive:archive-1',
+          visibility: 'private'
+        }
+      })
+
+    it('creates the named gear and attributes the activity to it', async () => {
+      mockArchiveWithGear()
+
+      await runImport('job-archive-gear')
+
+      expect(database.createFitnessGear).toHaveBeenCalledWith({
+        actorId: 'actor-1',
+        kind: 'bike',
+        name: 'Moots Routt 45'
+      })
+      expect(database.assignFitnessFileGearIfUnset).toHaveBeenCalledWith({
+        fitnessFileId: 'activity-file-1',
+        gearId: 'gear-new'
+      })
+    })
+
+    it('defaults to shoes when the gear CSVs never named that gear', async () => {
+      // The kind only ever comes from which CSV a name appeared in, so a name
+      // present on an activity but absent from both files has no kind signal.
+      mockArchiveWithGear({ gear: [] })
+
+      await runImport('job-archive-gear-unknown-kind')
+
+      expect(database.createFitnessGear).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'shoes' })
+      )
+    })
+
+    it('imports the activity even when the gear CSVs cannot be read', async () => {
+      mockArchiveWithGear({
+        getGear: vi.fn().mockRejectedValue(new Error('bikes.csv is corrupt'))
+      })
+
+      await runImport('job-archive-gear-csv-failed')
+
+      expect(mockSaveFitnessFile).toHaveBeenCalledTimes(1)
+      expect(database.updateStravaArchiveImport).toHaveBeenCalledWith(
+        expect.objectContaining({ failedActivitiesCount: 0 })
+      )
+    })
+
+    it('does not fail the activity when the gear write throws', async () => {
+      mockArchiveWithGear()
+      database.createFitnessGear.mockRejectedValue(
+        new Error('database is down')
+      )
+      database.findFitnessGearByName.mockResolvedValue(null)
+
+      await runImport('job-archive-gear-write-failed')
+
+      expect(mockSaveFitnessFile).toHaveBeenCalledTimes(1)
+      expect(database.assignFitnessFileGearIfUnset).not.toHaveBeenCalled()
+      expect(database.updateStravaArchiveImport).toHaveBeenCalledWith(
+        expect.objectContaining({ failedActivitiesCount: 0 })
+      )
+    })
+
+    it('attributes nothing when the activity names no gear', async () => {
+      mockArchiveWithGear({ activityGear: '' })
+
+      await runImport('job-archive-gear-none')
+
+      expect(database.createFitnessGear).not.toHaveBeenCalled()
+      expect(database.assignFitnessFileGearIfUnset).not.toHaveBeenCalled()
+    })
   })
 })

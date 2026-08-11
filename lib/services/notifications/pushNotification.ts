@@ -30,7 +30,8 @@ const NOTIFICATION_TYPE_TO_ALERT: Partial<
   quote: 'quote',
   quoted_update: 'quoted_update',
   emoji_reaction: 'pleroma:emoji_reaction',
-  activity_import: 'status'
+  activity_import: 'status',
+  gear_service_due: 'status'
 }
 
 let vapidInitialized = false
@@ -126,6 +127,13 @@ const getNotificationContent = (
       return {
         title: 'Quote updated',
         body: `${displayName} edited a post you quoted`
+      }
+    // Self-addressed: the source actor is the recipient, so the body talks
+    // about their gear rather than naming them.
+    case 'gear_service_due':
+      return {
+        title: 'Gear service due',
+        body: 'A piece of your gear has passed its service distance'
       }
     default:
       return {
