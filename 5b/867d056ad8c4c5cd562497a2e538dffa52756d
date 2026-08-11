@@ -1,0 +1,21 @@
+AGENTS.md
+  s_3409d1f2eae948::t_1e87c911a2254c 418-424
+lib/database/sql/fitnessGear.ts
+  s_3409d1f2eae948::t_e87070d17b1ccf 444-448
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "5b867d056ad8c4c5cd562497a2e538dffa52756d",
+  "prompts": {},
+  "sessions": {
+    "s_3409d1f2eae948": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "aba2c7b7-1622-4396-83a6-ceb8b991ae04",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
