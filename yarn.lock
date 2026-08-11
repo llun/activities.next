@@ -4537,7 +4537,7 @@ __metadata:
     bcrypt: "npm:^6.0.0"
     better-auth: "npm:1.6.26"
     better-call: "npm:2.0.6"
-    better-sqlite3: "npm:^13.0.1"
+    better-sqlite3: "npm:^13.0.3"
     class-variance-authority: "npm:^0.7.1"
     clsx: "npm:^2.1.1"
     csv-parse: "npm:^7.0.1"
@@ -4876,13 +4876,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"better-sqlite3@npm:^13.0.1":
-  version: 13.0.1
-  resolution: "better-sqlite3@npm:13.0.1"
+"better-sqlite3@npm:^13.0.3":
+  version: 13.0.3
+  resolution: "better-sqlite3@npm:13.0.3"
   dependencies:
     node-addon-api: "npm:^8.0.0"
     node-gyp: "npm:latest"
-  checksum: 10c0/dab0d720e7b215490d68733c657de75f6fcffe1ce61d737ace9d2f195d02e90be9f19ced28f407247237aad7a5a371e044e601df9caa9d5617cff6a7a756ede5
+  checksum: 10c0/3daaad4fbd39b3ebddd9840c1aab0a7ccc94a01054fb03f6660ec2c226422b5daf3eb8e55a14103eddb84c2cd16f8e70ae9d41f0e2892b58c8c6152ee7ff09c0
   languageName: node
   linkType: hard
 
