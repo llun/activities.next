@@ -1,0 +1,259 @@
+lib/database/sql/status.ts
+  s_3409d1f2eae948::t_6175cfcb807470 3165-3167
+  s_3409d1f2eae948::t_ffaa5190805fd8 3013-3016,3018-3025
+app/(timeline)/fitness/gear/GearListView.test.tsx
+  s_3409d1f2eae948::t_1597bb6004f9a4 30-37
+  s_3409d1f2eae948::t_d3c26a1e126ffd 1-29,38-69,71,76-81,83-247
+  s_3409d1f2eae948::t_c08d110953e715 70,72-75
+  s_3409d1f2eae948::t_9314b5e25aeb9c 82
+lib/types/database/rows.ts
+  s_3409d1f2eae948::t_b30411f8d818c7 55,70
+lib/types/domain/status.ts
+  s_3409d1f2eae948::t_61753c5ed07a66 63-69
+app/api/v1/fitness/gear/[id]/retire/route.ts
+  s_3409d1f2eae948::t_b62fb0bb40434f 1-58
+app/api/v1/fitness/gear/[id]/components/route.ts
+  s_3409d1f2eae948::t_78b0a4e28dc198 1-89
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_3409d1f2eae948::t_a41d74f1579340 81-82
+  s_3409d1f2eae948::t_a571ee1f18d3c9 2140-2142
+  s_3409d1f2eae948::t_96f8e8879b2e96 2174-2175
+  s_3409d1f2eae948::t_d87f0cd96972c9 2236-2260
+  s_3409d1f2eae948::t_0a3852b8909c1e 44-46
+  s_3409d1f2eae948::t_f9ce5c5f55d6e2 2273-2335
+  s_3409d1f2eae948::t_0f41856af9321b 2940-2982
+  s_3409d1f2eae948::t_72e3573fe7ad15 2111-2115
+  s_3409d1f2eae948::t_b1e984ba42304f 2162-2164
+lib/jobs/importStravaArchiveJob.test.ts
+  s_3409d1f2eae948::t_dca13dfef0cf59 100-102,116-119,207-209
+  s_3409d1f2eae948::t_0ee28d505f5840 250,315,442,535,796,872
+  s_3409d1f2eae948::t_fecc18e378bb1d 1124-1230
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_3409d1f2eae948::t_41a41f6ca7aa98 18-20,22
+  s_3409d1f2eae948::t_59c7f6fcc3c623 246-247
+  s_3409d1f2eae948::t_16b010f11c8a7b 1728-1903
+  s_3409d1f2eae948::t_5dc7bf917ac7f3 120-139
+  s_3409d1f2eae948::t_1d961d244bbbf9 277-278,281
+  s_3409d1f2eae948::t_ecf5e45ddc2af0 31-33
+app/api/v1/fitness/gear/route.ts
+  s_3409d1f2eae948::t_d120d8702be61b 1-86
+lib/services/fitness-gears/resolveImportedGear.test.ts
+  s_3409d1f2eae948::t_8789828a3f3fa0 1-301
+app/api/v1/fitness/gear/[id]/components/[componentId]/replace/route.test.ts
+  s_3409d1f2eae948::t_6a34f0aff0e3a3 1-154
+app/(timeline)/notifications/notificationConfig.ts
+  s_3409d1f2eae948::t_bb41d2bef5c407 13-14
+  s_3409d1f2eae948::t_9d85d6db5c1378 115-120
+migrations/schema.sqlite.sql
+  s_3409d1f2eae948::t_a497fd2b2d7a74 59,254-259
+lib/services/email/templates/gearServiceDue.test.ts
+  s_3409d1f2eae948::t_9031f263d7d27a 1-57,60-86
+  s_3409d1f2eae948::t_e4889363fd2543 58-59
+lib/types/database/fitnessGear.ts
+  s_3409d1f2eae948::t_c72d0c3d548e68 1-95
+lib/database/sql/fitnessGear.ts
+  s_3409d1f2eae948::t_d9c675fcd2009b 1-821
+app/(timeline)/fitness/layout.test.tsx
+  s_3409d1f2eae948::t_8cead52ca2e72b 31-33
+  s_3409d1f2eae948::t_75a6425807af01 76-77
+migrations/20260811000000_add_fitness_gear.js
+  s_3409d1f2eae948::t_7338f72811e0b1 1-121
+docs/architecture.md
+  s_3409d1f2eae948::t_4fac86f97bc4fa 283
+app/api/v1/fitness/gear/[id]/components/[componentId]/route.ts
+  s_3409d1f2eae948::t_ba59bdb5802617 1-103
+lib/jobs/importStravaActivityJob.test.ts
+  s_3409d1f2eae948::t_64996cc0a71354 21,52,101-103,128-130,154-157,240-243,245
+  s_3409d1f2eae948::t_27ebde3252c955 1272-1475
+app/api/v1/fitness-files/by-status/route.test.ts
+  s_3409d1f2eae948::t_1045f0f3612097 150-154
+  s_3409d1f2eae948::t_e3f1f8308a3de5 99-149,155-177
+lib/services/fitness-gears/serviceReminders.ts
+  s_3409d1f2eae948::t_cb0587ea39c54c 1-136,142-205
+  s_3409d1f2eae948::t_d240751cf262a8 137-141
+lib/services/fitness-gears/resolveImportedGear.ts
+  s_3409d1f2eae948::t_5c8625a9a4d921 1-180,185-196,198-216
+  s_3409d1f2eae948::t_d7e798b3412a00 181-184,197
+app/(timeline)/fitness/gear/[id]/GearComponentsCard.tsx
+  s_3409d1f2eae948::t_44712f6aca11a5 1-12,14-400
+  s_3409d1f2eae948::t_83e1fd476428b6 13
+app/(timeline)/fitness/gear/[id]/GearComponentsCard.test.tsx
+  s_3409d1f2eae948::t_57000cabb9c277 1-299
+app/api/v1/fitness/gear/[id]/components/route.test.ts
+  s_3409d1f2eae948::t_62af70e4d87bc1 1-223
+app/(timeline)/settings/notifications/page.tsx
+  s_3409d1f2eae948::t_5ac96eed17dbe8 61-66
+lib/database/types.ts
+  s_3409d1f2eae948::t_be16f3fe305cfe 64
+  s_3409d1f2eae948::t_6a90b18b23e99b 2
+lib/services/fitness-gears/gearRequests.ts
+  s_3409d1f2eae948::t_d240751cf262a8 132-135
+  s_3409d1f2eae948::t_77e23dbcb49faa 1-19,32-37,39-131,136-156
+  s_3409d1f2eae948::t_93c549b327fe5e 20-31,38
+lib/services/strava/activity.ts
+  s_3409d1f2eae948::t_4425d115bb837a 49-67
+  s_3409d1f2eae948::t_e896d59b6c5c0a 380-422
+app/(timeline)/fitness/layout.tsx
+  s_3409d1f2eae948::t_58aec5789bc677 3
+  s_3409d1f2eae948::t_c077451d5d589f 24-25
+lib/services/fitness-files/sportTypes.ts
+  s_3409d1f2eae948::t_9e732b531212ea 155-160
+  s_3409d1f2eae948::t_4214f4977c2c63 1-125,129-154,161-228
+  s_3409d1f2eae948::t_1084b8d375f843 126-128
+lib/types/database/operations.ts
+  s_3409d1f2eae948::t_460aa875702353 3290-3293
+lib/jobs/importStravaArchiveJob.ts
+  s_3409d1f2eae948::t_3d995897aadcd1 21-22
+  s_3409d1f2eae948::t_470f61fdf5eabc 707-750
+  s_3409d1f2eae948::t_10ac5acca4e3b5 832-857
+  s_3409d1f2eae948::t_d240751cf262a8 43
+lib/client.ts
+  s_3409d1f2eae948::t_c1e8af43912160 2327-2328
+  s_3409d1f2eae948::t_4a28fc6ded04a7 3
+  s_3409d1f2eae948::t_e5f9278caad2aa 4-7
+  s_3409d1f2eae948::t_3c084bc8eacac9 2538-2754
+migrations/schema.sql
+  s_3409d1f2eae948::t_ac51c484e4f9d9 417-453,1321-1329,1615-1616,1621-1624,1791-1796,1847
+app/api/v1/fitness-files/[id]/route.ts
+  s_3409d1f2eae948::t_618aa26836d711 6-8,12-16
+  s_3409d1f2eae948::t_d0d67ceb77857f 119-176
+lib/services/notifications/pushNotification.ts
+  s_3409d1f2eae948::t_79dff10e9a6223 33-34
+  s_3409d1f2eae948::t_84dc69f389fec3 131-137
+docs/features.md
+  s_3409d1f2eae948::t_5b18a9f0cb6c9c 62
+lib/services/fitness-gears/gearRequests.test.ts
+  s_3409d1f2eae948::t_583e8448ec4e55 1-175
+app/(timeline)/fitness/gear/[id]/GearDetailView.test.tsx
+  s_3409d1f2eae948::t_38a71fd8ba38a8 1-143,145-147,149,152-240
+  s_3409d1f2eae948::t_07de04decf6fe9 144,148,150-151
+app/api/v1/fitness-files/by-status/route.ts
+  s_3409d1f2eae948::t_6366228981ff15 144-146
+  s_3409d1f2eae948::t_bcfe31f05f80d2 103-112
+app/api/v1/fitness/gear/[id]/route.ts
+  s_3409d1f2eae948::t_5caa2f444bd536 1-97
+lib/jobs/processFitnessFileJob.ts
+  s_3409d1f2eae948::t_bae07cd0dc73b6 486-518,538
+  s_3409d1f2eae948::t_b7f097d578a64e 528-530
+  s_3409d1f2eae948::t_cae0dc1f318bb4 519-527,531-537
+  s_3409d1f2eae948::t_91d3d36780fc62 26
+  s_3409d1f2eae948::t_b7848d58c1e60f 27
+lib/services/fitness-gears/gearEntities.ts
+  s_3409d1f2eae948::t_b12d0028713170 1-82
+app/api/v1/fitness/gear/[id]/retire/route.test.ts
+  s_3409d1f2eae948::t_4461f2522b8667 1-124
+lib/jobs/importStravaActivityJob.ts
+  s_3409d1f2eae948::t_b77be763522a24 25
+  s_3409d1f2eae948::t_d240751cf262a8 59
+  s_3409d1f2eae948::t_b83f3220f75e1e 721-733
+  s_3409d1f2eae948::t_7c678abdcf6a7d 668-669
+  s_3409d1f2eae948::t_d28d1b7b670e56 443-488
+app/api/v1/fitness/gear/[id]/components/[componentId]/route.test.ts
+  s_3409d1f2eae948::t_d8156f3c50631a 1-183
+app/(timeline)/fitness/gear/GearFormDialog.tsx
+  s_3409d1f2eae948::t_af5649ea23a78d 1-338
+app/(timeline)/fitness/gear/gearUi.ts
+  s_3409d1f2eae948::t_573cb82fecaf6d 1-155
+CLAUDE.md
+  s_3409d1f2eae948::t_dbffaa1f4380dc 45
+lib/services/fitness-files/sportTypes.test.ts
+  s_3409d1f2eae948::t_d240751cf262a8 26-30,63-67,79-83,88-97
+  s_3409d1f2eae948::t_f3e71d6d5a3575 1-25,31-62,68-78,84-87,98-194
+lib/database/sql/fitnessFile.ts
+  s_3409d1f2eae948::t_5f627c6aa1232a 376-378
+  s_3409d1f2eae948::t_680160dd2cabe1 328
+docs/fitness-file-storage.md
+  s_3409d1f2eae948::t_6d1309be14e4b7 60
+  s_3409d1f2eae948::t_6da3aa161d9e54 116-126
+  s_3409d1f2eae948::t_ce6e8de1975c6d 86
+  s_3409d1f2eae948::t_9142b3848ad5f3 65-79
+lib/database/sql/fitnessGear.test.ts
+  s_3409d1f2eae948::t_9cbc43e369660c 1-1208
+lib/services/notifications/notificationTypeMapping.ts
+  s_3409d1f2eae948::t_2c802aa901bd3d 103
+lib/services/strava/archiveReader.ts
+  s_3409d1f2eae948::t_b85d7e2f170456 8
+  s_3409d1f2eae948::t_d3987324562a56 661-664,672,680-710
+  s_3409d1f2eae948::t_248ad9af2ebf69 62,381-407,409-430,711
+  s_3409d1f2eae948::t_6cac74903e0f74 52-54,59-61
+  s_3409d1f2eae948::t_e1232bdd9d54a5 408
+  s_3409d1f2eae948::t_49308411b947e3 637-639
+  s_3409d1f2eae948::t_0f37b9e8b379fb 63
+app/api/v1/fitness/gear/[id]/components/[componentId]/replace/route.ts
+  s_3409d1f2eae948::t_ed1367a63c4305 1-73
+lib/services/strava/archiveReader.test.ts
+  s_3409d1f2eae948::t_238643a9844675 87-144
+  s_3409d1f2eae948::t_e9c081b32dee1d 6
+lib/database/sql/index.ts
+  s_3409d1f2eae948::t_399a2c6bc20708 18
+  s_3409d1f2eae948::t_5dcdb6df3fefba 151
+  s_3409d1f2eae948::t_ab1737b5e7691c 62
+lib/services/fitness-gears/serviceReminders.test.ts
+  s_3409d1f2eae948::t_405e4a272a7170 1-105,107-121,123-138,140-310
+  s_3409d1f2eae948::t_d240751cf262a8 106,122,139
+lib/database/sql/status.test.ts
+  s_3409d1f2eae948::t_286c84f153790c 633-677
+scripts/mock/renderEmailPreviews.ts
+  s_3409d1f2eae948::t_60694520cd387f 259-283
+  s_3409d1f2eae948::t_256ba830dc338f 38
+lib/jobs/processFitnessFileJob.test.ts
+  s_3409d1f2eae948::t_9cf29d448b7310 1415-1563
+lib/components/settings/PushNotificationSettings.tsx
+  s_3409d1f2eae948::t_b30411f8d818c7 31
+app/(timeline)/fitness/gear/GearFormDialog.test.tsx
+  s_3409d1f2eae948::t_2f46559bc92e4c 1-326
+lib/services/email/templates/gearServiceDue.ts
+  s_3409d1f2eae948::t_c5e267aadf6382 1-85
+app/(timeline)/fitness/gear/[id]/GearDetailView.tsx
+  s_3409d1f2eae948::t_3627f5be072ab8 1-248
+AGENTS.md
+  s_3409d1f2eae948::t_49ccf045a8c89d 350-403
+app/(timeline)/fitness/gear/gearUi.test.ts
+  s_3409d1f2eae948::t_03ef3c8c326e48 1-241
+REVIEW.md
+  s_3409d1f2eae948::t_88953314dd7cb7 194-199
+lib/components/posts/post.tsx
+  s_3409d1f2eae948::t_b1622ee11956ac 181-188,192
+lib/components/posts/post.test.tsx
+  s_3409d1f2eae948::t_1045f0f3612097 1349-1369,1371-1373
+  s_3409d1f2eae948::t_39b17d953f21da 1311-1348,1370,1374-1398
+app/(timeline)/fitness/gear/[id]/page.tsx
+  s_3409d1f2eae948::t_6a110797cfa822 1-43
+lib/services/notifications/getMastodonNotification.ts
+  s_3409d1f2eae948::t_b30411f8d818c7 138
+lib/types/database/fitnessFile.ts
+  s_3409d1f2eae948::t_f5e056d484684d 86
+  s_3409d1f2eae948::t_5b81722e92cae4 45-47
+app/api/v1/fitness/gear/[id]/route.test.ts
+  s_3409d1f2eae948::t_5a5d1784d68a3b 1-196
+app/(timeline)/fitness/gear/GearListView.tsx
+  s_3409d1f2eae948::t_04eec80eb9631a 1-250
+app/(timeline)/fitness/gear/page.tsx
+  s_c49f314e4669e5::t_ee6d5ed4753bc7 1-41
+app/api/v1/fitness/gear/route.test.ts
+  s_3409d1f2eae948::t_db3acb0d3707b7 1-262
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "fb1a3327375a7a7268350161bf3a90bf7fc5f0b2",
+  "prompts": {},
+  "sessions": {
+    "s_3409d1f2eae948": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "aba2c7b7-1622-4396-83a6-ceb8b991ae04",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_c49f314e4669e5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7943cdcd-d6e8-4e7d-bb66-10e0c18bec87",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
