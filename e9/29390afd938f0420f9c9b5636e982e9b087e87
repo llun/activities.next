@@ -1,0 +1,32 @@
+lib/database/sql/fitnessGear.test.ts
+  s_3409d1f2eae948::t_1d195af0859195 351-390,393-394,397-410
+  s_3409d1f2eae948::t_76ae291cf77f6e 1290-1342
+app/(timeline)/notifications/NotificationItem.test.tsx
+  s_3409d1f2eae948::t_1d422fa9ce6c47 417-420,422
+lib/jobs/processFitnessFileJob.ts
+  s_3409d1f2eae948::t_d5a2156d4e7c30 731-732
+lib/jobs/processFitnessFileJob.test.ts
+  s_3409d1f2eae948::t_a6797160185010 1464-1481,1483-1505
+  s_3409d1f2eae948::t_03dcfbc69e21de 1482
+lib/database/sql/fitnessGear.ts
+  s_3409d1f2eae948::t_7f666d245658a9 437-448,452-464,466-469
+app/(timeline)/notifications/NotificationItem.tsx
+  s_3409d1f2eae948::t_cc8925140b9fb6 87-88,90-93
+  s_3409d1f2eae948::t_01f67907dca6f6 225-229
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "e929390afd938f0420f9c9b5636e982e9b087e87",
+  "prompts": {},
+  "sessions": {
+    "s_3409d1f2eae948": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "aba2c7b7-1622-4396-83a6-ceb8b991ae04",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
