@@ -1461,6 +1461,48 @@ describe('processFitnessFileJob', () => {
       expect(reloaded?.lastAlertedDistanceMeters).toBe(5_200)
     })
 
+    it('keeps a finished activity completed when the reminder lookup fails', async () => {
+      // The reminder block runs AFTER the activity is written `completed`, so
+      // an uncontained failure there would fall through to the job's failure
+      // handler and demote a fully processed activity — hiding it from the
+      // dashboard, the overview, every rollup and federation, over a read that
+      // only decides whether to send a courtesy email.
+      await database.createFitnessGear({
+        actorId: actor.id,
+        kind: 'shoes',
+        name: 'Reminder lookup failure shoes',
+        defaultSports: ['run'],
+        alertDistanceMeters: 5_000
+      })
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+
+      // Let the job's early read through and fail only the post-completion one.
+      const realGetFitnessFile = database.getFitnessFile.bind(database)
+      let calls = 0
+      const spy = vi
+        .spyOn(database, 'getFitnessFile')
+        .mockImplementation(async (params) => {
+          calls += 1
+          if (calls > 1) throw new Error('connection reset')
+          return realGetFitnessFile(params)
+        })
+
+      try {
+        await processFitnessFileJob(database, {
+          id: 'job-gear-reminder-read-failed',
+          name: PROCESS_FITNESS_FILE_JOB_NAME,
+          data: { actorId: actor.id, statusId, fitnessFileId }
+        })
+      } finally {
+        spy.mockRestore()
+      }
+
+      const reloaded = await database.getFitnessFile({ id: fitnessFileId })
+      expect(reloaded?.processingStatus).toBe('completed')
+    })
+
     it('does not fire a reminder while the gear is below its threshold', async () => {
       const shoes = await database.createFitnessGear({
         actorId: actor.id,

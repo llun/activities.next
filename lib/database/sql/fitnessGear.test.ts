@@ -348,29 +348,66 @@ describe('FitnessGearDatabase', () => {
       it('changes nothing when the gear is already in the requested state', async () => {
         // A double click or an idempotent client retry must not move the date
         // the owner put the gear away on, nor re-arm a reminder that has fired.
+        //
+        // The clock is faked and advanced deliberately: the two calls otherwise
+        // land in the same millisecond, so the `retiredAt` assertion would pass
+        // against an unconditional write and guard nothing.
+        vi.useFakeTimers({ toFake: ['Date'] })
+        try {
+          vi.setSystemTime(new Date('2026-03-01T10:00:00.000Z'))
+          const gear = await database.createFitnessGear({
+            actorId: actors.primary.id,
+            kind: 'shoes',
+            name: 'Retire no-op',
+            alertDistanceMeters: 650_000
+          })
+          const retired = await database.setFitnessGearRetired({
+            id: gear.id,
+            actorId: actors.primary.id,
+            retired: true
+          })
+          await database.setFitnessGearLastAlertedDistance({
+            id: gear.id,
+            lastAlertedDistanceMeters: 651_000
+          })
+
+          vi.setSystemTime(new Date('2026-03-02T10:00:00.000Z'))
+          const again = await database.setFitnessGearRetired({
+            id: gear.id,
+            actorId: actors.primary.id,
+            retired: true
+          })
+
+          expect(again?.retiredAt).toBe(retired?.retiredAt)
+          expect(again?.lastAlertedDistanceMeters).toBe(651_000)
+        } finally {
+          vi.useRealTimers()
+        }
+      })
+
+      it('still reports the gear when the toggle is a no-op, and null when it is not the actor’s', async () => {
+        // A no-op writes no row, so the result cannot be keyed on the affected
+        // count — "already retired" and "no such gear" must stay distinguishable.
         const gear = await database.createFitnessGear({
           actorId: actors.primary.id,
-          kind: 'shoes',
-          name: 'Retire no-op',
-          alertDistanceMeters: 650_000
-        })
-        const retired = await database.setFitnessGearRetired({
-          id: gear.id,
-          actorId: actors.primary.id,
-          retired: true
-        })
-        await database.setFitnessGearLastAlertedDistance({
-          id: gear.id,
-          lastAlertedDistanceMeters: 651_000
+          kind: 'bike',
+          name: 'Retire no-op result'
         })
 
-        const again = await database.setFitnessGearRetired({
-          id: gear.id,
-          actorId: actors.primary.id,
-          retired: true
-        })
-        expect(again?.retiredAt).toBe(retired?.retiredAt)
-        expect(again?.lastAlertedDistanceMeters).toBe(651_000)
+        expect(
+          await database.setFitnessGearRetired({
+            id: gear.id,
+            actorId: actors.primary.id,
+            retired: false
+          })
+        ).toMatchObject({ id: gear.id })
+        expect(
+          await database.setFitnessGearRetired({
+            id: gear.id,
+            actorId: actors.replyAuthor.id,
+            retired: false
+          })
+        ).toBeNull()
       })
 
       it('returns null for another actor’s gear', async () => {
@@ -1243,6 +1280,59 @@ describe('FitnessGearDatabase', () => {
             fitnessFileId: activity.id,
             actorId: actors.empty.id,
             gearId: foreignGear.id
+          })
+        ).toBe(false)
+        expect(
+          (await database.getFitnessFile({ id: activity.id }))?.gearId
+        ).toBeUndefined()
+      })
+
+      it('accepts retired gear, so an import can attribute a ride to a sold bike', async () => {
+        // Guards the EXISTS subquery against a future "hardening" pass adding
+        // `whereNull('retiredAt')` to it: retiring means "stop suggesting this",
+        // not "refuse to record history against it".
+        const gear = await database.createFitnessGear({
+          actorId: actors.empty.id,
+          kind: 'bike',
+          name: 'If unset retired gear'
+        })
+        await database.setFitnessGearRetired({
+          id: gear.id,
+          actorId: actors.empty.id,
+          retired: true
+        })
+        const activity = await createActivity(database, {
+          actorId: actors.empty.id,
+          pathSuffix: 'if-unset-retired',
+          distanceMeters: 6_000
+        })
+
+        expect(
+          await database.assignFitnessFileGearIfUnset({
+            fitnessFileId: activity.id,
+            actorId: actors.empty.id,
+            gearId: gear.id
+          })
+        ).toBe(true)
+      })
+
+      it('refuses an activity belonging to another actor', async () => {
+        const gear = await database.createFitnessGear({
+          actorId: actors.empty.id,
+          kind: 'bike',
+          name: 'If unset foreign file gear'
+        })
+        const activity = await createActivity(database, {
+          actorId: actors.primary.id,
+          pathSuffix: 'if-unset-foreign-file',
+          distanceMeters: 6_000
+        })
+
+        expect(
+          await database.assignFitnessFileGearIfUnset({
+            fitnessFileId: activity.id,
+            actorId: actors.empty.id,
+            gearId: gear.id
           })
         ).toBe(false)
         expect(

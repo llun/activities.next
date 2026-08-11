@@ -84,11 +84,13 @@ export const NotificationItem = ({
     </span>
   )
   let body: ReactNode = null
+  // The whole-row overlay's href. Usually the subject post, but a `plain` row
+  // has no post and points at the surface it is about instead.
   let statusPath: string | null = null
-  // Status rows have no inner link to the post, so the whole-row overlay must be
-  // reachable by keyboard / assistive tech. Activity imports expose a "View"
-  // link, so their overlay stays decorative (aria-hidden) to avoid a redundant
-  // tab stop.
+  // Status rows and `plain` rows have no inner link of their own, so their
+  // whole-row overlay must be reachable by keyboard / assistive tech. Activity
+  // imports expose a "View" link, so their overlay stays decorative
+  // (aria-hidden) to avoid a redundant tab stop.
   let overlayAccessible = false
 
   if (cfg && withAccount) {
@@ -220,10 +222,11 @@ export const NotificationItem = ({
     >
       {!isRead && <span className="sr-only">Unread</span>}
       {statusPath &&
-        // Whole-row link to the subject post. For status rows it is the only
-        // link to the post, so it stays focusable; activity-import rows have an
-        // explicit "View" link, so theirs is hidden from the tab order / SR to
-        // avoid a duplicate stop while keeping the full-row mouse target.
+        // Whole-row link to whatever the row is about — the subject post, or
+        // the gear page for a `plain` row. For those two it is the only link,
+        // so it stays focusable; activity-import rows have an explicit "View"
+        // link, so theirs is hidden from the tab order / SR to avoid a
+        // duplicate stop while keeping the full-row mouse target.
         (overlayAccessible ? (
           <Link
             href={statusPath}

@@ -728,7 +728,8 @@ export const processFitnessFileJob = createJobHandle(
       // have been attributed a moment ago, by the auto-assign above or by the
       // import that created the file. Evaluated here because there is no
       // scheduler to evaluate it on — the queue can delay a message but not
-      // repeat one. `evaluateGearServiceReminders` contains its own failures.
+      // repeat one.
+      //
       // Contained, and it has to be: everything above has already been written
       // and the activity is `completed`, but this block still sits inside the
       // outer try — so an uncaught blip on this read would fall through to the

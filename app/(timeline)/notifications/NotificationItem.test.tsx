@@ -414,8 +414,12 @@ describe('NotificationItem', () => {
     expect(
       screen.queryByText('This imported activity is no longer available.')
     ).not.toBeInTheDocument()
+    // An exact name, not a substring: the row is self-addressed, so a label
+    // built the usual way would read "Ride Your gear is due for service" —
+    // announcing the recipient's own name back at them. A regex would match
+    // both and guard nothing.
     expect(
-      screen.getByRole('link', { name: /gear is due for service/i })
+      screen.getByRole('link', { name: 'Your gear is due for service' })
     ).toHaveAttribute('href', '/fitness/gear')
   })
 

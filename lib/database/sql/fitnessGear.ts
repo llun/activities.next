@@ -433,33 +433,40 @@ export const FitnessGearSQLDatabaseMixin = (
   },
 
   async setFitnessGearRetired({ id, actorId, retired }) {
-    const existing = await getOwnedGearRow(database, id, actorId)
-    if (!existing) return null
-
     const currentTime = new Date()
-    // Only a real state change re-arms the reminder. Writing null on a no-op
-    // toggle (a double click, an idempotent client retry) would clear an alert
-    // that has already fired and make the next activity notify again at the
-    // same threshold.
-    const changesRetirement = Boolean(existing.retiredAt) !== retired
-    const updated = await database('fitness_gears')
+
+    // The state change is a predicate on the UPDATE, not a decision taken from
+    // a read in front of it. Only a real transition may write — re-sending
+    // `{retired: true}` for gear already retired must not move the date the
+    // owner put it away on, nor clear an alert that has already fired and let
+    // the next activity notify again at the same threshold.
+    //
+    // Expressed in the statement because the caller of this is an HTTP route
+    // that serializes nothing, so a double click really does arrive as two
+    // concurrent requests. A read-then-write would have both of them see
+    // "not retired yet" and both write.
+    const query = database('fitness_gears')
       .where('id', id)
       .where('actorId', actorId)
       .whereNull('deletedAt')
-      .update({
-        // `retiredAt` is conditional for the same reason: re-sending
-        // `{retired: true}` for gear already retired should not move the date
-        // the owner put it away on.
-        ...(changesRetirement
-          ? { retiredAt: retired ? currentTime : null }
-          : {}),
-        // Retiring freezes the total and unretiring resumes it; either way the
-        // next crossing is a fresh one.
-        ...(changesRetirement ? { lastAlertedDistanceMeters: null } : {}),
-        updatedAt: currentTime
-      })
-    if (updated === 0) return null
+    if (retired) {
+      query.whereNull('retiredAt')
+    } else {
+      query.whereNotNull('retiredAt')
+    }
 
+    await query.update({
+      retiredAt: retired ? currentTime : null,
+      // Retiring freezes the total and unretiring resumes it; either way the
+      // next crossing is a fresh one.
+      lastAlertedDistanceMeters: null,
+      updatedAt: currentTime
+    })
+
+    // Deliberately not keyed on the affected-row count: zero rows means either
+    // "already in that state" (a successful no-op, which must return the gear)
+    // or "no such gear of yours" (null). The re-read tells them apart, and it
+    // is the same read the success path needs anyway.
     const row = await getOwnedGearRow(database, id, actorId)
     return row ? parseSQLFitnessGear(row) : null
   },
