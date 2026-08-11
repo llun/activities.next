@@ -70,7 +70,21 @@ const notifyGearServiceDue = async (
     // resolves the source actor for the push payload from this id.
     sourceActorId: actorId
   })
-  if (!notification || notification.filtered) return
+  if (!notification || notification.filtered) {
+    // The claim is already recorded, so this crossing will not be offered
+    // again at this threshold. That is the right trade — a policy that drops
+    // or files the notification should not cause a repeat on the next
+    // activity — but it must leave a trace rather than vanishing.
+    logger.info({
+      message: notification
+        ? 'Gear service reminder filtered by notification policy'
+        : 'Gear service reminder dropped by notification policy',
+      actorId,
+      gearId: reminder.gear.id,
+      componentId: reminder.componentId
+    })
+    return
+  }
 
   sendNotificationAlerts({
     database,

@@ -195,10 +195,16 @@ export const NotificationItem = ({
   }
 
   const showBadge = Boolean(cfg && withAccount)
+  // A `plain` row is self-addressed, so its account IS the recipient — naming
+  // them would have a screen reader announce "Alice Wonder Your gear is due for
+  // service" for a row whose visible text is just the verb. Its overlay is also
+  // the row's only focusable element, so that label is all assistive tech gets.
   const overlayLabel =
-    cfg && account
-      ? `${getGroupedName(account.display_name || account.username, notification.groupedCount)} ${cfg.verb}`
-      : 'Open notification'
+    cfg?.kind === 'plain'
+      ? cfg.verb
+      : cfg && account
+        ? `${getGroupedName(account.display_name || account.username, notification.groupedCount)} ${cfg.verb}`
+        : 'Open notification'
 
   return (
     <div

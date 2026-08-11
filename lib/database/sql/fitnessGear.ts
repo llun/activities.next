@@ -447,7 +447,12 @@ export const FitnessGearSQLDatabaseMixin = (
       .where('actorId', actorId)
       .whereNull('deletedAt')
       .update({
-        retiredAt: retired ? currentTime : null,
+        // `retiredAt` is conditional for the same reason: re-sending
+        // `{retired: true}` for gear already retired should not move the date
+        // the owner put it away on.
+        ...(changesRetirement
+          ? { retiredAt: retired ? currentTime : null }
+          : {}),
         // Retiring freezes the total and unretiring resumes it; either way the
         // next crossing is a fresh one.
         ...(changesRetirement ? { lastAlertedDistanceMeters: null } : {}),
@@ -888,19 +893,32 @@ export const FitnessGearSQLDatabaseMixin = (
   },
 
   async assignFitnessFileGearIfUnset({ fitnessFileId, actorId, gearId }) {
-    // Scoped to the actor on both sides even though every caller resolves gear
-    // for the file's own actor: this is the one assignment path with no
-    // ownership check of its own, and a file carrying another actor's gearId
-    // would corrupt both rollups.
-    const gear = await getOwnedGearRow(database, gearId, actorId)
-    if (!gear) return false
-
+    // Ownership is asserted as an EXISTS inside the same statement rather than
+    // a read in front of it. Every caller resolves gear for the file's own
+    // actor, but this is the one assignment path with no check of its own and a
+    // file carrying another actor's gearId would corrupt both rollups.
+    //
+    // Folded in rather than a separate lookup because this runs once per
+    // imported activity — a 5,000-ride archive would otherwise pay 5,000
+    // redundant primary-key reads inside the import loop — and because a
+    // check-then-write would still let gear deleted in between be written.
+    // Retired gear deliberately passes: an import must be able to attribute a
+    // ride to a bike that has since been sold.
+    //
     // The `whereNull('gearId')` is the correctness guarantee, not an
     // optimisation: import jobs re-run, and a manual assignment made between a
     // caller's read and this write must survive.
     const updated = await database('fitness_files')
       .where('id', fitnessFileId)
       .where('actorId', actorId)
+      .whereExists((builder) =>
+        builder
+          .select(database.raw('1'))
+          .from('fitness_gears')
+          .where('fitness_gears.id', gearId)
+          .where('fitness_gears.actorId', actorId)
+          .whereNull('fitness_gears.deletedAt')
+      )
       .whereNull('gearId')
       .whereNull('deletedAt')
       .update({ gearId, updatedAt: new Date() })

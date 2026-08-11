@@ -86,7 +86,12 @@ const getActivityPresentation = (activityType?: string) => {
 
   const normalized = activityType.toLowerCase()
 
-  if (ACTIVITY_LABELS[normalized]) {
+  // `Object.hasOwn`, not a bare index: the table is an object literal, so it
+  // inherits `Object.prototype`. `activityType` is free-form text out of the
+  // uploaded file, and a `constructor` value would otherwise destructure the
+  // `Object` constructor into `{label, emoji}` and write
+  // "undefined undefined — 5.20 km" into the post body.
+  if (Object.hasOwn(ACTIVITY_LABELS, normalized)) {
     return ACTIVITY_LABELS[normalized]
   }
 
@@ -724,14 +729,32 @@ export const processFitnessFileJob = createJobHandle(
       // import that created the file. Evaluated here because there is no
       // scheduler to evaluate it on — the queue can delay a message but not
       // repeat one. `evaluateGearServiceReminders` contains its own failures.
-      const attributedFile = await database.getFitnessFile({
-        id: fitnessFileId
-      })
-      if (attributedFile?.gearId) {
-        await evaluateGearServiceReminders({
-          database,
+      // Contained, and it has to be: everything above has already been written
+      // and the activity is `completed`, but this block still sits inside the
+      // outer try — so an uncaught blip on this read would fall through to the
+      // failure handler and mark a finished activity `failed`, hiding it from
+      // the dashboard, the overview, every rollup and federation, over a read
+      // that only decides whether to send a courtesy email.
+      // `evaluateGearServiceReminders` contains its own failures; this catch is
+      // for the read in front of it.
+      try {
+        const attributedFile = await database.getFitnessFile({
+          id: fitnessFileId
+        })
+        if (attributedFile?.gearId) {
+          await evaluateGearServiceReminders({
+            database,
+            actorId,
+            gearIds: [attributedFile.gearId]
+          })
+        }
+      } catch (error) {
+        logger.error({
+          message: 'Failed to evaluate gear service reminders after processing',
           actorId,
-          gearIds: [attributedFile.gearId]
+          statusId,
+          fitnessFileId,
+          err: toLoggableError(error)
         })
       }
 

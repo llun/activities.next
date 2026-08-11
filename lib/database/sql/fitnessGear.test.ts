@@ -345,6 +345,34 @@ describe('FitnessGearDatabase', () => {
         expect(unretired?.retiredAt).toBeUndefined()
       })
 
+      it('changes nothing when the gear is already in the requested state', async () => {
+        // A double click or an idempotent client retry must not move the date
+        // the owner put the gear away on, nor re-arm a reminder that has fired.
+        const gear = await database.createFitnessGear({
+          actorId: actors.primary.id,
+          kind: 'shoes',
+          name: 'Retire no-op',
+          alertDistanceMeters: 650_000
+        })
+        const retired = await database.setFitnessGearRetired({
+          id: gear.id,
+          actorId: actors.primary.id,
+          retired: true
+        })
+        await database.setFitnessGearLastAlertedDistance({
+          id: gear.id,
+          lastAlertedDistanceMeters: 651_000
+        })
+
+        const again = await database.setFitnessGearRetired({
+          id: gear.id,
+          actorId: actors.primary.id,
+          retired: true
+        })
+        expect(again?.retiredAt).toBe(retired?.retiredAt)
+        expect(again?.lastAlertedDistanceMeters).toBe(651_000)
+      })
+
       it('returns null for another actor’s gear', async () => {
         const gear = await database.createFitnessGear({
           actorId: actors.primary.id,
@@ -1196,6 +1224,55 @@ describe('FitnessGearDatabase', () => {
         expect(
           (await database.getFitnessFile({ id: activity.id }))?.gearId
         ).toBe(gear.id)
+      })
+
+      it('refuses gear belonging to another actor', async () => {
+        const foreignGear = await database.createFitnessGear({
+          actorId: actors.primary.id,
+          kind: 'bike',
+          name: 'If unset foreign gear'
+        })
+        const activity = await createActivity(database, {
+          actorId: actors.empty.id,
+          pathSuffix: 'if-unset-foreign',
+          distanceMeters: 6_000
+        })
+
+        expect(
+          await database.assignFitnessFileGearIfUnset({
+            fitnessFileId: activity.id,
+            actorId: actors.empty.id,
+            gearId: foreignGear.id
+          })
+        ).toBe(false)
+        expect(
+          (await database.getFitnessFile({ id: activity.id }))?.gearId
+        ).toBeUndefined()
+      })
+
+      it('refuses gear that has been deleted', async () => {
+        const gear = await database.createFitnessGear({
+          actorId: actors.empty.id,
+          kind: 'bike',
+          name: 'If unset deleted gear'
+        })
+        await database.deleteFitnessGear({
+          id: gear.id,
+          actorId: actors.empty.id
+        })
+        const activity = await createActivity(database, {
+          actorId: actors.empty.id,
+          pathSuffix: 'if-unset-deleted',
+          distanceMeters: 6_000
+        })
+
+        expect(
+          await database.assignFitnessFileGearIfUnset({
+            fitnessFileId: activity.id,
+            actorId: actors.empty.id,
+            gearId: gear.id
+          })
+        ).toBe(false)
       })
 
       it('never overwrites an existing assignment', async () => {
