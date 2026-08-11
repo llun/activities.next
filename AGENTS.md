@@ -415,6 +415,13 @@ it; there is no legacy shape left to copy.
   but not repeat one). `evaluateGearServiceReminders` runs where a total can
   change and records the distance it fired at in `lastAlertedDistanceMeters`, so
   each crossing notifies once and a raised threshold re-arms on its own.
+- **A state change is a predicate on the UPDATE, never a decision taken from a
+  read in front of it** — that goes for the reminder claim and for the
+  retire/unretire toggle alike. Two concurrent requests (two tabs, a retry, any
+  API client) would otherwise both read the old state and both write. Where a
+  no-op legitimately writes no row, the result comes from a re-read rather than
+  the affected-row count, so "already in that state" stays distinguishable from
+  "no such gear of yours" — the latter is the route's 404.
 
 ## Status Posts & Actions
 

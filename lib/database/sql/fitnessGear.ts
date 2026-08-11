@@ -441,10 +441,11 @@ export const FitnessGearSQLDatabaseMixin = (
     // owner put it away on, nor clear an alert that has already fired and let
     // the next activity notify again at the same threshold.
     //
-    // Expressed in the statement because the caller of this is an HTTP route
-    // that serializes nothing, so a double click really does arrive as two
-    // concurrent requests. A read-then-write would have both of them see
-    // "not retired yet" and both write.
+    // Expressed in the statement rather than decided from a read in front of
+    // it, because a read-then-write lets two concurrent requests both see "not
+    // retired yet" and both write. The app's own button disables itself while
+    // the request is in flight, so the case is not a double click — it is two
+    // tabs, a retried request, or any other API client.
     const query = database('fitness_gears')
       .where('id', id)
       .where('actorId', actorId)
