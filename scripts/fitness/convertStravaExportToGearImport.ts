@@ -175,21 +175,40 @@ export const parseStravaActivitiesCsv = (csv: string): StravaActivityRow[] => {
   let distanceIndex: number | null = null
   try {
     distanceIndex = indexOf('Distance', 2)
-  } catch {
+  } catch (error) {
+    // Not fatal — the assignments are still correct without it — but the totals
+    // it feeds are the only cheap check that the gear names were transcribed
+    // right, and a confident "0.0 km" reads like the activities have no
+    // distance rather than like the column is missing.
+    console.warn(
+      `Warning: ${(error as Error).message}. Per-gear distances will read 0.0 km ` +
+        'and cannot be cross-checked against the Strava gear pages.'
+    )
     distanceIndex = null
   }
 
-  return rows.slice(1).map((row) => {
-    const rawDistance = distanceIndex === null ? '' : (row[distanceIndex] ?? '')
-    const distanceMeters = rawDistance.trim() ? Number(rawDistance) : NaN
+  return rows.slice(1).map((row, offset) => {
+    // `relax_column_count` lets short and mis-quoted rows through on purpose —
+    // Strava descriptions carry newlines and stray quotes — so a row that fails
+    // here has to name itself or it is unfindable in a 1,700-row file.
+    const line = offset + 2
+    try {
+      const rawDistance =
+        distanceIndex === null ? '' : (row[distanceIndex] ?? '')
+      const distanceMeters = rawDistance.trim() ? Number(rawDistance) : NaN
 
-    return {
-      activityId: (row[activityIdIndex] ?? '').trim(),
-      timeMilliseconds: parseStravaExportDate(row[dateIndex] ?? ''),
-      activityType: (row[typeIndex] ?? '').trim(),
-      gear: (row[gearIndex] ?? '').trim(),
-      fileName: (row[fileNameIndex] ?? '').trim(),
-      distanceMeters: Number.isFinite(distanceMeters) ? distanceMeters : null
+      return {
+        activityId: (row[activityIdIndex] ?? '').trim(),
+        timeMilliseconds: parseStravaExportDate(row[dateIndex] ?? ''),
+        activityType: (row[typeIndex] ?? '').trim(),
+        gear: (row[gearIndex] ?? '').trim(),
+        fileName: (row[fileNameIndex] ?? '').trim(),
+        distanceMeters: Number.isFinite(distanceMeters) ? distanceMeters : null
+      }
+    } catch (error) {
+      throw new Error(
+        `line ${line} (${row.length} columns): ${(error as Error).message}`
+      )
     }
   })
 }
@@ -210,6 +229,8 @@ export interface ConversionResult {
   reports: ConversionReport[]
   skippedByType: Record<string, number>
   unknownGear: string[]
+  /** Gear-carrying rows whose distance would not parse; the totals are low by these. */
+  unreadableDistanceCount: number
 }
 
 /**
@@ -231,6 +252,7 @@ export const buildAssignments = ({
   const totals = new Map<string, { count: number; distanceMeters: number }>()
   const skippedByType: Record<string, number> = {}
   const unknownGear = new Set<string>()
+  let unreadableDistanceCount = 0
 
   for (const row of rows) {
     if (!row.gear) {
@@ -252,6 +274,8 @@ export const buildAssignments = ({
         : {})
     })
 
+    if (row.distanceMeters === null) unreadableDistanceCount += 1
+
     const total = totals.get(row.gear) ?? { count: 0, distanceMeters: 0 }
     total.count += 1
     total.distanceMeters += row.distanceMeters ?? 0
@@ -268,7 +292,8 @@ export const buildAssignments = ({
       }))
       .sort((left, right) => right.assignmentCount - left.assignmentCount),
     skippedByType,
-    unknownGear: [...unknownGear]
+    unknownGear: [...unknownGear],
+    unreadableDistanceCount
   }
 }
 
@@ -312,13 +337,14 @@ async function convertStravaExportToGearImportScript(
     return 1
   }
 
+  const activitiesPath = join(input.exportDir, 'activities.csv')
   let rows: StravaActivityRow[]
   try {
-    rows = parseStravaActivitiesCsv(
-      readFileSync(join(input.exportDir, 'activities.csv'), 'utf-8')
-    )
+    rows = parseStravaActivitiesCsv(readFileSync(activitiesPath, 'utf-8'))
   } catch (error) {
-    console.error(`Error: ${(error as Error).message}`)
+    console.error(
+      `Error reading ${activitiesPath}: ${(error as Error).message}`
+    )
     return 1
   }
 
@@ -332,6 +358,17 @@ async function convertStravaExportToGearImportScript(
       `Error: activities.csv names gear that ${input.gears} does not describe:`
     )
     for (const name of result.unknownGear) console.error(`  - ${name}`)
+    return 1
+  }
+
+  // Writing an empty assignment list would validate and exit 0, and the import
+  // that consumed it would create the gear and attribute nothing — two green
+  // runs and no attribution, discovered days later on the fitness page.
+  if (rows.length > 0 && result.assignments.length === 0) {
+    console.error(
+      `Error: none of the ${rows.length} activities in ${activitiesPath} name any gear ` +
+        '(the "Activity Gear" column is empty on every row) — nothing to convert.'
+    )
     return 1
   }
 
@@ -357,6 +394,12 @@ async function convertStravaExportToGearImportScript(
     console.log(
       `  ${report.gearName}: ${report.assignmentCount} activities, ` +
         `${(report.distanceMeters / 1000).toFixed(1)} km`
+    )
+  }
+  if (result.unreadableDistanceCount > 0) {
+    console.log(
+      `  (${result.unreadableDistanceCount} activities had an unreadable distance, ` +
+        'so the totals above are low by that much.)'
     )
   }
 

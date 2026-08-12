@@ -110,6 +110,19 @@ describe('parseStravaActivitiesCsv', () => {
   it('throws on an empty file', () => {
     expect(() => parseStravaActivitiesCsv('')).toThrow(/empty/)
   })
+
+  it('names the line and column count of a row it cannot read', () => {
+    expect(() =>
+      parseStravaActivitiesCsv(
+        csvOf(
+          '123,"Oct 6, 2015, 9:44:23 AM",Ride,Ride,12.5,Moots,f.gpx,12500',
+          '124,not-a-date,Ride,Ride,12.5,Moots,f.gpx,12500'
+        )
+      )
+    ).toThrow(
+      /line 3 \(8 columns\): Unparseable Strava activity date: not-a-date/
+    )
+  })
 })
 
 describe('buildAssignments', () => {
@@ -164,5 +177,14 @@ describe('buildAssignments', () => {
   it('matches known gear names case-insensitively', () => {
     const result = buildAssignments({ rows, knownGearNames: ['moots'] })
     expect(result.unknownGear).toHaveLength(0)
+  })
+
+  it('counts gear rows whose distance would not parse', () => {
+    const result = buildAssignments({
+      rows: [{ ...rows[0], distanceMeters: null }],
+      knownGearNames: ['Moots']
+    })
+    expect(result.unreadableDistanceCount).toBe(1)
+    expect(result.reports[0].distanceMeters).toBe(0)
   })
 })

@@ -223,7 +223,7 @@ describe('matchAssignmentsToFiles', () => {
       fileId: 'file-1',
       deltaMilliseconds: 0
     })
-    expect([...result.claimedFileIds]).toEqual(['file-1'])
+    expect([...result.reservedFileIds]).toEqual(['file-1'])
   })
 
   it.each([
@@ -267,7 +267,9 @@ describe('matchAssignmentsToFiles', () => {
       ]
     })
     expect(result.matches[0].outcome.kind).toBe('ambiguous')
-    expect(result.claimedFileIds.size).toBe(0)
+    // Reserved even though unresolved, so a window cannot take a ride the file
+    // already said belonged to a different gear.
+    expect([...result.reservedFileIds].sort()).toEqual(['after', 'before'])
   })
 
   it('reports a second assignment landing on a claimed file', () => {
@@ -286,6 +288,7 @@ describe('matchAssignmentsToFiles', () => {
       fileId: 'file-1',
       claimedByAssignmentIndex: 0
     })
+    expect([...result.reservedFileIds]).toEqual(['file-1'])
   })
 
   it('never matches a file without a start time', () => {
@@ -344,7 +347,7 @@ describe('applyWindows', () => {
     const assignments = applyWindows({
       gears: gearsOf({ windows: [{ from: '2020-01-01', to: '2021-01-01' }] }),
       files: [ride('a', Date.UTC(2020, 5, 1))],
-      claimedFileIds: new Set()
+      reservedFileIds: new Set()
     })
     expect(assignments).toEqual([
       {
@@ -371,7 +374,7 @@ describe('applyWindows', () => {
     const assignments = applyWindows({
       gears: gearsOf({ windows: [{ from: '2020-01-01', to: '2021-01-01' }] }),
       files: [ride('a', time)],
-      claimedFileIds: new Set()
+      reservedFileIds: new Set()
     })
     expect(assignments).toHaveLength(assigned ? 1 : 0)
   })
@@ -410,7 +413,7 @@ describe('applyWindows', () => {
     const assignments = applyWindows({
       gears: gearsOf({ windows: [{ from: '2020-01-01', to: '2021-01-01' }] }),
       files,
-      claimedFileIds: new Set(claimed)
+      reservedFileIds: new Set(claimed)
     })
     expect(assignments).toHaveLength(0)
   })
@@ -425,7 +428,7 @@ describe('applyWindows', () => {
         ride('outdoor', Date.UTC(2020, 5, 1)),
         ride('indoor', Date.UTC(2020, 5, 2), { activityType: 'VirtualRide' })
       ],
-      claimedFileIds: new Set()
+      reservedFileIds: new Set()
     })
     expect(assignments.map((assignment) => assignment.fileId)).toEqual([
       'indoor'
@@ -436,7 +439,43 @@ describe('applyWindows', () => {
     const assignments = applyWindows({
       gears: gearsOf({ windows: [{ from: '2020-01-01', to: '2021-01-01' }] }),
       files: [ride('a', Date.UTC(2019, 5, 1))],
-      claimedFileIds: new Set()
+      reservedFileIds: new Set()
+    })
+    expect(assignments).toHaveLength(0)
+  })
+
+  it('never takes an activity an unresolved assignment named', () => {
+    // Two activities share a start time, so the assignment naming Moots ties and
+    // is skipped. A window on another bike covering the same period must not
+    // then take them: the file says those rides were on the Moots.
+    const parsed = parseGearImportFile({
+      gears: [
+        { name: 'Moots', kind: 'bike' },
+        { name: 'Giant', kind: 'bike', windows: [{ from: '2024-01-01' }] }
+      ],
+      assignments: [{ time: '2024-06-01T10:00:00Z', gear: 'Moots' }]
+    })
+    if (!parsed.ok) throw new Error(parsed.errors.join('; '))
+
+    const twins = [
+      ride('fit', Date.UTC(2024, 5, 1, 10)),
+      ride('gpx', Date.UTC(2024, 5, 1, 10))
+    ]
+    const { matches, reservedFileIds } = matchAssignmentsToFiles({
+      assignments: parsed.file.assignments,
+      files: twins,
+      toleranceMilliseconds: 60_000,
+      gearKindByName: new Map([
+        ['moots', 'bike'],
+        ['giant', 'bike']
+      ])
+    })
+    expect(matches[0].outcome.kind).toBe('ambiguous')
+
+    const assignments = applyWindows({
+      gears: parsed.file.gears,
+      files: twins,
+      reservedFileIds
     })
     expect(assignments).toHaveLength(0)
   })

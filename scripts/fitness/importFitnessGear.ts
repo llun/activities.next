@@ -181,7 +181,8 @@ const loadActorFitnessFiles = async (
         fileName: file.fileName,
         activityStartTime: file.activityStartTime,
         activityType: file.activityType,
-        gearId: file.gearId
+        gearId: file.gearId,
+        processingStatus: file.processingStatus
       })
     }
 
@@ -265,9 +266,13 @@ async function importFitnessGearScript(args = process.argv.slice(2)) {
     }
 
     // A default sport belongs to one gear at a time, so creating gear that
-    // claims one silently takes it from whoever holds it now.
+    // claims one silently takes it from whoever holds it now. Only gear this
+    // run actually creates can steal: `defaultSports` is passed to
+    // `createFitnessGear` and nowhere else, so warning about a reused entry
+    // would describe a change that never happens.
     const claimedSports = new Map<SportKey, string>()
-    for (const { entry } of resolved) {
+    for (const { entry, existing } of resolved) {
+      if (existing) continue
       for (const sportKey of entry.defaultSports ?? []) {
         claimedSports.set(sportKey, entry.name)
       }
@@ -291,6 +296,22 @@ async function importFitnessGearScript(args = process.argv.slice(2)) {
       }
     }
 
+    // Two entries pointing at one database row would each diff their components
+    // against the same pre-write snapshot, so both would insert and the gear
+    // would end up with the history twice over.
+    const resolvedById = new Map<string, string>()
+    for (const { entry, existing } of resolved) {
+      if (!existing) continue
+      const owner = resolvedById.get(existing.id)
+      if (owner) {
+        errors.push(
+          `entries "${owner}" and "${entry.name}" both resolve to the existing gear "${existing.name}"`
+        )
+        continue
+      }
+      resolvedById.set(existing.id, entry.name)
+    }
+
     if (errors.length > 0) {
       console.error('Error: import cannot proceed:')
       for (const error of errors) console.error(`  - ${error}`)
@@ -299,12 +320,24 @@ async function importFitnessGearScript(args = process.argv.slice(2)) {
 
     const files = await loadActorFitnessFiles(database, actor.id)
 
+    // An actor with no activities at all cannot be the one these assignments
+    // describe. Creating the gear anyway would leave rows on the wrong actor —
+    // and `stealDefaultSports` would quietly strip sports off their real gear —
+    // so stop while that is still just a typo in `--actor-id`.
+    if (files.length === 0 && file.assignments.length > 0) {
+      console.error(
+        `Error: ${actor.id} has no activities, but the file has ${file.assignments.length} assignments.\n` +
+          '  Check --actor-id and the database shown above before re-running.'
+      )
+      return 1
+    }
+
     const gearKindByName = new Map<string, FitnessGearKind>(
       file.gears.map((gear) => [normalizeGearName(gear.name), gear.kind])
     )
 
     // --- Plan phase -------------------------------------------------------
-    const { matches, claimedFileIds, timestamplessFileCount } =
+    const { matches, reservedFileIds, timestamplessFileCount } =
       matchAssignmentsToFiles({
         assignments: file.assignments,
         files,
@@ -315,7 +348,7 @@ async function importFitnessGearScript(args = process.argv.slice(2)) {
     const windowAssignments = applyWindows({
       gears: file.gears,
       files,
-      claimedFileIds
+      reservedFileIds
     })
 
     const componentPlan = new Map<
@@ -366,7 +399,11 @@ async function importFitnessGearScript(args = process.argv.slice(2)) {
       const key = normalizeGearName(entry.name)
       const components = componentPlan.get(key) ?? []
       const parts = [
-        existing ? 'reuse' : 'create',
+        // Reuse adds the missing components and reconciles `retired`, but never
+        // rewrites the gear's own fields — an import must not overwrite what the
+        // owner may have corrected in the UI. Say so, or a re-run after editing
+        // brand/notes/defaultSports in the file looks like it applied them.
+        existing ? 'reuse (existing gear fields left as they are)' : 'create',
         `${components.length}/${entry.components.length} components to add`,
         `${matchedByGear.get(key) ?? 0} matched`,
         `${windowsByGear.get(key) ?? 0} by window`
@@ -379,6 +416,17 @@ async function importFitnessGearScript(args = process.argv.slice(2)) {
         `  ${entry.name} [${entry.kind}]: ${parts.join(', ')}${retiredChange}`
       )
     }
+
+    // Gear totals only count 'completed' activities, so a matched file that is
+    // still processing (or failed) gets its gearId but stays out of the numbers
+    // until it finishes — worth saying, since the totals are what an operator
+    // compares against Strava.
+    const filesById = new Map(files.map((entry) => [entry.id, entry]))
+    const notCompletedCount = matches.filter(
+      (match) =>
+        match.outcome.kind === 'matched' &&
+        filesById.get(match.outcome.fileId)?.processingStatus !== 'completed'
+    ).length
 
     const unmatched = matches.filter(
       (match) => match.outcome.kind === 'unmatched'
@@ -423,9 +471,33 @@ async function importFitnessGearScript(args = process.argv.slice(2)) {
     }
 
     if (kindMismatches.length > 0) {
+      // Assigned anyway on purpose: the import file knows which gear was used,
+      // while the local sport is guessed from free-form `activityType`. But this
+      // is the only skipped-or-warned category that still writes, so it gets the
+      // same detail as the others — and grouping by gear surfaces the case that
+      // matters, a gear whose every activity mismatches, which means its `kind`
+      // is wrong in the file and cannot be changed after the gear is created.
       console.log(
-        `\n! ${kindMismatches.length} assignments put a bike sport on shoes (or the reverse) — assigned anyway.`
+        `\n! Sport/kind mismatches (${kindMismatches.length}, assigned anyway):`
       )
+      const mismatchByGear = new Map<string, number>()
+      for (const match of kindMismatches) {
+        const key = normalizeGearName(match.gearName)
+        mismatchByGear.set(key, (mismatchByGear.get(key) ?? 0) + 1)
+      }
+      for (const [key, count] of mismatchByGear) {
+        const entry = file.gears.find(
+          (gear) => normalizeGearName(gear.name) === key
+        )
+        const total = matchedByGear.get(key) ?? 0
+        const allOfThem =
+          count === total && total > 1
+            ? ` — every one of them, so "kind": "${entry?.kind}" is probably wrong in the file`
+            : ''
+        console.log(
+          `  ${entry?.name ?? key} [${entry?.kind}]: ${count} of ${total}${allOfThem}`
+        )
+      }
     }
 
     if (input.dryRun) {
@@ -449,110 +521,202 @@ async function importFitnessGearScript(args = process.argv.slice(2)) {
     }
 
     const gearIdByName = new Map<string, string>()
-
-    for (const { entry, existing } of resolved) {
-      const key = normalizeGearName(entry.name)
-      let gear = existing
-
-      if (gear) {
-        totals.gearsReused += 1
-      } else {
-        gear = await database.createFitnessGear({
-          actorId: actor.id,
-          kind: entry.kind,
-          name: entry.name,
-          brand: entry.brand,
-          model: entry.model,
-          bikeType: entry.bikeType,
-          weightKilograms: entry.weightKilograms,
-          defaultSports: entry.defaultSports ?? [],
-          alertDistanceMeters: entry.alertDistanceMeters,
-          notes: entry.notes,
-          stravaGearId: entry.stravaGearId
-        })
-        totals.gearsCreated += 1
-        console.log(`  Created gear ${entry.name}`)
-      }
-
-      gearIdByName.set(key, gear.id)
-
-      if (Boolean(gear.retiredAt) !== entry.retired) {
-        await database.setFitnessGearRetired({
-          id: gear.id,
-          actorId: actor.id,
-          retired: entry.retired
-        })
-        totals.retiredChanged += 1
-      }
-
-      for (const component of componentPlan.get(key) ?? []) {
-        const created = await database.createFitnessGearComponent({
-          gearId: gear.id,
-          actorId: actor.id,
-          componentType: component.type,
-          brand: component.brand,
-          model: component.model,
-          addedAt: component.addedAt ? new Date(component.addedAt) : null,
-          removedAt: component.removedAt ? new Date(component.removedAt) : null,
-          serviceDistanceMeters: component.serviceDistanceMeters
-        })
-        if (created) totals.componentsCreated += 1
-        else totals.failed += 1
+    const printSummary = () => {
+      console.log(
+        `\nDone: ${totals.gearsCreated} gear created, ${totals.gearsReused} reused, ` +
+          `${totals.retiredChanged} retirement change(s), ${totals.componentsCreated} components added.\n` +
+          `Activities: ${totals.assigned} assigned, ${totals.windowAssigned} by window, ` +
+          `${totals.alreadyAssigned} already had gear, ${unmatched.length} unmatched, ` +
+          `${ambiguous.length + conflicts.length} skipped, ${totals.failed} error(s).`
+      )
+      if (notCompletedCount > 0) {
+        console.log(
+          `  ${notCompletedCount} of the matched activities are not 'completed' yet, so they ` +
+            'will not count toward gear totals until their processing finishes.'
+        )
       }
     }
 
-    for (const match of matches) {
-      if (match.outcome.kind !== 'matched') continue
-      const gearId = gearIdByName.get(normalizeGearName(match.gearName))
-      if (!gearId) {
-        totals.failed += 1
-        continue
+    // A throw here (a dropped connection, a statement timeout) would otherwise
+    // take the counters with it, leaving no way to tell whether the run wrote
+    // nothing or nearly everything.
+    let inFlight = 'the gear'
+    try {
+      for (const { entry, existing } of resolved) {
+        inFlight = `gear "${entry.name}"`
+        const key = normalizeGearName(entry.name)
+        let gear = existing
+
+        if (gear) {
+          totals.gearsReused += 1
+        } else {
+          gear = await database.createFitnessGear({
+            actorId: actor.id,
+            kind: entry.kind,
+            name: entry.name,
+            brand: entry.brand,
+            model: entry.model,
+            bikeType: entry.bikeType,
+            weightKilograms: entry.weightKilograms,
+            defaultSports: entry.defaultSports ?? [],
+            alertDistanceMeters: entry.alertDistanceMeters,
+            notes: entry.notes,
+            stravaGearId: entry.stravaGearId
+          })
+          totals.gearsCreated += 1
+          console.log(`  Created gear ${entry.name}`)
+        }
+
+        gearIdByName.set(key, gear.id)
+
+        if (Boolean(gear.retiredAt) !== entry.retired) {
+          const retired = await database.setFitnessGearRetired({
+            id: gear.id,
+            actorId: actor.id,
+            retired: entry.retired
+          })
+          if (retired) totals.retiredChanged += 1
+          else {
+            totals.failed += 1
+            console.error(
+              `  ! could not ${entry.retired ? 'retire' : 'unretire'} "${entry.name}" (${gear.id}) — the gear is no longer readable`
+            )
+          }
+        }
+
+        const planned = componentPlan.get(key) ?? []
+        for (const [position, component] of planned.entries()) {
+          const created = await database.createFitnessGearComponent({
+            gearId: gear.id,
+            actorId: actor.id,
+            componentType: component.type,
+            brand: component.brand,
+            model: component.model,
+            addedAt: component.addedAt ? new Date(component.addedAt) : null,
+            removedAt: component.removedAt
+              ? new Date(component.removedAt)
+              : null,
+            serviceDistanceMeters: component.serviceDistanceMeters
+          })
+          if (created) {
+            totals.componentsCreated += 1
+            continue
+          }
+          // Null means the gear itself is gone or not ours, which is fatal for
+          // every remaining component of this gear — looping on would just
+          // count the same failure once per part.
+          const remaining = planned.length - position
+          totals.failed += remaining
+          console.error(
+            `  ! gear "${entry.name}" (${gear.id}) is no longer readable — ` +
+              `skipped ${remaining} of its ${planned.length} new components, starting at "${component.type}"`
+          )
+          break
+        }
       }
 
-      if (input.overwrite) {
-        const updated = await database.setFitnessFileGear({
+      for (const match of matches) {
+        if (match.outcome.kind !== 'matched') continue
+        inFlight = `assignment ${match.index} (${describeAssignmentSource(match)} → ${match.gearName})`
+        const gearId = gearIdByName.get(normalizeGearName(match.gearName))
+        if (!gearId) {
+          totals.failed += 1
+          console.error(
+            `  ! ${describeAssignmentSource(match)} → ${match.gearName}: gear was never created`
+          )
+          continue
+        }
+
+        if (input.overwrite) {
+          const updated = await database.setFitnessFileGear({
+            fitnessFileId: match.outcome.fileId,
+            actorId: actor.id,
+            gearId
+          })
+          if (updated) totals.assigned += 1
+          else {
+            totals.failed += 1
+            console.error(
+              `  ! ${describeAssignmentSource(match)} → ${match.gearName}: activity ${match.outcome.fileName} could not be updated`
+            )
+          }
+          continue
+        }
+
+        const assigned = await database.assignFitnessFileGearIfUnset({
           fitnessFileId: match.outcome.fileId,
           actorId: actor.id,
           gearId
         })
-        if (updated) totals.assigned += 1
-        else totals.failed += 1
-        continue
+        if (assigned) {
+          totals.assigned += 1
+        } else if (match.outcome.alreadyAssigned) {
+          // Expected: the activity carried gear when the plan was read, and this
+          // run is not allowed to overwrite it.
+          totals.alreadyAssigned += 1
+        } else {
+          // The guarded UPDATE matched nothing even though the activity had no
+          // gear moments ago — the row (or the gear) changed underneath us.
+          totals.failed += 1
+          console.error(
+            `  ! ${describeAssignmentSource(match)} → ${match.gearName}: activity ${match.outcome.fileName} ` +
+              'had no gear when planned but the write was rejected; it or the gear changed during the run'
+          )
+        }
       }
 
-      const assigned = await database.assignFitnessFileGearIfUnset({
-        fitnessFileId: match.outcome.fileId,
-        actorId: actor.id,
-        gearId
-      })
-      if (assigned) totals.assigned += 1
-      else totals.alreadyAssigned += 1
-    }
-
-    for (const assignment of windowAssignments) {
-      const gearId = gearIdByName.get(normalizeGearName(assignment.gearName))
-      if (!gearId) {
-        totals.failed += 1
-        continue
+      for (const assignment of windowAssignments) {
+        inFlight = `window assignment for ${assignment.gearName}`
+        const gearId = gearIdByName.get(normalizeGearName(assignment.gearName))
+        if (!gearId) {
+          totals.failed += 1
+          console.error(
+            `  ! window assignment for ${assignment.gearName}: gear was never created`
+          )
+          continue
+        }
+        // Windows never overwrite, even with --overwrite: they describe a period,
+        // not the specific ride the owner may have corrected by hand.
+        const assigned = await database.assignFitnessFileGearIfUnset({
+          fitnessFileId: assignment.fileId,
+          actorId: actor.id,
+          gearId
+        })
+        if (assigned) {
+          totals.windowAssigned += 1
+        } else {
+          // `applyWindows` only ever offers activities whose gear was null, so
+          // unlike the matched loop there is no benign reading of a false here.
+          totals.failed += 1
+          console.error(
+            `  ! window assignment for ${assignment.gearName}: activity ${assignment.fileName} ` +
+              'had no gear when planned but the write was rejected; it changed during the run'
+          )
+        }
       }
-      // Windows never overwrite, even with --overwrite: they describe a period,
-      // not the specific ride the owner may have corrected by hand.
-      const assigned = await database.assignFitnessFileGearIfUnset({
-        fitnessFileId: assignment.fileId,
-        actorId: actor.id,
-        gearId
-      })
-      if (assigned) totals.windowAssigned += 1
-      else totals.alreadyAssigned += 1
+    } catch (error) {
+      console.error(`\nAborted while processing ${inFlight}.`)
+      printSummary()
+      console.error(
+        'Every step is idempotent — re-run to continue where it stopped.'
+      )
+      throw error
     }
 
-    console.log(
-      `\nDone: ${totals.gearsCreated} gear created, ${totals.gearsReused} reused, ` +
-        `${totals.retiredChanged} retirement change(s), ${totals.componentsCreated} components added.\n` +
-        `Activities: ${totals.assigned} assigned, ${totals.windowAssigned} by window, ` +
-        `${totals.alreadyAssigned} already had gear, ${unmatched.length} unmatched, ` +
-        `${ambiguous.length + conflicts.length} skipped, ${totals.failed} error(s).`
-    )
+    printSummary()
+
+    // A run that wrote no attribution at all did not do its job, whatever the
+    // per-item counters say. `alreadyAssigned` keeps a genuine re-run green.
+    if (
+      file.assignments.length > 0 &&
+      totals.assigned + totals.windowAssigned + totals.alreadyAssigned === 0
+    ) {
+      console.error(
+        `\nError: none of the ${file.assignments.length} assignments reached an activity. ` +
+          'Check --actor-id, the database above, and the unmatched deltas.'
+      )
+      return 1
+    }
 
     return totals.failed > 0 ? 1 : 0
   } finally {

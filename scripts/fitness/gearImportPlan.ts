@@ -288,6 +288,7 @@ export interface MatchableFitnessFile {
   activityStartTime?: number
   activityType?: string
   gearId?: string
+  processingStatus?: string
 }
 
 export type AssignmentOutcome =
@@ -313,8 +314,17 @@ export interface AssignmentMatch {
 
 export interface MatchAssignmentsResult {
   matches: AssignmentMatch[]
-  /** Files claimed by a match, so the window pass never touches them. */
-  claimedFileIds: Set<string>
+  /**
+   * Files an explicit assignment has spoken for, whether or not it resolved.
+   *
+   * Matched files are the obvious case. The files behind an `ambiguous` tie and
+   * the target of a `conflict` belong here too: the import file states which
+   * gear those rides were on, and a window covering the same period is the
+   * coarser rule. Leaving them out would let a window attribute a ride to a
+   * different gear than the entry that named it — a wrong answer arrived at
+   * precisely because the right one was too uncertain to use.
+   */
+  reservedFileIds: Set<string>
   /** Files with no `activityStartTime` — unplaceable in time, reported instead. */
   timestamplessFileCount: number
 }
@@ -374,6 +384,7 @@ export const matchAssignmentsToFiles = ({
     .sort((left, right) => startTimeOf(left) - startTimeOf(right))
 
   const claimedBy = new Map<string, number>()
+  const reservedFileIds = new Set<string>()
   const matches: AssignmentMatch[] = []
 
   assignments.forEach((assignment, index) => {
@@ -425,6 +436,7 @@ export const matchAssignmentsToFiles = ({
     )
 
     if (nearest.length > 1) {
+      for (const file of nearest) reservedFileIds.add(file.id)
       matches.push({
         ...base,
         outcome: {
@@ -438,6 +450,7 @@ export const matchAssignmentsToFiles = ({
     const file = nearest[0]
     const claimingIndex = claimedBy.get(file.id)
     if (claimingIndex !== undefined) {
+      reservedFileIds.add(file.id)
       matches.push({
         ...base,
         outcome: {
@@ -450,6 +463,7 @@ export const matchAssignmentsToFiles = ({
     }
 
     claimedBy.set(file.id, index)
+    reservedFileIds.add(file.id)
     const fileKind = getFileSportKind(file)
     matches.push({
       ...base,
@@ -466,7 +480,7 @@ export const matchAssignmentsToFiles = ({
 
   return {
     matches,
-    claimedFileIds: new Set(claimedBy.keys()),
+    reservedFileIds,
     timestamplessFileCount: files.filter(
       (file) => typeof file.activityStartTime !== 'number'
     ).length
@@ -484,23 +498,24 @@ export interface WindowAssignment {
  * Fills in the activities no explicit assignment named, using each gear's date
  * windows.
  *
- * Windows are the coarse rule and assignments are the fine one, so anything a
- * match already claimed is skipped even when a window also covers it. A file
- * that already carries gear is left alone too: this pass never overwrites, since
- * a window is a statement about a period, not about a specific ride the owner
- * may have corrected by hand.
+ * Windows are the coarse rule and assignments are the fine one, so any file an
+ * assignment spoke for is skipped even when a window also covers it — including
+ * the files behind an assignment that could not be resolved (see
+ * `reservedFileIds`). A file that already carries gear is left alone too: this
+ * pass never overwrites, since a window is a statement about a period, not about
+ * a specific ride the owner may have corrected by hand.
  */
 export const applyWindows = ({
   gears,
   files,
-  claimedFileIds
+  reservedFileIds
 }: {
   gears: ImportGear[]
   files: MatchableFitnessFile[]
-  claimedFileIds: Set<string>
+  reservedFileIds: Set<string>
 }): WindowAssignment[] => {
   const assignments: WindowAssignment[] = []
-  const taken = new Set(claimedFileIds)
+  const taken = new Set(reservedFileIds)
 
   for (const file of files) {
     if (taken.has(file.id) || file.gearId) continue
