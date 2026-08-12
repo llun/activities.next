@@ -123,6 +123,20 @@ describe('parseStravaActivitiesCsv', () => {
       /line 3 \(8 columns\): Unparseable Strava activity date: not-a-date/
     )
   })
+
+  it('reports the physical line when earlier records span several', () => {
+    // A description with embedded newlines is normal in a real export. Counting
+    // records rather than lines would report 3 here and send the operator to an
+    // unrelated row.
+    expect(() =>
+      parseStravaActivitiesCsv(
+        csvOf(
+          '123,"Oct 6, 2015, 9:44:23 AM",Ride,"a\nmulti\nline note",12.5,Moots,f.gpx,12500',
+          '124,not-a-date,Ride,Ride,12.5,Moots,f.gpx,12500'
+        )
+      )
+    ).toThrow(/line 5 \(8 columns\)/)
+  })
 })
 
 describe('buildAssignments', () => {

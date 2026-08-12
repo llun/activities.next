@@ -144,16 +144,21 @@ export interface StravaActivityRow {
  * conversion, so it has to be addressed by position.
  */
 export const parseStravaActivitiesCsv = (csv: string): StravaActivityRow[] => {
-  const rows = parse(csv, {
+  // `info` carries the physical line each record ends on. Counting records
+  // instead would drift low for everything after the first blank line or
+  // multi-line description — and a line number that is confidently wrong is
+  // worse than none, because the operator trusts it and reads an unrelated row.
+  const parsed = parse(csv, {
     bom: true,
     relax_column_count: true,
     relax_quotes: true,
-    skip_empty_lines: true
-  }) as string[][]
+    skip_empty_lines: true,
+    info: true
+  }) as { record: string[]; info: { lines: number } }[]
 
-  if (rows.length === 0) throw new Error('activities.csv is empty')
+  if (parsed.length === 0) throw new Error('activities.csv is empty')
 
-  const header = rows[0]
+  const header = parsed[0].record
   const indexOf = (name: string, occurrence = 1): number => {
     let seen = 0
     for (let index = 0; index < header.length; index += 1) {
@@ -187,11 +192,11 @@ export const parseStravaActivitiesCsv = (csv: string): StravaActivityRow[] => {
     distanceIndex = null
   }
 
-  return rows.slice(1).map((row, offset) => {
+  return parsed.slice(1).map(({ record: row, info }) => {
     // `relax_column_count` lets short and mis-quoted rows through on purpose —
     // Strava descriptions carry newlines and stray quotes — so a row that fails
     // here has to name itself or it is unfindable in a 1,700-row file.
-    const line = offset + 2
+    const line = info.lines
     try {
       const rawDistance =
         distanceIndex === null ? '' : (row[distanceIndex] ?? '')

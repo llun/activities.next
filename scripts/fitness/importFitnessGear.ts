@@ -609,7 +609,7 @@ async function importFitnessGearScript(args = process.argv.slice(2)) {
           totals.failed += remaining
           console.error(
             `  ! gear "${entry.name}" (${gear.id}) is no longer readable — ` +
-              `skipped ${remaining} of its ${planned.length} new components, starting at "${component.type}"`
+              `${remaining} of its ${planned.length} new components were not created, starting at "${component.type}"`
           )
           break
         }
