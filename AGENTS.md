@@ -347,6 +347,46 @@ it; there is no legacy shape left to copy.
   Outlook's Word engine is the one that needs `mso-` properties and the ghost
   table, and none of that is observable in a browser.
 
+## Fitness Stat Strips
+
+- **Three stat strips render through `FitnessStatGrid`**
+  (`@/lib/components/fitness/FitnessStatGrid`): the activity detail page's
+  header strip (distance / moving time / avg pace / elev gain), the strip under
+  its route map, and the inline fitness chip in a timeline post. Do not
+  hand-roll a `grid-cols-*` strip beside them, and put a new fitness stat strip
+  on this component rather than on a fourth threshold of its own.
+- **Two strips are NOT on it yet**, so do not read the rule as describing the
+  whole tree: the gear detail page's strip
+  (`app/(timeline)/fitness/gear/[id]/GearDetailView.tsx` — still on a
+  `sm:grid-cols-3`/`sm:grid-cols-2` **viewport** query, which is the same defect
+  described below) and the fitness overview's totals
+  (`app/(timeline)/fitness/ActorFitnessDashboard.tsx` — container-queried, but
+  hand-rolled on its own `@2xl/fitness` threshold). Migrating them is a
+  worthwhile follow-up; until then this section describes three strips, not
+  every one.
+- **The column rule is a CONTAINER query, never a viewport breakpoint.** The
+  design system's `FitnessKit.StatGrid` and `FitnessChip` grids measure their
+  own width with a `ResizeObserver` for the same reason `useCompactActionBar`
+  does on the post action row: a strip can sit in a narrow column on a wide
+  window. The old `sm:grid-cols-4` looked at the viewport, so on a tablet the
+  detail page kept four `text-[28px]` tiles side by side in a 565px column and
+  wrapped "31.1 km/h" onto two lines, while a chip in a wide column stayed
+  needlessly 2-up at any window under 640px.
+- The two variants differ, and it is the type size that separates them.
+  `detail` is 1-up, 2-up from **420px** and 4-up from **780px** (values are
+  21–28px, so a cell needs ~200px). `chip` is 2-up and 4-up from **424px**
+  (`text-sm` values fit four cells in 4×100px + 3×8px of gap) and never drops to
+  one column — a 4-row chip in a feed is a worse trade than a slightly tight
+  cell.
+- The detail page's two strips measure **separately** — the header one sits
+  inside the card's `p-5` and is 42px narrower than the one under the map — so
+  they can legitimately differ by one step in a narrow band of window widths.
+  That is the rule working on real available width, not drift.
+- `@container` goes on a **wrapper**, never on the grid itself: a container
+  query styles a container's descendants, not the container, so a grid cannot
+  both establish the container and read it. Guarded by
+  `lib/components/fitness/FitnessStatGrid.test.tsx`.
+
 ## Fitness Gear
 
 - **A gear total is derived, never stored.** `fitness_gears` and
@@ -405,6 +445,21 @@ it; there is no legacy shape left to copy.
 - **Retiring is not deleting and not un-assignable.** Retired gear is out of the
   pickers and out of auto-assign, but stays explicitly assignable so old
   activities can still be attributed to a bike that has since been sold.
+- **The activity page carries gear inline in the header's metadata line** —
+  `date · visibility · gear`, the way `FAGearRow` does in the design system's
+  `ui_kits/web/FitnessActivity.jsx`, not as a labelled field with a row of its
+  own. The owner gets a dropdown listing each candidate with its lifetime
+  distance (what tells two similar bikes apart at a glance) plus "No gear";
+  everyone else gets the name as plain text with the kind's icon; nobody gets
+  anything when no gear is attributed, **including** an owner whose shed is
+  empty — a menu whose only entry is "No gear" is dead UI. The picker is
+  disabled while its PATCH is in flight, because two quick changes otherwise
+  race and the loser's rollback restores a value the server has already
+  replaced. Whatever is assigned is always in the list even when the kind filter
+  or its retirement would drop it: a picker that cannot represent its own value
+  renders the assignment as something else, which reads as the gear having
+  changed on its own. In a post's inline chip, gear instead rides along with the
+  distance cell ("42.6 km · Moots") rather than taking a cell of its own.
 - **Import jobs assign with `assignFitnessFileGearIfUnset`**, whose
   `whereNull('gearId')` guard is the correctness guarantee rather than an
   optimisation: those jobs re-run, and a manual assignment made between a read
