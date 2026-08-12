@@ -352,9 +352,10 @@ export const StravaGearDefaultsSection: FC = () => {
                   It does NOT fix the other half on its own. `onSelect` runs
                   inside Radix's `flushSync`, so `setIsSaving(true)` lands
                   before the menu closes and Radix's own focus restore then
-                  targets a disabled button, dropping focus to `<body>`. The
-                  trigger is captured here and refocused once the write settles;
-                  see `pendingFocusRef`. */}
+                  targets a disabled button, dropping focus to `<body>`. This
+                  trigger registers itself in `triggerRefs`; the focus target is
+                  resolved from that AFTER the write settles, never captured
+                  here beforehand — see `pendingFocusRef` for why. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild disabled={isSaving}>
                   <Button
