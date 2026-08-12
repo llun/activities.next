@@ -136,6 +136,11 @@ change doesn't touch.
 - Server Components never pass `new Date()` to a Client Component. Pass
   `Date.now()` (a `number`); the client takes `currentTime: number` and builds
   `new Date(currentTime)` itself.
+- A `<Link>` rendered once per feed/list row passes `prefetch={false}`. `<Link>`
+  prefetches on viewport entry, so in an infinite-scroll feed that is one RSC
+  request per row — against dynamic routes that also federate out for
+  unpersisted remote actors. Navigation chrome (sidebar, sub-nav, pagination)
+  keeps prefetching. See **Link prefetching in feeds** in `AGENTS.md`.
 - Client Components that render relative timestamps (or fan out to `Posts`/`Post`)
   never call `Date.now()` / `new Date()` during render — they receive and forward
   `currentTime` from the server to avoid hydration mismatches.

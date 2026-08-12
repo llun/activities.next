@@ -48,6 +48,7 @@ export const StatusNotification: FC<Props> = ({
         </Avatar>
         <Link
           href={`/@${account.acct}`}
+          prefetch={false}
           className="truncate text-[13px] font-semibold hover:underline"
         >
           {groupedName}

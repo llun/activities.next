@@ -109,6 +109,7 @@ export const StatusLikes: FC<Props> = ({
               <Link
                 key={account.id}
                 href={`/@${account.acct}`}
+                prefetch={false}
                 className="inline-flex items-center gap-2 rounded-full border bg-background px-2 py-1 text-xs hover:bg-muted"
               >
                 <Avatar className="size-5">
@@ -172,6 +173,7 @@ export const StatusLikes: FC<Props> = ({
                   <Link
                     key={account.id}
                     href={`/@${account.acct}`}
+                    prefetch={false}
                     className="flex items-center gap-3 p-4 hover:bg-muted/50"
                   >
                     <Avatar className="size-10">
