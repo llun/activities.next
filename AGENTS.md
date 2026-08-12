@@ -630,8 +630,15 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   `CI Success` aggregate job; `Schema Dump Sync` is not a required check.
   The test job pins `TEST_DATABASE_TYPE: sqlite`; `lib/database/testUtils.ts`
   also supports `TEST_DATABASE_TYPE=pg` (with `TEST_DATABASE_HOST` /
-  `TEST_DATABASE_USERNAME` / `TEST_DATABASE_PASSWORD`) for running the suite
-  against a throwaway **local** PostgreSQL.
+  `TEST_DATABASE_USERNAME` / `TEST_DATABASE_PASSWORD`; the port is fixed at 5432) for running the suite against a throwaway **local** PostgreSQL. In that
+  mode each Vitest worker drops and recreates its **own** database named
+  `test_<VITEST_POOL_ID>` — a single shared database would let one worker
+  destroy the schema another worker is mid-test on. The schema loader also has
+  to `RESET search_path` on the connection it loads `migrations/schema.sql`
+  into, because pg_dump's leading
+  `SELECT pg_catalog.set_config('search_path', '', false)` is session-scoped and
+  would otherwise leave that pooled connection unable to resolve any unqualified
+  table name for the rest of its life.
 - **To grab a mocked module and configure it, use `vi.importMock<T>('@/path')`,
   not `(await import('@/path')) as unknown as T`.** `vi.importMock` is the
   Vitest equivalent of the old `jest.requireMock`: it is purpose-built, always

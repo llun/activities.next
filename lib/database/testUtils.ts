@@ -33,7 +33,25 @@ const applySqliteSchema = async (instance: Knex) => {
 
 const applyPostgresSchema = async (instance: Knex) => {
   const sql = readFileSync(POSTGRES_SCHEMA_PATH, 'utf8')
-  await instance.raw(sql)
+  // pg_dump opens the dump with `SELECT pg_catalog.set_config('search_path', '',
+  // false)`. The `false` makes it *session*-scoped rather than transaction-scoped,
+  // so it outlives the load: the pooled connection that ran the dump keeps an
+  // empty search_path for the rest of its life. Every table in the dump is
+  // `public.`-qualified and so is created fine, but any later unqualified query
+  // that the pool happens to route back to that connection cannot resolve it
+  // (`relation "accounts" does not exist`). Hold one connection for both
+  // statements so the reset lands on the connection that was poisoned — knex's
+  // own `searchPath` config would not do, as it is applied when a connection is
+  // created, which is before the dump runs. `RESET` restores the server default
+  // (`"$user", public`), leaving this connection identical to a freshly created
+  // one rather than pinning it to a hardcoded schema list.
+  const connection = await instance.client.acquireConnection()
+  try {
+    await instance.raw(sql).connection(connection)
+    await instance.raw('RESET search_path').connection(connection)
+  } finally {
+    await instance.client.releaseConnection(connection)
+  }
 }
 
 // Replaces the production `migrate()` (which runs Knex migrations) with a fast
@@ -47,7 +65,18 @@ const withSchemaDumpMigrate = (
   return database
 }
 
-const TEST_PG_TABLE = 'test'
+// Each Vitest worker needs its own PostgreSQL database. `prepare()` drops and
+// recreates the database before loading the schema, so a single shared name lets
+// one worker destroy the database another worker is running tests against — which
+// surfaces as `relation "..." does not exist` or `Connection terminated
+// unexpectedly` in whichever file lost the race. Vitest hands files to a worker
+// one at a time, so a name per worker is enough isolation; `VITEST_POOL_ID` is
+// unique across the workers running concurrently. Strip it to digits: it is
+// interpolated into `CREATE`/`DROP DATABASE`, which cannot be parameterised.
+const TEST_PG_WORKER_ID = (process.env.VITEST_POOL_ID ?? '').replace(/\D/g, '')
+const TEST_PG_DATABASE = TEST_PG_WORKER_ID
+  ? `test_${TEST_PG_WORKER_ID}`
+  : 'test'
 const TEST_PG_CONNECTION = {
   host: process.env.TEST_DATABASE_HOST,
   port: 5432,
@@ -89,7 +118,7 @@ const DATABASES: Record<string, GetTestDatabase> = {
       client: 'pg',
       connection: {
         ...TEST_PG_CONNECTION,
-        database: TEST_PG_TABLE
+        database: TEST_PG_DATABASE
       }
     })
     return {
@@ -106,9 +135,9 @@ const DATABASES: Record<string, GetTestDatabase> = {
         })
         await client.connect()
         await client.query(
-          `DROP DATABASE IF EXISTS ${TEST_PG_TABLE} WITH (FORCE)`
+          `DROP DATABASE IF EXISTS ${TEST_PG_DATABASE} WITH (FORCE)`
         )
-        await client.query(`CREATE DATABASE ${TEST_PG_TABLE}`)
+        await client.query(`CREATE DATABASE ${TEST_PG_DATABASE}`)
         await client.end()
       }
     }
