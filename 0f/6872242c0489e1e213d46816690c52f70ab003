@@ -1,0 +1,24 @@
+vitest.config.ts
+  s_218020ee1cc0ef::t_1b790edcd4d7cd 46-53
+AGENTS.md
+  s_218020ee1cc0ef::t_7f32d7cb329f57 633
+  s_218020ee1cc0ef::t_eb7f1e3cb0fcbe 634-641
+lib/database/testUtils.ts
+  s_218020ee1cc0ef::t_eb7f1e3cb0fcbe 36-54,68-79,121,138,140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "0f6872242c0489e1e213d46816690c52f70ab003",
+  "prompts": {},
+  "sessions": {
+    "s_218020ee1cc0ef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ba7e83f3-ea1f-42f9-a80d-300396ecb5fa",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
