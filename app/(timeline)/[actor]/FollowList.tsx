@@ -34,7 +34,7 @@ export const FollowList: FC<Props> = ({
 
         return (
           <div key={user.id} className="flex items-center gap-3 px-5 py-4">
-            <Link href={`/@${user.username}@${user.domain}`}>
+            <Link href={`/@${user.username}@${user.domain}`} prefetch={false}>
               <Avatar className="h-12 w-12">
                 <AvatarImage src={user.iconUrl} />
                 <AvatarFallback>{initials}</AvatarFallback>
@@ -44,6 +44,7 @@ export const FollowList: FC<Props> = ({
             <div className="min-w-0 flex-1">
               <Link
                 href={`/@${user.username}@${user.domain}`}
+                prefetch={false}
                 className="block truncate font-semibold hover:underline"
               >
                 {user.name}

@@ -5,6 +5,7 @@ import _ from 'lodash'
 import { Activity, ExternalLink, Repeat2 } from 'lucide-react'
 import { FC } from 'react'
 
+import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import {
@@ -306,7 +307,7 @@ export const Post: FC<PostProps> = (props) => {
           ) : null}
 
           {isFitnessCompleted && fitnessStats.length > 0 ? (
-            <div className="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <FitnessStatGrid variant="chip" className="mt-2.5">
               {fitnessStats.map((stat) => (
                 // `min-w-0` + `truncate`: the Distance cell carries the gear
                 // name too, and `fitness_gears.name` is a varchar(255) whose
@@ -324,7 +325,7 @@ export const Post: FC<PostProps> = (props) => {
                   </span>
                 </div>
               ))}
-            </div>
+            </FitnessStatGrid>
           ) : null}
 
           {isFitnessCompleted && fitnessDeviceLabel ? (

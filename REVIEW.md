@@ -136,6 +136,11 @@ change doesn't touch.
 - Server Components never pass `new Date()` to a Client Component. Pass
   `Date.now()` (a `number`); the client takes `currentTime: number` and builds
   `new Date(currentTime)` itself.
+- A `<Link>` rendered once per feed/list row passes `prefetch={false}`. `<Link>`
+  prefetches on viewport entry, so in an infinite-scroll feed that is one RSC
+  request per row — against dynamic routes that also federate out for
+  unpersisted remote actors. Navigation chrome (sidebar, sub-nav, pagination)
+  keeps prefetching. See **Link prefetching in feeds** in `AGENTS.md`.
 - Client Components that render relative timestamps (or fan out to `Posts`/`Post`)
   never call `Date.now()` / `new Date()` during render — they receive and forward
   `currentTime` from the server to avoid hydration mismatches.
@@ -215,6 +220,13 @@ change doesn't touch.
 - Settings-style sections (settings, fitness, admin) use the shared
   `SectionNavDropdown` on every breakpoint — no re-inlined dropdown markup and no
   desktop vertical icon rail. Sentence-case labels ("Blocked accounts").
+- Fitness stat strips (the activity detail's header strip, the strip under its
+  map, the inline chip in a post) render through `FitnessStatGrid` and size
+  themselves with **container** queries — no hand-rolled `grid-cols-*` strip and
+  no `sm:`/viewport breakpoint, which cannot see a narrow column on a wide
+  window. `@container` belongs on a wrapper, never on the grid it sizes. Two
+  older strips (gear detail, fitness overview) are not migrated yet — see
+  **Fitness Stat Strips** in `AGENTS.md`.
 - When pairing a visible count with `sr-only` text, put only the noun (e.g.
   "boosts") in the `sr-only` span, not the number — the visible digit is already
   announced, so including it double-reads (see `posts/read-only-stats.tsx`).

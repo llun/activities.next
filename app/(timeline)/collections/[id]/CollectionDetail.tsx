@@ -411,7 +411,11 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
                   {member.avatar && <AvatarImage src={member.avatar} />}
                   <AvatarFallback>{getInitials(member.name)}</AvatarFallback>
                 </Avatar>
-                <Link href={`/@${member.handle}`} className="min-w-0 flex-1">
+                <Link
+                  href={`/@${member.handle}`}
+                  prefetch={false}
+                  className="min-w-0 flex-1"
+                >
                   <p className="truncate text-sm font-medium hover:underline">
                     {member.name}
                   </p>

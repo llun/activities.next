@@ -202,6 +202,7 @@ const AccountRow = ({
   return (
     <Link
       href={`/${handle}`}
+      prefetch={false}
       className="flex min-w-0 items-start gap-3 border-b border-border/60 p-4 transition-colors last:border-b-0 hover:bg-muted/40"
     >
       <Avatar className="size-11 shrink-0">
@@ -229,6 +230,7 @@ const HashtagRow = ({ tag }: { tag: SearchTag }) => {
   return (
     <Link
       href={`/tags/${encodeURIComponent(tag.name)}`}
+      prefetch={false}
       className="flex items-center gap-3 border-b border-border/60 p-4 transition-colors last:border-b-0 hover:bg-muted/40"
     >
       <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
