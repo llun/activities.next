@@ -1,0 +1,36 @@
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_3abf984cc26ada::t_43977b22a393a6 1916-1917
+  s_3abf984cc26ada::t_873ed08ca3c368 283-287,290,293-300
+  s_3abf984cc26ada::t_c54ae30ed424a5 1771,1775,1778,1799,1804,1807,1828,1831,1877,1900,2019,2043,2062
+  s_3abf984cc26ada::t_e23085c46fcb91 1946-1952,1955-1991
+  s_3abf984cc26ada::t_5121f71d0b3cae 301
+lib/components/fitness/FitnessStatGrid.test.tsx
+  s_3abf984cc26ada::t_6f07078371751c 8-11,18,21-23,25,29-30,32-33,36-39,42-47
+AGENTS.md
+  s_3abf984cc26ada::t_658ce015a0ecb2 352-366
+CLAUDE.md
+  s_3abf984cc26ada::t_f8d8403df39ad8 51
+REVIEW.md
+  s_3abf984cc26ada::t_731c9d0c023724 222-224
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_3abf984cc26ada::t_964031e5671426 970-977,982-985
+  s_3abf984cc26ada::t_879a92fa2de74f 2476-2481
+  s_3abf984cc26ada::t_18471670b4c533 1007-1013
+  s_3abf984cc26ada::t_32de93e39c0b5c 3183-3188,3190
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "d7e7b3b0cb36bcdfb3233f90db04a534ddf2fc9b",
+  "prompts": {},
+  "sessions": {
+    "s_3abf984cc26ada": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2bc0b46a-a064-4f95-b0ce-7aaa7d0323f5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
