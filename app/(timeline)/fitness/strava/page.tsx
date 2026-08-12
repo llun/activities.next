@@ -8,6 +8,7 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorProfile, getMention } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
+import { StravaGearDefaultsSection } from './StravaGearDefaultsSection'
 import { StravaSettingsForm } from './StravaSettingsForm'
 
 export const dynamic = 'force-dynamic'
@@ -50,6 +51,10 @@ const StravaPage: FC = async () => {
 
       <Card className="p-6">
         <StravaSettingsForm serverActorHandle={actorHandle} />
+      </Card>
+
+      <Card className="p-6">
+        <StravaGearDefaultsSection />
       </Card>
     </div>
   )

@@ -446,7 +446,6 @@ CREATE TABLE public.fitness_gears (
     "alertDistanceMeters" real,
     "lastAlertedDistanceMeters" real,
     notes text,
-    "stravaGearId" character varying(255),
     "retiredAt" timestamp with time zone,
     "createdAt" timestamp with time zone NOT NULL,
     "updatedAt" timestamp with time zone NOT NULL,
@@ -1320,9 +1319,6 @@ ALTER TABLE ONLY public.fitness_files
 
 ALTER TABLE ONLY public.fitness_gear_components
     ADD CONSTRAINT fitness_gear_components_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY public.fitness_gears
-    ADD CONSTRAINT fitness_gears_actor_strava_gear_id_unique UNIQUE ("actorId", "stravaGearId");
 
 ALTER TABLE ONLY public.fitness_gears
     ADD CONSTRAINT fitness_gears_pkey PRIMARY KEY (id);

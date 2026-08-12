@@ -2549,7 +2549,14 @@ export interface CreateFitnessGearInput {
   notes?: string | null
 }
 
-export type UpdateFitnessGearInput = Omit<CreateFitnessGearInput, 'kind'>
+// Every field is optional, matching `UpdateGearRequest`: the PATCH route uses
+// presence semantics, so a caller changing one field (the Strava page's default
+// gear editor sends only `defaultSports`) must not have to resend the rest —
+// re-sending a stale copy is how a concurrent edit gets silently reverted.
+// `kind` is immutable and absent by design.
+export type UpdateFitnessGearInput = Partial<
+  Omit<CreateFitnessGearInput, 'kind'>
+>
 
 export interface CreateFitnessGearComponentInput {
   componentType: string

@@ -51,22 +51,6 @@ export interface StravaActivity {
   gear_id?: string | null
 }
 
-/**
- * Strava's gear summary, as returned by `GET /gear/{id}`. Every field except
- * `id` is optional: the summary representation of an athlete's gear omits most
- * of them, and a deleted or inaccessible gear id answers 404.
- */
-export interface StravaGear {
-  id: string
-  name?: string | null
-  brand_name?: string | null
-  model_name?: string | null
-  // Bike-only, and the most reliable kind signal Strava gives us apart from the
-  // id prefix: shoes have no frame type.
-  frame_type?: number | null
-  distance?: number | null
-}
-
 export interface StravaUpload {
   id: number
   activity_id?: number | null
@@ -375,45 +359,6 @@ export const getStravaUpload = async ({
   throw new Error(
     `Failed to fetch Strava upload (${response.status}): ${detail}`
   )
-}
-
-/**
- * Fetches one gear's details. Returns null when Strava does not know the id
- * (404) or the token cannot read it (401) — a gear the athlete deleted still
- * appears on their old activities, so a missing gear is normal input, not a
- * failure. Every other status throws, the same way `getStravaUpload` does.
- */
-export const getStravaGear = async ({
-  gearId,
-  accessToken
-}: {
-  gearId: string
-  accessToken: string
-}): Promise<StravaGear | null> => {
-  const response = await fetch(
-    `${STRAVA_API_BASE}/gear/${encodeURIComponent(gearId)}`,
-    {
-      method: 'GET',
-      headers: getStravaAuthHeaders(accessToken)
-    }
-  )
-
-  if (response.ok) {
-    return (await response.json()) as StravaGear
-  }
-
-  if (response.status === 404) {
-    return null
-  }
-
-  if (response.status === 401) {
-    return null
-  }
-
-  // Throw only — no warn beside it. `getStravaUpload`, which this mirrors, does
-  // the same, and the caller already logs the failure with a stack.
-  const detail = await getStravaErrorDetail(response)
-  throw new Error(`Failed to fetch Strava gear (${response.status}): ${detail}`)
 }
 
 export const getStravaActivity = async ({

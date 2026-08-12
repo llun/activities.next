@@ -468,6 +468,28 @@ it; there is no legacy shape left to copy.
   renders the assignment as something else, which reads as the gear having
   changed on its own. In a post's inline chip, gear instead rides along with the
   distance cell ("42.6 km · Moots") rather than taking a cell of its own.
+- **Nothing is imported from Strava's own gear, and no import ever creates a
+  gear row.** Neither the webhook path (`activity.gear_id` plus
+  `GET /gear/{id}`) nor the archive path (the `Activity Gear` column and
+  `bikes.csv`/`shoes.csv`) reads gear from Strava any more, and the
+  `stravaGearId` column is gone with them. The reason is `kind`: it was guessed
+  from an undocumented `b`/`g` id prefix or from an optional CSV, it is
+  immutable by design, and a bike filed as shoes shows no components card,
+  refuses a frame type, and offers shoe advice in its reminder — repairable
+  only by deleting the gear and detaching every activity on it. So the shed is
+  the athlete's alone: an imported activity is attributed exactly like an
+  uploaded one, by `processFitnessFileJob` from the gear whose `defaultSports`
+  claims the parsed sport. Do not reintroduce a "create the gear we saw" path
+  in any importer.
+- **The default-sport mapping has a second editor, on the Strava settings
+  page** (`StravaGearDefaultsSection`), listing it the other way round —
+  activity type → gear — because that is the question someone connecting an
+  import source is asking. It is a view over `fitness_gears.defaultSports`,
+  **not** a table of its own: pointing a sport at a gear is one PATCH of that
+  gear, and the database's own steal takes the sport off whoever held it. That
+  is also why the editor re-reads the whole list after every write — the
+  response carries only the gear that was written, never the one it was taken
+  from.
 - **Import jobs assign with `assignFitnessFileGearIfUnset`**, whose
   `whereNull('gearId')` guard is the correctness guarantee rather than an
   optimisation: those jobs re-run, and a manual assignment made between a read

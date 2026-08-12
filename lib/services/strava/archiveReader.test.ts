@@ -9,7 +9,6 @@ import {
   StravaArchiveReader,
   getArchiveMediaMimeType,
   parseStravaArchiveCsvRows,
-  parseStravaGearCsvRows,
   toStravaArchiveFitnessFilePayload
 } from '@/lib/services/strava/archiveReader'
 
@@ -165,64 +164,6 @@ describe('archiveReader helpers', () => {
       )
     })
   })
-
-  describe('parseStravaGearCsvRows', () => {
-    it('reads the named gear out of a bikes export', () => {
-      const csv = [
-        'Bike ID,Bike Name,Bike Brand',
-        'b1234567,Moots Routt 45,Moots',
-        'b7654321,Winter bike,Surly'
-      ].join('\n')
-
-      expect(parseStravaGearCsvRows(csv, 'bike')).toEqual([
-        { name: 'Moots Routt 45', kind: 'bike' },
-        { name: 'Winter bike', kind: 'bike' }
-      ])
-    })
-
-    it('takes the kind from the caller, never from the CSV', () => {
-      // The same rows read as `shoes` when they came out of shoes.csv — the
-      // file decides, so a renamed or translated column cannot mis-file gear.
-      const csv = ['Bike ID,Bike Name', 'b1234567,Moots Routt 45'].join('\n')
-
-      expect(parseStravaGearCsvRows(csv, 'shoes')).toEqual([
-        { name: 'Moots Routt 45', kind: 'shoes' }
-      ])
-    })
-
-    it('falls back to the first column when no header mentions a name', () => {
-      const csv = ['Gear,Marque', 'Moots Routt 45,Moots'].join('\n')
-
-      expect(parseStravaGearCsvRows(csv, 'bike')).toEqual([
-        { name: 'Moots Routt 45', kind: 'bike' }
-      ])
-    })
-
-    it('strips the byte-order mark from the first header', () => {
-      const csv = ['﻿Name,Brand', 'Nimbus 25,Hoka'].join('\n')
-
-      expect(parseStravaGearCsvRows(csv, 'shoes')).toEqual([
-        { name: 'Nimbus 25', kind: 'shoes' }
-      ])
-    })
-
-    it('drops empty names and collapses duplicates', () => {
-      const csv = [
-        'Bike ID,Bike Name',
-        'b1,Moots Routt 45',
-        'b2,',
-        'b3,  moots routt 45  '
-      ].join('\n')
-
-      expect(parseStravaGearCsvRows(csv, 'bike')).toEqual([
-        { name: 'Moots Routt 45', kind: 'bike' }
-      ])
-    })
-
-    it('returns no gear for an empty file', () => {
-      expect(parseStravaGearCsvRows('', 'bike')).toEqual([])
-    })
-  })
 })
 
 describe('StravaArchiveReader', () => {
@@ -257,36 +198,47 @@ describe('StravaArchiveReader', () => {
   }
 
   describe('getActivities', () => {
-    it('reads the gear name out of the Activity Gear column', async () => {
+    it('reads the activity rows out of activities.csv', async () => {
       const reader = await openArchive([
         {
           name: 'activities.csv',
           content: [
-            'Activity ID,Activity Name,Activity Gear,Filename,Media',
-            '1001,Morning ride,Moots Routt 45,activities/1001.gpx,',
-            '1002,Evening run,  Nimbus 25  ,activities/1002.tcx,',
-            '1003,No gear ride,,activities/1003.fit,'
+            'Activity ID,Activity Name,Activity Description,Filename,Media',
+            '1001,Morning ride,Felt good,activities/1001.gpx,media/photo-1.jpg',
+            '1002,Evening run,,activities/1002.tcx,'
           ].join('\n')
         }
       ])
 
       const activities = await reader.getActivities()
 
-      expect(activities).toHaveLength(3)
-      expect(activities[0].activityGear).toBe('Moots Routt 45')
-      // Trimmed, because the name is the archive importer's lookup key.
-      expect(activities[1].activityGear).toBe('Nimbus 25')
-      // An empty cell is "no gear", not a gear named ''.
-      expect(activities[2].activityGear).toBeUndefined()
+      expect(activities).toEqual([
+        {
+          activityId: '1001',
+          activityName: 'Morning ride',
+          activityDescription: 'Felt good',
+          fitnessFilePath: 'activities/1001.gpx',
+          mediaPaths: ['media/photo-1.jpg']
+        },
+        {
+          activityId: '1002',
+          activityName: 'Evening run',
+          // An empty cell is "absent", not an empty description.
+          activityDescription: undefined,
+          fitnessFilePath: 'activities/1002.tcx',
+          mediaPaths: []
+        }
+      ])
     })
 
-    it('leaves the gear unset when the export has no Activity Gear column', async () => {
+    it('skips rows whose file is not a supported fitness file', async () => {
       const reader = await openArchive([
         {
           name: 'activities.csv',
           content: [
             'Activity ID,Activity Name,Filename',
-            '1001,Morning ride,activities/1001.gpx'
+            '1001,Morning ride,activities/1001.gpx',
+            '1002,Manual entry,'
           ].join('\n')
         }
       ])
@@ -294,100 +246,25 @@ describe('StravaArchiveReader', () => {
       const activities = await reader.getActivities()
 
       expect(activities).toHaveLength(1)
-      expect(activities[0].activityGear).toBeUndefined()
+      expect(activities[0].activityId).toBe('1001')
     })
   })
 
-  describe('getGear', () => {
-    const bikesCsv = [
-      'Bike ID,Bike Name,Bike Brand',
-      'b1234567,Moots Routt 45,Moots'
-    ].join('\n')
-    const shoesCsv = ['Shoe ID,Shoe Name', 'g7654321,Nimbus 25'].join('\n')
-
-    it('reads both gear files, taking the kind from the file', async () => {
-      const reader = await openArchive([
-        { name: 'bikes.csv', content: bikesCsv },
-        { name: 'shoes.csv', content: shoesCsv }
-      ])
-
-      await expect(reader.getGear()).resolves.toEqual([
-        { name: 'Moots Routt 45', kind: 'bike' },
-        { name: 'Nimbus 25', kind: 'shoes' }
-      ])
-    })
-
-    // Both files are optional — older exports predate them, and an athlete with
-    // no shoes has no shoes.csv. A missing one yields no gear, never an error:
-    // the importer falls back to the name each activity carries.
-    it.each([
-      {
-        description: 'bikes.csv is missing',
-        files: [{ name: 'shoes.csv', content: shoesCsv }],
-        expected: [{ name: 'Nimbus 25', kind: 'shoes' }]
-      },
-      {
-        description: 'shoes.csv is missing',
-        files: [{ name: 'bikes.csv', content: bikesCsv }],
-        expected: [{ name: 'Moots Routt 45', kind: 'bike' }]
-      },
-      {
-        description: 'both are missing',
-        files: [{ name: 'activities.csv', content: 'Filename\n' }],
-        expected: []
-      }
-    ])('returns what it can when $description', async ({ files, expected }) => {
-      const reader = await openArchive(files)
-
-      await expect(reader.getGear()).resolves.toEqual(expected)
-    })
-
-    it('degrades rather than throwing on a gear file that is not CSV', async () => {
-      const reader = await openArchive([
-        {
-          name: 'bikes.csv',
-          content: Buffer.from([0x00, 0xff, 0xfe, 0x01, 0x02])
-        },
-        { name: 'shoes.csv', content: shoesCsv }
-      ])
-
-      // The binary blob has no newline, so it is a header row and nothing else
-      // — no gear, and crucially no throw that would fail the whole import.
-      await expect(reader.getGear()).resolves.toEqual([
-        { name: 'Nimbus 25', kind: 'shoes' }
-      ])
-    })
-
-    it('applies the archive row limit to the gear CSVs', async () => {
-      const reader = await openArchive(
-        [
-          {
-            name: 'bikes.csv',
-            content: [
-              'Bike ID,Bike Name',
-              'b1,First bike',
-              'b2,Second bike',
-              'b3,Third bike'
-            ].join('\n')
-          }
-        ],
-        { maxCsvRows: 2 }
-      )
-
-      await expect(reader.getGear()).rejects.toThrow('exceeds CSV row limit')
-    })
-
-    it('refuses to open an archive whose gear file exceeds the entry limit', async () => {
+  describe('open limits', () => {
+    it('refuses to open an archive whose CSV entry exceeds the entry limit', async () => {
       const filePath = join(archiveDirectory, `${randomUUID()}.zip`)
       await writeFile(
         filePath,
         buildStoredZip([
-          { name: 'bikes.csv', content: 'Bike ID,Bike Name\n'.repeat(64) }
+          {
+            name: 'activities.csv',
+            content: 'Activity ID,Filename\n'.repeat(64)
+          }
         ])
       )
 
-      // Size limits are enforced while indexing, so an oversized gear file
-      // fails the whole archive rather than surfacing inside getGear.
+      // Size limits are enforced while indexing, so an oversized entry fails
+      // the whole archive rather than surfacing on the read that needs it.
       await expect(
         StravaArchiveReader.open(filePath, {
           limits: { maxEntryUncompressedBytes: 16 }

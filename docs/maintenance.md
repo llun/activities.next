@@ -406,7 +406,6 @@ pass for a clean run in a script.
       "weightKilograms": 8.0, // bikes only
       "alertDistanceMeters": null, // shoes only
       "defaultSports": [], // sport keys this gear auto-claims (see below)
-      "stravaGearId": null, // optional; keeps Strava sync from creating a duplicate
       "retired": false,
       "components": [
         {

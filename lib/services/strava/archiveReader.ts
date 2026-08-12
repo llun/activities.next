@@ -5,7 +5,6 @@ import yauzl from 'yauzl'
 import { createGunzip } from 'zlib'
 
 import { DEFAULT_FITNESS_MAX_FILE_SIZE } from '@/lib/config/fitnessStorage'
-import { FitnessGearKind } from '@/lib/services/fitness-files/sportTypes'
 import {
   StreamByteLimitError,
   readAsyncIterableToBufferWithLimit
@@ -49,16 +48,8 @@ export interface StravaArchiveActivity {
   activityId: string
   activityName?: string
   activityDescription?: string
-  // The display name of the bike or shoes the athlete attributed the activity
-  // to. The archive carries no gear ids, only this name.
-  activityGear?: string
   fitnessFilePath: string
   mediaPaths: string[]
-}
-
-export interface StravaArchiveGear {
-  name: string
-  kind: FitnessGearKind
 }
 
 export interface StravaArchiveFitnessFilePayload {
@@ -378,56 +369,6 @@ export const parseStravaArchiveCsvRows = (
   return rows
 }
 
-/**
- * Parses one of the archive's gear CSVs (`bikes.csv` / `shoes.csv`) into named
- * gear.
- *
- * ASSUMPTION — NOT VERIFIED AGAINST A REAL EXPORT: no real Strava export was
- * available while this was written, so nothing here trusts the CSV's shape.
- *
- *  - The KIND comes from WHICH FILE the row was read from, never from a column.
- *    A `bikes.csv` row is a bike and a `shoes.csv` row is shoes, whatever the
- *    header says, so a renamed or translated column cannot mis-file a bike as
- *    a pair of shoes.
- *  - The NAME column is picked defensively: the first header containing "name"
- *    (case-insensitively), else the first column. A header Strava later renames
- *    therefore degrades to "the first column", and in the worst case to gear
- *    with an unusable name — never to a throw, and never to a failed import.
- *  - Rows with an empty name are dropped, and duplicate names collapse to the
- *    first occurrence, so the caller's name→id cache stays 1:1.
- */
-export const parseStravaGearCsvRows = (
-  csvText: string,
-  kind: FitnessGearKind,
-  options: { maxRows?: number } = {}
-): StravaArchiveGear[] => {
-  const rows = parseStravaArchiveCsvRows(csvText, options)
-  if (rows.length === 0) return []
-
-  const header = [...rows[0]]
-  header[0] = header[0].replace(/^\uFEFF/, '')
-
-  const nameIndexByHeader = header.findIndex((column) =>
-    column.trim().toLowerCase().includes('name')
-  )
-  const nameIndex = nameIndexByHeader >= 0 ? nameIndexByHeader : 0
-
-  const gear: StravaArchiveGear[] = []
-  const seenNames = new Set<string>()
-  for (const row of rows.slice(1)) {
-    const name = row[nameIndex]?.trim()
-    if (!name) continue
-
-    const dedupeKey = name.toLowerCase()
-    if (seenNames.has(dedupeKey)) continue
-    seenNames.add(dedupeKey)
-
-    gear.push({ name, kind })
-  }
-
-  return gear
-}
-
 const getMediaPaths = (value: string): string[] => {
   if (!value) {
     return []
@@ -634,9 +575,6 @@ export class StravaArchiveReader {
       (column) => column === 'Activity Description'
     )
     const mediaIndex = header.findIndex((column) => column === 'Media')
-    const activityGearIndex = header.findIndex(
-      (column) => column === 'Activity Gear'
-    )
 
     const activities: StravaArchiveActivity[] = []
     for (const row of rows.slice(1)) {
@@ -658,10 +596,6 @@ export class StravaArchiveReader {
         activityDescriptionIndex >= 0
           ? row[activityDescriptionIndex]?.trim() || undefined
           : undefined
-      const activityGear =
-        activityGearIndex >= 0
-          ? row[activityGearIndex]?.trim() || undefined
-          : undefined
       const mediaPaths =
         mediaIndex >= 0 ? getMediaPaths(row[mediaIndex] ?? '') : []
 
@@ -669,44 +603,11 @@ export class StravaArchiveReader {
         activityId,
         activityName,
         activityDescription,
-        activityGear,
         fitnessFilePath,
         mediaPaths
       })
     }
 
     return activities
-  }
-
-  /**
-   * The athlete's bikes and shoes, read from `bikes.csv` and `shoes.csv`.
-   *
-   * Both files are optional: older exports predate them, and an athlete with no
-   * shoes has no `shoes.csv`. A missing file yields no gear rather than an
-   * error — the importer falls back to creating gear from the name each
-   * activity carries.
-   *
-   * See `parseStravaGearCsvRows` for the (unverified) assumptions about the
-   * CSVs' shape; the kind is decided by the file, never by a column.
-   */
-  async getGear(): Promise<StravaArchiveGear[]> {
-    const sources: Array<{ path: string; kind: FitnessGearKind }> = [
-      { path: 'bikes.csv', kind: 'bike' },
-      { path: 'shoes.csv', kind: 'shoes' }
-    ]
-
-    const gear: StravaArchiveGear[] = []
-    for (const source of sources) {
-      const buffer = await this.readEntryBuffer(source.path)
-      if (!buffer) continue
-
-      gear.push(
-        ...parseStravaGearCsvRows(buffer.toString('utf8'), source.kind, {
-          maxRows: this._limits.maxCsvRows
-        })
-      )
-    }
-
-    return gear
   }
 }
