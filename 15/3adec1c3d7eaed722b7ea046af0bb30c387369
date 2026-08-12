@@ -1,0 +1,53 @@
+scripts/fitness/importFitnessGear.ts
+  s_2dfdc4b6b975e7::t_4528ef6228e947 420-430
+  s_2dfdc4b6b975e7::t_9b7978b52c224c 184-185
+  s_2dfdc4b6b975e7::t_22c5547c900903 402-406
+  s_2dfdc4b6b975e7::t_b3d641adeacee5 700-702
+  s_2dfdc4b6b975e7::t_c7a8b5d5b7ae73 524-538,540-552
+  s_2dfdc4b6b975e7::t_ff7bd88252e299 553-568,570,572-585,587-615,618-628,630-644,646,651-665,668-695,697-699,703,706-719
+  s_2dfdc4b6b975e7::t_c99ccc68aac076 299-314,323-334,340,351
+  s_2dfdc4b6b975e7::t_a9575866907817 269-272,274-275
+  s_2dfdc4b6b975e7::t_0c7b53960b4a1b 474-479,481,483-500
+scripts/fitness/gearImportPlan.ts
+  s_2dfdc4b6b975e7::t_f1fac72b9882b8 501-506,511,515,518
+  s_2dfdc4b6b975e7::t_f6635c69857c6d 317-327
+  s_2dfdc4b6b975e7::t_99871d86e8c663 387
+  s_2dfdc4b6b975e7::t_f91d2acbbd1d05 291
+  s_2dfdc4b6b975e7::t_9362cea0b37133 439,453,466
+  s_2dfdc4b6b975e7::t_006a8c3a7734d2 483
+scripts/fitness/gearImportPlan.test.ts
+  s_2dfdc4b6b975e7::t_95d96718a6fa01 270-272
+  s_2dfdc4b6b975e7::t_7aa47d1d6edf1d 226,350,377,416,431,442
+  s_2dfdc4b6b975e7::t_41e2b6765d4ed3 443,446-478
+  s_2dfdc4b6b975e7::t_c9eb3cfa0a3c6a 291
+  s_2dfdc4b6b975e7::t_d1dded35aeaf00 444-445
+scripts/fitness/convertStravaExportToGearImport.ts
+  s_2dfdc4b6b975e7::t_b3d641adeacee5 345-347
+  s_2dfdc4b6b975e7::t_1be2c1e9bdbdef 178-186,190-211
+  s_2dfdc4b6b975e7::t_b2227b589a5012 255
+  s_2dfdc4b6b975e7::t_e437fc8d6a5fae 232-233
+  s_2dfdc4b6b975e7::t_2605701c961856 277-278,295-296
+  s_2dfdc4b6b975e7::t_05a44a598db229 340,343,364-371
+  s_2dfdc4b6b975e7::t_9f89e3dc46d7ae 373,399-404
+  s_2dfdc4b6b975e7::t_179deea3b9b58c 372,374
+scripts/fitness/convertStravaExportToGearImport.test.ts
+  s_2dfdc4b6b975e7::t_c742d6e78acb7e 181-189
+  s_2dfdc4b6b975e7::t_55b01eddae4380 113-121,125
+  s_2dfdc4b6b975e7::t_b3d641adeacee5 122-124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "153adec1c3d7eaed722b7ea046af0bb30c387369",
+  "prompts": {},
+  "sessions": {
+    "s_2dfdc4b6b975e7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7e7f59c-102f-4387-a0d7-5b5bbfee3ba5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
