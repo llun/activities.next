@@ -166,6 +166,8 @@ Fitness maintenance scripts live in `scripts/`:
 - `scripts/fitness/importStoredFitnessFile.ts` — rebuilds a post from the already-stored file with no Strava call (deleted-from-Strava case); merges same-ride files into one post
 - `scripts/fitness/repairStravaActivityFiles.ts` — pass `--delete-missing` to hard-delete activities Strava 404s (default: report only; deletion is irreversible)
 - `scripts/fitness/backfillFitnessMovingTime.ts` — recomputes `movingTimeSeconds` for already-stored files so their average pace/speed switches from elapsed-time to moving-time (matching Strava); idempotent, supports `--dry-run` and `--force`
+- `scripts/fitness/importFitnessGear.ts` — creates gear and component history from a JSON file and attributes existing activities to it by matching `activityStartTime`, for activities imported before gear tracking existed; idempotent, supports `--dry-run`, `--overwrite` and `--tolerance-seconds`
+- `scripts/fitness/convertStravaExportToGearImport.ts` — builds that import file's assignments from a Strava export's `activities.csv` (the only record of which gear each historical activity used), merged with a hand-authored gear description
 - `scripts/fitness/retrigerStravaActivities.ts`
 - `scripts/fitness/runImportStravaActivity.ts`
 - `scripts/fitness/listStravaWebhooks.ts`
