@@ -148,13 +148,15 @@ export const parseStravaActivitiesCsv = (csv: string): StravaActivityRow[] => {
   // instead would drift low for everything after the first blank line or
   // multi-line description — and a line number that is confidently wrong is
   // worse than none, because the operator trusts it and reads an unrelated row.
+  // The cast goes through `unknown` because csv-parse's sync signature always
+  // declares `string[][]`; it does not model how `info` changes the shape.
   const parsed = parse(csv, {
     bom: true,
     relax_column_count: true,
     relax_quotes: true,
     skip_empty_lines: true,
     info: true
-  }) as { record: string[]; info: { lines: number } }[]
+  }) as unknown as { record: string[]; info: { lines: number } }[]
 
   if (parsed.length === 0) throw new Error('activities.csv is empty')
 
