@@ -967,14 +967,22 @@ const ActivityGearMeta: FC<{
     <>
       <span aria-hidden="true">·</span>
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          {/* Disabled while the PATCH is in flight: two quick changes otherwise
-              race, and the loser's rollback would put back a value the server
-              has since replaced. */}
+        {/* Disabled while the PATCH is in flight: two quick changes otherwise
+            race, and the loser's rollback would put back a value the server has
+            since replaced. It goes on BOTH the trigger and the button — Radix
+            gates its own open handlers on its own `disabled` prop, and `asChild`
+            merging only lets the child's attribute win on the DOM node, so
+            passing it to the child alone leaves the menu openable by keyboard
+            and the guard resting on native form semantics. */}
+        <DropdownMenuTrigger asChild disabled={isSaving}>
           <button
             type="button"
             aria-describedby={errorId}
             disabled={isSaving}
+            // The name truncates, so keep the whole of it reachable — gear
+            // names are a `varchar(255)` and "Specialized Tarmac SL7 Expert
+            // (winter build)" does not fit a metadata line.
+            title={`Gear: ${label ?? 'No gear'}`}
             className="inline-flex min-w-0 items-center gap-1.5 rounded-md transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Icon className="size-3.5 shrink-0" aria-hidden="true" />
@@ -996,7 +1004,13 @@ const ActivityGearMeta: FC<{
               <DropdownMenuItem
                 key={id || 'no-gear'}
                 onSelect={() => onSelect(id)}
-                aria-current={isActive ? 'true' : undefined}
+                // This menu picks one of N, so it carries the radio semantics
+                // rather than the `aria-current` the *navigation* dropdowns use
+                // (there the URL states it too). The check mark is decorative,
+                // so `aria-checked` is the only thing announcing which gear is
+                // assigned.
+                role="menuitemradio"
+                aria-checked={isActive}
                 className={cn(
                   'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 font-medium',
                   isActive && [
@@ -2459,6 +2473,12 @@ export const FitnessStatusDetail: FC<Props> = ({
   const handleGearChange = async (value: string) => {
     const fitnessFileId = fitness?.id
     if (!fitnessFileId) return
+    // Re-picking what is already assigned is not a change. A `<select>` never
+    // fired `onChange` for that, but every row of a menu fires `onSelect`, and
+    // tapping the checked row to dismiss the menu is the natural gesture — it
+    // would otherwise PATCH, re-evaluate the service reminders, and on a network
+    // hiccup show an error for a change the owner never made.
+    if (value === (selectedGearId ?? '')) return
 
     const nextGearId = value || null
     const nextGearName = nextGearId
@@ -3160,9 +3180,14 @@ export const FitnessStatusDetail: FC<Props> = ({
                 <select
                   id="activity-file-select"
                   value={selectedFitnessFileId ?? ''}
-                  onChange={(event) =>
+                  // Drop any gear error with the file it belongs to: the gear
+                  // control is per-file and can vanish on the next one (its kind
+                  // filter may empty the list), leaving an alert describing
+                  // nothing.
+                  onChange={(event) => {
+                    setGearUpdateError(null)
                     setSelectedFitnessFileId(event.target.value)
-                  }
+                  }}
                   className="h-9 rounded-lg border bg-background px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   {fitnessFiles.map((item) => (

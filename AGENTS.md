@@ -349,11 +349,21 @@ it; there is no legacy shape left to copy.
 
 ## Fitness Stat Strips
 
-- **Every labelled stat strip on a fitness surface renders through
-  `FitnessStatGrid`** (`@/lib/components/fitness/FitnessStatGrid`): the activity
-  detail page's header strip (distance / moving time / avg pace / elev gain),
-  the strip under its route map, and the inline fitness chip in a timeline post.
-  Do not hand-roll a `grid-cols-*` strip beside them.
+- **Three stat strips render through `FitnessStatGrid`**
+  (`@/lib/components/fitness/FitnessStatGrid`): the activity detail page's
+  header strip (distance / moving time / avg pace / elev gain), the strip under
+  its route map, and the inline fitness chip in a timeline post. Do not
+  hand-roll a `grid-cols-*` strip beside them, and put a new fitness stat strip
+  on this component rather than on a fourth threshold of its own.
+- **Two strips are NOT on it yet**, so do not read the rule as describing the
+  whole tree: the gear detail page's strip
+  (`app/(timeline)/fitness/gear/[id]/GearDetailView.tsx` — still on a
+  `sm:grid-cols-3`/`sm:grid-cols-2` **viewport** query, which is the same defect
+  described below) and the fitness overview's totals
+  (`app/(timeline)/fitness/ActorFitnessDashboard.tsx` — container-queried, but
+  hand-rolled on its own `@2xl/fitness` threshold). Migrating them is a
+  worthwhile follow-up; until then this section describes three strips, not
+  every one.
 - **The column rule is a CONTAINER query, never a viewport breakpoint.** The
   design system's `FitnessKit.StatGrid` and `FitnessChip` grids measure their
   own width with a `ResizeObserver` for the same reason `useCompactActionBar`

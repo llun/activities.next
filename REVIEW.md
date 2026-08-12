@@ -219,7 +219,9 @@ change doesn't touch.
   map, the inline chip in a post) render through `FitnessStatGrid` and size
   themselves with **container** queries — no hand-rolled `grid-cols-*` strip and
   no `sm:`/viewport breakpoint, which cannot see a narrow column on a wide
-  window. `@container` belongs on a wrapper, never on the grid it sizes.
+  window. `@container` belongs on a wrapper, never on the grid it sizes. Two
+  older strips (gear detail, fitness overview) are not migrated yet — see
+  **Fitness Stat Strips** in `AGENTS.md`.
 - When pairing a visible count with `sr-only` text, put only the noun (e.g.
   "boosts") in the `sr-only` span, not the number — the visible digit is already
   announced, so including it double-reads (see `posts/read-only-stats.tsx`).
