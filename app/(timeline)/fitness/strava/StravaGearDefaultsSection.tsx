@@ -115,22 +115,44 @@ export const StravaGearDefaultsSection: FC = () => {
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState('')
 
-  // The trigger that started the write, so focus can go back to it. Radix
-  // restores focus to the trigger in `onCloseAutoFocus`, but `setIsSaving(true)`
-  // lands first (`onSelect` runs inside a `flushSync`), so it restores onto a
-  // disabled button and the browser drops focus to `<body>` — a keyboard user
-  // would Tab from the top of the document again after every single change.
-  const pendingFocusRef = useRef<HTMLButtonElement | null>(null)
-  // Each row's trigger, by sport, so the write started from it knows where to
-  // put focus back. A row that disappears with its write leaves a detached
-  // node, which the restore effect checks for.
+  // Where focus should go once the write settles, resolved AFTER the re-render
+  // rather than captured before it — the control that started the write is not
+  // always still there (removing the last mapped sport unmounts its row;
+  // adding the last addable one unmounts the add menu), so each caller gives a
+  // preference order and the first connected node wins.
+  //
+  // This exists because Radix restores focus to the trigger in
+  // `onCloseAutoFocus`, but `setIsSaving(true)` lands first (`onSelect` runs
+  // inside a `flushSync`), so it restores onto a disabled button and the
+  // browser drops focus to `<body>` — a keyboard user would Tab from the top of
+  // the document again after every single change.
+  const pendingFocusRef = useRef<(() => HTMLButtonElement | null) | null>(null)
+  // Each row's picker, by sport. Bounded by `SPORT_KEYS`, and React calls the
+  // ref callback with `null` on unmount, so entries go stale-as-null rather
+  // than holding detached nodes.
   const triggerRefs = useRef(new Map<string, HTMLButtonElement | null>())
   const addTriggerRef = useRef<HTMLButtonElement | null>(null)
+
+  const firstRowTrigger = () => {
+    for (const trigger of triggerRefs.current.values()) {
+      if (trigger?.isConnected) return trigger
+    }
+    return null
+  }
+
+  const loadGears = async () => {
+    setError('')
+    try {
+      setGears(await getFitnessGearList())
+    } catch (_error) {
+      setError('Failed to load gear.')
+    }
+  }
 
   useEffect(() => {
     let isActive = true
 
-    const loadGears = async () => {
+    const loadOnMount = async () => {
       try {
         const list = await getFitnessGearList()
         if (isActive) setGears(list)
@@ -139,7 +161,7 @@ export const StravaGearDefaultsSection: FC = () => {
       }
     }
 
-    void loadGears()
+    void loadOnMount()
 
     return () => {
       isActive = false
@@ -147,14 +169,22 @@ export const StravaGearDefaultsSection: FC = () => {
   }, [])
 
   // Runs after the re-render that re-enables the controls, which is the only
-  // point at which the trigger can take focus again.
+  // point at which a trigger can take focus again.
   useEffect(() => {
     if (isSaving) return
-    const trigger = pendingFocusRef.current
-    if (!trigger) return
+    const resolveTarget = pendingFocusRef.current
+    if (!resolveTarget) return
     pendingFocusRef.current = null
-    // The row may have been removed by the write it was waiting on.
-    if (trigger.isConnected) trigger.focus()
+
+    // Only restore focus that was actually DROPPED. The reader may have moved
+    // on during the write — the section disables itself but the Strava
+    // credential form above it does not, so yanking focus back would pull them
+    // out of a field they had started typing in.
+    const active = document.activeElement
+    if (active && active !== document.body) return
+
+    const target = resolveTarget()
+    if (target?.isConnected) target.focus()
   }, [isSaving, gears])
 
   // Every write goes through here. Adding a sport to a gear takes it off
@@ -164,10 +194,10 @@ export const StravaGearDefaultsSection: FC = () => {
   const saveDefaultSports = async (
     gearId: string,
     sports: string[],
-    returnFocusTo?: HTMLButtonElement | null
+    resolveFocusTarget: () => HTMLButtonElement | null
   ) => {
     setError('')
-    pendingFocusRef.current = returnFocusTo ?? null
+    pendingFocusRef.current = resolveFocusTarget
     setIsSaving(true)
     try {
       await updateFitnessGear(gearId, { defaultSports: sports })
@@ -183,21 +213,28 @@ export const StravaGearDefaultsSection: FC = () => {
     }
   }
 
-  const assignSport = (
-    gear: GearEntity,
-    sportKey: SportKey,
-    returnFocusTo?: HTMLButtonElement | null
-  ) =>
+  const assignSport = (gear: GearEntity, sportKey: SportKey) =>
     saveDefaultSports(
       gear.id,
       [...gear.defaultSports.filter((sport) => sport !== sportKey), sportKey],
-      returnFocusTo
+      // The sport's own row, which either already existed or has just been
+      // created by this write — and is the thing that changed, so it is where
+      // a reader wants to land either way.
+      () => triggerRefs.current.get(sportKey) ?? addTriggerRef.current
     )
 
   const clearSport = (gear: GearEntity, sportKey: SportKey) =>
     saveDefaultSports(
       gear.id,
-      gear.defaultSports.filter((sport) => sport !== sportKey)
+      gear.defaultSports.filter((sport) => sport !== sportKey),
+      // On success this row is gone, so focus goes to the add menu — which the
+      // removal itself has just put the sport back into. On failure the row is
+      // still there and its own picker is the closest thing to where the
+      // reader was.
+      () =>
+        triggerRefs.current.get(sportKey)?.isConnected
+          ? (triggerRefs.current.get(sportKey) ?? null)
+          : (addTriggerRef.current ?? firstRowTrigger())
     )
 
   const rows = gears ? getDefaultRows(gears) : []
@@ -214,7 +251,7 @@ export const StravaGearDefaultsSection: FC = () => {
       : []
   })).filter(({ sports }) => sports.length > 0)
 
-  const handleAdd = (value: string, trigger?: HTMLButtonElement | null) => {
+  const handleAdd = (value: string) => {
     if (!gears) return
     const sportKey = SPORT_KEYS.find((key) => key === value)
     if (!sportKey) return
@@ -224,7 +261,7 @@ export const StravaGearDefaultsSection: FC = () => {
     )
     if (!gear) return
 
-    void assignSport(gear, sportKey, trigger)
+    void assignSport(gear, sportKey)
   }
 
   return (
@@ -238,6 +275,19 @@ export const StravaGearDefaultsSection: FC = () => {
 
       {gears === null && !error && (
         <p className="text-sm text-muted-foreground">Loading gear…</p>
+      )}
+
+      {/* A failed initial load renders no rows and no add control, so the only
+          thing that clears the error — a successful write — is unreachable.
+          Without this the section is a dead end until the page is reloaded. */}
+      {gears === null && error && (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => void loadGears()}
+        >
+          Try again
+        </Button>
       )}
 
       {/* Three empty states, not two. "Add an activity type below" is only
@@ -343,11 +393,7 @@ export const StravaGearDefaultsSection: FC = () => {
                         // dismiss the menu is the natural gesture.
                         onSelect={() => {
                           if (isActive) return
-                          void assignSport(
-                            option,
-                            sportKey,
-                            triggerRefs.current.get(sportKey)
-                          )
+                          void assignSport(option, sportKey)
                         }}
                         // One-of-N, so radio semantics rather than the
                         // `aria-current` the navigation dropdowns use. The
@@ -388,6 +434,7 @@ export const StravaGearDefaultsSection: FC = () => {
                 size="icon"
                 className="shrink-0"
                 aria-label={`Remove ${sportLabel}`}
+                aria-describedby={error ? ERROR_ID : undefined}
                 disabled={isSaving}
                 onClick={() => void clearSport(gear, sportKey)}
               >
@@ -441,7 +488,7 @@ export const StravaGearDefaultsSection: FC = () => {
                   <DropdownMenuItem
                     key={sportKey}
                     className="rounded-lg px-3 py-2 font-medium"
-                    onSelect={() => handleAdd(sportKey, addTriggerRef.current)}
+                    onSelect={() => handleAdd(sportKey)}
                   >
                     {getSportLabel(sportKey)}
                   </DropdownMenuItem>
@@ -454,9 +501,10 @@ export const StravaGearDefaultsSection: FC = () => {
 
       {/* `role="alert"` because a failed write is otherwise silent: the menu
           has closed, the trigger still reads the old gear, and the only sign
-          is text appended at the bottom of the section. Both triggers point at
-          it with `aria-describedby` so the failure is reachable from the
-          control that caused it, the way the activity page's picker does. */}
+          is text appended at the bottom of the section. Every control that can
+          cause it — both pickers and each row's remove button — points at it
+          with `aria-describedby`, so the failure is reachable from whichever
+          one the reader used, the way the activity page's picker does. */}
       {error && (
         <p id={ERROR_ID} role="alert" className="text-sm text-destructive">
           {error}

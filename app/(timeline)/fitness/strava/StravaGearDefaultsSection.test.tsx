@@ -269,23 +269,102 @@ describe('StravaGearDefaultsSection', () => {
     expect(within(menu).getByRole('menuitem', { name: 'Run' })).toBeVisible()
   })
 
-  it('announces a failed save from the control that caused it', async () => {
+  it('announces a failed save from every control that can cause it', async () => {
     const bike = createGear({ defaultSports: ['ride'] })
     mockGetFitnessGearList.mockResolvedValue([bike])
     mockUpdateFitnessGear.mockRejectedValue(new Error('Failed to save gear.'))
 
     render(<StravaGearDefaultsSection />)
 
+    // Driven from Remove, so the assertion below has to cover Remove — an
+    // earlier version of this test failed from Remove and then asserted on the
+    // picker, which passed without covering the causing control at all.
     fireEvent.click(await screen.findByRole('button', { name: 'Remove Ride' }))
 
     // A closed menu, an unchanged trigger and text appended at the bottom of
-    // the section is otherwise silent: nothing tells a screen reader the pick
+    // the section is otherwise silent: nothing tells a screen reader the write
     // failed rather than did nothing.
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('Failed to save gear.')
+    expect(screen.getByRole('button', { name: 'Remove Ride' })).toHaveAttribute(
+      'aria-describedby',
+      alert.id
+    )
     expect(
       screen.getByRole('button', { name: gearTriggerFor('Ride') })
     ).toHaveAttribute('aria-describedby', alert.id)
+  })
+
+  it('returns focus to the row after a failed remove', async () => {
+    // The row is still there on failure, and the button that was clicked is
+    // disabled mid-write — which blurs it — so without a restore the reader is
+    // on `<body>` with an alert they have to Tab from the top to reach.
+    const bike = createGear({ defaultSports: ['ride'] })
+    mockGetFitnessGearList.mockResolvedValue([bike])
+    let rejectSave: (error: Error) => void = () => {}
+    mockUpdateFitnessGear.mockReturnValue(
+      new Promise<GearEntity>((_resolve, reject) => {
+        rejectSave = reject
+      })
+    )
+
+    render(<StravaGearDefaultsSection />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove Ride' }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Remove Ride' })).toBeDisabled()
+    )
+
+    await act(async () => {
+      rejectSave(new Error('Failed to save gear.'))
+    })
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: gearTriggerFor('Ride') })
+      ).toHaveFocus()
+    )
+  })
+
+  it('leaves focus alone when the reader moved it during the write', async () => {
+    // The section disables itself during a write but the Strava credential
+    // form above it does not, so yanking focus back would pull a reader out of
+    // a field they had started typing in.
+    const moots = createGear({ defaultSports: ['ride'] })
+    const giant = createGear({
+      id: 'gear-other',
+      name: 'Giant',
+      defaultSports: []
+    })
+    mockGetFitnessGearList.mockResolvedValue([moots, giant])
+    let resolveSave: (gear: GearEntity) => void = () => {}
+    mockUpdateFitnessGear.mockReturnValue(
+      new Promise<GearEntity>((resolve) => {
+        resolveSave = resolve
+      })
+    )
+
+    const elsewhere = document.createElement('button')
+    elsewhere.textContent = 'Somewhere else'
+    document.body.appendChild(elsewhere)
+
+    render(<StravaGearDefaultsSection />)
+
+    const menu = await openMenu(gearTriggerFor('Ride'))
+    fireEvent.click(within(menu).getByRole('menuitemradio', { name: /Giant/ }))
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: gearTriggerFor('Ride') })
+      ).toBeDisabled()
+    )
+
+    elsewhere.focus()
+    await act(async () => {
+      resolveSave(giant)
+    })
+
+    expect(elsewhere).toHaveFocus()
+    elsewhere.remove()
   })
 
   it('does not claim the shed is empty when the gear list fails to load', async () => {
@@ -302,6 +381,23 @@ describe('StravaGearDefaultsSection', () => {
       screen.queryByRole('link', { name: 'Add a bike or a pair of shoes' })
     ).not.toBeInTheDocument()
     expect(screen.queryByText('Loading gear…')).not.toBeInTheDocument()
+  })
+
+  it('can retry a failed load rather than dead-ending until a page reload', async () => {
+    // A failed load renders no rows and no add control, so the only thing that
+    // clears the error — a successful write — is otherwise unreachable.
+    mockGetFitnessGearList
+      .mockRejectedValueOnce(new Error('nope'))
+      .mockResolvedValueOnce([createGear({ defaultSports: ['ride'] })])
+
+    render(<StravaGearDefaultsSection />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Try again' }))
+
+    expect(
+      await screen.findByRole('button', { name: gearTriggerFor('Ride') })
+    ).toHaveTextContent('Moots')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('gives the add menu groups an accessible name', async () => {
