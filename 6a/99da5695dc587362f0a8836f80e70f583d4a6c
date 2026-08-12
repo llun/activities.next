@@ -1,0 +1,19 @@
+scripts/fitness/convertStravaExportToGearImport.ts
+  s_2dfdc4b6b975e7::t_f5c9ef84e110bb 151-152,159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "6a99da5695dc587362f0a8836f80e70f583d4a6c",
+  "prompts": {},
+  "sessions": {
+    "s_2dfdc4b6b975e7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7e7f59c-102f-4387-a0d7-5b5bbfee3ba5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
