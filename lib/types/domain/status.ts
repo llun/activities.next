@@ -60,7 +60,13 @@ export const StatusFitnessFile = z.object({
   hasMapData: z.boolean().optional(),
   deviceName: z.string().optional(),
   deviceManufacturer: z.string().optional(),
-  sourceUrl: z.string().optional()
+  sourceUrl: z.string().optional(),
+  // The gear this activity is attributed to. The name is deliberately public —
+  // the timeline chip renders it to every viewer, the same way the device name
+  // is. Nothing else about the gear (default sports, service thresholds, notes)
+  // belongs in a status payload.
+  gearId: z.string().nullable().optional(),
+  gearName: z.string().nullable().optional()
 })
 export type StatusFitnessFile = z.infer<typeof StatusFitnessFile>
 

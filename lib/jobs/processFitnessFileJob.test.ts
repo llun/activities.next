@@ -1412,4 +1412,255 @@ describe('processFitnessFileJob', () => {
       expect(mockSendNotificationAlerts).not.toHaveBeenCalled()
     })
   })
+  describe('gear auto-assignment', () => {
+    // Gear rows outlive a test, and `findFitnessGearByDefaultSport` matches the
+    // first gear holding the sport — so a bike left behind by an earlier case
+    // would decide a later one. Wipe the shed between tests.
+    const clearGear = async () => {
+      const gears = await database.getFitnessGearsByActor({ actorId: actor.id })
+      for (const gear of gears) {
+        await database.deleteFitnessGear({ id: gear.id, actorId: actor.id })
+      }
+    }
+
+    beforeEach(clearGear)
+    afterAll(clearGear)
+
+    it('fires the service reminder for the very activity that crosses the threshold', async () => {
+      // The parsed fixture is a 5.2 km run, and the shoes are set to remind at
+      // 5 km — so the crossing is caused by THIS activity and nothing else.
+      //
+      // This is the regression guard for evaluating reminders too early: the
+      // rollups only count `completed` activities, so while the job still has
+      // the file marked `processing` the total reads 0 and no reminder fires.
+      // The bug is invisible in isolation — the reminder simply arrives one
+      // activity late, or never, if this was the last ride on that gear.
+      const shoes = await database.createFitnessGear({
+        actorId: actor.id,
+        kind: 'shoes',
+        name: 'Reminder shoes',
+        defaultSports: ['run'],
+        alertDistanceMeters: 5_000
+      })
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+
+      await processFitnessFileJob(database, {
+        id: 'job-gear-reminder',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      const reloaded = await database.getFitnessGear({
+        id: shoes.id,
+        actorId: actor.id
+      })
+      // Recorded at the distance the crossing was detected at, which must
+      // include this run rather than the 0 km that precedes it.
+      expect(reloaded?.lastAlertedDistanceMeters).toBe(5_200)
+    })
+
+    it('keeps a finished activity completed when the reminder lookup fails', async () => {
+      // The reminder block runs AFTER the activity is written `completed`, so
+      // an uncontained failure there would fall through to the job's failure
+      // handler and demote a fully processed activity — hiding it from the
+      // dashboard, the overview, every rollup and federation, over a read that
+      // only decides whether to send a courtesy email.
+      await database.createFitnessGear({
+        actorId: actor.id,
+        kind: 'shoes',
+        name: 'Reminder lookup failure shoes',
+        defaultSports: ['run'],
+        alertDistanceMeters: 5_000
+      })
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+
+      // Let the job's early read through and fail only the post-completion one.
+      const realGetFitnessFile = database.getFitnessFile.bind(database)
+      let calls = 0
+      const spy = vi
+        .spyOn(database, 'getFitnessFile')
+        .mockImplementation(async (params) => {
+          calls += 1
+          if (calls > 1) throw new Error('connection reset')
+          return realGetFitnessFile(params)
+        })
+
+      try {
+        await processFitnessFileJob(database, {
+          id: 'job-gear-reminder-read-failed',
+          name: PROCESS_FITNESS_FILE_JOB_NAME,
+          data: { actorId: actor.id, statusId, fitnessFileId }
+        })
+      } finally {
+        spy.mockRestore()
+      }
+
+      const reloaded = await database.getFitnessFile({ id: fitnessFileId })
+      expect(reloaded?.processingStatus).toBe('completed')
+    })
+
+    it('does not fire a reminder while the gear is below its threshold', async () => {
+      const shoes = await database.createFitnessGear({
+        actorId: actor.id,
+        kind: 'shoes',
+        name: 'Under threshold shoes',
+        defaultSports: ['run'],
+        alertDistanceMeters: 500_000
+      })
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+
+      await processFitnessFileJob(database, {
+        id: 'job-gear-reminder-under',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      const reloaded = await database.getFitnessGear({
+        id: shoes.id,
+        actorId: actor.id
+      })
+      expect(reloaded?.lastAlertedDistanceMeters).toBeUndefined()
+    })
+
+    it('assigns the gear whose default sport matches the parsed activity', async () => {
+      const gear = await database.createFitnessGear({
+        actorId: actor.id,
+        kind: 'shoes',
+        name: 'Nimbus 25',
+        defaultSports: ['run']
+      })
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+
+      await processFitnessFileJob(database, {
+        id: 'job-gear-assign',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      const updatedFitnessFile = await database.getFitnessFile({
+        id: fitnessFileId
+      })
+      expect(updatedFitnessFile?.gearId).toBe(gear.id)
+    })
+
+    it('never clobbers a gear the file already carries', async () => {
+      const assignedGear = await database.createFitnessGear({
+        actorId: actor.id,
+        kind: 'shoes',
+        name: 'Race shoes'
+      })
+      const defaultGear = await database.createFitnessGear({
+        actorId: actor.id,
+        kind: 'shoes',
+        name: 'Nimbus 25',
+        defaultSports: ['run']
+      })
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+      await database.setFitnessFileGear({
+        fitnessFileId,
+        actorId: actor.id,
+        gearId: assignedGear.id
+      })
+
+      await processFitnessFileJob(database, {
+        id: 'job-gear-keep',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      const updatedFitnessFile = await database.getFitnessFile({
+        id: fitnessFileId
+      })
+      expect(updatedFitnessFile?.gearId).toBe(assignedGear.id)
+      expect(updatedFitnessFile?.gearId).not.toBe(defaultGear.id)
+    })
+
+    it('leaves the file unattributed when no gear claims the sport', async () => {
+      await database.createFitnessGear({
+        actorId: actor.id,
+        kind: 'bike',
+        name: 'Moots',
+        defaultSports: ['ride']
+      })
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+
+      await processFitnessFileJob(database, {
+        id: 'job-gear-no-match',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      const updatedFitnessFile = await database.getFitnessFile({
+        id: fitnessFileId
+      })
+      expect(updatedFitnessFile?.gearId).toBeUndefined()
+    })
+
+    it('skips retired gear even when it still holds the default sport', async () => {
+      const gear = await database.createFitnessGear({
+        actorId: actor.id,
+        kind: 'shoes',
+        name: 'Worn out',
+        defaultSports: ['run']
+      })
+      await database.setFitnessGearRetired({
+        id: gear.id,
+        actorId: actor.id,
+        retired: true
+      })
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+
+      await processFitnessFileJob(database, {
+        id: 'job-gear-retired',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      const updatedFitnessFile = await database.getFitnessFile({
+        id: fitnessFileId
+      })
+      expect(updatedFitnessFile?.gearId).toBeUndefined()
+    })
+
+    it('leaves the file unattributed when the activity type maps to no sport', async () => {
+      await database.createFitnessGear({
+        actorId: actor.id,
+        kind: 'shoes',
+        name: 'Nimbus 25',
+        defaultSports: ['run']
+      })
+      mockParseFitnessFile.mockResolvedValue({
+        ...defaultActivityData,
+        activityType: 'lap_swimming'
+      })
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Pool session'
+      })
+
+      await processFitnessFileJob(database, {
+        id: 'job-gear-unknown-sport',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      const updatedFitnessFile = await database.getFitnessFile({
+        id: fitnessFileId
+      })
+      expect(updatedFitnessFile?.gearId).toBeUndefined()
+    })
+  })
 })

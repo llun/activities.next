@@ -1,0 +1,95 @@
+import { FitnessGearKind } from '@/lib/services/fitness-files/sportTypes'
+
+export type { FitnessGearKind }
+
+// SQL row type for the fitness_gears table. Timestamps and floats are loose
+// because the two backends hand them back differently: SQLite stores timestamps
+// as epoch-millisecond integers and can return numerics as strings, PostgreSQL
+// returns Date objects and (for some paths) numeric strings.
+export interface SQLFitnessGear {
+  id: string
+  actorId: string
+  kind: FitnessGearKind
+  name: string
+  brand?: string | null
+  model?: string | null
+  bikeType?: string | null
+  weightKilograms?: number | string | null
+  // JSON-encoded array of canonical sport keys.
+  defaultSports?: string | null
+  alertDistanceMeters?: number | string | null
+  lastAlertedDistanceMeters?: number | string | null
+  notes?: string | null
+  stravaGearId?: string | null
+  retiredAt?: number | Date | string | null
+
+  createdAt: number | Date
+  updatedAt: number | Date
+  deletedAt?: number | Date | string | null
+}
+
+// Parsed version for application use.
+export interface FitnessGear {
+  id: string
+  actorId: string
+  kind: FitnessGearKind
+  name: string
+  brand?: string
+  model?: string
+  bikeType?: string
+  weightKilograms?: number
+  defaultSports: string[]
+  alertDistanceMeters?: number
+  lastAlertedDistanceMeters?: number
+  notes?: string
+  stravaGearId?: string
+  retiredAt?: number
+
+  createdAt: number
+  updatedAt: number
+  deletedAt?: number
+}
+
+export interface SQLFitnessGearComponent {
+  id: string
+  gearId: string
+  componentType: string
+  brand?: string | null
+  model?: string | null
+  // null = installed since the gear's beginning.
+  addedAt?: number | Date | string | null
+  // null = still installed.
+  removedAt?: number | Date | string | null
+  serviceDistanceMeters?: number | string | null
+  lastAlertedDistanceMeters?: number | string | null
+
+  createdAt: number | Date
+  updatedAt: number | Date
+  deletedAt?: number | Date | string | null
+}
+
+export interface FitnessGearComponent {
+  id: string
+  gearId: string
+  componentType: string
+  brand?: string
+  model?: string
+  addedAt?: number
+  removedAt?: number
+  serviceDistanceMeters?: number
+  lastAlertedDistanceMeters?: number
+
+  createdAt: number
+  updatedAt: number
+  deletedAt?: number
+}
+
+/**
+ * Distance and activity count derived from `fitness_files` — never stored. Gear
+ * totals sum every activity attributed to the gear; component totals sum only
+ * the activities inside the component's install window.
+ */
+export interface FitnessGearDistanceRollup {
+  distanceMeters: number
+  activityCount: number
+}

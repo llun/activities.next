@@ -28,6 +28,7 @@ interface Props {
     reply?: boolean
     reblog?: boolean
     activity_import?: boolean
+    gear_service_due?: boolean
   }
   notificationTypes: NotificationTypeConfig[]
 }

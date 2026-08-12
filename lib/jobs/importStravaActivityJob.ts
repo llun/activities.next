@@ -22,6 +22,7 @@ import {
 import { buildActivityImportEmail } from '@/lib/services/email/templates/activityImport'
 import { saveFitnessFile } from '@/lib/services/fitness-files'
 import { withImportLock } from '@/lib/services/fitness-files/importLock'
+import { resolveStravaGear } from '@/lib/services/fitness-gears/resolveImportedGear'
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
 import { getActivityImportGroupKey } from '@/lib/services/notifications/activityImportGroupKey'
@@ -55,6 +56,7 @@ import {
   SAFE_DOWNLOAD_MAX_BYTES,
   readResponseArrayBufferWithLimit
 } from '@/lib/utils/streamLimit'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { createJobHandle } from './createJobHandle'
 
@@ -438,6 +440,53 @@ export const importStravaActivityJob = createJobHandle(
       visibility ?? mapStravaVisibilityToMastodon(activity.visibility)
     const batchId = getStravaActivityBatchId(stravaActivityId)
 
+    // Resolve the gear once for both branches below. Gear is an attribution,
+    // not part of the activity: a Strava outage, a revoked scope or a gear the
+    // athlete deleted must leave the ride imported and unattributed rather
+    // than failing the whole job.
+    let importedGearId: string | null = null
+    if (activity.gear_id) {
+      try {
+        const resolvedGear = await resolveStravaGear({
+          database,
+          actorId,
+          stravaGearId: activity.gear_id,
+          accessToken,
+          activityType: activity.sport_type ?? activity.type
+        })
+        importedGearId = resolvedGear?.id ?? null
+      } catch (error) {
+        logger.warn({
+          message: 'Failed to resolve gear for Strava activity',
+          actorId,
+          stravaActivityId,
+          err: toLoggableError(error)
+        })
+      }
+    }
+
+    // `assignFitnessFileGearIfUnset` is a `whereNull('gearId')` UPDATE, so a
+    // re-import can never overwrite an attribution the owner has since
+    // corrected by hand.
+    const assignImportedGear = async (fitnessFileId: string) => {
+      if (!importedGearId) return false
+      try {
+        return await database.assignFitnessFileGearIfUnset({
+          fitnessFileId,
+          actorId,
+          gearId: importedGearId
+        })
+      } catch (error) {
+        logger.warn({
+          message: 'Failed to assign gear to imported Strava activity',
+          actorId,
+          stravaActivityId,
+          err: toLoggableError(error)
+        })
+        return false
+      }
+    }
+
     const batchFiles = await database.getFitnessFilesByBatchId({ batchId })
     let targetFitnessFile =
       batchFiles.find((file) => file.actorId === actorId) ?? null
@@ -617,6 +666,8 @@ export const importStravaActivityJob = createJobHandle(
         )
       }
 
+      await assignImportedGear(storedFitnessFile.id)
+
       targetFitnessFile = await database.getFitnessFile({
         id: storedFitnessFile.id
       })
@@ -666,6 +717,19 @@ export const importStravaActivityJob = createJobHandle(
           ...(backfillData.sourceUrl
             ? { sourceUrl: backfillData.sourceUrl }
             : {})
+        }
+      }
+
+      // Backfill the attribution only when the file has none. The guarded
+      // UPDATE enforces that too; checking here keeps the re-read out of the
+      // common path.
+      if (!targetFitnessFile.gearId) {
+        const assigned = await assignImportedGear(targetFitnessFile.id)
+        if (assigned && importedGearId) {
+          targetFitnessFile = {
+            ...targetFitnessFile,
+            gearId: importedGearId
+          }
         }
       }
     }

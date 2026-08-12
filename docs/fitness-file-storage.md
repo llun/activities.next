@@ -57,9 +57,27 @@ Important columns include:
 - `mapError` — why the route map is missing, when one was expected. Deliberately separate from `processingStatus`/`importError`: those mean "this activity is not usable" and gate the status detail dashboard, the post's stat grid, the fitness overview, the profile's Fitness tab and every stats/heatmap rollup, so reusing them for a missing image would hide hundreds of good imports during a tile-server or storage outage. Nullable, and null is the norm — no GPS data, a privacy location leaving no exposed route, and a map that rendered fine all leave it null. Cleared on every successful (re)processing run. The post surfaces it to its **owner only**, and as a closed vocabulary rather than the reason — `fitness.mapFailure` is `missing` (none could be produced) or `stale` (the previous one is still shown, because the run that should have replaced it failed), so each surface's copy matches what the post actually shows. The status payload is readable by every viewer, while the reason is a raw error string that can name internal infrastructure, so it is rendered only on the owner's own fitness files page.
 - `mapImageEmailPath` — path of a JPEG copy of the route map in `mapImagePath`, stored for the activity-import email only. Every image the media storages write is WebP, which Outlook desktop (Word rendering engine) and Windows Mail cannot decode, so those recipients saw the image's alt text instead of their route. The copy is not attached to the status and never federates. Nullable, and only written by an import that is going to email the owner — checked against `notifyOnComplete`, the instance having email configured, and the owner's activity-import email preference, so instances that send no email store no copies. An activity with no GPS data has no map at all, and activities imported before this column existed keep pointing their (already sent) email at the WebP. Because it has no `medias` row, the fitness file is its only reference: it is deleted wherever that reference is dropped — deleting the activity, deleting the post with `delete_media=true`, reprocessing or re-importing the file, **Regenerate maps** replacing or removing the map it was made from, and `scripts/fitness/repairStravaActivityFiles.ts --delete-missing` — `scripts/maintenance/cleanupMediaStorage.ts` treats it as referenced rather than orphaned, and `scripts/backup/productionArchive.ts` archives it with the other media. Its bytes are checked against the account quota before being written but are not added to the usage counters, which are maintained alongside `medias` rows. Deleting a post _without_ `delete_media` keeps the copy, which is the same thing that happens to the WebP the post displayed: the activity itself, and so the reference, survives.
 - `deviceManufacturer`, `deviceName`
+- `gearId` — the bike or pair of shoes this activity is attributed to, or null. See Gear Tracking below. Deliberately a plain indexed column with no database-level foreign key: adding one through `alterTable` needs a table rebuild on SQLite, so the relationship is enforced in `lib/database/sql/fitnessGear.ts` instead, and deleting gear nulls the column in the same transaction.
 - `createdAt`, `updatedAt`, `deletedAt`
 
 Route heatmap caches are stored in `fitness_route_heatmaps`. They are keyed by actor, activity type, period, and region and store serialized route segments rather than generated PNG files. A nullable `shareToken` column backs the shareable/embeddable heatmap views (iframe + image). User-assigned names for heatmap regions are persisted separately in `fitness_route_heatmap_region_names` (keyed by actor and region) so they survive reloads.
+
+## Gear Tracking
+
+Bikes and shoes live in `fitness_gears`, and the parts bolted to a bike in `fitness_gear_components` (both added by `migrations/20260811000000_add_fitness_gear.js`).
+
+**Lifetime distance is never stored.** A gear total is `SUM(fitness_files.totalDistanceMeters) WHERE gearId = ?`, and a component total is the same sum restricted to activities whose `activityStartTime` falls inside the component's `[addedAt, removedAt)` install window — a null `addedAt` means "since the gear's beginning" and a null `removedAt` means "still installed". Both rollups reuse the same `deletedAt IS NULL` + `processingStatus = 'completed'` + `isPrimary` filter as `getFitnessActivitySummary`, so gear numbers line up with the fitness overview. Storing the totals instead would have to be reconciled on every back-dated upload, archive re-import, activity edit and delete; derived totals are always consistent with the calendar for free.
+
+An activity with no `activityStartTime` — a GPX carrying no timestamps — counts toward its gear's total but only toward components whose window is open on that side, because an activity that cannot be placed in time cannot be placed inside `[addedAt, removedAt)` either. A gear total may therefore exceed the sum of its components' totals. For the same reason such an activity is counted here but not by `getFitnessActivitySummary`, which additionally requires a non-null `activityType` and `activityStartTime` to group by.
+
+`fitness_gears` columns: `id`, `actorId`, `kind` (`bike` or `shoes`), `name`, `brand`, `model`, `bikeType`, `weightKilograms`, `defaultSports` (a JSON-encoded array of canonical sport keys, in a `text` column so every backend behaves alike), `alertDistanceMeters`, `lastAlertedDistanceMeters`, `notes`, `stravaGearId`, `retiredAt`, and the usual timestamps with a soft-delete `deletedAt`.
+
+`fitness_gear_components` columns: `id`, `gearId`, `componentType` (named that way to avoid the MySQL reserved word `type`), `brand`, `model`, `addedAt`, `removedAt`, `serviceDistanceMeters`, `lastAlertedDistanceMeters`, timestamps and `deletedAt`.
+
+- **Default sports** map an incoming activity to gear automatically. `fitness_files.activityType` is free-form — FIT, TCX, Strava and GPX each use a different vocabulary — so `lib/services/fitness-files/sportTypes.ts` normalises it to a canonical key (`ride`, `gravel_ride`, `mountain_bike_ride`, `ebike_ride`, `virtual_ride`, `run`, `trail_run`, `walk`, `hike`) and gear stores those keys. A sport belongs to at most one of an actor's gears; claiming it moves it off whichever gear held it. `processFitnessFileJob` assigns gear once the activity type is known, and only when the file has none — a manual or Strava assignment always wins.
+- **Retiring** takes gear out of the pickers and out of auto-assign; its total is frozen by the absence of new activities. Retired gear stays explicitly assignable, so old activities can still be attributed to a bike that has since been sold.
+- **Strava imports** key on `stravaGearId` (unique per actor) rather than on the name, because names are editable on both sides and a rename under name-keying would fork a duplicate. Archive imports have only the name from `activities.csv`/`bikes.csv`/`shoes.csv` and fall back to name matching.
+- **Service reminders** compare the derived totals against `alertDistanceMeters` (shoes) and `serviceDistanceMeters` (components), recording the distance they fired at in `lastAlertedDistanceMeters` so each crossing notifies exactly once — the claim is a conditional write, so two concurrent evaluations produce one notification rather than one each. Raising a threshold, replacing a part, or retiring and unretiring re-arms it. They are evaluated when a total can change — after an activity is marked `completed`, and when one is attributed by hand — because this instance has no recurring job infrastructure; the queue can delay a message but not repeat one. Evaluating before the `completed` write would read the total from before the activity that caused the crossing.
 
 ## API Endpoints
 
@@ -67,6 +85,7 @@ Route heatmap caches are stored in `fitness_route_heatmaps`. They are keyed by a
 
 - `POST /api/v1/fitness-files` uploads a fitness file through multipart form data.
 - `GET /api/v1/fitness-files/:id` returns the original uploaded file content. **Owner only** — every other request, signed in or not, gets a `404` whatever the attached status's visibility (see Security and Privacy). Responses are `private, no-store`, `nosniff`, and `Content-Disposition: attachment`.
+- `PATCH /api/v1/fitness-files/:id` attributes the activity to a piece of gear, or clears it with `{ "gearId": null }`. Owner only; every rejection is a `404`, including a gear id that is not the owner's, so the response cannot confirm that an id exists.
 - `GET /api/v1/fitness-files/:id/route-data` returns parsed route samples and analysis series for status detail maps and charts.
 - `GET /api/v1/fitness-files/by-status?statusId=...` returns fitness files attached to a status.
 - `DELETE /api/v1/accounts/fitness-files/:fitnessFileId` deletes an uploaded fitness file.
@@ -95,6 +114,17 @@ The older `/fitness-heatmap` and `/fitness-heatmaps` endpoints are compatibility
 - `POST /api/v1/fitness/import`
 - `GET` and `POST /api/v1/fitness/import/:batchId`
 - `POST /api/v1/webhooks/strava/:webhookToken`
+
+### Gear
+
+Every gear endpoint is owner-scoped, and answers `404` rather than `403` for anything the signed-in actor does not own.
+
+- `GET` and `POST /api/v1/fitness/gear` — list (each entry carrying its derived `distanceMeters` and `activityCount`, batched into one grouped query) and create.
+- `PATCH` and `DELETE /api/v1/fitness/gear/:id` — `kind` is immutable. Deleting soft-deletes the gear and nulls `gearId` on its activities in the same transaction.
+- `POST /api/v1/fitness/gear/:id/retire` — one idempotent toggle taking `{ "retired": true | false }`, rather than separate retire and unretire verbs.
+- `GET` and `POST /api/v1/fitness/gear/:id/components`
+- `PATCH` and `DELETE /api/v1/fitness/gear/:id/components/:componentId`
+- `POST /api/v1/fitness/gear/:id/components/:componentId/replace` — closes the fitted part at today's date and opens a fresh one at 0 km carrying the same component type and service interval. A single endpoint because the two writes have to be atomic and because what the replacement inherits is a server-side rule.
 
 ### Map Provider Tokens
 

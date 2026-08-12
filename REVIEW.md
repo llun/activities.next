@@ -191,6 +191,12 @@ change doesn't touch.
   `new URL()` and allow only the `http:` or `https:` protocols — not a `startsWith`
   or regex check — so a `javascript:` (or other) scheme can't become a DOM-XSS
   sink (see `lib/utils/fitness.ts`).
+- Fitness gear distance stays **derived**, never cached in a column, and every
+  rollup reuses the same completed/primary/not-deleted predicate as
+  `getFitnessActivitySummary` so the numbers reconcile across surfaces. Sport
+  matching goes through `normalizeActivityTypeToSportKey`, never the raw
+  `activityType`, and import jobs assign with `assignFitnessFileGearIfUnset` so a
+  re-run can't clobber a manual assignment. See **Fitness Gear** in `AGENTS.md`.
 - React state updater functions stay pure — no side effects, and don't fire another
   variable's state update from inside an updater. Do the separate `setState` calls
   in the event handler instead, so Strict Mode's double-invoke can't misfire them.

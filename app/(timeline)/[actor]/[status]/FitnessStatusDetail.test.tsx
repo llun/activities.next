@@ -15,8 +15,11 @@ import {
   type FitnessRouteDataResponse,
   type StatusFitnessFileItem,
   getFitnessFilesByStatus,
-  getFitnessRouteData
+  getFitnessGearList,
+  getFitnessRouteData,
+  updateFitnessFileGear
 } from '@/lib/client'
+import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusNote } from '@/lib/types/domain/status'
 import { loadMaplibreModule } from '@/lib/utils/maplibre'
@@ -25,7 +28,9 @@ import { FitnessStatusDetail } from './FitnessStatusDetail'
 
 vi.mock('@/lib/client', () => ({
   getFitnessFilesByStatus: vi.fn(),
-  getFitnessRouteData: vi.fn()
+  getFitnessGearList: vi.fn(),
+  getFitnessRouteData: vi.fn(),
+  updateFitnessFileGear: vi.fn()
 }))
 
 vi.mock('@/lib/utils/mapbox', () => ({
@@ -112,6 +117,26 @@ vi.mock('@/lib/components/posts/BrandedDeviceLink', () => ({
 
 const mockGetFitnessFilesByStatus = vi.mocked(getFitnessFilesByStatus)
 const mockGetFitnessRouteData = vi.mocked(getFitnessRouteData)
+const mockGetFitnessGearList = vi.mocked(getFitnessGearList)
+const mockUpdateFitnessFileGear = vi.mocked(updateFitnessFileGear)
+
+const buildGear = (overrides: Partial<GearEntity> = {}): GearEntity => ({
+  id: 'gear-bike',
+  kind: 'bike',
+  name: 'Moots',
+  brand: null,
+  model: null,
+  bikeType: null,
+  weightKilograms: null,
+  defaultSports: [],
+  alertDistanceMeters: null,
+  notes: null,
+  retiredAt: null,
+  createdAt: Date.parse('2026-01-01T00:00:00Z'),
+  distanceMeters: 0,
+  activityCount: 0,
+  ...overrides
+})
 
 const actor = {
   id: 'https://activities.local/users/athlete',
@@ -218,6 +243,8 @@ const buildFitnessFile = (
   deviceManufacturer: null,
   deviceName: null,
   sourceUrl: null,
+  gearId: null,
+  gearName: null,
   ...overrides
 })
 
@@ -247,8 +274,11 @@ describe('FitnessStatusDetail', () => {
   beforeEach(() => {
     mockGetFitnessFilesByStatus.mockReset()
     mockGetFitnessRouteData.mockReset()
+    mockGetFitnessGearList.mockReset()
+    mockUpdateFitnessFileGear.mockReset()
     mockGetFitnessFilesByStatus.mockResolvedValue(null)
     mockGetFitnessRouteData.mockResolvedValue(routeData)
+    mockGetFitnessGearList.mockResolvedValue([])
     // Default: the GL loader never settles, so the map stays initializing.
     vi.mocked(loadMaplibreModule).mockImplementation(
       () => new Promise(() => {})
@@ -1693,6 +1723,297 @@ describe('FitnessStatusDetail', () => {
       expect(
         await screen.findByRole('img', { name: '\u{1F525} reaction, 3' })
       ).toBeInTheDocument()
+    })
+  })
+  describe('gear', () => {
+    it('offers the owner a picker of their active gear', async () => {
+      mockGetFitnessGearList.mockResolvedValue([
+        buildGear({ id: 'gear-bike', name: 'Moots' }),
+        buildGear({ id: 'gear-other-bike', name: 'Winter bike' })
+      ])
+
+      renderDetail()
+
+      const select = (await screen.findByLabelText('Gear')) as HTMLSelectElement
+      expect(select.value).toBe('')
+      expect(
+        within(select).getByRole('option', { name: 'No gear' })
+      ).toBeInTheDocument()
+      expect(
+        within(select).getByRole('option', { name: 'Moots' })
+      ).toBeInTheDocument()
+      expect(
+        within(select).getByRole('option', { name: 'Winter bike' })
+      ).toBeInTheDocument()
+    })
+
+    it('narrows the options to the kind the activity implies', async () => {
+      mockGetFitnessGearList.mockResolvedValue([
+        buildGear({ id: 'gear-bike', name: 'Moots', kind: 'bike' }),
+        buildGear({ id: 'gear-shoes', name: 'Nimbus 25', kind: 'shoes' }),
+        buildGear({
+          id: 'gear-retired',
+          name: 'Sold bike',
+          kind: 'bike',
+          retiredAt: Date.parse('2026-02-01T00:00:00Z')
+        })
+      ])
+
+      renderDetail()
+
+      const select = await screen.findByLabelText('Gear')
+      await waitFor(() =>
+        expect(
+          within(select).getByRole('option', { name: 'Moots' })
+        ).toBeInTheDocument()
+      )
+      // A ride never offers shoes, and retired gear is out of the picker.
+      expect(
+        within(select).queryByRole('option', { name: 'Nimbus 25' })
+      ).not.toBeInTheDocument()
+      expect(
+        within(select).queryByRole('option', { name: 'Sold bike' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('keeps the assigned gear in the list even when the filter would drop it', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([
+        buildFitnessFile({ gearId: 'gear-retired', gearName: 'Sold bike' })
+      ])
+      mockGetFitnessGearList.mockResolvedValue([
+        buildGear({ id: 'gear-bike', name: 'Moots' }),
+        buildGear({
+          id: 'gear-retired',
+          name: 'Sold bike',
+          retiredAt: Date.parse('2026-02-01T00:00:00Z')
+        })
+      ])
+
+      renderDetail()
+
+      const select = (await screen.findByLabelText('Gear')) as HTMLSelectElement
+      // A select whose value has no matching option silently renders the first
+      // one instead, which reads as the gear having changed on its own.
+      await waitFor(() => expect(select.value).toBe('gear-retired'))
+      expect(
+        within(select).getByRole('option', { name: 'Sold bike' })
+      ).toBeInTheDocument()
+    })
+
+    it('shows a non-owner the gear name as plain text with no picker', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([
+        buildFitnessFile({ gearId: 'gear-bike', gearName: 'Moots' })
+      ])
+
+      renderDetail({ currentActor: notMe })
+
+      expect(await screen.findByText('Gear: Moots')).toBeInTheDocument()
+      expect(screen.queryByLabelText('Gear')).not.toBeInTheDocument()
+      expect(mockGetFitnessGearList).not.toHaveBeenCalled()
+    })
+
+    it('shows a non-owner nothing when no gear is attributed', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([buildFitnessFile()])
+
+      renderDetail({ currentActor: notMe })
+
+      await waitFor(() =>
+        expect(screen.getByText('ride.fit')).toBeInTheDocument()
+      )
+      expect(screen.queryByText(/^Gear/)).not.toBeInTheDocument()
+    })
+
+    it('updates the assignment optimistically and persists it', async () => {
+      mockGetFitnessGearList.mockResolvedValue([
+        buildGear({ id: 'gear-bike', name: 'Moots' })
+      ])
+      mockUpdateFitnessFileGear.mockResolvedValue({
+        id: 'fit-1',
+        gearId: 'gear-bike'
+      })
+
+      renderDetail()
+
+      const select = (await screen.findByLabelText('Gear')) as HTMLSelectElement
+      await waitFor(() =>
+        expect(
+          within(select).getByRole('option', { name: 'Moots' })
+        ).toBeInTheDocument()
+      )
+
+      fireEvent.change(select, { target: { value: 'gear-bike' } })
+
+      await waitFor(() => expect(select.value).toBe('gear-bike'))
+      expect(mockUpdateFitnessFileGear).toHaveBeenCalledWith(
+        'fit-1',
+        'gear-bike'
+      )
+    })
+
+    it('reverts and reports an inline error when the update fails', async () => {
+      mockGetFitnessGearList.mockResolvedValue([
+        buildGear({ id: 'gear-bike', name: 'Moots' })
+      ])
+      mockUpdateFitnessFileGear.mockRejectedValue(
+        new Error('Failed to update gear.')
+      )
+
+      renderDetail()
+
+      const select = (await screen.findByLabelText('Gear')) as HTMLSelectElement
+      await waitFor(() =>
+        expect(
+          within(select).getByRole('option', { name: 'Moots' })
+        ).toBeInTheDocument()
+      )
+
+      fireEvent.change(select, { target: { value: 'gear-bike' } })
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Failed to update gear.'
+      )
+      // The select goes back to what the server still holds.
+      await waitFor(() => expect(select.value).toBe(''))
+    })
+
+    it('points the select at its own error message', async () => {
+      mockGetFitnessGearList.mockResolvedValue([
+        buildGear({ id: 'gear-bike', name: 'Moots' })
+      ])
+      mockUpdateFitnessFileGear.mockRejectedValue(new Error('Gear is retired.'))
+
+      renderDetail()
+
+      const select = (await screen.findByLabelText('Gear')) as HTMLSelectElement
+      expect(select).not.toHaveAttribute('aria-describedby')
+
+      fireEvent.change(select, { target: { value: 'gear-bike' } })
+
+      const alert = await screen.findByRole('alert')
+      await waitFor(() =>
+        expect(select).toHaveAttribute('aria-describedby', alert.id)
+      )
+      expect(alert.id).toBe('activity-gear-error')
+    })
+
+    it('disables the select while the change is in flight', async () => {
+      mockGetFitnessGearList.mockResolvedValue([
+        buildGear({ id: 'gear-bike', name: 'Moots' })
+      ])
+      let resolveUpdate: (file: {
+        id: string
+        gearId: string | null
+      }) => void = () => {}
+      mockUpdateFitnessFileGear.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveUpdate = resolve
+          })
+      )
+
+      renderDetail()
+
+      const select = (await screen.findByLabelText('Gear')) as HTMLSelectElement
+      await waitFor(() =>
+        expect(
+          within(select).getByRole('option', { name: 'Moots' })
+        ).toBeInTheDocument()
+      )
+
+      fireEvent.change(select, { target: { value: 'gear-bike' } })
+
+      // Two fast changes would otherwise race, and the loser's rollback would
+      // restore an assignment the server has already replaced.
+      await waitFor(() => expect(select).toBeDisabled())
+
+      resolveUpdate({ id: 'fit-1', gearId: 'gear-bike' })
+      await waitFor(() => expect(select).toBeEnabled())
+    })
+
+    it('rolls back only this file, keeping a file list that landed mid-flight', async () => {
+      // The status payload's single file is what renders first; the real list
+      // arrives from `getFitnessFilesByStatus`, and here it lands while the
+      // gear PATCH is still open.
+      let resolveFiles: (files: StatusFitnessFileItem[]) => void = () => {}
+      mockGetFitnessFilesByStatus.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveFiles = resolve
+          })
+      )
+      mockGetFitnessGearList.mockResolvedValue([
+        buildGear({ id: 'gear-bike', name: 'Moots' })
+      ])
+      let rejectUpdate: (error: Error) => void = () => {}
+      mockUpdateFitnessFileGear.mockImplementation(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectUpdate = reject
+          })
+      )
+
+      renderDetail()
+
+      const select = (await screen.findByLabelText('Gear')) as HTMLSelectElement
+      await waitFor(() =>
+        expect(
+          within(select).getByRole('option', { name: 'Moots' })
+        ).toBeInTheDocument()
+      )
+
+      fireEvent.change(select, { target: { value: 'gear-bike' } })
+      await waitFor(() => expect(select.value).toBe('gear-bike'))
+
+      await act(async () => {
+        resolveFiles([
+          buildFitnessFile(),
+          buildFitnessFile({
+            id: 'fit-2',
+            fileName: 'second.fit',
+            isPrimary: false,
+            activityStartTime: Date.parse('2026-05-27T18:00:00Z')
+          })
+        ])
+      })
+      expect(await screen.findByLabelText('Activity file')).toBeInTheDocument()
+
+      await act(async () => {
+        rejectUpdate(new Error('Failed to update gear.'))
+      })
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Failed to update gear.'
+      )
+      // Only this file's assignment went back. Restoring the array captured
+      // before the PATCH would have dropped the second file with it.
+      await waitFor(() => expect(select.value).toBe(''))
+      expect(screen.getByLabelText('Activity file')).toBeInTheDocument()
+      expect(screen.getByText('file 1 of 2')).toBeInTheDocument()
+    })
+
+    it('sends null when the owner clears the assignment', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([
+        buildFitnessFile({ gearId: 'gear-bike', gearName: 'Moots' })
+      ])
+      mockGetFitnessGearList.mockResolvedValue([
+        buildGear({ id: 'gear-bike', name: 'Moots' })
+      ])
+      mockUpdateFitnessFileGear.mockResolvedValue({
+        id: 'fit-1',
+        gearId: null
+      })
+
+      renderDetail()
+
+      const select = (await screen.findByLabelText('Gear')) as HTMLSelectElement
+      await waitFor(() => expect(select.value).toBe('gear-bike'))
+
+      fireEvent.change(select, { target: { value: '' } })
+
+      await waitFor(() =>
+        expect(mockUpdateFitnessFileGear).toHaveBeenCalledWith('fit-1', null)
+      )
+      expect(select.value).toBe('')
     })
   })
 })

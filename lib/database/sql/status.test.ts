@@ -630,7 +630,51 @@ describe('StatusDatabase', () => {
           bytes: 4096,
           url: `/api/v1/fitness-files/${fitnessFile?.id}`,
           sourceUrl: 'https://www.strava.com/activities/123',
-          processingStuck: false
+          processingStuck: false,
+          gearId: null,
+          gearName: null
+        })
+      })
+
+      it('returns the assigned gear name alongside the fitness file', async () => {
+        const statusId = `${emptyActorId}/statuses/fitness-gear`
+
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'This ride has gear'
+        })
+
+        const fitnessFile = await database.createFitnessFile({
+          actorId: emptyActorId,
+          statusId,
+          path: `fitness/${Date.now()}-gear.fit`,
+          fileName: 'gear.fit',
+          fileType: 'fit',
+          mimeType: 'application/octet-stream',
+          bytes: 4096
+        })
+        const gear = await database.createFitnessGear({
+          actorId: emptyActorId,
+          kind: 'bike',
+          name: 'Moots'
+        })
+        await database.setFitnessFileGear({
+          fitnessFileId: fitnessFile!.id,
+          actorId: emptyActorId,
+          gearId: gear.id
+        })
+
+        // The name arrives on the same query as the file — a second lookup per
+        // status is an N+1 across a timeline page.
+        const status = (await database.getStatus({ statusId })) as StatusNote
+        expect(status.fitness).toMatchObject({
+          id: fitnessFile?.id,
+          gearId: gear.id,
+          gearName: 'Moots'
         })
       })
 

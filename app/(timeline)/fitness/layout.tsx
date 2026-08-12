@@ -1,6 +1,6 @@
 'use client'
 
-import { Activity, Files, Flame, Globe, Lock } from 'lucide-react'
+import { Activity, Files, Flame, Globe, Lock, Wrench } from 'lucide-react'
 import { FC, ReactNode } from 'react'
 
 import {
@@ -21,7 +21,8 @@ const tabs: SectionNavTab[] = [
   { name: 'Heatmaps', url: '/fitness/heatmap', icon: Flame },
   { name: 'Files', url: '/fitness/files', icon: Files },
   { name: 'Privacy', url: '/fitness/privacy', icon: Lock },
-  { name: 'Strava', url: '/fitness/strava', icon: Globe }
+  { name: 'Strava', url: '/fitness/strava', icon: Globe },
+  { name: 'Gear', url: '/fitness/gear', icon: Wrench }
 ]
 
 const Layout: FC<Props> = ({ children }) => {
