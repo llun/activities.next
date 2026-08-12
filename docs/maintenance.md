@@ -357,6 +357,7 @@ NODE_ENV=production ./scripts/fitness/fixStuckFitnessProcessing.ts --actor-id ht
 NODE_ENV=production ./scripts/fitness/recreateFitnessRouteHeatmaps.ts --actor-id https://your-domain.tld/users/username --dry-run
 NODE_ENV=production ./scripts/fitness/repairStravaActivityFiles.ts --actor-id https://your-domain.tld/users/username --dry-run
 NODE_ENV=production ./scripts/fitness/backfillFitnessMovingTime.ts --actor-id https://your-domain.tld/users/username --dry-run
+NODE_ENV=production ./scripts/fitness/importFitnessGear.ts --actor-id https://your-domain.tld/users/username --input ./gear-import.json --dry-run
 NODE_ENV=production ./scripts/fitness/retrigerStravaActivities.ts --actor-id https://your-domain.tld/users/username --activity-id 123456789
 NODE_ENV=production ./scripts/fitness/listStravaWebhooks.ts @username@your-domain.tld
 ```
@@ -366,6 +367,88 @@ NODE_ENV=production ./scripts/fitness/listStravaWebhooks.ts @username@your-domai
 > **Note:** `repairStravaActivityFiles.ts` only **reports** activities that Strava 404s by default; pass `--delete-missing` to hard-delete their stored file, DB record, and post (irreversible). Every recovery script prints the resolved database target on start — verify it is production (`.env.local` shadows `.env.production` even under `NODE_ENV=production`).
 >
 > **Note:** `backfillFitnessMovingTime.ts` recomputes `movingTimeSeconds` for already-stored activity files by re-parsing them, so their average pace/speed switches from elapsed-time to moving-time (matching Strava). New imports already compute it during processing; this only needs running once over historical records. It skips files that already have a moving time (pass `--force` to recompute anyway) and supports `--dry-run` to preview.
+
+#### Backfilling gear onto activities imported before gear tracking existed
+
+Gear tracking arrived after most activities did, so anything imported earlier has
+no gear at all. Re-importing would duplicate the posts, and the Strava import
+paths only attribute activities they import themselves, so
+`scripts/fitness/importFitnessGear.ts` fills the gap: it creates the gear and its
+component history from a JSON file, then attributes existing activities by
+matching each entry's timestamp against `activityStartTime`.
+
+Assignments are matched to the nearest activity within `--tolerance-seconds`
+(default 60). An entry that matches nothing, ties between two activities, or
+lands on an activity another entry already claimed is reported and skipped —
+never guessed at. Activities that already carry gear are left alone unless
+`--overwrite` is given, so re-running is free and never undoes a manual
+correction. Always `--dry-run` first: the report lists how far the nearest
+activity was for every unmatched entry, so a systematic clock problem shows up as
+a uniform offset before anything is written.
+
+```jsonc
+{
+  "gears": [
+    {
+      "name": "Moots", // required; the name assignments refer to
+      "kind": "bike", // "bike" | "shoes"
+      "brand": "Moots",
+      "model": "Vamoots RSL disc",
+      "bikeType": "Road bike", // bikes only
+      "weightKilograms": 8.0, // bikes only
+      "alertDistanceMeters": null, // shoes only
+      "defaultSports": [], // sport keys this gear auto-claims (see below)
+      "stravaGearId": null, // optional; keeps Strava sync from creating a duplicate
+      "retired": false,
+      "components": [
+        {
+          "type": "Chain",
+          "brand": "Shimano",
+          "model": "CN-HG901-11",
+          "addedAt": "2019-09-24", // omit for "since the gear's beginning"
+          "removedAt": "2020-04-01" // omit while still installed
+        }
+      ],
+      "windows": [
+        // Fallback for activities no assignment names. Half-open [from, to);
+        // omit "sports" to cover every sport of the gear's kind.
+        { "from": "2018-09-07", "to": null, "sports": ["ride", "virtual_ride"] }
+      ]
+    }
+  ],
+  "assignments": [{ "time": "2015-10-06T09:44:23Z", "gear": "Brompton S6R" }]
+}
+```
+
+Dates are either a `YYYY-MM-DD` day (read as UTC midnight) or a full datetime
+carrying an explicit `Z`/offset — a bare local datetime is rejected, because
+JavaScript would read it in the running machine's zone and silently shift every
+activity by hours. The whole file is validated before anything is written.
+
+`scripts/fitness/convertStravaExportToGearImport.ts` builds the `assignments`
+half from a Strava export. The export's `activities.csv` records which gear each
+activity used against a UTC timestamp, but `components.csv` carries no dates at
+all — install and removal dates exist only on Strava's gear pages, so the `gears`
+half is hand-authored from those pages and merged in:
+
+```bash
+./scripts/fitness/convertStravaExportToGearImport.ts \
+  --export-dir ./strava-export --gears ./gears.json --output ./gear-import.json
+```
+
+It reports per-gear activity counts and Strava's own distance totals, which
+should match what the Strava gear page shows — the cheapest check that the gear
+names were transcribed correctly.
+
+> **Note:** `defaultSports` decides which gear future uploads auto-attach to, and
+> a sport belongs to one gear at a time — giving it to imported gear takes it
+> from whatever holds it now (the script warns when it is about to). A purely
+> historical import should leave it empty.
+>
+> **Note:** the import does not evaluate service reminders, so backfilling years
+> of activities sends no alerts. The next real activity on gear whose new total
+> already exceeds its threshold fires one — that is the reminder working, not a
+> bug.
 
 #### Recovering an import that stored the file but never created the post
 
