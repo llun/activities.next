@@ -270,6 +270,21 @@ const openSectionMenu = async () => {
   return screen.findByRole('menu')
 }
 
+// Named from its content, so the accessible name carries the assignment too
+// ("Gear: Moots"); match on the prefix rather than pinning the current value.
+const getGearTrigger = () =>
+  screen.findByRole('button', { name: /^Gear:/ }) as Promise<HTMLButtonElement>
+
+const openGearMenu = async () => {
+  fireEvent.keyDown(await getGearTrigger(), { key: 'ArrowDown' })
+  return screen.findByRole('menu')
+}
+
+const chooseGear = async (name: string | RegExp) => {
+  const menu = await openGearMenu()
+  fireEvent.click(within(menu).getByRole('menuitem', { name }))
+}
+
 describe('FitnessStatusDetail', () => {
   beforeEach(() => {
     mockGetFitnessFilesByStatus.mockReset()
@@ -1633,9 +1648,10 @@ describe('FitnessStatusDetail', () => {
     it('places the chips in the card body under the stats, not in the action strip', () => {
       renderDetail({ status: buildReactedStatus() })
 
-      // Anchored on the stat grid's own container rather than the chips'
-      // parent, so wrapping the chips in one more div doesn't fail this.
-      const cardBody = screen.getByText('Distance').closest('div.grid')
+      // Anchored on the stat strip's own wrapper rather than the chips' parent,
+      // so wrapping the chips in one more div doesn't fail this. The `\@` is
+      // CSS escaping for Tailwind's `@container` class, not a typo.
+      const cardBody = screen.getByText('Distance').closest('div.\\@container')
         ?.parentElement as HTMLElement
       expect(cardBody).toContainElement(screen.getByTestId('reaction-chips'))
       expect(cardBody).not.toContainElement(
@@ -1728,22 +1744,24 @@ describe('FitnessStatusDetail', () => {
   describe('gear', () => {
     it('offers the owner a picker of their active gear', async () => {
       mockGetFitnessGearList.mockResolvedValue([
-        buildGear({ id: 'gear-bike', name: 'Moots' }),
+        buildGear({ id: 'gear-bike', name: 'Moots', distanceMeters: 42_600 }),
         buildGear({ id: 'gear-other-bike', name: 'Winter bike' })
       ])
 
       renderDetail()
 
-      const select = (await screen.findByLabelText('Gear')) as HTMLSelectElement
-      expect(select.value).toBe('')
+      expect(await getGearTrigger()).toHaveTextContent('No gear')
+
+      const menu = await openGearMenu()
       expect(
-        within(select).getByRole('option', { name: 'No gear' })
+        within(menu).getByRole('menuitem', { name: 'No gear' })
       ).toBeInTheDocument()
+      // The lifetime total rides along with the name, as the design shows it.
       expect(
-        within(select).getByRole('option', { name: 'Moots' })
-      ).toBeInTheDocument()
+        within(menu).getByRole('menuitem', { name: /Moots/ })
+      ).toHaveTextContent('Moots42.6 km')
       expect(
-        within(select).getByRole('option', { name: 'Winter bike' })
+        within(menu).getByRole('menuitem', { name: /Winter bike/ })
       ).toBeInTheDocument()
     })
 
@@ -1761,18 +1779,18 @@ describe('FitnessStatusDetail', () => {
 
       renderDetail()
 
-      const select = await screen.findByLabelText('Gear')
+      const menu = await openGearMenu()
       await waitFor(() =>
         expect(
-          within(select).getByRole('option', { name: 'Moots' })
+          within(menu).getByRole('menuitem', { name: /Moots/ })
         ).toBeInTheDocument()
       )
       // A ride never offers shoes, and retired gear is out of the picker.
       expect(
-        within(select).queryByRole('option', { name: 'Nimbus 25' })
+        within(menu).queryByRole('menuitem', { name: /Nimbus 25/ })
       ).not.toBeInTheDocument()
       expect(
-        within(select).queryByRole('option', { name: 'Sold bike' })
+        within(menu).queryByRole('menuitem', { name: /Sold bike/ })
       ).not.toBeInTheDocument()
     })
 
@@ -1791,12 +1809,14 @@ describe('FitnessStatusDetail', () => {
 
       renderDetail()
 
-      const select = (await screen.findByLabelText('Gear')) as HTMLSelectElement
-      // A select whose value has no matching option silently renders the first
-      // one instead, which reads as the gear having changed on its own.
-      await waitFor(() => expect(select.value).toBe('gear-retired'))
+      // A picker that cannot represent its own value renders the assignment as
+      // something else, which reads as the gear having changed on its own.
+      await waitFor(async () =>
+        expect(await getGearTrigger()).toHaveTextContent('Sold bike')
+      )
+      const menu = await openGearMenu()
       expect(
-        within(select).getByRole('option', { name: 'Sold bike' })
+        within(menu).getByRole('menuitem', { name: /Sold bike/ })
       ).toBeInTheDocument()
     })
 
@@ -1807,8 +1827,14 @@ describe('FitnessStatusDetail', () => {
 
       renderDetail({ currentActor: notMe })
 
-      expect(await screen.findByText('Gear: Moots')).toBeInTheDocument()
-      expect(screen.queryByLabelText('Gear')).not.toBeInTheDocument()
+      // The icon carries it visually; the name is spelled out for a screen
+      // reader and repeated in the title.
+      expect(await screen.findByTitle('Gear: Moots')).toHaveTextContent(
+        'Gear: Moots'
+      )
+      expect(
+        screen.queryByRole('button', { name: /^Gear:/ })
+      ).not.toBeInTheDocument()
       expect(mockGetFitnessGearList).not.toHaveBeenCalled()
     })
 
@@ -1834,16 +1860,11 @@ describe('FitnessStatusDetail', () => {
 
       renderDetail()
 
-      const select = (await screen.findByLabelText('Gear')) as HTMLSelectElement
-      await waitFor(() =>
-        expect(
-          within(select).getByRole('option', { name: 'Moots' })
-        ).toBeInTheDocument()
+      await chooseGear(/Moots/)
+
+      await waitFor(async () =>
+        expect(await getGearTrigger()).toHaveTextContent('Moots')
       )
-
-      fireEvent.change(select, { target: { value: 'gear-bike' } })
-
-      await waitFor(() => expect(select.value).toBe('gear-bike'))
       expect(mockUpdateFitnessFileGear).toHaveBeenCalledWith(
         'fit-1',
         'gear-bike'
@@ -1860,23 +1881,18 @@ describe('FitnessStatusDetail', () => {
 
       renderDetail()
 
-      const select = (await screen.findByLabelText('Gear')) as HTMLSelectElement
-      await waitFor(() =>
-        expect(
-          within(select).getByRole('option', { name: 'Moots' })
-        ).toBeInTheDocument()
-      )
-
-      fireEvent.change(select, { target: { value: 'gear-bike' } })
+      await chooseGear(/Moots/)
 
       expect(await screen.findByRole('alert')).toHaveTextContent(
         'Failed to update gear.'
       )
-      // The select goes back to what the server still holds.
-      await waitFor(() => expect(select.value).toBe(''))
+      // The picker goes back to what the server still holds.
+      await waitFor(async () =>
+        expect(await getGearTrigger()).toHaveTextContent('No gear')
+      )
     })
 
-    it('points the select at its own error message', async () => {
+    it('points the picker at its own error message', async () => {
       mockGetFitnessGearList.mockResolvedValue([
         buildGear({ id: 'gear-bike', name: 'Moots' })
       ])
@@ -1884,19 +1900,21 @@ describe('FitnessStatusDetail', () => {
 
       renderDetail()
 
-      const select = (await screen.findByLabelText('Gear')) as HTMLSelectElement
-      expect(select).not.toHaveAttribute('aria-describedby')
+      expect(await getGearTrigger()).not.toHaveAttribute('aria-describedby')
 
-      fireEvent.change(select, { target: { value: 'gear-bike' } })
+      await chooseGear(/Moots/)
 
       const alert = await screen.findByRole('alert')
-      await waitFor(() =>
-        expect(select).toHaveAttribute('aria-describedby', alert.id)
+      await waitFor(async () =>
+        expect(await getGearTrigger()).toHaveAttribute(
+          'aria-describedby',
+          alert.id
+        )
       )
       expect(alert.id).toBe('activity-gear-error')
     })
 
-    it('disables the select while the change is in flight', async () => {
+    it('disables the picker while the change is in flight', async () => {
       mockGetFitnessGearList.mockResolvedValue([
         buildGear({ id: 'gear-bike', name: 'Moots' })
       ])
@@ -1913,21 +1931,14 @@ describe('FitnessStatusDetail', () => {
 
       renderDetail()
 
-      const select = (await screen.findByLabelText('Gear')) as HTMLSelectElement
-      await waitFor(() =>
-        expect(
-          within(select).getByRole('option', { name: 'Moots' })
-        ).toBeInTheDocument()
-      )
-
-      fireEvent.change(select, { target: { value: 'gear-bike' } })
+      await chooseGear(/Moots/)
 
       // Two fast changes would otherwise race, and the loser's rollback would
       // restore an assignment the server has already replaced.
-      await waitFor(() => expect(select).toBeDisabled())
+      await waitFor(async () => expect(await getGearTrigger()).toBeDisabled())
 
       resolveUpdate({ id: 'fit-1', gearId: 'gear-bike' })
-      await waitFor(() => expect(select).toBeEnabled())
+      await waitFor(async () => expect(await getGearTrigger()).toBeEnabled())
     })
 
     it('rolls back only this file, keeping a file list that landed mid-flight', async () => {
@@ -1954,15 +1965,10 @@ describe('FitnessStatusDetail', () => {
 
       renderDetail()
 
-      const select = (await screen.findByLabelText('Gear')) as HTMLSelectElement
-      await waitFor(() =>
-        expect(
-          within(select).getByRole('option', { name: 'Moots' })
-        ).toBeInTheDocument()
+      await chooseGear(/Moots/)
+      await waitFor(async () =>
+        expect(await getGearTrigger()).toHaveTextContent('Moots')
       )
-
-      fireEvent.change(select, { target: { value: 'gear-bike' } })
-      await waitFor(() => expect(select.value).toBe('gear-bike'))
 
       await act(async () => {
         resolveFiles([
@@ -1986,7 +1992,9 @@ describe('FitnessStatusDetail', () => {
       )
       // Only this file's assignment went back. Restoring the array captured
       // before the PATCH would have dropped the second file with it.
-      await waitFor(() => expect(select.value).toBe(''))
+      await waitFor(async () =>
+        expect(await getGearTrigger()).toHaveTextContent('No gear')
+      )
       expect(screen.getByLabelText('Activity file')).toBeInTheDocument()
       expect(screen.getByText('file 1 of 2')).toBeInTheDocument()
     })
@@ -2005,15 +2013,16 @@ describe('FitnessStatusDetail', () => {
 
       renderDetail()
 
-      const select = (await screen.findByLabelText('Gear')) as HTMLSelectElement
-      await waitFor(() => expect(select.value).toBe('gear-bike'))
+      await waitFor(async () =>
+        expect(await getGearTrigger()).toHaveTextContent('Moots')
+      )
 
-      fireEvent.change(select, { target: { value: '' } })
+      await chooseGear('No gear')
 
       await waitFor(() =>
         expect(mockUpdateFitnessFileGear).toHaveBeenCalledWith('fit-1', null)
       )
-      expect(select.value).toBe('')
+      expect(await getGearTrigger()).toHaveTextContent('No gear')
     })
   })
 })

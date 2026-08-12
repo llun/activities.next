@@ -5,11 +5,14 @@ import { format } from 'date-fns'
 import {
   Activity,
   BarChart3,
+  Bike,
   Calendar,
+  Check,
   ChevronDown,
   Clock,
   ExternalLink,
   Flame,
+  Footprints,
   Gauge,
   Globe,
   HeartPulse,
@@ -22,7 +25,8 @@ import {
   Play,
   Plus,
   Route,
-  Unlock
+  Unlock,
+  Wrench
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import {
@@ -36,6 +40,7 @@ import {
   useState
 } from 'react'
 
+import { formatGearDistanceKm } from '@/app/(timeline)/fitness/gear/gearUi'
 import {
   type FitnessRouteSample,
   type FitnessRouteSegment,
@@ -46,6 +51,7 @@ import {
   updateFitnessFileGear
 } from '@/lib/client'
 import { ActivityRouteMapKit } from '@/lib/components/fitness/ActivityRouteMapKit'
+import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
 import {
   ROUTE_PRIVACY_HINT_TAP_TIMEOUT_MS,
   RoutePrivacyDescription,
@@ -80,6 +86,7 @@ import {
 } from '@/lib/components/ui/dropdown-menu'
 import { getGearKindForActivityType } from '@/lib/services/fitness-files/sportTypes'
 import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
+import type { FitnessGearKind } from '@/lib/types/database/fitnessGear'
 import { ActorProfile, getMention } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote } from '@/lib/types/domain/status'
@@ -884,6 +891,144 @@ const StatTile: FC<{
     ) : null}
   </div>
 )
+
+interface GearPickerOption {
+  id: string
+  name: string
+  kind: FitnessGearKind | null
+  distanceMeters: number | null
+}
+
+// `Wrench` is the app's own icon for the Gear section (see the fitness layout's
+// sub-nav), so it is the honest fallback when neither the assigned gear nor the
+// activity type says which kind this is — a free-form GPX `activityType` that
+// `normalizeActivityTypeToSportKey` refuses to guess at, most often.
+const GEAR_KIND_ICON: Record<FitnessGearKind, LucideIcon> = {
+  bike: Bike,
+  shoes: Footprints
+}
+
+/**
+ * The assigned gear, inline in the header's metadata line. The design system
+ * (`FAGearRow` in `ui_kits/web/FitnessActivity.jsx`) reads the recording
+ * metadata as one wrapping line — date · visibility · gear — rather than giving
+ * gear a labelled field and a row of its own.
+ *
+ * The owner gets a picker; everyone else gets the name as plain text; nobody
+ * gets anything when no gear is attributed. An owner with an empty shed and no
+ * assignment falls through to that same read-only branch, because a menu whose
+ * only entry is "No gear" is dead UI.
+ */
+const ActivityGearMeta: FC<{
+  isOwner: boolean
+  options: GearPickerOption[]
+  selectedGearId: string | null
+  /** The name the status payload carried, for a viewer with no gear list. */
+  gearName: string | null
+  activityKind: FitnessGearKind | null
+  isSaving: boolean
+  errorId?: string
+  onSelect: (gearId: string) => void
+}> = ({
+  isOwner,
+  options,
+  selectedGearId,
+  gearName,
+  activityKind,
+  isSaving,
+  errorId,
+  onSelect
+}) => {
+  const selected = options.find((option) => option.id === selectedGearId)
+  const label = selected?.name ?? gearName ?? null
+  const kind = selected?.kind ?? activityKind
+  const Icon = kind ? GEAR_KIND_ICON[kind] : Wrench
+
+  if (!isOwner || options.length === 0) {
+    if (!label) return null
+    return (
+      <>
+        <span aria-hidden="true">·</span>
+        <span
+          className="inline-flex min-w-0 items-center gap-1.5"
+          title={`Gear: ${label}`}
+        >
+          <Icon className="size-3.5 shrink-0" aria-hidden="true" />
+          {/* The icon alone carries the meaning visually; spell it out for a
+              screen reader, which otherwise hears a bare product name. */}
+          <span className="sr-only">Gear: </span>
+          <span className="truncate">{label}</span>
+        </span>
+      </>
+    )
+  }
+
+  return (
+    <>
+      <span aria-hidden="true">·</span>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          {/* Disabled while the PATCH is in flight: two quick changes otherwise
+              race, and the loser's rollback would put back a value the server
+              has since replaced. */}
+          <button
+            type="button"
+            aria-describedby={errorId}
+            disabled={isSaving}
+            className="inline-flex min-w-0 items-center gap-1.5 rounded-md transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Icon className="size-3.5 shrink-0" aria-hidden="true" />
+            {/* Named from its content rather than by `aria-label`, so the
+                accessible name carries the current value too — "Gear: Moots
+                Routt YBB", not a bare "Gear" that says nothing about what is
+                assigned. */}
+            <span className="sr-only">Gear: </span>
+            <span className="truncate">{label ?? 'No gear'}</span>
+            <ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />
+          </button>
+        </DropdownMenuTrigger>
+        {/* Same menu chrome as the section sub-nav above. */}
+        <DropdownMenuContent align="start" className="rounded-xl shadow-lg">
+          {[...options, null].map((option) => {
+            const id = option?.id ?? ''
+            const isActive = (selectedGearId ?? '') === id
+            return (
+              <DropdownMenuItem
+                key={id || 'no-gear'}
+                onSelect={() => onSelect(id)}
+                aria-current={isActive ? 'true' : undefined}
+                className={cn(
+                  'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 font-medium',
+                  isActive && [
+                    'bg-primary/10 text-primary focus:bg-primary/10 focus:text-primary',
+                    'focus:ring-2 focus:ring-primary/50'
+                  ]
+                )}
+              >
+                <Check
+                  className={cn('size-4 shrink-0', !isActive && 'invisible')}
+                  aria-hidden="true"
+                />
+                <span className={cn(!option && 'text-muted-foreground')}>
+                  {option?.name ?? 'No gear'}
+                </span>
+                {/* The lifetime total, as the design shows it — it is what
+                    tells two similar bikes apart at a glance. Absent on the
+                    "No gear" row, and on an assigned gear the list never
+                    returned. */}
+                {typeof option?.distanceMeters === 'number' ? (
+                  <span className="ml-auto pl-3 text-xs tabular-nums text-muted-foreground">
+                    {formatGearDistanceKm(option.distanceMeters)}
+                  </span>
+                ) : null}
+              </DropdownMenuItem>
+            )
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  )
+}
 
 // State-driven section dropdown that mirrors the shared `SectionNavDropdown`
 // (the design-system sub-nav used by settings/fitness/admin). That component is
@@ -2279,16 +2424,21 @@ export const FitnessStatusDetail: FC<Props> = ({
   // `getGearKindForActivityType` is a convenience, never a permission.
   //
   // Whatever is currently assigned is ALWAYS in the list, even when the kind
-  // filter or its retirement would drop it — a `<select>` whose `value` has no
-  // matching `<option>` silently displays the first option instead, which reads
-  // as the gear having changed on its own. The last fallback covers the gear
-  // list failing to load at all, using the name the status payload carried.
-  const gearSelectOptions = useMemo<Array<{ id: string; name: string }>>(() => {
+  // filter or its retirement would drop it — a picker that cannot represent its
+  // own value renders the assignment as something else, which reads as the gear
+  // having changed on its own. The last fallback covers the gear list failing to
+  // load at all, using the name the status payload carried.
+  const gearPickerOptions = useMemo<GearPickerOption[]>(() => {
     const kind = getGearKindForActivityType(fitness?.activityType)
     const active = gearOptions.filter((gear) => gear.retiredAt === null)
     const options = (
       kind ? active.filter((gear) => gear.kind === kind) : active
-    ).map((gear) => ({ id: gear.id, name: gear.name }))
+    ).map((gear) => ({
+      id: gear.id,
+      name: gear.name,
+      kind: gear.kind,
+      distanceMeters: gear.distanceMeters
+    }))
 
     if (!selectedGearId || options.some((item) => item.id === selectedGearId)) {
       return options
@@ -2298,7 +2448,9 @@ export const FitnessStatusDetail: FC<Props> = ({
     return [
       {
         id: selectedGearId,
-        name: assigned?.name ?? fitness?.gearName ?? 'Assigned gear'
+        name: assigned?.name ?? fitness?.gearName ?? 'Assigned gear',
+        kind: assigned?.kind ?? null,
+        distanceMeters: assigned?.distanceMeters ?? null
       },
       ...options
     ]
@@ -2310,7 +2462,7 @@ export const FitnessStatusDetail: FC<Props> = ({
 
     const nextGearId = value || null
     const nextGearName = nextGearId
-      ? (gearSelectOptions.find((item) => item.id === nextGearId)?.name ?? null)
+      ? (gearPickerOptions.find((item) => item.id === nextGearId)?.name ?? null)
       : null
     // Only this file's assignment is rolled back, and only through an updater:
     // restoring a whole array captured from this render would also discard
@@ -2940,7 +3092,30 @@ export const FitnessStatusDetail: FC<Props> = ({
             >
               <VisibilityIcon className="size-3.5" /> {visibilityMeta.label}
             </span>
+            {/* Gear rides on the same line as the rest of the recording
+                metadata, the way the design system's header does: the device is
+                what captured the activity, the gear is what it was done on. */}
+            <ActivityGearMeta
+              isOwner={isOwner}
+              options={gearPickerOptions}
+              selectedGearId={selectedGearId}
+              gearName={fitness?.gearName ?? null}
+              activityKind={getGearKindForActivityType(fitness?.activityType)}
+              isSaving={isSavingGear}
+              errorId={gearUpdateError ? 'activity-gear-error' : undefined}
+              onSelect={(gearId) => void handleGearChange(gearId)}
+            />
           </div>
+
+          {gearUpdateError ? (
+            <p
+              id="activity-gear-error"
+              className="mt-1 text-xs text-destructive"
+              role="alert"
+            >
+              {gearUpdateError}
+            </p>
+          ) : null}
 
           {deviceLabel ? (
             <div className="mt-1 text-sm text-muted-foreground">
@@ -2949,60 +3124,6 @@ export const FitnessStatusDetail: FC<Props> = ({
                 deviceName={fitness?.deviceName}
                 deviceManufacturer={fitness?.deviceManufacturer}
               />
-            </div>
-          ) : null}
-
-          {/* Gear sits with the recording metadata: the device is what captured
-              the activity, the gear is what it was done on. The owner gets a
-              picker; everyone else gets the name as plain text, and nothing at
-              all when no gear is attributed. An owner with an empty shed and no
-              assignment falls through to that same read-only branch — a select
-              offering only "No gear" is dead UI. */}
-          {isOwner && (gearSelectOptions.length > 0 || selectedGearId) ? (
-            <div className="mt-2">
-              <label
-                htmlFor="activity-gear-select"
-                className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
-              >
-                Gear
-              </label>
-              <div className="mt-1.5">
-                {/* Disabled while the PATCH is in flight: two quick changes
-                    otherwise race, and the loser's rollback would put back a
-                    value the server has since replaced. */}
-                <select
-                  id="activity-gear-select"
-                  value={selectedGearId ?? ''}
-                  onChange={(event) =>
-                    void handleGearChange(event.target.value)
-                  }
-                  disabled={isSavingGear}
-                  aria-describedby={
-                    gearUpdateError ? 'activity-gear-error' : undefined
-                  }
-                  className="h-8 rounded-lg border bg-background px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <option value="">No gear</option>
-                  {gearSelectOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {gearUpdateError ? (
-                <p
-                  id="activity-gear-error"
-                  className="mt-1 text-xs text-destructive"
-                  role="alert"
-                >
-                  {gearUpdateError}
-                </p>
-              ) : null}
-            </div>
-          ) : fitness?.gearName ? (
-            <div className="mt-1 text-sm text-muted-foreground">
-              Gear: {fitness.gearName}
             </div>
           ) : null}
 
@@ -3054,7 +3175,7 @@ export const FitnessStatusDetail: FC<Props> = ({
             </div>
           )}
 
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <FitnessStatGrid className="mt-4">
             <StatTile
               icon={Route}
               label="Distance"
@@ -3093,7 +3214,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                 big
               />
             )}
-          </div>
+          </FitnessStatGrid>
 
           {/* Reactions belong to the post, so the chips sit inside the card body
               directly under the stats, the way `Post` puts them directly under
@@ -3219,7 +3340,12 @@ export const FitnessStatusDetail: FC<Props> = ({
             )}
 
             {secondaryStats.length > 0 && (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              // Same strip, same rule as the header's — the two measure
+              // themselves separately (this one is not inside the card's `p-5`,
+              // so it is 42px wider) and can legitimately disagree by one step
+              // in a narrow band of window widths. That is the rule working on
+              // real available width, which is the whole point of it.
+              <FitnessStatGrid>
                 {secondaryStats.map((stat) => (
                   <StatTile
                     key={stat.label}
@@ -3229,7 +3355,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                     sub={stat.sub}
                   />
                 ))}
-              </div>
+              </FitnessStatGrid>
             )}
 
             {activitySeries.elevation.length > 0 && (
