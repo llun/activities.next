@@ -1,0 +1,23 @@
+lib/components/fitness/FitnessStatGrid.test.tsx
+  s_3abf984cc26ada::t_d972ddf2c25791 39-48
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_3abf984cc26ada::t_e7dcc755834a00 2094-2147
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_3abf984cc26ada::t_75cd3ee09ee00b 2511-2517
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "f1a57f5a055b717db90f9908e10f094e24b1ccfb",
+  "prompts": {},
+  "sessions": {
+    "s_3abf984cc26ada": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2bc0b46a-a064-4f95-b0ce-7aaa7d0323f5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
