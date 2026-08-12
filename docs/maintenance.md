@@ -380,11 +380,19 @@ matching each entry's timestamp against `activityStartTime`.
 Assignments are matched to the nearest activity within `--tolerance-seconds`
 (default 60). An entry that matches nothing, ties between two activities, or
 lands on an activity another entry already claimed is reported and skipped —
-never guessed at. Activities that already carry gear are left alone unless
-`--overwrite` is given, so re-running is free and never undoes a manual
-correction. Always `--dry-run` first: the report lists how far the nearest
-activity was for every unmatched entry, so a systematic clock problem shows up as
-a uniform offset before anything is written.
+never guessed at, and a skipped entry still reserves the activities it named so a
+date window cannot quietly attribute them to a different gear. Activities that
+already carry gear are left alone unless `--overwrite` is given, so re-running is
+free and never undoes a manual correction. Always `--dry-run` first: the report
+lists how far the nearest activity was for every unmatched entry, so a systematic
+clock problem shows up as a uniform offset before anything is written.
+
+The script refuses to write at all when the actor has no activities but the file
+has assignments (almost always the wrong `--actor-id`, and creating the gear
+there would strip default sports off that actor's real gear), when two entries
+resolve to the same existing gear, or when a gear exists with a different `kind`.
+It exits non-zero if no assignment reached any activity, so a wrong target cannot
+pass for a clean run in a script.
 
 ```jsonc
 {
