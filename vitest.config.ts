@@ -43,6 +43,14 @@ export default defineConfig({
       '**/coverage/**'
     ],
     testTimeout: 30000,
+    // Match testTimeout. Vitest's 10s default is too tight for the
+    // `TEST_DATABASE_TYPE=pg` harness: every test file's `beforeAll` drops and
+    // recreates its worker's database and replays the whole of
+    // `migrations/schema.sql`, and one worker per core doing that at once
+    // against a cold PostgreSQL overran 10s. SQLite hooks finish in
+    // milliseconds, so this only raises the ceiling before a hung hook is
+    // declared failed — it does not slow a passing run down.
+    hookTimeout: 30000,
     server: {
       deps: {
         // These ship ESM that should be transformed/inlined by Vitest.
