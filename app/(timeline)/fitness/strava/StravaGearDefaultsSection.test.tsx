@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -268,7 +269,7 @@ describe('StravaGearDefaultsSection', () => {
     expect(within(menu).getByRole('menuitem', { name: 'Run' })).toBeVisible()
   })
 
-  it('surfaces a failed save instead of showing the old value as saved', async () => {
+  it('announces a failed save from the control that caused it', async () => {
     const bike = createGear({ defaultSports: ['ride'] })
     mockGetFitnessGearList.mockResolvedValue([bike])
     mockUpdateFitnessGear.mockRejectedValue(new Error('Failed to save gear.'))
@@ -277,6 +278,100 @@ describe('StravaGearDefaultsSection', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Remove Ride' }))
 
-    expect(await screen.findByText('Failed to save gear.')).toBeVisible()
+    // A closed menu, an unchanged trigger and text appended at the bottom of
+    // the section is otherwise silent: nothing tells a screen reader the pick
+    // failed rather than did nothing.
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Failed to save gear.')
+    expect(
+      screen.getByRole('button', { name: gearTriggerFor('Ride') })
+    ).toHaveAttribute('aria-describedby', alert.id)
+  })
+
+  it('does not claim the shed is empty when the gear list fails to load', async () => {
+    // The empty states key on `gears.length`, so collapsing a failed load to
+    // an empty array would tell an actor with a full shed to go add gear.
+    mockGetFitnessGearList.mockRejectedValue(new Error('nope'))
+
+    render(<StravaGearDefaultsSection />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Failed to load gear.'
+    )
+    expect(
+      screen.queryByRole('link', { name: 'Add a bike or a pair of shoes' })
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('Loading gear…')).not.toBeInTheDocument()
+  })
+
+  it('gives the add menu groups an accessible name', async () => {
+    // Radix's MenuGroup is a bare `role="group"` and its Label a bare div, so
+    // without the explicit association the heading text is skipped entirely —
+    // a regression from the `<optgroup label>` this replaced.
+    mockGetFitnessGearList.mockResolvedValue([
+      createGear({ defaultSports: [] }),
+      createGear({ id: 'gear-shoes', kind: 'shoes', defaultSports: [] })
+    ])
+
+    render(<StravaGearDefaultsSection />)
+
+    const menu = await openMenu(/Add activity type/)
+    expect(
+      within(menu).getByRole('group', { name: 'Cycling' })
+    ).toBeInTheDocument()
+    expect(
+      within(menu).getByRole('group', { name: 'Running & walking' })
+    ).toBeInTheDocument()
+  })
+
+  it('returns focus to the picker it was started from', async () => {
+    // `onSelect` runs inside Radix's flushSync, so `setIsSaving(true)` lands
+    // before the menu closes and Radix restores focus onto a disabled button —
+    // dropping it to `<body>`, so the next Tab would restart from the top of
+    // the document after every single change.
+    //
+    // The write is held open deliberately. With an instantly-resolving mock
+    // the trigger is re-enabled before Radix's `onCloseAutoFocus` runs, so
+    // Radix restores focus by itself and the test passes whether or not this
+    // component does anything — verified by disabling the restore and watching
+    // it still pass.
+    const moots = createGear({ defaultSports: ['ride'] })
+    const giant = createGear({
+      id: 'gear-other',
+      name: 'Giant',
+      defaultSports: []
+    })
+    mockGetFitnessGearList.mockResolvedValue([moots, giant])
+    let resolveSave: (gear: GearEntity) => void = () => {}
+    mockUpdateFitnessGear.mockReturnValue(
+      new Promise<GearEntity>((resolve) => {
+        resolveSave = resolve
+      })
+    )
+
+    render(<StravaGearDefaultsSection />)
+
+    const menu = await openMenu(gearTriggerFor('Ride'))
+    fireEvent.click(within(menu).getByRole('menuitemradio', { name: /Giant/ }))
+
+    // Mid-write: the trigger is disabled, so focus cannot be on it.
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: gearTriggerFor('Ride') })
+      ).toBeDisabled()
+    )
+    expect(
+      screen.getByRole('button', { name: gearTriggerFor('Ride') })
+    ).not.toHaveFocus()
+
+    await act(async () => {
+      resolveSave(giant)
+    })
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: gearTriggerFor('Ride') })
+      ).toHaveFocus()
+    )
   })
 })

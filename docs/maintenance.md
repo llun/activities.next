@@ -372,8 +372,8 @@ NODE_ENV=production ./scripts/fitness/listStravaWebhooks.ts @username@your-domai
 
 Gear tracking arrived after most activities did, so anything imported earlier has
 no gear at all. Re-importing would duplicate the posts, and automatic attribution
-only ever runs as a file is processed — it never revisits activities already
-stored — so `scripts/fitness/importFitnessGear.ts` fills the gap: it creates the gear and its
+only runs while a file is being processed, which a healthy stored activity never
+is again — so `scripts/fitness/importFitnessGear.ts` fills the gap: it creates the gear and its
 component history from a JSON file, then attributes existing activities by
 matching each entry's timestamp against `activityStartTime`.
 

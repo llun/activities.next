@@ -2,7 +2,7 @@
 
 import { Bike, Check, ChevronDown, Footprints, X } from 'lucide-react'
 import Link from 'next/link'
-import { FC, useEffect, useState } from 'react'
+import { FC, useEffect, useRef, useState } from 'react'
 
 import {
   formatGearDistanceKm,
@@ -104,10 +104,28 @@ const getOptionLabel = (gear: GearEntity): string => {
     : `${name} · ${distance}`
 }
 
+const ERROR_ID = 'gear-defaults-error'
+
 export const StravaGearDefaultsSection: FC = () => {
+  // `null` means "not answered yet" and is deliberately NOT collapsed to an
+  // empty array on failure: the empty states below key on `gears.length`, so a
+  // transient 500 would otherwise tell an actor with a full shed that they have
+  // no gear and should go add some.
   const [gears, setGears] = useState<GearEntity[] | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState('')
+
+  // The trigger that started the write, so focus can go back to it. Radix
+  // restores focus to the trigger in `onCloseAutoFocus`, but `setIsSaving(true)`
+  // lands first (`onSelect` runs inside a `flushSync`), so it restores onto a
+  // disabled button and the browser drops focus to `<body>` — a keyboard user
+  // would Tab from the top of the document again after every single change.
+  const pendingFocusRef = useRef<HTMLButtonElement | null>(null)
+  // Each row's trigger, by sport, so the write started from it knows where to
+  // put focus back. A row that disappears with its write leaves a detached
+  // node, which the restore effect checks for.
+  const triggerRefs = useRef(new Map<string, HTMLButtonElement | null>())
+  const addTriggerRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => {
     let isActive = true
@@ -117,10 +135,7 @@ export const StravaGearDefaultsSection: FC = () => {
         const list = await getFitnessGearList()
         if (isActive) setGears(list)
       } catch (_error) {
-        if (isActive) {
-          setGears([])
-          setError('Failed to load gear.')
-        }
+        if (isActive) setError('Failed to load gear.')
       }
     }
 
@@ -131,12 +146,28 @@ export const StravaGearDefaultsSection: FC = () => {
     }
   }, [])
 
+  // Runs after the re-render that re-enables the controls, which is the only
+  // point at which the trigger can take focus again.
+  useEffect(() => {
+    if (isSaving) return
+    const trigger = pendingFocusRef.current
+    if (!trigger) return
+    pendingFocusRef.current = null
+    // The row may have been removed by the write it was waiting on.
+    if (trigger.isConnected) trigger.focus()
+  }, [isSaving, gears])
+
   // Every write goes through here. Adding a sport to a gear takes it off
   // whoever held it — the database does that inside the same transaction — so
   // the whole list is re-read rather than patched locally: the response only
   // carries the gear that was written, not the one it was taken from.
-  const saveDefaultSports = async (gearId: string, sports: string[]) => {
+  const saveDefaultSports = async (
+    gearId: string,
+    sports: string[],
+    returnFocusTo?: HTMLButtonElement | null
+  ) => {
     setError('')
+    pendingFocusRef.current = returnFocusTo ?? null
     setIsSaving(true)
     try {
       await updateFitnessGear(gearId, { defaultSports: sports })
@@ -152,11 +183,16 @@ export const StravaGearDefaultsSection: FC = () => {
     }
   }
 
-  const assignSport = (gear: GearEntity, sportKey: SportKey) =>
-    saveDefaultSports(gear.id, [
-      ...gear.defaultSports.filter((sport) => sport !== sportKey),
-      sportKey
-    ])
+  const assignSport = (
+    gear: GearEntity,
+    sportKey: SportKey,
+    returnFocusTo?: HTMLButtonElement | null
+  ) =>
+    saveDefaultSports(
+      gear.id,
+      [...gear.defaultSports.filter((sport) => sport !== sportKey), sportKey],
+      returnFocusTo
+    )
 
   const clearSport = (gear: GearEntity, sportKey: SportKey) =>
     saveDefaultSports(
@@ -178,7 +214,7 @@ export const StravaGearDefaultsSection: FC = () => {
       : []
   })).filter(({ sports }) => sports.length > 0)
 
-  const handleAdd = (value: string) => {
+  const handleAdd = (value: string, trigger?: HTMLButtonElement | null) => {
     if (!gears) return
     const sportKey = SPORT_KEYS.find((key) => key === value)
     if (!sportKey) return
@@ -188,7 +224,7 @@ export const StravaGearDefaultsSection: FC = () => {
     )
     if (!gear) return
 
-    void assignSport(gear, sportKey)
+    void assignSport(gear, sportKey, trigger)
   }
 
   return (
@@ -200,7 +236,7 @@ export const StravaGearDefaultsSection: FC = () => {
         </p>
       </div>
 
-      {gears === null && (
+      {gears === null && !error && (
         <p className="text-sm text-muted-foreground">Loading gear…</p>
       )}
 
@@ -260,17 +296,25 @@ export const StravaGearDefaultsSection: FC = () => {
                   on Windows/Linux an arrow key on a CLOSED `<select>` moves the
                   selection and fires `change` per keystroke — so navigating to
                   the third bike would PATCH the second one on the way past,
-                  taking the sport off its current holder. `disabled` then
-                  compounds it: disabling the focused element blurs it to
-                  `<body>`, stranding the keyboard user mid-navigation. A menu
-                  commits only on Enter or click, which makes disabling it while
-                  the write is in flight safe as well as correct. */}
+                  taking the sport off its current holder. A menu commits only
+                  on Enter or click, so that class of stray write is gone.
+
+                  It does NOT fix the other half on its own. `onSelect` runs
+                  inside Radix's `flushSync`, so `setIsSaving(true)` lands
+                  before the menu closes and Radix's own focus restore then
+                  targets a disabled button, dropping focus to `<body>`. The
+                  trigger is captured here and refocused once the write settles;
+                  see `pendingFocusRef`. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild disabled={isSaving}>
                   <Button
                     type="button"
                     variant="outline"
                     disabled={isSaving}
+                    aria-describedby={error ? ERROR_ID : undefined}
+                    ref={(element) => {
+                      triggerRefs.current.set(sportKey, element)
+                    }}
                     className="min-w-0 flex-1 justify-between font-normal sm:w-56 sm:flex-none"
                   >
                     {/* Named from its content, so the accessible name carries
@@ -299,7 +343,11 @@ export const StravaGearDefaultsSection: FC = () => {
                         // dismiss the menu is the natural gesture.
                         onSelect={() => {
                           if (isActive) return
-                          void assignSport(option, sportKey)
+                          void assignSport(
+                            option,
+                            sportKey,
+                            triggerRefs.current.get(sportKey)
+                          )
                         }}
                         // One-of-N, so radio semantics rather than the
                         // `aria-current` the navigation dropdowns use. The
@@ -360,6 +408,8 @@ export const StravaGearDefaultsSection: FC = () => {
               type="button"
               variant="outline"
               disabled={isSaving}
+              aria-describedby={error ? ERROR_ID : undefined}
+              ref={addTriggerRef}
               className="w-full justify-between font-normal sm:w-52"
             >
               Add activity type…
@@ -371,16 +421,27 @@ export const StravaGearDefaultsSection: FC = () => {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="rounded-xl shadow-lg">
             {addableSportsByKind.map(({ kind, sports }, groupIndex) => (
-              <DropdownMenuGroup key={kind}>
+              <DropdownMenuGroup
+                key={kind}
+                // Radix's `MenuGroup` is a bare `role="group"` and its `Label`
+                // a bare div, so without this the group has no accessible name
+                // and the heading text is skipped entirely in a screen
+                // reader's menu mode — a regression from the `<optgroup
+                // label>` this replaced, which was announced.
+                aria-labelledby={`gear-defaults-add-${kind}`}
+              >
                 {groupIndex > 0 && <DropdownMenuSeparator />}
-                <DropdownMenuLabel className="text-xs text-muted-foreground">
+                <DropdownMenuLabel
+                  id={`gear-defaults-add-${kind}`}
+                  className="text-xs text-muted-foreground"
+                >
                   {KIND_GROUP_LABEL[kind]}
                 </DropdownMenuLabel>
                 {sports.map((sportKey) => (
                   <DropdownMenuItem
                     key={sportKey}
                     className="rounded-lg px-3 py-2 font-medium"
-                    onSelect={() => handleAdd(sportKey)}
+                    onSelect={() => handleAdd(sportKey, addTriggerRef.current)}
                   >
                     {getSportLabel(sportKey)}
                   </DropdownMenuItem>
@@ -391,7 +452,16 @@ export const StravaGearDefaultsSection: FC = () => {
         </DropdownMenu>
       )}
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {/* `role="alert"` because a failed write is otherwise silent: the menu
+          has closed, the trigger still reads the old gear, and the only sign
+          is text appended at the bottom of the section. Both triggers point at
+          it with `aria-describedby` so the failure is reachable from the
+          control that caused it, the way the activity page's picker does. */}
+      {error && (
+        <p id={ERROR_ID} role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
 
       <p className="text-xs text-muted-foreground">
         These are the same default sports each gear carries — one gear per
