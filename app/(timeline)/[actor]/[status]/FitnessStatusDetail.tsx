@@ -41,7 +41,9 @@ import {
   type FitnessRouteSegment,
   type StatusFitnessFileItem,
   getFitnessFilesByStatus,
-  getFitnessRouteData
+  getFitnessGearList,
+  getFitnessRouteData,
+  updateFitnessFileGear
 } from '@/lib/client'
 import { ActivityRouteMapKit } from '@/lib/components/fitness/ActivityRouteMapKit'
 import {
@@ -76,6 +78,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/lib/components/ui/dropdown-menu'
+import { getGearKindForActivityType } from '@/lib/services/fitness-files/sportTypes'
+import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
 import { ActorProfile, getMention } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote } from '@/lib/types/domain/status'
@@ -2104,6 +2108,11 @@ export const FitnessStatusDetail: FC<Props> = ({
     status
   })
 
+  // Hoisted above the effects below: the gear list is owner-only, so the effect
+  // that loads it needs this before it runs.
+  const isOwner =
+    Boolean(status.isLocalActor) && currentActor?.id === status.actorId
+
   const defaultFitnessFiles = useMemo<StatusFitnessFileItem[]>(() => {
     if (!status.fitness) {
       return []
@@ -2128,7 +2137,9 @@ export const FitnessStatusDetail: FC<Props> = ({
         description: status.fitness.description ?? null,
         deviceManufacturer: status.fitness.deviceManufacturer ?? null,
         deviceName: status.fitness.deviceName ?? null,
-        sourceUrl: status.fitness.sourceUrl ?? null
+        sourceUrl: status.fitness.sourceUrl ?? null,
+        gearId: status.fitness.gearId ?? null,
+        gearName: status.fitness.gearName ?? null
       }
     ]
   }, [
@@ -2148,7 +2159,9 @@ export const FitnessStatusDetail: FC<Props> = ({
     status.fitness?.description,
     status.fitness?.deviceManufacturer,
     status.fitness?.deviceName,
-    status.fitness?.sourceUrl
+    status.fitness?.sourceUrl,
+    status.fitness?.gearId,
+    status.fitness?.gearName
   ])
   const [fitnessFiles, setFitnessFiles] =
     useState<StatusFitnessFileItem[]>(defaultFitnessFiles)
@@ -2158,6 +2171,9 @@ export const FitnessStatusDetail: FC<Props> = ({
   const [hoveredBucketIndex, setHoveredBucketIndex] = useState<number | null>(
     null
   )
+  const [gearOptions, setGearOptions] = useState<GearEntity[]>([])
+  const [gearUpdateError, setGearUpdateError] = useState<string | null>(null)
+  const [isSavingGear, setIsSavingGear] = useState(false)
   const [routeSamples, setRouteSamples] = useState<FitnessRouteSample[]>([])
   const [routeSegments, setRouteSegments] = useState<FitnessRouteSegment[]>([])
   const [powerSeries, setPowerSeries] = useState<number[]>([])
@@ -2218,6 +2234,31 @@ export const FitnessStatusDetail: FC<Props> = ({
     }
   }, [status.id])
 
+  // Owner only — /api/v1/fitness/gear is the owner's shed, and a viewer has no
+  // use for it. A failure leaves the list empty, which degrades the picker to
+  // the read-only gear row rather than breaking the page.
+  useEffect(() => {
+    if (!isOwner) return
+
+    let cancelled = false
+
+    const loadGear = async () => {
+      try {
+        const gear = await getFitnessGearList()
+        if (cancelled) return
+        setGearOptions(gear)
+      } catch {
+        // Keep the read-only presentation when the gear list is unavailable.
+      }
+    }
+
+    void loadGear()
+
+    return () => {
+      cancelled = true
+    }
+  }, [isOwner])
+
   const actorName = status.actor?.name || status.actor?.username || 'Athlete'
   const actorHandle = status.actor ? getMention(status.actor, true) : null
   const fitness = useMemo(
@@ -2230,6 +2271,83 @@ export const FitnessStatusDetail: FC<Props> = ({
     () => fitnessFiles.findIndex((item) => item.id === fitness?.id),
     [fitnessFiles, fitness?.id]
   )
+  const selectedGearId = fitness?.gearId ?? null
+  // Options for the owner's gear picker. Retired gear is out (it is still
+  // *assignable* through the API — see `setFitnessFileGear` — but it does not
+  // belong in a picker for a fresh activity), and the list narrows to the kind
+  // the activity implies. An unrecognised activity type narrows to nothing:
+  // `getGearKindForActivityType` is a convenience, never a permission.
+  //
+  // Whatever is currently assigned is ALWAYS in the list, even when the kind
+  // filter or its retirement would drop it — a `<select>` whose `value` has no
+  // matching `<option>` silently displays the first option instead, which reads
+  // as the gear having changed on its own. The last fallback covers the gear
+  // list failing to load at all, using the name the status payload carried.
+  const gearSelectOptions = useMemo<Array<{ id: string; name: string }>>(() => {
+    const kind = getGearKindForActivityType(fitness?.activityType)
+    const active = gearOptions.filter((gear) => gear.retiredAt === null)
+    const options = (
+      kind ? active.filter((gear) => gear.kind === kind) : active
+    ).map((gear) => ({ id: gear.id, name: gear.name }))
+
+    if (!selectedGearId || options.some((item) => item.id === selectedGearId)) {
+      return options
+    }
+
+    const assigned = gearOptions.find((gear) => gear.id === selectedGearId)
+    return [
+      {
+        id: selectedGearId,
+        name: assigned?.name ?? fitness?.gearName ?? 'Assigned gear'
+      },
+      ...options
+    ]
+  }, [gearOptions, fitness?.activityType, fitness?.gearName, selectedGearId])
+
+  const handleGearChange = async (value: string) => {
+    const fitnessFileId = fitness?.id
+    if (!fitnessFileId) return
+
+    const nextGearId = value || null
+    const nextGearName = nextGearId
+      ? (gearSelectOptions.find((item) => item.id === nextGearId)?.name ?? null)
+      : null
+    // Only this file's assignment is rolled back, and only through an updater:
+    // restoring a whole array captured from this render would also discard
+    // anything the `getFitnessFilesByStatus` effect (or a sibling file's own
+    // change) wrote while the PATCH was in flight.
+    const previousGearId = fitness?.gearId ?? null
+    const previousGearName = fitness?.gearName ?? null
+
+    setGearUpdateError(null)
+    setIsSavingGear(true)
+    setFitnessFiles((files) =>
+      files.map((file) =>
+        file.id === fitnessFileId
+          ? { ...file, gearId: nextGearId, gearName: nextGearName }
+          : file
+      )
+    )
+
+    try {
+      await updateFitnessFileGear(fitnessFileId, nextGearId)
+    } catch (error) {
+      // Put the previous assignment back rather than leaving the select showing
+      // a value the server never accepted.
+      setFitnessFiles((files) =>
+        files.map((file) =>
+          file.id === fitnessFileId
+            ? { ...file, gearId: previousGearId, gearName: previousGearName }
+            : file
+        )
+      )
+      setGearUpdateError(
+        error instanceof Error ? error.message : 'Failed to update gear.'
+      )
+    } finally {
+      setIsSavingGear(false)
+    }
+  }
   // Every provider renders an interactive map, so route data is loaded whenever
   // there is a fitness file to load it from.
   const shouldLoadInteractiveMap = Boolean(fitness?.id)
@@ -2692,9 +2810,6 @@ export const FitnessStatusDetail: FC<Props> = ({
     }
   }, [tabs, activeSection])
 
-  const isOwner =
-    Boolean(status.isLocalActor) && currentActor?.id === status.actorId
-
   // Owner only, matching the endpoint: the raw upload carries the whole track,
   // including the ends a privacy location trims off the map and the route data,
   // so `GET /api/v1/fitness-files/:id` now 404s for everyone else and a link
@@ -2834,6 +2949,60 @@ export const FitnessStatusDetail: FC<Props> = ({
                 deviceName={fitness?.deviceName}
                 deviceManufacturer={fitness?.deviceManufacturer}
               />
+            </div>
+          ) : null}
+
+          {/* Gear sits with the recording metadata: the device is what captured
+              the activity, the gear is what it was done on. The owner gets a
+              picker; everyone else gets the name as plain text, and nothing at
+              all when no gear is attributed. An owner with an empty shed and no
+              assignment falls through to that same read-only branch — a select
+              offering only "No gear" is dead UI. */}
+          {isOwner && (gearSelectOptions.length > 0 || selectedGearId) ? (
+            <div className="mt-2">
+              <label
+                htmlFor="activity-gear-select"
+                className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+              >
+                Gear
+              </label>
+              <div className="mt-1.5">
+                {/* Disabled while the PATCH is in flight: two quick changes
+                    otherwise race, and the loser's rollback would put back a
+                    value the server has since replaced. */}
+                <select
+                  id="activity-gear-select"
+                  value={selectedGearId ?? ''}
+                  onChange={(event) =>
+                    void handleGearChange(event.target.value)
+                  }
+                  disabled={isSavingGear}
+                  aria-describedby={
+                    gearUpdateError ? 'activity-gear-error' : undefined
+                  }
+                  className="h-8 rounded-lg border bg-background px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="">No gear</option>
+                  {gearSelectOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {gearUpdateError ? (
+                <p
+                  id="activity-gear-error"
+                  className="mt-1 text-xs text-destructive"
+                  role="alert"
+                >
+                  {gearUpdateError}
+                </p>
+              ) : null}
+            </div>
+          ) : fitness?.gearName ? (
+            <div className="mt-1 text-sm text-muted-foreground">
+              Gear: {fitness.gearName}
             </div>
           ) : null}
 

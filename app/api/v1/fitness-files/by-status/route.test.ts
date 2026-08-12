@@ -96,6 +96,85 @@ describe('GET /api/v1/fitness-files/by-status', () => {
     expect(json.files[1].id).toBe(first!.id)
   })
 
+  it('resolves gear names for every file in one batch lookup', async () => {
+    mockGetServerSession.mockResolvedValue(null)
+
+    const status = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/gear-status-files`,
+      url: `${ACTOR1_ID}/statuses/gear-status-files`,
+      actorId: ACTOR1_ID,
+      text: 'Geared import',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [ACTOR1_FOLLOWER_URL]
+    })
+
+    const withGear = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      statusId: status.id,
+      path: 'fitness/gear-status-file-a.fit',
+      fileName: 'gear-status-file-a.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024
+    })
+    const withoutGear = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      statusId: status.id,
+      path: 'fitness/gear-status-file-b.fit',
+      fileName: 'gear-status-file-b.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024
+    })
+    await database.updateFitnessFilePrimary(withGear!.id, true)
+    await database.updateFitnessFilePrimary(withoutGear!.id, false)
+
+    const gear = await database.createFitnessGear({
+      actorId: ACTOR1_ID,
+      kind: 'bike',
+      name: 'Moots'
+    })
+    await database.setFitnessFileGear({
+      fitnessFileId: withGear!.id,
+      actorId: ACTOR1_ID,
+      gearId: gear.id
+    })
+
+    const batchSpy = vi.spyOn(database, 'getFitnessGearNamesByIds')
+
+    const request = new NextRequest(
+      `https://llun.test/api/v1/fitness-files/by-status?statusId=${encodeURIComponent(status.id)}`
+    )
+    const response = await GET(request)
+    const json = (await response.json()) as {
+      files: Array<{
+        id: string
+        gearId: string | null
+        gearName: string | null
+      }>
+    }
+
+    expect(response.status).toBe(200)
+    // The gear name is public here on purpose — it is what the activity's meta
+    // row shows every viewer, and this reader is signed out.
+    expect(json.files).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: withGear!.id,
+          gearId: gear.id,
+          gearName: 'Moots'
+        }),
+        expect.objectContaining({
+          id: withoutGear!.id,
+          gearId: null,
+          gearName: null
+        })
+      ])
+    )
+    expect(batchSpy).toHaveBeenCalledTimes(1)
+    batchSpy.mockRestore()
+  })
+
   it('reports a fresh processing file as not stuck', async () => {
     mockGetServerSession.mockResolvedValue(null)
 

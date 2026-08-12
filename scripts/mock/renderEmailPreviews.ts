@@ -35,6 +35,7 @@ import { buildActorDeletedEmail } from '@/lib/services/email/templates/actorDele
 import { buildChangeEmail } from '@/lib/services/email/templates/changeEmail'
 import { buildFollowEmail } from '@/lib/services/email/templates/follow'
 import { buildFollowRequestEmail } from '@/lib/services/email/templates/followRequest'
+import { buildGearServiceDueEmail } from '@/lib/services/email/templates/gearServiceDue'
 import { buildLikeEmail } from '@/lib/services/email/templates/like'
 import { buildMentionEmail } from '@/lib/services/email/templates/mention'
 import { buildBoostEmail } from '@/lib/services/email/templates/reblog'
@@ -254,6 +255,31 @@ const buildPreviews = (): Preview[] => [
         createdAt: 1,
         updatedAt: 1
       }
+    })
+  },
+  {
+    slug: 'gear-service-due-component',
+    group: 'Fitness',
+    email: buildGearServiceDueEmail({
+      recipient: anna,
+      gearId: 'gear-moots',
+      gearName: 'Moots',
+      componentName: 'Chain',
+      totalDistanceMeters: 5_120_000,
+      thresholdMeters: 5_000_000
+    })
+  },
+  {
+    slug: 'gear-service-due-shoes',
+    group: 'Fitness',
+    // No component: a shoes distance alert is about the gear itself, and the
+    // copy differs accordingly.
+    email: buildGearServiceDueEmail({
+      recipient: anna,
+      gearId: 'gear-cloud',
+      gearName: 'On Cloud Waterproof',
+      totalDistanceMeters: 662_400,
+      thresholdMeters: 650_000
     })
   }
 ]

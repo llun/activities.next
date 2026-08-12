@@ -280,6 +280,7 @@ until the affected attachments are deleted.
 Other tables: sessions, notifications, medias, fitness_files,
               fitness_settings, strava_archive_imports,
               fitness_route_heatmaps, fitness_route_heatmap_region_names,
+              fitness_gears, fitness_gear_components,
               collections, collection_members, collection_timeline,
               blocks, mutes, actor_domain_blocks, filters, reports,
               markers, endorsements,

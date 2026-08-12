@@ -394,6 +394,35 @@ describe('NotificationItem', () => {
     expect(container.querySelector('img')).toBeNull()
   })
 
+  it('renders a gear service reminder without the deleted-activity fallback', () => {
+    // A gear reminder is self-addressed and carries no status BY DESIGN. Routed
+    // through the activity-import branch it would read a missing status as a
+    // deleted one and tell every reminder "This imported activity is no longer
+    // available." — which is what shipped before this case existed.
+    renderNotificationItem({
+      id: 'notification-gear-service-due',
+      actorId: account.id,
+      type: 'gear_service_due',
+      sourceActorId: account.id,
+      isRead: false,
+      createdAt: currentTime,
+      updatedAt: currentTime,
+      account
+    })
+
+    expect(screen.getByText('Your gear is due for service')).toBeInTheDocument()
+    expect(
+      screen.queryByText('This imported activity is no longer available.')
+    ).not.toBeInTheDocument()
+    // An exact name, not a substring: the row is self-addressed, so a label
+    // built the usual way would read "Ride Your gear is due for service" —
+    // announcing the recipient's own name back at them. A regex would match
+    // both and guard nothing.
+    expect(
+      screen.getByRole('link', { name: 'Your gear is due for service' })
+    ).toHaveAttribute('href', '/fitness/gear')
+  })
+
   it('renders grouped activity import notifications with a latest-activity link', () => {
     renderNotificationItem({
       id: 'notification-activity-import',

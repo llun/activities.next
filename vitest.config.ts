@@ -15,6 +15,14 @@ export default defineConfig({
   },
   test: {
     globals: true,
+    // Pin the suite's clock to UTC. CI already runs in UTC, so a date
+    // assertion that only holds there passes review and then fails on the
+    // first developer machine set to anything else — a component rendering a
+    // UTC-midnight timestamp through a local-time formatter read a day early
+    // in `America/Los_Angeles` and a day late in `Asia/Tokyo`. Formatters that
+    // must be zone-independent say so themselves (`timeZone: 'UTC'`); this
+    // only stops the runner's zone from deciding whether the suite is green.
+    env: { TZ: 'UTC' },
     // Default environment is node; component tests opt into jsdom per file via
     // a `@vitest-environment jsdom` docblock (vitest 4 removed
     // `environmentMatchGlobs`). `environmentOptions` still applies to whichever

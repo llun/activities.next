@@ -414,7 +414,43 @@ CREATE TABLE public.fitness_files (
     "sourceUrl" text,
     "movingTimeSeconds" real,
     "mapImageEmailPath" character varying(255),
-    "mapError" text
+    "mapError" text,
+    "gearId" character varying(255)
+);
+
+CREATE TABLE public.fitness_gear_components (
+    id character varying(255) NOT NULL,
+    "gearId" character varying(255) NOT NULL,
+    "componentType" character varying(255) NOT NULL,
+    brand character varying(255),
+    model character varying(255),
+    "addedAt" timestamp with time zone,
+    "removedAt" timestamp with time zone,
+    "serviceDistanceMeters" real,
+    "lastAlertedDistanceMeters" real,
+    "createdAt" timestamp with time zone NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
+    "deletedAt" timestamp with time zone
+);
+
+CREATE TABLE public.fitness_gears (
+    id character varying(255) NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    kind character varying(255) NOT NULL,
+    name character varying(255) NOT NULL,
+    brand character varying(255),
+    model character varying(255),
+    "bikeType" character varying(255),
+    "weightKilograms" real,
+    "defaultSports" text,
+    "alertDistanceMeters" real,
+    "lastAlertedDistanceMeters" real,
+    notes text,
+    "stravaGearId" character varying(255),
+    "retiredAt" timestamp with time zone,
+    "createdAt" timestamp with time zone NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
+    "deletedAt" timestamp with time zone
 );
 
 CREATE TABLE public.fitness_import_locks (
@@ -1282,6 +1318,15 @@ ALTER TABLE ONLY public.filters
 ALTER TABLE ONLY public.fitness_files
     ADD CONSTRAINT fitness_files_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.fitness_gear_components
+    ADD CONSTRAINT fitness_gear_components_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.fitness_gears
+    ADD CONSTRAINT fitness_gears_actor_strava_gear_id_unique UNIQUE ("actorId", "stravaGearId");
+
+ALTER TABLE ONLY public.fitness_gears
+    ADD CONSTRAINT fitness_gears_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.fitness_import_locks
     ADD CONSTRAINT fitness_import_locks_pkey PRIMARY KEY ("lockKey");
 
@@ -1567,9 +1612,15 @@ CREATE INDEX fitness_files_actor_created_idx ON public.fitness_files USING btree
 
 CREATE INDEX fitness_files_actor_id_idx ON public.fitness_files USING btree ("actorId");
 
+CREATE INDEX fitness_files_gear_id_idx ON public.fitness_files USING btree ("gearId");
+
 CREATE INDEX fitness_files_import_batch_id_idx ON public.fitness_files USING btree ("importBatchId");
 
 CREATE INDEX fitness_files_status_id_idx ON public.fitness_files USING btree ("statusId");
+
+CREATE INDEX fitness_gear_components_gear_id_idx ON public.fitness_gear_components USING btree ("gearId");
+
+CREATE INDEX fitness_gears_actor_id_idx ON public.fitness_gears USING btree ("actorId");
 
 CREATE INDEX fitness_import_locks_expiresat_index ON public.fitness_import_locks USING btree ("expiresAt");
 
@@ -1737,6 +1788,12 @@ ALTER TABLE ONLY public.fitness_files
 ALTER TABLE ONLY public.fitness_files
     ADD CONSTRAINT fitness_files_statusid_foreign FOREIGN KEY ("statusId") REFERENCES public.statuses(id) ON DELETE SET NULL;
 
+ALTER TABLE ONLY public.fitness_gear_components
+    ADD CONSTRAINT fitness_gear_components_gearid_foreign FOREIGN KEY ("gearId") REFERENCES public.fitness_gears(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.fitness_gears
+    ADD CONSTRAINT fitness_gears_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY public.fitness_route_heatmap_region_names
     ADD CONSTRAINT fitness_route_heatmap_region_names_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id) ON DELETE CASCADE;
 
@@ -1787,3 +1844,4 @@ ALTER TABLE ONLY public.status_pins
 
 ALTER TABLE ONLY public."twoFactor"
     ADD CONSTRAINT twofactor_userid_foreign FOREIGN KEY ("userId") REFERENCES public.accounts(id) ON DELETE CASCADE;
+

@@ -10,7 +10,8 @@ import {
   Reply,
   Smile,
   UserPlus,
-  Users
+  Users,
+  Wrench
 } from 'lucide-react'
 
 import type { NotificationType } from '@/lib/types/database/operations'
@@ -22,8 +23,14 @@ import type { NotificationType } from '@/lib/types/database/operations'
 // - 'relationship' — follow / follow request. The actor name lives inline with
 //                    the verb on line 1, followed by the handle + action buttons.
 // - 'system'       — activity import. A bold headline on line 1 plus an inline
-//                    activity card.
-export type NotificationKind = 'status' | 'relationship' | 'system'
+//                    activity card, and a fallback line when the status behind
+//                    it is gone.
+// - 'plain'        — a self-addressed notice about the account's own data, with
+//                    no status and no other actor involved (gear service
+//                    reminders). A bold headline plus a link to the surface it
+//                    is about. Distinct from 'system' precisely because that
+//                    branch treats a missing status as a deleted one.
+export type NotificationKind = 'status' | 'relationship' | 'system' | 'plain'
 
 export interface NotificationTypeConfig {
   // Type badge glyph shown to the left of every row.
@@ -110,6 +117,12 @@ export const NOTIFICATION_TYPE_CONFIG: Record<
     badgeClassName: PRIMARY_BADGE,
     verb: 'Your fitness activity is ready',
     kind: 'system'
+  },
+  gear_service_due: {
+    icon: Wrench,
+    badgeClassName: PRIMARY_BADGE,
+    verb: 'Your gear is due for service',
+    kind: 'plain'
   },
   added_to_collection: {
     icon: Users,

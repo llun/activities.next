@@ -155,6 +155,7 @@ export type UpdateActorParams = {
     reblog?: boolean
     emoji_reaction?: boolean
     activity_import?: boolean
+    gear_service_due?: boolean
     added_to_collection?: boolean
     collection_update?: boolean
   }
@@ -167,6 +168,7 @@ export type UpdateActorParams = {
     reblog?: boolean
     emoji_reaction?: boolean
     activity_import?: boolean
+    gear_service_due?: boolean
     added_to_collection?: boolean
     collection_update?: boolean
   }
@@ -3287,6 +3289,10 @@ export const NotificationType = z.enum([
   // Pleroma dialect's `pleroma:emoji_reaction` (there is no core Mastodon type).
   'emoji_reaction',
   'activity_import',
+  // A piece of fitness gear (or one of a bike's components) has passed the
+  // distance the owner asked to be reminded at. Self-addressed: the recipient
+  // is also the source actor, and it carries no status.
+  'gear_service_due',
   // Mastodon 4.6 Collections: a member was added to a collection
   // (`added_to_collection`) or a collection they're in had its metadata changed
   // (`collection_update`).

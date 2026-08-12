@@ -3010,13 +3010,34 @@ export const StatusSQLDatabaseMixin = (
       // A status can carry several fitness files (e.g. the same ride merged
       // from two devices). Surface the primary one — matching
       // getFitnessFileByStatus — instead of an arbitrary `.first()`.
+      // The gear name comes along on this same query rather than a follow-up
+      // lookup — `getStatus` runs per status, so a second round trip here is an
+      // N+1 across a whole timeline page. Every clause below is table-qualified
+      // because both tables carry `deletedAt`/`createdAt`.
       database<SQLFitnessFile>('fitness_files')
-        .where('statusId', data.id)
-        .whereNull('deletedAt')
-        .orderBy('isPrimary', 'desc')
-        .orderBy('activityStartTime', 'asc')
-        .orderBy('createdAt', 'asc')
-        .first(),
+        // `deletedAt` belongs in the JOIN's ON clause, never the WHERE: as a
+        // WHERE it is false for a soft-deleted gear and would drop the whole
+        // fitness_files row, taking the entire activity off the status. Here it
+        // only withholds the name.
+        //
+        // Today `deleteFitnessGear` nulls `fitness_files.gearId` in the same
+        // transaction, so this never matches a deleted gear anyway — but that
+        // coupling is invisible from here, and the sibling reader
+        // (`getFitnessGearNamesByIds`) filters too. A future cleanup path that
+        // soft-deletes gear without nulling would otherwise leak the name onto
+        // every public post that used it.
+        .leftJoin('fitness_gears', function () {
+          this.on('fitness_files.gearId', '=', 'fitness_gears.id').andOnNull(
+            'fitness_gears.deletedAt'
+          )
+        })
+        .where('fitness_files.statusId', data.id)
+        .whereNull('fitness_files.deletedAt')
+        .orderBy('fitness_files.isPrimary', 'desc')
+        .orderBy('fitness_files.activityStartTime', 'asc')
+        .orderBy('fitness_files.createdAt', 'asc')
+        .select('fitness_files.*', 'fitness_gears.name as gearName')
+        .first<(SQLFitnessFile & { gearName?: string | null }) | undefined>(),
       hydrationContext?.detectedLanguages
         ? (hydrationContext.detectedLanguages[data.id] ?? null)
         : statusDetectedLanguageDatabase.getDetectedLanguage({
@@ -3156,7 +3177,9 @@ export const StatusSQLDatabaseMixin = (
                 : null),
               ...(fitnessFile.sourceUrl
                 ? { sourceUrl: fitnessFile.sourceUrl }
-                : null)
+                : null),
+              gearId: fitnessFile.gearId ?? null,
+              gearName: fitnessFile.gearName ?? null
             }
           }
         : null),

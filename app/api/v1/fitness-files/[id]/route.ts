@@ -3,10 +3,17 @@ import { NextRequest } from 'next/server'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getFitnessFile } from '@/lib/services/fitness-files'
+import { UpdateFitnessFileGearRequest } from '@/lib/services/fitness-gears/gearRequests'
+import { evaluateGearServiceReminders } from '@/lib/services/fitness-gears/serviceReminders'
+import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { buildAttachmentContentDisposition } from '@/lib/services/medias/fileName'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { logger } from '@/lib/utils/logger'
-import { HTTP_STATUS, apiErrorResponse } from '@/lib/utils/response'
+import {
+  HTTP_STATUS,
+  apiErrorResponse,
+  apiResponse
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 interface Params {
@@ -108,4 +115,62 @@ export const GET = traceApiRoute(
       return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
     }
   }
+)
+
+/**
+ * Attributes an activity to a piece of gear, or clears the attribution with
+ * `{ gearId: null }`.
+ *
+ * Every rejection is a 404 — a missing activity, someone else's activity, and a
+ * gear id that is not the owner's all answer the same way, so the response
+ * cannot be used to confirm that an id exists.
+ *
+ * There is deliberately no check that the gear's kind suits the activity's
+ * sport. `activityType` is free-form across four vocabularies and often absent,
+ * so enforcing it here would make perfectly ordinary activities unassignable;
+ * the picker narrows the options, the server only owns ownership.
+ */
+export const PATCH = traceApiRoute(
+  'updateFitnessFileGear',
+  AuthenticatedGuard<Params>(async (req, context) => {
+    const { currentActor, database, params } = context
+    const { id } = (await params) ?? { id: undefined }
+    if (!id) return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+
+    let body: unknown
+    try {
+      body = await req.json()
+    } catch (_error) {
+      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+    }
+
+    const parsed = UpdateFitnessFileGearRequest.safeParse(body)
+    if (!parsed.success) {
+      return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+    }
+
+    const updated = await database.setFitnessFileGear({
+      fitnessFileId: id,
+      actorId: currentActor.id,
+      gearId: parsed.data.gearId
+    })
+    if (!updated) return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+
+    if (updated.gearId) {
+      // Attributing an activity can push the gear past a service threshold.
+      // Best-effort: a reminder that fails must not fail the assignment.
+      await evaluateGearServiceReminders({
+        database,
+        actorId: currentActor.id,
+        gearIds: [updated.gearId]
+      })
+    }
+
+    return apiResponse({
+      req,
+      allowedMethods: [],
+      data: updated,
+      responseStatusCode: 200
+    })
+  })
 )

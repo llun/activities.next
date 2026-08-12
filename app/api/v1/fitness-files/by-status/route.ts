@@ -100,6 +100,16 @@ export const GET = traceApiRoute(
       const files = await database.getFitnessFilesByStatus({ statusId })
       const now = Date.now()
 
+      // One lookup for the whole page of files, not one per file. Only the gear
+      // NAME is exposed here — it is what the activity's meta row renders to
+      // every viewer; default sports, service thresholds and notes stay owner
+      // only, behind /api/v1/fitness/gear.
+      const gearNames = await database.getFitnessGearNamesByIds({
+        ids: files
+          .map((file) => file.gearId)
+          .filter((gearId): gearId is string => Boolean(gearId))
+      })
+
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
@@ -131,7 +141,9 @@ export const GET = traceApiRoute(
             description: file.description ?? null,
             deviceManufacturer: file.deviceManufacturer ?? null,
             deviceName: file.deviceName ?? null,
-            sourceUrl: file.sourceUrl ?? null
+            sourceUrl: file.sourceUrl ?? null,
+            gearId: file.gearId ?? null,
+            gearName: file.gearId ? (gearNames[file.gearId] ?? null) : null
           }))
         }
       })

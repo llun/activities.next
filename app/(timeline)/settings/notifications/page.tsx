@@ -58,6 +58,12 @@ const notificationTypes: {
     label: 'Fitness Activity Imported',
     // Provider-agnostic: this fires for any background import, not just Strava.
     description: 'A fitness activity has been imported and is ready to view'
+  },
+  {
+    key: 'gear_service_due',
+    label: 'Gear service reminders',
+    description:
+      'A bike component or pair of shoes has passed the distance you set'
   }
 ]
 

@@ -347,6 +347,82 @@ it; there is no legacy shape left to copy.
   Outlook's Word engine is the one that needs `mso-` properties and the ghost
   table, and none of that is observable in a browser.
 
+## Fitness Gear
+
+- **A gear total is derived, never stored.** `fitness_gears` and
+  `fitness_gear_components` carry no distance column: a gear's lifetime distance
+  is `SUM(fitness_files.totalDistanceMeters) WHERE gearId = ?`, and a
+  component's is the same sum restricted to activities whose `activityStartTime`
+  falls in its `[addedAt, removedAt)` install window (null `addedAt` = since the
+  gear's beginning, null `removedAt` = still fitted). Do not add a cached total
+  "for performance" — it would have to be reconciled on every back-dated upload,
+  archive re-import, edit and delete, and the whole point of the model is that
+  totals always agree with the calendar.
+- **Both rollups reuse the stats predicate**
+  (`deletedAt IS NULL` + `processingStatus = 'completed'` + `isPrimary`) that
+  `getFitnessActivitySummary` uses, so gear numbers line up with the fitness
+  overview. A new rollup that filters differently will quietly disagree with
+  every other surface. Two deliberate asymmetries: the summary additionally
+  requires a non-null `activityType`/`activityStartTime` because it groups by
+  them, so a timestamp-less GPX counts toward a gear total and is invisible
+  there; and an activity with no `activityStartTime` counts only for a
+  component whose window is open on that side, since it cannot be placed inside
+  `[addedAt, removedAt)`. A gear total may therefore exceed the sum of its
+  components.
+- **Evaluate service reminders only after the activity is `completed`.** The
+  rollups count completed activities, so a reminder computed while the file is
+  still `processing` reads the total from before the ride that caused the
+  crossing — the notification then arrives one activity late, or never if that
+  was the last ride on that gear.
+- **Batch, don't loop.** `getFitnessGearDistanceRollups` and
+  `getFitnessGearComponentDistanceRollups` each answer a whole page in one
+  grouped query; the component one puts the install window in the JOIN condition
+  (not the WHERE clause) so a component with no matching activity still returns
+  a row and counts 0. The window compares `activityStartTime` column-to-column
+  against the bounds, which is safe because knex writes all three in the same
+  representation per backend — never add raw date arithmetic there without an
+  `isSQLiteClient` branch.
+- **`fitness_files.gearId` has no database-level foreign key**, because adding
+  one via `alterTable` needs a table rebuild on SQLite. Ownership is enforced in
+  `lib/database/sql/fitnessGear.ts`, and `deleteFitnessGear` nulls the column in
+  the same transaction that soft-deletes the gear.
+- **Match sports through `normalizeActivityTypeToSportKey`**
+  (`@/lib/services/fitness-files/sportTypes`), never against the raw
+  `activityType`. That column holds whatever the source file said, and four
+  vocabularies reach it (FIT `cycling`, TCX `Biking`, Strava `GravelRide`,
+  free-form GPX). Gear stores canonical keys; the normalizer maps the dialects
+  onto them and returns null rather than guessing, so an unrecognised type
+  simply does not auto-assign. Prefer null over a plausible guess: a wrong
+  mapping silently attributes activities to the wrong bike.
+- **A sport belongs to at most one of an actor's gears**, retired ones included
+  — scoping the invariant to active gear only would let unretiring produce two
+  holders and make auto-assign arbitrary. Claiming a sport takes it off whoever
+  had it, inside the create/update transaction. It is enforced by that
+  read-then-write rather than by a constraint (`defaultSports` is a JSON text
+  column), so two genuinely concurrent creates can both end up holding a sport;
+  auto-assign stays deterministic regardless, because
+  `findFitnessGearByDefaultSport` resolves oldest-first.
+- **Retiring is not deleting and not un-assignable.** Retired gear is out of the
+  pickers and out of auto-assign, but stays explicitly assignable so old
+  activities can still be attributed to a bike that has since been sold.
+- **Import jobs assign with `assignFitnessFileGearIfUnset`**, whose
+  `whereNull('gearId')` guard is the correctness guarantee rather than an
+  optimisation: those jobs re-run, and a manual assignment made between a read
+  and the write must survive. Only the owner's own PATCH uses
+  `setFitnessFileGear`, which overwrites.
+- **Service reminders are evaluated on write, not on a schedule** — this
+  instance has no recurring job infrastructure (the queue can delay a message
+  but not repeat one). `evaluateGearServiceReminders` runs where a total can
+  change and records the distance it fired at in `lastAlertedDistanceMeters`, so
+  each crossing notifies once and a raised threshold re-arms on its own.
+- **A state change is a predicate on the UPDATE, never a decision taken from a
+  read in front of it** — that goes for the reminder claim and for the
+  retire/unretire toggle alike. Two concurrent requests (two tabs, a retry, any
+  API client) would otherwise both read the old state and both write. Where a
+  no-op legitimately writes no row, the result comes from a re-read rather than
+  the affected-row count, so "already in that state" stays distinguishable from
+  "no such gear of yours" — the latter is the route's 404.
+
 ## Status Posts & Actions
 
 Every surface that renders a status post — the home timeline, profiles, lists,
@@ -517,6 +593,15 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   must not be relied on in first-party tests.) The `jest.Mock` /
   `jest.MockedFunction` / `jest.Mocked` **type** names still work via a
   compatibility shim in `vitest.d.ts`.
+- **The suite's clock is pinned to `TZ=UTC`** (`vitest.config.ts` → `test.env`).
+  CI already runs in UTC, so before the pin a date assertion that only held
+  there passed review and then failed on the first developer machine set to
+  anything else. The pin is a backstop, not a licence: a formatter whose output
+  must not depend on the viewer's zone still has to say `timeZone: 'UTC'`
+  itself, because production is not running under the pin. The bug that
+  prompted it — an `<input type="date">` value (parsed as UTC midnight) read
+  back through a local-time `Intl.DateTimeFormat` — rendered a day early in
+  `America/Los_Angeles` and a day late in `Asia/Tokyo`.
 - The Vitest default environment is `node`. Any test that renders React or
   touches the DOM must start with a `/** @vitest-environment jsdom */` docblock
   (Vitest 4 removed `environmentMatchGlobs`, so there is no glob-based opt-in);

@@ -15,6 +15,7 @@ import { EndorsementSQLDatabaseMixin } from '@/lib/database/sql/endorsement'
 import { FeaturedTagSQLDatabaseMixin } from '@/lib/database/sql/featuredTag'
 import { FilterSQLDatabaseMixin } from '@/lib/database/sql/filter'
 import { FitnessFileSQLDatabaseMixin } from '@/lib/database/sql/fitnessFile'
+import { FitnessGearSQLDatabaseMixin } from '@/lib/database/sql/fitnessGear'
 import { FitnessRouteHeatmapSQLDatabaseMixin } from '@/lib/database/sql/fitnessRouteHeatmap'
 import { FitnessSettingsSQLDatabaseMixin } from '@/lib/database/sql/fitnessSettings'
 import { FollowerSQLDatabaseMixin } from '@/lib/database/sql/follow'
@@ -58,6 +59,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const adminDatabase = AdminSQLDatabaseMixin(database)
   const announcementDatabase = AnnouncementSQLDatabaseMixin(database)
   const fitnessFileDatabase = FitnessFileSQLDatabaseMixin(database)
+  const fitnessGearDatabase = FitnessGearSQLDatabaseMixin(database)
   const fitnessRouteHeatmapDatabase =
     FitnessRouteHeatmapSQLDatabaseMixin(database)
   const fitnessSettingsDatabase = FitnessSettingsSQLDatabaseMixin(database)
@@ -146,6 +148,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...adminDatabase,
     ...announcementDatabase,
     ...fitnessFileDatabase,
+    ...fitnessGearDatabase,
     ...fitnessRouteHeatmapDatabase,
     ...fitnessSettingsDatabase,
     ...importLockDatabase,
