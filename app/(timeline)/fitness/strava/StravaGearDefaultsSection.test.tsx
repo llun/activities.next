@@ -103,6 +103,19 @@ describe('getGearOptionsForSport', () => {
   })
 })
 
+// Radix's DropdownMenu opens on ArrowDown from its trigger — the same way the
+// activity page's gear picker is driven in `FitnessStatusDetail.test.tsx`.
+const openMenu = async (triggerName: string | RegExp) => {
+  fireEvent.keyDown(await screen.findByRole('button', { name: triggerName }), {
+    key: 'ArrowDown'
+  })
+  return screen.findByRole('menu')
+}
+
+// Named from its content, so the accessible name carries the assignment too
+// ("Ride: Moots · 42.6 km"); match on the prefix rather than pinning the value.
+const gearTriggerFor = (sportLabel: string) => new RegExp(`^${sportLabel}:`)
+
 describe('StravaGearDefaultsSection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -115,7 +128,9 @@ describe('StravaGearDefaultsSection', () => {
 
     render(<StravaGearDefaultsSection />)
 
-    expect(await screen.findByLabelText('Ride')).toHaveValue('gear-bike')
+    expect(
+      await screen.findByRole('button', { name: gearTriggerFor('Ride') })
+    ).toHaveTextContent('Moots')
   })
 
   it('points at the gear page when the shed is empty', async () => {
@@ -128,26 +143,76 @@ describe('StravaGearDefaultsSection', () => {
     ).toHaveAttribute('href', '/fitness/gear')
   })
 
-  it('adds the sport to the picked gear and re-reads the list', async () => {
-    const bike = createGear({ defaultSports: ['ride'] })
-    const other = createGear({ id: 'gear-other', name: 'Giant' })
-    mockGetFitnessGearList.mockResolvedValue([bike, other])
-    mockUpdateFitnessGear.mockResolvedValue(other)
+  it('explains itself when every gear is retired instead of pointing at a control that is not there', async () => {
+    // "Add an activity type below" is only honest when there is something
+    // below, and the add control needs an active gear to point a type at.
+    mockGetFitnessGearList.mockResolvedValue([
+      createGear({ defaultSports: [], retiredAt: Date.UTC(2025, 0, 1) })
+    ])
 
     render(<StravaGearDefaultsSection />)
 
-    fireEvent.change(await screen.findByLabelText('Ride'), {
-      target: { value: 'gear-other' }
-    })
+    expect(
+      await screen.findByText(/Every gear you have is retired/)
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: /Add activity type/ })
+    ).not.toBeInTheDocument()
+  })
 
-    // Only the gear being pointed at is written: the database takes the sport
-    // off whoever held it inside the same transaction.
+  it('moves the activity type onto the picked gear and shows it there', async () => {
+    const moots = createGear({ defaultSports: ['ride'] })
+    const giant = createGear({
+      id: 'gear-other',
+      name: 'Giant',
+      defaultSports: []
+    })
+    // The two reads differ, because the write does not return what changed on
+    // the OTHER gear: the server takes `ride` off Moots inside the same
+    // transaction and only the re-read can see it. Returning one array for
+    // both calls would let a component that never refetched pass this test.
+    mockGetFitnessGearList
+      .mockResolvedValueOnce([moots, giant])
+      .mockResolvedValueOnce([
+        { ...moots, defaultSports: [] },
+        { ...giant, defaultSports: ['ride'] }
+      ])
+    mockUpdateFitnessGear.mockResolvedValue(giant)
+
+    render(<StravaGearDefaultsSection />)
+
+    const menu = await openMenu(gearTriggerFor('Ride'))
+    fireEvent.click(within(menu).getByRole('menuitemradio', { name: /Giant/ }))
+
+    // Only the gear being pointed at is written.
     await waitFor(() =>
       expect(mockUpdateFitnessGear).toHaveBeenCalledWith('gear-other', {
         defaultSports: ['ride']
       })
     )
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: gearTriggerFor('Ride') })
+      ).toHaveTextContent('Giant')
+    )
     expect(mockGetFitnessGearList).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not write when the gear already assigned is picked again', async () => {
+    // A `<select>` never fired `change` for that; every menu row fires
+    // `onSelect`, and tapping the checked row to dismiss the menu is the
+    // natural gesture.
+    mockGetFitnessGearList.mockResolvedValue([
+      createGear({ defaultSports: ['ride'] })
+    ])
+
+    render(<StravaGearDefaultsSection />)
+
+    const menu = await openMenu(gearTriggerFor('Ride'))
+    fireEvent.click(within(menu).getByRole('menuitemradio', { name: /Moots/ }))
+
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+    expect(mockUpdateFitnessGear).not.toHaveBeenCalled()
   })
 
   it('removes the activity type from the gear that held it', async () => {
@@ -178,9 +243,8 @@ describe('StravaGearDefaultsSection', () => {
 
     render(<StravaGearDefaultsSection />)
 
-    fireEvent.change(await screen.findByLabelText('Add activity type'), {
-      target: { value: 'run' }
-    })
+    const menu = await openMenu(/Add activity type/)
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Run' }))
 
     await waitFor(() =>
       expect(mockUpdateFitnessGear).toHaveBeenCalledWith('gear-shoes', {
@@ -196,12 +260,12 @@ describe('StravaGearDefaultsSection', () => {
 
     render(<StravaGearDefaultsSection />)
 
-    const addSelect = await screen.findByLabelText('Add activity type')
+    const menu = await openMenu(/Add activity type/)
     // Pointing "Ride" somewhere needs a bike, and there is none in this shed.
     expect(
-      within(addSelect).queryByRole('option', { name: 'Ride' })
+      within(menu).queryByRole('menuitem', { name: 'Ride' })
     ).not.toBeInTheDocument()
-    expect(within(addSelect).getByRole('option', { name: 'Run' })).toBeDefined()
+    expect(within(menu).getByRole('menuitem', { name: 'Run' })).toBeVisible()
   })
 
   it('surfaces a failed save instead of showing the old value as saved', async () => {

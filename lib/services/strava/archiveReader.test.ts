@@ -231,14 +231,17 @@ describe('StravaArchiveReader', () => {
       ])
     })
 
-    it('skips rows whose file is not a supported fitness file', async () => {
+    it('skips rows with no file and rows whose file is not a fitness file', async () => {
       const reader = await openArchive([
         {
           name: 'activities.csv',
           content: [
             'Activity ID,Activity Name,Filename',
             '1001,Morning ride,activities/1001.gpx',
-            '1002,Manual entry,'
+            // No file at all — a manual entry the athlete typed into Strava.
+            '1002,Manual entry,',
+            // A file, but not one this app can parse.
+            '1003,Odd export,activities/1003.csv'
           ].join('\n')
         }
       ])
@@ -247,6 +250,29 @@ describe('StravaArchiveReader', () => {
 
       expect(activities).toHaveLength(1)
       expect(activities[0].activityId).toBe('1001')
+    })
+
+    it('applies the configured CSV row limit', async () => {
+      // The limit lives on the reader and has to be threaded into
+      // `parseStravaArchiveCsvRows`; without a test here, dropping the option
+      // at the call site leaves every other test green.
+      const reader = await openArchive(
+        [
+          {
+            name: 'activities.csv',
+            content: [
+              'Activity ID,Filename',
+              '1001,activities/1001.gpx',
+              '1002,activities/1002.gpx'
+            ].join('\n')
+          }
+        ],
+        { maxCsvRows: 2 }
+      )
+
+      await expect(reader.getActivities()).rejects.toThrow(
+        'exceeds CSV row limit'
+      )
     })
   })
 

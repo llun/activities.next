@@ -1,6 +1,6 @@
 'use client'
 
-import { Bike, Footprints, X } from 'lucide-react'
+import { Bike, Check, ChevronDown, Footprints, X } from 'lucide-react'
 import Link from 'next/link'
 import { FC, useEffect, useState } from 'react'
 
@@ -10,8 +10,15 @@ import {
 } from '@/app/(timeline)/fitness/gear/gearUi'
 import { getFitnessGearList, updateFitnessGear } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
-import { Label } from '@/lib/components/ui/label'
-import { Select } from '@/lib/components/ui/select'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '@/lib/components/ui/dropdown-menu'
 import {
   type FitnessGearKind,
   SPORT_KEYS,
@@ -20,6 +27,7 @@ import {
   getSportLabel
 } from '@/lib/services/fitness-files/sportTypes'
 import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
+import { cn } from '@/lib/utils'
 
 const KIND_ICON: Record<FitnessGearKind, typeof Bike> = {
   bike: Bike,
@@ -196,26 +204,41 @@ export const StravaGearDefaultsSection: FC = () => {
         <p className="text-sm text-muted-foreground">Loading gear…</p>
       )}
 
-      {gears !== null && gears.length === 0 && (
+      {/* Three empty states, not two. "Add an activity type below" is only
+          honest when there is something below to add with, and the add control
+          needs an ACTIVE gear to point a type at — so an actor whose only gear
+          is retired would otherwise be told to use a control that is not
+          there. Reachable in two steps: retire your only bike, then remove its
+          row. */}
+      {gears !== null && rows.length === 0 && (
         <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-          No gear yet.{' '}
-          <Link href="/fitness/gear" className="underline">
-            Add a bike or a pair of shoes
-          </Link>{' '}
-          to assign it to imported activities.
-        </div>
-      )}
-
-      {gears !== null && gears.length > 0 && rows.length === 0 && (
-        <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-          No defaults yet — add an activity type below.
+          {gears.length === 0 ? (
+            <>
+              No gear yet.{' '}
+              <Link href="/fitness/gear" className="underline">
+                Add a bike or a pair of shoes
+              </Link>{' '}
+              to assign it to imported activities.
+            </>
+          ) : addableSportsByKind.length > 0 ? (
+            'No defaults yet — add an activity type below.'
+          ) : (
+            <>
+              No defaults yet. Every gear you have is retired, and retired gear
+              is not assigned to new activities —{' '}
+              <Link href="/fitness/gear" className="underline">
+                unretire one or add another
+              </Link>{' '}
+              to set a default.
+            </>
+          )}
         </div>
       )}
 
       {rows.map(({ sportKey, gear }) => {
         const KindIcon = KIND_ICON[SPORT_KIND[sportKey]]
         const options = getGearOptionsForSport(gears ?? [], sportKey, gear.id)
-        const selectId = `gear-default-${sportKey}`
+        const sportLabel = getSportLabel(sportKey)
         return (
           // The picker and its remove button share a wrapper that is `w-full`
           // below `sm`, so they wrap onto their own line and leave the whole
@@ -227,37 +250,96 @@ export const StravaGearDefaultsSection: FC = () => {
             className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border p-3"
           >
             <KindIcon className="size-4 shrink-0 text-muted-foreground" />
-            <Label
-              htmlFor={selectId}
-              className="min-w-0 flex-1 truncate text-sm font-medium"
-            >
-              {getSportLabel(sportKey)}
-            </Label>
+            <span className="min-w-0 flex-1 truncate text-sm font-medium">
+              {sportLabel}
+            </span>
             <div className="flex w-full items-center gap-1 sm:w-auto">
-              <Select
-                id={selectId}
-                className="min-w-0 flex-1 sm:w-56 sm:flex-none"
-                value={gear.id}
-                disabled={isSaving}
-                onChange={(event) => {
-                  const nextGear = (gears ?? []).find(
-                    (candidate) => candidate.id === event.target.value
-                  )
-                  if (nextGear) void assignSport(nextGear, sportKey)
-                }}
-              >
-                {options.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {getOptionLabel(option)}
-                  </option>
-                ))}
-              </Select>
+              {/* A menu rather than a `<select>`, the same way the activity
+                  page's gear picker is (`FitnessStatusDetail`'s
+                  `ActivityGearMeta`). Both commit the moment they change, and
+                  on Windows/Linux an arrow key on a CLOSED `<select>` moves the
+                  selection and fires `change` per keystroke — so navigating to
+                  the third bike would PATCH the second one on the way past,
+                  taking the sport off its current holder. `disabled` then
+                  compounds it: disabling the focused element blurs it to
+                  `<body>`, stranding the keyboard user mid-navigation. A menu
+                  commits only on Enter or click, which makes disabling it while
+                  the write is in flight safe as well as correct. */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild disabled={isSaving}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isSaving}
+                    className="min-w-0 flex-1 justify-between font-normal sm:w-56 sm:flex-none"
+                  >
+                    {/* Named from its content, so the accessible name carries
+                        the value too — "Ride: Moots · 42.6 km", not a bare
+                        "Ride" that says nothing about what is assigned. */}
+                    <span className="sr-only">{sportLabel}: </span>
+                    <span className="truncate">{getOptionLabel(gear)}</span>
+                    <ChevronDown
+                      className="size-3.5 shrink-0 opacity-50"
+                      aria-hidden="true"
+                    />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  className="rounded-xl shadow-lg"
+                >
+                  {options.map((option) => {
+                    const isActive = option.id === gear.id
+                    return (
+                      <DropdownMenuItem
+                        key={option.id}
+                        // Picking what is already assigned is not a change. A
+                        // `<select>` never fired `change` for that; every menu
+                        // row fires `onSelect`, and tapping the checked row to
+                        // dismiss the menu is the natural gesture.
+                        onSelect={() => {
+                          if (isActive) return
+                          void assignSport(option, sportKey)
+                        }}
+                        // One-of-N, so radio semantics rather than the
+                        // `aria-current` the navigation dropdowns use. The
+                        // check mark is decorative, so `aria-checked` is the
+                        // only thing announcing which gear is assigned.
+                        role="menuitemradio"
+                        aria-checked={isActive}
+                        className={cn(
+                          'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 font-medium',
+                          isActive && [
+                            'bg-primary/10 text-primary focus:bg-primary/10 focus:text-primary',
+                            'focus:ring-2 focus:ring-primary/50'
+                          ]
+                        )}
+                      >
+                        <Check
+                          className={cn(
+                            'size-4 shrink-0',
+                            !isActive && 'invisible'
+                          )}
+                          aria-hidden="true"
+                        />
+                        <span className="truncate">
+                          {getGearDisplayName(option)}
+                          {option.retiredAt ? ' (retired)' : ''}
+                        </span>
+                        <span className="ml-auto pl-3 text-xs tabular-nums text-muted-foreground">
+                          {formatGearDistanceKm(option.distanceMeters)}
+                        </span>
+                      </DropdownMenuItem>
+                    )
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 className="shrink-0"
-                aria-label={`Remove ${getSportLabel(sportKey)}`}
+                aria-label={`Remove ${sportLabel}`}
                 disabled={isSaving}
                 onClick={() => void clearSport(gear, sportKey)}
               >
@@ -268,25 +350,45 @@ export const StravaGearDefaultsSection: FC = () => {
         )
       })}
 
+      {/* A menu here for the same reason as the row pickers: this control also
+          commits on pick, so an arrow key on a closed `<select>` would add an
+          activity type the user was only scrolling past. */}
       {addableSportsByKind.length > 0 && (
-        <Select
-          aria-label="Add activity type"
-          className="w-52"
-          value=""
-          disabled={isSaving}
-          onChange={(event) => handleAdd(event.target.value)}
-        >
-          <option value="">Add activity type…</option>
-          {addableSportsByKind.map(({ kind, sports }) => (
-            <optgroup key={kind} label={KIND_GROUP_LABEL[kind]}>
-              {sports.map((sportKey) => (
-                <option key={sportKey} value={sportKey}>
-                  {getSportLabel(sportKey)}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </Select>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild disabled={isSaving}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isSaving}
+              className="w-full justify-between font-normal sm:w-52"
+            >
+              Add activity type…
+              <ChevronDown
+                className="size-3.5 shrink-0 opacity-50"
+                aria-hidden="true"
+              />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="rounded-xl shadow-lg">
+            {addableSportsByKind.map(({ kind, sports }, groupIndex) => (
+              <DropdownMenuGroup key={kind}>
+                {groupIndex > 0 && <DropdownMenuSeparator />}
+                <DropdownMenuLabel className="text-xs text-muted-foreground">
+                  {KIND_GROUP_LABEL[kind]}
+                </DropdownMenuLabel>
+                {sports.map((sportKey) => (
+                  <DropdownMenuItem
+                    key={sportKey}
+                    className="rounded-lg px-3 py-2 font-medium"
+                    onSelect={() => handleAdd(sportKey)}
+                  >
+                    {getSportLabel(sportKey)}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       )}
 
       {error && <p className="text-sm text-destructive">{error}</p>}

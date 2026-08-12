@@ -438,12 +438,13 @@ export const importStravaActivityJob = createJobHandle(
       visibility ?? mapStravaVisibilityToMastodon(activity.visibility)
     const batchId = getStravaActivityBatchId(stravaActivityId)
 
-    // Gear is deliberately NOT read from `activity.gear_id`. The athlete's own
-    // shed is the source of truth: `processFitnessFileJob` attributes the
-    // imported file from the gear whose `defaultSports` claims the parsed
-    // sport, which is what the Strava settings page edits. Importing Strava's
-    // value instead created a local gear per Strava id — with a guessed `kind`
-    // that is immutable once wrong — for a shed the owner never asked for.
+    // Nothing here reads `activity.gear_id`, and that is deliberate: gear is
+    // attributed downstream by `processFitnessFileJob`, from the gear whose
+    // `defaultSports` claims the parsed sport — the athlete's own shed, which
+    // the Strava settings page edits. Importing Strava's value instead created
+    // a local gear per Strava id, with a `kind` guessed from an undocumented id
+    // prefix and immutable once wrong. Do not add an attribution step to this
+    // job; there is no gear decision to make in it.
     const batchFiles = await database.getFitnessFilesByBatchId({ batchId })
     let targetFitnessFile =
       batchFiles.find((file) => file.actorId === actorId) ?? null
