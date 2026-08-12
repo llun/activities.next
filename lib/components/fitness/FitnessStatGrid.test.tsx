@@ -26,6 +26,22 @@ describe('FitnessStatGrid', () => {
     expect(grid.parentElement).toHaveClass('@container')
   })
 
+  it.each(['detail', 'chip'] as const)(
+    'sizes the %s variant without a viewport breakpoint',
+    (variant) => {
+      renderGrid({ variant, children: <div data-testid="cell" /> })
+
+      // The one NEGATIVE invariant worth pinning, and the whole point of the
+      // component: a viewport query cannot see a strip sitting in a narrow
+      // column on a wide window. Unlike the thresholds — which jsdom cannot
+      // evaluate and which restating here would only re-assert — this fails on
+      // a real regression, and it is one step away in the same file.
+      expect(getGrid().className).not.toMatch(
+        /(^|\s|:)(sm|md|lg|xl|2xl):grid-cols/
+      )
+    }
+  )
+
   it('puts the caller class on the container, not the grid', () => {
     renderGrid({ className: 'mt-4', children: <div data-testid="cell" /> })
 

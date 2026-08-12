@@ -2045,6 +2045,52 @@ describe('FitnessStatusDetail', () => {
       expect(screen.getByText('file 1 of 2')).toBeInTheDocument()
     })
 
+    it('keeps a failed change with its own file when the reader switches', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([
+        buildFitnessFile(),
+        buildFitnessFile({
+          id: 'fit-2',
+          fileName: 'second.fit',
+          isPrimary: false,
+          activityStartTime: Date.parse('2026-05-27T18:00:00Z')
+        })
+      ])
+      mockGetFitnessGearList.mockResolvedValue([
+        buildGear({ id: 'gear-bike', name: 'Moots' })
+      ])
+      let rejectUpdate: (error: Error) => void = () => {}
+      mockUpdateFitnessFileGear.mockImplementation(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectUpdate = reject
+          })
+      )
+
+      renderDetail()
+
+      await chooseGear(/Moots/)
+      // The file switcher stays enabled during the PATCH, so the reader can
+      // move on before it fails. The error belongs to the file it happened to —
+      // rendering it here would describe the wrong activity, and
+      // `aria-describedby` would wire this file's picker to it.
+      fireEvent.change(await screen.findByLabelText('Activity file'), {
+        target: { value: 'fit-2' }
+      })
+      await act(async () => {
+        rejectUpdate(new Error('Failed to update gear.'))
+      })
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+      // Switching back brings it with the file, because that is what happened.
+      fireEvent.change(screen.getByLabelText('Activity file'), {
+        target: { value: 'fit-1' }
+      })
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Failed to update gear.'
+      )
+    })
+
     it('sends null when the owner clears the assignment', async () => {
       mockGetFitnessFilesByStatus.mockResolvedValue([
         buildFitnessFile({ gearId: 'gear-bike', gearName: 'Moots' })

@@ -979,19 +979,20 @@ const ActivityGearMeta: FC<{
             type="button"
             aria-describedby={errorId}
             disabled={isSaving}
-            // The name truncates, so keep the whole of it reachable — gear
-            // names are a `varchar(255)` and "Specialized Tarmac SL7 Expert
-            // (winter build)" does not fit a metadata line.
-            title={`Gear: ${label ?? 'No gear'}`}
             className="inline-flex min-w-0 items-center gap-1.5 rounded-md transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Icon className="size-3.5 shrink-0" aria-hidden="true" />
             {/* Named from its content rather than by `aria-label`, so the
                 accessible name carries the current value too — "Gear: Moots
                 Routt YBB", not a bare "Gear" that says nothing about what is
-                assigned. */}
+                assigned. The `title` therefore goes on the span that actually
+                truncates rather than on the button: on the button it would
+                become the accessible *description*, re-reading the name it
+                already announced. */}
             <span className="sr-only">Gear: </span>
-            <span className="truncate">{label ?? 'No gear'}</span>
+            <span className="truncate" title={`Gear: ${label ?? 'No gear'}`}>
+              {label ?? 'No gear'}
+            </span>
             <ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />
           </button>
         </DropdownMenuTrigger>
@@ -2331,7 +2332,15 @@ export const FitnessStatusDetail: FC<Props> = ({
     null
   )
   const [gearOptions, setGearOptions] = useState<GearEntity[]>([])
-  const [gearUpdateError, setGearUpdateError] = useState<string | null>(null)
+  // Scoped to the file it belongs to, not just to the component. An activity
+  // can aggregate several files and the switcher stays enabled during a PATCH,
+  // so a failure that lands after the reader has moved on would otherwise
+  // render as the NEXT file's error — with `aria-describedby` wiring that
+  // file's gear picker to a message about a different one.
+  const [gearUpdateError, setGearUpdateError] = useState<{
+    fitnessFileId: string
+    message: string
+  } | null>(null)
   const [isSavingGear, setIsSavingGear] = useState(false)
   const [routeSamples, setRouteSamples] = useState<FitnessRouteSample[]>([])
   const [routeSegments, setRouteSegments] = useState<FitnessRouteSegment[]>([])
@@ -2470,6 +2479,14 @@ export const FitnessStatusDetail: FC<Props> = ({
     ]
   }, [gearOptions, fitness?.activityType, fitness?.gearName, selectedGearId])
 
+  // Only ever the error for the file on screen; a failure that lands after the
+  // reader switched files stays with the file it happened to, and comes back
+  // with it.
+  const gearErrorMessage =
+    gearUpdateError && gearUpdateError.fitnessFileId === fitness?.id
+      ? gearUpdateError.message
+      : null
+
   const handleGearChange = async (value: string) => {
     const fitnessFileId = fitness?.id
     if (!fitnessFileId) return
@@ -2513,9 +2530,11 @@ export const FitnessStatusDetail: FC<Props> = ({
             : file
         )
       )
-      setGearUpdateError(
-        error instanceof Error ? error.message : 'Failed to update gear.'
-      )
+      setGearUpdateError({
+        fitnessFileId,
+        message:
+          error instanceof Error ? error.message : 'Failed to update gear.'
+      })
     } finally {
       setIsSavingGear(false)
     }
@@ -3122,18 +3141,18 @@ export const FitnessStatusDetail: FC<Props> = ({
               gearName={fitness?.gearName ?? null}
               activityKind={getGearKindForActivityType(fitness?.activityType)}
               isSaving={isSavingGear}
-              errorId={gearUpdateError ? 'activity-gear-error' : undefined}
+              errorId={gearErrorMessage ? 'activity-gear-error' : undefined}
               onSelect={(gearId) => void handleGearChange(gearId)}
             />
           </div>
 
-          {gearUpdateError ? (
+          {gearErrorMessage ? (
             <p
               id="activity-gear-error"
               className="mt-1 text-xs text-destructive"
               role="alert"
             >
-              {gearUpdateError}
+              {gearErrorMessage}
             </p>
           ) : null}
 
@@ -3180,14 +3199,12 @@ export const FitnessStatusDetail: FC<Props> = ({
                 <select
                   id="activity-file-select"
                   value={selectedFitnessFileId ?? ''}
-                  // Drop any gear error with the file it belongs to: the gear
-                  // control is per-file and can vanish on the next one (its kind
-                  // filter may empty the list), leaving an alert describing
-                  // nothing.
-                  onChange={(event) => {
-                    setGearUpdateError(null)
+                  // No need to clear the gear error here — it is keyed to its
+                  // own file, so switching hides it and switching back brings it
+                  // back, which is what actually happened.
+                  onChange={(event) =>
                     setSelectedFitnessFileId(event.target.value)
-                  }}
+                  }
                   className="h-9 rounded-lg border bg-background px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   {fitnessFiles.map((item) => (
