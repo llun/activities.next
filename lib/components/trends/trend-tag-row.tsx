@@ -25,6 +25,7 @@ export const TrendTagRow = ({ tag, compact = false }: TrendTagRowProps) => {
   return (
     <Link
       href={`/tags/${encodeURIComponent(tag.name)}`}
+      prefetch={false}
       className="flex items-center justify-between gap-4 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted"
     >
       <div className="min-w-0">

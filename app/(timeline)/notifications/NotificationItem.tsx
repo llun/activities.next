@@ -130,6 +130,7 @@ export const NotificationItem = ({
         <span className="text-muted-foreground">
           <Link
             href={`/@${acc.acct}`}
+            prefetch={false}
             className="font-semibold text-foreground hover:underline"
           >
             {getGroupedName(name, notification.groupedCount)}
@@ -230,12 +231,14 @@ export const NotificationItem = ({
         (overlayAccessible ? (
           <Link
             href={statusPath}
+            prefetch={false}
             aria-label={overlayLabel}
             className="absolute inset-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
           />
         ) : (
           <Link
             href={statusPath}
+            prefetch={false}
             aria-hidden="true"
             tabIndex={-1}
             className="absolute inset-0"

@@ -157,6 +157,13 @@ export const getActorIdMention = (
   return `${handle}${domain}`
 }
 
+// Both author links below opt out of prefetching. `<Link>` prefetches on
+// viewport entry, and every post renders two of them, so scrolling a feed fired
+// one RSC request per author per link — against `/@user@domain`, a fully
+// dynamic route that runs a session lookup plus six actor queries and, for a
+// remote actor this instance has not persisted yet, a WebFinger lookup and a
+// signed actor fetch to the remote server. See "Link prefetching in feeds" in
+// AGENTS.md.
 export const ActorAvatar: FC<Props> = ({ actor, actorId, statusUrl }) => {
   if (!actor && !actorId) return null
 
@@ -179,7 +186,7 @@ export const ActorAvatar: FC<Props> = ({ actor, actorId, statusUrl }) => {
   }
 
   return (
-    <Link href={href} onClick={(e) => e.stopPropagation()}>
+    <Link href={href} prefetch={false} onClick={(e) => e.stopPropagation()}>
       {avatar}
     </Link>
   )
@@ -196,7 +203,11 @@ export const ActorInfo: FC<Props> = ({ actor, actorId, statusUrl }) => {
         onClick={(e) => e.stopPropagation()}
       >
         {href ? (
-          <Link href={href} className="font-semibold hover:underline truncate">
+          <Link
+            href={href}
+            prefetch={false}
+            className="font-semibold hover:underline truncate"
+          >
             {handle}
           </Link>
         ) : (
@@ -214,6 +225,7 @@ export const ActorInfo: FC<Props> = ({ actor, actorId, statusUrl }) => {
     >
       <Link
         href={`/${getActorMention(actor)}`}
+        prefetch={false}
         className="font-semibold hover:underline truncate"
       >
         {actor.name || getDisplayUsername(actor.username)}

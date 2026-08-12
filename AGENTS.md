@@ -190,6 +190,14 @@ ActivityPub objects are **JSON-LD**, so the same logical object can arrive in ma
 - Import those functions in components: `import { myApiCall } from '@/lib/client'`.
 - This keeps all network logic in one place, makes it easy to find every client→server call, and lets components stay focused on UI state.
 
+## Link prefetching in feeds
+
+- **A `<Link>` rendered once per row of a feed or list MUST pass `prefetch={false}`.** Next's App Router `<Link>` defaults to prefetching every link that enters the viewport, and this app's feeds are infinite-scroll, so a repeated link is not one request — it is one request per row, fired continuously as the user scrolls. This is the bug that flooded production: `Posts` renders two author links per post (the avatar and the display name), so scrolling the home timeline issued a stream of `GET /@user@domain?_rsc=…` prefetches.
+- The cost is not just a page render. Every one of those targets is a fully dynamic route — `/@user@domain` runs a session lookup plus six actor queries — and for a remote actor this instance has not persisted yet, `getProfileData` additionally performs a **WebFinger lookup and a signed actor fetch against the remote server**. Viewport prefetching therefore turns idle scrolling into outbound federation traffic aimed at other people's instances.
+- There is no global switch: Next 16's `prefetch` prop (`boolean | 'auto' | null`) is per-`Link` and has no `next.config.ts` counterpart, so the opt-out is written at each call site. `prefetch={false}` disables prefetching on **both** viewport entry and hover — accept the hover loss; a profile open is a deliberate navigation and does not need to be instant.
+- Current opt-outs: the shared post author links (`lib/components/posts/actor.tsx`), notification rows (`NotificationItem`, `StatusNotification`, `ActivityImportNotification`), follower/following rows (`FollowList`), search account and hashtag rows, the likes list and chips (`StatusLikes`), collection member rows, and trending hashtag rows. Regression-tested in `lib/components/posts/actor.test.tsx`, which mocks `next/link` because the real one does not reflect `prefetch` into the DOM.
+- Navigation **chrome** keeps prefetching and should: the sidebar, mobile nav, section sub-nav, pagination, and one-off page links render a bounded handful of links, so prefetch is a straight latency win there. The rule is about links whose count scales with the number of rows on screen.
+
 ## Page Header & Sub-Navigation
 
 The **design system is the source of truth** for page chrome. There are two
@@ -1003,3 +1011,13 @@ The app (`yarn migrate`) runs Knex migrations, but the test suite does **not** �
 - Avoid database-specific features unless wrapped with conditional logic or fallback behavior for each backend.
 - Test migrations and queries against SQLite (used in tests) to catch compatibility issues early.
 - Use standard SQL types and avoid vendor-specific extensions (e.g., use `text` instead of PostgreSQL's `varchar[]`).
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
