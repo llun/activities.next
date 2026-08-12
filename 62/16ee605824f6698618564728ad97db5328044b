@@ -1,0 +1,64 @@
+app/(timeline)/fitness/strava/page.tsx
+  s_1f9055f22d7b57::t_c1359a85e0fa09 11
+  s_1f9055f22d7b57::t_bf9ffe401eafdf 55-58
+lib/jobs/importStravaActivityJob.test.ts
+  s_1f9055f22d7b57::t_dd39ee79c271dd 1264-1277,1279-1280,1283,1294-1295,1321
+lib/jobs/importStravaActivityJob.ts
+  s_1f9055f22d7b57::t_ecbfcb1db2ee42 441-446
+REVIEW.md
+  s_1f9055f22d7b57::t_caaa80a852834c 199-201
+CLAUDE.md
+  s_1f9055f22d7b57::t_a65d133a5467cf 45
+lib/services/strava/archiveReader.test.ts
+  s_1f9055f22d7b57::t_5ffdc62a4819ee 253-254,266-267
+  s_1f9055f22d7b57::t_c2793dcd5dfb3f 259-262
+  s_1f9055f22d7b57::t_a470c7e097171f 201,206-208,215-231,234,240-241,249
+app/(timeline)/fitness/strava/StravaGearDefaultsSection.test.tsx
+  s_1f9055f22d7b57::t_b0295b6e854951 1-4,12-199,205-218
+  s_1f9055f22d7b57::t_c328db4637e17f 200-204
+  s_1f9055f22d7b57::t_d55c473c322b72 5-11
+lib/client.ts
+  s_1f9055f22d7b57::t_2ffc23e9e03d29 2552-2559
+docs/features.md
+  s_1f9055f22d7b57::t_a65d133a5467cf 62
+app/(timeline)/fitness/strava/StravaGearDefaultsSection.tsx
+  s_1f9055f22d7b57::t_a1be06f5b86e9f 1-6,11-15,17-219,225-226,228-235,267-302
+  s_1f9055f22d7b57::t_c2793dcd5dfb3f 16
+  s_1f9055f22d7b57::t_648ac808776ab5 7-10
+  s_1f9055f22d7b57::t_352295da603228 220-224,227,236-266
+scripts/fitness/importFitnessGear.ts
+  s_1f9055f22d7b57::t_f4a5240d872810 128,130-134,140-141,549
+migrations/20260812000000_drop_fitness_gear_strava_gear_id.js
+  s_1f9055f22d7b57::t_047f0aee303d9d 1-64
+lib/jobs/importStravaArchiveJob.test.ts
+  s_1f9055f22d7b57::t_17174712165cf5 1116-1122,1137-1138,1150,1152-1153
+docs/fitness-file-storage.md
+  s_1f9055f22d7b57::t_77cd7b36c6fbdd 73,77,79
+lib/database/sql/fitnessGear.ts
+  s_1f9055f22d7b57::t_0585e0be79554f 477
+  s_1f9055f22d7b57::t_83aee6fc0b74cf 554-556
+lib/jobs/importStravaArchiveJob.ts
+  s_1f9055f22d7b57::t_00c2581526a675 705-711
+lib/database/sql/fitnessGear.test.ts
+  s_1f9055f22d7b57::t_d0f4caeb6d3211 1065
+migrations/schema.sqlite.sql
+  s_1f9055f22d7b57::t_437d4bef9450f8 257-258
+AGENTS.md
+  s_1f9055f22d7b57::t_a65d133a5467cf 463-484
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "6216ee605824f6698618564728ad97db5328044b",
+  "prompts": {},
+  "sessions": {
+    "s_1f9055f22d7b57": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bd3148c4-4384-43e4-9360-8e6692c01251",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
