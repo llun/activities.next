@@ -2145,6 +2145,56 @@ describe('FitnessStatusDetail', () => {
       )
     })
 
+    it('keeps both files’ failures when each change fails in turn', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([
+        buildFitnessFile(),
+        buildFitnessFile({
+          id: 'fit-2',
+          fileName: 'second.fit',
+          isPrimary: false,
+          activityStartTime: Date.parse('2026-05-27T18:00:00Z')
+        })
+      ])
+      mockGetFitnessGearList.mockResolvedValue([
+        buildGear({ id: 'gear-bike', name: 'Moots' })
+      ])
+      let rejectUpdate: (error: Error) => void = () => {}
+      mockUpdateFitnessFileGear.mockImplementation(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectUpdate = reject
+          })
+      )
+
+      renderDetail()
+
+      await chooseGear(/Moots/)
+      fireEvent.change(await screen.findByLabelText('Activity file'), {
+        target: { value: 'fit-2' }
+      })
+      await act(async () => {
+        rejectUpdate(new Error('Failed to update gear.'))
+      })
+
+      // A second failure must not evict the first: one error slot for the whole
+      // component would drop file 1's — which nobody had seen, because it was
+      // hidden while the reader was here.
+      await chooseGear(/Moots/)
+      await act(async () => {
+        rejectUpdate(new Error('Gear is retired.'))
+      })
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Gear is retired.'
+      )
+
+      fireEvent.change(screen.getByLabelText('Activity file'), {
+        target: { value: 'fit-1' }
+      })
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Failed to update gear.'
+      )
+    })
+
     it('sends null when the owner clears the assignment', async () => {
       mockGetFitnessFilesByStatus.mockResolvedValue([
         buildFitnessFile({ gearId: 'gear-bike', gearName: 'Moots' })

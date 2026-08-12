@@ -2332,15 +2332,16 @@ export const FitnessStatusDetail: FC<Props> = ({
     null
   )
   const [gearOptions, setGearOptions] = useState<GearEntity[]>([])
-  // Scoped to the file it belongs to, not just to the component. An activity
-  // can aggregate several files and the switcher stays enabled during a PATCH,
-  // so a failure that lands after the reader has moved on would otherwise
-  // render as the NEXT file's error — with `aria-describedby` wiring that
-  // file's gear picker to a message about a different one.
-  const [gearUpdateError, setGearUpdateError] = useState<{
-    fitnessFileId: string
-    message: string
-  } | null>(null)
+  // Keyed by file, not a single slot. An activity can aggregate several files
+  // and the switcher stays enabled during a PATCH, so a failure that lands after
+  // the reader has moved on must not render as the NEXT file's error — that
+  // would wire `aria-describedby` from that file's picker to a message about a
+  // different one. One slot was not enough either: whichever file failed second
+  // would evict the first, and the first was invisible at the time precisely
+  // because its reader had moved on, so nobody would ever have seen it.
+  const [gearUpdateErrors, setGearUpdateErrors] = useState<
+    Record<string, string>
+  >({})
   const [isSavingGear, setIsSavingGear] = useState(false)
   const [routeSamples, setRouteSamples] = useState<FitnessRouteSample[]>([])
   const [routeSegments, setRouteSegments] = useState<FitnessRouteSegment[]>([])
@@ -2482,10 +2483,9 @@ export const FitnessStatusDetail: FC<Props> = ({
   // Only ever the error for the file on screen; a failure that lands after the
   // reader switched files stays with the file it happened to, and comes back
   // with it.
-  const gearErrorMessage =
-    gearUpdateError && gearUpdateError.fitnessFileId === fitness?.id
-      ? gearUpdateError.message
-      : null
+  const gearErrorMessage = fitness?.id
+    ? (gearUpdateErrors[fitness.id] ?? null)
+    : null
 
   const handleGearChange = async (value: string) => {
     const fitnessFileId = fitness?.id
@@ -2508,13 +2508,15 @@ export const FitnessStatusDetail: FC<Props> = ({
     const previousGearId = fitness?.gearId ?? null
     const previousGearName = fitness?.gearName ?? null
 
-    // Scoped like the render is: an unconditional reset here would drop a
-    // sibling file's pending failure, and because that one was hidden while its
-    // reader was on another file, they would never have seen it — the gear
-    // silently back to what it was, with nothing saying why.
-    setGearUpdateError((current) =>
-      current?.fitnessFileId === fitnessFileId ? null : current
-    )
+    // Drops only this file's own error. A reset that reached the whole map
+    // would discard a sibling file's pending failure, and because that one was
+    // hidden while its reader was on another file, they would never have seen
+    // it — the gear silently back to what it was, with nothing saying why.
+    setGearUpdateErrors((current) => {
+      if (!(fitnessFileId in current)) return current
+      const { [fitnessFileId]: _cleared, ...rest } = current
+      return rest
+    })
     setIsSavingGear(true)
     setFitnessFiles((files) =>
       files.map((file) =>
@@ -2536,11 +2538,11 @@ export const FitnessStatusDetail: FC<Props> = ({
             : file
         )
       )
-      setGearUpdateError({
-        fitnessFileId,
-        message:
+      setGearUpdateErrors((current) => ({
+        ...current,
+        [fitnessFileId]:
           error instanceof Error ? error.message : 'Failed to update gear.'
-      })
+      }))
     } finally {
       setIsSavingGear(false)
     }
