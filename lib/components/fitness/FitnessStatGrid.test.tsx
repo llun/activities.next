@@ -36,9 +36,16 @@ describe('FitnessStatGrid', () => {
       // column on a wide window. Unlike the thresholds — which jsdom cannot
       // evaluate and which restating here would only re-assert — this fails on
       // a real regression, and it is one step away in the same file.
-      expect(getGrid().className).not.toMatch(
-        /(^|\s|:)(sm|md|lg|xl|2xl):grid-cols/
-      )
+      //
+      // It asserts every variant on a `grid-cols` is `@`-prefixed rather than
+      // naming the viewport breakpoints, because the regression that actually
+      // threatens this file is not someone typing `sm:` back in — it is losing
+      // ONE character. `min-[420px]:` is a perfectly valid Tailwind v4
+      // *viewport* variant that compiles to `@media (width >= 420px)` where
+      // `@min-[420px]:` compiles to `@container (…)`, with no build error, no
+      // lint error, and nothing on screen to show for it until someone opens a
+      // tablet. `max-sm:` slips past a breakpoint-name list too.
+      expect(getGrid().className).not.toMatch(/(^|\s)[^\s@]+:grid-cols/)
     }
   )
 

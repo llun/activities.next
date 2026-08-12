@@ -2091,6 +2091,60 @@ describe('FitnessStatusDetail', () => {
       )
     })
 
+    it('does not let a change to one file discard another file’s failure', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([
+        buildFitnessFile(),
+        buildFitnessFile({
+          id: 'fit-2',
+          fileName: 'second.fit',
+          isPrimary: false,
+          activityStartTime: Date.parse('2026-05-27T18:00:00Z')
+        })
+      ])
+      mockGetFitnessGearList.mockResolvedValue([
+        buildGear({ id: 'gear-bike', name: 'Moots' })
+      ])
+      let rejectUpdate: (error: Error) => void = () => {}
+      mockUpdateFitnessFileGear.mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectUpdate = reject
+          })
+      )
+
+      renderDetail()
+
+      await chooseGear(/Moots/)
+      fireEvent.change(await screen.findByLabelText('Activity file'), {
+        target: { value: 'fit-2' }
+      })
+      await act(async () => {
+        rejectUpdate(new Error('Failed to update gear.'))
+      })
+
+      // File 1's failure is hidden, not seen — so a successful change here must
+      // not throw it away. Resetting the error unconditionally would leave file
+      // 1 rolled back to its old gear with nothing anywhere saying why.
+      mockUpdateFitnessFileGear.mockResolvedValue({
+        id: 'fit-2',
+        gearId: 'gear-bike'
+      })
+      await chooseGear(/Moots/)
+      await waitFor(() =>
+        expect(mockUpdateFitnessFileGear).toHaveBeenCalledWith(
+          'fit-2',
+          'gear-bike'
+        )
+      )
+
+      fireEvent.change(screen.getByLabelText('Activity file'), {
+        target: { value: 'fit-1' }
+      })
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Failed to update gear.'
+      )
+    })
+
     it('sends null when the owner clears the assignment', async () => {
       mockGetFitnessFilesByStatus.mockResolvedValue([
         buildFitnessFile({ gearId: 'gear-bike', gearName: 'Moots' })

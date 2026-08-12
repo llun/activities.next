@@ -2508,7 +2508,13 @@ export const FitnessStatusDetail: FC<Props> = ({
     const previousGearId = fitness?.gearId ?? null
     const previousGearName = fitness?.gearName ?? null
 
-    setGearUpdateError(null)
+    // Scoped like the render is: an unconditional reset here would drop a
+    // sibling file's pending failure, and because that one was hidden while its
+    // reader was on another file, they would never have seen it — the gear
+    // silently back to what it was, with nothing saying why.
+    setGearUpdateError((current) =>
+      current?.fitnessFileId === fitnessFileId ? null : current
+    )
     setIsSavingGear(true)
     setFitnessFiles((files) =>
       files.map((file) =>
