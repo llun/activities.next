@@ -175,10 +175,11 @@ jobs:
           # closes the pipe while curl is still writing, curl exits 23, and
           # `pipefail` then hands the `||` below a failed pipeline — so the
           # version it just extracted is thrown away. This is a race on how
-          # much curl has flushed, not a size threshold, and it already loses
-          # most of the time: 20 real fetches gave 6 extractions and 14
-          # discards, against 20/20 reading to EOF. Left as `exit` the check
-          # would have looked fine and simply never warned.
+          # much curl has flushed, not a size threshold, so it fails at a rate
+          # that varies run to run rather than never or always: three samples
+          # of 20 real fetches discarded 14, 9 and 12 of them, where reading to
+          # EOF gave 20/20 every time. Left as `exit` the check would have
+          # looked healthy and simply gone quiet for whole runs at a time.
           action_bun_version="$(
             curl --fail --location --silent --show-error --max-time 30 \
               'https://raw.githubusercontent.com/anthropics/claude-code-action/v1/action.yml' |
