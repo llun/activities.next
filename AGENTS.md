@@ -434,7 +434,12 @@ it; there is no legacy shape left to copy.
   would never reach the table that appears when the first component is added.
   Do **not** put the old `min-w-[720px]` back on it — that is what forced every
   width, phone and desktop alike, into one long horizontal scroll with the type
-  column gone by the third column. A pinned cell paints its own opaque
+  column gone by the third column. Note what the threshold does and does not
+  promise: the per-cell minimums still add up to about 724px, so a container
+  between 480px and that width scrolls horizontally as one block, exactly as
+  before — the difference is that the type column is pinned through it, which is
+  the half that was actually broken. Only below 480px does a swipe move one
+  column. A pinned cell paints its own opaque
   `bg-background` and takes the dim of a replaced row on its **contents**, never
   on the `<tr>`: opacity on the row makes that background translucent and the
   other columns scroll visibly through it. A row action stays the design's bare

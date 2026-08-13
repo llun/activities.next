@@ -417,6 +417,12 @@ export const GearComponentsCard: FC<Props> = ({
                 // opacity belongs to the values, and applying it to the row
                 // would take the pinned cell's background down with it and let
                 // the other columns scroll through it.
+                //
+                // The data cells below can take it on the `<td>` because they
+                // paint no background of their own; the pinned cell cannot, and
+                // puts it on the inner span instead. Any cell that gains a
+                // background — a second pinned column, say — has to move to the
+                // span form with it.
                 const dim = isReplaced && 'opacity-60'
                 return (
                   <tr key={component.id} className="border-t">
