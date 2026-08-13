@@ -200,6 +200,17 @@ export const NavPreferencesProvider: FC<NavPreferencesProviderProps> = ({
     if (dirtyRef.current && pendingRef.current) void flush()
   }, [])
 
+  // There is nothing left to send: the account already holds what is on screen.
+  // A deliberate save goes with it, a failed Reset included — its empty lists
+  // stopped describing this navigation the moment the user rebuilt something
+  // else, so retrying them would store a layout they are not looking at while
+  // the caption reported success. The intent is not lost: `owedDeliberateRef`
+  // still carries it, and sends it if they come back to what Reset produced.
+  const dropQueuedSave = useCallback((queued: PendingSave | null) => {
+    pendingRef.current = null
+    if (queued) setSaveState('saved')
+  }, [])
+
   // Applies a new state, and persists it unless this is a local step of a drag
   // (the drop commits once) or the account already holds what this would send.
   const apply = useCallback(
@@ -252,11 +263,9 @@ export const NavPreferencesProvider: FC<NavPreferencesProviderProps> = ({
 
         // Back to what the account already holds, and nothing is in flight to
         // land after this: drop the queued save the user has undone, along with
-        // any failure it was reporting. A deliberate one stays for `retry`.
+        // any failure it was reporting.
         if (!savingRef.current && nextStateKey === savedStateKeyRef.current) {
-          if (queued?.deliberate) return
-          pendingRef.current = null
-          if (queued) setSaveState('saved')
+          dropQueuedSave(queued)
           return
         }
       }
@@ -264,9 +273,7 @@ export const NavPreferencesProvider: FC<NavPreferencesProviderProps> = ({
       // The account already holds exactly these lists, so there is nothing to
       // send — unless a save is in flight, whose result this has to land after.
       if (!savingRef.current && nextPayloadKey === savedPayloadKeyRef.current) {
-        if (queued?.deliberate) return
-        pendingRef.current = null
-        if (queued) setSaveState('saved')
+        dropQueuedSave(queued)
         return
       }
 
@@ -279,7 +286,7 @@ export const NavPreferencesProvider: FC<NavPreferencesProviderProps> = ({
       pendingRef.current = save
       void flush()
     },
-    [flush]
+    [dropQueuedSave, flush]
   )
 
   const hideItem = useCallback(

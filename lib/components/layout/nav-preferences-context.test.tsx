@@ -335,6 +335,30 @@ describe('NavPreferencesProvider', () => {
     expect(mockUpdate).toHaveBeenLastCalledWith({ navOrder: [], navHidden: [] })
   })
 
+  it('drops a failed reset once the user has rebuilt what the account holds', async () => {
+    mockUpdate.mockResolvedValueOnce(false)
+    renderStore({ hidden: ['favorites'] })
+
+    click('reset')
+    await waitFor(() =>
+      expect(screen.getByTestId('state')).toHaveTextContent('error')
+    )
+
+    // Hiding Favorites again lands on exactly what the account already holds,
+    // so there is nothing to send — and reset's empty lists can no longer
+    // describe this navigation, so retrying them would store a sidebar the user
+    // is not looking at.
+    click('hide favorites')
+    await waitFor(() =>
+      expect(screen.getByTestId('state')).not.toHaveTextContent('error')
+    )
+
+    click('retry')
+    await act(async () => {})
+    expect(mockUpdate).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('hidden').textContent).toBe('favorites')
+  })
+
   it('retries a failed reset when the button is pressed again', async () => {
     mockUpdate.mockResolvedValueOnce(false)
     renderStore({ order: ['settings', 'timeline'] })

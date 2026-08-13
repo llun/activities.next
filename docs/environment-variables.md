@@ -38,8 +38,10 @@ in normal use the client does not offer what the endpoint will refuse.
 The `features.*` settings (`features.fitness`, `features.explore`,
 `features.messages`) are edited on **Admin → Instance** under **Optional
 features** and have no environment variable, so they are never locked. Turning
-one off removes that section from every account's navigation — sidebar, rail,
-mobile bar and the customization page alike. It does **not** disable the
+one off removes that section from every account's navigation — sidebar, rail
+and mobile bar. Settings → Navigation still lists it, greyed out and marked
+"off for this server", because that page is where someone goes to find out
+where a nav item went. It does **not** disable the
 section: its pages and API keep working, so an existing link or bookmark still
 resolves, and nobody's saved navigation is deleted, so re-enabling a feature
 restores each account's layout exactly as they left it.

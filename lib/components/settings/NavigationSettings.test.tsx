@@ -236,6 +236,35 @@ describe('NavigationSettings', () => {
     expect(failure.closest('[role="status"]')).not.toBeNull()
   })
 
+  it('keeps the retry under the finger that pressed it while its save runs', async () => {
+    mockUpdate.mockResolvedValue(false)
+    renderSettings(<NavigationSettings />)
+    fireEvent.click(screen.getByRole('switch', { name: 'Show Favorites' }))
+
+    const retry = await screen.findByRole('button', { name: 'Try again' })
+    retry.focus()
+    fireEvent.click(retry)
+    await act(async () => {})
+
+    // The save failed again, and it is the same button — not a replacement the
+    // user has to Tab back to from the top of the document.
+    expect(screen.getByRole('button', { name: 'Try again' })).toBe(retry)
+    expect(document.activeElement).toBe(retry)
+  })
+
+  it('says a retry worked, having announced the failure it clears', async () => {
+    mockUpdate.mockResolvedValueOnce(false)
+    renderSettings(<NavigationSettings />)
+    fireEvent.click(screen.getByRole('switch', { name: 'Show Favorites' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Try again' }))
+
+    // Pressing it unmounts the button, so without this the outcome of the only
+    // recovery the page offers reaches a screen reader as silence.
+    const confirmation = await screen.findByText('Your changes are saved.')
+    expect(confirmation.closest('[role="status"]')).not.toBeNull()
+  })
+
   it('reorders by dragging one row onto another', async () => {
     renderSettings(<NavigationSettings />)
 

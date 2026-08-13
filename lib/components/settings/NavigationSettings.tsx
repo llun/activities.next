@@ -7,7 +7,7 @@ import {
   History,
   Lock
 } from 'lucide-react'
-import { FC, useMemo, useRef, useState } from 'react'
+import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   type BuildNavItemsParams,
@@ -342,6 +342,24 @@ export const NavigationSettings: FC<Props> = ({
 const SaveCaption = () => {
   const { saveState, retry } = useNavPreferences()
   const failed = saveState === 'error'
+  // A retry is followed across the save it starts, so the button that started
+  // it stays mounted throughout. A browser moves focus to the document body
+  // when a focused element unmounts, so rendering the button away mid-save
+  // would drop a keyboard user at the top of the page — and bring it back as a
+  // new node to Tab to if the save failed again. This is the hazard the row
+  // Move buttons avoid by staying put rather than going `disabled`.
+  const [retryPhase, setRetryPhase] = useState<'none' | 'saving' | 'done'>(
+    'none'
+  )
+
+  useEffect(() => {
+    if (retryPhase === 'saving' && saveState === 'saved') setRetryPhase('done')
+    // A fresh failure re-arms the same button.
+    if (retryPhase === 'saving' && saveState === 'error') setRetryPhase('none')
+    // Whatever the user does next has its own result; drop the confirmation
+    // before it can be read as belonging to that.
+    if (retryPhase === 'done' && saveState === 'saving') setRetryPhase('none')
+  }, [retryPhase, saveState])
 
   return (
     <div className="text-xs">
@@ -349,7 +367,7 @@ const SaveCaption = () => {
           per save and a keyboard reorder saves on every keystroke, so
           announcing it would bury each row's own "moved up, position 2 of 10"
           under "Saving…" and "Saved…". */}
-      {!failed && (
+      {!failed && retryPhase === 'none' && (
         <span className="text-muted-foreground">
           {saveState === 'saving'
             ? 'Saving…'
@@ -358,17 +376,31 @@ const SaveCaption = () => {
       )}
       {/* Mounted whether or not anything went wrong: a live region inserted
           into the page at the same moment as its text is missed by some screen
-          readers, and a failed save is the one thing here worth interrupting
-          for. role="status" is atomic, so the retry button reads out with the
-          failure that calls for it — and at no other time. */}
-      <span role="status" className="text-destructive">
-        {failed && (
-          <>
-            Couldn&apos;t save your changes.{' '}
-            <button type="button" onClick={retry} className="underline">
-              Try again
-            </button>
-          </>
+          readers. Only a save that needs the user — a failure, and the retry
+          that settles it — speaks from here. role="status" is atomic, so the
+          button reads out with the failure that calls for it, and at no other
+          time. */}
+      <span
+        role="status"
+        className={failed ? 'text-destructive' : 'text-muted-foreground'}
+      >
+        {failed && "Couldn't save your changes. "}
+        {retryPhase === 'saving' && 'Saving your changes… '}
+        {retryPhase === 'done' && 'Your changes are saved.'}
+        {(failed || retryPhase === 'saving') && (
+          <button
+            type="button"
+            // Inert while its own save is in flight, without unmounting.
+            aria-disabled={!failed}
+            onClick={() => {
+              if (!failed) return
+              setRetryPhase('saving')
+              retry()
+            }}
+            className={cn('underline', !failed && 'opacity-60')}
+          >
+            Try again
+          </button>
         )}
       </span>
     </div>
