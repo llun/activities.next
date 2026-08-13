@@ -74,7 +74,7 @@
   --primary-foreground: hsl(0 0% 100%);
   /* Brand orange for TEXT, as distinct from --primary for icons, fills and
      accents — the split the design system makes itself (GK_ORANGE vs
-     GK_ORANGE_TEXT). --primary is a 3.36:1 foreground on the card, so orange
+     GK_ORANGE_TEXT). --primary is a 3.37:1 foreground on the card, so orange
      link text set in it fails WCAG 2.1 AA (SC 1.4.3) at body sizes. This is
      darkened until it clears 4.5:1 on every surface such a link sits on,
      including the --muted row-hover, and app/globals.contrast.test.ts

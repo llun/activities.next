@@ -141,7 +141,7 @@ describe('muted-foreground contrast (WCAG 2.1 AA SC 1.4.3)', () => {
 describe('primary-text contrast (WCAG 2.1 AA SC 1.4.3)', () => {
   // Orange link text — the retired-gear toggle, the gear product-page link —
   // renders on the card and, while its row is hovered, on --muted. --primary
-  // itself is only 3.36:1 on the card, which is why --primary-text exists; this
+  // itself is only 3.37:1 on the card, which is why --primary-text exists; this
   // recomputes the ratio from the live token values so the split cannot be
   // quietly collapsed back into --primary.
   it.each(cases)(
