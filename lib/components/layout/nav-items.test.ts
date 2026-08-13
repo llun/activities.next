@@ -1,4 +1,7 @@
-import { buildNavItems } from '@/lib/components/layout/nav-items'
+import {
+  buildNavItems,
+  buildNavLayout
+} from '@/lib/components/layout/nav-items'
 
 const itemHrefs = (params: Parameters<typeof buildNavItems>[0]) =>
   buildNavItems(params).map((item) => item.href)
@@ -67,6 +70,86 @@ describe('buildNavItems', () => {
       '/admin',
       '/account',
       '/settings'
+    ])
+  })
+
+  it.each([
+    ['fitness', { fitness: false }, '/fitness'],
+    ['explore', { explore: false }, '/explore'],
+    ['messages', { messages: false }, '/messages']
+  ])(
+    'drops %s when the instance turns the feature off',
+    (_, features, href) => {
+      expect(itemHrefs({ fitnessUrl: '/fitness', features })).not.toContain(
+        href
+      )
+    }
+  )
+})
+
+describe('buildNavLayout', () => {
+  it('keeps every item shown when the user has no preference', () => {
+    const { shown, more } = buildNavLayout({})
+    expect(more).toEqual([])
+    expect(shown.map((item) => item.id)).toEqual([
+      'timeline',
+      'search',
+      'explore',
+      'messages',
+      'favorites',
+      'bookmarks',
+      'lists',
+      'notifications',
+      'account',
+      'settings'
+    ])
+  })
+
+  it('moves hidden items into more', () => {
+    const { shown, more } = buildNavLayout({
+      prefs: { navHidden: ['favorites', 'bookmarks'] }
+    })
+    expect(shown.map((item) => item.id)).not.toContain('favorites')
+    expect(more.map((item) => item.id)).toEqual(['favorites', 'bookmarks'])
+  })
+
+  it('follows the user order', () => {
+    const { shown } = buildNavLayout({
+      prefs: { navOrder: ['settings', 'search'] }
+    })
+    expect(shown.slice(0, 2).map((item) => item.id)).toEqual([
+      'settings',
+      'search'
+    ])
+  })
+
+  it('lists unavailable items in the order but renders them nowhere', () => {
+    const { shown, more, order } = buildNavLayout({
+      features: { fitness: false },
+      fitnessUrl: '/fitness',
+      prefs: { navHidden: ['fitness'] }
+    })
+    expect(order).toContain('fitness')
+    expect([...shown, ...more].map((item) => item.id)).not.toContain('fitness')
+  })
+
+  it('points the fitness item at the actor fitness url', () => {
+    const { shown } = buildNavLayout({ fitnessUrl: '/@llun@llun.test/fitness' })
+    expect(shown.find((item) => item.id === 'fitness')?.href).toEqual(
+      '/@llun@llun.test/fitness'
+    )
+  })
+
+  it('marks pinned items as locked', () => {
+    const { shown } = buildNavLayout({})
+    const locked = shown.filter((item) => item.locked).map((item) => item.id)
+    expect(locked).toEqual([
+      'timeline',
+      'search',
+      'lists',
+      'notifications',
+      'account',
+      'settings'
     ])
   })
 })
