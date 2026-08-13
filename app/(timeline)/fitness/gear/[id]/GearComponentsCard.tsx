@@ -218,7 +218,11 @@ export const GearComponentsCard: FC<Props> = ({
     // The design system's gear surfaces sit on the page background rather than
     // the card grey, which is what the stat tiles above this one use — the two
     // are meant to read as different depths, not the same slab twice.
-    <section className="rounded-2xl border bg-background/80 shadow-sm">
+    // `overflow-hidden` is what keeps the table inside the rounded corners: with
+    // no replaced components the scroller is the section's last child, and the
+    // pinned cell's opaque square background painted straight over the
+    // bottom-left arc (as did the horizontal scrollbar, across both corners).
+    <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
       <div className="flex items-center justify-between gap-3 px-5 py-4">
         <div className="flex min-w-0 items-center gap-2">
           <Wrench className="size-4 shrink-0 text-primary" />
@@ -406,6 +410,10 @@ export const GearComponentsCard: FC<Props> = ({
                         {component.componentType}
                       </span>
                     </td>
+                    {/* Brand keeps the row's own colour and model steps back
+                        to muted, the way the design system's row does — the
+                        pair reads as one value with an emphasis, not as two
+                        equally weighted columns. */}
                     <td
                       className={cn(CELL, 'text-[13px]', dim)}
                       style={dataColumnStyle(96)}

@@ -74,8 +74,10 @@ export const useGearTableColumns = (
     if (!element || typeof ResizeObserver === 'undefined') return
 
     // A zero width means the table was never laid out — a `display: none`
-    // ancestor, a detached subtree, jsdom — not that it is narrow, and snapping
-    // on it would fix every column at the 160px floor.
+    // ancestor, a detached subtree, jsdom — not that it is narrow, so the last
+    // known width is kept instead. Without this, collapsing an ancestor would
+    // drop a snapped table back to its unpinned layout and it would stay there
+    // until something resized it again.
     const measure = (measured: number) => {
       if (measured === 0) return
       setWidth(measured)

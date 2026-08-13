@@ -115,12 +115,18 @@ describe('useGearTableColumns', () => {
     expect(styleOf('data').width).toBe('160px')
   })
 
-  it('ignores a zero width rather than snapping an unlaid-out table', () => {
+  it('keeps the last measured width when the table reports zero', () => {
     render(<Probe />)
-    act(() => deliver?.(700))
+    act(() => deliver?.(390))
+    expect(screen.getByTestId('mode')).toHaveTextContent('snapping')
+
+    // A hidden or detached ancestor reports 0 for everything. Believing it
+    // would drop a snapped table back to the unpinned layout and leave it
+    // there until something resized it again.
     act(() => deliver?.(0))
 
-    expect(screen.getByTestId('mode')).toHaveTextContent('wide')
+    expect(screen.getByTestId('mode')).toHaveTextContent('snapping')
+    expect(styleOf('data').width).toBe(`${390 - PINNED_WIDTH}px`)
   })
 
   it('measures a table that mounts after the empty state', () => {
