@@ -70,13 +70,14 @@ describe('GearComponentsCard', () => {
     })
   })
 
-  it('renders the header with the installed count', () => {
+  it('renders the header without repeating the installed count', () => {
     renderCard([createComponent(), createComponent({ id: 'c2' })])
 
     expect(
       screen.getByRole('heading', { name: 'Components' })
     ).toBeInTheDocument()
-    expect(screen.getByText('2 installed')).toBeInTheDocument()
+    // The count belongs to the stat grid above the card, not to this header.
+    expect(screen.queryByText(/installed/)).not.toBeInTheDocument()
   })
 
   it('shows the empty state when there is nothing installed', () => {
@@ -139,6 +140,25 @@ describe('GearComponentsCard', () => {
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   })
 
+  it('drops the wear bar once a component has been replaced', () => {
+    renderCard([
+      createComponent({
+        removedAt: Date.UTC(2025, 5, 1),
+        distanceMeters: 4300000,
+        serviceDistanceMeters: 5000000
+      })
+    ])
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show 1 replaced component' })
+    )
+
+    // The row is history: there is nothing left to service on a part that is
+    // already off the bike.
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+    expect(screen.queryByText('due soon')).not.toBeInTheDocument()
+  })
+
   it('exposes the wear bar as a labelled progressbar', () => {
     renderCard([
       createComponent({
@@ -192,7 +212,6 @@ describe('GearComponentsCard', () => {
       })
     ])
 
-    expect(screen.getByText('1 installed')).toBeInTheDocument()
     expect(screen.queryByText('Cassette')).not.toBeInTheDocument()
 
     fireEvent.click(

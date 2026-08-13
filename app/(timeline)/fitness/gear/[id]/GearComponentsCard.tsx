@@ -10,13 +10,13 @@ import {
   formatKmInt,
   getWearState
 } from '@/app/(timeline)/fitness/gear/gearUi'
+import { useGearTableColumns } from '@/app/(timeline)/fitness/gear/useGearTableColumns'
 import {
   createFitnessGearComponent,
   deleteFitnessGearComponent,
   replaceFitnessGearComponent
 } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
-import { Card } from '@/lib/components/ui/card'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 import { Select } from '@/lib/components/ui/select'
@@ -32,6 +32,20 @@ interface Props {
 
 const SERVICE_REMINDER_KM_OPTIONS = [1000, 3000, 5000, 8000, 12000]
 
+/**
+ * The pinned column has to paint an opaque background of its own — the rows are
+ * transparent over the card, so without one the data columns scroll visibly
+ * underneath it — and draws its right-hand rule as an inset shadow rather than
+ * a border, because a border would scroll with the cell's box on some engines.
+ */
+const PINNED_CELL =
+  'sticky left-0 bg-background shadow-[inset_-1px_0_0_var(--border)]'
+
+const CELL = 'px-3 py-2.5 align-top'
+
+/** Width the pinned "Type" column keeps, and the snap offset that follows it. */
+const TYPE_COLUMN_WIDTH = 104
+
 type AddedMode = 'beginning' | 'date'
 
 const WearBar: FC<{ component: GearComponentEntity }> = ({ component }) => {
@@ -41,8 +55,10 @@ const WearBar: FC<{ component: GearComponentEntity }> = ({ component }) => {
   )
   if (!wear) return null
 
+  // Bar and caption share one line, right-aligned under the distance, so the
+  // pair reads as one value however narrow the column gets.
   return (
-    <>
+    <div className="mt-1 flex items-center justify-end gap-2">
       {/* `aria-valuenow` has to stay inside the min/max, so an overdue
           component reports 100 there and its real wear in `aria-valuetext`. */}
       <div
@@ -52,17 +68,17 @@ const WearBar: FC<{ component: GearComponentEntity }> = ({ component }) => {
         aria-valuemax={100}
         aria-valuenow={Math.round(wear.barPercent)}
         aria-valuetext={`${Math.round(wear.percent)}% of service interval`}
-        className="mt-1 h-1 w-20 overflow-hidden rounded-full bg-muted"
+        className="h-1 w-20 shrink-0 overflow-hidden rounded-full bg-muted"
       >
         <div
-          className={cn('h-full', wear.barClassName)}
+          className={cn('h-full rounded-full', wear.barClassName)}
           style={{ width: wear.barWidth }}
         />
       </div>
-      <div className={cn('mt-0.5 text-xs', wear.captionClassName)}>
+      <span className={cn('text-[11px] tabular-nums', wear.captionClassName)}>
         {wear.caption}
-      </div>
-    </>
+      </span>
+    </div>
   )
 }
 
@@ -89,6 +105,12 @@ export const GearComponentsCard: FC<Props> = ({
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
     null
   )
+  const {
+    ref: scrollerRef,
+    pinnedColumnStyle,
+    dataColumnStyle,
+    scrollerStyle
+  } = useGearTableColumns(TYPE_COLUMN_WIDTH)
 
   const installed = components.filter((component) => !component.removedAt)
   const replaced = components.filter((component) => component.removedAt)
@@ -182,31 +204,32 @@ export const GearComponentsCard: FC<Props> = ({
   }
 
   return (
-    <Card className="gap-4 py-4">
-      <div className="flex flex-wrap items-center gap-2 px-4">
-        <Wrench className="size-4 text-primary" />
-        <h2 className="text-base font-medium">Components</h2>
-        <span className="text-sm text-muted-foreground">
-          {installed.length} installed
-        </span>
-        <Button
-          variant="outline"
-          size="sm"
-          className="ml-auto"
-          onClick={() => setIsFormOpen(true)}
-        >
+    // The design system's gear surfaces sit on the page background rather than
+    // the card grey, which is what the stat tiles above this one use — the two
+    // are meant to read as different depths, not the same slab twice.
+    <section className="rounded-2xl border bg-background/80 shadow-sm">
+      <div className="flex items-center justify-between gap-3 px-5 py-4">
+        <div className="flex min-w-0 items-center gap-2">
+          <Wrench className="size-4 shrink-0 text-primary" />
+          {/* The installed count is not repeated here: the stat grid above the
+              card already carries it as "Components installed". */}
+          <h2 className="truncate text-base font-semibold tracking-tight">
+            Components
+          </h2>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setIsFormOpen(true)}>
           <Plus />
           Add component
         </Button>
       </div>
 
-      {error && <p className="px-4 text-sm text-destructive">{error}</p>}
+      {error && <p className="px-5 pb-2 text-sm text-destructive">{error}</p>}
 
       {isFormOpen && (
         <form
           onSubmit={handleSave}
           aria-label="Add component"
-          className="mx-4 space-y-3 rounded-md border bg-muted/50 p-3"
+          className="mx-5 mb-4 space-y-4 rounded-xl border bg-card p-4"
         >
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1.5">
@@ -310,68 +333,131 @@ export const GearComponentsCard: FC<Props> = ({
       )}
 
       {visible.length === 0 ? (
-        <p className="px-4 text-sm text-muted-foreground">
+        <p className="px-5 pb-6 text-sm text-muted-foreground">
           No components yet. Add the parts you want to track and each one
           accrues distance from its added date.
         </p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-sm">
+        // Below `GEAR_TABLE_SNAP_WIDTH` this scrolls one column per swipe with
+        // "Type" pinned, so the row never loses its label — see
+        // `useGearTableColumns`.
+        <div
+          ref={scrollerRef}
+          className="overflow-x-auto pb-1"
+          style={scrollerStyle}
+        >
+          <table className="w-full border-collapse text-left">
             <thead>
-              <tr className="border-b text-left text-muted-foreground">
-                <th className="px-4 py-2 font-normal">Type</th>
-                <th className="px-4 py-2 font-normal">Brand</th>
-                <th className="px-4 py-2 font-normal">Model</th>
-                <th className="px-4 py-2 font-normal">Distance</th>
-                <th className="px-4 py-2 font-normal">Added</th>
-                <th className="px-4 py-2 font-normal">Removed</th>
-                <th className="px-4 py-2 font-normal" />
+              <tr className="text-xs font-medium text-muted-foreground">
+                <th
+                  className={cn(PINNED_CELL, 'z-[2] px-3 pb-2 font-medium')}
+                  style={pinnedColumnStyle}
+                >
+                  Type
+                </th>
+                <th className="px-3 pb-2 font-medium" style={dataColumnStyle()}>
+                  Brand
+                </th>
+                <th className="px-3 pb-2 font-medium" style={dataColumnStyle()}>
+                  Model
+                </th>
+                <th
+                  className="px-3 pb-2 text-right font-medium"
+                  style={dataColumnStyle()}
+                >
+                  Distance
+                </th>
+                <th className="px-3 pb-2 font-medium" style={dataColumnStyle()}>
+                  Added
+                </th>
+                <th className="px-3 pb-2 font-medium" style={dataColumnStyle()}>
+                  Removed
+                </th>
+                <th className="px-3 pb-2" style={dataColumnStyle()} />
               </tr>
             </thead>
             <tbody>
               {visible.map((component) => {
                 const isReplaced = Boolean(component.removedAt)
                 const isPending = pendingActionId === component.id
+                // A replaced row dims its contents rather than itself: the
+                // opacity belongs to the values, and applying it to the row
+                // would take the pinned cell's background down with it and let
+                // the other columns scroll through it.
+                const dim = isReplaced && 'opacity-60'
                 return (
-                  <tr
-                    key={component.id}
-                    className={cn(
-                      'border-b last:border-b-0',
-                      isReplaced && 'opacity-60'
-                    )}
-                  >
-                    <td className="px-4 py-2 font-medium">
-                      {component.componentType}
+                  <tr key={component.id} className="border-t">
+                    <td
+                      className={cn(CELL, PINNED_CELL, 'z-[1]')}
+                      style={pinnedColumnStyle}
+                    >
+                      <span className={cn('text-[13px] font-medium', dim)}>
+                        {component.componentType}
+                      </span>
                     </td>
-                    <td className="px-4 py-2 text-muted-foreground">
+                    <td
+                      className={cn(CELL, 'text-[13px]', dim)}
+                      style={dataColumnStyle(96)}
+                    >
                       {component.brand || '—'}
                     </td>
-                    <td className="px-4 py-2 text-muted-foreground">
+                    <td
+                      className={cn(
+                        CELL,
+                        'text-[13px] text-muted-foreground',
+                        dim
+                      )}
+                      style={dataColumnStyle(132)}
+                    >
                       {component.model || '—'}
                     </td>
-                    <td className="px-4 py-2">
-                      <span className="tabular-nums">
+                    <td
+                      className={cn(CELL, 'whitespace-nowrap text-right', dim)}
+                      style={dataColumnStyle(108)}
+                    >
+                      <span className="text-[13px] font-semibold tabular-nums">
                         {formatGearDistanceKm(component.distanceMeters)}
                       </span>
-                      <WearBar component={component} />
+                      {/* Only while the part is fitted: wear against a service
+                          interval is advice about what to do next, and there is
+                          nothing left to do about a component already off the
+                          bike. */}
+                      {!isReplaced && <WearBar component={component} />}
                     </td>
-                    <td className="px-4 py-2 text-muted-foreground">
+                    <td
+                      className={cn(
+                        CELL,
+                        'whitespace-nowrap text-[13px] text-muted-foreground',
+                        dim
+                      )}
+                      style={dataColumnStyle(112)}
+                    >
                       {component.addedAt
                         ? formatGearDate(component.addedAt)
                         : 'Since beginning'}
                     </td>
-                    <td className="px-4 py-2 text-muted-foreground">
+                    <td
+                      className={cn(
+                        CELL,
+                        'whitespace-nowrap text-[13px] text-muted-foreground',
+                        dim
+                      )}
+                      style={dataColumnStyle(88)}
+                    >
                       {component.removedAt
                         ? formatGearDate(component.removedAt)
                         : '—'}
                     </td>
-                    <td className="px-4 py-2 text-right">
+                    <td
+                      className={cn(CELL, 'whitespace-nowrap text-right')}
+                      style={dataColumnStyle(84)}
+                    >
                       {isReplaced ? (
                         <Button
                           size="sm"
                           type="button"
-                          variant="ghost"
-                          className="text-destructive"
+                          variant="link"
+                          className="h-auto p-0 text-xs text-destructive"
                           disabled={isPending}
                           onClick={() => handleDelete(component.id)}
                           // Leaving the button disarms it: an armed row that
@@ -391,8 +477,8 @@ export const GearComponentsCard: FC<Props> = ({
                         <Button
                           size="sm"
                           type="button"
-                          variant="ghost"
-                          className="text-primary"
+                          variant="link"
+                          className="h-auto p-0 text-xs"
                           disabled={isPending}
                           onClick={() => handleReplace(component.id)}
                         >
@@ -409,10 +495,10 @@ export const GearComponentsCard: FC<Props> = ({
       )}
 
       {replaced.length > 0 && (
-        <div className="px-4">
+        <div className="border-t px-5 py-3">
           <button
             type="button"
-            className="cursor-pointer text-sm text-muted-foreground hover:text-foreground"
+            className="cursor-pointer text-xs font-medium text-primary hover:underline"
             // Hiding the replaced rows must disarm any pending confirmation
             // with them: the armed row would otherwise come back armed and
             // delete on the first click after the next "Show ...".
@@ -429,6 +515,6 @@ export const GearComponentsCard: FC<Props> = ({
           </button>
         </div>
       )}
-    </Card>
+    </section>
   )
 }

@@ -151,8 +151,8 @@ describe('GearDetailView', () => {
     expect(screen.getByText('Activities')).toBeInTheDocument()
     expect(screen.getByText('1204')).toBeInTheDocument()
     expect(screen.getByText('Components installed')).toBeInTheDocument()
-    // The replaced component counts toward neither the tile nor the header.
-    expect(screen.getByText('2 installed')).toBeInTheDocument()
+    // The replaced component does not count toward the tile.
+    expect(screen.getByText('2')).toBeInTheDocument()
     // "Distance" is both a stat tile and the components table's column header.
     expect(screen.getAllByText('Distance')).toHaveLength(2)
   })
