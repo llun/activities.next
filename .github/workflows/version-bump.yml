@@ -492,8 +492,12 @@ jobs:
               while IFS= read -r required_check; do
                 [ -n "$required_check" ] || continue
 
-                status=$(printf '%s\n' "$states" | awk -F"$TAB" -v name="$required_check" '$1 == name { print $2 }')
-                conclusion=$(printf '%s\n' "$states" | awk -F"$TAB" -v name="$required_check" '$1 == name { print $3 }')
+                # Pass the name through the environment, not `awk -v`: -v runs
+                # the value through escape processing, so a check name
+                # containing a backslash would never match itself and would sit
+                # "pending" until the gate timed out.
+                status=$(printf '%s\n' "$states" | name="$required_check" awk -F"$TAB" '$1 == ENVIRON["name"] { print $2 }')
+                conclusion=$(printf '%s\n' "$states" | name="$required_check" awk -F"$TAB" '$1 == ENVIRON["name"] { print $3 }')
 
                 if [ -n "$status" ]; then
                   registered=$((registered + 1))
@@ -501,13 +505,16 @@ jobs:
 
                 case "${status}/${conclusion}" in
                   completed/success) ;;
-                  completed/cancelled | completed/skipped | completed/neutral)
+                  completed/cancelled | completed/skipped | completed/neutral | completed/)
                     # Not terminal. CI cancels superseded runs, so a cancelled
                     # check run means "a newer run is coming", and branch
-                    # protection counts skipped and neutral as passing. Waiting
-                    # is what keeps a cancelled sibling from abandoning a PR
-                    # whose live run is still green.
-                    pending="${pending:+${pending}, }${required_check} (${conclusion})"
+                    # protection counts skipped and neutral as passing. An empty
+                    # conclusion on a completed run is GitHub briefly reporting a
+                    # run it has not finalized — treating that as a failure would
+                    # abandon the PR on the first poll with no second look, since
+                    # the failure branch below is the one terminal decision here
+                    # that never retries. Waiting covers all four.
+                    pending="${pending:+${pending}, }${required_check} (${conclusion:-not concluded})"
                     ;;
                   completed/*)
                     failed="${failed:+${failed}, }${required_check} (${conclusion:-unknown})"
