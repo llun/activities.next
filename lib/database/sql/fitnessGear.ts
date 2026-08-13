@@ -299,11 +299,11 @@ const parseSQLFitnessGearComponent = (
  *
  * Note what the sibling check does NOT do: it does not defer to a file that is
  * itself uncountable. A merge writes the primary as `pending` and the
- * secondaries as `completed` (see `mergeFitnessFilesIntoStatus`), so deferring
- * to an unfinished — or permanently `failed` — primary would drop the ride from
- * the device entirely. A file with no `statusId` was never merged into a post
- * and has no siblings to lose to: the column-to-column comparison is never true
- * for a NULL, so it always counts.
+ * secondaries as `completed` (see `assignFitnessFilesToImportedStatus`), so
+ * deferring to an unfinished — or permanently `failed` — primary would drop the
+ * ride from the device entirely. A file with no `statusId` was never merged
+ * into a post and has no siblings to lose to: the column-to-column comparison
+ * is never true for a NULL, so it always counts.
  *
  * Both the rollup and the activity list apply this identical predicate, so a
  * device's count and its page can never disagree.
@@ -681,8 +681,8 @@ export const FitnessGearSQLDatabaseMixin = (
       getWhereInBatchSize(database, 8)
     )) {
       // The same countable-activity predicate the distance rollups use, with
-      // `isPrimary` relaxed for a merged post recorded on more than one device
-      // — see the filter's own comment.
+      // `isPrimary` replaced by the per-ride-per-device rule — see the filter's
+      // own comment.
       const rows = await applyCountableActivityFilter(
         database,
         database('fitness_files'),
