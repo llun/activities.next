@@ -14,13 +14,15 @@ const mockGetActorsForAccount = vi.fn()
 const mockGetNotificationsCount = vi.fn()
 const mockGetLists = vi.fn()
 const mockGetAllServerSettings = vi.fn()
+const mockGetActorSettings = vi.fn()
 
 vi.mock('@/lib/database', () => ({
   getDatabase: vi.fn(() => ({
     getActorsForAccount: mockGetActorsForAccount,
     getNotificationsCount: mockGetNotificationsCount,
     getLists: mockGetLists,
-    getAllServerSettings: mockGetAllServerSettings
+    getAllServerSettings: mockGetAllServerSettings,
+    getActorSettings: mockGetActorSettings
   }))
 }))
 
@@ -53,9 +55,33 @@ vi.mock('@/lib/components/instance-limits', () => ({
   )
 }))
 
+// Stubbed like the nav components below: the assertions only care that the
+// layout seeds it from the actor's saved settings, not how it stores them.
+vi.mock('@/lib/components/layout/nav-preferences-context', () => ({
+  NavPreferencesProvider: ({
+    initialOrder,
+    initialHidden,
+    children
+  }: {
+    initialOrder?: string[]
+    initialHidden?: string[]
+    children: ReactNode
+  }) => (
+    <div
+      data-testid="nav-preferences"
+      data-order={initialOrder?.join(',')}
+      data-hidden={initialHidden?.join(',')}
+    >
+      {children}
+    </div>
+  )
+}))
+
 vi.mock('@/app/Modal', () => ({ Modal: () => <div data-testid="modal" /> }))
 vi.mock('@/lib/components/layout/sidebar', () => ({
-  Sidebar: () => <div data-testid="sidebar" />
+  Sidebar: ({ fitnessUrl }: { fitnessUrl?: string }) => (
+    <div data-testid="sidebar" data-fitness={fitnessUrl ?? ''} />
+  )
 }))
 vi.mock('@/lib/components/layout/mobile-nav', () => ({
   MobileNav: () => <div data-testid="mobile-nav" />
@@ -87,6 +113,7 @@ describe('(timeline) Layout', () => {
     mockGetActorsForAccount.mockResolvedValue([])
     mockGetNotificationsCount.mockResolvedValue(0)
     mockGetLists.mockResolvedValue([])
+    mockGetActorSettings.mockResolvedValue(undefined)
     mockGetAllServerSettings.mockResolvedValue([
       { key: 'posts.maxCharacters', value: 1000 }
     ])
@@ -113,6 +140,31 @@ describe('(timeline) Layout', () => {
     expect(screen.getByTestId('sidebar')).toBeInTheDocument()
     expect(screen.getByTestId('mobile-nav')).toBeInTheDocument()
     expect(screen.getByTestId('child')).toBeInTheDocument()
+  })
+
+  it('seeds the navigation store from the actor settings', async () => {
+    mockGetActorFromSession.mockResolvedValue(signedInActor as never)
+    mockGetActorSettings.mockResolvedValue({
+      navOrder: ['settings', 'timeline'],
+      navHidden: ['favorites']
+    })
+
+    await renderLayout()
+
+    const store = screen.getByTestId('nav-preferences')
+    expect(store).toHaveAttribute('data-order', 'settings,timeline')
+    expect(store).toHaveAttribute('data-hidden', 'favorites')
+  })
+
+  it('drops fitness from navigation when the instance turns the feature off', async () => {
+    mockGetActorFromSession.mockResolvedValue(signedInActor as never)
+    mockGetAllServerSettings.mockResolvedValue([
+      { key: 'features.fitness', value: false }
+    ])
+
+    await renderLayout()
+
+    expect(screen.getByTestId('sidebar')).toHaveAttribute('data-fitness', '')
   })
 
   it.each([

@@ -3,6 +3,7 @@ import { FC, ReactNode } from 'react'
 import { Modal } from '@/app/Modal'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { MobileNav } from '@/lib/components/layout/mobile-nav'
+import { NavPreferencesProvider } from '@/lib/components/layout/nav-preferences-context'
 import { Sidebar } from '@/lib/components/layout/sidebar'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -31,7 +32,8 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   // a prop through each page (the composer renders inline under posts across
   // the whole group). Both branches provide it so no descendant can end up
   // outside the provider.
-  const { posts, media, polls } = await getResolvedServerSettings(database)
+  const { posts, media, polls, features } =
+    await getResolvedServerSettings(database)
   const instanceLimits = {
     maxStatusCharacters: posts.maxCharacters,
     maxMediaFileSize: media.maxFileSize,
@@ -85,50 +87,67 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   // Fitness is a first-class section for every signed-in local account (like
   // Bookmarks/Messages), so new users can discover the import/Strava setup even
   // before they have any activity. The Overview itself handles the empty state.
-  const fitnessUrl = actor.account ? '/fitness' : undefined
+  // An admin can drop it from navigation instance-wide; the section keeps
+  // working for anyone who follows a link straight to it.
+  const fitnessUrl = actor.account && features.fitness ? '/fitness' : undefined
   const isAdmin = actor.account?.role === 'admin'
 
   // Drives the expandable Lists group in the sidebar.
   const lists = await database.getLists({ actorId: actor.id })
 
+  // The navigation the user customized: their order, and the items they tucked
+  // under "More". Read here so every nav surface — and the settings manager
+  // that edits them — starts from the same state.
+  const actorSettings = await database.getActorSettings({ actorId: actor.id })
+
   return (
     <InstanceLimitsProvider {...instanceLimits}>
-      <div className="min-h-dvh">
-        <Sidebar
-          user={user}
-          currentActor={currentActor}
-          actors={actors.map((a) => ({
-            id: a.id,
-            username: a.username,
-            domain: a.domain,
-            name: a.name,
-            iconUrl: isRealAvatar(a.iconUrl) ? a.iconUrl : null,
-            deletionStatus: a.deletionStatus ?? null,
-            deletionScheduledAt: a.deletionScheduledAt ?? null
-          }))}
-          unreadCount={unreadCount}
-          fitnessUrl={fitnessUrl}
-          isAdmin={isAdmin}
-          lists={lists.map((list) => ({ id: list.id, title: list.title }))}
-        />
-        <MobileNav
-          unreadCount={unreadCount}
-          fitnessUrl={fitnessUrl}
-          profileUrl={`/${user.handle}`}
-          isAdmin={isAdmin}
-        />
-        <main
-          className={cn(
-            'flex min-h-dvh flex-col overflow-x-clip pb-6',
-            'pb-20 md:pl-[72px] md:pb-0 md:[--sidebar-w:72px] xl:pl-[280px] xl:[--sidebar-w:280px]'
-          )}
-        >
-          <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6">
-            {children}
-          </div>
-        </main>
-        <Modal />
-      </div>
+      {/* Wraps the children too: on wide screens the Settings → Navigation
+          manager edits the very sidebar rendered beside it, and a soft
+          navigation never re-runs this layout to re-seed them separately. */}
+      <NavPreferencesProvider
+        initialOrder={actorSettings?.navOrder}
+        initialHidden={actorSettings?.navHidden}
+      >
+        <div className="min-h-dvh">
+          <Sidebar
+            user={user}
+            currentActor={currentActor}
+            actors={actors.map((a) => ({
+              id: a.id,
+              username: a.username,
+              domain: a.domain,
+              name: a.name,
+              iconUrl: isRealAvatar(a.iconUrl) ? a.iconUrl : null,
+              deletionStatus: a.deletionStatus ?? null,
+              deletionScheduledAt: a.deletionScheduledAt ?? null
+            }))}
+            unreadCount={unreadCount}
+            fitnessUrl={fitnessUrl}
+            isAdmin={isAdmin}
+            lists={lists.map((list) => ({ id: list.id, title: list.title }))}
+            features={features}
+          />
+          <MobileNav
+            unreadCount={unreadCount}
+            fitnessUrl={fitnessUrl}
+            profileUrl={`/${user.handle}`}
+            isAdmin={isAdmin}
+            features={features}
+          />
+          <main
+            className={cn(
+              'flex min-h-dvh flex-col overflow-x-clip pb-6',
+              'pb-20 md:pl-[72px] md:pb-0 md:[--sidebar-w:72px] xl:pl-[280px] xl:[--sidebar-w:280px]'
+            )}
+          >
+            <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6">
+              {children}
+            </div>
+          </main>
+          <Modal />
+        </div>
+      </NavPreferencesProvider>
     </InstanceLimitsProvider>
   )
 }

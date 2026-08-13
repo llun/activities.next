@@ -1,24 +1,44 @@
 'use client'
 
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Eye,
+  EyeOff,
+  Lock,
+  MoreHorizontal
+} from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import {
   ActorInfo,
   ActorSwitcher
 } from '@/lib/components/actor-switcher/ActorSwitcher'
 import { Logo } from '@/lib/components/layout/logo'
-import { buildNavItems } from '@/lib/components/layout/nav-items'
+import { type NavItem, buildNavLayout } from '@/lib/components/layout/nav-items'
+import { useNavPreferences } from '@/lib/components/layout/nav-preferences-context'
 import { NotificationBadge } from '@/lib/components/notification-badge/NotificationBadge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '@/lib/components/ui/dropdown-menu'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
 } from '@/lib/components/ui/tooltip'
+import {
+  type NavFeatureFlags,
+  type NavItemId
+} from '@/lib/services/navigation/navPreferences'
 import { cn } from '@/lib/utils'
 
 interface User {
@@ -41,7 +61,74 @@ interface SidebarProps {
   fitnessUrl?: string
   isAdmin?: boolean
   lists?: SidebarList[]
+  features?: Partial<NavFeatureFlags>
 }
+
+// The hover affordance shared by every customization control in the sidebar:
+// invisible until the row is hovered or the control takes focus, and pinned
+// visible while its own menu is open so the anchor doesn't fade underneath it.
+const hoverControlClassName =
+  'opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100'
+
+interface NavRowMenuProps {
+  item: NavItem
+  canMoveUp: boolean
+  canMoveDown: boolean
+  onMoveUp: () => void
+  onMoveDown: () => void
+  onHide: () => void
+  // The Lists row lays its controls out in flow next to the collapse chevron;
+  // every other row has no such neighbour and pins the trigger to the right.
+  inline?: boolean
+}
+
+const NavRowMenu = ({
+  item,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
+  onHide,
+  inline = false
+}: NavRowMenuProps) => (
+  <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <button
+        type="button"
+        aria-label={`Customize ${item.label} navigation`}
+        className={cn(
+          'grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground',
+          hoverControlClassName,
+          !inline && 'absolute right-1.5 top-1/2 -translate-y-1/2'
+        )}
+      >
+        <MoreHorizontal className="h-4 w-4" />
+      </button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="start" className="w-56">
+      <DropdownMenuItem disabled={!canMoveUp} onSelect={onMoveUp}>
+        <ChevronUp className="h-4 w-4" />
+        Move up
+      </DropdownMenuItem>
+      <DropdownMenuItem disabled={!canMoveDown} onSelect={onMoveDown}>
+        <ChevronDown className="h-4 w-4" />
+        Move down
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      {item.locked ? (
+        <DropdownMenuItem disabled>
+          <Lock className="h-4 w-4" />
+          Always shown
+        </DropdownMenuItem>
+      ) : (
+        <DropdownMenuItem onSelect={onHide}>
+          <EyeOff className="h-4 w-4" />
+          Hide from navigation
+        </DropdownMenuItem>
+      )}
+    </DropdownMenuContent>
+  </DropdownMenu>
+)
 
 export function Sidebar({
   user,
@@ -50,10 +137,31 @@ export function Sidebar({
   unreadCount = 0,
   fitnessUrl,
   isAdmin = false,
-  lists = []
+  lists = [],
+  features
 }: SidebarProps) {
   const pathname = usePathname()
-  const allNavItems = buildNavItems({ fitnessUrl, isAdmin })
+  const { order, hidden, hideItem, showItem, move } = useNavPreferences()
+  const { shown, more } = useMemo(
+    () =>
+      buildNavLayout({
+        fitnessUrl,
+        isAdmin,
+        features,
+        prefs: { navOrder: order, navHidden: hidden }
+      }),
+    [features, fitnessUrl, hidden, isAdmin, order]
+  )
+  // Reordering swaps with the nearest neighbour that is actually on screen, so
+  // hidden and unavailable items keep their slot.
+  const visibleIds = useMemo(
+    () => new Set<NavItemId>(shown.map((item) => item.id)),
+    [shown]
+  )
+
+  const isItemActive = (href: string) =>
+    pathname === href || pathname.startsWith(href + '/')
+
   const isListsSectionActive =
     pathname === '/lists' || pathname.startsWith('/lists/')
   // Default the Lists group open whenever the user is inside it so the active
@@ -67,10 +175,28 @@ export function Sidebar({
     if (isListsSectionActive) setListsOpen(true)
   }, [isListsSectionActive])
 
+  const isMoreSectionActive = more.some((item) => isItemActive(item.href))
+  const [isMoreOpen, setMoreOpen] = useState(isMoreSectionActive)
+  useEffect(() => {
+    if (isMoreSectionActive) setMoreOpen(true)
+  }, [isMoreSectionActive])
+
   const getAvatarInitial = (username: string) => {
     if (!username) return '?'
     return username[0].toUpperCase()
   }
+
+  const renderRowMenu = (item: NavItem, index: number, inline = false) => (
+    <NavRowMenu
+      item={item}
+      inline={inline}
+      canMoveUp={index > 0}
+      canMoveDown={index < shown.length - 1}
+      onMoveUp={() => move(item.id, -1, visibleIds)}
+      onMoveDown={() => move(item.id, 1, visibleIds)}
+      onHide={() => hideItem(item.id)}
+    />
+  )
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -85,19 +211,18 @@ export function Sidebar({
             below the fixed, full-height sidebar. */}
         <nav className="min-h-0 flex-1 overflow-y-auto px-3 pt-1">
           <ul className="space-y-1">
-            {allNavItems.map((item) => {
-              const isActive =
-                pathname === item.href || pathname.startsWith(item.href + '/')
-              const isNotifications = item.href === '/notifications'
+            {shown.map((item, index) => {
+              const isActive = isItemActive(item.href)
+              const isNotifications = item.id === 'notifications'
 
               // The Lists entry expands into the user's lists when they have
               // any; otherwise it stays a plain link to the (empty) index.
-              if (item.href === '/lists' && lists.length > 0) {
+              if (item.id === 'lists' && lists.length > 0) {
                 return (
-                  <li key={item.href}>
+                  <li key={item.id}>
                     <div
                       className={cn(
-                        'flex items-center rounded-lg text-sm font-medium transition-colors',
+                        'group flex items-center rounded-lg text-sm font-medium transition-colors',
                         isListsSectionActive
                           ? 'text-primary'
                           : 'text-muted-foreground'
@@ -114,6 +239,7 @@ export function Sidebar({
                         <item.icon className="h-5 w-5" />
                         {item.label}
                       </Link>
+                      {renderRowMenu(item, index, true)}
                       <button
                         type="button"
                         aria-label={
@@ -157,11 +283,11 @@ export function Sidebar({
               }
 
               return (
-                <li key={item.href}>
+                <li key={item.id} className="group relative">
                   <Link
                     href={item.href}
                     className={cn(
-                      'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors relative',
+                      'flex items-center gap-3 rounded-lg px-3 py-2 pr-10 text-sm font-medium transition-colors relative',
                       isActive
                         ? 'bg-primary/10 text-primary'
                         : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -172,13 +298,80 @@ export function Sidebar({
                     {isNotifications && unreadCount > 0 && (
                       <NotificationBadge
                         count={unreadCount}
-                        className="static ml-1"
+                        // The badge and the ⋯ share the right edge, so it
+                        // steps aside while the row is hovered.
+                        className="static ml-1 transition-opacity group-hover:opacity-0"
                       />
                     )}
                   </Link>
+                  {renderRowMenu(item, index)}
                 </li>
               )
             })}
+
+            {/* Items the user hid stay one click away rather than gone. The
+                group is absent entirely when nothing is hidden, so an
+                uncustomized sidebar looks exactly like it always has. */}
+            {more.length > 0 && (
+              <li className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => setMoreOpen((open) => !open)}
+                  aria-expanded={isMoreOpen}
+                  className={cn(
+                    'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-muted hover:text-foreground',
+                    isMoreSectionActive && !isMoreOpen
+                      ? 'text-primary'
+                      : 'text-muted-foreground'
+                  )}
+                >
+                  <MoreHorizontal className="h-5 w-5" />
+                  More
+                  <span className="ml-auto inline-flex items-center gap-1.5 text-xs">
+                    {more.length}
+                    {isMoreOpen ? (
+                      <ChevronUp className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                  </span>
+                </button>
+                {isMoreOpen && (
+                  <ul className="mt-1 space-y-1">
+                    {more.map((item) => {
+                      const isActive = isItemActive(item.href)
+                      return (
+                        <li key={item.id} className="group relative">
+                          <Link
+                            href={item.href}
+                            className={cn(
+                              'flex items-center gap-3 rounded-lg py-1.5 pl-6 pr-10 text-sm transition-colors',
+                              isActive
+                                ? 'bg-primary/10 text-primary'
+                                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                            )}
+                          >
+                            <item.icon className="h-[18px] w-[18px]" />
+                            {item.label}
+                          </Link>
+                          <button
+                            type="button"
+                            aria-label={`Show ${item.label} in navigation`}
+                            onClick={() => showItem(item.id)}
+                            className={cn(
+                              'absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground',
+                              hoverControlClassName
+                            )}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </li>
+            )}
           </ul>
         </nav>
 
@@ -219,12 +412,11 @@ export function Sidebar({
 
         <nav className="min-h-0 flex-1 overflow-y-auto pb-4">
           <ul className="space-y-2">
-            {allNavItems.map((item) => {
-              const isActive =
-                pathname === item.href || pathname.startsWith(item.href + '/')
-              const isNotifications = item.href === '/notifications'
+            {shown.map((item) => {
+              const isActive = isItemActive(item.href)
+              const isNotifications = item.id === 'notifications'
               return (
-                <li key={item.href}>
+                <li key={item.id}>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Link
@@ -250,6 +442,64 @@ export function Sidebar({
                 </li>
               )
             })}
+
+            {more.length > 0 && (
+              <li>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="More navigation"
+                      className={cn(
+                        'flex w-full items-center justify-center rounded-lg p-3 transition-colors',
+                        isMoreSectionActive
+                          ? 'bg-primary/10 text-primary'
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      )}
+                    >
+                      <MoreHorizontal className="h-6 w-6" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  {/* Plain rows rather than DropdownMenuItems: each carries two
+                      controls (open, and put back), and a menu item would
+                      select-and-close on either one. */}
+                  <DropdownMenuContent
+                    side="right"
+                    align="start"
+                    className="w-56"
+                  >
+                    {more.map((item) => {
+                      const isActive = isItemActive(item.href)
+                      return (
+                        <div key={item.id} className="group relative">
+                          <Link
+                            href={item.href}
+                            className={cn(
+                              'flex items-center gap-2.5 rounded-md py-1.5 pl-2 pr-10 text-sm font-medium transition-colors hover:bg-muted',
+                              isActive ? 'text-primary' : 'text-foreground'
+                            )}
+                          >
+                            <item.icon className="h-4 w-4 shrink-0" />
+                            {item.label}
+                          </Link>
+                          <button
+                            type="button"
+                            aria-label={`Show ${item.label} in navigation`}
+                            onClick={() => showItem(item.id)}
+                            className={cn(
+                              'absolute right-1 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground',
+                              hoverControlClassName
+                            )}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </li>
+            )}
           </ul>
         </nav>
 
