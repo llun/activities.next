@@ -463,7 +463,9 @@ describe('GearComponentsCard', () => {
       renderCard([createComponent()])
 
       // The hover variant belongs only on a row that has its own `hover:` and
-      // the `group` class; on an inert row it would light this column alone.
+      // the `group` class. These rows have neither, so it would never match —
+      // but keeping it off them is what stops a later `group` on the row from
+      // lighting this column alone.
       expect(getTypeCell('Chain')?.className).not.toContain('group-hover:')
     })
 

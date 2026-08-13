@@ -245,7 +245,10 @@ export const STICKY_COLUMN =
  * needs to be solid — and it would composite two tint layers against the row's
  * one, reading as a seam down the first column.
  *
- * A table whose rows are inert uses `STICKY_COLUMN` instead; pairing this with a
- * row that has no hover of its own lights the first column alone.
+ * A table whose rows are inert uses `STICKY_COLUMN` instead. The failure it
+ * avoids is specifically a row carrying `group` but no `hover:` of its own,
+ * which lights the first column alone; on a row with neither — what the
+ * components table's rows are — the variant simply never matches and nothing
+ * lights, so the wrong constant there is dead weight rather than a visible bug.
  */
 export const STICKY_CLICKABLE_COLUMN = `${STICKY_COLUMN} group-hover:bg-muted`

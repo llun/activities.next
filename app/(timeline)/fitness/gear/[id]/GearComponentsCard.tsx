@@ -430,7 +430,7 @@ export const GearComponentsCard: FC<Props> = ({
                           size="sm"
                           type="button"
                           variant="ghost"
-                          className="text-primary"
+                          className="text-primary-text"
                           disabled={isPending}
                           onClick={() => handleReplace(component.id)}
                         >

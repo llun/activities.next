@@ -161,12 +161,21 @@ describe('primary-text contrast (WCAG 2.1 AA SC 1.4.3)', () => {
   it.each(['light', 'dark'] as const)(
     'keeps %s primary-text recognisably the brand orange',
     (theme) => {
-      // Guard against "fixing" contrast by desaturating to near-black or
-      // washing out to near-white: it has to still read as the brand hue.
-      const [hue, saturation] = parseHsl(themes[theme]['--primary-text'])
-      const [primaryHue] = parseHsl(themes[theme]['--primary'])
+      // Guard against "fixing" contrast by walking the token to near-black or
+      // near-white. The bound has to be on LIGHTNESS, not saturation: in HSL
+      // the two are independent, so `hsl(24 95% 15%)` is a near-black brown
+      // that keeps the hue, keeps S at 0.95, and clears 4.5:1 on every light
+      // surface — it would satisfy a saturation-only guard while no longer
+      // reading as the brand colour at all.
+      const [hue, saturation, lightness] = parseHsl(
+        themes[theme]['--primary-text']
+      )
+      const [primaryHue, , primaryLightness] = parseHsl(
+        themes[theme]['--primary']
+      )
       expect(hue).toBe(primaryHue)
       expect(saturation).toBeGreaterThanOrEqual(0.8)
+      expect(Math.abs(lightness - primaryLightness)).toBeLessThanOrEqual(0.15)
     }
   )
 })

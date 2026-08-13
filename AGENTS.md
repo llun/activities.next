@@ -509,7 +509,8 @@ it; there is no legacy shape left to copy.
   (37%) and _lighter_ in dark (55%), because on the dark ramp contrast comes from
   going up. This is the split the design system makes itself (`GK_ORANGE` vs
   `GK_ORANGE_TEXT`). It backs the gear list's retired toggle, the gear
-  product-page link and the components card's replaced toggle;
+  product-page link, and the components card's replaced toggle and per-row
+  Replace action;
   `app/globals.contrast.test.ts` recomputes both ratios from the live token
   values, so collapsing the two tokens back together fails the suite. Other
   orange text in the app still predates this and should move over when touched.
@@ -542,8 +543,9 @@ it; there is no legacy shape left to copy.
   rule of its own and the last row no trailing one. The pinned width is not part
   of the constants — the design pins the gear and device tables at 150px and the
   denser components table at 104px — and `STICKY_CLICKABLE_COLUMN` belongs only
-  on a row that has its own `hover:` and the `group` class, since pairing it with
-  an inert row lights the first column alone.
+  on a row that has its own `hover:` and the `group` class — a row carrying
+  `group` without a `hover:` lights the first column alone, and a row with
+  neither never matches the variant at all.
 - **A recording device is a third kind, and almost nothing above applies to it.**
   `kind: 'device'` rows have no components, no default sports, no distance
   total, no service reminder and cannot be retired; a device page reports an
