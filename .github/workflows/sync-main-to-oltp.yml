@@ -171,13 +171,14 @@ jobs:
           # look. Never let this check fail the install it is annotating.
           #
           # awk deliberately reads to EOF instead of `exit`ing on the first
-          # match. Leaving early closes the pipe under the writer, and with
-          # `pipefail` that turns a successful extraction into a failed
-          # pipeline the moment the response outgrows the pipe buffer — either
-          # silently discarding the version via the `||` below, or, with the
-          # writer inside its own substitution, killing this step outright on
-          # SIGPIPE (141) after the install had already succeeded. The file is
-          # a few KB; reading all of it costs nothing and removes the class.
+          # match, which sits ~200 lines into a 23KB response. Leaving early
+          # closes the pipe while curl is still writing, curl exits 23, and
+          # `pipefail` then hands the `||` below a failed pipeline — so the
+          # version it just extracted is thrown away. This is a race on how
+          # much curl has flushed, not a size threshold, and it already loses
+          # most of the time: 20 real fetches gave 6 extractions and 14
+          # discards, against 20/20 reading to EOF. Left as `exit` the check
+          # would have looked fine and simply never warned.
           action_bun_version="$(
             curl --fail --location --silent --show-error --max-time 30 \
               'https://raw.githubusercontent.com/anthropics/claude-code-action/v1/action.yml' |
