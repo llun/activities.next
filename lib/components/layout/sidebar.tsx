@@ -238,11 +238,17 @@ export function Sidebar({
                     >
                       <Link
                         href={item.href}
-                        // Exact, not the usual prefix match: inside a list the
-                        // list's own row below is the current page, and only one
-                        // link in a navigation may claim that.
+                        // Exactly one link in a navigation may claim the current
+                        // page: inside one of the lists below, that link is the
+                        // claimant; anywhere else in the section — the index,
+                        // the new-list form, a list's edit page — this row is.
                         aria-current={
-                          pathname === item.href ? 'page' : undefined
+                          isListsSectionActive &&
+                          !lists.some(
+                            (list) => pathname === `/lists/${list.id}`
+                          )
+                            ? 'page'
+                            : undefined
                         }
                         className={cn(
                           'flex flex-1 items-center gap-3 rounded-lg px-3 py-2 transition-colors',

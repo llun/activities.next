@@ -1,6 +1,12 @@
 'use client'
 
-import { GripVertical, History, Lock } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronUp,
+  GripVertical,
+  History,
+  Lock
+} from 'lucide-react'
 import { FC, useMemo, useRef, useState } from 'react'
 
 import {
@@ -85,18 +91,10 @@ export const NavigationSettings: FC<Props> = ({
       }))
   }, [features, fitnessUrl, hidden, isAdmin, order])
 
-  // The keyboard moves a row to the next position *in this list*, which is what
-  // dragging does — the sidebar's ⋯ menu skips over hidden items instead,
-  // because there they are not on screen to move past. Here they are.
-  const handleKeyDown = (
-    event: React.KeyboardEvent<HTMLButtonElement>,
-    id: NavItemId,
-    label: string
-  ) => {
-    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
-    event.preventDefault()
-
-    const direction = event.key === 'ArrowUp' ? -1 : 1
+  // Moves a row to the next position *in this list*, which is what dragging
+  // does — the sidebar's ⋯ menu skips over hidden items instead, because there
+  // they are not on screen to move past. Here they are.
+  const moveRow = (id: NavItemId, label: string, direction: -1 | 1) => {
     const position = rows.findIndex((row) => row.item.id === id)
     const target = rows[position + direction]
     // Announce only a move that happened: at either end of the list, nothing
@@ -117,6 +115,16 @@ export const NavigationSettings: FC<Props> = ({
     )
   }
 
+  const handleKeyDown = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    id: NavItemId,
+    label: string
+  ) => {
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+    event.preventDefault()
+    moveRow(id, label, event.key === 'ArrowUp' ? -1 : 1)
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -128,13 +136,13 @@ export const NavigationSettings: FC<Props> = ({
         <div>
           <h2 className="text-lg font-semibold">Sidebar items</h2>
           <p className="text-sm text-muted-foreground">
-            Drag to reorder. Pinned items always show; items your admin turned
-            off are unavailable for everyone.
+            Drag or use the arrows to reorder. Pinned items always show; items
+            your admin turned off are unavailable for everyone.
           </p>
         </div>
 
         <ul className="divide-y overflow-hidden rounded-xl border">
-          {rows.map(({ item, isHidden, isFeatureOff }) => {
+          {rows.map(({ item, isHidden, isFeatureOff }, index) => {
             const draggable = !isFeatureOff
             return (
               <li
@@ -152,7 +160,15 @@ export const NavigationSettings: FC<Props> = ({
                 }}
                 onDragOver={(event) => {
                   event.preventDefault()
-                  if (!dragId || dragId === item.id) return
+                  if (!dragId) return
+                  if (dragId === item.id) {
+                    // After a move the dragged row sits under the pointer, so
+                    // this fires constantly mid-drag. Recording it is what lets
+                    // the row it just passed be crossed again, which is how the
+                    // user takes an overshoot back.
+                    lastOverRef.current = item.id
+                    return
+                  }
                   // Move once per row crossed. `dragover` repeats for as long as
                   // the pointer rests on a row, and each one is a move, so
                   // without this the dragged row swaps back and forth under a
@@ -230,6 +246,32 @@ export const NavigationSettings: FC<Props> = ({
                     {item.blurb}
                   </p>
                 </div>
+
+                {/* Dragging needs a mouse and the grip's arrow keys need a
+                    keyboard, so on a phone or tablet neither exists. These are
+                    the same two moves the sidebar's own ⋯ menu offers. */}
+                {!isFeatureOff && (
+                  <div className="flex shrink-0 items-center">
+                    <button
+                      type="button"
+                      aria-label={`Move ${item.label} up`}
+                      disabled={index === 0}
+                      onClick={() => moveRow(item.id, item.label, -1)}
+                      className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
+                    >
+                      <ChevronUp className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Move ${item.label} down`}
+                      disabled={index === rows.length - 1}
+                      onClick={() => moveRow(item.id, item.label, 1)}
+                      className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
 
                 {isFeatureOff ? (
                   <StatusCaption>Admin</StatusCaption>

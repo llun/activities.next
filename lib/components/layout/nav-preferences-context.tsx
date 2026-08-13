@@ -185,7 +185,10 @@ export const NavPreferencesProvider: FC<NavPreferencesProviderProps> = ({
       // Clear the debt unless a newer edit queued itself while this was in
       // flight, in which case the trailing save below owns it.
       if (pendingRef.current === pending) pendingRef.current = null
-      if (pending.deliberate) owedDeliberateRef.current = null
+      // Any accepted save settles the account, so a Reset that an edit
+      // superseded is no longer owed — the user's later edits are the intent
+      // now. Only a Reset that never landed is worth reviving.
+      owedDeliberateRef.current = null
     }
     // A failed payload stays queued so `retry` — and any later save — carries
     // it, unless the user has since edited, which replaces it outright.

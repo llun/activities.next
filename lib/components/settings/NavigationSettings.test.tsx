@@ -227,6 +227,55 @@ describe('NavigationSettings', () => {
     expect(rowLabels().slice(0, 2)).toEqual(['Timeline', 'Search'])
   })
 
+  // Dragging needs a mouse and the grip's arrows need a keyboard, so without
+  // these a phone can hide items but never reorder them.
+  it('reorders from the row buttons, which need neither a mouse nor a keyboard', async () => {
+    renderSettings(<NavigationSettings />)
+
+    fireEvent.click(
+      within(rowFor('Search')).getByRole('button', { name: 'Move Search up' })
+    )
+
+    expect(rowLabels().slice(0, 2)).toEqual(['Search', 'Timeline'])
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1))
+    const [{ navOrder }] = mockUpdate.mock.calls[0]
+    expect(navOrder.slice(0, 2)).toEqual(['search', 'timeline'])
+  })
+
+  it('offers no move past either end of the list', () => {
+    renderSettings(<NavigationSettings />)
+
+    expect(
+      within(rowFor('Timeline')).getByRole('button', {
+        name: 'Move Timeline up'
+      })
+    ).toBeDisabled()
+    expect(
+      within(rowFor('Settings')).getByRole('button', {
+        name: 'Move Settings down'
+      })
+    ).toBeDisabled()
+  })
+
+  it('takes back an overshoot when the row is dragged over again', async () => {
+    renderSettings(<NavigationSettings />)
+
+    const dragged = rowFor('Timeline')
+    fireEvent.dragStart(dragged)
+    fireEvent.dragOver(rowFor('Search'))
+    expect(rowLabels().slice(0, 2)).toEqual(['Search', 'Timeline'])
+
+    // The dragged row now sits under the pointer; dragging back over Search
+    // has to undo the swap rather than being swallowed as a repeat.
+    fireEvent.dragOver(dragged)
+    fireEvent.dragOver(rowFor('Search'))
+    expect(rowLabels().slice(0, 2)).toEqual(['Timeline', 'Search'])
+
+    fireEvent.drop(dragged)
+    await act(async () => {})
+    expect(mockUpdate).not.toHaveBeenCalled()
+  })
+
   it('does not let an abandoned drag revert a later, unrelated change', async () => {
     renderSettings(<NavigationSettings />)
 
