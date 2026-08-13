@@ -198,6 +198,44 @@ describe('NavigationSettings', () => {
     ).toBeVisible()
   })
 
+  it('repeats an announcement whose wording has not changed', async () => {
+    renderSettings(<NavigationSettings />)
+
+    const up = within(rowFor('Timeline')).getByRole('button', {
+      name: 'Move Timeline up'
+    })
+    fireEvent.click(up)
+    const firstAnnouncement = await screen.findByText(
+      'Timeline is already first'
+    )
+
+    fireEvent.click(up)
+
+    // Holding a move against the end of the list says the same sentence every
+    // press, and a live region that does not change announces nothing — so the
+    // node carrying it has to be replaced, not left in place.
+    expect(firstAnnouncement).not.toBeInTheDocument()
+    expect(screen.getByText('Timeline is already first')).toBeVisible()
+  })
+
+  it('announces a failed save, and nothing on a save that worked', async () => {
+    mockUpdate.mockResolvedValueOnce(false)
+    renderSettings(<NavigationSettings />)
+
+    // The caption changes twice per save and a keyboard reorder saves on every
+    // keystroke, so it must not talk over each row's own announcement.
+    expect(
+      screen
+        .getByText('Saved to your account settings as you change it.')
+        .closest('[role="status"]')
+    ).toBeNull()
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Show Favorites' }))
+
+    const failure = await screen.findByText(/Couldn't save your changes/)
+    expect(failure.closest('[role="status"]')).not.toBeNull()
+  })
+
   it('reorders by dragging one row onto another', async () => {
     renderSettings(<NavigationSettings />)
 

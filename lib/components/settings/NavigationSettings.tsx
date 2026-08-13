@@ -59,7 +59,14 @@ export const NavigationSettings: FC<Props> = ({
     reset
   } = useNavPreferences()
   const [dragId, setDragId] = useState<NavItemId | null>(null)
-  const [announcement, setAnnouncement] = useState('')
+  // Carries a sequence number because the same sentence gets announced twice in
+  // a row: a live region whose text is unchanged is not a DOM change, so
+  // holding "Move down" against the bottom of the list would say "already last"
+  // once and then go silent. The number keys the node, so every announcement
+  // replaces it whether or not the words moved.
+  const [announcement, setAnnouncement] = useState({ text: '', seq: 0 })
+  const announce = (text: string) =>
+    setAnnouncement((current) => ({ text, seq: current.seq + 1 }))
   // A drag reorders the list as it goes, so an abandoned one has to be undone.
   const orderBeforeDragRef = useRef<NavItemId[] | null>(null)
   const droppedRef = useRef(false)
@@ -97,18 +104,16 @@ export const NavigationSettings: FC<Props> = ({
   const moveRow = (id: NavItemId, label: string, direction: -1 | 1) => {
     const position = rows.findIndex((row) => row.item.id === id)
     const target = rows[position + direction]
-    // Announce only a move that happened: at either end of the list, nothing
-    // does, and saying otherwise misleads anyone who cannot see the row.
+    // At either end nothing moves, and reporting a move that did not happen
+    // misleads anyone who cannot see the row — so report the end of the list.
     if (!target) {
-      setAnnouncement(
-        `${label} is already ${direction === -1 ? 'first' : 'last'}`
-      )
+      announce(`${label} is already ${direction === -1 ? 'first' : 'last'}`)
       return
     }
 
     moveTo(id, target.item.id)
     commit()
-    setAnnouncement(
+    announce(
       `${label} moved ${direction === -1 ? 'up' : 'down'}, position ${
         position + direction + 1
       } of ${rows.length}`
@@ -308,17 +313,15 @@ export const NavigationSettings: FC<Props> = ({
 
         <div className="flex w-full items-center justify-between gap-3">
           {/* The caption is the only report a save gives — there is no Save
-              button, and each control already announced its own new state — so
-              a failure has to reach a screen reader as well as the eye. The
-              region wraps the caption alone: role="status" is atomic, so
-              including the button would read it out on every save. */}
+              button — so a failure has to reach a screen reader as well as the
+              eye. Only the failure, though; see SaveCaption. */}
           <SaveCaption />
           <Button
             variant="outline"
             size="sm"
             onClick={() => {
               reset()
-              setAnnouncement('Navigation reset to defaults')
+              announce('Navigation reset to defaults')
             }}
           >
             <History className="h-4 w-4" />
@@ -328,7 +331,7 @@ export const NavigationSettings: FC<Props> = ({
       </section>
 
       <p aria-live="polite" className="sr-only">
-        {announcement}
+        <span key={announcement.seq}>{announcement.text}</span>
       </p>
     </div>
   )
@@ -338,23 +341,36 @@ export const NavigationSettings: FC<Props> = ({
 // reports what the store is doing rather than asking for a click.
 const SaveCaption = () => {
   const { saveState, retry } = useNavPreferences()
-
-  if (saveState === 'error') {
-    return (
-      <span role="status" className="text-xs text-destructive">
-        Couldn&apos;t save your changes.{' '}
-        <button type="button" onClick={retry} className="underline">
-          Try again
-        </button>
-      </span>
-    )
-  }
+  const failed = saveState === 'error'
 
   return (
-    <span role="status" className="text-xs text-muted-foreground">
-      {saveState === 'saving'
-        ? 'Saving…'
-        : 'Saved to your account settings as you change it.'}
-    </span>
+    <div className="text-xs">
+      {/* Deliberately outside the live region below. This text changes twice
+          per save and a keyboard reorder saves on every keystroke, so
+          announcing it would bury each row's own "moved up, position 2 of 10"
+          under "Saving…" and "Saved…". */}
+      {!failed && (
+        <span className="text-muted-foreground">
+          {saveState === 'saving'
+            ? 'Saving…'
+            : 'Saved to your account settings as you change it.'}
+        </span>
+      )}
+      {/* Mounted whether or not anything went wrong: a live region inserted
+          into the page at the same moment as its text is missed by some screen
+          readers, and a failed save is the one thing here worth interrupting
+          for. role="status" is atomic, so the retry button reads out with the
+          failure that calls for it — and at no other time. */}
+      <span role="status" className="text-destructive">
+        {failed && (
+          <>
+            Couldn&apos;t save your changes.{' '}
+            <button type="button" onClick={retry} className="underline">
+              Try again
+            </button>
+          </>
+        )}
+      </span>
+    </div>
   )
 }

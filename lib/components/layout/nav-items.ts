@@ -191,6 +191,10 @@ export interface NavLayout {
   hidden: NavItemId[]
 }
 
+/**
+ * The whole navigation for one viewer: what they see, what they tucked under
+ * More, and the full order behind both. Every surface renders from this.
+ */
 export function buildNavLayout(
   params: BuildNavItemsParams & { prefs?: NavPreferences } = {}
 ): NavLayout {
@@ -203,12 +207,4 @@ export function buildNavLayout(
     order: normalizedOrder(prefs),
     hidden: normalizedHidden(prefs)
   }
-}
-
-/**
- * The navigation for a viewer who has not customized anything. Kept as the
- * simple entry point for surfaces that don't read preferences.
- */
-export function buildNavItems(params: BuildNavItemsParams = {}): NavItem[] {
-  return buildNavLayout(params).shown
 }

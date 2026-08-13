@@ -313,6 +313,48 @@ describe('NavPreferencesProvider', () => {
     expect(mockUpdate).toHaveBeenLastCalledWith({ navOrder: [], navHidden: [] })
   })
 
+  it('still clears the stored lists when an edit made after a failed reset is undone', async () => {
+    mockUpdate.mockResolvedValueOnce(false)
+    renderStore({ order: ['settings', 'timeline'] })
+
+    click('reset')
+    await waitFor(() =>
+      expect(screen.getByTestId('state')).toHaveTextContent('error')
+    )
+
+    // An edit supersedes the failed reset and saves cleanly, which is the only
+    // reason the failure stops being reported…
+    click('hide favorites')
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(2))
+
+    // …but the account never got the empty lists, so taking that edit back —
+    // leaving the navigation exactly as reset left it — still owes them.
+    click('show favorites')
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(3))
+    expect(mockUpdate).toHaveBeenLastCalledWith({ navOrder: [], navHidden: [] })
+  })
+
+  it('retries a failed reset when the button is pressed again', async () => {
+    mockUpdate.mockResolvedValueOnce(false)
+    renderStore({ order: ['settings', 'timeline'] })
+
+    click('reset')
+    await waitFor(() =>
+      expect(screen.getByTestId('state')).toHaveTextContent('error')
+    )
+
+    // Pressing it again is what someone does when a control reports a failure,
+    // so it has to mean the same as the footer's "Try again".
+    click('reset')
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(2))
+    expect(mockUpdate).toHaveBeenLastCalledWith({ navOrder: [], navHidden: [] })
+    await waitFor(() =>
+      expect(screen.getByTestId('state')).toHaveTextContent('saved')
+    )
+  })
+
   it('clears the stored lists on reset even when the navigation already looks default', async () => {
     renderStore()
 

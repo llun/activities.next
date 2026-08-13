@@ -1,12 +1,9 @@
-import {
-  buildNavItems,
-  buildNavLayout
-} from '@/lib/components/layout/nav-items'
+import { buildNavLayout } from '@/lib/components/layout/nav-items'
 
-const itemHrefs = (params: Parameters<typeof buildNavItems>[0]) =>
-  buildNavItems(params).map((item) => item.href)
+const itemHrefs = (params: Parameters<typeof buildNavLayout>[0]) =>
+  buildNavLayout(params).shown.map((item) => item.href)
 
-describe('buildNavItems', () => {
+describe('buildNavLayout', () => {
   it('places favorites before bookmarks and account before settings in the base navigation', () => {
     expect(itemHrefs({})).toEqual([
       '/',
@@ -85,9 +82,7 @@ describe('buildNavItems', () => {
       )
     }
   )
-})
 
-describe('buildNavLayout', () => {
   it('keeps every item shown when the user has no preference', () => {
     const { shown, more } = buildNavLayout({})
     expect(more).toEqual([])

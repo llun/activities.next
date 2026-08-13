@@ -185,12 +185,12 @@ export const NavPreferencesProvider: FC<NavPreferencesProviderProps> = ({
       // Clear the debt unless a newer edit queued itself while this was in
       // flight, in which case the trailing save below owns it.
       if (pendingRef.current === pending) pendingRef.current = null
-      // A Reset stops being owed once it lands, or once a later edit the
-      // account accepted has taken its place. It stays owed while it is still
-      // the queued save — an unrelated save settling first does not cancel it.
-      if (owedDeliberateRef.current !== pendingRef.current) {
+      // A Reset stops being owed when the account accepts it — when the save
+      // that just landed is the one carrying its lists. Another save landing
+      // first settles nothing: the stored lists are still there, so a later
+      // edit back onto the reset navigation still has to clear them.
+      if (owedDeliberateRef.current === pending)
         owedDeliberateRef.current = null
-      }
     }
     // A failed payload stays queued so `retry` — and any later save — carries
     // it, unless the user has since edited, which replaces it outright.
@@ -227,7 +227,15 @@ export const NavPreferencesProvider: FC<NavPreferencesProviderProps> = ({
       const queued = pendingRef.current
 
       // Already queued, verbatim.
-      if (queued && nextPayloadKey === snapshotKey(queued.payload)) return
+      if (queued && nextPayloadKey === snapshotKey(queued.payload)) {
+        // Repeating the gesture on purpose — pressing Reset again after its
+        // save failed — is a retry, and that button is the obvious place to
+        // reach for. (An incidental repeat, a drag dropped where it started,
+        // leaves the queued save for the footer's own retry.) Nothing can be
+        // queued with nothing in flight unless the last attempt failed.
+        if (payload && !savingRef.current) void flush()
+        return
+      }
 
       // An ordinary edit only has something to say when the navigation actually
       // changed. (A deliberate save skips this: Reset clears the stored lists,
