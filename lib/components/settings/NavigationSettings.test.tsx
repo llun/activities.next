@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -35,6 +36,12 @@ const renderSettings = (
       {ui}
     </NavPreferencesProvider>
   )
+
+// The item name is the row's first truncated label, ahead of any chip.
+const rowLabels = () =>
+  screen
+    .getAllByRole('listitem')
+    .map((row) => row.querySelector('.truncate')?.textContent?.trim())
 
 const rowFor = (label: string): HTMLElement => {
   const row = screen
@@ -204,6 +211,29 @@ describe('NavigationSettings', () => {
     await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1))
     const [{ navOrder }] = mockUpdate.mock.calls[0]
     expect(navOrder[0]).toBe('settings')
+  })
+
+  it('puts the rows back when a drag is abandoned instead of dropped', async () => {
+    renderSettings(<NavigationSettings />)
+
+    const dragged = rowFor('Settings')
+    fireEvent.dragStart(dragged)
+    fireEvent.dragOver(rowFor('Timeline'))
+    // Escape, or letting go outside the list, ends the drag without a drop.
+    fireEvent.dragEnd(dragged)
+
+    await act(async () => {})
+    expect(mockUpdate).not.toHaveBeenCalled()
+    expect(rowLabels().slice(0, 2)).toEqual(['Timeline', 'Search'])
+  })
+
+  it('carries the drag payload browsers require to start one', () => {
+    renderSettings(<NavigationSettings />)
+
+    const setData = vi.fn()
+    fireEvent.dragStart(rowFor('Settings'), { dataTransfer: { setData } })
+
+    expect(setData).toHaveBeenCalledWith('text/plain', 'settings')
   })
 
   it('resets to the shipped navigation', async () => {

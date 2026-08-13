@@ -1,7 +1,7 @@
 'use client'
 
 import { GripVertical, History, Lock } from 'lucide-react'
-import { FC, useMemo, useState } from 'react'
+import { FC, useMemo, useRef, useState } from 'react'
 
 import {
   type BuildNavItemsParams,
@@ -42,10 +42,21 @@ export const NavigationSettings: FC<Props> = ({
   isAdmin = false,
   features
 }) => {
-  const { order, hidden, hideItem, showItem, moveTo, commit, reset } =
-    useNavPreferences()
+  const {
+    order,
+    hidden,
+    hideItem,
+    showItem,
+    moveTo,
+    restoreOrder,
+    commit,
+    reset
+  } = useNavPreferences()
   const [dragId, setDragId] = useState<NavItemId | null>(null)
   const [announcement, setAnnouncement] = useState('')
+  // A drag reorders the list as it goes, so an abandoned one has to be undone.
+  const orderBeforeDragRef = useRef<NavItemId[] | null>(null)
+  const droppedRef = useRef(false)
 
   // A feature the admin turned off still gets a row — greyed out, with the chip
   // that explains why it vanished from the sidebar. Items this account simply
@@ -122,6 +133,9 @@ export const NavigationSettings: FC<Props> = ({
                 onDragStart={(event) => {
                   if (!draggable) return
                   setDragId(item.id)
+                  // Where to put the list back if the drag is abandoned.
+                  orderBeforeDragRef.current = order
+                  droppedRef.current = false
                   // Firefox abandons a drag whose data store was left empty on
                   // dragstart, so the row would simply refuse to move there.
                   event.dataTransfer?.setData('text/plain', item.id)
@@ -134,12 +148,18 @@ export const NavigationSettings: FC<Props> = ({
                 }}
                 onDrop={(event) => {
                   event.preventDefault()
+                  droppedRef.current = true
                   setDragId(null)
                   commit()
                 }}
                 onDragEnd={() => {
                   setDragId(null)
-                  commit()
+                  // Escape, or a release outside the list, ends the drag without
+                  // a drop: put the rows back where they were rather than
+                  // saving a reorder the user just cancelled.
+                  if (droppedRef.current) return
+                  const before = orderBeforeDragRef.current
+                  if (before) restoreOrder(before)
                 }}
                 className={cn(
                   'flex items-center gap-3 bg-background px-3 py-2.5 transition-colors',
@@ -204,14 +224,12 @@ export const NavigationSettings: FC<Props> = ({
           })}
         </ul>
 
-        {/* The caption is the only report a save gives — there is no Save
-            button, and each control already announced its own new state — so a
-            failure has to reach a screen reader as well as the eye. */}
-        <div
-          role="status"
-          aria-live="polite"
-          className="flex w-full items-center justify-between gap-3"
-        >
+        <div className="flex w-full items-center justify-between gap-3">
+          {/* The caption is the only report a save gives — there is no Save
+              button, and each control already announced its own new state — so
+              a failure has to reach a screen reader as well as the eye. The
+              region wraps the caption alone: role="status" is atomic, so
+              including the button would read it out on every save. */}
           <SaveCaption />
           <Button
             variant="outline"
@@ -241,7 +259,7 @@ const SaveCaption = () => {
 
   if (saveState === 'error') {
     return (
-      <span className="text-xs text-destructive">
+      <span role="status" className="text-xs text-destructive">
         Couldn&apos;t save your changes.{' '}
         <button type="button" onClick={retry} className="underline">
           Try again
@@ -251,7 +269,7 @@ const SaveCaption = () => {
   }
 
   return (
-    <span className="text-xs text-muted-foreground">
+    <span role="status" className="text-xs text-muted-foreground">
       {saveState === 'saving'
         ? 'Saving…'
         : 'Saved to your account settings as you change it.'}

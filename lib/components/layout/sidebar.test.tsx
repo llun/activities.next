@@ -29,8 +29,18 @@ vi.mock('@/lib/components/actor-switcher/ActorSwitcher', () => ({
   ActorSwitcher: () => <div data-testid="actor-switcher" />
 }))
 
-const renderSidebar = (ui: ReactElement) =>
-  render(<NavPreferencesProvider>{ui}</NavPreferencesProvider>)
+const renderSidebar = (
+  ui: ReactElement,
+  preferences: { order?: string[]; hidden?: string[] } = {}
+) =>
+  render(
+    <NavPreferencesProvider
+      initialOrder={preferences.order}
+      initialHidden={preferences.hidden}
+    >
+      {ui}
+    </NavPreferencesProvider>
+  )
 
 const lists = [
   { id: 'a', title: 'Running club' },
@@ -202,6 +212,68 @@ describe('Sidebar', () => {
       )
       const [{ navOrder }] = mockUpdateNavigationPreferences.mock.calls[0]
       expect(navOrder.slice(0, 2)).toEqual(['search', 'timeline'])
+    })
+
+    // The rail (md–xl) has no room for per-row menus, so hidden items live in a
+    // flyout off its own More button. Every control in there has to be a real
+    // menu item: Radix swallows Tab inside a menu and only moves focus between
+    // the items it knows about, so anything else is unreachable.
+    it('offers each hidden item and its own restore control in the rail flyout', async () => {
+      renderSidebar(<Sidebar lists={[]} />, { hidden: ['favorites'] })
+
+      const rail = screen.getAllByRole('navigation')[1]
+      fireEvent.keyDown(
+        within(rail).getByRole('button', { name: 'More navigation' }),
+        { key: 'ArrowDown' }
+      )
+
+      const items = await screen.findAllByRole('menuitem')
+      expect(
+        items.map((item) => item.getAttribute('aria-label') ?? item.textContent)
+      ).toEqual(['Favorites', 'Show Favorites in navigation'])
+    })
+
+    it('restores from the rail flyout without closing it', async () => {
+      renderSidebar(<Sidebar lists={[]} />, {
+        hidden: ['favorites', 'bookmarks']
+      })
+
+      const rail = screen.getAllByRole('navigation')[1]
+      fireEvent.keyDown(
+        within(rail).getByRole('button', { name: 'More navigation' }),
+        { key: 'ArrowDown' }
+      )
+      fireEvent.click(
+        await screen.findByRole('menuitem', {
+          name: 'Show Favorites in navigation'
+        })
+      )
+
+      // Left open so several items can be put back in one visit.
+      expect(
+        await screen.findByRole('menuitem', {
+          name: 'Show Bookmarks in navigation'
+        })
+      ).toBeInTheDocument()
+      await waitFor(() =>
+        expect(mockUpdateNavigationPreferences).toHaveBeenLastCalledWith(
+          expect.objectContaining({ navHidden: ['bookmarks'] })
+        )
+      )
+    })
+
+    it('marks the current page for assistive technology', () => {
+      mockPathname.mockReturnValue('/search')
+      renderSidebar(<Sidebar lists={[]} />)
+
+      const nav = screen.getAllByRole('navigation')[0]
+      expect(within(nav).getByRole('link', { name: 'Search' })).toHaveAttribute(
+        'aria-current',
+        'page'
+      )
+      expect(
+        within(nav).getByRole('link', { name: 'Timeline' })
+      ).not.toHaveAttribute('aria-current')
     })
 
     it('cannot move the first row up or the last row down', () => {

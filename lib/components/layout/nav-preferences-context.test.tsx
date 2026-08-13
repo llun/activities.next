@@ -220,6 +220,53 @@ describe('NavPreferencesProvider', () => {
     expect(mockUpdate).toHaveBeenLastCalledWith({ navOrder: [], navHidden: [] })
   })
 
+  it('does not let a gesture that changed nothing undo a reset in flight', async () => {
+    let resolveReset: (value: boolean) => void = () => {}
+    renderStore({ order: ['settings', 'timeline'] })
+
+    mockUpdate.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveReset = resolve
+        })
+    )
+    click('reset')
+    // A row picked up and dropped where it started, while the reset is still
+    // in flight: it must not queue today's order over the reset's empty lists.
+    click('commit')
+
+    await act(async () => {
+      resolveReset(true)
+    })
+    await act(async () => {})
+
+    expect(mockUpdate).toHaveBeenCalledTimes(1)
+    expect(mockUpdate).toHaveBeenCalledWith({ navOrder: [], navHidden: [] })
+  })
+
+  it('keeps a failed reset for retry when a later gesture changes nothing', async () => {
+    mockUpdate.mockResolvedValueOnce(false)
+    renderStore({ order: ['settings', 'timeline'] })
+
+    click('reset')
+    await waitFor(() =>
+      expect(screen.getByTestId('state')).toHaveTextContent('error')
+    )
+
+    // A drag dropped where it started leaves the navigation exactly as the
+    // reset left it, so it must not stand in for the reset that still owes the
+    // account its empty lists.
+    click('commit')
+    await act(async () => {})
+    expect(mockUpdate).toHaveBeenCalledTimes(1)
+
+    mockUpdate.mockResolvedValue(true)
+    click('retry')
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(2))
+    expect(mockUpdate).toHaveBeenLastCalledWith({ navOrder: [], navHidden: [] })
+  })
+
   it('clears the stored lists on reset even when the navigation already looks default', async () => {
     renderStore()
 

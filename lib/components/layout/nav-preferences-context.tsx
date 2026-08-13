@@ -41,6 +41,9 @@ export interface NavPreferencesStore extends NavPreferencesState {
   // Local-only reorder used while a drag is in flight; call `commit` on drop so
   // a whole drag costs one write instead of one per row it crosses.
   moveTo: (dragId: NavItemId, overId: NavItemId) => void
+  // Puts the order back where it was, without saving — for a drag the user
+  // abandoned after it had already moved rows on screen.
+  restoreOrder: (order: NavItemId[]) => void
   commit: () => void
   reset: () => void
   saveState: NavSaveState
@@ -54,6 +57,7 @@ const defaultStore: NavPreferencesStore = {
   showItem: () => {},
   move: () => {},
   moveTo: () => {},
+  restoreOrder: () => {},
   commit: () => {},
   reset: () => {},
   saveState: 'idle',
@@ -93,6 +97,10 @@ interface PendingSave {
   // …and the navigation they leave behind, which is what tells a later edit
   // whether anything the user can see has actually changed.
   state: NavPreferencesState
+  // Set for a save whose point is invisible in the navigation (Reset clears the
+  // stored lists), so an edit that changes nothing on screen cannot quietly
+  // replace or discard it.
+  deliberate: boolean
 }
 
 /**
@@ -199,24 +207,44 @@ export const NavPreferencesProvider: FC<NavPreferencesProviderProps> = ({
       // Already queued, verbatim.
       if (queued && nextPayloadKey === snapshotKey(queued.payload)) return
 
-      // The navigation is back to what the account holds. Deliberate saves
-      // (Reset) still go out — clearing the stored lists is the point of them,
-      // and it is invisible in the navigation — but an ordinary edit that
-      // undoes itself, or a drag dropped where it started, has nothing to say.
-      // Drop anything queued rather than writing a change the user took back,
-      // unless it is already in flight, in which case the undo has to be sent
-      // to land after it.
-      if (
-        !payload &&
-        !savingRef.current &&
-        nextStateKey === savedStateKeyRef.current
-      ) {
+      // An ordinary edit only has something to say when the navigation actually
+      // changed. (A deliberate save skips this: Reset clears the stored lists,
+      // which the navigation never shows.)
+      if (!payload) {
+        // Unchanged since the save already queued — a drag dropped where it
+        // started, or an edit undone while its save was in flight. Leave that
+        // save alone rather than overwriting it: replacing a queued Reset with
+        // today's order would quietly undo it.
+        const referenceStateKey = queued
+          ? snapshotKey(queued.state)
+          : savedStateKeyRef.current
+        if (nextStateKey === referenceStateKey) return
+
+        // Back to what the account already holds, and nothing is in flight to
+        // land after this: drop the queued save the user has undone, along with
+        // any failure it was reporting. A deliberate one stays for `retry`.
+        if (!savingRef.current && nextStateKey === savedStateKeyRef.current) {
+          if (queued?.deliberate) return
+          pendingRef.current = null
+          if (queued) setSaveState('saved')
+          return
+        }
+      }
+
+      // The account already holds exactly these lists, so there is nothing to
+      // send — unless a save is in flight, whose result this has to land after.
+      if (!savingRef.current && nextPayloadKey === savedPayloadKeyRef.current) {
+        if (queued?.deliberate) return
         pendingRef.current = null
         if (queued) setSaveState('saved')
         return
       }
 
-      pendingRef.current = { payload: nextPayload, state: next }
+      pendingRef.current = {
+        payload: nextPayload,
+        state: next,
+        deliberate: Boolean(payload)
+      }
       void flush()
     },
     [flush]
@@ -271,6 +299,17 @@ export const NavPreferencesProvider: FC<NavPreferencesProviderProps> = ({
     [apply]
   )
 
+  const restoreOrder = useCallback(
+    (order: NavItemId[]) => {
+      const { hidden } = stateRef.current
+      apply(
+        { order, hidden: order.filter((item) => hidden.includes(item)) },
+        { persist: false }
+      )
+    },
+    [apply]
+  )
+
   const commit = useCallback(() => {
     apply(stateRef.current)
   }, [apply])
@@ -295,6 +334,7 @@ export const NavPreferencesProvider: FC<NavPreferencesProviderProps> = ({
       showItem,
       move,
       moveTo,
+      restoreOrder,
       commit,
       reset,
       saveState,
@@ -305,6 +345,7 @@ export const NavPreferencesProvider: FC<NavPreferencesProviderProps> = ({
       hideItem,
       move,
       moveTo,
+      restoreOrder,
       reset,
       retry,
       saveState,

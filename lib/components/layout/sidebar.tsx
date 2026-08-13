@@ -64,11 +64,19 @@ interface SidebarProps {
   features?: Partial<NavFeatureFlags>
 }
 
+// A pointer that cannot hover never fires the reveal below, which would leave
+// these controls invisible but still tappable — a blank gap that silently does
+// something when touched. The collapsed rail lives at tablet widths, so that is
+// not a hypothetical device.
+const touchAlwaysVisibleClassName = '[@media(hover:none)]:opacity-100'
+
 // The hover affordance shared by every customization control in the sidebar:
 // invisible until the row is hovered or the control takes focus, and pinned
 // visible while its own menu is open so the anchor doesn't fade underneath it.
-const hoverControlClassName =
-  'opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100'
+const hoverControlClassName = cn(
+  'opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100',
+  touchAlwaysVisibleClassName
+)
 
 interface NavRowMenuProps {
   item: NavItem
@@ -230,6 +238,7 @@ export function Sidebar({
                     >
                       <Link
                         href={item.href}
+                        aria-current={isActive ? 'page' : undefined}
                         className={cn(
                           'flex flex-1 items-center gap-3 rounded-lg px-3 py-2 transition-colors',
                           !isListsSectionActive &&
@@ -264,6 +273,7 @@ export function Sidebar({
                             <li key={list.id}>
                               <Link
                                 href={`/lists/${list.id}`}
+                                aria-current={isListActive ? 'page' : undefined}
                                 className={cn(
                                   'block truncate rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                                   isListActive
@@ -492,16 +502,24 @@ export function Sidebar({
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem
+                            // Named per row: arrowing through the flyout
+                            // otherwise announces the same bare command once
+                            // per hidden item, with nothing tying it to a row.
+                            aria-label={`Show ${item.label} in navigation`}
                             onSelect={(event) => {
                               // Keep the flyout open so several items can be
                               // restored in one visit.
                               event.preventDefault()
                               showItem(item.id)
                             }}
-                            // Radix marks the keyboard-focused item with
-                            // data-highlighted rather than :focus-visible, so
-                            // arrowing onto it is what reveals it.
-                            className="gap-2.5 pl-8 text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 data-[highlighted]:opacity-100"
+                            className={cn(
+                              'gap-2.5 pl-8 text-xs text-muted-foreground',
+                              // Radix marks the keyboard-focused item with
+                              // data-highlighted rather than :focus-visible, so
+                              // arrowing onto it is what reveals it.
+                              'opacity-0 transition-opacity group-hover:opacity-100 data-[highlighted]:opacity-100',
+                              touchAlwaysVisibleClassName
+                            )}
                           >
                             <Eye className="h-4 w-4 shrink-0" />
                             Show in navigation
