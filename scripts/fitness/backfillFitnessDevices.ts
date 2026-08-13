@@ -14,8 +14,10 @@
  * Dry run by default. Nothing is written unless `--apply` is given.
  *
  * Idempotent by construction: only files with a NULL `deviceGearId` are
- * selected, and `resolveDeviceGear` finds the existing row rather than creating
- * a second one, so a second run reports nothing left to do.
+ * linked, and `resolveDeviceGear` finds the existing row rather than creating a
+ * second one, so a second run reports nothing left to do. (It still reads the
+ * whole history to find that out — the NULL check is applied per row, not in
+ * the query.)
  *
  * IMPORTANT: run this with the PRODUCTION database env configured. `@next/env`
  * loads `.env.local` above `.env.production` even under NODE_ENV=production, so
@@ -66,6 +68,16 @@ export const parseArgs = (args: string[]) => {
     }
 
     const [rawKey, inlineValue] = argument.slice(2).split('=', 2)
+
+    // Every sibling fitness script takes `--dry-run` and writes by default;
+    // this one inverts that. Say so, rather than answering an operator who
+    // copied the habit from the next line of the runbook with "Missing value
+    // for --dry-run" — or silently eating their `--actor-id` as its value.
+    if (rawKey === 'dry-run') {
+      throw new Error(
+        'This script is a dry run by default; pass --apply to write.'
+      )
+    }
 
     if (rawKey === 'apply') {
       const nextValue = args[index + 1]
@@ -127,10 +139,13 @@ export interface DeviceBackfillGroup {
  * is not an identity worth a page.
  */
 export const planDeviceBackfill = (
-  files: BackfillableFitnessFile[]
+  files: BackfillableFitnessFile[],
+  // Folding one page at a time into a shared map is what keeps the whole
+  // history out of memory: only `{key, name, mfr, fileIds}` survives a page,
+  // never the rows themselves, and grouping still spans every page because the
+  // map is keyed on the device rather than on the page.
+  groups: Map<string, DeviceBackfillGroup> = new Map()
 ): DeviceBackfillGroup[] => {
-  const groups = new Map<string, DeviceBackfillGroup>()
-
   for (const file of files) {
     if (file.deviceGearId) continue
 
@@ -184,10 +199,10 @@ async function backfillFitnessDevicesScript(args = process.argv.slice(2)) {
       return 1
     }
 
-    // Read the whole history first, then group: the same head unit appears on
-    // pages that are hundreds of activities apart, and grouping per page would
-    // resolve it once per page instead of once overall.
-    const files: BackfillableFitnessFile[] = []
+    // Every read happens before any write, so paging is stable: nothing this
+    // script does can change which files the next page returns.
+    const accumulator = new Map<string, DeviceBackfillGroup>()
+    let scanned = 0
     let offset = 0
     for (;;) {
       const page = await database.getFitnessFilesByActor({
@@ -196,14 +211,17 @@ async function backfillFitnessDevicesScript(args = process.argv.slice(2)) {
         offset
       })
       if (page.length === 0) break
-      files.push(...page)
+      scanned += page.length
+      // Folded in per page rather than collected into one big array — a decade
+      // of activities is a lot of rows to hold just to group them by device.
+      planDeviceBackfill(page, accumulator)
       if (page.length < ACTOR_SCAN_PAGE_SIZE) break
       offset += ACTOR_SCAN_PAGE_SIZE
     }
 
-    const groups = planDeviceBackfill(files)
+    const groups = [...accumulator.values()]
     console.log(
-      `Scanned ${files.length} file(s); ${groups.length} device(s) to link.`
+      `Scanned ${scanned} file(s); ${groups.length} device(s) to link.`
     )
 
     const totals = { linked: 0, failed: 0 }

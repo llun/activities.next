@@ -211,7 +211,7 @@ export const StravaGearDefaultsSection: FC = () => {
     setIsSaving(true)
     try {
       await updateFitnessGear(gearId, { defaultSports: sports })
-      setGears(await getFitnessGearList())
+      setGears(toAssignableGears(await getFitnessGearList()))
     } catch (saveError) {
       setError(
         saveError instanceof Error

@@ -189,24 +189,26 @@ describe('linkFitnessFileDeviceGear', () => {
     ).toBeNull()
   })
 
-  it('converges on the same row when the job re-runs', async () => {
+  it('creates the row once and reuses it when the job re-runs', async () => {
     const database = buildDatabase()
-    database.findFitnessGearByDeviceKey.mockResolvedValue(gear())
+    // First pass: nothing stored yet, so the row is created. Second pass: the
+    // lookup finds what the first pass wrote. A resolver that created on every
+    // run would fail the createFitnessGear count.
+    database.findFitnessGearByDeviceKey
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue(gear())
+    database.createFitnessGear.mockResolvedValue(gear())
 
-    await linkFitnessFileDeviceGear({
-      database: database as unknown as Database,
-      actorId: ACTOR_ID,
-      fitnessFileId: 'file-1',
-      deviceName: 'Garmin Edge 840'
-    })
-    await linkFitnessFileDeviceGear({
-      database: database as unknown as Database,
-      actorId: ACTOR_ID,
-      fitnessFileId: 'file-1',
-      deviceName: 'Garmin Edge 840'
-    })
+    for (let run = 0; run < 2; run += 1) {
+      await linkFitnessFileDeviceGear({
+        database: database as unknown as Database,
+        actorId: ACTOR_ID,
+        fitnessFileId: 'file-1',
+        deviceName: 'Garmin Edge 840'
+      })
+    }
 
-    expect(database.createFitnessGear).not.toHaveBeenCalled()
+    expect(database.createFitnessGear).toHaveBeenCalledTimes(1)
     expect(database.updateFitnessFileActivityData).toHaveBeenNthCalledWith(
       2,
       'file-1',

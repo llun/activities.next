@@ -503,7 +503,16 @@ it; there is no legacy shape left to copy.
 - **A recording device is a third kind, and almost nothing above applies to it.**
   `kind: 'device'` rows have no components, no default sports, no distance
   total, no service reminder and cannot be retired; a device page reports an
-  activity count and a first-used date instead. A head unit records rides and
+  activity count and a first-used date instead.
+  The device rollups reuse the shared countable-activity predicate **minus
+  `isPrimary`**, and that is the one clause that genuinely does not transfer.
+  `isPrimary` exists so a ride recorded on two devices counts once toward the
+  bike it was ridden on — but the two files are exactly what tells those two
+  DEVICES apart, and the non-primary one is the only trace the second device
+  left. Counting it is the record, not double-counting. With `isPrimary` in
+  place, the watch that recorded the secondary half of a merged same-ride post
+  gets a row (the import links every file before the group is collapsed) that
+  reports 0 activities forever. A head unit records rides and
   runs alike, so one summed distance would be a number with no meaning, and
   claiming a sport would take that sport off the bike or shoes that should hold
   it. `SPORT_KIND` is therefore typed `Record<SportKey, UserCreatableGearKind>`
@@ -532,6 +541,14 @@ it; there is no legacy shape left to copy.
   `(actorId, deviceKey)` unique index covers soft-deleted rows, so without that
   release the next upload from that device could never create one again — the
   insert would fail against a row nothing can see.
+- **`fitness_files.gearId` never points at a device**, and `setFitnessFileGear`
+  is where that is enforced rather than in the picker. `gearId` answers "what
+  was this ride done on", which a head unit never is, and an activity pointed at
+  one falls out of every rollup at once: the device rollups match on
+  `deviceGearId` and the distance rollups skip devices entirely, so its distance
+  counts toward nothing, `assignFitnessFileGearIfUnset`'s `whereNull` guard
+  refuses to auto-assign it ever again, and the status meta line names the head
+  unit as the bike.
 - **Devices never appear in the activity gear picker**, and the filter that
   excludes them runs BEFORE the kind narrowing in `FitnessStatusDetail`. An
   unrecognised activity type narrows to nothing and offers every active gear, so

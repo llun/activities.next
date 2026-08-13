@@ -1517,25 +1517,44 @@ describe('Post', () => {
       )
     })
 
-    it('keeps the manufacturer link for a viewer who is not the owner', () => {
-      render(
-        <Post
-          host="activities.local"
-          currentTime={currentTime}
-          status={withDevice({
-            deviceGearId: 'device-1',
-            deviceGearName: 'the Fenix'
-          })}
-          onShowAttachment={vi.fn()}
-        />
-      )
+    it.each([
+      {
+        // The case that actually matters: a SIGNED-IN viewer looking at
+        // someone else's ride. `/fitness/gear/<id>` is owner-scoped, so a link
+        // there 404s for them.
+        description: 'a signed-in viewer who is not the owner',
+        currentActor: {
+          id: 'https://activities.local/users/someone-else',
+          username: 'someone-else',
+          domain: 'activities.local'
+        } as unknown as ActorProfile
+      },
+      {
+        description: 'a logged-out reader',
+        currentActor: undefined
+      }
+    ])(
+      'keeps the manufacturer link for $description',
+      ({ currentActor }: { currentActor?: ActorProfile }) => {
+        render(
+          <Post
+            host="activities.local"
+            currentTime={currentTime}
+            currentActor={currentActor}
+            status={withDevice({
+              deviceGearId: 'device-1',
+              deviceGearName: 'the Fenix'
+            })}
+            onShowAttachment={vi.fn()}
+          />
+        )
 
-      // `/fitness/gear/<id>` is owner-only, so it would 404 for them.
-      expect(screen.getByRole('link', { name: 'the Fenix' })).toHaveAttribute(
-        'href',
-        'https://www.garmin.com'
-      )
-    })
+        expect(screen.getByRole('link', { name: 'the Fenix' })).toHaveAttribute(
+          'href',
+          'https://www.garmin.com'
+        )
+      }
+    )
 
     it('renders the Via: line for a renamed device the brand map cannot resolve', () => {
       render(

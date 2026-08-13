@@ -192,6 +192,29 @@ describe('DeviceDetailView', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('still links a posted activity whose status predates the publicId backfill', async () => {
+    // `statuses.publicId` is nullable and stays null on any instance that has
+    // not run the backfill (docs/maintenance.md → Public ID Backfill), so
+    // `statusPublicId` alone is NOT the test for "was this posted?". Treating
+    // those as unposted would silently unlink an athlete's whole history.
+    mockGetFitnessGearActivities.mockResolvedValue({
+      activities: [
+        createActivity({
+          statusId: 'https://llun.test/users/test/statuses/1',
+          statusPublicId: null
+        })
+      ],
+      hasMore: false
+    })
+    renderView({})
+
+    const row = await screen.findByRole('link', { name: /Morning ride/ })
+    expect(row).toHaveAttribute(
+      'href',
+      `/@test@llun.test/${encodeURIComponent('https://llun.test/users/test/statuses/1')}`
+    )
+  })
+
   it('renders an em dash for a missing date, type and distance', async () => {
     mockGetFitnessGearActivities.mockResolvedValue({
       activities: [

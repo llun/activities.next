@@ -50,11 +50,37 @@ const getMetaLine = (gear: GearEntity): string =>
  * page of full posts is a scroll through their whole timeline rather than a
  * record of what this device captured.
  */
+/**
+ * The in-app permalink for an activity's post, or null when it was never
+ * posted.
+ *
+ * `statusPublicId` alone is NOT the test for "was this posted?": the column is
+ * nullable and rows written before the public-id backfill keep a null there
+ * indefinitely (see docs/maintenance.md → Public ID Backfill). Treating those as
+ * unposted would silently unlink an athlete's whole history on an instance that
+ * has not run the backfill. `statusId` is the ActivityPub URI, which
+ * `resolveStatusFromPath` accepts percent-encoded — the same fallback
+ * `getFileStatusLink` uses on the file-management screens.
+ */
+const getActivityStatusHref = (
+  activity: GearActivityItem,
+  actorHandle: string
+): string | null => {
+  if (activity.statusPublicId) {
+    return `/${actorHandle}/${activity.statusPublicId}`
+  }
+  if (activity.statusId) {
+    return `/${actorHandle}/${encodeURIComponent(activity.statusId)}`
+  }
+  return null
+}
+
 const ActivityRow: FC<{ activity: GearActivityItem; actorHandle: string }> = ({
   activity,
   actorHandle
 }) => {
   const title = activity.description?.trim() || activity.fileName
+  const href = getActivityStatusHref(activity, actorHandle)
   const body = (
     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2 text-sm">
       <span className="w-28 shrink-0 text-muted-foreground tabular-nums">
@@ -76,7 +102,7 @@ const ActivityRow: FC<{ activity: GearActivityItem; actorHandle: string }> = ({
 
   // An activity that was never posted has no status page to open, so it renders
   // as a plain row rather than a link to nowhere.
-  if (!activity.statusPublicId) {
+  if (!href) {
     return <div className="border-b last:border-b-0">{body}</div>
   }
 
@@ -85,7 +111,7 @@ const ActivityRow: FC<{ activity: GearActivityItem; actorHandle: string }> = ({
       // One link per row of a list that grows without bound — prefetching every
       // one of them would fire an RSC request per row as the page scrolls.
       prefetch={false}
-      href={`/${actorHandle}/${activity.statusPublicId}`}
+      href={href}
       className="block border-b last:border-b-0 hover:bg-muted/50"
     >
       {body}
@@ -115,6 +141,12 @@ export const DeviceDetailView: FC<Props> = ({
   useEffect(() => {
     let cancelled = false
     setIsLoading(true)
+    // Reset before fetching, not after: the previous device's rows would
+    // otherwise stay on screen with the previous device's `hasMore`, and a
+    // "Load more" clicked in that window would page from the wrong offset and
+    // skip the rows in between.
+    setActivities([])
+    setHasMore(false)
 
     getFitnessGearActivities(gear.id, { limit: ACTIVITIES_PAGE_SIZE })
       .then((page) => {
@@ -147,7 +179,16 @@ export const DeviceDetailView: FC<Props> = ({
         limit: ACTIVITIES_PAGE_SIZE,
         offset: activities.length
       })
-      setActivities((current) => [...current, ...page.activities])
+      // Deduplicated on append: this is offset pagination over a list that can
+      // grow, so an activity imported between two pages shifts the window and
+      // repeats the boundary row — which React then flags as a duplicate key.
+      setActivities((current) => {
+        const seen = new Set(current.map((activity) => activity.id))
+        return [
+          ...current,
+          ...page.activities.filter((activity) => !seen.has(activity.id))
+        ]
+      })
       setHasMore(page.hasMore)
       setError(null)
     } catch (loadError) {
@@ -243,7 +284,7 @@ export const DeviceDetailView: FC<Props> = ({
             ))}
           </div>
         )}
-        {hasMore && (
+        {hasMore && !isLoading && (
           <div className="px-4 pt-3">
             <Button
               variant="outline"

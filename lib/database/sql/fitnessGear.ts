@@ -276,15 +276,28 @@ const parseSQLFitnessGearComponent = (
  * requires a non-null `activityType` and `activityStartTime` because it groups
  * and buckets by them. Gear totals count an activity whatever it is and whenever
  * it happened, so a timestamp-less GPX contributes here and is invisible there.
+ *
+ * `includeSecondaryFiles` is the one clause that does not transfer to devices.
+ * `isPrimary` exists so a single ride recorded on two devices is counted once
+ * toward the bike it was ridden on — but the two files are exactly what
+ * distinguishes those two DEVICES, and the non-primary one is the only evidence
+ * the second device exists at all. Counting it there is not double-counting; it
+ * is the whole record. Without this the watch that recorded the secondary half
+ * of a merged same-ride post gets a gear row (the import links every file before
+ * the group is collapsed) that reports 0 activities forever.
  */
 const applyCountableActivityFilter = (
   query: Knex.QueryBuilder,
-  tableAlias: string
-) =>
-  query
+  tableAlias: string,
+  { includeSecondaryFiles = false }: { includeSecondaryFiles?: boolean } = {}
+) => {
+  const filtered = query
     .whereNull(`${tableAlias}.deletedAt`)
     .where(`${tableAlias}.processingStatus`, 'completed')
-    .where(`${tableAlias}.isPrimary`, true)
+  return includeSecondaryFiles
+    ? filtered
+    : filtered.where(`${tableAlias}.isPrimary`, true)
+}
 
 /**
  * A sport can be the default of at most one of an actor's gears. Picking it for
@@ -608,12 +621,14 @@ export const FitnessGearSQLDatabaseMixin = (
       uniqueIds,
       getWhereInBatchSize(database, 3)
     )) {
-      // The same countable-activity predicate the distance rollups use, so a
-      // device's activity count agrees with the fitness overview and with the
-      // bike that carried the same ride.
+      // The same countable-activity predicate the distance rollups use, minus
+      // `isPrimary` — see the filter's own comment. A device's history is the
+      // per-file record, and the secondary file of a merged same-ride post is
+      // the only trace the second device left.
       const rows = await applyCountableActivityFilter(
         database('fitness_files'),
-        'fitness_files'
+        'fitness_files',
+        { includeSecondaryFiles: true }
       )
         .where('fitness_files.actorId', actorId)
         .whereIn('fitness_files.deviceGearId', chunk)
@@ -651,12 +666,17 @@ export const FitnessGearSQLDatabaseMixin = (
     // A device is linked through its own column; a bike or a pair of shoes
     // through `gearId`. One query serves both rather than two near-identical
     // ones that could drift apart on the filter they share.
-    const matchColumn =
-      kind === 'device' ? 'fitness_files.deviceGearId' : 'fitness_files.gearId'
+    const isDevice = kind === 'device'
+    const matchColumn = isDevice
+      ? 'fitness_files.deviceGearId'
+      : 'fitness_files.gearId'
 
     const rows = await applyCountableActivityFilter(
       database('fitness_files'),
-      'fitness_files'
+      'fitness_files',
+      // Matches this kind's rollup exactly, so the list and the count on the
+      // same page can never disagree.
+      { includeSecondaryFiles: isDevice }
     )
       .where('fitness_files.actorId', actorId)
       .where(matchColumn, gearId)
@@ -1062,6 +1082,16 @@ export const FitnessGearSQLDatabaseMixin = (
         // activities still needs to attribute them to the bike they sold.
         const gear = await getOwnedGearRow(trx, gearId, actorId)
         if (!gear) return null
+
+        // A device is not something a ride was DONE on, and `gearId` is that
+        // question. The picker already excludes devices, but this is the
+        // enforcement point rather than the affordance: an activity attributed
+        // to a device would leave every rollup at once — the device rollups
+        // match on `deviceGearId`, the distance rollups skip devices entirely —
+        // so its distance would count toward nothing, `assignFitnessFileGearIfUnset`
+        // would refuse to auto-assign it ever again, and the status meta line
+        // would name the head unit as the bike.
+        if (gear.kind === 'device') return null
       }
 
       await trx('fitness_files')

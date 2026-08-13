@@ -381,11 +381,13 @@ this is the first sight of that device), and stamps `fitness_files.deviceGearId`
 on every file in the group.
 
 It is a **dry run by default**: it prints what it would link and writes nothing
-until `--apply` is passed. Re-running is cheap and safe — only files with a NULL
-`deviceGearId` are selected, and the resolver finds the existing row rather than
-creating a second one, so a second pass reports nothing left to do. Activities
-whose only device field is a bare FIT code nothing recognises get no row at all,
-which is the same decision a fresh import makes.
+until `--apply` is passed (it takes no `--dry-run` flag, unlike its siblings —
+it says so if you pass one). Re-running is safe: only files with a NULL
+`deviceGearId` are linked, and the resolver finds the existing row rather than
+creating a second one, so a second pass reports nothing left to do. It still
+reads the whole history to work that out, so a re-run is cheap in writes rather
+than in reads. Activities whose only device field is a bare FIT code nothing
+recognises get no row at all, which is the same decision a fresh import makes.
 
 ```bash
 # Preview, then apply.

@@ -4,6 +4,7 @@ import {
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
+import { statusPublicId } from '@/lib/stub/publicIds'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 
 describe('FitnessGearDatabase', () => {
@@ -1082,6 +1083,37 @@ describe('FitnessGearDatabase', () => {
     })
 
     describe('setFitnessFileGear', () => {
+      it('refuses to attribute an activity to a recording device', async () => {
+        // `gearId` answers "what was this ride done on", which a head unit
+        // never is. An activity pointed at one falls out of EVERY rollup: the
+        // device rollups match on `deviceGearId`, and the distance rollups skip
+        // devices entirely. The picker excludes devices, but this is the
+        // enforcement point — the route takes a gear id straight from the body.
+        const device = await database.createFitnessGear({
+          actorId: actors.extra.id,
+          kind: 'device',
+          name: 'Not a bike',
+          deviceKey: 'name:not a bike'
+        })
+        const activity = await createActivity(database, {
+          actorId: actors.extra.id,
+          pathSuffix: 'assign-device',
+          distanceMeters: 8_000,
+          activityStartTime: new Date('2026-07-05T08:00:00.000Z')
+        })
+
+        expect(
+          await database.setFitnessFileGear({
+            fitnessFileId: activity.id,
+            actorId: actors.extra.id,
+            gearId: device.id
+          })
+        ).toBeNull()
+
+        const reloaded = await database.getFitnessFile({ id: activity.id })
+        expect(reloaded?.gearId).toBeUndefined()
+      })
+
       it('assigns, reassigns and clears the gear on an activity', async () => {
         const first = await database.createFitnessGear({
           actorId: actors.extra.id,
@@ -1896,7 +1928,7 @@ describe('FitnessGearDatabase', () => {
           })
         })
 
-        it('applies the same countable-activity filter the distance rollups use', async () => {
+        it('excludes deleted and unfinished activities, but counts secondary files', async () => {
           const device = await database.createFitnessGear({
             actorId: actors.replyAuthor.id,
             kind: 'device',
@@ -1940,7 +1972,11 @@ describe('FitnessGearDatabase', () => {
             actorId: actors.replyAuthor.id,
             gearIds: [device.id]
           })
-          expect(rollups[device.id].activityCount).toBe(1)
+          // The completed primary AND the completed secondary — `isPrimary` is
+          // the one clause of the shared predicate that does not transfer to a
+          // device, since the secondary file IS the second device's record.
+          // The deleted and still-processing ones stay out.
+          expect(rollups[device.id].activityCount).toBe(2)
         })
 
         it('returns an empty map for no gear', async () => {
@@ -2006,6 +2042,114 @@ describe('FitnessGearDatabase', () => {
           expect(bikeRows.map((row) => row.id)).toEqual([onBike.id])
         })
 
+        it('carries the posted status through the join', async () => {
+          // The only assertion anywhere that a NON-null statusPublicId comes
+          // out of the database. Without it a wrong join or a wrong alias would
+          // render every row on a device page unlinked, silently, with the
+          // whole suite still green.
+          const device = await database.createFitnessGear({
+            actorId: actors.extra.id,
+            kind: 'device',
+            name: 'Posted device',
+            deviceKey: 'name:posted device'
+          })
+          const statusId = `${actors.extra.id}/statuses/device-activity-link`
+          await database.createNote({
+            id: statusId,
+            url: statusId,
+            actorId: actors.extra.id,
+            to: [],
+            cc: [],
+            text: 'Recorded on the device'
+          })
+          const file = await database.createFitnessFile({
+            actorId: actors.extra.id,
+            statusId,
+            path: 'fitness/device-posted.fit',
+            fileName: 'device-posted.fit',
+            fileType: 'fit',
+            mimeType: 'application/vnd.ant.fit',
+            bytes: 1024
+          })
+          await database.updateFitnessFileActivityData(file!.id, {
+            activityType: 'cycling',
+            activityStartTime: new Date('2026-06-03T08:00:00.000Z'),
+            totalDistanceMeters: 5_000,
+            deviceGearId: device.id
+          })
+          await database.updateFitnessFileProcessingStatus(
+            file!.id,
+            'completed'
+          )
+
+          const rows = await database.getFitnessGearActivities({
+            actorId: actors.extra.id,
+            gearId: device.id,
+            kind: 'device',
+            limit: 10
+          })
+          expect(rows).toHaveLength(1)
+          expect(rows[0].statusId).toBe(statusId)
+          expect(rows[0].statusPublicId).toBe(
+            await statusPublicId(database, statusId)
+          )
+        })
+
+        it('counts the secondary file of a merged same-ride post', async () => {
+          // `isPrimary` keeps one ride from being counted twice toward the BIKE
+          // it was ridden on. For a device it is the opposite: the two files
+          // are what distinguishes the two devices, and the non-primary one is
+          // the only trace the second device left. Without this, the watch that
+          // recorded the secondary half gets a row reporting 0 activities
+          // forever — the import links every file before the group is merged.
+          const watch = await database.createFitnessGear({
+            actorId: actors.extra.id,
+            kind: 'device',
+            name: 'Second device',
+            deviceKey: 'name:second device'
+          })
+          const secondary = await createDeviceActivity(database, {
+            actorId: actors.extra.id,
+            pathSuffix: 'merged-secondary',
+            distanceMeters: 42_600,
+            activityStartTime: new Date('2026-06-04T08:00:00.000Z'),
+            deviceGearId: watch.id,
+            isPrimary: false
+          })
+
+          const rollups = await database.getFitnessGearDeviceRollups({
+            actorId: actors.extra.id,
+            gearIds: [watch.id]
+          })
+          expect(rollups[watch.id].activityCount).toBe(1)
+
+          const rows = await database.getFitnessGearActivities({
+            actorId: actors.extra.id,
+            gearId: watch.id,
+            kind: 'device',
+            limit: 10
+          })
+          expect(rows.map((row) => row.id)).toEqual([secondary.id])
+
+          // The bike rollup still excludes it, so a merged ride is not counted
+          // twice toward the bike.
+          const bike = await database.createFitnessGear({
+            actorId: actors.extra.id,
+            kind: 'bike',
+            name: 'Merged ride bike'
+          })
+          await database.assignFitnessFileGearIfUnset({
+            fitnessFileId: secondary.id,
+            actorId: actors.extra.id,
+            gearId: bike.id
+          })
+          const bikeRollups = await database.getFitnessGearDistanceRollups({
+            actorId: actors.extra.id,
+            gearIds: [bike.id]
+          })
+          expect(bikeRollups[bike.id].activityCount).toBe(0)
+        })
+
         it('orders newest first and sorts timestamp-less activities last on both backends', async () => {
           const device = await database.createFitnessGear({
             actorId: actors.pollAuthor.id,
@@ -2028,8 +2172,14 @@ describe('FitnessGearDatabase', () => {
             activityStartTime: new Date('2026-07-02T08:00:00.000Z'),
             deviceGearId: device.id
           })
-          // PostgreSQL puts NULLs first under DESC and SQLite puts them last;
-          // `nulls: 'last'` is what makes this assertion hold on both.
+          // PostgreSQL puts NULLs first under DESC and SQLite puts them last,
+          // so the NULL half of this assertion only bites on PostgreSQL — run
+          // the suite with TEST_DATABASE_TYPE=pg to exercise it (CI pins
+          // sqlite). What makes it hold on both is the portable CASE in
+          // `getFitnessGearActivities`, NOT knex's `nulls: 'last'` option,
+          // which is broken on SQLite: knex emulates it as
+          // `order by (col is null) desc`, dropping the column's own direction.
+          // Do not "simplify" the implementation back to that option.
           const undated = await createDeviceActivity(database, {
             actorId: actors.pollAuthor.id,
             pathSuffix: 'order-undated',
@@ -2057,14 +2207,16 @@ describe('FitnessGearDatabase', () => {
             name: 'Page device',
             deviceKey: 'name:page device'
           })
+          // Every activity shares one start time, so `activityStartTime` and
+          // `createdAt` cannot order them: only the `id` tiebreak makes the
+          // ordering total. Drop it and a row repeats or vanishes between
+          // pages, which is exactly what this asserts.
           for (let index = 0; index < 5; index += 1) {
             await createDeviceActivity(database, {
               actorId: actors.pollAuthor.id,
               pathSuffix: `page-${index}`,
               distanceMeters: 1_000 * (index + 1),
-              activityStartTime: new Date(
-                Date.UTC(2026, 7, index + 1, 8, 0, 0)
-              ),
+              activityStartTime: new Date(Date.UTC(2026, 7, 1, 8, 0, 0)),
               deviceGearId: device.id
             })
           }

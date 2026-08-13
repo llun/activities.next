@@ -129,6 +129,12 @@ export const GET = traceApiRoute(
  * sport. `activityType` is free-form across four vocabularies and often absent,
  * so enforcing it here would make perfectly ordinary activities unassignable;
  * the picker narrows the options, the server only owns ownership.
+ *
+ * A recording device is the one exception, and it is not a taste question:
+ * `gearId` answers "what was this ride done on", which a head unit never is,
+ * and an activity pointed at one falls out of every rollup — see the guard in
+ * `setFitnessFileGear`. It is rejected there, so it 404s like any other gear
+ * this activity may not have.
  */
 export const PATCH = traceApiRoute(
   'updateFitnessFileGear',

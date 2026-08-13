@@ -291,6 +291,24 @@ describe('getProductUrlHostname', () => {
     // anything a future importer writes — must render as "no product page"
     // rather than throwing inside a table row.
     { description: 'a bare hostname', url: 'garmin.com', expected: null },
+    // `new URL` parses an authority for non-special schemes too, so this has a
+    // perfectly good hostname. Both render sites gate the anchor on this
+    // helper, so returning it would ship an href that executes on click.
+    {
+      description: 'a javascript: URL that parses with a hostname',
+      url: 'javascript://evil.example.com/%0aalert(document.domain)',
+      expected: null
+    },
+    {
+      description: 'a data: URL',
+      url: 'data:text/html,<script></script>',
+      expected: null
+    },
+    {
+      description: 'a file: URL',
+      url: 'file://host/etc/passwd',
+      expected: null
+    },
     { description: 'an empty string', url: '', expected: null },
     { description: 'null', url: null, expected: null },
     { description: 'undefined', url: undefined, expected: null }
