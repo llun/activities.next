@@ -267,6 +267,30 @@ describe('NavPreferencesProvider', () => {
     expect(mockUpdate).toHaveBeenLastCalledWith({ navOrder: [], navHidden: [] })
   })
 
+  it('still clears the stored lists when an edit made after a reset is undone', async () => {
+    let resolveReset: (value: boolean) => void = () => {}
+    renderStore({ order: ['settings', 'timeline'] })
+
+    mockUpdate.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveReset = resolve
+        })
+    )
+    click('reset')
+    // An edit supersedes the reset, then the user takes it back. The navigation
+    // is once again what reset produced, so the account should end up with the
+    // empty lists reset asked for, not an explicit order.
+    click('hide favorites')
+    click('show favorites')
+
+    await act(async () => {
+      resolveReset(true)
+    })
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(2))
+    expect(mockUpdate).toHaveBeenLastCalledWith({ navOrder: [], navHidden: [] })
+  })
+
   it('clears the stored lists on reset even when the navigation already looks default', async () => {
     renderStore()
 

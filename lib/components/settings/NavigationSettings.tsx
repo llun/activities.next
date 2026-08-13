@@ -57,6 +57,16 @@ export const NavigationSettings: FC<Props> = ({
   // A drag reorders the list as it goes, so an abandoned one has to be undone.
   const orderBeforeDragRef = useRef<NavItemId[] | null>(null)
   const droppedRef = useRef(false)
+  const lastOverRef = useRef<NavItemId | null>(null)
+
+  // Only one drag can be live, so a single set of refs serves every row. They
+  // are cleared here rather than left for the next drag to overwrite: a stale
+  // "order before" would otherwise revert a later, unrelated gesture.
+  const endDrag = () => {
+    setDragId(null)
+    orderBeforeDragRef.current = null
+    lastOverRef.current = null
+  }
 
   // A feature the admin turned off still gets a row — greyed out, with the chip
   // that explains why it vanished from the sidebar. Items this account simply
@@ -142,24 +152,39 @@ export const NavigationSettings: FC<Props> = ({
                 }}
                 onDragOver={(event) => {
                   event.preventDefault()
+                  if (!dragId || dragId === item.id) return
+                  // Move once per row crossed. `dragover` repeats for as long as
+                  // the pointer rests on a row, and each one is a move, so
+                  // without this the dragged row swaps back and forth under a
+                  // cursor that is standing still.
+                  if (lastOverRef.current === item.id) return
+                  lastOverRef.current = item.id
                   // Reorder as the row is dragged across, so the list shows the
                   // result before the drop. Only the drop is persisted.
-                  if (dragId && dragId !== item.id) moveTo(dragId, item.id)
+                  moveTo(dragId, item.id)
                 }}
                 onDrop={(event) => {
                   event.preventDefault()
                   droppedRef.current = true
-                  setDragId(null)
+                  endDrag()
                   commit()
                 }}
                 onDragEnd={() => {
-                  setDragId(null)
+                  const before = orderBeforeDragRef.current
+                  const wasDragging = Boolean(dragId)
+                  const dropped = droppedRef.current
+                  endDrag()
                   // Escape, or a release outside the list, ends the drag without
                   // a drop: put the rows back where they were rather than
-                  // saving a reorder the user just cancelled.
-                  if (droppedRef.current) return
-                  const before = orderBeforeDragRef.current
-                  if (before) restoreOrder(before)
+                  // saving a reorder the user just cancelled. `wasDragging`
+                  // keeps a stray dragend — one a non-draggable row can still
+                  // fire from a text selection — from replaying an older drag.
+                  if (dropped || !wasDragging || !before) return
+                  restoreOrder(before)
+                  // Anything that saved mid-drag left the account holding the
+                  // cancelled order; this puts it back. It is a no-op when
+                  // nothing diverged.
+                  commit()
                 }}
                 className={cn(
                   'flex items-center gap-3 bg-background px-3 py-2.5 transition-colors',

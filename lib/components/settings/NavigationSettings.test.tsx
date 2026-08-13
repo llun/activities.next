@@ -227,6 +227,49 @@ describe('NavigationSettings', () => {
     expect(rowLabels().slice(0, 2)).toEqual(['Timeline', 'Search'])
   })
 
+  it('does not let an abandoned drag revert a later, unrelated change', async () => {
+    renderSettings(<NavigationSettings />)
+
+    // Abandon a drag…
+    const dragged = rowFor('Settings')
+    fireEvent.dragStart(dragged)
+    fireEvent.dragOver(rowFor('Timeline'))
+    fireEvent.dragEnd(dragged)
+    await act(async () => {})
+
+    // …then reorder from the keyboard, which saves.
+    fireEvent.keyDown(
+      within(rowFor('Search')).getByRole('button', { name: /Reorder Search/ }),
+      { key: 'ArrowUp' }
+    )
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1))
+
+    // A stray dragend — one a row that cannot be dragged can still fire —
+    // must not replay the order captured by that earlier drag.
+    fireEvent.dragEnd(rowFor('Messages'))
+    await act(async () => {})
+
+    expect(rowLabels().slice(0, 2)).toEqual(['Search', 'Timeline'])
+    expect(mockUpdate).toHaveBeenCalledTimes(1)
+  })
+
+  it('moves once per row crossed, however long the pointer rests there', async () => {
+    renderSettings(<NavigationSettings />)
+
+    const dragged = rowFor('Settings')
+    fireEvent.dragStart(dragged)
+    const target = rowFor('Timeline')
+    // dragover repeats while the pointer is still; each one used to be a move.
+    fireEvent.dragOver(target)
+    fireEvent.dragOver(target)
+    fireEvent.dragOver(target)
+    fireEvent.drop(dragged)
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1))
+    const [{ navOrder }] = mockUpdate.mock.calls[0]
+    expect(navOrder[0]).toBe('settings')
+  })
+
   it('carries the drag payload browsers require to start one', () => {
     renderSettings(<NavigationSettings />)
 

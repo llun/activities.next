@@ -148,6 +148,12 @@ export const NavPreferencesProvider: FC<NavPreferencesProviderProps> = ({
     snapshotKey({ order: initialOrder ?? [], hidden: initialHidden ?? [] })
   )
   const savedStateKeyRef = useRef(snapshotKey(state))
+  // A deliberate save the account has not accepted yet. Reset's whole point is
+  // invisible in the navigation, so an edit that supersedes it and is then
+  // undone would otherwise leave the user looking at the reset navigation while
+  // the account keeps the explicit lists reset was meant to clear. Remembering
+  // it means any later save that lands on the same navigation carries it.
+  const owedDeliberateRef = useRef<PendingSave | null>(null)
   const savingRef = useRef(false)
   const dirtyRef = useRef(false)
 
@@ -179,6 +185,7 @@ export const NavPreferencesProvider: FC<NavPreferencesProviderProps> = ({
       // Clear the debt unless a newer edit queued itself while this was in
       // flight, in which case the trailing save below owns it.
       if (pendingRef.current === pending) pendingRef.current = null
+      if (pending.deliberate) owedDeliberateRef.current = null
     }
     // A failed payload stays queued so `retry` — and any later save — carries
     // it, unless the user has since edited, which replaces it outright.
@@ -199,9 +206,19 @@ export const NavPreferencesProvider: FC<NavPreferencesProviderProps> = ({
       setState(next)
       if (!persist) return
 
-      const nextPayload = payload ?? next
-      const nextPayloadKey = snapshotKey(nextPayload)
       const nextStateKey = snapshotKey(next)
+      // An ordinary edit that lands back on the navigation a not-yet-accepted
+      // Reset produced carries that Reset's lists instead of today's order, so
+      // undoing an edit made after a Reset does not quietly cancel it.
+      const owedDeliberate = owedDeliberateRef.current
+      const revivesDeliberate =
+        !payload &&
+        owedDeliberate !== null &&
+        nextStateKey === snapshotKey(owedDeliberate.state)
+      const nextPayload = revivesDeliberate
+        ? owedDeliberate.payload
+        : (payload ?? next)
+      const nextPayloadKey = snapshotKey(nextPayload)
       const queued = pendingRef.current
 
       // Already queued, verbatim.
@@ -210,7 +227,7 @@ export const NavPreferencesProvider: FC<NavPreferencesProviderProps> = ({
       // An ordinary edit only has something to say when the navigation actually
       // changed. (A deliberate save skips this: Reset clears the stored lists,
       // which the navigation never shows.)
-      if (!payload) {
+      if (!payload && !revivesDeliberate) {
         // Unchanged since the save already queued — a drag dropped where it
         // started, or an edit undone while its save was in flight. Leave that
         // save alone rather than overwriting it: replacing a queued Reset with
@@ -240,11 +257,13 @@ export const NavPreferencesProvider: FC<NavPreferencesProviderProps> = ({
         return
       }
 
-      pendingRef.current = {
+      const save: PendingSave = {
         payload: nextPayload,
         state: next,
-        deliberate: Boolean(payload)
+        deliberate: Boolean(payload) || revivesDeliberate
       }
+      if (save.deliberate) owedDeliberateRef.current = save
+      pendingRef.current = save
       void flush()
     },
     [flush]

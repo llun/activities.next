@@ -262,6 +262,20 @@ describe('Sidebar', () => {
       )
     })
 
+    it('marks only the open list as the current page, not its section', () => {
+      mockPathname.mockReturnValue('/lists/a')
+      renderSidebar(<Sidebar lists={lists} />)
+
+      const nav = screen.getAllByRole('navigation')[0]
+      expect(
+        within(nav).getByRole('link', { name: 'Running club' })
+      ).toHaveAttribute('aria-current', 'page')
+      // Two links claiming the current page reads it out twice.
+      expect(
+        within(nav).getByRole('link', { name: 'Lists' })
+      ).not.toHaveAttribute('aria-current')
+    })
+
     it('marks the current page for assistive technology', () => {
       mockPathname.mockReturnValue('/search')
       renderSidebar(<Sidebar lists={[]} />)
