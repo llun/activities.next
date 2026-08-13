@@ -254,22 +254,34 @@ export const NavigationSettings: FC<Props> = ({
                     keyboard, so on a phone or tablet neither exists. These are
                     the same two moves the sidebar's own ⋯ menu offers. */}
                 {!isFeatureOff && (
-                  <div className="flex shrink-0 items-center">
+                  <div className="flex shrink-0 items-center gap-1">
+                    {/* aria-disabled, not disabled: a browser blurs a focused
+                        element the moment it is disabled, so pressing a row to
+                        the end of the list would drop a keyboard user back to
+                        the top of the document. Pressing it here says the row
+                        is already there instead. */}
                     <button
                       type="button"
                       aria-label={`Move ${item.label} up`}
-                      disabled={index === 0}
+                      aria-disabled={index === 0}
                       onClick={() => moveRow(item.id, item.label, -1)}
-                      className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
+                      className={cn(
+                        'grid h-8 w-8 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground',
+                        index === 0 && 'opacity-40 hover:bg-transparent'
+                      )}
                     >
                       <ChevronUp className="h-4 w-4" />
                     </button>
                     <button
                       type="button"
                       aria-label={`Move ${item.label} down`}
-                      disabled={index === rows.length - 1}
+                      aria-disabled={index === rows.length - 1}
                       onClick={() => moveRow(item.id, item.label, 1)}
-                      className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
+                      className={cn(
+                        'grid h-8 w-8 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground',
+                        index === rows.length - 1 &&
+                          'opacity-40 hover:bg-transparent'
+                      )}
                     >
                       <ChevronDown className="h-4 w-4" />
                     </button>

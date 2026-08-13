@@ -242,19 +242,44 @@ describe('NavigationSettings', () => {
     expect(navOrder.slice(0, 2)).toEqual(['search', 'timeline'])
   })
 
-  it('offers no move past either end of the list', () => {
+  it('offers no move past either end of the list', async () => {
     renderSettings(<NavigationSettings />)
 
-    expect(
-      within(rowFor('Timeline')).getByRole('button', {
-        name: 'Move Timeline up'
-      })
-    ).toBeDisabled()
+    const up = within(rowFor('Timeline')).getByRole('button', {
+      name: 'Move Timeline up'
+    })
+    expect(up).toHaveAttribute('aria-disabled', 'true')
     expect(
       within(rowFor('Settings')).getByRole('button', {
         name: 'Move Settings down'
       })
-    ).toBeDisabled()
+    ).toHaveAttribute('aria-disabled', 'true')
+
+    // Marked rather than disabled: a browser blurs a disabled element, which
+    // would drop a keyboard user back to the top of the document mid-reorder.
+    up.focus()
+    fireEvent.click(up)
+    await act(async () => {})
+
+    expect(document.activeElement).toBe(up)
+    expect(mockUpdate).not.toHaveBeenCalled()
+    expect(await screen.findByText('Timeline is already first')).toBeVisible()
+  })
+
+  it('keeps focus on the button that moved a row to the end of the list', async () => {
+    renderSettings(<NavigationSettings />)
+
+    // Account sits second from last, so one press puts it last and its own
+    // "Move down" becomes inert.
+    const down = within(rowFor('Account')).getByRole('button', {
+      name: 'Move Account down'
+    })
+    down.focus()
+    fireEvent.click(down)
+    await act(async () => {})
+
+    expect(rowLabels().at(-1)).toBe('Account')
+    expect(document.activeElement).toBe(down)
   })
 
   it('takes back an overshoot when the row is dragged over again', async () => {

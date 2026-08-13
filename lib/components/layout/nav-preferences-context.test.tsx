@@ -267,6 +267,28 @@ describe('NavPreferencesProvider', () => {
     expect(mockUpdate).toHaveBeenLastCalledWith({ navOrder: [], navHidden: [] })
   })
 
+  it('keeps a reset queued behind an unrelated save that settles first', async () => {
+    let resolveHide: (value: boolean) => void = () => {}
+    renderStore({ order: ['settings', 'timeline'] })
+
+    mockUpdate.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveHide = resolve
+        })
+    )
+    click('hide favorites')
+    // Queued behind the hide, so the hide landing must not be taken as the
+    // account having settled what the reset is still owed.
+    click('reset')
+
+    await act(async () => {
+      resolveHide(true)
+    })
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(2))
+    expect(mockUpdate).toHaveBeenLastCalledWith({ navOrder: [], navHidden: [] })
+  })
+
   it('still clears the stored lists when an edit made after a reset is undone', async () => {
     let resolveReset: (value: boolean) => void = () => {}
     renderStore({ order: ['settings', 'timeline'] })
