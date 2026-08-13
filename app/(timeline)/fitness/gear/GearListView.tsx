@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils'
 import { GearFormDialog } from './GearFormDialog'
 import {
   STICKY_CLICKABLE_COLUMN,
-  STICKY_HEADER_COLUMN,
+  STICKY_COLUMN,
   formatGearDistanceKm,
   getGearDisplayName,
   getProductUrlHostname
@@ -116,7 +116,10 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd }) => {
             <thead>
               <tr className="text-left text-xs font-medium text-muted-foreground">
                 <th
-                  className={cn(STICKY_HEADER_COLUMN, 'px-4 pb-2 font-medium')}
+                  className={cn(
+                    STICKY_COLUMN,
+                    'min-w-[150px] px-4 pb-2 font-medium'
+                  )}
                 >
                   {copy.columnHeader}
                 </th>
@@ -134,13 +137,13 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd }) => {
                 return (
                   <tr
                     key={gear.id}
-                    className="group cursor-pointer border-t hover:bg-muted/50"
+                    className="group cursor-pointer border-t hover:bg-muted"
                     onClick={() => router.push(getGearHref(gear.id))}
                   >
                     <td
                       className={cn(
                         STICKY_CLICKABLE_COLUMN,
-                        'px-4 py-3 align-top'
+                        'min-w-[150px] px-4 py-3 align-top'
                       )}
                     >
                       {/* Retired gear dims its contents rather than the row:
@@ -239,7 +242,12 @@ const DeviceSection: FC<{ gears: GearEntity[] }> = ({ gears }) => {
         <table className="w-full min-w-[520px] text-sm">
           <thead>
             <tr className="text-left text-xs font-medium text-muted-foreground">
-              <th className={cn(STICKY_HEADER_COLUMN, 'px-4 pb-2 font-medium')}>
+              <th
+                className={cn(
+                  STICKY_COLUMN,
+                  'min-w-[150px] px-4 pb-2 font-medium'
+                )}
+              >
                 Device
               </th>
               <th className="px-3 pb-2 font-medium">Product page</th>
@@ -257,13 +265,13 @@ const DeviceSection: FC<{ gears: GearEntity[] }> = ({ gears }) => {
               return (
                 <tr
                   key={gear.id}
-                  className="group cursor-pointer border-t hover:bg-muted/50"
+                  className="group cursor-pointer border-t hover:bg-muted"
                   onClick={() => router.push(getGearHref(gear.id))}
                 >
                   <td
                     className={cn(
                       STICKY_CLICKABLE_COLUMN,
-                      'px-4 py-3 align-top'
+                      'min-w-[150px] px-4 py-3 align-top'
                     )}
                   >
                     {/* A real link so the row is reachable by keyboard — the

@@ -402,4 +402,68 @@ describe('GearListView', () => {
       ).toBeInTheDocument()
     })
   })
+
+  // The pinned first column fails silently: drop `bg-background` and the
+  // scrolled-under columns show through it, drop `group` from the row and only
+  // that column lights on hover, and a translucent hover reintroduces the
+  // transparency. None of those produce a type error, a lint error or a visual
+  // diff in the tests that follow — so they are asserted directly.
+  describe('pinned first column', () => {
+    const sections: [string, string, () => GearEntity][] = [
+      ['Bikes', 'Rocket', () => createGear()],
+      [
+        'Shoes',
+        'Speedgoat',
+        () => createGear({ id: 'gear-2', kind: 'shoes', name: 'Speedgoat' })
+      ],
+      ['Devices', 'Garmin Edge 840', () => createDevice()]
+    ]
+
+    it.each(sections)(
+      'pins the first column of the %s table on an opaque surface',
+      async (title, rowName, makeGear) => {
+        mockGetFitnessGearList.mockResolvedValue([makeGear()])
+        render(<GearListView />)
+
+        const section = await getSection(title)
+        const cell = section.getByRole('link', { name: rowName }).closest('td')
+        expect(cell).toHaveClass('sticky', 'bg-background')
+      }
+    )
+
+    it.each(sections)(
+      'lights the whole %s row on hover, not just its pinned column',
+      async (title, rowName, makeGear) => {
+        mockGetFitnessGearList.mockResolvedValue([makeGear()])
+        render(<GearListView />)
+
+        const section = await getSection(title)
+        const cell = section.getByRole('link', { name: rowName }).closest('td')
+        const row = cell?.closest('tr')
+
+        // The pinned cell paints over the row's background, so it repeats the
+        // row's hover — which only works if the row is the `group`, and only
+        // stays opaque if both use the same unmodified colour.
+        expect(row).toHaveClass('group', 'hover:bg-muted')
+        expect(cell).toHaveClass('group-hover:bg-muted')
+        expect(cell?.className).not.toMatch(/bg-muted\//)
+      }
+    )
+
+    it('dims a retired row through its cells so the pinned column stays opaque', async () => {
+      mockGetFitnessGearList.mockResolvedValue([
+        createGear({ retiredAt: Date.UTC(2020, 0, 1) })
+      ])
+      render(<GearListView />)
+
+      const section = await getSection('Bikes')
+      const toggle = section.getByRole('button', { name: /^Show 1 retired/ })
+      fireEvent.click(toggle)
+
+      const cell = section.getByRole('link', { name: 'Rocket' }).closest('td')
+      expect(cell?.closest('tr')).not.toHaveClass('opacity-60')
+      expect(cell).not.toHaveClass('opacity-60')
+      expect(cell?.querySelector('.opacity-60')).not.toBeNull()
+    })
+  })
 })
