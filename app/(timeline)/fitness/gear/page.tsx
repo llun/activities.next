@@ -31,7 +31,7 @@ const Page: FC = async () => {
     <div className="space-y-6">
       <PageHeader
         title="Gear"
-        description="Bikes and shoes, with lifetime distance from every activity they're used on. Distance is computed from the activity record — edit or re-import history and the totals follow."
+        description="Bikes, shoes and recording devices, with lifetime distance from every activity they're used on. Distance is computed from the activity record — edit or re-import history and the totals follow."
       />
       <GearListView />
     </div>

@@ -20,26 +20,28 @@ import {
   DropdownMenuTrigger
 } from '@/lib/components/ui/dropdown-menu'
 import {
-  type FitnessGearKind,
   SPORT_KEYS,
   SPORT_KIND,
   type SportKey,
+  type UserCreatableGearKind,
   getSportLabel
 } from '@/lib/services/fitness-files/sportTypes'
 import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
 import { cn } from '@/lib/utils'
 
-const KIND_ICON: Record<FitnessGearKind, typeof Bike> = {
+// Keyed by the kinds a sport can belong to. Devices never appear in this
+// editor: they hold no default sports, so there is nothing here to point at one.
+const KIND_ICON: Record<UserCreatableGearKind, typeof Bike> = {
   bike: Bike,
   shoes: Footprints
 }
 
-const KIND_GROUP_LABEL: Record<FitnessGearKind, string> = {
+const KIND_GROUP_LABEL: Record<UserCreatableGearKind, string> = {
   bike: 'Cycling',
   shoes: 'Running & walking'
 }
 
-const KIND_ORDER: FitnessGearKind[] = ['bike', 'shoes']
+const KIND_ORDER: UserCreatableGearKind[] = ['bike', 'shoes']
 
 interface DefaultRow {
   sportKey: SportKey
@@ -106,6 +108,14 @@ const getOptionLabel = (gear: GearEntity): string => {
 
 const ERROR_ID = 'gear-defaults-error'
 
+/**
+ * Devices are dropped before this page ever sees them. Every empty state below
+ * keys on `gears.length`, so an actor whose only gear is a recording device
+ * would otherwise be told their shed is full but every gear in it is retired.
+ */
+const toAssignableGears = (gears: GearEntity[]): GearEntity[] =>
+  gears.filter((gear) => gear.kind !== 'device')
+
 export const StravaGearDefaultsSection: FC = () => {
   // `null` means "not answered yet" and is deliberately NOT collapsed to an
   // empty array on failure: the empty states below key on `gears.length`, so a
@@ -143,7 +153,7 @@ export const StravaGearDefaultsSection: FC = () => {
   const loadGears = async () => {
     setError('')
     try {
-      setGears(await getFitnessGearList())
+      setGears(toAssignableGears(await getFitnessGearList()))
     } catch (_error) {
       setError('Failed to load gear.')
     }
@@ -154,7 +164,7 @@ export const StravaGearDefaultsSection: FC = () => {
 
     const loadOnMount = async () => {
       try {
-        const list = await getFitnessGearList()
+        const list = toAssignableGears(await getFitnessGearList())
         if (isActive) setGears(list)
       } catch (_error) {
         if (isActive) setError('Failed to load gear.')
@@ -201,7 +211,7 @@ export const StravaGearDefaultsSection: FC = () => {
     setIsSaving(true)
     try {
       await updateFitnessGear(gearId, { defaultSports: sports })
-      setGears(await getFitnessGearList())
+      setGears(toAssignableGears(await getFitnessGearList()))
     } catch (saveError) {
       setError(
         saveError instanceof Error

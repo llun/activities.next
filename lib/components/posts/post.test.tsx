@@ -1482,6 +1482,104 @@ describe('Post', () => {
     expect(screen.getByRole('link', { name: 'Fenix 7' })).toBeInTheDocument()
   })
 
+  describe('the recording device', () => {
+    const withDevice = (
+      fitness: Partial<NonNullable<StatusNote['fitness']>> = {}
+    ) => ({
+      ...status,
+      summary: null,
+      fitness: {
+        ...fitnessBase,
+        deviceManufacturer: 'garmin',
+        deviceName: 'Fenix 7',
+        ...fitness
+      }
+    })
+
+    it('links the owner to the device page', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          currentActor={status.actor ?? undefined}
+          status={withDevice({
+            deviceGearId: 'device-1',
+            deviceGearName: 'the Fenix'
+          })}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      // The row's editable name wins, and the link is same-origin.
+      expect(screen.getByRole('link', { name: 'the Fenix' })).toHaveAttribute(
+        'href',
+        '/fitness/gear/device-1'
+      )
+    })
+
+    it.each([
+      {
+        // The case that actually matters: a SIGNED-IN viewer looking at
+        // someone else's ride. `/fitness/gear/<id>` is owner-scoped, so a link
+        // there 404s for them.
+        description: 'a signed-in viewer who is not the owner',
+        currentActor: {
+          id: 'https://activities.local/users/someone-else',
+          username: 'someone-else',
+          domain: 'activities.local'
+        } as unknown as ActorProfile
+      },
+      {
+        description: 'a logged-out reader',
+        currentActor: undefined
+      }
+    ])(
+      'keeps the manufacturer link for $description',
+      ({ currentActor }: { currentActor?: ActorProfile }) => {
+        render(
+          <Post
+            host="activities.local"
+            currentTime={currentTime}
+            currentActor={currentActor}
+            status={withDevice({
+              deviceGearId: 'device-1',
+              deviceGearName: 'the Fenix'
+            })}
+            onShowAttachment={vi.fn()}
+          />
+        )
+
+        expect(screen.getByRole('link', { name: 'the Fenix' })).toHaveAttribute(
+          'href',
+          'https://www.garmin.com'
+        )
+      }
+    )
+
+    it('renders the Via: line for a renamed device the brand map cannot resolve', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          currentActor={status.actor ?? undefined}
+          status={withDevice({
+            deviceManufacturer: undefined,
+            deviceName: undefined,
+            deviceGearId: 'device-1',
+            deviceGearName: 'My phone'
+          })}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(screen.getByText('Via:')).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'My phone' })).toHaveAttribute(
+        'href',
+        '/fitness/gear/device-1'
+      )
+    })
+  })
+
   describe('Translate gating', () => {
     beforeEach(() => {
       ;(getTranslationCapability as jest.Mock).mockResolvedValue({

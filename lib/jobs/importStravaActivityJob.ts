@@ -22,6 +22,7 @@ import {
 import { buildActivityImportEmail } from '@/lib/services/email/templates/activityImport'
 import { saveFitnessFile } from '@/lib/services/fitness-files'
 import { withImportLock } from '@/lib/services/fitness-files/importLock'
+import { linkFitnessFileDeviceGear } from '@/lib/services/fitness-gears/resolveDeviceGear'
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
 import { getActivityImportGroupKey } from '@/lib/services/notifications/activityImportGroupKey'
@@ -624,6 +625,14 @@ export const importStravaActivityJob = createJobHandle(
         )
       }
 
+      await linkFitnessFileDeviceGear({
+        database,
+        actorId,
+        fitnessFileId: storedFitnessFile.id,
+        deviceName: importActivityData.deviceName,
+        deviceManufacturer: importActivityData.deviceManufacturer
+      })
+
       targetFitnessFile = await database.getFitnessFile({
         id: storedFitnessFile.id
       })
@@ -675,6 +684,18 @@ export const importStravaActivityJob = createJobHandle(
             : {})
         }
       }
+
+      // Read off the merged row rather than `backfillData`, which is empty on
+      // a re-import that had nothing left to backfill — the device fields were
+      // already stored, and the link still has to be established for a file
+      // imported before devices had rows of their own.
+      await linkFitnessFileDeviceGear({
+        database,
+        actorId,
+        fitnessFileId: targetFitnessFile.id,
+        deviceName: targetFitnessFile.deviceName,
+        deviceManufacturer: targetFitnessFile.deviceManufacturer
+      })
     }
 
     const isNewImport = !targetFitnessFile.statusId

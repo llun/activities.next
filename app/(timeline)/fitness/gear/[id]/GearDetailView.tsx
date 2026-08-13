@@ -27,10 +27,13 @@ import type {
 } from '@/lib/services/fitness-gears/gearEntities'
 import { cn } from '@/lib/utils'
 
+import { DeviceDetailView } from './DeviceDetailView'
 import { GearComponentsCard } from './GearComponentsCard'
 
 interface Props {
   gearId: string
+  /** `@user@domain`, resolved server-side; used by the device activity list. */
+  actorHandle: string
 }
 
 interface StatTileProps {
@@ -55,7 +58,7 @@ const getMetaLine = (gear: GearEntity): string =>
     .filter(Boolean)
     .join(' · ')
 
-export const GearDetailView: FC<Props> = ({ gearId }) => {
+export const GearDetailView: FC<Props> = ({ gearId, actorHandle }) => {
   const [gear, setGear] = useState<GearEntity | null>(null)
   const [components, setComponents] = useState<GearComponentEntity[]>([])
   // Only the first load blanks the page. A refetch keeps the gear and its
@@ -154,6 +157,37 @@ export const GearDetailView: FC<Props> = ({ gearId }) => {
       <div className="space-y-4">
         {backLink}
         <p className="text-sm text-destructive">{error ?? 'Gear not found.'}</p>
+      </div>
+    )
+  }
+
+  // A device shares the fetching, the back link, the error surface and the edit
+  // dialog with a bike, and nothing below them: no distance, no components, no
+  // retire. Its page is its own component rather than a pile of `kind !==`
+  // guards in this one.
+  if (gear.kind === 'device') {
+    return (
+      // A refetch dims the page instead of replacing it, exactly as the bike and
+      // shoes branch below does.
+      <div
+        className={cn(isRefreshing && 'opacity-60')}
+        aria-busy={isRefreshing}
+      >
+        <DeviceDetailView
+          gear={gear}
+          actorHandle={actorHandle}
+          backLink={backLink}
+          onEdit={() => setIsEditOpen(true)}
+        />
+        {isEditOpen && (
+          <GearFormDialog
+            open
+            kind={gear.kind}
+            gear={gear}
+            onOpenChange={setIsEditOpen}
+            onSaved={reload}
+          />
+        )}
       </div>
     )
   }

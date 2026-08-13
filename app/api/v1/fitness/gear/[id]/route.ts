@@ -3,6 +3,7 @@ import {
   UpdateGearRequest,
   getGearKindFieldError
 } from '@/lib/services/fitness-gears/gearRequests'
+import { getRollupForGear } from '@/lib/services/fitness-gears/gearRollups'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import {
   HTTP_STATUS,
@@ -60,15 +61,12 @@ export const PATCH = traceApiRoute(
     })
     if (!gear) return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
 
-    const rollups = await database.getFitnessGearDistanceRollups({
-      actorId: currentActor.id,
-      gearIds: [gear.id]
-    })
+    const rollup = await getRollupForGear(database, currentActor.id, gear)
 
     return apiResponse({
       req,
       allowedMethods: [],
-      data: { gear: toGearEntity(gear, rollups[gear.id]) },
+      data: { gear: toGearEntity(gear, rollup) },
       responseStatusCode: 200
     })
   })

@@ -3,7 +3,8 @@ import { z } from 'zod'
 import {
   SPORT_KEYS,
   SPORT_KIND,
-  SportKey
+  SportKey,
+  USER_CREATABLE_GEAR_KINDS
 } from '@/lib/services/fitness-files/sportTypes'
 import { FitnessGearKind } from '@/lib/types/database/fitnessGear'
 
@@ -61,7 +62,41 @@ const optionalEpochMilliseconds = z
   .max(MAX_EPOCH_MILLISECONDS)
   .nullish()
 
-export const GearKindSchema = z.enum(['bike', 'shoes'])
+/**
+ * Only the kinds a person may create. `device` is deliberately absent, so
+ * `POST /api/v1/fitness/gear` answers a device the same 422 it answers `skis`:
+ * device rows are created solely by `resolveDeviceGear`, keyed on the identity
+ * the recorded file carried, and one made by hand would match no upload.
+ */
+export const GearKindSchema = z.enum(USER_CREATABLE_GEAR_KINDS)
+
+/**
+ * A device's product page. Only http/https is accepted — the value is rendered
+ * as an anchor on the device page, and `javascript:`/`data:` there is a script
+ * injection dressed as a link. `new URL` also rejects a bare "garmin.com",
+ * which would otherwise render as a same-origin relative link.
+ */
+const optionalProductUrl = z
+  .string()
+  .trim()
+  .max(VARCHAR_MAX)
+  .transform((value) => value || null)
+  .refine(
+    (value) => {
+      if (value === null) return true
+      try {
+        const url = new URL(value)
+        return url.protocol === 'http:' || url.protocol === 'https:'
+      } catch {
+        return false
+      }
+    },
+    { message: 'productUrl must be an http(s) URL' }
+  )
+  // `.nullish()` LAST, for the reason `optionalText` documents above: applied
+  // before the transform it would make an absent key arrive as an explicit
+  // `null` and clear a column the caller never mentioned.
+  .nullish()
 
 export const CreateGearRequest = z.object({
   kind: GearKindSchema,
@@ -85,7 +120,8 @@ export const UpdateGearRequest = z.object({
   weightKilograms: optionalPositiveNumber(MAX_WEIGHT_KILOGRAMS),
   defaultSports: z.array(z.enum(SPORT_KEYS)).max(SPORT_KEYS.length).optional(),
   alertDistanceMeters: optionalPositiveNumber(MAX_DISTANCE_METERS),
-  notes: optionalText(NOTES_MAX)
+  notes: optionalText(NOTES_MAX),
+  productUrl: optionalProductUrl
 })
 
 export const RetireGearRequest = z.object({
@@ -153,6 +189,9 @@ export const UpdateFitnessFileGearRequest = z.object({
  * stops "Ride" being set as the default sport of a pair of trainers, which the
  * auto-assign lookup would then never satisfy.
  *
+ * A device is narrower still: it owns none of those fields, and `productUrl` is
+ * the one field only it owns.
+ *
  * Returns an error message for the 422 body, or null when the fields fit.
  */
 export const getGearKindFieldError = (
@@ -162,8 +201,38 @@ export const getGearKindFieldError = (
     weightKilograms?: number | null
     alertDistanceMeters?: number | null
     defaultSports?: SportKey[]
+    productUrl?: string | null
   }
 ): string | null => {
+  // Checked first and in full: a device shares no field with the other two, so
+  // falling through to the bike/shoes rules below would let a device quietly
+  // accept a frame type.
+  if (kind === 'device') {
+    if (fields.bikeType) return 'bikeType is not valid for a device'
+    if (
+      fields.weightKilograms !== undefined &&
+      fields.weightKilograms !== null
+    ) {
+      return 'weightKilograms is not valid for a device'
+    }
+    if (
+      fields.alertDistanceMeters !== undefined &&
+      fields.alertDistanceMeters !== null
+    ) {
+      return 'alertDistanceMeters is not valid for a device'
+    }
+    // A device records rides and runs alike, so it can hold no sport of its own
+    // without stealing that sport from the bike or shoes that should have it.
+    if ((fields.defaultSports ?? []).length > 0) {
+      return 'defaultSports is not valid for a device'
+    }
+    return null
+  }
+
+  if (fields.productUrl !== undefined && fields.productUrl !== null) {
+    return 'productUrl is only valid for a device'
+  }
+
   if (kind === 'shoes') {
     if (fields.bikeType) return 'bikeType is only valid for a bike'
     if (

@@ -1528,6 +1528,139 @@ describe('processFitnessFileJob', () => {
       expect(reloaded?.lastAlertedDistanceMeters).toBeUndefined()
     })
 
+    describe('recording device', () => {
+      it('creates the device row and links the activity to it', async () => {
+        mockParseFitnessFile.mockResolvedValue({
+          ...defaultActivityData,
+          deviceName: 'Garmin Forerunner 265',
+          deviceManufacturer: 'garmin'
+        })
+        const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+          text: 'Morning run'
+        })
+
+        await processFitnessFileJob(database, {
+          id: 'job-device-link',
+          name: PROCESS_FITNESS_FILE_JOB_NAME,
+          data: { actorId: actor.id, statusId, fitnessFileId }
+        })
+
+        const updated = await database.getFitnessFile({ id: fitnessFileId })
+        expect(updated?.deviceGearId).toBeDefined()
+
+        const device = await database.getFitnessGear({
+          id: updated?.deviceGearId as string,
+          actorId: actor.id
+        })
+        expect(device).toMatchObject({
+          kind: 'device',
+          name: 'Garmin Forerunner 265',
+          brand: 'Garmin',
+          model: 'Forerunner 265',
+          deviceKey: 'name:garmin forerunner 265',
+          productUrl: 'https://www.garmin.com'
+        })
+      })
+
+      it('reuses one row across activities and converges on a re-run', async () => {
+        mockParseFitnessFile.mockResolvedValue({
+          ...defaultActivityData,
+          deviceName: 'Wahoo ELEMNT BOLT'
+        })
+        const first = await createStatusWithFitnessFile({ text: 'Ride one' })
+        const second = await createStatusWithFitnessFile({ text: 'Ride two' })
+
+        for (const [index, file] of [first, second].entries()) {
+          await processFitnessFileJob(database, {
+            id: `job-device-shared-${index}`,
+            name: PROCESS_FITNESS_FILE_JOB_NAME,
+            data: {
+              actorId: actor.id,
+              statusId: file.statusId,
+              fitnessFileId: file.fitnessFileId
+            }
+          })
+        }
+        // Jobs re-run; the second pass must land on the same row rather than
+        // forking a duplicate.
+        await processFitnessFileJob(database, {
+          id: 'job-device-shared-rerun',
+          name: PROCESS_FITNESS_FILE_JOB_NAME,
+          data: {
+            actorId: actor.id,
+            statusId: first.statusId,
+            fitnessFileId: first.fitnessFileId
+          }
+        })
+
+        const firstFile = await database.getFitnessFile({
+          id: first.fitnessFileId
+        })
+        const secondFile = await database.getFitnessFile({
+          id: second.fitnessFileId
+        })
+        expect(firstFile?.deviceGearId).toBeDefined()
+        expect(secondFile?.deviceGearId).toBe(firstFile?.deviceGearId)
+
+        const devices = (
+          await database.getFitnessGearsByActor({ actorId: actor.id })
+        ).filter((gear) => gear.kind === 'device')
+        expect(devices).toHaveLength(1)
+      })
+
+      it('links nothing when the file carries no device', async () => {
+        const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+          text: 'Morning run'
+        })
+
+        await processFitnessFileJob(database, {
+          id: 'job-device-none',
+          name: PROCESS_FITNESS_FILE_JOB_NAME,
+          data: { actorId: actor.id, statusId, fitnessFileId }
+        })
+
+        const updated = await database.getFitnessFile({ id: fitnessFileId })
+        expect(updated?.deviceGearId).toBeUndefined()
+        expect(
+          (await database.getFitnessGearsByActor({ actorId: actor.id })).filter(
+            (gear) => gear.kind === 'device'
+          )
+        ).toHaveLength(0)
+      })
+
+      it('keeps the activity completed when resolving the device fails', async () => {
+        // The link is metadata on an activity that has already parsed and
+        // stored. A failure here must never demote it to `failed`, which would
+        // hide a perfectly good ride from every surface.
+        mockParseFitnessFile.mockResolvedValue({
+          ...defaultActivityData,
+          deviceName: 'Garmin Edge 840',
+          deviceManufacturer: 'garmin'
+        })
+        const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+          text: 'Morning ride'
+        })
+
+        const spy = vi
+          .spyOn(database, 'findFitnessGearByDeviceKey')
+          .mockRejectedValue(new Error('connection reset'))
+
+        try {
+          await processFitnessFileJob(database, {
+            id: 'job-device-failure',
+            name: PROCESS_FITNESS_FILE_JOB_NAME,
+            data: { actorId: actor.id, statusId, fitnessFileId }
+          })
+        } finally {
+          spy.mockRestore()
+        }
+
+        const updated = await database.getFitnessFile({ id: fitnessFileId })
+        expect(updated?.processingStatus).toBe('completed')
+        expect(updated?.deviceGearId).toBeUndefined()
+      })
+    })
+
     it('assigns the gear whose default sport matches the parsed activity', async () => {
       const gear = await database.createFitnessGear({
         actorId: actor.id,

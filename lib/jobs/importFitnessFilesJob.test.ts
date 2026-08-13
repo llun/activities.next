@@ -880,4 +880,92 @@ describe('importFitnessFilesJob', () => {
       expect(publish?.data.notifyOnComplete).toBe(true)
     })
   })
+
+  describe('recording device', () => {
+    it('resolves the device from the parsed file and links the activity', async () => {
+      const file = await database.createFitnessFile({
+        actorId: actor.id,
+        path: 'fitness/device-link.fit',
+        fileName: 'device-link.fit',
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1_024,
+        importBatchId: 'batch-device-link'
+      })
+
+      mockParseFitnessFile.mockResolvedValue({
+        coordinates: [],
+        trackPoints: [],
+        totalDistanceMeters: 20_000,
+        totalDurationSeconds: 3_600,
+        startTime: new Date('2026-01-09T00:00:00.000Z'),
+        deviceName: 'Hammerhead Karoo 3',
+        deviceManufacturer: 'hammerhead'
+      })
+
+      await importFitnessFilesJob(database, {
+        id: 'import-job-device-link',
+        name: IMPORT_FITNESS_FILES_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          batchId: 'batch-device-link',
+          fitnessFileIds: [file!.id],
+          visibility: 'public'
+        }
+      })
+
+      const updated = await database.getFitnessFile({ id: file!.id })
+      expect(updated?.deviceGearId).toBeDefined()
+
+      const device = await database.getFitnessGear({
+        id: updated?.deviceGearId as string,
+        actorId: actor.id
+      })
+      expect(device).toMatchObject({
+        kind: 'device',
+        brand: 'Hammerhead',
+        model: 'Karoo 3',
+        deviceKey: 'name:hammerhead karoo 3'
+      })
+
+      await database.deleteFitnessGear({
+        id: device!.id,
+        actorId: actor.id
+      })
+    })
+
+    it('links nothing when the parsed file names no device', async () => {
+      const file = await database.createFitnessFile({
+        actorId: actor.id,
+        path: 'fitness/device-none.fit',
+        fileName: 'device-none.fit',
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1_024,
+        importBatchId: 'batch-device-none'
+      })
+
+      mockParseFitnessFile.mockResolvedValue({
+        coordinates: [],
+        trackPoints: [],
+        totalDistanceMeters: 20_000,
+        totalDurationSeconds: 3_600,
+        startTime: new Date('2026-01-09T00:00:00.000Z')
+      })
+
+      await importFitnessFilesJob(database, {
+        id: 'import-job-device-none',
+        name: IMPORT_FITNESS_FILES_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          batchId: 'batch-device-none',
+          fitnessFileIds: [file!.id],
+          visibility: 'public'
+        }
+      })
+
+      const updated = await database.getFitnessFile({ id: file!.id })
+      expect(updated?.deviceGearId).toBeUndefined()
+    })
+  })
 })

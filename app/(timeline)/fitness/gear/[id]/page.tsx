@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getActorProfile, getMention } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { GearDetailView } from './GearDetailView'
@@ -37,7 +38,14 @@ const Page = async ({ params }: PageProps) => {
     return notFound()
   }
 
-  return <GearDetailView gearId={id} />
+  // The device page links each activity row to `/{handle}/{statusPublicId}`, and
+  // only the server knows the handle — the client would have to fetch it.
+  return (
+    <GearDetailView
+      gearId={id}
+      actorHandle={getMention(getActorProfile(actor), true)}
+    />
+  )
 }
 
 export default Page

@@ -1,5 +1,6 @@
 import { toGearComponentEntity } from '@/lib/services/fitness-gears/gearEntities'
 import { CreateGearComponentRequest } from '@/lib/services/fitness-gears/gearRequests'
+import { rejectComponentsForDevice } from '@/lib/services/fitness-gears/gearRouteGuards'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import {
   HTTP_STATUS,
@@ -19,11 +20,13 @@ export const GET = traceApiRoute(
     const { id } = (await params) ?? { id: undefined }
     if (!id) return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
 
-    const gear = await database.getFitnessGear({
-      id,
-      actorId: currentActor.id
+    const rejection = await rejectComponentsForDevice({
+      req,
+      database,
+      actorId: currentActor.id,
+      gearId: id
     })
-    if (!gear) return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+    if (rejection) return rejection
 
     const components = await database.getFitnessGearComponents({
       gearId: id,
@@ -66,6 +69,14 @@ export const POST = traceApiRoute(
     if (!parsed.success) {
       return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
     }
+
+    const rejection = await rejectComponentsForDevice({
+      req,
+      database,
+      actorId: currentActor.id,
+      gearId: id
+    })
+    if (rejection) return rejection
 
     const component = await database.createFitnessGearComponent({
       gearId: id,

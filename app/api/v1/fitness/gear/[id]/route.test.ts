@@ -27,6 +27,7 @@ type MockDatabase = Pick<
   | 'updateFitnessGear'
   | 'deleteFitnessGear'
   | 'getFitnessGearDistanceRollups'
+  | 'getFitnessGearDeviceRollups'
   | 'getAccountFromEmail'
   | 'getActorsForAccount'
   | 'getActorFromId'
@@ -58,6 +59,7 @@ describe('Fitness gear item API', () => {
     updateFitnessGear: vi.fn(),
     deleteFitnessGear: vi.fn(),
     getFitnessGearDistanceRollups: vi.fn(),
+    getFitnessGearDeviceRollups: vi.fn(),
     getAccountFromEmail: vi.fn(),
     getActorsForAccount: vi.fn(),
     getActorFromId: vi.fn()
@@ -82,6 +84,7 @@ describe('Fitness gear item API', () => {
     ])
     mockDb.getActorFromId.mockResolvedValue({ ...seedActor1, id: ACTOR1_ID })
     mockDb.getFitnessGearDistanceRollups.mockResolvedValue({})
+    mockDb.getFitnessGearDeviceRollups.mockResolvedValue({})
   })
 
   const patchRequest = (body: unknown) =>
@@ -156,6 +159,98 @@ describe('Fitness gear item API', () => {
         params
       )
       expect(response.status).toBe(400)
+    })
+
+    describe('a recording device', () => {
+      const device = () =>
+        gear({
+          kind: 'device',
+          name: 'Garmin Edge 840',
+          deviceKey: 'name:garmin edge 840',
+          productUrl: 'https://www.garmin.com'
+        })
+
+      it('accepts a product page and reads back the device rollup', async () => {
+        mockDb.getFitnessGear.mockResolvedValue(device())
+        mockDb.updateFitnessGear.mockResolvedValue(
+          gear({
+            ...device(),
+            name: 'the Edge',
+            productUrl: 'https://example.com/edge-840'
+          })
+        )
+        mockDb.getFitnessGearDeviceRollups.mockResolvedValue({
+          'gear-1': { activityCount: 41, firstUsedAt: 1_600_000_000_000 }
+        })
+
+        const response = await PATCH(
+          patchRequest({
+            name: 'the Edge',
+            productUrl: 'https://example.com/edge-840'
+          }),
+          params
+        )
+        const data = await response.json()
+
+        expect(response.status).toBe(200)
+        expect(mockDb.updateFitnessGear).toHaveBeenCalledWith(
+          expect.objectContaining({
+            productUrl: 'https://example.com/edge-840'
+          })
+        )
+        // A device rolls up a count and a first-used date, never a distance.
+        expect(mockDb.getFitnessGearDistanceRollups).not.toHaveBeenCalled()
+        expect(data.gear).toMatchObject({
+          kind: 'device',
+          distanceMeters: 0,
+          activityCount: 41,
+          firstUsedAt: 1_600_000_000_000,
+          productUrl: 'https://example.com/edge-840'
+        })
+      })
+
+      it.each([
+        { description: 'a frame type', body: { bikeType: 'Road bike' } },
+        { description: 'a weight', body: { weightKilograms: 0.1 } },
+        {
+          description: 'a distance alert',
+          body: { alertDistanceMeters: 650_000 }
+        },
+        { description: 'a default sport', body: { defaultSports: ['ride'] } }
+      ])('rejects $description with 422', async ({ body }) => {
+        mockDb.getFitnessGear.mockResolvedValue(device())
+
+        const response = await PATCH(patchRequest(body), params)
+
+        expect(response.status).toBe(422)
+        expect(mockDb.updateFitnessGear).not.toHaveBeenCalled()
+      })
+
+      it('rejects a product page on a bike with 422', async () => {
+        mockDb.getFitnessGear.mockResolvedValue(gear())
+
+        const response = await PATCH(
+          patchRequest({ productUrl: 'https://www.garmin.com' }),
+          params
+        )
+        const data = await response.json()
+
+        expect(response.status).toBe(422)
+        expect(data.error).toBe('productUrl is only valid for a device')
+        expect(mockDb.updateFitnessGear).not.toHaveBeenCalled()
+      })
+
+      it('rejects a product page that is not an http(s) URL', async () => {
+        mockDb.getFitnessGear.mockResolvedValue(device())
+
+        const response = await PATCH(
+          patchRequest({ productUrl: 'javascript:alert(1)' }),
+          params
+        )
+
+        expect(response.status).toBe(422)
+        expect(mockDb.updateFitnessGear).not.toHaveBeenCalled()
+      })
     })
   })
 

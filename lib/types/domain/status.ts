@@ -66,7 +66,13 @@ export const StatusFitnessFile = z.object({
   // is. Nothing else about the gear (default sports, service thresholds, notes)
   // belongs in a status payload.
   gearId: z.string().nullable().optional(),
-  gearName: z.string().nullable().optional()
+  gearName: z.string().nullable().optional(),
+  // The recording device, on the same terms: the name is already public as
+  // `deviceName`, and the id is what lets the owner's own view link the label to
+  // the device page. A viewer who is not the owner gets no page to open, so the
+  // id is inert for them.
+  deviceGearId: z.string().nullable().optional(),
+  deviceGearName: z.string().nullable().optional()
 })
 export type StatusFitnessFile = z.infer<typeof StatusFitnessFile>
 

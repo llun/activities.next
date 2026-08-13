@@ -678,6 +678,107 @@ describe('StatusDatabase', () => {
         })
       })
 
+      it('returns the recording device alongside the assigned gear', async () => {
+        const statusId = `${emptyActorId}/statuses/fitness-device-gear`
+
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'This ride has a bike and a head unit'
+        })
+
+        const fitnessFile = await database.createFitnessFile({
+          actorId: emptyActorId,
+          statusId,
+          path: `fitness/${Date.now()}-device-gear.fit`,
+          fileName: 'device-gear.fit',
+          fileType: 'fit',
+          mimeType: 'application/octet-stream',
+          bytes: 4096
+        })
+        const bike = await database.createFitnessGear({
+          actorId: emptyActorId,
+          kind: 'bike',
+          name: 'Moots Routt'
+        })
+        const device = await database.createFitnessGear({
+          actorId: emptyActorId,
+          kind: 'device',
+          name: 'the Edge',
+          deviceKey: 'name:garmin edge 840'
+        })
+        await database.setFitnessFileGear({
+          fitnessFileId: fitnessFile!.id,
+          actorId: emptyActorId,
+          gearId: bike.id
+        })
+        await database.updateFitnessFileActivityData(fitnessFile!.id, {
+          deviceGearId: device.id
+        })
+
+        // Two rows of the same table on one status, so the device needs an
+        // aliased join of its own — both names still arrive on one query.
+        const status = (await database.getStatus({ statusId })) as StatusNote
+        expect(status.fitness).toMatchObject({
+          gearId: bike.id,
+          gearName: 'Moots Routt',
+          deviceGearId: device.id,
+          // The owner's rename, not the recorded device name.
+          deviceGearName: 'the Edge'
+        })
+      })
+
+      it('withholds a soft-deleted device name without dropping the activity', async () => {
+        const statusId = `${emptyActorId}/statuses/fitness-device-deleted`
+
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Recorded on a device that has since been removed'
+        })
+
+        const fitnessFile = await database.createFitnessFile({
+          actorId: emptyActorId,
+          statusId,
+          path: `fitness/${Date.now()}-device-deleted.fit`,
+          fileName: 'device-deleted.fit',
+          fileType: 'fit',
+          mimeType: 'application/octet-stream',
+          bytes: 4096
+        })
+        const device = await database.createFitnessGear({
+          actorId: emptyActorId,
+          kind: 'device',
+          name: 'Removed device',
+          deviceKey: 'name:removed device'
+        })
+        await database.updateFitnessFileActivityData(fitnessFile!.id, {
+          deviceGearId: device.id
+        })
+        // Deleting detaches the column, so re-point it to prove the JOIN's own
+        // `deletedAt` guard is what withholds the name.
+        await database.deleteFitnessGear({
+          id: device.id,
+          actorId: emptyActorId
+        })
+        await database.updateFitnessFileActivityData(fitnessFile!.id, {
+          deviceGearId: device.id
+        })
+
+        const status = (await database.getStatus({ statusId })) as StatusNote
+        expect(status.fitness).toMatchObject({
+          id: fitnessFile?.id,
+          deviceGearId: device.id,
+          deviceGearName: null
+        })
+      })
+
       it('reports a recorded map failure as a kind, never as the reason', async () => {
         const statusId = `${emptyActorId}/statuses/fitness-map-failed`
 

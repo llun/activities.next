@@ -33,7 +33,28 @@ export const SPORT_KEYS = [
 
 export type SportKey = (typeof SPORT_KEYS)[number]
 
-export type FitnessGearKind = 'bike' | 'shoes'
+/**
+ * `device` is the recording head unit or watch an activity was captured on. It
+ * is gear in the sense that it has a page of its own and every activity points
+ * at one, but it shares almost nothing else with a bike or a pair of shoes: it
+ * has no components, no default sports, no distance total, no service reminder
+ * and cannot be retired.
+ */
+export const FITNESS_GEAR_KINDS = ['bike', 'shoes', 'device'] as const
+
+export type FitnessGearKind = (typeof FITNESS_GEAR_KINDS)[number]
+
+/**
+ * The kinds a person may create. Devices are system-created only —
+ * `resolveDeviceGear` is the sole writer, keyed on the immutable identity the
+ * recorded file carried — so `POST /api/v1/fitness/gear` rejects `device` the
+ * same way it rejects a kind that does not exist. A hand-made device row would
+ * have no `deviceKey` to match an upload against and would sit there forever
+ * with nothing attributed to it.
+ */
+export const USER_CREATABLE_GEAR_KINDS = ['bike', 'shoes'] as const
+
+export type UserCreatableGearKind = (typeof USER_CREATABLE_GEAR_KINDS)[number]
 
 export const SPORT_LABELS: Record<SportKey, string> = {
   ride: 'Ride',
@@ -47,7 +68,13 @@ export const SPORT_LABELS: Record<SportKey, string> = {
   hike: 'Hike'
 }
 
-export const SPORT_KIND: Record<SportKey, FitnessGearKind> = {
+/**
+ * Typed against the user-creatable kinds, not `FitnessGearKind`: a device
+ * records rides and runs alike, so no sport belongs to one and nothing may
+ * derive a device from a sport. `getSportKeysForKind('device')` therefore
+ * answers `[]` on its own, with no special case.
+ */
+export const SPORT_KIND: Record<SportKey, UserCreatableGearKind> = {
   ride: 'bike',
   gravel_ride: 'bike',
   mountain_bike_ride: 'bike',

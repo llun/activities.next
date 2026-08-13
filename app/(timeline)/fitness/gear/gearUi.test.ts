@@ -6,6 +6,7 @@ import {
   formatKmInt,
   formatWeightKg,
   getGearDisplayName,
+  getProductUrlHostname,
   getWearState
 } from './gearUi'
 
@@ -125,6 +126,21 @@ describe('getGearDisplayName', () => {
       description: 'falls back to the shoes kind label',
       gear: { kind: 'shoes' as const, name: '', brand: null, model: null },
       expected: 'Shoes'
+    },
+    {
+      description: 'falls back to the device kind label',
+      gear: { kind: 'device' as const, name: '', brand: null, model: null },
+      expected: 'Device'
+    },
+    {
+      description: 'falls back to brand and model for a device',
+      gear: {
+        kind: 'device' as const,
+        name: '',
+        brand: 'Garmin',
+        model: 'Edge 840'
+      },
+      expected: 'Garmin Edge 840'
     }
   ])('$description', ({ gear, expected }) => {
     expect(getGearDisplayName(gear)).toEqual(expected)
@@ -251,5 +267,52 @@ describe('gear option lists', () => {
     expect(COMPONENT_TYPE_OPTIONS).toContain('Bottom bracket')
     expect(COMPONENT_TYPE_OPTIONS).toContain('Rear shock')
     expect(COMPONENT_TYPE_OPTIONS).toHaveLength(19)
+  })
+})
+
+describe('getProductUrlHostname', () => {
+  it.each([
+    {
+      description: 'drops the www prefix',
+      url: 'https://www.garmin.com/en-US/p/781308',
+      expected: 'garmin.com'
+    },
+    {
+      description: 'keeps a hostname that has no www',
+      url: 'https://hammerhead.io',
+      expected: 'hammerhead.io'
+    },
+    {
+      description: 'keeps a subdomain that is not www',
+      url: 'https://shop.wahoofitness.com/x',
+      expected: 'shop.wahoofitness.com'
+    },
+    // The API validates the column on write, but a row that predates that — or
+    // anything a future importer writes — must render as "no product page"
+    // rather than throwing inside a table row.
+    { description: 'a bare hostname', url: 'garmin.com', expected: null },
+    // `new URL` parses an authority for non-special schemes too, so this has a
+    // perfectly good hostname. Both render sites gate the anchor on this
+    // helper, so returning it would ship an href that executes on click.
+    {
+      description: 'a javascript: URL that parses with a hostname',
+      url: 'javascript://evil.example.com/%0aalert(document.domain)',
+      expected: null
+    },
+    {
+      description: 'a data: URL',
+      url: 'data:text/html,<script></script>',
+      expected: null
+    },
+    {
+      description: 'a file: URL',
+      url: 'file://host/etc/passwd',
+      expected: null
+    },
+    { description: 'an empty string', url: '', expected: null },
+    { description: 'null', url: null, expected: null },
+    { description: 'undefined', url: undefined, expected: null }
+  ])('$description', ({ url, expected }) => {
+    expect(getProductUrlHostname(url)).toBe(expected)
   })
 })

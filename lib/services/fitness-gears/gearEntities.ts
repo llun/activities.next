@@ -1,6 +1,7 @@
 import {
   FitnessGear,
   FitnessGearComponent,
+  FitnessGearDeviceRollup,
   FitnessGearDistanceRollup,
   FitnessGearKind
 } from '@/lib/types/database/fitnessGear'
@@ -30,6 +31,14 @@ export interface GearEntity {
   createdAt: number
   distanceMeters: number
   activityCount: number
+  /** Devices only. The vendor page the owner may replace with the product's. */
+  productUrl: string | null
+  /**
+   * Devices only — the earliest `activityStartTime` among the activities this
+   * device recorded. Bikes and shoes report null: they show a lifetime distance
+   * instead, and "added" (`createdAt`) already answers when they joined the shed.
+   */
+  firstUsedAt: number | null
 }
 
 export interface GearComponentEntity {
@@ -45,25 +54,38 @@ export interface GearComponentEntity {
   activityCount: number
 }
 
+/**
+ * A device is rolled up differently — count and first-used rather than a
+ * distance total, since summing a head unit's rides and runs together would
+ * produce a number that means nothing. Passing the device rollup for a device
+ * and the distance rollup for everything else keeps one entity shape for the
+ * client while each kind reports what it actually has.
+ */
 export const toGearEntity = (
   gear: FitnessGear,
-  rollup: FitnessGearDistanceRollup = EMPTY_ROLLUP
-): GearEntity => ({
-  id: gear.id,
-  kind: gear.kind,
-  name: gear.name,
-  brand: gear.brand ?? null,
-  model: gear.model ?? null,
-  bikeType: gear.bikeType ?? null,
-  weightKilograms: gear.weightKilograms ?? null,
-  defaultSports: gear.defaultSports,
-  alertDistanceMeters: gear.alertDistanceMeters ?? null,
-  notes: gear.notes ?? null,
-  retiredAt: gear.retiredAt ?? null,
-  createdAt: gear.createdAt,
-  distanceMeters: rollup.distanceMeters,
-  activityCount: rollup.activityCount
-})
+  rollup: FitnessGearDistanceRollup | FitnessGearDeviceRollup = EMPTY_ROLLUP
+): GearEntity => {
+  const isDeviceRollup = 'firstUsedAt' in rollup
+
+  return {
+    id: gear.id,
+    kind: gear.kind,
+    name: gear.name,
+    brand: gear.brand ?? null,
+    model: gear.model ?? null,
+    bikeType: gear.bikeType ?? null,
+    weightKilograms: gear.weightKilograms ?? null,
+    defaultSports: gear.defaultSports,
+    alertDistanceMeters: gear.alertDistanceMeters ?? null,
+    notes: gear.notes ?? null,
+    retiredAt: gear.retiredAt ?? null,
+    createdAt: gear.createdAt,
+    distanceMeters: isDeviceRollup ? 0 : rollup.distanceMeters,
+    activityCount: rollup.activityCount,
+    productUrl: gear.productUrl ?? null,
+    firstUsedAt: isDeviceRollup ? rollup.firstUsedAt : null
+  }
+}
 
 export const toGearComponentEntity = (
   component: FitnessGearComponent,

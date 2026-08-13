@@ -204,6 +204,25 @@ change doesn't touch.
   re-run can't clobber a manual assignment. No importer reads gear from Strava or
   creates a gear row — attribution comes only from the owner's `defaultSports`
   mapping. See **Fitness Gear** in `AGENTS.md`.
+- A `kind: 'device'` gear is a recording device and follows different rules from
+  a bike or shoes. `deviceKey` is create-only — it is the identity an upload
+  matches against, while `name`/`brand`/`model`/`productUrl` are display fields
+  the owner edits — and `resolveDeviceGear` is the only thing that may create
+  one (the create route answers 422). Deleting a device must **release** its
+  `deviceKey` in the same transaction, because the unique index covers
+  soft-deleted rows. Devices are filtered out of the activity gear picker
+  **before** its kind narrowing, and `setFitnessFileGear` rejects one outright:
+  `gearId` means "what was this ride done on", and an activity pointed at a
+  device falls out of every rollup. The device rollups **replace** `isPrimary`
+  with a per-ride-per-device rule — of the countable files sharing a
+  `(statusId, deviceGearId)`, exactly one survives, the primary if that device
+  owns it and otherwise the lowest id — because the merge groups by time overlap
+  and never looks at the device columns. That counts the watch half of a
+  two-device ride while counting a `.fit`+`.gpx` pair from one device once, and
+  it must never defer to a sibling that is itself uncountable (a merge writes
+  the primary `pending`). The rollup and the activity list must apply the
+  identical predicate. The device page link
+  is owner-only; everyone else gets the branded manufacturer link.
 - React state updater functions stay pure — no side effects, and don't fire another
   variable's state update from inside an updater. Do the separate `setState` calls
   in the event handler instead, so Strict Mode's double-invoke can't misfire them.
