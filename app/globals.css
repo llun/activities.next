@@ -36,6 +36,7 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-text: var(--primary-text);
   --color-primary: var(--primary);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
@@ -71,6 +72,15 @@
   --popover-foreground: hsl(0 0% 3.9%);
   --primary: hsl(24 95% 46%);
   --primary-foreground: hsl(0 0% 100%);
+  /* Brand orange for TEXT, as distinct from --primary for icons, fills and
+     accents — the split the design system makes itself (GK_ORANGE vs
+     GK_ORANGE_TEXT). --primary is a 3.36:1 foreground on the card, so orange
+     link text set in it fails WCAG 2.1 AA (SC 1.4.3) at body sizes. This is
+     darkened until it clears 4.5:1 on every surface such a link sits on,
+     including the --muted row-hover, and app/globals.contrast.test.ts
+     recomputes that from these values so it cannot silently regress. Exposed as
+     the `text-primary-text` utility. */
+  --primary-text: hsl(24 95% 37%);
   --secondary: hsl(0 0% 96.1%);
   --secondary-foreground: hsl(0 0% 9%);
   --muted: hsl(0 0% 96.1%);
@@ -133,6 +143,10 @@
   --popover-foreground: hsl(0 0% 98%);
   --primary: hsl(24 95% 46%);
   --primary-foreground: hsl(0 0% 100%);
+  /* Lightened rather than darkened here: on the dark surface ramp contrast
+     comes from going UP, and --primary itself only reaches 4.03:1 on the
+     --muted row-hover. */
+  --primary-text: hsl(24 95% 55%);
   --secondary: hsl(0 0% 14.9%);
   --secondary-foreground: hsl(0 0% 98%);
   /* Dark surface ramp expresses elevation with lightness, not shadow: muted

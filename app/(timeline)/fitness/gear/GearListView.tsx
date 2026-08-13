@@ -200,7 +200,7 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd }) => {
         <div className="px-4">
           <button
             type="button"
-            className="cursor-pointer text-xs font-medium text-primary hover:underline"
+            className="cursor-pointer text-xs font-medium text-primary-text hover:underline"
             onClick={() => setShowRetired((current) => !current)}
           >
             {showRetired
@@ -295,7 +295,7 @@ const DeviceSection: FC<{ gears: GearEntity[] }> = ({ gears }) => {
                         href={gear.productUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                        className="inline-flex items-center gap-1 font-medium text-primary-text hover:underline"
                         onClick={(event) => event.stopPropagation()}
                       >
                         <ExternalLink className="size-3 shrink-0" />

@@ -430,4 +430,54 @@ describe('GearComponentsCard', () => {
       expect(screen.getByText('Component type is required')).toBeInTheDocument()
     )
   })
+
+  // Mirrors the pinned-column guards in GearListView.test.tsx. This table's
+  // rows are inert, so it uses the non-hover variant — and its replaced-row dim
+  // has to sit on a descendant, not the pinned cell, because `opacity` fades an
+  // element's background along with its text.
+  describe('pinned first column', () => {
+    const getTypeCell = (componentType: string) =>
+      screen.getByText(componentType).closest('td')
+
+    it('pins the type column on an opaque surface', () => {
+      renderCard([createComponent()])
+
+      expect(getTypeCell('Chain')).toHaveClass(
+        'sticky',
+        'left-0',
+        'bg-background'
+      )
+    })
+
+    it('pins the type column header too', () => {
+      renderCard([createComponent()])
+
+      expect(screen.getByText('Type').closest('th')).toHaveClass(
+        'sticky',
+        'left-0',
+        'bg-background'
+      )
+    })
+
+    it('leaves the pinned cell unlit, since the rows are not clickable', () => {
+      renderCard([createComponent()])
+
+      // The hover variant belongs only on a row that has its own `hover:` and
+      // the `group` class; on an inert row it would light this column alone.
+      expect(getTypeCell('Chain')?.className).not.toContain('group-hover:')
+    })
+
+    it('dims a replaced component through its cells so the pinned column stays opaque', () => {
+      renderCard([createComponent({ removedAt: Date.UTC(2025, 2, 15) })])
+
+      fireEvent.click(
+        screen.getByRole('button', { name: /^Show 1 replaced component/ })
+      )
+
+      const cell = getTypeCell('Chain')
+      expect(cell?.closest('tr')).not.toHaveClass('opacity-60')
+      expect(cell).not.toHaveClass('opacity-60')
+      expect(cell?.querySelector('.opacity-60')).not.toBeNull()
+    })
+  })
 })

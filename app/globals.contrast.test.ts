@@ -137,3 +137,36 @@ describe('muted-foreground contrast (WCAG 2.1 AA SC 1.4.3)', () => {
     expect(mutedLum).toBeGreaterThan(foregroundLum + 0.1)
   })
 })
+
+describe('primary-text contrast (WCAG 2.1 AA SC 1.4.3)', () => {
+  // Orange link text — the retired-gear toggle, the gear product-page link —
+  // renders on the card and, while its row is hovered, on --muted. --primary
+  // itself is only 3.36:1 on the card, which is why --primary-text exists; this
+  // recomputes the ratio from the live token values so the split cannot be
+  // quietly collapsed back into --primary.
+  it.each(cases)(
+    '$theme --primary-text on $surface meets 4.5:1',
+    ({ theme, surface }) => {
+      const tokens = themes[theme]
+      const fg = rgbOf(tokens, '--primary-text')
+      const bg = rgbOf(tokens, surface)
+      const ratio = contrastRatio(fg, bg)
+      expect(
+        ratio,
+        `${theme} primary-text ${JSON.stringify(fg)} on ${surface} ${JSON.stringify(bg)} = ${ratio.toFixed(3)}:1`
+      ).toBeGreaterThanOrEqual(AA_NORMAL)
+    }
+  )
+
+  it.each(['light', 'dark'] as const)(
+    'keeps %s primary-text recognisably the brand orange',
+    (theme) => {
+      // Guard against "fixing" contrast by desaturating to near-black or
+      // washing out to near-white: it has to still read as the brand hue.
+      const [hue, saturation] = parseHsl(themes[theme]['--primary-text'])
+      const [primaryHue] = parseHsl(themes[theme]['--primary'])
+      expect(hue).toBe(primaryHue)
+      expect(saturation).toBeGreaterThanOrEqual(0.8)
+    }
+  )
+})

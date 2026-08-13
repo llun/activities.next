@@ -500,6 +500,19 @@ it; there is no legacy shape left to copy.
   but not repeat one). `evaluateGearServiceReminders` runs where a total can
   change and records the distance it fired at in `lastAlertedDistanceMeters`, so
   each crossing notifies once and a raised threshold re-arms on its own.
+- **Orange TEXT uses `text-primary-text`, not `text-primary`.** `--primary`
+  (`hsl(24 95% 46%)`) is the brand orange for icons, fills and accents; as a
+  foreground it is only 3.37:1 on the card, so link text set in it fails WCAG 2.1
+  AA (SC 1.4.3) at body sizes. `--primary-text` is the same hue tuned per theme
+  until it clears 4.5:1 on every surface such a link sits on — including the
+  `--muted` row-hover, which is stricter than the card — darker in light mode
+  (37%) and _lighter_ in dark (55%), because on the dark ramp contrast comes from
+  going up. This is the split the design system makes itself (`GK_ORANGE` vs
+  `GK_ORANGE_TEXT`). It backs the gear list's retired toggle, the gear
+  product-page link and the components card's replaced toggle;
+  `app/globals.contrast.test.ts` recomputes both ratios from the live token
+  values, so collapsing the two tokens back together fails the suite. Other
+  orange text in the app still predates this and should move over when touched.
 - **Every gear table pins its first column, through the shared constants in
   `app/(timeline)/fitness/gear/gearUi.ts`** — `STICKY_COLUMN` and
   `STICKY_CLICKABLE_COLUMN`, used by the gear list's bikes/shoes/devices tables

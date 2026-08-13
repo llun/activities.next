@@ -427,7 +427,12 @@ describe('GearListView', () => {
 
         const section = await getSection(title)
         const cell = section.getByRole('link', { name: rowName }).closest('td')
-        expect(cell).toHaveClass('sticky', 'bg-background')
+        expect(cell).toHaveClass('sticky', 'left-0', 'bg-background')
+
+        // The header cell is pinned too, or it scrolls away from the column it
+        // labels.
+        const header = cell?.closest('table')?.querySelector('thead th')
+        expect(header).toHaveClass('sticky', 'left-0', 'bg-background')
       }
     )
 

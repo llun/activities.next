@@ -450,7 +450,7 @@ export const GearComponentsCard: FC<Props> = ({
         <div className="px-4">
           <button
             type="button"
-            className="cursor-pointer text-xs font-medium text-primary hover:underline"
+            className="cursor-pointer text-xs font-medium text-primary-text hover:underline"
             // Hiding the replaced rows must disarm any pending confirmation
             // with them: the armed row would otherwise come back armed and
             // delete on the first click after the next "Show ...".
