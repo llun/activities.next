@@ -446,10 +446,16 @@ it; there is no legacy shape left to copy.
   (`useGKSnapCols(150)`), so adopting it there is a straight port, but until
   someone does it the rule above describes the components table only. Do not
   read it as a claim about the whole tree.
-- **The components card is a `bg-background/80` section, not a `Card`.** The
+- **The components card is a `bg-background` section, not a `Card`.** The
   design system deliberately puts the gear surfaces one step above the stat
   tiles that sit over them, which are the ones on `bg-card`; rendering both as
-  `Card` reads as the same slab twice. The card header does not repeat the
+  `Card` reads as the same slab twice. It is opaque rather than the
+  `bg-background/80` the other design-system sections use, because the pinned
+  column has to paint an opaque background of its own and a translucent surface
+  around it would let the page's fixed radial tints through everywhere except
+  that one column. It also needs `overflow-hidden`: with no replaced components
+  the table's scroller is the section's last child, and a square cell
+  background paints straight over the rounded bottom corners. The card header does not repeat the
   installed count either — the stat grid above it already says
   "Components installed".
 - **Evaluate service reminders only after the activity is `completed`.** The

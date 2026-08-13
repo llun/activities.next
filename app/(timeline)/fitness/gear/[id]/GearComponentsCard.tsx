@@ -47,8 +47,14 @@ const PINNED_CELL =
  * ~3px below the 13px cells beside it and the row grows to match. Same reason
  * the wear bar and the row actions set their own smaller sizes on the elements
  * that own them.
+ *
+ * `wrap-anywhere` is here for the same reason it is on the pinned cell, and it
+ * matters most for the free-text brand and model: a `<td>`'s width is advisory,
+ * so a long unbroken value widens its column past the snap interval, and under
+ * `scroll-snap-type: x mandatory` the scroller cannot rest between snap points
+ * — the tail of that cell simply cannot be scrolled to.
  */
-const CELL = 'px-3 py-2.5 align-top text-[13px]'
+const CELL = 'px-3 py-2.5 align-top text-[13px] wrap-anywhere'
 
 /** Width the pinned "Type" column keeps, and the snap offset that follows it. */
 const TYPE_COLUMN_WIDTH = 104
