@@ -201,7 +201,9 @@ change doesn't touch.
   `getFitnessActivitySummary` so the numbers reconcile across surfaces. Sport
   matching goes through `normalizeActivityTypeToSportKey`, never the raw
   `activityType`, and import jobs assign with `assignFitnessFileGearIfUnset` so a
-  re-run can't clobber a manual assignment. See **Fitness Gear** in `AGENTS.md`.
+  re-run can't clobber a manual assignment. No importer reads gear from Strava or
+  creates a gear row — attribution comes only from the owner's `defaultSports`
+  mapping. See **Fitness Gear** in `AGENTS.md`.
 - React state updater functions stay pure — no side effects, and don't fire another
   variable's state update from inside an updater. Do the separate `setState` calls
   in the event handler instead, so Strict Mode's double-invoke can't misfire them.

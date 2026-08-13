@@ -489,11 +489,14 @@ export const processFitnessFileJob = createJobHandle(
       })
 
       // Auto-assign gear from the owner's default-sport mapping, now that the
-      // parsed `activityType` is known. Only ever fills a hole: an import that
-      // already attributed the activity (Strava's own `gear_id`) and a manual
-      // assignment both win, which `assignFitnessFileGearIfUnset` enforces with
-      // its guarded UPDATE. Attribution is metadata — the whole block is
-      // best-effort so it can never fail a file that parsed fine.
+      // parsed `activityType` is known. This is the ONLY automatic attribution
+      // there is — imports deliberately read no gear from their source, so an
+      // imported activity lands here exactly like an uploaded one (see
+      // AGENTS.md → Fitness Gear). It still only ever fills a hole: a manual
+      // assignment wins, which `assignFitnessFileGearIfUnset` enforces with its
+      // guarded UPDATE, and these jobs re-run. Attribution is metadata — the
+      // whole block is best-effort so it can never fail a file that parsed
+      // fine.
       if (!fitnessFile.gearId) {
         try {
           const sportKey = normalizeActivityTypeToSportKey(

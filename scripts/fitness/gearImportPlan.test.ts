@@ -73,16 +73,6 @@ describe('parseGearImportFile', () => {
       error: /claimed by both/
     },
     {
-      description: 'a duplicate stravaGearId',
-      input: validFile({
-        gears: [
-          gearEntry({ stravaGearId: 'b123' }),
-          gearEntry({ name: 'Giant', stravaGearId: 'b123' })
-        ]
-      }),
-      error: /is used by both/
-    },
-    {
       description: 'an assignment naming unknown gear',
       input: validFile({
         assignments: [{ time: '2024-01-06T10:26:21Z', gear: 'Brompton' }]

@@ -23,7 +23,6 @@ export interface CreateFitnessGearParams {
   defaultSports?: string[]
   alertDistanceMeters?: number | null
   notes?: string | null
-  stravaGearId?: string | null
 }
 
 // Every optional field uses presence semantics (`'field' in params`): absent
@@ -90,10 +89,6 @@ export interface FitnessGearDatabase {
   findFitnessGearByDefaultSport(params: {
     actorId: string
     sportKey: string
-  }): Promise<FitnessGear | null>
-  findFitnessGearByStravaGearId(params: {
-    actorId: string
-    stravaGearId: string
   }): Promise<FitnessGear | null>
   findFitnessGearByName(params: {
     actorId: string
@@ -205,7 +200,6 @@ const parseSQLFitnessGear = (row: SQLFitnessGear): FitnessGear => ({
     row.lastAlertedDistanceMeters
   ),
   notes: row.notes ?? undefined,
-  stravaGearId: row.stravaGearId ?? undefined,
   retiredAt: row.retiredAt ? getCompatibleTime(row.retiredAt) : undefined,
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt),
@@ -340,7 +334,6 @@ export const FitnessGearSQLDatabaseMixin = (
         alertDistanceMeters: params.alertDistanceMeters ?? null,
         lastAlertedDistanceMeters: null,
         notes: params.notes ?? null,
-        stravaGearId: params.stravaGearId ?? null,
         retiredAt: null,
         createdAt: currentTime,
         updatedAt: currentTime,
@@ -481,15 +474,7 @@ export const FitnessGearSQLDatabaseMixin = (
         .whereNull('deletedAt')
         .update({
           deletedAt: currentTime,
-          updatedAt: currentTime,
-          // Release the Strava id along with the row. The unique index on
-          // (actorId, stravaGearId) covers soft-deleted rows, so a deleted gear
-          // that kept its id would block the re-import forever: the lookup
-          // filters on `deletedAt IS NULL` and finds nothing, the create then
-          // violates the index, and the recovery re-read finds nothing either —
-          // leaving every future activity on that bike silently unattributed
-          // with no way for the owner to repair it.
-          stravaGearId: null
+          updatedAt: currentTime
         })
       if (deleted === 0) return false
 
@@ -562,22 +547,13 @@ export const FitnessGearSQLDatabaseMixin = (
     return match ? parseSQLFitnessGear(match) : null
   },
 
-  async findFitnessGearByStravaGearId({ actorId, stravaGearId }) {
-    const row = await database<SQLFitnessGear>('fitness_gears')
-      .where('actorId', actorId)
-      .where('stravaGearId', stravaGearId)
-      .whereNull('deletedAt')
-      .first()
-    return row ? parseSQLFitnessGear(row) : null
-  },
-
   async findFitnessGearByName({ actorId, name }) {
     const trimmed = name.trim()
     if (!trimmed) return null
 
-    // Case-insensitive without relying on a backend collation: the archive
-    // importer keys on the name Strava exported, and per-actor gear counts are
-    // small enough to compare in JS.
+    // Case-insensitive without relying on a backend collation: the gear
+    // import script keys on the name in its plan file, and per-actor gear
+    // counts are small enough to compare in JS.
     const normalized = trimmed.toLowerCase()
     const rows = await database<SQLFitnessGear>('fitness_gears')
       .where('actorId', actorId)
