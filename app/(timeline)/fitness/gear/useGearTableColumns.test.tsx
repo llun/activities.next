@@ -115,11 +115,13 @@ describe('useGearTableColumns', () => {
     expect(styleOf('pinned').width).toBe(`${PINNED_WIDTH}px`)
   })
 
-  it('floors a snapped column so a long distance still fits on one line', () => {
+  it('floors a snapped column so the distance and its wear line still fit', () => {
     render(<Probe />)
     act(() => deliver?.(240))
 
-    expect(styleOf('data').width).toBe('160px')
+    // 240 - 104 = 136, narrower than the wear line, so the floor takes over
+    // and the column is allowed to overflow the scroller instead.
+    expect(styleOf('data').width).toBe('184px')
   })
 
   it('keeps the last measured width when the table reports zero', () => {

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import {
   createFitnessGearComponent,
@@ -48,6 +48,34 @@ const createComponent = (
   ...overrides
 })
 
+// jsdom has no ResizeObserver, so without this stub `useGearTableColumns`
+// early-returns and none of the pinning or snapping below is exercised at all.
+let deliverWidth: ((width: number) => void) | null = null
+
+class ResizeObserverStub {
+  constructor(
+    private readonly callback: (entries: ResizeObserverEntry[]) => void
+  ) {}
+
+  observe(target: Element) {
+    deliverWidth = (width: number) => {
+      Object.defineProperty(target, 'clientWidth', {
+        configurable: true,
+        value: width
+      })
+      this.callback([
+        {
+          target,
+          contentRect: { width } as DOMRectReadOnly
+        } as ResizeObserverEntry
+      ])
+    }
+  }
+
+  unobserve() {}
+  disconnect() {}
+}
+
 const renderCard = (components: GearComponentEntity[], onChanged = vi.fn()) => {
   render(
     <GearComponentsCard
@@ -78,6 +106,68 @@ describe('GearComponentsCard', () => {
     ).toBeInTheDocument()
     // The count belongs to the stat grid above the card, not to this header.
     expect(screen.queryByText(/installed/)).not.toBeInTheDocument()
+  })
+
+  describe('responsive columns', () => {
+    beforeEach(() => {
+      deliverWidth = null
+      vi.stubGlobal('ResizeObserver', ResizeObserverStub)
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    const columnCells = (index: number) => [
+      screen.getAllByRole('columnheader')[index],
+      ...screen
+        .getAllByRole('row')
+        .slice(1)
+        .map((row) => row.children[index])
+    ]
+
+    it('gives a column the same width in its header and its body', () => {
+      renderCard([createComponent(), createComponent({ id: 'c2' })])
+      act(() => deliverWidth?.(390))
+
+      // A header and body that disagree is how a pinned column ends up
+      // straddling the boundary it is meant to hold.
+      for (const index of [0, 1, 2]) {
+        const widths = columnCells(index).map(
+          (cell) => (cell as HTMLElement).style.width
+        )
+        expect(new Set(widths).size).toBe(1)
+        expect(widths[0]).toBe(index === 0 ? '104px' : '286px')
+      }
+    })
+
+    it('pins the type column and snaps the rest below the threshold', () => {
+      renderCard([createComponent()])
+      act(() => deliverWidth?.(390))
+
+      const [typeHeader] = columnCells(0)
+      expect(typeHeader).toHaveClass('sticky')
+      const [, brandHeader] = screen.getAllByRole('columnheader')
+      expect((brandHeader as HTMLElement).style.scrollSnapAlign).toBe('start')
+      expect(screen.getByRole('table').parentElement).toHaveStyle({
+        scrollSnapType: 'x mandatory',
+        scrollPaddingLeft: '104px'
+      })
+    })
+
+    it('leaves a wide table unsnapped, with the type column still pinned', () => {
+      renderCard([createComponent()])
+      act(() => deliverWidth?.(900))
+
+      const [typeHeader] = columnCells(0)
+      expect(typeHeader).toHaveClass('sticky')
+      expect((typeHeader as HTMLElement).style.width).toBe('')
+      const [, brandHeader] = screen.getAllByRole('columnheader')
+      expect((brandHeader as HTMLElement).style.scrollSnapAlign).toBe('')
+      expect(screen.getByRole('table').parentElement).not.toHaveStyle({
+        scrollSnapType: 'x mandatory'
+      })
+    })
   })
 
   it('shows the empty state when there is nothing installed', () => {

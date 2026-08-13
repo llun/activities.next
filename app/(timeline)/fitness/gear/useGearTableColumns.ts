@@ -19,9 +19,13 @@ export const GEAR_TABLE_SNAP_WIDTH = 480
 
 /**
  * A snapped data column never gets narrower than this even on a very small
- * screen: "35,670.2 km" plus its wear bar has to fit on one line.
+ * screen. The binding content is the distance cell's wear line, measured at
+ * 158px — an 80px bar, an 8px gap and a caption as long as "of 12,000 km" —
+ * plus the cell's own 24px of horizontal padding. Below that the line is
+ * `whitespace-nowrap` inside a `justify-end` flex row, so it does not clip: it
+ * spills out of the row's start edge and under the pinned column.
  */
-const MIN_SNAP_COLUMN_WIDTH = 160
+const MIN_SNAP_COLUMN_WIDTH = 184
 
 // The measurement has to land before the browser paints, or the table renders
 // wide for a frame and then reflows. `useLayoutEffect` warns when React renders

@@ -39,7 +39,7 @@ const SERVICE_REMINDER_KM_OPTIONS = [1000, 3000, 5000, 8000, 12000]
  * a border, because a border would scroll with the cell's box on some engines.
  */
 const PINNED_CELL =
-  'sticky left-0 break-words bg-background shadow-[inset_-1px_0_0_var(--border)]'
+  'sticky left-0 wrap-anywhere bg-background shadow-[inset_-1px_0_0_var(--border)]'
 
 /**
  * The row's type scale lives on the cell, not on an inner span: a `<td>` left
@@ -225,11 +225,16 @@ export const GearComponentsCard: FC<Props> = ({
     // The design system's gear surfaces sit on the page background rather than
     // the card grey, which is what the stat tiles above this one use — the two
     // are meant to read as different depths, not the same slab twice.
+    // Opaque, not the `bg-background/80` the other design-system sections use:
+    // the pinned column has to paint an opaque background of its own, and a
+    // translucent surface around it would let the page's fixed radial tints
+    // through everywhere except that one column.
+    //
     // `overflow-hidden` is what keeps the table inside the rounded corners: with
     // no replaced components the scroller is the section's last child, and the
     // pinned cell's opaque square background painted straight over the
     // bottom-left arc (as did the horizontal scrollbar, across both corners).
-    <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
+    <section className="overflow-hidden rounded-2xl border bg-background shadow-sm">
       <div className="flex items-center justify-between gap-3 px-5 py-4">
         <div className="flex min-w-0 items-center gap-2">
           <Wrench className="size-4 shrink-0 text-primary" />
