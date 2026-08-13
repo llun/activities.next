@@ -1062,31 +1062,7 @@ describe('FitnessGearDatabase', () => {
       })
     })
 
-    describe('findFitnessGearByStravaGearId and findFitnessGearByName', () => {
-      it('finds gear by its Strava id, scoped to the actor', async () => {
-        const gear = await database.createFitnessGear({
-          actorId: actors.extra.id,
-          kind: 'bike',
-          name: 'Strava keyed',
-          stravaGearId: 'b1234567'
-        })
-
-        expect(
-          (
-            await database.findFitnessGearByStravaGearId({
-              actorId: actors.extra.id,
-              stravaGearId: 'b1234567'
-            })
-          )?.id
-        ).toBe(gear.id)
-        expect(
-          await database.findFitnessGearByStravaGearId({
-            actorId: actors.primary.id,
-            stravaGearId: 'b1234567'
-          })
-        ).toBeNull()
-      })
-
+    describe('findFitnessGearByName', () => {
       it('matches a name case-insensitively', async () => {
         const gear = await database.createFitnessGear({
           actorId: actors.extra.id,
@@ -1393,40 +1369,6 @@ describe('FitnessGearDatabase', () => {
         expect(
           (await database.getFitnessFile({ id: activity.id }))?.gearId
         ).toBe(manual.id)
-      })
-    })
-
-    describe('deleting gear releases its Strava id', () => {
-      it('lets a later import re-create gear for the same Strava id', async () => {
-        const original = await database.createFitnessGear({
-          actorId: actors.extra.id,
-          kind: 'bike',
-          name: 'Strava bike',
-          stravaGearId: 'b7654321'
-        })
-        await database.deleteFitnessGear({
-          id: original.id,
-          actorId: actors.extra.id
-        })
-
-        // The unique index on (actorId, stravaGearId) covers soft-deleted rows,
-        // so a deleted gear that kept its id would make this insert fail
-        // forever and leave every future activity on that bike unattributed.
-        const reimported = await database.createFitnessGear({
-          actorId: actors.extra.id,
-          kind: 'bike',
-          name: 'Strava bike',
-          stravaGearId: 'b7654321'
-        })
-        expect(reimported.id).not.toBe(original.id)
-        expect(
-          (
-            await database.findFitnessGearByStravaGearId({
-              actorId: actors.extra.id,
-              stravaGearId: 'b7654321'
-            })
-          )?.id
-        ).toBe(reimported.id)
       })
     })
 

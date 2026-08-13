@@ -18,8 +18,6 @@ import {
 } from '@/lib/services/fitness-files'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import { assertFitnessStoragePath } from '@/lib/services/fitness-files/path'
-import { FitnessGearKind } from '@/lib/services/fitness-files/sportTypes'
-import { resolveArchiveGearByName } from '@/lib/services/fitness-gears/resolveImportedGear'
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
 import { getQueue } from '@/lib/services/queue'
@@ -40,7 +38,6 @@ import {
   createByteLimitTransform,
   readAsyncIterableToBufferWithLimit
 } from '@/lib/utils/streamLimit'
-import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { waitFor } from '@/lib/utils/waitFor'
 
 import { createJobHandle } from './createJobHandle'
@@ -705,64 +702,13 @@ export const importStravaArchiveJob = createJobHandle(
       })
       const archiveActivities = await archiveReader.getActivities()
 
-      // The archive's gear CSVs are optional: they only tell us whether a gear
-      // NAME is a bike or a pair of shoes. A missing or unreadable file leaves
-      // the map empty and every gear falls back to the `shoes` default below —
-      // the import still succeeds, which is the point of the try/catch.
-      //
-      // That fallback is not free, though, and the cost is worth stating: gear
-      // `kind` is immutable (there is no `kind` on `UpdateFitnessGearParams`),
-      // so a bike filed as shoes stays that way. It shows no components card at
-      // all, rejects a frame type and a weight, and any reminder it sends says
-      // "Most shoes wear out between 500 and 800 km". The only remedy is to
-      // delete the gear and re-create it, which detaches every activity that
-      // was attributed to it. An export without `bikes.csv` therefore degrades
-      // more than the word "fallback" suggests.
-      const gearKindByName = new Map<string, FitnessGearKind>()
-      try {
-        for (const gear of await archiveReader.getGear()) {
-          gearKindByName.set(gear.name.trim().toLowerCase(), gear.kind)
-        }
-      } catch (error) {
-        logger.warn({
-          message: 'Failed to read gear from Strava archive',
-          importId,
-          actorId,
-          err: toLoggableError(error)
-        })
-      }
-
-      // Name → local gear id for this run, so a name shared by hundreds of
-      // activities is resolved once.
-      //
-      // Only SUCCESSES are cached. `resolveArchiveGearByName` returns null only
-      // when the create threw and the re-read found no winner — i.e. a
-      // transient database failure — so caching that would let one blip leave
-      // every remaining activity with the same gear name unattributed, silently
-      // and with a single log line for thousands of rides. Retrying on the next
-      // activity costs nothing in the happy path.
-      const gearIdByName = new Map<string, string>()
-      const resolveArchiveActivityGearId = async (
-        gearName: string
-      ): Promise<string | null> => {
-        const key = gearName.trim().toLowerCase()
-        if (!key) return null
-
-        const cached = gearIdByName.get(key)
-        if (cached) return cached
-
-        const resolved = await resolveArchiveGearByName({
-          database,
-          actorId,
-          name: gearName.trim(),
-          kind: gearKindByName.get(key) ?? 'shoes'
-        })
-        if (!resolved) return null
-
-        gearIdByName.set(key, resolved.id)
-        return resolved.id
-      }
-
+      // The archive's own gear names are deliberately ignored. Attribution
+      // comes from the athlete's shed: `processFitnessFileJob` assigns each
+      // imported file to the gear whose `defaultSports` claims the parsed
+      // sport, which is what the Strava settings page edits. Creating a local
+      // gear per archive name instead meant a decade-old export silently
+      // populated the shed with every bike the athlete has ever owned, each
+      // with a `kind` guessed from an optional CSV and immutable once wrong.
       const targetTotalActivities =
         checkpoint.totalActivitiesCount ?? archiveActivities.length
       setCheckpoint({
@@ -844,33 +790,6 @@ export const importStravaArchiveJob = createJobHandle(
             activity: archiveActivity,
             fitnessFileId: savedFitnessFile.id
           })
-
-          // Gear is an attribution on top of an already-imported activity, so
-          // it gets its own catch: the surrounding one marks the activity
-          // failed (and rolls the whole batch back on a limit error), which a
-          // missing bike must never trigger.
-          if (archiveActivity.activityGear) {
-            try {
-              const gearId = await resolveArchiveActivityGearId(
-                archiveActivity.activityGear
-              )
-              if (gearId) {
-                await database.assignFitnessFileGearIfUnset({
-                  fitnessFileId: savedFitnessFile.id,
-                  actorId,
-                  gearId
-                })
-              }
-            } catch (gearError) {
-              logger.warn({
-                message: 'Failed to attribute gear to archive activity',
-                importId,
-                actorId,
-                activityId: archiveActivity.activityId,
-                err: toLoggableError(gearError)
-              })
-            }
-          }
         } catch (error) {
           const nodeError = error as Error
           if (nodeError instanceof StravaArchiveLimitError) {

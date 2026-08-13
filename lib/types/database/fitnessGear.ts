@@ -20,7 +20,6 @@ export interface SQLFitnessGear {
   alertDistanceMeters?: number | string | null
   lastAlertedDistanceMeters?: number | string | null
   notes?: string | null
-  stravaGearId?: string | null
   retiredAt?: number | Date | string | null
 
   createdAt: number | Date
@@ -42,7 +41,6 @@ export interface FitnessGear {
   alertDistanceMeters?: number
   lastAlertedDistanceMeters?: number
   notes?: string
-  stravaGearId?: string
   retiredAt?: number
 
   createdAt: number

@@ -102,7 +102,6 @@ const ImportGearSchema = z.object({
   defaultSports: z.array(z.enum(SPORT_KEYS)).max(SPORT_KEYS.length).optional(),
   alertDistanceMeters: optionalPositiveNumber(MAX_DISTANCE_METERS),
   notes: optionalText(NOTES_MAX),
-  stravaGearId: optionalText(VARCHAR_MAX),
   retired: z.boolean().default(false),
   components: z.array(ImportComponentSchema).default([]),
   windows: z.array(ImportWindowSchema).default([])
@@ -176,7 +175,6 @@ const validateGearImportFile = (file: GearImportFile): string[] => {
   }
 
   const sportOwners = new Map<SportKey, string>()
-  const stravaGearIdOwners = new Map<string, string>()
 
   for (const gear of file.gears) {
     const kindError = getGearKindFieldError(gear.kind, {
@@ -198,19 +196,6 @@ const validateGearImportFile = (file: GearImportFile): string[] => {
         continue
       }
       sportOwners.set(sportKey, gear.name)
-    }
-
-    if (gear.stravaGearId) {
-      const owner = stravaGearIdOwners.get(gear.stravaGearId)
-      if (owner) {
-        // The (actorId, stravaGearId) unique index would reject the second one
-        // mid-run, after the first gear was already created.
-        errors.push(
-          `gears: stravaGearId "${gear.stravaGearId}" is used by both "${owner}" and "${gear.name}"`
-        )
-      } else {
-        stravaGearIdOwners.set(gear.stravaGearId, gear.name)
-      }
     }
 
     gear.windows.forEach((window, index) => {

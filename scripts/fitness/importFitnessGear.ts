@@ -125,37 +125,23 @@ interface ResolvedGear {
 }
 
 /**
- * Finds the gear this entry refers to, by name first and Strava id second.
+ * Finds the gear this entry refers to, by name.
  *
- * The order matters on a re-run: if the owner renamed the gear in the UI, the
- * name lookup misses, and creating it again would hit the unique
- * (actorId, stravaGearId) index — which `createFitnessGear` does not recover
- * from, so the run would die partway through.
+ * The name is the only handle the plan file carries, so a re-run after the
+ * owner renamed the gear in the UI misses and creates a second row. That is
+ * visible and repairable (delete the duplicate, or rename the plan entry to
+ * match); it is also why the plan validator rejects two entries whose names
+ * differ only by case.
  */
 const resolveExistingGear = async (
   database: Database,
   actorId: string,
   entry: ImportGear
-): Promise<FitnessGear | null> => {
-  const byName = await database.findFitnessGearByName({
+): Promise<FitnessGear | null> =>
+  database.findFitnessGearByName({
     actorId,
     name: entry.name
   })
-  if (byName) return byName
-
-  if (!entry.stravaGearId) return null
-
-  const byStravaGearId = await database.findFitnessGearByStravaGearId({
-    actorId,
-    stravaGearId: entry.stravaGearId
-  })
-  if (byStravaGearId) {
-    console.log(
-      `  Note: "${entry.name}" matched existing gear "${byStravaGearId.name}" by Strava id ${entry.stravaGearId}`
-    )
-  }
-  return byStravaGearId
-}
 
 const loadActorFitnessFiles = async (
   database: Database,
@@ -560,8 +546,7 @@ async function importFitnessGearScript(args = process.argv.slice(2)) {
             weightKilograms: entry.weightKilograms,
             defaultSports: entry.defaultSports ?? [],
             alertDistanceMeters: entry.alertDistanceMeters,
-            notes: entry.notes,
-            stravaGearId: entry.stravaGearId
+            notes: entry.notes
           })
           totals.gearsCreated += 1
           console.log(`  Created gear ${entry.name}`)
