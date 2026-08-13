@@ -1,0 +1,28 @@
+.github/workflows/version-bump.yml
+  s_2e68f008a23be0::t_3dcb50cdf2e53b 14-25,28
+  s_2e68f008a23be0::t_69078e27c89794 358-360,380-381,402-419,422-432,435-436,438-440,443-444,447-450,452-453,455,475,479-486,488-490,492-493,495-496,498-501,519-532,543,550,555-556,563,571-572,575,606-610,612,614-615,617-618,630-631,663-664,667
+  s_2e68f008a23be0::t_161fa39d6a692b 502-518
+  s_2e68f008a23be0::t_99a9602a490b1c 579-597
+  s_2e68f008a23be0::t_a11ce2afeed91a 632-662,665-666
+  s_2e68f008a23be0::t_b4749378086f03 533-542
+  s_2e68f008a23be0::t_1387c6e953fde7 441,456-457,463-466
+  s_2e68f008a23be0::t_8614452a3c389d 458-462,467-474,477
+  s_2e68f008a23be0::t_6918029e5e3adf 616,626
+  s_2e68f008a23be0::t_4bdc0a7c22d9a2 478
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "19203071bd606232333911ce04e05357d9d80437",
+  "prompts": {},
+  "sessions": {
+    "s_2e68f008a23be0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca3a9444-5e3c-4838-a7cf-b2a1e9544163",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
