@@ -213,9 +213,12 @@ change doesn't touch.
   soft-deleted rows. Devices are filtered out of the activity gear picker
   **before** its kind narrowing, and `setFitnessFileGear` rejects one outright:
   `gearId` means "what was this ride done on", and an activity pointed at a
-  device falls out of every rollup. The device rollups deliberately drop
-  `isPrimary` from the shared predicate — the secondary file of a merged
-  same-ride post is the only record the second device left. The device page link
+  device falls out of every rollup. The device rollups **relax** `isPrimary`
+  rather than dropping it: a secondary file counts only when the primary of its
+  own merged post belongs to a different device, so the watch half of a
+  two-device ride is counted while a `.fit`+`.gpx` pair from one device is not
+  counted twice. The rollup and the activity list must apply the identical
+  predicate. The device page link
   is owner-only; everyone else gets the branded manufacturer link.
 - React state updater functions stay pure — no side effects, and don't fire another
   variable's state update from inside an updater. Do the separate `setState` calls

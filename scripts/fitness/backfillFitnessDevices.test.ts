@@ -33,6 +33,16 @@ describe('backfillFitnessDevices parseArgs', () => {
     ).toThrow('Invalid boolean value: maybe. Use true or false.')
   })
 
+  it('explains itself when handed --dry-run instead of eating the next argument', () => {
+    // Every sibling fitness script takes --dry-run and writes by default; this
+    // one inverts that, so an operator copying the habit gets an explanation
+    // rather than "Missing value for --dry-run" — or a silently consumed
+    // --actor-id.
+    expect(() => parseArgs(['--dry-run', '--actor-id', 'actor-1'])).toThrow(
+      'This script is a dry run by default; pass --apply to write.'
+    )
+  })
+
   it('rejects an unexpected positional argument', () => {
     expect(() => parseArgs(['actor-1'])).toThrow('Unexpected argument: actor-1')
   })

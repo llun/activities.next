@@ -504,15 +504,19 @@ it; there is no legacy shape left to copy.
   `kind: 'device'` rows have no components, no default sports, no distance
   total, no service reminder and cannot be retired; a device page reports an
   activity count and a first-used date instead.
-  The device rollups reuse the shared countable-activity predicate **minus
-  `isPrimary`**, and that is the one clause that genuinely does not transfer.
-  `isPrimary` exists so a ride recorded on two devices counts once toward the
-  bike it was ridden on — but the two files are exactly what tells those two
-  DEVICES apart, and the non-primary one is the only trace the second device
-  left. Counting it is the record, not double-counting. With `isPrimary` in
-  place, the watch that recorded the secondary half of a merged same-ride post
-  gets a row (the import links every file before the group is collapsed) that
-  reports 0 activities forever. A head unit records rides and
+  The device rollups **relax** `isPrimary`, the one clause that does not
+  transfer unchanged, and the relaxation is narrower than "drop it". A merged
+  same-ride post keeps one file and marks the rest non-primary, which is right
+  for a bike — the ride happened once — but for a device it depends on why the
+  files were merged. Two devices, one ride: the secondary file is the only
+  evidence the second device exists, and `isPrimary` alone gives it a page
+  reporting 0 activities forever (the import links every file before the group
+  is collapsed). One device, one ride, two files (a `.fit` beside a `.gpx`, or a
+  manual upload beside the Strava sync): both carry the SAME device, so counting
+  both reports one ride twice. So a secondary file counts only when the primary
+  of its own merged post belongs to a **different** device. The rollup and the
+  activity list apply the identical predicate, so a device's count and its page
+  can never disagree. A head unit records rides and
   runs alike, so one summed distance would be a number with no meaning, and
   claiming a sport would take that sport off the bike or shoes that should hold
   it. `SPORT_KIND` is therefore typed `Record<SportKey, UserCreatableGearKind>`

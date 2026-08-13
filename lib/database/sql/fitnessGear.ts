@@ -277,26 +277,61 @@ const parseSQLFitnessGearComponent = (
  * and buckets by them. Gear totals count an activity whatever it is and whenever
  * it happened, so a timestamp-less GPX contributes here and is invisible there.
  *
- * `includeSecondaryFiles` is the one clause that does not transfer to devices.
- * `isPrimary` exists so a single ride recorded on two devices is counted once
- * toward the bike it was ridden on — but the two files are exactly what
- * distinguishes those two DEVICES, and the non-primary one is the only evidence
- * the second device exists at all. Counting it there is not double-counting; it
- * is the whole record. Without this the watch that recorded the secondary half
- * of a merged same-ride post gets a gear row (the import links every file before
- * the group is collapsed) that reports 0 activities forever.
+ * `isPrimary` is the one clause that does not transfer unchanged to devices, and
+ * `forDeviceLink` is what relaxes it.
+ *
+ * A merged same-ride post keeps one file per source and marks the rest
+ * non-primary, which is right for a bike: the ride happened once, so it counts
+ * once. For a device it depends on WHY the files were merged, and there are two
+ * cases the flag has to tell apart.
+ *
+ * Two devices, one ride (a head unit and a watch): the secondary file is the
+ * only evidence the second device exists at all, and counting it is the record
+ * rather than double-counting. `isPrimary` alone gives that device a page
+ * reporting 0 activities forever — the import links every file before the group
+ * is collapsed.
+ *
+ * One device, one ride, two files (a `.fit` and a `.gpx` of the same ride, or a
+ * manual upload beside the Strava sync): both files carry the SAME device, so
+ * counting both reports one ride twice and lists it twice.
+ *
+ * So a secondary file counts only when the primary of its own merged post
+ * belongs to a different device — which is exactly "this is the only trace this
+ * device left of that ride". A secondary whose primary was since deleted counts
+ * too, for the same reason. Both the rollup and the activity list apply this
+ * identical predicate, so a device's count and its page can never disagree.
  */
 const applyCountableActivityFilter = (
+  database: Knex,
   query: Knex.QueryBuilder,
   tableAlias: string,
-  { includeSecondaryFiles = false }: { includeSecondaryFiles?: boolean } = {}
+  { forDeviceLink = false }: { forDeviceLink?: boolean } = {}
 ) => {
   const filtered = query
     .whereNull(`${tableAlias}.deletedAt`)
     .where(`${tableAlias}.processingStatus`, 'completed')
-  return includeSecondaryFiles
-    ? filtered
-    : filtered.where(`${tableAlias}.isPrimary`, true)
+  if (!forDeviceLink) return filtered.where(`${tableAlias}.isPrimary`, true)
+
+  return filtered.where((builder) =>
+    builder.where(`${tableAlias}.isPrimary`, true).orWhereNotExists((sub) =>
+      sub
+        .select(database.raw('1'))
+        .from('fitness_files as merged_primary')
+        .where('merged_primary.isPrimary', true)
+        .whereNull('merged_primary.deletedAt')
+        // Column-to-column, so a NULL on either side never matches: a file
+        // that was never merged into a post has no primary to defer to and
+        // counts on its own.
+        .whereRaw('?? = ??', [
+          'merged_primary.statusId',
+          `${tableAlias}.statusId`
+        ])
+        .whereRaw('?? = ??', [
+          'merged_primary.deviceGearId',
+          `${tableAlias}.deviceGearId`
+        ])
+    )
+  )
 }
 
 /**
@@ -579,6 +614,7 @@ export const FitnessGearSQLDatabaseMixin = (
       getWhereInBatchSize(database, 3)
     )) {
       const rows = await applyCountableActivityFilter(
+        database,
         database('fitness_files'),
         'fitness_files'
       )
@@ -621,14 +657,14 @@ export const FitnessGearSQLDatabaseMixin = (
       uniqueIds,
       getWhereInBatchSize(database, 3)
     )) {
-      // The same countable-activity predicate the distance rollups use, minus
-      // `isPrimary` — see the filter's own comment. A device's history is the
-      // per-file record, and the secondary file of a merged same-ride post is
-      // the only trace the second device left.
+      // The same countable-activity predicate the distance rollups use, with
+      // `isPrimary` relaxed for a merged post recorded on more than one device
+      // — see the filter's own comment.
       const rows = await applyCountableActivityFilter(
+        database,
         database('fitness_files'),
         'fitness_files',
-        { includeSecondaryFiles: true }
+        { forDeviceLink: true }
       )
         .where('fitness_files.actorId', actorId)
         .whereIn('fitness_files.deviceGearId', chunk)
@@ -672,11 +708,12 @@ export const FitnessGearSQLDatabaseMixin = (
       : 'fitness_files.gearId'
 
     const rows = await applyCountableActivityFilter(
+      database,
       database('fitness_files'),
       'fitness_files',
       // Matches this kind's rollup exactly, so the list and the count on the
       // same page can never disagree.
-      { includeSecondaryFiles: isDevice }
+      { forDeviceLink: isDevice }
     )
       .where('fitness_files.actorId', actorId)
       .where(matchColumn, gearId)

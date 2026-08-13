@@ -2,7 +2,7 @@
 
 import { ExternalLink, Pencil } from 'lucide-react'
 import Link from 'next/link'
-import { FC, useEffect, useState } from 'react'
+import { FC, useEffect, useRef, useState } from 'react'
 
 import {
   formatGearDate,
@@ -137,9 +137,22 @@ export const DeviceDetailView: FC<Props> = ({
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // How many rows the server has handed over, which is NOT `activities.length`
+  // once a duplicate has been dropped. Paging from the list length would then
+  // re-request rows already consumed, and a page that is entirely duplicates
+  // would leave "Load more" stuck at the same offset forever.
+  const consumedRef = useRef(0)
+  // The device whose responses are currently welcome. `GearDetailView` renders
+  // this component at a fixed position with no `key`, so moving between two
+  // device pages swaps `gear` on the SAME instance — without this, a "Load
+  // more" fired on the previous device can land after the new device's first
+  // page and append its rows here.
+  const requestedGearIdRef = useRef(gear.id)
 
   useEffect(() => {
     let cancelled = false
+    requestedGearIdRef.current = gear.id
+    consumedRef.current = 0
     setIsLoading(true)
     // Reset before fetching, not after: the previous device's rows would
     // otherwise stay on screen with the previous device's `hasMore`, and a
@@ -151,6 +164,7 @@ export const DeviceDetailView: FC<Props> = ({
     getFitnessGearActivities(gear.id, { limit: ACTIVITIES_PAGE_SIZE })
       .then((page) => {
         if (cancelled) return
+        consumedRef.current = page.activities.length
         setActivities(page.activities)
         setHasMore(page.hasMore)
         setError(null)
@@ -173,12 +187,18 @@ export const DeviceDetailView: FC<Props> = ({
   }, [gear.id])
 
   const loadMore = async () => {
+    const requestedGearId = gear.id
     setIsLoadingMore(true)
     try {
-      const page = await getFitnessGearActivities(gear.id, {
+      const page = await getFitnessGearActivities(requestedGearId, {
         limit: ACTIVITIES_PAGE_SIZE,
-        offset: activities.length
+        offset: consumedRef.current
       })
+      // The gear changed while this was in flight, so these rows belong to a
+      // page nobody is looking at any more.
+      if (requestedGearIdRef.current !== requestedGearId) return
+
+      consumedRef.current += page.activities.length
       // Deduplicated on append: this is offset pagination over a list that can
       // grow, so an activity imported between two pages shifts the window and
       // repeats the boundary row — which React then flags as a duplicate key.
@@ -192,13 +212,16 @@ export const DeviceDetailView: FC<Props> = ({
       setHasMore(page.hasMore)
       setError(null)
     } catch (loadError) {
+      if (requestedGearIdRef.current !== requestedGearId) return
       setError(
         loadError instanceof Error
           ? loadError.message
           : 'Failed to load activities.'
       )
     } finally {
-      setIsLoadingMore(false)
+      if (requestedGearIdRef.current === requestedGearId) {
+        setIsLoadingMore(false)
+      }
     }
   }
 

@@ -261,6 +261,48 @@ describe('DeviceDetailView', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('pages from the rows the server handed over, not the deduped list length', async () => {
+    // Offset pagination over a growing list repeats the boundary row, which the
+    // append dedupes away. Paging from `activities.length` after that would
+    // re-request rows already consumed — and a page that is entirely duplicates
+    // would leave "Load more" stuck at the same offset forever.
+    mockGetFitnessGearActivities.mockResolvedValueOnce({
+      activities: [createActivity({ id: 'file-1' })],
+      hasMore: true
+    })
+    renderView({})
+
+    const loadMore = await screen.findByRole('button', { name: 'Load more' })
+    mockGetFitnessGearActivities.mockResolvedValueOnce({
+      // The whole page is the boundary row again, so nothing is appended.
+      activities: [createActivity({ id: 'file-1' })],
+      hasMore: true
+    })
+    fireEvent.click(loadMore)
+
+    await waitFor(() =>
+      expect(mockGetFitnessGearActivities).toHaveBeenCalledTimes(2)
+    )
+    expect(screen.getAllByText('Morning ride')).toHaveLength(1)
+
+    mockGetFitnessGearActivities.mockResolvedValueOnce({
+      activities: [
+        createActivity({ id: 'file-2', description: 'Evening ride' })
+      ],
+      hasMore: false
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+    await waitFor(() =>
+      expect(screen.getByText('Evening ride')).toBeInTheDocument()
+    )
+    // 2, not 1: the offset advanced past the duplicate the server sent.
+    expect(mockGetFitnessGearActivities).toHaveBeenLastCalledWith('device-1', {
+      limit: 20,
+      offset: 2
+    })
+  })
+
   it('reports an empty history', async () => {
     renderView({})
 

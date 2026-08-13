@@ -1684,6 +1684,7 @@ describe('FitnessGearDatabase', () => {
           distanceMeters,
           activityStartTime,
           deviceGearId,
+          statusId,
           processingStatus = 'completed',
           isPrimary = true
         }: {
@@ -1692,12 +1693,14 @@ describe('FitnessGearDatabase', () => {
           distanceMeters: number
           activityStartTime?: Date
           deviceGearId?: string
+          statusId?: string
           processingStatus?: 'pending' | 'processing' | 'completed' | 'failed'
           isPrimary?: boolean
         }
       ) => {
         const file = await db.createFitnessFile({
           actorId,
+          ...(statusId ? { statusId } : {}),
           path: `fitness/device-${pathSuffix}.fit`,
           fileName: `device-${pathSuffix}.fit`,
           fileType: 'fit',
@@ -2095,6 +2098,61 @@ describe('FitnessGearDatabase', () => {
           )
         })
 
+        it('counts one ride once when both files came off the same device', async () => {
+          // A `.fit` and a `.gpx` of the same ride, or a manual upload beside
+          // the Strava sync: the merge marks one non-primary, but BOTH carry
+          // the same device. Counting both would report one ride twice and
+          // list it twice.
+          const device = await database.createFitnessGear({
+            actorId: actors.extra.id,
+            kind: 'device',
+            name: 'One device two files',
+            deviceKey: 'name:one device two files'
+          })
+          const statusId = `${actors.extra.id}/statuses/same-device-merge`
+          await database.createNote({
+            id: statusId,
+            url: statusId,
+            actorId: actors.extra.id,
+            to: [],
+            cc: [],
+            text: 'One ride, two files'
+          })
+
+          const primary = await createDeviceActivity(database, {
+            actorId: actors.extra.id,
+            pathSuffix: 'same-device-primary',
+            distanceMeters: 42_600,
+            activityStartTime: new Date('2026-06-06T08:00:00.000Z'),
+            deviceGearId: device.id,
+            statusId
+          })
+          await createDeviceActivity(database, {
+            actorId: actors.extra.id,
+            pathSuffix: 'same-device-secondary',
+            distanceMeters: 42_600,
+            activityStartTime: new Date('2026-06-06T08:00:00.000Z'),
+            deviceGearId: device.id,
+            statusId,
+            isPrimary: false
+          })
+
+          const rollups = await database.getFitnessGearDeviceRollups({
+            actorId: actors.extra.id,
+            gearIds: [device.id]
+          })
+          expect(rollups[device.id].activityCount).toBe(1)
+
+          const rows = await database.getFitnessGearActivities({
+            actorId: actors.extra.id,
+            gearId: device.id,
+            kind: 'device',
+            limit: 10
+          })
+          // The count and the page must never disagree.
+          expect(rows.map((row) => row.id)).toEqual([primary.id])
+        })
+
         it('counts the secondary file of a merged same-ride post', async () => {
           // `isPrimary` keeps one ride from being counted twice toward the BIKE
           // it was ridden on. For a device it is the opposite: the two files
@@ -2102,11 +2160,37 @@ describe('FitnessGearDatabase', () => {
           // the only trace the second device left. Without this, the watch that
           // recorded the secondary half gets a row reporting 0 activities
           // forever — the import links every file before the group is merged.
+          const headUnit = await database.createFitnessGear({
+            actorId: actors.extra.id,
+            kind: 'device',
+            name: 'Merged head unit',
+            deviceKey: 'name:merged head unit'
+          })
           const watch = await database.createFitnessGear({
             actorId: actors.extra.id,
             kind: 'device',
             name: 'Second device',
             deviceKey: 'name:second device'
+          })
+          const statusId = `${actors.extra.id}/statuses/two-device-merge`
+          await database.createNote({
+            id: statusId,
+            url: statusId,
+            actorId: actors.extra.id,
+            to: [],
+            cc: [],
+            text: 'One ride, two devices'
+          })
+
+          // The head unit's file wins the merge; the watch's is marked
+          // non-primary and is the ONLY trace the watch left.
+          await createDeviceActivity(database, {
+            actorId: actors.extra.id,
+            pathSuffix: 'merged-primary',
+            distanceMeters: 42_600,
+            activityStartTime: new Date('2026-06-04T08:00:00.000Z'),
+            deviceGearId: headUnit.id,
+            statusId
           })
           const secondary = await createDeviceActivity(database, {
             actorId: actors.extra.id,
@@ -2114,6 +2198,7 @@ describe('FitnessGearDatabase', () => {
             distanceMeters: 42_600,
             activityStartTime: new Date('2026-06-04T08:00:00.000Z'),
             deviceGearId: watch.id,
+            statusId,
             isPrimary: false
           })
 

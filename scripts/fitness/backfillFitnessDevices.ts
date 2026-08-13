@@ -140,10 +140,11 @@ export interface DeviceBackfillGroup {
  */
 export const planDeviceBackfill = (
   files: BackfillableFitnessFile[],
-  // Folding one page at a time into a shared map is what keeps the whole
-  // history out of memory: only `{key, name, mfr, fileIds}` survives a page,
-  // never the rows themselves, and grouping still spans every page because the
-  // map is keyed on the device rather than on the page.
+  // Folding one page at a time into a shared map keeps the FILE ROWS out of
+  // memory — only `{key, name, mfr, fileIds}` survives a page — while grouping
+  // still spans every page, because the map is keyed on the device rather than
+  // on the page. The id list still grows with the history; it is the rows that
+  // do not.
   groups: Map<string, DeviceBackfillGroup> = new Map()
 ): DeviceBackfillGroup[] => {
   for (const file of files) {
