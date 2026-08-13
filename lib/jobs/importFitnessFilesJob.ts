@@ -14,6 +14,7 @@ import {
   isParseableFitnessFileType,
   parseFitnessFile
 } from '@/lib/services/fitness-files/parseFitnessFile'
+import { linkFitnessFileDeviceGear } from '@/lib/services/fitness-gears/resolveDeviceGear'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Mention } from '@/lib/types/activitypub'
@@ -372,6 +373,15 @@ export const importFitnessFilesJob = createJobHandle(
           ...(activityData.deviceName !== undefined
             ? { deviceName: activityData.deviceName }
             : {})
+        })
+
+        await linkFitnessFileDeviceGear({
+          database,
+          actorId,
+          fitnessFileId: fitnessFile.id,
+          deviceName: activityData.deviceName ?? fitnessFile.deviceName,
+          deviceManufacturer:
+            activityData.deviceManufacturer ?? fitnessFile.deviceManufacturer
         })
 
         parsedFiles.push({

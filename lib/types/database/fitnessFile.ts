@@ -45,6 +45,10 @@ export interface SQLFitnessFile {
   // The bike or shoes this activity is attributed to. Plain column, no FK — see
   // the 20260811000000_add_fitness_gear migration.
   gearId?: string | null
+  // The `kind: 'device'` gear row for the head unit or watch that recorded this
+  // activity, resolved from `deviceName`/`deviceManufacturer` on import. Those
+  // two stay the immutable recorded facts; this points at the editable row.
+  deviceGearId?: string | null
 
   // Timestamps
   createdAt: number | Date
@@ -84,6 +88,7 @@ export interface FitnessFile {
   deviceName?: string
   sourceUrl?: string
   gearId?: string
+  deviceGearId?: string
 
   createdAt: number
   updatedAt: number

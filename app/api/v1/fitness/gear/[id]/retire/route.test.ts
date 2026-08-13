@@ -23,6 +23,7 @@ vi.mock('@/lib/config', () => ({
 
 type MockDatabase = Pick<
   Database,
+  | 'getFitnessGear'
   | 'setFitnessGearRetired'
   | 'getFitnessGearDistanceRollups'
   | 'getAccountFromEmail'
@@ -52,6 +53,7 @@ const gear = (overrides: Partial<FitnessGear> = {}): FitnessGear => ({
 
 describe('Fitness gear retire API', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
+    getFitnessGear: vi.fn(),
     setFitnessGearRetired: vi.fn(),
     getFitnessGearDistanceRollups: vi.fn(),
     getAccountFromEmail: vi.fn(),
@@ -78,6 +80,9 @@ describe('Fitness gear retire API', () => {
     ])
     mockDb.getActorFromId.mockResolvedValue({ ...seedActor1, id: ACTOR1_ID })
     mockDb.getFitnessGearDistanceRollups.mockResolvedValue({})
+    // The route loads the gear before writing, so "not yours" stays a 404 and a
+    // recording device is rejected without a state change.
+    mockDb.getFitnessGear.mockResolvedValue(gear())
   })
 
   const params = { params: Promise.resolve({ id: 'gear-1' }) }
@@ -107,10 +112,28 @@ describe('Fitness gear retire API', () => {
   })
 
   it('answers 404 for gear the actor does not own', async () => {
+    mockDb.getFitnessGear.mockResolvedValue(null)
     mockDb.setFitnessGearRetired.mockResolvedValue(null)
 
     const response = await POST(request({ retired: true }), params)
     expect(response.status).toBe(404)
+    expect(mockDb.setFitnessGearRetired).not.toHaveBeenCalled()
+  })
+
+  it('rejects retiring a recording device with 422', async () => {
+    // Retiring means "out of the pickers and out of auto-assign", and a device
+    // is in neither — it is not something you choose for an activity, it is
+    // what recorded it.
+    mockDb.getFitnessGear.mockResolvedValue(
+      gear({ kind: 'device', name: 'Garmin Edge 840' })
+    )
+
+    const response = await POST(request({ retired: true }), params)
+    const data = await response.json()
+
+    expect(response.status).toBe(422)
+    expect(data.error).toBe('A recording device cannot be retired')
+    expect(mockDb.setFitnessGearRetired).not.toHaveBeenCalled()
   })
 
   it.each([

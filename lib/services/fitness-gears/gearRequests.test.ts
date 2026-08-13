@@ -45,6 +45,62 @@ describe('UpdateGearRequest', () => {
     const parsed = UpdateGearRequest.safeParse({ brand: 'x'.repeat(256) })
     expect(parsed.success).toBe(false)
   })
+
+  describe('productUrl', () => {
+    it('leaves an unmentioned product page absent, not null', () => {
+      const parsed = UpdateGearRequest.safeParse({ name: 'Edge 840' })
+      expect(parsed.success).toBe(true)
+      expect('productUrl' in (parsed.data ?? {})).toBe(false)
+    })
+
+    it.each([
+      { description: 'an explicit null', input: null },
+      { description: 'an empty string', input: '' },
+      { description: 'a whitespace-only string', input: '   ' }
+    ])('treats $description as a clear', ({ input }) => {
+      const parsed = UpdateGearRequest.safeParse({ productUrl: input })
+      expect(parsed.success).toBe(true)
+      expect('productUrl' in (parsed.data ?? {})).toBe(true)
+      expect(parsed.data?.productUrl).toBeNull()
+    })
+
+    it.each([
+      {
+        description: 'an https URL',
+        input: 'https://www.garmin.com/en-US/p/781308'
+      },
+      { description: 'an http URL', input: 'http://example.com/device' }
+    ])('accepts $description', ({ input }) => {
+      const parsed = UpdateGearRequest.safeParse({ productUrl: input })
+      expect(parsed.success).toBe(true)
+      expect(parsed.data?.productUrl).toBe(input)
+    })
+
+    it('trims a supplied URL', () => {
+      const parsed = UpdateGearRequest.safeParse({
+        productUrl: '  https://www.coros.com  '
+      })
+      expect(parsed.data?.productUrl).toBe('https://www.coros.com')
+    })
+
+    it.each([
+      {
+        description: 'a javascript: URL',
+        input: 'javascript:alert(1)'
+      },
+      { description: 'a data: URL', input: 'data:text/html,<script></script>' },
+      // Rendered as a relative link on this origin rather than the vendor's.
+      { description: 'a bare hostname', input: 'garmin.com' },
+      {
+        description: 'a URL longer than the column',
+        input: `https://a.co/${'x'.repeat(255)}`
+      }
+    ])('rejects $description', ({ input }) => {
+      expect(UpdateGearRequest.safeParse({ productUrl: input }).success).toBe(
+        false
+      )
+    })
+  })
 })
 
 describe('UpdateGearComponentRequest', () => {
@@ -172,6 +228,17 @@ describe('CreateGearRequest', () => {
       CreateGearRequest.safeParse({ kind: 'bike', name: '   ' }).success
     ).toBe(false)
   })
+
+  it.each([
+    // Devices are created only by `resolveDeviceGear`, from the identity the
+    // recorded file carried — one made by hand would match no upload.
+    { description: 'a device', kind: 'device' },
+    { description: 'a kind that does not exist', kind: 'skis' }
+  ])('rejects $description', ({ kind }) => {
+    expect(
+      CreateGearRequest.safeParse({ kind, name: 'Edge 840' }).success
+    ).toBe(false)
+  })
 })
 
 describe('CreateGearComponentRequest', () => {
@@ -214,6 +281,38 @@ describe('getGearKindFieldError', () => {
       description: 'shoes claiming a cycling sport',
       kind: 'shoes' as const,
       fields: { defaultSports: ['gravel_ride' as const] }
+    },
+    {
+      description: 'a device given a frame type',
+      kind: 'device' as const,
+      fields: { bikeType: 'Road bike' }
+    },
+    {
+      description: 'a device given a weight',
+      kind: 'device' as const,
+      fields: { weightKilograms: 0.1 }
+    },
+    {
+      description: 'a device given a distance alert',
+      kind: 'device' as const,
+      fields: { alertDistanceMeters: 650_000 }
+    },
+    {
+      // A device records rides and runs alike; claiming a sport would take it
+      // off the bike or shoes that should hold it.
+      description: 'a device claiming a sport',
+      kind: 'device' as const,
+      fields: { defaultSports: ['ride' as const] }
+    },
+    {
+      description: 'a bike given a product page',
+      kind: 'bike' as const,
+      fields: { productUrl: 'https://www.garmin.com' }
+    },
+    {
+      description: 'shoes given a product page',
+      kind: 'shoes' as const,
+      fields: { productUrl: 'https://www.garmin.com' }
     }
   ])('reports an error for $description', ({ kind, fields }) => {
     expect(getGearKindFieldError(kind, fields)).toEqual(expect.any(String))
@@ -246,6 +345,21 @@ describe('getGearKindFieldError', () => {
       description: 'shoes explicitly clearing bike-only fields',
       kind: 'shoes' as const,
       fields: { bikeType: null, weightKilograms: null }
+    },
+    {
+      description: 'a device with a product page and an empty sport list',
+      kind: 'device' as const,
+      fields: { productUrl: 'https://www.garmin.com', defaultSports: [] }
+    },
+    {
+      description: 'a device clearing its product page',
+      kind: 'device' as const,
+      fields: { productUrl: null }
+    },
+    {
+      description: 'a bike explicitly clearing a product page it never had',
+      kind: 'bike' as const,
+      fields: { productUrl: null }
     }
   ])('accepts $description', ({ kind, fields }) => {
     expect(getGearKindFieldError(kind, fields)).toBeNull()

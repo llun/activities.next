@@ -43,8 +43,25 @@ const createGear = (overrides: Partial<GearEntity> = {}): GearEntity => ({
   createdAt: Date.UTC(2018, 10, 27),
   distanceMeters: 0,
   activityCount: 0,
+  productUrl: null,
+  firstUsedAt: null,
   ...overrides
 })
+
+const createDevice = (overrides: Partial<GearEntity> = {}): GearEntity =>
+  createGear({
+    id: 'device-1',
+    kind: 'device',
+    name: 'Garmin Edge 840',
+    brand: 'Garmin',
+    model: 'Edge 840',
+    bikeType: null,
+    weightKilograms: null,
+    defaultSports: [],
+    notes: null,
+    productUrl: 'https://www.garmin.com',
+    ...overrides
+  })
 
 const renderDialog = (props: Partial<Parameters<typeof GearFormDialog>[0]>) =>
   render(
@@ -322,5 +339,90 @@ describe('GearFormDialog', () => {
       expect(screen.getByText('Gear name is required')).toBeInTheDocument()
     )
     expect(onOpenChange).not.toHaveBeenCalled()
+  })
+
+  describe('a recording device', () => {
+    const renderDeviceDialog = (gear = createDevice()) =>
+      renderDialog({ kind: 'device', gear })
+
+    it('is titled as an edit — a device is never created by hand', () => {
+      renderDeviceDialog()
+      expect(
+        screen.getByRole('heading', { name: 'Edit device' })
+      ).toBeInTheDocument()
+    })
+
+    it('offers only brand, model, nickname and the product page', () => {
+      renderDeviceDialog()
+
+      expect(screen.getByLabelText('Brand')).toHaveValue('Garmin')
+      expect(screen.getByLabelText('Model')).toHaveValue('Edge 840')
+      expect(screen.getByLabelText('Nickname')).toHaveValue('')
+      expect(screen.getByLabelText('Product page')).toHaveValue(
+        'https://www.garmin.com'
+      )
+
+      // Everything a device does not own.
+      expect(screen.queryByText('Default sports')).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('switch', { name: 'Distance alert' })
+      ).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('Type')).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('Weight (kg)')).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('Notes')).not.toBeInTheDocument()
+    })
+
+    it('sends only the four display fields', async () => {
+      renderDeviceDialog()
+
+      fireEvent.change(screen.getByLabelText('Nickname'), {
+        target: { value: 'the Edge' }
+      })
+      fireEvent.change(screen.getByLabelText('Product page'), {
+        target: { value: 'https://example.com/edge-840' }
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+      await waitFor(() => expect(mockUpdateFitnessGear).toHaveBeenCalled())
+      // Anything else would be a 422 from the API.
+      expect(mockUpdateFitnessGear).toHaveBeenCalledWith('device-1', {
+        name: 'the Edge',
+        brand: 'Garmin',
+        model: 'Edge 840',
+        productUrl: 'https://example.com/edge-840'
+      })
+    })
+
+    it('clears the product page when the field is emptied', async () => {
+      renderDeviceDialog()
+
+      fireEvent.change(screen.getByLabelText('Product page'), {
+        target: { value: '   ' }
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+      await waitFor(() => expect(mockUpdateFitnessGear).toHaveBeenCalled())
+      expect(mockUpdateFitnessGear).toHaveBeenCalledWith(
+        'device-1',
+        expect.objectContaining({ productUrl: null })
+      )
+    })
+  })
+
+  it.each([
+    { description: 'a bike', kind: 'bike' as const },
+    { description: 'shoes', kind: 'shoes' as const }
+  ])('never sends a product page for $description', async ({ kind }) => {
+    renderDialog({ kind })
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: kind === 'bike' ? 'Save bike' : 'Save shoes'
+      })
+    )
+
+    await waitFor(() => expect(mockCreateFitnessGear).toHaveBeenCalled())
+    const payload = mockCreateFitnessGear.mock.calls[0][0]
+    expect('productUrl' in payload).toBe(false)
   })
 })

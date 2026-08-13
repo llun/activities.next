@@ -104,9 +104,12 @@ export const GET = traceApiRoute(
       // NAME is exposed here — it is what the activity's meta row renders to
       // every viewer; default sports, service thresholds and notes stay owner
       // only, behind /api/v1/fitness/gear.
+      // Both gear links resolve in the SAME batch: `getFitnessGearNamesByIds`
+      // filters by id and `deletedAt` only, never by kind, so a device id looks
+      // up exactly like a bike id and a second round trip would buy nothing.
       const gearNames = await database.getFitnessGearNamesByIds({
         ids: files
-          .map((file) => file.gearId)
+          .flatMap((file) => [file.gearId, file.deviceGearId])
           .filter((gearId): gearId is string => Boolean(gearId))
       })
 
@@ -143,7 +146,11 @@ export const GET = traceApiRoute(
             deviceName: file.deviceName ?? null,
             sourceUrl: file.sourceUrl ?? null,
             gearId: file.gearId ?? null,
-            gearName: file.gearId ? (gearNames[file.gearId] ?? null) : null
+            gearName: file.gearId ? (gearNames[file.gearId] ?? null) : null,
+            deviceGearId: file.deviceGearId ?? null,
+            deviceGearName: file.deviceGearId
+              ? (gearNames[file.deviceGearId] ?? null)
+              : null
           }))
         }
       })

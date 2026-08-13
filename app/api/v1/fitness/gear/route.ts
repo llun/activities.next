@@ -19,17 +19,35 @@ export const GET = traceApiRoute(
     const gears = await database.getFitnessGearsByActor({
       actorId: currentActor.id
     })
-    // One grouped query for the whole page, not one per gear.
-    const rollups = await database.getFitnessGearDistanceRollups({
-      actorId: currentActor.id,
-      gearIds: gears.map((gear) => gear.id)
-    })
+    // Two grouped queries for the whole page, not one per gear: bikes and shoes
+    // roll up a distance total, devices an activity count and a first-used date.
+    const [distanceRollups, deviceRollups] = await Promise.all([
+      database.getFitnessGearDistanceRollups({
+        actorId: currentActor.id,
+        gearIds: gears
+          .filter((gear) => gear.kind !== 'device')
+          .map((gear) => gear.id)
+      }),
+      database.getFitnessGearDeviceRollups({
+        actorId: currentActor.id,
+        gearIds: gears
+          .filter((gear) => gear.kind === 'device')
+          .map((gear) => gear.id)
+      })
+    ])
 
     return apiResponse({
       req,
       allowedMethods: [],
       data: {
-        gear: gears.map((gear) => toGearEntity(gear, rollups[gear.id]))
+        gear: gears.map((gear) =>
+          toGearEntity(
+            gear,
+            gear.kind === 'device'
+              ? deviceRollups[gear.id]
+              : distanceRollups[gear.id]
+          )
+        )
       },
       responseStatusCode: 200
     })

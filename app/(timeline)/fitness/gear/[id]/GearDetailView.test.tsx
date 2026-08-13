@@ -18,6 +18,10 @@ import { GearDetailView } from './GearDetailView'
 
 vi.mock('@/lib/client', () => ({
   createFitnessGear: vi.fn(),
+  getFitnessGearActivities: vi.fn().mockResolvedValue({
+    activities: [],
+    hasMore: false
+  }),
   createFitnessGearComponent: vi.fn(),
   deleteFitnessGearComponent: vi.fn(),
   getFitnessGearComponents: vi.fn(),
@@ -60,6 +64,8 @@ const createGear = (overrides: Partial<GearEntity> = {}): GearEntity => ({
   createdAt: Date.UTC(2018, 10, 27, 12),
   distanceMeters: 35253700,
   activityCount: 1204,
+  productUrl: null,
+  firstUsedAt: null,
   ...overrides
 })
 
@@ -93,7 +99,7 @@ describe('GearDetailView', () => {
   })
 
   it('renders the gear name as the page title with a back link', async () => {
-    render(<GearDetailView gearId="gear-1" />)
+    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
 
     expect(
       await screen.findByRole('heading', { name: 'Rocket' })
@@ -105,7 +111,7 @@ describe('GearDetailView', () => {
   })
 
   it('renders the meta line and the default sports line', async () => {
-    render(<GearDetailView gearId="gear-1" />)
+    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
 
     expect(
       await screen.findByText(
@@ -127,7 +133,7 @@ describe('GearDetailView', () => {
         defaultSports: []
       })
     ])
-    render(<GearDetailView gearId="gear-1" />)
+    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
 
     expect(await screen.findByText('added Nov 27, 2018')).toBeInTheDocument()
     expect(screen.getByText('No default sports')).toBeInTheDocument()
@@ -139,7 +145,7 @@ describe('GearDetailView', () => {
       createComponent({ id: 'component-2' }),
       createComponent({ id: 'component-old', removedAt: Date.UTC(2025, 5, 1) })
     ])
-    render(<GearDetailView gearId="gear-1" />)
+    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
 
     expect(await screen.findByText('35,253.7 km')).toBeInTheDocument()
     expect(screen.getByText('Activities')).toBeInTheDocument()
@@ -162,7 +168,7 @@ describe('GearDetailView', () => {
         alertDistanceMeters: 650000
       })
     ])
-    render(<GearDetailView gearId="gear-1" />)
+    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
 
     expect(await screen.findByText('Distance')).toBeInTheDocument()
     expect(screen.getByText('Activities')).toBeInTheDocument()
@@ -177,7 +183,7 @@ describe('GearDetailView', () => {
     mockGetFitnessGearList.mockResolvedValue([
       createGear({ retiredAt: Date.UTC(2025, 2, 9, 12) })
     ])
-    render(<GearDetailView gearId="gear-1" />)
+    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
 
     expect(await screen.findByText('retired')).toBeInTheDocument()
     expect(
@@ -189,7 +195,7 @@ describe('GearDetailView', () => {
   })
 
   it('retires the gear and refetches', async () => {
-    render(<GearDetailView gearId="gear-1" />)
+    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Retire' }))
 
@@ -204,7 +210,7 @@ describe('GearDetailView', () => {
     mockGetFitnessGearList.mockResolvedValue([
       createGear({ retiredAt: Date.UTC(2025, 2, 9) })
     ])
-    render(<GearDetailView gearId="gear-1" />)
+    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Unretire' }))
 
@@ -215,7 +221,7 @@ describe('GearDetailView', () => {
 
   it('surfaces a retire failure', async () => {
     mockSetFitnessGearRetired.mockRejectedValue(new Error('Gear is locked'))
-    render(<GearDetailView gearId="gear-1" />)
+    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Retire' }))
 
@@ -233,7 +239,7 @@ describe('GearDetailView', () => {
           resolveRetire = resolve
         })
     )
-    render(<GearDetailView gearId="gear-1" />)
+    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
 
     const retire = await screen.findByRole('button', { name: 'Retire' })
     fireEvent.click(retire)
@@ -262,7 +268,7 @@ describe('GearDetailView', () => {
             resolveRefetch = resolve
           })
       )
-    render(<GearDetailView gearId="gear-1" />)
+    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
 
     // Expand the replaced rows: the child's own state is what a remount loses.
     fireEvent.click(
@@ -282,7 +288,7 @@ describe('GearDetailView', () => {
   })
 
   it('opens the edit dialog seeded with the gear', async () => {
-    render(<GearDetailView gearId="gear-1" />)
+    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
 
@@ -294,15 +300,47 @@ describe('GearDetailView', () => {
 
   it('reports a gear id that is not in the list', async () => {
     mockGetFitnessGearList.mockResolvedValue([])
-    render(<GearDetailView gearId="missing" />)
+    render(<GearDetailView gearId="missing" actorHandle="@test@llun.test" />)
 
     expect(await screen.findByText('Gear not found.')).toBeInTheDocument()
   })
 
   it('surfaces a load failure', async () => {
     mockGetFitnessGearList.mockRejectedValue(new Error('Gear service down'))
-    render(<GearDetailView gearId="gear-1" />)
+    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
 
     expect(await screen.findByText('Gear service down')).toBeInTheDocument()
+  })
+
+  it('renders a recording device through the device page, not the bike one', async () => {
+    // The two pages share the route, the fetch and the edit dialog, and nothing
+    // below them: a device has no distance, no components and no Retire.
+    mockGetFitnessGearList.mockResolvedValue([
+      createGear({
+        id: 'device-1',
+        kind: 'device',
+        name: 'Garmin Edge 840',
+        brand: 'Garmin',
+        model: 'Edge 840',
+        bikeType: null,
+        weightKilograms: null,
+        defaultSports: [],
+        distanceMeters: 0,
+        activityCount: 412,
+        firstUsedAt: Date.UTC(2023, 4, 2)
+      })
+    ])
+
+    render(<GearDetailView gearId="device-1" actorHandle="@test@llun.test" />)
+
+    expect(
+      await screen.findByRole('heading', { name: 'Garmin Edge 840' })
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Retire' })
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('Distance')).not.toBeInTheDocument()
+    expect(mockGetFitnessGearComponents).not.toHaveBeenCalled()
   })
 })

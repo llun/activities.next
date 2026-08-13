@@ -1,5 +1,6 @@
 import { toGearComponentEntity } from '@/lib/services/fitness-gears/gearEntities'
 import { ReplaceGearComponentRequest } from '@/lib/services/fitness-gears/gearRequests'
+import { rejectComponentsForDevice } from '@/lib/services/fitness-gears/gearRouteGuards'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import {
   HTTP_STATUS,
@@ -52,6 +53,14 @@ export const POST = traceApiRoute(
     if (!parsed.success) {
       return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
     }
+
+    const rejection = await rejectComponentsForDevice({
+      req,
+      database,
+      actorId: currentActor.id,
+      gearId: id
+    })
+    if (rejection) return rejection
 
     const result = await database.replaceFitnessGearComponent({
       id: componentId,

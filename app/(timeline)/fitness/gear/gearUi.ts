@@ -62,7 +62,38 @@ export const getGearDisplayName = (
     .join(' ')
   if (brandModel) return brandModel
 
-  return gear.kind === 'bike' ? 'Bike' : 'Shoes'
+  if (gear.kind === 'bike') return 'Bike'
+  return gear.kind === 'device' ? 'Device' : 'Shoes'
+}
+
+/**
+ * The hostname a product link is shown as ("garmin.com", not the full URL),
+ * with `www.` dropped because it is noise in a table cell.
+ *
+ * Returns null for anything that is not an http(s) URL, and both render sites
+ * gate the anchor on this — so it is the check that decides whether the stored
+ * value is ever used as an `href`. The protocol allowlist is the load-bearing
+ * half: `new URL` parses an authority for non-special schemes too, so
+ * `javascript://evil.example/%0aalert(1)` yields a perfectly good hostname and
+ * would otherwise render as a link that executes on click.
+ *
+ * The API validates the column on write, so this is defence in depth — but rows
+ * predating that validation, and anything a future importer writes, reach these
+ * tables without passing through it.
+ */
+export const getProductUrlHostname = (
+  url: string | null | undefined
+): string | null => {
+  if (!url) return null
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return null
+    }
+    return parsed.hostname.replace(/^www\./, '') || null
+  } catch {
+    return null
+  }
 }
 
 export type GearWearLevel = 'ok' | 'due-soon' | 'overdue'

@@ -1,6 +1,6 @@
 'use client'
 
-import { Bike, Footprints, Plus } from 'lucide-react'
+import { Bike, Footprints, Plus, Watch } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FC, useEffect, useState } from 'react'
@@ -11,13 +11,18 @@ import { Button } from '@/lib/components/ui/button'
 import { Card } from '@/lib/components/ui/card'
 import {
   type FitnessGearKind,
+  type UserCreatableGearKind,
   getSportLabel
 } from '@/lib/services/fitness-files/sportTypes'
 import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
 import { cn } from '@/lib/utils'
 
 import { GearFormDialog } from './GearFormDialog'
-import { formatGearDistanceKm, getGearDisplayName } from './gearUi'
+import {
+  formatGearDistanceKm,
+  getGearDisplayName,
+  getProductUrlHostname
+} from './gearUi'
 
 interface KindCopy {
   sectionTitle: string
@@ -30,7 +35,11 @@ interface KindCopy {
 
 // "shoes" is already plural, so its retired toggle counts pairs — "Show 1
 // retired pair of shoes" rather than the ungrammatical "1 retired shoes".
-const KIND_COPY: Record<FitnessGearKind, KindCopy> = {
+//
+// The device entries exist to satisfy the exhaustive `Record` — devices render
+// through `DeviceSection` below, which shares none of this copy because a device
+// is neither added nor retired here.
+const KIND_COPY: Record<UserCreatableGearKind, KindCopy> = {
   bike: {
     sectionTitle: 'Bikes',
     columnHeader: 'Bike',
@@ -55,16 +64,17 @@ const KIND_COPY: Record<FitnessGearKind, KindCopy> = {
 
 const KIND_ICON: Record<FitnessGearKind, typeof Bike> = {
   bike: Bike,
-  shoes: Footprints
+  shoes: Footprints,
+  device: Watch
 }
 
 const getGearHref = (gearId: string) =>
   `/fitness/gear/${encodeURIComponent(gearId)}`
 
 interface SectionProps {
-  kind: FitnessGearKind
+  kind: UserCreatableGearKind
   gears: GearEntity[]
-  onAdd: (kind: FitnessGearKind) => void
+  onAdd: (kind: UserCreatableGearKind) => void
 }
 
 const GearSection: FC<SectionProps> = ({ kind, gears, onAdd }) => {
@@ -174,6 +184,96 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd }) => {
   )
 }
 
+/**
+ * Devices get a section of their own rather than another `GearSection`, because
+ * almost nothing that section does applies: a device is never added by hand (the
+ * import resolves it), it cannot be retired, and it has no default sports and no
+ * distance total to put in a column. What is left — a name, where to read about
+ * it, and how much it has recorded — is a different table.
+ */
+const DeviceSection: FC<{ gears: GearEntity[] }> = ({ gears }) => {
+  const router = useRouter()
+
+  // Nothing to explain and nothing to add: an actor whose activities carry no
+  // device information would otherwise get a permanently empty card offering
+  // them no way to fill it.
+  if (gears.length === 0) return null
+
+  return (
+    <Card className="gap-4 py-4">
+      <div className="flex flex-wrap items-center gap-2 px-4">
+        <Watch className="size-4 text-primary" />
+        <h2 className="text-base font-medium">Devices</h2>
+        <span className="text-sm text-muted-foreground">
+          {gears.length} recording
+        </span>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[520px] text-sm">
+          <thead>
+            <tr className="border-b text-left text-muted-foreground">
+              <th className="px-4 py-2 font-normal">Device</th>
+              <th className="px-4 py-2 font-normal">Product page</th>
+              <th className="px-4 py-2 text-right font-normal">Activities</th>
+            </tr>
+          </thead>
+          <tbody>
+            {gears.map((gear) => {
+              const subline = [gear.brand, gear.model]
+                .filter(Boolean)
+                .join(' · ')
+              const hostname = getProductUrlHostname(gear.productUrl)
+              return (
+                <tr
+                  key={gear.id}
+                  className="cursor-pointer border-b last:border-b-0 hover:bg-muted/50"
+                  onClick={() => router.push(getGearHref(gear.id))}
+                >
+                  <td className="px-4 py-2">
+                    {/* A real link so the row is reachable by keyboard — the
+                        row's own onClick is a pointer affordance only. */}
+                    <Link
+                      href={getGearHref(gear.id)}
+                      className="font-medium hover:underline"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      {getGearDisplayName(gear)}
+                    </Link>
+                    {subline && (
+                      <div className="text-xs text-muted-foreground">
+                        {subline}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-2 text-muted-foreground">
+                    {hostname && gear.productUrl ? (
+                      <a
+                        href={gear.productUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:underline"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        {hostname}
+                      </a>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td className="px-4 py-2 text-right font-semibold tabular-nums">
+                    {gear.activityCount}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  )
+}
+
 export const GearListView: FC = () => {
   const [gears, setGears] = useState<GearEntity[]>([])
   // Only the first load blanks the page. A refetch keeps the sections mounted
@@ -183,7 +283,9 @@ export const GearListView: FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [reloadToken, setReloadToken] = useState(0)
-  const [dialogKind, setDialogKind] = useState<FitnessGearKind | null>(null)
+  const [dialogKind, setDialogKind] = useState<UserCreatableGearKind | null>(
+    null
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -240,6 +342,9 @@ export const GearListView: FC = () => {
             kind="shoes"
             gears={gears.filter((gear) => gear.kind === 'shoes')}
             onAdd={setDialogKind}
+          />
+          <DeviceSection
+            gears={gears.filter((gear) => gear.kind === 'device')}
           />
         </div>
       )}

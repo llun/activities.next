@@ -47,6 +47,8 @@ const createGear = (overrides: Partial<GearEntity> = {}): GearEntity => ({
   createdAt: Date.UTC(2024, 0, 1),
   distanceMeters: 42_600,
   activityCount: 12,
+  productUrl: null,
+  firstUsedAt: null,
   ...overrides
 })
 
@@ -142,6 +144,30 @@ describe('StravaGearDefaultsSection', () => {
     expect(
       await screen.findByRole('link', { name: 'Add a bike or a pair of shoes' })
     ).toHaveAttribute('href', '/fitness/gear')
+  })
+
+  it('treats an actor whose only gear is a recording device as having no gear', async () => {
+    // Devices hold no default sports, so there is nothing here to point one at
+    // — and every empty state on this page keys on `gears.length`. Without the
+    // filter, this actor is told their shed is full but every gear in it is
+    // retired.
+    mockGetFitnessGearList.mockResolvedValue([
+      createGear({
+        id: 'device-1',
+        kind: 'device',
+        name: 'Garmin Edge 840',
+        defaultSports: []
+      })
+    ])
+
+    render(<StravaGearDefaultsSection />)
+
+    expect(
+      await screen.findByRole('link', { name: 'Add a bike or a pair of shoes' })
+    ).toHaveAttribute('href', '/fitness/gear')
+    expect(
+      screen.queryByText(/Every gear you have is retired/)
+    ).not.toBeInTheDocument()
   })
 
   it('explains itself when every gear is retired instead of pointing at a control that is not there', async () => {

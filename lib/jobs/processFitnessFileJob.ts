@@ -24,6 +24,7 @@ import {
   getVisibleSegments
 } from '@/lib/services/fitness-files/privacy'
 import { normalizeActivityTypeToSportKey } from '@/lib/services/fitness-files/sportTypes'
+import { linkFitnessFileDeviceGear } from '@/lib/services/fitness-gears/resolveDeviceGear'
 import { evaluateGearServiceReminders } from '@/lib/services/fitness-gears/serviceReminders'
 import { saveMedia, saveMediaImageRendition } from '@/lib/services/medias'
 import { getActivityImportGroupKey } from '@/lib/services/notifications/activityImportGroupKey'
@@ -486,6 +487,15 @@ export const processFitnessFileJob = createJobHandle(
         ...(activityData.deviceName !== undefined
           ? { deviceName: activityData.deviceName }
           : {})
+      })
+
+      await linkFitnessFileDeviceGear({
+        database,
+        actorId,
+        fitnessFileId,
+        deviceName: activityData.deviceName ?? fitnessFile.deviceName,
+        deviceManufacturer:
+          activityData.deviceManufacturer ?? fitnessFile.deviceManufacturer
       })
 
       // Auto-assign gear from the owner's default-sport mapping, now that the

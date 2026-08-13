@@ -175,10 +175,15 @@ export const Post: FC<PostProps> = (props) => {
     activityType: fitnessFile?.activityType
   })
   const fitnessSourceUrl = normalizeFitnessSourceUrl(fitnessFile?.sourceUrl)
-  const fitnessDeviceLabel = getDeviceDisplayLabel(
-    fitnessFile?.deviceName,
-    fitnessFile?.deviceManufacturer
-  )
+  // The gear row's name overrides the recorded one, so the Via: line renders
+  // whenever EITHER is present — a device the owner renamed to something the
+  // brand map cannot resolve would otherwise disappear from the post.
+  const fitnessDeviceLabel =
+    fitnessFile?.deviceGearName?.trim() ||
+    getDeviceDisplayLabel(
+      fitnessFile?.deviceName,
+      fitnessFile?.deviceManufacturer
+    )
   // Gear rides along with the distance rather than taking a cell or a row of
   // its own: the design shows "42.6 km · Moots". With no distance there is
   // nothing to append it to, so it is simply not shown.
@@ -334,6 +339,9 @@ export const Post: FC<PostProps> = (props) => {
               <BrandedDeviceLink
                 deviceName={fitnessFile.deviceName}
                 deviceManufacturer={fitnessFile.deviceManufacturer}
+                deviceGearId={fitnessFile.deviceGearId}
+                deviceGearName={fitnessFile.deviceGearName}
+                isOwner={isOwner}
               />
             </div>
           ) : null}

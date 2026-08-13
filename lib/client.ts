@@ -1,6 +1,6 @@
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
 import type { AdminAnnouncement } from '@/lib/services/announcements/adminAnnouncement'
-import type { FitnessGearKind } from '@/lib/services/fitness-files/sportTypes'
+import type { UserCreatableGearKind } from '@/lib/services/fitness-files/sportTypes'
 import type {
   GearComponentEntity,
   GearEntity
@@ -2326,6 +2326,8 @@ export interface StatusFitnessFileItem {
   sourceUrl: string | null
   gearId: string | null
   gearName: string | null
+  deviceGearId: string | null
+  deviceGearName: string | null
 }
 
 export interface FitnessRouteSample {
@@ -2538,7 +2540,10 @@ export const deleteFitnessFile = async (id: string): Promise<void> => {
 // --- Fitness gear ---
 
 export interface CreateFitnessGearInput {
-  kind: FitnessGearKind
+  // Not `FitnessGearKind`: a device is never created from the client — the
+  // import path resolves it from the file's own recorded identity, and the
+  // route answers 422 for one.
+  kind: UserCreatableGearKind
   name: string
   brand?: string | null
   model?: string | null
@@ -2559,7 +2564,27 @@ export interface CreateFitnessGearInput {
 // the same field. `kind` is immutable and absent by design.
 export type UpdateFitnessGearInput = Partial<
   Omit<CreateFitnessGearInput, 'kind'>
->
+> & {
+  // Devices only — the route rejects it for a bike or a pair of shoes. It is
+  // not on the create input because a device is never created from here.
+  productUrl?: string | null
+}
+
+/**
+ * One row of a gear's activity history, as the gear detail pages render it.
+ * `statusPublicId` is null for an activity that was never posted; such a row is
+ * shown but not linked.
+ */
+export interface GearActivityItem {
+  id: string
+  statusId: string | null
+  statusPublicId: string | null
+  fileName: string
+  description: string | null
+  activityType: string | null
+  activityStartTime: number | null
+  totalDistanceMeters: number | null
+}
 
 export interface CreateFitnessGearComponentInput {
   componentType: string
@@ -2648,6 +2673,28 @@ export const setFitnessGearRetired = async (
   }
   const data = (await response.json()) as { gear: GearEntity }
   return data.gear
+}
+
+export const getFitnessGearActivities = async (
+  gearId: string,
+  { limit, offset }: { limit?: number; offset?: number } = {}
+): Promise<{ activities: GearActivityItem[]; hasMore: boolean }> => {
+  const query = new URLSearchParams()
+  if (limit !== undefined) query.set('limit', String(limit))
+  if (offset !== undefined) query.set('offset', String(offset))
+  const search = query.size > 0 ? `?${query.toString()}` : ''
+
+  const response = await fetch(
+    `/api/v1/fitness/gear/${encodeURIComponent(gearId)}/activities${search}`,
+    { method: 'GET', headers: { Accept: 'application/json' } }
+  )
+  if (!response.ok) {
+    throw new Error(await parseApiError(response, 'Failed to load activities.'))
+  }
+  return (await response.json()) as {
+    activities: GearActivityItem[]
+    hasMore: boolean
+  }
 }
 
 export const getFitnessGearComponents = async (

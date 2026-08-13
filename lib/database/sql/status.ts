@@ -3031,13 +3031,33 @@ export const StatusSQLDatabaseMixin = (
             'fitness_gears.deletedAt'
           )
         })
+        // The recording device is a second gear row on the same status, so it
+        // needs an aliased join of its own — the same table twice, with the
+        // same `deletedAt` guard and for the same reasons.
+        .leftJoin('fitness_gears as device_gears', function () {
+          this.on(
+            'fitness_files.deviceGearId',
+            '=',
+            'device_gears.id'
+          ).andOnNull('device_gears.deletedAt')
+        })
         .where('fitness_files.statusId', data.id)
         .whereNull('fitness_files.deletedAt')
         .orderBy('fitness_files.isPrimary', 'desc')
         .orderBy('fitness_files.activityStartTime', 'asc')
         .orderBy('fitness_files.createdAt', 'asc')
-        .select('fitness_files.*', 'fitness_gears.name as gearName')
-        .first<(SQLFitnessFile & { gearName?: string | null }) | undefined>(),
+        .select(
+          'fitness_files.*',
+          'fitness_gears.name as gearName',
+          'device_gears.name as deviceGearName'
+        )
+        .first<
+          | (SQLFitnessFile & {
+              gearName?: string | null
+              deviceGearName?: string | null
+            })
+          | undefined
+        >(),
       hydrationContext?.detectedLanguages
         ? (hydrationContext.detectedLanguages[data.id] ?? null)
         : statusDetectedLanguageDatabase.getDetectedLanguage({
@@ -3179,7 +3199,9 @@ export const StatusSQLDatabaseMixin = (
                 ? { sourceUrl: fitnessFile.sourceUrl }
                 : null),
               gearId: fitnessFile.gearId ?? null,
-              gearName: fitnessFile.gearName ?? null
+              gearName: fitnessFile.gearName ?? null,
+              deviceGearId: fitnessFile.deviceGearId ?? null,
+              deviceGearName: fitnessFile.deviceGearName ?? null
             }
           }
         : null),
