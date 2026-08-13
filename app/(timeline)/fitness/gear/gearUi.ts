@@ -200,3 +200,37 @@ export const COMPONENT_TYPE_OPTIONS = [
   'Front shock',
   'Rear shock'
 ] as const
+
+// Table chrome, shared by the gear list's three tables and the components table
+// on a gear's page so they cannot drift apart.
+//
+// The design system's gear tables (`GearKit.jsx`) pin the first column: the data
+// columns scroll under it while the gear's name stays put, on its own opaque
+// surface with a hairline down its right edge. That pairing is the table's
+// structure — the lighter pinned column is what separates each row's subject
+// from its numbers, and the hairline is the table's only vertical rule. Rendered
+// as plain columns on the card, as these were, the rows read as loose text.
+//
+// `bg-background` is load-bearing twice over: it is the design's solid surface
+// standing off the card behind it, and a sticky cell has to be opaque or the
+// columns scrolling underneath show straight through it. The divider is an inset
+// shadow rather than a `border-r` because `border-collapse: collapse` (Tailwind's
+// preflight default for tables) hands border painting to the table, which drops
+// a sticky cell's own right border.
+export const STICKY_COLUMN =
+  'sticky left-0 z-1 min-w-[150px] bg-background shadow-[inset_-1px_0_0_var(--border)]'
+
+/**
+ * Pinned first cell of a body row whose row is clickable. The row's `hover:` has
+ * to be repeated here because this cell paints its own background over the
+ * row's — without it the pinned column stays unlit while the rest of the row
+ * highlights. A table with inert rows uses `STICKY_COLUMN` instead; pairing this
+ * with a row that has no hover of its own lights the first column alone.
+ */
+export const STICKY_CLICKABLE_COLUMN = `${STICKY_COLUMN} group-hover:bg-muted/50`
+
+/**
+ * Pinned first cell of the header row. One layer above the body's, so a data
+ * column scrolling underneath passes behind both.
+ */
+export const STICKY_HEADER_COLUMN = `${STICKY_COLUMN} z-2`

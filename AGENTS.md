@@ -500,6 +500,27 @@ it; there is no legacy shape left to copy.
   but not repeat one). `evaluateGearServiceReminders` runs where a total can
   change and records the distance it fired at in `lastAlertedDistanceMeters`, so
   each crossing notifies once and a raised threshold re-arms on its own.
+- **Every gear table pins its first column, through the shared constants in
+  `app/(timeline)/fitness/gear/gearUi.ts`** — `STICKY_COLUMN`,
+  `STICKY_CLICKABLE_COLUMN` and `STICKY_HEADER_COLUMN`, used by the gear list's
+  bikes/shoes/devices tables and by the components table on a gear's page. The
+  design system's `GearKit.jsx` builds these tables from a pinned first column
+  on its own opaque surface with a hairline down its right edge: that pairing is
+  the table's structure — the lighter column separates each row's subject from
+  its numbers, and the hairline is the table's only vertical rule. Rendered as
+  plain columns on the card, the rows read as loose text, which is what these
+  tables looked like before. Three details are load-bearing. `bg-background` is
+  both the design's lighter surface **and** the opacity a sticky cell needs, or
+  the columns scrolling underneath show through it. The divider is an inset
+  shadow, not a `border-r`, because `border-collapse: collapse` (Tailwind's
+  preflight default) hands border painting to the table and drops a sticky
+  cell's own right border. And a dimmed row (retired gear, a replaced component)
+  dims its **cells**, never the `<tr>` — fading the row takes the pinned
+  column's background down with it. Rows separate with `border-t`, so the header
+  carries no rule of its own and the last row has no trailing one. Use
+  `STICKY_CLICKABLE_COLUMN` only on a row that has its own `hover:` and the
+  `group` class: the pinned cell paints over the row's background, so it repeats
+  the hover, and pairing it with an inert row lights the first column alone.
 - **A recording device is a third kind, and almost nothing above applies to it.**
   `kind: 'device'` rows have no components, no default sports, no distance
   total, no service reminder and cannot be retired; a device page reports an

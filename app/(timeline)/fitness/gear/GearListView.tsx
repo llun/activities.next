@@ -1,6 +1,6 @@
 'use client'
 
-import { Bike, Footprints, Plus, Watch } from 'lucide-react'
+import { Bike, ExternalLink, Footprints, Plus, Watch } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FC, useEffect, useState } from 'react'
@@ -19,6 +19,8 @@ import { cn } from '@/lib/utils'
 
 import { GearFormDialog } from './GearFormDialog'
 import {
+  STICKY_CLICKABLE_COLUMN,
+  STICKY_HEADER_COLUMN,
   formatGearDistanceKm,
   getGearDisplayName,
   getProductUrlHostname
@@ -112,10 +114,16 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd }) => {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[520px] text-sm">
             <thead>
-              <tr className="border-b text-left text-muted-foreground">
-                <th className="px-4 py-2 font-normal">{copy.columnHeader}</th>
-                <th className="px-4 py-2 font-normal">Default sports</th>
-                <th className="px-4 py-2 text-right font-normal">Distance</th>
+              <tr className="text-left text-xs font-medium text-muted-foreground">
+                <th
+                  className={cn(STICKY_HEADER_COLUMN, 'px-4 pb-2 font-medium')}
+                >
+                  {copy.columnHeader}
+                </th>
+                <th className="px-3 pb-2 font-medium">Default sports</th>
+                <th className="px-3 pr-4 pb-2 text-right font-medium">
+                  Distance
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -126,37 +134,55 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd }) => {
                 return (
                   <tr
                     key={gear.id}
-                    className={cn(
-                      'cursor-pointer border-b last:border-b-0 hover:bg-muted/50',
-                      gear.retiredAt && 'opacity-60'
-                    )}
+                    className="group cursor-pointer border-t hover:bg-muted/50"
                     onClick={() => router.push(getGearHref(gear.id))}
                   >
-                    <td className="px-4 py-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {/* A real link so the row is reachable by keyboard —
-                            the row's own onClick is a pointer affordance only. */}
-                        <Link
-                          href={getGearHref(gear.id)}
-                          className="font-medium hover:underline"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          {getGearDisplayName(gear)}
-                        </Link>
-                        {gear.retiredAt && <Badge tone="gray">retired</Badge>}
-                      </div>
-                      {subline && (
-                        <div className="text-xs text-muted-foreground">
-                          {subline}
-                        </div>
+                    <td
+                      className={cn(
+                        STICKY_CLICKABLE_COLUMN,
+                        'px-4 py-3 align-top'
                       )}
+                    >
+                      {/* Retired gear dims its contents rather than the row:
+                          fading the row would take the pinned column's own
+                          background down with it and let the data columns
+                          scroll through. */}
+                      <div className={cn(gear.retiredAt && 'opacity-60')}>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {/* A real link so the row is reachable by keyboard —
+                              the row's own onClick is a pointer affordance only. */}
+                          <Link
+                            href={getGearHref(gear.id)}
+                            className="font-medium hover:underline"
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            {getGearDisplayName(gear)}
+                          </Link>
+                          {gear.retiredAt && <Badge tone="gray">retired</Badge>}
+                        </div>
+                        {subline && (
+                          <div className="text-xs text-muted-foreground">
+                            {subline}
+                          </div>
+                        )}
+                      </div>
                     </td>
-                    <td className="px-4 py-2 text-muted-foreground">
+                    <td
+                      className={cn(
+                        'px-3 py-3 align-middle text-xs text-muted-foreground',
+                        gear.retiredAt && 'opacity-60'
+                      )}
+                    >
                       {gear.defaultSports.length > 0
                         ? gear.defaultSports.map(getSportLabel).join(', ')
                         : '—'}
                     </td>
-                    <td className="px-4 py-2 text-right font-semibold tabular-nums">
+                    <td
+                      className={cn(
+                        'px-3 py-3 pr-4 text-right align-middle font-semibold tabular-nums',
+                        gear.retiredAt && 'opacity-60'
+                      )}
+                    >
                       {formatGearDistanceKm(gear.distanceMeters)}
                     </td>
                   </tr>
@@ -171,7 +197,7 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd }) => {
         <div className="px-4">
           <button
             type="button"
-            className="cursor-pointer text-sm text-muted-foreground hover:text-foreground"
+            className="cursor-pointer text-xs font-medium text-primary hover:underline"
             onClick={() => setShowRetired((current) => !current)}
           >
             {showRetired
@@ -212,10 +238,14 @@ const DeviceSection: FC<{ gears: GearEntity[] }> = ({ gears }) => {
       <div className="overflow-x-auto">
         <table className="w-full min-w-[520px] text-sm">
           <thead>
-            <tr className="border-b text-left text-muted-foreground">
-              <th className="px-4 py-2 font-normal">Device</th>
-              <th className="px-4 py-2 font-normal">Product page</th>
-              <th className="px-4 py-2 text-right font-normal">Activities</th>
+            <tr className="text-left text-xs font-medium text-muted-foreground">
+              <th className={cn(STICKY_HEADER_COLUMN, 'px-4 pb-2 font-medium')}>
+                Device
+              </th>
+              <th className="px-3 pb-2 font-medium">Product page</th>
+              <th className="px-3 pr-4 pb-2 text-right font-medium">
+                Activities
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -227,10 +257,15 @@ const DeviceSection: FC<{ gears: GearEntity[] }> = ({ gears }) => {
               return (
                 <tr
                   key={gear.id}
-                  className="cursor-pointer border-b last:border-b-0 hover:bg-muted/50"
+                  className="group cursor-pointer border-t hover:bg-muted/50"
                   onClick={() => router.push(getGearHref(gear.id))}
                 >
-                  <td className="px-4 py-2">
+                  <td
+                    className={cn(
+                      STICKY_CLICKABLE_COLUMN,
+                      'px-4 py-3 align-top'
+                    )}
+                  >
                     {/* A real link so the row is reachable by keyboard — the
                         row's own onClick is a pointer affordance only. */}
                     <Link
@@ -246,22 +281,23 @@ const DeviceSection: FC<{ gears: GearEntity[] }> = ({ gears }) => {
                       </div>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-muted-foreground">
+                  <td className="px-3 py-3 align-middle text-xs text-muted-foreground">
                     {hostname && gear.productUrl ? (
                       <a
                         href={gear.productUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="hover:underline"
+                        className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
                         onClick={(event) => event.stopPropagation()}
                       >
+                        <ExternalLink className="size-3 shrink-0" />
                         {hostname}
                       </a>
                     ) : (
                       '—'
                     )}
                   </td>
-                  <td className="px-4 py-2 text-right font-semibold tabular-nums">
+                  <td className="px-3 py-3 pr-4 text-right align-middle font-semibold tabular-nums">
                     {gear.activityCount}
                   </td>
                 </tr>
