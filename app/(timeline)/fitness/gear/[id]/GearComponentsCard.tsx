@@ -39,9 +39,16 @@ const SERVICE_REMINDER_KM_OPTIONS = [1000, 3000, 5000, 8000, 12000]
  * a border, because a border would scroll with the cell's box on some engines.
  */
 const PINNED_CELL =
-  'sticky left-0 bg-background shadow-[inset_-1px_0_0_var(--border)]'
+  'sticky left-0 break-words bg-background shadow-[inset_-1px_0_0_var(--border)]'
 
-const CELL = 'px-3 py-2.5 align-top'
+/**
+ * The row's type scale lives on the cell, not on an inner span: a `<td>` left
+ * at the inherited 16px keeps a 24px strut in its line box, so its text sits
+ * ~3px below the 13px cells beside it and the row grows to match. Same reason
+ * the wear bar and the row actions set their own smaller sizes on the elements
+ * that own them.
+ */
+const CELL = 'px-3 py-2.5 align-top text-[13px]'
 
 /** Width the pinned "Type" column keeps, and the snap offset that follows it. */
 const TYPE_COLUMN_WIDTH = 104
@@ -406,7 +413,7 @@ export const GearComponentsCard: FC<Props> = ({
                       className={cn(CELL, PINNED_CELL, 'z-[1]')}
                       style={pinnedColumnStyle}
                     >
-                      <span className={cn('text-[13px] font-medium', dim)}>
+                      <span className={cn('font-medium', dim)}>
                         {component.componentType}
                       </span>
                     </td>
@@ -414,18 +421,11 @@ export const GearComponentsCard: FC<Props> = ({
                         to muted, the way the design system's row does — the
                         pair reads as one value with an emphasis, not as two
                         equally weighted columns. */}
-                    <td
-                      className={cn(CELL, 'text-[13px]', dim)}
-                      style={dataColumnStyle(96)}
-                    >
+                    <td className={cn(CELL, dim)} style={dataColumnStyle(96)}>
                       {component.brand || '—'}
                     </td>
                     <td
-                      className={cn(
-                        CELL,
-                        'text-[13px] text-muted-foreground',
-                        dim
-                      )}
+                      className={cn(CELL, 'text-muted-foreground', dim)}
                       style={dataColumnStyle(132)}
                     >
                       {component.model || '—'}
@@ -434,7 +434,7 @@ export const GearComponentsCard: FC<Props> = ({
                       className={cn(CELL, 'whitespace-nowrap text-right', dim)}
                       style={dataColumnStyle(108)}
                     >
-                      <span className="text-[13px] font-semibold tabular-nums">
+                      <span className="font-semibold tabular-nums">
                         {formatGearDistanceKm(component.distanceMeters)}
                       </span>
                       {/* Only while the part is fitted: wear against a service
@@ -446,7 +446,7 @@ export const GearComponentsCard: FC<Props> = ({
                     <td
                       className={cn(
                         CELL,
-                        'whitespace-nowrap text-[13px] text-muted-foreground',
+                        'whitespace-nowrap text-muted-foreground',
                         dim
                       )}
                       style={dataColumnStyle(112)}
@@ -458,7 +458,7 @@ export const GearComponentsCard: FC<Props> = ({
                     <td
                       className={cn(
                         CELL,
-                        'whitespace-nowrap text-[13px] text-muted-foreground',
+                        'whitespace-nowrap text-muted-foreground',
                         dim
                       )}
                       style={dataColumnStyle(88)}

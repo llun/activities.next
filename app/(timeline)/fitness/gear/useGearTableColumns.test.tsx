@@ -22,7 +22,14 @@ class ResizeObserverStub {
   ) {}
 
   observe(target: Element) {
+    // The hook reads the observed element's own `clientWidth` rather than the
+    // entry's `contentRect`, so that is what a delivery has to set. jsdom lays
+    // nothing out and reports 0 for it, hence the override.
     deliver = (width: number) => {
+      Object.defineProperty(target, 'clientWidth', {
+        configurable: true,
+        value: width
+      })
       this.callback([
         {
           target,

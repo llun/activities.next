@@ -150,9 +150,12 @@ describe('GearDetailView', () => {
     expect(await screen.findByText('35,253.7 km')).toBeInTheDocument()
     expect(screen.getByText('Activities')).toBeInTheDocument()
     expect(screen.getByText('1204')).toBeInTheDocument()
-    expect(screen.getByText('Components installed')).toBeInTheDocument()
+    // Scoped to the tile: a bare getByText('2') matches any exact "2" in the
+    // page and would pass, or start failing, for reasons that have nothing to
+    // do with the installed count.
+    const installedTile = screen.getByText('Components installed').parentElement
     // The replaced component does not count toward the tile.
-    expect(screen.getByText('2')).toBeInTheDocument()
+    expect(installedTile).toHaveTextContent('2')
     // "Distance" is both a stat tile and the components table's column header.
     expect(screen.getAllByText('Distance')).toHaveLength(2)
   })

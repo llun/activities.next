@@ -88,8 +88,13 @@ export const useGearTableColumns = (
     // every phone.
     measure(element.clientWidth)
 
-    const observer = new ResizeObserver(([entry]) => {
-      measure(entry.contentRect.width)
+    // Both paths read `clientWidth` rather than the entry's `contentRect`:
+    // that is the scrollport the columns are snapped against, and mixing the
+    // two measures (integer padding box vs fractional content box) makes a
+    // table sitting a fraction either side of the threshold render wide for a
+    // frame and then reflow.
+    const observer = new ResizeObserver(() => {
+      measure(element.clientWidth)
     })
     observer.observe(element)
     return () => observer.disconnect()
