@@ -11,20 +11,21 @@ permissions:
   pull-requests: write
 
 env:
-  # Required checks usually register within seconds; cap this wait at 5 minutes
-  # so auto-merge is not skipped just because checks were attached slowly.
-  CHECK_REGISTRATION_ATTEMPTS: 30
-  CHECK_REGISTRATION_INTERVAL_SECONDS: 10
-  CHECK_REGISTRATION_STABLE_READS: 2
-  CHECK_REGISTRATION_TRANSIENT_ERROR_LIMIT: 3
-  # If no required checks have registered after this many attempts, the bot
-  # force-push likely did not trigger the pull_request CI workflows; reopen the
-  # PR once to re-fire them. Kept well below CHECK_REGISTRATION_ATTEMPTS so the
-  # reopened checks still have time to register and pass within the wait window.
-  CHECK_REGISTRATION_KICK_ATTEMPT: 6
+  # This gate waits for a whole CI run, not just for checks to be attached:
+  # "All Tests" is a fan-in job (`needs: [test-shards]`), so GitHub only creates
+  # its check run once the four-way shard matrix has finished — minutes after
+  # the PR is opened. 30 minutes covers a cold-cache run with headroom.
+  CHECK_ATTEMPTS: 180
+  CHECK_INTERVAL_SECONDS: 10
+  # If *no* required check run at all has appeared after this many attempts, the
+  # bot force-push likely did not trigger the pull_request CI workflows; reopen
+  # the PR once to re-fire them. Two minutes is long enough that a merely slow
+  # runner queue is not mistaken for workflows that never fired, and it is kept
+  # well below CHECK_ATTEMPTS so the re-fired run still has time to pass.
+  CHECK_KICK_ATTEMPT: 12
   # How many times to retry reopening the PR after a successful close, so a
   # transient reopen failure never leaves the bump PR closed.
-  CHECK_REGISTRATION_REOPEN_ATTEMPTS: 3
+  CHECK_REOPEN_ATTEMPTS: 3
   DEBOUNCE_SECONDS: 300
   VERSION_BUMP_BRANCH: version-bump/main
 
@@ -354,6 +355,9 @@ jobs:
             echo "Created PR: $PR_URL"
           fi
 
+          HEAD_SHA=$(git rev-parse HEAD)
+          TAB=$(printf '\t')
+
           join_check_names() {
             local check_names="$1"
 
@@ -373,9 +377,8 @@ jobs:
             : > "$checks_error"
 
             set +e
-            # This endpoint only returns the branch-protection subset.
-            # Required workflows outside branch protection are still covered by
-            # the later gh pr checks --required --watch gate.
+            # This endpoint only returns the branch-protection subset, which is
+            # exactly the set that decides whether the PR can merge.
             #
             # .checks[] is the modern object array, while .contexts[] is the
             # legacy string array. Union them, then keep only non-empty strings
@@ -396,144 +399,131 @@ jobs:
             return 1
           }
 
-          required_checks_not_reported_yet() {
-            local checks_error="$1"
+          # One "<name><TAB><status><TAB><conclusion>" line per check-run name on
+          # the given commit, keeping only the newest run for each name (check
+          # run ids increase with creation time).
+          #
+          # The dedupe is the point: several runs can attach a check run with the
+          # same name to one head commit (a reopen, a manual re-run, a run
+          # superseded by CI's cancel-in-progress concurrency). Branch protection
+          # resolves a duplicated name to the newest run, but `gh pr checks` does
+          # not — it reported the cancelled run's failed "All Tests" and never
+          # looked at the green one, which is why this gate used to abandon every
+          # bump PR.
+          latest_check_run_states() {
+            local sha="$1"
 
-            # Some gh versions return a generic error, not exit 8, before
-            # required checks have registered. Treat only that startup state as
-            # pending; other errors still use the transient-error budget.
-            # Keep this fallback broad enough for minor gh wording changes; if
-            # it misses, the safe failure mode is leaving the PR open.
-            grep -Eiq '(no|0)[[:space:]]+(required[[:space:]]+)?(status[[:space:]]+)?checks?([[:space:]]+(reported|found|attached))?' "$checks_error"
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/commits/${sha}/check-runs?per_page=100" \
+              --jq '.check_runs[] | [.name, (.id | tostring), .status, (.conclusion // "")] | @tsv' |
+              sort -t"$TAB" -k1,1 -k2,2nr |
+              awk -F"$TAB" 'BEGIN { OFS = "\t" } !seen[$1]++ { print $1, $3, $4 }'
           }
 
+          # Wait until every branch-protection required check has a successful
+          # run on the PR head commit.
+          #
+          # A required check that has no check run yet is PENDING, not missing.
+          # CI's "All Tests" is a fan-in job (`needs: [test-shards]`), so GitHub
+          # does not create its check run until the whole shard matrix finishes,
+          # minutes into a perfectly healthy run. Treating that as "CI never
+          # fired" is what made the self-heal reopen below fire on every bump PR:
+          # the reopen cancelled the in-flight run, and the cancelled run's
+          # "All Tests" job (`if: always()`) then failed permanently on that
+          # commit, so the PR could never merge.
           wait_for_required_checks() {
             local pr_url="$1"
-            local branch_protection_check_names="$2"
-            local checks_error="$3"
+            local head_sha="$2"
+            local required_check_names="$3"
             local attempt
-            local check_names
-            local consecutive_errors=0
-            local gh_checks_exit
-            local missing_checks=""
-            local previous_check_names=""
-            local required_check
-            local stable_reads=0
+            local conclusion
+            local current_sha
+            local failed
             local kicked=0
+            local pending
+            local registered
             local reopen_attempt
             local reopened
+            local required_check
+            local states
+            local states_ok
+            local status
 
-            for attempt in $(seq 1 "$CHECK_REGISTRATION_ATTEMPTS"); do
-              : > "$checks_error"
+            for attempt in $(seq 1 "$CHECK_ATTEMPTS"); do
+              current_sha=$(gh pr view "$pr_url" --json headRefOid --jq '.headRefOid' 2>/dev/null || true)
 
-              set +e
-              check_names=$(gh pr checks "$pr_url" --required --json name,state --jq 'map(.name) | unique | .[]' 2> "$checks_error")
-              gh_checks_exit=$?
-              set -e
+              if [ -n "$current_sha" ] && [ "$current_sha" != "$head_sha" ]; then
+                echo "::warning::${pr_url} head moved from ${head_sha} to ${current_sha}; a newer version-bump run owns this PR."
+                return 1
+              fi
 
-              case "$gh_checks_exit" in
-                0 | 8)
-                  consecutive_errors=0
-                  missing_checks=""
+              if states=$(latest_check_run_states "$head_sha" 2> "$CHECKS_ERROR"); then
+                states_ok=1
+              else
+                states_ok=0
+                states=""
+                cat "$CHECKS_ERROR" >&2
+                echo "::warning::Unable to read check runs for ${head_sha}; retrying."
+              fi
 
-                  if [ -n "$branch_protection_check_names" ]; then
-                    while IFS= read -r required_check; do
-                      if [ -n "$required_check" ] && ! printf '%s\n' "$check_names" | grep -Fxq "$required_check"; then
-                        if [ -z "$missing_checks" ]; then
-                          missing_checks="$required_check"
-                        else
-                          missing_checks="${missing_checks}, ${required_check}"
-                        fi
-                      fi
-                    done <<< "$branch_protection_check_names"
-                  fi
+              failed=""
+              pending=""
+              registered=0
 
-                  if [ -n "$check_names" ] && [ "$check_names" = "$previous_check_names" ]; then
-                    stable_reads=$((stable_reads + 1))
-                  elif [ -n "$check_names" ]; then
-                    stable_reads=1
-                    previous_check_names="$check_names"
-                  else
-                    stable_reads=0
-                    previous_check_names=""
-                  fi
+              while IFS= read -r required_check; do
+                [ -n "$required_check" ] || continue
 
-                  if [ -n "$check_names" ] && [ -z "$missing_checks" ] && [ "$stable_reads" -ge "$CHECK_REGISTRATION_STABLE_READS" ]; then
-                    echo "Required PR checks registered: $(join_check_names "$check_names")."
-                    return 0
-                  fi
+                status=$(printf '%s\n' "$states" | awk -F"$TAB" -v name="$required_check" '$1 == name { print $2 }')
+                conclusion=$(printf '%s\n' "$states" | awk -F"$TAB" -v name="$required_check" '$1 == name { print $3 }')
 
-                  # gh exits 8 for pending checks, and some states produce either
-                  # exit 8 or exit 0 with no JSON rows. The JSON names decide
-                  # whether all required checks are registered yet.
-                  if [ -n "$missing_checks" ]; then
-                    echo "Required PR checks are not fully registered yet; missing branch-protection checks: ${missing_checks}."
-                  elif [ -z "$check_names" ]; then
-                    echo "Required PR checks are not reported yet."
-                  else
-                    echo "Required PR checks are settling; observed $(join_check_names "$check_names") for ${stable_reads}/${CHECK_REGISTRATION_STABLE_READS} stable reads."
-                  fi
-                  ;;
-                *)
-                  if required_checks_not_reported_yet "$checks_error"; then
-                    consecutive_errors=0
-                    # Preserve prior stable observations here too. Before any
-                    # checks appear these values are already empty/zero; after
-                    # checks appear, a no-checks response is another metadata
-                    # blip and should not discard the observed set.
-                    echo "Required PR checks are not reported yet."
-                  else
-                    consecutive_errors=$((consecutive_errors + 1))
-                    cat "$checks_error" >&2
-                    echo "::warning::Unable to read required PR checks (${consecutive_errors}/${CHECK_REGISTRATION_TRANSIENT_ERROR_LIMIT})."
+                if [ -n "$status" ]; then
+                  registered=$((registered + 1))
+                fi
 
-                    if [ "$consecutive_errors" -ge "$CHECK_REGISTRATION_TRANSIENT_ERROR_LIMIT" ]; then
-                      echo "::warning::Exceeded transient-error budget while reading required PR checks."
-                      return 1
-                    fi
+                if [ "$status" != "completed" ]; then
+                  pending="${pending:+${pending}, }${required_check}"
+                elif [ "$conclusion" != "success" ]; then
+                  failed="${failed:+${failed}, }${required_check} (${conclusion:-unknown})"
+                fi
+              done <<< "$required_check_names"
 
-                    # Preserve stable_reads and previous_check_names across
-                    # transient errors; an API blip does not change the PR's
-                    # underlying required-check registration state.
-                  fi
-                  ;;
-              esac
+              if [ -n "$failed" ]; then
+                echo "::warning::Required PR checks did not succeed: ${failed}."
+                return 1
+              fi
+
+              if [ -z "$pending" ]; then
+                echo "All required PR checks passed: $(join_check_names "$required_check_names")."
+                return 0
+              fi
 
               # Self-heal: a bot force-push that updates the bump PR head
-              # sometimes fails to trigger the pull_request CI workflows, so the
-              # required checks never register and the PR stays blocked forever.
-              # If, after CHECK_REGISTRATION_KICK_ATTEMPT tries, no required
-              # checks have appeared OR a branch-protection check is still
-              # missing (partial registration is just as blocking), close and
-              # reopen the PR once to re-fire those workflows.
-              if [ "$kicked" -eq 0 ] && [ "$attempt" -ge "$CHECK_REGISTRATION_KICK_ATTEMPT" ] && { [ -z "$check_names" ] || [ -n "$missing_checks" ]; }; then
-                if [ -z "$check_names" ]; then
-                  echo "No required PR checks registered after ${attempt} attempts; reopening ${pr_url} to re-trigger CI."
-                else
-                  echo "Required PR checks still missing (${missing_checks}) after ${attempt} attempts; reopening ${pr_url} to re-trigger CI."
-                fi
+              # sometimes fails to trigger the pull_request CI workflows, so no
+              # check run is ever created and the PR stays blocked forever. Only
+              # an empty required-check set proves that. A partially reported set
+              # just means the remaining jobs have not been queued yet, and
+              # reopening then would cancel the healthy run in flight.
+              if [ "$kicked" -eq 0 ] && [ "$states_ok" -eq 1 ] && [ "$registered" -eq 0 ] && [ "$attempt" -ge "$CHECK_KICK_ATTEMPT" ]; then
+                echo "No required check runs on ${head_sha} after ${attempt} attempts; reopening ${pr_url} to re-trigger CI."
 
                 if gh pr close "$pr_url"; then
                   # Once closed, reopening is mandatory: a transient reopen
                   # failure must not leave the bump PR closed (worse than
                   # blocked), so retry until it succeeds or the budget is spent.
                   reopened=0
-                  for reopen_attempt in $(seq 1 "$CHECK_REGISTRATION_REOPEN_ATTEMPTS"); do
+                  for reopen_attempt in $(seq 1 "$CHECK_REOPEN_ATTEMPTS"); do
                     if gh pr reopen "$pr_url"; then
                       reopened=1
                       break
                     fi
-                    echo "::warning::Failed to reopen ${pr_url} (reopen ${reopen_attempt}/${CHECK_REGISTRATION_REOPEN_ATTEMPTS}); retrying in ${CHECK_REGISTRATION_INTERVAL_SECONDS}s."
-                    sleep "$CHECK_REGISTRATION_INTERVAL_SECONDS"
+                    echo "::warning::Failed to reopen ${pr_url} (reopen ${reopen_attempt}/${CHECK_REOPEN_ATTEMPTS}); retrying in ${CHECK_INTERVAL_SECONDS}s."
+                    sleep "$CHECK_INTERVAL_SECONDS"
                   done
 
                   if [ "$reopened" -eq 1 ]; then
                     kicked=1
-                    stable_reads=0
-                    previous_check_names=""
                     echo "Reopened ${pr_url}; waiting for pull_request workflows to register."
                   else
-                    echo "::error::Closed ${pr_url} but could not reopen it after ${CHECK_REGISTRATION_REOPEN_ATTEMPTS} attempts; reopen it manually to resume the version bump."
+                    echo "::error::Closed ${pr_url} but could not reopen it after ${CHECK_REOPEN_ATTEMPTS} attempts; reopen it manually to resume the version bump."
                     return 1
                   fi
                 else
@@ -541,16 +531,11 @@ jobs:
                 fi
               fi
 
-              if [ "$attempt" -lt "$CHECK_REGISTRATION_ATTEMPTS" ]; then
-                echo "Retrying required-check registration in ${CHECK_REGISTRATION_INTERVAL_SECONDS}s (${attempt}/${CHECK_REGISTRATION_ATTEMPTS})."
-                sleep "$CHECK_REGISTRATION_INTERVAL_SECONDS"
-              fi
+              echo "Waiting for required PR checks: ${pending} (${attempt}/${CHECK_ATTEMPTS})."
+              sleep "$CHECK_INTERVAL_SECONDS"
             done
 
-            if [ -n "$missing_checks" ]; then
-              echo "::warning::Last missing branch-protection checks: ${missing_checks}."
-            fi
-            echo "::warning::Last observed required PR checks: $(join_check_names "$previous_check_names")."
+            echo "::warning::Timed out waiting for required PR checks; still pending: ${pending}."
             return 1
           }
 
@@ -562,27 +547,18 @@ jobs:
           BRANCH_PROTECTION_CHECKS_EXIT=$?
           set -e
 
-          if [ "$BRANCH_PROTECTION_CHECKS_EXIT" -eq 0 ] && [ -n "$BRANCH_PROTECTION_CHECK_NAMES" ]; then
-            echo "Branch-protection required checks: $(join_check_names "$BRANCH_PROTECTION_CHECK_NAMES")."
-          elif [ "$BRANCH_PROTECTION_CHECKS_EXIT" -eq 0 ]; then
-            echo "No branch-protection required status checks are configured on main; using observed required PR checks as the registration gate."
-            BRANCH_PROTECTION_CHECK_NAMES=""
+          if [ "$BRANCH_PROTECTION_CHECKS_EXIT" -ne 0 ] || [ -z "$BRANCH_PROTECTION_CHECK_NAMES" ]; then
+            # With no expected set to wait on there is nothing to gate locally.
+            # Enabling auto-merge is still safe: GitHub will not merge the PR
+            # until branch protection is satisfied.
+            echo "::warning::No branch-protection required status checks to wait on; relying on auto-merge to gate the merge."
           else
-            echo "::warning::Could not read branch-protection required checks; using observed required PR checks as the registration gate."
-            # Fallback mode cannot compare against an anchored expected set.
-            # It trusts the observed --required names after stable reads, and
-            # gh pr checks --required --watch remains the final merge gate.
-            BRANCH_PROTECTION_CHECK_NAMES=""
-          fi
+            echo "Branch-protection required checks: $(join_check_names "$BRANCH_PROTECTION_CHECK_NAMES")."
 
-          if ! wait_for_required_checks "$PR_URL" "$BRANCH_PROTECTION_CHECK_NAMES" "$CHECKS_ERROR"; then
-            echo "::warning::Required PR checks were not fully reported after waiting; leaving $PR_URL open."
-            exit 0
-          fi
-
-          if ! gh pr checks "$PR_URL" --required --watch --interval 10; then
-            echo "::warning::Required PR checks did not pass; leaving $PR_URL open."
-            exit 0
+            if ! wait_for_required_checks "$PR_URL" "$HEAD_SHA" "$BRANCH_PROTECTION_CHECK_NAMES"; then
+              echo "::warning::Required PR checks did not pass; leaving $PR_URL open."
+              exit 0
+            fi
           fi
 
           git fetch --force origin main
@@ -593,5 +569,14 @@ jobs:
             exit 0
           fi
 
-          gh pr merge --auto --squash --delete-branch "$PR_URL"
-          echo "Enabled auto-merge for $PR_URL"
+          # Auto-merge can only be *enabled* while the PR is still blocked. By
+          # now the required checks have usually all passed, so GitHub rejects
+          # the request with "Pull request is in clean status" — merge directly
+          # in that case instead of leaving a green bump PR sitting open.
+          if gh pr merge --auto --squash --delete-branch "$PR_URL"; then
+            echo "Enabled auto-merge for $PR_URL"
+          else
+            echo "Could not enable auto-merge for $PR_URL; merging it directly."
+            gh pr merge --squash --delete-branch "$PR_URL"
+            echo "Merged $PR_URL"
+          fi
