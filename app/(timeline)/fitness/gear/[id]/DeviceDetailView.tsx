@@ -142,17 +142,23 @@ export const DeviceDetailView: FC<Props> = ({
   // re-request rows already consumed, and a page that is entirely duplicates
   // would leave "Load more" stuck at the same offset forever.
   const consumedRef = useRef(0)
-  // The device whose responses are currently welcome. `GearDetailView` renders
-  // this component at a fixed position with no `key`, so moving between two
-  // device pages swaps `gear` on the SAME instance — without this, a "Load
-  // more" fired on the previous device can land after the new device's first
-  // page and append its rows here.
-  const requestedGearIdRef = useRef(gear.id)
+  // Which load of which device is currently welcome. A monotonic token rather
+  // than the gear id, because the id cannot tell "still device A" from "went to
+  // B and came back to A" — and a request outstanding across that round trip
+  // would be appended to a list that has since been reset, with its rows
+  // counted twice in the offset. `GearDetailView` renders this component at a
+  // fixed position with no `key`, so switching devices swaps `gear` on the SAME
+  // instance and none of this is hypothetical.
+  const generationRef = useRef(0)
 
   useEffect(() => {
     let cancelled = false
-    requestedGearIdRef.current = gear.id
+    generationRef.current += 1
     consumedRef.current = 0
+    // Reset here too, not only in `loadMore`'s `finally`: that branch is
+    // skipped for a request this effect has just superseded, which would leave
+    // the new device's "Load more" disabled and reading "Loading..." forever.
+    setIsLoadingMore(false)
     setIsLoading(true)
     // Reset before fetching, not after: the previous device's rows would
     // otherwise stay on screen with the previous device's `hasMore`, and a
@@ -187,16 +193,16 @@ export const DeviceDetailView: FC<Props> = ({
   }, [gear.id])
 
   const loadMore = async () => {
-    const requestedGearId = gear.id
+    const generation = generationRef.current
     setIsLoadingMore(true)
     try {
-      const page = await getFitnessGearActivities(requestedGearId, {
+      const page = await getFitnessGearActivities(gear.id, {
         limit: ACTIVITIES_PAGE_SIZE,
         offset: consumedRef.current
       })
-      // The gear changed while this was in flight, so these rows belong to a
-      // page nobody is looking at any more.
-      if (requestedGearIdRef.current !== requestedGearId) return
+      // A newer load has started since, so these rows belong to a list nobody
+      // is looking at any more.
+      if (generationRef.current !== generation) return
 
       consumedRef.current += page.activities.length
       // Deduplicated on append: this is offset pagination over a list that can
@@ -212,14 +218,14 @@ export const DeviceDetailView: FC<Props> = ({
       setHasMore(page.hasMore)
       setError(null)
     } catch (loadError) {
-      if (requestedGearIdRef.current !== requestedGearId) return
+      if (generationRef.current !== generation) return
       setError(
         loadError instanceof Error
           ? loadError.message
           : 'Failed to load activities.'
       )
     } finally {
-      if (requestedGearIdRef.current === requestedGearId) {
+      if (generationRef.current === generation) {
         setIsLoadingMore(false)
       }
     }

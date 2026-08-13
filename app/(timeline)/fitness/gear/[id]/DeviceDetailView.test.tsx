@@ -303,6 +303,84 @@ describe('DeviceDetailView', () => {
     })
   })
 
+  describe('switching to another device on the same mounted instance', () => {
+    // `GearDetailView` renders this component at a fixed position with no
+    // `key`, so navigating between two device pages swaps `gear` on the SAME
+    // instance rather than remounting. Nothing tested that before, which is how
+    // both bugs below shipped.
+    const renderThenSwitch = async () => {
+      let resolveStale: (value: {
+        activities: GearActivityItem[]
+        hasMore: boolean
+      }) => void = () => {}
+      const stalePage = new Promise<{
+        activities: GearActivityItem[]
+        hasMore: boolean
+      }>((resolve) => {
+        resolveStale = resolve
+      })
+
+      mockGetFitnessGearActivities.mockResolvedValueOnce({
+        activities: [createActivity({ id: 'a-1', description: 'Device A' })],
+        hasMore: true
+      })
+      const view = render(
+        <DeviceDetailView
+          gear={createDevice()}
+          actorHandle="@test@llun.test"
+          backLink={<a href="/fitness/gear">Gear</a>}
+          onEdit={vi.fn()}
+        />
+      )
+      const loadMore = await screen.findByRole('button', { name: 'Load more' })
+
+      // "Load more" on device A, still in flight when the gear changes.
+      mockGetFitnessGearActivities.mockReturnValueOnce(stalePage)
+      fireEvent.click(loadMore)
+
+      mockGetFitnessGearActivities.mockResolvedValueOnce({
+        activities: [createActivity({ id: 'b-1', description: 'Device B' })],
+        hasMore: true
+      })
+      view.rerender(
+        <DeviceDetailView
+          gear={createDevice({ id: 'device-2', name: 'Wahoo ELEMNT BOLT' })}
+          actorHandle="@test@llun.test"
+          backLink={<a href="/fitness/gear">Gear</a>}
+          onEdit={vi.fn()}
+        />
+      )
+      await waitFor(() =>
+        expect(screen.getByText('Device B')).toBeInTheDocument()
+      )
+
+      resolveStale({
+        activities: [createActivity({ id: 'a-2', description: 'Stale ride' })],
+        hasMore: true
+      })
+      await waitFor(() => expect(stalePage).resolves.toBeDefined())
+      return view
+    }
+
+    it('never leaves the new device stuck loading', async () => {
+      await renderThenSwitch()
+
+      // The superseded request's `finally` is skipped, so the effect has to
+      // clear this itself or the button is disabled forever.
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled()
+      )
+    })
+
+    it('drops the previous device’s page instead of appending it', async () => {
+      await renderThenSwitch()
+
+      expect(screen.getByText('Device B')).toBeInTheDocument()
+      expect(screen.queryByText('Stale ride')).not.toBeInTheDocument()
+      expect(screen.queryByText('Device A')).not.toBeInTheDocument()
+    })
+  })
+
   it('reports an empty history', async () => {
     renderView({})
 

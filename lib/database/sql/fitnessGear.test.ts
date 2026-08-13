@@ -1083,6 +1083,36 @@ describe('FitnessGearDatabase', () => {
     })
 
     describe('setFitnessFileGear', () => {
+      it('refuses to auto-assign an activity to a recording device', async () => {
+        // The same rule the explicit setter enforces, on the other writer.
+        // Unreachable through auto-assign itself (a device holds no default
+        // sport), but `scripts/fitness/importFitnessGear.ts` reaches here
+        // through a NAME lookup that device rows share a namespace with.
+        const device = await database.createFitnessGear({
+          actorId: actors.extra.id,
+          kind: 'device',
+          name: 'Auto assign device',
+          deviceKey: 'name:auto assign device'
+        })
+        const activity = await createActivity(database, {
+          actorId: actors.extra.id,
+          pathSuffix: 'auto-assign-device',
+          distanceMeters: 8_000,
+          activityStartTime: new Date('2026-07-06T08:00:00.000Z')
+        })
+
+        expect(
+          await database.assignFitnessFileGearIfUnset({
+            fitnessFileId: activity.id,
+            actorId: actors.extra.id,
+            gearId: device.id
+          })
+        ).toBe(false)
+
+        const reloaded = await database.getFitnessFile({ id: activity.id })
+        expect(reloaded?.gearId).toBeUndefined()
+      })
+
       it('refuses to attribute an activity to a recording device', async () => {
         // `gearId` answers "what was this ride done on", which a head unit
         // never is. An activity pointed at one falls out of EVERY rollup: the
@@ -2151,6 +2181,124 @@ describe('FitnessGearDatabase', () => {
           })
           // The count and the page must never disagree.
           expect(rows.map((row) => row.id)).toEqual([primary.id])
+        })
+
+        it('counts one ride once when a device left several files and lost the merge', async () => {
+          // Three files in one overlap group: a head unit's (which wins the
+          // merge) and TWO from the watch. The watch owns no primary, so a
+          // "does a primary of mine exist" test suppresses neither of its
+          // files and reports one ride twice.
+          const headUnit = await database.createFitnessGear({
+            actorId: actors.replyAuthor.id,
+            kind: 'device',
+            name: 'Group head unit',
+            deviceKey: 'name:group head unit'
+          })
+          const watch = await database.createFitnessGear({
+            actorId: actors.replyAuthor.id,
+            kind: 'device',
+            name: 'Group watch',
+            deviceKey: 'name:group watch'
+          })
+          const statusId = `${actors.replyAuthor.id}/statuses/three-file-merge`
+          await database.createNote({
+            id: statusId,
+            url: statusId,
+            actorId: actors.replyAuthor.id,
+            to: [],
+            cc: [],
+            text: 'One ride, three files'
+          })
+
+          await createDeviceActivity(database, {
+            actorId: actors.replyAuthor.id,
+            pathSuffix: 'group-head',
+            distanceMeters: 42_600,
+            activityStartTime: new Date('2026-10-01T08:00:00.000Z'),
+            deviceGearId: headUnit.id,
+            statusId
+          })
+          for (const suffix of ['group-watch-fit', 'group-watch-gpx']) {
+            await createDeviceActivity(database, {
+              actorId: actors.replyAuthor.id,
+              pathSuffix: suffix,
+              distanceMeters: 42_600,
+              activityStartTime: new Date('2026-10-01T08:00:00.000Z'),
+              deviceGearId: watch.id,
+              statusId,
+              isPrimary: false
+            })
+          }
+
+          const rollups = await database.getFitnessGearDeviceRollups({
+            actorId: actors.replyAuthor.id,
+            gearIds: [headUnit.id, watch.id]
+          })
+          expect(rollups[headUnit.id].activityCount).toBe(1)
+          expect(rollups[watch.id].activityCount).toBe(1)
+
+          const rows = await database.getFitnessGearActivities({
+            actorId: actors.replyAuthor.id,
+            gearId: watch.id,
+            kind: 'device',
+            limit: 10
+          })
+          expect(rows).toHaveLength(1)
+        })
+
+        it('keeps a ride whose primary is still processing or failed', async () => {
+          // A merge writes the primary `pending` and the secondaries
+          // `completed`, so deferring to a primary that does not itself count
+          // would drop the ride from the device until processing finished — and
+          // permanently if it ended `failed`.
+          const device = await database.createFitnessGear({
+            actorId: actors.replyAuthor.id,
+            kind: 'device',
+            name: 'Unfinished primary device',
+            deviceKey: 'name:unfinished primary device'
+          })
+          const statusId = `${actors.replyAuthor.id}/statuses/pending-primary`
+          await database.createNote({
+            id: statusId,
+            url: statusId,
+            actorId: actors.replyAuthor.id,
+            to: [],
+            cc: [],
+            text: 'Primary still processing'
+          })
+
+          await createDeviceActivity(database, {
+            actorId: actors.replyAuthor.id,
+            pathSuffix: 'pending-primary',
+            distanceMeters: 42_600,
+            activityStartTime: new Date('2026-10-02T08:00:00.000Z'),
+            deviceGearId: device.id,
+            statusId,
+            processingStatus: 'pending'
+          })
+          const secondary = await createDeviceActivity(database, {
+            actorId: actors.replyAuthor.id,
+            pathSuffix: 'completed-secondary',
+            distanceMeters: 42_600,
+            activityStartTime: new Date('2026-10-02T08:00:00.000Z'),
+            deviceGearId: device.id,
+            statusId,
+            isPrimary: false
+          })
+
+          const rollups = await database.getFitnessGearDeviceRollups({
+            actorId: actors.replyAuthor.id,
+            gearIds: [device.id]
+          })
+          expect(rollups[device.id].activityCount).toBe(1)
+
+          const rows = await database.getFitnessGearActivities({
+            actorId: actors.replyAuthor.id,
+            gearId: device.id,
+            kind: 'device',
+            limit: 10
+          })
+          expect(rows.map((row) => row.id)).toEqual([secondary.id])
         })
 
         it('counts the secondary file of a merged same-ride post', async () => {

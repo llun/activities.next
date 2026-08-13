@@ -504,19 +504,23 @@ it; there is no legacy shape left to copy.
   `kind: 'device'` rows have no components, no default sports, no distance
   total, no service reminder and cannot be retired; a device page reports an
   activity count and a first-used date instead.
-  The device rollups **relax** `isPrimary`, the one clause that does not
-  transfer unchanged, and the relaxation is narrower than "drop it". A merged
-  same-ride post keeps one file and marks the rest non-primary, which is right
-  for a bike — the ride happened once — but for a device it depends on why the
-  files were merged. Two devices, one ride: the secondary file is the only
-  evidence the second device exists, and `isPrimary` alone gives it a page
-  reporting 0 activities forever (the import links every file before the group
-  is collapsed). One device, one ride, two files (a `.fit` beside a `.gpx`, or a
-  manual upload beside the Strava sync): both carry the SAME device, so counting
-  both reports one ride twice. So a secondary file counts only when the primary
-  of its own merged post belongs to a **different** device. The rollup and the
-  activity list apply the identical predicate, so a device's count and its page
-  can never disagree. A head unit records rides and
+  The device rollups **replace** `isPrimary` rather than relaxing it, because
+  for a device it answers the wrong question: the merge groups files by TIME
+  OVERLAP and never looks at the device columns, so which file won says nothing
+  about which device recorded it. Two devices on one ride leave two files and
+  the non-primary one is the only evidence the second device exists (with
+  `isPrimary` it reports 0 activities forever); one device that produced two
+  files for one ride — a `.fit` beside a `.gpx`, a manual upload beside the
+  Strava sync — also leaves two, and counting both reports one ride twice. The
+  rule is therefore per RIDE per DEVICE, not per file: of the countable files
+  sharing a `(statusId, deviceGearId)`, exactly one survives — the primary if
+  that device owns it, otherwise the lowest id. It is written as "nothing else
+  beats me", so it needs no window function and reads the same on both backends.
+  It deliberately never defers to a file that is itself uncountable: a merge
+  writes the primary `pending` and the secondaries `completed`, so deferring to
+  an unfinished (or permanently `failed`) primary would drop the ride from the
+  device entirely. The rollup and the activity list apply the identical
+  predicate, so a device's count and its page can never disagree. A head unit records rides and
   runs alike, so one summed distance would be a number with no meaning, and
   claiming a sport would take that sport off the bike or shoes that should hold
   it. `SPORT_KIND` is therefore typed `Record<SportKey, UserCreatableGearKind>`
