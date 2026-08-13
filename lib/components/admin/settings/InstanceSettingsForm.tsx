@@ -32,6 +32,40 @@ const DETAILS_KEYS = [
   'instance.languages'
 ]
 const REGISTRATION_KEYS = ['registrations.open', 'registrations.allowEmails']
+const FEATURE_KEYS = [
+  'features.fitness',
+  'features.explore',
+  'features.messages'
+]
+
+// Optional sections of the product. Off removes the item from everyone's
+// navigation; the section itself keeps working for anyone who has a link.
+const FEATURES: {
+  key: string
+  id: string
+  label: string
+  description: string
+}[] = [
+  {
+    key: 'features.fitness',
+    id: 'features-fitness',
+    label: 'Fitness',
+    description:
+      'Activity posts, the fitness dashboard, heatmaps, and Strava sync.'
+  },
+  {
+    key: 'features.explore',
+    id: 'features-explore',
+    label: 'Explore',
+    description: 'Trends and follow suggestions.'
+  },
+  {
+    key: 'features.messages',
+    id: 'features-messages',
+    label: 'Messages',
+    description: 'Direct conversations between accounts.'
+  }
+]
 
 export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
   settings,
@@ -44,12 +78,16 @@ export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
       'instance.contactEmail': settings.instance.contactEmail,
       'instance.languages': settings.instance.languages,
       'registrations.open': settings.registrations.open,
-      'registrations.allowEmails': settings.registrations.allowEmails
+      'registrations.allowEmails': settings.registrations.allowEmails,
+      'features.fitness': settings.features.fitness,
+      'features.explore': settings.features.explore,
+      'features.messages': settings.features.messages
     })
 
   const lock = (key: string) => locks[key] ?? { locked: false }
   const detailsStatus = statusFor('details')
   const registrationStatus = statusFor('registrations')
+  const featuresStatus = statusFor('features')
   const registrationOpen = values['registrations.open'] as boolean
 
   return (
@@ -188,6 +226,38 @@ export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
             onChange={(next) => setValue('registrations.allowEmails', next)}
           />
         </SettingsField>
+      </SettingsSection>
+
+      <SettingsSection
+        title="Optional features"
+        description="Turn a feature off to remove it from navigation for every account on this instance."
+        footer={
+          <SaveBar
+            dirty={isDirty(FEATURE_KEYS)}
+            saving={featuresStatus.saving}
+            saved={featuresStatus.saved}
+            error={featuresStatus.error}
+            onSave={() => saveSection('features', FEATURE_KEYS)}
+          />
+        }
+      >
+        {FEATURES.map((feature) => (
+          <ControlRow
+            key={feature.key}
+            label={feature.label}
+            description={feature.description}
+            htmlFor={feature.id}
+            locked={lock(feature.key).locked}
+            envVar={lock(feature.key).envVar}
+          >
+            <Switch
+              id={feature.id}
+              checked={values[feature.key] as boolean}
+              disabled={lock(feature.key).locked}
+              onCheckedChange={(checked) => setValue(feature.key, checked)}
+            />
+          </ControlRow>
+        ))}
       </SettingsSection>
     </div>
   )

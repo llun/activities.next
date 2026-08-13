@@ -43,7 +43,8 @@ const baseSettings: ResolvedServerSettings = {
     requestRetries: 1,
     maxResponseSizeBytes: 2097152
   },
-  federation: { mode: 'open', allowActorDomains: [] }
+  federation: { mode: 'open', allowActorDomains: [] },
+  features: { fitness: true, explore: true, messages: true }
 }
 
 const renderForm = (locks: ServerSettingLocks = {}) =>
@@ -63,13 +64,39 @@ describe('InstanceSettingsForm', () => {
     expect(screen.getByText('Registrations are open')).toBeInTheDocument()
   })
 
+  describe('optional features', () => {
+    it.each([['Fitness'], ['Explore'], ['Messages']])(
+      'shows %s as available by default',
+      (label) => {
+        renderForm()
+        expect(screen.getByLabelText(label)).toBeChecked()
+      }
+    )
+
+    it('saves only the feature keys when a feature is turned off', async () => {
+      renderForm()
+      fireEvent.click(screen.getByLabelText('Fitness'))
+
+      const updateButtons = screen.getAllByRole('button', { name: 'Update' })
+      fireEvent.click(updateButtons[updateButtons.length - 1])
+
+      await waitFor(() =>
+        expect(mockUpdate).toHaveBeenCalledWith({
+          'features.fitness': false,
+          'features.explore': true,
+          'features.messages': true
+        })
+      )
+    })
+  })
+
   it('saves only the edited instance-details keys', async () => {
     renderForm()
     fireEvent.change(screen.getByLabelText('Instance name'), {
       target: { value: 'New Name' }
     })
 
-    // Two sections → two Update buttons; details is the first.
+    // One Update button per section; details is the first.
     fireEvent.click(screen.getAllByRole('button', { name: 'Update' })[0])
 
     await waitFor(() =>

@@ -73,6 +73,14 @@ export interface ResolvedServerSettings {
     mode: 'open' | 'allowlist'
     allowActorDomains: string[]
   }
+  // Optional product features. Turning one off removes it from navigation for
+  // every account on the instance; the routes themselves keep working, so an
+  // existing link or bookmark is never broken by the switch.
+  features: {
+    fitness: boolean
+    explore: boolean
+    messages: boolean
+  }
 }
 
 // The default values, mirroring today's env defaults and hardcoded constants.
@@ -110,6 +118,11 @@ export const DEFAULT_SERVER_SETTINGS: ResolvedServerSettings = {
   federation: {
     mode: 'open',
     allowActorDomains: []
+  },
+  features: {
+    fitness: true,
+    explore: true,
+    messages: true
   }
 }
 
@@ -267,6 +280,40 @@ export const SERVER_SETTING_FIELDS: ServerSettingField[] = [
     get: (s) => s.registrations.allowEmails,
     set: (s, v) => {
       s.registrations.allowEmails = v
+    }
+  }),
+
+  // Optional features. No env vars: these are meant to be flipped from the
+  // admin UI, and an env pin would lock the switch. They live on the Instance
+  // tab with the other whole-instance choices.
+  field<boolean>({
+    key: 'features.fitness',
+    group: 'instance',
+    schema: z.boolean(),
+    readEnv: () => undefined,
+    get: (s) => s.features.fitness,
+    set: (s, v) => {
+      s.features.fitness = v
+    }
+  }),
+  field<boolean>({
+    key: 'features.explore',
+    group: 'instance',
+    schema: z.boolean(),
+    readEnv: () => undefined,
+    get: (s) => s.features.explore,
+    set: (s, v) => {
+      s.features.explore = v
+    }
+  }),
+  field<boolean>({
+    key: 'features.messages',
+    group: 'instance',
+    schema: z.boolean(),
+    readEnv: () => undefined,
+    get: (s) => s.features.messages,
+    set: (s, v) => {
+      s.features.messages = v
     }
   }),
 
