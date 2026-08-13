@@ -46,6 +46,17 @@ const CELL = 'px-3 py-2.5 align-top'
 /** Width the pinned "Type" column keeps, and the snap offset that follows it. */
 const TYPE_COLUMN_WIDTH = 104
 
+/**
+ * A row action is the design system's bare text link, but a 16px line of text
+ * is a target well under the WCAG 2.2 minimum of 24x24 on the phone layout this
+ * table is built for. The padding buys the hit area back and the matching
+ * negative margin cancels it out visually, so the label still sits on the first
+ * line of the row and the row's height does not change. It matters most for
+ * Delete: a tap that misses also blurs the button, and that disarms the pending
+ * confirmation.
+ */
+const ROW_ACTION = 'h-auto -mx-2 -my-1.5 px-2 py-1.5 text-xs'
+
 type AddedMode = 'beginning' | 'date'
 
 const WearBar: FC<{ component: GearComponentEntity }> = ({ component }) => {
@@ -457,7 +468,7 @@ export const GearComponentsCard: FC<Props> = ({
                           size="sm"
                           type="button"
                           variant="link"
-                          className="h-auto p-0 text-xs text-destructive"
+                          className={cn(ROW_ACTION, 'text-destructive')}
                           disabled={isPending}
                           onClick={() => handleDelete(component.id)}
                           // Leaving the button disarms it: an armed row that
@@ -478,7 +489,7 @@ export const GearComponentsCard: FC<Props> = ({
                           size="sm"
                           type="button"
                           variant="link"
-                          className="h-auto p-0 text-xs"
+                          className={ROW_ACTION}
                           disabled={isPending}
                           onClick={() => handleReplace(component.id)}
                         >

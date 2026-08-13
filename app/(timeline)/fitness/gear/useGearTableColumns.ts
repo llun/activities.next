@@ -2,10 +2,9 @@
 
 import {
   CSSProperties,
-  RefObject,
+  RefCallback,
   useEffect,
   useLayoutEffect,
-  useRef,
   useState
 } from 'react'
 
@@ -31,8 +30,14 @@ const useIsomorphicLayoutEffect =
   typeof window === 'undefined' ? useEffect : useLayoutEffect
 
 export interface GearTableColumns {
-  /** Attach to the scrolling wrapper — it is what gets measured. */
-  ref: RefObject<HTMLDivElement | null>
+  /**
+   * Attach to the scrolling wrapper — it is what gets measured. A callback ref
+   * rather than a ref object, because the wrapper is conditional: a bike with
+   * nothing installed renders the empty state instead, and a ref object set
+   * later re-runs no effect, so the observer would never attach to the table
+   * that appears when the first component is added.
+   */
+  ref: RefCallback<HTMLDivElement>
   isSnapping: boolean
   /** Widths for the pinned first column's `th`/`td`. */
   pinnedColumnStyle: CSSProperties
@@ -62,11 +67,10 @@ export interface GearTableColumns {
 export const useGearTableColumns = (
   pinnedColumnWidth: number
 ): GearTableColumns => {
-  const ref = useRef<HTMLDivElement>(null)
+  const [element, setElement] = useState<HTMLDivElement | null>(null)
   const [width, setWidth] = useState(0)
 
   useIsomorphicLayoutEffect(() => {
-    const element = ref.current
     if (!element || typeof ResizeObserver === 'undefined') return
 
     // A zero width means the table was never laid out — a `display: none`
@@ -87,13 +91,13 @@ export const useGearTableColumns = (
     })
     observer.observe(element)
     return () => observer.disconnect()
-  }, [])
+  }, [element])
 
   const isSnapping = width > 0 && width < GEAR_TABLE_SNAP_WIDTH
   const columnWidth = Math.max(MIN_SNAP_COLUMN_WIDTH, width - pinnedColumnWidth)
 
   return {
-    ref,
+    ref: setElement,
     isSnapping,
     pinnedColumnStyle: {
       minWidth: pinnedColumnWidth,

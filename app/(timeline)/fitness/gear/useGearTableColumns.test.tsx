@@ -41,9 +41,10 @@ class ResizeObserverStub {
 
 const PINNED_WIDTH = 104
 
-const Probe: FC = () => {
+const Probe: FC<{ hasTable?: boolean }> = ({ hasTable = true }) => {
   const { ref, isSnapping, pinnedColumnStyle, dataColumnStyle, scrollerStyle } =
     useGearTableColumns(PINNED_WIDTH)
+  if (!hasTable) return <p>No components yet.</p>
   return (
     <div ref={ref} data-testid="scroller" style={scrollerStyle}>
       <span data-testid="mode">{isSnapping ? 'snapping' : 'wide'}</span>
@@ -120,6 +121,27 @@ describe('useGearTableColumns', () => {
     act(() => deliver?.(0))
 
     expect(screen.getByTestId('mode')).toHaveTextContent('wide')
+  })
+
+  it('measures a table that mounts after the empty state', () => {
+    // The components card renders no table at all until something is
+    // installed, so the observer has to attach when that table appears rather
+    // than only at the card's own mount.
+    const { rerender } = render(<Probe hasTable={false} />)
+    expect(deliver).toBeNull()
+
+    rerender(<Probe hasTable />)
+    act(() => deliver?.(390))
+
+    expect(screen.getByTestId('mode')).toHaveTextContent('snapping')
+    expect(styleOf('data').width).toBe(`${390 - PINNED_WIDTH}px`)
+  })
+
+  it('drops its observer when the table unmounts', () => {
+    const { rerender } = render(<Probe hasTable />)
+    rerender(<Probe hasTable={false} />)
+
+    expect(disconnected).toBe(1)
   })
 
   it('disconnects its observer on unmount', () => {

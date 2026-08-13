@@ -417,24 +417,35 @@ it; there is no legacy shape left to copy.
   component whose window is open on that side, since it cannot be placed inside
   `[addedAt, removedAt)`. A gear total may therefore exceed the sum of its
   components.
-- **Every gear table pins its first column and snaps one data column per swipe
-  below 480px** — `useGearTableColumns`
-  (`@/app/(timeline)/fitness/gear/useGearTableColumns`). The pinned column keeps
-  the row's own label (the component type, the bike's name) against the left
-  edge with an inset right-hand rule, and under the threshold each data column
-  is sized to exactly the width that column leaves over, with
-  `scroll-snap-type: x mandatory` and a `scroll-padding-left` clear of the pin —
-  so a swipe lands on one whole column instead of stranding a row's values
-  halfway across the viewport. The rule measures the table's **own scroll
-  container** with a `ResizeObserver`, not the viewport, for the same reason
-  `useCompactActionBar` and `FitnessStatGrid` do: a gear table can sit in a
-  narrow column on a wide window. Do **not** put the old `min-w-[720px]` back on
-  a gear table — that is what forced every width, phone and desktop alike, into
-  one long horizontal scroll with the type column gone by the third column.
-  A pinned cell paints its own opaque `bg-background` and takes the dim of a
-  replaced row on its **contents**, never on the `<tr>`: opacity on the row
-  makes that background translucent and the other columns scroll visibly
-  through it.
+- **The components table pins its first column and snaps one data column per
+  swipe below 480px** — `useGearTableColumns`
+  (`@/app/(timeline)/fitness/gear/useGearTableColumns`), which is the design
+  system's `useGKSnapCols`. The pinned column keeps the row's own label (the
+  component type) against the left edge with an inset right-hand rule, and under
+  the threshold each data column is sized to exactly the width that column
+  leaves over, with `scroll-snap-type: x mandatory` and a `scroll-padding-left`
+  clear of the pin — so a swipe lands on one whole column instead of stranding a
+  row's values halfway across the viewport. The rule measures the table's **own
+  scroll container** with a `ResizeObserver`, not the viewport, for the same
+  reason `useCompactActionBar` and `FitnessStatGrid` do: a gear table can sit in
+  a narrow column on a wide window. It attaches through a **callback** ref, not
+  a ref object: the table is conditional (an empty bike renders the empty state
+  instead), and a ref object assigned later re-runs no effect, so the observer
+  would never reach the table that appears when the first component is added.
+  Do **not** put the old `min-w-[720px]` back on it — that is what forced every
+  width, phone and desktop alike, into one long horizontal scroll with the type
+  column gone by the third column. A pinned cell paints its own opaque
+  `bg-background` and takes the dim of a replaced row on its **contents**, never
+  on the `<tr>`: opacity on the row makes that background translucent and the
+  other columns scroll visibly through it. A row action stays the design's bare
+  text link but keeps padding with a compensating negative margin, so its tap
+  target clears the WCAG 2.2 24x24 minimum without moving the label.
+- **The gear list's own tables are NOT migrated to that hook yet.** The bikes,
+  shoes and device tables in `GearListView.tsx` still carry `min-w-[520px]` and
+  scroll as one block; the design system drives them from the same hook
+  (`useGKSnapCols(150)`), so adopting it there is a straight port, but until
+  someone does it the rule above describes the components table only. Do not
+  read it as a claim about the whole tree.
 - **The components card is a `bg-background/80` section, not a `Card`.** The
   design system deliberately puts the gear surfaces one step above the stat
   tiles that sit over them, which are the ones on `bg-card`; rendering both as
