@@ -98,7 +98,10 @@ describe('OAuth authorize query helpers', () => {
     expect(shouldDelegateToBetterAuth(signedParams)).toBe(false)
   })
 
-  it('serializes signed consent queries in Better Auth signature order', () => {
+  // Order is not signature-relevant (Better Auth canonicalizes by sorting
+  // before signing); this pins the stable, readable serialization the helper
+  // produces — request params first, signature envelope last.
+  it('serializes query params in a stable order with the signature envelope last', () => {
     const signedParams: SearchParams = {
       ...unsignedParams,
       prompt: 'consent',
