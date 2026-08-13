@@ -215,7 +215,10 @@ export const NavigationSettings: FC<Props> = ({
                   onKeyDown={(event) =>
                     handleKeyDown(event, item.id, item.label)
                   }
-                  className="shrink-0 cursor-grab text-muted-foreground/70 disabled:cursor-default"
+                  // A pointer that cannot hover cannot drag either, so the grip
+                  // is only taking width from the label there. The arrows below
+                  // keep the row reorderable, keyboard included.
+                  className="shrink-0 cursor-grab text-muted-foreground/70 disabled:cursor-default [@media(hover:none)]:hidden"
                 >
                   <GripVertical className="h-4 w-4" />
                 </button>
