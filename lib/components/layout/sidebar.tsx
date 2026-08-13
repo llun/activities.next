@@ -286,6 +286,7 @@ export function Sidebar({
                 <li key={item.id} className="group relative">
                   <Link
                     href={item.href}
+                    aria-current={isActive ? 'page' : undefined}
                     className={cn(
                       'flex items-center gap-3 rounded-lg px-3 py-2 pr-10 text-sm font-medium transition-colors relative',
                       isActive
@@ -344,6 +345,7 @@ export function Sidebar({
                         <li key={item.id} className="group relative">
                           <Link
                             href={item.href}
+                            aria-current={isActive ? 'page' : undefined}
                             className={cn(
                               'flex items-center gap-3 rounded-lg py-1.5 pl-6 pr-10 text-sm transition-colors',
                               isActive
@@ -421,6 +423,7 @@ export function Sidebar({
                     <TooltipTrigger asChild>
                       <Link
                         href={item.href}
+                        aria-current={isActive ? 'page' : undefined}
                         className={cn(
                           'flex items-center justify-center rounded-lg p-3 transition-colors relative',
                           isActive
@@ -460,9 +463,12 @@ export function Sidebar({
                       <MoreHorizontal className="h-6 w-6" />
                     </button>
                   </DropdownMenuTrigger>
-                  {/* Plain rows rather than DropdownMenuItems: each carries two
-                      controls (open, and put back), and a menu item would
-                      select-and-close on either one. */}
+                  {/* Every row is a pair of real menu items — open it, or put
+                      it back. Radix swallows Tab inside its menu and only moves
+                      focus between registered items, so anything else here (a
+                      plain link, a button inside a row) is unreachable from the
+                      keyboard. The restore item is hidden until its row is
+                      hovered or focused, exactly like the sidebar's. */}
                   <DropdownMenuContent
                     side="right"
                     align="start"
@@ -471,28 +477,35 @@ export function Sidebar({
                     {more.map((item) => {
                       const isActive = isItemActive(item.href)
                       return (
-                        <div key={item.id} className="group relative">
-                          <Link
-                            href={item.href}
-                            className={cn(
-                              'flex items-center gap-2.5 rounded-md py-1.5 pl-2 pr-10 text-sm font-medium transition-colors hover:bg-muted',
-                              isActive ? 'text-primary' : 'text-foreground'
-                            )}
+                        <div key={item.id} className="group">
+                          <DropdownMenuItem asChild>
+                            <Link
+                              href={item.href}
+                              aria-current={isActive ? 'page' : undefined}
+                              className={cn(
+                                'flex items-center gap-2.5',
+                                isActive && 'text-primary'
+                              )}
+                            >
+                              <item.icon className="h-4 w-4 shrink-0" />
+                              {item.label}
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={(event) => {
+                              // Keep the flyout open so several items can be
+                              // restored in one visit.
+                              event.preventDefault()
+                              showItem(item.id)
+                            }}
+                            // Radix marks the keyboard-focused item with
+                            // data-highlighted rather than :focus-visible, so
+                            // arrowing onto it is what reveals it.
+                            className="gap-2.5 pl-8 text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 data-[highlighted]:opacity-100"
                           >
-                            <item.icon className="h-4 w-4 shrink-0" />
-                            {item.label}
-                          </Link>
-                          <button
-                            type="button"
-                            aria-label={`Show ${item.label} in navigation`}
-                            onClick={() => showItem(item.id)}
-                            className={cn(
-                              'absolute right-1 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground',
-                              hoverControlClassName
-                            )}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
+                            <Eye className="h-4 w-4 shrink-0" />
+                            Show in navigation
+                          </DropdownMenuItem>
                         </div>
                       )
                     })}

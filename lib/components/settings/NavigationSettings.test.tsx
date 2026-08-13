@@ -128,7 +128,7 @@ describe('NavigationSettings', () => {
     expect(navOrder.slice(0, 2)).toEqual(['search', 'timeline'])
   })
 
-  it('skips a hidden item when reordering', async () => {
+  it('moves past a hidden row rather than over it, because this list shows it', async () => {
     renderSettings(<NavigationSettings />, { hidden: ['explore'] })
 
     fireEvent.keyDown(
@@ -138,13 +138,57 @@ describe('NavigationSettings', () => {
 
     await waitFor(() => expect(mockUpdate).toHaveBeenCalled())
     const [{ navOrder }] = mockUpdate.mock.calls[0]
-    // Explore stays where it is, so Search swaps with Messages across it.
+    // Explore is listed here — hidden or not — so Search swaps with it, which
+    // is what dragging the same row does. (The sidebar's own menu skips over
+    // hidden items instead: they are not on screen there.)
     expect(navOrder.slice(0, 4)).toEqual([
       'timeline',
-      'messages',
       'explore',
-      'search'
+      'search',
+      'messages'
     ])
+  })
+
+  it('reorders a hidden row from the keyboard', async () => {
+    renderSettings(<NavigationSettings />, { hidden: ['explore'] })
+
+    fireEvent.keyDown(
+      within(rowFor('Explore')).getByRole('button', {
+        name: /Reorder Explore/
+      }),
+      { key: 'ArrowUp' }
+    )
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalled())
+    const [{ navOrder }] = mockUpdate.mock.calls[0]
+    expect(navOrder.slice(0, 3)).toEqual(['timeline', 'explore', 'search'])
+  })
+
+  it('says nothing moved at the end of the list', async () => {
+    renderSettings(<NavigationSettings />)
+
+    fireEvent.keyDown(
+      within(rowFor('Timeline')).getByRole('button', {
+        name: /Reorder Timeline/
+      }),
+      { key: 'ArrowUp' }
+    )
+
+    expect(await screen.findByText('Timeline is already first')).toBeVisible()
+    expect(mockUpdate).not.toHaveBeenCalled()
+  })
+
+  it('announces where a moved row landed', async () => {
+    renderSettings(<NavigationSettings />)
+
+    fireEvent.keyDown(
+      within(rowFor('Search')).getByRole('button', { name: /Reorder Search/ }),
+      { key: 'ArrowUp' }
+    )
+
+    expect(
+      await screen.findByText('Search moved up, position 1 of 10')
+    ).toBeVisible()
   })
 
   it('reorders by dragging one row onto another', async () => {

@@ -42,7 +42,7 @@ export const NavigationSettings: FC<Props> = ({
   isAdmin = false,
   features
 }) => {
-  const { order, hidden, hideItem, showItem, move, moveTo, commit, reset } =
+  const { order, hidden, hideItem, showItem, moveTo, commit, reset } =
     useNavPreferences()
   const [dragId, setDragId] = useState<NavItemId | null>(null)
   const [announcement, setAnnouncement] = useState('')
@@ -64,18 +64,9 @@ export const NavigationSettings: FC<Props> = ({
       }))
   }, [features, fitnessUrl, hidden, isAdmin, order])
 
-  // Reordering swaps with the nearest neighbour that is actually in the
-  // sidebar, matching what the ⋯ menu there does.
-  const visibleIds = useMemo(
-    () =>
-      new Set<NavItemId>(
-        rows
-          .filter((row) => !row.isHidden && !row.isFeatureOff)
-          .map((row) => row.item.id)
-      ),
-    [rows]
-  )
-
+  // The keyboard moves a row to the next position *in this list*, which is what
+  // dragging does — the sidebar's ⋯ menu skips over hidden items instead,
+  // because there they are not on screen to move past. Here they are.
   const handleKeyDown = (
     event: React.KeyboardEvent<HTMLButtonElement>,
     id: NavItemId,
@@ -83,9 +74,26 @@ export const NavigationSettings: FC<Props> = ({
   ) => {
     if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
     event.preventDefault()
+
     const direction = event.key === 'ArrowUp' ? -1 : 1
-    move(id, direction, visibleIds)
-    setAnnouncement(`${label} moved ${direction === -1 ? 'up' : 'down'}`)
+    const position = rows.findIndex((row) => row.item.id === id)
+    const target = rows[position + direction]
+    // Announce only a move that happened: at either end of the list, nothing
+    // does, and saying otherwise misleads anyone who cannot see the row.
+    if (!target) {
+      setAnnouncement(
+        `${label} is already ${direction === -1 ? 'first' : 'last'}`
+      )
+      return
+    }
+
+    moveTo(id, target.item.id)
+    commit()
+    setAnnouncement(
+      `${label} moved ${direction === -1 ? 'up' : 'down'}, position ${
+        position + direction + 1
+      } of ${rows.length}`
+    )
   }
 
   return (
@@ -111,7 +119,13 @@ export const NavigationSettings: FC<Props> = ({
               <li
                 key={item.id}
                 draggable={draggable}
-                onDragStart={() => draggable && setDragId(item.id)}
+                onDragStart={(event) => {
+                  if (!draggable) return
+                  setDragId(item.id)
+                  // Firefox abandons a drag whose data store was left empty on
+                  // dragstart, so the row would simply refuse to move there.
+                  event.dataTransfer?.setData('text/plain', item.id)
+                }}
                 onDragOver={(event) => {
                   event.preventDefault()
                   // Reorder as the row is dragged across, so the list shows the
@@ -190,7 +204,14 @@ export const NavigationSettings: FC<Props> = ({
           })}
         </ul>
 
-        <div className="flex w-full items-center justify-between gap-3">
+        {/* The caption is the only report a save gives — there is no Save
+            button, and each control already announced its own new state — so a
+            failure has to reach a screen reader as well as the eye. */}
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex w-full items-center justify-between gap-3"
+        >
           <SaveCaption />
           <Button
             variant="outline"

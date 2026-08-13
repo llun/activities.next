@@ -26,6 +26,7 @@ const Harness = () => {
     moveTo,
     commit,
     reset,
+    retry,
     saveState
   } = useNavPreferences()
   return (
@@ -39,6 +40,7 @@ const Harness = () => {
       <button onClick={() => moveTo('settings', 'timeline')}>drag</button>
       <button onClick={commit}>commit</button>
       <button onClick={reset}>reset</button>
+      <button onClick={retry}>retry</button>
     </div>
   )
 }
@@ -171,6 +173,71 @@ describe('NavPreferencesProvider', () => {
     await act(async () => {})
     expect(mockUpdate).not.toHaveBeenCalled()
     expect(screen.getByTestId('state')).toHaveTextContent('idle')
+  })
+
+  it('drops a failed save the user has since undone, instead of retrying it', async () => {
+    mockUpdate.mockResolvedValueOnce(false)
+    renderStore()
+
+    click('hide favorites')
+    await waitFor(() =>
+      expect(screen.getByTestId('state')).toHaveTextContent('error')
+    )
+
+    // Putting Favorites back means the account is right where it already is,
+    // so there is nothing left to retry — and nothing left to warn about.
+    click('show favorites')
+    await waitFor(() =>
+      expect(screen.getByTestId('state')).not.toHaveTextContent('error')
+    )
+
+    click('retry')
+    await act(async () => {})
+    expect(mockUpdate).toHaveBeenCalledTimes(1)
+  })
+
+  it('still saves an edit made after a failure that a later save recovered from', async () => {
+    let resolveFirst: (value: boolean) => void = () => {}
+    mockUpdate.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveFirst = resolve
+        })
+    )
+
+    renderStore()
+    click('hide favorites')
+    click('hide bookmarks')
+    await act(async () => {
+      resolveFirst(false)
+    })
+    // The trailing save carries both hides and succeeds.
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(2))
+
+    click('reset')
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(3))
+    expect(mockUpdate).toHaveBeenLastCalledWith({ navOrder: [], navHidden: [] })
+  })
+
+  it('clears the stored lists on reset even when the navigation already looks default', async () => {
+    renderStore()
+
+    // Hiding and un-hiding leaves the account storing an explicit order, which
+    // Reset exists to clear — even though nothing on screen changes.
+    click('hide favorites')
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1))
+    click('show favorites')
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(2))
+
+    click('reset')
+
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenLastCalledWith({
+        navOrder: [],
+        navHidden: []
+      })
+    )
   })
 
   it('stores empty lists on reset so the account follows the shipped defaults', async () => {

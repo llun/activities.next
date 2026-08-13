@@ -70,20 +70,29 @@ interface NavPreferencesProviderProps {
   children: ReactNode
 }
 
-const snapshotKey = ({ order, hidden }: NavPreferencesState) =>
-  JSON.stringify([order, hidden])
-
-interface PendingSave {
-  // What the navigation looks like once this save lands…
-  state: NavPreferencesState
-  // …and what actually goes over the wire (Reset stores empty lists so the
-  // account follows the shipped navigation as it changes in later releases).
-  payload: NavPreferencesState
-}
+const snapshotKey = ({
+  order,
+  hidden
+}: {
+  order: readonly string[]
+  hidden: readonly string[]
+}) => JSON.stringify([order, hidden])
 
 interface ApplyOptions {
   persist?: boolean
+  // What goes over the wire, when that differs from what the navigation now
+  // looks like: Reset stores empty lists so the account keeps following the
+  // shipped navigation as it changes in later releases. Passing this marks the
+  // save as deliberate, so it is sent even when the navigation looks unchanged.
   payload?: NavPreferencesState
+}
+
+interface PendingSave {
+  // The lists to send…
+  payload: NavPreferencesState
+  // …and the navigation they leave behind, which is what tells a later edit
+  // whether anything the user can see has actually changed.
+  state: NavPreferencesState
 }
 
 /**
@@ -114,22 +123,23 @@ export const NavPreferencesProvider: FC<NavPreferencesProviderProps> = ({
   // A drag fires `moveTo` many times per tick, so mutators read and write this
   // ref rather than the state they were rendered with.
   const stateRef = useRef(state)
-  // The snapshot to persist next, the last one the server accepted, whether a
-  // request is in flight, and whether another save became due while it ran.
+
+  // Everything below is keyed on the *payload* — what actually goes over the
+  // wire — rather than on what the navigation looks like. The two differ (Reset
+  // stores empty lists while showing today's defaults), and keying on the
+  // visible state made Reset look like a no-op whenever the visible order
+  // already matched the defaults.
+  //
+  // `pendingRef` is the save still owed to the account, or null when the
+  // account is up to date. A newer edit overwrites it, so it always holds the
+  // latest intent, and a failed save leaves it in place for `retry`.
   const pendingRef = useRef<PendingSave | null>(null)
-  const seededKey = snapshotKey({
-    order: normalizedOrder({ navOrder: initialOrder }),
-    hidden: normalizedHidden({
-      navOrder: initialOrder,
-      navHidden: initialHidden
-    })
-  })
-  const savedKeyRef = useRef(seededKey)
-  // What the account will hold once everything in flight has drained. Edits are
-  // compared against this rather than the last *saved* state: undoing an edit
-  // while its save is still running has to be sent, or the server keeps the
-  // value the user just took back.
-  const targetKeyRef = useRef(seededKey)
+  // What the account is known to hold: the lists it was seeded from, verbatim,
+  // and the navigation they produce.
+  const savedPayloadKeyRef = useRef(
+    snapshotKey({ order: initialOrder ?? [], hidden: initialHidden ?? [] })
+  )
+  const savedStateKeyRef = useRef(snapshotKey(state))
   const savingRef = useRef(false)
   const dirtyRef = useRef(false)
 
@@ -138,8 +148,8 @@ export const NavPreferencesProvider: FC<NavPreferencesProviderProps> = ({
       dirtyRef.current = true
       return
     }
-    const snapshot = pendingRef.current
-    if (!snapshot) return
+    const pending = pendingRef.current
+    if (!pending) return
 
     savingRef.current = true
     dirtyRef.current = false
@@ -147,8 +157,8 @@ export const NavPreferencesProvider: FC<NavPreferencesProviderProps> = ({
     let saved: boolean
     try {
       saved = await updateNavigationPreferences({
-        navOrder: snapshot.payload.order,
-        navHidden: snapshot.payload.hidden
+        navOrder: pending.payload.order,
+        navHidden: pending.payload.hidden
       })
     } catch {
       saved = false
@@ -156,21 +166,22 @@ export const NavPreferencesProvider: FC<NavPreferencesProviderProps> = ({
     savingRef.current = false
     setSaveState(saved ? 'saved' : 'error')
     if (saved) {
-      savedKeyRef.current = snapshotKey(snapshot.state)
-    } else {
-      // Nothing reached the account, so let the next edit resend even if it
-      // lands back on the snapshot that just failed.
-      targetKeyRef.current = savedKeyRef.current
+      savedPayloadKeyRef.current = snapshotKey(pending.payload)
+      savedStateKeyRef.current = snapshotKey(pending.state)
+      // Clear the debt unless a newer edit queued itself while this was in
+      // flight, in which case the trailing save below owns it.
+      if (pendingRef.current === pending) pendingRef.current = null
     }
+    // A failed payload stays queued so `retry` — and any later save — carries
+    // it, unless the user has since edited, which replaces it outright.
 
     // Edits that landed mid-flight are persisted by one trailing save. Every
-    // request carries the whole state, so only the final snapshot matters.
+    // request carries the whole state, so only the final payload matters.
     if (dirtyRef.current && pendingRef.current) void flush()
   }, [])
 
   // Applies a new state, and persists it unless this is a local step of a drag
-  // (the drop commits once) or nothing actually changed. `payload` lets Reset
-  // store empty lists while the UI shows today's defaults.
+  // (the drop commits once) or the account already holds what this would send.
   const apply = useCallback(
     (
       next: NavPreferencesState,
@@ -179,10 +190,33 @@ export const NavPreferencesProvider: FC<NavPreferencesProviderProps> = ({
       stateRef.current = next
       setState(next)
       if (!persist) return
-      const key = snapshotKey(next)
-      if (key === targetKeyRef.current) return
-      targetKeyRef.current = key
-      pendingRef.current = { state: next, payload: payload ?? next }
+
+      const nextPayload = payload ?? next
+      const nextPayloadKey = snapshotKey(nextPayload)
+      const nextStateKey = snapshotKey(next)
+      const queued = pendingRef.current
+
+      // Already queued, verbatim.
+      if (queued && nextPayloadKey === snapshotKey(queued.payload)) return
+
+      // The navigation is back to what the account holds. Deliberate saves
+      // (Reset) still go out — clearing the stored lists is the point of them,
+      // and it is invisible in the navigation — but an ordinary edit that
+      // undoes itself, or a drag dropped where it started, has nothing to say.
+      // Drop anything queued rather than writing a change the user took back,
+      // unless it is already in flight, in which case the undo has to be sent
+      // to land after it.
+      if (
+        !payload &&
+        !savingRef.current &&
+        nextStateKey === savedStateKeyRef.current
+      ) {
+        pendingRef.current = null
+        if (queued) setSaveState('saved')
+        return
+      }
+
+      pendingRef.current = { payload: nextPayload, state: next }
       void flush()
     },
     [flush]
