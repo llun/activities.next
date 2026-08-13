@@ -500,6 +500,53 @@ it; there is no legacy shape left to copy.
   but not repeat one). `evaluateGearServiceReminders` runs where a total can
   change and records the distance it fired at in `lastAlertedDistanceMeters`, so
   each crossing notifies once and a raised threshold re-arms on its own.
+- **A recording device is a third kind, and almost nothing above applies to it.**
+  `kind: 'device'` rows have no components, no default sports, no distance
+  total, no service reminder and cannot be retired; a device page reports an
+  activity count and a first-used date instead. A head unit records rides and
+  runs alike, so one summed distance would be a number with no meaning, and
+  claiming a sport would take that sport off the bike or shoes that should hold
+  it. `SPORT_KIND` is therefore typed `Record<SportKey, UserCreatableGearKind>`
+  and `getSportKeysForKind('device')` answers `[]` with no special case.
+- **A device's identity and its display fields are separate on purpose.**
+  `fitness_gears.deviceKey` is derived only from what the file recorded
+  (`name:<lowercased, whitespace-collapsed deviceName>`, else `mfr:<brand key>`,
+  else nothing — and then no row exists), is UNIQUE with `actorId`, and is never
+  rewritten. `name`/`brand`/`model`/`productUrl` are the owner's to edit.
+  Keying on the name instead would fork a duplicate row the first time someone
+  renamed "Garmin Edge 840" to "the Edge", and every later ride would land on
+  the new row while the earlier ones stayed on the old.
+  `fitness_files.deviceName`/`deviceManufacturer` stay the immutable recorded
+  facts; `deviceGearId` is the editable link.
+- **`resolveDeviceGear` is the only thing that creates a device**, and it never
+  mutates one it finds. It is called by every import path through the shared
+  `linkFitnessFileDeviceGear`, which is best-effort throughout: attribution is
+  metadata on an activity that has already parsed and stored, so losing it must
+  never fail the import. Unlike `assignFitnessFileGearIfUnset`, that write is an
+  unconditional overwrite — which bike a ride was on is a judgement the owner
+  may correct, while which head unit recorded it is a fact the file states, so
+  re-runs converge instead of preserving a stale row. `POST
+/api/v1/fitness/gear` rejects `device` with a 422: a hand-made row would carry
+  no `deviceKey` and match no upload.
+- **Deleting a device releases its `deviceKey` in the same transaction.** The
+  `(actorId, deviceKey)` unique index covers soft-deleted rows, so without that
+  release the next upload from that device could never create one again — the
+  insert would fail against a row nothing can see.
+- **Devices never appear in the activity gear picker**, and the filter that
+  excludes them runs BEFORE the kind narrowing in `FitnessStatusDetail`. An
+  unrecognised activity type narrows to nothing and offers every active gear, so
+  filtering afterwards would put the head unit that recorded the ride in the
+  list of things the ride could have been done on. They are excluded from the
+  Strava page's default-gear editor for the same reason — and there, also
+  because every empty state on it keys on `gears.length`.
+- **The device name links to the device page for the OWNER only.**
+  `/fitness/gear/<id>` is owner-scoped, so everyone else keeps the branded
+  manufacturer link `BrandedDeviceLink` has always rendered — labelled with the
+  gear row's name where one exists, since a rename is a rename of the device
+  rather than a private note about it. Both render sites (`post.tsx`'s "Via:"
+  line and the activity detail's "Recorded with") gate on the gear name OR the
+  recorded label, so a device renamed to something the brand map cannot resolve
+  does not vanish from the post.
 - **A state change is a predicate on the UPDATE, never a decision taken from a
   read in front of it** — that goes for the reminder claim and for the
   retire/unretire toggle alike. Two concurrent requests (two tabs, a retry, any

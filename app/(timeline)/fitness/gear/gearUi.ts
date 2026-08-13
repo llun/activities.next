@@ -62,7 +62,29 @@ export const getGearDisplayName = (
     .join(' ')
   if (brandModel) return brandModel
 
-  return gear.kind === 'bike' ? 'Bike' : 'Shoes'
+  if (gear.kind === 'bike') return 'Bike'
+  return gear.kind === 'device' ? 'Device' : 'Shoes'
+}
+
+/**
+ * The hostname a product link is shown as ("garmin.com", not the full URL),
+ * with `www.` dropped because it is noise in a table cell.
+ *
+ * Returns null for anything `new URL` cannot parse. The API validates the
+ * column on write, but rows predating that validation — and any value a future
+ * importer writes — must render as "no product page" rather than throwing
+ * inside a table row and taking the whole gear list down with it.
+ */
+export const getProductUrlHostname = (
+  url: string | null | undefined
+): string | null => {
+  if (!url) return null
+  try {
+    const { hostname } = new URL(url)
+    return hostname.replace(/^www\./, '') || null
+  } catch {
+    return null
+  }
 }
 
 export type GearWearLevel = 'ok' | 'due-soon' | 'overdue'

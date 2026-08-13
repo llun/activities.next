@@ -1640,5 +1640,482 @@ describe('FitnessGearDatabase', () => {
         expect(await database.getFitnessGearNamesByIds({ ids: [] })).toEqual({})
       })
     })
+
+    describe('device gear', () => {
+      // Devices link through their own column, so the shared `createActivity`
+      // helper (which assigns `gearId`) cannot seed them.
+      const createDeviceActivity = async (
+        db: Database,
+        {
+          actorId,
+          pathSuffix,
+          distanceMeters,
+          activityStartTime,
+          deviceGearId,
+          processingStatus = 'completed',
+          isPrimary = true
+        }: {
+          actorId: string
+          pathSuffix: string
+          distanceMeters: number
+          activityStartTime?: Date
+          deviceGearId?: string
+          processingStatus?: 'pending' | 'processing' | 'completed' | 'failed'
+          isPrimary?: boolean
+        }
+      ) => {
+        const file = await db.createFitnessFile({
+          actorId,
+          path: `fitness/device-${pathSuffix}.fit`,
+          fileName: `device-${pathSuffix}.fit`,
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1024
+        })
+        await db.updateFitnessFileActivityData(file!.id, {
+          activityType: 'cycling',
+          activityStartTime: activityStartTime ?? null,
+          totalDistanceMeters: distanceMeters,
+          ...(deviceGearId ? { deviceGearId } : {})
+        })
+        await db.updateFitnessFileProcessingStatus(file!.id, processingStatus)
+        if (!isPrimary) {
+          await db.updateFitnessFilePrimary(file!.id, false)
+        }
+        return file!
+      }
+
+      it('round-trips deviceKey and productUrl', async () => {
+        const created = await database.createFitnessGear({
+          actorId: actors.primary.id,
+          kind: 'device',
+          name: 'Garmin Edge 840',
+          brand: 'Garmin',
+          model: 'Edge 840',
+          deviceKey: 'name:garmin edge 840',
+          productUrl: 'https://www.garmin.com'
+        })
+
+        expect(created.kind).toBe('device')
+        expect(created.deviceKey).toBe('name:garmin edge 840')
+        expect(created.productUrl).toBe('https://www.garmin.com')
+
+        const found = await database.findFitnessGearByDeviceKey({
+          actorId: actors.primary.id,
+          deviceKey: 'name:garmin edge 840'
+        })
+        expect(found?.id).toBe(created.id)
+      })
+
+      it('does not resolve another actor’s device key', async () => {
+        await database.createFitnessGear({
+          actorId: actors.extra.id,
+          kind: 'device',
+          name: 'Wahoo ELEMNT BOLT',
+          deviceKey: 'name:wahoo elemnt bolt'
+        })
+
+        expect(
+          await database.findFitnessGearByDeviceKey({
+            actorId: actors.replyAuthor.id,
+            deviceKey: 'name:wahoo elemnt bolt'
+          })
+        ).toBeNull()
+      })
+
+      it('rejects a duplicate device key for the same actor', async () => {
+        await database.createFitnessGear({
+          actorId: actors.pollAuthor.id,
+          kind: 'device',
+          name: 'Coros',
+          deviceKey: 'mfr:coros'
+        })
+
+        await expect(
+          database.createFitnessGear({
+            actorId: actors.pollAuthor.id,
+            kind: 'device',
+            name: 'Coros again',
+            deviceKey: 'mfr:coros'
+          })
+        ).rejects.toThrow()
+      })
+
+      it('leaves bikes and shoes unconstrained by the unique index', async () => {
+        // NULLs compare as distinct on both backends, so a shed full of
+        // key-less gear is fine.
+        await database.createFitnessGear({
+          actorId: actors.pollAuthor.id,
+          kind: 'bike',
+          name: 'No key one'
+        })
+        await expect(
+          database.createFitnessGear({
+            actorId: actors.pollAuthor.id,
+            kind: 'shoes',
+            name: 'No key two'
+          })
+        ).resolves.toMatchObject({ name: 'No key two' })
+      })
+
+      it('never rewrites the device key on update', async () => {
+        const device = await database.createFitnessGear({
+          actorId: actors.primary.id,
+          kind: 'device',
+          name: 'Suunto',
+          deviceKey: 'mfr:suunto',
+          productUrl: 'https://www.suunto.com'
+        })
+
+        const updated = await database.updateFitnessGear({
+          id: device.id,
+          actorId: actors.primary.id,
+          name: 'the watch',
+          productUrl: 'https://www.suunto.com/en-us/products/watches/'
+        })
+
+        expect(updated?.name).toBe('the watch')
+        expect(updated?.productUrl).toBe(
+          'https://www.suunto.com/en-us/products/watches/'
+        )
+        // The identity every later upload matches against is untouched.
+        expect(updated?.deviceKey).toBe('mfr:suunto')
+      })
+
+      it('clears the product page on an explicit null and leaves it alone otherwise', async () => {
+        const device = await database.createFitnessGear({
+          actorId: actors.primary.id,
+          kind: 'device',
+          name: 'Polar',
+          deviceKey: 'mfr:polar',
+          productUrl: 'https://www.polar.com'
+        })
+
+        const renamed = await database.updateFitnessGear({
+          id: device.id,
+          actorId: actors.primary.id,
+          name: 'Polar watch'
+        })
+        expect(renamed?.productUrl).toBe('https://www.polar.com')
+
+        const cleared = await database.updateFitnessGear({
+          id: device.id,
+          actorId: actors.primary.id,
+          productUrl: null
+        })
+        expect(cleared?.productUrl).toBeUndefined()
+      })
+
+      it('releases the device key and detaches activities on delete', async () => {
+        const device = await database.createFitnessGear({
+          actorId: actors.extra.id,
+          kind: 'device',
+          name: 'Bryton',
+          deviceKey: 'mfr:bryton'
+        })
+        const activity = await createDeviceActivity(database, {
+          actorId: actors.extra.id,
+          pathSuffix: 'delete-detach',
+          distanceMeters: 21_000,
+          activityStartTime: new Date('2026-04-01T08:00:00.000Z'),
+          deviceGearId: device.id
+        })
+
+        expect(
+          await database.deleteFitnessGear({
+            id: device.id,
+            actorId: actors.extra.id
+          })
+        ).toBe(true)
+
+        const detached = await database.getFitnessFile({ id: activity.id })
+        expect(detached?.deviceGearId).toBeUndefined()
+        expect(detached?.totalDistanceMeters).toBe(21_000)
+
+        // The key has to be released, not just hidden: the unique index covers
+        // soft-deleted rows, so the next upload from this device could never
+        // create a row otherwise.
+        expect(
+          await database.findFitnessGearByDeviceKey({
+            actorId: actors.extra.id,
+            deviceKey: 'mfr:bryton'
+          })
+        ).toBeNull()
+        await expect(
+          database.createFitnessGear({
+            actorId: actors.extra.id,
+            kind: 'device',
+            name: 'Bryton again',
+            deviceKey: 'mfr:bryton'
+          })
+        ).resolves.toMatchObject({ deviceKey: 'mfr:bryton' })
+      })
+
+      describe('getFitnessGearDeviceRollups', () => {
+        it('counts activities, reports the earliest start, and zero-fills', async () => {
+          const device = await database.createFitnessGear({
+            actorId: actors.replyAuthor.id,
+            kind: 'device',
+            name: 'Rollup device',
+            deviceKey: 'name:rollup device'
+          })
+          const empty = await database.createFitnessGear({
+            actorId: actors.replyAuthor.id,
+            kind: 'device',
+            name: 'Never used',
+            deviceKey: 'name:never used'
+          })
+
+          await createDeviceActivity(database, {
+            actorId: actors.replyAuthor.id,
+            pathSuffix: 'rollup-1',
+            distanceMeters: 30_000,
+            activityStartTime: new Date('2026-02-01T08:00:00.000Z'),
+            deviceGearId: device.id
+          })
+          await createDeviceActivity(database, {
+            actorId: actors.replyAuthor.id,
+            pathSuffix: 'rollup-2',
+            distanceMeters: 10_000,
+            activityStartTime: new Date('2026-01-01T08:00:00.000Z'),
+            deviceGearId: device.id
+          })
+
+          const rollups = await database.getFitnessGearDeviceRollups({
+            actorId: actors.replyAuthor.id,
+            gearIds: [device.id, empty.id]
+          })
+
+          expect(rollups[device.id]).toEqual({
+            activityCount: 2,
+            firstUsedAt: new Date('2026-01-01T08:00:00.000Z').getTime()
+          })
+          expect(rollups[empty.id]).toEqual({
+            activityCount: 0,
+            firstUsedAt: null
+          })
+        })
+
+        it('applies the same countable-activity filter the distance rollups use', async () => {
+          const device = await database.createFitnessGear({
+            actorId: actors.replyAuthor.id,
+            kind: 'device',
+            name: 'Filtered device',
+            deviceKey: 'name:filtered device'
+          })
+
+          await createDeviceActivity(database, {
+            actorId: actors.replyAuthor.id,
+            pathSuffix: 'filter-counted',
+            distanceMeters: 5_000,
+            activityStartTime: new Date('2026-05-01T08:00:00.000Z'),
+            deviceGearId: device.id
+          })
+          await createDeviceActivity(database, {
+            actorId: actors.replyAuthor.id,
+            pathSuffix: 'filter-processing',
+            distanceMeters: 5_000,
+            activityStartTime: new Date('2026-05-02T08:00:00.000Z'),
+            deviceGearId: device.id,
+            processingStatus: 'processing'
+          })
+          await createDeviceActivity(database, {
+            actorId: actors.replyAuthor.id,
+            pathSuffix: 'filter-secondary',
+            distanceMeters: 5_000,
+            activityStartTime: new Date('2026-05-03T08:00:00.000Z'),
+            deviceGearId: device.id,
+            isPrimary: false
+          })
+          const deleted = await createDeviceActivity(database, {
+            actorId: actors.replyAuthor.id,
+            pathSuffix: 'filter-deleted',
+            distanceMeters: 5_000,
+            activityStartTime: new Date('2026-05-04T08:00:00.000Z'),
+            deviceGearId: device.id
+          })
+          await database.deleteFitnessFile({ id: deleted.id })
+
+          const rollups = await database.getFitnessGearDeviceRollups({
+            actorId: actors.replyAuthor.id,
+            gearIds: [device.id]
+          })
+          expect(rollups[device.id].activityCount).toBe(1)
+        })
+
+        it('returns an empty map for no gear', async () => {
+          expect(
+            await database.getFitnessGearDeviceRollups({
+              actorId: actors.primary.id,
+              gearIds: []
+            })
+          ).toEqual({})
+        })
+      })
+
+      describe('getFitnessGearActivities', () => {
+        it('matches on deviceGearId for a device and gearId for a bike', async () => {
+          const device = await database.createFitnessGear({
+            actorId: actors.extra.id,
+            kind: 'device',
+            name: 'List device',
+            deviceKey: 'name:list device'
+          })
+          const bike = await database.createFitnessGear({
+            actorId: actors.extra.id,
+            kind: 'bike',
+            name: 'List bike'
+          })
+
+          const onDevice = await createDeviceActivity(database, {
+            actorId: actors.extra.id,
+            pathSuffix: 'list-device',
+            distanceMeters: 42_600,
+            activityStartTime: new Date('2026-06-01T08:00:00.000Z'),
+            deviceGearId: device.id
+          })
+          const onBike = await createActivity(database, {
+            actorId: actors.extra.id,
+            pathSuffix: 'list-bike',
+            distanceMeters: 12_000,
+            activityStartTime: new Date('2026-06-02T08:00:00.000Z'),
+            gearId: bike.id
+          })
+
+          const deviceRows = await database.getFitnessGearActivities({
+            actorId: actors.extra.id,
+            gearId: device.id,
+            kind: 'device',
+            limit: 10
+          })
+          expect(deviceRows.map((row) => row.id)).toEqual([onDevice.id])
+          expect(deviceRows[0]).toMatchObject({
+            totalDistanceMeters: 42_600,
+            activityType: 'cycling',
+            activityStartTime: new Date('2026-06-01T08:00:00.000Z').getTime(),
+            statusId: null,
+            statusPublicId: null
+          })
+
+          const bikeRows = await database.getFitnessGearActivities({
+            actorId: actors.extra.id,
+            gearId: bike.id,
+            kind: 'bike',
+            limit: 10
+          })
+          expect(bikeRows.map((row) => row.id)).toEqual([onBike.id])
+        })
+
+        it('orders newest first and sorts timestamp-less activities last on both backends', async () => {
+          const device = await database.createFitnessGear({
+            actorId: actors.pollAuthor.id,
+            kind: 'device',
+            name: 'Order device',
+            deviceKey: 'name:order device'
+          })
+
+          const older = await createDeviceActivity(database, {
+            actorId: actors.pollAuthor.id,
+            pathSuffix: 'order-older',
+            distanceMeters: 1_000,
+            activityStartTime: new Date('2026-07-01T08:00:00.000Z'),
+            deviceGearId: device.id
+          })
+          const newer = await createDeviceActivity(database, {
+            actorId: actors.pollAuthor.id,
+            pathSuffix: 'order-newer',
+            distanceMeters: 2_000,
+            activityStartTime: new Date('2026-07-02T08:00:00.000Z'),
+            deviceGearId: device.id
+          })
+          // PostgreSQL puts NULLs first under DESC and SQLite puts them last;
+          // `nulls: 'last'` is what makes this assertion hold on both.
+          const undated = await createDeviceActivity(database, {
+            actorId: actors.pollAuthor.id,
+            pathSuffix: 'order-undated',
+            distanceMeters: 3_000,
+            deviceGearId: device.id
+          })
+
+          const rows = await database.getFitnessGearActivities({
+            actorId: actors.pollAuthor.id,
+            gearId: device.id,
+            kind: 'device',
+            limit: 10
+          })
+          expect(rows.map((row) => row.id)).toEqual([
+            newer.id,
+            older.id,
+            undated.id
+          ])
+        })
+
+        it('paginates without repeating or skipping a row', async () => {
+          const device = await database.createFitnessGear({
+            actorId: actors.pollAuthor.id,
+            kind: 'device',
+            name: 'Page device',
+            deviceKey: 'name:page device'
+          })
+          for (let index = 0; index < 5; index += 1) {
+            await createDeviceActivity(database, {
+              actorId: actors.pollAuthor.id,
+              pathSuffix: `page-${index}`,
+              distanceMeters: 1_000 * (index + 1),
+              activityStartTime: new Date(
+                Date.UTC(2026, 7, index + 1, 8, 0, 0)
+              ),
+              deviceGearId: device.id
+            })
+          }
+
+          const first = await database.getFitnessGearActivities({
+            actorId: actors.pollAuthor.id,
+            gearId: device.id,
+            kind: 'device',
+            limit: 2
+          })
+          const second = await database.getFitnessGearActivities({
+            actorId: actors.pollAuthor.id,
+            gearId: device.id,
+            kind: 'device',
+            limit: 2,
+            offset: 2
+          })
+
+          expect(first).toHaveLength(2)
+          expect(second).toHaveLength(2)
+          expect(new Set([...first, ...second].map((row) => row.id)).size).toBe(
+            4
+          )
+        })
+
+        it('excludes activities the rollups do not count', async () => {
+          const device = await database.createFitnessGear({
+            actorId: actors.primary.id,
+            kind: 'device',
+            name: 'Countable device',
+            deviceKey: 'name:countable device'
+          })
+          await createDeviceActivity(database, {
+            actorId: actors.primary.id,
+            pathSuffix: 'countable-pending',
+            distanceMeters: 1_000,
+            activityStartTime: new Date('2026-09-01T08:00:00.000Z'),
+            deviceGearId: device.id,
+            processingStatus: 'pending'
+          })
+
+          expect(
+            await database.getFitnessGearActivities({
+              actorId: actors.primary.id,
+              gearId: device.id,
+              kind: 'device',
+              limit: 10
+            })
+          ).toEqual([])
+        })
+      })
+    })
   })
 })

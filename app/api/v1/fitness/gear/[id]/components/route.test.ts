@@ -146,6 +146,29 @@ describe('Fitness gear components API', () => {
       expect(response.status).toBe(404)
       expect(mockDb.getFitnessGearComponents).not.toHaveBeenCalled()
     })
+
+    it('rejects a recording device with 422', async () => {
+      // A device has no parts to service — a chain does not wear out on a
+      // watch.
+      mockDb.getFitnessGear.mockResolvedValue({
+        ...gear,
+        kind: 'device',
+        name: 'Garmin Edge 840'
+      })
+
+      const response = await GET(
+        new NextRequest(
+          'http://llun.test/api/v1/fitness/gear/gear-1/components',
+          { method: 'GET' }
+        ),
+        params
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(422)
+      expect(data.error).toBe('A recording device has no components')
+      expect(mockDb.getFitnessGearComponents).not.toHaveBeenCalled()
+    })
   })
 
   describe('POST', () => {
@@ -188,6 +211,7 @@ describe('Fitness gear components API', () => {
     })
 
     it('answers 404 when the gear is not the actor’s', async () => {
+      mockDb.getFitnessGear.mockResolvedValue(null)
       mockDb.createFitnessGearComponent.mockResolvedValue(null)
 
       const response = await POST(
@@ -195,6 +219,24 @@ describe('Fitness gear components API', () => {
         params
       )
       expect(response.status).toBe(404)
+    })
+
+    it('rejects fitting a component to a recording device with 422', async () => {
+      mockDb.getFitnessGear.mockResolvedValue({
+        ...gear,
+        kind: 'device',
+        name: 'Garmin Edge 840'
+      })
+
+      const response = await POST(
+        postRequest({ componentType: 'Chain' }),
+        params
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(422)
+      expect(data.error).toBe('A recording device has no components')
+      expect(mockDb.createFitnessGearComponent).not.toHaveBeenCalled()
     })
 
     it.each([

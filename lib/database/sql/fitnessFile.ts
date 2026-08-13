@@ -46,6 +46,7 @@ export interface UpdateFitnessFileActivityData {
   deviceManufacturer?: string | null
   deviceName?: string | null
   sourceUrl?: string | null
+  deviceGearId?: string | null
 }
 
 export interface GetFitnessFileParams {
@@ -326,6 +327,7 @@ const parseSQLFitnessFile = (row: SQLFitnessFile): FitnessFile => ({
   deviceName: row.deviceName ?? undefined,
   sourceUrl: row.sourceUrl ?? undefined,
   gearId: row.gearId ?? undefined,
+  deviceGearId: row.deviceGearId ?? undefined,
   activityStartTime: row.activityStartTime
     ? getCompatibleTime(row.activityStartTime)
     : undefined,
@@ -850,6 +852,9 @@ export const FitnessFileSQLDatabaseMixin = (
     }
     if ('sourceUrl' in data) {
       updateData.sourceUrl = data.sourceUrl ?? null
+    }
+    if ('deviceGearId' in data) {
+      updateData.deviceGearId = data.deviceGearId ?? null
     }
 
     const result = await database('fitness_files')

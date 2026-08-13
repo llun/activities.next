@@ -25,6 +25,7 @@ type MockDatabase = Pick<
   Database,
   | 'getFitnessGearsByActor'
   | 'getFitnessGearDistanceRollups'
+  | 'getFitnessGearDeviceRollups'
   | 'createFitnessGear'
   | 'getAccountFromEmail'
   | 'getActorsForAccount'
@@ -55,6 +56,7 @@ describe('Fitness gear collection API', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
     getFitnessGearsByActor: vi.fn(),
     getFitnessGearDistanceRollups: vi.fn(),
+    getFitnessGearDeviceRollups: vi.fn(),
     createFitnessGear: vi.fn(),
     getAccountFromEmail: vi.fn(),
     getActorsForAccount: vi.fn(),
@@ -81,6 +83,7 @@ describe('Fitness gear collection API', () => {
     mockDb.getActorFromId.mockResolvedValue({ ...seedActor1, id: ACTOR1_ID })
     mockDb.getFitnessGearsByActor.mockResolvedValue([])
     mockDb.getFitnessGearDistanceRollups.mockResolvedValue({})
+    mockDb.getFitnessGearDeviceRollups.mockResolvedValue({})
   })
 
   const postRequest = (body: unknown) =>
@@ -133,6 +136,52 @@ describe('Fitness gear collection API', () => {
       expect(mockDb.getFitnessGearDistanceRollups).toHaveBeenCalledWith({
         actorId: ACTOR1_ID,
         gearIds: ['gear-1', 'gear-2', 'gear-3']
+      })
+    })
+
+    it('rolls devices up separately from bikes and shoes', async () => {
+      // A device records rides and runs alike, so summing their distances would
+      // report a number that means nothing. It reports a count and a first-used
+      // date instead — and the two rollups still cost one query each, not one
+      // per gear.
+      mockDb.getFitnessGearsByActor.mockResolvedValue([
+        gear({ id: 'gear-1' }),
+        gear({ id: 'device-1', kind: 'device', name: 'Garmin Edge 840' })
+      ])
+      mockDb.getFitnessGearDistanceRollups.mockResolvedValue({
+        'gear-1': { distanceMeters: 106_400, activityCount: 2 }
+      })
+      mockDb.getFitnessGearDeviceRollups.mockResolvedValue({
+        'device-1': { activityCount: 41, firstUsedAt: 1_600_000_000_000 }
+      })
+
+      const response = await GET(
+        new NextRequest('http://llun.test/api/v1/fitness/gear', {
+          method: 'GET'
+        }),
+        { params: Promise.resolve({}) }
+      )
+      const data = await response.json()
+
+      expect(mockDb.getFitnessGearDistanceRollups).toHaveBeenCalledWith({
+        actorId: ACTOR1_ID,
+        gearIds: ['gear-1']
+      })
+      expect(mockDb.getFitnessGearDeviceRollups).toHaveBeenCalledTimes(1)
+      expect(mockDb.getFitnessGearDeviceRollups).toHaveBeenCalledWith({
+        actorId: ACTOR1_ID,
+        gearIds: ['device-1']
+      })
+      expect(data.gear[0]).toMatchObject({
+        distanceMeters: 106_400,
+        activityCount: 2,
+        firstUsedAt: null
+      })
+      expect(data.gear[1]).toMatchObject({
+        kind: 'device',
+        distanceMeters: 0,
+        activityCount: 41,
+        firstUsedAt: 1_600_000_000_000
       })
     })
 

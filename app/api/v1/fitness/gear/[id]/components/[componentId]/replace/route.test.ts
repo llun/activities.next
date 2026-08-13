@@ -2,7 +2,10 @@ import { NextRequest } from 'next/server'
 
 import { Database } from '@/lib/database/types'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
-import { FitnessGearComponent } from '@/lib/types/database/fitnessGear'
+import {
+  FitnessGear,
+  FitnessGearComponent
+} from '@/lib/types/database/fitnessGear'
 
 import { POST } from './route'
 
@@ -23,6 +26,7 @@ vi.mock('@/lib/config', () => ({
 
 type MockDatabase = Pick<
   Database,
+  | 'getFitnessGear'
   | 'replaceFitnessGearComponent'
   | 'getFitnessGearComponentDistanceRollups'
   | 'getAccountFromEmail'
@@ -50,8 +54,21 @@ const component = (
   ...overrides
 })
 
+// The component routes now load the gear first, to 404 a stranger's id and 422
+// a recording device. Every existing case is a bike, so this is the default.
+const bikeGear: FitnessGear = {
+  id: 'gear-1',
+  actorId: ACTOR1_ID,
+  kind: 'bike',
+  name: 'Moots',
+  defaultSports: [],
+  createdAt: 1000,
+  updatedAt: 1000
+}
+
 describe('Fitness gear component replace API', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
+    getFitnessGear: vi.fn(),
     replaceFitnessGearComponent: vi.fn(),
     getFitnessGearComponentDistanceRollups: vi.fn(),
     getAccountFromEmail: vi.fn(),
@@ -78,6 +95,7 @@ describe('Fitness gear component replace API', () => {
     ])
     mockDb.getActorFromId.mockResolvedValue({ ...seedActor1, id: ACTOR1_ID })
     mockDb.getFitnessGearComponentDistanceRollups.mockResolvedValue({})
+    mockDb.getFitnessGear.mockResolvedValue(bikeGear)
   })
 
   const params = {
@@ -187,5 +205,28 @@ describe('Fitness gear component replace API', () => {
       params
     )
     expect(response.status).toBe(404)
+  })
+
+  it('rejects a recording device with 422', async () => {
+    // A device has no parts to service — a chain does not wear out on a watch.
+    mockDb.getFitnessGear.mockResolvedValue({
+      ...bikeGear,
+      kind: 'device',
+      name: 'Garmin Edge 840'
+    })
+
+    const response = await POST(
+      new NextRequest(url, {
+        method: 'POST',
+        headers: { Origin: 'https://llun.test' },
+        body: JSON.stringify({})
+      }),
+      params
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(422)
+    expect(data.error).toBe('A recording device has no components')
+    expect(mockDb.replaceFitnessGearComponent).not.toHaveBeenCalled()
   })
 })

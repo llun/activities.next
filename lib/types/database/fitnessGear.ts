@@ -21,6 +21,10 @@ export interface SQLFitnessGear {
   lastAlertedDistanceMeters?: number | string | null
   notes?: string | null
   retiredAt?: number | Date | string | null
+  // Devices only: the immutable identity the recorded file carried, which
+  // `resolveDeviceGear` matches an upload against. Unique per actor.
+  deviceKey?: string | null
+  productUrl?: string | null
 
   createdAt: number | Date
   updatedAt: number | Date
@@ -42,6 +46,8 @@ export interface FitnessGear {
   lastAlertedDistanceMeters?: number
   notes?: string
   retiredAt?: number
+  deviceKey?: string
+  productUrl?: string
 
   createdAt: number
   updatedAt: number
@@ -90,4 +96,17 @@ export interface FitnessGearComponent {
 export interface FitnessGearDistanceRollup {
   distanceMeters: number
   activityCount: number
+}
+
+/**
+ * A device's rollup, derived the same way and over the same countable-activity
+ * predicate as the distance rollups — but a device records rides and runs
+ * alike, so summing their distances would report a number that means nothing.
+ * What a device page shows instead is how many activities it captured and when
+ * it first did, `firstUsedAt` being the MIN `activityStartTime` among them (null
+ * when nothing is linked, or when every linked activity is timestamp-less).
+ */
+export interface FitnessGearDeviceRollup {
+  activityCount: number
+  firstUsedAt: number | null
 }

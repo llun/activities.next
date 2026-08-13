@@ -111,8 +111,26 @@ vi.mock('@/lib/components/posts/actions/post-menu', () => ({
   PostMenu: () => <button type="button">More</button>
 }))
 
+// Stubbed rather than rendered: this page only has to forward the right props
+// to it. Where each of the three renderings actually goes is asserted in
+// `lib/components/posts/BrandedDeviceLink.test.tsx`.
 vi.mock('@/lib/components/posts/BrandedDeviceLink', () => ({
-  BrandedDeviceLink: () => <span>device</span>
+  BrandedDeviceLink: (props: {
+    deviceName?: string | null
+    deviceGearId?: string | null
+    deviceGearName?: string | null
+    isOwner?: boolean
+  }) => (
+    <span
+      data-testid="branded-device-link"
+      data-device-name={props.deviceName ?? ''}
+      data-device-gear-id={props.deviceGearId ?? ''}
+      data-device-gear-name={props.deviceGearName ?? ''}
+      data-is-owner={String(Boolean(props.isOwner))}
+    >
+      device
+    </span>
+  )
 }))
 
 const mockGetFitnessFilesByStatus = vi.mocked(getFitnessFilesByStatus)
@@ -135,6 +153,8 @@ const buildGear = (overrides: Partial<GearEntity> = {}): GearEntity => ({
   createdAt: Date.parse('2026-01-01T00:00:00Z'),
   distanceMeters: 0,
   activityCount: 0,
+  productUrl: null,
+  firstUsedAt: null,
   ...overrides
 })
 
@@ -245,6 +265,8 @@ const buildFitnessFile = (
   sourceUrl: null,
   gearId: null,
   gearName: null,
+  deviceGearId: null,
+  deviceGearName: null,
   ...overrides
 })
 
@@ -1806,6 +1828,90 @@ describe('FitnessStatusDetail', () => {
       expect(
         within(menu).queryByRole('menuitemradio', { name: /Sold bike/ })
       ).not.toBeInTheDocument()
+    })
+
+    it.each([
+      { description: 'a recognised activity type', activityType: 'ride' },
+      // The leak this guards: an unrecognised type narrows to nothing and
+      // offers every active gear, so the head unit that RECORDED the ride would
+      // appear in the list of things it could have been done on.
+      { description: 'an unrecognised activity type', activityType: 'kayaking' }
+    ])(
+      'never offers a recording device for $description',
+      async ({ activityType }) => {
+        mockGetFitnessFilesByStatus.mockResolvedValue([
+          buildFitnessFile({ activityType })
+        ])
+        mockGetFitnessGearList.mockResolvedValue([
+          buildGear({ id: 'gear-bike', name: 'Moots', kind: 'bike' }),
+          buildGear({
+            id: 'device-1',
+            name: 'Garmin Edge 840',
+            kind: 'device',
+            deviceKey: 'name:garmin edge 840'
+          } as Partial<GearEntity>)
+        ])
+
+        renderDetail()
+
+        const menu = await openGearMenu()
+        await waitFor(() =>
+          expect(
+            within(menu).getByRole('menuitemradio', { name: /Moots/ })
+          ).toBeInTheDocument()
+        )
+        expect(
+          within(menu).queryByRole('menuitemradio', { name: /Garmin Edge 840/ })
+        ).not.toBeInTheDocument()
+      }
+    )
+
+    it('hands the "Recorded with" line the device row and the owner flag', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([
+        buildFitnessFile({
+          deviceName: 'Garmin Edge 840',
+          deviceManufacturer: 'garmin',
+          deviceGearId: 'device-1',
+          deviceGearName: 'the Edge'
+        })
+      ])
+
+      renderDetail()
+
+      const link = await screen.findByTestId('branded-device-link')
+      expect(link).toHaveAttribute('data-device-gear-id', 'device-1')
+      expect(link).toHaveAttribute('data-device-gear-name', 'the Edge')
+      expect(link).toHaveAttribute('data-is-owner', 'true')
+    })
+
+    it('renders the "Recorded with" line for a renamed device with no recorded brand', async () => {
+      // The gear row's name overrides the recorded one, so the line's own gate
+      // has to accept either — otherwise a renamed device vanishes.
+      mockGetFitnessFilesByStatus.mockResolvedValue([
+        buildFitnessFile({
+          deviceName: null,
+          deviceManufacturer: null,
+          deviceGearId: 'device-1',
+          deviceGearName: 'My phone'
+        })
+      ])
+
+      renderDetail()
+
+      expect(await screen.findByText('Recorded with')).toBeInTheDocument()
+      expect(await screen.findByTestId('branded-device-link')).toHaveAttribute(
+        'data-device-gear-name',
+        'My phone'
+      )
+    })
+
+    it('shows no "Recorded with" line when nothing was recorded', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([buildFitnessFile()])
+
+      renderDetail()
+
+      await screen.findByText('Sunset loop')
+      expect(screen.queryByText('Recorded with')).not.toBeInTheDocument()
     })
 
     it('keeps the assigned gear in the list even when the filter would drop it', async () => {

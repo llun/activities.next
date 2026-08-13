@@ -1,5 +1,6 @@
 import { toGearEntity } from '@/lib/services/fitness-gears/gearEntities'
 import { RetireGearRequest } from '@/lib/services/fitness-gears/gearRequests'
+import { getRollupForGear } from '@/lib/services/fitness-gears/gearRollups'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import {
   HTTP_STATUS,
@@ -36,6 +37,24 @@ export const POST = traceApiRoute(
       return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
     }
 
+    // Loaded before the write so "not yours" stays a 404 and a device is
+    // rejected without a state change. Retiring means "out of the pickers and
+    // out of auto-assign", and a device is in neither: it is not something you
+    // choose for an activity, it is what recorded it.
+    const existing = await database.getFitnessGear({
+      id,
+      actorId: currentActor.id
+    })
+    if (!existing) return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+    if (existing.kind === 'device') {
+      return apiResponse({
+        req,
+        allowedMethods: [],
+        data: { error: 'A recording device cannot be retired' },
+        responseStatusCode: 422
+      })
+    }
+
     const gear = await database.setFitnessGearRetired({
       id,
       actorId: currentActor.id,
@@ -43,15 +62,12 @@ export const POST = traceApiRoute(
     })
     if (!gear) return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
 
-    const rollups = await database.getFitnessGearDistanceRollups({
-      actorId: currentActor.id,
-      gearIds: [gear.id]
-    })
+    const rollup = await getRollupForGear(database, currentActor.id, gear)
 
     return apiResponse({
       req,
       allowedMethods: [],
-      data: { gear: toGearEntity(gear, rollups[gear.id]) },
+      data: { gear: toGearEntity(gear, rollup) },
       responseStatusCode: 200
     })
   })

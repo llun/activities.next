@@ -57,8 +57,27 @@ const createGear = (overrides: Partial<GearEntity> = {}): GearEntity => ({
   createdAt: Date.UTC(2018, 10, 27),
   distanceMeters: 35253700,
   activityCount: 1204,
+  productUrl: null,
+  firstUsedAt: null,
   ...overrides
 })
+
+const createDevice = (overrides: Partial<GearEntity> = {}): GearEntity =>
+  createGear({
+    id: 'device-1',
+    kind: 'device',
+    name: 'Garmin Edge 840',
+    brand: 'Garmin',
+    model: 'Edge 840',
+    bikeType: null,
+    weightKilograms: null,
+    defaultSports: [],
+    distanceMeters: 0,
+    activityCount: 412,
+    productUrl: 'https://www.garmin.com',
+    firstUsedAt: Date.UTC(2023, 4, 2),
+    ...overrides
+  })
 
 const getSection = async (title: string) => {
   const heading = await screen.findByRole('heading', { name: title })
@@ -306,5 +325,81 @@ describe('GearListView', () => {
     await waitFor(() =>
       expect(screen.getByText('Gear service down')).toBeInTheDocument()
     )
+  })
+
+  describe('devices', () => {
+    it('renders a devices card with a count, the product host and the activity count', async () => {
+      mockGetFitnessGearList.mockResolvedValue([createGear(), createDevice()])
+      render(<GearListView />)
+
+      const section = await getSection('Devices')
+      expect(section.getByText('1 recording')).toBeInTheDocument()
+      expect(
+        section.getByRole('link', { name: 'Garmin Edge 840' })
+      ).toBeInTheDocument()
+      expect(section.getByText('Garmin · Edge 840')).toBeInTheDocument()
+      expect(section.getByText('412')).toBeInTheDocument()
+
+      const productLink = section.getByRole('link', { name: 'garmin.com' })
+      expect(productLink).toHaveAttribute('href', 'https://www.garmin.com')
+      expect(productLink).toHaveAttribute('target', '_blank')
+    })
+
+    it('renders an em dash when a device has no product page', async () => {
+      mockGetFitnessGearList.mockResolvedValue([
+        createDevice({ productUrl: null })
+      ])
+      render(<GearListView />)
+
+      const section = await getSection('Devices')
+      expect(section.getByText('—')).toBeInTheDocument()
+    })
+
+    it('hides the card entirely when the actor has no devices', async () => {
+      // Nothing to explain and nothing to add — devices arrive with the
+      // activities that recorded them.
+      mockGetFitnessGearList.mockResolvedValue([createGear()])
+      render(<GearListView />)
+
+      await screen.findByRole('heading', { name: 'Bikes' })
+      expect(
+        screen.queryByRole('heading', { name: 'Devices' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('offers no Add button and no retired toggle', async () => {
+      mockGetFitnessGearList.mockResolvedValue([createDevice()])
+      render(<GearListView />)
+
+      const section = await getSection('Devices')
+      expect(section.queryByRole('button')).not.toBeInTheDocument()
+    })
+
+    it('navigates to the device page when a row is clicked', async () => {
+      mockGetFitnessGearList.mockResolvedValue([createDevice()])
+      render(<GearListView />)
+
+      const section = await getSection('Devices')
+      fireEvent.click(section.getByText('Garmin · Edge 840'))
+      expect(mockPush).toHaveBeenCalledWith('/fitness/gear/device-1')
+    })
+
+    it('keeps devices out of the bikes and shoes sections', async () => {
+      mockGetFitnessGearList.mockResolvedValue([createDevice()])
+      render(<GearListView />)
+
+      const bikes = await getSection('Bikes')
+      expect(
+        bikes.getByText(
+          'No bikes yet. Add one and new activities will start counting toward it.'
+        )
+      ).toBeInTheDocument()
+      const shoes = await getSection('Shoes')
+      expect(
+        shoes.getByText(
+          'No shoes yet. Add a pair and new activities will start counting toward it.'
+        )
+      ).toBeInTheDocument()
+    })
   })
 })

@@ -13,6 +13,7 @@ import {
   SPORT_KEYS,
   SPORT_KIND,
   SportKey,
+  USER_CREATABLE_GEAR_KINDS,
   getSportKeysForKind,
   normalizeActivityTypeToSportKey
 } from '@/lib/services/fitness-files/sportTypes'
@@ -94,7 +95,9 @@ const ImportWindowSchema = z
 
 const ImportGearSchema = z.object({
   name: z.string().trim().min(1).max(VARCHAR_MAX),
-  kind: z.enum(['bike', 'shoes']),
+  // The same tuple the create route accepts. A recording device is resolved
+  // from the file that was recorded on it, never named in an import plan.
+  kind: z.enum(USER_CREATABLE_GEAR_KINDS),
   brand: optionalText(VARCHAR_MAX),
   model: optionalText(VARCHAR_MAX),
   bikeType: optionalText(VARCHAR_MAX),

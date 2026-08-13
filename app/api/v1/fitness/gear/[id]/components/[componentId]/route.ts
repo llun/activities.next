@@ -1,5 +1,6 @@
 import { toGearComponentEntity } from '@/lib/services/fitness-gears/gearEntities'
 import { UpdateGearComponentRequest } from '@/lib/services/fitness-gears/gearRequests'
+import { rejectComponentsForDevice } from '@/lib/services/fitness-gears/gearRouteGuards'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import {
   HTTP_STATUS,
@@ -34,6 +35,14 @@ export const PATCH = traceApiRoute(
     if (!parsed.success) {
       return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
     }
+
+    const rejection = await rejectComponentsForDevice({
+      req,
+      database,
+      actorId: currentActor.id,
+      gearId: id
+    })
+    if (rejection) return rejection
 
     // The schema's own `removedAt > addedAt` rule can only see this request, so
     // a partial PATCH that moves one end of the install window has to be
@@ -121,6 +130,14 @@ export const DELETE = traceApiRoute(
       componentId: undefined
     }
     if (!id || !componentId) return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+
+    const rejection = await rejectComponentsForDevice({
+      req,
+      database,
+      actorId: currentActor.id,
+      gearId: id
+    })
+    if (rejection) return rejection
 
     const deleted = await database.deleteFitnessGearComponent({
       id: componentId,

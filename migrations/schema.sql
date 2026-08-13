@@ -415,7 +415,8 @@ CREATE TABLE public.fitness_files (
     "movingTimeSeconds" real,
     "mapImageEmailPath" character varying(255),
     "mapError" text,
-    "gearId" character varying(255)
+    "gearId" character varying(255),
+    "deviceGearId" character varying(255)
 );
 
 CREATE TABLE public.fitness_gear_components (
@@ -449,7 +450,9 @@ CREATE TABLE public.fitness_gears (
     "retiredAt" timestamp with time zone,
     "createdAt" timestamp with time zone NOT NULL,
     "updatedAt" timestamp with time zone NOT NULL,
-    "deletedAt" timestamp with time zone
+    "deletedAt" timestamp with time zone,
+    "deviceKey" character varying(255),
+    "productUrl" character varying(255)
 );
 
 CREATE TABLE public.fitness_import_locks (
@@ -1321,6 +1324,9 @@ ALTER TABLE ONLY public.fitness_gear_components
     ADD CONSTRAINT fitness_gear_components_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY public.fitness_gears
+    ADD CONSTRAINT fitness_gears_actor_device_key_unique UNIQUE ("actorId", "deviceKey");
+
+ALTER TABLE ONLY public.fitness_gears
     ADD CONSTRAINT fitness_gears_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY public.fitness_import_locks
@@ -1607,6 +1613,8 @@ CREATE INDEX filters_actor_created ON public.filters USING btree ("actorId", "cr
 CREATE INDEX fitness_files_actor_created_idx ON public.fitness_files USING btree ("actorId", "createdAt");
 
 CREATE INDEX fitness_files_actor_id_idx ON public.fitness_files USING btree ("actorId");
+
+CREATE INDEX fitness_files_device_gear_id_idx ON public.fitness_files USING btree ("deviceGearId");
 
 CREATE INDEX fitness_files_gear_id_idx ON public.fitness_files USING btree ("gearId");
 

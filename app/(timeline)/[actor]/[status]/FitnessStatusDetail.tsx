@@ -26,6 +26,7 @@ import {
   Plus,
   Route,
   Unlock,
+  Watch,
   Wrench
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -905,7 +906,11 @@ interface GearPickerOption {
 // `normalizeActivityTypeToSportKey` refuses to guess at, most often.
 const GEAR_KIND_ICON: Record<FitnessGearKind, LucideIcon> = {
   bike: Bike,
-  shoes: Footprints
+  shoes: Footprints,
+  // Never reached through the picker — devices are filtered out of it — but a
+  // gear already assigned is always shown whatever it is, and this map is what
+  // renders that value.
+  device: Watch
 }
 
 /**
@@ -2299,7 +2304,9 @@ export const FitnessStatusDetail: FC<Props> = ({
         deviceName: status.fitness.deviceName ?? null,
         sourceUrl: status.fitness.sourceUrl ?? null,
         gearId: status.fitness.gearId ?? null,
-        gearName: status.fitness.gearName ?? null
+        gearName: status.fitness.gearName ?? null,
+        deviceGearId: status.fitness.deviceGearId ?? null,
+        deviceGearName: status.fitness.deviceGearName ?? null
       }
     ]
   }, [
@@ -2454,7 +2461,13 @@ export const FitnessStatusDetail: FC<Props> = ({
   // load at all, using the name the status payload carried.
   const gearPickerOptions = useMemo<GearPickerOption[]>(() => {
     const kind = getGearKindForActivityType(fitness?.activityType)
-    const active = gearOptions.filter((gear) => gear.retiredAt === null)
+    // Devices are excluded BEFORE the kind narrowing, not by it: an
+    // unrecognised activity type narrows to nothing and offers every active
+    // gear, which would put the head unit that recorded the ride in the list of
+    // things the ride could have been done on.
+    const active = gearOptions.filter(
+      (gear) => gear.retiredAt === null && gear.kind !== 'device'
+    )
     const options = (
       kind ? active.filter((gear) => gear.kind === kind) : active
     ).map((gear) => ({
@@ -2571,10 +2584,12 @@ export const FitnessStatusDetail: FC<Props> = ({
     VISIBILITY_META[getVisibility(status.to, status.cc)] ??
     VISIBILITY_META.public
   const VisibilityIcon = visibilityMeta.icon
-  const deviceLabel = getDeviceDisplayLabel(
-    fitness?.deviceName,
-    fitness?.deviceManufacturer
-  )
+  // The gear row's name overrides the recorded one, so this renders whenever
+  // EITHER is present — a device renamed to something the brand map cannot
+  // resolve would otherwise vanish from the page.
+  const deviceLabel =
+    fitness?.deviceGearName?.trim() ||
+    getDeviceDisplayLabel(fitness?.deviceName, fitness?.deviceManufacturer)
 
   const paceOrSpeed = getFitnessPaceOrSpeed({
     distanceMeters: fitness?.totalDistanceMeters ?? undefined,
@@ -3170,6 +3185,9 @@ export const FitnessStatusDetail: FC<Props> = ({
               <BrandedDeviceLink
                 deviceName={fitness?.deviceName}
                 deviceManufacturer={fitness?.deviceManufacturer}
+                deviceGearId={fitness?.deviceGearId}
+                deviceGearName={fitness?.deviceGearName}
+                isOwner={isOwner}
               />
             </div>
           ) : null}

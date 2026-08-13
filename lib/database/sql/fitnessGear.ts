@@ -7,10 +7,30 @@ import { FitnessGearKind } from '@/lib/services/fitness-files/sportTypes'
 import {
   FitnessGear,
   FitnessGearComponent,
+  FitnessGearDeviceRollup,
   FitnessGearDistanceRollup,
   SQLFitnessGear,
   SQLFitnessGearComponent
 } from '@/lib/types/database/fitnessGear'
+
+/**
+ * One row of a gear's activity list. Deliberately narrower than `FitnessFile`:
+ * the device page renders `date · title · type · distance` and links the row to
+ * the status, so anything else would be paid for on every page of history.
+ *
+ * `statusPublicId` is null for an activity that was never posted, and such a row
+ * renders unlinked rather than pointing at a status page that does not exist.
+ */
+export interface FitnessGearActivity {
+  id: string
+  statusId: string | null
+  statusPublicId: string | null
+  fileName: string
+  description: string | null
+  activityType: string | null
+  activityStartTime: number | null
+  totalDistanceMeters: number | null
+}
 
 export interface CreateFitnessGearParams {
   actorId: string
@@ -23,6 +43,10 @@ export interface CreateFitnessGearParams {
   defaultSports?: string[]
   alertDistanceMeters?: number | null
   notes?: string | null
+  // Create-only, like `kind`: `deviceKey` is the identity every later upload
+  // matches against, so rewriting it would fork the device's own history.
+  deviceKey?: string | null
+  productUrl?: string | null
 }
 
 // Every optional field uses presence semantics (`'field' in params`): absent
@@ -38,6 +62,7 @@ export interface UpdateFitnessGearParams {
   defaultSports?: string[]
   alertDistanceMeters?: number | null
   notes?: string | null
+  productUrl?: string | null
 }
 
 export interface CreateFitnessGearComponentParams {
@@ -86,6 +111,21 @@ export interface FitnessGearDatabase {
     actorId: string
     gearIds: string[]
   }): Promise<Record<string, FitnessGearDistanceRollup>>
+  getFitnessGearDeviceRollups(params: {
+    actorId: string
+    gearIds: string[]
+  }): Promise<Record<string, FitnessGearDeviceRollup>>
+  getFitnessGearActivities(params: {
+    actorId: string
+    gearId: string
+    kind: FitnessGearKind
+    limit: number
+    offset?: number
+  }): Promise<FitnessGearActivity[]>
+  findFitnessGearByDeviceKey(params: {
+    actorId: string
+    deviceKey: string
+  }): Promise<FitnessGear | null>
   findFitnessGearByDefaultSport(params: {
     actorId: string
     sportKey: string
@@ -200,6 +240,8 @@ const parseSQLFitnessGear = (row: SQLFitnessGear): FitnessGear => ({
     row.lastAlertedDistanceMeters
   ),
   notes: row.notes ?? undefined,
+  deviceKey: row.deviceKey ?? undefined,
+  productUrl: row.productUrl ?? undefined,
   retiredAt: row.retiredAt ? getCompatibleTime(row.retiredAt) : undefined,
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt),
@@ -334,6 +376,8 @@ export const FitnessGearSQLDatabaseMixin = (
         alertDistanceMeters: params.alertDistanceMeters ?? null,
         lastAlertedDistanceMeters: null,
         notes: params.notes ?? null,
+        deviceKey: params.deviceKey ?? null,
+        productUrl: params.productUrl ?? null,
         retiredAt: null,
         createdAt: currentTime,
         updatedAt: currentTime,
@@ -396,6 +440,12 @@ export const FitnessGearSQLDatabaseMixin = (
         updateData.weightKilograms = params.weightKilograms ?? null
       }
       if ('notes' in params) updateData.notes = params.notes ?? null
+      // `deviceKey` is deliberately absent: it is the device's identity, not a
+      // display field, and the owner edits the other four freely without
+      // forking the row the next upload resolves to.
+      if ('productUrl' in params) {
+        updateData.productUrl = params.productUrl ?? null
+      }
       if ('alertDistanceMeters' in params) {
         updateData.alertDistanceMeters = params.alertDistanceMeters ?? null
         // A changed threshold re-arms the reminder: the owner asking to be told
@@ -474,7 +524,14 @@ export const FitnessGearSQLDatabaseMixin = (
         .whereNull('deletedAt')
         .update({
           deletedAt: currentTime,
-          updatedAt: currentTime
+          updatedAt: currentTime,
+          // The `(actorId, deviceKey)` unique index covers soft-deleted rows
+          // too, so a deleted device would otherwise keep its key reserved and
+          // the next upload from that device could never create a row — the
+          // insert would fail against a row nothing can see. Releasing the key
+          // here is what makes deleting a device a "start over", not a
+          // permanent ban on it.
+          deviceKey: null
         })
       if (deleted === 0) return false
 
@@ -484,6 +541,13 @@ export const FitnessGearSQLDatabaseMixin = (
       await trx('fitness_files')
         .where('gearId', id)
         .update({ gearId: null, updatedAt: currentTime })
+
+      // The device link is a separate column and is detached the same way: an
+      // activity keeps the `deviceName`/`deviceManufacturer` it was recorded
+      // with and simply stops pointing at a row that no longer exists.
+      await trx('fitness_files')
+        .where('deviceGearId', id)
+        .update({ deviceGearId: null, updatedAt: currentTime })
 
       return true
     })
@@ -527,6 +591,138 @@ export const FitnessGearSQLDatabaseMixin = (
     }
 
     return rollups
+  },
+
+  async getFitnessGearDeviceRollups({ actorId, gearIds }) {
+    const uniqueIds = [...new Set(gearIds)]
+    const rollups: Record<string, FitnessGearDeviceRollup> = {}
+    // Pre-seeded with zeros so a device with nothing linked yet still gets a
+    // row, exactly like the distance rollup — the caller must never have to
+    // tell "no activities" apart from "no such gear".
+    for (const gearId of uniqueIds) {
+      rollups[gearId] = { activityCount: 0, firstUsedAt: null }
+    }
+    if (uniqueIds.length === 0) return rollups
+
+    for (const chunk of chunkArray(
+      uniqueIds,
+      getWhereInBatchSize(database, 3)
+    )) {
+      // The same countable-activity predicate the distance rollups use, so a
+      // device's activity count agrees with the fitness overview and with the
+      // bike that carried the same ride.
+      const rows = await applyCountableActivityFilter(
+        database('fitness_files'),
+        'fitness_files'
+      )
+        .where('fitness_files.actorId', actorId)
+        .whereIn('fitness_files.deviceGearId', chunk)
+        .groupBy('fitness_files.deviceGearId')
+        .select(
+          'fitness_files.deviceGearId as deviceGearId',
+          database.raw('COUNT(*) as ??', ['activityCount']),
+          // Distance is deliberately not summed: a device records rides and
+          // runs alike, so a combined total would be a number with no meaning.
+          database.raw('MIN(??) as ??', [
+            'fitness_files.activityStartTime',
+            'firstUsedAt'
+          ])
+        )
+
+      for (const row of rows as Record<string, unknown>[]) {
+        const gearId = String(row.deviceGearId)
+        rollups[gearId] = {
+          activityCount: Number(row.activityCount) || 0,
+          // MIN comes back as a Date on PostgreSQL and an integer on SQLite;
+          // `getCompatibleTime` is the one place that difference is resolved.
+          // It is null when every linked activity is timestamp-less.
+          firstUsedAt:
+            row.firstUsedAt === null || row.firstUsedAt === undefined
+              ? null
+              : getCompatibleTime(row.firstUsedAt as number | Date | string)
+        }
+      }
+    }
+
+    return rollups
+  },
+
+  async getFitnessGearActivities({ actorId, gearId, kind, limit, offset = 0 }) {
+    // A device is linked through its own column; a bike or a pair of shoes
+    // through `gearId`. One query serves both rather than two near-identical
+    // ones that could drift apart on the filter they share.
+    const matchColumn =
+      kind === 'device' ? 'fitness_files.deviceGearId' : 'fitness_files.gearId'
+
+    const rows = await applyCountableActivityFilter(
+      database('fitness_files'),
+      'fitness_files'
+    )
+      .where('fitness_files.actorId', actorId)
+      .where(matchColumn, gearId)
+      // Left, not inner: an activity that was never posted still belongs in the
+      // list; it simply renders without a link.
+      .leftJoin('statuses', 'statuses.id', 'fitness_files.statusId')
+      // Sorting the timestamp-less activities last is load-bearing rather than
+      // tidy: under DESC the two backends disagree on where NULLs land
+      // (PostgreSQL puts them first, SQLite last), so a GPX carrying no
+      // timestamps would head the list on one backend and tail it on the other
+      // — and paginate inconsistently.
+      //
+      // Written as a portable CASE rather than knex's `nulls: 'last'` option
+      // because that option is broken on SQLite: knex emulates it as
+      // `order by (col is null) desc` and DROPS the column's own direction, so
+      // the list comes back nulls-first AND unsorted. `??` interpolation keeps
+      // the identifier quoted per dialect.
+      .orderByRaw('case when ?? is null then 1 else 0 end asc', [
+        'fitness_files.activityStartTime'
+      ])
+      .orderBy('fitness_files.activityStartTime', 'desc')
+      .orderBy('fitness_files.createdAt', 'desc')
+      // A stable tiebreak: two activities imported in the same batch can share
+      // both timestamps, and an unordered pair would repeat or skip a row
+      // across pages.
+      .orderBy('fitness_files.id', 'desc')
+      .limit(limit)
+      .offset(offset)
+      .select(
+        'fitness_files.id as id',
+        'fitness_files.statusId as statusId',
+        'statuses.publicId as statusPublicId',
+        'fitness_files.fileName as fileName',
+        'fitness_files.description as description',
+        'fitness_files.activityType as activityType',
+        'fitness_files.activityStartTime as activityStartTime',
+        'fitness_files.totalDistanceMeters as totalDistanceMeters'
+      )
+
+    return (rows as Record<string, unknown>[]).map((row) => ({
+      id: String(row.id),
+      statusId: (row.statusId as string | null) ?? null,
+      statusPublicId: (row.statusPublicId as string | null) ?? null,
+      fileName: String(row.fileName ?? ''),
+      description: (row.description as string | null) ?? null,
+      activityType: (row.activityType as string | null) ?? null,
+      activityStartTime:
+        row.activityStartTime === null || row.activityStartTime === undefined
+          ? null
+          : getCompatibleTime(row.activityStartTime as number | Date | string),
+      totalDistanceMeters:
+        normalizeOptionalNumber(row.totalDistanceMeters) ?? null
+    }))
+  },
+
+  async findFitnessGearByDeviceKey({ actorId, deviceKey }) {
+    // Soft-deleted rows are excluded here and their key is released on delete,
+    // so a device someone removed is recreated from scratch on its next upload
+    // rather than resurrecting with the notes and name they threw away.
+    const row = await database<SQLFitnessGear>('fitness_gears')
+      .where('actorId', actorId)
+      .where('deviceKey', deviceKey)
+      .whereNull('deletedAt')
+      .first()
+
+    return row ? parseSQLFitnessGear(row) : null
   },
 
   async findFitnessGearByDefaultSport({ actorId, sportKey }) {

@@ -175,6 +175,76 @@ describe('GET /api/v1/fitness-files/by-status', () => {
     batchSpy.mockRestore()
   })
 
+  it('resolves the recording device in the same batch as the gear', async () => {
+    mockGetServerSession.mockResolvedValue(null)
+
+    const status = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/device-status-files`,
+      url: `${ACTOR1_ID}/statuses/device-status-files`,
+      actorId: ACTOR1_ID,
+      text: 'Ride with a bike and a head unit',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [ACTOR1_FOLLOWER_URL]
+    })
+
+    const file = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      statusId: status.id,
+      path: 'fitness/device-status-file.fit',
+      fileName: 'device-status-file.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024
+    })
+
+    const bike = await database.createFitnessGear({
+      actorId: ACTOR1_ID,
+      kind: 'bike',
+      name: 'Routt 45'
+    })
+    const device = await database.createFitnessGear({
+      actorId: ACTOR1_ID,
+      kind: 'device',
+      name: 'the Edge',
+      deviceKey: 'name:garmin edge 840'
+    })
+    await database.setFitnessFileGear({
+      fitnessFileId: file!.id,
+      actorId: ACTOR1_ID,
+      gearId: bike.id
+    })
+    await database.updateFitnessFileActivityData(file!.id, {
+      deviceGearId: device.id
+    })
+
+    const batchSpy = vi.spyOn(database, 'getFitnessGearNamesByIds')
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v1/fitness-files/by-status?statusId=${encodeURIComponent(status.id)}`
+      )
+    )
+    const json = (await response.json()) as {
+      files: Array<{
+        id: string
+        gearName: string | null
+        deviceGearId: string | null
+        deviceGearName: string | null
+      }>
+    }
+
+    expect(response.status).toBe(200)
+    expect(json.files[0]).toMatchObject({
+      gearName: 'Routt 45',
+      deviceGearId: device.id,
+      deviceGearName: 'the Edge'
+    })
+    // Both links resolve through one lookup — `getFitnessGearNamesByIds`
+    // filters by id and `deletedAt` only, never by kind.
+    expect(batchSpy).toHaveBeenCalledTimes(1)
+    batchSpy.mockRestore()
+  })
+
   it('reports a fresh processing file as not stuck', async () => {
     mockGetServerSession.mockResolvedValue(null)
 

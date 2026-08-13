@@ -358,6 +358,7 @@ NODE_ENV=production ./scripts/fitness/recreateFitnessRouteHeatmaps.ts --actor-id
 NODE_ENV=production ./scripts/fitness/repairStravaActivityFiles.ts --actor-id https://your-domain.tld/users/username --dry-run
 NODE_ENV=production ./scripts/fitness/backfillFitnessMovingTime.ts --actor-id https://your-domain.tld/users/username --dry-run
 NODE_ENV=production ./scripts/fitness/importFitnessGear.ts --actor-id https://your-domain.tld/users/username --input ./gear-import.json --dry-run
+NODE_ENV=production ./scripts/fitness/backfillFitnessDevices.ts --actor-id https://your-domain.tld/users/username
 NODE_ENV=production ./scripts/fitness/retrigerStravaActivities.ts --actor-id https://your-domain.tld/users/username --activity-id 123456789
 NODE_ENV=production ./scripts/fitness/listStravaWebhooks.ts @username@your-domain.tld
 ```
@@ -367,6 +368,30 @@ NODE_ENV=production ./scripts/fitness/listStravaWebhooks.ts @username@your-domai
 > **Note:** `repairStravaActivityFiles.ts` only **reports** activities that Strava 404s by default; pass `--delete-missing` to hard-delete their stored file, DB record, and post (irreversible). Every recovery script prints the resolved database target on start — verify it is production (`.env.local` shadows `.env.production` even under `NODE_ENV=production`).
 >
 > **Note:** `backfillFitnessMovingTime.ts` recomputes `movingTimeSeconds` for already-stored activity files by re-parsing them, so their average pace/speed switches from elapsed-time to moving-time (matching Strava). New imports already compute it during processing; this only needs running once over historical records. It skips files that already have a moving time (pass `--force` to recompute anyway) and supports `--dry-run` to preview.
+
+#### Linking recording devices onto activities imported before devices had gear rows
+
+`scripts/fitness/backfillFitnessDevices.ts` links an actor's already-stored
+activities to a `kind: 'device'` gear row. Those activities have always carried
+the `deviceName`/`deviceManufacturer` they were recorded with — the import stores
+them — but nothing pointed at a device row, so the gear page showed no Devices
+card and the post chip still rendered a manufacturer link. The script groups the
+whole history by device identity, resolves each group to one row (creating it if
+this is the first sight of that device), and stamps `fitness_files.deviceGearId`
+on every file in the group.
+
+It is a **dry run by default**: it prints what it would link and writes nothing
+until `--apply` is passed. Re-running is cheap and safe — only files with a NULL
+`deviceGearId` are selected, and the resolver finds the existing row rather than
+creating a second one, so a second pass reports nothing left to do. Activities
+whose only device field is a bare FIT code nothing recognises get no row at all,
+which is the same decision a fresh import makes.
+
+```bash
+# Preview, then apply.
+NODE_ENV=production ./scripts/fitness/backfillFitnessDevices.ts --actor-id https://your-domain.tld/users/username
+NODE_ENV=production ./scripts/fitness/backfillFitnessDevices.ts --actor-id https://your-domain.tld/users/username --apply
+```
 
 #### Backfilling gear onto activities imported before gear tracking existed
 
