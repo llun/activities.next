@@ -93,32 +93,62 @@ jobs:
           echo "git merge failed before conflict resolution" >&2
           exit 1
 
-      # anthropics/claude-code-action runs on Bun and installs it itself, in a
-      # bundled `Install Bun` step that pulls the binary straight off the GitHub
-      # release CDN with three closely-spaced retries and no fallback. Two syncs
-      # on 2026-08-12 (runs 31638242964 and 31639748162) died right there with
-      # `socket hang up`: the download gave up after ~37s, every later step of
-      # the composite action was skipped, and the action's always-run post-step
-      # then hit `bun: command not found` and reported exit code 127. That 127 is
-      # the reported failure but not the cause — the cause is the failed
-      # download, and the `Install Bun` entry showing `outcome=skipped` in those
-      # logs is setup-bun's *post*-job step, which always skips.
+      # anthropics/claude-code-action runs on Bun and installs it itself, through
+      # a bundled `oven-sh/setup-bun` step that pulls the binary off the GitHub
+      # release CDN. Two syncs on 2026-08-12 (runs 31638242964 and 31639748162)
+      # died right there: `@actions/tool-cache` gave up after three attempts,
+      # in ~37s and ~31s respectively — the first run failed all three with
+      # `socket hang up`, the second mixed in an `Unexpected HTTP response:
+      # 503`, so this is CDN flakiness generally rather than one error. Every
+      # substantive step of the composite action was then skipped, and its
+      # `Post buffered inline comments` step — which still ran, being an
+      # ordinary step carrying `if: always()`, not a post-step — invoked `bun`
+      # and hit `command not found`. That is the exit code 127 those runs
+      # report; the failed download is the cause. (The other `Install Bun`
+      # entry, logged
+      # `outcome=skipped` under `Post job cleanup`, is setup-bun's cache-save
+      # post-step. It is declared `post-if: success()`, so it skipped only
+      # because the job had already failed — it is not the step that failed.)
       #
-      # Installing Bun here instead and handing the action the path via
-      # `path_to_bun_executable` disables its internal install outright (that
-      # step carries `if: inputs.path_to_bun_executable == ''`) and puts the
-      # download on a retry budget we control. `--retry-all-errors` is the part
-      # that matters: a mid-transfer reset is not one of curl's default
-      # retryable errors.
+      # Installing Bun here and passing the path via `path_to_bun_executable`
+      # disables the action's internal install outright, since that step carries
+      # `if: inputs.path_to_bun_executable == ''`, and puts the download on a
+      # retry budget we control. A bare `oven-sh/setup-bun` pre-step would also
+      # have avoided a second download — setup-bun reuses an existing
+      # `~/.bun/bin/bun` of a matching version before it consults its cache, so
+      # `no-cache: true` does not force a re-download — but it would have run
+      # the same untunable `@actions/tool-cache` retry policy that failed here,
+      # relocating the flake rather than removing it.
+      #
+      # `--retry-all-errors` is the flag that matters: a mid-transfer reset is
+      # CURLE_RECV_ERROR/CURLE_PARTIAL_FILE, outside curl's default set of
+      # retryable errors, so without it the extra attempts never fire for this
+      # exact failure.
+      #
+      # Both time bounds are deliberate. curl resets `--max-time` on every retry
+      # and a server's `Retry-After` can push a wait past `--retry-delay`, so
+      # neither caps the loop: `--retry-max-time` is what stops curl starting
+      # further attempts, and `timeout-minutes` is the backstop. Without them a
+      # CDN that accepts the connection and then stalls — a different failure
+      # from the ones seen here — could spend ~31 minutes of the job's
+      # 45-minute budget on this step alone. Whichever way that lands is worse
+      # than failing fast: exhaust the attempts and the sync has burnt the
+      # window to report what the old code reported in ~37s, or succeed on a
+      # late attempt and the merge step inherits too little of the budget to
+      # finish, dying on the job cap rather than its own.
       #
       # BUN_VERSION tracks the `bun-version` that claude-code-action pins in its
-      # own action.yml — check it after an upstream bump, since the action pins
-      # deliberately to dodge Bun regressions. BUN_SHA256 is that release's
-      # `bun-linux-x64.zip` entry from its SHASUMS256.txt and must be updated
-      # together with the version. linux-x64 is hardcoded to match `runs-on`.
+      # own action.yml; the drift check below warns when they diverge, because
+      # `@v1` moves and the action pins deliberately to dodge Bun regressions.
+      # BUN_SHA256 is that release's `bun-linux-x64.zip` entry from its
+      # SHASUMS256.txt and must be updated together with the version. The
+      # artifact is hardcoded to the non-baseline linux-x64 build to match
+      # `runs-on: ubuntu-latest`; a runner without AVX2, or an arm64 one, needs
+      # a different archive (`-baseline`, `-aarch64`) and its own checksum.
       - name: Install Bun
         id: bun
         if: steps.synced.outputs.skip == 'false'
+        timeout-minutes: 6
         shell: bash
         env:
           BUN_VERSION: '1.3.14'
@@ -130,7 +160,7 @@ jobs:
           curl \
             --fail --location --silent --show-error \
             --retry 5 --retry-delay 10 --retry-all-errors \
-            --connect-timeout 15 --max-time 300 \
+            --retry-max-time 120 --connect-timeout 15 --max-time 120 \
             --output "${bun_root}/bun.zip" \
             "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip"
 
@@ -143,6 +173,33 @@ jobs:
           "${bun_bin}" --version
 
           echo "path=${bun_bin}" >> "${GITHUB_OUTPUT}"
+
+          # Best effort: a mismatch is not fatal, it just means someone should
+          # look. Never let this check fail the install it is annotating.
+          #
+          # awk deliberately reads to EOF instead of `exit`ing on the first
+          # match, which sits ~200 lines into a 23KB response. Leaving early
+          # closes the pipe while curl is still writing, curl exits 23, and
+          # `pipefail` then hands the `||` below a failed pipeline — so the
+          # version it just extracted is thrown away. This is a race on how
+          # much curl has flushed, not a size threshold, so it fails at a rate
+          # that varies run to run rather than never or always: three samples
+          # of 20 real fetches discarded 14, 9 and 12 of them, where reading to
+          # EOF gave 20/20 every time. Left as `exit` the check would have
+          # looked healthy and simply gone quiet for whole runs at a time.
+          action_bun_version="$(
+            curl --fail --location --silent --show-error --max-time 30 \
+              'https://raw.githubusercontent.com/anthropics/claude-code-action/v1/action.yml' |
+              awk '/^[[:space:]]*bun-version:/ && !found { print $2; found = 1 }'
+          )" || action_bun_version=''
+
+          if [ -n "${action_bun_version}" ] &&
+            [ "${action_bun_version}" != "${BUN_VERSION}" ]; then
+            echo "::warning::claude-code-action@v1 now pins Bun" \
+              "${action_bun_version}, but this workflow installs" \
+              "${BUN_VERSION}. Update BUN_VERSION and BUN_SHA256 in" \
+              ".github/workflows/sync-main-to-oltp.yml."
+          fi
 
       - name: Resolve and validate merge with Claude
         if: steps.synced.outputs.skip == 'false'
