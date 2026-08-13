@@ -169,10 +169,19 @@ jobs:
 
           # Best effort: a mismatch is not fatal, it just means someone should
           # look. Never let this check fail the install it is annotating.
+          #
+          # awk deliberately reads to EOF instead of `exit`ing on the first
+          # match. Leaving early closes the pipe under the writer, and with
+          # `pipefail` that turns a successful extraction into a failed
+          # pipeline the moment the response outgrows the pipe buffer — either
+          # silently discarding the version via the `||` below, or, with the
+          # writer inside its own substitution, killing this step outright on
+          # SIGPIPE (141) after the install had already succeeded. The file is
+          # a few KB; reading all of it costs nothing and removes the class.
           action_bun_version="$(
             curl --fail --location --silent --show-error --max-time 30 \
               'https://raw.githubusercontent.com/anthropics/claude-code-action/v1/action.yml' |
-              awk '/^[[:space:]]*bun-version:/ { print $2; exit }'
+              awk '/^[[:space:]]*bun-version:/ && !found { print $2; found = 1 }'
           )" || action_bun_version=''
 
           if [ -n "${action_bun_version}" ] &&
