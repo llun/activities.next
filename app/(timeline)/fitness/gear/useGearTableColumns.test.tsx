@@ -48,9 +48,11 @@ class ResizeObserverStub {
 
 const PINNED_WIDTH = 104
 
-// The components table pins at 120px (`TYPE_COLUMN_WIDTH`), and the overhang
-// cap below only bites at the wider pin — so the cases that cover it say which
-// one they mean rather than inheriting the default.
+// The components table pins at 120px (`TYPE_COLUMN_WIDTH`). The overhang cap
+// applies at either pin — only the width it starts at moves, from below 276px
+// at the default to below 292px here — but the 320px-viewport regression it
+// exists for reproduces only at the wider one, so the case covering that passes
+// the pin explicitly rather than inheriting the default.
 const COMPONENTS_PINNED_WIDTH = 120
 
 const Probe: FC<{ hasTable?: boolean; pinnedWidth?: number }> = ({
