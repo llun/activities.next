@@ -18,14 +18,40 @@ import {
 export const GEAR_TABLE_SNAP_WIDTH = 480
 
 /**
- * A snapped data column never gets narrower than this even on a very small
- * screen. The binding content is the distance cell's wear line, measured at
- * 158px — an 80px bar, an 8px gap and a caption as long as "of 12,000 km" —
- * plus the cell's own 24px of horizontal padding. Below that the line is
- * `whitespace-nowrap` inside a `justify-end` flex row, so it does not clip: it
- * spills out of the row's start edge and under the pinned column.
+ * The width a snapped data column aims for when the pinned column leaves it
+ * less — subject to `SNAP_OVERHANG_ALLOWANCE` below, which is what it actually
+ * gets on a very narrow screen. The binding content is the distance cell's wear
+ * line, measured at 158px — an 80px bar, an 8px gap and a caption as long as
+ * "of 12,000 km" — plus the cell's own 24px of horizontal padding. Below that
+ * the line is `whitespace-nowrap` inside a `justify-end` flex row, so it does
+ * not clip: it spills out of the row's start edge and under the pinned column.
  */
 const MIN_SNAP_COLUMN_WIDTH = 184
+
+/**
+ * How far the floor above may push a column past the scrollport's right edge.
+ *
+ * A floored column is wider than the space the pinned column leaves, so at rest
+ * its right edge hangs off the scroller — and `scroll-snap-type: x mandatory`
+ * means the reader cannot scroll to what hangs off. The cell's content is
+ * `textAlign: 'right'`, so the overhang eats the *value* first, from the right:
+ * the distance, the wear caption, the action button. That is the opposite of
+ * what the floor is for.
+ *
+ * The cell's own `px-3` right padding is the only slack that can hang off
+ * without taking a glyph with it, so the column is allowed exactly that much
+ * overhang and no more. Past that point it keeps the same 12px rather than
+ * dropping to the width available: the value then ends flush with the
+ * scroller's edge — tight, but whole, and in the same place at every width —
+ * while the wear line spills leftwards under the pinned column instead. That
+ * spill is the degradation the floor's comment above already describes, and it
+ * is plainly better than a distance nobody can scroll to.
+ *
+ * The band this covers is narrow but real — a 320px viewport (an SE, or any
+ * phone in Display Zoom) leaves a 286px scroller, and with a 120px pin the
+ * floored column hid 6px of "0.0 km".
+ */
+const SNAP_OVERHANG_ALLOWANCE = 12
 
 // The measurement has to land before the browser paints, or the table renders
 // wide for a frame and then reflows. `useLayoutEffect` warns when React renders
@@ -105,7 +131,11 @@ export const useGearTableColumns = (
   }, [element])
 
   const isSnapping = width > 0 && width < GEAR_TABLE_SNAP_WIDTH
-  const columnWidth = Math.max(MIN_SNAP_COLUMN_WIDTH, width - pinnedColumnWidth)
+  const availableWidth = width - pinnedColumnWidth
+  const columnWidth = Math.max(
+    availableWidth,
+    Math.min(MIN_SNAP_COLUMN_WIDTH, availableWidth + SNAP_OVERHANG_ALLOWANCE)
+  )
 
   return {
     ref: setElement,

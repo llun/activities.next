@@ -403,7 +403,7 @@ describe('GearListView', () => {
     })
   })
 
-  // The pinned first column fails silently: drop `bg-background` and the
+  // The pinned first column fails silently: drop its opaque surface and the
   // scrolled-under columns show through it, drop `group` from the row and only
   // that column lights on hover, and a translucent hover reintroduces the
   // transparency. None of those produce a type error, a lint error or a visual
@@ -427,12 +427,12 @@ describe('GearListView', () => {
 
         const section = await getSection(title)
         const cell = section.getByRole('link', { name: rowName }).closest('td')
-        expect(cell).toHaveClass('sticky', 'left-0', 'bg-background')
+        expect(cell).toHaveClass('sticky', 'left-0', 'bg-card')
 
         // The header cell is pinned too, or it scrolls away from the column it
         // labels.
         const header = cell?.closest('table')?.querySelector('thead th')
-        expect(header).toHaveClass('sticky', 'left-0', 'bg-background')
+        expect(header).toHaveClass('sticky', 'left-0', 'bg-card')
       }
     )
 
