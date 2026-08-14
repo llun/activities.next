@@ -558,27 +558,31 @@ it; there is no legacy shape left to copy.
   `app/(timeline)/fitness/gear/gearUi.ts`** — `STICKY_COLUMN` and
   `STICKY_CLICKABLE_COLUMN`, used by the gear list's bikes/shoes/devices tables
   and by the components table on a gear's page. The design system's
-  `ui_kits/web/GearKit.jsx` builds these tables from a pinned first column on its
-  own surface with a hairline down its right edge: that pairing is the table's
-  structure — the column standing off the card separates each row's subject from
-  its numbers, and the hairline is the table's only vertical rule. Rendered as
-  plain columns on the card, the rows read as loose text, which is what these
-  tables looked like before. Four details are load-bearing.
-  `bg-background` both steps the column off the `bg-card` behind it **and**
-  supplies the opacity a sticky cell needs, or the columns scrolling underneath
-  show through it; it steps opposite ways in the two themes (lighter than the
-  card in light, darker in dark, where `--background` sits below `--card`), so
-  dark reads as a recessed well — a deliberate exception to the ramp in
-  `app/globals.css`, because following that ramp would mean `--muted`, which is
-  also the hover colour. The divider is an inset shadow, not a `border-r`,
+  `ui_kits/web/GearKit.jsx` builds these tables from a pinned first column with a
+  hairline down its right edge, and that hairline is the table's structure — it
+  is the table's only vertical rule, and it is what separates each row's subject
+  from its numbers. Rendered as plain columns with no rule, the rows read as
+  loose text, which is what these tables looked like before. Four details are
+  load-bearing.
+  **The pinned column's surface is `bg-card` — the same grey as the card behind
+  it — not `bg-background`.** The design paints that lane in its page
+  background, but the design stacks its surfaces the other way up (grey page,
+  white card), so it reads there as a slightly recessed strip inside a white
+  card. This app inverts that pair (`--background` is pure white, `--card` is
+  98%), so the design's token painted a bright white stripe down a grey card
+  instead — louder than anything in the design, and the first thing anyone
+  noticed about these tables. Whatever the colour, it must be **opaque**, or the
+  data columns scroll straight through the pinned cell. The divider is an inset
+  shadow, not a `border-r`,
   because `border-collapse: collapse` (Tailwind's preflight default) hands border
   painting to the table and drops a sticky cell's own right border. A dimmed row
   (retired gear, a replaced component) dims its **cells**, never the `<tr>` and
   never the pinned `<td>` itself — `opacity` fades an element's background along
   with its text, so either one takes the pinned column's surface down with it.
   And the hover colour is the OPAQUE `bg-muted` on both the row and its pinned
-  cell, never `bg-muted/50`: a translucent hover replaces `bg-background` rather
-  than layering over it, so the cell would turn 50% transparent exactly while the
+  cell, never `bg-muted/50`: a translucent hover replaces the cell's own surface
+  rather than layering over it, so the cell would turn 50% transparent exactly
+  while the
   pointer is on the row. Rows separate with `border-t`, so the header carries no
   rule of its own and the last row no trailing one. The pinned width is not part
   of the constants — the design pins the gear and device tables at 150px and the

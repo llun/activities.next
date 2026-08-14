@@ -1,6 +1,8 @@
 import {
   BIKE_TYPE_OPTIONS,
   COMPONENT_TYPE_OPTIONS,
+  STICKY_CLICKABLE_COLUMN,
+  STICKY_COLUMN,
   formatGearDate,
   formatGearDistanceKm,
   formatKmInt,
@@ -314,5 +316,33 @@ describe('getProductUrlHostname', () => {
     { description: 'undefined', url: undefined, expected: null }
   ])('$description', ({ url, expected }) => {
     expect(getProductUrlHostname(url)).toBe(expected)
+  })
+})
+
+describe('STICKY_COLUMN', () => {
+  // The pinned column sits inside a `Card`, so its surface is the card's own
+  // grey and the hairline down its right edge does the separating. It was
+  // `bg-background` first — the design's token, but the design stacks its
+  // surfaces the other way up (grey page, white card), so here that painted a
+  // bright white stripe down a grey card instead of a recessed lane in a white
+  // one.
+  it('paints the pinned column in the card surface, not the page background', () => {
+    expect(STICKY_COLUMN).toContain('bg-card')
+    expect(STICKY_COLUMN).not.toContain('bg-background')
+  })
+
+  // A sticky cell with a see-through background lets the data columns scroll
+  // straight under it. Neither the base surface nor the hover may carry an
+  // opacity modifier.
+  it.each([
+    { description: 'the base surface', className: STICKY_COLUMN },
+    { description: 'the clickable variant', className: STICKY_CLICKABLE_COLUMN }
+  ])('keeps $description opaque', ({ className }) => {
+    expect(className).not.toMatch(/bg-[a-z-]+\/\d+/)
+  })
+
+  it('repeats the row hover on the clickable variant', () => {
+    expect(STICKY_CLICKABLE_COLUMN).toContain(STICKY_COLUMN)
+    expect(STICKY_CLICKABLE_COLUMN).toContain('group-hover:bg-muted')
   })
 })

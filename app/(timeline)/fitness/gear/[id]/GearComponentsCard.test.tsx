@@ -531,11 +531,7 @@ describe('GearComponentsCard', () => {
     it('pins the type column on an opaque surface', () => {
       renderCard([createComponent()])
 
-      expect(getTypeCell('Chain')).toHaveClass(
-        'sticky',
-        'left-0',
-        'bg-background'
-      )
+      expect(getTypeCell('Chain')).toHaveClass('sticky', 'left-0', 'bg-card')
     })
 
     it('pins the type column header too', () => {
@@ -544,7 +540,7 @@ describe('GearComponentsCard', () => {
       expect(screen.getByText('Type').closest('th')).toHaveClass(
         'sticky',
         'left-0',
-        'bg-background'
+        'bg-card'
       )
     })
 
