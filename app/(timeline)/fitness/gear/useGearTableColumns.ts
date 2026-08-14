@@ -38,12 +38,13 @@ const MIN_SNAP_COLUMN_WIDTH = 184
  * what the floor is for.
  *
  * The cell's own `px-3` right padding is the only slack that can hang off
- * without taking a glyph with it, so the floor is allowed exactly that much and
- * no more — at the limit the value ends flush with the scroller's edge, which
- * is tight but whole. Beyond it the column falls back to the width actually
- * available, and the wear line spills leftwards under the pinned column
- * instead: that is the degradation the floor's comment already describes, and
- * it is plainly better than a distance nobody can scroll to.
+ * without taking a glyph with it, so the column is allowed exactly that much
+ * overhang and no more. Past that point it keeps the same 12px rather than
+ * dropping to the width available: the value then ends flush with the
+ * scroller's edge — tight, but whole, and in the same place at every width —
+ * while the wear line spills leftwards under the pinned column instead. That
+ * spill is the degradation the floor's comment above already describes, and it
+ * is plainly better than a distance nobody can scroll to.
  *
  * The band this covers is narrow but real — a 320px viewport (an SE, or any
  * phone in Display Zoom) leaves a 286px scroller, and with a 120px pin the

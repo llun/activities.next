@@ -48,9 +48,17 @@ class ResizeObserverStub {
 
 const PINNED_WIDTH = 104
 
-const Probe: FC<{ hasTable?: boolean }> = ({ hasTable = true }) => {
+// The components table pins at 120px (`TYPE_COLUMN_WIDTH`), and the overhang
+// cap below only bites at the wider pin — so the cases that cover it say which
+// one they mean rather than inheriting the default.
+const COMPONENTS_PINNED_WIDTH = 120
+
+const Probe: FC<{ hasTable?: boolean; pinnedWidth?: number }> = ({
+  hasTable = true,
+  pinnedWidth = PINNED_WIDTH
+}) => {
   const { ref, isSnapping, pinnedColumnStyle, dataColumnStyle, scrollerStyle } =
-    useGearTableColumns(PINNED_WIDTH)
+    useGearTableColumns(pinnedWidth)
   if (!hasTable) return <p>No components yet.</p>
   return (
     <div ref={ref} data-testid="scroller" style={scrollerStyle}>
@@ -130,21 +138,37 @@ describe('useGearTableColumns', () => {
   })
 
   // The floored column hangs off the scroller, and `x mandatory` means the
-  // reader cannot scroll to what hangs off — so past the cell's own right
-  // padding the overhang starts eating the right-aligned distance itself. A
-  // 320px viewport leaves a 286px scroller, which is exactly where this bit.
+  // reader cannot scroll to what hangs off — so past the cell's own 12px of
+  // right padding the overhang starts eating the right-aligned distance itself.
   it('stops the floor pushing the distance off the scrollport', () => {
     render(<Probe />)
     act(() => deliver?.(286))
 
     // 286 - 104 = 182 available; the floor would take 184, overflowing by 2 —
-    // inside the 12px padding, so the floor still applies here.
+    // inside the padding, so the floor still applies here.
     expect(styleOf('data').width).toBe('184px')
 
     // 240 - 104 = 136 available. The floor's 184 would hang 48px off the edge
-    // and hide the distance, so the column takes the padding's worth and stops.
+    // and hide the distance, so the column stops at one padding's worth of
+    // overhang — which leaves the value flush with the scroller's edge rather
+    // than 12px short of it, the same place it lands at every other width.
     act(() => deliver?.(240))
     expect(styleOf('data').width).toBe('148px')
+  })
+
+  // The regression this cap exists for, at the pin that produced it: the
+  // components table pins at 120px, and a 320px viewport leaves a 286px
+  // scroller. The floor's 184 there hung 18px off the edge and took 6px of the
+  // distance with it. At the default 104px pin the same width is fine, which is
+  // why the case above does not reproduce it.
+  it('caps the overhang at the components table pin', () => {
+    render(<Probe pinnedWidth={COMPONENTS_PINNED_WIDTH} />)
+    act(() => deliver?.(286))
+
+    expect(styleOf('data').width).toBe('178px')
+    expect(styleOf('scroller').scrollPaddingLeft).toBe(
+      `${COMPONENTS_PINNED_WIDTH}px`
+    )
   })
 
   it('keeps the last measured width when the table reports zero', () => {
