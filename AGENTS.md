@@ -500,6 +500,52 @@ it; there is no legacy shape left to copy.
   but not repeat one). `evaluateGearServiceReminders` runs where a total can
   change and records the distance it fired at in `lastAlertedDistanceMeters`, so
   each crossing notifies once and a raised threshold re-arms on its own.
+- **Orange TEXT uses `text-primary-text`, not `text-primary`.** `--primary`
+  (`hsl(24 95% 46%)`) is the brand orange for icons, fills and accents; as a
+  foreground it is only 3.37:1 on the card, so link text set in it fails WCAG 2.1
+  AA (SC 1.4.3) at body sizes. `--primary-text` is the same hue tuned per theme
+  until it clears 4.5:1 on every surface such a link sits on — including the
+  `--muted` row-hover, which is stricter than the card — darker in light mode
+  (37%) and _lighter_ in dark (55%), because on the dark ramp contrast comes from
+  going up. This is the split the design system makes itself (`GK_ORANGE` vs
+  `GK_ORANGE_TEXT`). It backs the gear list's retired toggle, the gear
+  product-page link, and the components card's replaced toggle and per-row
+  Replace action;
+  `app/globals.contrast.test.ts` recomputes both ratios from the live token
+  values, so collapsing the two tokens back together fails the suite. Other
+  orange text in the app still predates this and should move over when touched.
+- **Every gear table pins its first column, through the shared constants in
+  `app/(timeline)/fitness/gear/gearUi.ts`** — `STICKY_COLUMN` and
+  `STICKY_CLICKABLE_COLUMN`, used by the gear list's bikes/shoes/devices tables
+  and by the components table on a gear's page. The design system's
+  `ui_kits/web/GearKit.jsx` builds these tables from a pinned first column on its
+  own surface with a hairline down its right edge: that pairing is the table's
+  structure — the column standing off the card separates each row's subject from
+  its numbers, and the hairline is the table's only vertical rule. Rendered as
+  plain columns on the card, the rows read as loose text, which is what these
+  tables looked like before. Four details are load-bearing.
+  `bg-background` both steps the column off the `bg-card` behind it **and**
+  supplies the opacity a sticky cell needs, or the columns scrolling underneath
+  show through it; it steps opposite ways in the two themes (lighter than the
+  card in light, darker in dark, where `--background` sits below `--card`), so
+  dark reads as a recessed well — a deliberate exception to the ramp in
+  `app/globals.css`, because following that ramp would mean `--muted`, which is
+  also the hover colour. The divider is an inset shadow, not a `border-r`,
+  because `border-collapse: collapse` (Tailwind's preflight default) hands border
+  painting to the table and drops a sticky cell's own right border. A dimmed row
+  (retired gear, a replaced component) dims its **cells**, never the `<tr>` and
+  never the pinned `<td>` itself — `opacity` fades an element's background along
+  with its text, so either one takes the pinned column's surface down with it.
+  And the hover colour is the OPAQUE `bg-muted` on both the row and its pinned
+  cell, never `bg-muted/50`: a translucent hover replaces `bg-background` rather
+  than layering over it, so the cell would turn 50% transparent exactly while the
+  pointer is on the row. Rows separate with `border-t`, so the header carries no
+  rule of its own and the last row no trailing one. The pinned width is not part
+  of the constants — the design pins the gear and device tables at 150px and the
+  denser components table at 104px — and `STICKY_CLICKABLE_COLUMN` belongs only
+  on a row that has its own `hover:` and the `group` class — a row carrying
+  `group` without a `hover:` lights the first column alone, and a row with
+  neither never matches the variant at all.
 - **A recording device is a third kind, and almost nothing above applies to it.**
   `kind: 'device'` rows have no components, no default sports, no distance
   total, no service reminder and cannot be retired; a device page reports an
