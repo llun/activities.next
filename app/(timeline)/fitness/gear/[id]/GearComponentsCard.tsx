@@ -39,8 +39,24 @@ const SERVICE_REMINDER_KM_OPTIONS = [1000, 3000, 5000, 8000, 12000]
  * to the caller (the design pins the gear tables at 150px and this denser
  * seven-column table at 104px), and here it is load-bearing twice: it sizes the
  * column and it is the `scroll-padding-left` the snapped columns land against.
+ *
+ * It is wider than the design's 104px because our pinned cell spends more of
+ * that width on padding: the design runs a flat `px-3` across all seven columns,
+ * while this table uses `px-4` on the pinned one so the column lines up with the
+ * card header above it. At 104px that left 72px of content, and "Handlebar"
+ * measures 72.6px at `text-sm font-medium` — so the single most ordinary value
+ * in `COMPONENT_TYPE_OPTIONS` broke mid-word, as "Handleba / r". `wrap-anywhere`
+ * is what makes that break look like a defect rather than a wrap, and it has to
+ * stay (see `CELL_WRAP`), so the column is sized to fit instead.
+ *
+ * 120px leaves 88px of content, clear of the widest single word in the option
+ * list — "Chainrings" at 74.7px — with enough headroom for the wider system
+ * fonts other platforms substitute into the same stack. Multi-word values still
+ * wrap, but at their spaces: "Front brake pads" needs 117px on one line, which
+ * would be 149px of pinned column, 38% of a 390px phone for a column of short
+ * labels. The design does not spend that either.
  */
-const TYPE_COLUMN_WIDTH = 104
+const TYPE_COLUMN_WIDTH = 120
 
 /**
  * A long unbroken component type, brand or model would otherwise widen its

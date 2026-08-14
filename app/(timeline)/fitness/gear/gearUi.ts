@@ -205,22 +205,32 @@ export const COMPONENT_TYPE_OPTIONS = [
 // on a gear's page so they cannot drift apart.
 //
 // The design system's gear tables (`ui_kits/web/GearKit.jsx`) pin the first
-// column: the data columns scroll under it while the row's subject stays put, on
-// its own surface with a hairline down its right edge. That pairing is the
-// table's structure — the column standing off the card separates each row's
-// subject from its numbers, and the hairline is the table's only vertical rule.
-// Rendered as plain columns on the card, as these were, the rows read as loose
-// text.
+// column: the data columns scroll under it while the row's subject stays put,
+// with a hairline down its right edge. That hairline is the table's structure —
+// its only vertical rule, and what separates each row's subject from its
+// numbers. Rendered as plain columns with no rule, as these were, the rows read
+// as loose text.
 //
-// `bg-background` is load-bearing twice over: it steps the column off the
-// `bg-card` behind it, and a sticky cell has to be OPAQUE or the columns
-// scrolling underneath show straight through it. It steps opposite ways in the
-// two themes — lighter than the card in light mode, the way the design has it,
-// and darker in dark mode, where `--background` sits below `--card`. Dark
-// therefore reads as a recessed well rather than a raised surface, a deliberate
-// exception to the ramp documented in `app/globals.css` ("insets sit above the
-// card"): following that ramp would mean `--muted`, which is also the hover
-// colour, so the pinned column would stop responding to hover.
+// The column's surface is `bg-card`, the same grey as the card behind it, and
+// the hairline is the only thing separating the two. That is what the design
+// does: `useGKSnapCols` pins the cell with `background: 'white'`, and every
+// card holding one of these tables is `bg-white/80`, so the lane is painted the
+// CARD's own colour. The literal white is there to make the sticky cell opaque,
+// not to step it off anything — there is no recessed lane anywhere in the kit.
+//
+// `bg-background` copied that literal colour instead of the relationship, and so
+// broke it in BOTH themes. The kit is a static prototype that hardcodes white
+// rather than reading `--card`, while its `app/globals.css` carries the same
+// tokens this app has (light `--background` 100% / `--card` 98%, dark 3.9% /
+// 9%). Against a `bg-card` table, then, `bg-background` came out a bright white
+// stripe in light mode — a third of the table's width on a phone — and a well
+// sunk below the card in dark. Taking the card's token gives the design's
+// relationship in both.
+//
+// Whatever the colour, it has to be OPAQUE: a sticky cell with a transparent
+// background lets the data columns scroll straight through it. That rules out
+// `bg-card/50` and friends, and it is why the hover below is the opaque
+// `bg-muted`.
 //
 // The divider is an inset shadow rather than a `border-r` because
 // `border-collapse: collapse` (Tailwind's preflight default for tables) hands
@@ -228,9 +238,12 @@ export const COMPONENT_TYPE_OPTIONS = [
 //
 // The pinned width is deliberately NOT baked in: the design pins the gear and
 // device tables at 150px but the denser seven-column components table at 104px,
-// so each caller adds its own `min-w-[…]`.
+// so each caller adds its own `min-w-[…]`. The components table then departs
+// from the design's number — see `TYPE_COLUMN_WIDTH` — because our pinned cell
+// keeps more of that width as padding, which is a per-caller decision precisely
+// because it lives with the caller's padding.
 export const STICKY_COLUMN =
-  'sticky left-0 z-1 bg-background shadow-[inset_-1px_0_0_var(--border)]'
+  'sticky left-0 z-1 bg-card shadow-[inset_-1px_0_0_var(--border)]'
 
 /**
  * Pinned first cell of a row that is itself clickable. The row's hover colour
@@ -239,8 +252,8 @@ export const STICKY_COLUMN =
  * highlights.
  *
  * Both surfaces use the OPAQUE `bg-muted`, never `bg-muted/50`. A translucent
- * hover does not layer over `bg-background`, it replaces it, so the cell would
- * be 50% transparent precisely while the pointer is on the row — the
+ * hover does not layer over the cell's own `bg-card`, it replaces it, so the
+ * cell would be 50% transparent precisely while the pointer is on the row — the
  * scrolled-under columns ghosting through in the one state a pinned column most
  * needs to be solid — and it would composite two tint layers against the row's
  * one, reading as a seam down the first column.

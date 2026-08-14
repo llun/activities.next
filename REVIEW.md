@@ -251,8 +251,12 @@ change doesn't touch.
 - Gear tables (the gear list's bikes/shoes/devices, the components table on a
   gear's page) pin their first column through `STICKY_COLUMN` /
   `STICKY_CLICKABLE_COLUMN` in `app/(timeline)/fitness/gear/gearUi.ts` — never a
-  hand-rolled sticky cell. The pinned cell must stay **opaque**
-  (`bg-background`), its hover must be the opaque `bg-muted` on both the row and
+  hand-rolled sticky cell. The pinned cell is painted in the card's own surface
+  (`bg-card`, never `bg-background` — the design paints the lane the card's
+  colour and sets a colour there only to keep the sticky cell opaque, so
+  `bg-background` reads as a white stripe down a grey card in light mode and a
+  well sunk below it in dark) and must
+  stay **opaque**, its hover must be the opaque `bg-muted` on both the row and
   the cell (never `bg-muted/50`, which replaces the background rather than
   layering over it), and a dimmed row dims its **cells**, never the `<tr>` or the
   pinned `<td>` — `opacity` fades a background along with its text. Use

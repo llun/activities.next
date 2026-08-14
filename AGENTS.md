@@ -431,9 +431,19 @@ it; there is no legacy shape left to copy.
   `useGearTableColumns` (`@/app/(timeline)/fitness/gear/useGearTableColumns`),
   which is the design system's `useGKSnapCols`. It layers on top of the pinned
   first column described above, and only the components table uses it so far:
-  the gear list's tables pin but do not snap. Under the threshold each data
-  column is sized to exactly the width the pinned column leaves over, with
-  `scroll-snap-type: x mandatory` and a `scroll-padding-left` clear of the pin,
+  the gear list's bikes/shoes/devices tables pin but do not snap, and still
+  carry a `min-w-[520px]`. That is a **known gap against the design**, not a
+  decision — `GearKit.jsx` runs all four tables through `useGKSnapCols` (150px
+  for the three gear tables, 104px for the components one), so on a phone the
+  gear list scrolls as one block where the design snaps it, which is the same
+  failure `min-w-[720px]` used to cause on the components table. Under the
+  threshold each data
+  column is sized to the width the pinned column leaves over — floored at 184px
+  so the distance cell's wear line still fits, but that floor may only overhang
+  the scrollport by the cell's own 12px of right padding, because the column's
+  content is right-aligned and `x mandatory` means nothing that hangs off can be
+  scrolled to (at a 320px viewport the floor was hiding 6px of the distance) —
+  with `scroll-snap-type: x mandatory` and a `scroll-padding-left` clear of the pin,
   so a swipe lands on one whole column instead of stranding a row's values
   halfway across the viewport. The rule measures the table's **own scroll
   container** with a `ResizeObserver`, not the viewport, for the same reason
@@ -446,7 +456,9 @@ it; there is no legacy shape left to copy.
   minimums already add up to about that, so the class only ever forced the wide
   layout onto phones, where the type column had scrolled away by the third
   column. Note what the threshold does and does not promise, though: between
-  480px and ~724px the table still scrolls as one block, exactly as before — the
+  480px and ~740px (the seven minimums: 120 + 96 + 132 + 108 + 112 + 88 + 84,
+  which moved with the pin when it went to 120px) the table still scrolls as one
+  block, exactly as before — the
   difference is that the type column is pinned through it, which is the half
   that was broken. Only below 480px does a swipe move one column.
 - **Every cell in the components table carries `wrap-anywhere`.** A `<td>`'s
@@ -558,34 +570,50 @@ it; there is no legacy shape left to copy.
   `app/(timeline)/fitness/gear/gearUi.ts`** — `STICKY_COLUMN` and
   `STICKY_CLICKABLE_COLUMN`, used by the gear list's bikes/shoes/devices tables
   and by the components table on a gear's page. The design system's
-  `ui_kits/web/GearKit.jsx` builds these tables from a pinned first column on its
-  own surface with a hairline down its right edge: that pairing is the table's
-  structure — the column standing off the card separates each row's subject from
-  its numbers, and the hairline is the table's only vertical rule. Rendered as
-  plain columns on the card, the rows read as loose text, which is what these
-  tables looked like before. Four details are load-bearing.
-  `bg-background` both steps the column off the `bg-card` behind it **and**
-  supplies the opacity a sticky cell needs, or the columns scrolling underneath
-  show through it; it steps opposite ways in the two themes (lighter than the
-  card in light, darker in dark, where `--background` sits below `--card`), so
-  dark reads as a recessed well — a deliberate exception to the ramp in
-  `app/globals.css`, because following that ramp would mean `--muted`, which is
-  also the hover colour. The divider is an inset shadow, not a `border-r`,
-  because `border-collapse: collapse` (Tailwind's preflight default) hands border
-  painting to the table and drops a sticky cell's own right border. A dimmed row
-  (retired gear, a replaced component) dims its **cells**, never the `<tr>` and
-  never the pinned `<td>` itself — `opacity` fades an element's background along
-  with its text, so either one takes the pinned column's surface down with it.
-  And the hover colour is the OPAQUE `bg-muted` on both the row and its pinned
-  cell, never `bg-muted/50`: a translucent hover replaces `bg-background` rather
-  than layering over it, so the cell would turn 50% transparent exactly while the
-  pointer is on the row. Rows separate with `border-t`, so the header carries no
-  rule of its own and the last row no trailing one. The pinned width is not part
-  of the constants — the design pins the gear and device tables at 150px and the
-  denser components table at 104px — and `STICKY_CLICKABLE_COLUMN` belongs only
-  on a row that has its own `hover:` and the `group` class — a row carrying
-  `group` without a `hover:` lights the first column alone, and a row with
-  neither never matches the variant at all.
+  `ui_kits/web/GearKit.jsx` builds these tables from a pinned first column with a
+  hairline down its right edge, and that hairline is the table's structure — it
+  is the table's only vertical rule, and it is what separates each row's subject
+  from its numbers. Rendered as plain columns with no rule, the rows read as
+  loose text, which is what these tables looked like before. Four details are
+  load-bearing. **The pinned column's surface is `bg-card` — the same grey as
+  the card behind it — not `bg-background`.** This is the design's own
+  relationship, verified against the kit: `useGKSnapCols` pins the cell with
+  `background: 'white'` and every card holding one of these tables is
+  `bg-white/80`, so the lane is painted the **card's** colour and the hairline is
+  the only thing separating it. That literal white is there to make the sticky
+  cell opaque, not to step the column off anything — there is no recessed lane
+  anywhere in the kit. `bg-background` copied the colour rather than the
+  relationship and broke it in **both** themes: the kit is a static prototype
+  that hardcodes white instead of reading `--card`, while its `app/globals.css`
+  carries the same tokens this app has (light `--background` 100% / `--card` 98%,
+  dark 3.9% / 9%), so against a `bg-card` table it came out a bright white stripe
+  in light mode — a third of the table's width on a phone — and a well sunk below
+  the card in dark. Whatever the colour, it must be **opaque**, or the data
+  columns
+  scroll straight through the pinned cell. The divider is an inset shadow, not a
+  `border-r`, because `border-collapse: collapse` (Tailwind's preflight default)
+  hands border painting to the table and drops a sticky cell's own right border.
+  A dimmed row (retired gear, a replaced component) dims its **cells**, never the
+  `<tr>` and never the pinned `<td>` itself — `opacity` fades an element's
+  background along with its text, so either one takes the pinned column's surface
+  down with it. And the hover colour is the OPAQUE `bg-muted` on both the row and
+  its pinned cell, never `bg-muted/50`: a translucent hover replaces the cell's
+  own surface rather than layering over it, so the cell would turn 50%
+  transparent exactly while the pointer is on the row. Rows separate with
+  `border-t`, so the header carries no rule of its own and the last row no
+  trailing one. The pinned width is not part of the constants — the design pins
+  the gear and device tables at 150px and the denser components table at 104px,
+  and the components table takes **120px** rather than that 104px because our
+  pinned cell is `px-4` where the design runs a flat `px-3`: at 104px the content
+  box was 72px and "Handlebar" (72.6px at `text-sm font-medium`) broke mid-word,
+  which is what `wrap-anywhere` does to a word that does not fit. 120px leaves
+  88px, clear of "Chainrings" at 74.7px, the widest single word in
+  `COMPONENT_TYPE_OPTIONS`; multi-word values still wrap at their spaces, and
+  fitting "Front brake pads" on one line would take a 149px pin, 38% of a 390px
+  phone. Widen the width, never drop the wrap —
+  and `STICKY_CLICKABLE_COLUMN` belongs only on a row that has its own `hover:`
+  and the `group` class — a row carrying `group` without a `hover:` lights the
+  first column alone, and a row with neither never matches the variant at all.
 - **A recording device is a third kind, and almost nothing above applies to it.**
   `kind: 'device'` rows have no components, no default sports, no distance
   total, no service reminder and cannot be retired; a device page reports an
