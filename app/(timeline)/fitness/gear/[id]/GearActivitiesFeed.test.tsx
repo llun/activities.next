@@ -410,6 +410,39 @@ describe('GearActivitiesFeed', () => {
   })
 
   describe('a load that fails', () => {
+    it('surfaces a failed Load more and hands the button back', async () => {
+      // Nothing else covers `loadMore`'s own catch: every other failing test
+      // rejects the FIRST request, which leaves `hasMore` false — so there is
+      // no button to click and the walk is never entered. Swallowed, the
+      // reader clicks, watches "Loading...", and gets the button back with
+      // nothing added and no explanation, while the sentinel keeps re-firing
+      // it.
+      mockGetFitnessGearActivities.mockResolvedValueOnce(
+        page({
+          statuses: [createStatus('status-1', 'Morning ride')],
+          hasMore: true,
+          nextOffset: 20
+        })
+      )
+      renderFeed()
+
+      const loadMore = await screen.findByRole('button', { name: 'Load more' })
+      mockGetFitnessGearActivities.mockRejectedValueOnce(
+        new Error('Activity service down')
+      )
+      fireEvent.click(loadMore)
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Activity service down'
+      )
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled()
+      )
+      // The page that did land is still there — a failed continuation is not
+      // a reason to throw away what the reader was already reading.
+      expect(screen.getByText('Morning ride')).toBeInTheDocument()
+    })
+
     it('does not claim the gear has no activities', async () => {
       // The effect resets `statuses` and `hasMore` on its way to failing, so
       // the empty-state gate has to exclude the error case explicitly.
@@ -615,6 +648,55 @@ describe('GearActivitiesFeed', () => {
       await waitFor(() =>
         expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled()
       )
+    })
+
+    it('does not report the previous gear’s failure over the new one', async () => {
+      // The failure twin of the two tests below. Without the stale-generation
+      // guard in `loadMore`'s catch, a gear-A walk that rejects after the
+      // reader moved on calls `setError` on gear B's feed — a bike's outage
+      // reported on a device's page, which is exactly what the effect's
+      // `setError(null)` reset exists to prevent.
+      mockGetFitnessGearActivities.mockResolvedValueOnce(
+        page({
+          statuses: [createStatus('a-1', 'Gear A ride')],
+          hasMore: true,
+          nextOffset: 20
+        })
+      )
+      const view = renderFeed()
+      const loadMore = await screen.findByRole('button', { name: 'Load more' })
+
+      let rejectStale: (reason: Error) => void = () => {}
+      const stalePage = new Promise<GearActivityStatusesPage>(
+        (_resolve, reject) => {
+          rejectStale = reject
+        }
+      )
+      mockGetFitnessGearActivities.mockReturnValueOnce(stalePage)
+      fireEvent.click(loadMore)
+
+      mockGetFitnessGearActivities.mockResolvedValueOnce(
+        page({ statuses: [createStatus('b-1', 'Gear B ride')] })
+      )
+      view.rerender(
+        <GearActivitiesFeed
+          gearId="gear-2"
+          host="llun.test"
+          currentTime={FIXED_CURRENT_TIME}
+          currentActor={profile}
+          isMediaUploadEnabled
+          emptyMessage="No recent activities on this gear."
+        />
+      )
+      await screen.findByText('Gear B ride')
+
+      await act(async () => {
+        rejectStale(new Error('Gear A service down'))
+        await stalePage.catch(() => undefined)
+      })
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(screen.getByText('Gear B ride')).toBeInTheDocument()
     })
 
     it('drops the previous gear’s page instead of appending it', async () => {

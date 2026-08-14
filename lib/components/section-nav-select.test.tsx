@@ -71,6 +71,29 @@ describe('SectionNavSelect', () => {
     ).not.toHaveAttribute('aria-current')
   })
 
+  it('keeps a focus indicator on the active row, which pins its own colours', async () => {
+    // The active row holds its wash on `focus:`, and the shared menu item sets
+    // `outline-hidden`, so without the ring the focused current row is
+    // pixel-identical to its resting state — a keyboard user arrowing down the
+    // list watches the highlight vanish on exactly one row (WCAG 2.4.7).
+    // Asserted on the class string rather than a computed style because jsdom
+    // does not evaluate Tailwind, exactly as the twin's suite does.
+    renderSelect({ active: 'activities' })
+
+    const menu = await openMenu()
+    const active = within(menu).getByRole('menuitem', { name: 'Activities' })
+    expect(active.className).toMatch(/focus:bg-primary\/10/)
+    expect(active.className).toMatch(/focus:ring-2/)
+    // `text-primary-text`, never `text-primary`: `--primary` is the icon
+    // orange and is under the AA floor as a foreground. Nothing else in the
+    // repo catches that regression on a text node.
+    expect(active.className).toMatch(/text-primary-text/)
+
+    expect(
+      within(menu).getByRole('menuitem', { name: 'Components' }).className
+    ).not.toMatch(/focus:ring-2/)
+  })
+
   it('reports the chosen tab to its caller', async () => {
     const { onChange } = renderSelect({ active: 'components' })
 
