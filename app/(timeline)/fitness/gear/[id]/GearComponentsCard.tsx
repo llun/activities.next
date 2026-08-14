@@ -5,11 +5,13 @@ import { FC, FormEvent, useState } from 'react'
 
 import {
   COMPONENT_TYPE_OPTIONS,
+  STICKY_COLUMN,
   formatGearDate,
   formatGearDistanceKm,
   formatKmInt,
   getWearState
 } from '@/app/(timeline)/fitness/gear/gearUi'
+import { useGearTableColumns } from '@/app/(timeline)/fitness/gear/useGearTableColumns'
 import {
   createFitnessGearComponent,
   deleteFitnessGearComponent,
@@ -32,6 +34,23 @@ interface Props {
 
 const SERVICE_REMINDER_KM_OPTIONS = [1000, 3000, 5000, 8000, 12000]
 
+/**
+ * Width of the pinned "Type" column. `STICKY_COLUMN` deliberately leaves this
+ * to the caller (the design pins the gear tables at 150px and this denser
+ * seven-column table at 104px), and here it is load-bearing twice: it sizes the
+ * column and it is the `scroll-padding-left` the snapped columns land against.
+ */
+const TYPE_COLUMN_WIDTH = 104
+
+/**
+ * A long unbroken component type, brand or model would otherwise widen its
+ * column past the width below — a `<td>`'s width is advisory — and under
+ * `scroll-snap-type: x mandatory` a column wider than its snap interval has a
+ * tail the scroller can never come to rest on. All three are free text to 255
+ * characters (`gearRequests.ts`), so none of them can be trusted to be short.
+ */
+const CELL_WRAP = 'wrap-anywhere'
+
 type AddedMode = 'beginning' | 'date'
 
 const WearBar: FC<{ component: GearComponentEntity }> = ({ component }) => {
@@ -52,7 +71,7 @@ const WearBar: FC<{ component: GearComponentEntity }> = ({ component }) => {
         aria-valuemax={100}
         aria-valuenow={Math.round(wear.barPercent)}
         aria-valuetext={`${Math.round(wear.percent)}% of service interval`}
-        className="mt-1 h-1 w-20 overflow-hidden rounded-full bg-muted"
+        className="mt-1 ml-auto h-1 w-20 overflow-hidden rounded-full bg-muted"
       >
         <div
           className={cn('h-full', wear.barClassName)}
@@ -89,6 +108,12 @@ export const GearComponentsCard: FC<Props> = ({
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
     null
   )
+  const {
+    ref: scrollerRef,
+    pinnedColumnStyle,
+    dataColumnStyle,
+    scrollerStyle
+  } = useGearTableColumns(TYPE_COLUMN_WIDTH)
 
   const installed = components.filter((component) => !component.removedAt)
   const replaced = components.filter((component) => component.removedAt)
@@ -315,17 +340,46 @@ export const GearComponentsCard: FC<Props> = ({
           accrues distance from its added date.
         </p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-sm">
+        // Below `GEAR_TABLE_SNAP_WIDTH` this scrolls one column per swipe with
+        // "Type" pinned; above it the columns share the row as before. The old
+        // `min-w-[720px]` is gone because the per-cell minimums below already
+        // add up to it — it only ever forced the wide layout onto phones.
+        <div
+          ref={scrollerRef}
+          className="overflow-x-auto"
+          style={scrollerStyle}
+        >
+          <table className="w-full text-sm">
             <thead>
-              <tr className="border-b text-left text-muted-foreground">
-                <th className="px-4 py-2 font-normal">Type</th>
-                <th className="px-4 py-2 font-normal">Brand</th>
-                <th className="px-4 py-2 font-normal">Model</th>
-                <th className="px-4 py-2 font-normal">Distance</th>
-                <th className="px-4 py-2 font-normal">Added</th>
-                <th className="px-4 py-2 font-normal">Removed</th>
-                <th className="px-4 py-2 font-normal" />
+              <tr className="text-left text-xs font-medium text-muted-foreground">
+                <th
+                  className={cn(STICKY_COLUMN, 'px-4 pb-2 font-medium')}
+                  style={pinnedColumnStyle}
+                >
+                  Type
+                </th>
+                <th className="px-3 pb-2 font-medium" style={dataColumnStyle()}>
+                  Brand
+                </th>
+                <th className="px-3 pb-2 font-medium" style={dataColumnStyle()}>
+                  Model
+                </th>
+                <th
+                  className="px-3 pb-2 text-right font-medium"
+                  style={dataColumnStyle()}
+                >
+                  Distance
+                </th>
+                <th className="px-3 pb-2 font-medium" style={dataColumnStyle()}>
+                  Added
+                </th>
+                <th className="px-3 pb-2 font-medium" style={dataColumnStyle()}>
+                  Removed
+                </th>
+                <th
+                  className="px-3 pr-4 pb-2 font-medium"
+                  style={dataColumnStyle()}
+                />
               </tr>
             </thead>
             <tbody>
@@ -333,39 +387,81 @@ export const GearComponentsCard: FC<Props> = ({
                 const isReplaced = Boolean(component.removedAt)
                 const isPending = pendingActionId === component.id
                 return (
-                  <tr
-                    key={component.id}
-                    className={cn(
-                      'border-b last:border-b-0',
-                      isReplaced && 'opacity-60'
-                    )}
-                  >
-                    <td className="px-4 py-2 font-medium">
-                      {component.componentType}
+                  <tr key={component.id} className="border-t">
+                    {/* A replaced component dims its contents rather than the
+                        row: fading the row would take the pinned column's own
+                        background down with it and let the data columns scroll
+                        through. */}
+                    <td
+                      className={cn(
+                        STICKY_COLUMN,
+                        CELL_WRAP,
+                        'px-4 py-2.5 align-top font-medium'
+                      )}
+                      style={pinnedColumnStyle}
+                    >
+                      <div className={cn(isReplaced && 'opacity-60')}>
+                        {component.componentType}
+                      </div>
                     </td>
-                    <td className="px-4 py-2 text-muted-foreground">
+                    <td
+                      className={cn(
+                        CELL_WRAP,
+                        'px-3 py-2.5 align-top text-muted-foreground',
+                        isReplaced && 'opacity-60'
+                      )}
+                      style={dataColumnStyle(96)}
+                    >
                       {component.brand || '—'}
                     </td>
-                    <td className="px-4 py-2 text-muted-foreground">
+                    <td
+                      className={cn(
+                        CELL_WRAP,
+                        'px-3 py-2.5 align-top text-muted-foreground',
+                        isReplaced && 'opacity-60'
+                      )}
+                      style={dataColumnStyle(132)}
+                    >
                       {component.model || '—'}
                     </td>
-                    <td className="px-4 py-2">
-                      <span className="tabular-nums">
+                    <td
+                      className={cn(
+                        'px-3 py-2.5 text-right align-top whitespace-nowrap',
+                        isReplaced && 'opacity-60'
+                      )}
+                      style={dataColumnStyle(108)}
+                    >
+                      <span className="font-semibold tabular-nums">
                         {formatGearDistanceKm(component.distanceMeters)}
                       </span>
                       <WearBar component={component} />
                     </td>
-                    <td className="px-4 py-2 text-muted-foreground">
+                    <td
+                      className={cn(
+                        'px-3 py-2.5 align-top whitespace-nowrap text-muted-foreground',
+                        isReplaced && 'opacity-60'
+                      )}
+                      style={dataColumnStyle(112)}
+                    >
                       {component.addedAt
                         ? formatGearDate(component.addedAt)
                         : 'Since beginning'}
                     </td>
-                    <td className="px-4 py-2 text-muted-foreground">
+                    <td
+                      className={cn(
+                        'px-3 py-2.5 align-top whitespace-nowrap text-muted-foreground',
+                        isReplaced && 'opacity-60'
+                      )}
+                      style={dataColumnStyle(88)}
+                    >
                       {component.removedAt
                         ? formatGearDate(component.removedAt)
                         : '—'}
                     </td>
-                    <td className="px-4 py-2 text-right">
+                    <td
+                      className="px-3 py-2.5 pr-4 text-right align-top whitespace-nowrap"
+                      style={dataColumnStyle(84)}
+                    >
                       {isReplaced ? (
                         <Button
                           size="sm"
@@ -392,7 +488,7 @@ export const GearComponentsCard: FC<Props> = ({
                           size="sm"
                           type="button"
                           variant="ghost"
-                          className="text-primary"
+                          className="text-primary-text"
                           disabled={isPending}
                           onClick={() => handleReplace(component.id)}
                         >
@@ -412,7 +508,7 @@ export const GearComponentsCard: FC<Props> = ({
         <div className="px-4">
           <button
             type="button"
-            className="cursor-pointer text-sm text-muted-foreground hover:text-foreground"
+            className="cursor-pointer text-xs font-medium text-primary-text hover:underline"
             // Hiding the replaced rows must disarm any pending confirmation
             // with them: the armed row would otherwise come back armed and
             // delete on the first click after the next "Show ...".

@@ -200,3 +200,55 @@ export const COMPONENT_TYPE_OPTIONS = [
   'Front shock',
   'Rear shock'
 ] as const
+
+// Table chrome, shared by the gear list's three tables and the components table
+// on a gear's page so they cannot drift apart.
+//
+// The design system's gear tables (`ui_kits/web/GearKit.jsx`) pin the first
+// column: the data columns scroll under it while the row's subject stays put, on
+// its own surface with a hairline down its right edge. That pairing is the
+// table's structure — the column standing off the card separates each row's
+// subject from its numbers, and the hairline is the table's only vertical rule.
+// Rendered as plain columns on the card, as these were, the rows read as loose
+// text.
+//
+// `bg-background` is load-bearing twice over: it steps the column off the
+// `bg-card` behind it, and a sticky cell has to be OPAQUE or the columns
+// scrolling underneath show straight through it. It steps opposite ways in the
+// two themes — lighter than the card in light mode, the way the design has it,
+// and darker in dark mode, where `--background` sits below `--card`. Dark
+// therefore reads as a recessed well rather than a raised surface, a deliberate
+// exception to the ramp documented in `app/globals.css` ("insets sit above the
+// card"): following that ramp would mean `--muted`, which is also the hover
+// colour, so the pinned column would stop responding to hover.
+//
+// The divider is an inset shadow rather than a `border-r` because
+// `border-collapse: collapse` (Tailwind's preflight default for tables) hands
+// border painting to the table, which drops a sticky cell's own right border.
+//
+// The pinned width is deliberately NOT baked in: the design pins the gear and
+// device tables at 150px but the denser seven-column components table at 104px,
+// so each caller adds its own `min-w-[…]`.
+export const STICKY_COLUMN =
+  'sticky left-0 z-1 bg-background shadow-[inset_-1px_0_0_var(--border)]'
+
+/**
+ * Pinned first cell of a row that is itself clickable. The row's hover colour
+ * has to be repeated here because this cell paints its own background over the
+ * row's — without it the pinned column stays unlit while the rest of the row
+ * highlights.
+ *
+ * Both surfaces use the OPAQUE `bg-muted`, never `bg-muted/50`. A translucent
+ * hover does not layer over `bg-background`, it replaces it, so the cell would
+ * be 50% transparent precisely while the pointer is on the row — the
+ * scrolled-under columns ghosting through in the one state a pinned column most
+ * needs to be solid — and it would composite two tint layers against the row's
+ * one, reading as a seam down the first column.
+ *
+ * A table whose rows are inert uses `STICKY_COLUMN` instead. The failure it
+ * avoids is specifically a row carrying `group` but no `hover:` of its own,
+ * which lights the first column alone; on a row with neither — what the
+ * components table's rows are — the variant simply never matches and nothing
+ * lights, so the wrong constant there is dead weight rather than a visible bug.
+ */
+export const STICKY_CLICKABLE_COLUMN = `${STICKY_COLUMN} group-hover:bg-muted`

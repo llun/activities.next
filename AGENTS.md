@@ -427,6 +427,36 @@ it; there is no legacy shape left to copy.
   component whose window is open on that side, since it cannot be placed inside
   `[addedAt, removedAt)`. A gear total may therefore exceed the sum of its
   components.
+- **Below 480px the components table snaps one data column per swipe** —
+  `useGearTableColumns` (`@/app/(timeline)/fitness/gear/useGearTableColumns`),
+  which is the design system's `useGKSnapCols`. It layers on top of the pinned
+  first column described above, and only the components table uses it so far:
+  the gear list's tables pin but do not snap. Under the threshold each data
+  column is sized to exactly the width the pinned column leaves over, with
+  `scroll-snap-type: x mandatory` and a `scroll-padding-left` clear of the pin,
+  so a swipe lands on one whole column instead of stranding a row's values
+  halfway across the viewport. The rule measures the table's **own scroll
+  container** with a `ResizeObserver`, not the viewport, for the same reason
+  `useCompactActionBar` and `FitnessStatGrid` do: a gear table can sit in a
+  narrow column on a wide window. It attaches through a **callback** ref, not a
+  ref object: the table is conditional (an empty bike renders the empty state
+  instead), and a ref object assigned later re-runs no effect, so the observer
+  would never reach the table that appears when the first component is added.
+- **Do not put `min-w-[720px]` back on the components table.** The per-cell
+  minimums already add up to about that, so the class only ever forced the wide
+  layout onto phones, where the type column had scrolled away by the third
+  column. Note what the threshold does and does not promise, though: between
+  480px and ~724px the table still scrolls as one block, exactly as before — the
+  difference is that the type column is pinned through it, which is the half
+  that was broken. Only below 480px does a swipe move one column.
+- **Every cell in the components table carries `wrap-anywhere`.** A `<td>`'s
+  width is advisory, and the component type, brand and model are all free text
+  to 255 characters (`gearRequests.ts`) — a long unbroken value widens its
+  column past the snap interval, and under `x mandatory` a column wider than its
+  interval has a tail the scroller can never rest on. `break-words` is **not** a
+  substitute: `overflow-wrap: break-word` does not reduce a box's min-content
+  contribution, only `anywhere` does, and the difference is invisible in
+  Chromium (which honours the explicit width anyway) while breaking elsewhere.
 - **Evaluate service reminders only after the activity is `completed`.** The
   rollups count completed activities, so a reminder computed while the file is
   still `processing` reads the total from before the ride that caused the
@@ -510,6 +540,52 @@ it; there is no legacy shape left to copy.
   but not repeat one). `evaluateGearServiceReminders` runs where a total can
   change and records the distance it fired at in `lastAlertedDistanceMeters`, so
   each crossing notifies once and a raised threshold re-arms on its own.
+- **Orange TEXT uses `text-primary-text`, not `text-primary`.** `--primary`
+  (`hsl(24 95% 46%)`) is the brand orange for icons, fills and accents; as a
+  foreground it is only 3.37:1 on the card, so link text set in it fails WCAG 2.1
+  AA (SC 1.4.3) at body sizes. `--primary-text` is the same hue tuned per theme
+  until it clears 4.5:1 on every surface such a link sits on — including the
+  `--muted` row-hover, which is stricter than the card — darker in light mode
+  (37%) and _lighter_ in dark (55%), because on the dark ramp contrast comes from
+  going up. This is the split the design system makes itself (`GK_ORANGE` vs
+  `GK_ORANGE_TEXT`). It backs the gear list's retired toggle, the gear
+  product-page link, and the components card's replaced toggle and per-row
+  Replace action;
+  `app/globals.contrast.test.ts` recomputes both ratios from the live token
+  values, so collapsing the two tokens back together fails the suite. Other
+  orange text in the app still predates this and should move over when touched.
+- **Every gear table pins its first column, through the shared constants in
+  `app/(timeline)/fitness/gear/gearUi.ts`** — `STICKY_COLUMN` and
+  `STICKY_CLICKABLE_COLUMN`, used by the gear list's bikes/shoes/devices tables
+  and by the components table on a gear's page. The design system's
+  `ui_kits/web/GearKit.jsx` builds these tables from a pinned first column on its
+  own surface with a hairline down its right edge: that pairing is the table's
+  structure — the column standing off the card separates each row's subject from
+  its numbers, and the hairline is the table's only vertical rule. Rendered as
+  plain columns on the card, the rows read as loose text, which is what these
+  tables looked like before. Four details are load-bearing.
+  `bg-background` both steps the column off the `bg-card` behind it **and**
+  supplies the opacity a sticky cell needs, or the columns scrolling underneath
+  show through it; it steps opposite ways in the two themes (lighter than the
+  card in light, darker in dark, where `--background` sits below `--card`), so
+  dark reads as a recessed well — a deliberate exception to the ramp in
+  `app/globals.css`, because following that ramp would mean `--muted`, which is
+  also the hover colour. The divider is an inset shadow, not a `border-r`,
+  because `border-collapse: collapse` (Tailwind's preflight default) hands border
+  painting to the table and drops a sticky cell's own right border. A dimmed row
+  (retired gear, a replaced component) dims its **cells**, never the `<tr>` and
+  never the pinned `<td>` itself — `opacity` fades an element's background along
+  with its text, so either one takes the pinned column's surface down with it.
+  And the hover colour is the OPAQUE `bg-muted` on both the row and its pinned
+  cell, never `bg-muted/50`: a translucent hover replaces `bg-background` rather
+  than layering over it, so the cell would turn 50% transparent exactly while the
+  pointer is on the row. Rows separate with `border-t`, so the header carries no
+  rule of its own and the last row no trailing one. The pinned width is not part
+  of the constants — the design pins the gear and device tables at 150px and the
+  denser components table at 104px — and `STICKY_CLICKABLE_COLUMN` belongs only
+  on a row that has its own `hover:` and the `group` class — a row carrying
+  `group` without a `hover:` lights the first column alone, and a row with
+  neither never matches the variant at all.
 - **A recording device is a third kind, and almost nothing above applies to it.**
   `kind: 'device'` rows have no components, no default sports, no distance
   total, no service reminder and cannot be retired; a device page reports an
