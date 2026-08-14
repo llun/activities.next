@@ -5,6 +5,7 @@ import { FC, FormEvent, useState } from 'react'
 
 import {
   COMPONENT_TYPE_OPTIONS,
+  STICKY_COLUMN,
   formatGearDate,
   formatGearDistanceKm,
   formatKmInt,
@@ -52,7 +53,7 @@ const WearBar: FC<{ component: GearComponentEntity }> = ({ component }) => {
         aria-valuemax={100}
         aria-valuenow={Math.round(wear.barPercent)}
         aria-valuetext={`${Math.round(wear.percent)}% of service interval`}
-        className="mt-1 h-1 w-20 overflow-hidden rounded-full bg-muted"
+        className="mt-1 ml-auto h-1 w-20 overflow-hidden rounded-full bg-muted"
       >
         <div
           className={cn('h-full', wear.barClassName)}
@@ -318,14 +319,21 @@ export const GearComponentsCard: FC<Props> = ({
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-sm">
             <thead>
-              <tr className="border-b text-left text-muted-foreground">
-                <th className="px-4 py-2 font-normal">Type</th>
-                <th className="px-4 py-2 font-normal">Brand</th>
-                <th className="px-4 py-2 font-normal">Model</th>
-                <th className="px-4 py-2 font-normal">Distance</th>
-                <th className="px-4 py-2 font-normal">Added</th>
-                <th className="px-4 py-2 font-normal">Removed</th>
-                <th className="px-4 py-2 font-normal" />
+              <tr className="text-left text-xs font-medium text-muted-foreground">
+                <th
+                  className={cn(
+                    STICKY_COLUMN,
+                    'min-w-[104px] px-4 pb-2 font-medium'
+                  )}
+                >
+                  Type
+                </th>
+                <th className="px-3 pb-2 font-medium">Brand</th>
+                <th className="px-3 pb-2 font-medium">Model</th>
+                <th className="px-3 pb-2 text-right font-medium">Distance</th>
+                <th className="px-3 pb-2 font-medium">Added</th>
+                <th className="px-3 pb-2 font-medium">Removed</th>
+                <th className="px-3 pr-4 pb-2 font-medium" />
               </tr>
             </thead>
             <tbody>
@@ -333,39 +341,69 @@ export const GearComponentsCard: FC<Props> = ({
                 const isReplaced = Boolean(component.removedAt)
                 const isPending = pendingActionId === component.id
                 return (
-                  <tr
-                    key={component.id}
-                    className={cn(
-                      'border-b last:border-b-0',
-                      isReplaced && 'opacity-60'
-                    )}
-                  >
-                    <td className="px-4 py-2 font-medium">
-                      {component.componentType}
+                  <tr key={component.id} className="border-t">
+                    {/* A replaced component dims its contents rather than the
+                        row: fading the row would take the pinned column's own
+                        background down with it and let the data columns scroll
+                        through. */}
+                    <td
+                      className={cn(
+                        STICKY_COLUMN,
+                        'min-w-[104px] px-4 py-2.5 align-top font-medium'
+                      )}
+                    >
+                      <div className={cn(isReplaced && 'opacity-60')}>
+                        {component.componentType}
+                      </div>
                     </td>
-                    <td className="px-4 py-2 text-muted-foreground">
+                    <td
+                      className={cn(
+                        'px-3 py-2.5 align-top text-muted-foreground',
+                        isReplaced && 'opacity-60'
+                      )}
+                    >
                       {component.brand || '—'}
                     </td>
-                    <td className="px-4 py-2 text-muted-foreground">
+                    <td
+                      className={cn(
+                        'px-3 py-2.5 align-top text-muted-foreground',
+                        isReplaced && 'opacity-60'
+                      )}
+                    >
                       {component.model || '—'}
                     </td>
-                    <td className="px-4 py-2">
-                      <span className="tabular-nums">
+                    <td
+                      className={cn(
+                        'px-3 py-2.5 text-right align-top whitespace-nowrap',
+                        isReplaced && 'opacity-60'
+                      )}
+                    >
+                      <span className="font-semibold tabular-nums">
                         {formatGearDistanceKm(component.distanceMeters)}
                       </span>
                       <WearBar component={component} />
                     </td>
-                    <td className="px-4 py-2 text-muted-foreground">
+                    <td
+                      className={cn(
+                        'px-3 py-2.5 align-top whitespace-nowrap text-muted-foreground',
+                        isReplaced && 'opacity-60'
+                      )}
+                    >
                       {component.addedAt
                         ? formatGearDate(component.addedAt)
                         : 'Since beginning'}
                     </td>
-                    <td className="px-4 py-2 text-muted-foreground">
+                    <td
+                      className={cn(
+                        'px-3 py-2.5 align-top whitespace-nowrap text-muted-foreground',
+                        isReplaced && 'opacity-60'
+                      )}
+                    >
                       {component.removedAt
                         ? formatGearDate(component.removedAt)
                         : '—'}
                     </td>
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-3 py-2.5 pr-4 text-right align-top whitespace-nowrap">
                       {isReplaced ? (
                         <Button
                           size="sm"
@@ -392,7 +430,7 @@ export const GearComponentsCard: FC<Props> = ({
                           size="sm"
                           type="button"
                           variant="ghost"
-                          className="text-primary"
+                          className="text-primary-text"
                           disabled={isPending}
                           onClick={() => handleReplace(component.id)}
                         >
@@ -412,7 +450,7 @@ export const GearComponentsCard: FC<Props> = ({
         <div className="px-4">
           <button
             type="button"
-            className="cursor-pointer text-sm text-muted-foreground hover:text-foreground"
+            className="cursor-pointer text-xs font-medium text-primary-text hover:underline"
             // Hiding the replaced rows must disarm any pending confirmation
             // with them: the armed row would otherwise come back armed and
             // delete on the first click after the next "Show ...".
