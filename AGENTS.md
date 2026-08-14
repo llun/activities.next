@@ -614,10 +614,38 @@ it; there is no legacy shape left to copy.
   and `STICKY_CLICKABLE_COLUMN` belongs only on a row that has its own `hover:`
   and the `group` class — a row carrying `group` without a `hover:` lights the
   first column alone, and a row with neither never matches the variant at all.
+- **A gear's activities are the POSTS they were published as, rendered through
+  the shared `Posts` feed.** `GearActivitiesFeed`
+  (`app/(timeline)/fitness/gear/[id]/GearActivitiesFeed.tsx`) is the single
+  implementation, used by a bike's Activities view and by the whole of a
+  device's page, so the same ride reads identically on either — same body, same
+  stat chip, same action row as in the timeline. It is not a bespoke list: a
+  fitness activity is a status, and **Status Posts & Actions** applies to it
+  like every other surface. Two consequences are load-bearing. The feed pages
+  over ACTIVITY ROWS and the endpoint answers `nextOffset` from those rows, not
+  from the statuses in the page: deleting a status only nulls
+  `fitness_files.statusId`, so a row with no post left still occupies an offset
+  (and still counts toward the gear's totals), and paging from
+  `statuses.length` would re-request everything in between forever. And because
+  such a row yields nothing to render, the **Activities tile and the feed may
+  legitimately disagree** — the tile counts activities, the feed shows the ones
+  still posted. A page that comes back entirely postless is walked past rather
+  than handed to the reader as a "Load more" that adds nothing, capped the way
+  the bookmarks timeline caps its own continuations.
+- **A bike switches between Components and Activities; shoes and devices do
+  not.** The switcher is `SectionNavSelect`
+  (`@/lib/components/section-nav-select`), the state-driven twin of
+  `SectionNavDropdown` — same chrome, but its rows call `onChange` instead of
+  navigating, and the current one is marked with the boolean `aria-current`
+  because nothing is a page. Only a bike renders a components card, so only a
+  bike has a second view to reach: shoes and devices go straight to the feed,
+  since a menu with one entry is dead UI (the same rule that keeps the "No
+  gear" picker off an empty shed). Do not write a third copy of this dropdown —
+  the fitness activity detail's section nav is the other consumer.
 - **A recording device is a third kind, and almost nothing above applies to it.**
   `kind: 'device'` rows have no components, no default sports, no distance
   total, no service reminder and cannot be retired; a device page reports an
-  activity count and a first-used date instead.
+  activity count and a first-used date, then its activities.
   The device rollups **replace** `isPrimary` rather than relaxing it, because
   for a device it answers the wrong question: the merge groups files by TIME
   OVERLAP and never looks at the device columns, so which file won says nothing
@@ -634,7 +662,9 @@ it; there is no legacy shape left to copy.
   writes the primary `pending` and the secondaries `completed`, so deferring to
   an unfinished (or permanently `failed`) primary would drop the ride from the
   device entirely. The rollup and the activity list apply the identical
-  predicate, so a device's count and its page can never disagree. A head unit records rides and
+  predicate, so the count and the page can only ever differ by an activity whose
+  post was deleted — which the rollup still counts and the feed has nothing to
+  render for. A head unit records rides and
   runs alike, so one summed distance would be a number with no meaning, and
   claiming a sport would take that sport off the bike or shoes that should hold
   it. `SPORT_KIND` is therefore typed `Record<SportKey, UserCreatableGearKind>`

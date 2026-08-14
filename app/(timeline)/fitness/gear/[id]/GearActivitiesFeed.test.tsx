@@ -1,0 +1,357 @@
+/**
+ * @vitest-environment jsdom
+ */
+import '@testing-library/jest-dom'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+
+import {
+  type GearActivityStatusesPage,
+  getFitnessGearActivities
+} from '@/lib/client'
+import { ActorProfile } from '@/lib/types/domain/actor'
+import { Status, StatusType } from '@/lib/types/domain/status'
+
+import { GearActivitiesFeed } from './GearActivitiesFeed'
+
+vi.mock('@/lib/client', () => ({
+  getFitnessGearActivities: vi.fn()
+}))
+
+vi.mock('@/lib/components/posts/posts', () => ({
+  Posts: (props: {
+    host: string
+    currentTime: number
+    statuses: Status[]
+    currentActor?: ActorProfile
+    showActions?: boolean
+    isMediaUploadEnabled?: boolean
+  }) => (
+    <div
+      data-testid="posts"
+      data-host={props.host}
+      data-current-time={props.currentTime}
+      data-current-actor={props.currentActor?.id ?? ''}
+      data-show-actions={String(Boolean(props.showActions))}
+      data-media-upload={String(Boolean(props.isMediaUploadEnabled))}
+    >
+      {props.statuses.map((status) => (
+        <div key={status.id}>{status.text}</div>
+      ))}
+    </div>
+  )
+}))
+
+const mockGetFitnessGearActivities =
+  getFitnessGearActivities as jest.MockedFunction<
+    typeof getFitnessGearActivities
+  >
+
+const FIXED_CURRENT_TIME = new Date('2026-06-01T10:00:00.000Z').getTime()
+
+const profile: ActorProfile = {
+  id: 'https://llun.test/users/test',
+  username: 'test',
+  domain: 'llun.test',
+  name: 'Test',
+  followersUrl: 'https://llun.test/users/test/followers',
+  inboxUrl: 'https://llun.test/users/test/inbox',
+  sharedInboxUrl: 'https://llun.test/inbox',
+  followingCount: 0,
+  followersCount: 0,
+  statusCount: 0,
+  lastStatusAt: null,
+  createdAt: FIXED_CURRENT_TIME
+}
+
+const createStatus = (id: string, text = id): Status => ({
+  id,
+  actorId: profile.id,
+  actor: profile,
+  to: [],
+  cc: [],
+  edits: [],
+  isLocalActor: true,
+  createdAt: FIXED_CURRENT_TIME,
+  updatedAt: FIXED_CURRENT_TIME,
+  type: StatusType.enum.Note,
+  url: id,
+  text,
+  summary: null,
+  reply: '',
+  replies: [],
+  actorAnnounceStatusId: null,
+  isActorLiked: false,
+  totalLikes: 0,
+  attachments: [],
+  tags: []
+})
+
+const page = (
+  overrides: Partial<GearActivityStatusesPage> = {}
+): GearActivityStatusesPage => ({
+  statuses: [],
+  hasMore: false,
+  nextOffset: 0,
+  ...overrides
+})
+
+const renderFeed = (
+  props: Partial<Parameters<typeof GearActivitiesFeed>[0]> = {}
+) =>
+  render(
+    <GearActivitiesFeed
+      gearId="gear-1"
+      host="llun.test"
+      currentTime={FIXED_CURRENT_TIME}
+      currentActor={profile}
+      isMediaUploadEnabled
+      emptyMessage="No recent activities on this gear."
+      {...props}
+    />
+  )
+
+describe('GearActivitiesFeed', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetFitnessGearActivities.mockResolvedValue(page())
+  })
+
+  it('renders the first page through the shared interactive feed', async () => {
+    mockGetFitnessGearActivities.mockResolvedValue(
+      page({ statuses: [createStatus('status-1', 'Morning ride')] })
+    )
+    renderFeed()
+
+    const posts = await screen.findByTestId('posts')
+    expect(posts).toHaveTextContent('Morning ride')
+    // The whole point of the feed: the same post, with the same actions, as
+    // every other surface that renders a status.
+    expect(posts).toHaveAttribute('data-show-actions', 'true')
+    expect(posts).toHaveAttribute('data-current-actor', profile.id)
+    expect(posts).toHaveAttribute('data-host', 'llun.test')
+    expect(posts).toHaveAttribute('data-media-upload', 'true')
+    // Server-supplied, never `Date.now()` in render — that is what breaks
+    // hydration on every relative timestamp below it.
+    expect(posts).toHaveAttribute(
+      'data-current-time',
+      String(FIXED_CURRENT_TIME)
+    )
+    expect(mockGetFitnessGearActivities).toHaveBeenCalledWith('gear-1', {
+      limit: 20
+    })
+  })
+
+  it('reports an empty history with the caller’s own wording', async () => {
+    renderFeed({
+      emptyMessage: 'No recent activities recorded with this device.'
+    })
+
+    expect(
+      await screen.findByText('No recent activities recorded with this device.')
+    ).toBeInTheDocument()
+    expect(screen.queryByTestId('posts')).not.toBeInTheDocument()
+  })
+
+  it('surfaces a failure to load the activities', async () => {
+    mockGetFitnessGearActivities.mockRejectedValue(
+      new Error('Activity service down')
+    )
+    renderFeed()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Activity service down'
+    )
+  })
+
+  it('pages from the offset the server handed back, not the post count', async () => {
+    // The two differ whenever an activity's post was deleted: the row still
+    // counts toward the gear's totals but carries no status, so paging from
+    // `statuses.length` would re-request every row in between.
+    mockGetFitnessGearActivities.mockResolvedValueOnce(
+      page({
+        statuses: [createStatus('status-1', 'Morning ride')],
+        hasMore: true,
+        nextOffset: 20
+      })
+    )
+    renderFeed()
+
+    const loadMore = await screen.findByRole('button', { name: 'Load more' })
+    mockGetFitnessGearActivities.mockResolvedValueOnce(
+      page({ statuses: [createStatus('status-2', 'Evening ride')] })
+    )
+    fireEvent.click(loadMore)
+
+    await waitFor(() =>
+      expect(screen.getByText('Evening ride')).toBeInTheDocument()
+    )
+    expect(mockGetFitnessGearActivities).toHaveBeenLastCalledWith('gear-1', {
+      limit: 20,
+      offset: 20
+    })
+    expect(screen.getByText('Morning ride')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Load more' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('drops a post the next page repeats', async () => {
+    // Offset pagination over a growing list repeats the boundary row when an
+    // activity is imported between two pages, and React flags the duplicate
+    // key.
+    mockGetFitnessGearActivities.mockResolvedValueOnce(
+      page({
+        statuses: [createStatus('status-1', 'Morning ride')],
+        hasMore: true,
+        nextOffset: 1
+      })
+    )
+    renderFeed()
+
+    const loadMore = await screen.findByRole('button', { name: 'Load more' })
+    mockGetFitnessGearActivities.mockResolvedValueOnce(
+      page({
+        statuses: [
+          createStatus('status-1', 'Morning ride'),
+          createStatus('status-2', 'Evening ride')
+        ],
+        nextOffset: 3
+      })
+    )
+    fireEvent.click(loadMore)
+
+    await waitFor(() =>
+      expect(screen.getByText('Evening ride')).toBeInTheDocument()
+    )
+    expect(screen.getAllByText('Morning ride')).toHaveLength(1)
+  })
+
+  it('walks past a page whose activities have all lost their posts', async () => {
+    // A page of activity rows can yield no statuses at all — deleting a status
+    // only nulls `fitness_files.statusId`, leaving a row that still counts.
+    // Handing back a "Load more" that added nothing is what this avoids.
+    mockGetFitnessGearActivities.mockResolvedValueOnce(
+      page({
+        statuses: [createStatus('status-1', 'Morning ride')],
+        hasMore: true,
+        nextOffset: 20
+      })
+    )
+    renderFeed()
+
+    const loadMore = await screen.findByRole('button', { name: 'Load more' })
+    mockGetFitnessGearActivities
+      .mockResolvedValueOnce(page({ hasMore: true, nextOffset: 40 }))
+      .mockResolvedValueOnce(
+        page({
+          statuses: [createStatus('status-2', 'Evening ride')],
+          nextOffset: 60
+        })
+      )
+    fireEvent.click(loadMore)
+
+    await waitFor(() =>
+      expect(screen.getByText('Evening ride')).toBeInTheDocument()
+    )
+    expect(mockGetFitnessGearActivities).toHaveBeenCalledTimes(3)
+    expect(mockGetFitnessGearActivities).toHaveBeenLastCalledWith('gear-1', {
+      limit: 20,
+      offset: 40
+    })
+  })
+
+  it('stops walking empty pages once the server says there are no more', async () => {
+    mockGetFitnessGearActivities.mockResolvedValueOnce(
+      page({
+        statuses: [createStatus('status-1', 'Morning ride')],
+        hasMore: true,
+        nextOffset: 20
+      })
+    )
+    renderFeed()
+
+    const loadMore = await screen.findByRole('button', { name: 'Load more' })
+    mockGetFitnessGearActivities.mockResolvedValueOnce(
+      page({ hasMore: false, nextOffset: 40 })
+    )
+    fireEvent.click(loadMore)
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: 'Load more' })
+      ).not.toBeInTheDocument()
+    )
+    expect(mockGetFitnessGearActivities).toHaveBeenCalledTimes(2)
+  })
+
+  describe('switching to another gear on the same mounted instance', () => {
+    // The detail page renders this component at a fixed position with no
+    // `key`, so navigating between two gear pages swaps `gearId` on the SAME
+    // instance rather than remounting.
+    const renderThenSwitch = async () => {
+      let resolveStale: (value: GearActivityStatusesPage) => void = () => {}
+      const stalePage = new Promise<GearActivityStatusesPage>((resolve) => {
+        resolveStale = resolve
+      })
+
+      mockGetFitnessGearActivities.mockResolvedValueOnce(
+        page({
+          statuses: [createStatus('a-1', 'Gear A ride')],
+          hasMore: true,
+          nextOffset: 20
+        })
+      )
+      const view = renderFeed()
+      const loadMore = await screen.findByRole('button', { name: 'Load more' })
+
+      // "Load more" on gear A, still in flight when the gear changes.
+      mockGetFitnessGearActivities.mockReturnValueOnce(stalePage)
+      fireEvent.click(loadMore)
+
+      mockGetFitnessGearActivities.mockResolvedValueOnce(
+        page({
+          statuses: [createStatus('b-1', 'Gear B ride')],
+          hasMore: true,
+          nextOffset: 20
+        })
+      )
+      view.rerender(
+        <GearActivitiesFeed
+          gearId="gear-2"
+          host="llun.test"
+          currentTime={FIXED_CURRENT_TIME}
+          currentActor={profile}
+          isMediaUploadEnabled
+          emptyMessage="No recent activities on this gear."
+        />
+      )
+      await waitFor(() =>
+        expect(screen.getByText('Gear B ride')).toBeInTheDocument()
+      )
+
+      resolveStale(
+        page({ statuses: [createStatus('a-2', 'Stale ride')], hasMore: true })
+      )
+      await waitFor(() => expect(stalePage).resolves.toBeDefined())
+      return view
+    }
+
+    it('never leaves the new gear stuck loading', async () => {
+      await renderThenSwitch()
+
+      // The superseded request's `finally` is skipped, so the effect has to
+      // clear this itself or the button is disabled forever.
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled()
+      )
+    })
+
+    it('drops the previous gear’s page instead of appending it', async () => {
+      await renderThenSwitch()
+
+      expect(screen.getByText('Gear B ride')).toBeInTheDocument()
+      expect(screen.queryByText('Stale ride')).not.toBeInTheDocument()
+      expect(screen.queryByText('Gear A ride')).not.toBeInTheDocument()
+    })
+  })
+})

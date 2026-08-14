@@ -4,6 +4,7 @@ import { FitnessGearActivity } from '@/lib/database/sql/fitnessGear'
 import { Database } from '@/lib/database/types'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { FitnessGear } from '@/lib/types/database/fitnessGear'
+import { Status, StatusType } from '@/lib/types/domain/status'
 
 import { GET } from './route'
 
@@ -26,6 +27,7 @@ type MockDatabase = Pick<
   Database,
   | 'getFitnessGear'
   | 'getFitnessGearActivities'
+  | 'getStatusesByIds'
   | 'getAccountFromEmail'
   | 'getActorsForAccount'
   | 'getActorFromId'
@@ -65,10 +67,20 @@ const activity = (
   ...overrides
 })
 
+const status = (id: string): Status =>
+  ({
+    id,
+    actorId: ACTOR1_ID,
+    type: StatusType.enum.Note,
+    text: id,
+    createdAt: 1_700_000_000_000
+  }) as unknown as Status
+
 describe('Fitness gear activities API', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
     getFitnessGear: vi.fn(),
     getFitnessGearActivities: vi.fn(),
+    getStatusesByIds: vi.fn(),
     getAccountFromEmail: vi.fn(),
     getActorsForAccount: vi.fn(),
     getActorFromId: vi.fn()
@@ -94,6 +106,7 @@ describe('Fitness gear activities API', () => {
     mockDb.getActorFromId.mockResolvedValue({ ...seedActor1, id: ACTOR1_ID })
     mockDb.getFitnessGear.mockResolvedValue(gear())
     mockDb.getFitnessGearActivities.mockResolvedValue([])
+    mockDb.getStatusesByIds.mockResolvedValue([])
   })
 
   const params = { params: Promise.resolve({ id: 'gear-1' }) }
@@ -121,6 +134,9 @@ describe('Fitness gear activities API', () => {
   ])('serves $description', async ({ kind }) => {
     mockDb.getFitnessGear.mockResolvedValue(gear({ kind }))
     mockDb.getFitnessGearActivities.mockResolvedValue([activity()])
+    mockDb.getStatusesByIds.mockResolvedValue([
+      status('https://llun.test/users/test1/statuses/1')
+    ])
 
     const response = await GET(request(), params)
     const data = await response.json()
@@ -135,20 +151,24 @@ describe('Fitness gear activities API', () => {
       limit: 21,
       offset: 0
     })
-    expect(data.activities).toHaveLength(1)
-    expect(data.activities[0]).toMatchObject({
-      id: 'file-1',
-      statusPublicId: '0195f0a0-0000-7000-8000-000000000001',
-      totalDistanceMeters: 42_600
+    // One batched read for the whole page, in the activity order, hydrated for
+    // the caller so the posts carry their own like/bookmark/reaction state.
+    expect(mockDb.getStatusesByIds).toHaveBeenCalledWith({
+      statusIds: ['https://llun.test/users/test1/statuses/1'],
+      currentActorId: ACTOR1_ID,
+      withReplies: false
     })
+    expect(data.statuses).toHaveLength(1)
+    expect(data.statuses[0].id).toBe('https://llun.test/users/test1/statuses/1')
     expect(data.hasMore).toBe(false)
+    expect(data.nextOffset).toBe(1)
   })
 
   it('reports hasMore from the extra row it fetched, and does not return it', async () => {
     mockDb.getFitnessGearActivities.mockResolvedValue([
-      activity({ id: 'file-1' }),
-      activity({ id: 'file-2' }),
-      activity({ id: 'file-3' })
+      activity({ id: 'file-1', statusId: 'status-1' }),
+      activity({ id: 'file-2', statusId: 'status-2' }),
+      activity({ id: 'file-3', statusId: 'status-3' })
     ])
 
     const response = await GET(request('?limit=2'), params)
@@ -157,11 +177,13 @@ describe('Fitness gear activities API', () => {
     expect(mockDb.getFitnessGearActivities).toHaveBeenCalledWith(
       expect.objectContaining({ limit: 3, offset: 0 })
     )
-    expect(data.activities.map((row: { id: string }) => row.id)).toEqual([
-      'file-1',
-      'file-2'
-    ])
+    // The extra row is a lookahead, not a result: it never reaches the status
+    // read, let alone the response.
+    expect(mockDb.getStatusesByIds).toHaveBeenCalledWith(
+      expect.objectContaining({ statusIds: ['status-1', 'status-2'] })
+    )
     expect(data.hasMore).toBe(true)
+    expect(data.nextOffset).toBe(2)
   })
 
   it('passes the offset through for a later page', async () => {
@@ -196,14 +218,33 @@ describe('Fitness gear activities API', () => {
     )
   })
 
-  it('keeps an activity that was never posted, unlinked', async () => {
+  it('counts an activity with no post toward the offset, not the page', async () => {
+    // Deleting a status only nulls `fitness_files.statusId`, so the row stays
+    // and keeps counting toward the gear's totals — but there is no post left
+    // to render. Paging from the statuses returned would re-request it forever.
     mockDb.getFitnessGearActivities.mockResolvedValue([
-      activity({ statusId: null, statusPublicId: null })
+      activity({ id: 'file-1', statusId: null, statusPublicId: null }),
+      activity({ id: 'file-2', statusId: 'status-2' })
     ])
+    mockDb.getStatusesByIds.mockResolvedValue([status('status-2')])
 
     const data = await (await GET(request(), params)).json()
 
-    expect(data.activities).toHaveLength(1)
-    expect(data.activities[0].statusPublicId).toBeNull()
+    expect(mockDb.getStatusesByIds).toHaveBeenCalledWith(
+      expect.objectContaining({ statusIds: ['status-2'] })
+    )
+    expect(data.statuses).toHaveLength(1)
+    expect(data.nextOffset).toBe(2)
+  })
+
+  it('continues the offset from the page it was given', async () => {
+    mockDb.getFitnessGearActivities.mockResolvedValue([
+      activity({ id: 'file-1', statusId: 'status-1' })
+    ])
+    mockDb.getStatusesByIds.mockResolvedValue([status('status-1')])
+
+    const data = await (await GET(request('?offset=40'), params)).json()
+
+    expect(data.nextOffset).toBe(41)
   })
 })

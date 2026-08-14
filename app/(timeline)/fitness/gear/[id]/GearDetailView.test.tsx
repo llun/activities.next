@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 
 import {
   getFitnessGearComponents,
@@ -13,15 +19,23 @@ import type {
   GearComponentEntity,
   GearEntity
 } from '@/lib/services/fitness-gears/gearEntities'
+import { ActorProfile } from '@/lib/types/domain/actor'
 
+import type { GearActivityFeedContext } from './GearActivitiesFeed'
 import { GearDetailView } from './GearDetailView'
+
+// The feed has its own test; here it stands in as a marker so this file stays
+// about the page's chrome and which view it shows.
+vi.mock('./GearActivitiesFeed', () => ({
+  GearActivitiesFeed: (props: { gearId: string; emptyMessage: string }) => (
+    <div data-testid="activities-feed" data-gear-id={props.gearId}>
+      {props.emptyMessage}
+    </div>
+  )
+}))
 
 vi.mock('@/lib/client', () => ({
   createFitnessGear: vi.fn(),
-  getFitnessGearActivities: vi.fn().mockResolvedValue({
-    activities: [],
-    hasMore: false
-  }),
   createFitnessGearComponent: vi.fn(),
   deleteFitnessGearComponent: vi.fn(),
   getFitnessGearComponents: vi.fn(),
@@ -85,6 +99,30 @@ const createComponent = (
   ...overrides
 })
 
+const FIXED_CURRENT_TIME = new Date('2026-06-01T10:00:00.000Z').getTime()
+
+const profile: ActorProfile = {
+  id: 'https://llun.test/users/test',
+  username: 'test',
+  domain: 'llun.test',
+  name: 'Test',
+  followersUrl: 'https://llun.test/users/test/followers',
+  inboxUrl: 'https://llun.test/users/test/inbox',
+  sharedInboxUrl: 'https://llun.test/inbox',
+  followingCount: 0,
+  followersCount: 0,
+  statusCount: 0,
+  lastStatusAt: null,
+  createdAt: FIXED_CURRENT_TIME
+}
+
+const feed: GearActivityFeedContext = {
+  host: 'llun.test',
+  currentTime: FIXED_CURRENT_TIME,
+  currentActor: profile,
+  isMediaUploadEnabled: true
+}
+
 describe('GearDetailView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -99,7 +137,7 @@ describe('GearDetailView', () => {
   })
 
   it('renders the gear name as the page title with a back link', async () => {
-    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
+    render(<GearDetailView gearId="gear-1" feed={feed} />)
 
     expect(
       await screen.findByRole('heading', { name: 'Rocket' })
@@ -111,7 +149,7 @@ describe('GearDetailView', () => {
   })
 
   it('renders the meta line and the default sports line', async () => {
-    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
+    render(<GearDetailView gearId="gear-1" feed={feed} />)
 
     expect(
       await screen.findByText(
@@ -133,7 +171,7 @@ describe('GearDetailView', () => {
         defaultSports: []
       })
     ])
-    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
+    render(<GearDetailView gearId="gear-1" feed={feed} />)
 
     expect(await screen.findByText('added Nov 27, 2018')).toBeInTheDocument()
     expect(screen.getByText('No default sports')).toBeInTheDocument()
@@ -145,7 +183,7 @@ describe('GearDetailView', () => {
       createComponent({ id: 'component-2' }),
       createComponent({ id: 'component-old', removedAt: Date.UTC(2025, 5, 1) })
     ])
-    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
+    render(<GearDetailView gearId="gear-1" feed={feed} />)
 
     expect(await screen.findByText('35,253.7 km')).toBeInTheDocument()
     expect(screen.getByText('Activities')).toBeInTheDocument()
@@ -157,7 +195,9 @@ describe('GearDetailView', () => {
     expect(screen.getAllByText('Distance')).toHaveLength(2)
   })
 
-  it('renders two stat tiles and no components card for shoes', async () => {
+  it('renders two stat tiles and the activities feed for shoes', async () => {
+    // Shoes carry no components card, so there is no second view to reach and
+    // no switcher to render — the page goes straight to the activities.
     mockGetFitnessGearList.mockResolvedValue([
       createGear({
         kind: 'shoes',
@@ -168,7 +208,7 @@ describe('GearDetailView', () => {
         alertDistanceMeters: 650000
       })
     ])
-    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
+    render(<GearDetailView gearId="gear-1" feed={feed} />)
 
     expect(await screen.findByText('Distance')).toBeInTheDocument()
     expect(screen.getByText('Activities')).toBeInTheDocument()
@@ -177,13 +217,63 @@ describe('GearDetailView', () => {
       screen.queryByRole('heading', { name: 'Components' })
     ).not.toBeInTheDocument()
     expect(mockGetFitnessGearComponents).not.toHaveBeenCalled()
+    expect(screen.getByTestId('activities-feed')).toHaveAttribute(
+      'data-gear-id',
+      'gear-1'
+    )
+    expect(
+      screen.queryByRole('navigation', { name: 'Gear sections' })
+    ).not.toBeInTheDocument()
+  })
+
+  describe('the Components / Activities switcher', () => {
+    it('opens a bike on its components, with the switcher beside them', async () => {
+      mockGetFitnessGearComponents.mockResolvedValue([createComponent()])
+      render(<GearDetailView gearId="gear-1" feed={feed} />)
+
+      expect(
+        await screen.findByRole('heading', { name: 'Components' })
+      ).toBeInTheDocument()
+      expect(screen.queryByTestId('activities-feed')).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('navigation', { name: 'Gear sections' })
+      ).toBeInTheDocument()
+      // The trigger names the view it is on.
+      expect(
+        screen.getByRole('button', { name: /Components/ })
+      ).toBeInTheDocument()
+    })
+
+    it('swaps the components card for the activities feed', async () => {
+      mockGetFitnessGearComponents.mockResolvedValue([createComponent()])
+      render(<GearDetailView gearId="gear-1" feed={feed} />)
+
+      // Radix opens on keydown, not on a jsdom `click`.
+      const nav = await screen.findByRole('navigation', {
+        name: 'Gear sections'
+      })
+      fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
+      const menu = await screen.findByRole('menu')
+      fireEvent.click(
+        within(menu).getByRole('menuitem', { name: 'Activities' })
+      )
+
+      const activitiesFeed = await screen.findByTestId('activities-feed')
+      expect(activitiesFeed).toHaveAttribute('data-gear-id', 'gear-1')
+      expect(activitiesFeed).toHaveTextContent(
+        'No recent activities on this gear.'
+      )
+      expect(
+        screen.queryByRole('heading', { name: 'Components' })
+      ).not.toBeInTheDocument()
+    })
   })
 
   it('renders the retired badge and the frozen-total explanation', async () => {
     mockGetFitnessGearList.mockResolvedValue([
       createGear({ retiredAt: Date.UTC(2025, 2, 9, 12) })
     ])
-    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
+    render(<GearDetailView gearId="gear-1" feed={feed} />)
 
     expect(await screen.findByText('retired')).toBeInTheDocument()
     expect(
@@ -195,7 +285,7 @@ describe('GearDetailView', () => {
   })
 
   it('retires the gear and refetches', async () => {
-    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
+    render(<GearDetailView gearId="gear-1" feed={feed} />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Retire' }))
 
@@ -210,7 +300,7 @@ describe('GearDetailView', () => {
     mockGetFitnessGearList.mockResolvedValue([
       createGear({ retiredAt: Date.UTC(2025, 2, 9) })
     ])
-    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
+    render(<GearDetailView gearId="gear-1" feed={feed} />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Unretire' }))
 
@@ -221,7 +311,7 @@ describe('GearDetailView', () => {
 
   it('surfaces a retire failure', async () => {
     mockSetFitnessGearRetired.mockRejectedValue(new Error('Gear is locked'))
-    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
+    render(<GearDetailView gearId="gear-1" feed={feed} />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Retire' }))
 
@@ -239,7 +329,7 @@ describe('GearDetailView', () => {
           resolveRetire = resolve
         })
     )
-    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
+    render(<GearDetailView gearId="gear-1" feed={feed} />)
 
     const retire = await screen.findByRole('button', { name: 'Retire' })
     fireEvent.click(retire)
@@ -268,7 +358,7 @@ describe('GearDetailView', () => {
             resolveRefetch = resolve
           })
       )
-    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
+    render(<GearDetailView gearId="gear-1" feed={feed} />)
 
     // Expand the replaced rows: the child's own state is what a remount loses.
     fireEvent.click(
@@ -288,7 +378,7 @@ describe('GearDetailView', () => {
   })
 
   it('opens the edit dialog seeded with the gear', async () => {
-    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
+    render(<GearDetailView gearId="gear-1" feed={feed} />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
 
@@ -300,14 +390,14 @@ describe('GearDetailView', () => {
 
   it('reports a gear id that is not in the list', async () => {
     mockGetFitnessGearList.mockResolvedValue([])
-    render(<GearDetailView gearId="missing" actorHandle="@test@llun.test" />)
+    render(<GearDetailView gearId="missing" feed={feed} />)
 
     expect(await screen.findByText('Gear not found.')).toBeInTheDocument()
   })
 
   it('surfaces a load failure', async () => {
     mockGetFitnessGearList.mockRejectedValue(new Error('Gear service down'))
-    render(<GearDetailView gearId="gear-1" actorHandle="@test@llun.test" />)
+    render(<GearDetailView gearId="gear-1" feed={feed} />)
 
     expect(await screen.findByText('Gear service down')).toBeInTheDocument()
   })
@@ -331,7 +421,7 @@ describe('GearDetailView', () => {
       })
     ])
 
-    render(<GearDetailView gearId="device-1" actorHandle="@test@llun.test" />)
+    render(<GearDetailView gearId="device-1" feed={feed} />)
 
     expect(
       await screen.findByRole('heading', { name: 'Garmin Edge 840' })
@@ -342,5 +432,8 @@ describe('GearDetailView', () => {
     ).not.toBeInTheDocument()
     expect(screen.queryByText('Distance')).not.toBeInTheDocument()
     expect(mockGetFitnessGearComponents).not.toHaveBeenCalled()
+    expect(
+      screen.queryByRole('navigation', { name: 'Gear sections' })
+    ).not.toBeInTheDocument()
   })
 })

@@ -221,7 +221,8 @@ change doesn't touch.
   two-device ride while counting a `.fit`+`.gpx` pair from one device once, and
   it must never defer to a sibling that is itself uncountable (a merge writes
   the primary `pending`). The rollup and the activity list must apply the
-  identical predicate. The device page link
+  identical predicate, so the only thing that may separate a device's count from
+  its page is an activity whose post was deleted. The device page link
   is owner-only; everyone else gets the branded manufacturer link.
 - React state updater functions stay pure — no side effects, and don't fire another
   variable's state update from inside an updater. Do the separate `setState` calls
@@ -248,6 +249,12 @@ change doesn't touch.
   window. `@container` belongs on a wrapper, never on the grid it sizes. Two
   older strips (gear detail, fitness overview) are not migrated yet — see
   **Fitness Stat Strips** in `AGENTS.md`.
+- A gear's activities render through the shared `GearActivitiesFeed` → `Posts`,
+  never a bespoke row list, and the endpoint's `nextOffset` counts activity rows
+  rather than the statuses in the page (an activity whose post was deleted still
+  occupies an offset). A bike's Components/Activities switcher is the shared
+  `SectionNavSelect`; shoes and devices render no switcher, because a menu with
+  one entry is dead UI.
 - Gear tables (the gear list's bikes/shoes/devices, the components table on a
   gear's page) pin their first column through `STICKY_COLUMN` /
   `STICKY_CLICKABLE_COLUMN` in `app/(timeline)/fitness/gear/gearUi.ts` — never a
