@@ -417,6 +417,36 @@ it; there is no legacy shape left to copy.
   component whose window is open on that side, since it cannot be placed inside
   `[addedAt, removedAt)`. A gear total may therefore exceed the sum of its
   components.
+- **Below 480px the components table snaps one data column per swipe** —
+  `useGearTableColumns` (`@/app/(timeline)/fitness/gear/useGearTableColumns`),
+  which is the design system's `useGKSnapCols`. It layers on top of the pinned
+  first column described above, and only the components table uses it so far:
+  the gear list's tables pin but do not snap. Under the threshold each data
+  column is sized to exactly the width the pinned column leaves over, with
+  `scroll-snap-type: x mandatory` and a `scroll-padding-left` clear of the pin,
+  so a swipe lands on one whole column instead of stranding a row's values
+  halfway across the viewport. The rule measures the table's **own scroll
+  container** with a `ResizeObserver`, not the viewport, for the same reason
+  `useCompactActionBar` and `FitnessStatGrid` do: a gear table can sit in a
+  narrow column on a wide window. It attaches through a **callback** ref, not a
+  ref object: the table is conditional (an empty bike renders the empty state
+  instead), and a ref object assigned later re-runs no effect, so the observer
+  would never reach the table that appears when the first component is added.
+- **Do not put `min-w-[720px]` back on the components table.** The per-cell
+  minimums already add up to about that, so the class only ever forced the wide
+  layout onto phones, where the type column had scrolled away by the third
+  column. Note what the threshold does and does not promise, though: between
+  480px and ~724px the table still scrolls as one block, exactly as before — the
+  difference is that the type column is pinned through it, which is the half
+  that was broken. Only below 480px does a swipe move one column.
+- **Every cell in the components table carries `wrap-anywhere`.** A `<td>`'s
+  width is advisory, and the component type, brand and model are all free text
+  to 255 characters (`gearRequests.ts`) — a long unbroken value widens its
+  column past the snap interval, and under `x mandatory` a column wider than its
+  interval has a tail the scroller can never rest on. `break-words` is **not** a
+  substitute: `overflow-wrap: break-word` does not reduce a box's min-content
+  contribution, only `anywhere` does, and the difference is invisible in
+  Chromium (which honours the explicit width anyway) while breaking elsewhere.
 - **Evaluate service reminders only after the activity is `completed`.** The
   rollups count completed activities, so a reminder computed while the file is
   still `processing` reads the total from before the ride that caused the

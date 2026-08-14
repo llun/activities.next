@@ -11,6 +11,7 @@ import {
   formatKmInt,
   getWearState
 } from '@/app/(timeline)/fitness/gear/gearUi'
+import { useGearTableColumns } from '@/app/(timeline)/fitness/gear/useGearTableColumns'
 import {
   createFitnessGearComponent,
   deleteFitnessGearComponent,
@@ -32,6 +33,23 @@ interface Props {
 }
 
 const SERVICE_REMINDER_KM_OPTIONS = [1000, 3000, 5000, 8000, 12000]
+
+/**
+ * Width of the pinned "Type" column. `STICKY_COLUMN` deliberately leaves this
+ * to the caller (the design pins the gear tables at 150px and this denser
+ * seven-column table at 104px), and here it is load-bearing twice: it sizes the
+ * column and it is the `scroll-padding-left` the snapped columns land against.
+ */
+const TYPE_COLUMN_WIDTH = 104
+
+/**
+ * A long unbroken component type, brand or model would otherwise widen its
+ * column past the width below — a `<td>`'s width is advisory — and under
+ * `scroll-snap-type: x mandatory` a column wider than its snap interval has a
+ * tail the scroller can never come to rest on. All three are free text to 255
+ * characters (`gearRequests.ts`), so none of them can be trusted to be short.
+ */
+const CELL_WRAP = 'wrap-anywhere'
 
 type AddedMode = 'beginning' | 'date'
 
@@ -90,6 +108,12 @@ export const GearComponentsCard: FC<Props> = ({
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
     null
   )
+  const {
+    ref: scrollerRef,
+    pinnedColumnStyle,
+    dataColumnStyle,
+    scrollerStyle
+  } = useGearTableColumns(TYPE_COLUMN_WIDTH)
 
   const installed = components.filter((component) => !component.removedAt)
   const replaced = components.filter((component) => component.removedAt)
@@ -316,24 +340,46 @@ export const GearComponentsCard: FC<Props> = ({
           accrues distance from its added date.
         </p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-sm">
+        // Below `GEAR_TABLE_SNAP_WIDTH` this scrolls one column per swipe with
+        // "Type" pinned; above it the columns share the row as before. The old
+        // `min-w-[720px]` is gone because the per-cell minimums below already
+        // add up to it — it only ever forced the wide layout onto phones.
+        <div
+          ref={scrollerRef}
+          className="overflow-x-auto"
+          style={scrollerStyle}
+        >
+          <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs font-medium text-muted-foreground">
                 <th
-                  className={cn(
-                    STICKY_COLUMN,
-                    'min-w-[104px] px-4 pb-2 font-medium'
-                  )}
+                  className={cn(STICKY_COLUMN, 'px-4 pb-2 font-medium')}
+                  style={pinnedColumnStyle}
                 >
                   Type
                 </th>
-                <th className="px-3 pb-2 font-medium">Brand</th>
-                <th className="px-3 pb-2 font-medium">Model</th>
-                <th className="px-3 pb-2 text-right font-medium">Distance</th>
-                <th className="px-3 pb-2 font-medium">Added</th>
-                <th className="px-3 pb-2 font-medium">Removed</th>
-                <th className="px-3 pr-4 pb-2 font-medium" />
+                <th className="px-3 pb-2 font-medium" style={dataColumnStyle()}>
+                  Brand
+                </th>
+                <th className="px-3 pb-2 font-medium" style={dataColumnStyle()}>
+                  Model
+                </th>
+                <th
+                  className="px-3 pb-2 text-right font-medium"
+                  style={dataColumnStyle()}
+                >
+                  Distance
+                </th>
+                <th className="px-3 pb-2 font-medium" style={dataColumnStyle()}>
+                  Added
+                </th>
+                <th className="px-3 pb-2 font-medium" style={dataColumnStyle()}>
+                  Removed
+                </th>
+                <th
+                  className="px-3 pr-4 pb-2 font-medium"
+                  style={dataColumnStyle()}
+                />
               </tr>
             </thead>
             <tbody>
@@ -349,8 +395,10 @@ export const GearComponentsCard: FC<Props> = ({
                     <td
                       className={cn(
                         STICKY_COLUMN,
-                        'min-w-[104px] px-4 py-2.5 align-top font-medium'
+                        CELL_WRAP,
+                        'px-4 py-2.5 align-top font-medium'
                       )}
+                      style={pinnedColumnStyle}
                     >
                       <div className={cn(isReplaced && 'opacity-60')}>
                         {component.componentType}
@@ -358,17 +406,21 @@ export const GearComponentsCard: FC<Props> = ({
                     </td>
                     <td
                       className={cn(
+                        CELL_WRAP,
                         'px-3 py-2.5 align-top text-muted-foreground',
                         isReplaced && 'opacity-60'
                       )}
+                      style={dataColumnStyle(96)}
                     >
                       {component.brand || '—'}
                     </td>
                     <td
                       className={cn(
+                        CELL_WRAP,
                         'px-3 py-2.5 align-top text-muted-foreground',
                         isReplaced && 'opacity-60'
                       )}
+                      style={dataColumnStyle(132)}
                     >
                       {component.model || '—'}
                     </td>
@@ -377,6 +429,7 @@ export const GearComponentsCard: FC<Props> = ({
                         'px-3 py-2.5 text-right align-top whitespace-nowrap',
                         isReplaced && 'opacity-60'
                       )}
+                      style={dataColumnStyle(108)}
                     >
                       <span className="font-semibold tabular-nums">
                         {formatGearDistanceKm(component.distanceMeters)}
@@ -388,6 +441,7 @@ export const GearComponentsCard: FC<Props> = ({
                         'px-3 py-2.5 align-top whitespace-nowrap text-muted-foreground',
                         isReplaced && 'opacity-60'
                       )}
+                      style={dataColumnStyle(112)}
                     >
                       {component.addedAt
                         ? formatGearDate(component.addedAt)
@@ -398,12 +452,16 @@ export const GearComponentsCard: FC<Props> = ({
                         'px-3 py-2.5 align-top whitespace-nowrap text-muted-foreground',
                         isReplaced && 'opacity-60'
                       )}
+                      style={dataColumnStyle(88)}
                     >
                       {component.removedAt
                         ? formatGearDate(component.removedAt)
                         : '—'}
                     </td>
-                    <td className="px-3 py-2.5 pr-4 text-right align-top whitespace-nowrap">
+                    <td
+                      className="px-3 py-2.5 pr-4 text-right align-top whitespace-nowrap"
+                      style={dataColumnStyle(84)}
+                    >
                       {isReplaced ? (
                         <Button
                           size="sm"
