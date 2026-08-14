@@ -125,6 +125,22 @@ describe('GearComponentsCard', () => {
         .map((row) => row.children[index])
     ]
 
+    // jsdom lays nothing out, so this cannot measure the text — it guards the
+    // budget the width was derived from instead. The pinned cell is `px-4`, so
+    // 32px of the column is padding; "Chainrings", the widest single word in
+    // `COMPONENT_TYPE_OPTIONS`, measures 74.7px at `text-sm font-medium` and
+    // "Handlebar" 72.6px. At the design's 104px the content box was 72px and
+    // "Handlebar" broke mid-word as "Handleba / r", which is what `wrap-anywhere`
+    // does to a word that does not fit.
+    it('leaves the type column room for the longest single-word component type', () => {
+      renderCard([createComponent({ componentType: 'Handlebar' })])
+      act(() => deliverWidth?.(390))
+
+      const [typeHeader] = columnCells(0)
+      const width = Number.parseInt((typeHeader as HTMLElement).style.width, 10)
+      expect(width - 32).toBeGreaterThanOrEqual(75)
+    })
+
     it('gives a column the same width in its header and its body', () => {
       renderCard([createComponent(), createComponent({ id: 'c2' })])
       act(() => deliverWidth?.(390))
@@ -136,7 +152,7 @@ describe('GearComponentsCard', () => {
           (cell) => (cell as HTMLElement).style.width
         )
         expect(new Set(widths).size).toBe(1)
-        expect(widths[0]).toBe(index === 0 ? '104px' : '286px')
+        expect(widths[0]).toBe(index === 0 ? '120px' : '270px')
       }
     })
 
@@ -150,7 +166,7 @@ describe('GearComponentsCard', () => {
       expect((brandHeader as HTMLElement).style.scrollSnapAlign).toBe('start')
       expect(screen.getByRole('table').parentElement).toHaveStyle({
         scrollSnapType: 'x mandatory',
-        scrollPaddingLeft: '104px'
+        scrollPaddingLeft: '120px'
       })
     })
 

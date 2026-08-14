@@ -596,7 +596,15 @@ it; there is no legacy shape left to copy.
   transparent exactly while the pointer is on the row. Rows separate with
   `border-t`, so the header carries no rule of its own and the last row no
   trailing one. The pinned width is not part of the constants — the design pins
-  the gear and device tables at 150px and the denser components table at 104px —
+  the gear and device tables at 150px and the denser components table at 104px,
+  and the components table takes **120px** rather than that 104px because our
+  pinned cell is `px-4` where the design runs a flat `px-3`: at 104px the content
+  box was 72px and "Handlebar" (72.6px at `text-sm font-medium`) broke mid-word,
+  which is what `wrap-anywhere` does to a word that does not fit. 120px leaves
+  88px, clear of "Chainrings" at 74.7px, the widest single word in
+  `COMPONENT_TYPE_OPTIONS`; multi-word values still wrap at their spaces, and
+  fitting "Front brake pads" on one line would take a 149px pin, 38% of a 390px
+  phone. Widen the width, never drop the wrap —
   and `STICKY_CLICKABLE_COLUMN` belongs only on a row that has its own `hover:`
   and the `group` class — a row carrying `group` without a `hover:` lights the
   first column alone, and a row with neither never matches the variant at all.

@@ -238,7 +238,10 @@ export const COMPONENT_TYPE_OPTIONS = [
 //
 // The pinned width is deliberately NOT baked in: the design pins the gear and
 // device tables at 150px but the denser seven-column components table at 104px,
-// so each caller adds its own `min-w-[…]`.
+// so each caller adds its own `min-w-[…]`. The components table then departs
+// from the design's number — see `TYPE_COLUMN_WIDTH` — because our pinned cell
+// keeps more of that width as padding, which is a per-caller decision precisely
+// because it lives with the caller's padding.
 export const STICKY_COLUMN =
   'sticky left-0 z-1 bg-card shadow-[inset_-1px_0_0_var(--border)]'
 
