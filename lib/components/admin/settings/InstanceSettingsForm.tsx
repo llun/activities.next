@@ -7,6 +7,10 @@ import { Input } from '@/lib/components/ui/input'
 import { Switch } from '@/lib/components/ui/switch'
 import { Textarea } from '@/lib/components/ui/textarea'
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
+import {
+  NAV_FEATURE_KEYS,
+  type NavFeatureKey
+} from '@/lib/services/navigation/navPreferences'
 
 import { LanguagesPicker } from './LanguagesPicker'
 import { LinesTextarea } from './LinesTextarea'
@@ -32,6 +36,37 @@ const DETAILS_KEYS = [
   'instance.languages'
 ]
 const REGISTRATION_KEYS = ['registrations.open', 'registrations.allowEmails']
+// Optional sections of the product. Off removes the item from everyone's
+// navigation; the section itself keeps working for anyone who has a link.
+// Keyed by the navigation registry's feature list rather than repeating it, so
+// a feature added there is a type error here until it has a switch and the
+// sentence that explains what turning it off does.
+const FEATURE_COPY: Record<
+  NavFeatureKey,
+  { label: string; description: string }
+> = {
+  fitness: {
+    label: 'Fitness',
+    description:
+      'Activity posts, the fitness dashboard, heatmaps, and Strava sync.'
+  },
+  explore: {
+    label: 'Explore',
+    description: 'Trends and follow suggestions.'
+  },
+  messages: {
+    label: 'Messages',
+    description: 'Direct conversations between accounts.'
+  }
+}
+
+const FEATURES = NAV_FEATURE_KEYS.map((feature) => ({
+  key: `features.${feature}`,
+  id: `features-${feature}`,
+  ...FEATURE_COPY[feature]
+}))
+
+const FEATURE_KEYS = FEATURES.map((feature) => feature.key)
 
 export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
   settings,
@@ -44,12 +79,22 @@ export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
       'instance.contactEmail': settings.instance.contactEmail,
       'instance.languages': settings.instance.languages,
       'registrations.open': settings.registrations.open,
-      'registrations.allowEmails': settings.registrations.allowEmails
+      'registrations.allowEmails': settings.registrations.allowEmails,
+      // Derived like the rows above it: seeded by hand, a feature added later
+      // would start as undefined, which leaves its Switch uncontrolled and
+      // reading "off" for something that is on.
+      ...Object.fromEntries(
+        NAV_FEATURE_KEYS.map((feature) => [
+          `features.${feature}`,
+          settings.features[feature]
+        ])
+      )
     })
 
   const lock = (key: string) => locks[key] ?? { locked: false }
   const detailsStatus = statusFor('details')
   const registrationStatus = statusFor('registrations')
+  const featuresStatus = statusFor('features')
   const registrationOpen = values['registrations.open'] as boolean
 
   return (
@@ -188,6 +233,38 @@ export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
             onChange={(next) => setValue('registrations.allowEmails', next)}
           />
         </SettingsField>
+      </SettingsSection>
+
+      <SettingsSection
+        title="Optional features"
+        description="Turn a feature off to remove it from navigation for every account on this instance."
+        footer={
+          <SaveBar
+            dirty={isDirty(FEATURE_KEYS)}
+            saving={featuresStatus.saving}
+            saved={featuresStatus.saved}
+            error={featuresStatus.error}
+            onSave={() => saveSection('features', FEATURE_KEYS)}
+          />
+        }
+      >
+        {FEATURES.map((feature) => (
+          <ControlRow
+            key={feature.key}
+            label={feature.label}
+            description={feature.description}
+            htmlFor={feature.id}
+            locked={lock(feature.key).locked}
+            envVar={lock(feature.key).envVar}
+          >
+            <Switch
+              id={feature.id}
+              checked={values[feature.key] as boolean}
+              disabled={lock(feature.key).locked}
+              onCheckedChange={(checked) => setValue(feature.key, checked)}
+            />
+          </ControlRow>
+        ))}
       </SettingsSection>
     </div>
   )

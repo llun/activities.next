@@ -191,6 +191,10 @@ export type UpdateActorParams = {
   showMedia?: boolean
   showMediaReplies?: boolean
   showFeatured?: boolean
+  // Navigation customization (see ActorSettings). Callers send the whole list
+  // each time; an empty array resets that half to the shipped defaults.
+  navOrder?: string[]
+  navHidden?: string[]
 
   publicKey?: string
 

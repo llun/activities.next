@@ -1627,6 +1627,41 @@ describe('ActorDatabase', () => {
         expect(settings.defaultPrivacy).toEqual('unlisted')
         expect(settings.readingExpandMedia).toEqual('hide_all')
       })
+
+      it('persists and returns navigation preferences', async () => {
+        const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+        await database.updateActor({
+          actorId,
+          navOrder: ['settings', 'timeline'],
+          navHidden: ['favorites']
+        })
+
+        const settings = await database.getActorSettings({ actorId })
+        expect(settings.navOrder).toEqual(['settings', 'timeline'])
+        expect(settings.navHidden).toEqual(['favorites'])
+      })
+
+      it('round-trips an empty navigation preference as a reset', async () => {
+        const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+        await database.updateActor({ actorId, navHidden: ['favorites'] })
+
+        await database.updateActor({ actorId, navOrder: [], navHidden: [] })
+
+        const settings = await database.getActorSettings({ actorId })
+        expect(settings.navOrder).toEqual([])
+        expect(settings.navHidden).toEqual([])
+      })
+
+      it('preserves navigation preferences when other settings change', async () => {
+        const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+        await database.updateActor({ actorId, navHidden: ['bookmarks'] })
+
+        await database.updateActor({ actorId, defaultPrivacy: 'private' })
+
+        const settings = await database.getActorSettings({ actorId })
+        expect(settings.navHidden).toEqual(['bookmarks'])
+        expect(settings.defaultPrivacy).toEqual('private')
+      })
     })
 
     describe('getActorSettings', () => {

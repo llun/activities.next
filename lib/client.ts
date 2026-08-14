@@ -3022,6 +3022,28 @@ export const updatePreferences = async (
   return readingResponse.ok
 }
 
+// --- Navigation customization ---
+
+export interface NavigationPreferencesInput {
+  // The user's sidebar order and the items tucked under "More". Both are full
+  // snapshots: the caller sends the entire list on every save so concurrent
+  // edits resolve to last-write-wins rather than interleaving deltas. Empty
+  // arrays reset to the shipped defaults.
+  navOrder: string[]
+  navHidden: string[]
+}
+
+export const updateNavigationPreferences = async (
+  preferences: NavigationPreferencesInput
+): Promise<boolean> => {
+  const response = await fetch('/api/v1/accounts/navigation-preferences', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(preferences)
+  })
+  return response.ok
+}
+
 // Fitness Route Heatmap
 
 export interface FitnessRouteHeatmapPoint {

@@ -1,4 +1,9 @@
-import { SERVER_SETTING_FIELDS_BY_KEY } from './serverSettings'
+import { NAV_FEATURE_KEYS } from '@/lib/services/navigation/navPreferences'
+
+import {
+  DEFAULT_SERVER_SETTINGS,
+  SERVER_SETTING_FIELDS_BY_KEY
+} from './serverSettings'
 
 const readEnvFor = (key: string) => SERVER_SETTING_FIELDS_BY_KEY[key].readEnv()
 
@@ -73,4 +78,23 @@ describe('server settings registry env parsers', () => {
     process.env.ACTIVITIES_LANGUAGES = '["en","th"]'
     expect(readEnvFor('instance.languages')).toEqual(['en', 'th'])
   })
+})
+
+describe('optional feature settings', () => {
+  // The navigation registry decides which features exist. One added there
+  // without a field here still type-checks — the surfaces take a partial flag
+  // map and read a missing key as on — so the switch would never appear in the
+  // admin form and the feature could never be turned off.
+  it.each(NAV_FEATURE_KEYS.map((feature) => [feature]))(
+    'gives %s an instance switch that ships turned on',
+    (feature) => {
+      const field = SERVER_SETTING_FIELDS_BY_KEY[`features.${feature}`]
+
+      expect(field).toBeDefined()
+      expect(field.group).toBe('instance')
+      expect(field.schema.safeParse(false).success).toBe(true)
+      expect(field.schema.safeParse('off').success).toBe(false)
+      expect(DEFAULT_SERVER_SETTINGS.features[feature]).toBe(true)
+    }
+  )
 })

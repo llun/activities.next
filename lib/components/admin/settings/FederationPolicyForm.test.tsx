@@ -39,7 +39,8 @@ const settingsWith = (
     requestRetries: 1,
     maxResponseSizeBytes: 2097152
   },
-  federation
+  federation,
+  features: { fitness: true, explore: true, messages: true }
 })
 
 const renderForm = (

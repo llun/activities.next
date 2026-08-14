@@ -43,7 +43,8 @@ const baseSettings: ResolvedServerSettings = {
     requestRetries: 1,
     maxResponseSizeBytes: 2097152
   },
-  federation: { mode: 'open', allowActorDomains: [] }
+  federation: { mode: 'open', allowActorDomains: [] },
+  features: { fitness: true, explore: true, messages: true }
 }
 
 const baseStorageBackend: MediaStorageBackendSummary = {
