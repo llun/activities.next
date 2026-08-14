@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   ActorInfo,
@@ -194,6 +194,25 @@ export function Sidebar({
     return username[0].toUpperCase()
   }
 
+  // Restoring an item unmounts the button that restored it — the row leaves the
+  // More group — and a browser hands focus back to the document body when that
+  // happens, so a keyboard user restoring three items would start again from
+  // the top of the page each time. Focus follows the item to its place in the
+  // navigation instead, which is also where the eye said it was going.
+  const shownRowRefs = useRef(new Map<NavItemId, HTMLAnchorElement | null>())
+  const restoredIdRef = useRef<NavItemId | null>(null)
+  useEffect(() => {
+    const restoredId = restoredIdRef.current
+    if (!restoredId) return
+    restoredIdRef.current = null
+    shownRowRefs.current.get(restoredId)?.focus()
+  }, [shown])
+
+  const restoreItem = (id: NavItemId) => {
+    restoredIdRef.current = id
+    showItem(id)
+  }
+
   const renderRowMenu = (item: NavItem, index: number, inline = false) => (
     <NavRowMenu
       item={item}
@@ -307,6 +326,9 @@ export function Sidebar({
                 <li key={item.id} className="group relative">
                   <Link
                     href={item.href}
+                    ref={(node) => {
+                      shownRowRefs.current.set(item.id, node)
+                    }}
                     aria-current={isActive ? 'page' : undefined}
                     className={cn(
                       'flex items-center gap-3 rounded-lg px-3 py-2 pr-10 text-sm font-medium transition-colors relative',
@@ -380,7 +402,7 @@ export function Sidebar({
                           <button
                             type="button"
                             aria-label={`Show ${item.label} in navigation`}
-                            onClick={() => showItem(item.id)}
+                            onClick={() => restoreItem(item.id)}
                             className={cn(
                               'absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground',
                               hoverControlClassName

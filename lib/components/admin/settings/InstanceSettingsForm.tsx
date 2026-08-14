@@ -7,6 +7,10 @@ import { Input } from '@/lib/components/ui/input'
 import { Switch } from '@/lib/components/ui/switch'
 import { Textarea } from '@/lib/components/ui/textarea'
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
+import {
+  NAV_FEATURE_KEYS,
+  type NavFeatureKey
+} from '@/lib/services/navigation/navPreferences'
 
 import { LanguagesPicker } from './LanguagesPicker'
 import { LinesTextarea } from './LinesTextarea'
@@ -32,40 +36,37 @@ const DETAILS_KEYS = [
   'instance.languages'
 ]
 const REGISTRATION_KEYS = ['registrations.open', 'registrations.allowEmails']
-const FEATURE_KEYS = [
-  'features.fitness',
-  'features.explore',
-  'features.messages'
-]
-
 // Optional sections of the product. Off removes the item from everyone's
 // navigation; the section itself keeps working for anyone who has a link.
-const FEATURES: {
-  key: string
-  id: string
-  label: string
-  description: string
-}[] = [
-  {
-    key: 'features.fitness',
-    id: 'features-fitness',
+// Keyed by the navigation registry's feature list rather than repeating it, so
+// a feature added there is a type error here until it has a switch and the
+// sentence that explains what turning it off does.
+const FEATURE_COPY: Record<
+  NavFeatureKey,
+  { label: string; description: string }
+> = {
+  fitness: {
     label: 'Fitness',
     description:
       'Activity posts, the fitness dashboard, heatmaps, and Strava sync.'
   },
-  {
-    key: 'features.explore',
-    id: 'features-explore',
+  explore: {
     label: 'Explore',
     description: 'Trends and follow suggestions.'
   },
-  {
-    key: 'features.messages',
-    id: 'features-messages',
+  messages: {
     label: 'Messages',
     description: 'Direct conversations between accounts.'
   }
-]
+}
+
+const FEATURES = NAV_FEATURE_KEYS.map((feature) => ({
+  key: `features.${feature}`,
+  id: `features-${feature}`,
+  ...FEATURE_COPY[feature]
+}))
+
+const FEATURE_KEYS = FEATURES.map((feature) => feature.key)
 
 export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
   settings,

@@ -22,8 +22,6 @@ import {
   type NavItemId,
   type NavPreferences,
   isNavItemLocked,
-  normalizedHidden,
-  normalizedOrder,
   splitNav
 } from '@/lib/services/navigation/navPreferences'
 
@@ -185,11 +183,11 @@ export interface NavLayout {
   shown: NavItem[]
   // Hidden by the user: still reachable, tucked under "More".
   more: NavItem[]
-  // Every id in the user's order, including hidden and unavailable ones. The
-  // settings manager lists from here so a hidden row never disappears.
-  order: NavItemId[]
-  hidden: NavItemId[]
 }
+
+// The settings manager deliberately builds its rows from `useNavPreferences()`
+// rather than from here: it lists every id the account can reach, hidden ones
+// included, which is the opposite of what a navigation surface wants.
 
 /**
  * The whole navigation for one viewer: what they see, what they tucked under
@@ -203,8 +201,6 @@ export function buildNavLayout(
   const { shown, more } = splitNav(prefs, availability)
   return {
     shown: shown.map((id) => getNavItem(id, availabilityParams)),
-    more: more.map((id) => getNavItem(id, availabilityParams)),
-    order: normalizedOrder(prefs),
-    hidden: normalizedHidden(prefs)
+    more: more.map((id) => getNavItem(id, availabilityParams))
   }
 }

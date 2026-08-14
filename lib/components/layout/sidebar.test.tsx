@@ -184,6 +184,27 @@ describe('Sidebar', () => {
       )
     })
 
+    it('follows a restored item to its place in the navigation', () => {
+      renderSidebar(<Sidebar lists={[]} />, {
+        hidden: ['favorites', 'bookmarks']
+      })
+
+      openMoreGroup()
+      const nav = screen.getAllByRole('navigation')[0]
+      fireEvent.click(
+        within(nav).getByRole('button', {
+          name: 'Show Favorites in navigation'
+        })
+      )
+
+      // Restoring unmounts the button that did it, and a browser hands focus
+      // back to the body when that happens — so without this, putting three
+      // items back means tabbing down the whole sidebar three times.
+      expect(document.activeElement).toBe(
+        within(nav).getByRole('link', { name: 'Favorites' })
+      )
+    })
+
     it('offers no hide option on a pinned row', () => {
       renderSidebar(<Sidebar lists={[]} />)
 

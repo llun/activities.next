@@ -367,7 +367,7 @@ const SaveCaption = () => {
           per save and a keyboard reorder saves on every keystroke, so
           announcing it would bury each row's own "moved up, position 2 of 10"
           under "Saving…" and "Saved…". */}
-      {!failed && retryPhase === 'none' && (
+      {!failed && retryPhase !== 'saving' && (
         <span className="text-muted-foreground">
           {saveState === 'saving'
             ? 'Saving…'
@@ -386,7 +386,14 @@ const SaveCaption = () => {
       >
         {failed && "Couldn't save your changes. "}
         {retryPhase === 'saving' && 'Saving your changes… '}
-        {retryPhase === 'done' && 'Your changes are saved.'}
+        {/* Spoken, not shown. Pressing Try again unmounts it, so a screen
+            reader would otherwise get silence from the page's only recovery
+            control — while on screen the caption below says the same thing
+            already. It clears before the next save, so it can never be read as
+            that save's result. */}
+        {retryPhase === 'done' && (
+          <span className="sr-only">Your changes are saved.</span>
+        )}
         {(failed || retryPhase === 'saving') && (
           <button
             type="button"

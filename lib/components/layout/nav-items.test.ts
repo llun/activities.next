@@ -118,13 +118,12 @@ describe('buildNavLayout', () => {
     ])
   })
 
-  it('lists unavailable items in the order but renders them nowhere', () => {
-    const { shown, more, order } = buildNavLayout({
+  it('renders an item the instance turned off nowhere, hidden or not', () => {
+    const { shown, more } = buildNavLayout({
       features: { fitness: false },
       fitnessUrl: '/fitness',
       prefs: { navHidden: ['fitness'] }
     })
-    expect(order).toContain('fitness')
     expect([...shown, ...more].map((item) => item.id)).not.toContain('fitness')
   })
 

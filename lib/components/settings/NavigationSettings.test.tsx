@@ -263,6 +263,11 @@ describe('NavigationSettings', () => {
     // recovery the page offers reaches a screen reader as silence.
     const confirmation = await screen.findByText('Your changes are saved.')
     expect(confirmation.closest('[role="status"]')).not.toBeNull()
+    // On screen the footer goes back to the line that explains there is no Save
+    // button, rather than keeping the confirmation until the next write.
+    expect(
+      screen.getByText('Saved to your account settings as you change it.')
+    ).toBeVisible()
   })
 
   it('reorders by dragging one row onto another', async () => {
