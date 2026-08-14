@@ -563,9 +563,8 @@ it; there is no legacy shape left to copy.
   is the table's only vertical rule, and it is what separates each row's subject
   from its numbers. Rendered as plain columns with no rule, the rows read as
   loose text, which is what these tables looked like before. Four details are
-  load-bearing.
-  **The pinned column's surface is `bg-card` — the same grey as the card behind
-  it — not `bg-background`.** The design paints that lane in its page
+  load-bearing. **The pinned column's surface is `bg-card` — the same grey as
+  the card behind it — not `bg-background`.** The design paints that lane in its page
   background, but it stacks its surfaces the other way up (grey page, **white**
   card), so there the lane is a slightly recessed strip. In light mode this app
   inverts that pair (`--background` is pure white, `--card` is 98%), so the
@@ -586,13 +585,12 @@ it; there is no legacy shape left to copy.
   its pinned cell, never `bg-muted/50`: a translucent hover replaces the cell's
   own surface rather than layering over it, so the cell would turn 50%
   transparent exactly while the pointer is on the row. Rows separate with
-  `border-t`, so the header carries no
-  rule of its own and the last row no trailing one. The pinned width is not part
-  of the constants — the design pins the gear and device tables at 150px and the
-  denser components table at 104px — and `STICKY_CLICKABLE_COLUMN` belongs only
-  on a row that has its own `hover:` and the `group` class — a row carrying
-  `group` without a `hover:` lights the first column alone, and a row with
-  neither never matches the variant at all.
+  `border-t`, so the header carries no rule of its own and the last row no
+  trailing one. The pinned width is not part of the constants — the design pins
+  the gear and device tables at 150px and the denser components table at 104px —
+  and `STICKY_CLICKABLE_COLUMN` belongs only on a row that has its own `hover:`
+  and the `group` class — a row carrying `group` without a `hover:` lights the
+  first column alone, and a row with neither never matches the variant at all.
 - **A recording device is a third kind, and almost nothing above applies to it.**
   `kind: 'device'` rows have no components, no default sports, no distance
   total, no service reminder and cannot be retired; a device page reports an

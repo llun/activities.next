@@ -211,19 +211,19 @@ export const COMPONENT_TYPE_OPTIONS = [
 // numbers. Rendered as plain columns with no rule, as these were, the rows read
 // as loose text.
 //
-// The column's surface is `bg-card`, the same grey as the card behind it, so
-// the hairline does that separating on its own. The design paints the lane in
-// its page background and `bg-background` was what copied that, but the token
-// only transfers in one of our two themes. The design stacks a grey page behind
-// a WHITE card, so its lane is a slightly recessed strip. In light mode this app
-// inverts that pair (`--background` is pure white, `--card` is 98%), so
-// `bg-background` painted a bright white stripe down a grey card — louder than
-// anything in the design, and a third of the table's width on a phone. In dark
-// mode the ramp does run the design's way round (`--background` 3.9% sits below
-// `--card` 9%), so there the same token genuinely read as a recessed lane.
-// Flattening it to `bg-card` gives that up deliberately: one rule that behaves
-// the same in both themes beats a lane that is right in one of them and wrong in
-// the other, and the hairline is doing the work in either case.
+// The column's surface is `bg-card`, the same grey as the card behind it. The
+// design paints the lane in its page background and `bg-background` was what
+// copied that, but the token only transfers in one of our two themes. The
+// design stacks a grey page behind a WHITE card, so its lane is a slightly
+// recessed strip. In light mode this app inverts that pair (`--background` is
+// pure white, `--card` is 98%), so `bg-background` painted a bright white stripe
+// down a grey card — louder than anything in the design, and a third of the
+// table's width on a phone. In dark mode the ramp does run the design's way
+// round (`--background` 3.9% sits below `--card` 9%), so there the same token
+// genuinely read as a recessed lane. Flattening it to `bg-card` gives that up
+// deliberately: one rule that behaves the same in both themes beats a lane that
+// is right in one of them and wrong in the other, and the hairline is doing the
+// separating in either case.
 //
 // Whatever the colour, it has to be OPAQUE: a sticky cell with a transparent
 // background lets the data columns scroll straight through it. That rules out

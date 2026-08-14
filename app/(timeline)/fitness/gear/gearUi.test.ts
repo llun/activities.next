@@ -336,6 +336,15 @@ describe('STICKY_COLUMN', () => {
   it('keeps the surface opaque', () => {
     expect(STICKY_COLUMN).not.toMatch(/bg-[a-z-]+\/\d+/)
   })
+
+  // Now that the column shares the card's surface, the hairline is the only
+  // thing separating it from the numbers — drop it and the rows read as loose
+  // text again, which is the whole reason these constants exist. It is an inset
+  // shadow rather than a `border-r` because `border-collapse: collapse` drops a
+  // sticky cell's own right border.
+  it('keeps the hairline down its right edge', () => {
+    expect(STICKY_COLUMN).toContain('shadow-[inset_-1px_0_0_var(--border)]')
+  })
 })
 
 describe('STICKY_CLICKABLE_COLUMN', () => {
