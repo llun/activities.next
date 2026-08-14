@@ -184,6 +184,38 @@ describe('Sidebar', () => {
       )
     })
 
+    it('follows a hidden item to the More group that now holds it', () => {
+      renderSidebar(<Sidebar lists={[]} />)
+
+      openRowMenu('Explore')
+      fireEvent.click(
+        screen.getByRole('menuitem', { name: 'Hide from navigation' })
+      )
+
+      // Hiding takes the ⋯ that did it out of the navigation, so the menu's own
+      // restore would leave focus on a detached node — and the user on <body>,
+      // tabbing from the top of the document for every item they tidy away.
+      const nav = screen.getAllByRole('navigation')[0]
+      expect(document.activeElement).toBe(
+        within(nav).getByRole('button', { name: /^More/ })
+      )
+    })
+
+    it('follows a hidden item into the More group when it is already open', () => {
+      renderSidebar(<Sidebar lists={[]} />, { hidden: ['favorites'] })
+
+      openMoreGroup()
+      openRowMenu('Explore')
+      fireEvent.click(
+        screen.getByRole('menuitem', { name: 'Hide from navigation' })
+      )
+
+      const nav = screen.getAllByRole('navigation')[0]
+      expect(document.activeElement).toBe(
+        within(nav).getByRole('link', { name: 'Explore' })
+      )
+    })
+
     it('follows a restored item to its place in the navigation', () => {
       renderSidebar(<Sidebar lists={[]} />, {
         hidden: ['favorites', 'bookmarks']
@@ -281,6 +313,40 @@ describe('Sidebar', () => {
           expect.objectContaining({ navHidden: ['bookmarks'] })
         )
       )
+    })
+
+    it('follows the last item out of the rail flyout, which closes with it', async () => {
+      // Focusing a rail link opens its Radix tooltip, which measures itself.
+      const originalResizeObserver = global.ResizeObserver
+      global.ResizeObserver = class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      } as unknown as typeof ResizeObserver
+
+      renderSidebar(<Sidebar lists={[]} />, { hidden: ['favorites'] })
+
+      const rail = screen.getAllByRole('navigation')[1]
+      fireEvent.keyDown(
+        within(rail).getByRole('button', { name: 'More navigation' }),
+        { key: 'ArrowDown' }
+      )
+      fireEvent.click(
+        await screen.findByRole('menuitem', {
+          name: 'Show Favorites in navigation'
+        })
+      )
+
+      // Restoring the only hidden item takes the flyout, and the trigger it
+      // hangs off, out of the rail — so focus has nowhere to return to unless
+      // it follows the item to the rail button it just became.
+      await waitFor(() =>
+        expect(document.activeElement).toBe(
+          within(rail).getByRole('link', { name: 'Favorites' })
+        )
+      )
+
+      global.ResizeObserver = originalResizeObserver
     })
 
     it('marks only the open list as the current page, not its section', () => {

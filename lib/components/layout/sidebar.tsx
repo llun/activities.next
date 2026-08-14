@@ -98,45 +98,67 @@ const NavRowMenu = ({
   onMoveDown,
   onHide,
   inline = false
-}: NavRowMenuProps) => (
-  <DropdownMenu>
-    <DropdownMenuTrigger asChild>
-      <button
-        type="button"
-        aria-label={`Customize ${item.label} navigation`}
-        className={cn(
-          'grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground',
-          hoverControlClassName,
-          !inline && 'absolute right-1.5 top-1/2 -translate-y-1/2'
-        )}
+}: NavRowMenuProps) => {
+  // Hiding takes this row out of the navigation, and this trigger with it, so
+  // the menu's own restore would put focus on a detached node — which lands the
+  // user on <body>. The sidebar focuses the row's new home instead; this gets
+  // out of its way. Every other close keeps the default restore, which is right
+  // because the trigger is still there: Escape, a click outside, or a move.
+  const isHidingRef = useRef(false)
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Customize ${item.label} navigation`}
+          className={cn(
+            'grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground',
+            hoverControlClassName,
+            !inline && 'absolute right-1.5 top-1/2 -translate-y-1/2'
+          )}
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        className="w-56"
+        onCloseAutoFocus={(event) => {
+          if (!isHidingRef.current) return
+          isHidingRef.current = false
+          event.preventDefault()
+        }}
       >
-        <MoreHorizontal className="h-4 w-4" />
-      </button>
-    </DropdownMenuTrigger>
-    <DropdownMenuContent align="start" className="w-56">
-      <DropdownMenuItem disabled={!canMoveUp} onSelect={onMoveUp}>
-        <ChevronUp className="h-4 w-4" />
-        Move up
-      </DropdownMenuItem>
-      <DropdownMenuItem disabled={!canMoveDown} onSelect={onMoveDown}>
-        <ChevronDown className="h-4 w-4" />
-        Move down
-      </DropdownMenuItem>
-      <DropdownMenuSeparator />
-      {item.locked ? (
-        <DropdownMenuItem disabled>
-          <Lock className="h-4 w-4" />
-          Always shown
+        <DropdownMenuItem disabled={!canMoveUp} onSelect={onMoveUp}>
+          <ChevronUp className="h-4 w-4" />
+          Move up
         </DropdownMenuItem>
-      ) : (
-        <DropdownMenuItem onSelect={onHide}>
-          <EyeOff className="h-4 w-4" />
-          Hide from navigation
+        <DropdownMenuItem disabled={!canMoveDown} onSelect={onMoveDown}>
+          <ChevronDown className="h-4 w-4" />
+          Move down
         </DropdownMenuItem>
-      )}
-    </DropdownMenuContent>
-  </DropdownMenu>
-)
+        <DropdownMenuSeparator />
+        {item.locked ? (
+          <DropdownMenuItem disabled>
+            <Lock className="h-4 w-4" />
+            Always shown
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem
+            onSelect={() => {
+              isHidingRef.current = true
+              onHide()
+            }}
+          >
+            <EyeOff className="h-4 w-4" />
+            Hide from navigation
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 export function Sidebar({
   user,
@@ -194,22 +216,39 @@ export function Sidebar({
     return username[0].toUpperCase()
   }
 
-  // Restoring an item unmounts the button that restored it — the row leaves the
-  // More group — and a browser hands focus back to the document body when that
-  // happens, so a keyboard user restoring three items would start again from
-  // the top of the page each time. Focus follows the item to its place in the
-  // navigation instead, which is also where the eye said it was going.
-  const shownRowRefs = useRef(new Map<NavItemId, HTMLAnchorElement | null>())
-  const restoredIdRef = useRef<NavItemId | null>(null)
+  // Hiding a row and putting it back both unmount the control that did it: the
+  // row moves between the navigation and the More group, taking the ⋯ menu or
+  // the eye with it. A browser hands focus to the document body when a focused
+  // element goes away, so without this a keyboard user tidying their sidebar
+  // starts again from the top of the document after every item. Focus follows
+  // the row to where the menu said it was going.
+  const rowRefs = useRef(new Map<string, HTMLElement | null>())
+  const registerRow = (key: string) => (node: HTMLElement | null) => {
+    rowRefs.current.set(key, node)
+  }
+  // Candidate keys, best first: the More group is collapsed unless the user
+  // opened it, so a row hidden into it is usually represented by its toggle.
+  const focusAfterChangeRef = useRef<string[] | null>(null)
   useEffect(() => {
-    const restoredId = restoredIdRef.current
-    if (!restoredId) return
-    restoredIdRef.current = null
-    shownRowRefs.current.get(restoredId)?.focus()
-  }, [shown])
+    const candidates = focusAfterChangeRef.current
+    if (!candidates) return
+    focusAfterChangeRef.current = null
+    for (const key of candidates) {
+      const node = rowRefs.current.get(key)
+      if (node) {
+        node.focus()
+        return
+      }
+    }
+  }, [shown, more])
 
-  const restoreItem = (id: NavItemId) => {
-    restoredIdRef.current = id
+  const hideRow = (id: NavItemId) => {
+    focusAfterChangeRef.current = [`more:${id}`, 'more:toggle']
+    hideItem(id)
+  }
+
+  const restoreRow = (id: NavItemId) => {
+    focusAfterChangeRef.current = [`nav:${id}`]
     showItem(id)
   }
 
@@ -221,7 +260,7 @@ export function Sidebar({
       canMoveDown={index < shown.length - 1}
       onMoveUp={() => move(item.id, -1, visibleIds)}
       onMoveDown={() => move(item.id, 1, visibleIds)}
-      onHide={() => hideItem(item.id)}
+      onHide={() => hideRow(item.id)}
     />
   )
 
@@ -326,9 +365,7 @@ export function Sidebar({
                 <li key={item.id} className="group relative">
                   <Link
                     href={item.href}
-                    ref={(node) => {
-                      shownRowRefs.current.set(item.id, node)
-                    }}
+                    ref={registerRow(`nav:${item.id}`)}
                     aria-current={isActive ? 'page' : undefined}
                     className={cn(
                       'flex items-center gap-3 rounded-lg px-3 py-2 pr-10 text-sm font-medium transition-colors relative',
@@ -360,6 +397,7 @@ export function Sidebar({
               <li className="pt-1">
                 <button
                   type="button"
+                  ref={registerRow('more:toggle')}
                   onClick={() => setMoreOpen((open) => !open)}
                   aria-expanded={isMoreOpen}
                   className={cn(
@@ -388,6 +426,7 @@ export function Sidebar({
                         <li key={item.id} className="group relative">
                           <Link
                             href={item.href}
+                            ref={registerRow(`more:${item.id}`)}
                             aria-current={isActive ? 'page' : undefined}
                             className={cn(
                               'flex items-center gap-3 rounded-lg py-1.5 pl-6 pr-10 text-sm transition-colors',
@@ -402,7 +441,7 @@ export function Sidebar({
                           <button
                             type="button"
                             aria-label={`Show ${item.label} in navigation`}
-                            onClick={() => restoreItem(item.id)}
+                            onClick={() => restoreRow(item.id)}
                             className={cn(
                               'absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground',
                               hoverControlClassName
@@ -466,6 +505,12 @@ export function Sidebar({
                     <TooltipTrigger asChild>
                       <Link
                         href={item.href}
+                        ref={registerRow(`rail:${item.id}`)}
+                        // The row is an icon, and the tooltip beside it only
+                        // describes: without this the rail reads out as a list
+                        // of unnamed links — including to whoever has just been
+                        // handed one by restoring an item.
+                        aria-label={item.label}
                         aria-current={isActive ? 'page' : undefined}
                         className={cn(
                           'flex items-center justify-center rounded-lg p-3 transition-colors relative',
@@ -543,6 +588,15 @@ export function Sidebar({
                               // Keep the flyout open so several items can be
                               // restored in one visit.
                               event.preventDefault()
+                              // Radix moves focus to the next row for all but
+                              // the last item, whose restore takes the flyout
+                              // and this trigger with it — so that one hands
+                              // focus to the rail button the item just became.
+                              if (more.length === 1) {
+                                focusAfterChangeRef.current = [
+                                  `rail:${item.id}`
+                                ]
+                              }
                               showItem(item.id)
                             }}
                             className={cn(

@@ -80,9 +80,15 @@ export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
       'instance.languages': settings.instance.languages,
       'registrations.open': settings.registrations.open,
       'registrations.allowEmails': settings.registrations.allowEmails,
-      'features.fitness': settings.features.fitness,
-      'features.explore': settings.features.explore,
-      'features.messages': settings.features.messages
+      // Derived like the rows above it: seeded by hand, a feature added later
+      // would start as undefined, which leaves its Switch uncontrolled and
+      // reading "off" for something that is on.
+      ...Object.fromEntries(
+        NAV_FEATURE_KEYS.map((feature) => [
+          `features.${feature}`,
+          settings.features[feature]
+        ])
+      )
     })
 
   const lock = (key: string) => locks[key] ?? { locked: false }
