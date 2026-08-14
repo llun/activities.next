@@ -956,7 +956,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@google-cloud/opentelemetry-cloud-trace-exporter@npm:^3.0.0":
+"@google-cloud/opentelemetry-cloud-trace-exporter@npm:^3.1.0":
   version: 3.1.0
   resolution: "@google-cloud/opentelemetry-cloud-trace-exporter@npm:3.1.0"
   dependencies:
@@ -973,15 +973,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@google-cloud/opentelemetry-cloud-trace-propagator@npm:^0.21.0":
-  version: 0.21.0
-  resolution: "@google-cloud/opentelemetry-cloud-trace-propagator@npm:0.21.0"
+"@google-cloud/opentelemetry-cloud-trace-propagator@npm:^0.22.0":
+  version: 0.22.0
+  resolution: "@google-cloud/opentelemetry-cloud-trace-propagator@npm:0.22.0"
   dependencies:
     hex2dec: "npm:^1.0.1"
   peerDependencies:
     "@opentelemetry/api": ^1.0.0
     "@opentelemetry/core": ^2.0.0
-  checksum: 10c0/3efa3f8799b2df0e9e4e66adf72bfa8dca1f9a6838101bd4124528898dc8c9958e4ff74af9d3015544d5a9baee54542b7f8ce02922059f758143bfe176ba4808
+  checksum: 10c0/d16a538e03c05baa6d413a8beced0e67ee07377aa4ac6a0473090d28724ad220310fdd5fd90b3d3f2ce6c2403d408916216333beffff6abdacddd57621c9c1c2
   languageName: node
   linkType: hard
 
@@ -1831,7 +1831,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@opentelemetry/core@npm:2.10.0, @opentelemetry/core@npm:^2.0.0, @opentelemetry/core@npm:^2.9.0":
+"@opentelemetry/core@npm:2.10.0, @opentelemetry/core@npm:^2.0.0, @opentelemetry/core@npm:^2.10.0, @opentelemetry/core@npm:^2.9.0":
   version: 2.10.0
   resolution: "@opentelemetry/core@npm:2.10.0"
   dependencies:
@@ -5209,13 +5209,14 @@ __metadata:
     "@better-fetch/fetch": "npm:1.3.1"
     "@date-fns/utc": "npm:^2.1.1"
     "@eslint/js": "npm:^10.0.1"
-    "@google-cloud/opentelemetry-cloud-trace-exporter": "npm:^3.0.0"
-    "@google-cloud/opentelemetry-cloud-trace-propagator": "npm:^0.21.0"
+    "@google-cloud/opentelemetry-cloud-trace-exporter": "npm:^3.1.0"
+    "@google-cloud/opentelemetry-cloud-trace-propagator": "npm:^0.22.0"
     "@next/env": "npm:^16.3.0"
     "@next/eslint-plugin-next": "npm:^16.3.0"
     "@opentelemetry/api": "npm:^1.9.1"
     "@opentelemetry/api-logs": "npm:^0.221.0"
     "@opentelemetry/auto-instrumentations-node": "npm:^0.79.0"
+    "@opentelemetry/core": "npm:^2.10.0"
     "@opentelemetry/exporter-trace-otlp-grpc": "npm:^0.221.0"
     "@opentelemetry/exporter-trace-otlp-http": "npm:^0.221.0"
     "@opentelemetry/exporter-trace-otlp-proto": "npm:^0.221.0"
