@@ -566,24 +566,27 @@ it; there is no legacy shape left to copy.
   load-bearing.
   **The pinned column's surface is `bg-card` — the same grey as the card behind
   it — not `bg-background`.** The design paints that lane in its page
-  background, but the design stacks its surfaces the other way up (grey page,
-  white card), so it reads there as a slightly recessed strip inside a white
-  card. This app inverts that pair (`--background` is pure white, `--card` is
-  98%), so the design's token painted a bright white stripe down a grey card
-  instead — louder than anything in the design, and the first thing anyone
-  noticed about these tables. Whatever the colour, it must be **opaque**, or the
-  data columns scroll straight through the pinned cell. The divider is an inset
-  shadow, not a `border-r`,
-  because `border-collapse: collapse` (Tailwind's preflight default) hands border
-  painting to the table and drops a sticky cell's own right border. A dimmed row
-  (retired gear, a replaced component) dims its **cells**, never the `<tr>` and
-  never the pinned `<td>` itself — `opacity` fades an element's background along
-  with its text, so either one takes the pinned column's surface down with it.
-  And the hover colour is the OPAQUE `bg-muted` on both the row and its pinned
-  cell, never `bg-muted/50`: a translucent hover replaces the cell's own surface
-  rather than layering over it, so the cell would turn 50% transparent exactly
-  while the
-  pointer is on the row. Rows separate with `border-t`, so the header carries no
+  background, but it stacks its surfaces the other way up (grey page, **white**
+  card), so there the lane is a slightly recessed strip. In light mode this app
+  inverts that pair (`--background` is pure white, `--card` is 98%), so the
+  design's token painted a bright white stripe down a grey card instead — louder
+  than anything in the design, and a third of the table's width on a phone. In
+  **dark** mode the ramp does run the design's way round (`--background` 3.9%
+  below `--card` 9%), so `bg-background` genuinely read as a recessed lane there;
+  flattening it to `bg-card` gives that up on purpose, because one rule that
+  behaves the same in both themes beats a lane that is right in one and wrong in
+  the other. Whatever the colour, it must be **opaque**, or the data columns
+  scroll straight through the pinned cell. The divider is an inset shadow, not a
+  `border-r`, because `border-collapse: collapse` (Tailwind's preflight default)
+  hands border painting to the table and drops a sticky cell's own right border.
+  A dimmed row (retired gear, a replaced component) dims its **cells**, never the
+  `<tr>` and never the pinned `<td>` itself — `opacity` fades an element's
+  background along with its text, so either one takes the pinned column's surface
+  down with it. And the hover colour is the OPAQUE `bg-muted` on both the row and
+  its pinned cell, never `bg-muted/50`: a translucent hover replaces the cell's
+  own surface rather than layering over it, so the cell would turn 50%
+  transparent exactly while the pointer is on the row. Rows separate with
+  `border-t`, so the header carries no
   rule of its own and the last row no trailing one. The pinned width is not part
   of the constants — the design pins the gear and device tables at 150px and the
   denser components table at 104px — and `STICKY_CLICKABLE_COLUMN` belongs only

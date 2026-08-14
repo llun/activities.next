@@ -323,26 +323,31 @@ describe('STICKY_COLUMN', () => {
   // The pinned column sits inside a `Card`, so its surface is the card's own
   // grey and the hairline down its right edge does the separating. It was
   // `bg-background` first — the design's token, but the design stacks its
-  // surfaces the other way up (grey page, white card), so here that painted a
-  // bright white stripe down a grey card instead of a recessed lane in a white
-  // one.
+  // surfaces the other way up (grey page, white card), so in light mode that
+  // painted a bright white stripe down a grey card instead of a recessed lane in
+  // a white one.
   it('paints the pinned column in the card surface, not the page background', () => {
     expect(STICKY_COLUMN).toContain('bg-card')
     expect(STICKY_COLUMN).not.toContain('bg-background')
   })
 
   // A sticky cell with a see-through background lets the data columns scroll
-  // straight under it. Neither the base surface nor the hover may carry an
-  // opacity modifier.
-  it.each([
-    { description: 'the base surface', className: STICKY_COLUMN },
-    { description: 'the clickable variant', className: STICKY_CLICKABLE_COLUMN }
-  ])('keeps $description opaque', ({ className }) => {
-    expect(className).not.toMatch(/bg-[a-z-]+\/\d+/)
+  // straight under it, so the surface may not carry an opacity modifier.
+  it('keeps the surface opaque', () => {
+    expect(STICKY_COLUMN).not.toMatch(/bg-[a-z-]+\/\d+/)
+  })
+})
+
+describe('STICKY_CLICKABLE_COLUMN', () => {
+  // Without this the pinned cell keeps painting its own surface over the row's
+  // hover, so the first column stays unlit while the rest of the row highlights.
+  it('repeats the row hover', () => {
+    expect(STICKY_CLICKABLE_COLUMN).toContain('group-hover:bg-muted')
   })
 
-  it('repeats the row hover on the clickable variant', () => {
-    expect(STICKY_CLICKABLE_COLUMN).toContain(STICKY_COLUMN)
-    expect(STICKY_CLICKABLE_COLUMN).toContain('group-hover:bg-muted')
+  // `bg-muted/50` here would make the cell 50% transparent exactly while the
+  // pointer is on the row — the one state a pinned column most needs to be solid.
+  it('keeps the hover surface opaque', () => {
+    expect(STICKY_CLICKABLE_COLUMN).not.toMatch(/bg-[a-z-]+\/\d+/)
   })
 })

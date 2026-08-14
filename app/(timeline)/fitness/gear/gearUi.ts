@@ -205,24 +205,25 @@ export const COMPONENT_TYPE_OPTIONS = [
 // on a gear's page so they cannot drift apart.
 //
 // The design system's gear tables (`ui_kits/web/GearKit.jsx`) pin the first
-// column: the data columns scroll under it while the row's subject stays put, on
-// its own surface with a hairline down its right edge. That pairing is the
-// table's structure — the column standing off the card separates each row's
-// subject from its numbers, and the hairline is the table's only vertical rule.
-// Rendered as plain columns on the card, as these were, the rows read as loose
-// text.
+// column: the data columns scroll under it while the row's subject stays put,
+// with a hairline down its right edge. That hairline is the table's structure —
+// its only vertical rule, and what separates each row's subject from its
+// numbers. Rendered as plain columns with no rule, as these were, the rows read
+// as loose text.
 //
-// The column's surface is `bg-card` — the same grey as the card it sits on —
-// and the hairline is what separates it. It used to be `bg-background`, which
-// is how the design draws it, but only because the design's surfaces are
-// stacked the other way up: there the page is the grey and a card is white, so
-// the pinned lane reads as a slightly recessed strip inside a white card. This
-// app inverts that pair (`--background` is pure white, `--card` is 98%), so the
-// same token rendered the lane as a bright white stripe down a grey card —
-// louder than the design's, and the first thing anyone noticed about these
-// tables. Matching the card is the closer read of the design's intent, and it
-// costs nothing structurally: the hairline down the right edge is the table's
-// only vertical rule either way, and it is the rule that does the separating.
+// The column's surface is `bg-card`, the same grey as the card behind it, so
+// the hairline does that separating on its own. The design paints the lane in
+// its page background and `bg-background` was what copied that, but the token
+// only transfers in one of our two themes. The design stacks a grey page behind
+// a WHITE card, so its lane is a slightly recessed strip. In light mode this app
+// inverts that pair (`--background` is pure white, `--card` is 98%), so
+// `bg-background` painted a bright white stripe down a grey card — louder than
+// anything in the design, and a third of the table's width on a phone. In dark
+// mode the ramp does run the design's way round (`--background` 3.9% sits below
+// `--card` 9%), so there the same token genuinely read as a recessed lane.
+// Flattening it to `bg-card` gives that up deliberately: one rule that behaves
+// the same in both themes beats a lane that is right in one of them and wrong in
+// the other, and the hairline is doing the work in either case.
 //
 // Whatever the colour, it has to be OPAQUE: a sticky cell with a transparent
 // background lets the data columns scroll straight through it. That rules out
@@ -247,8 +248,7 @@ export const STICKY_COLUMN =
  *
  * Both surfaces use the OPAQUE `bg-muted`, never `bg-muted/50`. A translucent
  * hover does not layer over the cell's own `bg-card`, it replaces it, so the
- * cell would
- * be 50% transparent precisely while the pointer is on the row — the
+ * cell would be 50% transparent precisely while the pointer is on the row — the
  * scrolled-under columns ghosting through in the one state a pinned column most
  * needs to be solid — and it would composite two tint layers against the row's
  * one, reading as a seam down the first column.
