@@ -211,19 +211,21 @@ export const COMPONENT_TYPE_OPTIONS = [
 // numbers. Rendered as plain columns with no rule, as these were, the rows read
 // as loose text.
 //
-// The column's surface is `bg-card`, the same grey as the card behind it. The
-// design paints the lane in its page background and `bg-background` was what
-// copied that, but the token only transfers in one of our two themes. The
-// design stacks a grey page behind a WHITE card, so its lane is a slightly
-// recessed strip. In light mode this app inverts that pair (`--background` is
-// pure white, `--card` is 98%), so `bg-background` painted a bright white stripe
-// down a grey card — louder than anything in the design, and a third of the
-// table's width on a phone. In dark mode the ramp does run the design's way
-// round (`--background` 3.9% sits below `--card` 9%), so there the same token
-// genuinely read as a recessed lane. Flattening it to `bg-card` gives that up
-// deliberately: one rule that behaves the same in both themes beats a lane that
-// is right in one of them and wrong in the other, and the hairline is doing the
-// separating in either case.
+// The column's surface is `bg-card`, the same grey as the card behind it, and
+// the hairline is the only thing separating the two. That is what the design
+// does: `useGKSnapCols` pins the cell with `background: 'white'`, and every
+// card holding one of these tables is `bg-white/80`, so the lane is painted the
+// CARD's own colour. The literal white is there to make the sticky cell opaque,
+// not to step it off anything — there is no recessed lane anywhere in the kit.
+//
+// `bg-background` copied that literal colour instead of the relationship, and so
+// broke it in BOTH themes. The kit is a static prototype that hardcodes white
+// rather than reading `--card`, while its `app/globals.css` carries the same
+// tokens this app has (light `--background` 100% / `--card` 98%, dark 3.9% /
+// 9%). Against a `bg-card` table, then, `bg-background` came out a bright white
+// stripe in light mode — a third of the table's width on a phone — and a well
+// sunk below the card in dark. Taking the card's token gives the design's
+// relationship in both.
 //
 // Whatever the colour, it has to be OPAQUE: a sticky cell with a transparent
 // background lets the data columns scroll straight through it. That rules out

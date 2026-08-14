@@ -431,7 +431,13 @@ it; there is no legacy shape left to copy.
   `useGearTableColumns` (`@/app/(timeline)/fitness/gear/useGearTableColumns`),
   which is the design system's `useGKSnapCols`. It layers on top of the pinned
   first column described above, and only the components table uses it so far:
-  the gear list's tables pin but do not snap. Under the threshold each data
+  the gear list's bikes/shoes/devices tables pin but do not snap, and still
+  carry a `min-w-[520px]`. That is a **known gap against the design**, not a
+  decision — `GearKit.jsx` runs all four tables through `useGKSnapCols` (150px
+  for the three gear tables, 104px for the components one), so on a phone the
+  gear list scrolls as one block where the design snaps it, which is the same
+  failure `min-w-[720px]` used to cause on the components table. Under the
+  threshold each data
   column is sized to exactly the width the pinned column leaves over, with
   `scroll-snap-type: x mandatory` and a `scroll-padding-left` clear of the pin,
   so a swipe lands on one whole column instead of stranding a row's values
@@ -564,17 +570,20 @@ it; there is no legacy shape left to copy.
   from its numbers. Rendered as plain columns with no rule, the rows read as
   loose text, which is what these tables looked like before. Four details are
   load-bearing. **The pinned column's surface is `bg-card` — the same grey as
-  the card behind it — not `bg-background`.** The design paints that lane in its page
-  background, but it stacks its surfaces the other way up (grey page, **white**
-  card), so there the lane is a slightly recessed strip. In light mode this app
-  inverts that pair (`--background` is pure white, `--card` is 98%), so the
-  design's token painted a bright white stripe down a grey card instead — louder
-  than anything in the design, and a third of the table's width on a phone. In
-  **dark** mode the ramp does run the design's way round (`--background` 3.9%
-  below `--card` 9%), so `bg-background` genuinely read as a recessed lane there;
-  flattening it to `bg-card` gives that up on purpose, because one rule that
-  behaves the same in both themes beats a lane that is right in one and wrong in
-  the other. Whatever the colour, it must be **opaque**, or the data columns
+  the card behind it — not `bg-background`.** This is the design's own
+  relationship, verified against the kit: `useGKSnapCols` pins the cell with
+  `background: 'white'` and every card holding one of these tables is
+  `bg-white/80`, so the lane is painted the **card's** colour and the hairline is
+  the only thing separating it. That literal white is there to make the sticky
+  cell opaque, not to step the column off anything — there is no recessed lane
+  anywhere in the kit. `bg-background` copied the colour rather than the
+  relationship and broke it in **both** themes: the kit is a static prototype
+  that hardcodes white instead of reading `--card`, while its `app/globals.css`
+  carries the same tokens this app has (light `--background` 100% / `--card` 98%,
+  dark 3.9% / 9%), so against a `bg-card` table it came out a bright white stripe
+  in light mode — a third of the table's width on a phone — and a well sunk below
+  the card in dark. Whatever the colour, it must be **opaque**, or the data
+  columns
   scroll straight through the pinned cell. The divider is an inset shadow, not a
   `border-r`, because `border-collapse: collapse` (Tailwind's preflight default)
   hands border painting to the table and drops a sticky cell's own right border.

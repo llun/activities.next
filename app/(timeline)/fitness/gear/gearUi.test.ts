@@ -321,11 +321,11 @@ describe('getProductUrlHostname', () => {
 
 describe('STICKY_COLUMN', () => {
   // The pinned column sits inside a `Card`, so its surface is the card's own
-  // grey and the hairline down its right edge does the separating. It was
-  // `bg-background` first — the design's token, but the design stacks its
-  // surfaces the other way up (grey page, white card), so in light mode that
-  // painted a bright white stripe down a grey card instead of a recessed lane in
-  // a white one.
+  // grey and the hairline down its right edge does the separating — which is the
+  // design's relationship, where the lane and the card are both white. It was
+  // `bg-background` first, copying that white literally, which against a
+  // `bg-card` table painted a bright stripe in light mode and a sunken well in
+  // dark.
   it('paints the pinned column in the card surface, not the page background', () => {
     expect(STICKY_COLUMN).toContain('bg-card')
     expect(STICKY_COLUMN).not.toContain('bg-background')
