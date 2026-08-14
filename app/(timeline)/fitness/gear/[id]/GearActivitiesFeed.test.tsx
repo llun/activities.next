@@ -17,6 +17,10 @@ vi.mock('@/lib/client', () => ({
   getFitnessGearActivities: vi.fn()
 }))
 
+// The stub renders one delete and one edit control per post, because the feed's
+// `onPostDeleted` / `onPostUpdated` handlers are its own logic and nothing else
+// can reach them — the real `Posts` fires them from an action row this file
+// deliberately does not render.
 vi.mock('@/lib/components/posts/posts', () => ({
   Posts: (props: {
     host: string
@@ -25,6 +29,8 @@ vi.mock('@/lib/components/posts/posts', () => ({
     currentActor?: ActorProfile
     showActions?: boolean
     isMediaUploadEnabled?: boolean
+    onPostDeleted?: (status: Status) => void
+    onPostUpdated?: (status: Status) => void
   }) => (
     <div
       data-testid="posts"
@@ -35,7 +41,23 @@ vi.mock('@/lib/components/posts/posts', () => ({
       data-media-upload={String(Boolean(props.isMediaUploadEnabled))}
     >
       {props.statuses.map((status) => (
-        <div key={status.id}>{status.text}</div>
+        <div key={status.id}>
+          {status.text}
+          <button type="button" onClick={() => props.onPostDeleted?.(status)}>
+            {`delete ${status.id}`}
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              props.onPostUpdated?.({
+                ...status,
+                text: `${status.text} (edited)`
+              })
+            }
+          >
+            {`edit ${status.id}`}
+          </button>
+        </div>
       ))}
     </div>
   )
@@ -355,6 +377,73 @@ describe('GearActivitiesFeed', () => {
     expect(mockGetFitnessGearActivities).toHaveBeenCalledTimes(2)
   })
 
+  describe('keeping the list in step with the actions on a post', () => {
+    const renderWithOnePost = async () => {
+      mockGetFitnessGearActivities.mockResolvedValue(
+        page({ statuses: [createStatus('status-1', 'Morning ride')] })
+      )
+      renderFeed()
+      await screen.findByText('Morning ride')
+    }
+
+    it('drops a post deleted from the feed', async () => {
+      await renderWithOnePost()
+
+      fireEvent.click(screen.getByRole('button', { name: 'delete status-1' }))
+
+      expect(screen.queryByText('Morning ride')).not.toBeInTheDocument()
+      // The list is empty for a settled reason now, so the gear really has
+      // nothing left to show.
+      expect(
+        screen.getByText('No recent activities on this gear.')
+      ).toBeInTheDocument()
+    })
+
+    it('replaces an edited post in place rather than dropping it', async () => {
+      await renderWithOnePost()
+
+      fireEvent.click(screen.getByRole('button', { name: 'edit status-1' }))
+
+      expect(screen.getByText('Morning ride (edited)')).toBeInTheDocument()
+      expect(screen.getByTestId('posts')).toBeInTheDocument()
+    })
+  })
+
+  describe('a load that fails', () => {
+    it('does not claim the gear has no activities', async () => {
+      // The effect resets `statuses` and `hasMore` on its way to failing, so
+      // the empty-state gate has to exclude the error case explicitly.
+      mockGetFitnessGearActivities.mockRejectedValue(
+        new Error('Activity service down')
+      )
+      renderFeed()
+
+      expect(await screen.findByRole('alert')).toBeInTheDocument()
+      expect(
+        screen.queryByText('No recent activities on this gear.')
+      ).not.toBeInTheDocument()
+    })
+
+    it('offers a retry, since a failed first load leaves nothing to page from', async () => {
+      mockGetFitnessGearActivities.mockRejectedValueOnce(
+        new Error('Activity service down')
+      )
+      renderFeed()
+
+      const retry = await screen.findByRole('button', { name: 'Try again' })
+      mockGetFitnessGearActivities.mockResolvedValueOnce(
+        page({ statuses: [createStatus('status-1', 'Morning ride')] })
+      )
+      fireEvent.click(retry)
+
+      expect(await screen.findByText('Morning ride')).toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Try again' })
+      ).not.toBeInTheDocument()
+    })
+  })
+
   describe('the infinite-scroll sentinel', () => {
     // `useLoadMoreOnVisible` short-circuits when `IntersectionObserver` is
     // undefined, which it is under jsdom — so without this stub the auto-load
@@ -534,6 +623,75 @@ describe('GearActivitiesFeed', () => {
       expect(screen.getByText('Gear B ride')).toBeInTheDocument()
       expect(screen.queryByText('Stale ride')).not.toBeInTheDocument()
       expect(screen.queryByText('Gear A ride')).not.toBeInTheDocument()
+    })
+
+    it('clears the previous gear’s error', async () => {
+      // Left behind, a bike's outage sits above a device's "Loading..." for
+      // the whole round trip, reporting a failure the reader navigated away
+      // from.
+      mockGetFitnessGearActivities.mockRejectedValueOnce(
+        new Error('Activity service down')
+      )
+      const view = renderFeed()
+      await screen.findByRole('alert')
+
+      let resolveNext: (value: GearActivityStatusesPage) => void = () => {}
+      mockGetFitnessGearActivities.mockReturnValueOnce(
+        new Promise<GearActivityStatusesPage>((resolve) => {
+          resolveNext = resolve
+        })
+      )
+      view.rerender(
+        <GearActivitiesFeed
+          gearId="gear-2"
+          host="llun.test"
+          currentTime={FIXED_CURRENT_TIME}
+          currentActor={profile}
+          isMediaUploadEnabled
+          emptyMessage="No recent activities on this gear."
+        />
+      )
+
+      // While the new gear is still loading, not merely once it resolves.
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+      await act(async () => {
+        resolveNext(page({ statuses: [createStatus('b-1', 'Gear B ride')] }))
+      })
+      expect(screen.getByText('Gear B ride')).toBeInTheDocument()
+    })
+
+    it('stops an in-flight walk when the feed unmounts', async () => {
+      // The walk's liveness check reads `generationRef`, which only moves at
+      // the top of the effect — so without the cleanup bumping it, a walk in
+      // flight at unmount runs its remaining requests out, each a hydrated
+      // page read nobody will see.
+      mockGetFitnessGearActivities.mockResolvedValueOnce(
+        page({
+          statuses: [createStatus('a-1', 'Gear A ride')],
+          hasMore: true,
+          nextOffset: 20
+        })
+      )
+      const view = renderFeed()
+      const loadMore = await screen.findByRole('button', { name: 'Load more' })
+
+      let resolveWalk: (value: GearActivityStatusesPage) => void = () => {}
+      mockGetFitnessGearActivities.mockReturnValueOnce(
+        new Promise<GearActivityStatusesPage>((resolve) => {
+          resolveWalk = resolve
+        })
+      )
+      fireEvent.click(loadMore)
+      expect(mockGetFitnessGearActivities).toHaveBeenCalledTimes(2)
+
+      view.unmount()
+      await act(async () => {
+        // A postless page, which is what would otherwise keep the walk going.
+        resolveWalk(page({ hasMore: true, nextOffset: 40 }))
+      })
+
+      expect(mockGetFitnessGearActivities).toHaveBeenCalledTimes(2)
     })
   })
 })

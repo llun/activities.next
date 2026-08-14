@@ -307,7 +307,10 @@ const parseSQLFitnessGearComponent = (
  * is never true for a NULL, so it always counts.
  *
  * Both the rollup and the activity list apply this identical predicate, so a
- * device's count and its page can never disagree.
+ * device's count and its page can only ever differ by an activity whose post
+ * was deleted: the page renders the posts these rows were published as, and
+ * deleting a status only nulls `fitness_files.statusId`, leaving a row that
+ * still counts here with nothing left to show.
  */
 const applyCountableActivityFilter = (
   database: Knex,
@@ -739,8 +742,10 @@ export const FitnessGearSQLDatabaseMixin = (
       database,
       database('fitness_files'),
       'fitness_files',
-      // Matches this kind's rollup exactly, so the list and the count on the
-      // same page can never disagree.
+      // Matches this kind's rollup exactly, so the only thing that can
+      // separate the count from what the page shows is an activity whose post
+      // was deleted — still a row here and still counted there, with no post
+      // left to render.
       { forDeviceLink: isDevice }
     )
       .where('fitness_files.actorId', actorId)

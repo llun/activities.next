@@ -336,12 +336,18 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
         />
       )}
 
-      {showsComponents && (
-        <GearComponentsCard
-          gearId={gear.id}
-          components={components}
-          onChanged={reload}
-        />
+      {/* Hidden rather than unmounted, for the same reason the refetch above
+          keeps it mounted: the card holds its add form, its typed-in values,
+          its "Show N replaced" toggle and its save error in local state, and a
+          glance at Activities mid-form would otherwise throw all of it away. */}
+      {gear.kind === 'bike' && (
+        <div hidden={!showsComponents}>
+          <GearComponentsCard
+            gearId={gear.id}
+            components={components}
+            onChanged={reload}
+          />
+        </div>
       )}
 
       {/* Mounted on first use and kept mounted, hidden rather than torn down —

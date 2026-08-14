@@ -58,12 +58,6 @@ const activity = (
 ): FitnessGearActivity => ({
   id: 'file-1',
   statusId: 'https://llun.test/users/test1/statuses/1',
-  statusPublicId: '0195f0a0-0000-7000-8000-000000000001',
-  fileName: 'workout.fit',
-  description: 'Morning ride',
-  activityType: 'cycling',
-  activityStartTime: 1_700_000_000_000,
-  totalDistanceMeters: 42_600,
   ...overrides
 })
 
@@ -223,7 +217,7 @@ describe('Fitness gear activities API', () => {
     // and keeps counting toward the gear's totals — but there is no post left
     // to render. Paging from the statuses returned would re-request it forever.
     mockDb.getFitnessGearActivities.mockResolvedValue([
-      activity({ id: 'file-1', statusId: null, statusPublicId: null }),
+      activity({ id: 'file-1', statusId: null }),
       activity({ id: 'file-2', statusId: 'status-2' })
     ])
     mockDb.getStatusesByIds.mockResolvedValue([status('status-2')])

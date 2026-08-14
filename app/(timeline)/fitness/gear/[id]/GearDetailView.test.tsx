@@ -288,6 +288,33 @@ describe('GearDetailView', () => {
       expect(screen.queryByTestId('activities-feed')).not.toBeInTheDocument()
     })
 
+    it('keeps the components card mounted while the reader is on Activities', async () => {
+      // The card holds its add form, its typed-in values and its "Show N
+      // replaced" toggle in local state, and a glance at Activities mid-form
+      // would otherwise throw all of it away — the same loss a refetch is
+      // already careful not to cause.
+      mockGetFitnessGearComponents.mockResolvedValue([
+        createComponent(),
+        createComponent({
+          id: 'component-old',
+          componentType: 'Cassette',
+          removedAt: Date.UTC(2025, 5, 1)
+        })
+      ])
+      render(<GearDetailView gearId="gear-1" feed={feed} />)
+
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Show 1 replaced component' })
+      )
+      expect(screen.getByText('Cassette')).toBeInTheDocument()
+
+      await chooseView('Activities')
+      await chooseView('Components')
+
+      // Still expanded: the card was hidden, not torn down and rebuilt.
+      expect(screen.getByText('Cassette')).toBeInTheDocument()
+    })
+
     it('keeps the feed mounted when the reader switches back to Components', async () => {
       // Unmounting would drop every page the reader had scrolled through and
       // re-request page one on the way back, at a batched status read per page.

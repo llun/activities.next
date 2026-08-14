@@ -131,6 +131,10 @@ export const GearActivitiesFeed: FC<Props> = ({
   // is still in flight — `useLoadMoreOnVisible` re-invokes on every
   // intersection, and state has not settled yet when it does.
   const isLoadingMoreRef = useRef(false)
+  // Bumped by "Try again". The effect otherwise re-runs only on a gear change,
+  // and a first load that failed leaves `hasMore` false — so without this there
+  // is no button, no sentinel and no way back short of reloading the page.
+  const [retryToken, setRetryToken] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -175,8 +179,15 @@ export const GearActivitiesFeed: FC<Props> = ({
 
     return () => {
       cancelled = true
+      // Unmount supersedes an in-flight `loadMore` walk too. That walk's
+      // liveness check reads `generationRef`, which only ever moves at the top
+      // of this effect — so without this it stays true for a component that no
+      // longer exists, and the walk runs its remaining requests out, each one
+      // a hydrated page read nobody will see. The token is monotonic, so the
+      // extra bump costs the next run nothing.
+      generationRef.current += 1
     }
-  }, [gearId])
+  }, [gearId, retryToken])
 
   const loadMore = useCallback(async () => {
     if (isLoadingMoreRef.current) return
@@ -234,6 +245,15 @@ export const GearActivitiesFeed: FC<Props> = ({
       current.map((item) => (item.id === status.id ? status : item))
     )
 
+  // Three separate reasons the list can be empty, and only one of them is "this
+  // gear has no posted activities". `!hasMore` rules out a page that simply had
+  // no posts on it — the walk above makes that rare but cannot make it
+  // impossible, since it caps out and `onPostDeleted` can empty a page-one list
+  // at any time — and `!error` rules out a load that never landed, which resets
+  // both pieces of state on its way to failing and would otherwise render
+  // "no activities" under its own error message.
+  const reportsEmptyHistory = statuses.length === 0 && !hasMore && !error
+
   return (
     <div className="space-y-4">
       {error && (
@@ -244,13 +264,7 @@ export const GearActivitiesFeed: FC<Props> = ({
 
       {isLoading ? (
         <Card className="p-6 text-sm text-muted-foreground">Loading...</Card>
-      ) : statuses.length === 0 && !hasMore ? (
-        // `!hasMore` is half the claim, not belt-and-braces. An empty list on
-        // its own means "no posts on this page", which the walk above makes
-        // rare but cannot make impossible — it caps out, and `onPostDeleted`
-        // can empty a page-one list at any time. Saying "no activities" with
-        // more still to come contradicts both the Activities tile above and
-        // the "Load more" below.
+      ) : reportsEmptyHistory ? (
         <Card className="p-6 text-sm text-muted-foreground">
           {emptyMessage}
         </Card>
@@ -277,6 +291,22 @@ export const GearActivitiesFeed: FC<Props> = ({
             disabled={isLoadingMore}
           >
             {isLoadingMore ? 'Loading...' : 'Load more'}
+          </Button>
+        </div>
+      )}
+
+      {/* A first load that failed left nothing to page from: `hasMore` is
+          false, so there is no "Load more" and no sentinel, and the effect
+          re-runs only on a gear change. Without this the reader's only way out
+          is reloading the page. */}
+      {error && !isLoading && statuses.length === 0 && (
+        <div className="text-center">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setRetryToken((token) => token + 1)}
+          >
+            Try again
           </Button>
         </div>
       )}

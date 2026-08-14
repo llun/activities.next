@@ -40,8 +40,9 @@ interface SectionNavSelectProps<Id extends string> {
  * `onChange` and the current one is marked with the boolean `aria-current`
  * rather than `aria-current="page"` — nothing here is a page.
  *
- * Keep the two in step: a copy of this chrome is exactly what the fitness
- * activity detail and the gear detail page would otherwise each carry.
+ * Keep the two in step — including the active row's `text-primary-text`, which
+ * both carry: a copy of this chrome is exactly what the fitness activity detail
+ * and the gear detail page would otherwise each carry.
  */
 export const SectionNavSelect = <Id extends string>({
   label,
