@@ -93,6 +93,14 @@ export interface ActorSettings {
   showMedia?: boolean
   showMediaReplies?: boolean
   showFeatured?: boolean
+  // Navigation customization. Both hold `NavItemId`s from
+  // lib/services/navigation/navPreferences (kept as plain strings here so this
+  // module stays import-free, matching the inline shapes above): `navOrder` is
+  // the user's sidebar order and `navHidden` the items tucked under "More".
+  // Empty or absent means the shipped defaults; ids this release no longer
+  // knows are ignored on read.
+  navOrder?: string[]
+  navHidden?: string[]
 }
 
 export type ActorDeletionStatus = 'scheduled' | 'deleting' | null

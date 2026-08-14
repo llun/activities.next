@@ -84,6 +84,7 @@ describe('Settings Layout', () => {
     for (const label of [
       'General',
       'Preferences',
+      'Navigation',
       'Featured hashtags',
       'Media',
       'Notifications',

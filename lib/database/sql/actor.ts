@@ -928,6 +928,8 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     showMedia,
     showMediaReplies,
     showFeatured,
+    navOrder,
+    navHidden,
 
     publicKey,
 
@@ -981,6 +983,8 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       ...(showMedia !== undefined ? { showMedia } : null),
       ...(showMediaReplies !== undefined ? { showMediaReplies } : null),
       ...(showFeatured !== undefined ? { showFeatured } : null),
+      ...(navOrder !== undefined ? { navOrder } : null),
+      ...(navHidden !== undefined ? { navHidden } : null),
 
       ...(followersUrl ? { followersUrl } : null),
       ...(inboxUrl ? { inboxUrl } : null),

@@ -7,12 +7,28 @@ import { usePathname } from 'next/navigation'
 import { ReactElement } from 'react'
 
 import { MobileNav } from '@/lib/components/layout/mobile-nav'
+import { NavPreferencesProvider } from '@/lib/components/layout/nav-preferences-context'
 
 vi.mock('next/navigation', () => ({
   usePathname: vi.fn()
 }))
 
-const renderMobileNav = (ui: ReactElement) => render(ui)
+vi.mock('@/lib/client', () => ({
+  updateNavigationPreferences: vi.fn().mockResolvedValue(true)
+}))
+
+const renderMobileNav = (
+  ui: ReactElement,
+  preferences: { order?: string[]; hidden?: string[] } = {}
+) =>
+  render(
+    <NavPreferencesProvider
+      initialOrder={preferences.order}
+      initialHidden={preferences.hidden}
+    >
+      {ui}
+    </NavPreferencesProvider>
+  )
 
 describe('MobileNav', () => {
   beforeEach(() => {
@@ -23,8 +39,8 @@ describe('MobileNav', () => {
     renderMobileNav(<MobileNav fitnessUrl="/@llun@llun.test/fitness" isAdmin />)
 
     const nav = screen.getByRole('navigation')
-    // The bottom bar uses compact labels: Timeline -> Home, Notifications ->
-    // Alerts (see NavItem.shortLabel).
+    // The bar takes the first four items the user shows, in their order; the
+    // bottom bar uses compact labels (Timeline -> Home, see NavItem.shortLabel).
     expect(within(nav).getByRole('link', { name: /home/i })).toHaveAttribute(
       'href',
       '/'
@@ -33,13 +49,16 @@ describe('MobileNav', () => {
       'href',
       '/search'
     )
+    expect(within(nav).getByRole('link', { name: /explore/i })).toHaveAttribute(
+      'href',
+      '/explore'
+    )
     expect(
       within(nav).getByRole('link', { name: /messages/i })
     ).toHaveAttribute('href', '/messages')
-    expect(within(nav).getByRole('link', { name: /alerts/i })).toHaveAttribute(
-      'href',
-      '/notifications'
-    )
+    expect(
+      within(nav).queryByRole('link', { name: /alerts/i })
+    ).not.toBeInTheDocument()
     expect(
       within(nav).queryByRole('link', { name: /bookmarks/i })
     ).not.toBeInTheDocument()
@@ -79,15 +98,56 @@ describe('MobileNav', () => {
     )
   })
 
-  it('uses compact labels (Home, Alerts) for the bottom-bar direct items', () => {
+  it('uses compact labels for the bottom-bar direct items', () => {
     renderMobileNav(<MobileNav />)
 
     const nav = screen.getByRole('navigation')
     expect(within(nav).getByText('Home')).toBeInTheDocument()
-    expect(within(nav).getByText('Alerts')).toBeInTheDocument()
     // The full desktop labels must not leak into the compact bottom bar.
     expect(within(nav).queryByText('Timeline')).not.toBeInTheDocument()
+  })
+
+  it('uses the compact label when notifications is moved into the bar', () => {
+    renderMobileNav(<MobileNav />, { order: ['notifications', 'timeline'] })
+
+    const nav = screen.getByRole('navigation')
+    expect(within(nav).getByText('Alerts')).toBeInTheDocument()
     expect(within(nav).queryByText('Notifications')).not.toBeInTheDocument()
+  })
+
+  it('carries the unread badge on More while notifications sits in the overflow', () => {
+    renderMobileNav(<MobileNav unreadCount={5} />)
+
+    const nav = screen.getByRole('navigation')
+    const moreTab = within(nav).getByRole('button', { name: 'More navigation' })
+    expect(within(moreTab).getByText('5')).toBeInTheDocument()
+  })
+
+  it('keeps the badge on notifications when it holds a slot in the bar', () => {
+    renderMobileNav(<MobileNav unreadCount={5} />, {
+      order: ['notifications', 'timeline']
+    })
+
+    const nav = screen.getByRole('navigation')
+    const moreTab = within(nav).getByRole('button', { name: 'More navigation' })
+    expect(within(moreTab).queryByText('5')).not.toBeInTheDocument()
+    expect(
+      within(within(nav).getByRole('link', { name: /alerts/i })).getByText('5')
+    ).toBeInTheDocument()
+  })
+
+  it('lists hidden items under a Hidden heading in the overflow menu', async () => {
+    renderMobileNav(<MobileNav />, { hidden: ['bookmarks'] })
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More navigation' }), {
+      key: 'ArrowDown'
+    })
+
+    // Hiding tidies the navigation; the section stays reachable here.
+    expect(await screen.findByText('Hidden')).toBeInTheDocument()
+    expect(
+      screen.getByRole('menuitem', { name: /bookmarks/i })
+    ).toHaveAttribute('href', '/bookmarks')
   })
 
   it('orders Profile before account entries in the overflow menu', async () => {
@@ -105,15 +165,15 @@ describe('MobileNav', () => {
 
     const items = await screen.findAllByRole('menuitem')
     const names = items.map((item) => item.textContent?.trim())
-    // Design-system overflow order: Explore, Favorites, Bookmarks, Lists,
-    // Fitness, Profile, Admin, Account, Settings. (Search is a direct bottom-bar
-    // item, so its neighbour Explore leads the overflow.)
+    // The bar takes the first four shown items (Home, Search, Explore,
+    // Messages), so the overflow picks up from Favorites, with Profile leading
+    // the account-level cluster.
     expect(names).toEqual([
-      'Explore',
       'Favorites',
       'Bookmarks',
       'Lists',
       'Fitness',
+      'Notifications',
       'Profile',
       'Admin',
       'Account',
@@ -130,10 +190,10 @@ describe('MobileNav', () => {
 
     const items = await screen.findAllByRole('menuitem')
     expect(items.map((item) => item.textContent?.trim())).toEqual([
-      'Explore',
       'Favorites',
       'Bookmarks',
       'Lists',
+      'Notifications',
       'Profile',
       'Admin',
       'Account',
@@ -152,10 +212,10 @@ describe('MobileNav', () => {
     // No Admin entry, so Profile anchors directly before Account (the first of
     // the account-level cluster).
     expect(items.map((item) => item.textContent?.trim())).toEqual([
-      'Explore',
       'Favorites',
       'Bookmarks',
       'Lists',
+      'Notifications',
       'Profile',
       'Account',
       'Settings'

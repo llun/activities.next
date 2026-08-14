@@ -3,15 +3,20 @@
 import { MoreHorizontal, User } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useMemo } from 'react'
 
-import { type NavItem, buildNavItems } from '@/lib/components/layout/nav-items'
+import { type NavItem, buildNavLayout } from '@/lib/components/layout/nav-items'
+import { useNavPreferences } from '@/lib/components/layout/nav-preferences-context'
 import { NotificationBadge } from '@/lib/components/notification-badge/NotificationBadge'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/lib/components/ui/dropdown-menu'
+import { type NavFeatureFlags } from '@/lib/services/navigation/navPreferences'
 import { cn } from '@/lib/utils'
 
 interface MobileNavProps {
@@ -19,65 +24,110 @@ interface MobileNavProps {
   fitnessUrl?: string
   profileUrl?: string
   isAdmin?: boolean
+  features?: Partial<NavFeatureFlags>
 }
 
-const mobileDirectHrefs = ['/', '/search', '/messages', '/notifications']
+// Profile has no registry entry: its href is per-user and it exists only on
+// this surface, where the sidebar's account switcher has no room.
+type MobileNavEntry = Pick<
+  NavItem,
+  'href' | 'label' | 'shortLabel' | 'icon'
+> & {
+  key: string
+  isNotifications?: boolean
+}
+
+const toEntry = (item: NavItem): MobileNavEntry => ({
+  key: item.id,
+  href: item.href,
+  label: item.label,
+  shortLabel: item.shortLabel,
+  icon: item.icon,
+  isNotifications: item.id === 'notifications'
+})
 
 export function MobileNav({
   unreadCount = 0,
   fitnessUrl,
   profileUrl,
-  isAdmin = false
+  isAdmin = false,
+  features
 }: MobileNavProps) {
   const pathname = usePathname()
-  const profileNavItem: NavItem | null = profileUrl
-    ? { href: profileUrl, label: 'Profile', icon: User }
-    : null
-  const navItems = buildNavItems({ fitnessUrl, isAdmin })
-  let allNavItems = navItems
-  if (profileNavItem) {
+  const { order, hidden } = useNavPreferences()
+  const { shown, more } = useMemo(
+    () =>
+      buildNavLayout({
+        fitnessUrl,
+        isAdmin,
+        features,
+        prefs: { navOrder: order, navHidden: hidden }
+      }),
+    [features, fitnessUrl, hidden, isAdmin, order]
+  )
+
+  // The bar takes the first four items the user chose to show; everything else
+  // moves into the More sheet.
+  const directNavItems = shown.slice(0, 4).map(toEntry)
+  const overflowNavItems = shown.slice(4).map(toEntry)
+
+  if (profileUrl) {
     // Match the design system's overflow order: Profile leads the account-level
-    // cluster, just before the first of Admin/Account/Settings. `buildNavItems`
+    // cluster, just before the first of Admin/Account/Settings. The registry
     // keeps these in the order Admin → Account → Settings, so the first match
-    // resolves to Admin when present, then Account, then Settings. Build a new
-    // array rather than mutating the one `buildNavItems` returned.
-    const accountIndex = navItems.findIndex(
+    // resolves to Admin when present, then Account, then Settings.
+    const accountIndex = overflowNavItems.findIndex(
       (item) =>
-        item.href === '/admin' ||
-        item.href === '/account' ||
-        item.href === '/settings'
+        item.key === 'admin' ||
+        item.key === 'account' ||
+        item.key === 'settings'
     )
-    const profileIndex = accountIndex >= 0 ? accountIndex : navItems.length
-    allNavItems = [
-      ...navItems.slice(0, profileIndex),
-      profileNavItem,
-      ...navItems.slice(profileIndex)
-    ]
+    overflowNavItems.splice(
+      accountIndex >= 0 ? accountIndex : overflowNavItems.length,
+      0,
+      { key: 'profile', href: profileUrl, label: 'Profile', icon: User }
+    )
   }
-  const hasOverflow = allNavItems.length > 5
-  const directNavItems = hasOverflow
-    ? mobileDirectHrefs.flatMap((href) => {
-        const item = allNavItems.find((navItem) => navItem.href === href)
-        return item ? [item] : []
-      })
-    : allNavItems
-  const overflowNavItems = hasOverflow
-    ? allNavItems.filter((item) => !directNavItems.includes(item))
-    : []
+
+  const hiddenNavItems = more.map(toEntry)
+
   const isItemActive = (href: string) =>
     pathname === href || pathname.startsWith(href + '/')
-  const isOverflowActive = overflowNavItems.some((item) =>
-    isItemActive(item.href)
+  const isOverflowActive = [...overflowNavItems, ...hiddenNavItems].some(
+    (item) => isItemActive(item.href)
   )
+  // Notifications only keeps its badge while it holds a slot in the bar, so the
+  // unread count rides along with the More tab whenever it doesn't.
+  const showOverflowBadge =
+    unreadCount > 0 && !directNavItems.some((item) => item.isNotifications)
+
+  const renderMenuItem = (item: MobileNavEntry, muted = false) => {
+    const isActive = isItemActive(item.href)
+    return (
+      <DropdownMenuItem key={item.key} asChild>
+        <Link
+          href={item.href}
+          aria-current={isActive ? 'page' : undefined}
+          className={cn(
+            'flex items-center gap-2',
+            isActive && 'text-primary',
+            muted && !isActive && 'text-muted-foreground'
+          )}
+        >
+          <item.icon className="h-4 w-4" />
+          {item.label}
+        </Link>
+      </DropdownMenuItem>
+    )
+  }
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 border-t bg-background/90 backdrop-blur md:hidden safe-area-pb">
       <ul className="grid grid-flow-col auto-cols-fr items-center py-2">
         {directNavItems.map((item) => {
           const isActive = isItemActive(item.href)
-          const isNotifications = item.href === '/notifications'
           return (
-            <li key={item.href} className="min-w-0">
+            <li key={item.key} className="min-w-0">
               <Link
                 href={item.href}
                 aria-current={isActive ? 'page' : undefined}
@@ -88,7 +138,7 @@ export function MobileNav({
               >
                 <div className="relative">
                   <item.icon className="h-6 w-6" />
-                  {isNotifications && unreadCount > 0 && (
+                  {item.isNotifications && unreadCount > 0 && (
                     <NotificationBadge
                       count={unreadCount}
                       className="absolute -top-1 -right-1"
@@ -102,7 +152,7 @@ export function MobileNav({
             </li>
           )
         })}
-        {overflowNavItems.length > 0 && (
+        {overflowNavItems.length + hiddenNavItems.length > 0 && (
           <li className="min-w-0">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -114,29 +164,31 @@ export function MobileNav({
                   )}
                   aria-label="More navigation"
                 >
-                  <MoreHorizontal className="h-6 w-6" />
+                  <div className="relative">
+                    <MoreHorizontal className="h-6 w-6" />
+                    {showOverflowBadge && (
+                      <NotificationBadge
+                        count={unreadCount}
+                        className="absolute -top-1 -right-1"
+                      />
+                    )}
+                  </div>
                   <span className="max-w-full truncate">More</span>
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent side="top" align="end" sideOffset={8}>
-                {overflowNavItems.map((item) => {
-                  const isActive = isItemActive(item.href)
-                  return (
-                    <DropdownMenuItem key={item.href} asChild>
-                      <Link
-                        href={item.href}
-                        aria-current={isActive ? 'page' : undefined}
-                        className={cn(
-                          'flex items-center gap-2',
-                          isActive && 'text-primary'
-                        )}
-                      >
-                        <item.icon className="h-4 w-4" />
-                        {item.label}
-                      </Link>
-                    </DropdownMenuItem>
-                  )
-                })}
+                {overflowNavItems.map((item) => renderMenuItem(item))}
+                {/* Hidden items are still reachable here — hiding tidies the
+                    navigation, it doesn't lock a section away. */}
+                {hiddenNavItems.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Hidden
+                    </DropdownMenuLabel>
+                    {hiddenNavItems.map((item) => renderMenuItem(item, true))}
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </li>

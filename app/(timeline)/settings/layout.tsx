@@ -6,6 +6,7 @@ import {
   Filter,
   Hash,
   Image as ImageIcon,
+  PanelLeft,
   Settings as SettingsIcon,
   SlidersHorizontal,
   VolumeX
@@ -35,6 +36,7 @@ const tabs: SectionNavTab[] = [
     url: '/settings/preferences',
     icon: SlidersHorizontal
   },
+  { name: 'Navigation', url: '/settings/navigation', icon: PanelLeft },
   {
     name: 'Featured hashtags',
     url: '/settings/featured-hashtags',
