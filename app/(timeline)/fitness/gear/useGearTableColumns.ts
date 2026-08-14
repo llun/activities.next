@@ -18,12 +18,13 @@ import {
 export const GEAR_TABLE_SNAP_WIDTH = 480
 
 /**
- * A snapped data column never gets narrower than this even on a very small
- * screen. The binding content is the distance cell's wear line, measured at
- * 158px — an 80px bar, an 8px gap and a caption as long as "of 12,000 km" —
- * plus the cell's own 24px of horizontal padding. Below that the line is
- * `whitespace-nowrap` inside a `justify-end` flex row, so it does not clip: it
- * spills out of the row's start edge and under the pinned column.
+ * The width a snapped data column aims for when the pinned column leaves it
+ * less — subject to `SNAP_OVERHANG_ALLOWANCE` below, which is what it actually
+ * gets on a very narrow screen. The binding content is the distance cell's wear
+ * line, measured at 158px — an 80px bar, an 8px gap and a caption as long as
+ * "of 12,000 km" — plus the cell's own 24px of horizontal padding. Below that
+ * the line is `whitespace-nowrap` inside a `justify-end` flex row, so it does
+ * not clip: it spills out of the row's start edge and under the pinned column.
  */
 const MIN_SNAP_COLUMN_WIDTH = 184
 

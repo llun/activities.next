@@ -456,7 +456,9 @@ it; there is no legacy shape left to copy.
   minimums already add up to about that, so the class only ever forced the wide
   layout onto phones, where the type column had scrolled away by the third
   column. Note what the threshold does and does not promise, though: between
-  480px and ~724px the table still scrolls as one block, exactly as before — the
+  480px and ~740px (the seven minimums: 120 + 96 + 132 + 108 + 112 + 88 + 84,
+  which moved with the pin when it went to 120px) the table still scrolls as one
+  block, exactly as before — the
   difference is that the type column is pinned through it, which is the half
   that was broken. Only below 480px does a swipe move one column.
 - **Every cell in the components table carries `wrap-anywhere`.** A `<td>`'s
