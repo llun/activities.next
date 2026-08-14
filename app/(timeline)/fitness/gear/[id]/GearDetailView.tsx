@@ -106,6 +106,14 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
   // bike's own page is for, and the same activities are one click away here
   // and on the fitness overview.
   const [view, setView] = useState<GearView>('components')
+  // Latched on the first switch to Activities and never unset, so the feed
+  // survives a switch back to Components with its loaded pages intact.
+  const [hasOpenedActivities, setHasOpenedActivities] = useState(false)
+
+  const handleViewChange = (nextView: GearView) => {
+    setView(nextView)
+    if (nextView === 'activities') setHasOpenedActivities(true)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -231,6 +239,10 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
   const installedCount = components.filter(
     (component) => !component.removedAt
   ).length
+  // Only a bike has a components card, so only a bike has a Components view;
+  // shoes go straight to the feed.
+  const showsComponents = gear.kind === 'bike' && view === 'components'
+  const shouldMountFeed = !showsComponents || hasOpenedActivities
 
   return (
     // A refetch dims the page instead of replacing it, the same way the gear
@@ -320,22 +332,33 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
           label="Gear sections"
           tabs={GEAR_VIEW_TABS}
           active={view}
-          onChange={setView}
+          onChange={handleViewChange}
         />
       )}
 
-      {gear.kind === 'bike' && view === 'components' ? (
+      {showsComponents && (
         <GearComponentsCard
           gearId={gear.id}
           components={components}
           onChanged={reload}
         />
-      ) : (
-        <GearActivitiesFeed
-          gearId={gear.id}
-          emptyMessage="No recent activities on this gear."
-          {...feed}
-        />
+      )}
+
+      {/* Mounted on first use and kept mounted, hidden rather than torn down —
+          the same reasoning that keeps the components card alive across a
+          refetch. Unmounting would drop every page the reader had scrolled
+          through and re-request page one on the way back, and each of those
+          pages costs a batched status read the client already had. Lazy,
+          though: rendering it eagerly would fetch a feed for every reader who
+          never opens the tab. */}
+      {shouldMountFeed && (
+        <div hidden={showsComponents}>
+          <GearActivitiesFeed
+            gearId={gear.id}
+            emptyMessage="No recent activities on this gear."
+            {...feed}
+          />
+        </div>
       )}
 
       {isEditOpen && (

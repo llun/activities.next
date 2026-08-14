@@ -252,9 +252,14 @@ change doesn't touch.
 - A gear's activities render through the shared `GearActivitiesFeed` → `Posts`,
   never a bespoke row list, and the endpoint's `nextOffset` counts activity rows
   rather than the statuses in the page (an activity whose post was deleted still
-  occupies an offset). A bike's Components/Activities switcher is the shared
-  `SectionNavSelect`; shoes and devices render no switcher, because a menu with
-  one entry is dead UI.
+  occupies an offset). Both the initial load and "Load more" walk past a page
+  that is postless, and the empty state is gated on `!hasMore` — "no activities"
+  above an enabled "Load more" is the bug that gate exists for.
+- A nested sub-nav that switches a **view** uses the shared `SectionNavSelect`
+  (state-driven); one that navigates to another route uses the in-content
+  segmented control via `PageSubnavProvider`. Neither is ever re-inlined. A bike
+  gets the Components/Activities switcher; shoes and devices render none,
+  because a menu with one entry is dead UI.
 - Gear tables (the gear list's bikes/shoes/devices, the components table on a
   gear's page) pin their first column through `STICKY_COLUMN` /
   `STICKY_CLICKABLE_COLUMN` in `app/(timeline)/fitness/gear/gearUi.ts` — never a

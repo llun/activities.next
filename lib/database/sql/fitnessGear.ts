@@ -14,22 +14,23 @@ import {
 } from '@/lib/types/database/fitnessGear'
 
 /**
- * One row of a gear's activity list. Deliberately narrower than `FitnessFile`:
- * the device page renders `date · title · type · distance` and links the row to
- * the status, so anything else would be paid for on every page of history.
+ * One row of a gear's activity list — the identity of the activity and of the
+ * post it was published as, and nothing else.
  *
- * `statusPublicId` is null for an activity that was never posted, and such a row
- * renders unlinked rather than pointing at a status page that does not exist.
+ * Deliberately this narrow because a gear's page renders the POST, not the row:
+ * the route hands `statusId` to `getStatusesByIds` and pages on the row count.
+ * Everything the old compact list needed (`fileName`, `description`,
+ * `activityType`, the distance, and the `statuses` join behind `publicId`) came
+ * off the query with it, since each of those was paid on every page of a
+ * history that can run to five figures.
+ *
+ * `statusId` is null for an activity that was never posted, or whose post has
+ * since been deleted — deleting a status only nulls the column, leaving a row
+ * that still counts toward the gear's totals with no post left to render.
  */
 export interface FitnessGearActivity {
   id: string
   statusId: string | null
-  statusPublicId: string | null
-  fileName: string
-  description: string | null
-  activityType: string | null
-  activityStartTime: number | null
-  totalDistanceMeters: number | null
 }
 
 export interface CreateFitnessGearParams {
@@ -730,6 +731,10 @@ export const FitnessGearSQLDatabaseMixin = (
       ? 'fitness_files.deviceGearId'
       : 'fitness_files.gearId'
 
+    // No `statusId` predicate anywhere below: an activity whose post was never
+    // made, or has since been deleted, still occupies a row here, and the
+    // caller pages on rows. Filtering those out would make the offsets skip
+    // them and re-serve the rows behind them on every page.
     const rows = await applyCountableActivityFilter(
       database,
       database('fitness_files'),
@@ -740,9 +745,7 @@ export const FitnessGearSQLDatabaseMixin = (
     )
       .where('fitness_files.actorId', actorId)
       .where(matchColumn, gearId)
-      // Left, not inner: an activity that was never posted still belongs in the
-      // list; it simply renders without a link.
-      .leftJoin('statuses', 'statuses.id', 'fitness_files.statusId')
+      //
       // Sorting the timestamp-less activities last is load-bearing rather than
       // tidy: under DESC the two backends disagree on where NULLs land
       // (PostgreSQL puts them first, SQLite last), so a GPX carrying no
@@ -765,30 +768,11 @@ export const FitnessGearSQLDatabaseMixin = (
       .orderBy('fitness_files.id', 'desc')
       .limit(limit)
       .offset(offset)
-      .select(
-        'fitness_files.id as id',
-        'fitness_files.statusId as statusId',
-        'statuses.publicId as statusPublicId',
-        'fitness_files.fileName as fileName',
-        'fitness_files.description as description',
-        'fitness_files.activityType as activityType',
-        'fitness_files.activityStartTime as activityStartTime',
-        'fitness_files.totalDistanceMeters as totalDistanceMeters'
-      )
+      .select('fitness_files.id as id', 'fitness_files.statusId as statusId')
 
     return (rows as Record<string, unknown>[]).map((row) => ({
       id: String(row.id),
-      statusId: (row.statusId as string | null) ?? null,
-      statusPublicId: (row.statusPublicId as string | null) ?? null,
-      fileName: String(row.fileName ?? ''),
-      description: (row.description as string | null) ?? null,
-      activityType: (row.activityType as string | null) ?? null,
-      activityStartTime:
-        row.activityStartTime === null || row.activityStartTime === undefined
-          ? null
-          : getCompatibleTime(row.activityStartTime as number | Date | string),
-      totalDistanceMeters:
-        normalizeOptionalNumber(row.totalDistanceMeters) ?? null
+      statusId: (row.statusId as string | null) ?? null
     }))
   },
 

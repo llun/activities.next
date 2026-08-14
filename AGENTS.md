@@ -265,7 +265,14 @@ section-navigation patterns; pick by section type.
   }
   ```
 
-- A **nested** sub-nav inside a section renders as a small **in-content segmented control**, not a second dropdown or rail. Hand it to the closest section-mode `PageHeader` via `PageSubnavProvider` so it sits directly **below the per-page title** (header-first, like the non-nested pages) rather than above it. (The settings, fitness, and admin layouts themselves use the dropdown sub-nav above, not this nested pattern.)
+- A **nested sub-nav that navigates** — one whose entries are other routes inside the section — renders as a small **in-content segmented control**, not a second dropdown or rail. Hand it to the closest section-mode `PageHeader` via `PageSubnavProvider` so it sits directly **below the per-page title** (header-first, like the non-nested pages) rather than above it. (The settings, fitness, and admin layouts themselves use the dropdown sub-nav above, not this nested pattern.)
+- A nested sub-nav that switches a **view of the page you are already on** is a dropdown instead — the shared `SectionNavSelect` (`@/lib/components/section-nav-select`), described below. That is the design system's own call rather than a carve-out invented here: `ui_kits/web/GearKit.jsx` puts a `GKViewDropdown` on a gear's page below the stat tiles it re-renders, with the section's own "Gear ▾" dropdown still above it, and the fitness activity detail switches its Overview / Analysis / Comments sections the same way. The distinction is what the control does, not where it sits: a segmented control reads as "more of this page", which is wrong for something that replaces the page's whole body, and it carries no per-entry icon, which both of these designs do.
+
+### Section sub-nav in local state (`SectionNavSelect`)
+
+- **`SectionNavSelect` is the state-driven twin of `SectionNavDropdown`**, and there is one implementation of each — do not re-inline either. Both render the same chrome: an outline trigger carrying the active tab's Lucide icon in `text-primary`, a sentence-case label and a muted `ChevronDown`, over a `rounded-xl` menu sized with `w-(--radix-dropdown-menu-trigger-width)`. They differ only in what a row does. `SectionNavDropdown`'s rows are `<Link>`s, its active row is resolved from `usePathname()` and marked `aria-current="page"`; `SectionNavSelect` takes `{ tabs, active, onChange }`, its rows are `DropdownMenuItem`s calling `onChange`, and the current one is marked with the **boolean** `aria-current` — nothing here is a page.
+- Its two consumers are the fitness activity detail (Overview / Analysis / Heart rate zones / …) and a bike's gear page (Components / Activities). A third copy of that markup is exactly what extracting it removed.
+- The active row takes **`text-primary-text`**, not `text-primary` — see the orange-text rule under **Fitness Gear**. It keeps its wash on `focus:`, so it also carries `focus:ring-2`, or a keyboard user watching the highlight move down the list would see it vanish on precisely the current row.
 
 ### Sticky-header sub-nav (`PageSubnavProvider`)
 
@@ -630,8 +637,13 @@ it; there is no legacy shape left to copy.
   such a row yields nothing to render, the **Activities tile and the feed may
   legitimately disagree** — the tile counts activities, the feed shows the ones
   still posted. A page that comes back entirely postless is walked past rather
-  than handed to the reader as a "Load more" that adds nothing, capped the way
-  the bookmarks timeline caps its own continuations.
+  than handed to the reader as a "Load more" that adds nothing — by the INITIAL
+  load as much as by "Load more", both of which go through the same walk,
+  because a first page empty for that reason would otherwise render "no
+  activities" above an enabled button that disproves it — capped the way the
+  bookmarks timeline caps its own continuations. The empty state is therefore
+  gated on `!hasMore` rather than on an empty list: the walk makes that state
+  rare and `onPostDeleted` can produce it at any time regardless.
 - **A bike switches between Components and Activities; shoes and devices do
   not.** The switcher is `SectionNavSelect`
   (`@/lib/components/section-nav-select`), the state-driven twin of

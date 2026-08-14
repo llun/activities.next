@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import {
   type GearActivityStatusesPage,
@@ -260,6 +260,77 @@ describe('GearActivitiesFeed', () => {
     })
   })
 
+  it('walks the same empty pages on the FIRST load, not only on load more', async () => {
+    // Otherwise the first render claims the gear has no activities while an
+    // enabled "Load more" underneath it says otherwise — and on a phone the
+    // sentinel that would have resolved the contradiction is below the fold.
+    mockGetFitnessGearActivities
+      .mockResolvedValueOnce(page({ hasMore: true, nextOffset: 20 }))
+      .mockResolvedValueOnce(
+        page({
+          statuses: [createStatus('status-1', 'Morning ride')],
+          nextOffset: 40
+        })
+      )
+    renderFeed()
+
+    expect(await screen.findByText('Morning ride')).toBeInTheDocument()
+    expect(
+      screen.queryByText('No recent activities on this gear.')
+    ).not.toBeInTheDocument()
+    expect(mockGetFitnessGearActivities).toHaveBeenCalledTimes(2)
+    expect(mockGetFitnessGearActivities).toHaveBeenLastCalledWith('gear-1', {
+      limit: 20,
+      offset: 20
+    })
+  })
+
+  it('caps one load at five requests and hands back a Load more', async () => {
+    // The cap is what keeps one click from walking a five-figure history of
+    // postless rows with the button stuck on "Loading...".
+    for (let request = 0; request < 10; request += 1) {
+      mockGetFitnessGearActivities.mockResolvedValueOnce(
+        page({ hasMore: true, nextOffset: (request + 1) * 20 })
+      )
+    }
+    renderFeed()
+
+    const loadMore = await screen.findByRole('button', { name: 'Load more' })
+    expect(mockGetFitnessGearActivities).toHaveBeenCalledTimes(5)
+    // Nothing came back, but the walk stopped rather than running on, and the
+    // reader keeps a button that resumes exactly where it stopped.
+    expect(loadMore).toBeEnabled()
+    expect(
+      screen.queryByText('No recent activities on this gear.')
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(loadMore)
+
+    await waitFor(() =>
+      expect(mockGetFitnessGearActivities).toHaveBeenCalledTimes(10)
+    )
+    expect(mockGetFitnessGearActivities).toHaveBeenNthCalledWith(6, 'gear-1', {
+      limit: 20,
+      offset: 100
+    })
+  })
+
+  it('never reports an empty history while the server says there is more', async () => {
+    // `onPostDeleted` empties a page-one list at any time, so the gate cannot
+    // rely on the walk alone.
+    mockGetFitnessGearActivities.mockResolvedValue(
+      page({ hasMore: true, nextOffset: 20 })
+    )
+    renderFeed()
+
+    expect(
+      await screen.findByRole('button', { name: 'Load more' })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('No recent activities on this gear.')
+    ).not.toBeInTheDocument()
+  })
+
   it('stops walking empty pages once the server says there are no more', async () => {
     mockGetFitnessGearActivities.mockResolvedValueOnce(
       page({
@@ -282,6 +353,117 @@ describe('GearActivitiesFeed', () => {
       ).not.toBeInTheDocument()
     )
     expect(mockGetFitnessGearActivities).toHaveBeenCalledTimes(2)
+  })
+
+  describe('the infinite-scroll sentinel', () => {
+    // `useLoadMoreOnVisible` short-circuits when `IntersectionObserver` is
+    // undefined, which it is under jsdom — so without this stub the auto-load
+    // path is never reached and a click is the only way in.
+    let observerCallback:
+      ((entries: IntersectionObserverEntry[]) => void) | null = null
+    let observe: jest.Mock
+
+    beforeEach(() => {
+      observerCallback = null
+      observe = vi.fn()
+      Object.defineProperty(globalThis, 'IntersectionObserver', {
+        configurable: true,
+        value: vi.fn().mockImplementation(function (
+          callback: (entries: IntersectionObserverEntry[]) => void
+        ) {
+          observerCallback = callback
+          return { disconnect: vi.fn(), observe }
+        })
+      })
+    })
+
+    afterEach(() => {
+      Reflect.deleteProperty(globalThis, 'IntersectionObserver')
+    })
+
+    const scrollSentinelIntoView = () =>
+      observerCallback?.([
+        { isIntersecting: true } as IntersectionObserverEntry
+      ])
+
+    it('loads the next page when the sentinel scrolls into view', async () => {
+      mockGetFitnessGearActivities.mockResolvedValueOnce(
+        page({
+          statuses: [createStatus('status-1', 'Morning ride')],
+          hasMore: true,
+          nextOffset: 20
+        })
+      )
+      renderFeed()
+      await screen.findByRole('button', { name: 'Load more' })
+
+      mockGetFitnessGearActivities.mockResolvedValueOnce(
+        page({ statuses: [createStatus('status-2', 'Evening ride')] })
+      )
+      act(() => scrollSentinelIntoView())
+
+      await waitFor(() =>
+        expect(screen.getByText('Evening ride')).toBeInTheDocument()
+      )
+    })
+
+    it('fires one request when the sentinel re-intersects mid-flight', async () => {
+      // The hook re-invokes on every intersection and state has not settled
+      // when it does, so only the ref guard stands between two intersections
+      // in one tick and two requests at the same offset — whose second page
+      // would be dropped from the feed for good.
+      mockGetFitnessGearActivities.mockResolvedValueOnce(
+        page({
+          statuses: [createStatus('status-1', 'Morning ride')],
+          hasMore: true,
+          nextOffset: 20
+        })
+      )
+      renderFeed()
+      await screen.findByRole('button', { name: 'Load more' })
+
+      let resolvePage: (value: GearActivityStatusesPage) => void = () => {}
+      mockGetFitnessGearActivities.mockReturnValueOnce(
+        new Promise<GearActivityStatusesPage>((resolve) => {
+          resolvePage = resolve
+        })
+      )
+      act(() => scrollSentinelIntoView())
+      act(() => scrollSentinelIntoView())
+
+      expect(mockGetFitnessGearActivities).toHaveBeenCalledTimes(2)
+
+      await act(async () => {
+        resolvePage(
+          page({ statuses: [createStatus('status-2', 'Evening ride')] })
+        )
+      })
+      expect(await screen.findByText('Evening ride')).toBeInTheDocument()
+    })
+
+    it('is not armed while the first page is still loading', async () => {
+      let resolveFirst: (value: GearActivityStatusesPage) => void = () => {}
+      mockGetFitnessGearActivities.mockReturnValueOnce(
+        new Promise<GearActivityStatusesPage>((resolve) => {
+          resolveFirst = resolve
+        })
+      )
+      renderFeed()
+
+      expect(observe).not.toHaveBeenCalled()
+
+      await act(async () => {
+        resolveFirst(
+          page({
+            statuses: [createStatus('status-1', 'Morning ride')],
+            hasMore: true,
+            nextOffset: 20
+          })
+        )
+      })
+      await screen.findByRole('button', { name: 'Load more' })
+      expect(observe).toHaveBeenCalled()
+    })
   })
 
   describe('switching to another gear on the same mounted instance', () => {

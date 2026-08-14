@@ -2,7 +2,10 @@
 
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 
-import { getFitnessGearActivities } from '@/lib/client'
+import {
+  type GearActivityStatusesPage,
+  getFitnessGearActivities
+} from '@/lib/client'
 import { Posts } from '@/lib/components/posts/posts'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { Button } from '@/lib/components/ui/button'
@@ -14,14 +17,52 @@ import { Status } from '@/lib/types/domain/status'
 const ACTIVITIES_PAGE_SIZE = 20
 
 /**
- * How many all-empty pages to walk before handing the reader a "Load more"
+ * How many pages one load may walk before handing the reader a "Load more"
  * again. A page carries activity rows, and a row whose post was deleted
  * contributes no status, so a page can come back empty with more behind it.
  * Same guard, same reason, as `MAX_EMPTY_BOOKMARK_CONTINUATIONS` in the
  * bookmarks timeline: keep the button useful without letting one click walk a
  * whole history.
  */
-const MAX_EMPTY_CONTINUATIONS = 5
+const MAX_PAGES_PER_LOAD = 5
+
+/**
+ * One load: pages forward from `startOffset` until a page carries a post, the
+ * server says there is nothing more, or the walk hits its cap.
+ *
+ * The walk is what makes an answer settled. A page of 20 activity rows can
+ * yield zero statuses — deleting a post only nulls `fitness_files.statusId`,
+ * and the row survives and keeps counting toward the gear's totals — so
+ * "0 posts" on its own says nothing about whether the history is empty. Both
+ * the initial load and "Load more" go through here so neither can hand back a
+ * page that is empty for that reason alone: the first render would otherwise
+ * claim the gear has no activities while an enabled "Load more" sat under it.
+ *
+ * `isCurrent` is checked after every round trip rather than once at the end,
+ * so a walk superseded by a gear change stops at the next page instead of
+ * running its remaining requests out.
+ */
+const loadPageWithPosts = async (
+  gearId: string,
+  startOffset: number,
+  isCurrent: () => boolean
+): Promise<GearActivityStatusesPage | null> => {
+  let offset = startOffset
+  for (let request = 0; request < MAX_PAGES_PER_LOAD; request += 1) {
+    const page = await getFitnessGearActivities(gearId, {
+      limit: ACTIVITIES_PAGE_SIZE,
+      // Omitted rather than sent as 0 on the first page: the server defaults to
+      // it, and the request reads as "the first page" in a network log.
+      ...(offset > 0 ? { offset } : {})
+    })
+    if (!isCurrent()) return null
+    offset = page.nextOffset
+    if (page.statuses.length > 0 || !page.hasMore) return page
+  }
+  // Capped out on postless rows. `hasMore` is still true, so the reader keeps a
+  // "Load more" that resumes exactly where this walk stopped.
+  return { statuses: [], hasMore: true, nextOffset: offset }
+}
 
 /**
  * Everything the feed needs from the server and nothing it can fetch itself,
@@ -93,7 +134,8 @@ export const GearActivitiesFeed: FC<Props> = ({
 
   useEffect(() => {
     let cancelled = false
-    generationRef.current += 1
+    const generation = generationRef.current + 1
+    generationRef.current = generation
     offsetRef.current = 0
     // Reset here too, not only in `loadMore`'s `finally`: that branch is
     // skipped for a request this effect has just superseded, which would leave
@@ -104,13 +146,16 @@ export const GearActivitiesFeed: FC<Props> = ({
     // Reset before fetching, not after: the previous gear's posts would
     // otherwise stay on screen with the previous gear's `hasMore`, and a
     // "Load more" clicked in that window would page from the wrong offset and
-    // skip the rows in between.
+    // skip the rows in between. `error` resets with them — left behind, the
+    // previous gear's failure sits above the new gear's "Loading..." until
+    // this fetch resolves, reporting a bike's outage on a device's page.
     setStatuses([])
     setHasMore(false)
+    setError(null)
 
-    getFitnessGearActivities(gearId, { limit: ACTIVITIES_PAGE_SIZE })
+    loadPageWithPosts(gearId, 0, () => !cancelled)
       .then((page) => {
-        if (cancelled) return
+        if (cancelled || !page) return
         offsetRef.current = page.nextOffset
         setStatuses(page.statuses)
         setHasMore(page.hasMore)
@@ -139,40 +184,28 @@ export const GearActivitiesFeed: FC<Props> = ({
     isLoadingMoreRef.current = true
     setIsLoadingMore(true)
     try {
-      let emptyContinuations = 0
-      while (emptyContinuations < MAX_EMPTY_CONTINUATIONS) {
-        const page = await getFitnessGearActivities(gearId, {
-          limit: ACTIVITIES_PAGE_SIZE,
-          offset: offsetRef.current
-        })
+      const page = await loadPageWithPosts(
+        gearId,
+        offsetRef.current,
         // A newer load has started since, so these posts belong to a list
         // nobody is looking at any more.
-        if (generationRef.current !== generation) return
+        () => generationRef.current === generation
+      )
+      if (!page) return
 
-        offsetRef.current = page.nextOffset
-        setHasMore(page.hasMore)
-        setError(null)
-
-        if (page.statuses.length > 0) {
-          // Deduplicated on append: this is offset pagination over a list that
-          // can grow, so an activity imported between two pages shifts the
-          // window and repeats the boundary row — which React then flags as a
-          // duplicate key.
-          setStatuses((current) => {
-            const seen = new Set(current.map((status) => status.id))
-            return [
-              ...current,
-              ...page.statuses.filter((status) => !seen.has(status.id))
-            ]
-          })
-          return
-        }
-
-        // Every row on that page was an activity whose post is gone. Keep
-        // walking rather than handing back a click that added nothing.
-        if (!page.hasMore) return
-        emptyContinuations += 1
-      }
+      offsetRef.current = page.nextOffset
+      setHasMore(page.hasMore)
+      setError(null)
+      // Deduplicated on append: this is offset pagination over a list that can
+      // grow, so an activity imported between two pages shifts the window and
+      // repeats the boundary row — which React then flags as a duplicate key.
+      setStatuses((current) => {
+        const seen = new Set(current.map((status) => status.id))
+        return [
+          ...current,
+          ...page.statuses.filter((status) => !seen.has(status.id))
+        ]
+      })
     } catch (loadError) {
       if (generationRef.current !== generation) return
       setError(
@@ -211,7 +244,13 @@ export const GearActivitiesFeed: FC<Props> = ({
 
       {isLoading ? (
         <Card className="p-6 text-sm text-muted-foreground">Loading...</Card>
-      ) : statuses.length === 0 ? (
+      ) : statuses.length === 0 && !hasMore ? (
+        // `!hasMore` is half the claim, not belt-and-braces. An empty list on
+        // its own means "no posts on this page", which the walk above makes
+        // rare but cannot make impossible — it caps out, and `onPostDeleted`
+        // can empty a page-one list at any time. Saying "no activities" with
+        // more still to come contradicts both the Activities tile above and
+        // the "Load more" below.
         <Card className="p-6 text-sm text-muted-foreground">
           {emptyMessage}
         </Card>

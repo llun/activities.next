@@ -227,6 +227,16 @@ describe('GearDetailView', () => {
   })
 
   describe('the Components / Activities switcher', () => {
+    // Radix opens on keydown, not on a jsdom `click`.
+    const chooseView = async (name: string) => {
+      const nav = await screen.findByRole('navigation', {
+        name: 'Gear sections'
+      })
+      fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
+      const menu = await screen.findByRole('menu')
+      fireEvent.click(within(menu).getByRole('menuitem', { name }))
+    }
+
     it('opens a bike on its components, with the switcher beside them', async () => {
       mockGetFitnessGearComponents.mockResolvedValue([createComponent()])
       render(<GearDetailView gearId="gear-1" feed={feed} />)
@@ -266,6 +276,35 @@ describe('GearDetailView', () => {
       expect(
         screen.queryByRole('heading', { name: 'Components' })
       ).not.toBeInTheDocument()
+    })
+
+    it('does not mount the feed until Activities is first opened', async () => {
+      // Mounting it eagerly would fetch a page of posts for every reader who
+      // only ever looks at the components.
+      mockGetFitnessGearComponents.mockResolvedValue([createComponent()])
+      render(<GearDetailView gearId="gear-1" feed={feed} />)
+
+      await screen.findByRole('heading', { name: 'Components' })
+      expect(screen.queryByTestId('activities-feed')).not.toBeInTheDocument()
+    })
+
+    it('keeps the feed mounted when the reader switches back to Components', async () => {
+      // Unmounting would drop every page the reader had scrolled through and
+      // re-request page one on the way back, at a batched status read per page.
+      mockGetFitnessGearComponents.mockResolvedValue([createComponent()])
+      render(<GearDetailView gearId="gear-1" feed={feed} />)
+
+      await chooseView('Activities')
+      expect(await screen.findByTestId('activities-feed')).toBeVisible()
+
+      await chooseView('Components')
+
+      expect(
+        await screen.findByRole('heading', { name: 'Components' })
+      ).toBeInTheDocument()
+      const activitiesFeed = screen.getByTestId('activities-feed')
+      expect(activitiesFeed).toBeInTheDocument()
+      expect(activitiesFeed).not.toBeVisible()
     })
   })
 
