@@ -438,8 +438,12 @@ it; there is no legacy shape left to copy.
   gear list scrolls as one block where the design snaps it, which is the same
   failure `min-w-[720px]` used to cause on the components table. Under the
   threshold each data
-  column is sized to exactly the width the pinned column leaves over, with
-  `scroll-snap-type: x mandatory` and a `scroll-padding-left` clear of the pin,
+  column is sized to the width the pinned column leaves over — floored at 184px
+  so the distance cell's wear line still fits, but that floor may only overhang
+  the scrollport by the cell's own 12px of right padding, because the column's
+  content is right-aligned and `x mandatory` means nothing that hangs off can be
+  scrolled to (at a 320px viewport the floor was hiding 6px of the distance) —
+  with `scroll-snap-type: x mandatory` and a `scroll-padding-left` clear of the pin,
   so a swipe lands on one whole column instead of stranding a row's values
   halfway across the viewport. The rule measures the table's **own scroll
   container** with a `ResizeObserver`, not the viewport, for the same reason

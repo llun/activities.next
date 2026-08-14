@@ -27,6 +27,30 @@ export const GEAR_TABLE_SNAP_WIDTH = 480
  */
 const MIN_SNAP_COLUMN_WIDTH = 184
 
+/**
+ * How far the floor above may push a column past the scrollport's right edge.
+ *
+ * A floored column is wider than the space the pinned column leaves, so at rest
+ * its right edge hangs off the scroller — and `scroll-snap-type: x mandatory`
+ * means the reader cannot scroll to what hangs off. The cell's content is
+ * `textAlign: 'right'`, so the overhang eats the *value* first, from the right:
+ * the distance, the wear caption, the action button. That is the opposite of
+ * what the floor is for.
+ *
+ * The cell's own `px-3` right padding is the only slack that can hang off
+ * without taking a glyph with it, so the floor is allowed exactly that much and
+ * no more — at the limit the value ends flush with the scroller's edge, which
+ * is tight but whole. Beyond it the column falls back to the width actually
+ * available, and the wear line spills leftwards under the pinned column
+ * instead: that is the degradation the floor's comment already describes, and
+ * it is plainly better than a distance nobody can scroll to.
+ *
+ * The band this covers is narrow but real — a 320px viewport (an SE, or any
+ * phone in Display Zoom) leaves a 286px scroller, and with a 120px pin the
+ * floored column hid 6px of "0.0 km".
+ */
+const SNAP_OVERHANG_ALLOWANCE = 12
+
 // The measurement has to land before the browser paints, or the table renders
 // wide for a frame and then reflows. `useLayoutEffect` warns when React renders
 // on the server, where there is nothing to measure anyway.
@@ -105,7 +129,11 @@ export const useGearTableColumns = (
   }, [element])
 
   const isSnapping = width > 0 && width < GEAR_TABLE_SNAP_WIDTH
-  const columnWidth = Math.max(MIN_SNAP_COLUMN_WIDTH, width - pinnedColumnWidth)
+  const availableWidth = width - pinnedColumnWidth
+  const columnWidth = Math.max(
+    availableWidth,
+    Math.min(MIN_SNAP_COLUMN_WIDTH, availableWidth + SNAP_OVERHANG_ALLOWANCE)
+  )
 
   return {
     ref: setElement,

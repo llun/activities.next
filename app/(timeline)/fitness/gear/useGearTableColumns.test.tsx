@@ -117,11 +117,34 @@ describe('useGearTableColumns', () => {
 
   it('floors a snapped column so the distance and its wear line still fit', () => {
     render(<Probe />)
-    act(() => deliver?.(240))
+    act(() => deliver?.(300))
 
-    // 240 - 104 = 136, narrower than the wear line, so the floor takes over
-    // and the column is allowed to overflow the scroller instead.
+    // 300 - 104 = 196, wider than the floor, so nothing is floored.
+    expect(styleOf('data').width).toBe('196px')
+
+    // 280 - 104 = 176 is under it, so the floor takes over and the column
+    // overflows the scroller by 8px — inside the cell's own 12px of right
+    // padding, so the wear line gains room and the value stays visible.
+    act(() => deliver?.(280))
     expect(styleOf('data').width).toBe('184px')
+  })
+
+  // The floored column hangs off the scroller, and `x mandatory` means the
+  // reader cannot scroll to what hangs off — so past the cell's own right
+  // padding the overhang starts eating the right-aligned distance itself. A
+  // 320px viewport leaves a 286px scroller, which is exactly where this bit.
+  it('stops the floor pushing the distance off the scrollport', () => {
+    render(<Probe />)
+    act(() => deliver?.(286))
+
+    // 286 - 104 = 182 available; the floor would take 184, overflowing by 2 —
+    // inside the 12px padding, so the floor still applies here.
+    expect(styleOf('data').width).toBe('184px')
+
+    // 240 - 104 = 136 available. The floor's 184 would hang 48px off the edge
+    // and hide the distance, so the column takes the padding's worth and stops.
+    act(() => deliver?.(240))
+    expect(styleOf('data').width).toBe('148px')
   })
 
   it('keeps the last measured width when the table reports zero', () => {
