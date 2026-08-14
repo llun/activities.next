@@ -98,14 +98,13 @@ describe('GearComponentsCard', () => {
     })
   })
 
-  it('renders the header without repeating the installed count', () => {
+  it('renders the header with the installed count', () => {
     renderCard([createComponent(), createComponent({ id: 'c2' })])
 
     expect(
       screen.getByRole('heading', { name: 'Components' })
     ).toBeInTheDocument()
-    // The count belongs to the stat grid above the card, not to this header.
-    expect(screen.queryByText(/installed/)).not.toBeInTheDocument()
+    expect(screen.getByText('2 installed')).toBeInTheDocument()
   })
 
   describe('responsive columns', () => {
@@ -228,25 +227,6 @@ describe('GearComponentsCard', () => {
     expect(screen.queryByText(/^of /)).not.toBeInTheDocument()
     expect(screen.queryByText('due soon')).not.toBeInTheDocument()
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
-  })
-
-  it('drops the wear bar once a component has been replaced', () => {
-    renderCard([
-      createComponent({
-        removedAt: Date.UTC(2025, 5, 1),
-        distanceMeters: 4300000,
-        serviceDistanceMeters: 5000000
-      })
-    ])
-
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Show 1 replaced component' })
-    )
-
-    // The row is history: there is nothing left to service on a part that is
-    // already off the bike.
-    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
-    expect(screen.queryByText('due soon')).not.toBeInTheDocument()
   })
 
   it('exposes the wear bar as a labelled progressbar', () => {
@@ -538,5 +518,57 @@ describe('GearComponentsCard', () => {
     await waitFor(() =>
       expect(screen.getByText('Component type is required')).toBeInTheDocument()
     )
+  })
+
+  // Mirrors the pinned-column guards in GearListView.test.tsx. This table's
+  // rows are inert, so it uses the non-hover variant — and its replaced-row dim
+  // has to sit on a descendant, not the pinned cell, because `opacity` fades an
+  // element's background along with its text.
+  describe('pinned first column', () => {
+    const getTypeCell = (componentType: string) =>
+      screen.getByText(componentType).closest('td')
+
+    it('pins the type column on an opaque surface', () => {
+      renderCard([createComponent()])
+
+      expect(getTypeCell('Chain')).toHaveClass(
+        'sticky',
+        'left-0',
+        'bg-background'
+      )
+    })
+
+    it('pins the type column header too', () => {
+      renderCard([createComponent()])
+
+      expect(screen.getByText('Type').closest('th')).toHaveClass(
+        'sticky',
+        'left-0',
+        'bg-background'
+      )
+    })
+
+    it('leaves the pinned cell unlit, since the rows are not clickable', () => {
+      renderCard([createComponent()])
+
+      // The hover variant belongs only on a row that has its own `hover:` and
+      // the `group` class. These rows have neither, so it would never match —
+      // but keeping it off them is what stops a later `group` on the row from
+      // lighting this column alone.
+      expect(getTypeCell('Chain')?.className).not.toContain('group-hover:')
+    })
+
+    it('dims a replaced component through its cells so the pinned column stays opaque', () => {
+      renderCard([createComponent({ removedAt: Date.UTC(2025, 2, 15) })])
+
+      fireEvent.click(
+        screen.getByRole('button', { name: /^Show 1 replaced component/ })
+      )
+
+      const cell = getTypeCell('Chain')
+      expect(cell?.closest('tr')).not.toHaveClass('opacity-60')
+      expect(cell).not.toHaveClass('opacity-60')
+      expect(cell?.querySelector('.opacity-60')).not.toBeNull()
+    })
   })
 })

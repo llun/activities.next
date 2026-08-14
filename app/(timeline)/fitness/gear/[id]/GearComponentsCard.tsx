@@ -5,6 +5,7 @@ import { FC, FormEvent, useState } from 'react'
 
 import {
   COMPONENT_TYPE_OPTIONS,
+  STICKY_COLUMN,
   formatGearDate,
   formatGearDistanceKm,
   formatKmInt,
@@ -17,6 +18,7 @@ import {
   replaceFitnessGearComponent
 } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
+import { Card } from '@/lib/components/ui/card'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 import { Select } from '@/lib/components/ui/select'
@@ -33,42 +35,21 @@ interface Props {
 const SERVICE_REMINDER_KM_OPTIONS = [1000, 3000, 5000, 8000, 12000]
 
 /**
- * The pinned column has to paint an opaque background of its own — the rows are
- * transparent over the card, so without one the data columns scroll visibly
- * underneath it — and draws its right-hand rule as an inset shadow rather than
- * a border, because a border would scroll with the cell's box on some engines.
+ * Width of the pinned "Type" column. `STICKY_COLUMN` deliberately leaves this
+ * to the caller (the design pins the gear tables at 150px and this denser
+ * seven-column table at 104px), and here it is load-bearing twice: it sizes the
+ * column and it is the `scroll-padding-left` the snapped columns land against.
  */
-const PINNED_CELL =
-  'sticky left-0 wrap-anywhere bg-background shadow-[inset_-1px_0_0_var(--border)]'
-
-/**
- * The row's type scale lives on the cell, not on an inner span: a `<td>` left
- * at the inherited 16px keeps a 24px strut in its line box, so its text sits
- * ~3px below the 13px cells beside it and the row grows to match. Same reason
- * the wear bar and the row actions set their own smaller sizes on the elements
- * that own them.
- *
- * `wrap-anywhere` is here for the same reason it is on the pinned cell, and it
- * matters most for the free-text brand and model: a `<td>`'s width is advisory,
- * so a long unbroken value widens its column past the snap interval, and under
- * `scroll-snap-type: x mandatory` the scroller cannot rest between snap points
- * — the tail of that cell simply cannot be scrolled to.
- */
-const CELL = 'px-3 py-2.5 align-top text-[13px] wrap-anywhere'
-
-/** Width the pinned "Type" column keeps, and the snap offset that follows it. */
 const TYPE_COLUMN_WIDTH = 104
 
 /**
- * A row action is the design system's bare text link, but a 16px line of text
- * is a target well under the WCAG 2.2 minimum of 24x24 on the phone layout this
- * table is built for. The padding buys the hit area back and the matching
- * negative margin cancels it out visually, so the label still sits on the first
- * line of the row and the row's height does not change. It matters most for
- * Delete: a tap that misses also blurs the button, and that disarms the pending
- * confirmation.
+ * A long unbroken component type, brand or model would otherwise widen its
+ * column past the width below — a `<td>`'s width is advisory — and under
+ * `scroll-snap-type: x mandatory` a column wider than its snap interval has a
+ * tail the scroller can never come to rest on. All three are free text to 255
+ * characters (`gearRequests.ts`), so none of them can be trusted to be short.
  */
-const ROW_ACTION = 'h-auto -mx-2 -my-1.5 px-2 py-1.5 text-xs'
+const CELL_WRAP = 'wrap-anywhere'
 
 type AddedMode = 'beginning' | 'date'
 
@@ -79,10 +60,8 @@ const WearBar: FC<{ component: GearComponentEntity }> = ({ component }) => {
   )
   if (!wear) return null
 
-  // Bar and caption share one line, right-aligned under the distance, so the
-  // pair reads as one value however narrow the column gets.
   return (
-    <div className="mt-1 flex items-center justify-end gap-2">
+    <>
       {/* `aria-valuenow` has to stay inside the min/max, so an overdue
           component reports 100 there and its real wear in `aria-valuetext`. */}
       <div
@@ -92,17 +71,17 @@ const WearBar: FC<{ component: GearComponentEntity }> = ({ component }) => {
         aria-valuemax={100}
         aria-valuenow={Math.round(wear.barPercent)}
         aria-valuetext={`${Math.round(wear.percent)}% of service interval`}
-        className="h-1 w-20 shrink-0 overflow-hidden rounded-full bg-muted"
+        className="mt-1 ml-auto h-1 w-20 overflow-hidden rounded-full bg-muted"
       >
         <div
-          className={cn('h-full rounded-full', wear.barClassName)}
+          className={cn('h-full', wear.barClassName)}
           style={{ width: wear.barWidth }}
         />
       </div>
-      <span className={cn('text-[11px] tabular-nums', wear.captionClassName)}>
+      <div className={cn('mt-0.5 text-xs', wear.captionClassName)}>
         {wear.caption}
-      </span>
-    </div>
+      </div>
+    </>
   )
 }
 
@@ -228,41 +207,31 @@ export const GearComponentsCard: FC<Props> = ({
   }
 
   return (
-    // The design system's gear surfaces sit on the page background rather than
-    // the card grey, which is what the stat tiles above this one use — the two
-    // are meant to read as different depths, not the same slab twice.
-    // Opaque, not the `bg-background/80` the other design-system sections use:
-    // the pinned column has to paint an opaque background of its own, and a
-    // translucent surface around it would let the page's fixed radial tints
-    // through everywhere except that one column.
-    //
-    // `overflow-hidden` is what keeps the table inside the rounded corners: with
-    // no replaced components the scroller is the section's last child, and the
-    // pinned cell's opaque square background painted straight over the
-    // bottom-left arc (as did the horizontal scrollbar, across both corners).
-    <section className="overflow-hidden rounded-2xl border bg-background shadow-sm">
-      <div className="flex items-center justify-between gap-3 px-5 py-4">
-        <div className="flex min-w-0 items-center gap-2">
-          <Wrench className="size-4 shrink-0 text-primary" />
-          {/* The installed count is not repeated here: the stat grid above the
-              card already carries it as "Components installed". */}
-          <h2 className="truncate text-base font-semibold tracking-tight">
-            Components
-          </h2>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => setIsFormOpen(true)}>
+    <Card className="gap-4 py-4">
+      <div className="flex flex-wrap items-center gap-2 px-4">
+        <Wrench className="size-4 text-primary" />
+        <h2 className="text-base font-medium">Components</h2>
+        <span className="text-sm text-muted-foreground">
+          {installed.length} installed
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          className="ml-auto"
+          onClick={() => setIsFormOpen(true)}
+        >
           <Plus />
           Add component
         </Button>
       </div>
 
-      {error && <p className="px-5 pb-2 text-sm text-destructive">{error}</p>}
+      {error && <p className="px-4 text-sm text-destructive">{error}</p>}
 
       {isFormOpen && (
         <form
           onSubmit={handleSave}
           aria-label="Add component"
-          className="mx-5 mb-4 space-y-4 rounded-xl border bg-card p-4"
+          className="mx-4 space-y-3 rounded-md border bg-muted/50 p-3"
         >
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1.5">
@@ -366,24 +335,25 @@ export const GearComponentsCard: FC<Props> = ({
       )}
 
       {visible.length === 0 ? (
-        <p className="px-5 pb-6 text-sm text-muted-foreground">
+        <p className="px-4 text-sm text-muted-foreground">
           No components yet. Add the parts you want to track and each one
           accrues distance from its added date.
         </p>
       ) : (
         // Below `GEAR_TABLE_SNAP_WIDTH` this scrolls one column per swipe with
-        // "Type" pinned, so the row never loses its label — see
-        // `useGearTableColumns`.
+        // "Type" pinned; above it the columns share the row as before. The old
+        // `min-w-[720px]` is gone because the per-cell minimums below already
+        // add up to it — it only ever forced the wide layout onto phones.
         <div
           ref={scrollerRef}
-          className="overflow-x-auto pb-1"
+          className="overflow-x-auto"
           style={scrollerStyle}
         >
-          <table className="w-full border-collapse text-left">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="text-xs font-medium text-muted-foreground">
+              <tr className="text-left text-xs font-medium text-muted-foreground">
                 <th
-                  className={cn(PINNED_CELL, 'z-[2] px-3 pb-2 font-medium')}
+                  className={cn(STICKY_COLUMN, 'px-4 pb-2 font-medium')}
                   style={pinnedColumnStyle}
                 >
                   Type
@@ -406,65 +376,70 @@ export const GearComponentsCard: FC<Props> = ({
                 <th className="px-3 pb-2 font-medium" style={dataColumnStyle()}>
                   Removed
                 </th>
-                <th className="px-3 pb-2" style={dataColumnStyle()} />
+                <th
+                  className="px-3 pr-4 pb-2 font-medium"
+                  style={dataColumnStyle()}
+                />
               </tr>
             </thead>
             <tbody>
               {visible.map((component) => {
                 const isReplaced = Boolean(component.removedAt)
                 const isPending = pendingActionId === component.id
-                // A replaced row dims its contents rather than itself: the
-                // opacity belongs to the values, and applying it to the row
-                // would take the pinned cell's background down with it and let
-                // the other columns scroll through it.
-                //
-                // The data cells below can take it on the `<td>` because they
-                // paint no background of their own; the pinned cell cannot, and
-                // puts it on the inner span instead. Any cell that gains a
-                // background — a second pinned column, say — has to move to the
-                // span form with it.
-                const dim = isReplaced && 'opacity-60'
                 return (
                   <tr key={component.id} className="border-t">
+                    {/* A replaced component dims its contents rather than the
+                        row: fading the row would take the pinned column's own
+                        background down with it and let the data columns scroll
+                        through. */}
                     <td
-                      className={cn(CELL, PINNED_CELL, 'z-[1]')}
+                      className={cn(
+                        STICKY_COLUMN,
+                        CELL_WRAP,
+                        'px-4 py-2.5 align-top font-medium'
+                      )}
                       style={pinnedColumnStyle}
                     >
-                      <span className={cn('font-medium', dim)}>
+                      <div className={cn(isReplaced && 'opacity-60')}>
                         {component.componentType}
-                      </span>
+                      </div>
                     </td>
-                    {/* Brand keeps the row's own colour and model steps back
-                        to muted, the way the design system's row does — the
-                        pair reads as one value with an emphasis, not as two
-                        equally weighted columns. */}
-                    <td className={cn(CELL, dim)} style={dataColumnStyle(96)}>
+                    <td
+                      className={cn(
+                        CELL_WRAP,
+                        'px-3 py-2.5 align-top text-muted-foreground',
+                        isReplaced && 'opacity-60'
+                      )}
+                      style={dataColumnStyle(96)}
+                    >
                       {component.brand || '—'}
                     </td>
                     <td
-                      className={cn(CELL, 'text-muted-foreground', dim)}
+                      className={cn(
+                        CELL_WRAP,
+                        'px-3 py-2.5 align-top text-muted-foreground',
+                        isReplaced && 'opacity-60'
+                      )}
                       style={dataColumnStyle(132)}
                     >
                       {component.model || '—'}
                     </td>
                     <td
-                      className={cn(CELL, 'whitespace-nowrap text-right', dim)}
+                      className={cn(
+                        'px-3 py-2.5 text-right align-top whitespace-nowrap',
+                        isReplaced && 'opacity-60'
+                      )}
                       style={dataColumnStyle(108)}
                     >
                       <span className="font-semibold tabular-nums">
                         {formatGearDistanceKm(component.distanceMeters)}
                       </span>
-                      {/* Only while the part is fitted: wear against a service
-                          interval is advice about what to do next, and there is
-                          nothing left to do about a component already off the
-                          bike. */}
-                      {!isReplaced && <WearBar component={component} />}
+                      <WearBar component={component} />
                     </td>
                     <td
                       className={cn(
-                        CELL,
-                        'whitespace-nowrap text-muted-foreground',
-                        dim
+                        'px-3 py-2.5 align-top whitespace-nowrap text-muted-foreground',
+                        isReplaced && 'opacity-60'
                       )}
                       style={dataColumnStyle(112)}
                     >
@@ -474,9 +449,8 @@ export const GearComponentsCard: FC<Props> = ({
                     </td>
                     <td
                       className={cn(
-                        CELL,
-                        'whitespace-nowrap text-muted-foreground',
-                        dim
+                        'px-3 py-2.5 align-top whitespace-nowrap text-muted-foreground',
+                        isReplaced && 'opacity-60'
                       )}
                       style={dataColumnStyle(88)}
                     >
@@ -485,15 +459,15 @@ export const GearComponentsCard: FC<Props> = ({
                         : '—'}
                     </td>
                     <td
-                      className={cn(CELL, 'whitespace-nowrap text-right')}
+                      className="px-3 py-2.5 pr-4 text-right align-top whitespace-nowrap"
                       style={dataColumnStyle(84)}
                     >
                       {isReplaced ? (
                         <Button
                           size="sm"
                           type="button"
-                          variant="link"
-                          className={cn(ROW_ACTION, 'text-destructive')}
+                          variant="ghost"
+                          className="text-destructive"
                           disabled={isPending}
                           onClick={() => handleDelete(component.id)}
                           // Leaving the button disarms it: an armed row that
@@ -513,8 +487,8 @@ export const GearComponentsCard: FC<Props> = ({
                         <Button
                           size="sm"
                           type="button"
-                          variant="link"
-                          className={ROW_ACTION}
+                          variant="ghost"
+                          className="text-primary-text"
                           disabled={isPending}
                           onClick={() => handleReplace(component.id)}
                         >
@@ -531,10 +505,10 @@ export const GearComponentsCard: FC<Props> = ({
       )}
 
       {replaced.length > 0 && (
-        <div className="border-t px-5 py-3">
+        <div className="px-4">
           <button
             type="button"
-            className="cursor-pointer text-xs font-medium text-primary hover:underline"
+            className="cursor-pointer text-xs font-medium text-primary-text hover:underline"
             // Hiding the replaced rows must disarm any pending confirmation
             // with them: the armed row would otherwise come back armed and
             // delete on the first click after the next "Show ...".
@@ -551,6 +525,6 @@ export const GearComponentsCard: FC<Props> = ({
           </button>
         </div>
       )}
-    </section>
+    </Card>
   )
 }

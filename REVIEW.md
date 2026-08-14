@@ -248,6 +248,23 @@ change doesn't touch.
   window. `@container` belongs on a wrapper, never on the grid it sizes. Two
   older strips (gear detail, fitness overview) are not migrated yet — see
   **Fitness Stat Strips** in `AGENTS.md`.
+- Gear tables (the gear list's bikes/shoes/devices, the components table on a
+  gear's page) pin their first column through `STICKY_COLUMN` /
+  `STICKY_CLICKABLE_COLUMN` in `app/(timeline)/fitness/gear/gearUi.ts` — never a
+  hand-rolled sticky cell. The pinned cell must stay **opaque**
+  (`bg-background`), its hover must be the opaque `bg-muted` on both the row and
+  the cell (never `bg-muted/50`, which replaces the background rather than
+  layering over it), and a dimmed row dims its **cells**, never the `<tr>` or the
+  pinned `<td>` — `opacity` fades a background along with its text. Use
+  `STICKY_CLICKABLE_COLUMN` only on a row carrying `group` and its own `hover:`.
+  See **Fitness Gear** in `AGENTS.md`.
+- Orange **text** uses `text-primary-text`, not `text-primary`. `--primary` is
+  the accent orange for icons and fills and is only 3.37:1 on the card, below the
+  WCAG AA floor for body text; `--primary-text` is tuned per theme to clear 4.5:1
+  on every surface, including the `--muted` row hover. Applies to links, link-ish
+  buttons and any orange text node — icons keep `text-primary`. Move stale
+  `text-primary` text over when you touch it; `app/globals.contrast.test.ts`
+  guards the tokens.
 - When pairing a visible count with `sr-only` text, put only the noun (e.g.
   "boosts") in the `sr-only` span, not the number — the visible digit is already
   announced, so including it double-reads (see `posts/read-only-stats.tsx`).
