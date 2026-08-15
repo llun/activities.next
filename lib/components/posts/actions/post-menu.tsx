@@ -90,10 +90,23 @@ const QUOTE_POLICY_OPTIONS: {
 type ActiveDialog = 'mute' | 'block' | 'report' | 'delete' | null
 
 /**
- * An action the row could not fit and handed to the menu (bookmark, react).
- * They render above the menu's own items, matching the design system.
+ * One choice inside a `PostMenuExtraItem`'s submenu — a pick-one list, so it
+ * carries `checked` rather than a pressed state. `trailing` is the muted value
+ * shown at the row's right edge (a gear's lifetime distance, say), which is
+ * what tells two similarly-named entries apart at a glance.
  */
-export interface PostMenuExtraItem {
+export interface PostMenuExtraSubItem {
+  key: string
+  label: string
+  checked: boolean
+  trailing?: string
+  disabled?: boolean
+  /** Renders the label muted — for a "none of them" row. */
+  muted?: boolean
+  onSelect: () => void
+}
+
+interface PostMenuExtraItemBase {
   key: string
   icon: ReactNode
   label: string
@@ -102,6 +115,11 @@ export interface PostMenuExtraItem {
    * action whose own write is in flight has to say so here instead.
    */
   disabled?: boolean
+}
+
+/** An extra item that runs one action. */
+export interface PostMenuExtraActionItem extends PostMenuExtraItemBase {
+  items?: never
   onSelect: () => void
   /**
    * Run the action once the menu has fully closed, and let it keep focus.
@@ -110,6 +128,32 @@ export interface PostMenuExtraItem {
    */
   deferUntilClosed?: boolean
 }
+
+/**
+ * An extra item that opens a submenu of choices, built on the same
+ * `DropdownMenuSub` as "Change visibility" below. The two shapes are a union
+ * rather than one type with optional halves so that a submenu with a stray
+ * `onSelect` — an action that would never run, since a submenu trigger only
+ * opens its submenu — is a type error instead of dead code.
+ */
+export interface PostMenuExtraSubmenuItem extends PostMenuExtraItemBase {
+  items: PostMenuExtraSubItem[]
+  onSelect?: never
+  deferUntilClosed?: never
+}
+
+/**
+ * An action the row could not fit and handed to the menu (bookmark, react), or
+ * one a surface adds for a post only it knows about (the fitness activity
+ * detail's "Change gear"). They render above the menu's own items, matching the
+ * design system.
+ *
+ * This can only ADD to the action set — there is deliberately no way to remove
+ * or replace one of the menu's own items, because a post offers the same
+ * actions on every surface (see **Status Posts & Actions** in AGENTS.md).
+ */
+export type PostMenuExtraItem =
+  PostMenuExtraActionItem | PostMenuExtraSubmenuItem
 
 interface Props {
   // Always the resolved note/poll (Announce statuses are unwrapped by the
@@ -335,22 +379,67 @@ export const PostMenu: FC<Props> = ({
         >
           {extraItems && extraItems.length > 0 ? (
             <>
-              {extraItems.map((item) => (
-                <DropdownMenuItem
-                  key={item.key}
-                  disabled={item.disabled}
-                  onSelect={() => {
-                    if (!item.deferUntilClosed) {
-                      item.onSelect()
-                      return
-                    }
-                    deferredSelectRef.current = item.onSelect
-                  }}
-                >
-                  {item.icon}
-                  {item.label}
-                </DropdownMenuItem>
-              ))}
+              {extraItems.map((item) =>
+                item.items ? (
+                  <DropdownMenuSub key={item.key}>
+                    {/* Radix disables a *trigger* through `data-disabled`
+                        rather than the `disabled` prop the items use, so pass
+                        it here too: a submenu whose every row is disabled is
+                        still openable, and an owner mid-write would find a menu
+                        of choices none of which respond. */}
+                    <DropdownMenuSubTrigger disabled={item.disabled}>
+                      {item.icon}
+                      {item.label}
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="w-60">
+                      {item.items.map((subItem) => (
+                        <DropdownMenuItem
+                          key={subItem.key}
+                          disabled={subItem.disabled}
+                          // A pick-one list, like the visibility submenu below:
+                          // the check mark is decorative, so `aria-checked` is
+                          // the only thing announcing the current choice.
+                          role="menuitemradio"
+                          aria-checked={subItem.checked}
+                          onSelect={subItem.onSelect}
+                        >
+                          <span
+                            className={cn(
+                              'flex-1 truncate',
+                              subItem.muted && 'text-muted-foreground'
+                            )}
+                          >
+                            {subItem.label}
+                          </span>
+                          {subItem.trailing ? (
+                            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                              {subItem.trailing}
+                            </span>
+                          ) : null}
+                          {subItem.checked ? (
+                            <Check className="size-4 shrink-0 text-primary" />
+                          ) : null}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                ) : (
+                  <DropdownMenuItem
+                    key={item.key}
+                    disabled={item.disabled}
+                    onSelect={() => {
+                      if (!item.deferUntilClosed) {
+                        item.onSelect()
+                        return
+                      }
+                      deferredSelectRef.current = item.onSelect
+                    }}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </DropdownMenuItem>
+                )
+              )}
               <DropdownMenuSeparator />
             </>
           ) : null}

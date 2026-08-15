@@ -21,7 +21,7 @@ import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 
-import { PostMenu } from './post-menu'
+import { PostMenu, type PostMenuExtraSubmenuItem } from './post-menu'
 
 const refresh = vi.fn()
 
@@ -354,5 +354,179 @@ describe('PostMenu', () => {
         screen.getByRole('menuitem', { name: 'Unmute Maythee' })
       ).toBeInTheDocument()
     )
+  })
+
+  // Two shapes of extra item: an action the row could not fit (bookmark,
+  // react), and a submenu a surface adds for something only it knows about the
+  // post — the fitness activity detail's "Change gear".
+  describe('extra items', () => {
+    const gearSubmenu = (
+      overrides: Partial<PostMenuExtraSubmenuItem> = {}
+    ): PostMenuExtraSubmenuItem => ({
+      key: 'change-gear',
+      icon: <span data-testid="gear-icon" />,
+      label: 'Change gear',
+      items: [
+        {
+          key: 'gear-bike',
+          label: 'Moots',
+          checked: true,
+          trailing: '42.6 km',
+          onSelect: vi.fn()
+        },
+        {
+          key: 'gear-other-bike',
+          label: 'Winter bike',
+          checked: false,
+          onSelect: vi.fn()
+        },
+        {
+          key: 'no-gear',
+          label: 'No gear',
+          checked: false,
+          muted: true,
+          onSelect: vi.fn()
+        }
+      ],
+      ...overrides
+    })
+
+    const openSubmenu = async (name: string) => {
+      const menu = await openMenu()
+      fireEvent.keyDown(within(menu).getByRole('menuitem', { name }), {
+        key: 'ArrowRight'
+      })
+      return waitFor(() => {
+        const menus = screen.getAllByRole('menu')
+        const submenu = menus[menus.length - 1]
+        expect(submenu).not.toBe(menu)
+        return submenu
+      })
+    }
+
+    it('renders a flat extra item above the menu’s own items', async () => {
+      const onSelect = vi.fn()
+      render(
+        <PostMenu
+          status={ownStatus}
+          isOwner
+          canEdit
+          extraItems={[
+            {
+              key: 'bookmark',
+              icon: <span />,
+              label: 'Bookmark',
+              onSelect
+            }
+          ]}
+        />
+      )
+
+      const menu = await openMenu()
+      const items = within(menu).getAllByRole('menuitem')
+      expect(items[0]).toHaveTextContent('Bookmark')
+      fireEvent.click(items[0])
+      expect(onSelect).toHaveBeenCalled()
+    })
+
+    it('renders a submenu extra item as a submenu of choices', async () => {
+      render(
+        <PostMenu
+          status={ownStatus}
+          isOwner
+          canEdit
+          extraItems={[gearSubmenu()]}
+        />
+      )
+
+      const submenu = await openSubmenu('Change gear')
+      // Pick-one-of-N, so the rows carry radio semantics — the check mark is
+      // decorative, so `aria-checked` is the only thing announcing the choice.
+      expect(
+        within(submenu).getByRole('menuitemradio', { name: /Moots/ })
+      ).toHaveAttribute('aria-checked', 'true')
+      expect(
+        within(submenu).getByRole('menuitemradio', { name: /Winter bike/ })
+      ).toHaveAttribute('aria-checked', 'false')
+      // The trailing value rides along with the label rather than taking a
+      // column, which is what tells two similar entries apart at a glance.
+      expect(
+        within(submenu).getByRole('menuitemradio', { name: /Moots/ })
+      ).toHaveTextContent('Moots42.6 km')
+    })
+
+    it('fires the chosen row’s handler', async () => {
+      const item = gearSubmenu()
+      render(
+        <PostMenu status={ownStatus} isOwner canEdit extraItems={[item]} />
+      )
+
+      const submenu = await openSubmenu('Change gear')
+      fireEvent.click(
+        within(submenu).getByRole('menuitemradio', { name: /Winter bike/ })
+      )
+      expect(item.items[1].onSelect).toHaveBeenCalled()
+      expect(item.items[0].onSelect).not.toHaveBeenCalled()
+    })
+
+    it('leaves a disabled submenu unopenable rather than opening a dead one', async () => {
+      render(
+        <PostMenu
+          status={ownStatus}
+          isOwner
+          canEdit
+          extraItems={[
+            gearSubmenu({
+              disabled: true,
+              items: gearSubmenu().items.map((subItem) => ({
+                ...subItem,
+                disabled: true
+              }))
+            })
+          ]}
+        />
+      )
+
+      const menu = await openMenu()
+      const trigger = within(menu).getByRole('menuitem', {
+        name: 'Change gear'
+      })
+      expect(trigger).toHaveAttribute('data-disabled')
+      fireEvent.keyDown(trigger, { key: 'ArrowRight' })
+      // A menu of choices none of which respond is worse than one that will
+      // not open, so the trigger is disabled alongside its rows.
+      expect(screen.getAllByRole('menu')).toHaveLength(1)
+      // …and it has to LOOK disabled. Radix marks an inert SubTrigger only with
+      // `aria-disabled`, so without the dim this paints identically to the
+      // enabled "Change visibility" beside it and reads as a broken control.
+      // `DropdownMenuSubTrigger` was the one item primitive missing this; the
+      // three sibling item primitives have always carried it. One assertion
+      // each, because `.toHaveClass(a, b)` passes when EITHER is present.
+      expect(trigger).toHaveClass('data-[disabled]:opacity-50')
+      expect(trigger).toHaveClass('data-[disabled]:pointer-events-none')
+    })
+
+    it('keeps the menu’s own items below the extras', async () => {
+      render(
+        <PostMenu
+          status={ownStatus}
+          isOwner
+          canEdit
+          onEdit={vi.fn()}
+          extraItems={[gearSubmenu()]}
+        />
+      )
+
+      const menu = await openMenu()
+      const labels = within(menu)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent)
+      // An extra item can only ADD — Edit, visibility and the rest are all
+      // still there, and still after it.
+      expect(labels[0]).toBe('Change gear')
+      expect(labels).toContain('Edit post')
+      expect(labels).toContain('Change visibility')
+      expect(labels).toContain('Delete post')
+    })
   })
 })

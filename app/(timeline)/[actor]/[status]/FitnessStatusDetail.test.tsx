@@ -87,6 +87,32 @@ vi.mock('@/lib/components/posts/status-reply-box', () => ({
   StatusReplyBox: () => <div data-testid="comment-composer" />
 }))
 
+// Stubbed for the same reason `BrandedDeviceLink` is: this page only has to
+// open the shared composer in the right mode against the right status and put
+// it in the right place. What each mode renders is
+// `lib/components/posts/inline-status-composer.test.tsx`'s job.
+vi.mock('@/lib/components/posts/inline-status-composer', () => ({
+  InlineStatusComposer: ({
+    mode,
+    status,
+    onCancel
+  }: {
+    mode: string
+    status: { id: string }
+    onCancel: () => void
+  }) => (
+    <div
+      data-testid="inline-status-composer"
+      data-mode={mode}
+      data-status-id={status.id}
+    >
+      <button type="button" onClick={onCancel}>
+        Cancel
+      </button>
+    </div>
+  )
+}))
+
 vi.mock('@/lib/components/posts/actions/reply-button', () => ({
   ReplyButton: ({ onReply }: { onReply?: () => void }) => (
     <button type="button" onClick={() => onReply?.()}>
@@ -107,8 +133,91 @@ vi.mock('@/lib/components/posts/actions/bookmark-button', () => ({
   BookmarkButton: () => <button type="button">Bookmark</button>
 }))
 
+interface MockPostMenuSubItem {
+  key: string
+  label: string
+  checked: boolean
+  trailing?: string
+  disabled?: boolean
+}
+
+interface MockPostMenuExtraItem {
+  key: string
+  label: string
+  disabled?: boolean
+  items?: Array<MockPostMenuSubItem & { onSelect: () => void }>
+  onSelect?: () => void
+}
+
+// Flattened rather than driven as a real Radix menu: what this page owns is
+// WHICH items it hands the shared ⋯ and what selecting one does, while the menu
+// chrome itself (submenu trigger, check marks, focus handling) is pinned in
+// `lib/components/posts/actions/post-menu.test.tsx`. The items render as
+// role-bearing divs, which is what Radix emits for a `DropdownMenuItem` — so
+// they stay out of the action row's own button list.
 vi.mock('@/lib/components/posts/actions/post-menu', () => ({
-  PostMenu: () => <button type="button">More</button>
+  PostMenu: ({
+    status,
+    canEdit,
+    extraItems,
+    onEdit,
+    onQuote
+  }: {
+    status: { id: string }
+    canEdit?: boolean
+    extraItems?: MockPostMenuExtraItem[]
+    onEdit?: (status: unknown) => void
+    onQuote?: (status: unknown) => void
+  }) => (
+    <div data-testid="post-menu">
+      <button type="button">More</button>
+      {canEdit ? (
+        <div role="menuitem" tabIndex={0} onClick={() => onEdit?.(status)}>
+          Edit post
+        </div>
+      ) : null}
+      {onQuote ? (
+        <div role="menuitem" tabIndex={0} onClick={() => onQuote(status)}>
+          Quote post
+        </div>
+      ) : null}
+      {(extraItems ?? []).map((item) =>
+        item.items ? (
+          <div key={item.key} data-testid={`post-menu-submenu-${item.key}`}>
+            <div role="menuitem" tabIndex={0} aria-disabled={item.disabled}>
+              {item.label}
+            </div>
+            {item.items.map((subItem) => (
+              <div
+                key={subItem.key}
+                role="menuitemradio"
+                tabIndex={0}
+                aria-checked={subItem.checked}
+                aria-disabled={subItem.disabled}
+                onClick={() => {
+                  if (subItem.disabled) return
+                  subItem.onSelect()
+                }}
+              >
+                {subItem.label}
+                {subItem.trailing ? <span>{subItem.trailing}</span> : null}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div
+            key={item.key}
+            role="menuitem"
+            tabIndex={0}
+            aria-disabled={item.disabled}
+            onClick={() => item.onSelect?.()}
+          >
+            {item.label}
+          </div>
+        )
+      )}
+    </div>
+  )
 }))
 
 // Stubbed rather than rendered: this page only has to forward the right props
@@ -292,15 +401,14 @@ const openSectionMenu = async () => {
   return screen.findByRole('menu')
 }
 
-// Named from its content, so the accessible name carries the assignment too
-// ("Gear: Moots"); match on the prefix rather than pinning the current value.
-const getGearTrigger = () =>
-  screen.findByRole('button', { name: /^Gear:/ }) as Promise<HTMLButtonElement>
+// The metadata line's gear is a LINK to its gear page for the owner, named from
+// its content so the accessible name carries the assignment too ("Gear: Moots");
+// match on the prefix rather than pinning the current value.
+const getGearLink = () =>
+  screen.findByRole('link', { name: /^Gear:/ }) as Promise<HTMLAnchorElement>
 
-const openGearMenu = async () => {
-  fireEvent.keyDown(await getGearTrigger(), { key: 'ArrowDown' })
-  return screen.findByRole('menu')
-}
+// Changing the assignment lives in the post's ⋯ menu, not on the metadata line.
+const getGearMenu = () => screen.findByTestId('post-menu-submenu-change-gear')
 
 // Pick-one-of-N, so the rows are `menuitemradio` rather than the `menuitem` the
 // navigation dropdowns use.
@@ -308,17 +416,24 @@ const getGearItem = (menu: HTMLElement, name: string | RegExp) =>
   within(menu).getByRole('menuitemradio', { name })
 
 const chooseGear = async (name: string | RegExp) => {
-  const menu = await openGearMenu()
+  const menu = await getGearMenu()
   fireEvent.click(getGearItem(menu, name))
 }
 
 // `findBy*` nested inside `waitFor` burns its own timeout on a genuine failure
 // and reports a confusing error, so poll with the sync query instead.
-const expectGearTriggerText = (text: string) =>
+const expectGearLinkText = (text: string) =>
   waitFor(() =>
-    expect(screen.getByRole('button', { name: /^Gear:/ })).toHaveTextContent(
-      text
-    )
+    expect(screen.getByRole('link', { name: /^Gear:/ })).toHaveTextContent(text)
+  )
+
+// Nothing is attributed, so the metadata line shows no gear at all — the only
+// place "No gear" appears is as the submenu's clearing row.
+const expectNoGearOnMetaLine = () =>
+  waitFor(() =>
+    expect(
+      screen.queryByRole('link', { name: /^Gear:/ })
+    ).not.toBeInTheDocument()
   )
 
 describe('FitnessStatusDetail', () => {
@@ -1778,7 +1893,7 @@ describe('FitnessStatusDetail', () => {
     })
   })
   describe('gear', () => {
-    it('offers the owner a picker of their active gear', async () => {
+    it('offers the owner their active gear under "Change gear" in the post menu', async () => {
       mockGetFitnessGearList.mockResolvedValue([
         buildGear({ id: 'gear-bike', name: 'Moots', distanceMeters: 42_600 }),
         buildGear({ id: 'gear-other-bike', name: 'Winter bike' })
@@ -1786,19 +1901,60 @@ describe('FitnessStatusDetail', () => {
 
       renderDetail()
 
-      expect(await getGearTrigger()).toHaveTextContent('No gear')
-
-      const menu = await openGearMenu()
+      const menu = await getGearMenu()
+      expect(
+        within(menu).getByRole('menuitem', { name: 'Change gear' })
+      ).toBeInTheDocument()
       expect(
         within(menu).getByRole('menuitemradio', { name: 'No gear' })
       ).toBeInTheDocument()
-      // The lifetime total rides along with the name, as the design shows it.
+      // The lifetime total rides along with the name, as the design shows it —
+      // it is what tells two similar bikes apart at a glance.
       expect(
         within(menu).getByRole('menuitemradio', { name: /Moots/ })
       ).toHaveTextContent('Moots42.6 km')
       expect(
         within(menu).getByRole('menuitemradio', { name: /Winter bike/ })
       ).toBeInTheDocument()
+      // Nothing is assigned, so the metadata line carries no gear at all — the
+      // line is not a control any more, and "No gear" is only a submenu row.
+      await expectNoGearOnMetaLine()
+    })
+
+    it('links the assigned gear to its gear page, with the lifetime total in the tooltip', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([
+        buildFitnessFile({ gearId: 'gear-bike', gearName: 'Moots' })
+      ])
+      mockGetFitnessGearList.mockResolvedValue([
+        buildGear({ id: 'gear-bike', name: 'Moots', distanceMeters: 42_600 })
+      ])
+
+      renderDetail()
+
+      const link = await getGearLink()
+      expect(link).toHaveAttribute('href', '/fitness/gear/gear-bike')
+      expect(link).toHaveTextContent('Moots')
+      // The distance rides in the title rather than on the line, which is
+      // already carrying the date and the visibility.
+      await waitFor(() =>
+        expect(screen.getByRole('link', { name: /^Gear:/ })).toHaveAttribute(
+          'title',
+          'Gear: Moots · 42.6 km'
+        )
+      )
+    })
+
+    it('names the gear without a distance before the shed has loaded', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([
+        buildFitnessFile({ gearId: 'gear-bike', gearName: 'Moots' })
+      ])
+      // The list endpoint never answers, so the page only ever has the name the
+      // status payload carried.
+      mockGetFitnessGearList.mockImplementation(() => new Promise(() => {}))
+
+      renderDetail()
+
+      expect(await getGearLink()).toHaveAttribute('title', 'Gear: Moots')
     })
 
     it('narrows the options to the kind the activity implies', async () => {
@@ -1815,7 +1971,7 @@ describe('FitnessStatusDetail', () => {
 
       renderDetail()
 
-      const menu = await openGearMenu()
+      const menu = await getGearMenu()
       await waitFor(() =>
         expect(
           within(menu).getByRole('menuitemradio', { name: /Moots/ })
@@ -1854,7 +2010,7 @@ describe('FitnessStatusDetail', () => {
 
         renderDetail()
 
-        const menu = await openGearMenu()
+        const menu = await getGearMenu()
         await waitFor(() =>
           expect(
             within(menu).getByRole('menuitemradio', { name: /Moots/ })
@@ -1931,14 +2087,14 @@ describe('FitnessStatusDetail', () => {
 
       // A picker that cannot represent its own value renders the assignment as
       // something else, which reads as the gear having changed on its own.
-      await expectGearTriggerText('Sold bike')
-      const menu = await openGearMenu()
+      await expectGearLinkText('Sold bike')
+      const menu = await getGearMenu()
       expect(
         within(menu).getByRole('menuitemradio', { name: /Sold bike/ })
       ).toBeInTheDocument()
     })
 
-    it('shows a non-owner the gear name as plain text with no picker', async () => {
+    it('shows a non-owner the gear name as plain text with no link', async () => {
       mockGetFitnessFilesByStatus.mockResolvedValue([
         buildFitnessFile({ gearId: 'gear-bike', gearName: 'Moots' })
       ])
@@ -1950,10 +2106,26 @@ describe('FitnessStatusDetail', () => {
       expect(await screen.findByTitle('Gear: Moots')).toHaveTextContent(
         'Gear: Moots'
       )
+      // `/fitness/gear/<id>` is owner-scoped, so a link offered here would only
+      // ever 404 — the same constraint `BrandedDeviceLink` resolves the same
+      // way on the line below.
       expect(
-        screen.queryByRole('button', { name: /^Gear:/ })
+        screen.queryByRole('link', { name: /^Gear:/ })
       ).not.toBeInTheDocument()
       expect(mockGetFitnessGearList).not.toHaveBeenCalled()
+    })
+
+    it('offers a non-owner no way to change the gear', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([
+        buildFitnessFile({ gearId: 'gear-bike', gearName: 'Moots' })
+      ])
+
+      renderDetail({ currentActor: notMe })
+
+      await screen.findByTitle('Gear: Moots')
+      expect(
+        screen.queryByTestId('post-menu-submenu-change-gear')
+      ).not.toBeInTheDocument()
     })
 
     it('shows a non-owner nothing when no gear is attributed', async () => {
@@ -1980,7 +2152,7 @@ describe('FitnessStatusDetail', () => {
 
       await chooseGear(/Moots/)
 
-      await expectGearTriggerText('Moots')
+      await expectGearLinkText('Moots')
       expect(mockUpdateFitnessFileGear).toHaveBeenCalledWith(
         'fit-1',
         'gear-bike'
@@ -2002,33 +2174,40 @@ describe('FitnessStatusDetail', () => {
       expect(await screen.findByRole('alert')).toHaveTextContent(
         'Failed to update gear.'
       )
-      // The picker goes back to what the server still holds.
-      await expectGearTriggerText('No gear')
+      // The assignment goes back to what the server still holds, which for an
+      // unassigned activity means no gear on the metadata line at all.
+      await expectNoGearOnMetaLine()
     })
 
-    it('points the picker at its own error message', async () => {
+    it('reports the failure beside the gear it was for, not inside the menu', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([
+        buildFitnessFile({ gearId: 'gear-bike', gearName: 'Moots' })
+      ])
       mockGetFitnessGearList.mockResolvedValue([
-        buildGear({ id: 'gear-bike', name: 'Moots' })
+        buildGear({ id: 'gear-bike', name: 'Moots' }),
+        buildGear({ id: 'gear-other-bike', name: 'Winter bike' })
       ])
       mockUpdateFitnessFileGear.mockRejectedValue(new Error('Gear is retired.'))
 
       renderDetail()
 
-      expect(await getGearTrigger()).not.toHaveAttribute('aria-describedby')
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 
-      await chooseGear(/Moots/)
+      await chooseGear(/Winter bike/)
 
+      // The menu closes itself on select, so the error belongs on the metadata
+      // line — beside the gear it failed to change — rather than in the menu it
+      // was triggered from.
       const alert = await screen.findByRole('alert')
-      await waitFor(() =>
-        expect(screen.getByRole('button', { name: /^Gear:/ })).toHaveAttribute(
-          'aria-describedby',
-          alert.id
-        )
-      )
+      expect(alert).toHaveTextContent('Gear is retired.')
       expect(alert.id).toBe('activity-gear-error')
+      expect(alert.previousElementSibling).toContainElement(
+        screen.getByRole('link', { name: /^Gear:/ })
+      )
+      expect(screen.getByTestId('post-menu')).not.toContainElement(alert)
     })
 
-    it('disables the picker while the change is in flight', async () => {
+    it('disables the whole submenu while the change is in flight', async () => {
       mockGetFitnessGearList.mockResolvedValue([
         buildGear({ id: 'gear-bike', name: 'Moots' })
       ])
@@ -2048,17 +2227,27 @@ describe('FitnessStatusDetail', () => {
       await chooseGear(/Moots/)
 
       // Two fast changes would otherwise race, and the loser's rollback would
-      // restore an assignment the server has already replaced.
-      const trigger = await getGearTrigger()
-      await waitFor(() => expect(trigger).toBeDisabled())
-      // Disabling the button is not on its own enough: Radix gates opening on
-      // its OWN `disabled` prop, so a trigger disabled only through `asChild`
-      // merging still opens by keyboard and the second change stays reachable.
-      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
-      expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+      // restore an assignment the server has already replaced. The trigger is
+      // disabled as well as the rows, so the submenu cannot even be opened
+      // mid-write — a menu of choices none of which respond is worse than one
+      // that will not open.
+      const menu = await getGearMenu()
+      await waitFor(() =>
+        expect(
+          within(menu).getByRole('menuitem', { name: 'Change gear' })
+        ).toHaveAttribute('aria-disabled', 'true')
+      )
+      expect(getGearItem(menu, /Moots/)).toHaveAttribute(
+        'aria-disabled',
+        'true'
+      )
 
       resolveUpdate({ id: 'fit-1', gearId: 'gear-bike' })
-      await waitFor(() => expect(trigger).toBeEnabled())
+      await waitFor(() =>
+        expect(
+          within(menu).getByRole('menuitem', { name: 'Change gear' })
+        ).toHaveAttribute('aria-disabled', 'false')
+      )
     })
 
     it('ignores re-picking the gear that is already assigned', async () => {
@@ -2071,7 +2260,7 @@ describe('FitnessStatusDetail', () => {
 
       renderDetail()
 
-      await expectGearTriggerText('Moots')
+      await expectGearLinkText('Moots')
       // Tapping the checked row to dismiss the menu is the natural gesture, and
       // a `<select>` never fired `onChange` for it. A write here would re-run
       // the service reminders and could surface an error for a change the owner
@@ -2089,10 +2278,11 @@ describe('FitnessStatusDetail', () => {
       await waitFor(() =>
         expect(screen.getByText('ride.fit')).toBeInTheDocument()
       )
-      // A menu whose only entry is "No gear" is dead UI, so the whole control
-      // is absent rather than empty.
+      // A submenu whose only entry is "No gear" is dead UI, so the whole item
+      // is absent rather than empty — the same rule that keeps the metadata
+      // line clear when nothing is attributed.
       expect(
-        screen.queryByRole('button', { name: /^Gear:/ })
+        screen.queryByTestId('post-menu-submenu-change-gear')
       ).not.toBeInTheDocument()
       expect(screen.queryByText(/^Gear/)).not.toBeInTheDocument()
     })
@@ -2122,7 +2312,7 @@ describe('FitnessStatusDetail', () => {
       renderDetail()
 
       await chooseGear(/Moots/)
-      await expectGearTriggerText('Moots')
+      await expectGearLinkText('Moots')
 
       await act(async () => {
         resolveFiles([
@@ -2146,7 +2336,7 @@ describe('FitnessStatusDetail', () => {
       )
       // Only this file's assignment went back. Restoring the array captured
       // before the PATCH would have dropped the second file with it.
-      await expectGearTriggerText('No gear')
+      await expectNoGearOnMetaLine()
       expect(screen.getByLabelText('Activity file')).toBeInTheDocument()
       expect(screen.getByText('file 1 of 2')).toBeInTheDocument()
     })
@@ -2315,14 +2505,146 @@ describe('FitnessStatusDetail', () => {
 
       renderDetail()
 
-      await expectGearTriggerText('Moots')
+      await expectGearLinkText('Moots')
 
       await chooseGear('No gear')
 
       await waitFor(() =>
         expect(mockUpdateFitnessFileGear).toHaveBeenCalledWith('fit-1', null)
       )
-      expect(await getGearTrigger()).toHaveTextContent('No gear')
+      // Cleared, so the metadata line drops the gear entirely rather than
+      // reading "No gear" — that phrase only exists as the submenu's own row.
+      await expectNoGearOnMetaLine()
+    })
+
+    it('marks the assigned gear as the checked row', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([
+        buildFitnessFile({ gearId: 'gear-bike', gearName: 'Moots' })
+      ])
+      mockGetFitnessGearList.mockResolvedValue([
+        buildGear({ id: 'gear-bike', name: 'Moots' }),
+        buildGear({ id: 'gear-other-bike', name: 'Winter bike' })
+      ])
+
+      renderDetail()
+
+      const menu = await getGearMenu()
+      await waitFor(() =>
+        expect(getGearItem(menu, /Moots/)).toHaveAttribute(
+          'aria-checked',
+          'true'
+        )
+      )
+      expect(getGearItem(menu, /Winter bike/)).toHaveAttribute(
+        'aria-checked',
+        'false'
+      )
+      expect(getGearItem(menu, 'No gear')).toHaveAttribute(
+        'aria-checked',
+        'false'
+      )
+    })
+
+    it('checks "No gear" when nothing is assigned', async () => {
+      mockGetFitnessGearList.mockResolvedValue([
+        buildGear({ id: 'gear-bike', name: 'Moots' })
+      ])
+
+      renderDetail()
+
+      const menu = await getGearMenu()
+      expect(getGearItem(menu, 'No gear')).toHaveAttribute(
+        'aria-checked',
+        'true'
+      )
+    })
+  })
+
+  describe('editing', () => {
+    it('offers the owner Edit and Quote in the post menu, like every other surface', async () => {
+      renderDetail()
+
+      // The gap this closes: this page used to pass neither `editable` nor
+      // `onQuote`, so a fitness activity was the one post its own author could
+      // not edit from its own page.
+      expect(
+        await screen.findByRole('menuitem', { name: 'Edit post' })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('menuitem', { name: 'Quote post' })
+      ).toBeInTheDocument()
+    })
+
+    it('offers no Edit on someone else’s activity', async () => {
+      renderDetail({ currentActor: notMe })
+
+      // Quote is still there — anyone may quote a post they can see — but only
+      // the author edits.
+      expect(
+        await screen.findByRole('menuitem', { name: 'Quote post' })
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('menuitem', { name: 'Edit post' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('opens the shared inline composer in edit mode beneath the post', async () => {
+      renderDetail()
+
+      fireEvent.click(
+        await screen.findByRole('menuitem', { name: 'Edit post' })
+      )
+
+      const composer = await screen.findByTestId('inline-status-composer')
+      expect(composer).toHaveAttribute('data-mode', 'edit')
+      // The composer targets this very status, not some unwrapped sibling.
+      expect(composer).toHaveAttribute(
+        'data-status-id',
+        'https://activities.local/users/athlete/statuses/ride-1'
+      )
+      // Inside the header card, under the action row that opened it — the same
+      // relationship `Posts` and `StatusBox` give it.
+      expect(
+        screen.getByRole('group', { name: 'Post actions' }).closest('.bg-card')
+      ).toContainElement(composer)
+    })
+
+    it('opens the same composer in quote mode', async () => {
+      renderDetail()
+
+      fireEvent.click(
+        await screen.findByRole('menuitem', { name: 'Quote post' })
+      )
+
+      expect(
+        await screen.findByTestId('inline-status-composer')
+      ).toHaveAttribute('data-mode', 'quote')
+    })
+
+    it('closes the composer when the edit is cancelled', async () => {
+      renderDetail()
+
+      fireEvent.click(
+        await screen.findByRole('menuitem', { name: 'Edit post' })
+      )
+      fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
+
+      await waitFor(() =>
+        expect(
+          screen.queryByTestId('inline-status-composer')
+        ).not.toBeInTheDocument()
+      )
+    })
+
+    it('leaves a logged-out reader no composer at all', () => {
+      renderDetail({ currentActor: null })
+
+      // `Actions` renders nothing without a viewer, so there is no menu to open
+      // one from either.
+      expect(screen.queryByTestId('post-menu')).not.toBeInTheDocument()
+      expect(
+        screen.queryByTestId('inline-status-composer')
+      ).not.toBeInTheDocument()
     })
   })
 })

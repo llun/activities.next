@@ -7,8 +7,6 @@ import {
   BarChart3,
   Bike,
   Calendar,
-  Check,
-  ChevronDown,
   Clock,
   ExternalLink,
   Flame,
@@ -29,6 +27,7 @@ import {
   Watch,
   Wrench
 } from 'lucide-react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   FC,
@@ -71,23 +70,20 @@ import {
 } from '@/lib/components/fitness/routeHighlightMarker'
 import { BrandedDeviceLink } from '@/lib/components/posts/BrandedDeviceLink'
 import { Actions } from '@/lib/components/posts/actions/actions'
+import type { PostMenuExtraItem } from '@/lib/components/posts/actions/post-menu'
 import { ActorAvatar } from '@/lib/components/posts/actor'
+import { InlineStatusComposer } from '@/lib/components/posts/inline-status-composer'
 import { Media } from '@/lib/components/posts/media'
 import { Post } from '@/lib/components/posts/post'
 import { ReactionRow } from '@/lib/components/posts/reaction-row'
 import { RetryFitnessButton } from '@/lib/components/posts/retry-fitness-button'
 import { StatusReplyBox } from '@/lib/components/posts/status-reply-box'
+import { useInlineComposer } from '@/lib/components/posts/useInlineComposer'
 import { useReactionState } from '@/lib/components/posts/useReactionState'
 import {
   SectionNavSelect,
   type SectionNavSelectTab
 } from '@/lib/components/section-nav-select'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/lib/components/ui/dropdown-menu'
 import { getGearKindForActivityType } from '@/lib/services/fitness-files/sportTypes'
 import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
 import type { FitnessGearKind } from '@/lib/types/database/fitnessGear'
@@ -916,135 +912,71 @@ const GEAR_KIND_ICON: Record<FitnessGearKind, LucideIcon> = {
  * The assigned gear, inline in the header's metadata line. The design system
  * (`FAGearRow` in `ui_kits/web/FitnessActivity.jsx`) reads the recording
  * metadata as one wrapping line — date · visibility · gear — rather than giving
- * gear a labelled field and a row of its own.
+ * gear a labelled field and a row of its own, and makes the gear a LINK to its
+ * own page. Changing the assignment is not here at all: it is "Change gear" in
+ * the post's ⋯ menu, the way `FAMoreMenu` has it.
  *
- * The owner gets a picker; everyone else gets the name as plain text; nobody
- * gets anything when no gear is attributed. An owner with an empty shed and no
- * assignment falls through to that same read-only branch, because a menu whose
- * only entry is "No gear" is dead UI.
+ * `/fitness/gear/<id>` is owner-scoped, so only the owner gets the link — the
+ * same constraint `BrandedDeviceLink` resolves the same way on the line below.
+ * Everyone else gets the name as plain text, and nobody gets anything when no
+ * gear is attributed.
  */
 const ActivityGearMeta: FC<{
   isOwner: boolean
-  options: GearPickerOption[]
-  selectedGearId: string | null
+  /** The id of the gear this activity is attributed to, if any. */
+  gearId: string | null
   /** The name the status payload carried, for a viewer with no gear list. */
   gearName: string | null
-  activityKind: FitnessGearKind | null
-  isSaving: boolean
-  errorId?: string
-  onSelect: (gearId: string) => void
-}> = ({
-  isOwner,
-  options,
-  selectedGearId,
-  gearName,
-  activityKind,
-  isSaving,
-  errorId,
-  onSelect
-}) => {
-  const selected = options.find((option) => option.id === selectedGearId)
-  const label = selected?.name ?? gearName ?? null
-  const kind = selected?.kind ?? activityKind
-  const Icon = kind ? GEAR_KIND_ICON[kind] : Wrench
+  /**
+   * That gear's lifetime distance, when the owner's shed has been loaded. It
+   * rides in the `title` rather than on the line, which is already carrying the
+   * date and the visibility.
+   */
+  distanceMeters: number | null
+  /** The kind of the assigned gear, else what the activity type implies. */
+  kind: FitnessGearKind | null
+}> = ({ isOwner, gearId, gearName, distanceMeters, kind }) => {
+  const label = gearName?.trim() || null
+  if (!label) return null
 
-  if (!isOwner || options.length === 0) {
-    if (!label) return null
-    return (
-      <>
-        <span aria-hidden="true">·</span>
-        <span
-          className="inline-flex min-w-0 items-center gap-1.5"
-          title={`Gear: ${label}`}
-        >
-          <Icon className="size-3.5 shrink-0" aria-hidden="true" />
-          {/* The icon alone carries the meaning visually; spell it out for a
-              screen reader, which otherwise hears a bare product name. */}
-          <span className="sr-only">Gear: </span>
-          <span className="truncate">{label}</span>
-        </span>
-      </>
-    )
-  }
+  const Icon = kind ? GEAR_KIND_ICON[kind] : Wrench
+  const title =
+    distanceMeters === null
+      ? `Gear: ${label}`
+      : `Gear: ${label} · ${formatGearDistanceKm(distanceMeters)}`
+  // The icon alone carries the meaning visually; spell it out for a screen
+  // reader, which otherwise hears a bare product name.
+  const content = (
+    <>
+      <Icon className="size-3.5 shrink-0" aria-hidden="true" />
+      <span className="sr-only">Gear: </span>
+      <span className="truncate">{label}</span>
+    </>
+  )
 
   return (
     <>
       <span aria-hidden="true">·</span>
-      <DropdownMenu>
-        {/* Disabled while the PATCH is in flight: two quick changes otherwise
-            race, and the loser's rollback would put back a value the server has
-            since replaced. It goes on BOTH the trigger and the button — Radix
-            gates its own open handlers on its own `disabled` prop, and `asChild`
-            merging only lets the child's attribute win on the DOM node, so
-            passing it to the child alone leaves the menu openable by keyboard
-            and the guard resting on native form semantics. */}
-        <DropdownMenuTrigger asChild disabled={isSaving}>
-          <button
-            type="button"
-            aria-describedby={errorId}
-            disabled={isSaving}
-            className="inline-flex min-w-0 items-center gap-1.5 rounded-md transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Icon className="size-3.5 shrink-0" aria-hidden="true" />
-            {/* Named from its content rather than by `aria-label`, so the
-                accessible name carries the current value too — "Gear: Moots
-                Routt YBB", not a bare "Gear" that says nothing about what is
-                assigned. The `title` therefore goes on the span that actually
-                truncates rather than on the button: on the button it would
-                become the accessible *description*, re-reading the name it
-                already announced. */}
-            <span className="sr-only">Gear: </span>
-            <span className="truncate" title={`Gear: ${label ?? 'No gear'}`}>
-              {label ?? 'No gear'}
-            </span>
-            <ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />
-          </button>
-        </DropdownMenuTrigger>
-        {/* Same menu chrome as the section sub-nav above. */}
-        <DropdownMenuContent align="start" className="rounded-xl shadow-lg">
-          {[...options, null].map((option) => {
-            const id = option?.id ?? ''
-            const isActive = (selectedGearId ?? '') === id
-            return (
-              <DropdownMenuItem
-                key={id || 'no-gear'}
-                onSelect={() => onSelect(id)}
-                // This menu picks one of N, so it carries the radio semantics
-                // rather than the `aria-current` the *navigation* dropdowns use
-                // (there the URL states it too). The check mark is decorative,
-                // so `aria-checked` is the only thing announcing which gear is
-                // assigned.
-                role="menuitemradio"
-                aria-checked={isActive}
-                className={cn(
-                  'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 font-medium',
-                  isActive && [
-                    'bg-primary/10 text-primary focus:bg-primary/10 focus:text-primary',
-                    'focus:ring-2 focus:ring-primary/50'
-                  ]
-                )}
-              >
-                <Check
-                  className={cn('size-4 shrink-0', !isActive && 'invisible')}
-                  aria-hidden="true"
-                />
-                <span className={cn(!option && 'text-muted-foreground')}>
-                  {option?.name ?? 'No gear'}
-                </span>
-                {/* The lifetime total, as the design shows it — it is what
-                    tells two similar bikes apart at a glance. Absent on the
-                    "No gear" row, and on an assigned gear the list never
-                    returned. */}
-                {typeof option?.distanceMeters === 'number' ? (
-                  <span className="ml-auto pl-3 text-xs tabular-nums text-muted-foreground">
-                    {formatGearDistanceKm(option.distanceMeters)}
-                  </span>
-                ) : null}
-              </DropdownMenuItem>
-            )
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {isOwner && gearId ? (
+        <Link
+          // One link on a detail page rather than one per feed row, but it
+          // points at the same dynamic owner-scoped route the device link
+          // beside it does, so it opts out of prefetching for the same reason.
+          prefetch={false}
+          href={`/fitness/gear/${encodeURIComponent(gearId)}`}
+          title={title}
+          className="inline-flex min-w-0 items-center gap-1.5 rounded-md underline-offset-2 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+        >
+          {content}
+        </Link>
+      ) : (
+        <span
+          className="inline-flex min-w-0 items-center gap-1.5"
+          title={title}
+        >
+          {content}
+        </span>
+      )}
     </>
   )
 }
@@ -2190,6 +2122,11 @@ export const FitnessStatusDetail: FC<Props> = ({
     )
   // Force-resets the always-on comment composer after a cancel or a post.
   const [composerKey, setComposerKey] = useState(0)
+  // Edit and quote open the same inline composer every other surface uses, so
+  // a fitness activity is editable from its own page exactly as it is from the
+  // timeline. Reply is not routed through it here: this page has an always-on
+  // composer in its Comments section, which the reply action jumps to instead.
+  const composer = useInlineComposer()
   // This page lays out its own card, so it holds the reaction rollups the way
   // `Post` does — the chip row in the card body and the picker trigger in the
   // shared `Actions` row below both read this one state.
@@ -2418,6 +2355,15 @@ export const FitnessStatusDetail: FC<Props> = ({
     ]
   }, [gearOptions, fitness?.activityType, fitness?.gearName, selectedGearId])
 
+  // Whatever is assigned is always in `gearPickerOptions` when the shed has
+  // loaded, so this is where the metadata line's link gets its kind icon and
+  // its lifetime distance. Undefined for a viewer (who never loads the shed)
+  // and for an owner whose shed failed to load, both of which fall back to the
+  // activity type's kind and no distance.
+  const assignedGear = selectedGearId
+    ? gearPickerOptions.find((option) => option.id === selectedGearId)
+    : undefined
+
   // Only ever the error for the file on screen; a failure that lands after the
   // reader switched files stays with the file it happened to, and comes back
   // with it.
@@ -2485,6 +2431,56 @@ export const FitnessStatusDetail: FC<Props> = ({
       setIsSavingGear(false)
     }
   }
+
+  // Changing the assignment is an item in the post's own ⋯ menu, the way the
+  // design system's `FAMoreMenu` has it — the metadata line's gear is a link to
+  // the gear page, not a control. Absent entirely when there is nothing to pick
+  // (`FAMoreMenu`'s own `if (!canChange) return null`): a submenu whose only
+  // entry is "No gear" is dead UI, the same rule that kept the old picker off
+  // an empty shed.
+  //
+  // Not memoized on purpose: it closes over `handleGearChange`, which is rebuilt
+  // every render anyway, so a `useMemo` here would only be able to hand back a
+  // stale one.
+  const gearMenuItems: PostMenuExtraItem[] =
+    isOwner && gearPickerOptions.length > 0
+      ? [
+          {
+            key: 'change-gear',
+            icon: <Wrench className="size-4" />,
+            label: 'Change gear',
+            // Two quick changes otherwise race, and the loser's rollback would
+            // put back a value the server has since replaced. On the trigger as
+            // well as the rows, so the submenu cannot even be opened mid-write.
+            disabled: isSavingGear,
+            items: [
+              ...gearPickerOptions.map((option) => ({
+                key: option.id,
+                label: option.name,
+                checked: option.id === selectedGearId,
+                // The lifetime total, as the design shows it — it is what tells
+                // two similar bikes apart at a glance. Absent on a gear the
+                // list never returned.
+                trailing:
+                  typeof option.distanceMeters === 'number'
+                    ? formatGearDistanceKm(option.distanceMeters)
+                    : undefined,
+                disabled: isSavingGear,
+                onSelect: () => void handleGearChange(option.id)
+              })),
+              {
+                key: 'no-gear',
+                label: 'No gear',
+                checked: selectedGearId === null,
+                muted: true,
+                disabled: isSavingGear,
+                onSelect: () => void handleGearChange('')
+              }
+            ]
+          }
+        ]
+      : []
+
   // Every provider renders an interactive map, so route data is loaded whenever
   // there is a fitness file to load it from.
   const shouldLoadInteractiveMap = Boolean(fitness?.id)
@@ -3081,16 +3077,19 @@ export const FitnessStatusDetail: FC<Props> = ({
             </span>
             {/* Gear rides on the same line as the rest of the recording
                 metadata, the way the design system's header does: the device is
-                what captured the activity, the gear is what it was done on. */}
+                what captured the activity, the gear is what it was done on.
+                Its kind comes from the assigned gear when the owner's shed has
+                loaded, and otherwise from what the activity type implies — a
+                viewer never loads the shed, so that fallback is all they get. */}
             <ActivityGearMeta
               isOwner={isOwner}
-              options={gearPickerOptions}
-              selectedGearId={selectedGearId}
+              gearId={selectedGearId}
               gearName={fitness?.gearName ?? null}
-              activityKind={getGearKindForActivityType(fitness?.activityType)}
-              isSaving={isSavingGear}
-              errorId={gearErrorMessage ? 'activity-gear-error' : undefined}
-              onSelect={(gearId) => void handleGearChange(gearId)}
+              distanceMeters={assignedGear?.distanceMeters ?? null}
+              kind={
+                assignedGear?.kind ??
+                getGearKindForActivityType(fitness?.activityType)
+              }
             />
           </div>
 
@@ -3264,11 +3263,49 @@ export const FitnessStatusDetail: FC<Props> = ({
               showActions
               fullBleed={false}
               reactionState={reactionState}
+              // Same authoring gate the status detail page applies: a signed-in
+              // owner edits their own post from its own page rather than having
+              // to find it in a feed. Quote comes from the same composer.
+              editable={isOwner}
+              extraMenuItems={gearMenuItems}
               onReply={() => setActiveSection('comments')}
+              onEdit={
+                currentActor
+                  ? (target) => composer.openEdit(target, status.id)
+                  : undefined
+              }
+              onQuote={
+                currentActor
+                  ? (target) => composer.openQuote(target, status.id)
+                  : undefined
+              }
               onShowAttachment={onShowAttachment}
             />
           </div>
         )}
+
+        {/* The shared inline composer, inside the card and beneath the post it
+            targets — the same component and the same hook `Posts` and
+            `StatusBox` drive, so an edit from here behaves exactly as it does
+            in the timeline. It closes itself after a successful write (see
+            `InlineStatusComposer`), so the callbacks here only re-fetch. The
+            `key` remounts it when the mode changes, rather than carrying a
+            quote's draft into an edit. */}
+        {composer.active?.anchorId === status.id && currentActor ? (
+          <div className="px-4 pb-4">
+            <InlineStatusComposer
+              key={`${composer.active.mode}-${composer.active.anchorId}`}
+              host={host}
+              profile={currentActor}
+              mode={composer.active.mode}
+              status={composer.active.status}
+              isMediaUploadEnabled={isMediaUploadEnabled}
+              onCancel={composer.close}
+              onCreated={() => router.refresh()}
+              onUpdated={() => router.refresh()}
+            />
+          </div>
+        ) : null}
       </div>
 
       {/* Section sub-navigation */}

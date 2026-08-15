@@ -515,18 +515,31 @@ it; there is no legacy shape left to copy.
 - **The activity page carries gear inline in the header's metadata line** —
   `date · visibility · gear`, the way `FAGearRow` does in the design system's
   `ui_kits/web/FitnessActivity.jsx`, not as a labelled field with a row of its
-  own. The owner gets a dropdown listing each candidate with its lifetime
-  distance (what tells two similar bikes apart at a glance) plus "No gear";
-  everyone else gets the name as plain text with the kind's icon; nobody gets
-  anything when no gear is attributed, **including** an owner whose shed is
-  empty — a menu whose only entry is "No gear" is dead UI. The picker is
-  disabled while its PATCH is in flight, because two quick changes otherwise
-  race and the loser's rollback restores a value the server has already
-  replaced. Whatever is assigned is always in the list even when the kind filter
-  or its retirement would drop it: a picker that cannot represent its own value
-  renders the assignment as something else, which reads as the gear having
-  changed on its own. In a post's inline chip, gear instead rides along with the
-  distance cell ("42.6 km · Moots") rather than taking a cell of its own.
+  own — and that line **reports**, it does not edit. The gear is a LINK to its
+  gear page for the owner, plain text with the kind's icon for everyone else
+  (`/fitness/gear/<id>` is owner-scoped, so a link offered to a viewer would only
+  ever 404 — the same constraint `BrandedDeviceLink` resolves the same way on the
+  line below it), and nothing at all when no gear is attributed. The lifetime
+  distance rides in the link's `title` rather than on the line, which is already
+  carrying the date and the visibility.
+- **Changing the assignment is "Change gear" in the post's own ⋯ menu**, as
+  `FAMoreMenu` has it — a submenu listing each candidate with its lifetime
+  distance (what tells two similar bikes apart at a glance) plus a "No gear" row
+  that clears it. It reaches the shared `PostMenu` through `Actions`'
+  `extraMenuItems`, which can only **add** to the action set (see **Status Posts
+  & Actions**), and it is absent entirely for an owner with nothing to pick — a
+  submenu whose only entry is "No gear" is dead UI, the same rule that keeps the
+  metadata line clear. The submenu trigger is disabled along with its rows while
+  the PATCH is in flight, because two quick changes otherwise race and the
+  loser's rollback restores a value the server has already replaced; a menu of
+  choices none of which respond is worse than one that will not open. A failure
+  reports on the metadata line beside the gear it was for, not in the menu,
+  which closes itself on select. Whatever is assigned is always in the list even
+  when the kind filter or its retirement would drop it: a picker that cannot
+  represent its own value renders the assignment as something else, which reads
+  as the gear having changed on its own. In a post's inline chip, gear instead
+  rides along with the distance cell ("42.6 km · Moots") rather than taking a
+  cell of its own.
 - **Nothing is imported from Strava's own gear, and no import ever creates a
   gear row.** Neither the webhook path (`activity.gear_id` plus
   `GET /gear/{id}`) nor the archive path (the `Activity Gear` column and
@@ -867,15 +880,29 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   `useReactionState` passed in), not a local copy. A hand-rolled row is exactly
   how that page drifted into a right-packed cluster with its own gaps while
   every other surface used the shared spacing.
-  What sharing the row does **not** yet buy that page is the full `⋯` menu: it
-  passes neither `editable` nor `onQuote`, so Edit and Quote are still absent
-  there, and `onPostDeleted`/`onLikeChanged`/`onBookmarkChanged` are unwired so
-  a delete from the menu leaves the page showing a status that no longer
-  exists. Closing that means giving the page the shared `useInlineComposer` /
-  `InlineStatusComposer` the way `Posts` has it — turning `canEdit` on without
-  wiring `onEdit` only renders a menu item that does nothing. Until then this
-  is the one surface with a shorter menu, and that is a known gap rather than a
-  licensed difference.
+  It now drives the shared `useInlineComposer` / `InlineStatusComposer` too, so
+  **Edit and Quote are in its `⋯` like everywhere else** — the composer renders
+  inside the header card beneath the action row that opened it. `editable`
+  without `onEdit` would only render a menu item that does nothing, so the two
+  are wired together or not at all. Reply is the one action it routes
+  differently: this page has an always-on composer in its Comments section, and
+  the reply action jumps to that rather than opening a second one.
+  What is still unwired is `onPostDeleted`/`onLikeChanged`/`onBookmarkChanged`,
+  so a delete from the menu leaves the page showing a status that no longer
+  exists. That is a **known gap it shares with `StatusBox`**, the non-fitness
+  detail page, which wires none of them either — fix it in both or in neither,
+  or the two detail surfaces disagree about what deleting a post does.
+- **A surface may ADD an item to the `⋯`, never remove or replace one.**
+  `Actions` takes `extraMenuItems: PostMenuExtraItem[]`, forwarded to
+  `PostMenu`, for an action only that surface knows about the post — the fitness
+  detail's "Change gear" is the only one today. An item is either a single
+  action or a submenu of pick-one choices (`items`, rendered on the same
+  `DropdownMenuSub` as "Change visibility"), and the two shapes are a union so a
+  submenu carrying a dead `onSelect` is a type error. They render **after** the
+  items a compact row has displaced into the menu (bookmark, react — those were
+  in the row a moment ago, so they stay nearest it) and **before** the menu's
+  own. There is deliberately no prop for hiding one of the menu's own items;
+  that is the per-page drift this whole section exists to prevent.
 
 ## Better-auth Plugin Guidelines
 
@@ -1281,13 +1308,3 @@ The app (`yarn migrate`) runs Knex migrations, but the test suite does **not** �
 - Avoid database-specific features unless wrapped with conditional logic or fallback behavior for each backend.
 - Test migrations and queries against SQLite (used in tests) to catch compatibility issues early.
 - Use standard SQL types and avoid vendor-specific extensions (e.g., use `text` instead of PostgreSQL's `varchar[]`).
-
-<!-- BEGIN:nextjs-agent-rules -->
-
-# This is NOT the Next.js you know
-
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
-
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
-
-<!-- END:nextjs-agent-rules -->
