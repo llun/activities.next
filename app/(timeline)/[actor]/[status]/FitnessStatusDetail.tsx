@@ -78,7 +78,10 @@ import { ReactionRow } from '@/lib/components/posts/reaction-row'
 import { RetryFitnessButton } from '@/lib/components/posts/retry-fitness-button'
 import { StatusReplyBox } from '@/lib/components/posts/status-reply-box'
 import { useReactionState } from '@/lib/components/posts/useReactionState'
-import { Button } from '@/lib/components/ui/button'
+import {
+  SectionNavSelect,
+  type SectionNavSelectTab
+} from '@/lib/components/section-nav-select'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -196,11 +199,7 @@ const GRAPH_DISPLAY_MODES: Array<{ id: GraphDisplayMode; label: string }> = [
   { id: 'combined', label: 'Combined' }
 ]
 
-interface SectionTab {
-  id: SectionKey
-  label: string
-  icon: LucideIcon
-}
+type SectionTab = SectionNavSelectTab<SectionKey>
 
 interface MapPointGeometry {
   type: 'Point'
@@ -1047,80 +1046,6 @@ const ActivityGearMeta: FC<{
         </DropdownMenuContent>
       </DropdownMenu>
     </>
-  )
-}
-
-// State-driven section dropdown that mirrors the shared `SectionNavDropdown`
-// (the design-system sub-nav used by settings/fitness/admin). That component is
-// URL/link-based; the activity detail switches sections in local state, so this
-// renders the same outline trigger + menu but drives `onChange` instead.
-const SectionNav: FC<{
-  tabs: SectionTab[]
-  active: SectionKey
-  onChange: (id: SectionKey) => void
-}> = ({ tabs, active, onChange }) => {
-  const activeTab = tabs.find((tab) => tab.id === active) ?? tabs[0]
-  const ActiveIcon = activeTab.icon
-
-  return (
-    <nav aria-label="Activity sections" className="w-full sm:max-w-[260px]">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          {/* Chrome kept in step with SectionNavDropdown: h-10/rounded-lg
-              trigger, muted chevron, rounded-xl/shadow-lg menu, roomy
-              font-medium rows. */}
-          <Button
-            variant="outline"
-            className="h-10 w-full justify-between rounded-lg"
-          >
-            <span className="flex items-center gap-2">
-              <ActiveIcon className="size-4 text-primary" />
-              {activeTab.label}
-            </span>
-            <ChevronDown className="size-4 text-muted-foreground" />
-          </Button>
-        </DropdownMenuTrigger>
-        {/* Tailwind v4 parenthesis syntax — the v3 `w-[--radix-…]` form emits
-            `width: --radix-…` instead of `width: var(--radix-…)`, which the
-            browser drops, leaving the menu narrower than its trigger. */}
-        <DropdownMenuContent
-          align="start"
-          className="w-(--radix-dropdown-menu-trigger-width) rounded-xl shadow-lg"
-        >
-          {tabs.map((tab) => {
-            const Icon = tab.icon
-            const isActive = tab.id === activeTab.id
-            return (
-              <DropdownMenuItem
-                key={tab.id}
-                onSelect={() => onChange(tab.id)}
-                // State-driven menu (no navigation), so use the boolean form
-                // rather than aria-current="page".
-                aria-current={isActive ? 'true' : undefined}
-                className={cn(
-                  'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 font-medium',
-                  isActive && [
-                    'bg-primary/10 text-primary focus:bg-primary/10 focus:text-primary',
-                    // Keeps focus visible on the current row, which otherwise
-                    // looks identical focused and at rest. See the same ring in
-                    // SectionNavDropdown.
-                    'focus:ring-2 focus:ring-primary/50'
-                  ]
-                )}
-              >
-                <Icon
-                  className={cn(
-                    'size-4',
-                    isActive ? 'text-primary' : 'text-popover-foreground'
-                  )}
-                />
-                {tab.label}
-              </DropdownMenuItem>
-            )
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </nav>
   )
 }
 
@@ -3347,7 +3272,8 @@ export const FitnessStatusDetail: FC<Props> = ({
       </div>
 
       {/* Section sub-navigation */}
-      <SectionNav
+      <SectionNavSelect
+        label="Activity sections"
         tabs={tabs}
         active={activeSection}
         onChange={setActiveSection}

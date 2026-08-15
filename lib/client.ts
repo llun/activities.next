@@ -2571,19 +2571,18 @@ export type UpdateFitnessGearInput = Partial<
 }
 
 /**
- * One row of a gear's activity history, as the gear detail pages render it.
- * `statusPublicId` is null for an activity that was never posted; such a row is
- * shown but not linked.
+ * A page of a gear's activity history, as the posts they were published as —
+ * the same `Status` shape the timelines render.
+ *
+ * `nextOffset` counts ACTIVITY ROWS, not the statuses in this page. An activity
+ * whose post was deleted keeps counting toward the gear's totals (deleting a
+ * status only nulls `fitness_files.statusId`) but has no post left to show, so
+ * paging from `statuses.length` would re-request every row in between.
  */
-export interface GearActivityItem {
-  id: string
-  statusId: string | null
-  statusPublicId: string | null
-  fileName: string
-  description: string | null
-  activityType: string | null
-  activityStartTime: number | null
-  totalDistanceMeters: number | null
+export interface GearActivityStatusesPage {
+  statuses: Status[]
+  hasMore: boolean
+  nextOffset: number
 }
 
 export interface CreateFitnessGearComponentInput {
@@ -2678,7 +2677,7 @@ export const setFitnessGearRetired = async (
 export const getFitnessGearActivities = async (
   gearId: string,
   { limit, offset }: { limit?: number; offset?: number } = {}
-): Promise<{ activities: GearActivityItem[]; hasMore: boolean }> => {
+): Promise<GearActivityStatusesPage> => {
   const query = new URLSearchParams()
   if (limit !== undefined) query.set('limit', String(limit))
   if (offset !== undefined) query.set('offset', String(offset))
@@ -2691,10 +2690,7 @@ export const getFitnessGearActivities = async (
   if (!response.ok) {
     throw new Error(await parseApiError(response, 'Failed to load activities.'))
   }
-  return (await response.json()) as {
-    activities: GearActivityItem[]
-    hasMore: boolean
-  }
+  return (await response.json()) as GearActivityStatusesPage
 }
 
 export const getFitnessGearComponents = async (

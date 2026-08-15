@@ -93,6 +93,13 @@ describe('SectionNavDropdown', () => {
     const active = within(menu).getByRole('menuitem', { name: 'Strava' })
     expect(active.className).toMatch(/focus:bg-primary\/10/)
     expect(active.className).toMatch(/focus:ring-2/)
+    // `text-primary-text`, never `text-primary`: `--primary` is the icon
+    // orange and is under the AA floor as a foreground. This assertion and the
+    // identical one in `section-nav-select.test.tsx` are the only two things in
+    // the repo that catch that regression — `app/globals.contrast.test.ts`
+    // guards the token values, never their usage — and the pair has to hold on
+    // BOTH, since a gear's page renders the two dropdowns one above the other.
+    expect(active.className).toMatch(/text-primary-text/)
 
     // Inactive rows keep the shared grey focus wash, so they need no ring.
     const inactive = within(menu).getByRole('menuitem', { name: 'Overview' })

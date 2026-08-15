@@ -103,8 +103,14 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
                   isActive && [
                     // The design system's signature active state: a 10% orange
                     // wash plus orange text, held on focus too so hovering the
-                    // current row doesn't drop it to the plain hover grey.
-                    'bg-primary/10 text-primary focus:bg-primary/10 focus:text-primary',
+                    // current row doesn't drop it to the plain hover grey. The
+                    // text takes `--primary-text`, not `--primary`: the latter
+                    // is the icon/fill orange and sits under the AA floor as a
+                    // foreground. Its state-driven twin `SectionNavSelect`
+                    // paints the identical row, and the pair now sits on one
+                    // screen on a gear's page, where two shades of orange
+                    // would read as a mistake.
+                    'bg-primary/10 text-primary-text focus:bg-primary/10 focus:text-primary-text',
                     // …but "held on focus" would otherwise make the focused
                     // current row pixel-identical to its resting state, so a
                     // keyboard user watching the highlight move down the list

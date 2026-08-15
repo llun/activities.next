@@ -2,40 +2,55 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { AnchorHTMLAttributes, ReactNode } from 'react'
+import { fireEvent, render, screen } from '@testing-library/react'
 
-import { type GearActivityItem, getFitnessGearActivities } from '@/lib/client'
 import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
+import { ActorProfile } from '@/lib/types/domain/actor'
 
 import { DeviceDetailView } from './DeviceDetailView'
+import type { GearActivityFeedContext } from './GearActivitiesFeed'
 
-vi.mock('@/lib/client', () => ({
-  getFitnessGearActivities: vi.fn()
-}))
-
-// next/link swallows `prefetch` instead of reflecting it in the DOM.
-vi.mock('next/link', () => ({
-  default: ({
-    children,
-    href,
-    prefetch,
-    ...rest
-  }: AnchorHTMLAttributes<HTMLAnchorElement> & {
-    href: string
-    prefetch?: boolean | 'auto' | null
-    children: ReactNode
+// The feed is covered by its own test; here it stands in as a marker so this
+// file stays about the device's chrome and what it hands the feed.
+vi.mock('./GearActivitiesFeed', () => ({
+  GearActivitiesFeed: (props: {
+    gearId: string
+    emptyMessage: string
+    currentActor: ActorProfile
   }) => (
-    <a href={href} data-prefetch={String(prefetch)} {...rest}>
-      {children}
-    </a>
+    <div
+      data-testid="activities-feed"
+      data-gear-id={props.gearId}
+      data-current-actor={props.currentActor.id}
+    >
+      {props.emptyMessage}
+    </div>
   )
 }))
 
-const mockGetFitnessGearActivities =
-  getFitnessGearActivities as jest.MockedFunction<
-    typeof getFitnessGearActivities
-  >
+const FIXED_CURRENT_TIME = new Date('2026-06-01T10:00:00.000Z').getTime()
+
+const profile: ActorProfile = {
+  id: 'https://llun.test/users/test',
+  username: 'test',
+  domain: 'llun.test',
+  name: 'Test',
+  followersUrl: 'https://llun.test/users/test/followers',
+  inboxUrl: 'https://llun.test/users/test/inbox',
+  sharedInboxUrl: 'https://llun.test/inbox',
+  followingCount: 0,
+  followersCount: 0,
+  statusCount: 0,
+  lastStatusAt: null,
+  createdAt: FIXED_CURRENT_TIME
+}
+
+const feed: GearActivityFeedContext = {
+  host: 'llun.test',
+  currentTime: FIXED_CURRENT_TIME,
+  currentActor: profile,
+  isMediaUploadEnabled: true
+}
 
 const createDevice = (overrides: Partial<GearEntity> = {}): GearEntity => ({
   id: 'device-1',
@@ -57,27 +72,13 @@ const createDevice = (overrides: Partial<GearEntity> = {}): GearEntity => ({
   ...overrides
 })
 
-const createActivity = (
-  overrides: Partial<GearActivityItem> = {}
-): GearActivityItem => ({
-  id: 'file-1',
-  statusId: 'https://llun.test/users/test/statuses/1',
-  statusPublicId: '0195f0a0-0000-7000-8000-000000000001',
-  fileName: 'workout.fit',
-  description: 'Morning ride',
-  activityType: 'cycling',
-  activityStartTime: Date.UTC(2026, 5, 1),
-  totalDistanceMeters: 42_600,
-  ...overrides
-})
-
 const renderView = (props: Partial<Parameters<typeof DeviceDetailView>[0]>) =>
   render(
     <DeviceDetailView
       gear={createDevice()}
-      actorHandle="@test@llun.test"
       backLink={<a href="/fitness/gear">Gear</a>}
       onEdit={vi.fn()}
+      feed={feed}
       {...props}
     />
   )
@@ -85,17 +86,13 @@ const renderView = (props: Partial<Parameters<typeof DeviceDetailView>[0]>) =>
 describe('DeviceDetailView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetFitnessGearActivities.mockResolvedValue({
-      activities: [],
-      hasMore: false
-    })
   })
 
-  it('renders the name, the meta line and Edit alone', async () => {
+  it('renders the name, the meta line and Edit alone', () => {
     renderView({})
 
     expect(
-      await screen.findByRole('heading', { name: 'Garmin Edge 840' })
+      screen.getByRole('heading', { name: 'Garmin Edge 840' })
     ).toBeInTheDocument()
     expect(
       screen.getByText('Garmin Edge 840 · recording since May 2, 2023')
@@ -111,290 +108,55 @@ describe('DeviceDetailView', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('shows two stat tiles and no distance', async () => {
+  it('shows two stat tiles and no distance', () => {
     renderView({})
 
-    await screen.findByRole('heading', { name: 'Garmin Edge 840' })
-    // Twice on purpose: the stat tile's label and the activity card's heading.
-    expect(screen.getAllByText('Activities')).toHaveLength(2)
+    expect(screen.getByText('Activities')).toBeInTheDocument()
     expect(screen.getByText('412')).toBeInTheDocument()
     expect(screen.getByText('First used')).toBeInTheDocument()
     // Summing a head unit's rides and runs together would mean nothing.
     expect(screen.queryByText('Distance')).not.toBeInTheDocument()
   })
 
-  it('renders an em dash for a device with no dated activity yet', async () => {
+  it('renders an em dash for a device with no dated activity yet', () => {
     renderView({ gear: createDevice({ firstUsedAt: null }) })
 
-    await screen.findByRole('heading', { name: 'Garmin Edge 840' })
     expect(screen.getByText('—')).toBeInTheDocument()
     expect(screen.queryByText(/recording since/)).not.toBeInTheDocument()
   })
 
-  it('links the product page by hostname', async () => {
+  it('links the product page by hostname', () => {
     renderView({})
 
-    const link = await screen.findByRole('link', { name: /garmin\.com/ })
+    const link = screen.getByRole('link', { name: /garmin\.com/ })
     expect(link).toHaveAttribute('href', 'https://www.garmin.com')
     expect(link).toHaveAttribute('target', '_blank')
   })
 
-  it('offers to add a product page when there is none', async () => {
+  it('offers to add a product page when there is none', () => {
     const onEdit = vi.fn()
     renderView({ gear: createDevice({ productUrl: null }), onEdit })
 
-    const button = await screen.findByRole('button', {
-      name: 'No product page — add one'
-    })
-    fireEvent.click(button)
+    fireEvent.click(
+      screen.getByRole('button', { name: 'No product page — add one' })
+    )
     expect(onEdit).toHaveBeenCalled()
   })
 
-  it('renders each activity as a row linking to its status page', async () => {
-    mockGetFitnessGearActivities.mockResolvedValue({
-      activities: [createActivity()],
-      hasMore: false
-    })
+  it('renders the shared activities feed for this device, with no view switcher', () => {
+    // A device has no components, so there is nothing to switch between: the
+    // page is its facts and then its activities, as the design's device
+    // surface has it.
     renderView({})
 
-    const row = await screen.findByRole('link', { name: /Morning ride/ })
-    expect(row).toHaveAttribute(
-      'href',
-      '/@test@llun.test/0195f0a0-0000-7000-8000-000000000001'
+    const activitiesFeed = screen.getByTestId('activities-feed')
+    expect(activitiesFeed).toHaveAttribute('data-gear-id', 'device-1')
+    expect(activitiesFeed).toHaveAttribute('data-current-actor', profile.id)
+    expect(activitiesFeed).toHaveTextContent(
+      'No recent activities recorded with this device.'
     )
-    // One link per row of a list that grows without bound.
-    expect(row).toHaveAttribute('data-prefetch', 'false')
-    expect(row).toHaveTextContent('Jun 1, 2026')
-    expect(row).toHaveTextContent('cycling')
-    expect(row).toHaveTextContent('42.6 km')
-  })
-
-  it('falls back to the file name when the activity has no description', async () => {
-    mockGetFitnessGearActivities.mockResolvedValue({
-      activities: [createActivity({ description: null })],
-      hasMore: false
-    })
-    renderView({})
-
-    expect(await screen.findByText('workout.fit')).toBeInTheDocument()
-  })
-
-  it('leaves an activity that was never posted unlinked', async () => {
-    mockGetFitnessGearActivities.mockResolvedValue({
-      activities: [createActivity({ statusId: null, statusPublicId: null })],
-      hasMore: false
-    })
-    renderView({})
-
-    expect(await screen.findByText('Morning ride')).toBeInTheDocument()
     expect(
-      screen.queryByRole('link', { name: /Morning ride/ })
+      screen.queryByRole('navigation', { name: 'Gear sections' })
     ).not.toBeInTheDocument()
-  })
-
-  it('still links a posted activity whose status predates the publicId backfill', async () => {
-    // `statuses.publicId` is nullable and stays null on any instance that has
-    // not run the backfill (docs/maintenance.md → Public ID Backfill), so
-    // `statusPublicId` alone is NOT the test for "was this posted?". Treating
-    // those as unposted would silently unlink an athlete's whole history.
-    mockGetFitnessGearActivities.mockResolvedValue({
-      activities: [
-        createActivity({
-          statusId: 'https://llun.test/users/test/statuses/1',
-          statusPublicId: null
-        })
-      ],
-      hasMore: false
-    })
-    renderView({})
-
-    const row = await screen.findByRole('link', { name: /Morning ride/ })
-    expect(row).toHaveAttribute(
-      'href',
-      `/@test@llun.test/${encodeURIComponent('https://llun.test/users/test/statuses/1')}`
-    )
-  })
-
-  it('renders an em dash for a missing date, type and distance', async () => {
-    mockGetFitnessGearActivities.mockResolvedValue({
-      activities: [
-        createActivity({
-          activityStartTime: null,
-          activityType: null,
-          totalDistanceMeters: null
-        })
-      ],
-      hasMore: false
-    })
-    renderView({})
-
-    const row = await screen.findByRole('link', { name: /Morning ride/ })
-    expect(row.textContent?.match(/—/g)).toHaveLength(3)
-  })
-
-  it('loads the next page from the current offset', async () => {
-    mockGetFitnessGearActivities.mockResolvedValueOnce({
-      activities: [createActivity({ id: 'file-1' })],
-      hasMore: true
-    })
-    renderView({})
-
-    const loadMore = await screen.findByRole('button', { name: 'Load more' })
-    mockGetFitnessGearActivities.mockResolvedValueOnce({
-      activities: [
-        createActivity({ id: 'file-2', description: 'Evening ride' })
-      ],
-      hasMore: false
-    })
-    fireEvent.click(loadMore)
-
-    await waitFor(() =>
-      expect(screen.getByText('Evening ride')).toBeInTheDocument()
-    )
-    expect(mockGetFitnessGearActivities).toHaveBeenLastCalledWith('device-1', {
-      limit: 20,
-      offset: 1
-    })
-    expect(screen.getByText('Morning ride')).toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: 'Load more' })
-    ).not.toBeInTheDocument()
-  })
-
-  it('pages from the rows the server handed over, not the deduped list length', async () => {
-    // Offset pagination over a growing list repeats the boundary row, which the
-    // append dedupes away. Paging from `activities.length` after that would
-    // re-request rows already consumed — and a page that is entirely duplicates
-    // would leave "Load more" stuck at the same offset forever.
-    mockGetFitnessGearActivities.mockResolvedValueOnce({
-      activities: [createActivity({ id: 'file-1' })],
-      hasMore: true
-    })
-    renderView({})
-
-    const loadMore = await screen.findByRole('button', { name: 'Load more' })
-    mockGetFitnessGearActivities.mockResolvedValueOnce({
-      // The whole page is the boundary row again, so nothing is appended.
-      activities: [createActivity({ id: 'file-1' })],
-      hasMore: true
-    })
-    fireEvent.click(loadMore)
-
-    await waitFor(() =>
-      expect(mockGetFitnessGearActivities).toHaveBeenCalledTimes(2)
-    )
-    expect(screen.getAllByText('Morning ride')).toHaveLength(1)
-
-    mockGetFitnessGearActivities.mockResolvedValueOnce({
-      activities: [
-        createActivity({ id: 'file-2', description: 'Evening ride' })
-      ],
-      hasMore: false
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
-
-    await waitFor(() =>
-      expect(screen.getByText('Evening ride')).toBeInTheDocument()
-    )
-    // 2, not 1: the offset advanced past the duplicate the server sent.
-    expect(mockGetFitnessGearActivities).toHaveBeenLastCalledWith('device-1', {
-      limit: 20,
-      offset: 2
-    })
-  })
-
-  describe('switching to another device on the same mounted instance', () => {
-    // `GearDetailView` renders this component at a fixed position with no
-    // `key`, so navigating between two device pages swaps `gear` on the SAME
-    // instance rather than remounting. Nothing tested that before, which is how
-    // both bugs below shipped.
-    const renderThenSwitch = async () => {
-      let resolveStale: (value: {
-        activities: GearActivityItem[]
-        hasMore: boolean
-      }) => void = () => {}
-      const stalePage = new Promise<{
-        activities: GearActivityItem[]
-        hasMore: boolean
-      }>((resolve) => {
-        resolveStale = resolve
-      })
-
-      mockGetFitnessGearActivities.mockResolvedValueOnce({
-        activities: [createActivity({ id: 'a-1', description: 'Device A' })],
-        hasMore: true
-      })
-      const view = render(
-        <DeviceDetailView
-          gear={createDevice()}
-          actorHandle="@test@llun.test"
-          backLink={<a href="/fitness/gear">Gear</a>}
-          onEdit={vi.fn()}
-        />
-      )
-      const loadMore = await screen.findByRole('button', { name: 'Load more' })
-
-      // "Load more" on device A, still in flight when the gear changes.
-      mockGetFitnessGearActivities.mockReturnValueOnce(stalePage)
-      fireEvent.click(loadMore)
-
-      mockGetFitnessGearActivities.mockResolvedValueOnce({
-        activities: [createActivity({ id: 'b-1', description: 'Device B' })],
-        hasMore: true
-      })
-      view.rerender(
-        <DeviceDetailView
-          gear={createDevice({ id: 'device-2', name: 'Wahoo ELEMNT BOLT' })}
-          actorHandle="@test@llun.test"
-          backLink={<a href="/fitness/gear">Gear</a>}
-          onEdit={vi.fn()}
-        />
-      )
-      await waitFor(() =>
-        expect(screen.getByText('Device B')).toBeInTheDocument()
-      )
-
-      resolveStale({
-        activities: [createActivity({ id: 'a-2', description: 'Stale ride' })],
-        hasMore: true
-      })
-      await waitFor(() => expect(stalePage).resolves.toBeDefined())
-      return view
-    }
-
-    it('never leaves the new device stuck loading', async () => {
-      await renderThenSwitch()
-
-      // The superseded request's `finally` is skipped, so the effect has to
-      // clear this itself or the button is disabled forever.
-      await waitFor(() =>
-        expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled()
-      )
-    })
-
-    it('drops the previous device’s page instead of appending it', async () => {
-      await renderThenSwitch()
-
-      expect(screen.getByText('Device B')).toBeInTheDocument()
-      expect(screen.queryByText('Stale ride')).not.toBeInTheDocument()
-      expect(screen.queryByText('Device A')).not.toBeInTheDocument()
-    })
-  })
-
-  it('reports an empty history', async () => {
-    renderView({})
-
-    expect(
-      await screen.findByText('Nothing recorded on this device yet.')
-    ).toBeInTheDocument()
-  })
-
-  it('surfaces a failure to load the activity list', async () => {
-    mockGetFitnessGearActivities.mockRejectedValue(
-      new Error('Activity service down')
-    )
-    renderView({})
-
-    expect(await screen.findByText('Activity service down')).toBeInTheDocument()
   })
 })

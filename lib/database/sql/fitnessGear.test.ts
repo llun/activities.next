@@ -4,7 +4,6 @@ import {
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
-import { statusPublicId } from '@/lib/stub/publicIds'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 
 describe('FitnessGearDatabase', () => {
@@ -2058,13 +2057,9 @@ describe('FitnessGearDatabase', () => {
             limit: 10
           })
           expect(deviceRows.map((row) => row.id)).toEqual([onDevice.id])
-          expect(deviceRows[0]).toMatchObject({
-            totalDistanceMeters: 42_600,
-            activityType: 'cycling',
-            activityStartTime: new Date('2026-06-01T08:00:00.000Z').getTime(),
-            statusId: null,
-            statusPublicId: null
-          })
+          // An activity that was never posted still occupies a row: the caller
+          // pages on rows, so dropping it would make the offsets skip it.
+          expect(deviceRows[0]).toMatchObject({ statusId: null })
 
           const bikeRows = await database.getFitnessGearActivities({
             actorId: actors.extra.id,
@@ -2075,11 +2070,11 @@ describe('FitnessGearDatabase', () => {
           expect(bikeRows.map((row) => row.id)).toEqual([onBike.id])
         })
 
-        it('carries the posted status through the join', async () => {
-          // The only assertion anywhere that a NON-null statusPublicId comes
-          // out of the database. Without it a wrong join or a wrong alias would
-          // render every row on a device page unlinked, silently, with the
-          // whole suite still green.
+        it('carries the id of the post the activity was published as', async () => {
+          // `statusId` is the whole reason this reader exists — the route hands
+          // it to `getStatusesByIds` and renders the posts. A wrong column or a
+          // wrong alias would empty every gear's Activities feed silently, with
+          // the whole suite still green.
           const device = await database.createFitnessGear({
             actorId: actors.extra.id,
             kind: 'device',
@@ -2123,9 +2118,6 @@ describe('FitnessGearDatabase', () => {
           })
           expect(rows).toHaveLength(1)
           expect(rows[0].statusId).toBe(statusId)
-          expect(rows[0].statusPublicId).toBe(
-            await statusPublicId(database, statusId)
-          )
         })
 
         it('counts one ride once when both files came off the same device', async () => {
