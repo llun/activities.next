@@ -33,6 +33,17 @@ interface Props extends PostProps {
    * status's left edge, such as the fitness activity detail's card footer.
    */
   fullBleed?: boolean
+  /**
+   * Extra ⋯ items for something only this surface knows about the post — the
+   * fitness activity detail's "Change gear", so far. They render after the
+   * items a compact row has displaced into the menu and before the menu's own,
+   * so the displaced buttons stay nearest the row they came from.
+   *
+   * This can only ADD: there is no prop for removing or replacing one of the
+   * menu's own items, because a post offers the same actions on every surface
+   * (see **Status Posts & Actions** in AGENTS.md).
+   */
+  extraMenuItems?: PostMenuExtraItem[]
   onShowEdits?: (status: Status) => void
 }
 
@@ -45,6 +56,7 @@ export const Actions: FC<Props> = ({
   showActions = false,
   reactionState,
   fullBleed = true,
+  extraMenuItems,
   onReply,
   onEdit,
   onQuote,
@@ -80,7 +92,7 @@ export const Actions: FC<Props> = ({
   // replace, a menu item has no busy styling, so without this a tap during a
   // pending write would be swallowed by the state's single-flight guard with
   // nothing on screen to explain it.
-  const extraItems: PostMenuExtraItem[] = isCompact
+  const compactItems: PostMenuExtraItem[] = isCompact
     ? [
         {
           key: 'react',
@@ -107,6 +119,7 @@ export const Actions: FC<Props> = ({
         }
       ]
     : []
+  const extraItems = [...compactItems, ...(extraMenuItems ?? [])]
 
   return (
     <div
