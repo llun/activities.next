@@ -152,6 +152,18 @@ change doesn't touch.
   data-sync callbacks (`onStatusCreated`/`onPostUpdated`/`onPostDeleted`/
   `onLikeChanged`/`onBookmarkChanged`/`onReactionsChanged`) and
   `isMediaUploadEnabled`. See **Status Posts & Actions** in `AGENTS.md`.
+  - Two **detail** surfaces are the standing exception, and they are not feeds:
+    `StatusBox` and `FitnessStatusDetail` each render a single post and drive the
+    shared `useInlineComposer`/`InlineStatusComposer` themselves, so they do pass
+    `editable` + `onEdit` + `onQuote`. That is the shared layer doing the wiring,
+    not a page opting into per-status callbacks — a _feed_ passing them is still
+    the defect this rule is about.
+  - A surface may **add** a `⋯` item for something only it knows about the post,
+    via `Actions`' `extraMenuItems` (today: the fitness detail's "Change gear"
+    submenu). An extra item is either one action or a submenu of pick-one
+    choices, it renders after any items a compact row displaced into the menu,
+    and there is deliberately no prop for removing or replacing one of the
+    menu's own items — flag any attempt to add one.
 - The reaction chips and the action row are both full-bleed (`-ml-13`), and the
   action row packs every action into one `gap-1` cluster at the post's left edge
   with only the `⋯` menu pushed right by an `ml-auto` on its wrapper. That auto

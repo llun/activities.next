@@ -496,12 +496,13 @@ describe('PostMenu', () => {
       // A menu of choices none of which respond is worse than one that will
       // not open, so the trigger is disabled alongside its rows.
       expect(screen.getAllByRole('menu')).toHaveLength(1)
-      // …and it has to LOOK disabled. Radix marks an inert SubTrigger only with
-      // `aria-disabled`, so without the dim this paints identically to the
-      // enabled "Change visibility" beside it and reads as a broken control.
-      // `DropdownMenuSubTrigger` was the one item primitive missing this; the
-      // three sibling item primitives have always carried it. One assertion
-      // each, because `.toHaveClass(a, b)` passes when EITHER is present.
+      // …and it has to LOOK disabled. Radix emits `data-disabled` on the inert
+      // trigger but ships no styling for it, so without these classes it paints
+      // identically to the enabled "Change visibility" beside it and reads as a
+      // broken control. `DropdownMenuSubTrigger` was the one item primitive
+      // missing them; its three siblings have always carried them. One
+      // assertion each, because `.toHaveClass(a, b)` passes when EITHER is
+      // present.
       expect(trigger).toHaveClass('data-[disabled]:opacity-50')
       expect(trigger).toHaveClass('data-[disabled]:pointer-events-none')
     })

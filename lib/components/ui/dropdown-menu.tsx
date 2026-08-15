@@ -212,10 +212,12 @@ function DropdownMenuSubTrigger({
       data-inset={inset}
       className={cn(
         // `data-[disabled]:*` matches the three sibling item primitives above.
-        // Radix marks a disabled SubTrigger inert (its onClick/onKeyDown return
-        // early) but only reports it as `aria-disabled`, so without the dim it
-        // paints identically to the enabled row beside it and reads as a broken
-        // control rather than a disabled one. Upstream shadcn omits it here too.
+        // Radix already emits both `data-disabled` and `aria-disabled` on a
+        // disabled SubTrigger and makes it inert (its onClick/onKeyDown return
+        // early) — what was missing is any styling keyed to that attribute, so
+        // it painted identically to the enabled row beside it and read as a
+        // broken control rather than a disabled one. Upstream shadcn omits this
+        // here too; only the sibling item primitives carry it.
         "focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
