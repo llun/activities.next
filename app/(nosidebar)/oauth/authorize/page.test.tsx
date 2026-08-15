@@ -280,9 +280,9 @@ describe('/oauth/authorize unregistered client', () => {
   // client cached and re-used after the registration went away — must fail
   // here. Forwarding it to Better Auth instead makes its authorize endpoint
   // answer `invalid_client / client_id is required` (its message for BOTH a
-  // missing and an unknown client) and bounce through /api/auth/error to the
-  // home timeline, which reads in the client's popup as a login that silently
-  // did nothing.
+  // missing and an unknown client) and bounce the visitor to /auth/error, which
+  // reads in the client's popup as a generic "this app isn't registered"
+  // failure rather than naming the client it could not find.
   it.each([
     {
       description: 'with an authenticated session',

@@ -53,10 +53,10 @@ const Page: FC<Props> = async ({ searchParams }) => {
   // This has to happen ahead of the delegation below. Better Auth's authorize
   // endpoint answers an unknown client with
   // `invalid_client / client_id is required` — the same message it uses for a
-  // genuinely missing client_id — and then bounces through /api/auth/error to
-  // the home page, so a Mastodon client re-using a client_id this server no
-  // longer knows just lands on the timeline and its login silently does
-  // nothing.
+  // genuinely missing client_id — and then bounces the visitor to /auth/error
+  // (see AUTH_ERROR_PATH), so a Mastodon client re-using a client_id this server
+  // no longer knows would get a generic "this app isn't registered" card instead
+  // of the 404 that names the real problem.
   const client = await database.getClientFromId({ clientId: params.client_id })
   if (!client) {
     return notFound()
