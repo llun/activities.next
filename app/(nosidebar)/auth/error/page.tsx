@@ -62,9 +62,11 @@ const Page: FC<Props> = async ({ searchParams }) => {
   // code it cannot classify to `UNKNOWN` while forwarding the real description
   // verbatim, and an upgrade can add a rejection we have no copy for. Gating the
   // description on the allow-list would blank it for exactly those, and would
-  // also destroy the tell that separates a genuine redirect (always carries a
-  // description) from a hand-crafted link (usually does not). Rendering is
-  // gated; logging is not.
+  // also blunt the tell that a description carries: every oauth-provider
+  // rejection passes one, so a missing description on an authorize-time code is
+  // a sign of a hand-crafted link. (Only an oauth-provider tell — core's
+  // INVALID_TOKEN redirect legitimately carries no description at all.)
+  // Rendering is gated; logging is not.
   logger.warn({
     message: 'Auth request failed and was redirected to the error page',
     errorCode: code ?? 'unknown',

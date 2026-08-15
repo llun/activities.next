@@ -50,13 +50,15 @@ const Page: FC<Props> = async ({ searchParams }) => {
   // unregistered redirect_uri must be reported to the user and must NOT be
   // redirected to the requested redirect_uri.
   //
-  // This has to happen ahead of the delegation below. Better Auth's authorize
-  // endpoint answers an unknown client with
+  // This has to happen ahead of the delegation below, and the reason is the RFC,
+  // not the error copy: an unknown client must be reported without involving the
+  // resource owner and without ever redirecting to the requested redirect_uri.
+  // Better Auth's authorize endpoint would answer an unknown client with
   // `invalid_client / client_id is required` — the same message it uses for a
-  // genuinely missing client_id — and then bounces the visitor to /auth/error
-  // (see AUTH_ERROR_PATH), so a Mastodon client re-using a client_id this server
-  // no longer knows would get a generic "this app isn't registered" card instead
-  // of the 404 that names the real problem.
+  // genuinely missing client_id, which makes the two indistinguishable — after
+  // the visitor has already been through sign-in. Do not remove this check on
+  // the grounds that /auth/error now explains invalid_client well: it does, but
+  // that is downstream of the delegation this check exists to prevent.
   const client = await database.getClientFromId({ clientId: params.client_id })
   if (!client) {
     return notFound()

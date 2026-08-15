@@ -72,7 +72,14 @@ const AUTH_ERROR_CONTENT: Record<string, AuthErrorContent> = {
     title: 'Sign-in cancelled',
     body: 'You chose not to give that app access, so nothing was shared. You can start again whenever you like.'
   },
-  // Core: `/api/auth/reset-password/:token` with a missing or expired token.
+  // Core: `/api/auth/reset-password/:token`. Reachable here only in a narrow
+  // case — that endpoint requires `callbackURL` (a bare hit 400s) and sends both
+  // the missing-token and expired-token branches to the CLIENT's callbackURL, so
+  // only an EMPTY `callbackURL` falls back to the error page. This instance also
+  // runs its own reset flow (`/auth/reset-password?code=`,
+  // `app/api/v1/accounts/password/reset/`) and never links better-auth's
+  // endpoint, so nothing here produces this today. Kept so the code is not bare
+  // if that changes.
   INVALID_TOKEN: {
     title: 'This link is no longer valid',
     body: 'Password reset links expire, and each one can only be used once. Request a fresh link and use the newest email.'

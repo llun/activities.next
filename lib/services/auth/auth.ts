@@ -48,11 +48,14 @@ const buildAuth = (baseURL: string) => {
     // server no longer knows just lands on the home timeline and its sign-in
     // looks like it silently did nothing.
     //
-    // Every authorize-time rejection @better-auth/oauth-provider raises
-    // (invalid_client, client_disabled, unauthorized_client, invalid_redirect,
-    // invalid_request, invalid_request_uri, unsupported_response_type,
-    // unsupported_prompt_select_account) and core's expired password-reset
-    // token (INVALID_TOKEN) route through here. `access_denied` and
+    // Every authorize-time rejection @better-auth/oauth-provider raises routes
+    // through here: invalid_client, client_disabled, unauthorized_client,
+    // invalid_redirect, invalid_request, invalid_request_uri,
+    // unsupported_response_type, unsupported_prompt_select_account. Core's
+    // INVALID_TOKEN can too, but only in the narrow case errorPage.ts describes
+    // — its reset endpoint sends both failing branches to the client's
+    // callbackURL unless that is empty, and this instance runs its own reset
+    // flow regardless. `access_denied` and
     // `invalid_scope` deliberately do not: both are reported to the client's
     // redirect_uri (`formatErrorURL(query.redirect_uri, …)`, with no
     // `getErrorURL` call site for either), per RFC 6749 §4.1.2.1. They are still
