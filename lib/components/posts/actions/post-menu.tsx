@@ -382,11 +382,12 @@ export const PostMenu: FC<Props> = ({
               {extraItems.map((item) =>
                 item.items ? (
                   <DropdownMenuSub key={item.key}>
-                    {/* Radix disables a *trigger* through `data-disabled`
-                        rather than the `disabled` prop the items use, so pass
-                        it here too: a submenu whose every row is disabled is
-                        still openable, and an owner mid-write would find a menu
-                        of choices none of which respond. */}
+                    {/* The trigger takes the same `disabled` prop its rows do
+                        — Radix routes `SubTrigger` through the very same
+                        `MenuItemImpl` — and it needs it: a submenu whose every
+                        row is disabled is still openable on its own, so an
+                        owner mid-write would find a menu of choices none of
+                        which respond. */}
                     <DropdownMenuSubTrigger disabled={item.disabled}>
                       {item.icon}
                       {item.label}
