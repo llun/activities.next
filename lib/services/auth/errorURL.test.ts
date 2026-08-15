@@ -1,7 +1,6 @@
-import knex, { Knex } from 'knex'
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { Knex } from 'knex'
 
+import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
 import { AUTH_ERROR_PATH } from '@/lib/services/auth/constants'
 
 // A fresh in-memory SQLite database stands in for the deployment database so the
@@ -24,23 +23,14 @@ vi.mock('@/lib/database', () => ({
   getDatabase: () => null
 }))
 
-const SQLITE_SCHEMA_PATH = fileURLToPath(
-  new URL('../../../migrations/schema.sqlite.sql', import.meta.url)
-)
-
+// Reuse the suite's shared harness rather than re-deriving the schema-dump path:
+// `migrate()` loads migrations/schema.sqlite.sql into the same `:memory:`
+// connection better-auth then queries (knex pins the sqlite pool to one
+// connection), so `oauthClient` really exists and an unknown client_id is a
+// genuine empty-table lookup rather than a missing-relation error.
 const buildInMemoryKnex = async (): Promise<Knex> => {
-  const instance = knex({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: { filename: ':memory:' }
-  })
-  const sql = readFileSync(SQLITE_SCHEMA_PATH, 'utf8')
-  const connection = await instance.client.acquireConnection()
-  try {
-    connection.exec(sql)
-  } finally {
-    await instance.client.releaseConnection(connection)
-  }
+  const { database, instance } = getTestSQLDatabaseWithInstance()
+  await database.migrate()
   return instance
 }
 

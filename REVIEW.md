@@ -324,6 +324,11 @@ change doesn't touch.
   token-shaped. Both are caller-controlled via a hand-crafted link, and
   `?error=Account-locked-please-call-1-800-555-0100` passes the character class
   and length cap while reading as prose on our own auth card.
+- That allow-list gates **rendering only**. Both fields are still logged for any
+  code: allow-listing bounds nothing in the log (any description can ride a
+  mapped code — the 200/64-character caps are the real bounds), and an unmapped
+  code is what most needs the description, since better-auth rewrites codes it
+  cannot classify to `UNKNOWN` while forwarding the real description.
 - Don't add `onAPIError.onError` for correlation: better-auth short-circuits it
   for anything it redirects (`status === 'FOUND'`), which is exactly this class
   of failure, and setting it suppresses better-auth's own built-in logging.

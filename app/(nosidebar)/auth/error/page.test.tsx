@@ -82,20 +82,27 @@ describe('/auth/error', () => {
     )
   })
 
-  // An unknown code is still worth logging (a better-auth upgrade can add one)
-  // but its description is unbounded caller text on an unauthenticated route.
-  it('drops the description when the code is not one we emit', async () => {
+  // An unmapped code is the case the description matters most for: better-auth
+  // rewrites anything it cannot classify to `UNKNOWN` while forwarding the real
+  // description, and an upgrade can add a rejection we have no copy for. Logging
+  // is deliberately not gated on the allow-list; only rendering is.
+  it('still logs the description for a code it has no copy for', async () => {
     await renderPage({
-      error: 'made_up_code',
-      error_description: 'x'.repeat(500)
+      error: 'UNKNOWN',
+      error_description: 'request_uri is invalid or expired'
     })
 
     expect(logger.warn).toHaveBeenCalledWith(
       expect.objectContaining({
-        errorCode: 'made_up_code',
-        errorDescription: null
+        errorCode: 'UNKNOWN',
+        errorDescription: 'request_uri is invalid or expired'
       })
     )
+    // ...but its copy is still the generic fallback, with no code line.
+    expect(
+      screen.getByText("We couldn't complete that sign-in")
+    ).toBeInTheDocument()
+    expect(document.querySelector('code')).toBeNull()
   })
 
   it('always offers a way back to sign in', async () => {

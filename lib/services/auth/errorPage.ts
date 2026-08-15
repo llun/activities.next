@@ -109,15 +109,21 @@ export const sanitizeAuthErrorCode = (
  * `sanitizeAuthErrorCode` (41 characters, all in the allowed class) and reads as
  * ordinary prose. Echoing that under our own auth card is the same phishing
  * surface we refuse `error_description` for, just capped at 64 characters — so
- * the page renders the code only when this returns true, and the log gate uses
- * it too, to bound how much caller-chosen text an unauthenticated request can
- * push into the log stream.
+ * the page renders the code only when this returns true.
+ *
+ * This gates RENDERING only. It is deliberately not a log gate: a caller can
+ * pair any 200-byte description with a mapped code, so allow-listing bounds
+ * nothing there, while dropping the description of a code we do not recognise
+ * discards exactly the diagnostic an operator needs (see the page).
  *
  * `Object.hasOwn`, not a bare lookup: `code` reaches this from the query string,
  * and a plain object literal answers `constructor`/`toString` with an inherited
- * function, which is truthy.
+ * function, which is truthy. The type predicate is what lets the caller index
+ * `AUTH_ERROR_CONTENT` without a cast, so a later `Partial<Record<…>>` retype or
+ * `noUncheckedIndexedAccess` surfaces as a type error rather than an undefined
+ * title on the card.
  */
-export const isKnownAuthErrorCode = (code: string | null): boolean =>
+export const isKnownAuthErrorCode = (code: string | null): code is string =>
   code !== null && Object.hasOwn(AUTH_ERROR_CONTENT, code)
 
 /**
@@ -128,6 +134,4 @@ export const isKnownAuthErrorCode = (code: string | null): boolean =>
 export const resolveAuthErrorContent = (
   code: string | null
 ): AuthErrorContent =>
-  isKnownAuthErrorCode(code)
-    ? AUTH_ERROR_CONTENT[code as string]
-    : AUTH_ERROR_FALLBACK
+  isKnownAuthErrorCode(code) ? AUTH_ERROR_CONTENT[code] : AUTH_ERROR_FALLBACK

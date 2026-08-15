@@ -35,6 +35,12 @@ interface Props {
 // it: prose we did not write, shown on our own signed-in-looking card, is a
 // ready-made phishing surface ("Your account was suspended, call ..."). The
 // visitor gets our copy for the code instead.
+//
+// This cap, plus sanitizeAuthErrorCode's 64-character code cap, is the ONLY
+// bound on how much caller-chosen text a request can put in the log stream.
+// Allow-listing the code does not bound it further — a caller can pair any
+// description with a mapped code — so the description is logged whatever the
+// code is. See the log call below for why that also matters diagnostically.
 const MAX_LOGGED_DESCRIPTION_LENGTH = 200
 
 const firstValue = (raw: string | string[] | undefined) =>
@@ -51,21 +57,22 @@ const Page: FC<Props> = async ({ searchParams }) => {
   // observable. Warn, not error: every one of them is a bad request from a
   // client, not a fault in this instance.
   //
-  // The code is logged even when unmapped — a code we do not recognise is worth
-  // seeing, since a better-auth upgrade can introduce one — but the description
-  // rides along only for a code we could actually have emitted. This route is
-  // unauthenticated, uncacheable and unthrottled, so an unbounded description
-  // would let anyone push 200 bytes of chosen text into the log stream per
-  // request; requiring a known code bounds that to a real failure shape.
+  // Both fields are logged whatever the code is, and an UNMAPPED code is the
+  // case that needs them most: better-auth's own /error endpoint rewrites any
+  // code it cannot classify to `UNKNOWN` while forwarding the real description
+  // verbatim, and an upgrade can add a rejection we have no copy for. Gating the
+  // description on the allow-list would blank it for exactly those, and would
+  // also destroy the tell that separates a genuine redirect (always carries a
+  // description) from a hand-crafted link (usually does not). Rendering is
+  // gated; logging is not.
   logger.warn({
     message: 'Auth request failed and was redirected to the error page',
     errorCode: code ?? 'unknown',
-    errorDescription: isKnownCode
-      ? (firstValue(params.error_description)?.slice(
-          0,
-          MAX_LOGGED_DESCRIPTION_LENGTH
-        ) ?? null)
-      : null
+    errorDescription:
+      firstValue(params.error_description)?.slice(
+        0,
+        MAX_LOGGED_DESCRIPTION_LENGTH
+      ) ?? null
   })
 
   return (
