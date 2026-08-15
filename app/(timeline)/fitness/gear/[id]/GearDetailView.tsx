@@ -1,6 +1,13 @@
 'use client'
 
-import { Archive, ArrowLeft, History, Pencil } from 'lucide-react'
+import {
+  Activity,
+  Archive,
+  ArrowLeft,
+  History,
+  Pencil,
+  Wrench
+} from 'lucide-react'
 import Link from 'next/link'
 import { FC, useEffect, useState } from 'react'
 
@@ -17,6 +24,10 @@ import {
   setFitnessGearRetired
 } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
+import {
+  SectionNavSelect,
+  type SectionNavSelectTab
+} from '@/lib/components/section-nav-select'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import { Card } from '@/lib/components/ui/card'
@@ -28,12 +39,32 @@ import type {
 import { cn } from '@/lib/utils'
 
 import { DeviceDetailView } from './DeviceDetailView'
+import {
+  GearActivitiesFeed,
+  type GearActivityFeedContext
+} from './GearActivitiesFeed'
 import { GearComponentsCard } from './GearComponentsCard'
+
+type GearView = 'components' | 'activities'
+
+/**
+ * The two views a bike's page switches between, in the order the design lists
+ * them. Shoes and devices carry no components card, so they never render the
+ * switcher — a menu with one entry is dead UI — and go straight to the feed.
+ */
+const GEAR_VIEW_TABS: SectionNavSelectTab<GearView>[] = [
+  { id: 'components', label: 'Components', icon: Wrench },
+  { id: 'activities', label: 'Activities', icon: Activity }
+]
 
 interface Props {
   gearId: string
-  /** `@user@domain`, resolved server-side; used by the device activity list. */
-  actorHandle: string
+  /**
+   * The server-side values the activities feed renders posts with. Threaded
+   * from the page rather than fetched here: `currentTime` has to be the
+   * server's, and `currentActor` must be the narrowed `ActorProfile`.
+   */
+  feed: GearActivityFeedContext
 }
 
 interface StatTileProps {
@@ -58,7 +89,7 @@ const getMetaLine = (gear: GearEntity): string =>
     .filter(Boolean)
     .join(' · ')
 
-export const GearDetailView: FC<Props> = ({ gearId, actorHandle }) => {
+export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
   const [gear, setGear] = useState<GearEntity | null>(null)
   const [components, setComponents] = useState<GearComponentEntity[]>([])
   // Only the first load blanks the page. A refetch keeps the gear and its
@@ -71,6 +102,18 @@ export const GearDetailView: FC<Props> = ({ gearId, actorHandle }) => {
   const [reloadToken, setReloadToken] = useState(0)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isRetiring, setIsRetiring] = useState(false)
+  // Components first, as the design opens the page: the service log is what a
+  // bike's own page is for, and the same activities are one click away here
+  // and on the fitness overview.
+  const [view, setView] = useState<GearView>('components')
+  // Latched on the first switch to Activities and never unset, so the feed
+  // survives a switch back to Components with its loaded pages intact.
+  const [hasOpenedActivities, setHasOpenedActivities] = useState(false)
+
+  const handleViewChange = (nextView: GearView) => {
+    setView(nextView)
+    if (nextView === 'activities') setHasOpenedActivities(true)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -175,9 +218,9 @@ export const GearDetailView: FC<Props> = ({ gearId, actorHandle }) => {
       >
         <DeviceDetailView
           gear={gear}
-          actorHandle={actorHandle}
           backLink={backLink}
           onEdit={() => setIsEditOpen(true)}
+          feed={feed}
         />
         {isEditOpen && (
           <GearFormDialog
@@ -196,6 +239,10 @@ export const GearDetailView: FC<Props> = ({ gearId, actorHandle }) => {
   const installedCount = components.filter(
     (component) => !component.removedAt
   ).length
+  // Only a bike has a components card, so only a bike has a Components view;
+  // shoes go straight to the feed.
+  const showsComponents = gear.kind === 'bike' && view === 'components'
+  const shouldMountFeed = !showsComponents || hasOpenedActivities
 
   return (
     // A refetch dims the page instead of replacing it, the same way the gear
@@ -279,12 +326,45 @@ export const GearDetailView: FC<Props> = ({ gearId, actorHandle }) => {
         )}
       </div>
 
+      {/* Only a bike has a second view to reach. */}
       {gear.kind === 'bike' && (
-        <GearComponentsCard
-          gearId={gear.id}
-          components={components}
-          onChanged={reload}
+        <SectionNavSelect
+          label="Gear sections"
+          tabs={GEAR_VIEW_TABS}
+          active={view}
+          onChange={handleViewChange}
         />
+      )}
+
+      {/* Hidden rather than unmounted, for the same reason the refetch above
+          keeps it mounted: the card holds its add form, its typed-in values,
+          its "Show N replaced" toggle and its save error in local state, and a
+          glance at Activities mid-form would otherwise throw all of it away. */}
+      {gear.kind === 'bike' && (
+        <div hidden={!showsComponents}>
+          <GearComponentsCard
+            gearId={gear.id}
+            components={components}
+            onChanged={reload}
+          />
+        </div>
+      )}
+
+      {/* Mounted on first use and kept mounted, hidden rather than torn down —
+          the same reasoning that keeps the components card alive across a
+          refetch. Unmounting would drop every page the reader had scrolled
+          through and re-request page one on the way back, and each of those
+          pages costs a batched status read the client already had. Lazy,
+          though: rendering it eagerly would fetch a feed for every reader who
+          never opens the tab. */}
+      {shouldMountFeed && (
+        <div hidden={showsComponents}>
+          <GearActivitiesFeed
+            gearId={gear.id}
+            emptyMessage="No recent activities on this gear."
+            {...feed}
+          />
+        </div>
       )}
 
       {isEditOpen && (

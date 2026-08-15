@@ -265,7 +265,14 @@ section-navigation patterns; pick by section type.
   }
   ```
 
-- A **nested** sub-nav inside a section renders as a small **in-content segmented control**, not a second dropdown or rail. Hand it to the closest section-mode `PageHeader` via `PageSubnavProvider` so it sits directly **below the per-page title** (header-first, like the non-nested pages) rather than above it. (The settings, fitness, and admin layouts themselves use the dropdown sub-nav above, not this nested pattern.)
+- A **nested sub-nav that navigates** — one whose entries are other routes inside the section — renders as a small **in-content segmented control**, not a second dropdown or rail. Hand it to the closest section-mode `PageHeader` via `PageSubnavProvider` so it sits directly **below the per-page title** (header-first, like the non-nested pages) rather than above it. (The settings, fitness, and admin layouts themselves use the dropdown sub-nav above, not this nested pattern.)
+- A nested sub-nav that switches a **view of the page you are already on** is a dropdown instead — the shared `SectionNavSelect` (`@/lib/components/section-nav-select`), described below. That is the design system's own call rather than a carve-out invented here: `ui_kits/web/GearKit.jsx` puts a `GKViewDropdown` on a gear's page below the stat tiles it re-renders, with the section's own "Gear ▾" dropdown still above it, and the fitness activity detail switches its Overview / Analysis / Comments sections the same way. The distinction is what the control does, not where it sits: a segmented control reads as "more of this page", which is wrong for something that replaces the page's whole body, and it carries no per-entry icon, which both of these designs do.
+
+### Section sub-nav in local state (`SectionNavSelect`)
+
+- **`SectionNavSelect` is the state-driven twin of `SectionNavDropdown`**, and there is one implementation of each — do not re-inline either. Both render the same chrome: an outline trigger carrying the active tab's Lucide icon in `text-primary`, a sentence-case label and a muted `ChevronDown`, over a `rounded-xl` menu sized with `w-(--radix-dropdown-menu-trigger-width)`. They differ only in what a row does. `SectionNavDropdown`'s rows are `<Link>`s, its active row is resolved from `usePathname()` and marked `aria-current="page"`; `SectionNavSelect` takes `{ tabs, active, onChange }`, its rows are `DropdownMenuItem`s calling `onChange`, and the current one is marked with the **boolean** `aria-current` — nothing here is a page.
+- Its two consumers are the fitness activity detail (Overview / Analysis / Heart rate zones / …) and a bike's gear page (Components / Activities). A third copy of that markup is exactly what extracting it removed.
+- **Both** active rows take `text-primary-text`, not `text-primary` — see the orange-text rule under **Fitness Gear**. That is the one place the pairing is load-bearing rather than cosmetic: the two dropdowns now appear on one screen (a bike's page carries the fitness section's nav above its own view switcher), so a mismatch reads as a mistake, and `--primary` as a foreground is under the AA floor either way. Each keeps its wash on `focus:` and therefore also carries `focus:ring-2`, or a keyboard user watching the highlight move down the list would see it vanish on precisely the current row.
 
 ### Sticky-header sub-nav (`PageSubnavProvider`)
 
@@ -614,10 +621,43 @@ it; there is no legacy shape left to copy.
   and `STICKY_CLICKABLE_COLUMN` belongs only on a row that has its own `hover:`
   and the `group` class — a row carrying `group` without a `hover:` lights the
   first column alone, and a row with neither never matches the variant at all.
+- **A gear's activities are the POSTS they were published as, rendered through
+  the shared `Posts` feed.** `GearActivitiesFeed`
+  (`app/(timeline)/fitness/gear/[id]/GearActivitiesFeed.tsx`) is the single
+  implementation, used by a bike's Activities view and by the whole of a
+  device's page, so the same ride reads identically on either — same body, same
+  stat chip, same action row as in the timeline. It is not a bespoke list: a
+  fitness activity is a status, and **Status Posts & Actions** applies to it
+  like every other surface. Two consequences are load-bearing. The feed pages
+  over ACTIVITY ROWS and the endpoint answers `nextOffset` from those rows, not
+  from the statuses in the page: deleting a status only nulls
+  `fitness_files.statusId`, so a row with no post left still occupies an offset
+  (and still counts toward the gear's totals), and paging from
+  `statuses.length` would re-request everything in between forever. And because
+  such a row yields nothing to render, the **Activities tile and the feed may
+  legitimately disagree** — the tile counts activities, the feed shows the ones
+  still posted. A page that comes back entirely postless is walked past rather
+  than handed to the reader as a "Load more" that adds nothing — by the INITIAL
+  load as much as by "Load more", both of which go through the same walk,
+  because a first page empty for that reason would otherwise render "no
+  activities" above an enabled button that disproves it — capped the way the
+  bookmarks timeline caps its own continuations. The empty state is therefore
+  gated on `!hasMore` rather than on an empty list: the walk makes that state
+  rare and `onPostDeleted` can produce it at any time regardless.
+- **A bike switches between Components and Activities; shoes and devices do
+  not.** The switcher is `SectionNavSelect`
+  (`@/lib/components/section-nav-select`), the state-driven twin of
+  `SectionNavDropdown` — same chrome, but its rows call `onChange` instead of
+  navigating, and the current one is marked with the boolean `aria-current`
+  because nothing is a page. Only a bike renders a components card, so only a
+  bike has a second view to reach: shoes and devices go straight to the feed,
+  since a menu with one entry is dead UI (the same rule that keeps the "No
+  gear" picker off an empty shed). Do not write a third copy of this dropdown —
+  the fitness activity detail's section nav is the other consumer.
 - **A recording device is a third kind, and almost nothing above applies to it.**
   `kind: 'device'` rows have no components, no default sports, no distance
   total, no service reminder and cannot be retired; a device page reports an
-  activity count and a first-used date instead.
+  activity count and a first-used date, then its activities.
   The device rollups **replace** `isPrimary` rather than relaxing it, because
   for a device it answers the wrong question: the merge groups files by TIME
   OVERLAP and never looks at the device columns, so which file won says nothing
@@ -634,7 +674,9 @@ it; there is no legacy shape left to copy.
   writes the primary `pending` and the secondaries `completed`, so deferring to
   an unfinished (or permanently `failed`) primary would drop the ride from the
   device entirely. The rollup and the activity list apply the identical
-  predicate, so a device's count and its page can never disagree. A head unit records rides and
+  predicate, so the count and the page can only ever differ by an activity whose
+  post was deleted — which the rollup still counts and the feed has nothing to
+  render for. A head unit records rides and
   runs alike, so one summed distance would be a number with no meaning, and
   claiming a sport would take that sport off the bike or shoes that should hold
   it. `SPORT_KIND` is therefore typed `Record<SportKey, UserCreatableGearKind>`
