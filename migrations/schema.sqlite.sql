@@ -258,3 +258,4 @@ CREATE TABLE IF NOT EXISTS "fitness_gears" (`id` varchar(255), `actorId` varchar
 CREATE INDEX `fitness_gears_actor_id_idx` on `fitness_gears` (`actorId`);
 CREATE UNIQUE INDEX `fitness_gears_actor_device_key_unique` on `fitness_gears` (`actorId`, `deviceKey`);
 CREATE INDEX `fitness_files_device_gear_id_idx` on `fitness_files` (`deviceGearId`);
+CREATE INDEX `sessions_token_idx` on `sessions` (`token`);
