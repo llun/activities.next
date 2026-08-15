@@ -11,7 +11,7 @@ import { logger } from '@/lib/utils/logger'
 
 import { canCreateSessionForAccount } from './canCreateSessionForAccount'
 import { ConsentSession, resolveConsentReferenceId } from './consentReferenceId'
-import { AUTH_BASE_PATH } from './constants'
+import { AUTH_BASE_PATH, AUTH_ERROR_PATH } from './constants'
 import { knexAdapter } from './knexAdapter'
 import { buildTrustedOrigins } from './trustedOrigins'
 
@@ -41,6 +41,34 @@ const buildAuth = (baseURL: string) => {
       config.trustedHosts ?? []
     ),
     basePath: AUTH_BASE_PATH,
+    // Send failed auth/OAuth requests to our own page instead of better-auth's
+    // built-in /api/auth/error, which is a development affordance: in
+    // production it does not render at all, it 302s to `/?error=...&
+    // error_description=...`, so a Mastodon client presenting a client_id this
+    // server no longer knows just lands on the home timeline and its sign-in
+    // looks like it silently did nothing.
+    //
+    // Every authorize-time rejection @better-auth/oauth-provider raises routes
+    // through here: invalid_client, client_disabled, unauthorized_client,
+    // invalid_redirect, invalid_request, invalid_request_uri,
+    // unsupported_response_type, unsupported_prompt_select_account. Core's
+    // INVALID_TOKEN can too, but only in the narrow case errorPage.ts describes
+    // — its reset endpoint sends both failing branches to the client's
+    // callbackURL unless that is empty, and this instance runs its own reset
+    // flow regardless. `access_denied` and
+    // `invalid_scope` deliberately do not: both are reported to the client's
+    // redirect_uri (`formatErrorURL(query.redirect_uri, …)`, with no
+    // `getErrorURL` call site for either), per RFC 6749 §4.1.2.1. They are still
+    // mapped in errorPage.ts for a client that hands the code back to us.
+    //
+    // Note this cannot be paired with `onAPIError.onError` for correlation:
+    // better-auth's router skips onError for anything it redirects
+    // (`if (isAPIError(e) && e.status === 'FOUND') return`), which is exactly
+    // this class of failure, and setting onError at all suppresses better-auth's
+    // own built-in logging. The error page logs what it renders instead.
+    onAPIError: {
+      errorURL: AUTH_ERROR_PATH
+    },
     database: knexAdapter(db, { passkeyRpID: rpID }),
     disabledPaths: ['/token'], // Disable jwt plugin's /api/auth/token;
     // OAuth tokens are issued via oauthProvider. JWKS stays enabled for OAuthGuard.
