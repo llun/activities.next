@@ -29,6 +29,21 @@ const buildAuth = (baseURL: string) => {
     logger: {
       level: process.env.NODE_ENV === 'development' ? 'debug' : 'warn'
     },
+    // Resolve a session and its account in ONE statement instead of two. Without
+    // this better-auth reads the `sessions` row, then reads the `accounts` row
+    // it points at, on every authenticated request.
+    //
+    // On better-auth 1.6.x this flag is an assertion, not a request: with it on,
+    // the adapter factory passes `join` down and then reads the related rows
+    // straight off what the adapter returned, with no capability check and no
+    // fallback. An adapter that ignored `join` would hand back a session with no
+    // user, which `findSession` reports as "no session" — every signed-in user
+    // silently logged out. It is safe here only because `knexAdapter` implements
+    // the join contract (see the join helpers there), and
+    // `sessionJoins.test.ts` covers this end to end.
+    experimental: {
+      joins: true
+    },
     secret: config.secretPhase,
     baseURL,
     // Trust the configured host plus any ACTIVITIES_TRUSTED_HOSTS so a Mastodon

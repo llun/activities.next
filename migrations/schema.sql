@@ -1730,6 +1730,8 @@ CREATE INDEX server_filters_expires_at ON public.server_filters USING btree ("ex
 
 CREATE INDEX "sessions_accountId_token_idx" ON public.sessions USING btree ("accountId", token);
 
+CREATE INDEX sessions_token_idx ON public.sessions USING btree (token);
+
 CREATE INDEX "status_history_statusId_idx" ON public.status_history USING btree ("statusId", "createdAt", "updatedAt");
 
 CREATE INDEX status_mutes_status ON public.status_mutes USING btree ("statusId");

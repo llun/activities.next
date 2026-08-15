@@ -1,4 +1,9 @@
-import { CleanedWhere, createAdapterFactory } from 'better-auth/adapters'
+import type { BetterAuthDBSchema } from '@better-auth/core/db'
+import {
+  CleanedWhere,
+  JoinConfig,
+  createAdapterFactory
+} from 'better-auth/adapters'
 import { Knex } from 'knex'
 
 import { recordWeeklyLoginSafely } from '@/lib/database/sql/instanceActivity'
@@ -198,6 +203,209 @@ const applyWhere = (
   return query
 }
 
+// Better-auth asks for related rows through the `join` argument on `findOne`
+// and `findMany` once `experimental.joins` is on (`{ user: true }` on a session
+// lookup, and so on). The factory transforms that into a `JoinConfig` keyed by
+// the joined table name, with the joining columns already mapped to real column
+// names, e.g. for this instance's `user`/`session` model mapping:
+//
+//   { accounts: { on: { from: 'accountId', to: 'id' }, limit: 1,
+//                 relation: 'one-to-one' } }
+//
+// The adapter must return each base row with the joined data nested under that
+// same table-name key. On better-auth 1.6.x the flag is an assertion, not a
+// request: once it is set the factory reads `row[tableName]` and does NOT fall
+// back to separate queries if the key is missing — a missing key silently
+// becomes `user: null`, which `findSession` reports as "no session". So every
+// join shape this adapter is handed has to be answered here, natively where a
+// single statement can do it and with a follow-up query where it cannot.
+type JoinEntry = JoinConfig[string]
+
+// A joined column is selected as `__j<n>_<column>` so it cannot collide with a
+// base column of the same name — `sessions` and `accounts` share `id`,
+// `createdAt` and `updatedAt`, and selecting both tables unaliased would
+// overwrite the session's own id with the account's. The prefix is kept short on
+// purpose: PostgreSQL truncates identifiers at 63 bytes, and a truncated alias
+// would merge two columns into one.
+const joinColumnAlias = (index: number, column: string) =>
+  `__j${index}_${column}`
+
+// Resolve the columns to select for a joined table from better-auth's own
+// schema. This is exactly the set the factory's output transform reads back
+// (it iterates the model's schema fields plus `id` and drops everything else),
+// so selecting them is lossless compared with the `SELECT *` the fallback path
+// would have run — while keeping app-only columns such as `accounts.privateKey`
+// out of the result. Returns null when the table is not in the schema, which
+// sends the join down the follow-up-query path instead.
+const getJoinedColumns = (
+  schema: BetterAuthDBSchema | undefined,
+  tableName: string
+): string[] | null => {
+  const model = Object.values(schema ?? {}).find(
+    (definition) => definition.modelName === tableName
+  )
+  if (!model) return null
+
+  const columns = new Set<string>(['id'])
+  for (const [field, attributes] of Object.entries(model.fields)) {
+    columns.add(attributes.fieldName || field)
+  }
+  return [...columns]
+}
+
+const isOneToOne = (entry: JoinEntry) => entry.relation === 'one-to-one'
+
+type PlannedJoin = {
+  tableName: string
+  entry: JoinEntry
+  // Set for joins answered by a LEFT JOIN in the base statement.
+  columns?: string[]
+  index: number
+}
+
+// Split the requested joins into the ones a LEFT JOIN can answer inside the base
+// statement and the ones that need their own query.
+//
+// Only `one-to-one` is joined inline. A `one-to-many` join carries a per-parent
+// `limit` (100 by default) that plain SQL cannot express without window
+// functions — and on `findMany` a one-to-many LEFT JOIN would also multiply the
+// base rows, breaking `limit`/`offset` and the row count the caller expects.
+const planJoins = (
+  join: JoinConfig | undefined,
+  schema: BetterAuthDBSchema | undefined
+): { inline: PlannedJoin[]; deferred: PlannedJoin[] } => {
+  const inline: PlannedJoin[] = []
+  const deferred: PlannedJoin[] = []
+  if (!join) return { inline, deferred }
+
+  let index = 0
+  for (const [tableName, entry] of Object.entries(join)) {
+    const columns = isOneToOne(entry)
+      ? getJoinedColumns(schema, tableName)
+      : null
+    if (columns && columns.length > 0) {
+      inline.push({ tableName, entry, columns, index })
+      index += 1
+      continue
+    }
+    deferred.push({ tableName, entry, index })
+  }
+  return { inline, deferred }
+}
+
+// Add the LEFT JOINs and their aliased column selections to a base query.
+// `select` is the caller's base-column selection (already mapped to column
+// names); without one the base table contributes `<table>.*` so joined columns
+// stay out of the top level.
+const applyInlineJoins = (
+  query: Knex.QueryBuilder,
+  tableName: string,
+  inline: PlannedJoin[],
+  select: string[] | undefined
+) => {
+  if (inline.length === 0) return query
+
+  const columns: string[] = select?.length
+    ? select.map((field) => `${tableName}.${field}`)
+    : [`${tableName}.*`]
+
+  for (const {
+    tableName: joinTable,
+    entry,
+    columns: joinColumns,
+    index
+  } of inline) {
+    query = query.leftJoin(
+      joinTable,
+      `${tableName}.${entry.on.from}`,
+      `${joinTable}.${entry.on.to}`
+    )
+    for (const column of joinColumns ?? []) {
+      columns.push(
+        `${joinTable}.${column} as ${joinColumnAlias(index, column)}`
+      )
+    }
+  }
+
+  return query.select(columns)
+}
+
+// Lift the `__j<n>_` columns of a flat joined row into a nested object under the
+// joined table name. A LEFT JOIN that matched nothing produces all-null columns,
+// which is indistinguishable from a matched row only by looking at `id` — a real
+// row always has one — so that is what decides null vs object.
+const extractInlineJoins = (
+  row: Record<string, unknown>,
+  inline: PlannedJoin[]
+): Record<string, unknown> => {
+  if (inline.length === 0) return hydrateDateFields(row)
+
+  const base = { ...row }
+  const joined: Record<string, unknown> = {}
+
+  for (const { tableName, columns, index } of inline) {
+    const record: Record<string, unknown> = {}
+    for (const column of columns ?? []) {
+      const alias = joinColumnAlias(index, column)
+      record[column] = base[alias]
+      delete base[alias]
+    }
+    joined[tableName] = record.id == null ? null : hydrateDateFields(record)
+  }
+
+  return { ...hydrateDateFields(base), ...joined }
+}
+
+// Answer the joins that could not be folded into the base statement with one
+// extra query each, then attach the results to the rows they belong to. This is
+// the same shape as the factory's own fallback, re-implemented here because that
+// fallback is unreachable once `experimental.joins` is on.
+const applyDeferredJoins = async (
+  db: Knex,
+  rows: Record<string, unknown>[],
+  deferred: PlannedJoin[]
+) => {
+  if (deferred.length === 0 || rows.length === 0) return rows
+
+  for (const { tableName, entry } of deferred) {
+    const { from, to } = entry.on
+    const oneToOne = isOneToOne(entry)
+    const parentValues = [
+      ...new Set(
+        rows
+          .map((row) => row[from])
+          .filter((value) => value !== null && value !== undefined)
+      )
+    ]
+
+    const related = parentValues.length
+      ? await db(tableName).whereIn(`${tableName}.${to}`, parentValues)
+      : []
+
+    const byParent = new Map<unknown, Record<string, unknown>[]>()
+    for (const record of related) {
+      const key = record[to]
+      const bucket = byParent.get(key)
+      if (bucket) bucket.push(record)
+      else byParent.set(key, [record])
+    }
+
+    for (const row of rows) {
+      const matches = byParent.get(row[from]) ?? []
+      if (oneToOne) {
+        row[tableName] = matches.length ? hydrateDateFields(matches[0]) : null
+        continue
+      }
+      // `limit` is per parent row, which is why this cannot be a single joined
+      // statement: it bounds each bucket, not the result set.
+      const limit = entry.limit ?? matches.length
+      row[tableName] = matches.slice(0, limit).map(hydrateDateFields)
+    }
+  }
+
+  return rows
+}
+
 const SESSIONS_TABLE = 'sessions'
 
 // Deleting a session whose grants minted OAuth tokens fails on PostgreSQL's
@@ -235,7 +443,7 @@ export const knexAdapter = (db: Knex, options: KnexAdapterOptions = {}) =>
       supportsNumericIds: false,
       supportsBooleans: supportsNativeBooleans(db)
     },
-    adapter: ({ getModelName, getFieldName }) => {
+    adapter: ({ getModelName, getFieldName, schema }) => {
       // The factory's createAdapterFactory already transforms `where` clauses
       // and `data` objects (via transformWhereClause and transformInput) before
       // passing them to the adapter. Field names in `where` and `data` are
@@ -283,31 +491,43 @@ export const knexAdapter = (db: Knex, options: KnexAdapterOptions = {}) =>
           return hydrateDateFields(row) as any
         },
 
-        async findOne({ model, where, select }) {
+        async findOne({ model, where, select, join }) {
           const tableName = getModelName(model)
-          let query = select
-            ? db(tableName).first(
-                select.map(
-                  (f) => `${tableName}.${getFieldName({ model, field: f })}`
+          const columns = select?.map((f) => getFieldName({ model, field: f }))
+          const { inline, deferred } = planJoins(join, schema)
+
+          let query = inline.length
+            ? applyInlineJoins(db(tableName), tableName, inline, columns)
+            : columns
+              ? db(tableName).select(
+                  columns.map((column) => `${tableName}.${column}`)
                 )
-              )
-            : db(tableName).first()
+              : db(tableName)
           if (where) {
             query = applyWhere(query, tableName, where)
           }
-          const row = await query
-          return row ? (hydrateDateFields(row) as any) : null
+          const row = await query.first()
+          if (!row) return null
+
+          const withInline = extractInlineJoins(row, inline)
+          if (!deferred.length) return withInline as any
+
+          const [joined] = await applyDeferredJoins(db, [withInline], deferred)
+          return joined as any
         },
 
-        async findMany({ model, where, limit, sortBy, offset, select }) {
+        async findMany({ model, where, limit, sortBy, offset, select, join }) {
           const tableName = getModelName(model)
-          let query = select
-            ? db(tableName).select(
-                select.map(
-                  (f) => `${tableName}.${getFieldName({ model, field: f })}`
+          const columns = select?.map((f) => getFieldName({ model, field: f }))
+          const { inline, deferred } = planJoins(join, schema)
+
+          let query = inline.length
+            ? applyInlineJoins(db(tableName), tableName, inline, columns)
+            : columns
+              ? db(tableName).select(
+                  columns.map((column) => `${tableName}.${column}`)
                 )
-              )
-            : db(tableName)
+              : db(tableName)
           if (where) {
             query = applyWhere(query, tableName, where)
           }
@@ -315,10 +535,17 @@ export const knexAdapter = (db: Knex, options: KnexAdapterOptions = {}) =>
             const sortField = getFieldName({ model, field: sortBy.field })
             query = query.orderBy(`${tableName}.${sortField}`, sortBy.direction)
           }
+          // Safe alongside the inline joins because only `one-to-one` is joined
+          // inline: those keep the result at one row per base row, so `limit`
+          // and `offset` still count base rows.
           if (limit !== undefined) query = query.limit(limit)
           if (offset !== undefined) query = query.offset(offset)
           const rows = await query
-          return rows.map(hydrateDateFields) as any
+
+          const withInline = rows.map((row: Record<string, unknown>) =>
+            extractInlineJoins(row, inline)
+          )
+          return (await applyDeferredJoins(db, withInline, deferred)) as any
         },
 
         async count({ model, where }) {
