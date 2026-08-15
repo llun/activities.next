@@ -51,6 +51,10 @@ const AUTH_ERROR_CONTENT: Record<string, AuthErrorContent> = {
     title: 'That sign-in request was incomplete',
     body: 'The app that sent you here used a request format this instance does not support. Try starting the sign-in again from the app.'
   },
+  // Like `access_denied` below, reported to the client's `redirect_uri` rather
+  // than here (`formatErrorURL(query.redirect_uri, 'invalid_scope', …)`); there
+  // is no `getErrorURL` call site for it. Mapped only for a client that hands
+  // the code back to us by hand.
   invalid_scope: {
     title: "That app asked for permissions we don't offer",
     body: 'The app requested access this instance does not grant. Contact its developer — nothing was shared.'
@@ -63,6 +67,7 @@ const AUTH_ERROR_CONTENT: Record<string, AuthErrorContent> = {
     title: 'That sign-in method is not supported',
     body: 'The app asked this instance to show an account picker, which it does not offer. Sign in normally instead, then switch accounts from your profile.'
   },
+  // Also redirect_uri-routed, per RFC 6749 §4.1.2.1 — see `invalid_scope` above.
   access_denied: {
     title: 'Sign-in cancelled',
     body: 'You chose not to give that app access, so nothing was shared. You can start again whenever you like.'
@@ -97,6 +102,25 @@ export const sanitizeAuthErrorCode = (
 }
 
 /**
+ * True when the code is one this instance can actually emit.
+ *
+ * Being token-shaped is NOT enough to put a code in front of a visitor:
+ * `?error=Account-locked-please-call-1-800-555-0100` passes
+ * `sanitizeAuthErrorCode` (41 characters, all in the allowed class) and reads as
+ * ordinary prose. Echoing that under our own auth card is the same phishing
+ * surface we refuse `error_description` for, just capped at 64 characters — so
+ * the page renders the code only when this returns true, and the log gate uses
+ * it too, to bound how much caller-chosen text an unauthenticated request can
+ * push into the log stream.
+ *
+ * `Object.hasOwn`, not a bare lookup: `code` reaches this from the query string,
+ * and a plain object literal answers `constructor`/`toString` with an inherited
+ * function, which is truthy.
+ */
+export const isKnownAuthErrorCode = (code: string | null): boolean =>
+  code !== null && Object.hasOwn(AUTH_ERROR_CONTENT, code)
+
+/**
  * Resolves the copy for a sanitized error code. Unknown codes get the generic
  * fallback — the page never renders better-auth's `error_description`, which is
  * free text this instance does not control (see the page for why).
@@ -104,10 +128,6 @@ export const sanitizeAuthErrorCode = (
 export const resolveAuthErrorContent = (
   code: string | null
 ): AuthErrorContent =>
-  // `Object.hasOwn`, not a bare lookup: `code` reaches this from the query
-  // string, and a plain object literal answers `constructor`/`toString` with an
-  // inherited function. That is truthy, so `AUTH_ERROR_CONTENT[code] ||
-  // fallback` would hand the page a function and render an empty card.
-  code && Object.hasOwn(AUTH_ERROR_CONTENT, code)
-    ? AUTH_ERROR_CONTENT[code]
+  isKnownAuthErrorCode(code)
+    ? AUTH_ERROR_CONTENT[code as string]
     : AUTH_ERROR_FALLBACK

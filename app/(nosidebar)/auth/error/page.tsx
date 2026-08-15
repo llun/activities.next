@@ -11,6 +11,7 @@ import {
   CardTitle
 } from '@/lib/components/ui/card'
 import {
+  isKnownAuthErrorCode,
   resolveAuthErrorContent,
   sanitizeAuthErrorCode
 } from '@/lib/services/auth/errorPage'
@@ -42,20 +43,29 @@ const firstValue = (raw: string | string[] | undefined) =>
 const Page: FC<Props> = async ({ searchParams }) => {
   const params = await searchParams
   const code = sanitizeAuthErrorCode(params.error)
+  const isKnownCode = isKnownAuthErrorCode(code)
   const content = resolveAuthErrorContent(code)
 
   // better-auth's own router never sees these failures — it short-circuits
   // onError for anything it redirects — so this is the only place they are
   // observable. Warn, not error: every one of them is a bad request from a
   // client, not a fault in this instance.
+  //
+  // The code is logged even when unmapped — a code we do not recognise is worth
+  // seeing, since a better-auth upgrade can introduce one — but the description
+  // rides along only for a code we could actually have emitted. This route is
+  // unauthenticated, uncacheable and unthrottled, so an unbounded description
+  // would let anyone push 200 bytes of chosen text into the log stream per
+  // request; requiring a known code bounds that to a real failure shape.
   logger.warn({
     message: 'Auth request failed and was redirected to the error page',
     errorCode: code ?? 'unknown',
-    errorDescription:
-      firstValue(params.error_description)?.slice(
-        0,
-        MAX_LOGGED_DESCRIPTION_LENGTH
-      ) ?? null
+    errorDescription: isKnownCode
+      ? (firstValue(params.error_description)?.slice(
+          0,
+          MAX_LOGGED_DESCRIPTION_LENGTH
+        ) ?? null)
+      : null
   })
 
   return (
@@ -64,7 +74,9 @@ const Page: FC<Props> = async ({ searchParams }) => {
         <CardTitle className="text-2xl">{content.title}</CardTitle>
         <CardDescription>{content.body}</CardDescription>
       </CardHeader>
-      {code && (
+      {/* Only an allow-listed code, never merely a token-shaped one: see
+          isKnownAuthErrorCode for the phishing case that distinction closes. */}
+      {isKnownCode && (
         <CardContent>
           <div className="border-t pt-4 text-center">
             <code className="text-muted-foreground font-mono text-xs">

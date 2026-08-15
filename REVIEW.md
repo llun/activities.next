@@ -308,6 +308,29 @@ change doesn't touch.
   dashboard, the stat grid, the fitness overview and every rollup). Grep for what
   reads a flag before reusing it.
 
+## Auth error page
+
+- Failed auth/OAuth requests must reach the in-app `/auth/error`, never
+  better-auth's built-in `/api/auth/error`: `onAPIError.errorURL` in
+  `lib/services/auth/auth.ts` stays set. The built-in page does not render in
+  production — it 302s to `/?error=...`, dropping a failed sign-in on the home
+  timeline.
+- `AUTH_ERROR_PATH` stays **root-relative**. better-auth copies it straight into
+  the `Location` header with no resolution, so an absolute URL built from
+  `getBaseURL()` bounces a login started on a trusted alias domain over to
+  `ACTIVITIES_HOST` mid-flow.
+- The error page never renders `error_description`, and renders the `error` code
+  only when it is **allow-listed** (`isKnownAuthErrorCode`) — not merely
+  token-shaped. Both are caller-controlled via a hand-crafted link, and
+  `?error=Account-locked-please-call-1-800-555-0100` passes the character class
+  and length cap while reading as prose on our own auth card.
+- Don't add `onAPIError.onError` for correlation: better-auth short-circuits it
+  for anything it redirects (`status === 'FOUND'`), which is exactly this class
+  of failure, and setting it suppresses better-auth's own built-in logging.
+- If `socialProviders`, `sso()` or `genericOAuth()` are added, pass
+  `errorCallbackURL` per flow as well — `onAPIError.errorURL` is only the default
+  for provider-callback failures.
+
 ## Emails
 
 - Every email is built by a `build<Name>Email(params): RenderedEmail` module in

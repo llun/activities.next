@@ -60,12 +60,61 @@ describe('/auth/error', () => {
     ).toBeInTheDocument()
   })
 
+  // Token-shaped is not the same as known. This lure passes the character
+  // class and the length cap, so only the allow-list keeps it off the card.
+  it('never echoes a token-shaped code that is not one we emit', async () => {
+    await renderPage({ error: 'Account-locked-please-call-1-800-555-0100' })
+
+    expect(screen.queryByText(/1-800-555-0100/)).not.toBeInTheDocument()
+    expect(
+      screen.getByText("We couldn't complete that sign-in")
+    ).toBeInTheDocument()
+  })
+
+  it('takes the first value when error_description is repeated', async () => {
+    await renderPage({
+      error: 'invalid_client',
+      error_description: ['first cause', 'second cause']
+    })
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ errorDescription: 'first cause' })
+    )
+  })
+
+  // An unknown code is still worth logging (a better-auth upgrade can add one)
+  // but its description is unbounded caller text on an unauthenticated route.
+  it('drops the description when the code is not one we emit', async () => {
+    await renderPage({
+      error: 'made_up_code',
+      error_description: 'x'.repeat(500)
+    })
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        errorCode: 'made_up_code',
+        errorDescription: null
+      })
+    )
+  })
+
   it('always offers a way back to sign in', async () => {
     await renderPage({})
 
     expect(
       screen.getByRole('link', { name: 'Back to sign in' })
     ).toHaveAttribute('href', '/auth/signin')
+  })
+
+  it('logs the missing-parameter fallbacks and shows no technical detail', async () => {
+    await renderPage({})
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ errorCode: 'unknown', errorDescription: null })
+    )
+    // The fallbacks are for the log only — 'unknown' must never reach the card.
+    expect(screen.queryByText('unknown')).not.toBeInTheDocument()
+    expect(document.querySelector('code')).toBeNull()
   })
 
   it('logs the failure so an operator can correlate it', async () => {

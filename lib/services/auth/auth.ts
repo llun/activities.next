@@ -52,9 +52,11 @@ const buildAuth = (baseURL: string) => {
     // (invalid_client, client_disabled, unauthorized_client, invalid_redirect,
     // invalid_request, invalid_request_uri, unsupported_response_type,
     // unsupported_prompt_select_account) and core's expired password-reset
-    // token (INVALID_TOKEN) route through here. `access_denied` deliberately
-    // does not: a user declining consent is reported to the client's
-    // redirect_uri, per RFC 6749 §4.1.2.1.
+    // token (INVALID_TOKEN) route through here. `access_denied` and
+    // `invalid_scope` deliberately do not: both are reported to the client's
+    // redirect_uri (`formatErrorURL(query.redirect_uri, …)`, with no
+    // `getErrorURL` call site for either), per RFC 6749 §4.1.2.1. They are still
+    // mapped in errorPage.ts for a client that hands the code back to us.
     //
     // Note this cannot be paired with `onAPIError.onError` for correlation:
     // better-auth's router skips onError for anything it redirects
