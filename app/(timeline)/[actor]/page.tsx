@@ -170,6 +170,7 @@ const Page: FC<Props> = async ({ params }) => {
             ) : (
               <ProfileRelationshipActions
                 targetActorId={person.id}
+                targetHandle={`${person.preferredUsername}@${actorDomain}`}
                 isLoggedIn={isLoggedIn}
                 relationship={relationship}
               />

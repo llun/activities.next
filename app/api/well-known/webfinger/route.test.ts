@@ -47,6 +47,12 @@ describe('GET /api/well-known/webfinger', () => {
       subject: 'acct:test@example.com',
       aliases: ['https://example.com/@test', 'https://example.com/users/test']
     })
+    expect(data.links).toContainEqual(
+      expect.objectContaining({
+        rel: 'http://ostatus.org/schema/1.0/subscribe',
+        template: 'https://test.llun.dev/authorize_interaction?uri={uri}'
+      })
+    )
   })
 
   it('returns WebFinger JRD for the headless instance actor without a profile page link', async () => {
