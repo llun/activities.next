@@ -419,6 +419,52 @@ describe('GearFormDialog', () => {
   it.each([
     { description: 'a bike', kind: 'bike' as const },
     { description: 'shoes', kind: 'shoes' as const }
+  ])(
+    'seeds the stored product page for $description and sends it back',
+    async ({ kind }) => {
+      const gear = createGear({
+        kind,
+        name: 'Rocket',
+        productUrl: 'https://moots.com/pages/vamoots-rsl'
+      })
+      renderDialog({ kind, gear })
+
+      // Reopening an edit must not blank a saved link: everything the dialog
+      // does not touch is still sent on save.
+      expect(screen.getByLabelText('Product page')).toHaveValue(
+        'https://moots.com/pages/vamoots-rsl'
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+      await waitFor(() => expect(mockUpdateFitnessGear).toHaveBeenCalled())
+      expect(mockUpdateFitnessGear).toHaveBeenCalledWith(
+        gear.id,
+        expect.objectContaining({
+          productUrl: 'https://moots.com/pages/vamoots-rsl'
+        })
+      )
+    }
+  )
+
+  it.each([
+    { description: 'a bike', kind: 'bike' as const },
+    { description: 'shoes', kind: 'shoes' as const }
+  ])('describes the product page plainly for $description', ({ kind }) => {
+    renderDialog({ kind })
+
+    expect(
+      screen.getByText("Optional link to the manufacturer's product page.")
+    ).toBeInTheDocument()
+    // The brand-map wording belongs to a device, whose link arrives pre-filled.
+    expect(
+      screen.queryByText(/Starts as the manufacturer's site/)
+    ).not.toBeInTheDocument()
+  })
+
+  it.each([
+    { description: 'a bike', kind: 'bike' as const },
+    { description: 'shoes', kind: 'shoes' as const }
   ])('sends the product page typed for $description', async ({ kind }) => {
     renderDialog({ kind })
 

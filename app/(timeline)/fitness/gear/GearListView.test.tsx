@@ -340,7 +340,9 @@ describe('GearListView', () => {
       expect(section.getByText('Garmin · Edge 840')).toBeInTheDocument()
       expect(section.getByText('412')).toBeInTheDocument()
 
-      const productLink = section.getByRole('link', { name: 'garmin.com' })
+      const productLink = section.getByRole('link', {
+        name: 'Product page: garmin.com'
+      })
       expect(productLink).toHaveAttribute('href', 'https://www.garmin.com')
       expect(productLink).toHaveAttribute('target', '_blank')
     })

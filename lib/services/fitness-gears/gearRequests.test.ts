@@ -363,31 +363,9 @@ describe('getGearKindFieldError', () => {
       fields: { bikeType: null, weightKilograms: null }
     },
     {
-      description: 'a device with a product page and an empty sport list',
+      description: 'a device with an empty sport list',
       kind: 'device' as const,
-      fields: { productUrl: 'https://www.garmin.com', defaultSports: [] }
-    },
-    {
-      description: 'a device clearing its product page',
-      kind: 'device' as const,
-      fields: { productUrl: null }
-    },
-    {
-      description: 'a bike explicitly clearing a product page it never had',
-      kind: 'bike' as const,
-      fields: { productUrl: null }
-    },
-    {
-      // Every kind has a manufacturer's page worth linking to, so the product
-      // page is the one field a bike, a pair of shoes and a device all share.
-      description: 'a bike given a product page',
-      kind: 'bike' as const,
-      fields: { productUrl: 'https://moots.com/pages/vamoots-rsl' }
-    },
-    {
-      description: 'shoes given a product page',
-      kind: 'shoes' as const,
-      fields: { productUrl: 'https://www.hoka.com' }
+      fields: { defaultSports: [] }
     }
   ])('accepts $description', ({ kind, fields }) => {
     expect(getGearKindFieldError(kind, fields)).toBeNull()

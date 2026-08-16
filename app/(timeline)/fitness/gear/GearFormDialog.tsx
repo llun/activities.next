@@ -278,6 +278,12 @@ export const GearFormDialog: FC<Props> = ({
               type="url"
               inputMode="url"
               placeholder="https://"
+              // The column is varchar(255) and the schema caps there, but a
+              // schema failure is a bare `ERROR_422` naming no field — so a
+              // pasted 280-character store URL would come back as the word
+              // "Unprocessable entity". Product URLs run long in a way brand
+              // and model never do, so this one stops at the input.
+              maxLength={255}
               value={productUrl}
               onChange={(event) => setProductUrl(event.target.value)}
               disabled={isSaving}

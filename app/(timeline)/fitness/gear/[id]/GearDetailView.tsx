@@ -12,6 +12,7 @@ import Link from 'next/link'
 import { FC, useEffect, useState } from 'react'
 
 import { GearFormDialog } from '@/app/(timeline)/fitness/gear/GearFormDialog'
+import { GearProductLink } from '@/app/(timeline)/fitness/gear/GearProductLink'
 import {
   formatGearDate,
   formatGearDistanceKm,
@@ -44,7 +45,6 @@ import {
   type GearActivityFeedContext
 } from './GearActivitiesFeed'
 import { GearComponentsCard } from './GearComponentsCard'
-import { GearProductLink } from './GearProductLink'
 
 type GearView = 'components' | 'activities'
 

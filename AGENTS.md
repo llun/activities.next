@@ -670,16 +670,21 @@ it; there is no legacy shape left to copy.
 - **Every kind carries a product page, and one component renders it.**
   `fitness_gears.productUrl` is the manufacturer's page for a bike, a pair of
   shoes and a head unit alike, edited in the same "Product page" field of
-  `GearFormDialog` and rendered on every gear page by `GearProductLink`
-  (`app/(timeline)/fitness/gear/[id]/`) — hostname only ("moots.com", not the
-  whole URL), leading `ExternalLink`, `target="_blank"` with
-  `rel="noopener noreferrer"`. It was device-only and the API 422'd it for
-  anything else; that restriction is gone, so do not reintroduce a kind check
-  around it. The anchor is gated on `getProductUrlHostname`, never on the
-  string being non-empty: it returns null for anything that is not an http(s)
-  URL, which is what stops a row written before the API validated the column
-  from rendering a `javascript:` href. When there is nothing to link to the
-  line becomes the prompt that opens the form rather than disappearing, and the
+  `GearFormDialog` and rendered by the one `GearProductLink`
+  (`app/(timeline)/fitness/gear/`) everywhere it appears — every gear page and
+  the gear list's device table alike. Hostname only ("moots.com", not the whole
+  URL), leading `ExternalLink`, `target="_blank"` with
+  `rel="noopener noreferrer"`, and an `aria-label` because a bare domain is no
+  accessible name. It was device-only and the API 422'd it for anything else;
+  that restriction is gone, so do not reintroduce a kind check around it. The
+  anchor is gated on `getProductUrlHostname`, never on the string being
+  non-empty: it returns null for anything that is not an http(s) URL, which is
+  what stops a row written before the API validated the column from rendering a
+  `javascript:` href. Two props are what let one component serve every surface:
+  `onEdit` makes the empty state the prompt that opens the gear form, and
+  without it that state is an em dash (the list has no form to open); `onClick`
+  is where a clickable row passes `stopPropagation`, without which the anchor
+  opens the vendor's page and the row pushes the gear's route behind it. The
   hostname takes `text-primary-text` — `text-primary` is 3.37:1 on the card and
   fails AA for text. Only a device's is ever pre-filled: `resolveDeviceGear`
   seeds it from the brand map when the import creates the row.

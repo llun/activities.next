@@ -15,7 +15,7 @@ describe('GearProductLink', () => {
       />
     )
 
-    const link = screen.getByRole('link', { name: 'moots.com' })
+    const link = screen.getByRole('link', { name: 'Product page: moots.com' })
     expect(link).toHaveAttribute(
       'href',
       'https://www.moots.com/pages/vamoots-rsl?ref=1'
@@ -40,6 +40,34 @@ describe('GearProductLink', () => {
       screen.getByRole('button', { name: 'No product page — add one' })
     )
     expect(onEdit).toHaveBeenCalled()
+  })
+
+  it('falls back to an em dash where there is no form to open', () => {
+    // The gear list renders it without `onEdit`: there is no dialog on that
+    // surface to prompt toward, so the prompt would lead nowhere.
+    render(<GearProductLink productUrl={null} />)
+
+    expect(screen.getByText('—')).toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('stops a click from reaching the row it sits in', () => {
+    // A gear list row navigates on click; without this the anchor would open
+    // the vendor's page and push the gear route behind it.
+    const onRowClick = vi.fn()
+    const onClick = vi.fn((event: MouseEvent) => event.stopPropagation())
+    render(
+      <div onClick={onRowClick}>
+        <GearProductLink
+          productUrl="https://moots.com"
+          onClick={onClick as never}
+        />
+      </div>
+    )
+
+    fireEvent.click(screen.getByRole('link'))
+    expect(onClick).toHaveBeenCalled()
+    expect(onRowClick).not.toHaveBeenCalled()
   })
 
   it('uses the accessible orange for the link text', () => {

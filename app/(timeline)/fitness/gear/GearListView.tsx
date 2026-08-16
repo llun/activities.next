@@ -1,6 +1,6 @@
 'use client'
 
-import { Bike, ExternalLink, Footprints, Plus, Watch } from 'lucide-react'
+import { Bike, Footprints, Plus, Watch } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FC, useEffect, useState } from 'react'
@@ -18,12 +18,12 @@ import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
 import { cn } from '@/lib/utils'
 
 import { GearFormDialog } from './GearFormDialog'
+import { GearProductLink } from './GearProductLink'
 import {
   STICKY_CLICKABLE_COLUMN,
   STICKY_COLUMN,
   formatGearDistanceKm,
-  getGearDisplayName,
-  getProductUrlHostname
+  getGearDisplayName
 } from './gearUi'
 
 interface KindCopy {
@@ -261,7 +261,6 @@ const DeviceSection: FC<{ gears: GearEntity[] }> = ({ gears }) => {
               const subline = [gear.brand, gear.model]
                 .filter(Boolean)
                 .join(' · ')
-              const hostname = getProductUrlHostname(gear.productUrl)
               return (
                 <tr
                   key={gear.id}
@@ -290,20 +289,12 @@ const DeviceSection: FC<{ gears: GearEntity[] }> = ({ gears }) => {
                     )}
                   </td>
                   <td className="px-3 py-3 align-middle text-xs text-muted-foreground">
-                    {hostname && gear.productUrl ? (
-                      <a
-                        href={gear.productUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 font-medium text-primary-text hover:underline"
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        <ExternalLink className="size-3 shrink-0" />
-                        {hostname}
-                      </a>
-                    ) : (
-                      '—'
-                    )}
+                    {/* No `onEdit`: the list has no form to open, so a device
+                        with no product page gets the em dash. */}
+                    <GearProductLink
+                      productUrl={gear.productUrl}
+                      onClick={(event) => event.stopPropagation()}
+                    />
                   </td>
                   <td className="px-3 py-3 pr-4 text-right align-middle font-semibold tabular-nums">
                     {gear.activityCount}

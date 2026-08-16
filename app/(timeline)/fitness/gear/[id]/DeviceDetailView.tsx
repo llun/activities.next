@@ -3,6 +3,7 @@
 import { Pencil } from 'lucide-react'
 import { FC } from 'react'
 
+import { GearProductLink } from '@/app/(timeline)/fitness/gear/GearProductLink'
 import {
   formatGearDate,
   getGearDisplayName
@@ -16,7 +17,6 @@ import {
   GearActivitiesFeed,
   type GearActivityFeedContext
 } from './GearActivitiesFeed'
-import { GearProductLink } from './GearProductLink'
 
 interface Props {
   gear: GearEntity
