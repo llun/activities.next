@@ -89,7 +89,8 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Trends** — local trending hashtags via `GET /api/v1/trends/tags` (plus deprecated `GET /api/v1/trends`) and trending statuses via `GET /api/v1/trends/statuses`, both computed live from the last seven days of public local activity; `GET /api/v1/trends/links` intentionally stays an empty list (no preview-card storage)
 - ✅ **Followed hashtags** — Follow and unfollow hashtags and view a followed-tags timeline
 - ✅ **Mutes** — Mute and unmute accounts
-- ✅ **WebFinger** — Actor discovery via `/.well-known/webfinger`
+- ✅ **WebFinger** — Actor discovery via `/.well-known/webfinger`, including the `http://ostatus.org/schema/1.0/subscribe` remote-follow template
+- ✅ **Remote follow** — Both directions of the fediverse remote-follow handshake: `/authorize_interaction?uri=…` lets a signed-in local user follow an account another server sent them to, and a logged-out visitor viewing a local profile can enter their own handle to be redirected to their home server's follow page (resolved server-side via `GET /api/v1/remote-follow`)
 - ✅ **NodeInfo** — Instance metadata at `/.well-known/nodeinfo`
 - ✅ **OAuth Authorization Server metadata** — At `/.well-known/oauth-authorization-server`
 - ✅ **Instance legal documents** — Admin-configured plain-text pages via `GET /api/v1/instance/privacy_policy` and `GET /api/v1/instance/terms_of_service` (plus `GET /api/v1/instance/terms_of_service/:date`), backed by the optional `ACTIVITIES_PRIVACY_POLICY` / `ACTIVITIES_TERMS_OF_SERVICE` config keys; each returns 404 when its document is unset

@@ -28,7 +28,10 @@ import { Actor } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import { Tag } from '@/lib/types/mastodon/tag'
-import { parseAccountHandle } from '@/lib/utils/accountHandle'
+import {
+  parseAccountHandle,
+  parseProfileUrlAccountHandle
+} from '@/lib/utils/accountHandle'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { clampedLimit } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -151,22 +154,6 @@ const normalizeStatusLookupId = async (
   value?: string | null
 ) => (await resolveSearchStatusId(database, value)) ?? ''
 
-const getProfileUrlAccountHandle = (query: string) => {
-  try {
-    const url = new URL(query)
-    const match = /^\/@([^/]+)\/?$/.exec(url.pathname)
-    if (!match) return null
-
-    const profileHandle = decodeURIComponent(match[1])
-    const handle = profileHandle.includes('@')
-      ? `@${profileHandle.replace(/^@/, '')}`
-      : `@${profileHandle}@${url.hostname}`
-    return parseAccountHandle(handle)
-  } catch {
-    return null
-  }
-}
-
 const getCanonicalAccountActorId = async ({
   query,
   signingActor
@@ -174,7 +161,7 @@ const getCanonicalAccountActorId = async ({
   query: string
   signingActor?: Actor
 }) => {
-  const handle = getProfileUrlAccountHandle(query)
+  const handle = parseProfileUrlAccountHandle(query)
   if (!handle) {
     const person = await getActorPerson({
       actorId: query,

@@ -253,6 +253,17 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
 - **Presigned / direct-to-storage media** — `/api/v1/medias/presigned` (and the
   Strava archive presigned upload) provide an asynchronous upload path that
   offloads bytes directly to object storage.
+- **Remote-follow resolution** — `GET /api/v1/remote-follow?account=…&target=…`
+  resolves where to send a logged-out visitor so they can follow a local account
+  (`target`, a local `user@domain`) from their own server (`account`, their
+  handle or bare domain). It answers `{ "url": "…" }` built from the remote
+  server's advertised `http://ostatus.org/schema/1.0/subscribe` template,
+  falling back to Mastodon's conventional `/authorize_interaction?uri={uri}`
+  path when that server advertises none. Deliberately unauthenticated — the
+  feature exists for visitors with no account here — and read-only; `target`
+  must name an actor this instance hosts. The inbound half is the
+  Mastodon-compatible `/authorize_interaction` **page** (not an API endpoint),
+  which this instance advertises in its own WebFinger document.
 - **Curated collections** — `/api/v1/collections/*`, `/api/v1/accounts/:id/collections`,
   `/api/v1/accounts/:id/in_collections`, and `/api/v1/timelines/collection/:id`
   back the shareable public-feed feature, which federates as FEP-7aa9

@@ -4778,3 +4778,34 @@ export const assignAdminReportToSelf = adminReportAction('assign_to_self')
 export const unassignAdminReport = adminReportAction('unassign')
 export const resolveAdminReport = adminReportAction('resolve')
 export const reopenAdminReport = adminReportAction('reopen')
+
+/**
+ * Resolves where to send a logged-out visitor so they can follow a local
+ * account from their own fediverse server. The lookup runs server-side (the
+ * visitor's WebFinger document is not readable from the browser), and the
+ * returned URL is always absolute and https.
+ */
+export const getRemoteFollowUrl = async ({
+  account,
+  target
+}: {
+  account: string
+  target: string
+}): Promise<string> => {
+  const params = new URLSearchParams({ account, target })
+  const response = await fetch(`/api/v1/remote-follow?${params.toString()}`, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (!response.ok) {
+    await throwApiError(response, 'Unable to reach that server')
+  }
+
+  const data = await response.json()
+  if (typeof data?.url !== 'string') {
+    throw new Error('Unable to reach that server')
+  }
+  return data.url
+}

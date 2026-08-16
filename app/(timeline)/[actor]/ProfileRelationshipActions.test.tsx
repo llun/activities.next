@@ -29,6 +29,12 @@ vi.mock('@/lib/components/mute-action/mute-action', () => ({
   )
 }))
 
+vi.mock('@/lib/components/remote-follow/remote-follow-dialog', () => ({
+  RemoteFollowDialog: ({ targetHandle }: { targetHandle: string }) => (
+    <div data-testid="remote-follow-dialog">{targetHandle}</div>
+  )
+}))
+
 const relationship = (
   overrides: Partial<MastodonRelationship> = {}
 ): MastodonRelationship => ({
@@ -51,10 +57,43 @@ const relationship = (
 })
 
 describe('ProfileRelationshipActions', () => {
+  it('offers the remote follow dialog to a logged out visitor', () => {
+    render(
+      <ProfileRelationshipActions
+        targetActorId="https://llun.test/users/local"
+        targetHandle="local@llun.test"
+        isLoggedIn={false}
+        relationship={null}
+      />
+    )
+
+    expect(screen.getByTestId('remote-follow-dialog')).toHaveTextContent(
+      'local@llun.test'
+    )
+    expect(screen.queryByTestId('follow-action')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('mute-action')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('block-action')).not.toBeInTheDocument()
+  })
+
+  it('does not offer the remote follow dialog to a signed in viewer', () => {
+    render(
+      <ProfileRelationshipActions
+        targetActorId="https://remote.test/users/open"
+        targetHandle="open@remote.test"
+        isLoggedIn
+        relationship={relationship()}
+      />
+    )
+
+    expect(screen.queryByTestId('remote-follow-dialog')).not.toBeInTheDocument()
+    expect(screen.getByTestId('follow-action')).toBeInTheDocument()
+  })
+
   it('hides the follow action when the current actor is blocking the profile actor', () => {
     render(
       <ProfileRelationshipActions
         targetActorId="https://remote.test/users/blocked"
+        targetHandle="blocked@remote.test"
         isLoggedIn
         relationship={relationship({ blocking: true })}
       />
@@ -71,6 +110,7 @@ describe('ProfileRelationshipActions', () => {
     render(
       <ProfileRelationshipActions
         targetActorId="https://remote.test/users/open"
+        targetHandle="open@remote.test"
         isLoggedIn
         relationship={relationship()}
       />

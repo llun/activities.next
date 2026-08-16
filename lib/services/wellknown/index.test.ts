@@ -357,9 +357,59 @@ describe('getWebFingerResponse', () => {
           rel: 'self',
           type: 'application/activity+json',
           href: 'https://example.com/users/test'
+        }),
+        expect.objectContaining({
+          rel: 'http://ostatus.org/schema/1.0/subscribe',
+          template: 'https://test.example.com/authorize_interaction?uri={uri}'
         })
       ])
     })
+  })
+
+  it('advertises the remote follow template from the instance base url', async () => {
+    mockDatabase.getActorFromUsername.mockResolvedValue({
+      id: 'https://example.com/users/test',
+      username: 'test',
+      domain: 'example.com',
+      privateKey: 'private-key'
+    })
+
+    const result = await getWebFingerResponse({
+      database: mockDatabase as unknown as Database,
+      resource: 'acct:test@example.com'
+    })
+
+    const subscribeLink = result?.links.find(
+      (link) => link.rel === 'http://ostatus.org/schema/1.0/subscribe'
+    )
+    // The placeholder must stay literal: consumers substitute it with a plain
+    // string replace, so a percent-encoded `%7Buri%7D` would never match.
+    expect(subscribeLink?.template).toEqual(
+      'https://test.example.com/authorize_interaction?uri={uri}'
+    )
+    expect(subscribeLink?.template).toContain('{uri}')
+  })
+
+  it('advertises the remote follow template for the service instance actor', async () => {
+    mockDatabase.getActorFromUsername.mockResolvedValue({
+      id: 'https://example.com/users/instance',
+      username: 'instance',
+      domain: 'example.com',
+      privateKey: 'private-key',
+      type: 'Service'
+    })
+
+    const result = await getWebFingerResponse({
+      database: mockDatabase as unknown as Database,
+      resource: 'acct:instance@example.com'
+    })
+
+    expect(result?.links).toContainEqual(
+      expect.objectContaining({
+        rel: 'http://ostatus.org/schema/1.0/subscribe',
+        template: 'https://test.example.com/authorize_interaction?uri={uri}'
+      })
+    )
   })
 
   it('handles acct: prefix correctly', async () => {
