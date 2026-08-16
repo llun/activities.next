@@ -340,7 +340,9 @@ describe('GearListView', () => {
       expect(section.getByText('Garmin · Edge 840')).toBeInTheDocument()
       expect(section.getByText('412')).toBeInTheDocument()
 
-      const productLink = section.getByRole('link', { name: 'garmin.com' })
+      const productLink = section.getByRole('link', {
+        name: 'Product page: garmin.com'
+      })
       expect(productLink).toHaveAttribute('href', 'https://www.garmin.com')
       expect(productLink).toHaveAttribute('target', '_blank')
     })
@@ -382,6 +384,21 @@ describe('GearListView', () => {
       const section = await getSection('Devices')
       fireEvent.click(section.getByText('Garmin · Edge 840'))
       expect(mockPush).toHaveBeenCalledWith('/fitness/gear/device-1')
+    })
+
+    it('does not navigate the row when the product link is clicked', async () => {
+      // The row navigates on click and the link is inside it, so without the
+      // `onClick` guard GearListView passes to GearProductLink a click would
+      // open the vendor's page AND push the device route behind it.
+      mockGetFitnessGearList.mockResolvedValue([createDevice()])
+      render(<GearListView />)
+
+      const section = await getSection('Devices')
+      fireEvent.click(
+        section.getByRole('link', { name: 'Product page: garmin.com' })
+      )
+
+      expect(mockPush).not.toHaveBeenCalled()
     })
 
     it('keeps devices out of the bikes and shoes sections', async () => {

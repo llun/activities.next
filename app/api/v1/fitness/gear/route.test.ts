@@ -229,10 +229,38 @@ describe('Fitness gear collection API', () => {
       )
     })
 
+    it('stores the product page a new bike is created with', async () => {
+      mockDb.createFitnessGear.mockResolvedValue(
+        gear({ productUrl: 'https://moots.com/pages/vamoots-rsl' })
+      )
+
+      const response = await POST(
+        postRequest({
+          kind: 'bike',
+          name: 'Moots',
+          productUrl: 'https://moots.com/pages/vamoots-rsl'
+        }),
+        { params: Promise.resolve({}) }
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(mockDb.createFitnessGear).toHaveBeenCalledWith(
+        expect.objectContaining({
+          productUrl: 'https://moots.com/pages/vamoots-rsl'
+        })
+      )
+      expect(data.gear.productUrl).toBe('https://moots.com/pages/vamoots-rsl')
+    })
+
     it.each([
       {
         description: 'the name is missing',
         body: { kind: 'bike' }
+      },
+      {
+        description: 'the product page is not an http(s) URL',
+        body: { kind: 'bike', name: 'Moots', productUrl: 'javascript:alert(1)' }
       },
       {
         description: 'the kind is not a gear kind',

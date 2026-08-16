@@ -210,6 +210,7 @@ describe('GearFormDialog', () => {
       defaultSports: ['gravel_ride'],
       // A bike may never carry an alert distance — the API 422s on it.
       alertDistanceMeters: null,
+      productUrl: null,
       notes: null
     })
     expect(onSaved).toHaveBeenCalled()
@@ -279,6 +280,7 @@ describe('GearFormDialog', () => {
       weightKilograms: null,
       defaultSports: ['trail_run'],
       alertDistanceMeters: 800000,
+      productUrl: null,
       notes: null
     })
   })
@@ -370,6 +372,11 @@ describe('GearFormDialog', () => {
       expect(screen.queryByLabelText('Type')).not.toBeInTheDocument()
       expect(screen.queryByLabelText('Weight (kg)')).not.toBeInTheDocument()
       expect(screen.queryByLabelText('Notes')).not.toBeInTheDocument()
+      // The product page is the one field every kind shares, so only the
+      // device's own copy names the brand map that seeded it.
+      expect(
+        screen.getByText(/Starts as the manufacturer's site/)
+      ).toBeInTheDocument()
     })
 
     it('sends only the four display fields', async () => {
@@ -412,9 +419,58 @@ describe('GearFormDialog', () => {
   it.each([
     { description: 'a bike', kind: 'bike' as const },
     { description: 'shoes', kind: 'shoes' as const }
-  ])('never sends a product page for $description', async ({ kind }) => {
+  ])(
+    'seeds the stored product page for $description and sends it back',
+    async ({ kind }) => {
+      const gear = createGear({
+        kind,
+        name: 'Rocket',
+        productUrl: 'https://moots.com/pages/vamoots-rsl'
+      })
+      renderDialog({ kind, gear })
+
+      // Reopening an edit must not blank a saved link: everything the dialog
+      // does not touch is still sent on save.
+      expect(screen.getByLabelText('Product page')).toHaveValue(
+        'https://moots.com/pages/vamoots-rsl'
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+      await waitFor(() => expect(mockUpdateFitnessGear).toHaveBeenCalled())
+      expect(mockUpdateFitnessGear).toHaveBeenCalledWith(
+        gear.id,
+        expect.objectContaining({
+          productUrl: 'https://moots.com/pages/vamoots-rsl'
+        })
+      )
+    }
+  )
+
+  it.each([
+    { description: 'a bike', kind: 'bike' as const },
+    { description: 'shoes', kind: 'shoes' as const }
+  ])('describes the product page plainly for $description', ({ kind }) => {
     renderDialog({ kind })
 
+    expect(
+      screen.getByText("Optional link to the manufacturer's product page.")
+    ).toBeInTheDocument()
+    // The brand-map wording belongs to a device, whose link arrives pre-filled.
+    expect(
+      screen.queryByText(/Starts as the manufacturer's site/)
+    ).not.toBeInTheDocument()
+  })
+
+  it.each([
+    { description: 'a bike', kind: 'bike' as const },
+    { description: 'shoes', kind: 'shoes' as const }
+  ])('sends the product page typed for $description', async ({ kind }) => {
+    renderDialog({ kind })
+
+    fireEvent.change(screen.getByLabelText('Product page'), {
+      target: { value: '  https://moots.com/pages/vamoots-rsl  ' }
+    })
     fireEvent.click(
       screen.getByRole('button', {
         name: kind === 'bike' ? 'Save bike' : 'Save shoes'
@@ -422,7 +478,34 @@ describe('GearFormDialog', () => {
     )
 
     await waitFor(() => expect(mockCreateFitnessGear).toHaveBeenCalled())
-    const payload = mockCreateFitnessGear.mock.calls[0][0]
-    expect('productUrl' in payload).toBe(false)
+    expect(mockCreateFitnessGear).toHaveBeenCalledWith(
+      // The API trims, but sending the raw value would leave the surrounding
+      // whitespace inside the varchar as well as in the rendered hostname.
+      expect.objectContaining({
+        kind,
+        productUrl: 'https://moots.com/pages/vamoots-rsl'
+      })
+    )
   })
+
+  it.each([
+    { description: 'a bike', kind: 'bike' as const },
+    { description: 'shoes', kind: 'shoes' as const }
+  ])(
+    'sends a null product page for $description with none',
+    async ({ kind }) => {
+      renderDialog({ kind })
+
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: kind === 'bike' ? 'Save bike' : 'Save shoes'
+        })
+      )
+
+      await waitFor(() => expect(mockCreateFitnessGear).toHaveBeenCalled())
+      expect(mockCreateFitnessGear).toHaveBeenCalledWith(
+        expect.objectContaining({ productUrl: null })
+      )
+    }
+  )
 })

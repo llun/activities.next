@@ -91,7 +91,8 @@ export const POST = traceApiRoute(
       weightKilograms: parsed.data.weightKilograms,
       defaultSports: parsed.data.defaultSports ?? [],
       alertDistanceMeters: parsed.data.alertDistanceMeters,
-      notes: parsed.data.notes
+      notes: parsed.data.notes,
+      productUrl: parsed.data.productUrl
     })
 
     return apiResponse({

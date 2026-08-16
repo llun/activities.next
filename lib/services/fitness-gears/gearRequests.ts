@@ -71,10 +71,11 @@ const optionalEpochMilliseconds = z
 export const GearKindSchema = z.enum(USER_CREATABLE_GEAR_KINDS)
 
 /**
- * A device's product page. Only http/https is accepted — the value is rendered
- * as an anchor on the device page, and `javascript:`/`data:` there is a script
- * injection dressed as a link. `new URL` also rejects a bare "garmin.com",
- * which would otherwise render as a same-origin relative link.
+ * A gear's product page — the manufacturer's page for a bike, a pair of shoes
+ * or a recording device alike. Only http/https is accepted — the value is
+ * rendered as an anchor on the gear's page, and `javascript:`/`data:` there is
+ * a script injection dressed as a link. `new URL` also rejects a bare
+ * "garmin.com", which would otherwise render as a same-origin relative link.
  */
 const optionalProductUrl = z
   .string()
@@ -107,7 +108,8 @@ export const CreateGearRequest = z.object({
   weightKilograms: optionalPositiveNumber(MAX_WEIGHT_KILOGRAMS),
   defaultSports: z.array(z.enum(SPORT_KEYS)).max(SPORT_KEYS.length).optional(),
   alertDistanceMeters: optionalPositiveNumber(MAX_DISTANCE_METERS),
-  notes: optionalText(NOTES_MAX)
+  notes: optionalText(NOTES_MAX),
+  productUrl: optionalProductUrl
 })
 
 export const UpdateGearRequest = z.object({
@@ -189,8 +191,9 @@ export const UpdateFitnessFileGearRequest = z.object({
  * stops "Ride" being set as the default sport of a pair of trainers, which the
  * auto-assign lookup would then never satisfy.
  *
- * A device is narrower still: it owns none of those fields, and `productUrl` is
- * the one field only it owns.
+ * A device is narrower still: it owns none of those fields. `productUrl` is the
+ * one field every kind shares — a bike, a pair of shoes and a head unit all
+ * have a manufacturer's page worth linking to.
  *
  * Returns an error message for the 422 body, or null when the fields fit.
  */
@@ -201,12 +204,11 @@ export const getGearKindFieldError = (
     weightKilograms?: number | null
     alertDistanceMeters?: number | null
     defaultSports?: SportKey[]
-    productUrl?: string | null
   }
 ): string | null => {
-  // Checked first and in full: a device shares no field with the other two, so
-  // falling through to the bike/shoes rules below would let a device quietly
-  // accept a frame type.
+  // Checked first and in full: apart from `productUrl` a device shares no field
+  // with the other two, so falling through to the bike/shoes rules below would
+  // let a device quietly accept a frame type.
   if (kind === 'device') {
     if (fields.bikeType) return 'bikeType is not valid for a device'
     if (
@@ -227,10 +229,6 @@ export const getGearKindFieldError = (
       return 'defaultSports is not valid for a device'
     }
     return null
-  }
-
-  if (fields.productUrl !== undefined && fields.productUrl !== null) {
-    return 'productUrl is only valid for a device'
   }
 
   if (kind === 'shoes') {

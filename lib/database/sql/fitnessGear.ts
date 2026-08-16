@@ -47,6 +47,8 @@ export interface CreateFitnessGearParams {
   // Create-only, like `kind`: `deviceKey` is the identity every later upload
   // matches against, so rewriting it would fork the device's own history.
   deviceKey?: string | null
+  // Every kind may carry one. A device's is seeded here from the brand map by
+  // `resolveDeviceGear`; a bike's or a pair of shoes' comes from the gear form.
   productUrl?: string | null
 }
 
