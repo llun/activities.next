@@ -667,6 +667,22 @@ it; there is no legacy shape left to copy.
   since a menu with one entry is dead UI (the same rule that keeps the "No
   gear" picker off an empty shed). Do not write a third copy of this dropdown —
   the fitness activity detail's section nav is the other consumer.
+- **Every kind carries a product page, and one component renders it.**
+  `fitness_gears.productUrl` is the manufacturer's page for a bike, a pair of
+  shoes and a head unit alike, edited in the same "Product page" field of
+  `GearFormDialog` and rendered on every gear page by `GearProductLink`
+  (`app/(timeline)/fitness/gear/[id]/`) — hostname only ("moots.com", not the
+  whole URL), leading `ExternalLink`, `target="_blank"` with
+  `rel="noopener noreferrer"`. It was device-only and the API 422'd it for
+  anything else; that restriction is gone, so do not reintroduce a kind check
+  around it. The anchor is gated on `getProductUrlHostname`, never on the
+  string being non-empty: it returns null for anything that is not an http(s)
+  URL, which is what stops a row written before the API validated the column
+  from rendering a `javascript:` href. When there is nothing to link to the
+  line becomes the prompt that opens the form rather than disappearing, and the
+  hostname takes `text-primary-text` — `text-primary` is 3.37:1 on the card and
+  fails AA for text. Only a device's is ever pre-filled: `resolveDeviceGear`
+  seeds it from the brand map when the import creates the row.
 - **A recording device is a third kind, and almost nothing above applies to it.**
   `kind: 'device'` rows have no components, no default sports, no distance
   total, no service reminder and cannot be retired; a device page reports an

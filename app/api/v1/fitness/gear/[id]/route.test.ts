@@ -138,6 +138,39 @@ describe('Fitness gear item API', () => {
       expect(mockDb.updateFitnessGear).not.toHaveBeenCalled()
     })
 
+    it('accepts a product page on a bike', async () => {
+      mockDb.getFitnessGear.mockResolvedValue(gear())
+      mockDb.updateFitnessGear.mockResolvedValue(
+        gear({ productUrl: 'https://moots.com/pages/vamoots-rsl' })
+      )
+
+      const response = await PATCH(
+        patchRequest({ productUrl: 'https://moots.com/pages/vamoots-rsl' }),
+        params
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(mockDb.updateFitnessGear).toHaveBeenCalledWith(
+        expect.objectContaining({
+          productUrl: 'https://moots.com/pages/vamoots-rsl'
+        })
+      )
+      expect(data.gear.productUrl).toBe('https://moots.com/pages/vamoots-rsl')
+    })
+
+    it('rejects a product page on a bike that is not an http(s) URL', async () => {
+      mockDb.getFitnessGear.mockResolvedValue(gear())
+
+      const response = await PATCH(
+        patchRequest({ productUrl: 'javascript:alert(1)' }),
+        params
+      )
+
+      expect(response.status).toBe(422)
+      expect(mockDb.updateFitnessGear).not.toHaveBeenCalled()
+    })
+
     it('rejects a default sport belonging to the other kind', async () => {
       mockDb.getFitnessGear.mockResolvedValue(gear({ kind: 'bike' }))
 
@@ -223,20 +256,6 @@ describe('Fitness gear item API', () => {
         const response = await PATCH(patchRequest(body), params)
 
         expect(response.status).toBe(422)
-        expect(mockDb.updateFitnessGear).not.toHaveBeenCalled()
-      })
-
-      it('rejects a product page on a bike with 422', async () => {
-        mockDb.getFitnessGear.mockResolvedValue(gear())
-
-        const response = await PATCH(
-          patchRequest({ productUrl: 'https://www.garmin.com' }),
-          params
-        )
-        const data = await response.json()
-
-        expect(response.status).toBe(422)
-        expect(data.error).toBe('productUrl is only valid for a device')
         expect(mockDb.updateFitnessGear).not.toHaveBeenCalled()
       })
 

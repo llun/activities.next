@@ -1,12 +1,11 @@
 'use client'
 
-import { ExternalLink, Pencil } from 'lucide-react'
+import { Pencil } from 'lucide-react'
 import { FC } from 'react'
 
 import {
   formatGearDate,
-  getGearDisplayName,
-  getProductUrlHostname
+  getGearDisplayName
 } from '@/app/(timeline)/fitness/gear/gearUi'
 import { PageHeader } from '@/lib/components/page-header'
 import { Button } from '@/lib/components/ui/button'
@@ -17,6 +16,7 @@ import {
   GearActivitiesFeed,
   type GearActivityFeedContext
 } from './GearActivitiesFeed'
+import { GearProductLink } from './GearProductLink'
 
 interface Props {
   gear: GearEntity
@@ -61,7 +61,6 @@ export const DeviceDetailView: FC<Props> = ({
   onEdit,
   feed
 }) => {
-  const productHostname = getProductUrlHostname(gear.productUrl)
   const metaLine = getMetaLine(gear)
 
   return (
@@ -74,25 +73,7 @@ export const DeviceDetailView: FC<Props> = ({
           <div className="space-y-0.5">
             {metaLine && <div>{metaLine}</div>}
             <div>
-              {gear.productUrl && productHostname ? (
-                <a
-                  href={gear.productUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 hover:underline"
-                >
-                  {productHostname}
-                  <ExternalLink className="size-3" />
-                </a>
-              ) : (
-                <button
-                  type="button"
-                  className="cursor-pointer hover:text-foreground hover:underline"
-                  onClick={onEdit}
-                >
-                  No product page — add one
-                </button>
-              )}
+              <GearProductLink productUrl={gear.productUrl} onEdit={onEdit} />
             </div>
           </div>
         }

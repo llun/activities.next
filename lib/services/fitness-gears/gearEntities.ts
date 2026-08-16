@@ -31,7 +31,11 @@ export interface GearEntity {
   createdAt: number
   distanceMeters: number
   activityCount: number
-  /** Devices only. The vendor page the owner may replace with the product's. */
+  /**
+   * The manufacturer's page for this gear, linked from its own page. A device's
+   * is seeded from the brand map when the import creates the row; a bike's or a
+   * pair of shoes' is whatever the owner typed into the gear form.
+   */
   productUrl: string | null
   /**
    * Devices only — the earliest `activityStartTime` among the activities this

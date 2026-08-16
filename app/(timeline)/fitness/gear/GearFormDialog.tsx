@@ -171,6 +171,7 @@ export const GearFormDialog: FC<Props> = ({
           defaultSports,
           alertDistanceMeters:
             !isBike && isAlertEnabled ? alertDistanceKm * 1000 : null,
+          productUrl: productUrl.trim() || null,
           notes: notes.trim() || null
         }
 
@@ -232,25 +233,6 @@ export const GearFormDialog: FC<Props> = ({
             </p>
           </div>
 
-          {isDevice && (
-            <div className="space-y-1.5">
-              <Label htmlFor="gear-product-url">Product page</Label>
-              <Input
-                id="gear-product-url"
-                type="url"
-                inputMode="url"
-                placeholder="https://"
-                value={productUrl}
-                onChange={(event) => setProductUrl(event.target.value)}
-                disabled={isSaving}
-              />
-              <p className="text-xs text-muted-foreground">
-                Linked from this device&apos;s page. Starts as the
-                manufacturer&apos;s site; point it at the product if you like.
-              </p>
-            </div>
-          )}
-
           {isBike && (
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
@@ -283,6 +265,29 @@ export const GearFormDialog: FC<Props> = ({
               </div>
             </div>
           )}
+
+          {/* Every kind carries one: a bike, a pair of shoes and a head unit
+              all have a manufacturer's page worth linking to, and each one's
+              page renders it through the same `GearProductLink`. Only a
+              device's is pre-filled — the import seeds it from the brand map
+              when it creates the row. */}
+          <div className="space-y-1.5">
+            <Label htmlFor="gear-product-url">Product page</Label>
+            <Input
+              id="gear-product-url"
+              type="url"
+              inputMode="url"
+              placeholder="https://"
+              value={productUrl}
+              onChange={(event) => setProductUrl(event.target.value)}
+              disabled={isSaving}
+            />
+            <p className="text-xs text-muted-foreground">
+              {isDevice
+                ? "Linked from this device's page. Starts as the manufacturer's site; point it at the product if you like."
+                : "Optional link to the manufacturer's product page."}
+            </p>
+          </div>
 
           {!isDevice && (
             <div className="space-y-1.5">

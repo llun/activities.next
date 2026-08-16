@@ -44,6 +44,7 @@ import {
   type GearActivityFeedContext
 } from './GearActivitiesFeed'
 import { GearComponentsCard } from './GearComponentsCard'
+import { GearProductLink } from './GearProductLink'
 
 type GearView = 'components' | 'activities'
 
@@ -267,6 +268,12 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
               {gear.defaultSports.length > 0
                 ? `Default for ${gear.defaultSports.map(getSportLabel).join(', ')}`
                 : 'No default sports'}
+            </div>
+            <div>
+              <GearProductLink
+                productUrl={gear.productUrl}
+                onEdit={() => setIsEditOpen(true)}
+              />
             </div>
             {gear.retiredAt && (
               <div>

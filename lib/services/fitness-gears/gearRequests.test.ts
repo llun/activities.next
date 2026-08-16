@@ -229,6 +229,32 @@ describe('CreateGearRequest', () => {
     ).toBe(false)
   })
 
+  it('accepts a product page on a new bike', () => {
+    const parsed = CreateGearRequest.safeParse({
+      kind: 'bike',
+      name: 'Moots',
+      productUrl: '  https://moots.com/pages/vamoots-rsl  '
+    })
+    expect(parsed.success).toBe(true)
+    expect(parsed.data?.productUrl).toBe('https://moots.com/pages/vamoots-rsl')
+  })
+
+  it('leaves an unmentioned product page absent, not null', () => {
+    const parsed = CreateGearRequest.safeParse({ kind: 'bike', name: 'Moots' })
+    expect(parsed.success).toBe(true)
+    expect('productUrl' in (parsed.data ?? {})).toBe(false)
+  })
+
+  it('rejects a product page that is not an http(s) URL', () => {
+    expect(
+      CreateGearRequest.safeParse({
+        kind: 'bike',
+        name: 'Moots',
+        productUrl: 'javascript:alert(1)'
+      }).success
+    ).toBe(false)
+  })
+
   it.each([
     // Devices are created only by `resolveDeviceGear`, from the identity the
     // recorded file carried — one made by hand would match no upload.
@@ -303,16 +329,6 @@ describe('getGearKindFieldError', () => {
       description: 'a device claiming a sport',
       kind: 'device' as const,
       fields: { defaultSports: ['ride' as const] }
-    },
-    {
-      description: 'a bike given a product page',
-      kind: 'bike' as const,
-      fields: { productUrl: 'https://www.garmin.com' }
-    },
-    {
-      description: 'shoes given a product page',
-      kind: 'shoes' as const,
-      fields: { productUrl: 'https://www.garmin.com' }
     }
   ])('reports an error for $description', ({ kind, fields }) => {
     expect(getGearKindFieldError(kind, fields)).toEqual(expect.any(String))
@@ -360,6 +376,18 @@ describe('getGearKindFieldError', () => {
       description: 'a bike explicitly clearing a product page it never had',
       kind: 'bike' as const,
       fields: { productUrl: null }
+    },
+    {
+      // Every kind has a manufacturer's page worth linking to, so the product
+      // page is the one field a bike, a pair of shoes and a device all share.
+      description: 'a bike given a product page',
+      kind: 'bike' as const,
+      fields: { productUrl: 'https://moots.com/pages/vamoots-rsl' }
+    },
+    {
+      description: 'shoes given a product page',
+      kind: 'shoes' as const,
+      fields: { productUrl: 'https://www.hoka.com' }
     }
   ])('accepts $description', ({ kind, fields }) => {
     expect(getGearKindFieldError(kind, fields)).toBeNull()
