@@ -1,6 +1,6 @@
 'use client'
 
-import { FC, FormEvent, useState } from 'react'
+import { FC, FormEvent, useRef, useState } from 'react'
 
 import { getRemoteFollowUrl } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
@@ -52,9 +52,19 @@ export const RemoteFollowDialog: FC<RemoteFollowDialogProps> = ({
   const [account, setAccount] = useState(readRememberedAccount)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Closing the dialog abandons whatever lookup is in flight. The lookup can
+  // take as long as the outbound WebFinger request's timeout, and it resolves
+  // to a URL even when that request fails (the route degrades to the
+  // conventional path), so without this a visitor who gave up and dismissed
+  // the dialog was navigated off the page seconds later anyway.
+  const abandonedRef = useRef(false)
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen) setError(null)
+    abandonedRef.current = !nextOpen
+    if (!nextOpen) {
+      setError(null)
+      setIsLoading(false)
+    }
     setOpen(nextOpen)
   }
 
@@ -68,15 +78,18 @@ export const RemoteFollowDialog: FC<RemoteFollowDialogProps> = ({
       return
     }
 
+    abandonedRef.current = false
     setIsLoading(true)
     try {
       const url = await getRemoteFollowUrl({
         account: trimmedAccount,
         target: targetHandle
       })
+      if (abandonedRef.current) return
       rememberAccount(trimmedAccount)
       window.location.assign(url)
     } catch (submitError) {
+      if (abandonedRef.current) return
       setError(
         submitError instanceof Error
           ? submitError.message

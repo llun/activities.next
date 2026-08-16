@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { getRemoteFollowUrl } from '@/lib/client'
 
@@ -122,6 +122,61 @@ describe('RemoteFollowDialog', () => {
         window.localStorage.getItem('activities.remote-follow-account')
       ).toEqual('visitor@remote.test')
     })
+  })
+
+  it('does not navigate when the dialog is dismissed while the lookup is in flight', async () => {
+    let resolveLookup: (url: string) => void = () => undefined
+    getRemoteFollowUrlMock.mockReturnValue(
+      new Promise<string>((resolve) => {
+        resolveLookup = resolve
+      })
+    )
+    render(<RemoteFollowDialog targetHandle="local@llun.test" />)
+    openDialog()
+
+    await typeAddress('visitor@remote.test')
+    submit()
+    await screen.findByRole('button', { name: 'Redirecting...' })
+
+    // Escape is reachable even while Cancel is disabled, and the lookup
+    // resolves to a URL even when the remote server never answers.
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    await act(async () => {
+      resolveLookup('https://remote.test/authorize_interaction?uri=x')
+    })
+
+    expect(assign).not.toHaveBeenCalled()
+  })
+
+  it('leaves the form usable after a dismissed lookup resolves', async () => {
+    let resolveLookup: (url: string) => void = () => undefined
+    getRemoteFollowUrlMock.mockReturnValue(
+      new Promise<string>((resolve) => {
+        resolveLookup = resolve
+      })
+    )
+    render(<RemoteFollowDialog targetHandle="local@llun.test" />)
+    openDialog()
+
+    await typeAddress('visitor@remote.test')
+    submit()
+    await screen.findByRole('button', { name: 'Redirecting...' })
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+    await act(async () => {
+      resolveLookup('https://remote.test/authorize_interaction?uri=x')
+    })
+
+    openDialog()
+
+    expect(await screen.findByLabelText('Your address')).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Go' })).toBeEnabled()
   })
 
   it('prefills a remembered address', async () => {
