@@ -214,6 +214,21 @@ describe('GET /api/v1/remote-follow', () => {
     expect(getWebfingerSubscribeTemplate).not.toHaveBeenCalled()
   })
 
+  it('punycodes an internationalized domain before looking it up', async () => {
+    const response = await callRoute({
+      account: 'visitor@bücher.test',
+      target: 'local@llun.test'
+    })
+
+    expect(response.status).toEqual(200)
+    expect(getWebfingerSubscribeTemplate).toHaveBeenCalledWith({
+      account: 'visitor@xn--bcher-kva.test'
+    })
+    expect(await response.json()).toEqual({
+      url: 'https://xn--bcher-kva.test/authorize_interaction?uri=local%40llun.test'
+    })
+  })
+
   it('returns forbidden for a domain the instance does not federate with', async () => {
     vi.mocked(canFederateWithDomain).mockResolvedValue(false)
 

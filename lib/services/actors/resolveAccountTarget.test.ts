@@ -64,6 +64,23 @@ const mockDatabase = {
 
 const database = mockDatabase as unknown as Database
 
+// The real canFederateWithDomain resolves the value to a HOST before deciding,
+// so a mock matching on the raw string is a trap: `https://a.test/@u@b.test`
+// contains "b.test" as a substring and would answer as though b.test had been
+// gated, hiding exactly the bug these tests exist to catch.
+const blockDomains =
+  (...blocked: string[]) =>
+  async (_database: Database, value: string) => {
+    const host = (() => {
+      try {
+        return new URL(value).hostname
+      } catch {
+        return value.split('/')[0] ?? value
+      }
+    })()
+    return !blocked.includes(host.toLowerCase())
+  }
+
 describe('parseAccountTarget', () => {
   it.each([
     {
@@ -241,12 +258,62 @@ describe('resolveAccountTarget', () => {
     expect(recordRemoteActorBestEffort).not.toHaveBeenCalled()
   })
 
+  it('refuses a profile url carrying a handle on a domain it cannot federate with', async () => {
+    // The wrapper host is allowed and the embedded domain is not; gating only
+    // the URL's own host let the blocked domain through, while the same
+    // account written as a bare handle was correctly refused.
+    vi.mocked(canFederateWithDomain).mockImplementation(
+      blockDomains('blocked.test')
+    )
+
+    const result = await resolveAccountTarget({
+      database,
+      input: 'https://mastodon.social/@spammer@blocked.test'
+    })
+
+    expect(result).toEqual({ type: 'forbidden' })
+    expect(mockDatabase.getActorFromUsername).not.toHaveBeenCalled()
+    expect(getWebfingerSelf).not.toHaveBeenCalled()
+  })
+
+  it('refuses both spellings of an account on a domain it cannot federate with', async () => {
+    vi.mocked(canFederateWithDomain).mockImplementation(
+      blockDomains('blocked.test')
+    )
+
+    const asHandle = await resolveAccountTarget({
+      database,
+      input: 'spammer@blocked.test'
+    })
+    const asWrappedProfileUrl = await resolveAccountTarget({
+      database,
+      input: 'https://mastodon.social/@spammer@blocked.test'
+    })
+
+    expect(asWrappedProfileUrl).toEqual(asHandle)
+  })
+
+  it('still resolves a profile url whose embedded domain is allowed', async () => {
+    vi.mocked(canFederateWithDomain).mockImplementation(
+      blockDomains('blocked.test')
+    )
+    vi.mocked(getWebfingerSelf).mockResolvedValue(remoteActor.id)
+    vi.mocked(recordRemoteActorBestEffort).mockResolvedValue(remoteActor)
+
+    const result = await resolveAccountTarget({
+      database,
+      input: 'https://mastodon.social/@someone@remote.test'
+    })
+
+    expect(result).toEqual({ type: 'resolved', actor: remoteActor })
+  })
+
   it('re-checks federation policy against the actor id webfinger returns', async () => {
     vi.mocked(getWebfingerSelf).mockResolvedValue(
       'https://elsewhere.test/users/someone'
     )
     vi.mocked(canFederateWithDomain).mockImplementation(
-      async (_db, value) => !value.includes('elsewhere.test')
+      blockDomains('elsewhere.test')
     )
 
     const result = await resolveAccountTarget({
@@ -334,7 +401,7 @@ describe('resolveAccountTarget', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any)
     vi.mocked(canFederateWithDomain).mockImplementation(
-      async (_db, value) => !value.includes('elsewhere.test')
+      blockDomains('elsewhere.test')
     )
 
     const result = await resolveAccountTarget({

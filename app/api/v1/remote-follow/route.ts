@@ -109,19 +109,16 @@ export const GET = traceApiRoute('remoteFollow', async (req) => {
     return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
   }
 
-  const visitorDomain = visitorHandle
-    ? visitorHandle.domain
-    : parseBareDomain(account)
+  // Both forms go through parseBareDomain, so a handle's domain is held to the
+  // same bare-hostname rule as the domain-only form — and both come back in the
+  // parser's normalized form, which is what makes an internationalized domain
+  // usable: the URL parser punycodes `bücher.test` to `xn--bcher-kva.test`,
+  // matching what the remote server actually serves and what its `acct:`
+  // resource is spelled with.
+  const visitorDomain = parseBareDomain(
+    visitorHandle ? visitorHandle.domain : account
+  )
   if (!visitorDomain) return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
-
-  // A handle's domain has not been through the URL parser, so hold it to the
-  // same bare-hostname rule as the domain-only form.
-  if (
-    visitorHandle &&
-    parseBareDomain(visitorHandle.domain) !== visitorDomain
-  ) {
-    return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
-  }
 
   if (!(await canFederateWithDomain(database, visitorDomain))) {
     return apiErrorResponse(HTTP_STATUS.FORBIDDEN)
@@ -132,7 +129,7 @@ export const GET = traceApiRoute('remoteFollow', async (req) => {
   // than failing the request — Mastodon behaves identically.
   const advertisedTemplate = visitorHandle
     ? await getWebfingerSubscribeTemplate({
-        account: `${visitorHandle.username}@${visitorHandle.domain}`
+        account: `${visitorHandle.username}@${visitorDomain}`
       })
     : null
 

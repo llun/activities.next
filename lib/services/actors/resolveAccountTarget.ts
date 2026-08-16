@@ -83,6 +83,15 @@ const resolveHandle = async ({
   acct: string
   signingActor?: Actor
 }): Promise<ResolveAccountTargetResult> => {
+  // Gated here rather than at the call sites so the check always covers the
+  // domain actually being resolved. A profile URL can carry a handle on a
+  // DIFFERENT domain than its own host (`https://a.test/@user@b.test`), so
+  // gating only the caller's value let `b.test` through whenever `a.test` was
+  // allowed — the same account was correctly refused as a bare handle.
+  if (!(await canFederateWithDomain(database, domain))) {
+    return { type: 'forbidden' }
+  }
+
   const persistedActor = await database.getActorFromUsername({
     username,
     domain
@@ -131,8 +140,14 @@ export const resolveAccountTarget = async ({
   const target = parseAccountTarget(input)
   if (!target) return { type: 'invalid' }
 
-  const gateValue = target.type === 'handle' ? target.domain : target.url
-  if (!(await canFederateWithDomain(database, gateValue))) {
+  // A URL is gated on its own host before anything is fetched from it. Handle
+  // inputs are gated inside resolveHandle instead — including the handle a
+  // profile URL can carry on another domain entirely — so the check always
+  // lands on the domain being resolved rather than on whatever named it.
+  if (
+    target.type === 'url' &&
+    !(await canFederateWithDomain(database, target.url))
+  ) {
     return { type: 'forbidden' }
   }
 
