@@ -177,6 +177,31 @@ describe('GearDetailView', () => {
     expect(screen.getByText('No default sports')).toBeInTheDocument()
   })
 
+  it('links the product page by hostname', async () => {
+    mockGetFitnessGearList.mockResolvedValue([
+      createGear({ productUrl: 'https://moots.com/pages/vamoots-rsl' })
+    ])
+    render(<GearDetailView gearId="gear-1" feed={feed} />)
+
+    const link = await screen.findByRole('link', { name: /moots\.com/ })
+    expect(link).toHaveAttribute('href', 'https://moots.com/pages/vamoots-rsl')
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+  })
+
+  it('opens the edit dialog from the prompt when there is no product page', async () => {
+    render(<GearDetailView gearId="gear-1" feed={feed} />)
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'No product page — add one' })
+    )
+
+    expect(
+      await screen.findByRole('heading', { name: 'Edit bike' })
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Product page')).toHaveValue('')
+  })
+
   it('renders three stat tiles for a bike including the installed component count', async () => {
     mockGetFitnessGearComponents.mockResolvedValue([
       createComponent(),

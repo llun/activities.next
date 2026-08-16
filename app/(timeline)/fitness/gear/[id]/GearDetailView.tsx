@@ -12,6 +12,7 @@ import Link from 'next/link'
 import { FC, useEffect, useState } from 'react'
 
 import { GearFormDialog } from '@/app/(timeline)/fitness/gear/GearFormDialog'
+import { GearProductLink } from '@/app/(timeline)/fitness/gear/GearProductLink'
 import {
   formatGearDate,
   formatGearDistanceKm,
@@ -267,6 +268,12 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
               {gear.defaultSports.length > 0
                 ? `Default for ${gear.defaultSports.map(getSportLabel).join(', ')}`
                 : 'No default sports'}
+            </div>
+            <div>
+              <GearProductLink
+                productUrl={gear.productUrl}
+                onEdit={() => setIsEditOpen(true)}
+              />
             </div>
             {gear.retiredAt && (
               <div>

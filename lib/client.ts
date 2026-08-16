@@ -2552,6 +2552,10 @@ export interface CreateFitnessGearInput {
   defaultSports?: string[]
   alertDistanceMeters?: number | null
   notes?: string | null
+  // The manufacturer's page, linked from the gear's own page. Every kind may
+  // carry one; a device's is seeded from the brand map when the import creates
+  // the row, and a bike's or a pair of shoes' is typed into the gear form.
+  productUrl?: string | null
 }
 
 // Every field is optional, matching `UpdateGearRequest`: the PATCH route uses
@@ -2564,11 +2568,7 @@ export interface CreateFitnessGearInput {
 // the same field. `kind` is immutable and absent by design.
 export type UpdateFitnessGearInput = Partial<
   Omit<CreateFitnessGearInput, 'kind'>
-> & {
-  // Devices only — the route rejects it for a bike or a pair of shoes. It is
-  // not on the create input because a device is never created from here.
-  productUrl?: string | null
-}
+>
 
 /**
  * A page of a gear's activity history, as the posts they were published as —
