@@ -1,4 +1,12 @@
+import { getBaseURL } from '@/lib/config'
 import { Database } from '@/lib/database/types'
+
+// Standard OStatus rel other servers look for to discover where to send a
+// visitor who typed their handle into a remote "follow from your server"
+// dialog. Mastodon guesses `/authorize_interaction` when it is absent, but
+// other implementations do not, so advertise it.
+export const REMOTE_FOLLOW_SUBSCRIBE_REL =
+  'http://ostatus.org/schema/1.0/subscribe'
 
 export interface WebFingerLink {
   rel: string
@@ -88,6 +96,17 @@ export const getWebFingerResponse = async ({
         rel: 'self',
         type: 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
         href: actor.id
+      },
+      // The template is instance-level rather than per-account, so it is built
+      // from getBaseURL() (which honours ACTIVITIES_INSECURE_AUTH) instead of
+      // this file's older hardcoded `https://${actor.domain}` profile URLs: the
+      // consumer is a browser that has to end up signed in on THIS instance,
+      // and sessions are anchored to the configured host. Concatenate rather
+      // than building with URL/URLSearchParams — those percent-encode `{uri}`
+      // to `%7Buri%7D` and break consumers doing a literal `.replace('{uri}')`.
+      {
+        rel: REMOTE_FOLLOW_SUBSCRIBE_REL,
+        template: `${getBaseURL()}/authorize_interaction?uri={uri}`
       }
     ]
   }
