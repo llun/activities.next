@@ -1,6 +1,6 @@
 'use client'
 
-import { FC, FormEvent, useRef, useState } from 'react'
+import { FC, FormEvent, useEffect, useRef, useState } from 'react'
 
 import { getRemoteFollowUrl } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
@@ -64,6 +64,17 @@ export const RemoteFollowDialog: FC<RemoteFollowDialogProps> = ({
   // on open is un-set by the visitor simply reopening the dialog to retry,
   // which put the abandoned navigation right back.
   const attemptRef = useRef(0)
+
+  // Leaving the page abandons the lookup too. Radix does not push a history
+  // entry, so a browser or Android system Back unmounts this without ever
+  // closing the dialog — an abandonment the visitor means exactly as much as
+  // Escape, and the only one that could still navigate them.
+  useEffect(
+    () => () => {
+      attemptRef.current += 1
+    },
+    []
+  )
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {

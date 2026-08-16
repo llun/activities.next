@@ -291,6 +291,30 @@ describe('RemoteFollowDialog', () => {
     ).toBeDisabled()
   })
 
+  it('does not navigate when the page is left while the lookup is in flight', async () => {
+    // Radix pushes no history entry, so a browser or Android system Back
+    // unmounts this without ever closing the dialog.
+    let resolveLookup: (url: string) => void = () => undefined
+    getRemoteFollowUrlMock.mockReturnValue(
+      new Promise<string>((resolve) => {
+        resolveLookup = resolve
+      })
+    )
+    const view = render(<RemoteFollowDialog targetHandle="local@llun.test" />)
+    openDialog()
+
+    await typeAddress('visitor@remote.test')
+    submit()
+    await screen.findByRole('button', { name: 'Redirecting...' })
+
+    view.unmount()
+    await act(async () => {
+      resolveLookup('https://abandoned.test/authorize_interaction?uri=x')
+    })
+
+    expect(assign).not.toHaveBeenCalled()
+  })
+
   it('prefills a remembered address', async () => {
     window.localStorage.setItem(
       'activities.remote-follow-account',
