@@ -52,16 +52,22 @@ export const RemoteFollowDialog: FC<RemoteFollowDialogProps> = ({
   const [account, setAccount] = useState(readRememberedAccount)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // Closing the dialog abandons whatever lookup is in flight. The lookup can
-  // take as long as the outbound WebFinger request's timeout, and it resolves
-  // to a URL even when that request fails (the route degrades to the
-  // conventional path), so without this a visitor who gave up and dismissed
-  // the dialog was navigated off the page seconds later anyway.
-  const abandonedRef = useRef(false)
+  // Identifies the one lookup whose result still matters. Closing the dialog
+  // or starting another lookup bumps it, and a settling request compares the
+  // token it captured before acting — so a result the visitor walked away from
+  // can neither navigate them nor write an error into the dialog.
+  //
+  // This has to be a token rather than a boolean flag: the lookup can run for
+  // as long as the outbound WebFinger timeout and it RESOLVES even when that
+  // request fails (the route degrades to the conventional path), so an
+  // abandoned attempt always settles into a usable URL later. A flag cleared
+  // on open is un-set by the visitor simply reopening the dialog to retry,
+  // which put the abandoned navigation right back.
+  const attemptRef = useRef(0)
 
   const handleOpenChange = (nextOpen: boolean) => {
-    abandonedRef.current = !nextOpen
     if (!nextOpen) {
+      attemptRef.current += 1
       setError(null)
       setIsLoading(false)
     }
@@ -78,18 +84,18 @@ export const RemoteFollowDialog: FC<RemoteFollowDialogProps> = ({
       return
     }
 
-    abandonedRef.current = false
+    const attempt = ++attemptRef.current
     setIsLoading(true)
     try {
       const url = await getRemoteFollowUrl({
         account: trimmedAccount,
         target: targetHandle
       })
-      if (abandonedRef.current) return
+      if (attempt !== attemptRef.current) return
       rememberAccount(trimmedAccount)
       window.location.assign(url)
     } catch (submitError) {
-      if (abandonedRef.current) return
+      if (attempt !== attemptRef.current) return
       setError(
         submitError instanceof Error
           ? submitError.message

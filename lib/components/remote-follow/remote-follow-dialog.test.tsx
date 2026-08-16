@@ -179,6 +179,118 @@ describe('RemoteFollowDialog', () => {
     expect(screen.getByRole('button', { name: 'Go' })).toBeEnabled()
   })
 
+  it('does not navigate when a dismissed lookup settles after the dialog is reopened', async () => {
+    // Reopening to retry is the natural next move after giving up, and it must
+    // not revive the lookup that was walked away from.
+    let resolveLookup: (url: string) => void = () => undefined
+    getRemoteFollowUrlMock.mockReturnValue(
+      new Promise<string>((resolve) => {
+        resolveLookup = resolve
+      })
+    )
+    render(<RemoteFollowDialog targetHandle="local@llun.test" />)
+    openDialog()
+
+    await typeAddress('visitor@remote.test')
+    submit()
+    await screen.findByRole('button', { name: 'Redirecting...' })
+
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+    openDialog()
+    await screen.findByLabelText('Your address')
+
+    await act(async () => {
+      resolveLookup('https://abandoned.test/authorize_interaction?uri=x')
+    })
+
+    expect(assign).not.toHaveBeenCalled()
+    expect(
+      window.localStorage.getItem('activities.remote-follow-account')
+    ).toBeNull()
+  })
+
+  it('sends the visitor to the retried address, not the abandoned one', async () => {
+    const settle: Record<string, (url: string) => void> = {}
+    getRemoteFollowUrlMock.mockImplementation(
+      ({ account }: { account: string }) =>
+        new Promise<string>((resolve) => {
+          settle[account] = resolve
+        })
+    )
+    render(<RemoteFollowDialog targetHandle="local@llun.test" />)
+    openDialog()
+
+    await typeAddress('typo@wrong.test')
+    submit()
+    await screen.findByRole('button', { name: 'Redirecting...' })
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    openDialog()
+    await typeAddress('visitor@correct.test')
+    submit()
+    await screen.findByRole('button', { name: 'Redirecting...' })
+
+    // The abandoned lookup finishes first and must lose.
+    await act(async () => {
+      settle['typo@wrong.test'](
+        'https://wrong.test/authorize_interaction?uri=x'
+      )
+    })
+    expect(assign).not.toHaveBeenCalled()
+
+    await act(async () => {
+      settle['visitor@correct.test'](
+        'https://correct.test/authorize_interaction?uri=x'
+      )
+    })
+    expect(assign).toHaveBeenCalledExactlyOnceWith(
+      'https://correct.test/authorize_interaction?uri=x'
+    )
+    expect(
+      window.localStorage.getItem('activities.remote-follow-account')
+    ).toEqual('visitor@correct.test')
+  })
+
+  it('does not show an error from a superseded lookup', async () => {
+    const settle: Record<string, (error: Error) => void> = {}
+    getRemoteFollowUrlMock.mockImplementation(
+      ({ account }: { account: string }) =>
+        new Promise<string>((_resolve, reject) => {
+          settle[account] = reject
+        })
+    )
+    render(<RemoteFollowDialog targetHandle="local@llun.test" />)
+    openDialog()
+
+    await typeAddress('typo@wrong.test')
+    submit()
+    await screen.findByRole('button', { name: 'Redirecting...' })
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    openDialog()
+    await typeAddress('visitor@correct.test')
+    submit()
+    await screen.findByRole('button', { name: 'Redirecting...' })
+
+    await act(async () => {
+      settle['typo@wrong.test'](new Error('Unable to reach that server'))
+    })
+
+    expect(screen.queryByText('Unable to reach that server')).toBeNull()
+    expect(
+      screen.getByRole('button', { name: 'Redirecting...' })
+    ).toBeDisabled()
+  })
+
   it('prefills a remembered address', async () => {
     window.localStorage.setItem(
       'activities.remote-follow-account',
