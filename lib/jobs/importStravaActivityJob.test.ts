@@ -23,6 +23,7 @@ import {
 } from '@/lib/services/strava/activity'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { logger } from '@/lib/utils/logger'
 
 vi.mock('node:dns/promises', async () => ({
   lookup: vi.fn()
@@ -61,6 +62,14 @@ vi.mock('@/lib/services/queue', async () => ({
 
 vi.mock('@/lib/services/timelines', async () => ({
   addStatusToTimelines: vi.fn().mockResolvedValue(undefined)
+}))
+
+vi.mock('@/lib/utils/logger', () => ({
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn()
+  }
 }))
 
 const mockSaveFitnessFile = saveFitnessFile as jest.MockedFunction<
@@ -1502,6 +1511,65 @@ describe('importStravaActivityJob', () => {
       expect(database.createAttachment).toHaveBeenCalledTimes(1)
       // The import is not demoted over a lost Update.
       expect(database.updateFitnessFileProcessingStatus).not.toHaveBeenCalled()
+      // What distinguishes this from the Update publish living inside the photo
+      // try/catch, which also neither threw nor demoted: there the failure was
+      // reported as a photo failure, and the photos are on the status.
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Failed to attach Strava photos to imported status'
+        })
+      )
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Failed to queue the update for late Strava photos'
+        })
+      )
+    })
+
+    it('sends an update for a merged sibling that brings its own photos', async () => {
+      // The case the Update mainly exists for: the second device's webhook adds
+      // its photos to a post whose Create went out with the primary's, so it
+      // owns no process job of its own and the Update is the only thing that
+      // can carry them across.
+      mockImportFitnessFiles.mockResolvedValue([
+        {
+          statusId: 'status-1',
+          statusCreated: false,
+          primaryFitnessFileId: 'sibling-file',
+          processJob: null
+        }
+      ])
+      database.getAttachments.mockResolvedValue([])
+      database.createAttachment.mockResolvedValue({} as never)
+      mockGetStravaActivityPhotos.mockResolvedValueOnce([
+        { id: 'photo-2', url: 'https://images.example.com/photo-2.jpg' }
+      ] as never)
+      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+        new Response(Buffer.from('jpg'), {
+          headers: { 'content-type': 'image/jpeg', 'content-length': '3' }
+        })
+      )
+
+      try {
+        await importStravaActivityJob(database as unknown as Database, {
+          id: 'job-federation-merged-photos',
+          name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+          data: {
+            actorId: 'actor-1',
+            stravaActivityId: '123',
+            publishSendNote: true
+          }
+        })
+      } finally {
+        fetchSpy.mockRestore()
+      }
+
+      expect(getProcessPublishes()).toHaveLength(0)
+      expect(
+        (mockGetQueue().publish as jest.Mock).mock.calls
+          .map(([message]) => message)
+          .filter((message) => message.name === SEND_UPDATE_NOTE_JOB_NAME)
+      ).toHaveLength(1)
     })
 
     it('sends no update when the activity had no photos to attach', async () => {

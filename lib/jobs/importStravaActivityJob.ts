@@ -323,12 +323,11 @@ const attachStravaPhotosToStatus = async ({
       attachmentNames.add(attachmentName)
       attachedCount += 1
     } catch (error) {
-      const nodeError = error as Error
       logger.warn({
         message: 'Failed to store Strava photo as attachment',
         actorId,
         stravaActivityId,
-        error: nodeError.message
+        err: toLoggableError(error)
       })
     }
   }

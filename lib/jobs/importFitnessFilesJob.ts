@@ -26,6 +26,7 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
 import { generatePublicId } from '@/lib/utils/publicId'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { createJobHandle } from './createJobHandle'
 import { IMPORT_FITNESS_FILES_JOB_NAME } from './names'
@@ -560,7 +561,8 @@ export const importFitnessFiles = async (
         actorId,
         batchId,
         fitnessFileIds: targetFitnessFileIds,
-        error: errorMessage
+        error: errorMessage,
+        err: toLoggableError(error)
       })
 
       await Promise.all(
@@ -573,13 +575,12 @@ export const importFitnessFiles = async (
         try {
           await database.deleteStatus({ statusId: createdStatusId })
         } catch (cleanupError) {
-          const nodeCleanupError = cleanupError as Error
           logger.error({
             message: 'Failed to cleanup local status after import failure',
             actorId,
             batchId,
             statusId: createdStatusId,
-            error: nodeCleanupError.message
+            err: toLoggableError(cleanupError)
           })
         }
       }

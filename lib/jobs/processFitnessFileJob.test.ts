@@ -199,6 +199,12 @@ describe('processFitnessFileJob', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
+    // clearAllMocks resets call history but KEEPS implementations, and
+    // publishSendNote defaults to true — so a test that makes this throw would
+    // otherwise leave every later test quietly running its federation publish
+    // down the failure path.
+    ;(getQueue().publish as jest.Mock).mockImplementation(async () => undefined)
+
     mockGetFitnessFileBuffer.mockResolvedValue(
       Buffer.from('fitness-file-bytes')
     )
