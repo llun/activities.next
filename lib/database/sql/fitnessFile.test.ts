@@ -1303,8 +1303,21 @@ describe('FitnessFileDatabase', () => {
     describe('getFitnessFilesByActor keyset pagination', () => {
       // Ascending, cursor-paged reads are what a whole-history scan uses; an
       // offset cannot survive one, which is the point of these tests.
+      //
+      // None of them assume the sort order matches the order the fixtures were
+      // created in. The sort is (createdAt, id), and two files written in the
+      // same millisecond — ordinary on a fast machine, and what CI hit — are
+      // separated by their random uuid instead. So each test reads the
+      // canonical order first and asserts against that; what is under test is
+      // that paging reproduces the order, not what the order happens to be.
       const actorId = 'https://llun.test/users/keyset-scan'
-      const createdAtByPath = new Map<string, number>()
+
+      const readAllAscending = () =>
+        database.getFitnessFilesByActor({
+          actorId,
+          orderDirection: 'asc',
+          limit: 100
+        })
 
       beforeAll(async () => {
         await database.createActor({
@@ -1321,7 +1334,7 @@ describe('FitnessFileDatabase', () => {
         })
 
         for (const index of [1, 2, 3, 4]) {
-          const file = await database.createFitnessFile({
+          await database.createFitnessFile({
             actorId,
             path: `fitness/keyset-${index}.fit`,
             fileName: `keyset-${index}.fit`,
@@ -1329,19 +1342,23 @@ describe('FitnessFileDatabase', () => {
             mimeType: 'application/vnd.ant.fit',
             bytes: 1024
           })
-          createdAtByPath.set(file!.path, file!.createdAt)
         }
       })
 
       it('defaults to newest first so existing callers are unaffected', async () => {
-        const [newest] = await database.getFitnessFilesByActor({
+        const ascending = await readAllAscending()
+        const byDefault = await database.getFitnessFilesByActor({
           actorId,
-          limit: 1
+          limit: 100
         })
-        expect(newest.path).toBe('fitness/keyset-4.fit')
+
+        expect(byDefault.map((row) => row.id)).toEqual(
+          ascending.map((row) => row.id).reverse()
+        )
       })
 
       it('walks the whole history in ascending order without repeating a row', async () => {
+        const expected = (await readAllAscending()).map((row) => row.id)
         const seen: string[] = []
         let cursor: { createdAt: number; id: string } | undefined
 
@@ -1354,17 +1371,12 @@ describe('FitnessFileDatabase', () => {
             afterCursor: cursor
           })
           if (rows.length === 0) break
-          seen.push(...rows.map((row) => row.path))
+          seen.push(...rows.map((row) => row.id))
           const last = rows[rows.length - 1]
           cursor = { createdAt: last.createdAt, id: last.id }
         }
 
-        expect(seen).toEqual([
-          'fitness/keyset-1.fit',
-          'fitness/keyset-2.fit',
-          'fitness/keyset-3.fit',
-          'fitness/keyset-4.fit'
-        ])
+        expect(seen).toEqual(expected)
       })
 
       it('does not skip a row when one behind the cursor is deleted mid-scan', async () => {
@@ -1373,6 +1385,7 @@ describe('FitnessFileDatabase', () => {
         // passed is deleted; every row behind it shifts down one. Resuming at
         // `offset: 2` would hand back the FOURTH activity and silently drop the
         // third from the heatmap.
+        const ordered = await readAllAscending()
         const firstPage = await database.getFitnessFilesByActor({
           actorId,
           limit: 2,
@@ -1395,15 +1408,13 @@ describe('FitnessFileDatabase', () => {
           orderDirection: 'asc'
         })
 
-        expect(withCursor.map((row) => row.path)).toEqual([
-          'fitness/keyset-3.fit',
-          'fitness/keyset-4.fit'
+        expect(withCursor.map((row) => row.id)).toEqual([
+          ordered[2].id,
+          ordered[3].id
         ])
         // Pinned as the contrast, not as desired behaviour: the same resume
-        // expressed as an offset loses activity 3.
-        expect(withOffset.map((row) => row.path)).not.toContain(
-          'fitness/keyset-3.fit'
-        )
+        // expressed as an offset loses the third activity.
+        expect(withOffset.map((row) => row.id)).not.toContain(ordered[2].id)
       })
 
       it('pages through rows sharing a createdAt without skipping or repeating one', async () => {
