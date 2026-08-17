@@ -384,6 +384,20 @@ CREATE TABLE public.filters (
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE public.fitness_file_routes (
+    "fitnessFileId" character varying(255) NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    points text,
+    "pointCount" integer DEFAULT 0 NOT NULL,
+    "minLat" double precision,
+    "maxLat" double precision,
+    "minLng" double precision,
+    "maxLng" double precision,
+    "sourceVersion" integer DEFAULT 1 NOT NULL,
+    "createdAt" timestamp with time zone NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL
+);
+
 CREATE TABLE public.fitness_files (
     id character varying(255) NOT NULL,
     "actorId" character varying(255) NOT NULL,
@@ -462,10 +476,41 @@ CREATE TABLE public.fitness_import_locks (
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE public.fitness_route_heatmap_pyramids (
+    id character varying(255) NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    status character varying(255) DEFAULT 'idle'::character varying NOT NULL,
+    error text,
+    version integer DEFAULT 0 NOT NULL,
+    "totalCount" integer DEFAULT 0 NOT NULL,
+    "scannedCount" integer DEFAULT 0 NOT NULL,
+    "activityCount" integer DEFAULT 0 NOT NULL,
+    "tileCount" integer DEFAULT 0 NOT NULL,
+    "pointCount" integer DEFAULT 0 NOT NULL,
+    "cursorCreatedAt" timestamp with time zone,
+    "cursorId" character varying(255),
+    "completedAt" timestamp with time zone,
+    "createdAt" timestamp with time zone NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL
+);
+
 CREATE TABLE public.fitness_route_heatmap_region_names (
     "actorId" character varying(255) NOT NULL,
     region character varying(255) NOT NULL,
     name character varying(255) NOT NULL,
+    "createdAt" timestamp with time zone NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL
+);
+
+CREATE TABLE public.fitness_route_heatmap_tiles (
+    "actorId" character varying(255) NOT NULL,
+    "tileKey" character varying(255) NOT NULL,
+    z integer NOT NULL,
+    x integer NOT NULL,
+    y integer NOT NULL,
+    version integer DEFAULT 0 NOT NULL,
+    segments text,
+    "pointCount" integer DEFAULT 0 NOT NULL,
     "createdAt" timestamp with time zone NOT NULL,
     "updatedAt" timestamp with time zone NOT NULL
 );
@@ -1317,6 +1362,9 @@ ALTER TABLE ONLY public.filter_statuses
 ALTER TABLE ONLY public.filters
     ADD CONSTRAINT filters_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.fitness_file_routes
+    ADD CONSTRAINT fitness_file_routes_pkey PRIMARY KEY ("fitnessFileId");
+
 ALTER TABLE ONLY public.fitness_files
     ADD CONSTRAINT fitness_files_pkey PRIMARY KEY (id);
 
@@ -1332,8 +1380,17 @@ ALTER TABLE ONLY public.fitness_gears
 ALTER TABLE ONLY public.fitness_import_locks
     ADD CONSTRAINT fitness_import_locks_pkey PRIMARY KEY ("lockKey");
 
+ALTER TABLE ONLY public.fitness_route_heatmap_pyramids
+    ADD CONSTRAINT fitness_route_heatmap_pyramids_actor_unique UNIQUE ("actorId");
+
+ALTER TABLE ONLY public.fitness_route_heatmap_pyramids
+    ADD CONSTRAINT fitness_route_heatmap_pyramids_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.fitness_route_heatmap_region_names
     ADD CONSTRAINT fitness_route_heatmap_region_names_pkey PRIMARY KEY ("actorId", region);
+
+ALTER TABLE ONLY public.fitness_route_heatmap_tiles
+    ADD CONSTRAINT fitness_route_heatmap_tiles_pkey PRIMARY KEY ("actorId", "tileKey");
 
 ALTER TABLE ONLY public.fitness_route_heatmaps
     ADD CONSTRAINT fitness_route_heatmaps_actorid_activitytypekey_periodtype_perio UNIQUE ("actorId", "activityTypeKey", "periodType", "periodKey", region);
@@ -1610,6 +1667,10 @@ CREATE INDEX filter_statuses_filter_id ON public.filter_statuses USING btree ("f
 
 CREATE INDEX filters_actor_created ON public.filters USING btree ("actorId", "createdAt");
 
+CREATE INDEX fitness_file_routes_actor_id_idx ON public.fitness_file_routes USING btree ("actorId");
+
+CREATE INDEX fitness_file_routes_actor_lat_idx ON public.fitness_file_routes USING btree ("actorId", "minLat", "maxLat");
+
 CREATE INDEX fitness_files_actor_created_idx ON public.fitness_files USING btree ("actorId", "createdAt");
 
 CREATE INDEX fitness_files_actor_id_idx ON public.fitness_files USING btree ("actorId");
@@ -1627,6 +1688,10 @@ CREATE INDEX fitness_gear_components_gear_id_idx ON public.fitness_gear_componen
 CREATE INDEX fitness_gears_actor_id_idx ON public.fitness_gears USING btree ("actorId");
 
 CREATE INDEX fitness_import_locks_expiresat_index ON public.fitness_import_locks USING btree ("expiresAt");
+
+CREATE INDEX fitness_route_heatmap_tiles_actor_version_idx ON public.fitness_route_heatmap_tiles USING btree ("actorId", version);
+
+CREATE INDEX fitness_route_heatmap_tiles_actor_z_x_y_idx ON public.fitness_route_heatmap_tiles USING btree ("actorId", z, x, y);
 
 CREATE INDEX fitness_route_heatmaps_actorid_periodtype_index ON public.fitness_route_heatmaps USING btree ("actorId", "periodType");
 
@@ -1788,6 +1853,12 @@ ALTER TABLE ONLY public.actors
 ALTER TABLE ONLY public.federated_timeline
     ADD CONSTRAINT federated_timeline_statusid_foreign FOREIGN KEY ("statusId") REFERENCES public.statuses(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY public.fitness_file_routes
+    ADD CONSTRAINT fitness_file_routes_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.fitness_file_routes
+    ADD CONSTRAINT fitness_file_routes_fitnessfileid_foreign FOREIGN KEY ("fitnessFileId") REFERENCES public.fitness_files(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY public.fitness_files
     ADD CONSTRAINT fitness_files_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id) ON DELETE CASCADE;
 
@@ -1800,8 +1871,14 @@ ALTER TABLE ONLY public.fitness_gear_components
 ALTER TABLE ONLY public.fitness_gears
     ADD CONSTRAINT fitness_gears_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY public.fitness_route_heatmap_pyramids
+    ADD CONSTRAINT fitness_route_heatmap_pyramids_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY public.fitness_route_heatmap_region_names
     ADD CONSTRAINT fitness_route_heatmap_region_names_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.fitness_route_heatmap_tiles
+    ADD CONSTRAINT fitness_route_heatmap_tiles_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY public.fitness_route_heatmaps
     ADD CONSTRAINT fitness_route_heatmaps_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id);
