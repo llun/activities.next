@@ -16,7 +16,8 @@ import { importFitnessFiles } from '@/lib/jobs/importFitnessFilesJob'
 import {
   IMPORT_STRAVA_ACTIVITY_JOB_NAME,
   REGENERATE_FITNESS_MAPS_JOB_NAME,
-  SEND_NOTE_JOB_NAME
+  SEND_NOTE_JOB_NAME,
+  SEND_UPDATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { buildActivityImportEmail } from '@/lib/services/email/templates/activityImport'
 import { saveFitnessFile } from '@/lib/services/fitness-files'
@@ -215,7 +216,8 @@ const attachStravaPhotosToStatus = async ({
   stravaActivityId: string
   accessToken: string
   activity: StravaActivity
-}) => {
+}): Promise<number> => {
+  let attachedCount = 0
   const existingAttachments = await database.getAttachments({ statusId })
   const attachmentNames = new Set(
     existingAttachments
@@ -228,7 +230,7 @@ const attachStravaPhotosToStatus = async ({
   )
 
   if (remainingAttachmentSlots <= 0) {
-    return
+    return attachedCount
   }
 
   const photos = await getStravaActivityPhotos({
@@ -319,6 +321,7 @@ const attachStravaPhotosToStatus = async ({
         mediaId: storedMedia.id
       })
       attachmentNames.add(attachmentName)
+      attachedCount += 1
     } catch (error) {
       const nodeError = error as Error
       logger.warn({
@@ -329,6 +332,8 @@ const attachStravaPhotosToStatus = async ({
       })
     }
   }
+
+  return attachedCount
 }
 
 const getOrCreateStravaFallbackNote = async ({
@@ -452,6 +457,18 @@ export const importStravaActivityJob = createJobHandle(
       visibility ?? mapStravaVisibilityToMastodon(activity.visibility)
     const batchId = getStravaActivityBatchId(stravaActivityId)
 
+    // An activity the athlete marked "Only me" on Strava never gets pushed to
+    // anyone, whatever the account default says.
+    //
+    // The webhook always sends an explicit `visibility` (the actor's Strava
+    // default), so the `only_me` -> `direct` arm of mapStravaVisibilityToMastodon
+    // never gets a chance to apply on that path. That was harmless while every
+    // import was local-only — the post existed at the account default and went
+    // nowhere. Now that imports federate it would be a leak, and the account
+    // default is the one setting a user would never think to check for it.
+    const shouldFederateImport =
+      publishSendNote && activity.visibility !== 'only_me'
+
     // Nothing here reads `activity.gear_id`, and that is deliberate: gear is
     // attributed downstream by `processFitnessFileJob`, from the gear whose
     // `defaultSports` claims the parsed sport — the athlete's own shed, which
@@ -523,11 +540,20 @@ export const importStravaActivityJob = createJobHandle(
           activity
         })
 
-        await getQueue().publish({
-          id: getHashFromString(`${actorId}:strava-note:${stravaActivityId}`),
-          name: SEND_NOTE_JOB_NAME,
-          data: { actorId, statusId: createdNote.id }
-        })
+        // Gated like the file-backed path above. This branch used to federate
+        // unconditionally, which is the asymmetry that hid the missing Create
+        // on the main path: a degenerate, streamless activity was the only
+        // Strava import that ever reached a follower. Ungated it also means a
+        // retry-all sweep or a scripts/fitness recovery run still delivers one
+        // Create per streamless activity — exactly what the flag exists to
+        // prevent — so it answers to the same opt-in.
+        if (shouldFederateImport) {
+          await getQueue().publish({
+            id: getHashFromString(`${actorId}:strava-note:${stravaActivityId}`),
+            name: SEND_NOTE_JOB_NAME,
+            data: { actorId, statusId: createdNote.id }
+          })
+        }
 
         // Gated on notifyOnComplete as a whole, not just on the email. This
         // path never creates a fitness file — the activity had no exportable
@@ -753,7 +779,7 @@ export const importStravaActivityJob = createJobHandle(
               // Same: only the webhook federates. A merged sibling reuses the
               // existing status, so importFitnessFiles resolves this to false
               // for it and the ride's Create still goes out exactly once.
-              publishSendNote
+              publishSendNote: shouldFederateImport
             },
             // The process job is the pipeline's federation trigger, and under
             // NoQueue publishing it runs it inline — before the Strava caption
@@ -873,7 +899,7 @@ export const importStravaActivityJob = createJobHandle(
     // caption, and neither may take down the import now that the file is past
     // the point where a retry could find it.
     try {
-      await attachStravaPhotosToStatus({
+      const attachedPhotoCount = await attachStravaPhotosToStatus({
         database,
         actor,
         actorId,
@@ -882,6 +908,26 @@ export const importStravaActivityJob = createJobHandle(
         accessToken,
         activity
       })
+
+      // A photo attached after the Create needs an Update or the remote copy
+      // keeps the version without it, forever. Three cases land here: the
+      // process job published above already federated (always under NoQueue,
+      // a race under QStash); and a merged sibling, which brings its OWN
+      // Strava photos to a post whose Create went out with the primary's.
+      //
+      // Cheap when there is nothing to say — no photos, no Update — and safe
+      // when the Create was never sent at all, since a receiver that does not
+      // know the object either ignores the Update or synthesises the Create
+      // from it, which is the outcome we wanted anyway.
+      if (attachedPhotoCount > 0) {
+        await getQueue().publish({
+          id: getHashFromString(
+            `${importedFitnessFile.statusId}:strava-photos:send-update-note`
+          ),
+          name: SEND_UPDATE_NOTE_JOB_NAME,
+          data: { actorId, statusId: importedFitnessFile.statusId }
+        })
+      }
     } catch (error) {
       logger.warn({
         message: 'Failed to attach Strava photos to imported status',
