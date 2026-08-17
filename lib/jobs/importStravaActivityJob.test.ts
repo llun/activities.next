@@ -1387,6 +1387,89 @@ describe('importStravaActivityJob', () => {
       )
     })
 
+    it('sends no photo update when the process job could not be published', async () => {
+      // That job is what sends the Create, so an Update would be the only
+      // thing reaching the network — federating a ride just marked failed,
+      // whose retry path never sends a Create of its own.
+      deferOneProcessJob()
+      database.getAttachments.mockResolvedValue([])
+      database.createAttachment.mockResolvedValue({} as never)
+      mockGetStravaActivityPhotos.mockResolvedValueOnce([
+        { id: 'photo-1', url: 'https://images.example.com/photo-1.jpg' }
+      ] as never)
+      ;(mockGetQueue().publish as jest.Mock).mockRejectedValueOnce(
+        'queue exploded'
+      )
+      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+        new Response(Buffer.from('jpg'), {
+          headers: { 'content-type': 'image/jpeg', 'content-length': '3' }
+        })
+      )
+
+      try {
+        await importStravaActivityJob(database as unknown as Database, {
+          id: 'job-federation-photo-update-after-publish-failure',
+          name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+          data: {
+            actorId: 'actor-1',
+            stravaActivityId: '123',
+            publishSendNote: true
+          }
+        })
+      } finally {
+        fetchSpy.mockRestore()
+      }
+
+      expect(database.createAttachment).toHaveBeenCalledTimes(1)
+      expect(mockGetQueue().publish).not.toHaveBeenCalledWith(
+        expect.objectContaining({ name: SEND_UPDATE_NOTE_JOB_NAME })
+      )
+    })
+
+    it('still reports photos as attached when the update cannot be queued', async () => {
+      // The photos are on the status either way; what was lost is the Update,
+      // so it must not be logged as a photo failure.
+      deferOneProcessJob()
+      database.getAttachments.mockResolvedValue([])
+      database.createAttachment.mockResolvedValue({} as never)
+      mockGetStravaActivityPhotos.mockResolvedValueOnce([
+        { id: 'photo-1', url: 'https://images.example.com/photo-1.jpg' }
+      ] as never)
+      const publishMock = mockGetQueue().publish as jest.Mock
+      publishMock.mockImplementation(async (message: { name: string }) => {
+        if (message.name === SEND_UPDATE_NOTE_JOB_NAME) {
+          throw new Error('queue exploded')
+        }
+      })
+      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+        new Response(Buffer.from('jpg'), {
+          headers: { 'content-type': 'image/jpeg', 'content-length': '3' }
+        })
+      )
+
+      try {
+        await expect(
+          importStravaActivityJob(database as unknown as Database, {
+            id: 'job-federation-update-publish-failure',
+            name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+            data: {
+              actorId: 'actor-1',
+              stravaActivityId: '123',
+              publishSendNote: true
+            }
+          })
+        ).resolves.toBeUndefined()
+      } finally {
+        fetchSpy.mockRestore()
+        publishMock.mockReset()
+        publishMock.mockResolvedValue(undefined)
+      }
+
+      expect(database.createAttachment).toHaveBeenCalledTimes(1)
+      // The import is not demoted over a lost Update.
+      expect(database.updateFitnessFileProcessingStatus).not.toHaveBeenCalled()
+    })
+
     it('sends no update when the activity had no photos to attach', async () => {
       deferOneProcessJob()
 

@@ -861,10 +861,13 @@ export const importStravaActivityJob = createJobHandle(
     // the route map before it queues SEND_NOTE, and sendNoteJob re-reads the
     // status at delivery. Under NoQueue the whole chain runs inline right here,
     // so a dev-mode Create carries the caption and map but not the photos.
+    let processJobPublishFailed = false
     for (const processJob of deferredProcessJobs) {
       try {
         await getQueue().publish(processJob)
       } catch (error) {
+        processJobPublishFailed = true
+
         // Same protection the non-deferred path gives itself, minus the status
         // cleanup: by now the status is written, timelined and carries the
         // Strava caption, so deleting it would destroy real content. Leave the
@@ -898,8 +901,9 @@ export const importStravaActivityJob = createJobHandle(
     // Separately contained from the caption: a photo failure must not skip the
     // caption, and neither may take down the import now that the file is past
     // the point where a retry could find it.
+    let attachedPhotoCount = 0
     try {
-      const attachedPhotoCount = await attachStravaPhotosToStatus({
+      attachedPhotoCount = await attachStravaPhotosToStatus({
         database,
         actor,
         actorId,
@@ -908,33 +912,6 @@ export const importStravaActivityJob = createJobHandle(
         accessToken,
         activity
       })
-
-      // A photo attached after the Create needs an Update or the remote copy
-      // keeps the version without it, forever. Two cases land here: the process
-      // job published above already federated (always under NoQueue, a race
-      // under QStash), and a merged sibling, which brings its OWN Strava photos
-      // to a post whose Create went out with the primary's.
-      //
-      // Gated on the same opt-in as the Create, and that gate is load-bearing
-      // rather than tidiness: sendUpdateNoteJob delivers to every federated
-      // inbox without consulting any opt-in of its own, and Mastodon's Update
-      // handler SYNTHESISES a Create for an object it has not seen that is
-      // younger than about a day. Ungated, a recovery sweep — or an only_me
-      // activity, which reaches here having deliberately skipped its Create —
-      // would publish a status precisely because it had a photo.
-      //
-      // The id carries the Strava activity so a merged sibling's photos get
-      // their own Update rather than being deduplicated against the primary's,
-      // while a redelivery of the same webhook still collapses.
-      if (shouldFederateImport && attachedPhotoCount > 0) {
-        await getQueue().publish({
-          id: getHashFromString(
-            `${importedFitnessFile.statusId}:${stravaActivityId}:strava-photos:send-update-note`
-          ),
-          name: SEND_UPDATE_NOTE_JOB_NAME,
-          data: { actorId, statusId: importedFitnessFile.statusId }
-        })
-      }
     } catch (error) {
       logger.warn({
         message: 'Failed to attach Strava photos to imported status',
@@ -943,6 +920,56 @@ export const importStravaActivityJob = createJobHandle(
         statusId: importedFitnessFile.statusId,
         err: toLoggableError(error)
       })
+    }
+
+    // A photo attached after the Create needs an Update or the remote copy
+    // keeps the version without it, forever. Two cases land here: the process
+    // job published above already federated (always under NoQueue, a race under
+    // QStash), and a merged sibling, which brings its OWN Strava photos to a
+    // post whose Create went out with the primary's.
+    //
+    // Gated on the same opt-in as the Create, and that gate is load-bearing
+    // rather than tidiness: sendUpdateNoteJob delivers to every federated inbox
+    // without consulting any opt-in of its own, and Mastodon's Update handler
+    // SYNTHESISES a Create for an object it has not seen that is younger than
+    // about a day. Ungated, a recovery sweep — or an only_me activity, which
+    // reaches here having deliberately skipped its Create — would publish a
+    // status precisely because it had a photo. For the same reason it is also
+    // gated on the process job having been queued: that job is what sends the
+    // Create, so after it failed to publish an Update is the only thing that
+    // would reach the network, federating a ride we just marked failed and
+    // whose retry (through retryImports, which does not opt in) never sends a
+    // Create of its own.
+    //
+    // The id carries the Strava activity so a merged sibling's photos get their
+    // own Update rather than being deduplicated against the primary's, while a
+    // redelivery of the same webhook still collapses.
+    //
+    // Kept out of the photo try/catch above so a failure here is not reported
+    // as a photo failure — the photos are on the status either way, and what
+    // was lost is the Update.
+    if (
+      shouldFederateImport &&
+      attachedPhotoCount > 0 &&
+      !processJobPublishFailed
+    ) {
+      try {
+        await getQueue().publish({
+          id: getHashFromString(
+            `${importedFitnessFile.statusId}:${stravaActivityId}:strava-photos:send-update-note`
+          ),
+          name: SEND_UPDATE_NOTE_JOB_NAME,
+          data: { actorId, statusId: importedFitnessFile.statusId }
+        })
+      } catch (error) {
+        logger.error({
+          message: 'Failed to queue the update for late Strava photos',
+          actorId,
+          stravaActivityId,
+          statusId: importedFitnessFile.statusId,
+          err: toLoggableError(error)
+        })
+      }
     }
 
     // The notification for this path now fires at the end of
