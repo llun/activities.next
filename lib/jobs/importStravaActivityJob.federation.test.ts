@@ -309,6 +309,11 @@ describe('importStravaActivityJob federation', () => {
   it('does not federate an import that did not opt in', async () => {
     await importActivity('2002', 2)
 
+    // Proves the pipeline actually ran for THIS ride. Without it the test
+    // passes for the wrong reason the moment its start day collides with
+    // another test's: the ride merges into that status, no process job is
+    // published at all, and "no Create" becomes vacuously true.
+    expect(mockGenerateMapImage).toHaveBeenCalled()
     expect(hoisted.sendNoteSnapshots).toHaveLength(0)
   })
 

@@ -123,6 +123,8 @@ type MockDatabase = Pick<
   | 'createFitnessGear'
   | 'assignFitnessFileGearIfUnset'
   | 'findFitnessGearByDeviceKey'
+  | 'updateFitnessFileImportStatus'
+  | 'updateFitnessFileProcessingStatus'
 >
 
 describe('importStravaActivityJob', () => {
@@ -149,7 +151,9 @@ describe('importStravaActivityJob', () => {
     releaseImportLock: vi.fn().mockResolvedValue(true),
     createFitnessGear: vi.fn(),
     assignFitnessFileGearIfUnset: vi.fn(),
-    findFitnessGearByDeviceKey: vi.fn()
+    findFitnessGearByDeviceKey: vi.fn(),
+    updateFitnessFileImportStatus: vi.fn(),
+    updateFitnessFileProcessingStatus: vi.fn()
   }
 
   beforeEach(() => {
@@ -1076,10 +1080,20 @@ describe('importStravaActivityJob', () => {
         .map(([message]) => message)
         .filter((message) => message.name === PROCESS_FITNESS_FILE_JOB_NAME)
 
+    // Derived from the process job rather than invocationCallOrder[0], which is
+    // whichever job happened to be published first.
+    const getProcessPublishOrder = () => {
+      const publish = mockGetQueue().publish as jest.Mock
+      const index = publish.mock.calls.findIndex(
+        ([message]) => message.name === PROCESS_FITNESS_FILE_JOB_NAME
+      )
+      return publish.mock.invocationCallOrder[index]
+    }
+
     it.each([
-      { description: 'withholds federation by default', requested: {} },
+      { description: 'withholds by default', requested: {} },
       {
-        description: 'forwards the federation opt-in from the webhook',
+        description: 'forwards the webhook opt-in',
         requested: { publishSendNote: true }
       }
     ])('$description', async ({ requested }) => {
@@ -1102,11 +1116,10 @@ describe('importStravaActivityJob', () => {
       )
     })
 
-    it('publishes the deferred process job only after the caption and photos are on the status', async () => {
+    it('publishes the deferred process job only after the caption is on the status', async () => {
       // Under NoQueue publishing the process job runs it inline, and it is what
-      // federates the Create. Published before these writes it would deliver an
-      // empty, photoless note — deterministically in local dev, and as a race
-      // under QStash.
+      // federates the Create. Published before the caption write it would
+      // deliver an empty note that nothing ever re-sends.
       deferOneProcessJob()
 
       await importStravaActivityJob(database as unknown as Database, {
@@ -1123,19 +1136,36 @@ describe('importStravaActivityJob', () => {
       expect(publishes).toHaveLength(1)
       expect(publishes[0]).toEqual(PROCESS_JOB)
 
-      const publishOrder = (mockGetQueue().publish as jest.Mock).mock
-        .invocationCallOrder[0]
-      expect(database.updateNote.mock.invocationCallOrder[0]).toBeLessThan(
-        publishOrder
+      expect(database.updateNote.mock.invocationCallOrder.at(-1)).toBeLessThan(
+        getProcessPublishOrder()
       )
-      expect(
-        mockGetStravaActivityPhotos.mock.invocationCallOrder[0]
-      ).toBeLessThan(publishOrder)
     })
 
-    it('still publishes the deferred process job when the Strava photos fail', async () => {
-      // Otherwise a photo-service hiccup strands the file mid-pipeline with no
-      // map and no post — a worse outcome than a post without its photos.
+    it('publishes the deferred process job before downloading the Strava photos', async () => {
+      // The photo downloads are four HTTP fetches plus transcodes against a 30s
+      // job cap with no retries, and by this point the file sits at import
+      // 'completed' / processing 'pending' — a state no retry predicate
+      // matches. A worker killed mid-download after the publish only loses the
+      // photos; before it, the ride is stranded unprocessed forever.
+      deferOneProcessJob()
+
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-federation-publish-before-photos',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: {
+          actorId: 'actor-1',
+          stravaActivityId: '123',
+          publishSendNote: true
+        }
+      })
+
+      expect(getProcessPublishOrder()).toBeLessThan(
+        mockGetStravaActivityPhotos.mock.invocationCallOrder[0]
+      )
+    })
+
+    it('still writes the caption when the Strava photos fail', async () => {
+      // Separate containment: one failure must not swallow the other's work.
       deferOneProcessJob()
       mockGetStravaActivityPhotos.mockRejectedValueOnce(
         new Error('strava photos unavailable')
@@ -1152,6 +1182,63 @@ describe('importStravaActivityJob', () => {
       })
 
       expect(getProcessPublishes()).toHaveLength(1)
+      expect(database.updateNote).toHaveBeenCalledWith(
+        expect.objectContaining({ statusId: 'status-1' })
+      )
+    })
+
+    it('publishes the process job even when the caption write fails', async () => {
+      // processFitnessFileJob backfills the generated summary for an empty
+      // note, so a lost caption degrades the post; a lost process job loses
+      // the map, the stats and the Create with no way back.
+      deferOneProcessJob()
+      database.updateNote.mockRejectedValueOnce(new Error('write conflict'))
+
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-federation-caption-failure',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: {
+          actorId: 'actor-1',
+          stravaActivityId: '123',
+          publishSendNote: true
+        }
+      })
+
+      expect(getProcessPublishes()).toHaveLength(1)
+      expect(mockGetStravaActivityPhotos).toHaveBeenCalled()
+    })
+
+    it('marks the file failed when the deferred process job cannot be published', async () => {
+      // Without this the import is stranded: the status exists and the file
+      // sits at processing 'pending', which no retry predicate matches, so
+      // nothing would ever offer to finish the activity.
+      deferOneProcessJob()
+      ;(mockGetQueue().publish as jest.Mock).mockRejectedValueOnce(
+        'queue exploded'
+      )
+
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-federation-publish-failure',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: {
+          actorId: 'actor-1',
+          stravaActivityId: '123',
+          publishSendNote: true
+        }
+      })
+
+      // A non-Error rejection on purpose: toImportErrorMessage exists so the
+      // reason can never land as NULL and wipe the explanation.
+      expect(database.updateFitnessFileImportStatus).toHaveBeenCalledWith(
+        'new-file',
+        'failed',
+        'queue exploded'
+      )
+      expect(database.updateFitnessFileProcessingStatus).toHaveBeenCalledWith(
+        'new-file',
+        'failed',
+        'queue exploded'
+      )
     })
 
     it('publishes no process job when the import merged the file into an existing post', async () => {

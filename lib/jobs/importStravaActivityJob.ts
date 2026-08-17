@@ -787,12 +787,11 @@ export const importStravaActivityJob = createJobHandle(
       withReplies: false
     })
 
-    // Best effort, and deliberately not fatal: the deferred process job below
-    // is what finishes the import and federates it, so letting a Strava photo
-    // download take the whole job down would strand the file mid-pipeline with
-    // no map and no post content. Degrading here is benign — with no caption
-    // processFitnessFileJob backfills the generated activity summary, so the
-    // Create still describes exactly what the post shows locally.
+    // Best effort, and deliberately not fatal: the process job below is what
+    // finishes the import, so letting a caption write take the whole job down
+    // would strand the file mid-pipeline with no map at all. Degrading here is
+    // benign — processFitnessFileJob backfills the generated activity summary
+    // whenever the text is still empty.
     try {
       if (
         status?.type === StatusType.enum.Note &&
@@ -804,19 +803,9 @@ export const importStravaActivityJob = createJobHandle(
           summary: null
         })
       }
-
-      await attachStravaPhotosToStatus({
-        database,
-        actor,
-        actorId,
-        statusId: importedFitnessFile.statusId,
-        stravaActivityId,
-        accessToken,
-        activity
-      })
     } catch (error) {
       logger.warn({
-        message: 'Failed to attach Strava caption or photos to imported status',
+        message: 'Failed to write the Strava caption to the imported status',
         actorId,
         stravaActivityId,
         statusId: importedFitnessFile.statusId,
@@ -824,8 +813,28 @@ export const importStravaActivityJob = createJobHandle(
       })
     }
 
-    // Held back until the status carries its caption and photos: publishing
-    // this is what triggers processing and, for the webhook, the Create.
+    // Published here, between the caption and the photos, because the two
+    // hazards pull in opposite directions.
+    //
+    // Publishing it inside importFitnessFiles (where the non-deferred callers
+    // still do) is too early: under NoQueue `publish` runs the job inline, so
+    // it would federate the note before the caption above exists — an empty
+    // note that nothing ever re-sends.
+    //
+    // Publishing it after the photos is too late: by now
+    // assignFitnessFilesToImportedStatus has already set the primary file to
+    // importStatus 'completed' / processingStatus 'pending', which NO retry
+    // predicate matches (isFitnessProcessingStuck wants 'processing',
+    // isFitnessImportStuck wants an import-'pending' file with no status). A
+    // worker killed during the photo downloads — four HTTP fetches plus
+    // transcodes, against QStash's 30s cap and zero retries — would leave the
+    // ride permanently unprocessed and unreachable by every retry path.
+    //
+    // The cost is that a photo attached after this point may miss the Create.
+    // Under QStash it almost never does: the process job still has to generate
+    // the route map before it queues SEND_NOTE, and sendNoteJob re-reads the
+    // status at delivery. Under NoQueue the whole chain runs inline right here,
+    // so a dev-mode Create carries the caption and map but not the photos.
     for (const processJob of deferredProcessJobs) {
       try {
         await getQueue().publish(processJob)
@@ -858,6 +867,29 @@ export const importStravaActivityJob = createJobHandle(
           )
         ])
       }
+    }
+
+    // Separately contained from the caption: a photo failure must not skip the
+    // caption, and neither may take down the import now that the file is past
+    // the point where a retry could find it.
+    try {
+      await attachStravaPhotosToStatus({
+        database,
+        actor,
+        actorId,
+        statusId: importedFitnessFile.statusId,
+        stravaActivityId,
+        accessToken,
+        activity
+      })
+    } catch (error) {
+      logger.warn({
+        message: 'Failed to attach Strava photos to imported status',
+        actorId,
+        stravaActivityId,
+        statusId: importedFitnessFile.statusId,
+        err: toLoggableError(error)
+      })
     }
 
     // The notification for this path now fires at the end of

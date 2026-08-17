@@ -915,18 +915,18 @@ describe('importFitnessFilesJob', () => {
 
     it.each([
       {
-        description: 'stays local when the publisher did not opt in',
+        description: 'stays local without an opt-in',
         requested: undefined,
         expected: false
       },
       {
-        description: 'federates when the publisher opted in',
+        description: 'federates on opt-in',
         requested: true,
         expected: true
       }
     ])('$description', async ({ requested, expected }) => {
       const fitnessFileIds = [await createFile(`optin-${String(requested)}`)]
-      stubParse(expected ? 3 : 4)
+      stubParse(3)
 
       await importFitnessFilesJob(database, {
         id: `job-federation-${String(requested)}`,

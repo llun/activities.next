@@ -266,9 +266,11 @@ export interface ImportFitnessFilesOptions {
   deferProcessJobPublishes?: boolean
 }
 
+export type ImportFitnessFilesData = z.input<typeof JobData>
+
 export const importFitnessFiles = async (
   database: Database,
-  data: unknown,
+  data: ImportFitnessFilesData,
   options: ImportFitnessFilesOptions = {}
 ): Promise<ImportedFitnessGroup[]> => {
   const {
@@ -590,6 +592,8 @@ export const importFitnessFiles = async (
 export const importFitnessFilesJob = createJobHandle(
   IMPORT_FITNESS_FILES_JOB_NAME,
   async (database, message) => {
-    await importFitnessFiles(database, message.data)
+    // JobData.parse inside still validates the shape; the cast only restores
+    // compile-time checking for the direct caller, which passes a literal.
+    await importFitnessFiles(database, message.data as ImportFitnessFilesData)
   }
 )
