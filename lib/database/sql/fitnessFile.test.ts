@@ -1300,5 +1300,155 @@ describe('FitnessFileDatabase', () => {
         ).toContain('strava-activity:empty-pending-orphan')
       })
     })
+    describe('getFitnessFilesByActor keyset pagination', () => {
+      // Ascending, cursor-paged reads are what a whole-history scan uses; an
+      // offset cannot survive one, which is the point of these tests.
+      const actorId = 'https://llun.test/users/keyset-scan'
+      const createdAtByPath = new Map<string, number>()
+
+      beforeAll(async () => {
+        await database.createActor({
+          actorId,
+          username: 'keyset-scan',
+          domain: 'llun.test',
+          inboxUrl: `${actorId}/inbox`,
+          outboxUrl: `${actorId}/outbox`,
+          followersUrl: `${actorId}/followers`,
+          sharedInboxUrl: 'https://llun.test/inbox',
+          publicKey: 'public-key-keyset-scan',
+          privateKey: 'private-key-keyset-scan',
+          createdAt: Date.now()
+        })
+
+        for (const index of [1, 2, 3, 4]) {
+          const file = await database.createFitnessFile({
+            actorId,
+            path: `fitness/keyset-${index}.fit`,
+            fileName: `keyset-${index}.fit`,
+            fileType: 'fit',
+            mimeType: 'application/vnd.ant.fit',
+            bytes: 1024
+          })
+          createdAtByPath.set(file!.path, file!.createdAt)
+        }
+      })
+
+      it('defaults to newest first so existing callers are unaffected', async () => {
+        const [newest] = await database.getFitnessFilesByActor({
+          actorId,
+          limit: 1
+        })
+        expect(newest.path).toBe('fitness/keyset-4.fit')
+      })
+
+      it('walks the whole history in ascending order without repeating a row', async () => {
+        const seen: string[] = []
+        let cursor: { createdAt: number; id: string } | undefined
+
+        // Two at a time, exactly how a checkpointing job pages.
+        for (let page = 0; page < 4; page += 1) {
+          const rows = await database.getFitnessFilesByActor({
+            actorId,
+            limit: 2,
+            orderDirection: 'asc',
+            afterCursor: cursor
+          })
+          if (rows.length === 0) break
+          seen.push(...rows.map((row) => row.path))
+          const last = rows[rows.length - 1]
+          cursor = { createdAt: last.createdAt, id: last.id }
+        }
+
+        expect(seen).toEqual([
+          'fitness/keyset-1.fit',
+          'fitness/keyset-2.fit',
+          'fitness/keyset-3.fit',
+          'fitness/keyset-4.fit'
+        ])
+      })
+
+      it('does not skip a row when one behind the cursor is deleted mid-scan', async () => {
+        // The failure an offset cannot avoid, and the reason this cursor
+        // exists. A scan reads its first page, then a row it has already
+        // passed is deleted; every row behind it shifts down one. Resuming at
+        // `offset: 2` would hand back the FOURTH activity and silently drop the
+        // third from the heatmap.
+        const firstPage = await database.getFitnessFilesByActor({
+          actorId,
+          limit: 2,
+          orderDirection: 'asc'
+        })
+        const cursorRow = firstPage[firstPage.length - 1]
+
+        await database.deleteFitnessFile({ id: firstPage[0].id })
+
+        const withCursor = await database.getFitnessFilesByActor({
+          actorId,
+          limit: 2,
+          orderDirection: 'asc',
+          afterCursor: { createdAt: cursorRow.createdAt, id: cursorRow.id }
+        })
+        const withOffset = await database.getFitnessFilesByActor({
+          actorId,
+          limit: 2,
+          offset: 2,
+          orderDirection: 'asc'
+        })
+
+        expect(withCursor.map((row) => row.path)).toEqual([
+          'fitness/keyset-3.fit',
+          'fitness/keyset-4.fit'
+        ])
+        // Pinned as the contrast, not as desired behaviour: the same resume
+        // expressed as an offset loses activity 3.
+        expect(withOffset.map((row) => row.path)).not.toContain(
+          'fitness/keyset-3.fit'
+        )
+      })
+
+      it('separates rows sharing a createdAt by id', async () => {
+        // Imports write a batch in one go, so identical createdAt values are
+        // ordinary; without the id tiebreak a page boundary landing inside
+        // such a group would skip or repeat its rows.
+        const rows = await database.getFitnessFilesByActor({
+          actorId,
+          orderDirection: 'asc',
+          limit: 100
+        })
+        const sameTime = rows.filter(
+          (row) => row.createdAt === rows[0].createdAt
+        )
+        if (sameTime.length > 1) {
+          const ids = sameTime.map((row) => row.id)
+          expect([...ids].sort()).toEqual(ids)
+        }
+
+        const afterFirst = await database.getFitnessFilesByActor({
+          actorId,
+          orderDirection: 'asc',
+          limit: 100,
+          afterCursor: { createdAt: rows[0].createdAt, id: rows[0].id }
+        })
+        expect(afterFirst.map((row) => row.id)).not.toContain(rows[0].id)
+        expect(afterFirst).toHaveLength(rows.length - 1)
+      })
+
+      it('ignores a cursor on a descending read', async () => {
+        const rows = await database.getFitnessFilesByActor({
+          actorId,
+          orderDirection: 'desc',
+          limit: 100
+        })
+        const withCursor = await database.getFitnessFilesByActor({
+          actorId,
+          orderDirection: 'desc',
+          limit: 100,
+          afterCursor: { createdAt: rows[0].createdAt, id: rows[0].id }
+        })
+        expect(withCursor.map((row) => row.id)).toEqual(
+          rows.map((row) => row.id)
+        )
+      })
+    })
   })
 })
