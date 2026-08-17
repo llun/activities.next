@@ -795,15 +795,32 @@ export const processFitnessFileJob = createJobHandle(
         })
       }
 
+      // Contained like notifyActivityImported above, and for a sharper reason:
+      // the activity is fully processed and already persisted as `completed` by
+      // this point, so letting a federation failure reach the outer catch would
+      // rewrite it to `failed` — hiding a perfectly good ride from the detail
+      // dashboard, the stat grid, the overview and every rollup because the
+      // Create could not be queued. Under NoQueue this publish runs sendNoteJob
+      // inline, so it covers delivery errors too.
       if (publishSendNote) {
-        await getQueue().publish({
-          id: getHashFromString(`${statusId}:send-note`),
-          name: SEND_NOTE_JOB_NAME,
-          data: {
+        try {
+          await getQueue().publish({
+            id: getHashFromString(`${statusId}:send-note`),
+            name: SEND_NOTE_JOB_NAME,
+            data: {
+              actorId,
+              statusId
+            }
+          })
+        } catch (error) {
+          logger.error({
+            message: 'Failed to queue the Create for a processed fitness file',
             actorId,
-            statusId
-          }
-        })
+            statusId,
+            fitnessFileId,
+            err: toLoggableError(error)
+          })
+        }
       }
 
       // A replaced map is deliberately NOT federated from here. Whether the

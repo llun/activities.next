@@ -173,6 +173,9 @@ describe('retryFitnessImportBatch', () => {
     // Strava retries re-derive visibility server-side, so it must be omitted.
     const job = (getQueue().publish as jest.Mock).mock.calls[0][0]
     expect(job.data).not.toHaveProperty('visibility')
+    // A retry sweep runs over every failed batch an actor has. Opting it into
+    // federation would deliver a Create per recovered activity.
+    expect(job.data).not.toHaveProperty('publishSendNote')
   })
 
   it('requeues the file importer with completed overlap context for non-Strava batches', async () => {
@@ -211,6 +214,9 @@ describe('retryFitnessImportBatch', () => {
         })
       })
     )
+    // Same as the Strava branch: a recovery sweep must stay local-only.
+    const job = (getQueue().publish as jest.Mock).mock.calls[0][0]
+    expect(job.data).not.toHaveProperty('publishSendNote')
   })
 
   it('retries a stuck-processing file by resetting it to pending', async () => {
