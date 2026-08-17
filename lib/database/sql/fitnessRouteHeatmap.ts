@@ -274,6 +274,35 @@ const parseSQLFitnessRouteHeatmapSummary = (
   deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
 })
 
+/**
+ * Every column of a heatmap row except the two payload blobs, `bounds` and
+ * `segments`. A summary read must name them explicitly: `segments` holds the
+ * entire heatmap, so selecting it to answer a question about status or
+ * progress reads megabytes to use none of them.
+ */
+const SUMMARY_COLUMNS = [
+  'id',
+  'actorId',
+  'activityType',
+  'activityTypeKey',
+  'periodType',
+  'periodKey',
+  'region',
+  'periodStart',
+  'periodEnd',
+  'status',
+  'error',
+  'activityCount',
+  'pointCount',
+  'totalCount',
+  'cursorOffset',
+  'isPartial',
+  'shareToken',
+  'createdAt',
+  'updatedAt',
+  'deletedAt'
+] as const
+
 const getActivityTypeKey = (activityType?: string | null) => activityType ?? ''
 
 /**
@@ -457,8 +486,12 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
   async getFitnessRouteHeatmapSubscribers({ actorId }: { actorId: string }) {
     const rows = await applyPyramidSubscriberFilter(
       database<SQLFitnessRouteHeatmap>('fitness_route_heatmaps')
+        .where('actorId', actorId)
+        // Summary columns only. A build calls this on every checkpoint, and
+        // `segments` is the whole heatmap payload — selecting it here would
+        // drag megabytes off disk each time just to count who is waiting.
+        .select(SUMMARY_COLUMNS)
     )
-      .where('actorId', actorId)
       .orderBy('createdAt', 'asc')
       .orderBy('id', 'asc')
 
@@ -513,28 +546,7 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
       database<SQLFitnessRouteHeatmap>('fitness_route_heatmaps')
         .where('actorId', actorId)
         .whereNull('deletedAt')
-        .select(
-          'id',
-          'actorId',
-          'activityType',
-          'activityTypeKey',
-          'periodType',
-          'periodKey',
-          'region',
-          'periodStart',
-          'periodEnd',
-          'status',
-          'error',
-          'activityCount',
-          'pointCount',
-          'totalCount',
-          'cursorOffset',
-          'isPartial',
-          'shareToken',
-          'createdAt',
-          'updatedAt',
-          'deletedAt'
-        ),
+        .select(SUMMARY_COLUMNS),
       { activityType, periodType, region }
     )
 
