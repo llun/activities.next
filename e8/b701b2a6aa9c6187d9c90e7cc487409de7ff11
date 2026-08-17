@@ -1,0 +1,29 @@
+lib/jobs/importStravaActivityJob.ts
+  s_7174b79467d11f::t_49cc26bf484eb0 902,911-930
+  s_7174b79467d11f::t_a627cf96b70245 543-556
+  s_7174b79467d11f::t_8e597abe0d2cd0 782
+  s_7174b79467d11f::t_fdefc447debe6b 19-20
+  s_7174b79467d11f::t_777247fef6999d 460-471
+  s_7174b79467d11f::t_fc0a3b1b6d42b5 219-220,233,324,335-336
+lib/jobs/importStravaActivityJob.test.ts
+  s_7174b79467d11f::t_f74e393e824df6 1279-1374
+  s_7174b79467d11f::t_f7039db3a5fcff 613-614
+  s_7174b79467d11f::t_d6f90a1bba79db 10-11
+  s_7174b79467d11f::t_b3302fba051881 637-638,644-673,757-758
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "e8b701b2a6aa9c6187d9c90e7cc487409de7ff11",
+  "prompts": {},
+  "sessions": {
+    "s_7174b79467d11f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "37ee5c81-fd21-44a5-b3bc-d244486761d0",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
