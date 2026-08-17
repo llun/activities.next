@@ -482,6 +482,7 @@ CREATE TABLE public.fitness_route_heatmap_pyramids (
     status character varying(255) DEFAULT 'idle'::character varying NOT NULL,
     error text,
     version integer DEFAULT 0 NOT NULL,
+    "claimSeq" integer DEFAULT 0 NOT NULL,
     "totalCount" integer DEFAULT 0 NOT NULL,
     "scannedCount" integer DEFAULT 0 NOT NULL,
     "activityCount" integer DEFAULT 0 NOT NULL,

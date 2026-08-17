@@ -1,6 +1,7 @@
 import {
   databaseBeforeAll,
-  getTestDatabaseTable
+  getTestDatabaseTable,
+  getTestSQLDatabaseWithInstance
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
@@ -184,35 +185,78 @@ describe('FitnessFileRouteDatabase', () => {
         ).toEqual([])
       })
 
-      it('reads more ids than SQLite allows bound variables in one statement', async () => {
-        // SQLite caps a statement at 999 bind variables, so the read chunks.
-        // Seeding 1200 activities would dominate the suite's runtime, so this
-        // asks for 1200 ids of which only a handful exist: the chunking is what
-        // is under test, not the rows.
-        const fitnessFileId = await createActivity(database, {
-          actorId: actors.primary.id,
-          pathSuffix: 'chunked'
-        })
-        await database.upsertFitnessFileRoute({
-          fitnessFileId,
-          actorId: actors.primary.id,
-          points: [
-            [5, 5],
-            [6, 6]
-          ],
-          sourceVersion: 1
-        })
+      it('splits an oversized id list into several statements', async () => {
+        // Asserted on the statements actually issued, because a result-shape
+        // assertion cannot see this: better-sqlite3 is built with a
+        // SQLITE_MAX_VARIABLE_NUMBER far above the project's conservative
+        // 999-binding floor, so an unchunked query of this size still succeeds
+        // HERE and would only fail on a stricter build or another backend
+        // (PostgreSQL caps parameters at 65535). Needs the raw knex instance
+        // for its query event, so it builds its own database rather than using
+        // the shared one; no rows are required, only the statements.
+        const { database: isolated, instance } =
+          getTestSQLDatabaseWithInstance()
+        await isolated.migrate()
+        try {
+          const statements: string[] = []
+          instance.on('query', ({ sql }: { sql: string }) => {
+            if (sql.includes('fitness_file_routes')) statements.push(sql)
+          })
 
-        const padding = Array.from(
-          { length: 1_200 },
-          (_unused, index) => `absent-${index}`
-        )
+          await isolated.getFitnessFileRoutes({
+            fitnessFileIds: Array.from(
+              { length: 2_500 },
+              (_unused, index) => `absent-${index}`
+            )
+          })
+
+          // ceil(2500 / 999)
+          expect(statements).toHaveLength(3)
+        } finally {
+          await isolated.destroy()
+        }
+      })
+
+      it('assembles results from every chunk of an oversized id list', async () => {
+        // The companion to the statement-count test above: with real rows
+        // placed in the first, second and last chunk, a request this long
+        // returns all three only if every chunk's rows are collected.
+        const chunkSize = 999
+        const ids: string[] = []
+        for (const suffix of ['chunk-a', 'chunk-b', 'chunk-c']) {
+          const fitnessFileId = await createActivity(database, {
+            actorId: actors.primary.id,
+            pathSuffix: suffix
+          })
+          await database.upsertFitnessFileRoute({
+            fitnessFileId,
+            actorId: actors.primary.id,
+            points: [
+              [5, 5],
+              [6, 6]
+            ],
+            sourceVersion: 1
+          })
+          ids.push(fitnessFileId)
+        }
+
+        const padding = (count: number, tag: string) =>
+          Array.from({ length: count }, (_unused, index) => `${tag}-${index}`)
+        const request = [
+          ids[0],
+          ...padding(chunkSize - 1, 'a'),
+          ids[1],
+          ...padding(chunkSize - 1, 'b'),
+          ids[2]
+        ]
+        expect(request).toHaveLength(chunkSize * 2 + 1)
+
         const routes = await database.getFitnessFileRoutes({
-          fitnessFileIds: [...padding, fitnessFileId]
+          fitnessFileIds: request
         })
-        expect(routes.map((route) => route.fitnessFileId)).toEqual([
-          fitnessFileId
-        ])
+        expect(routes.map((route) => route.fitnessFileId).sort()).toEqual(
+          [...ids].sort()
+        )
       })
     })
 

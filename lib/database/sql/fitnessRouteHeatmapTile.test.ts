@@ -1,6 +1,7 @@
 import {
   databaseBeforeAll,
-  getTestDatabaseTable
+  getTestDatabaseTable,
+  getTestSQLDatabaseWithInstance
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 
@@ -100,7 +101,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         })
         await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          version: first.pyramid.version,
+          claimSeq: first.pyramid.claimSeq,
           cursor: { createdAt: 1_700_000_000_000, id: 'activity-42' },
           scannedCount: 17
         })
@@ -154,7 +155,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         const completedAt = Date.now()
         await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          version: claim.pyramid.version,
+          claimSeq: claim.pyramid.claimSeq,
           status: 'completed',
           completedAt
         })
@@ -181,7 +182,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         const completedAt = Date.now()
         await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          version: claim.pyramid.version,
+          claimSeq: claim.pyramid.claimSeq,
           status: 'completed',
           completedAt
         })
@@ -198,6 +199,54 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
       })
 
       it.each([
+        {
+          description: 'a fresh build',
+          seedCursor: false
+        },
+        {
+          description: 'a resumable build',
+          seedCursor: true
+        }
+      ])(
+        'lets exactly one of two concurrent claimers win over $description',
+        async ({ seedCursor }) => {
+          // The compare-and-swap itself. Both claimers read before either
+          // writes, so only the guard can separate them; the resumable row is
+          // the case that used to hand BOTH workers the build, because a resume
+          // leaves `version` untouched.
+          const actorId = await createActor(database)
+          if (seedCursor) {
+            const seeding = await database.claimFitnessRouteHeatmapPyramidBuild(
+              {
+                actorId,
+                requestedAt: Date.now(),
+                staleBefore: Date.now() - 120_000
+              }
+            )
+            await database.updateFitnessRouteHeatmapPyramid({
+              actorId,
+              claimSeq: seeding.pyramid.claimSeq,
+              cursor: { createdAt: 1_700_000_000_000, id: 'activity-9' }
+            })
+          }
+
+          const contest = () =>
+            database.claimFitnessRouteHeatmapPyramidBuild({
+              actorId,
+              requestedAt: Date.now(),
+              // Far future, so an existing build always looks abandoned and
+              // neither claimer is turned away as 'build-in-progress'.
+              staleBefore: Date.now() + 60_000
+            })
+          const [a, b] = await Promise.all([contest(), contest()])
+
+          expect([a.claimed, b.claimed].filter(Boolean)).toHaveLength(1)
+          const loser = a.claimed ? b : a
+          expect(loser.reason).toBe('lost-race')
+        }
+      )
+
+      it.each([
         { description: 'a failed build', status: 'failed' as const },
         { description: 'a cancelled build', status: 'cancelled' as const }
       ])('claims a fresh version over $description', async ({ status }) => {
@@ -209,7 +258,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         })
         await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          version: claim.pyramid.version,
+          claimSeq: claim.pyramid.claimSeq,
           status
         })
 
@@ -235,7 +284,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
         const applied = await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          version: claim.pyramid.version,
+          claimSeq: claim.pyramid.claimSeq,
           totalCount: 200,
           scannedCount: 100,
           activityCount: 90,
@@ -275,7 +324,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
         const applied = await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          version: first.pyramid.version,
+          claimSeq: first.pyramid.claimSeq,
           scannedCount: 999
         })
 
@@ -284,6 +333,56 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           actorId
         })
         expect(pyramid?.scannedCount).toBe(0)
+      })
+
+      it('fences a presumed-dead pass whose build was RESUMED by another worker', async () => {
+        // The case a version-guarded write cannot catch: a resume keeps the
+        // build's version, so only the separate claim token distinguishes the
+        // new owner from the pass it took over. Without it the zombie's write
+        // lands, rewinding the cursor and marking a half-built pyramid
+        // 'completed' — after which every later claim sees it as already fresh.
+        const actorId = await createActor(database)
+        const dying = await database.claimFitnessRouteHeatmapPyramidBuild({
+          actorId,
+          requestedAt: Date.now(),
+          staleBefore: Date.now() - 120_000
+        })
+        await database.updateFitnessRouteHeatmapPyramid({
+          actorId,
+          claimSeq: dying.pyramid.claimSeq,
+          cursor: { createdAt: 1_700_000_000_000, id: 'activity-50' },
+          scannedCount: 50
+        })
+
+        const reclaimer = await database.claimFitnessRouteHeatmapPyramidBuild({
+          actorId,
+          requestedAt: Date.now(),
+          staleBefore: Date.now() + 60_000
+        })
+        expect(reclaimer.resumed).toBe(true)
+        // Same tile generation, so the interrupted pass's tiles survive...
+        expect(reclaimer.pyramid.version).toBe(dying.pyramid.version)
+        // ...but a new owner.
+        expect(reclaimer.pyramid.claimSeq).toBe(dying.pyramid.claimSeq + 1)
+
+        const zombieWrite = await database.updateFitnessRouteHeatmapPyramid({
+          actorId,
+          claimSeq: dying.pyramid.claimSeq,
+          status: 'completed',
+          completedAt: Date.now(),
+          cursor: { createdAt: 1_600_000_000_000, id: 'activity-10' }
+        })
+
+        expect(zombieWrite).toBe(false)
+        const pyramid = await database.getFitnessRouteHeatmapPyramid({
+          actorId
+        })
+        expect(pyramid?.status).toBe('generating')
+        expect(pyramid?.completedAt).toBeUndefined()
+        expect(pyramid?.cursor).toEqual({
+          createdAt: 1_700_000_000_000,
+          id: 'activity-50'
+        })
       })
 
       it('clears the cursor when passed null', async () => {
@@ -295,13 +394,13 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         })
         await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          version: claim.pyramid.version,
+          claimSeq: claim.pyramid.claimSeq,
           cursor: { createdAt: 1_700_000_000_000, id: 'activity-7' }
         })
 
         await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          version: claim.pyramid.version,
+          claimSeq: claim.pyramid.claimSeq,
           cursor: null
         })
 
@@ -405,23 +504,70 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         expect(total).toBe(500)
       })
 
-      it('reads more keys than SQLite allows bound variables in one statement', async () => {
+      it('splits an oversized key list into several statements', async () => {
+        // Asserted on the statements issued rather than the rows returned:
+        // better-sqlite3 accepts far more bindings than the project's
+        // conservative 999 floor, so an unchunked query of this size still
+        // succeeds here and would only fail on another backend. Uses its own
+        // database for the raw knex query event.
+        const { database: isolated, instance } =
+          getTestSQLDatabaseWithInstance()
+        await isolated.migrate()
+        try {
+          const statements: string[] = []
+          instance.on('query', ({ sql }: { sql: string }) => {
+            if (sql.includes('fitness_route_heatmap_tiles'))
+              statements.push(sql)
+          })
+
+          await isolated.getFitnessRouteHeatmapTilesByKeys({
+            actorId: 'https://llun.test/users/absent',
+            tileKeys: Array.from(
+              { length: 2_500 },
+              (_unused, index) => `16:${index}:0`
+            )
+          })
+
+          // ceil(2500 / 998), the chunk size being 999 less one binding for
+          // actorId.
+          expect(statements).toHaveLength(3)
+        } finally {
+          await isolated.destroy()
+        }
+      })
+
+      it('assembles results from every chunk of an oversized key list', async () => {
+        // The companion to the statement-count test above: real keys sit in
+        // the first, second and last chunk, so all three come back only if
+        // every chunk's rows are collected.
+        const chunkSize = 998
         const actorId = await createActor(database)
+        const keys = ['10:1:1', '10:2:2', '10:3:3']
         await database.upsertFitnessRouteHeatmapTiles({
           actorId,
           version: 1,
-          tiles: [tile('10:1:1', 3)]
+          tiles: keys.map((key) => tile(key, 3))
         })
 
-        const padding = Array.from(
-          { length: 1_200 },
-          (_unused, index) => `10:${index + 100}:9`
-        )
+        const padding = (count: number, band: number) =>
+          Array.from(
+            { length: count },
+            (_unused, index) => `10:${index}:${band}`
+          )
+        const request = [
+          keys[0],
+          ...padding(chunkSize - 1, 91),
+          keys[1],
+          ...padding(chunkSize - 1, 92),
+          keys[2]
+        ]
+        expect(request).toHaveLength(chunkSize * 2 + 1)
+
         const tiles = await database.getFitnessRouteHeatmapTilesByKeys({
           actorId,
-          tileKeys: [...padding, '10:1:1']
+          tileKeys: request
         })
-        expect(tiles.map((row) => row.tileKey)).toEqual(['10:1:1'])
+        expect(tiles.map((row) => row.tileKey).sort()).toEqual([...keys].sort())
       })
 
       it('does nothing for an empty flush or an empty key list', async () => {

@@ -19,6 +19,7 @@ export interface SQLFitnessRouteHeatmapPyramid {
   status: string
   error: string | null
   version: number
+  claimSeq: number
   totalCount: number
   scannedCount: number
   activityCount: number
@@ -37,11 +38,19 @@ export interface FitnessRouteHeatmapPyramid {
   status: FitnessRouteHeatmapPyramidStatus
   error?: string
   /**
-   * Monotonic build counter. Every tile records the version that wrote it, so
-   * a resumed pass adds to its own tiles while a fresh build replaces them,
-   * and completion sweeps whatever an older version left behind.
+   * Monotonic tile-generation counter. Every tile records the version that
+   * wrote it, so a resumed pass adds to its own tiles while a fresh build
+   * replaces them, and completion sweeps whatever an older version left
+   * behind.
    */
   version: number
+  /**
+   * Monotonic ownership token, bumped by every successful claim — including a
+   * resume, which by design leaves `version` alone. Whoever holds the current
+   * value owns the build; every write passes it back so a superseded pass is
+   * rejected instead of overwriting its successor's progress.
+   */
+  claimSeq: number
   totalCount: number
   scannedCount: number
   activityCount: number

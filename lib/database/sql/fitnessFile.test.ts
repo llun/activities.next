@@ -1406,31 +1406,72 @@ describe('FitnessFileDatabase', () => {
         )
       })
 
-      it('separates rows sharing a createdAt by id', async () => {
-        // Imports write a batch in one go, so identical createdAt values are
-        // ordinary; without the id tiebreak a page boundary landing inside
-        // such a group would skip or repeat its rows.
-        const rows = await database.getFitnessFilesByActor({
-          actorId,
+      it('pages through rows sharing a createdAt without skipping or repeating one', async () => {
+        // An import writes a batch in one go, so a group of activities sharing
+        // a createdAt to the millisecond is ordinary rather than exotic. The
+        // clock is frozen to force that collision: left to real time these
+        // inserts land a few milliseconds apart and the tiebreak never gets
+        // exercised. Without it, a page boundary inside the group would skip a
+        // row or serve it twice.
+        const collisionActorId = 'https://llun.test/users/keyset-collision'
+        await database.createActor({
+          actorId: collisionActorId,
+          username: 'keyset-collision',
+          domain: 'llun.test',
+          inboxUrl: `${collisionActorId}/inbox`,
+          outboxUrl: `${collisionActorId}/outbox`,
+          followersUrl: `${collisionActorId}/followers`,
+          sharedInboxUrl: 'https://llun.test/inbox',
+          publicKey: 'public-key-keyset-collision',
+          privateKey: 'private-key-keyset-collision',
+          createdAt: Date.now()
+        })
+
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date('2031-05-05T00:00:00.000Z'))
+        try {
+          for (const index of [1, 2, 3]) {
+            await database.createFitnessFile({
+              actorId: collisionActorId,
+              path: `fitness/keyset-collision-${index}.fit`,
+              fileName: `keyset-collision-${index}.fit`,
+              fileType: 'fit',
+              mimeType: 'application/vnd.ant.fit',
+              bytes: 1024
+            })
+          }
+        } finally {
+          vi.useRealTimers()
+        }
+
+        const all = await database.getFitnessFilesByActor({
+          actorId: collisionActorId,
           orderDirection: 'asc',
           limit: 100
         })
-        const sameTime = rows.filter(
-          (row) => row.createdAt === rows[0].createdAt
+        expect(all).toHaveLength(3)
+        // The collision the rest of this test depends on.
+        expect(new Set(all.map((row) => row.createdAt)).size).toBe(1)
+        expect(all.map((row) => row.id)).toEqual(
+          [...all.map((r) => r.id)].sort()
         )
-        if (sameTime.length > 1) {
-          const ids = sameTime.map((row) => row.id)
-          expect([...ids].sort()).toEqual(ids)
+
+        // One row at a time, so every page boundary falls inside the group.
+        const seen: string[] = []
+        let cursor: { createdAt: number; id: string } | undefined
+        for (let page = 0; page < 4; page += 1) {
+          const rows = await database.getFitnessFilesByActor({
+            actorId: collisionActorId,
+            limit: 1,
+            orderDirection: 'asc',
+            afterCursor: cursor
+          })
+          if (rows.length === 0) break
+          seen.push(rows[0].id)
+          cursor = { createdAt: rows[0].createdAt, id: rows[0].id }
         }
 
-        const afterFirst = await database.getFitnessFilesByActor({
-          actorId,
-          orderDirection: 'asc',
-          limit: 100,
-          afterCursor: { createdAt: rows[0].createdAt, id: rows[0].id }
-        })
-        expect(afterFirst.map((row) => row.id)).not.toContain(rows[0].id)
-        expect(afterFirst).toHaveLength(rows.length - 1)
+        expect(seen).toEqual(all.map((row) => row.id))
       })
 
       it('ignores a cursor on a descending read', async () => {

@@ -105,13 +105,20 @@ export const up = async function (knex) {
           .onDelete('CASCADE')
         table.string('status').notNullable().defaultTo('idle')
         table.text('error').nullable()
-        // Monotonic build counter, and the mechanism that makes an incremental
-        // build safe to interrupt. Every tile records the version that wrote
-        // it, so a resumed pass adds to its own tiles while a fresh build
-        // replaces them, and completion sweeps whatever an older version left
-        // behind — which is how activities deleted since the last build
+        // Monotonic TILE GENERATION counter. Every tile records the version
+        // that wrote it, so a resumed pass adds to its own tiles while a fresh
+        // build replaces them, and completion sweeps whatever an older version
+        // left behind — which is how activities deleted since the last build
         // disappear without any per-activity bookkeeping.
         table.integer('version').notNullable().defaultTo(0)
+        // Monotonic OWNERSHIP counter, bumped by every successful claim. This
+        // is deliberately not `version`: a resumed build must keep its version
+        // (or completion would sweep the very tiles the interrupted pass
+        // already wrote), so version cannot also identify the owner. Guarding
+        // the claim and every subsequent write on this instead is what stops
+        // two workers resuming the same abandoned build, and what fences a
+        // presumed-dead pass that wakes up after another worker took over.
+        table.integer('claimSeq').notNullable().defaultTo(0)
         table.integer('totalCount').notNullable().defaultTo(0)
         table.integer('scannedCount').notNullable().defaultTo(0)
         table.integer('activityCount').notNullable().defaultTo(0)

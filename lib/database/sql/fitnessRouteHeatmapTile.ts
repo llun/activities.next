@@ -37,12 +37,16 @@ export interface ClaimFitnessRouteHeatmapPyramidBuildParams {
 export interface UpdateFitnessRouteHeatmapPyramidParams {
   actorId: string
   /**
-   * The build version the caller believes it owns. Every write is guarded on
-   * it, so a pass that was superseded — by a fresh claim, or by a reclaim after
-   * it was presumed dead — silently writes nothing instead of corrupting the
-   * new build's progress.
+   * The ownership token this pass was handed by its claim
+   * (`pyramid.claimSeq`). Every write is guarded on it, so a pass that was
+   * superseded — by a fresh claim, or by a reclaim after it was presumed dead
+   * — silently writes nothing instead of corrupting its successor's progress.
+   *
+   * Guarded on the claim token and not on `version` because a resumed build
+   * deliberately keeps its version, which would leave exactly the
+   * reclaim-after-presumed-dead case unfenced.
    */
-  version: number
+  claimSeq: number
   status?: FitnessRouteHeatmapPyramidStatus
   error?: string | null
   cursor?: FitnessRouteHeatmapPyramidCursor | null
@@ -83,19 +87,24 @@ export interface FitnessRouteHeatmapTileDatabase {
   /**
    * Takes ownership of an actor's pyramid build, creating the row on first use.
    *
-   * Ownership is decided by a compare-and-swap on `version`: the row is read,
-   * then updated only if its version has not moved since. A caller that loses
-   * that race is told so rather than proceeding to write tiles the winner would
-   * have to reconcile. See `FitnessRouteHeatmapPyramidClaimReason` for the
-   * outcomes.
+   * Ownership is decided by a compare-and-swap on `claimSeq`: the row is read,
+   * then updated only if that token has not moved since, and the update bumps
+   * it. A caller that loses the race is told so rather than proceeding to write
+   * tiles the winner would have to reconcile. See
+   * `FitnessRouteHeatmapPyramidClaimReason` for the outcomes.
+   *
+   * The token is separate from `version` because the two answer different
+   * questions and a resume needs them to diverge: it must keep its version, so
+   * that completion's stale sweep spares the tiles the interrupted pass already
+   * wrote, which leaves version unable to also mark the change of owner.
    */
   claimFitnessRouteHeatmapPyramidBuild(
     params: ClaimFitnessRouteHeatmapPyramidBuildParams
   ): Promise<FitnessRouteHeatmapPyramidClaim>
   /**
-   * Applies a progress, cursor or terminal-status write, guarded on the build
-   * version. Returns false when the guard rejected it, which is the signal that
-   * this pass no longer owns the build and should stop.
+   * Applies a progress, cursor or terminal-status write, guarded on the
+   * claim token. Returns false when the guard rejected it, which is the signal
+   * that this pass no longer owns the build and should stop.
    *
    * Every call also refreshes `updatedAt`, so a running build heartbeats simply
    * by checkpointing — there is no separate keepalive to forget.
@@ -146,6 +155,7 @@ const parseSQLFitnessRouteHeatmapPyramid = (
   status: row.status as FitnessRouteHeatmapPyramidStatus,
   error: row.error ?? undefined,
   version: Number(row.version ?? 0),
+  claimSeq: Number(row.claimSeq ?? 0),
   totalCount: Number(row.totalCount ?? 0),
   scannedCount: Number(row.scannedCount ?? 0),
   activityCount: Number(row.activityCount ?? 0),
@@ -224,6 +234,7 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
         status: 'idle',
         error: null,
         version: 0,
+        claimSeq: 0,
         totalCount: 0,
         scannedCount: 0,
         activityCount: 0,
@@ -279,28 +290,31 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
 
     const claimedRows = await database('fitness_route_heatmap_pyramids')
       .where('actorId', actorId)
-      // The compare-and-swap: if another worker claimed between the read above
-      // and this write, the version has moved and this updates nothing.
-      .where('version', pyramid.version)
-      .update(
-        resumed
-          ? {
-              status: 'generating',
-              error: null,
-              updatedAt: currentTime
-            }
+      // The compare-and-swap. Guarded on the ownership token, which BOTH
+      // branches below move — guarding on `version` would be vacuous for a
+      // resume, which leaves the version where it is, so two workers reclaiming
+      // the same abandoned build would both be told they own it.
+      .where('claimSeq', pyramid.claimSeq)
+      .update({
+        status: 'generating',
+        error: null,
+        claimSeq: pyramid.claimSeq + 1,
+        updatedAt: currentTime,
+        // A fresh build restarts the tile generation and this run's progress.
+        // `totalCount`, `tileCount` and `pointCount` are deliberately left:
+        // they describe the tiles still on disk, which stay readable until this
+        // build's own numbers replace them at completion.
+        ...(resumed
+          ? {}
           : {
-              status: 'generating',
-              error: null,
               version: nextVersion,
               scannedCount: 0,
               activityCount: 0,
               cursorCreatedAt: null,
               cursorId: null,
-              completedAt: null,
-              updatedAt: currentTime
-            }
-      )
+              completedAt: null
+            })
+      })
 
     if (claimedRows === 0) {
       const current = await readPyramidRow(database, actorId)
@@ -323,7 +337,7 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
 
   async updateFitnessRouteHeatmapPyramid({
     actorId,
-    version,
+    claimSeq,
     status,
     error,
     cursor,
@@ -355,7 +369,7 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
 
     const updated = await database('fitness_route_heatmap_pyramids')
       .where('actorId', actorId)
-      .where('version', version)
+      .where('claimSeq', claimSeq)
       .update(updateData)
 
     return updated > 0

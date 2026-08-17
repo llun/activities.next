@@ -898,6 +898,42 @@ describe('FitnessRouteHeatmapDatabase', () => {
         expect(subscribers.map((row) => row.id)).not.toContain(heatmap.id)
       })
 
+      it('excludes a soft-deleted run and never mirrors progress onto it', async () => {
+        const actorId = actors.primary.id
+        const removed = await database.createFitnessRouteHeatmap({
+          ...subscriberScope,
+          actorId,
+          region: 'rect:7.00,7.00,6.00,8.00'
+        })
+        await database.deleteFitnessRouteHeatmap({ actorId, id: removed.id })
+        const live = await database.createFitnessRouteHeatmap({
+          ...subscriberScope,
+          actorId,
+          region: 'rect:7.00,9.00,6.00,10.00'
+        })
+
+        const subscribers = await database.getFitnessRouteHeatmapSubscribers({
+          actorId
+        })
+        expect(subscribers.map((row) => row.id)).toContain(live.id)
+        expect(subscribers.map((row) => row.id)).not.toContain(removed.id)
+
+        const mirrored =
+          await database.mirrorFitnessRouteHeatmapGenerationProgress({
+            actorId,
+            totalCount: 99,
+            cursorOffset: 33
+          })
+
+        // The deleted row cannot be read back to check it directly, so the
+        // count is the assertion: the mirror touched the live subscribers and
+        // nothing besides.
+        expect(mirrored).toBe(subscribers.length)
+        expect(
+          (await database.getFitnessRouteHeatmap({ id: live.id }))?.totalCount
+        ).toBe(99)
+      })
+
       it('mirrors build progress onto every subscriber at once', async () => {
         const actorId = actors.empty.id
         const first = await database.createFitnessRouteHeatmap({
