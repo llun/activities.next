@@ -1,13 +1,14 @@
 import { lookup } from 'node:dns/promises'
 
 import { Database } from '@/lib/database/types'
-import { importFitnessFilesJob } from '@/lib/jobs/importFitnessFilesJob'
+import { importFitnessFiles } from '@/lib/jobs/importFitnessFilesJob'
 import { importStravaActivityJob } from '@/lib/jobs/importStravaActivityJob'
 import {
-  IMPORT_FITNESS_FILES_JOB_NAME,
   IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+  PROCESS_FITNESS_FILE_JOB_NAME,
   REGENERATE_FITNESS_MAPS_JOB_NAME,
-  SEND_NOTE_JOB_NAME
+  SEND_NOTE_JOB_NAME,
+  SEND_UPDATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { saveFitnessFile } from '@/lib/services/fitness-files'
 import { saveMedia } from '@/lib/services/medias/index'
@@ -22,6 +23,7 @@ import {
 } from '@/lib/services/strava/activity'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { logger } from '@/lib/utils/logger'
 
 vi.mock('node:dns/promises', async () => ({
   lookup: vi.fn()
@@ -36,7 +38,7 @@ vi.mock('@/lib/services/medias/index', async () => ({
 }))
 
 vi.mock('@/lib/jobs/importFitnessFilesJob', async () => ({
-  importFitnessFilesJob: vi.fn()
+  importFitnessFiles: vi.fn()
 }))
 
 vi.mock('@/lib/services/strava/activity', async () => {
@@ -62,6 +64,14 @@ vi.mock('@/lib/services/timelines', async () => ({
   addStatusToTimelines: vi.fn().mockResolvedValue(undefined)
 }))
 
+vi.mock('@/lib/utils/logger', () => ({
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn()
+  }
+}))
+
 const mockSaveFitnessFile = saveFitnessFile as jest.MockedFunction<
   typeof saveFitnessFile
 >
@@ -72,8 +82,8 @@ vi.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
     mockSendNotificationAlerts(...args)
 }))
 
-const mockImportFitnessFilesJob = importFitnessFilesJob as jest.MockedFunction<
-  typeof importFitnessFilesJob
+const mockImportFitnessFiles = importFitnessFiles as jest.MockedFunction<
+  typeof importFitnessFiles
 >
 const mockGetStravaActivity = getStravaActivity as jest.MockedFunction<
   typeof getStravaActivity
@@ -123,6 +133,8 @@ type MockDatabase = Pick<
   | 'createFitnessGear'
   | 'assignFitnessFileGearIfUnset'
   | 'findFitnessGearByDeviceKey'
+  | 'updateFitnessFileImportStatus'
+  | 'updateFitnessFileProcessingStatus'
 >
 
 describe('importStravaActivityJob', () => {
@@ -149,7 +161,9 @@ describe('importStravaActivityJob', () => {
     releaseImportLock: vi.fn().mockResolvedValue(true),
     createFitnessGear: vi.fn(),
     assignFitnessFileGearIfUnset: vi.fn(),
-    findFitnessGearByDeviceKey: vi.fn()
+    findFitnessGearByDeviceKey: vi.fn(),
+    updateFitnessFileImportStatus: vi.fn(),
+    updateFitnessFileProcessingStatus: vi.fn()
   }
 
   beforeEach(() => {
@@ -271,7 +285,7 @@ describe('importStravaActivityJob', () => {
       fileName: 'strava-123.gpx',
       size: 42
     })
-    mockImportFitnessFilesJob.mockResolvedValue(undefined)
+    mockImportFitnessFiles.mockResolvedValue([])
     mockGetStravaActivityPhotos.mockResolvedValue([])
     mockGetQueue.mockReturnValue({
       publish: vi.fn().mockResolvedValue(undefined)
@@ -299,18 +313,16 @@ describe('importStravaActivityJob', () => {
         sourceUrl: 'https://www.strava.com/activities/123'
       })
     )
-    expect(mockImportFitnessFilesJob).toHaveBeenCalledTimes(1)
-    expect(mockImportFitnessFilesJob).toHaveBeenCalledWith(
+    expect(mockImportFitnessFiles).toHaveBeenCalledTimes(1)
+    expect(mockImportFitnessFiles).toHaveBeenCalledWith(
       database,
       expect.objectContaining({
-        name: IMPORT_FITNESS_FILES_JOB_NAME,
-        data: expect.objectContaining({
-          actorId: 'actor-1',
-          fitnessFileIds: ['new-file'],
-          overlapFitnessFileIds: ['overlap-file'],
-          visibility: 'public'
-        })
-      })
+        actorId: 'actor-1',
+        fitnessFileIds: ['new-file'],
+        overlapFitnessFileIds: ['overlap-file'],
+        visibility: 'public'
+      }),
+      { deferProcessJobPublishes: true }
     )
     expect(database.updateNote).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -336,7 +348,7 @@ describe('importStravaActivityJob', () => {
       expect.objectContaining({ token: 'lock-token' })
     )
     // The merge-deciding work runs inside the lock.
-    expect(mockImportFitnessFilesJob).toHaveBeenCalledTimes(1)
+    expect(mockImportFitnessFiles).toHaveBeenCalledTimes(1)
   })
 
   it('does not acquire the import lock when the activity already has a status', async () => {
@@ -370,7 +382,7 @@ describe('importStravaActivityJob', () => {
     })
 
     expect(database.acquireImportLock).not.toHaveBeenCalled()
-    expect(mockImportFitnessFilesJob).not.toHaveBeenCalled()
+    expect(mockImportFitnessFiles).not.toHaveBeenCalled()
   })
 
   it('seeds activity start time and duration at import so later same-ride imports can merge before processing', async () => {
@@ -500,14 +512,12 @@ describe('importStravaActivityJob', () => {
       }
     })
 
-    expect(mockImportFitnessFilesJob).toHaveBeenCalledWith(
+    expect(mockImportFitnessFiles).toHaveBeenCalledWith(
       database,
       expect.objectContaining({
-        name: IMPORT_FITNESS_FILES_JOB_NAME,
-        data: expect.objectContaining({
-          visibility: 'direct'
-        })
-      })
+        visibility: 'direct'
+      }),
+      { deferProcessJobPublishes: true }
     )
   })
 
@@ -533,14 +543,12 @@ describe('importStravaActivityJob', () => {
       }
     })
 
-    expect(mockImportFitnessFilesJob).toHaveBeenCalledWith(
+    expect(mockImportFitnessFiles).toHaveBeenCalledWith(
       database,
       expect.objectContaining({
-        name: IMPORT_FITNESS_FILES_JOB_NAME,
-        data: expect.objectContaining({
-          visibility: 'private'
-        })
-      })
+        visibility: 'private'
+      }),
+      { deferProcessJobPublishes: true }
     )
   })
 
@@ -585,7 +593,7 @@ describe('importStravaActivityJob', () => {
         file: expect.objectContaining({ name: 'strava-125.tcx' })
       })
     )
-    expect(mockImportFitnessFilesJob).toHaveBeenCalledTimes(1)
+    expect(mockImportFitnessFiles).toHaveBeenCalledTimes(1)
     expect(database.createNote).not.toHaveBeenCalled()
   })
 
@@ -611,7 +619,8 @@ describe('importStravaActivityJob', () => {
       name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
       data: {
         actorId: 'actor-1',
-        stravaActivityId: '125'
+        stravaActivityId: '125',
+        publishSendNote: true
       }
     })
 
@@ -623,7 +632,7 @@ describe('importStravaActivityJob', () => {
       expect.objectContaining({ time: expect.anything() })
     )
     expect(mockSaveFitnessFile).not.toHaveBeenCalled()
-    expect(mockImportFitnessFilesJob).not.toHaveBeenCalled()
+    expect(mockImportFitnessFiles).not.toHaveBeenCalled()
     expect(database.createNote).toHaveBeenCalledWith(
       expect.objectContaining({
         actorId: 'actor-1',
@@ -634,7 +643,39 @@ describe('importStravaActivityJob', () => {
       })
     )
     expect(mockAddStatusToTimelines).toHaveBeenCalledTimes(1)
+    // Gated on the same opt-in as the file-backed path: this test drives the
+    // webhook shape, so the fallback note federates.
     expect(mockGetQueue().publish).toHaveBeenCalledWith(
+      expect.objectContaining({ name: SEND_NOTE_JOB_NAME })
+    )
+  })
+
+  it('does not federate a fallback note for a caller that did not opt in', async () => {
+    // A retry-all sweep or a scripts/fitness recovery run drives this same
+    // branch over every streamless activity an actor has.
+    mockGetStravaActivity.mockResolvedValueOnce({
+      id: 125,
+      name: 'Morning Run',
+      distance: 5_000,
+      elapsed_time: 1_500,
+      total_elevation_gain: 120,
+      start_date: '2026-01-01T00:00:00.000Z',
+      sport_type: 'Run',
+      visibility: 'everyone'
+    } as never)
+    mockGetStravaActivityStreams.mockResolvedValueOnce(null)
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-no-upload-no-optin',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '125'
+      }
+    })
+
+    expect(database.createNote).toHaveBeenCalled()
+    expect(mockGetQueue().publish).not.toHaveBeenCalledWith(
       expect.objectContaining({ name: SEND_NOTE_JOB_NAME })
     )
   })
@@ -722,7 +763,8 @@ describe('importStravaActivityJob', () => {
       name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
       data: {
         actorId: 'actor-1',
-        stravaActivityId: '125'
+        stravaActivityId: '125',
+        publishSendNote: true
       }
     })
 
@@ -881,7 +923,7 @@ describe('importStravaActivityJob', () => {
         file: expect.objectContaining({ name: 'strava-125.gpx' })
       })
     )
-    expect(mockImportFitnessFilesJob).toHaveBeenCalledTimes(1)
+    expect(mockImportFitnessFiles).toHaveBeenCalledTimes(1)
     expect(database.createNote).not.toHaveBeenCalled()
   })
 
@@ -914,7 +956,7 @@ describe('importStravaActivityJob', () => {
     })
 
     expect(mockSaveFitnessFile).not.toHaveBeenCalled()
-    expect(mockImportFitnessFilesJob).not.toHaveBeenCalled()
+    expect(mockImportFitnessFiles).not.toHaveBeenCalled()
   })
 
   it('queues map regeneration when existing activity has no map', async () => {
@@ -1026,11 +1068,10 @@ describe('importStravaActivityJob', () => {
       data: { actorId: 'actor-1', stravaActivityId: '123' }
     })
 
-    expect(mockImportFitnessFilesJob).toHaveBeenCalledWith(
+    expect(mockImportFitnessFiles).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({
-        data: expect.objectContaining({ notifyOnComplete: false })
-      })
+      expect.objectContaining({ notifyOnComplete: false }),
+      expect.anything()
     )
   })
 
@@ -1047,12 +1088,534 @@ describe('importStravaActivityJob', () => {
       }
     })
 
-    expect(mockImportFitnessFilesJob).toHaveBeenCalledWith(
+    expect(mockImportFitnessFiles).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({
-        data: expect.objectContaining({ notifyOnComplete: true })
-      })
+      expect.objectContaining({ notifyOnComplete: true }),
+      expect.anything()
     )
+  })
+
+  describe('federation opt-in', () => {
+    const PROCESS_JOB = {
+      id: 'process-job-id',
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        statusId: 'status-1',
+        fitnessFileId: 'new-file',
+        publishSendNote: true,
+        notifyOnComplete: false
+      }
+    }
+
+    const deferOneProcessJob = () => {
+      mockImportFitnessFiles.mockResolvedValue([
+        {
+          statusId: 'status-1',
+          statusCreated: true,
+          primaryFitnessFileId: 'new-file',
+          processJob: PROCESS_JOB
+        }
+      ])
+    }
+
+    const getProcessPublishes = () =>
+      (mockGetQueue().publish as jest.Mock).mock.calls
+        .map(([message]) => message)
+        .filter((message) => message.name === PROCESS_FITNESS_FILE_JOB_NAME)
+
+    // Derived from the process job rather than invocationCallOrder[0], which is
+    // whichever job happened to be published first.
+    const getProcessPublishOrder = () => {
+      const publish = mockGetQueue().publish as jest.Mock
+      const index = publish.mock.calls.findIndex(
+        ([message]) => message.name === PROCESS_FITNESS_FILE_JOB_NAME
+      )
+      return publish.mock.invocationCallOrder[index]
+    }
+
+    it.each([
+      { description: 'withholds by default', requested: {} },
+      {
+        description: 'forwards the webhook opt-in',
+        requested: { publishSendNote: true }
+      }
+    ])('$description', async ({ requested }) => {
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-federation-forward',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: {
+          actorId: 'actor-1',
+          stravaActivityId: '123',
+          ...requested
+        }
+      })
+
+      expect(mockImportFitnessFiles).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          publishSendNote: 'publishSendNote' in requested
+        }),
+        { deferProcessJobPublishes: true }
+      )
+    })
+
+    it('publishes the deferred process job only after the caption is on the status', async () => {
+      // Under NoQueue publishing the process job runs it inline, and it is what
+      // federates the Create. Published before the caption write it would
+      // deliver an empty note that nothing ever re-sends.
+      deferOneProcessJob()
+
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-federation-order',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: {
+          actorId: 'actor-1',
+          stravaActivityId: '123',
+          publishSendNote: true
+        }
+      })
+
+      const publishes = getProcessPublishes()
+      expect(publishes).toHaveLength(1)
+      expect(publishes[0]).toEqual(PROCESS_JOB)
+
+      expect(database.updateNote.mock.invocationCallOrder.at(-1)).toBeLessThan(
+        getProcessPublishOrder()
+      )
+    })
+
+    it('publishes the deferred process job before downloading the Strava photos', async () => {
+      // The photo downloads are four HTTP fetches plus transcodes against a 30s
+      // job cap with no retries, and by this point the file sits at import
+      // 'completed' / processing 'pending' — a state no retry predicate
+      // matches. A worker killed mid-download after the publish only loses the
+      // photos; before it, the ride is stranded unprocessed forever.
+      deferOneProcessJob()
+
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-federation-publish-before-photos',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: {
+          actorId: 'actor-1',
+          stravaActivityId: '123',
+          publishSendNote: true
+        }
+      })
+
+      expect(getProcessPublishOrder()).toBeLessThan(
+        mockGetStravaActivityPhotos.mock.invocationCallOrder[0]
+      )
+    })
+
+    it('still writes the caption when the Strava photos fail', async () => {
+      // Separate containment: one failure must not swallow the other's work.
+      deferOneProcessJob()
+      mockGetStravaActivityPhotos.mockRejectedValueOnce(
+        new Error('strava photos unavailable')
+      )
+
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-federation-photo-failure',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: {
+          actorId: 'actor-1',
+          stravaActivityId: '123',
+          publishSendNote: true
+        }
+      })
+
+      expect(getProcessPublishes()).toHaveLength(1)
+      expect(database.updateNote).toHaveBeenCalledWith(
+        expect.objectContaining({ statusId: 'status-1' })
+      )
+    })
+
+    it('publishes the process job even when the caption write fails', async () => {
+      // processFitnessFileJob backfills the generated summary for an empty
+      // note, so a lost caption degrades the post; a lost process job loses
+      // the map, the stats and the Create with no way back.
+      deferOneProcessJob()
+      database.updateNote.mockRejectedValueOnce(new Error('write conflict'))
+
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-federation-caption-failure',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: {
+          actorId: 'actor-1',
+          stravaActivityId: '123',
+          publishSendNote: true
+        }
+      })
+
+      expect(getProcessPublishes()).toHaveLength(1)
+      expect(mockGetStravaActivityPhotos).toHaveBeenCalled()
+    })
+
+    it('marks the file failed when the deferred process job cannot be published', async () => {
+      // Without this the import is stranded: the status exists and the file
+      // sits at processing 'pending', which no retry predicate matches, so
+      // nothing would ever offer to finish the activity.
+      deferOneProcessJob()
+      ;(mockGetQueue().publish as jest.Mock).mockRejectedValueOnce(
+        'queue exploded'
+      )
+
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-federation-publish-failure',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: {
+          actorId: 'actor-1',
+          stravaActivityId: '123',
+          publishSendNote: true
+        }
+      })
+
+      // A non-Error rejection on purpose: toImportErrorMessage exists so the
+      // reason can never land as NULL and wipe the explanation.
+      expect(database.updateFitnessFileProcessingStatus).toHaveBeenCalledWith(
+        'new-file',
+        'failed',
+        'queue exploded'
+      )
+      // The IMPORT column stays completed. retryFitnessImportBatch resets a
+      // failed import to 'pending', but re-running this job then short-circuits
+      // past the importer because a statusId already exists, and nothing writes
+      // importStatus back — the file would show as pending forever and stop
+      // being retriable at all.
+      expect(database.updateFitnessFileImportStatus).not.toHaveBeenCalled()
+    })
+
+    it('never federates an activity the athlete marked only me on Strava', async () => {
+      // The webhook always sends an explicit visibility, so the only_me ->
+      // direct mapping never applies here and the ride would otherwise be
+      // pushed at whatever the account default happens to be.
+      mockGetStravaActivity.mockReset()
+      mockGetStravaActivity.mockResolvedValue({
+        id: 123,
+        name: 'Secret Ride',
+        distance: 5_000,
+        elapsed_time: 1_500,
+        total_elevation_gain: 20,
+        start_date: '2026-01-01T00:00:00.000Z',
+        sport_type: 'Ride',
+        visibility: 'only_me'
+      } as never)
+
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-federation-only-me',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: {
+          actorId: 'actor-1',
+          stravaActivityId: '123',
+          visibility: 'public',
+          publishSendNote: true
+        }
+      })
+
+      expect(mockImportFitnessFiles).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ publishSendNote: false }),
+        expect.anything()
+      )
+    })
+
+    it('does not federate when Strava reports no visibility for the activity', async () => {
+      // The field is optional, so a denylist would federate an unknown at the
+      // account default — which can be public. mapStravaVisibilityToMastodon
+      // resolves the same unknown to private.
+      mockGetStravaActivity.mockReset()
+      mockGetStravaActivity.mockResolvedValue({
+        id: 123,
+        name: 'Unlabelled Ride',
+        distance: 5_000,
+        elapsed_time: 1_500,
+        total_elevation_gain: 20,
+        start_date: '2026-01-01T00:00:00.000Z',
+        sport_type: 'Ride'
+      } as never)
+
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-federation-unknown-visibility',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: {
+          actorId: 'actor-1',
+          stravaActivityId: '123',
+          visibility: 'public',
+          publishSendNote: true
+        }
+      })
+
+      expect(mockImportFitnessFiles).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ publishSendNote: false }),
+        expect.anything()
+      )
+    })
+
+    it('sends an update when Strava photos land after the create', async () => {
+      // The process job is published before the photos, so under NoQueue the
+      // Create has already gone out by now; without this the remote copy keeps
+      // the photoless version forever. A merged sibling brings its own photos
+      // to an already-federated post for the same reason.
+      deferOneProcessJob()
+      database.getAttachments.mockResolvedValue([])
+      database.createAttachment.mockResolvedValue({} as never)
+      mockGetStravaActivityPhotos.mockResolvedValueOnce([
+        { id: 'photo-1', url: 'https://images.example.com/photo-1.jpg' }
+      ] as never)
+      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+        new Response(Buffer.from('jpg'), {
+          headers: { 'content-type': 'image/jpeg', 'content-length': '3' }
+        })
+      )
+
+      try {
+        await importStravaActivityJob(database as unknown as Database, {
+          id: 'job-federation-photo-update',
+          name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+          data: {
+            actorId: 'actor-1',
+            stravaActivityId: '123',
+            publishSendNote: true
+          }
+        })
+      } finally {
+        fetchSpy.mockRestore()
+      }
+
+      expect(database.createAttachment).toHaveBeenCalledTimes(1)
+      const updates = (mockGetQueue().publish as jest.Mock).mock.calls
+        .map(([message]) => message)
+        .filter((message) => message.name === SEND_UPDATE_NOTE_JOB_NAME)
+      expect(updates).toHaveLength(1)
+      expect(updates[0].data).toEqual({
+        actorId: 'actor-1',
+        statusId: 'status-1'
+      })
+    })
+
+    it('sends no photo update for an import that did not opt into federation', async () => {
+      // sendUpdateNoteJob consults no opt-in of its own, and Mastodon
+      // synthesises a Create for an unseen object younger than about a day —
+      // so an ungated Update publishes a status that deliberately stayed
+      // local, an only_me activity included, just because it had a photo.
+      database.getAttachments.mockResolvedValue([])
+      database.createAttachment.mockResolvedValue({} as never)
+      mockGetStravaActivityPhotos.mockResolvedValueOnce([
+        { id: 'photo-1', url: 'https://images.example.com/photo-1.jpg' }
+      ] as never)
+      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+        new Response(Buffer.from('jpg'), {
+          headers: { 'content-type': 'image/jpeg', 'content-length': '3' }
+        })
+      )
+
+      try {
+        await importStravaActivityJob(database as unknown as Database, {
+          id: 'job-federation-photo-update-no-optin',
+          name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+          data: {
+            actorId: 'actor-1',
+            stravaActivityId: '123'
+          }
+        })
+      } finally {
+        fetchSpy.mockRestore()
+      }
+
+      expect(database.createAttachment).toHaveBeenCalledTimes(1)
+      expect(mockGetQueue().publish).not.toHaveBeenCalledWith(
+        expect.objectContaining({ name: SEND_UPDATE_NOTE_JOB_NAME })
+      )
+    })
+
+    it('sends no photo update when the process job could not be published', async () => {
+      // That job is what sends the Create, so an Update would be the only
+      // thing reaching the network — federating a ride just marked failed,
+      // whose retry path never sends a Create of its own.
+      deferOneProcessJob()
+      database.getAttachments.mockResolvedValue([])
+      database.createAttachment.mockResolvedValue({} as never)
+      mockGetStravaActivityPhotos.mockResolvedValueOnce([
+        { id: 'photo-1', url: 'https://images.example.com/photo-1.jpg' }
+      ] as never)
+      ;(mockGetQueue().publish as jest.Mock).mockRejectedValueOnce(
+        'queue exploded'
+      )
+      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+        new Response(Buffer.from('jpg'), {
+          headers: { 'content-type': 'image/jpeg', 'content-length': '3' }
+        })
+      )
+
+      try {
+        await importStravaActivityJob(database as unknown as Database, {
+          id: 'job-federation-photo-update-after-publish-failure',
+          name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+          data: {
+            actorId: 'actor-1',
+            stravaActivityId: '123',
+            publishSendNote: true
+          }
+        })
+      } finally {
+        fetchSpy.mockRestore()
+      }
+
+      expect(database.createAttachment).toHaveBeenCalledTimes(1)
+      expect(mockGetQueue().publish).not.toHaveBeenCalledWith(
+        expect.objectContaining({ name: SEND_UPDATE_NOTE_JOB_NAME })
+      )
+    })
+
+    it('still reports photos as attached when the update cannot be queued', async () => {
+      // The photos are on the status either way; what was lost is the Update,
+      // so it must not be logged as a photo failure.
+      deferOneProcessJob()
+      database.getAttachments.mockResolvedValue([])
+      database.createAttachment.mockResolvedValue({} as never)
+      mockGetStravaActivityPhotos.mockResolvedValueOnce([
+        { id: 'photo-1', url: 'https://images.example.com/photo-1.jpg' }
+      ] as never)
+      const publishMock = mockGetQueue().publish as jest.Mock
+      publishMock.mockImplementation(async (message: { name: string }) => {
+        if (message.name === SEND_UPDATE_NOTE_JOB_NAME) {
+          throw new Error('queue exploded')
+        }
+      })
+      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+        new Response(Buffer.from('jpg'), {
+          headers: { 'content-type': 'image/jpeg', 'content-length': '3' }
+        })
+      )
+
+      try {
+        await expect(
+          importStravaActivityJob(database as unknown as Database, {
+            id: 'job-federation-update-publish-failure',
+            name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+            data: {
+              actorId: 'actor-1',
+              stravaActivityId: '123',
+              publishSendNote: true
+            }
+          })
+        ).resolves.toBeUndefined()
+      } finally {
+        fetchSpy.mockRestore()
+        publishMock.mockReset()
+        publishMock.mockResolvedValue(undefined)
+      }
+
+      expect(database.createAttachment).toHaveBeenCalledTimes(1)
+      // The import is not demoted over a lost Update.
+      expect(database.updateFitnessFileProcessingStatus).not.toHaveBeenCalled()
+      // What distinguishes this from the Update publish living inside the photo
+      // try/catch, which also neither threw nor demoted: there the failure was
+      // reported as a photo failure, and the photos are on the status.
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Failed to attach Strava photos to imported status'
+        })
+      )
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Failed to queue the update for late Strava photos'
+        })
+      )
+    })
+
+    it('sends an update for a merged sibling that brings its own photos', async () => {
+      // The case the Update mainly exists for: the second device's webhook adds
+      // its photos to a post whose Create went out with the primary's, so it
+      // owns no process job of its own and the Update is the only thing that
+      // can carry them across.
+      mockImportFitnessFiles.mockResolvedValue([
+        {
+          statusId: 'status-1',
+          statusCreated: false,
+          primaryFitnessFileId: 'sibling-file',
+          processJob: null
+        }
+      ])
+      database.getAttachments.mockResolvedValue([])
+      database.createAttachment.mockResolvedValue({} as never)
+      mockGetStravaActivityPhotos.mockResolvedValueOnce([
+        { id: 'photo-2', url: 'https://images.example.com/photo-2.jpg' }
+      ] as never)
+      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+        new Response(Buffer.from('jpg'), {
+          headers: { 'content-type': 'image/jpeg', 'content-length': '3' }
+        })
+      )
+
+      try {
+        await importStravaActivityJob(database as unknown as Database, {
+          id: 'job-federation-merged-photos',
+          name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+          data: {
+            actorId: 'actor-1',
+            stravaActivityId: '123',
+            publishSendNote: true
+          }
+        })
+      } finally {
+        fetchSpy.mockRestore()
+      }
+
+      expect(getProcessPublishes()).toHaveLength(0)
+      expect(
+        (mockGetQueue().publish as jest.Mock).mock.calls
+          .map(([message]) => message)
+          .filter((message) => message.name === SEND_UPDATE_NOTE_JOB_NAME)
+      ).toHaveLength(1)
+    })
+
+    it('sends no update when the activity had no photos to attach', async () => {
+      deferOneProcessJob()
+
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-federation-no-photo-update',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: {
+          actorId: 'actor-1',
+          stravaActivityId: '123',
+          publishSendNote: true
+        }
+      })
+
+      expect(
+        (mockGetQueue().publish as jest.Mock).mock.calls
+          .map(([message]) => message)
+          .filter((message) => message.name === SEND_UPDATE_NOTE_JOB_NAME)
+      ).toHaveLength(0)
+    })
+
+    it('publishes no process job when the import merged the file into an existing post', async () => {
+      // The sibling of a two-device ride: its files join the primary's status,
+      // which already owns the single process job and the single Create.
+      mockImportFitnessFiles.mockResolvedValue([
+        {
+          statusId: 'status-1',
+          statusCreated: false,
+          primaryFitnessFileId: 'sibling-file',
+          processJob: null
+        }
+      ])
+
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-federation-merged',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: {
+          actorId: 'actor-1',
+          stravaActivityId: '123',
+          publishSendNote: true
+        }
+      })
+
+      expect(getProcessPublishes()).toHaveLength(0)
+    })
   })
 
   it('defers the activity_import notification on the normal path', async () => {
@@ -1433,7 +1996,7 @@ describe('importStravaActivityJob', () => {
       })
 
       expect(mockSaveFitnessFile).toHaveBeenCalled()
-      expect(mockImportFitnessFilesJob).toHaveBeenCalled()
+      expect(mockImportFitnessFiles).toHaveBeenCalled()
     })
   })
 })

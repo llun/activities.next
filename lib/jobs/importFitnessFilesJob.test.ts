@@ -1,5 +1,8 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { importFitnessFilesJob } from '@/lib/jobs/importFitnessFilesJob'
+import {
+  importFitnessFiles,
+  importFitnessFilesJob
+} from '@/lib/jobs/importFitnessFilesJob'
 import {
   IMPORT_FITNESS_FILES_JOB_NAME,
   PROCESS_FITNESS_FILE_JOB_NAME
@@ -878,6 +881,130 @@ describe('importFitnessFilesJob', () => {
         .map(([message]) => message)
         .find((message) => message.name === PROCESS_FITNESS_FILE_JOB_NAME)
       expect(publish?.data.notifyOnComplete).toBe(true)
+    })
+  })
+
+  describe('federation opt-in', () => {
+    const createFile = async (name: string) => {
+      const file = await database.createFitnessFile({
+        actorId: actor.id,
+        path: `fitness/${name}.fit`,
+        fileName: `${name}.fit`,
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1_024,
+        importBatchId: 'batch-federation-optin'
+      })
+      return file!.id
+    }
+
+    const stubParse = (startDay: number) => {
+      mockParseFitnessFile.mockResolvedValueOnce({
+        coordinates: [],
+        trackPoints: [],
+        totalDistanceMeters: 9_000,
+        totalDurationSeconds: 2_400,
+        startTime: new Date(Date.UTC(2026, 2, startDay))
+      })
+    }
+
+    const getProcessJobs = () =>
+      (getQueue().publish as jest.Mock).mock.calls
+        .map(([message]) => message)
+        .filter((message) => message.name === PROCESS_FITNESS_FILE_JOB_NAME)
+
+    it.each([
+      {
+        description: 'stays local without an opt-in',
+        requested: undefined,
+        expected: false
+      },
+      {
+        description: 'federates on opt-in',
+        requested: true,
+        expected: true
+      }
+    ])('$description', async ({ requested, expected }) => {
+      const fitnessFileIds = [await createFile(`optin-${String(requested)}`)]
+      stubParse(3)
+
+      await importFitnessFilesJob(database, {
+        id: `job-federation-${String(requested)}`,
+        name: IMPORT_FITNESS_FILES_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          batchId: 'batch-federation-optin',
+          fitnessFileIds,
+          ...(requested === undefined ? {} : { publishSendNote: requested })
+        }
+      })
+
+      const publish = getProcessJobs().at(-1)
+      expect(publish?.data.publishSendNote).toBe(expected)
+    })
+
+    it('does not federate again when the import re-runs over an existing status', async () => {
+      // Retries and the recovery scripts re-drive this job over statuses that
+      // are already live. Their Create has been delivered, so a second one
+      // would post the same ride to every follower twice.
+      const fitnessFileIds = [await createFile('rerun')]
+      stubParse(6)
+
+      await importFitnessFilesJob(database, {
+        id: 'job-federation-first',
+        name: IMPORT_FITNESS_FILES_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          batchId: 'batch-federation-optin',
+          fitnessFileIds,
+          publishSendNote: true
+        }
+      })
+      expect(getProcessJobs().at(-1)?.data.publishSendNote).toBe(true)
+
+      stubParse(6)
+      await importFitnessFilesJob(database, {
+        id: 'job-federation-rerun',
+        name: IMPORT_FITNESS_FILES_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          batchId: 'batch-federation-optin',
+          fitnessFileIds,
+          publishSendNote: true
+        }
+      })
+
+      expect(getProcessJobs().at(-1)?.data.publishSendNote).toBe(false)
+    })
+
+    it('returns the process job instead of publishing it when deferred', async () => {
+      const fitnessFileIds = [await createFile('deferred')]
+      stubParse(8)
+
+      const groups = await importFitnessFiles(
+        database,
+        {
+          actorId: actor.id,
+          batchId: 'batch-federation-optin',
+          fitnessFileIds,
+          publishSendNote: true
+        },
+        { deferProcessJobPublishes: true }
+      )
+
+      expect(getProcessJobs()).toHaveLength(0)
+      expect(groups).toHaveLength(1)
+      expect(groups[0].statusCreated).toBe(true)
+      expect(groups[0].processJob).toEqual(
+        expect.objectContaining({
+          name: PROCESS_FITNESS_FILE_JOB_NAME,
+          data: expect.objectContaining({
+            statusId: groups[0].statusId,
+            fitnessFileId: fitnessFileIds[0],
+            publishSendNote: true
+          })
+        })
+      )
     })
   })
 
