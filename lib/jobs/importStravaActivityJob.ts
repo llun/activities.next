@@ -457,8 +457,8 @@ export const importStravaActivityJob = createJobHandle(
       visibility ?? mapStravaVisibilityToMastodon(activity.visibility)
     const batchId = getStravaActivityBatchId(stravaActivityId)
 
-    // An activity the athlete marked "Only me" on Strava never gets pushed to
-    // anyone, whatever the account default says.
+    // Only an activity Strava says is shared gets pushed anywhere, whatever the
+    // account default says.
     //
     // The webhook always sends an explicit `visibility` (the actor's Strava
     // default), so the `only_me` -> `direct` arm of mapStravaVisibilityToMastodon
@@ -466,8 +466,15 @@ export const importStravaActivityJob = createJobHandle(
     // import was local-only — the post existed at the account default and went
     // nowhere. Now that imports federate it would be a leak, and the account
     // default is the one setting a user would never think to check for it.
-    const shouldFederateImport =
-      publishSendNote && activity.visibility !== 'only_me'
+    //
+    // An allowlist rather than `!== 'only_me'` because the field is optional:
+    // absent, a denylist federates at the account default, which can be public.
+    // mapStravaVisibilityToMastodon resolves the same unknown to `private`, so
+    // failing closed here is the answer this codebase already gives.
+    const isStravaSharedActivity =
+      activity.visibility === 'everyone' ||
+      activity.visibility === 'followers_only'
+    const shouldFederateImport = publishSendNote && isStravaSharedActivity
 
     // Nothing here reads `activity.gear_id`, and that is deliberate: gear is
     // attributed downstream by `processFitnessFileJob`, from the gear whose
@@ -868,10 +875,17 @@ export const importStravaActivityJob = createJobHandle(
       } catch (error) {
         processJobPublishFailed = true
 
-        // Same protection the non-deferred path gives itself, minus the status
-        // cleanup: by now the status is written, timelined and carries the
-        // Strava caption, so deleting it would destroy real content. Leave the
-        // file failed with a reason so the fitness UI offers its retry.
+        // Only the PROCESSING column, unlike the non-deferred path's
+        // markImportFileFailed. The import itself succeeded — the status is
+        // written, timelined and carries the caption — and what failed is the
+        // work after it, so deleting the status would destroy real content and
+        // failing the import would strand the file: retryFitnessImportBatch
+        // resets a failed import to `pending`, but re-running this job then
+        // short-circuits past the importer because a statusId already exists,
+        // and nothing else ever writes importStatus back to `completed`. Its
+        // own docstring calls that out. Leaving it `completed` keeps the file
+        // retriable through the processing predicate, and
+        // buildProcessingStatusUpdate still persists the reason.
         const errorMessage = toImportErrorMessage(error)
 
         logger.error({
@@ -883,18 +897,11 @@ export const importStravaActivityJob = createJobHandle(
           err: toLoggableError(error)
         })
 
-        await Promise.all([
-          database.updateFitnessFileImportStatus(
-            targetFitnessFile.id,
-            'failed',
-            errorMessage
-          ),
-          database.updateFitnessFileProcessingStatus(
-            targetFitnessFile.id,
-            'failed',
-            errorMessage
-          )
-        ])
+        await database.updateFitnessFileProcessingStatus(
+          targetFitnessFile.id,
+          'failed',
+          errorMessage
+        )
       }
     }
 
@@ -929,12 +936,14 @@ export const importStravaActivityJob = createJobHandle(
     // post whose Create went out with the primary's.
     //
     // Gated on the same opt-in as the Create, and that gate is load-bearing
-    // rather than tidiness: sendUpdateNoteJob delivers to every federated inbox
-    // without consulting any opt-in of its own, and Mastodon's Update handler
-    // SYNTHESISES a Create for an object it has not seen that is younger than
-    // about a day. Ungated, a recovery sweep — or an only_me activity, which
-    // reaches here having deliberately skipped its Create — would publish a
-    // status precisely because it had a photo. For the same reason it is also
+    // rather than tidiness: sendUpdateNoteJob consults no opt-in of its own —
+    // it delivers to every follower inbox, plus every accepted relay for a
+    // public audience — and an Update embeds the whole note, so the content
+    // leaves the instance whatever the receiver decides to do with it. Some
+    // implementations additionally treat an Update for an object they have
+    // never seen as a Create. Ungated, a recovery sweep — or an only_me
+    // activity, which reaches here having deliberately skipped its Create —
+    // would ship a status precisely because it had a photo. For the same reason
     // gated on the process job having been queued: that job is what sends the
     // Create, so after it failed to publish an Update is the only thing that
     // would reach the network, federating a ride we just marked failed and

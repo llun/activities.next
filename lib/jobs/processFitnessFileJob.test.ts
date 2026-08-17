@@ -1071,6 +1071,41 @@ describe('processFitnessFileJob', () => {
     expect(retriedFitnessFile?.importError).toBeUndefined()
   })
 
+  it('keeps the activity completed when the federation publish fails', async () => {
+    // The publish sits after processingStatus 'completed' is persisted, so an
+    // uncontained queue failure rewrote a fully processed ride to 'failed' —
+    // hiding it from the detail dashboard, the stat grid and every rollup
+    // because its Create could not be queued.
+    const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+      text: ''
+    })
+    ;(getQueue().publish as jest.Mock).mockImplementation(
+      async (message: { name: string }) => {
+        if (message.name === SEND_NOTE_JOB_NAME) {
+          throw new Error('queue exploded')
+        }
+      }
+    )
+
+    await expect(
+      processFitnessFileJob(database, {
+        id: 'job-id-send-note-publish-failure',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          statusId,
+          fitnessFileId,
+          publishSendNote: true
+        }
+      })
+    ).resolves.toBeUndefined()
+
+    const updatedFitnessFile = await database.getFitnessFile({
+      id: fitnessFileId
+    })
+    expect(updatedFitnessFile?.processingStatus).toBe('completed')
+  })
+
   it('skips federation publish when publishSendNote is false', async () => {
     const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
       text: ''

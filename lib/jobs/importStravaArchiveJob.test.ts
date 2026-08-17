@@ -294,13 +294,12 @@ describe('importStravaArchiveJob', () => {
       })
     )
     // An archive import walks years of activities: opting it into federation
-    // would deliver a Create per ride to every follower.
-    expect(mockQueuePublish).not.toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: IMPORT_FITNESS_FILES_JOB_NAME,
-        data: expect.objectContaining({ publishSendNote: true })
-      })
-    )
+    // would deliver a Create per ride to every follower. Asserted as an absent
+    // key rather than a non-true value, which any typo would also satisfy.
+    const importJob = mockQueuePublish.mock.calls
+      .map(([message]) => message)
+      .find((message) => message.name === IMPORT_FITNESS_FILES_JOB_NAME)
+    expect(importJob.data).not.toHaveProperty('publishSendNote')
     expect(mockSaveMedia).toHaveBeenCalledTimes(1)
     expect(database.createAttachment).toHaveBeenCalledTimes(1)
     expect(mockDeleteFitnessFile).toHaveBeenCalledWith(

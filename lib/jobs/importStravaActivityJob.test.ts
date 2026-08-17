@@ -1264,16 +1264,17 @@ describe('importStravaActivityJob', () => {
 
       // A non-Error rejection on purpose: toImportErrorMessage exists so the
       // reason can never land as NULL and wipe the explanation.
-      expect(database.updateFitnessFileImportStatus).toHaveBeenCalledWith(
-        'new-file',
-        'failed',
-        'queue exploded'
-      )
       expect(database.updateFitnessFileProcessingStatus).toHaveBeenCalledWith(
         'new-file',
         'failed',
         'queue exploded'
       )
+      // The IMPORT column stays completed. retryFitnessImportBatch resets a
+      // failed import to 'pending', but re-running this job then short-circuits
+      // past the importer because a statusId already exists, and nothing writes
+      // importStatus back — the file would show as pending forever and stop
+      // being retriable at all.
+      expect(database.updateFitnessFileImportStatus).not.toHaveBeenCalled()
     })
 
     it('never federates an activity the athlete marked only me on Strava', async () => {
@@ -1294,6 +1295,39 @@ describe('importStravaActivityJob', () => {
 
       await importStravaActivityJob(database as unknown as Database, {
         id: 'job-federation-only-me',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: {
+          actorId: 'actor-1',
+          stravaActivityId: '123',
+          visibility: 'public',
+          publishSendNote: true
+        }
+      })
+
+      expect(mockImportFitnessFiles).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ publishSendNote: false }),
+        expect.anything()
+      )
+    })
+
+    it('does not federate when Strava reports no visibility for the activity', async () => {
+      // The field is optional, so a denylist would federate an unknown at the
+      // account default — which can be public. mapStravaVisibilityToMastodon
+      // resolves the same unknown to private.
+      mockGetStravaActivity.mockReset()
+      mockGetStravaActivity.mockResolvedValue({
+        id: 123,
+        name: 'Unlabelled Ride',
+        distance: 5_000,
+        elapsed_time: 1_500,
+        total_elevation_gain: 20,
+        start_date: '2026-01-01T00:00:00.000Z',
+        sport_type: 'Ride'
+      } as never)
+
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-federation-unknown-visibility',
         name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
         data: {
           actorId: 'actor-1',
