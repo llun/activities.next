@@ -189,7 +189,12 @@ export const POST = traceApiRoute(
           // unattended, which is the whole reason to tell the user. Retry-all
           // and the scripts/fitness recovery tools drive the same job in bulk
           // and deliberately leave this off.
-          notifyOnComplete: true
+          notifyOnComplete: true,
+          // Same entry point, same reason: this is a ride the user just
+          // finished and expects their followers to see. The bulk recovery
+          // paths leave it off so a sweep never re-delivers a timeline's worth
+          // of activities.
+          publishSendNote: true
         }
       })
 

@@ -106,7 +106,8 @@ describe('Strava Webhook API', () => {
           // The webhook is the only entry point that opts into the import
           // email. Asserted explicitly so the feature cannot be switched off
           // by dropping this one field with a green build.
-          notifyOnComplete: true
+          notifyOnComplete: true,
+          publishSendNote: true
         }
       })
     )
@@ -148,7 +149,8 @@ describe('Strava Webhook API', () => {
           actorId: 'actor-1',
           stravaActivityId: '13579',
           visibility: 'private',
-          notifyOnComplete: true
+          notifyOnComplete: true,
+          publishSendNote: true
         }
       })
     )
@@ -199,7 +201,8 @@ describe('Strava Webhook API', () => {
           actorId: 'actor-1',
           stravaActivityId: '24680',
           visibility: 'private',
-          notifyOnComplete: true
+          notifyOnComplete: true,
+          publishSendNote: true
         }
       })
     )

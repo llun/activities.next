@@ -12,15 +12,15 @@ import {
   OVERLAP_CONTEXT_SCAN_LIMIT,
   getOverlapContextFitnessFileIds
 } from '@/lib/jobs/fitnessImportOverlap'
-import { importFitnessFilesJob } from '@/lib/jobs/importFitnessFilesJob'
+import { importFitnessFiles } from '@/lib/jobs/importFitnessFilesJob'
 import {
-  IMPORT_FITNESS_FILES_JOB_NAME,
   IMPORT_STRAVA_ACTIVITY_JOB_NAME,
   REGENERATE_FITNESS_MAPS_JOB_NAME,
   SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { buildActivityImportEmail } from '@/lib/services/email/templates/activityImport'
 import { saveFitnessFile } from '@/lib/services/fitness-files'
+import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import { withImportLock } from '@/lib/services/fitness-files/importLock'
 import { linkFitnessFileDeviceGear } from '@/lib/services/fitness-gears/resolveDeviceGear'
 import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
@@ -29,6 +29,7 @@ import { getActivityImportGroupKey } from '@/lib/services/notifications/activity
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
+import { JobMessage } from '@/lib/services/queue/type'
 import {
   StravaActivity,
   buildGpxFromStravaStreams,
@@ -56,6 +57,7 @@ import {
   SAFE_DOWNLOAD_MAX_BYTES,
   readResponseArrayBufferWithLimit
 } from '@/lib/utils/streamLimit'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { createJobHandle } from './createJobHandle'
 
@@ -82,7 +84,17 @@ const JobData = z.object({
   // would mail once per recovered activity.
   //
   // Defaults to false so a caller is silent until it opts in.
-  notifyOnComplete: z.boolean().optional().default(false)
+  notifyOnComplete: z.boolean().optional().default(false),
+  // Whether a status newly created by this import should federate its Create.
+  //
+  // Set by the same single caller as notifyOnComplete and for the same reason:
+  // the webhook carries one freshly recorded activity the user expects their
+  // followers to see, while retry-all and the recovery scripts sweep every
+  // failed batch for an actor — opting those in would deliver a Create per
+  // recovered activity.
+  //
+  // Defaults to false so a caller is silent until it opts in.
+  publishSendNote: z.boolean().optional().default(false)
 })
 
 const MAX_STRAVA_PHOTOS_TO_ATTACH = 4
@@ -388,7 +400,8 @@ export const importStravaActivityJob = createJobHandle(
       stravaActivityId,
       stravaAuth,
       visibility,
-      notifyOnComplete
+      notifyOnComplete,
+      publishSendNote
     } = JobData.parse(message.data)
 
     const actor = await database.getActorFromId({ id: actorId })
@@ -699,6 +712,7 @@ export const importStravaActivityJob = createJobHandle(
     }
 
     const isNewImport = !targetFitnessFile.statusId
+    let deferredProcessJobs: JobMessage[] = []
     if (isNewImport) {
       // Serialize the post-creation critical section per actor. Strava delivers
       // one webhook per activity, so a single ride recorded on two devices
@@ -707,36 +721,52 @@ export const importStravaActivityJob = createJobHandle(
       // either has assigned a status, so each creates its own post (duplicate
       // same-ride posts). Holding the lock means the sibling's import has
       // already assigned its status by the time this one scans, so the overlap
-      // merge in importFitnessFilesJob finds it and collapses both files into a
+      // merge in importFitnessFiles finds it and collapses both files into a
       // single post.
-      await withImportLock(database, `strava-import:${actorId}`, async () => {
-        const actorFitnessFiles = await database.getFitnessFilesByActor({
-          actorId,
-          limit: OVERLAP_CONTEXT_SCAN_LIMIT
-        })
-        const overlapFitnessFileIds = getOverlapContextFitnessFileIds({
-          actorId,
-          fitnessFileId: targetFitnessFile.id,
-          activityStartTime: getStravaActivityStartTimeMs(activity),
-          activityDurationSeconds: getStravaActivityDurationSeconds(activity),
-          files: actorFitnessFiles
-        })
-
-        await importFitnessFilesJob(database, {
-          id: getHashFromString(`${actorId}:strava-import:${stravaActivityId}`),
-          name: IMPORT_FITNESS_FILES_JOB_NAME,
-          data: {
+      const importedGroups = await withImportLock(
+        database,
+        `strava-import:${actorId}`,
+        async () => {
+          const actorFitnessFiles = await database.getFitnessFilesByActor({
             actorId,
-            batchId,
-            fitnessFileIds: [targetFitnessFile.id],
-            overlapFitnessFileIds,
-            visibility: resolvedVisibility,
-            // Forwarded from this job's own caller, so only the webhook — one
-            // activity, arriving while the user is elsewhere — emails.
-            notifyOnComplete
-          }
-        })
-      })
+            limit: OVERLAP_CONTEXT_SCAN_LIMIT
+          })
+          const overlapFitnessFileIds = getOverlapContextFitnessFileIds({
+            actorId,
+            fitnessFileId: targetFitnessFile.id,
+            activityStartTime: getStravaActivityStartTimeMs(activity),
+            activityDurationSeconds: getStravaActivityDurationSeconds(activity),
+            files: actorFitnessFiles
+          })
+
+          return importFitnessFiles(
+            database,
+            {
+              actorId,
+              batchId,
+              fitnessFileIds: [targetFitnessFile.id],
+              overlapFitnessFileIds,
+              visibility: resolvedVisibility,
+              // Forwarded from this job's own caller, so only the webhook — one
+              // activity, arriving while the user is elsewhere — emails.
+              notifyOnComplete,
+              // Same: only the webhook federates. A merged sibling reuses the
+              // existing status, so importFitnessFiles resolves this to false
+              // for it and the ride's Create still goes out exactly once.
+              publishSendNote
+            },
+            // The process job is the pipeline's federation trigger, and under
+            // NoQueue publishing it runs it inline — before the Strava caption
+            // and photos below exist. Publishing after those writes keeps the
+            // Create describing the finished post in both queue modes.
+            { deferProcessJobPublishes: true }
+          )
+        }
+      )
+
+      deferredProcessJobs = importedGroups
+        .map((group) => group.processJob)
+        .filter((processJob): processJob is JobMessage => processJob !== null)
     }
 
     const importedFitnessFile = await database.getFitnessFile({
@@ -757,32 +787,84 @@ export const importStravaActivityJob = createJobHandle(
       withReplies: false
     })
 
-    if (
-      status?.type === StatusType.enum.Note &&
-      status.text.trim().length === 0
-    ) {
-      await database.updateNote({
-        statusId: status.id,
-        text: buildStravaActivitySummary(activity),
-        summary: null
+    // Best effort, and deliberately not fatal: the deferred process job below
+    // is what finishes the import and federates it, so letting a Strava photo
+    // download take the whole job down would strand the file mid-pipeline with
+    // no map and no post content. Degrading here is benign — with no caption
+    // processFitnessFileJob backfills the generated activity summary, so the
+    // Create still describes exactly what the post shows locally.
+    try {
+      if (
+        status?.type === StatusType.enum.Note &&
+        status.text.trim().length === 0
+      ) {
+        await database.updateNote({
+          statusId: status.id,
+          text: buildStravaActivitySummary(activity),
+          summary: null
+        })
+      }
+
+      await attachStravaPhotosToStatus({
+        database,
+        actor,
+        actorId,
+        statusId: importedFitnessFile.statusId,
+        stravaActivityId,
+        accessToken,
+        activity
+      })
+    } catch (error) {
+      logger.warn({
+        message: 'Failed to attach Strava caption or photos to imported status',
+        actorId,
+        stravaActivityId,
+        statusId: importedFitnessFile.statusId,
+        err: toLoggableError(error)
       })
     }
 
-    await attachStravaPhotosToStatus({
-      database,
-      actor,
-      actorId,
-      statusId: importedFitnessFile.statusId,
-      stravaActivityId,
-      accessToken,
-      activity
-    })
+    // Held back until the status carries its caption and photos: publishing
+    // this is what triggers processing and, for the webhook, the Create.
+    for (const processJob of deferredProcessJobs) {
+      try {
+        await getQueue().publish(processJob)
+      } catch (error) {
+        // Same protection the non-deferred path gives itself, minus the status
+        // cleanup: by now the status is written, timelined and carries the
+        // Strava caption, so deleting it would destroy real content. Leave the
+        // file failed with a reason so the fitness UI offers its retry.
+        const errorMessage = toImportErrorMessage(error)
+
+        logger.error({
+          message: 'Failed to publish fitness processing job after import',
+          actorId,
+          stravaActivityId,
+          statusId: importedFitnessFile.statusId,
+          fitnessFileId: targetFitnessFile.id,
+          err: toLoggableError(error)
+        })
+
+        await Promise.all([
+          database.updateFitnessFileImportStatus(
+            targetFitnessFile.id,
+            'failed',
+            errorMessage
+          ),
+          database.updateFitnessFileProcessingStatus(
+            targetFitnessFile.id,
+            'failed',
+            errorMessage
+          )
+        ])
+      }
+    }
 
     // The notification for this path now fires at the end of
     // processFitnessFileJob instead. Creating it here was premature: under
     // QStash that job is only enqueued at this point, so the route map and the
     // parsed stats do not exist yet and the email would arrive empty.
-    // importFitnessFilesJob sets notifyOnComplete for a first import.
+    // importFitnessFiles sets notifyOnComplete for a first import.
 
     // Only fall back to a regenerate-map job for a re-imported PRIMARY file
     // that still lacks a map. On a fresh import the primary is already handed
