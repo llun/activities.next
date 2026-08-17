@@ -1352,6 +1352,41 @@ describe('importStravaActivityJob', () => {
       })
     })
 
+    it('sends no photo update for an import that did not opt into federation', async () => {
+      // sendUpdateNoteJob consults no opt-in of its own, and Mastodon
+      // synthesises a Create for an unseen object younger than about a day —
+      // so an ungated Update publishes a status that deliberately stayed
+      // local, an only_me activity included, just because it had a photo.
+      database.getAttachments.mockResolvedValue([])
+      database.createAttachment.mockResolvedValue({} as never)
+      mockGetStravaActivityPhotos.mockResolvedValueOnce([
+        { id: 'photo-1', url: 'https://images.example.com/photo-1.jpg' }
+      ] as never)
+      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+        new Response(Buffer.from('jpg'), {
+          headers: { 'content-type': 'image/jpeg', 'content-length': '3' }
+        })
+      )
+
+      try {
+        await importStravaActivityJob(database as unknown as Database, {
+          id: 'job-federation-photo-update-no-optin',
+          name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+          data: {
+            actorId: 'actor-1',
+            stravaActivityId: '123'
+          }
+        })
+      } finally {
+        fetchSpy.mockRestore()
+      }
+
+      expect(database.createAttachment).toHaveBeenCalledTimes(1)
+      expect(mockGetQueue().publish).not.toHaveBeenCalledWith(
+        expect.objectContaining({ name: SEND_UPDATE_NOTE_JOB_NAME })
+      )
+    })
+
     it('sends no update when the activity had no photos to attach', async () => {
       deferOneProcessJob()
 

@@ -910,19 +910,26 @@ export const importStravaActivityJob = createJobHandle(
       })
 
       // A photo attached after the Create needs an Update or the remote copy
-      // keeps the version without it, forever. Three cases land here: the
-      // process job published above already federated (always under NoQueue,
-      // a race under QStash); and a merged sibling, which brings its OWN
-      // Strava photos to a post whose Create went out with the primary's.
+      // keeps the version without it, forever. Two cases land here: the process
+      // job published above already federated (always under NoQueue, a race
+      // under QStash), and a merged sibling, which brings its OWN Strava photos
+      // to a post whose Create went out with the primary's.
       //
-      // Cheap when there is nothing to say — no photos, no Update — and safe
-      // when the Create was never sent at all, since a receiver that does not
-      // know the object either ignores the Update or synthesises the Create
-      // from it, which is the outcome we wanted anyway.
-      if (attachedPhotoCount > 0) {
+      // Gated on the same opt-in as the Create, and that gate is load-bearing
+      // rather than tidiness: sendUpdateNoteJob delivers to every federated
+      // inbox without consulting any opt-in of its own, and Mastodon's Update
+      // handler SYNTHESISES a Create for an object it has not seen that is
+      // younger than about a day. Ungated, a recovery sweep — or an only_me
+      // activity, which reaches here having deliberately skipped its Create —
+      // would publish a status precisely because it had a photo.
+      //
+      // The id carries the Strava activity so a merged sibling's photos get
+      // their own Update rather than being deduplicated against the primary's,
+      // while a redelivery of the same webhook still collapses.
+      if (shouldFederateImport && attachedPhotoCount > 0) {
         await getQueue().publish({
           id: getHashFromString(
-            `${importedFitnessFile.statusId}:strava-photos:send-update-note`
+            `${importedFitnessFile.statusId}:${stravaActivityId}:strava-photos:send-update-note`
           ),
           name: SEND_UPDATE_NOTE_JOB_NAME,
           data: { actorId, statusId: importedFitnessFile.statusId }
