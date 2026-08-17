@@ -476,6 +476,25 @@ export const importStravaActivityJob = createJobHandle(
       activity.visibility === 'followers_only'
     const shouldFederateImport = publishSendNote && isStravaSharedActivity
 
+    // Logged rather than left silent: the visibility type is open-ended, so a
+    // value Strava adds later — or stops sending — would suppress federation
+    // for every import, and the symptom ("my rides stopped appearing on other
+    // servers") looks identical to the bug this opt-in exists to fix. Only for
+    // a caller that asked to federate, and never for only_me, which is a
+    // decision rather than a surprise.
+    if (
+      publishSendNote &&
+      !isStravaSharedActivity &&
+      activity.visibility !== 'only_me'
+    ) {
+      logger.warn({
+        message: 'Not federating an import with an unrecognised visibility',
+        actorId,
+        stravaActivityId,
+        stravaVisibility: activity.visibility ?? null
+      })
+    }
+
     // Nothing here reads `activity.gear_id`, and that is deliberate: gear is
     // attributed downstream by `processFitnessFileJob`, from the gear whose
     // `defaultSports` claims the parsed sport — the athlete's own shed, which
