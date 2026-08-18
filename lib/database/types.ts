@@ -1,6 +1,8 @@
 import { FitnessFileDatabase } from '@/lib/database/sql/fitnessFile'
+import { FitnessFileRouteDatabase } from '@/lib/database/sql/fitnessFileRoute'
 import { FitnessGearDatabase } from '@/lib/database/sql/fitnessGear'
 import { FitnessRouteHeatmapDatabase } from '@/lib/database/sql/fitnessRouteHeatmap'
+import { FitnessRouteHeatmapTileDatabase } from '@/lib/database/sql/fitnessRouteHeatmapTile'
 import { FitnessSettingsDatabase } from '@/lib/database/sql/fitnessSettings'
 import { ImportLockDatabase } from '@/lib/database/sql/importLock'
 import { StravaArchiveImportDatabase } from '@/lib/database/sql/stravaArchiveImport'
@@ -61,8 +63,10 @@ export type Database = AccountDatabase &
   InstanceActivityDatabase &
   InstanceRuleDatabase &
   FitnessFileDatabase &
+  FitnessFileRouteDatabase &
   FitnessGearDatabase &
   FitnessRouteHeatmapDatabase &
+  FitnessRouteHeatmapTileDatabase &
   FitnessSettingsDatabase &
   ImportLockDatabase &
   StravaArchiveImportDatabase &

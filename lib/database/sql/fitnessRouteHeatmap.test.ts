@@ -823,5 +823,170 @@ describe('FitnessRouteHeatmapDatabase', () => {
         ).toBe(false)
       })
     })
+    describe('pyramid subscribers', () => {
+      // The scope one per-actor pyramid build covers: all activity types, all
+      // time, any region.
+      const subscriberScope = {
+        activityType: null,
+        periodType: 'all_time' as const,
+        periodKey: 'all'
+      }
+
+      it('lists every in-flight all-time heatmap whatever its region', async () => {
+        const actorId = actors.pollAuthor.id
+        const world = await database.createFitnessRouteHeatmap({
+          ...subscriberScope,
+          actorId,
+          region: ''
+        })
+        const singapore = await database.createFitnessRouteHeatmap({
+          ...subscriberScope,
+          actorId,
+          region: 'rect:1.50,103.60,1.20,104.00'
+        })
+
+        const subscribers = await database.getFitnessRouteHeatmapSubscribers({
+          actorId
+        })
+        expect(subscribers.map((row) => row.id).sort()).toEqual(
+          [world.id, singapore.id].sort()
+        )
+      })
+
+      it.each([
+        {
+          description: 'is scoped to a single activity type',
+          overrides: { activityType: 'cycling' }
+        },
+        {
+          description: 'is scoped to a single year',
+          overrides: { periodType: 'yearly' as const, periodKey: '2026' }
+        }
+      ])('excludes a heatmap that $description', async ({ overrides }) => {
+        const actorId = actors.extra.id
+        await database.createFitnessRouteHeatmap({
+          ...subscriberScope,
+          ...overrides,
+          actorId,
+          region: ''
+        })
+
+        expect(
+          await database.getFitnessRouteHeatmapSubscribers({ actorId })
+        ).toEqual([])
+      })
+
+      it.each([
+        { description: 'completed', status: 'completed' as const },
+        { description: 'failed', status: 'failed' as const },
+        { description: 'cancelled', status: 'cancelled' as const }
+      ])('excludes a run that already $description', async ({ status }) => {
+        const actorId = actors.followRequester.id
+        const heatmap = await database.createFitnessRouteHeatmap({
+          ...subscriberScope,
+          actorId,
+          region: `rect:2.00,3.00,1.00,4.00;terminal:${status}`
+        })
+        await database.updateFitnessRouteHeatmapStatus({
+          id: heatmap.id,
+          status
+        })
+
+        const subscribers = await database.getFitnessRouteHeatmapSubscribers({
+          actorId
+        })
+        expect(subscribers.map((row) => row.id)).not.toContain(heatmap.id)
+      })
+
+      it('excludes a soft-deleted run and never mirrors progress onto it', async () => {
+        const actorId = actors.primary.id
+        const removed = await database.createFitnessRouteHeatmap({
+          ...subscriberScope,
+          actorId,
+          region: 'rect:7.00,7.00,6.00,8.00'
+        })
+        await database.deleteFitnessRouteHeatmap({ actorId, id: removed.id })
+        const live = await database.createFitnessRouteHeatmap({
+          ...subscriberScope,
+          actorId,
+          region: 'rect:7.00,9.00,6.00,10.00'
+        })
+
+        const subscribers = await database.getFitnessRouteHeatmapSubscribers({
+          actorId
+        })
+        expect(subscribers.map((row) => row.id)).toContain(live.id)
+        expect(subscribers.map((row) => row.id)).not.toContain(removed.id)
+
+        const mirrored =
+          await database.mirrorFitnessRouteHeatmapGenerationProgress({
+            actorId,
+            totalCount: 99,
+            cursorOffset: 33
+          })
+
+        // The deleted row cannot be read back to check it directly, so the
+        // count is the assertion: the mirror touched the live subscribers and
+        // nothing besides.
+        expect(mirrored).toBe(subscribers.length)
+        expect(
+          (await database.getFitnessRouteHeatmap({ id: live.id }))?.totalCount
+        ).toBe(99)
+      })
+
+      it('mirrors build progress onto every subscriber at once', async () => {
+        const actorId = actors.empty.id
+        const first = await database.createFitnessRouteHeatmap({
+          ...subscriberScope,
+          actorId,
+          region: ''
+        })
+        const second = await database.createFitnessRouteHeatmap({
+          ...subscriberScope,
+          actorId,
+          region: 'rect:52.60,4.60,52.00,5.20'
+        })
+
+        const mirrored =
+          await database.mirrorFitnessRouteHeatmapGenerationProgress({
+            actorId,
+            totalCount: 400,
+            cursorOffset: 175
+          })
+
+        expect(mirrored).toBe(2)
+        for (const id of [first.id, second.id]) {
+          const row = await database.getFitnessRouteHeatmap({ id })
+          expect(row).toMatchObject({
+            status: 'generating',
+            totalCount: 400,
+            cursorOffset: 175
+          })
+        }
+      })
+
+      it('does not drag a cancelled run back into generating', async () => {
+        const actorId = actors.replyAuthor.id
+        const cancelled = await database.createFitnessRouteHeatmap({
+          ...subscriberScope,
+          actorId,
+          region: 'rect:9.00,9.00,8.00,10.00'
+        })
+        await database.cancelFitnessRouteHeatmapGeneration({
+          actorId,
+          id: cancelled.id
+        })
+
+        await database.mirrorFitnessRouteHeatmapGenerationProgress({
+          actorId,
+          totalCount: 10,
+          cursorOffset: 5
+        })
+
+        const row = await database.getFitnessRouteHeatmap({ id: cancelled.id })
+        expect(row?.status).toBe('cancelled')
+        expect(row?.cursorOffset).toBe(0)
+      })
+    })
   })
 })

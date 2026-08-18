@@ -63,6 +63,20 @@ Important columns include:
 
 Route heatmap caches are stored in `fitness_route_heatmaps`. They are keyed by actor, activity type, period, and region and store serialized route segments rather than generated PNG files. A nullable `shareToken` column backs the shareable/embeddable heatmap views (iframe + image). User-assigned names for heatmap regions are persisted separately in `fitness_route_heatmap_region_names` (keyed by actor and region) so they survive reloads.
 
+### Route heatmap tile pyramid
+
+Storing a whole heatmap as one blob of segments means fitting it to a single global vertex budget, and that is why the map's precision falls off as its coverage grows: a city-sized heatmap fits the budget at the 1 m simplification floor and looks sharp, while a world-spanning one is coarsened to hundreds of meters and cuts across roads. Zooming in never reveals more detail, because the geometry is simplified once and reused at every zoom.
+
+Three tables (`migrations/20260817000000_add_fitness_route_heatmap_tiles.js`) hold the replacement, a per-actor zoom-tiled pyramid whose precision is fixed per screen pixel at every zoom rather than shared out across the whole map:
+
+- `fitness_file_routes` caches each activity's simplified polyline, keyed by `fitnessFileId`, with the route's bounding box and a `sourceVersion` for invalidating the cached representation. Geometry otherwise exists only inside the original FIT/GPX/TCX in object storage, so without this every rebuild re-downloads and re-parses every file. An activity with no GPS gets a row with no points and null bounds — a negative cache, so rebuilds stop re-reading treadmill files to rediscover they have no route.
+- `fitness_route_heatmap_pyramids` holds one build-state row per actor: a monotonic build `version`, the `(cursorCreatedAt, cursorId)` keyset resume position, and the progress counters. Build ownership is a compare-and-swap on `version`, and `updatedAt` doubles as the heartbeat that tells an abandoned build apart from a running one.
+- `fitness_route_heatmap_tiles` holds the geometry, one row per `(actorId, tileKey)` where the key is `"z:x:y"`, alongside the numeric `z`/`x`/`y` a viewport range-scans. Each row records the build `version` that wrote it, so a resumed pass adds to its own tiles, a fresh build replaces them, and sweeping older versions on completion is how activities deleted since the last build drop out — with no per-activity bookkeeping and no decrementing of visit counts.
+
+Both JSON payload columns use the same `mediumtext`-on-MySQL treatment as the route cache's, since a long ride and a dense city tile can each outgrow a 64 KiB `text`.
+
+As of this change the tables exist and have database accessors, but nothing writes to or reads from them yet: `fitness_route_heatmaps` still serves every heatmap. The tiler, the generation job, the serving API and the client's zoom-aware fetching land in later changes.
+
 ## Gear Tracking
 
 Bikes, shoes and recording devices all live in `fitness_gears`, and the parts bolted to a bike in `fitness_gear_components` (both tables added by `migrations/20260811000000_add_fitness_gear.js`; the device kind's identity and product-page columns by `migrations/20260813000000_add_fitness_device_gear.js`).

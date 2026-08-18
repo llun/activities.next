@@ -53,6 +53,15 @@ export interface GetFitnessFileParams {
   id: string
 }
 
+/**
+ * A keyset pagination position: the `(createdAt, id)` of the last row of the
+ * previous page. Only meaningful with `orderDirection: 'asc'`.
+ */
+export interface FitnessFileCursor {
+  createdAt: number
+  id: string
+}
+
 export interface GetFitnessFilesByActorParams {
   actorId: string
   limit?: number
@@ -62,7 +71,32 @@ export interface GetFitnessFilesByActorParams {
   activityType?: string | null
   startDate?: Date
   endDate?: Date
+  /**
+   * Newest-first by default, which is what every list surface wants. A job that
+   * walks an actor's whole history uses `'asc'` with `afterCursor` so its
+   * position stays valid as rows are added.
+   */
+  orderDirection?: 'asc' | 'desc'
+  /**
+   * Resume after this `(createdAt, id)` instead of counting rows with `offset`.
+   * A long-running scan cannot use an offset: an upload or delete shifts every
+   * row behind it, so the next page silently skips or repeats activities.
+   * Ignored unless `orderDirection` is `'asc'`, since the comparison below only
+   * describes a forward scan.
+   */
+  afterCursor?: FitnessFileCursor
 }
+
+/**
+ * The same filters as a page read, minus everything that only describes how a
+ * page is cut out of the result: a count is over the whole filtered set, so
+ * ordering and a resume cursor would be silently ignored if they were
+ * accepted.
+ */
+export type CountFitnessFilesByActorParams = Omit<
+  GetFitnessFilesByActorParams,
+  'limit' | 'offset' | 'orderDirection' | 'afterCursor'
+>
 
 export interface GetFitnessFilesByIdsParams {
   fitnessFileIds: string[]
@@ -145,7 +179,7 @@ export interface FitnessFileDatabase {
    * denominator for route-heatmap generation.
    */
   countFitnessFilesByActor(
-    params: Omit<GetFitnessFilesByActorParams, 'limit' | 'offset'>
+    params: CountFitnessFilesByActorParams
   ): Promise<number>
   /**
    * Returns the distinct import-batch ids the "retry all failed" action would
@@ -442,7 +476,9 @@ export const FitnessFileSQLDatabaseMixin = (
     isPrimary,
     activityType,
     startDate,
-    endDate
+    endDate,
+    orderDirection = 'desc',
+    afterCursor
   }: GetFitnessFilesByActorParams) {
     let query = database<SQLFitnessFile>('fitness_files')
       .where('actorId', actorId)
@@ -468,9 +504,24 @@ export const FitnessFileSQLDatabaseMixin = (
       query = query.where('activityStartTime', '<=', endDate)
     }
 
+    if (afterCursor && orderDirection === 'asc') {
+      // Strictly after (createdAt, id) in the sort's own order, written as a
+      // nested OR rather than a row-value comparison because SQLite, MySQL and
+      // PostgreSQL do not agree on `(a, b) > (?, ?)`.
+      const { createdAt, id } = afterCursor
+      const cursorTime = new Date(createdAt)
+      query = query.where((cursor) =>
+        cursor
+          .where('createdAt', '>', cursorTime)
+          .orWhere((tie) =>
+            tie.where('createdAt', cursorTime).where('id', '>', id)
+          )
+      )
+    }
+
     const rows = await query
-      .orderBy('createdAt', 'desc')
-      .orderBy('id', 'desc')
+      .orderBy('createdAt', orderDirection)
+      .orderBy('id', orderDirection)
       .limit(limit)
       .offset(offset)
 
@@ -484,7 +535,7 @@ export const FitnessFileSQLDatabaseMixin = (
     activityType,
     startDate,
     endDate
-  }: Omit<GetFitnessFilesByActorParams, 'limit' | 'offset'>) {
+  }: CountFitnessFilesByActorParams) {
     let query = database<SQLFitnessFile>('fitness_files')
       .where('actorId', actorId)
       .whereNull('deletedAt')
