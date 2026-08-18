@@ -59,7 +59,7 @@
     "fit-file-parser": "^4.1.0",
     "got": "^15.1.0",
     "html-react-parser": "^6.1.7",
-    "jose": "^6.2.8",
+    "jose": "^6.2.9",
     "jsonld": "^9.0.0",
     "knex": "^3.3.0",
     "kysely": "^0.29.5",
