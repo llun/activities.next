@@ -1894,6 +1894,15 @@ describe('processFitnessFileJob', () => {
           data: { actorId: actor.id, statusId, fitnessFileId }
         })
 
+        // The zone was genuinely in force: it swallows the first of the two
+        // points, leaving one visible, and a single point is not a route — so
+        // no map is drawn. Without this the test asserts the same literal as
+        // the zone-less test above it and would keep passing if the zone
+        // silently stopped applying.
+        expect(mockGenerateMapImage).not.toHaveBeenCalled()
+        const processed = await database.getFitnessFile({ id: fitnessFileId })
+        expect(processed?.hasMapData).toBe(false)
+
         const [route] = await database.getFitnessFileRoutes({
           fitnessFileIds: [fitnessFileId]
         })

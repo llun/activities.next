@@ -1167,38 +1167,46 @@ describe('FitnessFileDatabase', () => {
         expect(deleted).toBe(false)
       })
 
-      it('drops the cached route with the activity', async () => {
-        const created = await database.createFitnessFile({
-          actorId: actors.extra.id,
-          path: 'fitness/delete-with-route.gpx',
-          fileName: 'delete-with-route.gpx',
-          fileType: 'gpx',
-          mimeType: 'application/gpx+xml',
-          bytes: 2048
-        })
+      it('drops the cached route with the activity and no other', async () => {
+        // Two rows, because the delete has to be SCOPED: an unscoped one would
+        // pass every assertion about the deleted activity while wiping the
+        // whole instance's cache, and the only symptom would be the next
+        // Generate quietly paying a full download-and-reparse for everyone.
+        const createRouted = async (name: string) => {
+          const file = await database.createFitnessFile({
+            actorId: actors.extra.id,
+            path: `fitness/${name}.gpx`,
+            fileName: `${name}.gpx`,
+            fileType: 'gpx',
+            mimeType: 'application/gpx+xml',
+            bytes: 2048
+          })
+          await database.upsertFitnessFileRoute({
+            fitnessFileId: file!.id,
+            actorId: actors.extra.id,
+            points: [
+              [1.3, 103.8],
+              [1.31, 103.81]
+            ],
+            sourceVersion: 1
+          })
+          return file!.id
+        }
 
-        await database.upsertFitnessFileRoute({
-          fitnessFileId: created!.id,
-          actorId: actors.extra.id,
-          points: [
-            [1.3, 103.8],
-            [1.31, 103.81]
-          ],
-          sourceVersion: 1
-        })
+        const deletedId = await createRouted('delete-with-route')
+        const keptId = await createRouted('keep-my-route')
         expect(
           await database.getFitnessFileRoutes({
-            fitnessFileIds: [created!.id]
+            fitnessFileIds: [deletedId, keptId]
           })
-        ).toHaveLength(1)
+        ).toHaveLength(2)
 
-        expect(await database.deleteFitnessFile({ id: created!.id })).toBe(true)
+        expect(await database.deleteFitnessFile({ id: deletedId })).toBe(true)
 
-        expect(
-          await database.getFitnessFileRoutes({
-            fitnessFileIds: [created!.id]
-          })
-        ).toEqual([])
+        const remaining = await database.getFitnessFileRoutes({
+          fitnessFileIds: [deletedId, keptId]
+        })
+        expect(remaining.map((route) => route.fitnessFileId)).toEqual([keptId])
       })
     })
 

@@ -7,6 +7,21 @@ import {
 } from '@/lib/services/fitness-files/fileRouteCache'
 import type { FitnessCoordinate } from '@/lib/services/fitness-files/parseFitnessFile'
 
+// Partially mocked: the real Douglas-Peucker still runs (every other test here
+// asserts on its output), but the call is observable so the ordering test can
+// check WHAT it was handed rather than only what came back. The spy is hoisted
+// out of the factory so the test holds the same reference the module does.
+const { mockSimplifyPoints } = vi.hoisted(() => ({
+  mockSimplifyPoints: vi.fn()
+}))
+vi.mock('@/lib/services/fitness-files/simplifyRoute', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/services/fitness-files/simplifyRoute')
+  >('@/lib/services/fitness-files/simplifyRoute')
+  mockSimplifyPoints.mockImplementation(actual.simplifyPoints)
+  return { ...actual, simplifyPoints: mockSimplifyPoints }
+})
+
 const TEST_CONFIG = {
   memoryBudgetBytes: 512 * 1024 * 1024,
   accumulationPointLimit: 160_000,
@@ -78,9 +93,13 @@ describe('buildFitnessFileRoutePoints', () => {
     expect(points).toHaveLength(3)
   })
 
-  it('caps at filePointLimit before simplifying so a huge upload stays bounded', () => {
-    // A staircase so no vertex is collinear and simplification cannot be what
-    // reduces the count — this isolates the cap.
+  it('caps at filePointLimit BEFORE simplifying, so Douglas-Peucker never sees an unbounded list', () => {
+    // The ordering is the memory guard, and it cannot be pinned by counting
+    // the output: a staircase survives both orders at exactly the cap. What
+    // separates them is what the recursive pass is handed — the whole
+    // user-supplied list, or the capped one — so that is what is asserted.
+    mockSimplifyPoints.mockClear()
+
     const coordinates: FitnessCoordinate[] = Array.from(
       { length: 5_000 },
       (_value, index) => ({
@@ -94,6 +113,9 @@ describe('buildFitnessFileRoutePoints', () => {
       filePointLimit: 100
     })
 
+    expect(mockSimplifyPoints).toHaveBeenCalledTimes(1)
+    const [received] = mockSimplifyPoints.mock.calls[0] as [unknown[]]
+    expect(received).toHaveLength(100)
     expect(points.length).toBeLessThanOrEqual(100)
   })
 })
