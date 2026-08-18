@@ -55,7 +55,7 @@ const ROUTE_HEATMAP_PAGE_SIZE = 100
 // live set (10 x `filePointLimit` = 800,000 points, ~40 MB of tuples) at the
 // same order as the single raw parse this job held before the cache existed,
 // while still collapsing a page's storage reads into ten indexed lookups.
-const ROUTE_CACHE_PREFETCH_SIZE = 10
+export const ROUTE_CACHE_PREFETCH_SIZE = 10
 const ROUTE_HEATMAP_MAX_FILES = 1_000_000
 const QUEUE_PUBLISH_MAX_ATTEMPTS = 3
 
@@ -585,6 +585,9 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           // remaining file and free nothing. And the failure would not heal —
           // the checkpoint cursor points back at the same page, so every retry
           // would rebuild the same batch and die again.
+          //
+          // The batch size is what bounds the peak and is pinned by test; the
+          // `delete` below only lowers the average within a batch.
           if (pageIndex % ROUTE_CACHE_PREFETCH_SIZE === 0) {
             const prefetchIds = page
               .slice(pageIndex, pageIndex + ROUTE_CACHE_PREFETCH_SIZE)
@@ -654,13 +657,12 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
               }
             }
           } catch (error) {
-            const nodeError = error as Error
             logger.warn({
               message:
                 'Failed to parse fitness file for route heatmap; skipping',
               actorId,
               fitnessFileId: file.id,
-              error: nodeError.message
+              err: toLoggableError(error)
             })
           }
 

@@ -16,7 +16,10 @@ import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
-import { generateFitnessRouteHeatmapJob } from './generateFitnessRouteHeatmapJob'
+import {
+  ROUTE_CACHE_PREFETCH_SIZE,
+  generateFitnessRouteHeatmapJob
+} from './generateFitnessRouteHeatmapJob'
 import { JOBS } from './index'
 
 vi.mock('@/lib/services/fitness-files', async () => {
@@ -1785,6 +1788,64 @@ describe('generateFitnessRouteHeatmapJob', () => {
       } finally {
         await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
         await database.deleteFitnessFile({ id: fitnessFileId })
+      }
+    })
+
+    it('reads the route cache in bounded batches rather than a page at a time', async () => {
+      // The memory bound, which is otherwise guarded only by a comment: a
+      // whole-page prefetch holds up to 100 decoded polylines at once, and at
+      // `filePointLimit` that is past the job's own reduce threshold — on
+      // histories that completed fine before the cache existed. Asserted on
+      // the batch sizes requested, because the outcome is identical either
+      // way; only the peak differs.
+      const fitnessFileIds: string[] = []
+      for (let index = 0; index < ROUTE_CACHE_PREFETCH_SIZE + 2; index += 1) {
+        fitnessFileIds.push(
+          await createCompletedFitnessFile(
+            'running',
+            new Date('2026-04-15T07:00:00.000Z')
+          )
+        )
+      }
+      const routesSpy = vi.spyOn(database, 'getFitnessFileRoutes')
+
+      try {
+        await generateFitnessRouteHeatmapJob(database, {
+          id: 'job-route-cache-batching',
+          name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+          data: {
+            actorId: actor.id,
+            activityType: null,
+            periodType: 'yearly',
+            periodKey: '2026',
+            requestedAt: Date.now()
+          }
+        })
+
+        // Pinned as a VALUE. Asserting only `size <= ROUTE_CACHE_PREFETCH_SIZE`
+        // would move with the constant, so widening it back to a whole page
+        // would satisfy the test again — the batch is bounded by exactly the
+        // number under test. Change this deliberately, with the memory
+        // arithmetic in the constant's comment.
+        expect(ROUTE_CACHE_PREFETCH_SIZE).toBe(10)
+
+        const batchSizes = routesSpy.mock.calls.map(
+          ([{ fitnessFileIds: ids }]) => ids.length
+        )
+        expect(batchSizes.length).toBeGreaterThan(1)
+        for (const size of batchSizes) {
+          expect(size).toBeLessThanOrEqual(ROUTE_CACHE_PREFETCH_SIZE)
+        }
+        // Every activity was still covered, none skipped by the batching.
+        expect(batchSizes.reduce((sum, size) => sum + size, 0)).toBe(
+          fitnessFileIds.length
+        )
+      } finally {
+        routesSpy.mockRestore()
+        await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+        for (const id of fitnessFileIds) {
+          await database.deleteFitnessFile({ id })
+        }
       }
     })
 
