@@ -99,7 +99,8 @@ export const lngLatToTileLocal = (
 
   // Clamped for the same reason the index is: at the projection's own edges the
   // local coordinate lands a hair outside the space (the north Mercator limit
-  // gives about -4e-7), and the space is what callers are promised.
+  // gives about -1e-4 local units at z16), and the space is what callers are
+  // promised.
   const clampLocal = (local: number) =>
     Math.min(Math.max(local, 0), TILE_EXTENT)
 

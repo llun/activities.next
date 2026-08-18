@@ -46,22 +46,28 @@ export interface TileDelta {
  * STORED ROW, so one bad fix took a measured ride from 84 tiles to 16,563.
  *
  * Judged ONCE, against `TILE_MAX_ZOOM`, and then applied to every level — which
- * is why it lives in the discontinuity split rather than in the per-zoom walk.
- * A tile count only means anything relative to how many tiles exist: the world
- * is 16 tiles wide at z4 and 65,536 at z16, so a per-zoom test against a fixed
- * bound cannot fire at all below z10, and the same pair would be travel at z12
- * and a glitch at z16. That leaves the ladder contradicting itself — a
- * continental line drawn at every zoom a reader is likely to look at, and gone
- * when they zoom in.
+ * is why it lives in the run split rather than in the per-zoom walk. A tile
+ * count only means anything relative to how many tiles exist: the world is 16
+ * tiles wide at z4 and 65,536 at z16, so a per-zoom test against a fixed bound
+ * cannot fire at all below z10, and the same pair would be travel at z12 and a
+ * glitch at z16. That leaves the ladder contradicting itself — a continental
+ * line drawn at every zoom a reader is likely to look at, and gone when they
+ * zoom in.
+ *
+ * Pinned to one zoom it is a DISTANCE, scaled by cos(latitude): 1,024 z16 tiles
+ * is about 626 km at the equator, 386 km at 52°N and 55 km at 85°N. A tile
+ * count is still the right invariant, because what is being bounded is stored
+ * rows rather than kilometres — but it does mean the guard is far tighter near
+ * the poles, and an Arctic recording logging every few hours could be split
+ * where a temperate one would not. Only the interpolated line across an
+ * unrecorded gap is ever lost; no recorded point is.
  *
  * 1,024 is measured. The longest genuinely straight road on earth (~150 km of
- * the Eyre Highway) spans 334 tiles at z16 and is kept whole; a 370 km gap left
- * by a recorder running through a train journey spans 1,510 and is split, which
- * is correct — that is a discontinuity, not travel.
- *
- * Deliberately a tile count rather than a distance: a meters threshold would
- * have to guess how sparse a legitimate recording may be, and would silently
- * cut real gaps in one.
+ * the Eyre Highway) spans 335 tiles and is kept whole. A gap left by a recorder
+ * running through a 400 km train journey at 52°N spans 1,116 and is split,
+ * which is correct — that is a discontinuity, not travel — though at 370 km it
+ * is marginal and direction-dependent (1,029 north, 983 east), so the boundary
+ * is a judgement about write amplification rather than a natural edge.
  */
 const MAX_TILE_SPAN_AT_FINEST_ZOOM = 1_024
 
@@ -74,8 +80,11 @@ const isFinitePoint = (point: { lat: number; lng: number }) =>
  *
  * One rule, deliberately, because it already subsumes the antimeridian case: a
  * pair straddling the date line projects to opposite edges of the world, which
- * is the largest span there is. A separate longitude test would be a branch
- * nothing could reach.
+ * is the largest span there is — measured minimum 32,768 tiles, 32x this cap,
+ * at every latitude, since Mercator x does not compress with latitude. A
+ * separate longitude test would be a branch nothing could reach, and it was
+ * also wrong in both directions: it split `-179.9 -> 180.1`, which normalizes
+ * to the same longitude, and missed `179.9 -> 180.1`, which is a real wrap.
  *
  * Judged in projected tiles at the finest zoom — see
  * `MAX_TILE_SPAN_AT_FINEST_ZOOM` for why once, and why not per zoom.

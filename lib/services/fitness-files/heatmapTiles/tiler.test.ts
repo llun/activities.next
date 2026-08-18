@@ -344,7 +344,7 @@ describe('buildTileDeltasForActivity', () => {
     })
   })
 
-  describe('the glitch guard', () => {
+  describe('the recording-jump split', () => {
     const pairAt = (zoom: number, fromLng: number, toLng: number) =>
       build(
         [
@@ -359,10 +359,11 @@ describe('buildTileDeltasForActivity', () => {
         [zoom]
       )
 
-    it('drops a pair that crosses absurdly many tiles', () => {
+    it('splits a pair that spans absurdly many tiles', () => {
       // 90 degrees at z16 is a quarter of the world, about 16,000 tiles — no
       // activity has two consecutive points that far apart, so this is a bad
-      // GPS fix and every tile it crosses would be a stored row.
+      // GPS fix and every tile it crosses would be a stored row. The run is
+      // split, leaving two single points, which is nothing to draw.
       expect(pairAt(16, 0, 90).size).toBe(0)
     })
 
@@ -374,8 +375,10 @@ describe('buildTileDeltasForActivity', () => {
     })
 
     it('keeps the geometry either side of a bad fix', () => {
-      // The pair is dropped, not the run: a single dropout must not cost an
-      // activity everything recorded after it.
+      // The run is split at the dropout, not abandoned at it: a single bad fix
+      // must not cost an activity everything recorded after it. The two halves
+      // are then tiled independently, so a one-point remainder either side is
+      // discarded — there is no line to draw through a lone point.
       const ride = Array.from({ length: 40 }, (_value, index) => ({
         lat: 52.37 + index * 0.0004,
         lng: 4.89 + index * 0.0006
@@ -467,6 +470,21 @@ describe('buildTileDeltasForActivity', () => {
     })
 
     it.each([
+      // Straddling the cap itself, at the equator where a z16 tile is 612m:
+      // 5.6 degrees spans 1,019 tiles and 5.7 spans 1,037. Without a pair
+      // either side of the boundary the cap can move by a factor of ten in
+      // both directions with every test still green — the fixtures below sit
+      // at 182 and 32,585, nowhere near it.
+      {
+        description: 'a gap just inside the span cap',
+        lngs: [0, 5.6] as [number, number],
+        split: false
+      },
+      {
+        description: 'a gap just past the span cap',
+        lngs: [0, 5.7] as [number, number],
+        split: true
+      },
       {
         description: 'a sparse but real gap of about 100km',
         lngs: [0, 1] as [number, number],
