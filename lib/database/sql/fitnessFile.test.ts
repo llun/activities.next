@@ -1166,6 +1166,48 @@ describe('FitnessFileDatabase', () => {
         })
         expect(deleted).toBe(false)
       })
+
+      it('drops the cached route with the activity and no other', async () => {
+        // Two rows, because the delete has to be SCOPED: an unscoped one would
+        // pass every assertion about the deleted activity while wiping the
+        // whole instance's cache, and the only symptom would be the next
+        // Generate quietly paying a full download-and-reparse for everyone.
+        const createRouted = async (name: string) => {
+          const file = await database.createFitnessFile({
+            actorId: actors.extra.id,
+            path: `fitness/${name}.gpx`,
+            fileName: `${name}.gpx`,
+            fileType: 'gpx',
+            mimeType: 'application/gpx+xml',
+            bytes: 2048
+          })
+          await database.upsertFitnessFileRoute({
+            fitnessFileId: file!.id,
+            actorId: actors.extra.id,
+            points: [
+              [1.3, 103.8],
+              [1.31, 103.81]
+            ],
+            sourceVersion: 1
+          })
+          return file!.id
+        }
+
+        const deletedId = await createRouted('delete-with-route')
+        const keptId = await createRouted('keep-my-route')
+        expect(
+          await database.getFitnessFileRoutes({
+            fitnessFileIds: [deletedId, keptId]
+          })
+        ).toHaveLength(2)
+
+        expect(await database.deleteFitnessFile({ id: deletedId })).toBe(true)
+
+        const remaining = await database.getFitnessFileRoutes({
+          fitnessFileIds: [deletedId, keptId]
+        })
+        expect(remaining.map((route) => route.fitnessFileId)).toEqual([keptId])
+      })
     })
 
     describe('getRetriableFitnessImportBatchIds', () => {

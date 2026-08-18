@@ -169,6 +169,24 @@ export const DELETE = traceApiRoute(
       actorId: id
     })
 
+    // The tile pyramid is the same cache in a different shape, so "delete my
+    // heatmaps" has to take it too — otherwise an owner who cleared everything
+    // would still have their routes sitting in tile rows, and a later build
+    // could serve them. Its count is deliberately NOT added to `deleted`: that
+    // number is the region rows the caller asked about, and the pyramid is one
+    // internal row plus however many tiles the ladder happened to produce.
+    //
+    // `fitness_file_routes` is deliberately left alone. It is a parse cache of
+    // files the owner still has, not heatmap output; clearing it would only buy
+    // back the slow download-and-reparse path on the next Generate.
+    // One call, because the row and its tiles have to go atomically: either
+    // order as two statements leaves a window a concurrent build can write
+    // into, and so does an actor who has no pyramid row to lock. See the
+    // method's own note.
+    await database.deleteFitnessRouteHeatmapPyramidAndTilesForActor({
+      actorId: id
+    })
+
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
