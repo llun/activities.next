@@ -163,9 +163,6 @@ export interface FitnessRouteHeatmapTileDatabase {
     actorId: string
     beforeVersion: number
   }): Promise<number>
-  deleteFitnessRouteHeatmapTilesForActor(params: {
-    actorId: string
-  }): Promise<number>
   /**
    * Drops an actor's whole pyramid — the build row and every tile — as one
    * unit. Returns the tiles removed.
@@ -177,12 +174,10 @@ export interface FitnessRouteHeatmapTileDatabase {
    * claim the freshly-absent row, flush legitimately, and have the second
    * statement delete exactly what it just wrote — leaving a pyramid that
    * reports itself complete over tiles that are gone. One transaction is what
-   * makes the pair atomic against a claim.
+   * makes the pair atomic against a claim — and see the implementation for why
+   * a row the actor never had still has to be created before it is deleted.
    */
   deleteFitnessRouteHeatmapPyramidAndTilesForActor(params: {
-    actorId: string
-  }): Promise<number>
-  deleteFitnessRouteHeatmapPyramidForActor(params: {
     actorId: string
   }): Promise<number>
 }
@@ -203,8 +198,19 @@ const parseSQLFitnessRouteHeatmapPyramid = (
   pointCount: Number(row.pointCount ?? 0),
   // Both halves or neither: a cursor missing its id cannot resume a keyset
   // scan, so it is no cursor at all.
+  //
+  // Tested for null rather than for truthiness, and `applyResumePremiseFilter`
+  // asks SQL the same question, because the two must agree exactly — a state
+  // one of them calls resumable and the other does not is a row whose claim can
+  // never match, wedging the actor's pyramid for good. Truthiness disagreed on
+  // two counts: an epoch-0 `cursorCreatedAt` is a falsy integer on SQLite but a
+  // truthy Date on PostgreSQL, so the same row read differently per backend,
+  // and an empty `cursorId` is falsy in JS while `IS NULL` in SQL is false.
   cursor:
-    row.cursorCreatedAt && row.cursorId
+    row.cursorCreatedAt !== null &&
+    row.cursorCreatedAt !== undefined &&
+    row.cursorId !== null &&
+    row.cursorId !== undefined
       ? {
           createdAt: getCompatibleTime(row.cursorCreatedAt),
           id: row.cursorId
@@ -316,15 +322,27 @@ const applyClaimableFilter = (
  * and finds no cursor — so it rescans from the beginning INTO that build's own
  * tiles, doubling every count it revisits, and completion cannot sweep the
  * leftovers because the version never moved.
+ *
+ * Both cursor columns are tested, exactly as `parseSQLFitnessRouteHeatmapPyramid`
+ * does. Checking only `cursorId` made a half-written cursor a state SQL called
+ * resumable and JS did not, and neither branch of this filter can then match:
+ * the claim answers `lost-race` on every attempt, forever, with no way back
+ * because clearing the cursor needs a token nobody holds.
  */
 const applyResumePremiseFilter = (
   query: Knex.QueryBuilder,
   resumed: boolean
 ) =>
   resumed
-    ? query.where('status', 'generating').whereNotNull('cursorId')
+    ? query
+        .where('status', 'generating')
+        .whereNotNull('cursorCreatedAt')
+        .whereNotNull('cursorId')
     : query.where((notResumable) =>
-        notResumable.whereNot('status', 'generating').orWhereNull('cursorId')
+        notResumable
+          .whereNot('status', 'generating')
+          .orWhereNull('cursorCreatedAt')
+          .orWhereNull('cursorId')
       )
 
 const applyTileRange = (
@@ -631,26 +649,44 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
       .delete()
   },
 
-  async deleteFitnessRouteHeatmapTilesForActor({
-    actorId
-  }: {
-    actorId: string
-  }) {
-    return database('fitness_route_heatmap_tiles')
-      .where('actorId', actorId)
-      .delete()
-  },
-
   async deleteFitnessRouteHeatmapPyramidAndTilesForActor({
     actorId
   }: {
     actorId: string
   }) {
     return database.transaction<number>(async (trx) => {
-      // Pyramid first, inside the transaction: removing the row removes the
-      // token every tile write is fenced on, so a build already running is
-      // rejected from here on, and a build that would claim the absent row
-      // cannot start until this commits.
+      // Insert-then-delete, deliberately. Deleting the pyramid row is what
+      // fences a build already running — the token every tile write is checked
+      // against goes with it — and holding that row's lock for the rest of the
+      // transaction is what stops a claim landing between this and the tile
+      // delete below. But a DELETE matching NO row takes no lock at all, so
+      // when the actor has never built (or already cleared), a claim runs
+      // straight through the gap, flushes tiles, and has them deleted out from
+      // under it — finishing as `completed` over tiles that no longer exist.
+      // Making the row exist first gives the delete something to lock in that
+      // case too, so a concurrent claim's own insert waits for this commit and
+      // starts cleanly afterwards.
+      await trx('fitness_route_heatmap_pyramids')
+        .insert({
+          id: crypto.randomUUID(),
+          actorId,
+          status: 'idle',
+          error: null,
+          version: 0,
+          claimSeq: 0,
+          totalCount: 0,
+          scannedCount: 0,
+          activityCount: 0,
+          tileCount: 0,
+          pointCount: 0,
+          cursorCreatedAt: null,
+          cursorId: null,
+          completedAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .onConflict('actorId')
+        .ignore()
       await trx('fitness_route_heatmap_pyramids')
         .where('actorId', actorId)
         .delete()
@@ -659,15 +695,5 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
         .delete()
       return deletedTiles
     })
-  },
-
-  async deleteFitnessRouteHeatmapPyramidForActor({
-    actorId
-  }: {
-    actorId: string
-  }) {
-    return database('fitness_route_heatmap_pyramids')
-      .where('actorId', actorId)
-      .delete()
   }
 })

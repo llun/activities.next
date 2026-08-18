@@ -181,7 +181,8 @@ export const DELETE = traceApiRoute(
     // back the slow download-and-reparse path on the next Generate.
     // One call, because the row and its tiles have to go atomically: either
     // order as two statements leaves a window a concurrent build can write
-    // into. See the method's own note.
+    // into, and so does an actor who has no pyramid row to lock. See the
+    // method's own note.
     await database.deleteFitnessRouteHeatmapPyramidAndTilesForActor({
       actorId: id
     })
