@@ -233,14 +233,17 @@ describe('buildTileDeltasForActivity', () => {
     it('contributes to every tile a long diagonal passes through', () => {
       // A pair split only at its first boundary would skip the tiles in
       // between, leaving gaps in the heat.
-      const zoom = 8
+      // At z16 a tile is about 612m, so a 5km pair genuinely crosses several —
+      // the realistic case. The same test at a coarse zoom would need a pair
+      // hundreds of kilometres long, which is a teleport, not a diagonal.
+      const zoom = 16
       const deltas = build(
         [
           {
             isHiddenByPrivacy: false,
             points: [
-              { lat: 10, lng: -20 },
-              { lat: 40, lng: 30 }
+              { lat: 52.34, lng: 4.85 },
+              { lat: 52.38, lng: 4.93 }
             ]
           }
         ],
@@ -259,14 +262,14 @@ describe('buildTileDeltasForActivity', () => {
       // The y axis needs subdividing exactly as much as the x axis does.
       // Subdividing only on x leaves a mostly-vertical track skipping the tile
       // rows between its endpoints.
-      const zoom = 8
+      const zoom = 16
       const deltas = build(
         [
           {
             isHiddenByPrivacy: false,
             points: [
-              { lat: -35, lng: 20 },
-              { lat: 35, lng: 20.05 }
+              { lat: 52.32, lng: 4.89 },
+              { lat: 52.4, lng: 4.892 }
             ]
           }
         ],
@@ -286,11 +289,12 @@ describe('buildTileDeltasForActivity', () => {
         [
           {
             isHiddenByPrivacy: false,
-            // Deliberately under the antimeridian threshold: a wider span is
-            // split as a discontinuity and yields nothing to inspect.
+            // Short pairs sitting ON the extremes, not one pair reaching
+            // across to them: a span that wide is a discontinuity and would
+            // be split, leaving nothing to inspect.
             points: [
-              { lat: -80, lng: -80 },
-              { lat: 80, lng: 80 }
+              { lat: -85, lng: -179.99 },
+              { lat: -84.99, lng: -179.9 }
             ]
           }
         ],
@@ -464,20 +468,25 @@ describe('buildTileDeltasForActivity', () => {
 
     it.each([
       {
-        description: 'a large but legitimate gap in a sparse recording',
-        lngs: [0, 179] as [number, number],
+        description: 'a sparse but real gap of about 100km',
+        lngs: [0, 1] as [number, number],
         split: false
       },
       {
-        description: 'an exact antimeridian jump',
+        description: 'a jump most of the way round the world',
+        lngs: [0, 179] as [number, number],
+        split: true
+      },
+      {
+        description: 'a jump across the date line',
         lngs: [179.9, -179.9] as [number, number],
         split: true
       }
     ])('treats $description correctly', ({ lngs, split }) => {
-      // The threshold itself. Anything from about 50 degrees upward passes the
-      // other fixtures here, so without this a far tighter threshold — which
-      // would cut real gaps in sparse recordings — would look fine.
-      const zoom = 6
+      // The threshold itself, from both sides: loose enough to keep a sparse
+      // recording whole, tight enough that nothing draws a line between
+      // continents.
+      const zoom = 16
       const deltas = build(
         [
           {

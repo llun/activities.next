@@ -4,6 +4,7 @@ import { TILE_SIZE, projectWebMercator } from '@/lib/utils/webMercator'
 import {
   TILE_EXTENT,
   TILE_LADDER_ZOOMS,
+  TILE_MAX_ZOOM,
   tileToleranceMeters
 } from './constants'
 import type { TileEdgeMap } from './edgeMerge'
@@ -33,51 +34,71 @@ export interface TileDelta {
   edges: TileEdgeMap
 }
 
-/** Longitude jump treated as a recording discontinuity rather than travel. */
-const ANTIMERIDIAN_JUMP_DEGREES = 180
-
 /**
- * How many tiles one pair of consecutive points may cross before it is treated
- * as a glitch rather than travel.
+ * How many tiles a pair of consecutive points may span, measured at the FINEST
+ * zoom, before the recording is treated as jumping rather than travelling.
  *
  * A runaway guard, not a fidelity knob. A single bad GPS fix inside the legal
  * coordinate range — a "null island" `{0, 0}` dropout is the common one, and
  * the parser has no reason to reject it — draws a straight line from the route
  * to that point and back. Geometrically that is one wrong stripe, which is what
  * the untiled heatmap used to cost; here every tile the stripe crosses is a
- * STORED ROW, so one bad fix took a measured ride from 84 tiles to 16,563, and
- * a legal-longitude glitch under the antimeridian threshold to 44,918. That is
- * a permanent 200-500x write amplification for the whole pyramid.
+ * STORED ROW, so one bad fix took a measured ride from 84 tiles to 16,563.
  *
- * 1,024 is measured, not guessed. The longest genuinely straight road on earth
- * (~150 km of the Eyre Highway) simplifies to a single pair and stores 395
- * tiles across the ladder — identical at this cap and with the cap four times
- * higher, so nothing real is being clipped — while the null-island ride above
- * drops from 16,563 tiles to 1,090. Tightening to 256 would start eating that
- * road (103 tiles, a quarter of it gone).
+ * Judged ONCE, against `TILE_MAX_ZOOM`, and then applied to every level — which
+ * is why it lives in the discontinuity split rather than in the per-zoom walk.
+ * A tile count only means anything relative to how many tiles exist: the world
+ * is 16 tiles wide at z4 and 65,536 at z16, so a per-zoom test against a fixed
+ * bound cannot fire at all below z10, and the same pair would be travel at z12
+ * and a glitch at z16. That leaves the ladder contradicting itself — a
+ * continental line drawn at every zoom a reader is likely to look at, and gone
+ * when they zoom in.
+ *
+ * 1,024 is measured. The longest genuinely straight road on earth (~150 km of
+ * the Eyre Highway) spans 334 tiles at z16 and is kept whole; a 370 km gap left
+ * by a recorder running through a train journey spans 1,510 and is split, which
+ * is correct — that is a discontinuity, not travel.
  *
  * Deliberately a tile count rather than a distance: a meters threshold would
  * have to guess how sparse a legitimate recording may be, and would silently
  * cut real gaps in one.
  */
-const MAX_TILE_CROSSINGS_PER_PAIR = 1_024
+const MAX_TILE_SPAN_AT_FINEST_ZOOM = 1_024
 
 const isFinitePoint = (point: { lat: number; lng: number }) =>
   Number.isFinite(point.lat) && Number.isFinite(point.lng)
 
 /**
- * Splits a run wherever consecutive points jump the antimeridian.
+ * Whether a pair covers more of the map than travel between two recorded points
+ * could, and so is a jump in the recording rather than a journey.
  *
- * Without this, a pair straddling the date line projects to opposite edges of
- * the world and the boundary walk below would lay edges across every tile
- * column between them. Measured on the ORIGINAL longitudes, before projection
- * normalizes them, because that is where the jump is visible.
+ * One rule, deliberately, because it already subsumes the antimeridian case: a
+ * pair straddling the date line projects to opposite edges of the world, which
+ * is the largest span there is. A separate longitude test would be a branch
+ * nothing could reach.
  *
- * Only longitude wrap is caught. A GPS teleport in latitude, or a longitude
- * glitch under 180°, still draws a straight line of edges through whatever it
- * crosses; the parsers reject non-finite values but do not detect teleports,
- * and inventing a distance threshold here would silently cut legitimate gaps
- * in sparse recordings.
+ * Judged in projected tiles at the finest zoom — see
+ * `MAX_TILE_SPAN_AT_FINEST_ZOOM` for why once, and why not per zoom.
+ */
+const spansTooManyTiles = (
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number }
+) => {
+  const a = projectWebMercator(from, TILE_MAX_ZOOM)
+  const b = projectWebMercator(to, TILE_MAX_ZOOM)
+  const span =
+    Math.abs(Math.floor(b.x / TILE_SIZE) - Math.floor(a.x / TILE_SIZE)) +
+    Math.abs(Math.floor(b.y / TILE_SIZE) - Math.floor(a.y / TILE_SIZE))
+  return span > MAX_TILE_SPAN_AT_FINEST_ZOOM
+}
+
+/**
+ * Breaks a route into the runs that are actually continuous, dropping any point
+ * the parser let through with a non-finite coordinate.
+ *
+ * Splitting here rather than in the per-zoom walk is what keeps the ladder
+ * self-consistent: the verdict is reached once, so every level builds from the
+ * same runs and no zoom can disagree about whether a stretch of road exists.
  */
 const splitAtDiscontinuities = (
   points: Array<{ lat: number; lng: number }>
@@ -93,10 +114,7 @@ const splitAtDiscontinuities = (
     }
 
     const previous = current[current.length - 1]
-    if (
-      previous &&
-      Math.abs(point.lng - previous.lng) >= ANTIMERIDIAN_JUMP_DEGREES
-    ) {
+    if (previous && spansTooManyTiles(previous, point)) {
       if (current.length >= 2) runs.push(current)
       current = [point]
       continue
@@ -234,7 +252,9 @@ export interface BuildTileDeltasParams {
  * takes: it projects into a local meters plane internally and cannot be run in
  * pixel space. That plane is anchored at the run's FIRST latitude, so a long
  * north-south activity is simplified against its start's pixel size rather than
- * its far end's — over-detailed running poleward, under-detailed running
+ * its far end's. Tolerance scales with cos(latitude), so a run STARTING nearer
+ * the equator carries the coarser tolerance into a far end whose pixels are
+ * finer — under-detailed travelling poleward, over-detailed travelling
  * equatorward, and so not invariant to reversing the run. The error is a
  * cos(latitude) ratio and stays small over any real activity; it never affects
  * where a point LANDS, because placement projects each point exactly.
@@ -278,14 +298,6 @@ export const buildTileDeltasForActivity = ({
           ) {
             continue
           }
-
-          // A pair spanning absurdly many tiles is a glitch, not travel. Left
-          // out entirely rather than ending the run, so the geometry either
-          // side of a bad fix still contributes.
-          const spannedTiles =
-            Math.abs(Math.floor(to.x) - Math.floor(from.x)) +
-            Math.abs(Math.floor(to.y) - Math.floor(from.y))
-          if (spannedTiles > MAX_TILE_CROSSINGS_PER_PAIR) continue
 
           // Solved once here, in the continuous frame, then localized per tile.
           const crossings = boundaryCrossings(from, to)

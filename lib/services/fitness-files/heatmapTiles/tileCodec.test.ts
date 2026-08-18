@@ -28,8 +28,10 @@ describe('tileKey and parseTileKey', () => {
     { description: 'a non-numeric part', key: '16:abc:200' },
     { description: 'a fractional index', key: '16:100.5:200' },
     { description: 'a negative index', key: '16:-1:200' },
-    { description: 'an x past the last tile at that zoom', key: '2:4:0' },
-    { description: 'a y past the last tile at that zoom', key: '2:0:4' }
+    // Inside the ladder on purpose: a zoom below it is turned away by the zoom
+    // bound and never reaches the index check at all.
+    { description: 'an x past the last tile at that zoom', key: '4:16:0' },
+    { description: 'a y past the last tile at that zoom', key: '4:0:16' }
   ])('rejects $description', ({ key }) => {
     expect(parseTileKey(key)).toBeNull()
   })
@@ -79,6 +81,23 @@ describe('lngLatToTileLocal', () => {
     const placed = lngLatToTileLocal({ lat: -85.05112878, lng: 0 }, zoom)
 
     expect(placed.y).toBe(tileCountAtZoom(zoom) - 1)
+  })
+
+  it('keeps the local coordinate inside the space at the projection edges', () => {
+    // The projection lands a hair outside its own grid at the limits — the
+    // north edge gives about -1e-4 local units at z16 — and the space is what
+    // callers are promised, so the local coordinate is clamped like the index.
+    for (const zoom of [4, 16]) {
+      const north = lngLatToTileLocal({ lat: 85.05112878, lng: 0 }, zoom)
+      expect(north.v).toBeGreaterThanOrEqual(0)
+      expect(north.v).toBeLessThanOrEqual(TILE_EXTENT)
+
+      const south = lngLatToTileLocal({ lat: -85.05112878, lng: 180 }, zoom)
+      expect(south.u).toBeGreaterThanOrEqual(0)
+      expect(south.u).toBeLessThanOrEqual(TILE_EXTENT)
+      expect(south.v).toBeGreaterThanOrEqual(0)
+      expect(south.v).toBeLessThanOrEqual(TILE_EXTENT)
+    }
   })
 
   it('clamps a latitude beyond the Mercator limit rather than overflowing', () => {
@@ -254,11 +273,11 @@ describe('encodeTile and decodeTile', () => {
       segment: '{"c":1,"p":[0,0,8,8,4]}'
     },
     {
-      description: 'a point list too short to be a line',
+      description: 'a point list too short to be a line, of odd length',
       segment: '{"c":1,"p":[0,0,8]}'
     },
     {
-      description: 'a point list too short to be a line',
+      description: 'a point list holding a single point',
       segment: '{"c":1,"p":[0,0]}'
     },
     {
@@ -276,7 +295,10 @@ describe('encodeTile and decodeTile', () => {
     },
     { description: 'a missing count', segment: '{"p":[0,0,8,8]}' },
     { description: 'a zero count', segment: '{"c":0,"p":[0,0,8,8]}' },
-    { description: 'a non-finite count', segment: '{"c":null,"p":[0,0,8,8]}' }
+    { description: 'a null count', segment: '{"c":null,"p":[0,0,8,8]}' },
+    // Reaches the finiteness check specifically: `null` is turned away one
+    // condition earlier by the type test, so it alone leaves that check unpinned.
+    { description: 'an infinite count', segment: '{"c":1e999,"p":[0,0,8,8]}' }
   ])('drops $description without taking the tile with it', ({ segment }) => {
     const encoded = `{"e":256,"s":[${segment},{"c":2,"p":[1,1,2,2]}]}`
     expect(decodeTile(encoded)).toEqual([{ count: 2, points: [1, 1, 2, 2] }])
