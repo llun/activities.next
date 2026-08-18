@@ -10,6 +10,14 @@ import {
 import { GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME } from '@/lib/jobs/names'
 import { getFitnessFile } from '@/lib/services/fitness-files'
 import {
+  FITNESS_FILE_ROUTE_SOURCE_VERSION,
+  buildFitnessFileRoutePoints
+} from '@/lib/services/fitness-files/fileRouteCache'
+import type {
+  FitnessCoordinate,
+  ParseableFitnessFileType
+} from '@/lib/services/fitness-files/parseFitnessFile'
+import {
   isParseableFitnessFileType,
   parseFitnessFile
 } from '@/lib/services/fitness-files/parseFitnessFile'
@@ -26,12 +34,13 @@ import {
   splitSegmentByBounds
 } from '@/lib/services/fitness-files/routeHeatmap'
 import type { RouteHeatmapPoint } from '@/lib/services/fitness-files/routeHeatmap'
-import { simplifyPoints } from '@/lib/services/fitness-files/simplifyRoute'
 import { getQueue } from '@/lib/services/queue'
 import type { JobMessage } from '@/lib/services/queue/type'
+import type { FitnessFileRoute } from '@/lib/types/database/fitnessFileRoute'
 import type { FitnessRouteHeatmapSegment } from '@/lib/types/database/fitnessRouteHeatmap'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { createJobHandle } from './createJobHandle'
 
@@ -42,6 +51,11 @@ import { createJobHandle } from './createJobHandle'
 // the ~25s-per-task target. Anything longer is split into a continuation job.
 const ROUTE_HEATMAP_JOB_TIME_BUDGET_MS = 20_000
 const ROUTE_HEATMAP_PAGE_SIZE = 100
+// How many cached routes to read ahead within a page. Ten keeps the worst-case
+// live set (10 x `filePointLimit` = 800,000 points, ~40 MB of tuples) at the
+// same order as the single raw parse this job held before the cache existed,
+// while still collapsing a page's storage reads into ten indexed lookups.
+export const ROUTE_CACHE_PREFETCH_SIZE = 10
 const ROUTE_HEATMAP_MAX_FILES = 1_000_000
 const QUEUE_PUBLISH_MAX_ATTEMPTS = 3
 
@@ -152,17 +166,72 @@ const downsampleSegmentsForCache = (
     minimumPointsPerSegment: 2
   }).filter((segment) => segment.points.length >= 2)
 
-const downsampleRoutePoints = <Point>(points: Point[], maxPoints: number) => {
-  if (points.length <= maxPoints) {
-    return points
+/**
+ * The activity's route, taken from `fitness_file_routes` when a usable row is
+ * cached for it and derived from the source file otherwise. A miss re-derives
+ * and writes through, so the second run over the same activity is a hit.
+ *
+ * Both branches end in `buildFitnessFileRoutePoints`, which is the point: a
+ * heatmap must not come out differently depending on whether a cache row
+ * happened to exist. An empty result is a real answer — the activity has no
+ * GPS — and a cached empty row is what keeps a treadmill-heavy history from
+ * paying a download per run to rediscover that.
+ */
+const resolveRouteCoordinates = async (
+  database: Database,
+  {
+    actorId,
+    fitnessFileId,
+    fileType,
+    cachedRoute
+  }: {
+    actorId: string
+    fitnessFileId: string
+    fileType: ParseableFitnessFileType
+    cachedRoute: FitnessFileRoute | undefined
+  }
+): Promise<FitnessCoordinate[]> => {
+  // `pointCount` is what tells a real empty route apart from an unreadable one.
+  // `parseRoutePoints` answers `[]` for a payload it cannot decode — the row
+  // parser's documented "a corrupt payload is a cache miss" — but by the time
+  // it reaches here that is byte-identical to the negative-cache row a
+  // GPS-less activity legitimately writes. Without this check a single
+  // unreadable row would be served as a permanent hit and its activity would
+  // silently vanish from every heatmap until the file was reprocessed.
+  const isUsableCachedRoute =
+    cachedRoute !== undefined &&
+    cachedRoute.sourceVersion === FITNESS_FILE_ROUTE_SOURCE_VERSION &&
+    cachedRoute.points.length === cachedRoute.pointCount
+
+  if (isUsableCachedRoute) {
+    return cachedRoute.points.map(([lat, lng]) => ({ lat, lng }))
   }
 
-  const lastIndex = points.length - 1
-  const step = lastIndex / (maxPoints - 1)
+  const buffer = await getFitnessFileBuffer(database, fitnessFileId)
+  const activityData = await parseFitnessFile({ fileType, buffer })
+  const points = buildFitnessFileRoutePoints(activityData.coordinates)
 
-  return Array.from({ length: maxPoints }, (_value, index) => {
-    return points[Math.round(index * step)] as Point
-  })
+  try {
+    await database.upsertFitnessFileRoute({
+      fitnessFileId,
+      actorId,
+      points,
+      sourceVersion: FITNESS_FILE_ROUTE_SOURCE_VERSION
+    })
+  } catch (error) {
+    // The route is already in hand, so a failed write costs this run nothing —
+    // only the next one, which pays the download again. Letting it escape would
+    // instead drop a perfectly good activity out of the heatmap, because the
+    // caller treats a throw here as an unreadable file.
+    logger.warn({
+      message: 'Failed to cache the fitness file route during generation',
+      actorId,
+      fitnessFileId,
+      err: toLoggableError(error)
+    })
+  }
+
+  return points.map(([lat, lng]) => ({ lat, lng }))
 }
 
 const shouldReduceAccumulation = (
@@ -495,30 +564,54 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           break
         }
 
+        let cachedRoutes = new Map<string, FitnessFileRoute>()
+
         for (let pageIndex = 0; pageIndex < page.length; pageIndex += 1) {
           const file = page[pageIndex]
           const nextCursorOffset = cursorOffset + pageIndex + 1
 
+          // Read the cached routes a few at a time rather than a page at a
+          // time. Batching at all is what turns a fully-cached history from one
+          // object-storage round trip per activity into a handful of indexed
+          // primary-key lookups; batching the WHOLE page is what would undo
+          // it. Every row here is a decoded polyline held until the batch is
+          // done, and `filePointLimit` caps a single one at 80,000 points, so
+          // 100 dense activities read up front is on the order of 400 MB —
+          // past the job's own 512 MB reduce threshold, on the same activities
+          // that used to complete when the job held one parse at a time.
+          //
+          // `shouldReduceAccumulation` cannot rescue that: it downsamples the
+          // accumulated segments, a different object, so it would fire on every
+          // remaining file and free nothing. And the failure would not heal —
+          // the checkpoint cursor points back at the same page, so every retry
+          // would rebuild the same batch and die again.
+          //
+          // The batch size is what bounds the peak and is pinned by test; the
+          // `delete` below only lowers the average within a batch.
+          if (pageIndex % ROUTE_CACHE_PREFETCH_SIZE === 0) {
+            const prefetchIds = page
+              .slice(pageIndex, pageIndex + ROUTE_CACHE_PREFETCH_SIZE)
+              .map((prefetchFile) => prefetchFile.id)
+            cachedRoutes = new Map(
+              (
+                await database.getFitnessFileRoutes({
+                  fitnessFileIds: prefetchIds
+                })
+              ).map((route) => [route.fitnessFileId, route])
+            )
+          }
+
           try {
             if (isParseableFitnessFileType(file.fileType)) {
-              const buffer = await getFitnessFileBuffer(database, file.id)
-              const activityData = await parseFitnessFile({
+              const routeCoordinates = await resolveRouteCoordinates(database, {
+                actorId,
+                fitnessFileId: file.id,
                 fileType: file.fileType,
-                buffer
+                cachedRoute: cachedRoutes.get(file.id)
               })
-
-              // Apply the uniform filePointLimit ceiling FIRST so Douglas–Peucker
-              // never runs on an unbounded, user-uploaded point list (a 50 MB GPX
-              // can hold ~1M points). Then simplify so straight stretches collapse
-              // toward their endpoints while bends keep their shape — preserving
-              // road fidelity and shrinking the point count fed into accumulation.
-              const routeCoordinates = simplifyPoints(
-                downsampleRoutePoints(
-                  activityData.coordinates,
-                  routeHeatmapConfig.filePointLimit
-                ),
-                routeHeatmapConfig.simplifyToleranceMeters
-              )
+              // Folded in below; drop the prefetched copy so it is collectable
+              // now rather than at the end of the batch.
+              cachedRoutes.delete(file.id)
 
               // Downsample before privacy/region splitting to keep route-cache
               // generation inside the worker's 30s/1GB budget. This heatmap is
@@ -564,13 +657,12 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
               }
             }
           } catch (error) {
-            const nodeError = error as Error
             logger.warn({
               message:
                 'Failed to parse fitness file for route heatmap; skipping',
               actorId,
               fitnessFileId: file.id,
-              error: nodeError.message
+              err: toLoggableError(error)
             })
           }
 

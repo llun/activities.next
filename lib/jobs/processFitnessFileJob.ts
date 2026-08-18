@@ -6,6 +6,7 @@ import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { buildActivityImportEmail } from '@/lib/services/email/templates/activityImport'
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
+import { writeFitnessFileRoute } from '@/lib/services/fitness-files/fileRouteCache'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import {
@@ -489,6 +490,33 @@ export const processFitnessFileJob = createJobHandle(
           : {})
       })
 
+      // Cache the parsed polyline so a heatmap rebuild does not have to
+      // re-download and re-parse this file from object storage. This is the
+      // only heatmap-adjacent work the import path does: it stores the geometry
+      // it already has in hand, and never aggregates (see the note at the end
+      // of this handler).
+      //
+      // Best-effort on purpose, and deliberately WITHOUT a persisted failure
+      // signal — unlike `mapError`, which records a missing route map the owner
+      // can see. A missing row here is invisible: the rebuild simply parses the
+      // file, exactly as it does today, and writes the row through. There is
+      // nothing for an owner to act on, so a log line is the whole of it.
+      try {
+        await writeFitnessFileRoute(database, {
+          fitnessFileId,
+          actorId,
+          coordinates: activityData.coordinates
+        })
+      } catch (error) {
+        logger.warn({
+          message: 'Failed to cache the fitness file route',
+          actorId,
+          statusId,
+          fitnessFileId,
+          err: toLoggableError(error)
+        })
+      }
+
       await linkFitnessFileDeviceGear({
         database,
         actorId,
@@ -836,6 +864,11 @@ export const processFitnessFileJob = createJobHandle(
       // per-actor heatmap aggregation runs solely on explicit request (the
       // fitness-route-heatmap route), so it can never pile onto the import /
       // Strava-webhook path and exhaust the worker's heap.
+      //
+      // Caching this one activity's polyline above is not aggregation and does
+      // not weaken that: it is a single bounded row derived from a parse that
+      // has already happened, touching no other activity. It only makes the
+      // explicit request cheaper when it comes.
     } catch (error) {
       const errorMessage = toImportErrorMessage(
         error,

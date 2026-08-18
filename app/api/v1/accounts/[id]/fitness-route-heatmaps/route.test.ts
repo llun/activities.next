@@ -17,6 +17,7 @@ vi.mock('@/lib/utils/getActorFromSession', () => ({
 
 type MockDatabase = Pick<
   Database,
+  | 'deleteFitnessRouteHeatmapPyramidAndTilesForActor'
   | 'deleteFitnessRouteHeatmapsForActor'
   | 'getFitnessRouteHeatmapSummariesForActor'
 >
@@ -28,6 +29,7 @@ vi.mock('@/lib/database', () => ({
 
 describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
+    deleteFitnessRouteHeatmapPyramidAndTilesForActor: vi.fn(),
     deleteFitnessRouteHeatmapsForActor: vi.fn(),
     getFitnessRouteHeatmapSummariesForActor: vi.fn()
   }
@@ -50,6 +52,7 @@ describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
     })
     mockDb.getFitnessRouteHeatmapSummariesForActor.mockResolvedValue([])
     mockDb.deleteFitnessRouteHeatmapsForActor.mockResolvedValue(0)
+    mockDb.deleteFitnessRouteHeatmapPyramidAndTilesForActor.mockResolvedValue(0)
   })
 
   it('returns owner route heatmap history', async () => {
@@ -166,6 +169,31 @@ describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
     await expect(response.json()).resolves.toEqual({ deleted: 3 })
   })
 
+  it('clears the tile pyramid alongside the region rows', async () => {
+    // The pyramid holds the same geometry in a different shape, so clearing
+    // one and not the other would leave the owner's routes behind. Its counts
+    // stay out of `deleted`, which reports the region rows the caller asked
+    // about.
+    mockDb.deleteFitnessRouteHeatmapsForActor.mockResolvedValue(2)
+    mockDb.deleteFitnessRouteHeatmapPyramidAndTilesForActor.mockResolvedValue(
+      1_400
+    )
+
+    const request = new NextRequest(baseUrl, {
+      method: 'DELETE',
+      headers: { Origin: 'https://test.llun.dev' }
+    })
+    const response = await DELETE(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+
+    expect(response.status).toBe(200)
+    expect(
+      mockDb.deleteFitnessRouteHeatmapPyramidAndTilesForActor
+    ).toHaveBeenCalledWith({ actorId: ACTOR1_ID })
+    await expect(response.json()).resolves.toEqual({ deleted: 2 })
+  })
+
   it('does not clear route heatmap history for another actor', async () => {
     mockGetActorFromSession.mockResolvedValue({
       ...seedActor1,
@@ -182,5 +210,8 @@ describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
 
     expect(response.status).toBe(403)
     expect(mockDb.deleteFitnessRouteHeatmapsForActor).not.toHaveBeenCalled()
+    expect(
+      mockDb.deleteFitnessRouteHeatmapPyramidAndTilesForActor
+    ).not.toHaveBeenCalled()
   })
 })
