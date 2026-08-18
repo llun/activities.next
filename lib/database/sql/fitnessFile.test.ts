@@ -1166,6 +1166,40 @@ describe('FitnessFileDatabase', () => {
         })
         expect(deleted).toBe(false)
       })
+
+      it('drops the cached route with the activity', async () => {
+        const created = await database.createFitnessFile({
+          actorId: actors.extra.id,
+          path: 'fitness/delete-with-route.gpx',
+          fileName: 'delete-with-route.gpx',
+          fileType: 'gpx',
+          mimeType: 'application/gpx+xml',
+          bytes: 2048
+        })
+
+        await database.upsertFitnessFileRoute({
+          fitnessFileId: created!.id,
+          actorId: actors.extra.id,
+          points: [
+            [1.3, 103.8],
+            [1.31, 103.81]
+          ],
+          sourceVersion: 1
+        })
+        expect(
+          await database.getFitnessFileRoutes({
+            fitnessFileIds: [created!.id]
+          })
+        ).toHaveLength(1)
+
+        expect(await database.deleteFitnessFile({ id: created!.id })).toBe(true)
+
+        expect(
+          await database.getFitnessFileRoutes({
+            fitnessFileIds: [created!.id]
+          })
+        ).toEqual([])
+      })
     })
 
     describe('getRetriableFitnessImportBatchIds', () => {
