@@ -166,6 +166,22 @@ export interface FitnessRouteHeatmapTileDatabase {
   deleteFitnessRouteHeatmapTilesForActor(params: {
     actorId: string
   }): Promise<number>
+  /**
+   * Drops an actor's whole pyramid — the build row and every tile — as one
+   * unit. Returns the tiles removed.
+   *
+   * Not two calls, in either order, because each order leaves a window. Tiles
+   * first lets a build still running write more of them before the row goes,
+   * and those carry a version a recreated pyramid's sweep can never reach.
+   * Row first closes that, but on its own opens the mirror image: a build can
+   * claim the freshly-absent row, flush legitimately, and have the second
+   * statement delete exactly what it just wrote — leaving a pyramid that
+   * reports itself complete over tiles that are gone. One transaction is what
+   * makes the pair atomic against a claim.
+   */
+  deleteFitnessRouteHeatmapPyramidAndTilesForActor(params: {
+    actorId: string
+  }): Promise<number>
   deleteFitnessRouteHeatmapPyramidForActor(params: {
     actorId: string
   }): Promise<number>
@@ -285,6 +301,32 @@ const applyClaimableFilter = (
  * matches nothing rather than wrapping around, so a Pacific-straddling map
  * would silently come back empty.
  */
+/**
+ * Re-asserts the premise the claim's `resumed` and `version` decision rests on:
+ * a resume needs the row to still be a `generating` build with a cursor to pick
+ * up from, and a fresh claim needs it to still NOT be one.
+ *
+ * Separate from `applyClaimableFilter` because the two answer different
+ * questions. That one only rules a state out — not already fresh, not still
+ * running — and every terminal status satisfies it equally. This one rules a
+ * state IN. Without it an incumbent that wakes in the claim's window and writes
+ * its terminal state (`status: 'failed'`, `cursor: null`, guarded on a token it
+ * still holds) leaves the compare-and-swap matching on a premise that no longer
+ * exists: the winner is told it resumed, keeps the previous build's version,
+ * and finds no cursor — so it rescans from the beginning INTO that build's own
+ * tiles, doubling every count it revisits, and completion cannot sweep the
+ * leftovers because the version never moved.
+ */
+const applyResumePremiseFilter = (
+  query: Knex.QueryBuilder,
+  resumed: boolean
+) =>
+  resumed
+    ? query.where('status', 'generating').whereNotNull('cursorId')
+    : query.where((notResumable) =>
+        notResumable.whereNot('status', 'generating').orWhereNull('cursorId')
+      )
+
 const applyTileRange = (
   database: Knex,
   { actorId, z, minX, maxX, minY, maxY }: FitnessRouteHeatmapTileRangeParams
@@ -358,10 +400,13 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
     const nextVersion = resumed ? pyramid.version : pyramid.version + 1
     const nextClaimSeq = pyramid.claimSeq + 1
 
-    const claimedRows = await applyClaimableFilter(
-      database('fitness_route_heatmap_pyramids').where('actorId', actorId),
-      requestedAt,
-      staleBefore
+    const claimedRows = await applyResumePremiseFilter(
+      applyClaimableFilter(
+        database('fitness_route_heatmap_pyramids').where('actorId', actorId),
+        requestedAt,
+        staleBefore
+      ),
+      resumed
     )
       // The compare-and-swap. Guarded on the ownership token, which BOTH
       // branches below move — guarding on `version` would be vacuous for a
@@ -594,6 +639,26 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
     return database('fitness_route_heatmap_tiles')
       .where('actorId', actorId)
       .delete()
+  },
+
+  async deleteFitnessRouteHeatmapPyramidAndTilesForActor({
+    actorId
+  }: {
+    actorId: string
+  }) {
+    return database.transaction<number>(async (trx) => {
+      // Pyramid first, inside the transaction: removing the row removes the
+      // token every tile write is fenced on, so a build already running is
+      // rejected from here on, and a build that would claim the absent row
+      // cannot start until this commits.
+      await trx('fitness_route_heatmap_pyramids')
+        .where('actorId', actorId)
+        .delete()
+      const deletedTiles: number = await trx('fitness_route_heatmap_tiles')
+        .where('actorId', actorId)
+        .delete()
+      return deletedTiles
+    })
   },
 
   async deleteFitnessRouteHeatmapPyramidForActor({

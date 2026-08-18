@@ -17,8 +17,7 @@ vi.mock('@/lib/utils/getActorFromSession', () => ({
 
 type MockDatabase = Pick<
   Database,
-  | 'deleteFitnessRouteHeatmapPyramidForActor'
-  | 'deleteFitnessRouteHeatmapTilesForActor'
+  | 'deleteFitnessRouteHeatmapPyramidAndTilesForActor'
   | 'deleteFitnessRouteHeatmapsForActor'
   | 'getFitnessRouteHeatmapSummariesForActor'
 >
@@ -30,8 +29,7 @@ vi.mock('@/lib/database', () => ({
 
 describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
-    deleteFitnessRouteHeatmapPyramidForActor: vi.fn(),
-    deleteFitnessRouteHeatmapTilesForActor: vi.fn(),
+    deleteFitnessRouteHeatmapPyramidAndTilesForActor: vi.fn(),
     deleteFitnessRouteHeatmapsForActor: vi.fn(),
     getFitnessRouteHeatmapSummariesForActor: vi.fn()
   }
@@ -54,8 +52,7 @@ describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
     })
     mockDb.getFitnessRouteHeatmapSummariesForActor.mockResolvedValue([])
     mockDb.deleteFitnessRouteHeatmapsForActor.mockResolvedValue(0)
-    mockDb.deleteFitnessRouteHeatmapTilesForActor.mockResolvedValue(0)
-    mockDb.deleteFitnessRouteHeatmapPyramidForActor.mockResolvedValue(0)
+    mockDb.deleteFitnessRouteHeatmapPyramidAndTilesForActor.mockResolvedValue(0)
   })
 
   it('returns owner route heatmap history', async () => {
@@ -178,8 +175,9 @@ describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
     // stay out of `deleted`, which reports the region rows the caller asked
     // about.
     mockDb.deleteFitnessRouteHeatmapsForActor.mockResolvedValue(2)
-    mockDb.deleteFitnessRouteHeatmapTilesForActor.mockResolvedValue(1_400)
-    mockDb.deleteFitnessRouteHeatmapPyramidForActor.mockResolvedValue(1)
+    mockDb.deleteFitnessRouteHeatmapPyramidAndTilesForActor.mockResolvedValue(
+      1_400
+    )
 
     const request = new NextRequest(baseUrl, {
       method: 'DELETE',
@@ -190,11 +188,8 @@ describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(mockDb.deleteFitnessRouteHeatmapTilesForActor).toHaveBeenCalledWith({
-      actorId: ACTOR1_ID
-    })
     expect(
-      mockDb.deleteFitnessRouteHeatmapPyramidForActor
+      mockDb.deleteFitnessRouteHeatmapPyramidAndTilesForActor
     ).toHaveBeenCalledWith({ actorId: ACTOR1_ID })
     await expect(response.json()).resolves.toEqual({ deleted: 2 })
   })
@@ -215,9 +210,8 @@ describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
 
     expect(response.status).toBe(403)
     expect(mockDb.deleteFitnessRouteHeatmapsForActor).not.toHaveBeenCalled()
-    expect(mockDb.deleteFitnessRouteHeatmapTilesForActor).not.toHaveBeenCalled()
     expect(
-      mockDb.deleteFitnessRouteHeatmapPyramidForActor
+      mockDb.deleteFitnessRouteHeatmapPyramidAndTilesForActor
     ).not.toHaveBeenCalled()
   })
 })

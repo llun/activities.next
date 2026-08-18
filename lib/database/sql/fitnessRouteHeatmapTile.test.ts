@@ -52,6 +52,30 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
       return claim.pyramid.claimSeq
     }
 
+    // Mirrors the claim's own resume decision, so a test can state the snapshot
+    // it is staging an interleaving against rather than implying it.
+    const classifyForTest = (
+      pyramid: NonNullable<
+        Awaited<ReturnType<Database['getFitnessRouteHeatmapPyramid']>>
+      >,
+      requestedAt: number,
+      staleBefore: number
+    ) => {
+      if (
+        pyramid.status === 'completed' &&
+        pyramid.completedAt !== undefined &&
+        pyramid.completedAt >= requestedAt
+      ) {
+        return 'already-fresh'
+      }
+      if (pyramid.status === 'generating' && pyramid.updatedAt >= staleBefore) {
+        return 'build-in-progress'
+      }
+      return pyramid.status === 'generating' && pyramid.cursor !== undefined
+        ? 'resumable'
+        : 'fresh'
+    }
+
     const tile = (tileKey: string, pointCount = 4) => {
       const [z, x, y] = tileKey.split(':').map(Number)
       return {
@@ -214,6 +238,63 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         expect(next.reason).toBe('claimed')
       })
 
+      it('does not resume a build whose owner cleared its cursor while the claim was being decided', async () => {
+        // The premise, not just the verdict. A stalled owner can wake inside
+        // the claim's window and write its terminal state — guarded on a token
+        // it still holds, so accepted — which leaves the row claimable but no
+        // longer resumable. Staged by claiming against a snapshot that is
+        // already out of date, which is what that interleaving amounts to.
+        const actorId = await createActor(database)
+        const owner = await database.claimFitnessRouteHeatmapPyramidBuild({
+          actorId,
+          requestedAt: Date.now(),
+          staleBefore: Date.now() - 120_000
+        })
+        await database.updateFitnessRouteHeatmapPyramid({
+          actorId,
+          claimSeq: owner.pyramid.claimSeq,
+          cursor: { createdAt: 1_700_000_000_000, id: 'activity-42' },
+          scannedCount: 500
+        })
+
+        // Reads as a resumable abandoned build.
+        const staleBefore = Date.now() + 60_000
+        const decided = await database.getFitnessRouteHeatmapPyramid({
+          actorId
+        })
+        expect(classifyForTest(decided!, Date.now(), staleBefore)).toBe(
+          'resumable'
+        )
+
+        // The owner wakes and gives up, clearing the cursor.
+        expect(
+          await database.updateFitnessRouteHeatmapPyramid({
+            actorId,
+            claimSeq: owner.pyramid.claimSeq,
+            status: 'failed',
+            error: 'worker died',
+            cursor: null
+          })
+        ).toBe(true)
+
+        const claim = await database.claimFitnessRouteHeatmapPyramidBuild({
+          actorId,
+          requestedAt: Date.now(),
+          staleBefore
+        })
+
+        // Claimable, but as a FRESH build: a new version whose tiles replace
+        // the abandoned pass's rather than adding to them. Told `resumed` with
+        // no cursor it would rescan from the start into the previous build's
+        // own tiles, doubling every count it revisited, and completion could
+        // never sweep the leftovers because the version never moved.
+        expect(claim.claimed).toBe(true)
+        expect(claim.resumed).toBe(false)
+        expect(claim.pyramid.version).toBe(owner.pyramid.version + 1)
+        expect(claim.pyramid.cursor).toBeUndefined()
+        expect(claim.pyramid.scannedCount).toBe(0)
+      })
+
       it('carries the claim decision into the compare-and-swap itself', async () => {
         // Asserted on the statement issued rather than on an outcome, because
         // the interleaving this guards against — the owner heartbeating or
@@ -256,6 +337,35 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           expect(whereClause).toContain('completedAt')
           expect(whereClause).toContain('updatedAt')
           expect(whereClause).toContain('status')
+          // And the resume premise. A verdict of "claimable" is satisfied by
+          // every terminal status alike, so re-asserting it says nothing about
+          // whether this claim's `resumed`/`version` decision still holds.
+          expect(whereClause).toContain('cursorId')
+
+          // Same for a claim that decided to RESUME, where the premise is the
+          // mirror image: still generating, still holding a cursor.
+          updates.length = 0
+          await isolated.updateFitnessRouteHeatmapPyramid({
+            actorId,
+            claimSeq: claim.pyramid.claimSeq,
+            cursor: { createdAt: 1_700_000_000_000, id: 'activity-42' }
+          })
+          updates.length = 0
+
+          const resumedClaim =
+            await isolated.claimFitnessRouteHeatmapPyramidBuild({
+              actorId,
+              requestedAt: Date.now(),
+              staleBefore: Date.now() + 60_000
+            })
+          expect(resumedClaim.resumed).toBe(true)
+
+          expect(updates).toHaveLength(1)
+          const resumedWhere = updates[0].slice(
+            updates[0].toLowerCase().indexOf(' where ')
+          )
+          expect(resumedWhere).toContain('cursorId')
+          expect(resumedWhere).toContain('status')
         } finally {
           await isolated.destroy()
         }
@@ -668,7 +778,11 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         const claimSeq = await claimBuild(database, actorId)
 
         const before = await database.getFitnessRouteHeatmapPyramid({ actorId })
-        // A flush at a moment the build would otherwise read as abandoned.
+        // Real elapsed time, so the heartbeat has somewhere to move to.
+        // Asserting `after >= before` would hold with no heartbeat at all,
+        // since `updatedAt` can only go forward.
+        await new Promise((resolve) => setTimeout(resolve, 5))
+
         expect(
           await database.upsertFitnessRouteHeatmapTiles({
             actorId,
@@ -679,12 +793,15 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         ).toBe(true)
 
         const after = await database.getFitnessRouteHeatmapPyramid({ actorId })
-        expect(after!.updatedAt).toBeGreaterThanOrEqual(before!.updatedAt)
+        expect(after!.updatedAt).toBeGreaterThan(before!.updatedAt)
 
+        // A staleness cutoff the row only clears BECAUSE the flush wrote a new
+        // heartbeat. Reading the cutoff back off the row instead would be
+        // `x >= x` — true whatever the flush did.
         const thief = await database.claimFitnessRouteHeatmapPyramidBuild({
           actorId,
           requestedAt: Date.now(),
-          staleBefore: after!.updatedAt
+          staleBefore: before!.updatedAt + 1
         })
         expect(thief.claimed).toBe(false)
         expect(thief.reason).toBe('build-in-progress')
@@ -1000,6 +1117,48 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
     })
 
     describe('deleteFitnessRouteHeatmapTilesForActor and pyramid cleanup', () => {
+      it('removes the pyramid and its tiles as one unit', async () => {
+        // Atomic on purpose: either order as two separate statements leaves a
+        // window a concurrent build can write into — orphan tiles no later
+        // sweep can reach, or a build whose freshly-flushed tiles the second
+        // statement deletes out from under it.
+        const actorId = await createActor(database)
+        const claimSeq = await claimBuild(database, actorId)
+        await database.upsertFitnessRouteHeatmapTiles({
+          actorId,
+          claimSeq,
+          version: 1,
+          tiles: [tile('16:1:1'), tile('16:2:2')]
+        })
+
+        expect(
+          await database.deleteFitnessRouteHeatmapPyramidAndTilesForActor({
+            actorId
+          })
+        ).toBe(2)
+
+        expect(
+          await database.getFitnessRouteHeatmapPyramid({ actorId })
+        ).toBeNull()
+        expect(
+          await database.getFitnessRouteHeatmapTilesByKeys({
+            actorId,
+            tileKeys: ['16:1:1', '16:2:2']
+          })
+        ).toEqual([])
+
+        // And the token is gone with the row, so a build still in flight is
+        // rejected rather than repopulating what was just cleared.
+        expect(
+          await database.upsertFitnessRouteHeatmapTiles({
+            actorId,
+            claimSeq,
+            version: 1,
+            tiles: [tile('16:3:3')]
+          })
+        ).toBe(false)
+      })
+
       it('removes every tile and the pyramid row for one actor', async () => {
         const actorId = await createActor(database)
         const claimSeq = await claimBuild(database, actorId)
