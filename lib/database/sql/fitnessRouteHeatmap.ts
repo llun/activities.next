@@ -105,6 +105,36 @@ export interface FitnessRouteHeatmapDatabase {
     actorId: string
     id: string
   }): Promise<boolean>
+  /**
+   * The rows a pyramid build is generating on behalf of: every in-flight
+   * (`pending`/`generating`) heatmap of the actor's whose scope the one
+   * per-actor pyramid covers — all activity types, all time — whatever region
+   * each is scoped to, because a region is a view over that shared pyramid
+   * rather than geometry of its own.
+   *
+   * A build reads this to know whether anyone is still waiting (all
+   * subscribers cancelled means it can stop) and, on completion, which rows to
+   * finish.
+   */
+  getFitnessRouteHeatmapSubscribers(params: {
+    actorId: string
+  }): Promise<FitnessRouteHeatmapSummary[]>
+  /**
+   * Copies a pyramid build's progress onto those same subscriber rows, so the
+   * existing per-heatmap progress UI keeps reporting against a build that is no
+   * longer per-heatmap. `cursorOffset` carries the count of activities scanned
+   * so far — the pyramid's own resume position is a keyset cursor that this
+   * column cannot express, and does not need to.
+   *
+   * Returns how many rows were updated. Terminal and deleted rows are left
+   * alone: a run that was cancelled mid-build must not be dragged back to
+   * `generating` by a worker that has not noticed yet.
+   */
+  mirrorFitnessRouteHeatmapGenerationProgress(params: {
+    actorId: string
+    totalCount: number
+    cursorOffset: number
+  }): Promise<number>
   getFitnessRouteHeatmapsForActor(
     params: GetFitnessRouteHeatmapsForActorParams
   ): Promise<FitnessRouteHeatmap[]>
@@ -244,7 +274,56 @@ const parseSQLFitnessRouteHeatmapSummary = (
   deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
 })
 
+/**
+ * Every column of a heatmap row except the two payload blobs, `bounds` and
+ * `segments`. A summary read must name them explicitly: `segments` holds the
+ * entire heatmap, so selecting it to answer a question about status or
+ * progress reads megabytes to use none of them.
+ */
+const SUMMARY_COLUMNS = [
+  'id',
+  'actorId',
+  'activityType',
+  'activityTypeKey',
+  'periodType',
+  'periodKey',
+  'region',
+  'periodStart',
+  'periodEnd',
+  'status',
+  'error',
+  'activityCount',
+  'pointCount',
+  'totalCount',
+  'cursorOffset',
+  'isPartial',
+  'shareToken',
+  'createdAt',
+  'updatedAt',
+  'deletedAt'
+] as const
+
 const getActivityTypeKey = (activityType?: string | null) => activityType ?? ''
+
+/**
+ * The rows one per-actor pyramid build serves: the in-flight heatmaps whose
+ * scope that pyramid covers. `activityTypeKey: ''` is the all-activities key
+ * (see `getActivityTypeKey`) and `all_time` the whole-history period; region is
+ * deliberately unconstrained, because every region is a clipped view over the
+ * same pyramid.
+ *
+ * Restricted to `pending`/`generating` so neither the "is anyone still
+ * waiting?" check nor the progress mirror can revive a row that finished,
+ * failed or was cancelled while the build was running.
+ */
+const applyPyramidSubscriberFilter = (
+  query: Knex.QueryBuilder<SQLFitnessRouteHeatmap, SQLFitnessRouteHeatmap[]>
+) =>
+  query
+    .whereNull('deletedAt')
+    .where('activityTypeKey', '')
+    .where('periodType', 'all_time')
+    .whereIn('status', ['pending', 'generating'])
 
 const applyRouteHeatmapFilters = (
   query: Knex.QueryBuilder<SQLFitnessRouteHeatmap, SQLFitnessRouteHeatmap[]>,
@@ -404,6 +483,42 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     return updated > 0
   },
 
+  async getFitnessRouteHeatmapSubscribers({ actorId }: { actorId: string }) {
+    const rows = await applyPyramidSubscriberFilter(
+      database<SQLFitnessRouteHeatmap>('fitness_route_heatmaps')
+        .where('actorId', actorId)
+        // Summary columns only. A build calls this on every checkpoint, and
+        // `segments` is the whole heatmap payload — selecting it here would
+        // drag megabytes off disk each time just to count who is waiting.
+        .select(SUMMARY_COLUMNS)
+    )
+      .orderBy('createdAt', 'asc')
+      .orderBy('id', 'asc')
+
+    return rows.map(parseSQLFitnessRouteHeatmapSummary)
+  },
+
+  async mirrorFitnessRouteHeatmapGenerationProgress({
+    actorId,
+    totalCount,
+    cursorOffset
+  }: {
+    actorId: string
+    totalCount: number
+    cursorOffset: number
+  }) {
+    return applyPyramidSubscriberFilter(
+      database<SQLFitnessRouteHeatmap>('fitness_route_heatmaps')
+    )
+      .where('actorId', actorId)
+      .update({
+        status: 'generating',
+        totalCount,
+        cursorOffset,
+        updatedAt: new Date()
+      })
+  },
+
   async getFitnessRouteHeatmapsForActor({
     actorId,
     activityType,
@@ -431,28 +546,7 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
       database<SQLFitnessRouteHeatmap>('fitness_route_heatmaps')
         .where('actorId', actorId)
         .whereNull('deletedAt')
-        .select(
-          'id',
-          'actorId',
-          'activityType',
-          'activityTypeKey',
-          'periodType',
-          'periodKey',
-          'region',
-          'periodStart',
-          'periodEnd',
-          'status',
-          'error',
-          'activityCount',
-          'pointCount',
-          'totalCount',
-          'cursorOffset',
-          'isPartial',
-          'shareToken',
-          'createdAt',
-          'updatedAt',
-          'deletedAt'
-        ),
+        .select(SUMMARY_COLUMNS),
       { activityType, periodType, region }
     )
 

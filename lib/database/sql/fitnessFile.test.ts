@@ -1300,5 +1300,207 @@ describe('FitnessFileDatabase', () => {
         ).toContain('strava-activity:empty-pending-orphan')
       })
     })
+    describe('getFitnessFilesByActor keyset pagination', () => {
+      // Ascending, cursor-paged reads are what a whole-history scan uses; an
+      // offset cannot survive one, which is the point of these tests.
+      //
+      // None of them assume the sort order matches the order the fixtures were
+      // created in. The sort is (createdAt, id), and two files written in the
+      // same millisecond — ordinary on a fast machine, and what CI hit — are
+      // separated by their random uuid instead. So each test reads the
+      // canonical order first and asserts against that; what is under test is
+      // that paging reproduces the order, not what the order happens to be.
+      const actorId = 'https://llun.test/users/keyset-scan'
+
+      const readAllAscending = () =>
+        database.getFitnessFilesByActor({
+          actorId,
+          orderDirection: 'asc',
+          limit: 100
+        })
+
+      beforeAll(async () => {
+        await database.createActor({
+          actorId,
+          username: 'keyset-scan',
+          domain: 'llun.test',
+          inboxUrl: `${actorId}/inbox`,
+          outboxUrl: `${actorId}/outbox`,
+          followersUrl: `${actorId}/followers`,
+          sharedInboxUrl: 'https://llun.test/inbox',
+          publicKey: 'public-key-keyset-scan',
+          privateKey: 'private-key-keyset-scan',
+          createdAt: Date.now()
+        })
+
+        for (const index of [1, 2, 3, 4]) {
+          await database.createFitnessFile({
+            actorId,
+            path: `fitness/keyset-${index}.fit`,
+            fileName: `keyset-${index}.fit`,
+            fileType: 'fit',
+            mimeType: 'application/vnd.ant.fit',
+            bytes: 1024
+          })
+        }
+      })
+
+      it('defaults to newest first so existing callers are unaffected', async () => {
+        const ascending = await readAllAscending()
+        const byDefault = await database.getFitnessFilesByActor({
+          actorId,
+          limit: 100
+        })
+
+        expect(byDefault.map((row) => row.id)).toEqual(
+          ascending.map((row) => row.id).reverse()
+        )
+      })
+
+      it('walks the whole history in ascending order without repeating a row', async () => {
+        const expected = (await readAllAscending()).map((row) => row.id)
+        const seen: string[] = []
+        let cursor: { createdAt: number; id: string } | undefined
+
+        // Two at a time, exactly how a checkpointing job pages.
+        for (let page = 0; page < 4; page += 1) {
+          const rows = await database.getFitnessFilesByActor({
+            actorId,
+            limit: 2,
+            orderDirection: 'asc',
+            afterCursor: cursor
+          })
+          if (rows.length === 0) break
+          seen.push(...rows.map((row) => row.id))
+          const last = rows[rows.length - 1]
+          cursor = { createdAt: last.createdAt, id: last.id }
+        }
+
+        expect(seen).toEqual(expected)
+      })
+
+      it('does not skip a row when one behind the cursor is deleted mid-scan', async () => {
+        // The failure an offset cannot avoid, and the reason this cursor
+        // exists. A scan reads its first page, then a row it has already
+        // passed is deleted; every row behind it shifts down one. Resuming at
+        // `offset: 2` would hand back the FOURTH activity and silently drop the
+        // third from the heatmap.
+        const ordered = await readAllAscending()
+        const firstPage = await database.getFitnessFilesByActor({
+          actorId,
+          limit: 2,
+          orderDirection: 'asc'
+        })
+        const cursorRow = firstPage[firstPage.length - 1]
+
+        await database.deleteFitnessFile({ id: firstPage[0].id })
+
+        const withCursor = await database.getFitnessFilesByActor({
+          actorId,
+          limit: 2,
+          orderDirection: 'asc',
+          afterCursor: { createdAt: cursorRow.createdAt, id: cursorRow.id }
+        })
+        const withOffset = await database.getFitnessFilesByActor({
+          actorId,
+          limit: 2,
+          offset: 2,
+          orderDirection: 'asc'
+        })
+
+        expect(withCursor.map((row) => row.id)).toEqual([
+          ordered[2].id,
+          ordered[3].id
+        ])
+        // Pinned as the contrast, not as desired behaviour: the same resume
+        // expressed as an offset loses the third activity.
+        expect(withOffset.map((row) => row.id)).not.toContain(ordered[2].id)
+      })
+
+      it('pages through rows sharing a createdAt without skipping or repeating one', async () => {
+        // An import writes a batch in one go, so a group of activities sharing
+        // a createdAt to the millisecond is ordinary rather than exotic. The
+        // clock is frozen to force that collision: left to real time these
+        // inserts land a few milliseconds apart and the tiebreak never gets
+        // exercised. Without it, a page boundary inside the group would skip a
+        // row or serve it twice.
+        const collisionActorId = 'https://llun.test/users/keyset-collision'
+        await database.createActor({
+          actorId: collisionActorId,
+          username: 'keyset-collision',
+          domain: 'llun.test',
+          inboxUrl: `${collisionActorId}/inbox`,
+          outboxUrl: `${collisionActorId}/outbox`,
+          followersUrl: `${collisionActorId}/followers`,
+          sharedInboxUrl: 'https://llun.test/inbox',
+          publicKey: 'public-key-keyset-collision',
+          privateKey: 'private-key-keyset-collision',
+          createdAt: Date.now()
+        })
+
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date('2031-05-05T00:00:00.000Z'))
+        try {
+          for (const index of [1, 2, 3]) {
+            await database.createFitnessFile({
+              actorId: collisionActorId,
+              path: `fitness/keyset-collision-${index}.fit`,
+              fileName: `keyset-collision-${index}.fit`,
+              fileType: 'fit',
+              mimeType: 'application/vnd.ant.fit',
+              bytes: 1024
+            })
+          }
+        } finally {
+          vi.useRealTimers()
+        }
+
+        const all = await database.getFitnessFilesByActor({
+          actorId: collisionActorId,
+          orderDirection: 'asc',
+          limit: 100
+        })
+        expect(all).toHaveLength(3)
+        // The collision the rest of this test depends on.
+        expect(new Set(all.map((row) => row.createdAt)).size).toBe(1)
+        expect(all.map((row) => row.id)).toEqual(
+          [...all.map((r) => r.id)].sort()
+        )
+
+        // One row at a time, so every page boundary falls inside the group.
+        const seen: string[] = []
+        let cursor: { createdAt: number; id: string } | undefined
+        for (let page = 0; page < 4; page += 1) {
+          const rows = await database.getFitnessFilesByActor({
+            actorId: collisionActorId,
+            limit: 1,
+            orderDirection: 'asc',
+            afterCursor: cursor
+          })
+          if (rows.length === 0) break
+          seen.push(rows[0].id)
+          cursor = { createdAt: rows[0].createdAt, id: rows[0].id }
+        }
+
+        expect(seen).toEqual(all.map((row) => row.id))
+      })
+
+      it('ignores a cursor on a descending read', async () => {
+        const rows = await database.getFitnessFilesByActor({
+          actorId,
+          orderDirection: 'desc',
+          limit: 100
+        })
+        const withCursor = await database.getFitnessFilesByActor({
+          actorId,
+          orderDirection: 'desc',
+          limit: 100,
+          afterCursor: { createdAt: rows[0].createdAt, id: rows[0].id }
+        })
+        expect(withCursor.map((row) => row.id)).toEqual(
+          rows.map((row) => row.id)
+        )
+      })
+    })
   })
 })
