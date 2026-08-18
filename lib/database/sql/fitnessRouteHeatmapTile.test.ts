@@ -558,41 +558,80 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           seedCursor: true
         }
       ])(
-        'lets exactly one of two concurrent claimers win over $description',
+        'refuses a claim whose build was taken over between its read and its write, over $description',
         async ({ seedCursor }) => {
-          // The compare-and-swap itself. Both claimers read before either
-          // writes, so only the guard can separate them; the resumable row is
-          // the case that used to hand BOTH workers the build, because a resume
-          // leaves `version` untouched.
-          const actorId = await createActor(database)
-          if (seedCursor) {
-            const seeding = await database.claimFitnessRouteHeatmapPyramidBuild(
-              {
-                actorId,
-                requestedAt: Date.now(),
-                staleBefore: Date.now() - 120_000
-              }
-            )
-            await database.updateFitnessRouteHeatmapPyramid({
-              actorId,
-              claimSeq: seeding.pyramid.claimSeq,
-              cursor: { createdAt: 1_700_000_000_000, id: 'activity-9' }
-            })
-          }
+          // The compare-and-swap itself: a claimer that decided on one state
+          // and writes against another must lose.
+          //
+          // Staged with a listener rather than by racing two real claims
+          // through `Promise.all`. That only produces the read-read-write-write
+          // interleaving on SQLite's single-connection pool; on PostgreSQL the
+          // first claim routinely finishes before the second one reads, and
+          // there a second winner is CORRECT — a far-future `staleBefore` makes
+          // the just-claimed build look abandoned, so taking it over is the
+          // documented behaviour, not a bug. Asserting exactly-one-winner
+          // against that was flaky (~2/5 on pg) and only ever passed on SQLite
+          // by pool timing.
+          //
+          // The resumable row is the case that used to hand BOTH workers the
+          // build, because a resume leaves `version` untouched — which is why
+          // the fence is `claimSeq` and why it is worth pinning per shape.
+          const { database: isolated, instance } =
+            getTestSQLDatabaseWithInstance()
+          await isolated.migrate()
 
-          const contest = () =>
-            database.claimFitnessRouteHeatmapPyramidBuild({
+          try {
+            const actorId = await createActor(isolated)
+            if (seedCursor) {
+              const seeding =
+                await isolated.claimFitnessRouteHeatmapPyramidBuild({
+                  actorId,
+                  requestedAt: Date.now(),
+                  staleBefore: Date.now() - 120_000
+                })
+              await isolated.updateFitnessRouteHeatmapPyramid({
+                actorId,
+                claimSeq: seeding.pyramid.claimSeq,
+                cursor: { createdAt: 1_700_000_000_000, id: 'activity-9' }
+              })
+            }
+
+            // Attached only now, so the seeding claim above does not trip it.
+            // Fires once, on the claim's read — the exact window the guard
+            // exists for — and bumps the token the way a competing worker
+            // winning the race would.
+            let stolen = false
+            const stealOnFirstRead = async ({ sql }: { sql: string }) => {
+              if (
+                stolen ||
+                !sql.trimStart().toLowerCase().startsWith('select') ||
+                !sql.includes('fitness_route_heatmap_pyramids')
+              ) {
+                return
+              }
+              stolen = true
+              await instance('fitness_route_heatmap_pyramids')
+                .where('actorId', actorId)
+                .increment('claimSeq', 1)
+            }
+            instance.on('query-response', (_response, query) => {
+              void stealOnFirstRead(query)
+            })
+
+            const claim = await isolated.claimFitnessRouteHeatmapPyramidBuild({
               actorId,
               requestedAt: Date.now(),
-              // Far future, so an existing build always looks abandoned and
-              // neither claimer is turned away as 'build-in-progress'.
+              // Far future, so the row never reads as a live build and only
+              // the token can turn this claim away.
               staleBefore: Date.now() + 60_000
             })
-          const [a, b] = await Promise.all([contest(), contest()])
 
-          expect([a.claimed, b.claimed].filter(Boolean)).toHaveLength(1)
-          const loser = a.claimed ? b : a
-          expect(loser.reason).toBe('lost-race')
+            expect(stolen).toBe(true)
+            expect(claim.claimed).toBe(false)
+            expect(claim.reason).toBe('lost-race')
+          } finally {
+            await isolated.destroy()
+          }
         }
       )
 
