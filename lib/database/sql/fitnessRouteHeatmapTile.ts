@@ -236,6 +236,12 @@ const parseSQLFitnessRouteHeatmapTile = (
   updatedAt: getCompatibleTime(row.updatedAt)
 })
 
+// Attempts to get the actor's build-state row created and read back before
+// giving up. One is not enough: clearing an actor's heatmaps can delete the row
+// between the insert and the read, and `ON CONFLICT DO NOTHING` holds no lock
+// to stop it. Three makes that pathological rather than merely unlucky.
+const PYRAMID_ROW_CREATE_ATTEMPTS = 3
+
 const readPyramidRow = async (database: Knex, actorId: string) => {
   const row = await database<SQLFitnessRouteHeatmapPyramid>(
     'fitness_route_heatmap_pyramids'
@@ -373,33 +379,56 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
     // Create the row on first use. `ignore` rather than `merge` so two
     // concurrent first-time claims do not reset each other's state; whichever
     // insert lost simply reads the winner's row below.
-    await database('fitness_route_heatmap_pyramids')
-      .insert({
-        id: crypto.randomUUID(),
-        actorId,
-        status: 'idle',
-        error: null,
-        version: 0,
-        claimSeq: 0,
-        totalCount: 0,
-        scannedCount: 0,
-        activityCount: 0,
-        tileCount: 0,
-        pointCount: 0,
-        cursorCreatedAt: null,
-        cursorId: null,
-        completedAt: null,
-        createdAt: currentTime,
-        updatedAt: currentTime
-      })
-      .onConflict('actorId')
-      .ignore()
+    //
+    // Retried, because the insert does NOT guarantee the read that follows
+    // finds a row: clearing an actor's heatmaps deletes it, and that delete can
+    // land in between. `ON CONFLICT DO NOTHING` takes no lock on the row it
+    // conflicts with, so nothing here holds it still. Re-creating is the right
+    // answer rather than an error — the row was cleared, and a claim arriving
+    // after a clear should build.
+    const createAndReadPyramidRow = async () => {
+      const insertRow = () =>
+        database('fitness_route_heatmap_pyramids')
+          .insert({
+            id: crypto.randomUUID(),
+            actorId,
+            status: 'idle',
+            error: null,
+            version: 0,
+            claimSeq: 0,
+            totalCount: 0,
+            scannedCount: 0,
+            activityCount: 0,
+            tileCount: 0,
+            pointCount: 0,
+            cursorCreatedAt: null,
+            cursorId: null,
+            completedAt: null,
+            createdAt: currentTime,
+            updatedAt: currentTime
+          })
+          .onConflict('actorId')
+          .ignore()
 
-    const existing = await readPyramidRow(database, actorId)
-    // The insert above guarantees a row; this only narrows the type.
+      for (
+        let attempt = 1;
+        attempt <= PYRAMID_ROW_CREATE_ATTEMPTS;
+        attempt += 1
+      ) {
+        await insertRow()
+        const row = await readPyramidRow(database, actorId)
+        if (row) return row
+      }
+      return null
+    }
+
+    const existing = await createAndReadPyramidRow()
+    // Only reachable if a clear won every attempt in a row, which means the
+    // owner is clearing repeatedly rather than anything being broken. Transient
+    // by nature: the caller's next run creates the row uncontended.
     if (!existing) {
       throw new Error(
-        `Failed to create route heatmap pyramid row for actor ${actorId}`
+        `Route heatmap pyramid row for actor ${actorId} was cleared during every claim attempt`
       )
     }
 

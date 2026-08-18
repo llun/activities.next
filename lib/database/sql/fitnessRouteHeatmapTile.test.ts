@@ -214,19 +214,17 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         expect(next.reason).toBe('claimed')
       })
 
-      it('claims a build fresh once its cursor is gone, rather than resuming into it', async () => {
-        // The premise the compare-and-swap re-asserts, observed at the level a
-        // single-threaded test can reach: an abandoned build whose cursor has
-        // been cleared is claimable, but only as a NEW version whose tiles
-        // replace the abandoned pass's. Told `resumed` with no cursor it would
-        // rescan from the start into the previous build's own tiles, doubling
-        // every count it revisited, with completion unable to sweep the
-        // leftovers because the version never moved.
+      it('claims an abandoned failed build as a fresh version with its progress reset', async () => {
+        // A build that failed is takeable, and takeable as a FRESH one: new
+        // version, no cursor, and this run's counters back to zero — which is
+        // what stops it rescanning into the abandoned pass's own tiles.
         //
-        // This does NOT stage the read-then-shift interleaving — the claim
-        // does its own read, so anything written beforehand is simply what it
-        // reads. That the guard is carried into the write at all is pinned
-        // structurally by the sibling test below.
+        // Named for what it pins and no more. `status` decides `resumed` on
+        // its own, short-circuiting before the cursor is read, so this says
+        // nothing about the cursor half of the premise however the cursor is
+        // left; `starts a fresh version when an abandoned build never
+        // checkpointed` covers that, and the compare-and-swap carrying the
+        // premise into the write at all is pinned structurally below.
         const actorId = await createActor(database)
         const owner = await database.claimFitnessRouteHeatmapPyramidBuild({
           actorId,
@@ -239,12 +237,14 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           cursor: { createdAt: 1_700_000_000_000, id: 'activity-42' },
           scannedCount: 500
         })
+        // Cursor deliberately LEFT in place: a failed build is not resumable
+        // whatever it holds, and clearing it here would suggest the cursor was
+        // doing the work.
         await database.updateFitnessRouteHeatmapPyramid({
           actorId,
           claimSeq: owner.pyramid.claimSeq,
           status: 'failed',
-          error: 'worker died',
-          cursor: null
+          error: 'worker died'
         })
 
         const claim = await database.claimFitnessRouteHeatmapPyramidBuild({
@@ -258,6 +258,52 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         expect(claim.pyramid.version).toBe(owner.pyramid.version + 1)
         expect(claim.pyramid.cursor).toBeUndefined()
         expect(claim.pyramid.scannedCount).toBe(0)
+      })
+
+      it('recreates the build row when a clear removes it mid-claim', async () => {
+        // The insert that precedes the claim's read holds no lock on the row it
+        // conflicts with, so clearing an actor's heatmaps can delete it in
+        // between. Staged by clearing on the read itself, which is that window.
+        const { database: isolated, instance } =
+          getTestSQLDatabaseWithInstance()
+        await isolated.migrate()
+
+        try {
+          const actorId = await createActor(isolated)
+          // Fires once, on the claim's first INSERT — so the row is gone by
+          // the time that attempt reads it back, which is the window the retry
+          // exists for. Clearing any later would stage a different race.
+          let cleared = false
+          const clearAfterFirstInsert = async ({ sql }: { sql: string }) => {
+            if (
+              cleared ||
+              !sql.trimStart().toLowerCase().startsWith('insert') ||
+              !sql.includes('fitness_route_heatmap_pyramids')
+            ) {
+              return
+            }
+            cleared = true
+            await instance('fitness_route_heatmap_pyramids')
+              .where('actorId', actorId)
+              .delete()
+          }
+          instance.on('query-response', (_response, query) => {
+            void clearAfterFirstInsert(query)
+          })
+
+          const claim = await isolated.claimFitnessRouteHeatmapPyramidBuild({
+            actorId,
+            requestedAt: Date.now(),
+            staleBefore: Date.now() - 120_000
+          })
+
+          // Answered rather than thrown: the row was cleared, and a claim
+          // arriving after a clear should build.
+          expect(claim.claimed).toBe(true)
+          expect(claim.reason).toBe('claimed')
+        } finally {
+          await isolated.destroy()
+        }
       })
 
       it('never treats a half-written cursor as resumable on one side only', async () => {
