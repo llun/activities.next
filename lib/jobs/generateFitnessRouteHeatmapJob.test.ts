@@ -5,6 +5,7 @@ import {
   GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME
 } from '@/lib/jobs/names'
 import { getFitnessFile } from '@/lib/services/fitness-files'
+import { FITNESS_FILE_ROUTE_SOURCE_VERSION } from '@/lib/services/fitness-files/fileRouteCache'
 import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
 import { DEFAULT_ROUTE_HEATMAP_MAX_POINTS } from '@/lib/services/fitness-files/routeHeatmap'
 import { seedDatabase } from '@/lib/stub/database'
@@ -1368,6 +1369,266 @@ describe('generateFitnessRouteHeatmapJob', () => {
       status: 'failed',
       error: 'privacy settings failed',
       abortIfCancelled: true
+    })
+  })
+  describe('route cache', () => {
+    it('caches every parsed route on a first run, so the next one has them', async () => {
+      const fitnessFileId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+
+      try {
+        await generateFitnessRouteHeatmapJob(database, {
+          id: 'job-route-cache-write-through',
+          name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+          data: {
+            actorId: actor.id,
+            activityType: null,
+            periodType: 'yearly',
+            periodKey: '2026',
+            // Real callers always stamp this. Without it the soft-delete
+            // cutoff is 0, so a row cleared by an earlier test in this file
+            // can never be reclaimed and the run bails as stale.
+            requestedAt: Date.now()
+          }
+        })
+
+        expect(mockGetFitnessFile).toHaveBeenCalledTimes(1)
+
+        const [route] = await database.getFitnessFileRoutes({
+          fitnessFileIds: [fitnessFileId]
+        })
+        expect(route).toMatchObject({
+          fitnessFileId,
+          actorId: actor.id,
+          points: [
+            [52.36, 4.88],
+            [52.37, 4.89]
+          ],
+          sourceVersion: FITNESS_FILE_ROUTE_SOURCE_VERSION
+        })
+      } finally {
+        await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+        await database.deleteFitnessFile({ id: fitnessFileId })
+      }
+    })
+
+    it('reads cached routes instead of the source files, and builds the same heatmap', async () => {
+      // This is the whole point of the cache: a regenerate must not touch
+      // object storage at all when every activity already has a route row.
+      const fitnessFileId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+
+      try {
+        await generateFitnessRouteHeatmapJob(database, {
+          id: 'job-route-cache-first-run',
+          name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+          data: {
+            actorId: actor.id,
+            activityType: null,
+            periodType: 'yearly',
+            periodKey: '2026',
+            requestedAt: Date.now()
+          }
+        })
+
+        const firstRun = await database.getFitnessRouteHeatmapByKey({
+          actorId: actor.id,
+          activityType: null,
+          periodType: 'yearly',
+          periodKey: '2026'
+        })
+
+        await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+        mockGetFitnessFile.mockClear()
+        mockParseFitnessFile.mockClear()
+
+        await generateFitnessRouteHeatmapJob(database, {
+          id: 'job-route-cache-second-run',
+          name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+          data: {
+            actorId: actor.id,
+            activityType: null,
+            periodType: 'yearly',
+            periodKey: '2026',
+            requestedAt: Date.now()
+          }
+        })
+
+        expect(mockGetFitnessFile).not.toHaveBeenCalled()
+        expect(mockParseFitnessFile).not.toHaveBeenCalled()
+
+        const secondRun = await database.getFitnessRouteHeatmapByKey({
+          actorId: actor.id,
+          activityType: null,
+          periodType: 'yearly',
+          periodKey: '2026'
+        })
+
+        expect(secondRun?.status).toBe('completed')
+        expect(secondRun?.segments).toEqual(firstRun?.segments)
+        expect(secondRun?.bounds).toEqual(firstRun?.bounds)
+        expect(secondRun?.pointCount).toBe(firstRun?.pointCount)
+        expect(secondRun?.activityCount).toBe(firstRun?.activityCount)
+      } finally {
+        await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+        await database.deleteFitnessFile({ id: fitnessFileId })
+      }
+    })
+
+    it('skips the download for a cached activity with no GPS', async () => {
+      const fitnessFileId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+
+      try {
+        await database.upsertFitnessFileRoute({
+          fitnessFileId,
+          actorId: actor.id,
+          points: [],
+          sourceVersion: FITNESS_FILE_ROUTE_SOURCE_VERSION
+        })
+
+        await generateFitnessRouteHeatmapJob(database, {
+          id: 'job-route-cache-no-gps',
+          name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+          data: {
+            actorId: actor.id,
+            activityType: null,
+            periodType: 'yearly',
+            periodKey: '2026',
+            requestedAt: Date.now()
+          }
+        })
+
+        expect(mockGetFitnessFile).not.toHaveBeenCalled()
+
+        const heatmap = await database.getFitnessRouteHeatmapByKey({
+          actorId: actor.id,
+          activityType: null,
+          periodType: 'yearly',
+          periodKey: '2026'
+        })
+        expect(heatmap?.status).toBe('completed')
+        expect(heatmap?.activityCount).toBe(0)
+        expect(heatmap?.segments).toEqual([])
+      } finally {
+        await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+        await database.deleteFitnessFile({ id: fitnessFileId })
+      }
+    })
+
+    it('re-derives a route written at an older source version', async () => {
+      const fitnessFileId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+
+      try {
+        // Geometry that could not have come from the mocked parse, so the
+        // assertions below can tell "re-derived" from "trusted the row".
+        await database.upsertFitnessFileRoute({
+          fitnessFileId,
+          actorId: actor.id,
+          points: [
+            [1.3, 103.8],
+            [1.31, 103.81]
+          ],
+          sourceVersion: FITNESS_FILE_ROUTE_SOURCE_VERSION - 1
+        })
+
+        await generateFitnessRouteHeatmapJob(database, {
+          id: 'job-route-cache-stale-version',
+          name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+          data: {
+            actorId: actor.id,
+            activityType: null,
+            periodType: 'yearly',
+            periodKey: '2026',
+            requestedAt: Date.now()
+          }
+        })
+
+        expect(mockGetFitnessFile).toHaveBeenCalledTimes(1)
+
+        const heatmap = await database.getFitnessRouteHeatmapByKey({
+          actorId: actor.id,
+          activityType: null,
+          periodType: 'yearly',
+          periodKey: '2026'
+        })
+        expect(heatmap?.bounds).toEqual({
+          minLat: 52.36,
+          maxLat: 52.37,
+          minLng: 4.88,
+          maxLng: 4.89
+        })
+
+        const [route] = await database.getFitnessFileRoutes({
+          fitnessFileIds: [fitnessFileId]
+        })
+        expect(route).toMatchObject({
+          points: [
+            [52.36, 4.88],
+            [52.37, 4.89]
+          ],
+          sourceVersion: FITNESS_FILE_ROUTE_SOURCE_VERSION
+        })
+      } finally {
+        await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+        await database.deleteFitnessFile({ id: fitnessFileId })
+      }
+    })
+
+    it('still counts the activity when its route cannot be cached', async () => {
+      // The route is already parsed by the time the write runs, so a failed
+      // write costs the next run a download — never this run its activity.
+      const fitnessFileId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+      const upsertSpy = vi
+        .spyOn(database, 'upsertFitnessFileRoute')
+        .mockRejectedValue(new Error('route cache write failed'))
+
+      try {
+        await generateFitnessRouteHeatmapJob(database, {
+          id: 'job-route-cache-write-failure',
+          name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+          data: {
+            actorId: actor.id,
+            activityType: null,
+            periodType: 'yearly',
+            periodKey: '2026',
+            requestedAt: Date.now()
+          }
+        })
+
+        const heatmap = await database.getFitnessRouteHeatmapByKey({
+          actorId: actor.id,
+          activityType: null,
+          periodType: 'yearly',
+          periodKey: '2026'
+        })
+        expect(heatmap?.status).toBe('completed')
+        expect(heatmap?.activityCount).toBe(1)
+        expect(heatmap?.segments).toEqual([
+          {
+            points: [
+              { lat: 52.36, lng: 4.88 },
+              { lat: 52.37, lng: 4.89 }
+            ]
+          }
+        ])
+      } finally {
+        upsertSpy.mockRestore()
+        await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+        await database.deleteFitnessFile({ id: fitnessFileId })
+      }
     })
   })
 })
