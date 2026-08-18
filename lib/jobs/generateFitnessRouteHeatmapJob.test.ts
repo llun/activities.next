@@ -5,7 +5,10 @@ import {
   GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME
 } from '@/lib/jobs/names'
 import { getFitnessFile } from '@/lib/services/fitness-files'
-import { FITNESS_FILE_ROUTE_SOURCE_VERSION } from '@/lib/services/fitness-files/fileRouteCache'
+import {
+  FITNESS_FILE_ROUTE_SOURCE_VERSION,
+  buildFitnessFileRoutePoints
+} from '@/lib/services/fitness-files/fileRouteCache'
 import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
 import { DEFAULT_ROUTE_HEATMAP_MAX_POINTS } from '@/lib/services/fitness-files/routeHeatmap'
 import { seedDatabase } from '@/lib/stub/database'
@@ -1531,6 +1534,13 @@ describe('generateFitnessRouteHeatmapJob', () => {
       try {
         // Geometry that could not have come from the mocked parse, so the
         // assertions below can tell "re-derived" from "trusted the row".
+        //
+        // Deliberately a version AHEAD of the current one. `- 1` would be 0
+        // today, which is falsy — so a check that merely asked "is there a
+        // version?" would pass, and the day the constant is bumped every row
+        // written under the old rules would be served as a hit. This pins the
+        // comparison itself, and covers the rolling-deploy case where a newer
+        // worker has already rewritten the row.
         await database.upsertFitnessFileRoute({
           fitnessFileId,
           actorId: actor.id,
@@ -1538,7 +1548,7 @@ describe('generateFitnessRouteHeatmapJob', () => {
             [1.3, 103.8],
             [1.31, 103.81]
           ],
-          sourceVersion: FITNESS_FILE_ROUTE_SOURCE_VERSION - 1
+          sourceVersion: FITNESS_FILE_ROUTE_SOURCE_VERSION + 1
         })
 
         await generateFitnessRouteHeatmapJob(database, {
@@ -1578,6 +1588,200 @@ describe('generateFitnessRouteHeatmapJob', () => {
           ],
           sourceVersion: FITNESS_FILE_ROUTE_SOURCE_VERSION
         })
+      } finally {
+        await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+        await database.deleteFitnessFile({ id: fitnessFileId })
+      }
+    })
+
+    it('caches a long route through the same pipeline a rebuild reads it with', async () => {
+      // Every other test here mocks a two-point route, where the cap, the
+      // simplification and the rounding are all the identity — so none of them
+      // would notice the miss path skipping the pipeline entirely and storing
+      // raw parsed coordinates. That would put the `filePointLimit` memory
+      // guard back on the floor and make the cached row disagree with what a
+      // hit produces.
+      const coordinates = Array.from({ length: 900 }, (_value, index) => ({
+        lat: 52.36 + index * 0.000123 + (index % 5) * 0.0000071,
+        lng: 4.88 + index * 0.000091
+      }))
+      mockParseFitnessFile.mockResolvedValue({
+        coordinates,
+        trackPoints: coordinates,
+        totalDistanceMeters: 1_250,
+        totalDurationSeconds: 420,
+        elevationGainMeters: 42,
+        activityType: 'running',
+        startTime: new Date('2026-04-15T07:00:00.000Z')
+      })
+
+      const fitnessFileId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+
+      try {
+        await generateFitnessRouteHeatmapJob(database, {
+          id: 'job-route-cache-long-route',
+          name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+          data: {
+            actorId: actor.id,
+            activityType: null,
+            periodType: 'yearly',
+            periodKey: '2026',
+            requestedAt: Date.now()
+          }
+        })
+
+        const [route] = await database.getFitnessFileRoutes({
+          fitnessFileIds: [fitnessFileId]
+        })
+
+        expect(route.points).toEqual(buildFitnessFileRoutePoints(coordinates))
+        // The pipeline actually did something: raw would have been all 900.
+        expect(route.points.length).toBeLessThan(coordinates.length)
+        expect(route.points.length).toBeGreaterThan(1)
+      } finally {
+        await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+        await database.deleteFitnessFile({ id: fitnessFileId })
+      }
+    })
+
+    it('matches each cached route to its own activity, not to its position in the page', async () => {
+      // A page where only SOME activities have a cached row. Every other test
+      // here has exactly one file, so a lookup that paired the fetched rows
+      // with the page positionally would pass them all — while in production
+      // attributing one athlete's polyline to a different activity, since the
+      // batch read has no ORDER BY and its row order is not the page's.
+      const cachedFileId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+      const uncachedFileId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-16T07:00:00.000Z')
+      )
+
+      try {
+        // Singapore, nowhere near the Amsterdam coordinates the parse mock
+        // returns, so the two are trivially distinguishable in the output.
+        await database.upsertFitnessFileRoute({
+          fitnessFileId: cachedFileId,
+          actorId: actor.id,
+          points: [
+            [1.3, 103.8],
+            [1.31, 103.81]
+          ],
+          sourceVersion: FITNESS_FILE_ROUTE_SOURCE_VERSION
+        })
+
+        await generateFitnessRouteHeatmapJob(database, {
+          id: 'job-route-cache-mixed-page',
+          name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+          data: {
+            actorId: actor.id,
+            activityType: null,
+            periodType: 'yearly',
+            periodKey: '2026',
+            requestedAt: Date.now()
+          }
+        })
+
+        // Exactly the uncached one was downloaded.
+        expect(mockGetFitnessFile).toHaveBeenCalledTimes(1)
+        expect(mockGetFitnessFile).toHaveBeenCalledWith(
+          expect.anything(),
+          uncachedFileId
+        )
+
+        const heatmap = await database.getFitnessRouteHeatmapByKey({
+          actorId: actor.id,
+          activityType: null,
+          periodType: 'yearly',
+          periodKey: '2026'
+        })
+
+        // Both contributed, each its own geometry.
+        expect(heatmap?.activityCount).toBe(2)
+        expect(heatmap?.bounds).toEqual({
+          minLat: 1.3,
+          maxLat: 52.37,
+          minLng: 4.88,
+          maxLng: 103.81
+        })
+      } finally {
+        await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
+        await database.deleteFitnessFile({ id: cachedFileId })
+        await database.deleteFitnessFile({ id: uncachedFileId })
+      }
+    })
+
+    it('re-derives a cached route whose stored points did not survive the round trip', async () => {
+      // `pointCount` is the only thing separating an unreadable payload from a
+      // legitimate GPS-less row: both read back with no points. Without that
+      // check the corrupt row is a permanent hit and its activity disappears
+      // from every heatmap until the file is reprocessed.
+      const fitnessFileId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+
+      try {
+        // Non-finite coordinates serialize as JSON `null`, which the row
+        // parser rejects — so this row stores a two-point `pointCount` beside
+        // a payload that reads back as no points at all: exactly the shape a
+        // truncated or otherwise unreadable payload takes.
+        await database.upsertFitnessFileRoute({
+          fitnessFileId,
+          actorId: actor.id,
+          points: [
+            [Number.NaN, Number.NaN],
+            [Number.NaN, Number.NaN]
+          ],
+          sourceVersion: FITNESS_FILE_ROUTE_SOURCE_VERSION
+        })
+        const [corrupt] = await database.getFitnessFileRoutes({
+          fitnessFileIds: [fitnessFileId]
+        })
+        expect(corrupt).toMatchObject({ points: [], pointCount: 2 })
+
+        await generateFitnessRouteHeatmapJob(database, {
+          id: 'job-route-cache-corrupt',
+          name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+          data: {
+            actorId: actor.id,
+            activityType: null,
+            periodType: 'yearly',
+            periodKey: '2026',
+            requestedAt: Date.now()
+          }
+        })
+
+        expect(mockGetFitnessFile).toHaveBeenCalledTimes(1)
+
+        const heatmap = await database.getFitnessRouteHeatmapByKey({
+          actorId: actor.id,
+          activityType: null,
+          periodType: 'yearly',
+          periodKey: '2026'
+        })
+        expect(heatmap?.activityCount).toBe(1)
+        expect(heatmap?.bounds).toEqual({
+          minLat: 52.36,
+          maxLat: 52.37,
+          minLng: 4.88,
+          maxLng: 4.89
+        })
+
+        // Repaired on the way through, so the next run is a hit again.
+        const [repaired] = await database.getFitnessFileRoutes({
+          fitnessFileIds: [fitnessFileId]
+        })
+        expect(repaired.points).toEqual([
+          [52.36, 4.88],
+          [52.37, 4.89]
+        ])
+        expect(repaired.pointCount).toBe(2)
       } finally {
         await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
         await database.deleteFitnessFile({ id: fitnessFileId })

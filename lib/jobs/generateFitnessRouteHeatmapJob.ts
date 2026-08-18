@@ -51,6 +51,11 @@ import { createJobHandle } from './createJobHandle'
 // the ~25s-per-task target. Anything longer is split into a continuation job.
 const ROUTE_HEATMAP_JOB_TIME_BUDGET_MS = 20_000
 const ROUTE_HEATMAP_PAGE_SIZE = 100
+// How many cached routes to read ahead within a page. Ten keeps the worst-case
+// live set (10 x `filePointLimit` = 800,000 points, ~40 MB of tuples) at the
+// same order as the single raw parse this job held before the cache existed,
+// while still collapsing a page's storage reads into ten indexed lookups.
+const ROUTE_CACHE_PREFETCH_SIZE = 10
 const ROUTE_HEATMAP_MAX_FILES = 1_000_000
 const QUEUE_PUBLISH_MAX_ATTEMPTS = 3
 
@@ -186,7 +191,19 @@ const resolveRouteCoordinates = async (
     cachedRoute: FitnessFileRoute | undefined
   }
 ): Promise<FitnessCoordinate[]> => {
-  if (cachedRoute?.sourceVersion === FITNESS_FILE_ROUTE_SOURCE_VERSION) {
+  // `pointCount` is what tells a real empty route apart from an unreadable one.
+  // `parseRoutePoints` answers `[]` for a payload it cannot decode — the row
+  // parser's documented "a corrupt payload is a cache miss" — but by the time
+  // it reaches here that is byte-identical to the negative-cache row a
+  // GPS-less activity legitimately writes. Without this check a single
+  // unreadable row would be served as a permanent hit and its activity would
+  // silently vanish from every heatmap until the file was reprocessed.
+  const isUsableCachedRoute =
+    cachedRoute !== undefined &&
+    cachedRoute.sourceVersion === FITNESS_FILE_ROUTE_SOURCE_VERSION &&
+    cachedRoute.points.length === cachedRoute.pointCount
+
+  if (isUsableCachedRoute) {
     return cachedRoute.points.map(([lat, lng]) => ({ lat, lng }))
   }
 
@@ -547,21 +564,39 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           break
         }
 
-        // One read for the whole page, so a fully-cached history costs a query
-        // per 100 activities instead of an object-storage round trip each. A
-        // missing id is simply absent from the map and falls through to the
-        // parse path below.
-        const cachedRoutes = new Map(
-          (
-            await database.getFitnessFileRoutes({
-              fitnessFileIds: page.map((file) => file.id)
-            })
-          ).map((route) => [route.fitnessFileId, route])
-        )
+        let cachedRoutes = new Map<string, FitnessFileRoute>()
 
         for (let pageIndex = 0; pageIndex < page.length; pageIndex += 1) {
           const file = page[pageIndex]
           const nextCursorOffset = cursorOffset + pageIndex + 1
+
+          // Read the cached routes a few at a time rather than a page at a
+          // time. Batching at all is what turns a fully-cached history from one
+          // object-storage round trip per activity into a handful of indexed
+          // primary-key lookups; batching the WHOLE page is what would undo
+          // it. Every row here is a decoded polyline held until the batch is
+          // done, and `filePointLimit` caps a single one at 80,000 points, so
+          // 100 dense activities read up front is on the order of 400 MB —
+          // past the job's own 512 MB reduce threshold, on the same activities
+          // that used to complete when the job held one parse at a time.
+          //
+          // `shouldReduceAccumulation` cannot rescue that: it downsamples the
+          // accumulated segments, a different object, so it would fire on every
+          // remaining file and free nothing. And the failure would not heal —
+          // the checkpoint cursor points back at the same page, so every retry
+          // would rebuild the same batch and die again.
+          if (pageIndex % ROUTE_CACHE_PREFETCH_SIZE === 0) {
+            const prefetchIds = page
+              .slice(pageIndex, pageIndex + ROUTE_CACHE_PREFETCH_SIZE)
+              .map((prefetchFile) => prefetchFile.id)
+            cachedRoutes = new Map(
+              (
+                await database.getFitnessFileRoutes({
+                  fitnessFileIds: prefetchIds
+                })
+              ).map((route) => [route.fitnessFileId, route])
+            )
+          }
 
           try {
             if (isParseableFitnessFileType(file.fileType)) {
@@ -571,6 +606,9 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
                 fileType: file.fileType,
                 cachedRoute: cachedRoutes.get(file.id)
               })
+              // Folded in below; drop the prefetched copy so it is collectable
+              // now rather than at the end of the batch.
+              cachedRoutes.delete(file.id)
 
               // Downsample before privacy/region splitting to keep route-cache
               // generation inside the worker's 30s/1GB budget. This heatmap is
