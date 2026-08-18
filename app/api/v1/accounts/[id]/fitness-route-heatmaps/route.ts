@@ -179,8 +179,13 @@ export const DELETE = traceApiRoute(
     // `fitness_file_routes` is deliberately left alone. It is a parse cache of
     // files the owner still has, not heatmap output; clearing it would only buy
     // back the slow download-and-reparse path on the next Generate.
-    await database.deleteFitnessRouteHeatmapTilesForActor({ actorId: id })
+    // Pyramid FIRST, then its tiles. Removing the pyramid row removes the
+    // ownership token every tile write is fenced on, so a build still running
+    // is rejected from that moment and cannot write tiles into the gap between
+    // the two statements — tiles that would carry a version no later build's
+    // sweep could reach, since a recreated pyramid starts counting again.
     await database.deleteFitnessRouteHeatmapPyramidForActor({ actorId: id })
+    await database.deleteFitnessRouteHeatmapTilesForActor({ actorId: id })
 
     return apiResponse({
       req,
